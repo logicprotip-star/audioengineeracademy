@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>EQ Ear Trainer Pro X</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <section class="hero">
+      <div class="glass hero-main">
+        <div class="eyebrow">EQ Ear Trainer Pro X</div>
+        <h1>Daha hızlı duy. Daha doğru tanı. Daha zor boss round’ları geç.</h1>
+        <div class="sub intro-long">
+          Bu sürümde zaman baskısı, can sistemi, günlük görevler, A/B karşılaştırma modu, boss round, yüklenen ses desteği,
+          mobil uyum, başarımlar, XP ve combo akışı birlikte çalışır.
+        </div>
+        <div class="sub mobile-warn" style="margin-top:10px;color:var(--yellow);font-size:13px">
+          🎧 En iyi sonuç için kulaklık kullan. · 📱 <b>iPhone'da ses gelmiyorsa:</b> yan taraftaki sessiz (zil/sessiz) anahtarını kapat — sessiz modda tarayıcı sesi susar.
+        </div>
+
+        <div class="hero-actions">
+          <button class="btn" id="startBtn">Oyunu Başlat</button>
+          <button class="btn secondary" id="playACleanBtn">A - Temiz</button>
+          <button class="btn secondary" id="playBFilteredBtn">B - İşlenmiş</button>
+          <button class="btn success" id="nextBtn">Atla ▶</button>
+          <button class="btn warning" id="abAutoBtn">A/B Demo</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="glass hero-side">
+      <div class="stat-grid">
+          <div class="mini-card">
+            <div class="label">Level</div>
+            <div class="value" id="levelValue">1</div>
+          </div>
+          <div class="mini-card">
+            <div class="label">XP</div>
+            <div class="value" id="xpValue">0</div>
+          </div>
+          <div class="mini-card">
+            <div class="label">Combo</div>
+            <div class="value" id="comboValue">0x</div>
+          </div>
+          <div class="mini-card">
+            <div class="label">Doğruluk</div>
+            <div class="value" id="accuracyValue">%0</div>
+          </div>
+        </div>
+
+        <div class="progress-shell">
+          <div class="progress-label">
+            <span>Bir sonraki level</span>
+            <span id="progressText">0 / 120 XP</span>
+          </div>
+          <div class="progress"><span id="xpBar"></span></div>
+        </div>
+
+        <div class="block">
+          <div class="label">Canlar</div>
+          <div class="hearts" id="hearts"></div>
+        </div>
+
+        <div class="block">
+          <div class="progress-label">
+            <span>Süre</span>
+            <span id="timerText">0.0s</span>
+          </div>
+          <div class="timer-bar"><span id="timerBar"></span></div>
+        </div>
+
+        <div class="block" id="analysisBlock">
+          <div class="progress-label">
+            <span>🎯 Kişisel Analiz</span>
+            <span id="analysisReset" style="cursor:pointer;color:var(--muted2);font-size:11px;text-decoration:underline">temizle</span>
+          </div>
+          <div id="analysisBody" style="font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:6px">
+            Birkaç tur oyna, kulağının hangi frekans bölgesinde güçlü/zayıf olduğunu burada göstereceğim.
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="progress-label" style="margin-bottom:10px"><span>📊 Canlı İstatistikler</span></div>
+          <div class="metrics">
+            <div class="metric"><div class="k">Toplam Tur</div><div class="v" id="roundsValue">0</div></div>
+            <div class="metric"><div class="k">Doğru</div><div class="v" id="correctValue" style="color:var(--green)">0</div></div>
+            <div class="metric"><div class="k">Yanlış</div><div class="v" id="wrongValue" style="color:var(--red)">0</div></div>
+            <div class="metric"><div class="k">Ort. Puan / Tur</div><div class="v" id="avgScoreValue">0</div></div>
+            <div class="metric"><div class="k">En İyi Combo</div><div class="v" id="bestComboValue">0x</div></div>
+            <div class="metric"><div class="k">En Yüksek Skor</div><div class="v" id="bestScoreValue">0</div></div>
+          </div>
+        </div>
+
+        <div class="block">
+          <div class="progress-label" style="margin-bottom:10px"><span>📅 Günlük Görevler</span></div>
+          <div class="daily-grid" id="dailyList"></div>
+        </div>
+
+        <div class="block">
+          <div class="progress-label" style="margin-bottom:10px"><span>🏆 Başarımlar</span></div>
+          <div class="achievement-list" id="achievementList"></div>
+        </div>
+
+        <div class="block">
+          <div class="progress-label" style="margin-bottom:10px"><span>🕐 Son Turlar</span></div>
+          <div class="history-list" id="historyList"></div>
+        </div>
+    </div>
+
+    <section class="layout">
+      <div class="glass panel panel-arena">
+        <div class="topbar">
+          <h2>Antrenman Arenası</h2>
+          <div class="cluster">
+            <div class="control">
+              <label>Oyun modu</label>
+              <select id="modeSelect">
+                <option value="frequency" selected>Frekans Bölgesi (Tek Bant)</option>
+                <option value="proplus">Pro Plus (Çok Bantlı)</option>
+              </select>
+            </div>
+
+            <div class="control hidden" id="layerControl">
+              <label>Pro Plus Katmanı</label>
+              <select id="layerSelect">
+                <option value="1" selected>Katman 1 · 4 frekansın yerini bul</option>
+                <option value="2">Katman 2 · Frekans + kaç dB</option>
+                <option value="3">Katman 3 · 4 frekans + yön (aç/kıs)</option>
+              </select>
+            </div>
+
+            <div class="control">
+              <label>Oyun türü</label>
+              <select id="playModeSelect">
+                <option value="free" selected>Serbest (sonsuz)</option>
+                <option value="challenge">10 Soruluk Bölüm (+%50 XP)</option>
+              </select>
+            </div>
+
+            <div class="control">
+              <label>Zorluk</label>
+              <select id="difficultySelect">
+                <option value="easy">Kolay</option>
+                <option value="medium" selected>Orta</option>
+                <option value="hard">Zor</option>
+                <option value="pro">Pro</option>
+              </select>
+            </div>
+
+            <div class="control">
+              <label>Süre</label>
+              <select id="timerModeSelect">
+                <option value="on" selected>Süreli</option>
+                <option value="off">Süresiz</option>
+              </select>
+            </div>
+
+            <div class="control">
+              <label>Kaynak</label>
+              <select id="sourceSelect">
+                <option value="pink">Pink Noise</option>
+                <option value="white">White Noise</option>
+                <option value="saw">Saw Synth</option>
+                <option value="square">Square Synth</option>
+                <option value="triangle">Triangle Synth</option>
+                <option value="upload">Yüklenen Ses Dosyası</option>
+              </select>
+            </div>
+
+            <div class="control">
+              <label>Ses dosyası yükle</label>
+              <input type="file" id="audioFileInput" accept="audio/*" />
+            </div>
+          </div>
+        </div>
+
+        <div class="arena">
+          <div class="visualizer-wrap">
+            <canvas id="visualizer" width="1200" height="220"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass panel panel-question">
+        <div class="arena">
+          <div class="question-box">
+            <div class="question-row">
+              <div>
+                <div class="question-main" id="questionTitle">Başlamak için “Oyunu Başlat”a dokun.</div>
+                <div class="question-sub" id="questionMeta">Boss round her 5 turda gelir. A/B ile temiz ve işlenmiş sesi hızlıca karşılaştırabilirsin.</div>
+              </div>
+
+              <div class="streak">
+                <span class="pulse"></span>
+                <span id="streakText">Hazır</span>
+              </div>
+            </div>
+
+            <div class="chips">
+              <div class="chip">Bell</div>
+              <div class="chip">High Shelf</div>
+              <div class="chip">Low Shelf</div>
+              <div class="chip">High Pass</div>
+              <div class="chip">Low Pass</div>
+              <div class="chip">Notch</div>
+              <div class="chip ab">A/B Modu</div>
+              <div class="chip boss">Boss Round</div>
+              <div class="chip live">Zamanlı</div>
+            </div>
+
+            <div class="answers" id="answers"></div>
+            <div id="freqGuessArea" class="hidden" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <span style="color:var(--cyan);font-size:14px;font-weight:700">👆 Dalga üzerine tıklayarak doğru frekansı işaretle</span>
+            </div>
+            <div id="freqInfo" class="hidden" style="padding:14px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.12);margin-top:2px"></div>
+
+            <div class="feed" id="feedbackBox">
+              <div>
+                <strong>Henüz cevap verilmedi.</strong>
+                <span id="feedbackDetail">A ve B’yi dinle, farkı hisset ve doğru cevabı seç.</span>
+              </div>
+              <div class="chips">
+                <div class="chip" id="roundChip">Round 0</div>
+                <div class="chip" id="scoreChip">Skor 0</div>
+                <div class="chip" id="bossChip">Normal</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="toolbar-grid">
+            <button class="btn secondary" id="replayBtn">Tekrar Çal</button>
+            <button class="btn secondary" id="hintBtn">İpucu Ver</button>
+            <button class="btn secondary" id="toggleVisualizerBtn">Spektrumu Göster/Gizle</button>
+            <button class="btn secondary" id="resetStatsBtn">İstatistikleri Sıfırla</button>
+          </div>
+        </div>
+
+        <div class="footer-note">
+          A modu temiz sesi, B modu işlenmiş sesi çalar. Boss round’larda etkiler biraz daha yakın duyulur. Süre biterse can kaybedersin.
+          Yüklediğin ses dosyası seçiliyse oyun onun üstüne filtre uygular.
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
