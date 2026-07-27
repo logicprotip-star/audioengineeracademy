@@ -1936,4 +1936,58 @@
           document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.dataset.tabContent === target));
         });
       });
+
+      // Ayarlar bottom sheet: select'leri gizleyip yerine tıklanabilir satır koyduk,
+      // seçim yapılınca gizli select'in value'su güncellenip change event tetikleniyor.
+      (function initSettingsSheet() {
+        const overlay = document.getElementById('sheetOverlay');
+        const sheet = document.getElementById('settingsSheet');
+        const sheetTitle = document.getElementById('sheetTitle');
+        const sheetOptions = document.getElementById('sheetOptions');
+        const sheetCancel = document.getElementById('sheetCancel');
+        if (!overlay || !sheet) return;
+
+        function updateRowText(select) {
+          const row = document.querySelector(`.setting-row[data-sheet-select="${select.id}"]`);
+          const txt = row && row.querySelector('.setting-row-value-text');
+          if (txt && select.options[select.selectedIndex]) {
+            txt.textContent = select.options[select.selectedIndex].text;
+          }
+        }
+
+        function closeSheet() {
+          overlay.classList.remove('open');
+          sheet.classList.remove('open');
+        }
+
+        function openSheet(select, title) {
+          sheetTitle.textContent = title;
+          sheetOptions.innerHTML = '';
+          Array.from(select.options).forEach(opt => {
+            const row = document.createElement('div');
+            row.className = 'sheet-option' + (opt.selected ? ' selected' : '');
+            row.innerHTML = `<span>${opt.text}</span><span class="check">✓</span>`;
+            row.addEventListener('click', () => {
+              select.value = opt.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              updateRowText(select);
+              closeSheet();
+            });
+            sheetOptions.appendChild(row);
+          });
+          overlay.classList.add('open');
+          sheet.classList.add('open');
+        }
+
+        document.querySelectorAll('.setting-row').forEach(row => {
+          const select = document.getElementById(row.dataset.sheetSelect);
+          if (!select) return;
+          updateRowText(select);
+          row.addEventListener('click', () => openSheet(select, row.dataset.sheetTitle || ''));
+        });
+
+        overlay.addEventListener('click', closeSheet);
+        sheetCancel.addEventListener('click', closeSheet);
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+      })();
     })();

@@ -42,68 +42,6 @@
             <h2>Antrenman Arenası</h2>
             <button class="chip chip-ab-demo" id="abAutoBtn">A/B Demo</button>
           </div>
-          <div class="cluster">
-              <div class="control">
-                <label>Oyun modu</label>
-                <select id="modeSelect">
-                  <option value="frequency" selected>Frekans Bölgesi (Tek Bant)</option>
-                  <option value="proplus">Pro Plus (Çok Bantlı)</option>
-                </select>
-              </div>
-
-              <div class="control hidden" id="layerControl">
-                <label>Pro Plus Katmanı</label>
-                <select id="layerSelect">
-                  <option value="1" selected>Katman 1 · 4 frekansın yerini bul</option>
-                  <option value="2">Katman 2 · Frekans + kaç dB</option>
-                  <option value="3">Katman 3 · 4 frekans + yön (aç/kıs)</option>
-                </select>
-              </div>
-
-              <div class="control">
-                <label>Oyun türü</label>
-                <select id="playModeSelect">
-                  <option value="free" selected>Serbest (sonsuz)</option>
-                  <option value="challenge">10 Soruluk Bölüm (+%50 XP)</option>
-                </select>
-              </div>
-
-              <div class="control">
-                <label>Zorluk</label>
-                <select id="difficultySelect">
-                  <option value="easy">Kolay</option>
-                  <option value="medium" selected>Orta</option>
-                  <option value="hard">Zor</option>
-                  <option value="pro">Pro</option>
-                </select>
-              </div>
-
-              <div class="control">
-                <label>Süre</label>
-                <select id="timerModeSelect">
-                  <option value="on" selected>Süreli</option>
-                  <option value="off">Süresiz</option>
-                </select>
-              </div>
-
-              <div class="control">
-                <label>Kaynak</label>
-                <select id="sourceSelect">
-                  <option value="pink">Pink Noise</option>
-                  <option value="white">White Noise</option>
-                  <option value="saw">Saw Synth</option>
-                  <option value="square">Square Synth</option>
-                  <option value="triangle">Triangle Synth</option>
-                  <option value="upload">Yüklenen Ses Dosyası</option>
-                </select>
-              </div>
-
-              <div class="control">
-                <label>Ses dosyası yükle</label>
-                <input type="file" id="audioFileInput" accept="audio/*" />
-              </div>
-          </div>
-
           <div class="arena">
             <div class="visualizer-wrap">
               <canvas id="visualizer" width="1200" height="220"></canvas>
@@ -168,6 +106,90 @@
           <div class="footer-note">
             A modu temiz sesi, B modu işlenmiş sesi çalar. Boss round’larda etkiler biraz daha yakın duyulur. Süre biterse can kaybedersin.
             Yüklediğin ses dosyası seçiliyse oyun onun üstüne filtre uygular.
+          </div>
+        </div>
+
+        <div class="glass panel panel-settings">
+          <div class="cluster">
+              <div class="control control-sheet">
+                <label class="hidden">Oyun modu</label>
+                <select id="modeSelect" class="hidden">
+                  <option value="frequency" selected>Frekans Bölgesi (Tek Bant)</option>
+                  <option value="proplus">Pro Plus (Çok Bantlı)</option>
+                </select>
+                <div class="setting-row" data-sheet-select="modeSelect" data-sheet-title="Oyun Modu">
+                  <span class="setting-row-label">Oyun Modu</span>
+                  <span class="setting-row-value"><span class="setting-row-value-text"></span><span class="chev">›</span></span>
+                </div>
+              </div>
+
+              <div class="control hidden" id="layerControl">
+                <label>Pro Plus Katmanı</label>
+                <select id="layerSelect">
+                  <option value="1" selected>Katman 1 · 4 frekansın yerini bul</option>
+                  <option value="2">Katman 2 · Frekans + kaç dB</option>
+                  <option value="3">Katman 3 · 4 frekans + yön (aç/kıs)</option>
+                </select>
+              </div>
+
+              <div class="control control-sheet">
+                <label class="hidden">Oyun türü</label>
+                <select id="playModeSelect" class="hidden">
+                  <option value="free" selected>Serbest (sonsuz)</option>
+                  <option value="challenge">10 Soruluk Bölüm (+%50 XP)</option>
+                </select>
+                <div class="setting-row" data-sheet-select="playModeSelect" data-sheet-title="Oyun Türü">
+                  <span class="setting-row-label">Oyun Türü</span>
+                  <span class="setting-row-value"><span class="setting-row-value-text"></span><span class="chev">›</span></span>
+                </div>
+              </div>
+
+              <div class="control control-sheet">
+                <label class="hidden">Zorluk</label>
+                <select id="difficultySelect" class="hidden">
+                  <option value="easy">Kolay</option>
+                  <option value="medium" selected>Orta</option>
+                  <option value="hard">Zor</option>
+                  <option value="pro">Pro</option>
+                </select>
+                <div class="setting-row" data-sheet-select="difficultySelect" data-sheet-title="Zorluk">
+                  <span class="setting-row-label">Zorluk</span>
+                  <span class="setting-row-value"><span class="setting-row-value-text"></span><span class="chev">›</span></span>
+                </div>
+              </div>
+
+              <div class="control control-sheet">
+                <label class="hidden">Süre</label>
+                <select id="timerModeSelect" class="hidden">
+                  <option value="on" selected>Süreli</option>
+                  <option value="off">Süresiz</option>
+                </select>
+                <div class="setting-row" data-sheet-select="timerModeSelect" data-sheet-title="Süre">
+                  <span class="setting-row-label">Süre</span>
+                  <span class="setting-row-value"><span class="setting-row-value-text"></span><span class="chev">›</span></span>
+                </div>
+              </div>
+
+              <div class="control control-sheet">
+                <label class="hidden">Kaynak</label>
+                <select id="sourceSelect" class="hidden">
+                  <option value="pink">Pink Noise</option>
+                  <option value="white">White Noise</option>
+                  <option value="saw">Saw Synth</option>
+                  <option value="square">Square Synth</option>
+                  <option value="triangle">Triangle Synth</option>
+                  <option value="upload">Yüklenen Ses Dosyası</option>
+                </select>
+                <div class="setting-row" data-sheet-select="sourceSelect" data-sheet-title="Kaynak">
+                  <span class="setting-row-label">Kaynak</span>
+                  <span class="setting-row-value"><span class="setting-row-value-text"></span><span class="chev">›</span></span>
+                </div>
+              </div>
+
+              <div class="control">
+                <label>Ses dosyası yükle</label>
+                <input type="file" id="audioFileInput" accept="audio/*" />
+              </div>
           </div>
         </div>
       </section>
@@ -257,6 +279,16 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="sheet-overlay" id="sheetOverlay"></div>
+  <div class="bottom-sheet" id="settingsSheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h3 id="sheetTitle">Ayar</h3>
+      <button class="sheet-cancel" id="sheetCancel" type="button">İptal</button>
+    </div>
+    <div class="sheet-options" id="sheetOptions"></div>
   </div>
 
   <script src="app.js"></script>
