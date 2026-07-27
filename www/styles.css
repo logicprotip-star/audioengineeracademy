@@ -295,6 +295,32 @@
       margin-bottom:14px;
     }
 
+    .arena-title .arena-title-main{
+      margin:0;
+      font-size:24px;
+      font-weight:700;
+      font-family:'Space Grotesk', Inter, sans-serif;
+      letter-spacing:-.01em;
+      color:var(--text);
+    }
+    .arena-title-sub{
+      margin-top:2px;
+      color:var(--muted);
+      font-size:13px;
+    }
+    .arena-title-chips{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:8px;
+    }
+    .chip-seri{
+      color:var(--violet);
+      background:rgba(139,125,255,.14);
+      border-color:rgba(139,125,255,.38);
+      font-weight:700;
+    }
+
     .control{
       min-width:155px;
       flex:1 1 155px;
@@ -404,21 +430,6 @@
       font-weight:700;
     }
 
-    .pulse{
-      width:12px;
-      height:12px;
-      border-radius:50%;
-      background:var(--green);
-      box-shadow:0 0 0 0 rgba(103,240,170,.55);
-      animation:pulse 2s infinite;
-    }
-
-    @keyframes pulse{
-      0%{box-shadow:0 0 0 0 rgba(103,240,170,.55)}
-      70%{box-shadow:0 0 0 14px rgba(103,240,170,0)}
-      100%{box-shadow:0 0 0 0 rgba(103,240,170,0)}
-    }
-
     .answers{
       display:grid;
       grid-template-columns:repeat(3,1fr);
@@ -488,9 +499,7 @@
       color:var(--muted);
     }
 
-    .chip.live{color:#fff;background:rgba(255,159,67,.18);border-color:rgba(255,159,67,.38)}
     .chip.boss{color:#fff;background:rgba(255,108,136,.18);border-color:rgba(255,108,136,.4)}
-    .chip.ab{color:#fff;background:rgba(111,211,255,.18);border-color:rgba(111,211,255,.35)}
 
     .chip-ab-demo{
       cursor:pointer;

@@ -50,6 +50,7 @@
         playACleanBtn: document.getElementById("playACleanBtn"),
         playBFilteredBtn: document.getElementById("playBFilteredBtn"),
         abAutoBtn: document.getElementById("abAutoBtn"),
+        seriChip: document.getElementById("seriChip"),
         replayBtn: document.getElementById("replayBtn"),
         hintBtn: document.getElementById("hintBtn"),
         toggleVisualizerBtn: document.getElementById("toggleVisualizerBtn"),
@@ -1267,6 +1268,7 @@
         els.progressText.textContent = `${xp.current} / ${xp.required} XP`;
         els.xpBar.style.width = `${percent}%`;
 
+        if (els.seriChip) els.seriChip.textContent = 'Seri ' + stats.rounds;
         els.roundsValue.textContent = stats.rounds;
         els.correctValue.textContent = stats.correct;
         if (els.wrongValue) els.wrongValue.textContent = stats.wrong;

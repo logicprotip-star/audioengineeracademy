@@ -8,15 +8,15 @@
 </head>
 <body>
   <div class="app">
-    <section class="hero">
+    <section class="hero" style="display:none">
       <div class="glass hero-main">
-        <div class="eyebrow">EQ Ear Trainer Pro X</div>
+        <div class="eyebrow" style="display:none">EQ Ear Trainer Pro X</div>
         <h1 style="display:none">Daha hızlı duy. Daha doğru tanı. Daha zor boss round’ları geç.</h1>
         <div class="sub intro-long" style="display:none">
           Bu sürümde zaman baskısı, can sistemi, günlük görevler, A/B karşılaştırma modu, boss round, yüklenen ses desteği,
           mobil uyum, başarımlar, XP ve combo akışı birlikte çalışır.
         </div>
-        <div class="sub mobile-warn" style="margin-top:10px;color:var(--yellow);font-size:13px">
+        <div class="sub mobile-warn" style="display:none;margin-top:10px;color:var(--yellow);font-size:13px">
           🎧 En iyi sonuç için kulaklık kullan. · 📱 <b>iPhone'da ses gelmiyorsa:</b> yan taraftaki sessiz (zil/sessiz) anahtarını kapat — sessiz modda tarayıcı sesi susar.
         </div>
       </div>
@@ -39,8 +39,14 @@
       <section class="layout">
         <div class="glass panel panel-arena">
           <div class="topbar">
-            <h2>Antrenman Arenası</h2>
-            <button class="chip chip-ab-demo" id="abAutoBtn">A/B Demo</button>
+            <div class="arena-title">
+              <h2 class="arena-title-main">Kulak Eğitimi</h2>
+              <div class="arena-title-sub">Antrenman Arenası</div>
+            </div>
+            <div class="arena-title-chips">
+              <span id="seriChip" class="chip chip-seri">Seri 0</span>
+              <button class="chip chip-ab-demo" id="abAutoBtn">A/B Test</button>
+            </div>
           </div>
           <div class="arena">
             <div class="visualizer-wrap">
@@ -55,25 +61,12 @@
               <div class="question-row">
                 <div>
                   <div class="question-main" id="questionTitle">Başlamak için “Oyunu Başlat”a dokun.</div>
-                  <div class="question-sub" id="questionMeta">Boss round her 5 turda gelir. A/B ile temiz ve işlenmiş sesi hızlıca karşılaştırabilirsin.</div>
+                  <div class="question-sub hidden" id="questionMeta">Boss round her 5 turda gelir. A/B ile temiz ve işlenmiş sesi hızlıca karşılaştırabilirsin.</div>
                 </div>
 
-                <div class="streak">
-                  <span class="pulse"></span>
+                <div class="streak" style="display:none">
                   <span id="streakText">Hazır</span>
                 </div>
-              </div>
-
-              <div class="chips">
-                <div class="chip">Bell</div>
-                <div class="chip">High Shelf</div>
-                <div class="chip">Low Shelf</div>
-                <div class="chip">High Pass</div>
-                <div class="chip">Low Pass</div>
-                <div class="chip">Notch</div>
-                <div class="chip ab">A/B Modu</div>
-                <div class="chip boss">Boss Round</div>
-                <div class="chip live">Zamanlı</div>
               </div>
 
               <div class="answers" id="answers"></div>
@@ -84,13 +77,13 @@
 
               <div class="feed" id="feedbackBox">
                 <div>
-                  <strong>Henüz cevap verilmedi.</strong>
-                  <span id="feedbackDetail">A ve B’yi dinle, farkı hisset ve doğru cevabı seç.</span>
+                  <strong>Başlamak için “Oyunu Başlat”a dokun.</strong>
+                  <span id="feedbackDetail"></span>
                 </div>
                 <div class="chips">
-                  <div class="chip" id="roundChip">Round 0</div>
-                  <div class="chip" id="scoreChip">Skor 0</div>
-                  <div class="chip" id="bossChip">Normal</div>
+                  <div class="chip hidden" id="roundChip">Round 0</div>
+                  <div class="chip hidden" id="scoreChip">Skor 0</div>
+                  <div class="chip hidden" id="bossChip">Normal</div>
                 </div>
               </div>
             </div>
