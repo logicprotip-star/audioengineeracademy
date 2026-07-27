@@ -126,6 +126,21 @@
       const faFToX = (f, w) => w * Math.log(f / FA_MIN) / Math.log(FA_MAX / FA_MIN);
       const FA_TICKS = [31,63,125,250,500,1000,2000,4000,8000,16000];
 
+      // --- Native depolama (Capacitor Preferences) ile localStorage'ı yedekli tutma ---
+      // WKWebView bazen depolama baskısı altında localStorage'ı temizleyebiliyor;
+      // her yazımda sessizce Preferences'a da mirror atıp, açılışta eksikse oradan kurtarıyoruz.
+      function getPrefs() {
+        return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences) || null;
+      }
+      function mirrorSet(key, value) {
+        const p = getPrefs();
+        if (p) p.set({ key, value }).catch(() => {});
+      }
+      function mirrorRemove(key) {
+        const p = getPrefs();
+        if (p) p.remove({ key }).catch(() => {});
+      }
+
       // --- Bölge bazlı performans (zayıf bölge analizi için) ---
       let zoneStats = (function(){ try { return JSON.parse(localStorage.getItem("fa_zonestats")) || {}; } catch(e){ return {}; } })();
       function recordZone(freq, correct) {
@@ -135,7 +150,11 @@
         zoneStats[key] = zoneStats[key] || { n: 0, ok: 0 };
         zoneStats[key].n++;
         if (correct) zoneStats[key].ok++;
-        try { localStorage.setItem("fa_zonestats", JSON.stringify(zoneStats)); } catch(e){}
+        try {
+          const raw = JSON.stringify(zoneStats);
+          localStorage.setItem("fa_zonestats", raw);
+          mirrorSet("fa_zonestats", raw);
+        } catch(e){}
       }
 
       // Kişisel analiz: bölge bölge başarıyı okuyup güçlü/zayıf bölgeyi söyle
@@ -181,6 +200,41 @@
       let stats = loadStats();
       let history = stats.history || [];
       let daily = loadDaily();
+
+      // localStorage boşsa (ör. WKWebView temizlemişse) Preferences'taki yedekten kurtar.
+      (async function reconcileFromPreferences() {
+        const p = getPrefs();
+        if (!p) return;
+        try {
+          let recovered = false;
+          if (!localStorage.getItem("eqEarTrainerProXStats")) {
+            const { value } = await p.get({ key: "eqEarTrainerProXStats" });
+            if (value) {
+              localStorage.setItem("eqEarTrainerProXStats", value);
+              stats = loadStats();
+              history = stats.history || [];
+              recovered = true;
+            }
+          }
+          if (!localStorage.getItem("eqEarTrainerProXDaily")) {
+            const { value } = await p.get({ key: "eqEarTrainerProXDaily" });
+            if (value) {
+              localStorage.setItem("eqEarTrainerProXDaily", value);
+              daily = loadDaily();
+              recovered = true;
+            }
+          }
+          if (!localStorage.getItem("fa_zonestats")) {
+            const { value } = await p.get({ key: "fa_zonestats" });
+            if (value) {
+              localStorage.setItem("fa_zonestats", value);
+              zoneStats = JSON.parse(value);
+              recovered = true;
+            }
+          }
+          if (recovered) { updateUI(); renderHistory(); renderDaily(); renderAnalysis(); }
+        } catch (e) {}
+      })();
 
       function freshDiffState(lives) {
         return { xp: 0, score: 0, bestScore: 0, lives: lives };
@@ -232,7 +286,9 @@
 
       function saveStats() {
         stats.history = history.slice(0, 12);
-        localStorage.setItem("eqEarTrainerProXStats", JSON.stringify(stats));
+        const raw = JSON.stringify(stats);
+        localStorage.setItem("eqEarTrainerProXStats", raw);
+        mirrorSet("eqEarTrainerProXStats", raw);
       }
 
       function dailyKey() {
@@ -264,7 +320,9 @@
       }
 
       function saveDaily() {
-        localStorage.setItem("eqEarTrainerProXDaily", JSON.stringify(daily));
+        const raw = JSON.stringify(daily);
+        localStorage.setItem("eqEarTrainerProXDaily", raw);
+        mirrorSet("eqEarTrainerProXDaily", raw);
       }
 
       function accuracy(s = stats) {
@@ -417,7 +475,7 @@
         let tries = 0;
         while (bands.length < count && tries < 200) {
           tries++;
-          const f = logFreq(70, 11000);
+          const f = logFreq(80, 17000);
           // en az ~0.9 oktav aralık bırak ki ayırt edilebilsin
           if (bands.some(b => Math.abs(Math.log2(f / b.freq)) < 0.9)) continue;
           const sign = Math.random() > 0.5 ? 1 : -1;
@@ -444,7 +502,7 @@
             return {
               mode, layer,
               difficulty: els.difficultySelect.value,
-              freq: logFreq(70, 11000),
+              freq: logFreq(80, 17000),
               gain: db * sign,
               gainDb: db,
               q: 3.0,
@@ -463,7 +521,7 @@
         }
 
         // ---- FREKANS (tek bant) ----
-        let freq = logFreq(63, 12000);
+        let freq = logFreq(80, 17000);
         const gainSign = Math.random() > 0.5 ? 1 : -1;
         const baseGain = boss ? diff.gain * 0.75 : diff.gain;
         const gain = baseGain * gainSign;
@@ -715,7 +773,7 @@
 
       function correctLabel(q) {
         if (q.mode === "filter") return q.filterLabel;
-        if (q.mode === "frequency") return q.freqRange.label;
+        if (q.mode === "frequency") return formatHz(q.freq);
         return q.instrument.label;
       }
 
@@ -1796,6 +1854,8 @@
         try {
           localStorage.removeItem("eqEarTrainerProXStats");
           localStorage.removeItem("eqEarTrainerProXDaily");
+          mirrorRemove("eqEarTrainerProXStats");
+          mirrorRemove("eqEarTrainerProXDaily");
         } catch (e) {}
         stats = freshStats();
         history = [];
@@ -1828,7 +1888,7 @@
         if (ar) ar.addEventListener("click", () => {
           if (!confirm("Kişisel analiz verisi (bölge başarıların) sıfırlansın mı?")) return;
           zoneStats = {};
-          try { localStorage.removeItem("fa_zonestats"); } catch(e){}
+          try { localStorage.removeItem("fa_zonestats"); mirrorRemove("fa_zonestats"); } catch(e){}
           renderAnalysis();
         });
       })();
@@ -1868,4 +1928,12 @@
       renderDaily();
       updateTimerUI();
       updateUI();
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = btn.dataset.tab;
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.dataset.tabContent === target));
+        });
+      });
     })();

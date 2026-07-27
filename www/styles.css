@@ -1,3 +1,20 @@
+    @font-face{
+      font-family:'Space Grotesk';
+      font-style:normal;
+      font-weight:500 700;
+      font-display:swap;
+      src:url('fonts/space-grotesk-latin.woff2') format('woff2');
+      unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+    }
+    @font-face{
+      font-family:'Space Grotesk';
+      font-style:normal;
+      font-weight:500 700;
+      font-display:swap;
+      src:url('fonts/space-grotesk-latin-ext.woff2') format('woff2');
+      unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+    }
+
     :root{
       --bg1:#07111e;
       --bg2:#0e2037;
@@ -26,6 +43,10 @@
         radial-gradient(circle at top right, rgba(139,125,255,.18), transparent 25%),
         linear-gradient(135deg,var(--bg1),var(--bg2) 65%, #08131d);
       overflow-x:hidden;
+      padding-top:env(safe-area-inset-top);
+      padding-bottom:env(safe-area-inset-bottom);
+      padding-left:env(safe-area-inset-left);
+      padding-right:env(safe-area-inset-right);
     }
 
     body::before{
@@ -73,6 +94,46 @@
     .layout{order:2}
     .hero-side{order:3}
     .side-stack{order:4}
+
+    /* Sekmeler (Oyun / İlerleme / Analiz) */
+    .tabs{
+      order:2;
+      display:flex;
+      gap:6px;
+      padding:6px;
+      margin:16px 0;
+    }
+    .tab-btn{
+      flex:1;
+      border:0;
+      background:transparent;
+      color:var(--muted);
+      font-family:'Space Grotesk', Inter, sans-serif;
+      font-weight:700;
+      font-size:14px;
+      padding:12px 10px;
+      border-radius:14px;
+      cursor:pointer;
+      position:relative;
+      transition:background .18s ease, color .18s ease;
+    }
+    .tab-btn:hover{color:var(--text)}
+    .tab-btn.active{
+      color:#fff;
+      background:linear-gradient(135deg, rgba(111,211,255,.28), rgba(139,125,255,.28));
+    }
+    .tab-btn.active::after{
+      content:"";
+      position:absolute;
+      left:20%;
+      right:20%;
+      bottom:5px;
+      height:2px;
+      border-radius:2px;
+      background:linear-gradient(90deg, var(--cyan), var(--violet));
+    }
+    .tab-content{display:none;order:3}
+    .tab-content.active{display:block}
 
     /* Arena + soru paneli + alt paneller tam genişlik, alt alta */
     .layout{display:grid;grid-template-columns:1fr;gap:18px}
