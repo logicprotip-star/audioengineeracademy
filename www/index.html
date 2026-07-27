@@ -30,8 +30,8 @@
 
     <div class="bottom-bar glass">
       <button class="btn" id="startBtn">Oyunu Başlat</button>
-      <button class="btn secondary" id="playACleanBtn">A - Temiz</button>
-      <button class="btn secondary" id="playBFilteredBtn">B - İşlenmiş</button>
+      <button class="btn secondary btn-with-sub" id="playACleanBtn">A - Temiz<span class="btn-sub">referans</span></button>
+      <button class="btn secondary btn-with-sub" id="playBFilteredBtn">B - İşlenmiş<span class="btn-sub">EQ'lu</span></button>
       <button class="btn success" id="nextBtn">Atla ▶</button>
     </div>
 
@@ -44,12 +44,16 @@
               <div class="arena-title-sub">Antrenman Arenası</div>
             </div>
             <div class="arena-title-chips">
-              <span id="seriChip" class="chip chip-seri">Seri 0</span>
+              <div class="arena-title-top-row">
+                <div class="hearts" id="hearts"></div>
+                <span id="seriChip" class="chip chip-seri">Seri 0</span>
+              </div>
               <button class="chip chip-ab-demo" id="abAutoBtn">A/B Test</button>
             </div>
           </div>
           <div class="arena">
             <div class="visualizer-wrap">
+              <div class="question-main analyzer-caption" id="questionTitle">Başlamak için “Oyunu Başlat”a dokun.</div>
               <canvas id="visualizer" width="1200" height="220"></canvas>
             </div>
           </div>
@@ -60,7 +64,6 @@
             <div class="question-box">
               <div class="question-row">
                 <div>
-                  <div class="question-main" id="questionTitle">Başlamak için “Oyunu Başlat”a dokun.</div>
                   <div class="question-sub hidden" id="questionMeta">Boss round her 5 turda gelir. A/B ile temiz ve işlenmiş sesi hızlıca karşılaştırabilirsin.</div>
                 </div>
 
@@ -69,7 +72,7 @@
                 </div>
               </div>
 
-              <div class="answers" id="answers"></div>
+              <div class="answers hidden" id="answers"></div>
               <div id="freqGuessArea" class="hidden" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
                 <span style="color:var(--cyan);font-size:14px;font-weight:700">👆 Dalga üzerine tıklayarak doğru frekansı işaretle</span>
               </div>
@@ -91,8 +94,6 @@
             <div class="toolbar-grid">
               <button class="btn secondary" id="replayBtn">Tekrar Çal</button>
               <button class="btn secondary" id="hintBtn">İpucu Ver</button>
-              <button class="btn secondary" id="toggleVisualizerBtn">Spektrumu Göster/Gizle</button>
-              <button class="btn secondary" id="resetStatsBtn">İstatistikleri Sıfırla</button>
             </div>
           </div>
 
@@ -218,11 +219,6 @@
           </div>
 
           <div class="block">
-            <div class="label">Canlar</div>
-            <div class="hearts" id="hearts"></div>
-          </div>
-
-          <div class="block">
             <div class="progress-label">
               <span>Süre</span>
               <span id="timerText">0.0s</span>
@@ -255,6 +251,10 @@
           <div class="block">
             <div class="progress-label" style="margin-bottom:10px"><span>🕐 Son Turlar</span></div>
             <div class="history-list" id="historyList"></div>
+          </div>
+
+          <div class="block danger-zone">
+            <button class="btn danger-btn" id="resetStatsBtn">İstatistikleri Sıfırla</button>
           </div>
       </div>
     </div>

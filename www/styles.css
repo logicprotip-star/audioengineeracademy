@@ -119,6 +119,19 @@
       white-space:nowrap;
     }
     .bottom-bar #startBtn{flex:1.6}
+    .btn-with-sub{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:2px;
+      line-height:1.15;
+      white-space:normal;
+    }
+    .btn-sub{
+      font-size:10px;
+      font-weight:500;
+      opacity:.6;
+    }
 
     /* Sekmeler (Oyun / İlerleme / Analiz) */
     .tabs{
@@ -230,6 +243,19 @@
       border:1px solid rgba(255,255,255,.08);
     }
 
+    .danger-zone{
+      border-color:rgba(255,108,136,.3);
+      background:rgba(255,108,136,.04);
+    }
+    .btn.danger-btn{
+      width:100%;
+      background:transparent;
+      border:1px solid rgba(255,108,136,.4);
+      color:var(--red);
+      box-shadow:none;
+    }
+    .btn.danger-btn:hover{background:rgba(255,108,136,.1)}
+
     .label,.k{
       color:var(--muted);
       font-size:12px;
@@ -313,6 +339,14 @@
       flex-direction:column;
       align-items:flex-end;
       gap:8px;
+    }
+    .arena-title-top-row{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .arena-title-top-row .heart{
+      font-size:15px;
     }
     .chip-seri{
       color:var(--violet);
@@ -398,6 +432,16 @@
       background:
         radial-gradient(circle at center, rgba(111,211,255,.08), transparent 60%),
         linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+    }
+
+    #questionTitle.analyzer-caption{
+      margin:0 0 10px;
+      font-size:12.5px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      color:var(--muted);
+      text-align:center;
     }
 
     .question-box{display:grid;gap:12px}
@@ -489,6 +533,10 @@
     .feed strong{font-size:16px}
     .feed #feedbackDetail{color:var(--text);font-size:13.5px;line-height:1.55;display:block}
     .feed .chips{justify-content:flex-start}
+
+    /* Oyun aktif değilken (başlamadı ya da durduruldu) feedback kutusu ve içindeki Boss chip'i gizle.
+       #startBtn'in .warning class'ı sadece oyun aktifken (Durdur yazarken) ekleniyor. */
+    body:has(#startBtn:not(.warning)) #feedbackBox{display:none}
 
     .chip{
       padding:9px 12px;

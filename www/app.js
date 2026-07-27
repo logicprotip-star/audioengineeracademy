@@ -53,7 +53,6 @@
         seriChip: document.getElementById("seriChip"),
         replayBtn: document.getElementById("replayBtn"),
         hintBtn: document.getElementById("hintBtn"),
-        toggleVisualizerBtn: document.getElementById("toggleVisualizerBtn"),
         resetStatsBtn: document.getElementById("resetStatsBtn"),
         modeSelect: document.getElementById("modeSelect"),
         difficultySelect: document.getElementById("difficultySelect"),
@@ -835,7 +834,7 @@
         const area = els.freqGuessArea;
         const L = q.layer || 1;
         if (q.mode !== "proplus") {
-          area.innerHTML = `<span style="color:var(--cyan);font-size:14px;font-weight:700">👆 Dalga üzerine tıklayarak doğru frekansı işaretle</span>`;
+          area.innerHTML = "";
           return;
         }
         if (L === 3) {
@@ -1845,11 +1844,6 @@
       });
 
       els.hintBtn.addEventListener("click", giveHint);
-
-      els.toggleVisualizerBtn.addEventListener("click", () => {
-        visualizerOn = !visualizerOn;
-        setFeedback("Visualizer değişti", visualizerOn ? "Spektrum tekrar görünür oldu." : "Spektrum gizlendi.");
-      });
 
       els.resetStatsBtn.addEventListener("click", () => {
         if (!confirm("Tüm istatistikler, ilerleme ve görevler sıfırlansın mı?")) return;
