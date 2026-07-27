@@ -48,7 +48,10 @@
                 <div class="hearts" id="hearts"></div>
                 <span id="seriChip" class="chip chip-seri">Seri 0</span>
               </div>
-              <button class="chip chip-ab-demo" id="abAutoBtn">A/B Test</button>
+              <div class="arena-title-bottom-row">
+                <button class="chip chip-hint" id="hintBtn">İpucu Ver</button>
+                <button class="chip chip-ab-demo" id="abAutoBtn">A/B Test</button>
+              </div>
             </div>
           </div>
           <div class="arena">
@@ -62,6 +65,11 @@
         <div class="glass panel panel-question">
           <div class="arena">
             <div class="question-box">
+              <div class="timer-compact">
+                <div class="timer-bar"><span id="timerBar"></span></div>
+                <span id="timerText" class="timer-compact-text">0.0s</span>
+              </div>
+
               <div class="question-row">
                 <div>
                   <div class="question-sub hidden" id="questionMeta">Boss round her 5 turda gelir. A/B ile temiz ve işlenmiş sesi hızlıca karşılaştırabilirsin.</div>
@@ -90,14 +98,9 @@
                 </div>
               </div>
             </div>
-
-            <div class="toolbar-grid">
-              <button class="btn secondary" id="replayBtn">Tekrar Çal</button>
-              <button class="btn secondary" id="hintBtn">İpucu Ver</button>
-            </div>
           </div>
 
-          <div class="footer-note">
+          <div class="footer-note hidden">
             A modu temiz sesi, B modu işlenmiş sesi çalar. Boss round’larda etkiler biraz daha yakın duyulur. Süre biterse can kaybedersin.
             Yüklediğin ses dosyası seçiliyse oyun onun üstüne filtre uygular.
           </div>
@@ -105,27 +108,6 @@
 
         <div class="glass panel panel-settings">
           <div class="cluster">
-              <div class="control control-sheet">
-                <label class="hidden">Oyun modu</label>
-                <select id="modeSelect" class="hidden">
-                  <option value="frequency" selected>Frekans Bölgesi (Tek Bant)</option>
-                  <option value="proplus">Pro Plus (Çok Bantlı)</option>
-                </select>
-                <div class="setting-row" data-sheet-select="modeSelect" data-sheet-title="Oyun Modu">
-                  <span class="setting-row-label">Oyun Modu</span>
-                  <span class="setting-row-value"><span class="setting-row-value-text"></span><span class="chev">›</span></span>
-                </div>
-              </div>
-
-              <div class="control hidden" id="layerControl">
-                <label>Pro Plus Katmanı</label>
-                <select id="layerSelect">
-                  <option value="1" selected>Katman 1 · 4 frekansın yerini bul</option>
-                  <option value="2">Katman 2 · Frekans + kaç dB</option>
-                  <option value="3">Katman 3 · 4 frekans + yön (aç/kıs)</option>
-                </select>
-              </div>
-
               <div class="control control-sheet">
                 <label class="hidden">Oyun türü</label>
                 <select id="playModeSelect" class="hidden">
@@ -145,6 +127,7 @@
                   <option value="medium" selected>Orta</option>
                   <option value="hard">Zor</option>
                   <option value="pro">Pro</option>
+                  <option value="proplus">Pro Plus (Çok Bantlı)</option>
                 </select>
                 <div class="setting-row" data-sheet-select="difficultySelect" data-sheet-title="Zorluk">
                   <span class="setting-row-label">Zorluk</span>
@@ -219,26 +202,6 @@
           </div>
 
           <div class="block">
-            <div class="progress-label">
-              <span>Süre</span>
-              <span id="timerText">0.0s</span>
-            </div>
-            <div class="timer-bar"><span id="timerBar"></span></div>
-          </div>
-
-          <div class="block">
-            <div class="progress-label" style="margin-bottom:10px"><span>📊 Canlı İstatistikler</span></div>
-            <div class="metrics">
-              <div class="metric"><div class="k">Toplam Tur</div><div class="v" id="roundsValue">0</div></div>
-              <div class="metric"><div class="k">Doğru</div><div class="v" id="correctValue" style="color:var(--green)">0</div></div>
-              <div class="metric"><div class="k">Yanlış</div><div class="v" id="wrongValue" style="color:var(--red)">0</div></div>
-              <div class="metric"><div class="k">Ort. Puan / Tur</div><div class="v" id="avgScoreValue">0</div></div>
-              <div class="metric"><div class="k">En İyi Combo</div><div class="v" id="bestComboValue">0x</div></div>
-              <div class="metric"><div class="k">En Yüksek Skor</div><div class="v" id="bestScoreValue">0</div></div>
-            </div>
-          </div>
-
-          <div class="block">
             <div class="progress-label" style="margin-bottom:10px"><span>📅 Günlük Görevler</span></div>
             <div class="daily-grid" id="dailyList"></div>
           </div>
@@ -270,8 +233,28 @@
             Birkaç tur oyna, kulağının hangi frekans bölgesinde güçlü/zayıf olduğunu burada göstereceğim.
           </div>
         </div>
+
+        <div class="block">
+          <div class="progress-label" style="margin-bottom:10px"><span>📊 Canlı İstatistikler</span></div>
+          <div class="metrics">
+            <div class="metric"><div class="k">Toplam Tur</div><div class="v" id="roundsValue">0</div></div>
+            <div class="metric"><div class="k">Doğru</div><div class="v" id="correctValue" style="color:var(--green)">0</div></div>
+            <div class="metric"><div class="k">Yanlış</div><div class="v" id="wrongValue" style="color:var(--red)">0</div></div>
+            <div class="metric"><div class="k">Ort. Puan / Tur</div><div class="v" id="avgScoreValue">0</div></div>
+            <div class="metric"><div class="k">En İyi Combo</div><div class="v" id="bestComboValue">0x</div></div>
+            <div class="metric"><div class="k">En Yüksek Skor</div><div class="v" id="bestScoreValue">0</div></div>
+          </div>
+        </div>
       </div>
     </div>
+  </div>
+
+  <div class="gameover-overlay" id="gameoverOverlay"></div>
+  <div class="gameover-card" id="gameoverCard">
+    <button class="gameover-close" id="gameoverClose" type="button" aria-label="Kapat">✕</button>
+    <div class="gameover-title">🏁 Oyun Bitti</div>
+    <div class="gameover-stats" id="gameoverStats">0 doğru · 0 yanlış · +0 XP</div>
+    <button class="btn" id="gameoverRetryBtn">Tekrar Oyna</button>
   </div>
 
   <div class="sheet-overlay" id="sheetOverlay"></div>

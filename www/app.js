@@ -29,7 +29,8 @@
         easy: { gain: 10, q: 0.9, xp: 16, options: 3, time: 16, lives: 5 },
         medium: { gain: 8, q: 1.3, xp: 24, options: 4, time: 13, lives: 4 },
         hard: { gain: 6, q: 2.5, xp: 36, options: 5, time: 11, lives: 3 },
-        pro: { gain: 4.5, q: 4.2, xp: 52, options: 6, time: 9, lives: 3 }
+        pro: { gain: 4.5, q: 4.2, xp: 52, options: 6, time: 9, lives: 3 },
+        proplus: { gain: 8, q: 3.2, xp: 45, options: 4, time: 20, lives: 3 }
       };
 
       const ACHIEVEMENTS = [
@@ -51,10 +52,8 @@
         playBFilteredBtn: document.getElementById("playBFilteredBtn"),
         abAutoBtn: document.getElementById("abAutoBtn"),
         seriChip: document.getElementById("seriChip"),
-        replayBtn: document.getElementById("replayBtn"),
         hintBtn: document.getElementById("hintBtn"),
         resetStatsBtn: document.getElementById("resetStatsBtn"),
-        modeSelect: document.getElementById("modeSelect"),
         difficultySelect: document.getElementById("difficultySelect"),
         playModeSelect: document.getElementById("playModeSelect"),
         sourceSelect: document.getElementById("sourceSelect"),
@@ -91,8 +90,11 @@
         freqGuessArea: document.getElementById("freqGuessArea"),
         freqInfo: document.getElementById("freqInfo"),
         timerModeSelect: document.getElementById("timerModeSelect"),
-        layerControl: document.getElementById("layerControl"),
-        layerSelect: document.getElementById("layerSelect")
+        gameoverOverlay: document.getElementById("gameoverOverlay"),
+        gameoverCard: document.getElementById("gameoverCard"),
+        gameoverStats: document.getElementById("gameoverStats"),
+        gameoverClose: document.getElementById("gameoverClose"),
+        gameoverRetryBtn: document.getElementById("gameoverRetryBtn")
       };
 
       const ctx2d = els.canvas.getContext("2d");
@@ -116,6 +118,70 @@
       let timeLeft = 0;
       let roundDuration = 0;
       let currentLives = 4;
+      let session = { correct: 0, wrong: 0, xp: 0 }; // can bitince sonuç kartında gösterilecek bu oturumluk sayaçlar
+      function resetSession() { session = { correct: 0, wrong: 0, xp: 0 }; }
+
+      // startBtn 3 durumlu: round yokken "Oyunu Başlat", akış sürerken "Durdur",
+      // (Durdur'a basılıp) duraklatılmışken "Tekrar Çal". Tüm kaynaklarda (upload dahil) aynı.
+      function updateStartBtnLabel() {
+        if (!els.startBtn) return;
+        if (!activeQuestion || currentLives <= 0) {
+          els.startBtn.textContent = "▶ Oyunu Başlat";
+          els.startBtn.classList.remove("warning");
+          return;
+        }
+        els.startBtn.classList.add("warning"); // round aktif (feedbackBox görünürlüğü buna bakıyor)
+        els.startBtn.textContent = autoStopped ? "🔄 Tekrar Çal" : "⏸ Durdur";
+      }
+
+      // Durdur: sesi/zamanlayıcıyı/otomatik geçişi durdurur ama soruyu ekranda tutar (Tekrar Çal ile devam edilir)
+      function pauseRound() {
+        autoPlaying = false;
+        autoStopped = true;
+        clearTimeout(autoAdvanceTimer);
+        clearInterval(autoCountdownTimer);
+        clearTimer();
+        stopAudio();
+        els.feedbackBox.classList.remove("show-result"); // durdurulunca feedback kutusu gizlensin
+        if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
+        updateStartBtnLabel();
+      }
+
+      // İlerleme/Analiz sekmesindeyken Oyunu Başlat/Atla'ya basılınca Oyun sekmesine dön
+      function switchToOyunTab() {
+        const btn = document.querySelector('.tab-btn[data-tab="oyun"]');
+        if (btn && !btn.classList.contains('active')) btn.click();
+      }
+
+      // Kart açıkken hiçbir zamanlayıcının/otomatik geçişin gizlice yeni tur başlatmasını
+      // engellemek için ayrı bir bayrak: startRound() bu true olduğu sürece no-op döner.
+      let gameOverVisible = false;
+
+      // Kartı açan tıklamanın mousedown'ı canvas'ı (ya da başka bir elemanı) vurup soruyu
+      // bitirir bitirmez overlay hemen görünür + pointer-events:auto olur; AYNI fiziksel
+      // tıklamanın mouseup/click'i DOM artık değiştiği için overlay'e "sızar" ve overlay'in
+      // kapatma listener'ını anında tetikler. Bunu önlemek için kart açıldıktan sonraki kısa
+      // bir pencere boyunca kapatma tıklamalarını yok sayıyoruz.
+      let gameOverOpenedAt = 0;
+      const GAMEOVER_CLICK_GUARD_MS = 400;
+      function gameOverGuardActive() {
+        return Date.now() - gameOverOpenedAt < GAMEOVER_CLICK_GUARD_MS;
+      }
+
+      function showGameOverCard() {
+        gameOverVisible = true;
+        gameOverOpenedAt = Date.now();
+        if (els.gameoverStats) {
+          els.gameoverStats.textContent = `${session.correct} doğru · ${session.wrong} yanlış · +${session.xp} XP`;
+        }
+        if (els.gameoverOverlay) els.gameoverOverlay.classList.add("open");
+        if (els.gameoverCard) els.gameoverCard.classList.add("open");
+      }
+      function hideGameOverCard() {
+        gameOverVisible = false;
+        if (els.gameoverOverlay) els.gameoverOverlay.classList.remove("open");
+        if (els.gameoverCard) els.gameoverCard.classList.remove("open");
+      }
       let abDemoLock = false;
 
       // --- Frekans modu: wave üzerine tıklayarak tahmin ---
@@ -257,7 +323,8 @@
             easy: freshDiffState(5),
             medium: freshDiffState(4),
             hard: freshDiffState(3),
-            pro: freshDiffState(3)
+            pro: freshDiffState(3),
+            proplus: freshDiffState(3)
           }
         };
       }
@@ -275,7 +342,7 @@
           const raw = localStorage.getItem("eqEarTrainerProXStats");
           const s = raw ? JSON.parse(raw) : freshStats();
           if (!s.perDiff) s.perDiff = freshStats().perDiff;
-          ["easy","medium","hard","pro"].forEach(k => {
+          ["easy","medium","hard","pro","proplus"].forEach(k => {
             if (!s.perDiff[k]) s.perDiff[k] = freshDiffState(DIFFICULTY[k].lives);
           });
           return s;
@@ -487,35 +554,18 @@
 
       function buildQuestion() {
         const diff = currentDifficulty();
-        const mode = els.modeSelect.value;
+        const mode = els.difficultySelect.value === "proplus" ? "proplus" : "frequency";
         const boss = isBossRound();
 
-        // ---- PRO PLUS: katmana göre ----
+        // ---- PRO PLUS: 4 bant, sadece frekans işaretleme ----
         if (mode === "proplus") {
-          const layer = parseInt(els.layerSelect.value, 10) || 1;
           const gainAbs = boss ? diff.gain * 0.85 : diff.gain;
-          if (layer === 2) {
-            // Katman 2: tek frekans, yerini + kaç dB tahmin et
-            const sign = Math.random() > 0.5 ? 1 : -1;
-            const dbChoices = [3, 6, 9, 12];
-            const db = dbChoices[Math.floor(Math.random() * dbChoices.length)];
-            return {
-              mode, layer,
-              difficulty: els.difficultySelect.value,
-              freq: logFreq(80, 17000),
-              gain: db * sign,
-              gainDb: db,
-              q: 3.0,
-              source: els.sourceSelect.value, hintUsed: false, boss
-            };
-          }
-          // Katman 1 ve 3: 4 bant karışık
           const bands = buildProPlusBands(4, Math.max(6, gainAbs));
           return {
-            mode, layer,
+            mode,
             difficulty: els.difficultySelect.value,
             bands,
-            guesses: [],          // K1: [hz], K3: [{hz, dir}]
+            guesses: [],
             source: els.sourceSelect.value, hintUsed: false, boss
           };
         }
@@ -543,9 +593,6 @@
 
       function modeDescription(q) {
         if (q.mode === "proplus") {
-          const L = q.layer || 1;
-          if (L === 2) return `A/B ile karşılaştır: tek frekansla oynandı. Yerini bul, sonra kaç dB (3/6/9/12) olduğunu tahmin et.`;
-          if (L === 3) return `A/B ile karşılaştır: 4 frekans var. Her birinin hem yerini hem yönünü (açık/kısık) bul.`;
           return `A/B ile karşılaştır: 4 frekansla oynandı (kimi açık, kimi kısık). Dört noktayı da işaretle.`;
         }
         return `A/B ile karşılaştır, farkın en belirgin olduğu frekansı dalga üzerinde işaretle.`;
@@ -772,28 +819,23 @@
       }
 
       function correctLabel(q) {
-        if (q.mode === "filter") return q.filterLabel;
-        if (q.mode === "frequency") return formatHz(q.freq);
-        return q.instrument.label;
+        if (q.mode === "proplus") return "4 bant";
+        return formatHz(q.freq);
       }
 
-      function setFeedback(title, detail) {
+      function setFeedback(title, detail, showResult = false) {
         els.feedbackBox.querySelector("strong").textContent = title;
         els.feedbackDetail.textContent = detail;
+        els.feedbackBox.classList.toggle("show-result", !!showResult);
       }
 
       function renderQuestion() {
         const q = activeQuestion;
         roundActive = true;
-        const L = q.layer || 1;
 
         els.questionTitle.textContent =
           q.mode !== "proplus"
             ? "Hangi frekansla oynandı? Dalga üzerine tıkla."
-            : L === 2
-            ? "Frekansı bul, sonra kaç dB olduğunu seç."
-            : L === 3
-            ? "4 frekansı işaretle — her tık için yönü de seç (aç/kıs)."
             : "4 frekansla oynandı — dördünü de dalga üzerinde işaretle.";
 
         els.questionMeta.textContent = modeDescription(q);
@@ -807,7 +849,6 @@
         freqGuessHz = null; freqHoverHz = null;
         if (q.mode === "proplus") { q.guesses = []; q._result = null; }
         ppRevealCount = 0; ppRevealGlow = 0;
-        proplusDir = 1; // K3 için sıradaki tıklamanın yönü
         els.answers.innerHTML = "";
         els.answers.classList.add("hidden");
         els.freqGuessArea.classList.remove("hidden");
@@ -818,41 +859,20 @@
           q.boss ? "Boss round başladı!" : "Hazır mısın?",
           q.mode !== "proplus"
             ? "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
-            : L === 2
-            ? "A/B ile karşılaştır. Tek frekansla oynandı — yerini tıkla, sonra kaç dB olduğunu seç."
-            : L === 3
-            ? "A/B ile karşılaştır. 4 frekans var; her birini işaretlerken yön düğmesinden aç/kıs seç."
             : "A/B ile karşılaştır. 4 frekansla oynandı (kimi açık, kimi kısık). Dört noktaya da tıkla."
         );
       }
 
-      // K2 dB seçici / K3 yön düğmesi / K1 sayaç — tıklama alanı kontrolleri
-      let proplusDir = 1;
+      // K1 sayaç — tıklama alanı kontrolleri
       let ppRevealCount = 0;   // kaç bant açıldı (sıralı parlama)
       let ppRevealGlow = 0;    // son açılan bandın parlama şiddeti
       function renderGuessAreaControls(q) {
         const area = els.freqGuessArea;
-        const L = q.layer || 1;
         if (q.mode !== "proplus") {
           area.innerHTML = "";
           return;
         }
-        if (L === 3) {
-          area.innerHTML =
-            `<span style="color:var(--cyan);font-size:14px;font-weight:700">Yön: </span>
-             <div class="seg" style="display:inline-flex">
-               <button type="button" id="dirUp" class="on" style="padding:8px 14px;font-weight:700">▲ Aç</button>
-               <button type="button" id="dirDown" style="padding:8px 14px;font-weight:700">▼ Kıs</button>
-             </div>
-             <span id="ppCount" style="color:var(--muted);font-size:13px">Sonra dalgaya tıkla · kalan: 4</span>`;
-          const up = area.querySelector("#dirUp"), down = area.querySelector("#dirDown");
-          up.addEventListener("click", () => { proplusDir = 1; up.classList.add("on"); down.classList.remove("on"); });
-          down.addEventListener("click", () => { proplusDir = -1; down.classList.add("on"); up.classList.remove("on"); });
-        } else if (L === 2) {
-          area.innerHTML = `<span id="ppCount" style="color:var(--cyan);font-size:14px;font-weight:700">👆 Önce frekansın yerini dalga üzerinde tıkla</span>`;
-        } else {
-          area.innerHTML = `<span id="ppCount" style="color:var(--cyan);font-size:14px;font-weight:700">👆 Dört ayrı frekansı işaretle · kalan: 4</span>`;
-        }
+        area.innerHTML = `<span id="ppCount" style="color:var(--cyan);font-size:14px;font-weight:700">👆 Dört ayrı frekansı işaretle · kalan: 4</span>`;
       }
 
       function rewardXp(q) {
@@ -869,10 +889,13 @@
       }
 
       function pushHistory(correct) {
+        const desc = activeQuestion.mode === "proplus"
+          ? `Pro Plus · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+          : `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`;
         history.unshift({
           icon: correct ? "✅" : "❌",
           title: correct ? `${correctLabel(activeQuestion)} doğru bulundu` : `${correctLabel(activeQuestion)} kaçırıldı`,
-          desc: `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+          desc
         });
         history = history.slice(0, 12);
         renderHistory();
@@ -920,6 +943,7 @@
         currentLives = currentDifficulty().lives;
         diffState().lives = currentLives;
         renderHearts();
+        resetSession();
       }
 
       // seçili zorluğun kayıtlı canını yükle (zorluk değişince)
@@ -935,14 +959,33 @@
         diffState().lives = currentLives;   // o zorluğun canına yaz
         renderHearts();
         if (currentLives <= 0) {
-          stopAudio();
-          roundActive = false;
-          clearTimer();
-          setFeedback("Oyun bitti", `${reasonText} Bu zorluktaki canların tükendi. Tekrar başlatabilirsin.`);
+          setFeedback("Oyun bitti", `${reasonText} Bu zorluktaki canların tükendi. Tekrar başlatabilirsin.`, true);
           toast("💔 Oyun Bitti", "Bu zorlukta canların tükendi.");
         } else {
-          setFeedback("Can kaybettin", `${reasonText} Kalan can: ${currentLives}`);
+          setFeedback("Can kaybettin", `${reasonText} Kalan can: ${currentLives}`, true);
         }
+      }
+
+      // Can 0'a düşünce çağrılır: tur kaydı/istatistik güncellemesi tamamlandıktan hemen
+      // sonra (activeQuestion hâlâ geçerliyken pushHistory vb. çalışabilsin diye) soruyu
+      // kapatır, sesi/otomatik geçişi durdurur ve sonuç kartını hemen gösterir.
+      function finalizeIfGameOver() {
+        if (currentLives > 0) return false;
+        // Bekleyen otomatik geçiş zamanlayıcılarını (bir önceki turdan kalmış olabilir)
+        // kart görünmeden ÖNCE iptal et — yoksa 1.5sn sonra sessizce yeni tur başlatıp
+        // kartı ezerler.
+        autoPlaying = false;
+        autoStopped = true;
+        clearTimeout(autoAdvanceTimer);
+        clearInterval(autoCountdownTimer);
+        if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
+        roundActive = false;
+        clearTimer();
+        stopAudio();
+        activeQuestion = null;
+        updateStartBtnLabel();
+        showGameOverCard();
+        return true;
       }
 
       function onTimeUp() {
@@ -953,6 +996,7 @@
         stats.wrong++;
         stats.combo = 0;
         diffState().score -= 20;
+        session.wrong++;
         stopAudio();
         loseLife(`Süre doldu. Doğru cevap: ${correctLabel(activeQuestion)}.`);
         pushHistory(false);
@@ -960,7 +1004,7 @@
         updateUI();
         saveStats();
         saveDaily();
-        scheduleNext();
+        if (!finalizeIfGameOver()) scheduleNext();
       }
 
       function submitAnswer(guess, clickedBtn, options) {
@@ -993,14 +1037,14 @@
           if (activeQuestion.difficulty === "pro") stats.proCorrect++;
           if (activeQuestion.boss) stats.bossWins++;
 
-          setFeedback("Doğru cevap!", `${correctLabel(activeQuestion)} doğruydu. +${gained} XP kazandın.`);
+          setFeedback("Doğru cevap!", `${correctLabel(activeQuestion)} doğruydu. +${gained} XP kazandın.`, true);
           spawnXp(`+${gained} XP`, clickedBtn);
           burst(clickedBtn);
         } else {
           stats.wrong++;
           stats.combo = 0;
           diffState().score -= 20;
-          setFeedback("Kaçtı.", `Doğru cevap: ${correctLabel(activeQuestion)}. Merkez frekans: ${formatHz(activeQuestion.freq)}.`);
+          setFeedback("Kaçtı.", `Doğru cevap: ${correctLabel(activeQuestion)}. Merkez frekans: ${formatHz(activeQuestion.freq)}.`, true);
           shake(clickedBtn);
           loseLife("Yanlış cevap verdin.");
         }
@@ -1012,7 +1056,7 @@
         updateUI();
         saveStats();
         saveDaily();
-        scheduleNext();
+        if (!finalizeIfGameOver()) scheduleNext();
       }
 
       function showFreqInfo(ok, zone, act, gained, dOct, dir) {
@@ -1052,10 +1096,11 @@
           diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
           if (activeQuestion.difficulty === "pro") stats.proCorrect++;
           if (activeQuestion.boss) stats.bossWins++;
+          session.correct++; session.xp += gained;
           const quality = dOct <= 0.17 ? "🎯 Tam isabet!" : (dOct <= 0.33 ? "Çok iyi!" : "Doğru!");
           const zone = faZoneOf(activeQuestion.freq);
           const act = activeQuestion.gain >= 0 ? "yükseltildi ▲" : "kesildi ▼";
-          setFeedback(quality, `${formatHz(activeQuestion.freq)} ${act} · ${zone.t}. ${zone.tip} (+${gained} XP)`);
+          setFeedback(quality, `${formatHz(activeQuestion.freq)} ${act} · ${zone.t}. ${zone.tip} (+${gained} XP)`, true);
           showFreqInfo(true, zone, act, gained, dOct, "");
           recordZone(activeQuestion.freq, true);
           sfxDing();
@@ -1066,10 +1111,11 @@
           stats.wrong++;
           stats.combo = 0;
           diffState().score -= 20;
+          session.wrong++;
           const dir2 = freqGuessHz > activeQuestion.freq ? "daha tiz seçtin" : "daha pes seçtin";
           const zone = faZoneOf(activeQuestion.freq);
           const act = activeQuestion.gain >= 0 ? "yükseltildi ▲" : "kesildi ▼";
-          setFeedback("Kaçtı — ama öğren:", `Doğru ${formatHz(activeQuestion.freq)} ${act}, sen ${formatHz(freqGuessHz)} dedin (${dOct.toFixed(2)} oktav, ${dir2}). ${zone.t}: ${zone.tip}`);
+          setFeedback("Kaçtı — ama öğren:", `Doğru ${formatHz(activeQuestion.freq)} ${act}, sen ${formatHz(freqGuessHz)} dedin (${dOct.toFixed(2)} oktav, ${dir2}). ${zone.t}: ${zone.tip}`, true);
           showFreqInfo(false, zone, act, 0, dOct, dir2);
           recordZone(activeQuestion.freq, false);
           sfxBuzz();
@@ -1085,80 +1131,32 @@
         updateUI();
         saveStats();
         saveDaily();
-        scheduleNext();
+        if (!finalizeIfGameOver()) scheduleNext();
       }
 
-      // Katman 2: frekans + dB tahmini
-      function submitLayer2Guess(hz, dbGuess) {
-        if (!activeQuestion || activeQuestion.mode !== "proplus") return;
-        const q = activeQuestion;
-        q.freqRevealed = true;
-        const dOct = Math.abs(Math.log2(hz / q.freq));
-        const dbErr = Math.abs(dbGuess - q.gainDb);
-        const freqOk = dOct <= 0.5;
-        const dbOk = dbErr <= 3; // bir kademe tolerans
-        const ok = freqOk && dbOk;
-        recordZone(q.freq, freqOk);
-
-        stats.rounds++;
-        let gained = 0;
-        if (ok) {
-          stats.correct++; stats.combo++; stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
-          gained = Math.round(rewardXp(q) * 1.3);
-          diffState().xp += gained; diffState().score += gained * Math.max(1, stats.combo);
-          diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
-          if (q.boss) stats.bossWins++;
-          setFeedback("🎯 Doğru!", `Frekans ve dB tuttu. +${gained} XP.`);
-          sfxDing();
-          spawnXp(`+${gained} XP`, els.canvas); burst(els.canvas);
-        } else {
-          stats.wrong++; stats.combo = 0; diffState().score -= 15;
-          setFeedback("Kaçtı — ama öğren:", `${freqOk ? "Frekans doğru" : "Frekans şaştı"}, ${dbOk ? "dB doğru" : "dB şaştı"}.`);
-          sfxBuzz();
-          shake(els.canvas); loseLife("Katman 2 ıskaladın.");
-        }
-        const dir = q.gain >= 0 ? "▲ açık" : "▼ kısık";
-        const zone = faZoneOf(q.freq);
-        els.freqInfo.style.borderColor = ok ? "var(--green)" : "var(--red)";
-        els.freqInfo.style.background = ok ? "rgba(104,240,171,.10)" : "rgba(255,108,136,.10)";
-        els.freqInfo.innerHTML =
-          `<div style="font-weight:800;color:${ok?'var(--green)':'var(--red)'};margin-bottom:6px;font-size:15px">${ok?'✅ Doğru':'❌ Kaçtı'}: ${formatHz(q.freq)} ${dir} · ${q.gainDb} dB</div>` +
-          `<div style="color:var(--muted);font-size:13px">Sen: ${formatHz(hz)} · ${dbGuess} dB dedin.</div>` +
-          `<div style="font-weight:700;margin-top:6px">${zone.t}</div><div style="color:var(--muted);font-size:13px;line-height:1.5">${zone.tip}</div>`;
-        els.freqInfo.classList.remove("hidden");
-        challengeTick(ok, gained);
-        // sayaç alanını temizle
-        els.freqGuessArea.innerHTML = `<span style="color:var(--muted);font-size:13px">Tur bitti · "Yeni Soru" ile devam.</span>`;
-        stopAudio(); pushHistory(ok); updateDaily(ok); checkAchievements(); updateUI(); saveStats(); saveDaily(); scheduleNext();
-      }
-
-      // Katman 1 & 3: 4 tahmini 4 banda eşleştir, puanla (K3'te yön de kontrol)
+      // 4 tahmini 4 banda eşleştir, puanla
       function submitProPlusGuess() {
         if (!roundActive || !activeQuestion || activeQuestion.mode !== "proplus") return;
         roundActive = false;
         clearTimer();
         const q = activeQuestion;
         q.freqRevealed = true;
-        const isL3 = (q.layer || 1) === 3;
 
-        const bands = q.bands.map(b => ({ ...b, matched:false, guessHz:null, dOct:null, dirGuess:null }));
+        const bands = q.bands.map(b => ({ ...b, matched:false, guessHz:null, dOct:null }));
         const guesses = q.guesses.slice();
-        guesses.forEach(g => {
-          const gHz = isL3 ? g.hz : g;
+        guesses.forEach(gHz => {
           let bi = -1, best = Infinity;
           bands.forEach((b, i) => {
             if (b.matched) return;
             const d = Math.abs(Math.log2(gHz / b.freq));
             if (d < best) { best = d; bi = i; }
           });
-          if (bi >= 0) { bands[bi].matched = true; bands[bi].guessHz = gHz; bands[bi].dOct = best; if (isL3) bands[bi].dirGuess = g.dir; }
+          if (bi >= 0) { bands[bi].matched = true; bands[bi].guessHz = gHz; bands[bi].dOct = best; }
         });
 
         let hit = 0;
         bands.forEach(b => {
-          const posOk = b.dOct !== null && b.dOct <= 0.5;
-          const dirOk = !isL3 || (b.dirGuess !== null && Math.sign(b.dirGuess) === Math.sign(b.gain));
-          const bandOk = posOk && dirOk;
+          const bandOk = b.dOct !== null && b.dOct <= 0.5;
           if (bandOk) hit++;
           recordZone(b.freq, bandOk);
         });
@@ -1168,29 +1166,32 @@
         let gained = 0;
         if (hit >= 3) {
           stats.correct++; stats.combo++; stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
-          gained = Math.round(rewardXp(q) * (hit / 4) * (isL3 ? 1.8 : 1.5));
+          gained = Math.round(rewardXp(q) * (hit / 4) * 1.5);
           diffState().xp += gained; diffState().score += gained * Math.max(1, stats.combo);
           diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
           if (q.boss) stats.bossWins++;
-          setFeedback(allOk ? "🎯 Dördü de doğru!" : `İyi! ${hit}/4 doğru`, `+${gained} XP kazandın.`);
+          session.correct++; session.xp += gained;
+          setFeedback(allOk ? "🎯 Dördü de doğru!" : `İyi! ${hit}/4 doğru`, `+${gained} XP kazandın.`, true);
           spawnXp(`+${gained} XP`, els.canvas); burst(els.canvas);
         } else {
           stats.wrong++; stats.combo = 0; diffState().score -= 15;
-          setFeedback("Kaçtı — ama öğren:", `${hit}/4 doğru. Aşağıda dört bandın yerini ve yönünü gör.`);
+          session.wrong++;
+          setFeedback("Kaçtı — ama öğren:", `${hit}/4 doğru. Aşağıda dört bandın yerini gör.`, true);
           shake(els.canvas); loseLife("Bantları ıskaladın.");
         }
         challengeTick(hit >= 3, gained);
-        showProPlusInfo(bands, hit, isL3);
+        showProPlusInfo(bands, hit);
         els.freqGuessArea.innerHTML = `<span style="color:var(--muted);font-size:13px">Tur bitti · "Yeni Soru" ile devam.</span>`;
 
         // sıralı parlama: her bandı tek tek yeşil/kırmızı yak + doğruya ding
         q._result = bands.map(b => ({
           freq: b.freq, gain: b.gain,
-          correct: (b.dOct !== null && b.dOct <= 0.5) && (!isL3 || (b.dirGuess !== null && Math.sign(b.dirGuess) === Math.sign(b.gain)))
+          correct: b.dOct !== null && b.dOct <= 0.5
         })).sort((a,z) => a.freq - z.freq);
         startPpReveal();
 
-        stopAudio(); pushHistory(hit >= 3); updateDaily(hit >= 3); checkAchievements(); updateUI(); saveStats(); saveDaily(); scheduleNext();
+        stopAudio(); pushHistory(hit >= 3); updateDaily(hit >= 3); checkAchievements(); updateUI(); saveStats(); saveDaily();
+        if (!finalizeIfGameOver()) scheduleNext();
       }
 
       // 4 bandı tek tek aç: her açılışta ding/buzz + parlama
@@ -1214,7 +1215,7 @@
         openNext();
       }
 
-      function showProPlusInfo(bands, hit, isL3) {
+      function showProPlusInfo(bands, hit) {
         if (!els.freqInfo) return;
         const ok = hit >= 3;
         const color = ok ? "var(--green)" : "var(--red)";
@@ -1223,18 +1224,15 @@
         let rows = bands.map(b => {
           const act = b.gain >= 0 ? "▲ açık" : "▼ kısık";
           const zone = faZoneOf(b.freq);
-          const posOk = b.dOct !== null && b.dOct <= 0.5;
-          const dirOk = !isL3 || (b.dirGuess !== null && Math.sign(b.dirGuess) === Math.sign(b.gain));
-          const doğru = posOk && dirOk;
+          const doğru = b.dOct !== null && b.dOct <= 0.5;
           const mark = doğru ? "✅" : "❌";
-          let senin = b.guessHz ? `sen: ${formatHz(b.guessHz)}` : "işaretlemedin";
-          if (isL3 && b.dirGuess !== null) senin += ` ${b.dirGuess >= 0 ? "▲" : "▼"}`;
+          const senin = b.guessHz ? `sen: ${formatHz(b.guessHz)}` : "işaretlemedin";
           return `<div style="padding:6px 0;border-top:1px solid rgba(255,255,255,.08)">
             <b style="color:${doğru ? 'var(--green)' : 'var(--red)'}">${mark} ${formatHz(b.freq)} ${act}</b>
             <span style="color:var(--muted)">· ${zone.t.split(' (')[0]} · ${senin}</span></div>`;
         }).join("");
         els.freqInfo.innerHTML =
-          `<div style="font-weight:800;color:${color};margin-bottom:4px;font-size:15px">${hit}/4 doğru${isL3 ? " (yön dahil)" : ""}</div>` + rows;
+          `<div style="font-weight:800;color:${color};margin-bottom:4px;font-size:15px">${hit}/4 doğru</div>` + rows;
         els.freqInfo.classList.remove("hidden");
       }
 
@@ -1408,18 +1406,11 @@
         saveStats();
 
         let msg = "";
-        if (activeQuestion.mode === "filter") {
-          msg = activeQuestion.filterType.includes("shelf")
-            ? "Bu bir shelf ailesinden."
-            : activeQuestion.filterType.includes("pass")
-            ? "Bu bir pass filtresi."
-            : activeQuestion.filterType === "notch"
-            ? "Bu dar oyuk oluşturan bir filtre."
-            : "Bu merkez odaklı bir bell hareketi gibi düşün.";
-        } else if (activeQuestion.mode === "frequency") {
-          msg = `Merkez yaklaşık ${formatHz(activeQuestion.freq)} civarında.`;
+        if (activeQuestion.mode === "proplus") {
+          const hzList = activeQuestion.bands.map(b => formatHz(b.freq)).join(", ");
+          msg = `Dört bant kabaca şurada: ${hzList}.`;
         } else {
-          msg = `Karakter, ${activeQuestion.instrument.label} yönünde düşünülmeli.`;
+          msg = `Merkez yaklaşık ${formatHz(activeQuestion.freq)} civarında.`;
         }
 
         setFeedback("İpucu verildi", `${msg} Bu turda XP biraz düşecek.`);
@@ -1450,12 +1441,10 @@
           ctx2d.setLineDash([]);
         }
 
-        // ---- PRO PLUS çok bantlı (K1/K3) ----
+        // ---- PRO PLUS çok bantlı ----
         if (q && q.mode === "proplus" && q.bands) {
-          const isL3 = (q.layer || 1) === 3;
           // kullanıcının işaretledikleri: tur boyunca VE reveal'da mavi kalsın
-          (q.guesses || []).forEach(g => {
-            const gHz = isL3 ? g.hz : g;
+          (q.guesses || []).forEach(gHz => {
             const x = faFToX(gHz, w);
             ctx2d.strokeStyle = roundActive ? "#6fd3ff" : "rgba(111,211,255,.85)";
             ctx2d.lineWidth = roundActive ? 3 : 2;
@@ -1535,26 +1524,11 @@
           return;
         }
 
-        const L = q.layer || 1;
-        if (L === 2) {
-          // tek frekans işaretle, sonra dB seçici çıkar
-          q.guesses = [hz];
-          roundActive = false; // tıklamayı kilitle, dB seçimi bekle
-          showDbPicker(hz);
-        } else if (L === 3) {
-          q.guesses.push({ hz, dir: proplusDir });
-          const kalan = 4 - q.guesses.length;
-          const cnt = els.freqGuessArea.querySelector("#ppCount");
-          if (kalan > 0) { if (cnt) cnt.textContent = `Sonra dalgaya tıkla · kalan: ${kalan}`; }
-          else { try { submitProPlusGuess(); } catch (err) { console.error(err); } ensureAutoNext(); }
-        } else {
-          // Katman 1
-          q.guesses.push(hz);
-          const kalan = 4 - q.guesses.length;
-          const cnt = els.freqGuessArea.querySelector("#ppCount");
-          if (kalan > 0) { if (cnt) cnt.textContent = `👆 Dört ayrı frekansı işaretle · kalan: ${kalan}`; }
-          else { try { submitProPlusGuess(); } catch (err) { console.error(err); } ensureAutoNext(); }
-        }
+        q.guesses.push(hz);
+        const kalan = 4 - q.guesses.length;
+        const cnt = els.freqGuessArea.querySelector("#ppCount");
+        if (kalan > 0) { if (cnt) cnt.textContent = `👆 Dört ayrı frekansı işaretle · kalan: ${kalan}`; }
+        else { try { submitProPlusGuess(); } catch (err) { console.error(err); } ensureAutoNext(); }
       });
 
       // Cevap verildiğinde otomatik geçişi kesin olarak kur (submit zinciri hata verse bile)
@@ -1567,7 +1541,7 @@
           return;
         }
         autoPlaying = true;
-        if (els.startBtn) { els.startBtn.textContent = "⏸ Durdur"; els.startBtn.classList.add("warning"); }
+        updateStartBtnLabel();
         clearTimeout(autoAdvanceTimer);
         clearInterval(autoCountdownTimer);
         let remain = 2;
@@ -1584,21 +1558,6 @@
         }, 1500);
       }
 
-      // Katman 2: frekans işaretlendikten sonra dB seçici
-      function showDbPicker(hz) {
-        const area = els.freqGuessArea;
-        area.innerHTML =
-          `<span style="color:var(--cyan);font-size:14px;font-weight:700">${formatHz(hz)} işaretlendi. Kaç dB?</span>
-           <div class="seg" style="display:inline-flex">
-             ${[3,6,9,12].map(d => `<button type="button" class="dbpick" data-db="${d}" style="padding:8px 12px;font-weight:700">${d} dB</button>`).join("")}
-           </div>`;
-        area.querySelectorAll(".dbpick").forEach(btn => {
-          btn.addEventListener("click", () => {
-            try { submitLayer2Guess(hz, parseInt(btn.dataset.db, 10)); } catch (err) { console.error(err); }
-            ensureAutoNext();
-          });
-        });
-      }
 
       function drawVisualizer() {
         requestAnimationFrame(drawVisualizer);
@@ -1657,7 +1616,16 @@
         const arr = await file.arrayBuffer();
         uploadedAudioBuffer = await audioCtx.decodeAudioData(arr.slice(0));
         uploadOffset = 0; // yeni şarkı baştan
-        setFeedback("Ses yüklendi", `${file.name} başarıyla yüklendi.`);
+
+        // Kaynağı otomatik "Yüklenen Ses Dosyası"na geçir (oyunu otomatik başlatmadan).
+        if (els.sourceSelect.value !== "upload") {
+          els.sourceSelect.value = "upload";
+          els.sourceSelect.dispatchEvent(new Event("change", { bubbles: true }));
+          const rowText = document.querySelector('.setting-row[data-sheet-select="sourceSelect"] .setting-row-value-text');
+          if (rowText) rowText.textContent = els.sourceSelect.options[els.sourceSelect.selectedIndex].text;
+        }
+
+        setFeedback("Ses yüklendi", `${file.name} başarıyla yüklendi. Kaynak: Yüklenen Ses Dosyası.`);
       }
 
       let autoPlaying = false;      // otomatik akış açık mı
@@ -1681,7 +1649,8 @@
         clearTimeout(autoAdvanceTimer);
         clearInterval(autoCountdownTimer);
         stopAudio();
-        if (els.startBtn) { els.startBtn.textContent = "▶ Oyunu Başlat"; els.startBtn.classList.remove("warning"); }
+        activeQuestion = null;
+        updateStartBtnLabel();
         if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
         const acc = Math.round((challenge.correct / challenge.total) * 100);
         setFeedback(`🏁 Bölüm bitti — ${challenge.correct}/10 doğru`, `Toplam +${challenge.xp} XP (%${acc} isabet). Yeni bölüm için 'Oyunu Başlat'.`);
@@ -1704,34 +1673,18 @@
         autoStopped = !on;   // kapatınca "bilerek durduruldu" işaretle
         clearTimeout(autoAdvanceTimer);
         if (on) {
-          els.startBtn.textContent = "⏸ Durdur";
-          els.startBtn.classList.add("warning");
           startRound();
         } else {
-          els.startBtn.textContent = "▶ Oyunu Başlat";
-          els.startBtn.classList.remove("warning");
           clearTimer();
           stopAudio();
+          activeQuestion = null;
+          roundActive = false;
+          updateStartBtnLabel();
           setFeedback("Durduruldu", "Kaldığın yerden 'Oyunu Başlat' ile devam edebilirsin.");
         }
       }
 
-      function startRound() {
-        if (els.sourceSelect.value === "upload" && !uploadedAudioBuffer) {
-          setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
-          return;
-        }
-
-        if (currentLives <= 0) resetLives();
-        autoStopped = false;  // oyun akışta → otomatik geçiş açık
-        autoPlaying = true;
-        if (els.startBtn) { els.startBtn.textContent = "⏸ Durdur"; els.startBtn.classList.add("warning"); }
-
-        activeQuestion = buildQuestion();
-        renderQuestion();
-        playQuestion(true);
-        scrollToAnalyzer();
-
+      function startTimerForCurrentQuestion() {
         if (els.timerModeSelect && els.timerModeSelect.value === "off") {
           clearTimer();
           els.timerText.textContent = "∞";
@@ -1741,6 +1694,25 @@
           const time = activeQuestion.boss ? Math.max(6, baseTime - 2) : baseTime;
           startTimer(time);
         }
+      }
+
+      function startRound() {
+        if (gameOverVisible) return; // kart açıkken hiçbir tetikleyici yeni tur başlatamaz
+        if (currentLives <= 0) { showGameOverCard(); return; }
+        if (els.sourceSelect.value === "upload" && !uploadedAudioBuffer) {
+          setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
+          return;
+        }
+
+        autoStopped = false;  // oyun akışta → otomatik geçiş açık
+        autoPlaying = true;
+
+        activeQuestion = buildQuestion();
+        renderQuestion();
+        playQuestion(true);
+        updateStartBtnLabel();
+        scrollToAnalyzer();
+        startTimerForCurrentQuestion();
       }
 
       // Mobilde oyun başlayınca dalgayı görünür yap (tıklama alanına hızlı erişim)
@@ -1765,12 +1737,12 @@
         autoPlaying = false;
         autoStopped = false;
         clearTimeout(autoAdvanceTimer);
-        if (els.startBtn) { els.startBtn.textContent = "▶ Oyunu Başlat"; els.startBtn.classList.remove("warning"); }
         resetLives();
         clearTimer();
         stopAudio();
         activeQuestion = null;
         roundActive = false;
+        updateStartBtnLabel();
         updateUI();
         setFeedback("Yeni seri hazır", "Oyunu Başlat ile devam edebilirsin.");
       }
@@ -1785,21 +1757,35 @@
         }
       });
 
+      // startBtn duruma göre 3 iş yapar: Oyunu Başlat / Tekrar Çal / Durdur (bkz. updateStartBtnLabel)
       els.startBtn.addEventListener("click", async () => {
         await initAudio();
-        if (currentLives <= 0) resetLives();
-        // akış aktifse durdur, değilse başlat
-        if (autoPlaying && !autoStopped) {
-          setAutoPlay(false);
-        } else {
+        switchToOyunTab();
+        if (currentLives <= 0) { showGameOverCard(); return; }
+
+        if (!activeQuestion) {
           if (isChallenge()) startChallenge();   // 10 soruluk bölüm sıfırdan
           setAutoPlay(true);
+          return;
+        }
+
+        if (autoStopped) {
+          // Tekrar Çal: duraklatılmıştı, sesi baştan çal ve akışı yeniden başlat
+          autoStopped = false;
+          autoPlaying = true;
+          playQuestion(currentPlayMode === "filtered");
+          startTimerForCurrentQuestion();
+          updateStartBtnLabel();
+        } else {
+          // Durdur: sesi/zamanlayıcıyı/otomatik geçişi durdur, soru ekranda kalır
+          pauseRound();
         }
       });
 
       els.nextBtn.addEventListener("click", async () => {
         await initAudio();
-        if (currentLives <= 0) resetLives();
+        switchToOyunTab();
+        if (currentLives <= 0) { showGameOverCard(); return; }
         autoStopped = false;             // Atla ile akış tekrar açılır
         clearTimeout(autoAdvanceTimer);  // beklemeyi iptal et, hemen geç
         startRound();
@@ -1834,16 +1820,27 @@
         playABDemo();
       });
 
-      els.replayBtn.addEventListener("click", async () => {
-        await initAudio();
-        if (!activeQuestion) {
-          startRound();
-          return;
-        }
-        playQuestion(currentPlayMode === "filtered");
-      });
-
       els.hintBtn.addEventListener("click", giveHint);
+
+      // Kart X ile ya da dışına tıklanarak kapatılırsa: canlar yenilensin, yeni seriye hazır
+      // olunsun ama oyun OTOMATİK başlamasın — kullanıcı "Oyunu Başlat"a basmalı.
+      function closeGameOverAndReset() {
+        if (gameOverGuardActive()) return; // kartı açan tıklama overlay'e sızmış olabilir
+        hideGameOverCard();
+        resetLives(); // resetSession()'ı da içeride çağırır
+        setFeedback("Yeni seriye hazır", "Kaldığın yerden 'Oyunu Başlat' ile devam edebilirsin.");
+      }
+      if (els.gameoverClose) els.gameoverClose.addEventListener("click", closeGameOverAndReset);
+      if (els.gameoverOverlay) els.gameoverOverlay.addEventListener("click", closeGameOverAndReset);
+      if (els.gameoverRetryBtn) els.gameoverRetryBtn.addEventListener("click", async () => {
+        if (gameOverGuardActive()) return; // kartı açan tıklama Tekrar Oyna butonuna denk gelmiş olabilir
+        hideGameOverCard();
+        await initAudio();
+        switchToOyunTab();
+        resetLives(); // resetSession()'ı da içeride çağırır
+        if (isChallenge()) startChallenge();
+        setAutoPlay(true);
+      });
 
       els.resetStatsBtn.addEventListener("click", () => {
         if (!confirm("Tüm istatistikler, ilerleme ve görevler sıfırlansın mı?")) return;
@@ -1874,10 +1871,6 @@
         toast("🔄 Sıfırlandı", "Her şey baştan.");
       });
 
-      function updateLayerVisibility() {
-        els.layerControl.classList.toggle("hidden", els.modeSelect.value !== "proplus");
-      }
-      updateLayerVisibility();
       renderAnalysis();
       (function(){
         const ar = document.getElementById("analysisReset");
@@ -1893,13 +1886,11 @@
         // zorluk değişti → o zorluğun kendi canı/puanı/level'i yüklensin
         syncLives();
         updateUI();
-        updateLayerVisibility();
         setFeedback("Zorluk değişti", `${els.difficultySelect.options[els.difficultySelect.selectedIndex].text} — bu zorluğun kendi puanı, level'i ve canı geldi.`);
       });
 
-      [els.modeSelect, els.sourceSelect, els.layerSelect, els.playModeSelect].forEach(el => {
+      [els.sourceSelect, els.playModeSelect].forEach(el => {
         el.addEventListener("change", () => {
-          updateLayerVisibility();
           if (el === els.playModeSelect) {
             challenge.active = false;
             setAutoPlay(false);
@@ -1907,6 +1898,7 @@
           } else if (activeQuestion) {
             setFeedback("Ayar değişti", "Yeni ayarlar bir sonraki turda uygulanacak.");
           }
+          updateStartBtnLabel();
         });
       });
 
@@ -1924,6 +1916,7 @@
       renderDaily();
       updateTimerUI();
       updateUI();
+      updateStartBtnLabel();
 
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {

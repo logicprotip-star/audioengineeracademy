@@ -348,6 +348,11 @@
     .arena-title-top-row .heart{
       font-size:15px;
     }
+    .arena-title-bottom-row{
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
     .chip-seri{
       color:var(--violet);
       background:rgba(139,125,255,.14);
@@ -534,9 +539,10 @@
     .feed #feedbackDetail{color:var(--text);font-size:13.5px;line-height:1.55;display:block}
     .feed .chips{justify-content:flex-start}
 
-    /* Oyun aktif değilken (başlamadı ya da durduruldu) feedback kutusu ve içindeki Boss chip'i gizle.
-       #startBtn'in .warning class'ı sadece oyun aktifken (Durdur yazarken) ekleniyor. */
-    body:has(#startBtn:not(.warning)) #feedbackBox{display:none}
+    /* feedbackBox sadece cevap verilip sonuç gösterilirken görünür (bkz. setFeedback'in 3. parametresi).
+       Oyun başlamamışken, soru çalarken (henüz cevapsız) ve durdurulduğunda gizli kalır. */
+    #feedbackBox{display:none}
+    #feedbackBox.show-result{display:flex}
 
     .chip{
       padding:9px 12px;
@@ -556,9 +562,18 @@
       color:#17202a;
       background:linear-gradient(135deg, rgba(255,159,67,.95), rgba(255,209,102,.95));
       border-color:transparent;
-      margin-bottom:12px;
     }
     .chip-ab-demo:hover{filter:brightness(1.04)}
+
+    .chip-hint{
+      cursor:pointer;
+      font-family:inherit;
+      font-weight:700;
+      color:#17202a;
+      background:linear-gradient(135deg, rgba(255,209,102,.95), rgba(255,230,150,.95));
+      border-color:transparent;
+    }
+    .chip-hint:hover{filter:brightness(1.04)}
 
     .side-stack{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
 
@@ -629,6 +644,24 @@
       height:100%;
       background:linear-gradient(90deg, var(--green), var(--yellow), var(--orange), var(--red));
       transition:width .12s linear;
+    }
+
+    .timer-compact{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:14px;
+    }
+
+    .timer-compact .timer-bar{flex:1}
+
+    .timer-compact-text{
+      font-family:'JetBrains Mono', monospace;
+      font-size:12px;
+      color:var(--muted);
+      min-width:38px;
+      text-align:right;
+      flex-shrink:0;
     }
 
     .footer-note{
@@ -729,9 +762,14 @@
     }
 
     @media (max-width:560px){
-      .stat-grid,.metrics,.daily-grid,.toolbar-grid,.answers{grid-template-columns:1fr}
+      .daily-grid,.toolbar-grid,.answers{grid-template-columns:1fr}
       .control{min-width:100%;flex:1 1 100%}
       .hero-actions .btn{flex:1 1 100%}
+    }
+
+    /* Çok dar ekranlarda stat-grid/metrics de tek sütuna düşsün */
+    @media (max-width:400px){
+      .stat-grid,.metrics{grid-template-columns:1fr}
     }
 
     /* Ayar satırları (select yerine bottom sheet açan tıklanabilir satırlar) */
@@ -842,3 +880,58 @@
     .sheet-option:hover{background:rgba(255,255,255,.1)}
     .sheet-option .check{color:var(--cyan);font-weight:700;opacity:0;transition:opacity .12s ease}
     .sheet-option.selected .check{opacity:1}
+
+    /* Can bitince çıkan sonuç kartı */
+    .gameover-overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(3,8,15,.7);
+      z-index:95;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .2s ease;
+    }
+    .gameover-overlay.open{opacity:1;pointer-events:auto}
+
+    .gameover-card{
+      position:fixed;
+      top:50%;
+      left:50%;
+      transform:translate(-50%,-50%) scale(.92);
+      width:min(340px, calc(100% - 40px));
+      z-index:96;
+      padding:30px 24px 24px;
+      border-radius:24px;
+      background:linear-gradient(180deg, rgba(22,35,54,.98), rgba(10,17,28,.98));
+      backdrop-filter:blur(18px) saturate(150%);
+      -webkit-backdrop-filter:blur(18px) saturate(150%);
+      border:1px solid var(--stroke);
+      box-shadow:0 20px 60px rgba(0,0,0,.5);
+      text-align:center;
+      opacity:0;
+      pointer-events:none;
+      transition:opacity .2s ease, transform .2s ease;
+    }
+    .gameover-card.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
+
+    .gameover-close{
+      position:absolute;
+      top:14px;
+      right:14px;
+      background:rgba(255,255,255,.08);
+      border:0;
+      color:var(--muted);
+      width:28px;
+      height:28px;
+      border-radius:50%;
+      cursor:pointer;
+      font-size:14px;
+    }
+    .gameover-title{
+      font-family:'Space Grotesk', Inter, sans-serif;
+      font-size:22px;
+      font-weight:800;
+      margin-bottom:10px;
+    }
+    .gameover-stats{color:var(--muted);font-size:14px;margin-bottom:22px}
+    .gameover-card .btn{width:100%}
