@@ -44,7 +44,7 @@
         linear-gradient(135deg,var(--bg1),var(--bg2) 65%, #08131d);
       overflow-x:hidden;
       padding-top:env(safe-area-inset-top);
-      padding-bottom:env(safe-area-inset-bottom);
+      padding-bottom:calc(200px + env(safe-area-inset-bottom));
       padding-left:env(safe-area-inset-left);
       padding-right:env(safe-area-inset-right);
     }
@@ -95,13 +95,44 @@
     .hero-side{order:3}
     .side-stack{order:4}
 
+    /* Alt sabit buton çubuğu (Oyunu Başlat / A / B / Atla) */
+    .bottom-bar{
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:0;
+      z-index:60;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:12px 16px calc(12px + env(safe-area-inset-bottom)) 16px;
+      border-radius:var(--radius) var(--radius) 0 0;
+      border-bottom:0;
+      border-top:1px solid rgba(111,211,255,.35);
+    }
+    .bottom-bar .btn{
+      flex:1;
+      min-width:0;
+      padding:14px 8px;
+      font-size:13.5px;
+      text-align:center;
+      white-space:nowrap;
+    }
+    .bottom-bar #startBtn{flex:1.6}
+
     /* Sekmeler (Oyun / İlerleme / Analiz) */
     .tabs{
-      order:2;
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:calc(76px + env(safe-area-inset-bottom));
+      z-index:59;
+      width:calc(100% - 20px);
+      max-width:1420px;
+      margin:0 auto;
       display:flex;
       gap:6px;
       padding:6px;
-      margin:16px 0;
     }
     .tab-btn{
       flex:1;
@@ -461,6 +492,17 @@
     .chip.boss{color:#fff;background:rgba(255,108,136,.18);border-color:rgba(255,108,136,.4)}
     .chip.ab{color:#fff;background:rgba(111,211,255,.18);border-color:rgba(111,211,255,.35)}
 
+    .chip-ab-demo{
+      cursor:pointer;
+      font-family:inherit;
+      font-weight:700;
+      color:#17202a;
+      background:linear-gradient(135deg, rgba(255,159,67,.95), rgba(255,209,102,.95));
+      border-color:transparent;
+      margin-bottom:12px;
+    }
+    .chip-ab-demo:hover{filter:brightness(1.04)}
+
     .side-stack{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
 
     .achievement-list,.history-list{
@@ -606,8 +648,8 @@
 
     @media (max-width:900px){
       .app{width:min(100% - 12px, 100%);margin:8px auto 22px;display:flex;flex-direction:column}
-      /* uzun başlık/tanıtım gizli */
-      .hero-main h1, .hero-main .intro-long, .hero-main .eyebrow{display:none}
+      /* uzun başlık/tanıtım gizli (eyebrow chip görünür kalır) */
+      .hero-main h1, .hero-main .intro-long{display:none}
       /* MOBİL SIRA: butonlar(hero) → oyun(layout) → istatistik(hero-side) → başarım/geçmiş */
       .hero{order:1}
       .layout{order:2;margin-top:12px;display:flex;flex-direction:column;gap:14px}

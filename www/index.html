@@ -11,8 +11,8 @@
     <section class="hero">
       <div class="glass hero-main">
         <div class="eyebrow">EQ Ear Trainer Pro X</div>
-        <h1>Daha hızlı duy. Daha doğru tanı. Daha zor boss round’ları geç.</h1>
-        <div class="sub intro-long">
+        <h1 style="display:none">Daha hızlı duy. Daha doğru tanı. Daha zor boss round’ları geç.</h1>
+        <div class="sub intro-long" style="display:none">
           Bu sürümde zaman baskısı, can sistemi, günlük görevler, A/B karşılaştırma modu, boss round, yüklenen ses desteği,
           mobil uyum, başarımlar, XP ve combo akışı birlikte çalışır.
         </div>
@@ -28,20 +28,21 @@
       <button class="tab-btn" data-tab="analiz">Analiz</button>
     </div>
 
-    <div class="tab-content active" data-tab-content="oyun">
-      <div class="hero-actions">
-        <button class="btn" id="startBtn">Oyunu Başlat</button>
-        <button class="btn secondary" id="playACleanBtn">A - Temiz</button>
-        <button class="btn secondary" id="playBFilteredBtn">B - İşlenmiş</button>
-        <button class="btn success" id="nextBtn">Atla ▶</button>
-        <button class="btn warning" id="abAutoBtn">A/B Demo</button>
-      </div>
+    <div class="bottom-bar glass">
+      <button class="btn" id="startBtn">Oyunu Başlat</button>
+      <button class="btn secondary" id="playACleanBtn">A - Temiz</button>
+      <button class="btn secondary" id="playBFilteredBtn">B - İşlenmiş</button>
+      <button class="btn success" id="nextBtn">Atla ▶</button>
+    </div>
 
+    <div class="tab-content active" data-tab-content="oyun">
       <section class="layout">
         <div class="glass panel panel-arena">
           <div class="topbar">
             <h2>Antrenman Arenası</h2>
-            <div class="cluster">
+            <button class="chip chip-ab-demo" id="abAutoBtn">A/B Demo</button>
+          </div>
+          <div class="cluster">
               <div class="control">
                 <label>Oyun modu</label>
                 <select id="modeSelect">
@@ -101,7 +102,6 @@
                 <label>Ses dosyası yükle</label>
                 <input type="file" id="audioFileInput" accept="audio/*" />
               </div>
-            </div>
           </div>
 
           <div class="arena">
