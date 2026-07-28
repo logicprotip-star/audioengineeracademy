@@ -213,12 +213,60 @@
       let abDemoLock = false;
 
       // --- Frekans modu: wave üzerine tıklayarak tahmin ---
-      const FA_MIN = 20, FA_MAX = 20000;
+      // FA_MIN/FA_MAX, buildQuestion()/buildProPlusBands()'teki GERÇEK soru havuzuyla
+      // (logFreq(80, 17000)) birebir eşleşir — panelin dışında tıklanabilir ama hiç soru
+      // gelmeyen "ölü alan" kalmasın diye tahmin edilmiyor, doğrudan oradan alınıyor.
+      const FA_MIN = 80, FA_MAX = 17000;
       let freqGuessHz = null;   // kullanıcının cetvel üzerinde seçtiği Hz
       let freqHoverHz = null;   // fare/dokunuş anlık pozisyon
       const faXToF = (x, w) => FA_MIN * Math.pow(FA_MAX / FA_MIN, x / w);
       const faFToX = (f, w) => w * Math.log(f / FA_MIN) / Math.log(FA_MAX / FA_MIN);
-      const FA_TICKS = [31,63,125,250,500,1000,2000,4000,8000,16000];
+      // Adayların hepsi gösterilmeye çalışılır; dar ekranda sığmayanlar seyreltilir (bkz. pickFreqTicks).
+      const FA_TICKS_ALL = [100, 200, 400, 800, 1600, 3200, 6400, 12800];
+      // Alt eksen etiketleri için ayrılmış şerit yüksekliği — dalga/EQ eğrisi ASLA buraya
+      // taşmaz, etiketler gradyan çizginin ALTINDA, kendi temiz şeridinde kalır.
+      const AXIS_H = 50;
+      const AXIS_FONT_PX = 22;
+      // Tahmin/doğru cevap etiketleri — mobilde kol mesafesinden okunsun diye büyük.
+      const LABEL_FONT_PX = 32;
+      const LABEL_Y = 50;
+      // "çok yakın/yakın/uzak" etiketi — diğer etiketlerle uyumlu, belirgin.
+      const CLOSENESS_FONT_PX = 28;
+      const CLOSENESS_Y = 104;
+      // EQ yanıt eğrisinin/bandının başladığı yükseklik (üstteki iki etiket satırının altında).
+      const CURVE_TOP = 122;
+      let _faTicksCache = { key: null, ticks: FA_TICKS_ALL };
+      function pickFreqTicks(w) {
+        // Canvas'ın iç çözünürlüğü (w, örn. 1200) sabittir; ekranda gerçekte ne kadar yer
+        // kapladığı CSS genişliğine bağlıdır. "Sığma" kontrolünü GERÇEK piksele göre yapmak
+        // için iç birimi CSS ölçeğine çeviriyoruz — yoksa mobilde (küçük CSS genişliği,
+        // aynı iç 1200 birim) etiketler fiziksel olarak sıkışsa da "sığıyor" sanılır.
+        const cssW = (els.canvas.getBoundingClientRect().width) || w;
+        const cacheKey = w + ":" + Math.round(cssW);
+        if (_faTicksCache.key === cacheKey) return _faTicksCache.ticks;
+
+        ctx2d.font = `700 ${AXIS_FONT_PX}px 'JetBrains Mono', monospace`;
+        const scale = cssW / w; // iç birim -> gerçek CSS piksel
+        const minGapInternal = 64 / Math.max(0.05, scale); // ~64 CSS px minimum boşluk (büyümüş fonta göre)
+
+        function fits(arr) {
+          let lastRight = -Infinity;
+          for (const f of arr) {
+            const label = f >= 1000 ? (f / 1000) + "k" : String(f);
+            const halfW = ctx2d.measureText(label).width / 2;
+            const x = faFToX(f, w);
+            if (x - halfW < lastRight) return false;
+            lastRight = x + halfW + minGapInternal;
+          }
+          return true;
+        }
+        let ticks = FA_TICKS_ALL.slice();
+        while (ticks.length > 3 && !fits(ticks)) {
+          ticks = ticks.filter((_, i) => i % 2 === 0);
+        }
+        _faTicksCache = { key: cacheKey, ticks };
+        return ticks;
+      }
 
       // --- Native depolama (Capacitor Preferences) ile localStorage'ı yedekli tutma ---
       // WKWebView bazen depolama baskısı altında localStorage'ı temizleyebiliyor;
@@ -1621,41 +1669,187 @@
       }
 
       function drawFreqAxis(w, h) {
-        // Hz cetveli — her zaman görünür (Hata 1)
-        ctx2d.font = "700 13px 'JetBrains Mono', monospace";
-        ctx2d.textAlign = "center";
-        FA_TICKS.forEach(f => {
+        // Hz cetveli — her zaman görünür. Dalga/EQ eğrisi AXIS_H kadar üstte durur, bu
+        // yüzden ızgara çizgileri o sınırda kesiliyor ve etiketler kendi ayrı, koyu pill
+        // zeminli şeridinde (gradyanın ALTINDA) net okunuyor. Dar ekranda sığmayan
+        // etiketler seyreltilir (bkz. pickFreqTicks).
+        const plotBottom = h - AXIS_H;
+        const labelY = h - 16;
+        const font = `700 ${AXIS_FONT_PX}px 'JetBrains Mono', monospace`;
+        ctx2d.font = font;
+        pickFreqTicks(w).forEach(f => {
           const x = faFToX(f, w);
           ctx2d.strokeStyle = "rgba(255,255,255,.10)";
-          ctx2d.beginPath(); ctx2d.moveTo(x, 6); ctx2d.lineTo(x, h - 22); ctx2d.stroke();
-          ctx2d.fillStyle = "rgba(158,180,206,.9)";
-          ctx2d.fillText(f >= 1000 ? (f / 1000) + "k" : f, x, h - 6);
+          ctx2d.beginPath(); ctx2d.moveTo(x, 6); ctx2d.lineTo(x, plotBottom); ctx2d.stroke();
+          const label = f >= 1000 ? (f / 1000) + "k" : String(f);
+          drawPillLabel(label, x, labelY, "rgba(8,13,22,.82)", "#eef6ff", font, AXIS_FONT_PX, w);
         });
+      }
+
+      function hexToRgba(hex, alpha) {
+        const v = hex.replace("#", "");
+        const r = parseInt(v.substring(0, 2), 16);
+        const g = parseInt(v.substring(2, 4), 16);
+        const b = parseInt(v.substring(4, 6), 16);
+        return `rgba(${r},${g},${b},${alpha})`;
+      }
+
+      function roundRectPath(x, y, w, h, r) {
+        ctx2d.beginPath();
+        ctx2d.moveTo(x + r, y);
+        ctx2d.arcTo(x + w, y, x + w, y + h, r);
+        ctx2d.arcTo(x + w, y + h, x, y + h, r);
+        ctx2d.arcTo(x, y + h, x, y, r);
+        ctx2d.arcTo(x, y, x + w, y, r);
+        ctx2d.closePath();
+      }
+
+      // Grid çizgilerinin/dalganın üstünde okunsun diye etiketin arkasına yarı saydam bir
+      // "pill" koyar. clampW verilirse (canvas iç genişliği) pill kenardan taşmayacak
+      // şekilde içeri kaydırılır — panel kenarında kesilmesin.
+      function drawPillLabel(text, x, y, bg, fg, font, fontSizePx, clampW) {
+        ctx2d.font = font;
+        ctx2d.textAlign = "center";
+        const padX = 16, padY = 10; // cömert padding — metin ASLA kutuya sıkışmasın
+        const tw = ctx2d.measureText(text).width;
+        const rw = tw + padX * 2;
+        const rh = fontSizePx + padY * 2;
+        let cx = x;
+        if (typeof clampW === "number") {
+          const half = rw / 2;
+          if (cx - half < 4) cx = 4 + half;
+          if (cx + half > clampW - 4) cx = clampW - 4 - half;
+        }
+        roundRectPath(cx - rw / 2, y - fontSizePx - padY + 2, rw, rh, rh / 2);
+        ctx2d.fillStyle = bg;
+        ctx2d.fill();
+        ctx2d.fillStyle = fg;
+        ctx2d.fillText(text, cx, y);
         ctx2d.textAlign = "left";
+      }
+
+      // Soruda uygulanan peaking filtre(ler)in gerçek frekans yanıtını (dB) hesaplar.
+      // Pro Plus'ta bantlar seri bağlı olduğundan toplam yanıt dB'lerin TOPLAMIdır.
+      function getEqCurveForQuestion(q, w) {
+        if (!audioCtx) return null;
+        if (q._eqCurveCache && q._eqCurveCache.w === w) return q._eqCurveCache.db;
+        const specs = q.mode === "proplus" && q.bands
+          ? q.bands.map(b => ({ freq: b.freq, q: b.q, gain: b.gain }))
+          : [{ freq: q.freq, q: q.q, gain: q.gain }];
+        const N = 160;
+        const freqs = new Float32Array(N);
+        for (let i = 0; i < N; i++) freqs[i] = faXToF((i / (N - 1)) * w, w);
+        const totalDb = new Float32Array(N);
+        const mag = new Float32Array(N);
+        const phase = new Float32Array(N);
+        specs.forEach(spec => {
+          const filter = audioCtx.createBiquadFilter();
+          filter.type = "peaking";
+          filter.frequency.value = spec.freq;
+          filter.Q.value = spec.q;
+          filter.gain.value = spec.gain;
+          filter.getFrequencyResponse(freqs, mag, phase);
+          for (let i = 0; i < N; i++) totalDb[i] += 20 * Math.log10(Math.max(mag[i], 1e-6));
+        });
+        q._eqCurveCache = { w, db: totalDb };
+        return totalDb;
+      }
+
+      // Cevap açıldıktan SONRA: uygulanan EQ'nun frekans yanıt eğrisi, altı hafif dolgulu.
+      // Doğru cevap çizgisiyle aynı renk (#ffd166).
+      function drawEqResponseCurve(w, h, q) {
+        const db = getEqCurveForQuestion(q, w);
+        if (!db) return;
+        const N = db.length;
+        const maxAbsDb = 15;
+        // Üstte tahmin/cevap + yakınlık etiketlerine yer bırak (bkz. drawFreqGuessLayer),
+        // altta AXIS_H'lik eksen şeridine değme.
+        const plotBottom = h - AXIS_H;
+        const curveTop = CURVE_TOP, curveBottom = plotBottom - 6;
+        const midY = curveTop + (curveBottom - curveTop) * 0.55;
+        const bandH = (curveBottom - curveTop) * 0.42;
+        const yAt = i => {
+          const d = Math.max(-maxAbsDb, Math.min(maxAbsDb, db[i]));
+          return midY - (d / maxAbsDb) * bandH;
+        };
+
+        ctx2d.save();
+        ctx2d.beginPath();
+        for (let i = 0; i < N; i++) {
+          const x = (i / (N - 1)) * w;
+          if (i === 0) ctx2d.moveTo(x, yAt(i)); else ctx2d.lineTo(x, yAt(i));
+        }
+        ctx2d.lineTo(w, midY);
+        ctx2d.lineTo(0, midY);
+        ctx2d.closePath();
+        ctx2d.fillStyle = "rgba(255,209,102,.14)";
+        ctx2d.fill();
+
+        ctx2d.beginPath();
+        for (let i = 0; i < N; i++) {
+          const x = (i / (N - 1)) * w;
+          if (i === 0) ctx2d.moveTo(x, yAt(i)); else ctx2d.lineTo(x, yAt(i));
+        }
+        ctx2d.strokeStyle = "#ffd166";
+        ctx2d.lineWidth = 2;
+        ctx2d.globalAlpha = 0.85;
+        ctx2d.stroke();
+        ctx2d.restore();
+      }
+
+      // Tahmin ile doğru cevap arasındaki mesafeyi OKTAV cinsinden değerlendirip (lineer Hz
+      // DEĞİL) renkli bir bant + kısa metinle gösterir. Eşikler puanlamayla aynı (bkz.
+      // submitFreqGuess: 0.17/0.5 oktav).
+      function drawClosenessBand(w, h, q, guessHz) {
+        const dOct = Math.abs(Math.log2(guessHz / q.freq));
+        let color, text;
+        if (dOct <= 0.17) { color = "#68f0ab"; text = "çok yakın"; }
+        else if (dOct <= 0.5) { color = "#ffb347"; text = "yakın"; }
+        else { color = "#ff6c88"; text = "uzak"; }
+
+        const plotBottom = h - AXIS_H;
+        const x1 = faFToX(guessHz, w);
+        const x2 = faFToX(q.freq, w);
+        const left = Math.min(x1, x2), right = Math.max(x1, x2);
+        const top = CURVE_TOP, bottom = plotBottom - 6; // EQ eğrisiyle aynı bölge
+
+        ctx2d.fillStyle = hexToRgba(color, 0.16);
+        ctx2d.fillRect(left, top, Math.max(2, right - left), bottom - top);
+
+        // Fark edilir olsun diye: büyük font + büyük pill, tahmin/cevap etiketlerinin
+        // hemen altındaki boş alanda, bandın üst kenarına yakın.
+        const midX = (left + right) / 2;
+        const font = `800 ${CLOSENESS_FONT_PX}px 'JetBrains Mono', monospace`;
+        drawPillLabel(text, midX, CLOSENESS_Y, hexToRgba(color, 0.92), "#0b1220", font, CLOSENESS_FONT_PX, w);
       }
 
       function drawFreqGuessLayer(w, h) {
         const q = activeQuestion;
+        const plotBottom = h - AXIS_H; // dalga/çizgiler eksen şeridine ASLA taşmaz
         // hover çizgisi
         if (freqHoverHz && roundActive) {
           const x = faFToX(freqHoverHz, w);
           ctx2d.strokeStyle = "rgba(111,211,255,.55)";
           ctx2d.setLineDash([4,4]);
-          ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, h - 22); ctx2d.stroke();
+          ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, plotBottom); ctx2d.stroke();
           ctx2d.setLineDash([]);
         }
 
         // ---- PRO PLUS çok bantlı ----
         if (q && q.mode === "proplus" && q.bands) {
+          // Cevap açıldıysa: 4 bandın toplam EQ yanıt eğrisi (arka planda, çizgilerin altında).
+          if (!roundActive && q.freqRevealed && q._result) {
+            drawEqResponseCurve(w, h, q);
+          }
           // kullanıcının işaretledikleri: tur boyunca VE reveal'da mavi kalsın
           (q.guesses || []).forEach(gHz => {
             const x = faFToX(gHz, w);
             ctx2d.strokeStyle = roundActive ? "#6fd3ff" : "rgba(111,211,255,.85)";
             ctx2d.lineWidth = roundActive ? 3 : 2;
-            ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, h - 22); ctx2d.stroke();
+            ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, plotBottom); ctx2d.stroke();
             if (!roundActive) {
-              ctx2d.fillStyle = "rgba(111,211,255,.95)"; ctx2d.font = "700 11px 'JetBrains Mono', monospace"; ctx2d.textAlign = "center";
-              ctx2d.fillText("sen", x, h - 30); ctx2d.textAlign = "left";
+              drawPillLabel("sen", x, plotBottom - 14, "rgba(15,23,32,.82)", "rgba(111,211,255,.95)",
+                "700 18px 'JetBrains Mono', monospace", 18, w);
             }
           });
           // cevap açıldıysa: sıralı parlama ile doğru=yeşil / yanlış=kırmızı
@@ -1670,15 +1864,14 @@
                 ctx2d.save();
                 ctx2d.globalAlpha = ppRevealGlow;
                 ctx2d.strokeStyle = col; ctx2d.lineWidth = 10;
-                ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, h - 22); ctx2d.stroke();
+                ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, plotBottom); ctx2d.stroke();
                 ctx2d.restore();
               }
               ctx2d.strokeStyle = col; ctx2d.lineWidth = 3; ctx2d.setLineDash([5,4]);
-              ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, h - 22); ctx2d.stroke(); ctx2d.setLineDash([]);
-              ctx2d.fillStyle = col; ctx2d.font = "800 13px 'JetBrains Mono', monospace"; ctx2d.textAlign = "center";
-              ctx2d.fillText((b.correct ? "✓ " : "✗ ") + (up ? "▲" : "▼") + formatHz(b.freq), x, up ? 26 : h/2);
+              ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, plotBottom); ctx2d.stroke(); ctx2d.setLineDash([]);
+              drawPillLabel((b.correct ? "✓ " : "✗ ") + (up ? "▲" : "▼") + formatHz(b.freq), x, up ? LABEL_Y : h / 2,
+                "rgba(15,23,32,.82)", col, "800 20px 'JetBrains Mono', monospace", 20, w);
             });
-            ctx2d.textAlign = "left";
           }
           return;
         }
@@ -1686,20 +1879,38 @@
         // ---- TEK BANT (frekans modu + Pro Plus K2) ----
         const l2guess = (q && q.mode === "proplus" && q.guesses && q.guesses.length) ? q.guesses[0] : null;
         const showGuess = freqGuessHz || l2guess;
-        if (showGuess) {
-          const x = faFToX(showGuess, w);
-          ctx2d.strokeStyle = "#6fd3ff"; ctx2d.lineWidth = 3;
-          ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, h - 22); ctx2d.stroke();
-          ctx2d.fillStyle = "#6fd3ff"; ctx2d.font = "800 15px 'JetBrains Mono', monospace"; ctx2d.textAlign = "center";
-          ctx2d.fillText(formatHz(showGuess), x, 26); ctx2d.textAlign = "left";
+        const revealed = !roundActive && q && q.freqRevealed;
+
+        // Cevap açıldıysa: önce EQ yanıt eğrisi + "ne kadar yakın" bandı (çizgilerin ALTINDA).
+        if (revealed) {
+          drawEqResponseCurve(w, h, q);
+          if (showGuess) drawClosenessBand(w, h, q, showGuess);
         }
-        if (!roundActive && q && q.freqRevealed) {
-          const x = faFToX(q.freq, w);
+
+        // Tahmin ve doğru cevap birbirine çok yakınsa (ör. 148 Hz vs 152 Hz) etiketleri
+        // aynı hizada bırakma — biri sola, biri sağa kaysın ki pill'ler üst üste binmesin.
+        // Cevap açıldıktan sonra üst bölge zaten boş kalıyor; bu yüzden font büyük tutulur.
+        const guessX = showGuess ? faFToX(showGuess, w) : null;
+        const answerX = revealed ? faFToX(q.freq, w) : null;
+        let guessDx = 0, answerDx = 0;
+        if (guessX !== null && answerX !== null && Math.abs(guessX - answerX) < 110) {
+          if (guessX <= answerX) { guessDx = -66; answerDx = 66; }
+          else { guessDx = 66; answerDx = -66; }
+        }
+
+        const labelFont = `800 ${LABEL_FONT_PX}px 'JetBrains Mono', monospace`;
+        if (showGuess) {
+          ctx2d.strokeStyle = "#6fd3ff"; ctx2d.lineWidth = 3;
+          ctx2d.beginPath(); ctx2d.moveTo(guessX, 4); ctx2d.lineTo(guessX, plotBottom); ctx2d.stroke();
+          drawPillLabel(formatHz(showGuess), guessX + guessDx, LABEL_Y, "rgba(15,23,32,.88)", "#6fd3ff",
+            labelFont, LABEL_FONT_PX, w);
+        }
+        if (revealed) {
           const up = q.gain >= 0;
           ctx2d.strokeStyle = "#ffd166"; ctx2d.lineWidth = 3; ctx2d.setLineDash([5,4]);
-          ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, h - 22); ctx2d.stroke(); ctx2d.setLineDash([]);
-          ctx2d.fillStyle = "#ffd166"; ctx2d.font = "800 15px 'JetBrains Mono', monospace"; ctx2d.textAlign = "center";
-          ctx2d.fillText((up ? "▲ " : "▼ ") + formatHz(q.freq), x, h / 2); ctx2d.textAlign = "left";
+          ctx2d.beginPath(); ctx2d.moveTo(answerX, 4); ctx2d.lineTo(answerX, plotBottom); ctx2d.stroke(); ctx2d.setLineDash([]);
+          drawPillLabel((up ? "▲ " : "▼ ") + formatHz(q.freq), answerX + answerDx, LABEL_Y, "rgba(15,23,32,.88)", "#ffd166",
+            labelFont, LABEL_FONT_PX, w);
         }
       }
 
@@ -1797,7 +2008,11 @@
         const data = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteFrequencyData(data);
 
-        const grad = ctx2d.createLinearGradient(0, 0, w, h);
+        // Dalga/barlar AXIS_H'lik alt eksen şeridine ASLA taşmaz — etiketler onun altında,
+        // kendi ayrı/okunaklı şeridinde kalır (bkz. drawFreqAxis).
+        const plotBottom = h - AXIS_H;
+
+        const grad = ctx2d.createLinearGradient(0, 0, w, plotBottom);
         grad.addColorStop(0, "rgba(111,211,255,.95)");
         grad.addColorStop(1, "rgba(139,125,255,.95)");
 
@@ -1808,7 +2023,7 @@
         const step = w / data.length;
         for (let i = 0; i < data.length; i++) {
           const x = i * step;
-          const y = h - (data[i] / 255) * (h - 18) - 8;
+          const y = plotBottom - (data[i] / 255) * (plotBottom - 18) - 8;
           if (i === 0) ctx2d.moveTo(x, y);
           else ctx2d.lineTo(x, y);
         }
@@ -1816,9 +2031,9 @@
 
         for (let i = 0; i < data.length; i += 8) {
           const x = i * step;
-          const barH = (data[i] / 255) * (h * 0.75);
+          const barH = (data[i] / 255) * (plotBottom * 0.75);
           ctx2d.fillStyle = i % 16 === 0 ? "rgba(111,211,255,.32)" : "rgba(139,125,255,.18)";
-          ctx2d.fillRect(x, h - barH, Math.max(2, step * 3.5), barH);
+          ctx2d.fillRect(x, plotBottom - barH, Math.max(2, step * 3.5), barH);
         }
 
         drawFreqAxis(w, h);
