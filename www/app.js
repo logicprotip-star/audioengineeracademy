@@ -110,10 +110,13 @@
       let currentPlayMode = "filtered";
       let visualizerOn = true;
 
-      let uploadedAudioBuffer = null;
-      let currentUploadedSource = null;
-      let uploadOffset = 0;        // yüklenen sesin kaldığı pozisyon (saniye)
-      let uploadStartedAt = 0;     // bu kaynağın audioCtx zamanında başladığı an
+      // Yüklenen ses dosyası: decodeAudioData yerine HTMLAudioElement + MediaElementAudioSourceNode.
+      // Büyük dosyalarda tüm PCM'i RAM'e açmadığı için iOS WKWebView'da çökmeye yol açmıyor.
+      // uploadedMediaSource TUR DEĞİŞTİĞİNDE yeniden oluşturulmaz/kesilmez — sadece filtre zincirine
+      // yeniden bağlanır, ses akışı arka planda hep sürer (bkz. buildQuestionChain).
+      let uploadedAudioEl = null;
+      let uploadedObjectUrl = null;
+      let uploadedMediaSource = null;
       let timerInterval = null;
       let timeLeft = 0;
       let roundDuration = 0;
@@ -142,6 +145,7 @@
         clearInterval(autoCountdownTimer);
         clearTimer();
         stopAudio();
+        pauseUploadPlayback(); // yüklenen ses kaynağı varsa gerçekten duraklat
         els.feedbackBox.classList.remove("show-result"); // durdurulunca feedback kutusu gizlensin
         if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
         updateStartBtnLabel();
@@ -656,12 +660,6 @@
       function stopAudio() {
         if (!audioCtx) return;
 
-        // yüklenen ses çalıyorsa kaldığı pozisyonu sakla
-        if (currentUploadedSource && uploadedAudioBuffer) {
-          uploadOffset = (audioCtx.currentTime - uploadStartedAt) % uploadedAudioBuffer.duration;
-          if (uploadOffset < 0) uploadOffset = 0;
-        }
-
         const now = audioCtx.currentTime;
         currentNodes.forEach(node => {
           try {
@@ -671,6 +669,9 @@
             }
           } catch {}
           try {
+            // MediaElementAudioSourceNode'un .stop() metodu yok — bu kendisini etkilemez,
+            // sadece node.disconnect() ile filtre zincirinden ayrılır (element çalmaya devam eder,
+            // "tur değiştiğinde çalma kesilmesin" kuralı böyle korunur).
             if (node.stop) node.stop(now + 0.08);
           } catch {}
           try {
@@ -679,7 +680,48 @@
         });
 
         currentNodes = [];
-        currentUploadedSource = null;
+      }
+
+      // Durdur / oyun bitti / sekme gizlendi gibi GERÇEK durdurma anlarında yüklenen ses
+      // dosyasının kendisini de duraklat (stopAudio() bunu YAPMAZ — o sadece filtre zincirini
+      // kesiyor ki tur değişince ses akışı arka planda kesintisiz sürsün).
+      function pauseUploadPlayback() {
+        if (uploadedAudioEl) {
+          try { uploadedAudioEl.pause(); } catch {}
+        }
+      }
+
+      // Ham play() çağrısı — currentTime'a dokunmaz. Hem sıfırdan başlatma hem de kaldığı
+      // yerden devam ettirme bunun üzerine kurulu.
+      function playUploadedAudioEl() {
+        if (!uploadedAudioEl) return;
+        const p = uploadedAudioEl.play();
+        if (p && p.catch) {
+          p.catch(err => {
+            console.error("[upload] play() reddedildi:", err && err.name, err && err.message, err);
+            setFeedback("Ses oynatılamadı", "Tarayıcı sesi başlatmayı engelledi. 'Oyunu Başlat'a tekrar dokun.");
+          });
+        }
+      }
+
+      // Yüklenen dosyayı BAŞINDAN (currentTime=0) çalmaya başlat. SADECE gerçek "yeni oturum"
+      // anlarında çağrılmalı: Oyunu Başlat (sıfırdan), Tekrar Oyna. "Tekrar Çal" (Durdur'dan
+      // devam) bunu ÇAĞIRMAZ — bkz. resumeUploadPlayback().
+      function startUploadPlaybackFromZero() {
+        if (!uploadedAudioEl) return;
+        try {
+          uploadedAudioEl.currentTime = 0;
+        } catch (e) {
+          console.error("[upload] currentTime=0 ayarlanamadı:", e);
+        }
+        playUploadedAudioEl();
+      }
+
+      // Durdur'dan (Tekrar Çal ile) devam: currentTime'a DOKUNMA, kaldığı yerden play() ile
+      // sürdür. Tur değişiminde de ses zaten duraklamamıştır (sadece filtre zinciri kesilir),
+      // bu yüzden bu fonksiyon SADECE Tekrar Çal butonundan çağrılır.
+      function resumeUploadPlayback() {
+        playUploadedAudioEl();
       }
 
       function buildQuestionChain(question, processed = true) {
@@ -719,17 +761,12 @@
 
         currentNodes.push(out, sourceMix, compressor, ...filters);
 
-        if (question.source === "upload" && uploadedAudioBuffer) {
-          const src = audioCtx.createBufferSource();
-          src.buffer = uploadedAudioBuffer;
-          src.loop = true;
-          src.connect(sourceMix);
-          // kaldığı yerden devam et (offset buffer süresine göre sarmalanır)
-          const off = uploadOffset % uploadedAudioBuffer.duration;
-          src.start(0, off);
-          uploadStartedAt = audioCtx.currentTime - off;
-          currentNodes.push(src);
-          currentUploadedSource = src;
+        if (question.source === "upload" && uploadedMediaSource) {
+          // Kalıcı node — burada YENİDEN oluşturulmuyor, sadece yeni filtre zincirine bağlanıyor.
+          // Element'in kendisi (play/pause/currentTime) buradan hiç yönetilmiyor; bkz.
+          // startUploadPlaybackFromZero() / pauseUploadPlayback().
+          uploadedMediaSource.connect(sourceMix);
+          currentNodes.push(uploadedMediaSource);
         } else if (question.source === "pink" || question.source === "white") {
           const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
           const data = buffer.getChannelData(0);
@@ -982,6 +1019,7 @@
         roundActive = false;
         clearTimer();
         stopAudio();
+        pauseUploadPlayback();
         activeQuestion = null;
         updateStartBtnLabel();
         showGameOverCard();
@@ -1610,12 +1648,76 @@
         if (isWaveMode()) drawFreqGuessLayer(w, h);
       }
 
+      // iOS WKWebView'da <input accept> UTI eşleşmesi güvenilmez çalıştığından (bkz. index.html'deki
+      // audioFileInput), gerçek doğrulamayı burada uzantı+boyut üzerinden yapıyoruz.
+      const ALLOWED_AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "aac", "aiff", "flac", "ogg"];
+      const MAX_AUDIO_FILE_MB = 150; // HTMLAudioElement dosyayı akışla oynatır (decodeAudioData gibi tamamını RAM'e açmaz)
+
+      function validateAudioFile(file) {
+        const ext = (file.name.split(".").pop() || "").toLowerCase();
+        if (!ALLOWED_AUDIO_EXTENSIONS.includes(ext)) {
+          setFeedback("Desteklenmeyen dosya türü", `".${ext || "?"}" uzantılı dosyalar desteklenmiyor. Desteklenenler: ${ALLOWED_AUDIO_EXTENSIONS.join(", ")}.`);
+          return false;
+        }
+        if (file.size > MAX_AUDIO_FILE_MB * 1024 * 1024) {
+          setFeedback("Dosya çok büyük", `Dosya ${MAX_AUDIO_FILE_MB} MB sınırını aşıyor. Lütfen daha kısa bir ses dosyası seç.`);
+          return false;
+        }
+        return true;
+      }
+
       async function loadUploadedAudio(file) {
         if (!file) return;
         await initAudio();
-        const arr = await file.arrayBuffer();
-        uploadedAudioBuffer = await audioCtx.decodeAudioData(arr.slice(0));
-        uploadOffset = 0; // yeni şarkı baştan
+
+        // Önceki dosyanın kaynaklarını serbest bırak (yeni dosya her zaman temiz bir <audio>
+        // + yeni bir MediaElementAudioSourceNode ile başlar — aynı element'ten ikinci kez
+        // createMediaElementSource() çağrılamaz).
+        if (uploadedMediaSource) {
+          try { uploadedMediaSource.disconnect(); } catch {}
+          uploadedMediaSource = null;
+        }
+        if (uploadedAudioEl) {
+          // NOT: .src = "" YAPMA — elementin kendi "error" dinleyicisini (Empty src attribute)
+          // tetikleyip yanlışlıkla bir hata mesajı gösterir. revokeObjectURL + referansı bırakmak
+          // (GC) temizlik için yeterli.
+          try { uploadedAudioEl.pause(); } catch {}
+          uploadedAudioEl = null;
+        }
+        if (uploadedObjectUrl) {
+          URL.revokeObjectURL(uploadedObjectUrl);
+          uploadedObjectUrl = null;
+        }
+
+        const url = URL.createObjectURL(file);
+        const audioEl = new Audio();
+        audioEl.loop = true;
+        audioEl.preload = "auto";
+        audioEl.playsInline = true;
+        audioEl.src = url;
+
+        audioEl.addEventListener("error", () => {
+          const err = audioEl.error;
+          console.error("[upload] <audio> error event:", err && err.code, err && err.message);
+          setFeedback("Ses oynatılamadı", "Dosya oynatılırken bir hata oluştu. Farklı bir dosya dene.");
+        });
+        audioEl.addEventListener("stalled", () => {
+          setFeedback("Yükleme takıldı", "Ses dosyası okunurken takıldı. Bağlantıyı/dosyayı kontrol edip tekrar dene.");
+        });
+
+        uploadedAudioEl = audioEl;
+        uploadedObjectUrl = url;
+
+        try {
+          uploadedMediaSource = audioCtx.createMediaElementSource(audioEl);
+        } catch (e) {
+          console.error("[upload] createMediaElementSource hatası:", e && e.name, e && e.message, e);
+          setFeedback("Bu dosya çözümlenemedi", "Ses kaynağı oluşturulamadı. Farklı bir mp3/wav/m4a dosyası dene.");
+          uploadedAudioEl = null;
+          uploadedObjectUrl = null;
+          URL.revokeObjectURL(url);
+          return;
+        }
 
         // Kaynağı otomatik "Yüklenen Ses Dosyası"na geçir (oyunu otomatik başlatmadan).
         if (els.sourceSelect.value !== "upload") {
@@ -1625,7 +1727,7 @@
           if (rowText) rowText.textContent = els.sourceSelect.options[els.sourceSelect.selectedIndex].text;
         }
 
-        setFeedback("Ses yüklendi", `${file.name} başarıyla yüklendi. Kaynak: Yüklenen Ses Dosyası.`);
+        setFeedback("Ses yüklendi", `${file.name} başarıyla yüklendi. "Oyunu Başlat" ile çalmaya başlar.`);
       }
 
       let autoPlaying = false;      // otomatik akış açık mı
@@ -1673,10 +1775,14 @@
         autoStopped = !on;   // kapatınca "bilerek durduruldu" işaretle
         clearTimeout(autoAdvanceTimer);
         if (on) {
+          // Yeni bir seri/oturum burada BAŞLIYOR (fresh start ya da Tekrar Oyna) — yüklenen
+          // ses varsa dosyanın başından (gerçek kullanıcı jesti içinde) çalmaya başla.
+          if (els.sourceSelect.value === "upload") startUploadPlaybackFromZero();
           startRound();
         } else {
           clearTimer();
           stopAudio();
+          pauseUploadPlayback();
           activeQuestion = null;
           roundActive = false;
           updateStartBtnLabel();
@@ -1699,7 +1805,7 @@
       function startRound() {
         if (gameOverVisible) return; // kart açıkken hiçbir tetikleyici yeni tur başlatamaz
         if (currentLives <= 0) { showGameOverCard(); return; }
-        if (els.sourceSelect.value === "upload" && !uploadedAudioBuffer) {
+        if (els.sourceSelect.value === "upload" && !uploadedMediaSource) {
           setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
           return;
         }
@@ -1750,9 +1856,14 @@
       els.audioFileInput.addEventListener("change", async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        if (!validateAudioFile(file)) {
+          e.target.value = ""; // aynı (geçersiz) dosya tekrar seçilirse change event'i yine tetiklensin
+          return;
+        }
         try {
           await loadUploadedAudio(file);
-        } catch {
+        } catch (err) {
+          console.error("[upload] loadUploadedAudio dışında beklenmeyen hata:", err && err.name, err && err.message, err);
           setFeedback("Yükleme hatası", "Bu ses dosyası açılamadı. Farklı bir mp3/wav dene.");
         }
       });
@@ -1770,9 +1881,11 @@
         }
 
         if (autoStopped) {
-          // Tekrar Çal: duraklatılmıştı, sesi baştan çal ve akışı yeniden başlat
+          // Tekrar Çal: duraklatılmıştı, akışı yeniden başlat. Yüklenen ses varsa BAŞTAN
+          // ATMA — kaldığı yerden play() ile devam (bkz. resumeUploadPlayback).
           autoStopped = false;
           autoPlaying = true;
+          if (els.sourceSelect.value === "upload") resumeUploadPlayback();
           playQuestion(currentPlayMode === "filtered");
           startTimerForCurrentQuestion();
           updateStartBtnLabel();
@@ -1794,7 +1907,7 @@
       els.playACleanBtn.addEventListener("click", async () => {
         await initAudio();
         if (!activeQuestion) {
-          startRound();
+          setAutoPlay(true); // Oyunu Başlat ile aynı fresh-start yolu (upload varsa baştan çalar)
           return;
         }
         playQuestion(false);
@@ -1804,7 +1917,7 @@
       els.playBFilteredBtn.addEventListener("click", async () => {
         await initAudio();
         if (!activeQuestion) {
-          startRound();
+          setAutoPlay(true);
           return;
         }
         playQuestion(true);
@@ -1814,7 +1927,7 @@
       els.abAutoBtn.addEventListener("click", async () => {
         await initAudio();
         if (!activeQuestion) {
-          startRound();
+          setAutoPlay(true);
           return;
         }
         playABDemo();
@@ -1905,6 +2018,7 @@
       window.addEventListener("visibilitychange", () => {
         if (document.hidden) {
           stopAudio();
+          pauseUploadPlayback();
         } else if (audioCtx && audioCtx.state === "suspended") {
           try { audioCtx.resume(); } catch (e) {}
         }
