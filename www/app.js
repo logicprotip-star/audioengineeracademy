@@ -25,13 +25,19 @@
         { key: "hihat", label: "Hi-Hat / Air", base: [5000, 8000, 11000] }
       ];
 
+      // hintBandOct: ipucu maskesinde doğru bandın etrafında AÇIK bırakılan tam genişlik
+      // (oktav). Kolayda geniş (bulması kolay), zorda dar (yine de zorlayıcı).
       const DIFFICULTY = {
-        easy: { gain: 10, q: 0.9, xp: 16, options: 3, time: 16, lives: 5 },
-        medium: { gain: 8, q: 1.3, xp: 24, options: 4, time: 13, lives: 4 },
-        hard: { gain: 6, q: 2.5, xp: 36, options: 5, time: 11, lives: 3 },
-        pro: { gain: 4.5, q: 4.2, xp: 52, options: 6, time: 9, lives: 3 },
-        proplus: { gain: 8, q: 3.2, xp: 45, options: 4, time: 20, lives: 3 }
+        easy: { gain: 10, q: 0.9, xp: 16, options: 3, time: 16, lives: 5, hintBandOct: 2.4 },
+        medium: { gain: 8, q: 1.3, xp: 24, options: 4, time: 13, lives: 4, hintBandOct: 1.6 },
+        hard: { gain: 6, q: 2.5, xp: 36, options: 5, time: 11, lives: 3, hintBandOct: 1.0 },
+        pro: { gain: 4.5, q: 4.2, xp: 52, options: 6, time: 9, lives: 3, hintBandOct: 0.6 },
+        proplus: { gain: 8, q: 3.2, xp: 45, options: 4, time: 20, lives: 3, hintBandOct: 1.0 }
       };
+
+      // Kolay/Orta'da EQ değişimi sadece boost (pozitif gain) olsun — dar bir kesim komşu
+      // bandın yükselmiş gibi duyulmasına yol açıp yeni başlayanı kafa karıştırıyor.
+      const BOOST_ONLY_DIFFICULTIES = new Set(["easy", "medium"]);
 
       const ACHIEVEMENTS = [
         { id: "first_blood", icon: "🎧", title: "İlk Kulak", desc: "İlk doğru cevabı ver.", check: s => s.correct >= 1 },
@@ -53,6 +59,7 @@
         abAutoBtn: document.getElementById("abAutoBtn"),
         seriChip: document.getElementById("seriChip"),
         hintBtn: document.getElementById("hintBtn"),
+        hintMaskLayer: document.getElementById("hintMaskLayer"),
         resetStatsBtn: document.getElementById("resetStatsBtn"),
         difficultySelect: document.getElementById("difficultySelect"),
         playModeSelect: document.getElementById("playModeSelect"),
@@ -102,6 +109,7 @@
       let audioCtx = null;
       let analyser = null;
       let masterGain = null;
+      let muteGain = null;
       let audioReady = false;
 
       let currentNodes = [];
@@ -121,8 +129,13 @@
       let timeLeft = 0;
       let roundDuration = 0;
       let currentLives = 4;
-      let session = { correct: 0, wrong: 0, xp: 0 }; // can bitince sonuç kartında gösterilecek bu oturumluk sayaçlar
-      function resetSession() { session = { correct: 0, wrong: 0, xp: 0 }; }
+      let session = { correct: 0, wrong: 0, xp: 0, hints: 0 }; // can bitince sonuç kartında gösterilecek bu oturumluk sayaçlar
+      function resetSession() { session = { correct: 0, wrong: 0, xp: 0, hints: 0 }; }
+
+      // Oyun başına ipucu hakkı (zorluktan bağımsız). stats.hintsRemaining içinde KALICI
+      // olarak tutulur — sekme değiştirme/arka plana alma/sayfa yenileme onu SIFIRLAMAZ,
+      // sadece gerçek yeni oyun başlangıcı (Tekrar Oyna) sıfırlar.
+      const HINTS_PER_GAME = 3;
 
       // startBtn 3 durumlu: round yokken "Oyunu Başlat", akış sürerken "Durdur",
       // (Durdur'a basılıp) duraklatılmışken "Tekrar Çal". Tüm kaynaklarda (upload dahil) aynı.
@@ -137,15 +150,26 @@
         els.startBtn.textContent = autoStopped ? "🔄 Tekrar Çal" : "⏸ Durdur";
       }
 
-      // Durdur: sesi/zamanlayıcıyı/otomatik geçişi durdurur ama soruyu ekranda tutar (Tekrar Çal ile devam edilir)
+      // Durdur: HİÇBİR kaynağı/node'u durdurmaz — sadece paylaşılan muteGain'i kısa bir
+      // rampayla 0'a indirir. Ses (noise/synth/yüklenen dosya) arka planda akmaya devam
+      // eder, bu yüzden Tekrar Çal'da gerçek bir pause/play kaynaklı duraksama olmaz.
+      // Bekleyen bir "sonraki tura otomatik geç" varsa kalan süresi saklanır ki Tekrar
+      // Çal'da aynı süreyle yeniden kurulsun (bkz. ensureAutoNext).
       function pauseRound() {
         autoPlaying = false;
         autoStopped = true;
+
+        if (autoAdvanceTimer) {
+          pausedAutoAdvanceRemainingMs = Math.max(0, autoAdvanceSegmentMs - (Date.now() - autoAdvanceArmedAt));
+        } else {
+          pausedAutoAdvanceRemainingMs = null;
+        }
         clearTimeout(autoAdvanceTimer);
         clearInterval(autoCountdownTimer);
-        clearTimer();
-        stopAudio();
-        pauseUploadPlayback(); // yüklenen ses kaynağı varsa gerçekten duraklat
+        autoAdvanceTimer = null;
+
+        clearTimer(); // timeLeft'e DOKUNMAZ — kaldığı yerden devam edebilsin
+        muteAudioOutput();
         els.feedbackBox.classList.remove("show-result"); // durdurulunca feedback kutusu gizlensin
         if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
         updateStartBtnLabel();
@@ -176,7 +200,7 @@
         gameOverVisible = true;
         gameOverOpenedAt = Date.now();
         if (els.gameoverStats) {
-          els.gameoverStats.textContent = `${session.correct} doğru · ${session.wrong} yanlış · +${session.xp} XP`;
+          els.gameoverStats.textContent = `${session.correct} doğru · ${session.wrong} yanlış · +${session.xp} XP · ${session.hints} ipucu`;
         }
         if (els.gameoverOverlay) els.gameoverOverlay.classList.add("open");
         if (els.gameoverCard) els.gameoverCard.classList.add("open");
@@ -267,6 +291,13 @@
       ];
       const faZoneOf = f => FA_ZONES.find(z => f >= z.a && f < z.b) || FA_ZONES[FA_ZONES.length-1];
 
+      // İpucu chip'inde gösterilecek kısa bölge adı (FA_ZONES'un uzun tip/tip metninden bağımsız).
+      const HINT_ZONE_SHORT = { "SUB": "Sub bas", "BAS": "Bas", "ORTA": "Orta", "ÜST-ORTA": "Üst-orta", "TİZ / HAVA": "Tiz" };
+      function hintZoneLabel(freq) {
+        const zone = faZoneOf(freq);
+        return HINT_ZONE_SHORT[zone.t.split(" (")[0]] || zone.t.split(" (")[0];
+      }
+
       let stats = loadStats();
       let history = stats.history || [];
       let daily = loadDaily();
@@ -320,6 +351,7 @@
           unlocked: [],
           proCorrect: 0,
           hintsUsed: 0,
+          hintsRemaining: HINTS_PER_GAME,
           bossWins: 0,
           history: [],
           // her zorluk kendi puanı/xp/level/canı
@@ -349,6 +381,7 @@
           ["easy","medium","hard","pro","proplus"].forEach(k => {
             if (!s.perDiff[k]) s.perDiff[k] = freshDiffState(DIFFICULTY[k].lives);
           });
+          if (typeof s.hintsRemaining !== "number") s.hintsRemaining = HINTS_PER_GAME;
           return s;
         } catch {
           return freshStats();
@@ -486,6 +519,12 @@
           analyser.fftSize = 2048;
           masterGain = audioCtx.createGain();
           masterGain.gain.value = 0.82;
+          // Kalıcı susturma node'u: "Durdur" artık hiçbir kaynağı/filtreyi durdurmuyor,
+          // sadece bunu 0'a rampalıyor — ses arka planda kesintisiz akmaya devam ediyor,
+          // "Tekrar Çal" da sadece bunu geri açıyor (bkz. muteAudioOutput/unmuteAudioOutput).
+          muteGain = audioCtx.createGain();
+          muteGain.gain.value = 1;
+          muteGain.connect(masterGain);
           masterGain.connect(analyser);
           analyser.connect(audioCtx.destination);
           audioReady = true;
@@ -576,7 +615,9 @@
 
         // ---- FREKANS (tek bant) ----
         let freq = logFreq(80, 17000);
-        const gainSign = Math.random() > 0.5 ? 1 : -1;
+        // Kolay/Orta'da sadece boost (kesim yok) — dar bir kesim komşu bandın yükselmiş gibi
+        // duyulmasına yol açıp yeni başlayanı kafa karıştırıyor. Zor ve üstünde ikisi de var.
+        const gainSign = BOOST_ONLY_DIFFICULTIES.has(els.difficultySelect.value) ? 1 : (Math.random() > 0.5 ? 1 : -1);
         const baseGain = boss ? diff.gain * 0.75 : diff.gain;
         const gain = baseGain * gainSign;
         const q = boss ? diff.q * 1.35 : diff.q;
@@ -657,6 +698,28 @@
         }));
       }
 
+      const MUTE_RAMP_SEC = 0.05; // ~50ms — Durdur/Tekrar Çal arasındaki geçiş
+
+      // "Durdur" — hiçbir kaynağı/node'u durdurmaz, sadece kalıcı çıkış gain'ini kısa
+      // bir rampayla 0'a indirir. Kaynak (noise/synth/yüklenen dosya) arka planda akmaya
+      // devam eder; bu yüzden Tekrar Çal'da buffer/decode kaynaklı duraksama olmaz.
+      function muteAudioOutput() {
+        if (!audioCtx || !muteGain) return;
+        const now = audioCtx.currentTime;
+        muteGain.gain.cancelScheduledValues(now);
+        muteGain.gain.setValueAtTime(muteGain.gain.value, now);
+        muteGain.gain.linearRampToValueAtTime(0.0001, now + MUTE_RAMP_SEC);
+      }
+
+      // "Tekrar Çal" — çıkış gain'ini aynı kısa rampayla normale döndürür.
+      function unmuteAudioOutput() {
+        if (!audioCtx || !muteGain) return;
+        const now = audioCtx.currentTime;
+        muteGain.gain.cancelScheduledValues(now);
+        muteGain.gain.setValueAtTime(muteGain.gain.value, now);
+        muteGain.gain.linearRampToValueAtTime(1, now + MUTE_RAMP_SEC);
+      }
+
       function stopAudio() {
         if (!audioCtx) return;
 
@@ -706,7 +769,7 @@
 
       // Yüklenen dosyayı BAŞINDAN (currentTime=0) çalmaya başlat. SADECE gerçek "yeni oturum"
       // anlarında çağrılmalı: Oyunu Başlat (sıfırdan), Tekrar Oyna. "Tekrar Çal" (Durdur'dan
-      // devam) bunu ÇAĞIRMAZ — bkz. resumeUploadPlayback().
+      // devam) artık audioEl'i hiç durdurmadığı için bunu çağırmaz — bkz. unmuteAudioOutput().
       function startUploadPlaybackFromZero() {
         if (!uploadedAudioEl) return;
         try {
@@ -717,15 +780,17 @@
         playUploadedAudioEl();
       }
 
-      // Durdur'dan (Tekrar Çal ile) devam: currentTime'a DOKUNMA, kaldığı yerden play() ile
-      // sürdür. Tur değişiminde de ses zaten duraklamamıştır (sadece filtre zinciri kesilir),
-      // bu yüzden bu fonksiyon SADECE Tekrar Çal butonundan çağrılır.
-      function resumeUploadPlayback() {
-        playUploadedAudioEl();
-      }
-
       function buildQuestionChain(question, processed = true) {
         stopAudio();
+
+        // Güvenlik: bir önceki durum (Durdur) muteGain'i 0'da bırakmış olabilir; yeni bir
+        // soru/round zinciri kuruluyorsa duyulabilir olmalı (bkz. nextBtn — Tekrar Çal
+        // adımı atlanıp doğrudan Atla'ya basılabilir).
+        if (muteGain) {
+          const now = audioCtx.currentTime;
+          muteGain.gain.cancelScheduledValues(now);
+          muteGain.gain.setValueAtTime(1, now);
+        }
 
         const out = audioCtx.createGain();
         out.gain.value = 0.0001;
@@ -822,7 +887,7 @@
           compressor.connect(out);
         }
 
-        out.connect(masterGain);
+        out.connect(muteGain);
       }
 
       function playQuestion(processed = true) {
@@ -870,6 +935,9 @@
         const q = activeQuestion;
         roundActive = true;
 
+        clearHintMask();
+        updateHintChipLabel();
+
         els.questionTitle.textContent =
           q.mode !== "proplus"
             ? "Hangi frekansla oynandı? Dalga üzerine tıkla."
@@ -915,7 +983,7 @@
       function rewardXp(q) {
         const base = DIFFICULTY[q.difficulty].xp;
         const comboBoost = Math.min(2.4, 1 + stats.combo * 0.12);
-        const hintPenalty = q.hintUsed ? 0.65 : 1;
+        const hintPenalty = q.hintUsed ? 0.5 : 1; // ipucu kullanıldıysa puan yarıya iner
         const bossBoost = q.boss ? 1.65 : 1;
         const timeBoost = timeLeft > roundDuration * 0.55 ? 1.2 : 1;
         return Math.round(base * comboBoost * hintPenalty * bossBoost * timeBoost * xpMult());
@@ -938,12 +1006,10 @@
         renderHistory();
       }
 
-      function startTimer(seconds) {
+      // Interval'i kurma mantığı ortak: startTimer() süreyi SIFIRDAN ayarlar, resumeTimer()
+      // mevcut timeLeft/roundDuration'a DOKUNMADAN kaldığı yerden devam ettirir.
+      function armTimerInterval() {
         clearTimer();
-        roundDuration = seconds;
-        timeLeft = seconds;
-        updateTimerUI();
-
         timerInterval = setInterval(() => {
           timeLeft = Math.max(0, timeLeft - 0.1);
           updateTimerUI();
@@ -952,6 +1018,26 @@
             onTimeUp();
           }
         }, 100);
+      }
+
+      function startTimer(seconds) {
+        roundDuration = seconds;
+        timeLeft = seconds;
+        updateTimerUI();
+        armTimerInterval();
+      }
+
+      // Durdur sırasında sadece interval durur, timeLeft/roundDuration korunur (clearTimer
+      // onlara dokunmaz) — Tekrar Çal'da bu fonksiyon kaldığı saniyeden devam ettirir.
+      function resumeTimer() {
+        if (els.timerModeSelect && els.timerModeSelect.value === "off") {
+          els.timerText.textContent = "∞";
+          els.timerBar.style.width = "100%";
+          return;
+        }
+        if (timeLeft <= 0) return;
+        updateTimerUI();
+        armTimerInterval();
       }
 
       function clearTimer() {
@@ -991,6 +1077,18 @@
         renderHearts();
       }
 
+      // Bir önceki oturumda canlar tükenip "Tekrar Oyna"ya basılmadan kapatılmışsa,
+      // perDiff'te lives:0 kalıcı olarak saklı kalır ve uygulama bir sonraki açılışta/
+      // zorluk değişiminde "cansız" görünür. Aktif bir oyun-bitti kartı yokken bunu
+      // otomatik doldur (XP/skor gibi diğer alanlara dokunmadan) — bkz. syncLives().
+      function syncLivesEnsureAlive() {
+        syncLives();
+        if (currentLives <= 0 && !gameOverVisible) {
+          resetLives();
+          saveStats(); // düzeltilmiş can sayısı kalıcı olsun, her açılışta tekrar 0 okunmasın
+        }
+      }
+
       function loseLife(reasonText) {
         currentLives = Math.max(0, currentLives - 1);
         diffState().lives = currentLives;   // o zorluğun canına yaz
@@ -1014,7 +1112,9 @@
         autoPlaying = false;
         autoStopped = true;
         clearTimeout(autoAdvanceTimer);
+        autoAdvanceTimer = null;
         clearInterval(autoCountdownTimer);
+        pausedAutoAdvanceRemainingMs = null;
         if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
         roundActive = false;
         clearTimer();
@@ -1316,6 +1416,7 @@
         renderAchievements();
         renderHearts();
         renderAnalysis();
+        updateHintChipLabel();
       }
 
       function renderDaily() {
@@ -1439,19 +1540,84 @@
 
       function giveHint() {
         if (!activeQuestion || !roundActive) return;
+        if (stats.hintsRemaining <= 0 || activeQuestion.hintUsed) return; // hak bitti ya da bu turda zaten kullanıldı
+
         activeQuestion.hintUsed = true;
+        stats.hintsRemaining--;
         stats.hintsUsed++;
+        session.hints++;
         saveStats();
 
-        let msg = "";
-        if (activeQuestion.mode === "proplus") {
-          const hzList = activeQuestion.bands.map(b => formatHz(b.freq)).join(", ");
-          msg = `Dört bant kabaca şurada: ${hzList}.`;
-        } else {
-          msg = `Merkez yaklaşık ${formatHz(activeQuestion.freq)} civarında.`;
-        }
+        const centers = activeQuestion.mode === "proplus" && activeQuestion.bands
+          ? activeQuestion.bands.map(b => b.freq)
+          : [activeQuestion.freq];
+        activeQuestion.hintText = centers.map(hintZoneLabel).join(" / ");
 
-        setFeedback("İpucu verildi", `${msg} Bu turda XP biraz düşecek.`);
+        renderHintMask(activeQuestion);
+        updateHintChipLabel();
+      }
+
+      // Chip'in üstündeki metin: hak kullanılmadıysa "İpucu Ver (N)", bu tur kullanıldıysa
+      // kısa bölge ipucusu. Hak bittiğinde ya da tur aktif değilken chip pasifleşir.
+      function updateHintChipLabel() {
+        if (!els.hintBtn) return;
+        const used = !!(activeQuestion && activeQuestion.hintUsed);
+        els.hintBtn.textContent = used && activeQuestion.hintText
+          ? activeQuestion.hintText
+          : `İpucu Ver (${stats.hintsRemaining})`;
+        els.hintBtn.disabled = stats.hintsRemaining <= 0 || !activeQuestion || !roundActive || used;
+      }
+
+      function clearHintMask() {
+        if (els.hintMaskLayer) els.hintMaskLayer.innerHTML = "";
+      }
+
+      // Doğru bandın (ya da Pro Plus'ta dört bandın) etrafındaki dar bir pencereyi AÇIK
+      // bırakıp geri kalan her yeri soluklaştıran perde parçaları oluşturur. Yüzdelik
+      // konumlandığı için canvas'ın gerçek piksel genişliğinden bağımsızdır.
+      function renderHintMask(question) {
+        if (!els.hintMaskLayer || !question) return;
+        const diff = DIFFICULTY[question.difficulty] || DIFFICULTY.medium;
+        const halfOct = (diff.hintBandOct || 1.4) / 2;
+        const centers = question.mode === "proplus" && question.bands
+          ? question.bands.map(b => b.freq)
+          : [question.freq];
+
+        const clearRanges = centers.map(f => {
+          const lo = Math.max(FA_MIN, f / Math.pow(2, halfOct));
+          const hi = Math.min(FA_MAX, f * Math.pow(2, halfOct));
+          return [faFToX(lo, 1), faFToX(hi, 1)]; // w=1 -> doğrudan 0..1 kesir
+        }).sort((a, b) => a[0] - b[0]);
+
+        const merged = [];
+        clearRanges.forEach(r => {
+          if (merged.length && r[0] <= merged[merged.length - 1][1]) {
+            merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], r[1]);
+          } else merged.push(r.slice());
+        });
+
+        const segs = [];
+        let cursor = 0;
+        merged.forEach(([a, b]) => {
+          if (a > cursor) segs.push([cursor, a]);
+          cursor = Math.max(cursor, b);
+        });
+        if (cursor < 1) segs.push([cursor, 1]);
+
+        els.hintMaskLayer.innerHTML = "";
+        segs.forEach(([a, b]) => {
+          const div = document.createElement("div");
+          div.className = "hint-mask-seg";
+          div.style.left = `${(a * 100).toFixed(2)}%`;
+          div.style.width = `${((b - a) * 100).toFixed(2)}%`;
+          els.hintMaskLayer.appendChild(div);
+        });
+
+        // Segmentler opacity:0 ile DOM'a eklendi; zorla reflow + hemen ardından .show
+        // eklemek CSS transition'ı tetikler (requestAnimationFrame yerine — sekme arka
+        // plandayken/odaksızken rAF ertelenebiliyor, offsetHeight okuması ise her zaman senkron).
+        void els.hintMaskLayer.offsetHeight;
+        els.hintMaskLayer.querySelectorAll(".hint-mask-seg").forEach(el => el.classList.add("show"));
       }
 
       function drawFreqAxis(w, h) {
@@ -1570,7 +1736,10 @@
       });
 
       // Cevap verildiğinde otomatik geçişi kesin olarak kur (submit zinciri hata verse bile)
-      function ensureAutoNext() {
+      // durationMs verilmezse standart 1500ms'lik "sonraki tura otomatik geç" penceresi
+      // kurulur. Durdur/Tekrar Çal ile araya girilirse pauseRound() kalan süreyi hesaplar
+      // ve Tekrar Çal bunu durationMs olarak geri geçirir (bkz. startBtn click handler).
+      function ensureAutoNext(durationMs) {
         if (autoStopped) return;
         if (currentLives <= 0) return; // canlar bittiyse durur
         // 10 soruluk bölüm dolduysa bitir
@@ -1582,18 +1751,26 @@
         updateStartBtnLabel();
         clearTimeout(autoAdvanceTimer);
         clearInterval(autoCountdownTimer);
-        let remain = 2;
+
+        const total = typeof durationMs === "number" && durationMs > 0 ? durationMs : 1500;
+        autoAdvanceArmedAt = Date.now();
+        autoAdvanceSegmentMs = total;
+
         const label = challenge.active ? `Soru ${challenge.done + 1}/10` : "Sonraki";
-        if (els.nextBtn) els.nextBtn.textContent = `${label} (${remain}) ▶`;
-        autoCountdownTimer = setInterval(() => {
-          remain--;
-          if (els.nextBtn) els.nextBtn.textContent = remain > 0 ? `${label} (${remain}) ▶` : "Atla ▶";
-        }, 750);
+        const updateCountdownLabel = () => {
+          const remainMs = Math.max(0, autoAdvanceSegmentMs - (Date.now() - autoAdvanceArmedAt));
+          const remainSec = Math.ceil(remainMs / 1000);
+          if (els.nextBtn) els.nextBtn.textContent = remainMs > 0 ? `${label} (${remainSec}) ▶` : "Atla ▶";
+        };
+        updateCountdownLabel();
+        autoCountdownTimer = setInterval(updateCountdownLabel, 200);
+
         autoAdvanceTimer = setTimeout(() => {
           clearInterval(autoCountdownTimer);
+          autoAdvanceTimer = null;
           if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
           if (!autoStopped) startRound();
-        }, 1500);
+        }, total);
       }
 
 
@@ -1734,6 +1911,9 @@
       let autoStopped = false;      // kullanıcı bilerek durdurdu mu
       let autoAdvanceTimer = null;  // cevap sonrası yeni soru zamanlayıcısı
       let autoCountdownTimer = null;
+      let autoAdvanceArmedAt = 0;      // ensureAutoNext() zamanlayıcıyı en son ne zaman kurdu (Date.now())
+      let autoAdvanceSegmentMs = 0;    // o kurulumun toplam süresi (ms) — kalan süreyi hesaplamak için
+      let pausedAutoAdvanceRemainingMs = null; // Durdur anında bekleyen "sonraki tura geç" varsa kalan süresi (yoksa null)
 
       // 10 soruluk bölüm (challenge) durumu
       let challenge = { active: false, total: 10, done: 0, correct: 0, xp: 0 };
@@ -1774,9 +1954,14 @@
         autoPlaying = on;
         autoStopped = !on;   // kapatınca "bilerek durduruldu" işaretle
         clearTimeout(autoAdvanceTimer);
+        autoAdvanceTimer = null;
+        pausedAutoAdvanceRemainingMs = null;
         if (on) {
-          // Yeni bir seri/oturum burada BAŞLIYOR (fresh start ya da Tekrar Oyna) — yüklenen
-          // ses varsa dosyanın başından (gerçek kullanıcı jesti içinde) çalmaya başla.
+          // NOT: ipucu hakkı BURADA sıfırlanmaz — bu fonksiyon hem gerçek "Tekrar Oyna"
+          // hem de sayfa yenilenip "Oyunu Başlat"a tekrar basılan (activeQuestion sadece
+          // bellekte kayboldu, oyun aslında sürüyor) durumda çağrılıyor; ikincisinde hak
+          // sıfırlanırsa reload ile sınırsız ipucu elde edilebilir. Hak sadece
+          // gameoverRetryBtn'de (gerçek "Tekrar Oyna") sıfırlanır — bkz. stats.hintsRemaining.
           if (els.sourceSelect.value === "upload") startUploadPlaybackFromZero();
           startRound();
         } else {
@@ -1881,16 +2066,24 @@
         }
 
         if (autoStopped) {
-          // Tekrar Çal: duraklatılmıştı, akışı yeniden başlat. Yüklenen ses varsa BAŞTAN
-          // ATMA — kaldığı yerden play() ile devam (bkz. resumeUploadPlayback).
+          // Tekrar Çal: hiçbir şey yeniden kurulmuyor/başlatılmıyor — ses zaten arka planda
+          // akıyordu (Durdur sadece muteGain'i kısmıştı), sadece geri açılıyor. Bekleyen bir
+          // "sonraki tura otomatik geç" varsa kalan süresiyle yeniden kurulur; yoksa mevcut
+          // sorunun kalan süresi (timeLeft) kaldığı yerden devam eder.
           autoStopped = false;
           autoPlaying = true;
-          if (els.sourceSelect.value === "upload") resumeUploadPlayback();
-          playQuestion(currentPlayMode === "filtered");
-          startTimerForCurrentQuestion();
+          unmuteAudioOutput();
+          if (pausedAutoAdvanceRemainingMs !== null) {
+            const remain = pausedAutoAdvanceRemainingMs;
+            pausedAutoAdvanceRemainingMs = null;
+            ensureAutoNext(remain);
+          } else {
+            resumeTimer();
+          }
           updateStartBtnLabel();
         } else {
-          // Durdur: sesi/zamanlayıcıyı/otomatik geçişi durdur, soru ekranda kalır
+          // Durdur: soruyu/otomatik geçişi ekranda/durumda BOZMADAN sadece sesi/zamanlayıcıyı
+          // duraklatır (bkz. pauseRound — artık gerçek bir stop değil, sadece gain rampası)
           pauseRound();
         }
       });
@@ -1901,6 +2094,8 @@
         if (currentLives <= 0) { showGameOverCard(); return; }
         autoStopped = false;             // Atla ile akış tekrar açılır
         clearTimeout(autoAdvanceTimer);  // beklemeyi iptal et, hemen geç
+        autoAdvanceTimer = null;
+        pausedAutoAdvanceRemainingMs = null;
         startRound();
       });
 
@@ -1951,6 +2146,8 @@
         await initAudio();
         switchToOyunTab();
         resetLives(); // resetSession()'ı da içeride çağırır
+        stats.hintsRemaining = HINTS_PER_GAME; // gerçek "Tekrar Oyna" — ipucu hakkı burada sıfırlanır
+        saveStats();
         if (isChallenge()) startChallenge();
         setAutoPlay(true);
       });
@@ -1997,7 +2194,7 @@
 
       els.difficultySelect.addEventListener("change", () => {
         // zorluk değişti → o zorluğun kendi canı/puanı/level'i yüklensin
-        syncLives();
+        syncLivesEnsureAlive();
         updateUI();
         setFeedback("Zorluk değişti", `${els.difficultySelect.options[els.difficultySelect.selectedIndex].text} — bu zorluğun kendi puanı, level'i ve canı geldi.`);
       });
@@ -2024,13 +2221,14 @@
         }
       });
 
-      syncLives();
+      syncLivesEnsureAlive();
       renderHistory();
       renderAchievements();
       renderDaily();
       updateTimerUI();
       updateUI();
       updateStartBtnLabel();
+      updateHintChipLabel();
 
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
