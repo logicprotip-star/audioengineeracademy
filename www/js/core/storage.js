@@ -79,7 +79,16 @@ export function loadStats(difficultyLives, hintsPerGame) {
     // Eski kayıtlarda (bu değişiklikten önce) top-level "lives" hiç yoktu — temiz
     // localStorage'da olduğu gibi TOTAL_LIVES'a çekilir. Eski perDiff[key].lives
     // artık okunmuyor (yoksayılır, silinmez).
-    if (typeof s.lives !== "number") s.lives = TOTAL_LIVES;
+    //
+    // BİLİNÇLİ ÖDÜN: burada ayrıca <=0 da TOTAL_LIVES'a çekiliyor — bu, "otomatik
+    // dolum YOK" kuralını SEANS İÇİNDE hâlâ tam koruyor (loseLife() burayı hiç
+    // çağırmıyor, o yüzden bir turda canı biten kullanıcı o seansta dürüstçe
+    // "Oyun Bitti" görür) ama UYGULAMA YENİDEN AÇILDIĞINDA 0 canı sıfırlıyor.
+    // Sebep: bu alan yeni (önceki turda eklendi) ve şu an gerçek dolum özelliği
+    // yok — kalıcı 0, kullanıcıyı kalıcı ve geri dönüşsüz şekilde kilitler.
+    // Kalıcı-0-yasak istenirse: bu satır kaldırılıp gerçek bir dolum özelliği
+    // eklenmeli (bkz. DURUM.md "Fiyat ve can ekonomisi").
+    if (typeof s.lives !== "number" || s.lives <= 0) s.lives = TOTAL_LIVES;
     return s;
   } catch {
     return freshStats(difficultyLives, hintsPerGame);

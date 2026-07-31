@@ -460,16 +460,6 @@ function syncLives() {
   renderHearts();
 }
 
-// Uygulama her açıldığında/zorluk her değiştiğinde çağrılır — sadece EKRANI günceli
-// tutar, canı DOLDURMAZ. (Eskiden burada "can 0 ve kart açık değilse doldur" vardı;
-// bu tam olarak istenmeyen otomatik dolum davranışıydı, kaldırıldı.)
-function syncLivesEnsureAlive() {
-  syncLives();
-  if (currentLives <= 0 && !gameOverVisible) {
-    showGameOverCard();
-  }
-}
-
 function loseLife(reasonText) {
   currentLives = Math.max(0, currentLives - 1);
   stats.lives = currentLives;
@@ -500,6 +490,12 @@ function finalizeIfGameOver() {
 }
 
 function showGameOverCard() {
+  // Güvenlik ağı: bu kart SADECE oyun ekranında gösterilsin, başka bir ekranın
+  // (ör. menü) üstünde asla açılmasın. Kök neden buydu — boot'ta ekrandan bağımsız
+  // zorla açan syncLivesEnsureAlive() kaldırıldı; bütün çağıranlar artık zaten
+  // oyun ekranı içi aksiyonlardan (Oyunu Başlat/cevap ver) geliyor, ama bu satır
+  // gelecekte yanlış bir çağrı eklenirse sessizce yanlış ekranda açılmasını engeller.
+  if (screenStack[screenStack.length - 1] !== "game") return;
   gameOverVisible = true;
   gameOverOpenedAt = Date.now();
   if (els.gameoverStats) {
@@ -1720,8 +1716,7 @@ bindCollapsiblePanel(els.modeLevelsToggle, els.modeLevelsWrap, els.modeLevelsCar
 els.difficultySelect.addEventListener("change", () => {
   // zorluk değişti → o zorluğun kendi puanı/level'i yüklensin. Canlar GLOBAL
   // olduğu için zorluk değişince değişmez, sadece ekranı güncel tutmak için
-  // yeniden çizilir (renderHearts — syncLivesEnsureAlive DEĞİL, o boot/otomatik
-  // dolum kontrolü için, burada tekrar tetiklenmesi gerekmiyor).
+  // yeniden çizilir.
   renderHearts();
   updateUI();
   setFeedback("Zorluk değişti", `${els.difficultySelect.options[els.difficultySelect.selectedIndex].text} — bu zorluğun kendi puanı ve level'i geldi.`);
@@ -1753,7 +1748,12 @@ window.addEventListener("visibilitychange", () => {
 // Açılış
 // ═══════════════════════════════════════════════════════════════════════════
 
-syncLivesEnsureAlive();
+// KÖK SEBEP DÜZELTMESİ: burada eskiden syncLivesEnsureAlive() vardı — can<=0 ise
+// açılışta hangi ekran aktifse (genelde menü) onun üstünde zorla "Oyun Bitti"
+// kartını açıyordu. Kart oyun ekranına ait değil; sadece EKRANI günceli tutan
+// syncLives() yeterli — "Oyun Bitti" artık SADECE kullanıcı gerçekten oynamaya
+// çalıştığında (Oyunu Başlat/cevap ver) ilgili guard'lardan tetikleniyor.
+syncLives();
 renderHistory();
 renderAchievements();
 renderDaily();
@@ -2132,7 +2132,7 @@ async function startVolumeButtonsWatch() {
   try {
     volumeButtonsWatchId = await vb.watchVolume(options, (result) => {
       if (!result || !result.direction) return;
-      setCalLevel(calLevel + (result.direction === "up" ? 5 : -5));
+      setCalLevel(calLevel + (result.direction === "up" ? 2 : -2));
     });
   } catch (e) {}
 }
