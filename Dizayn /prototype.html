@@ -1,0 +1,3210 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Audio Engineer Academy — Tıklanabilir Prototip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg: #080B14;
+    --card: rgba(255,255,255,.05);
+    --card-2: rgba(255,255,255,.075);
+    --line: rgba(255,255,255,.10);
+    --tx: #F2F4F8;
+    --tx-2: #C7CEDD;
+    --tx-3: #98A1B5;
+    --am: #FFC246;
+    --am-2: #FF7A18;
+    --gr: #2BD9A8;
+    --rd: #FF4D6D;
+    --bl: #6C8CFF;
+    --pu: #A855F7;
+  }
+  html, body { margin: 0; padding: 0; background: #04060C; }
+  body {
+    font-family: Inter, -apple-system, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    color: var(--tx);
+    min-height: 100dvh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  button { font-family: inherit; color: inherit; cursor: pointer; }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+
+  .phone {
+    position: relative; width: 390px; height: 844px; flex: none;
+    background: var(--bg); border-radius: 44px; border: 1px solid var(--line);
+    overflow: hidden; display: flex; flex-direction: column;
+    box-shadow: 0 40px 90px rgba(0,0,0,.6);
+  }
+  .glow { position: absolute; inset: 0; pointer-events: none; transition: opacity .3s;
+    background:
+      radial-gradient(120% 52% at 16% -8%, rgba(255,176,32,.16), rgba(0,0,0,0) 68%),
+      radial-gradient(92% 44% at 94% 2%, rgba(108,140,255,.15), rgba(0,0,0,0) 66%); }
+  @media (max-width: 460px) {
+    body { padding: 0; }
+    .phone { width: 100%; height: 100dvh; border-radius: 0; border: none; }
+  }
+
+  .statusbar { position: relative; z-index: 2; flex: none; height: 52px; display: flex; align-items: center;
+    justify-content: space-between; padding: 0 28px; font-size: 14px; font-weight: 600; }
+  .sb-net { width: 17px; height: 11px; border-radius: 2px; background: var(--tx); }
+  .sb-bat { width: 26px; height: 12px; border-radius: 3px; border: 1.5px solid rgba(242,244,248,.7); padding: 2px; }
+  .sb-bat > i { display: block; width: 70%; height: 100%; background: var(--tx); border-radius: 1px; }
+
+  .stage { position: relative; z-index: 1; flex: 1; min-height: 0; }
+  .screen { position: absolute; inset: 0; display: none; flex-direction: column; }
+  .screen.on { display: flex; }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 20px 20px; }
+
+  .card { background: var(--card); border: 1px solid rgba(255,255,255,.09); border-radius: 22px;
+    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+
+  /* ---- header level ---- */
+  .lvl { display: flex; align-items: center; gap: 14px; padding: 14px 16px; }
+  .lvl-badge { width: 62px; height: 62px; flex: none; border-radius: 18px; color: #1A1206;
+    background: linear-gradient(150deg, var(--am), var(--am-2));
+    display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .lvl-badge small { font-size: 15px; font-weight: 800; letter-spacing: .1em; opacity: .78; }
+  .lvl-badge b { font-size: 24px; line-height: 1; font-weight: 800; }
+  .bar { height: 9px; border-radius: 99px; background: rgba(255,255,255,.09); overflow: hidden; }
+  .bar > i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--am), var(--am-2)); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---- suggestion ---- */
+  .sug { position: relative; margin-top: 14px; padding: 16px; border-radius: 22px;
+    background: linear-gradient(155deg, rgba(43,217,168,.16), rgba(43,217,168,.04));
+    border: 1px solid rgba(43,217,168,.28); }
+  .kicker { font-size: 14px; font-weight: 700; letter-spacing: .1em; }
+  .x { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.13); background: rgba(255,255,255,.06); color: var(--tx-2);
+    font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center; }
+  .x:active { background: rgba(255,255,255,.16); }
+
+  /* ---- buttons ---- */
+  .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    min-height: 52px; padding: 12px 16px; border-radius: 16px; border: 1px solid var(--line);
+    background: rgba(255,255,255,.06); font-size: 15px; font-weight: 700; line-height: 1.25; text-align: center; }
+  .btn:active { background: rgba(255,255,255,.14); }
+  .btn.primary { border: none; min-height: 58px; border-radius: 18px; font-size: 17px; font-weight: 800;
+    color: #1A1206; background: linear-gradient(100deg, var(--am), var(--am-2)); }
+  .btn.primary:active { filter: brightness(1.08); }
+  .btn.green { border: none; color: #04231B; background: var(--gr); }
+  .btn.ghost { background: rgba(255,255,255,.03); color: var(--tx-2); }
+  .btn.blue { border-color: rgba(108,140,255,.42); background: rgba(108,140,255,.16); color: #AFC0FF; }
+  .row { display: flex; gap: 8px; }
+
+  .actionbar { flex: none; padding: 12px 20px calc(24px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(255,255,255,.06);
+    background: linear-gradient(180deg, rgba(8,11,20,0), rgba(8,11,20,.96) 30%); }
+
+  /* ---- mode grid ---- */
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .mode { display: flex; flex-direction: column; gap: 8px; padding: 15px 14px; border-radius: 20px;
+    background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08);
+    text-align: left; min-height: 178px; }
+  .mode:active { background: var(--card-2); }
+  .mode.locked { background: rgba(255,255,255,.025); }
+  .mode-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+  .glyph { width: 38px; height: 38px; flex: none; border-radius: 12px; display: flex; align-items: flex-end;
+    justify-content: center; gap: 2.5px; padding-bottom: 9px; background: rgba(255,176,32,.13); }
+  .glyph i { width: 3.5px; border-radius: 2px; background: var(--am); }
+  .locked .glyph { background: rgba(255,255,255,.05); }
+  .locked .glyph i { background: #6B7284; }
+  .mode.m2 .glyph { background: rgba(168,85,247,.15); }
+  .mode.m2 .glyph i { background: #C79BFF; }
+  .mode.m2:not(.locked) .chip { color: #C79BFF; background: rgba(168,85,247,.16); }
+  .mode.m2:not(.locked) .mini > i { background: linear-gradient(90deg, #C79BFF, var(--pu)); }
+  .mode.m3 .glyph { background: rgba(43,217,168,.14); }
+  .mode.m3 .glyph i { background: var(--gr); }
+  .mode.m3:not(.locked) .chip { color: var(--gr); background: rgba(43,217,168,.15); }
+  .mode.m3 .engine { color: var(--gr); }
+  .mode.m3.locked .engine { color: #6E7688; }
+  .engine { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 700;
+    letter-spacing: .05em; color: var(--am); }
+  .mode.m2 .engine { color: #C79BFF; }
+  .locked .engine { color: #6E7688; }
+  .engine::before { content: ""; width: 5px; height: 5px; border-radius: 99px; background: currentColor; }
+  .engine .hp { margin-left: 2px; }
+  .fchip { flex: none; min-height: 44px; padding: 10px 14px; border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05);
+    font-size: 15px; font-weight: 700; color: var(--tx-2); white-space: nowrap; }
+  .fchip.on { background: rgba(108,140,255,.22); border-color: rgba(108,140,255,.5); color: #DCE4FF; }
+  .adv { margin-left: 2px; padding: 2px 6px; border-radius: 6px; font-size: 14px; font-weight: 800;
+    letter-spacing: .04em; color: #FFB3C2; background: rgba(255,77,109,.16); border: 1px solid rgba(255,77,109,.3); }
+  .locked .adv { color: #8C95AB; background: rgba(255,255,255,.06); border-color: rgba(255,255,255,.1); }
+  .lock { width: 26px; height: 26px; flex: none; display: flex; align-items: center; justify-content: center; }
+  .lock svg { width: 15px; height: 15px; fill: none; stroke: #8C95AB; stroke-width: 2; }
+  .hp { flex: none; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+  .hp svg { width: 15px; height: 15px; fill: none; stroke: var(--tx-3); stroke-width: 2; stroke-linecap: round; }
+
+  .cbrow { display: flex; align-items: center; gap: 11px; width: 100%; margin-top: 16px; padding: 12px 4px;
+    background: none; border: none; text-align: left; font-size: 14px; font-weight: 600; color: var(--tx-3); }
+  .cbrow .cb { flex: none; width: 24px; height: 24px; border-radius: 8px; display: flex; align-items: center;
+    justify-content: center; font-size: 15px; font-weight: 800; color: transparent;
+    border: 1.5px solid rgba(255,255,255,.22); }
+  .cbrow.on .cb { color: #04231B; background: var(--gr); border-color: var(--gr); }
+  .cbrow.on { color: var(--tx-2); }
+  .chip { font-size: 14px; font-weight: 700; letter-spacing: .02em; padding: 5px 9px; border-radius: 9px;
+    color: var(--am); background: rgba(255,176,32,.14); white-space: nowrap; }
+  .locked .chip { color: #8C95AB; background: rgba(255,255,255,.06); }
+  .mode h4 { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.25; text-wrap: pretty; }
+  .mode p { margin: 0; font-size: 15px; line-height: 1.4; color: var(--tx-3); text-wrap: pretty; }
+  .locked h4 { color: #8C95AB; }
+  .locked p { color: #6E7688; }
+  .mini { margin-top: auto; height: 5px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .mini > i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--gr), #16C79A); }
+
+  /* ---- tabbar ---- */
+  .tabbar { position: relative; z-index: 2; flex: none; padding: 10px 20px calc(22px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, rgba(8,11,20,0), rgba(8,11,20,.94) 34%); }
+  .tabbar.hide { display: none; }
+  .tabs { display: flex; gap: 6px; padding: 8px; border-radius: 24px; background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.09); backdrop-filter: blur(20px); }
+  .tab { flex: 1; height: 48px; border: 1px solid transparent; border-radius: 17px; background: none;
+    font-size: 14px; font-weight: 600; color: #8C95AB; display: flex; align-items: center; justify-content: center; }
+  .tab.on { color: var(--am); background: rgba(255,176,32,.16); border-color: rgba(255,176,32,.3); font-weight: 700; }
+
+  /* ---- game header ---- */
+  .ghead { flex: none; padding: 4px 20px 0; }
+  .ghead-row { display: flex; align-items: center; gap: 9px; }
+  .back { width: 44px; height: 44px; flex: none; border-radius: 14px; border: 1px solid var(--line);
+    background: rgba(255,255,255,.05); font-size: 20px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+  .back:active { background: rgba(255,255,255,.14); }
+  .hearts { display: flex; align-items: center; gap: 3px; padding: 9px 7px; border-radius: 11px;
+    background: rgba(255,77,109,.13); border: 1px solid rgba(255,77,109,.26); }
+  .hearts i { width: 7px; height: 7px; border-radius: 99px; background: var(--rd); }
+  .hearts i.off { background: rgba(255,77,109,.28); }
+  .stats { display: flex; gap: 8px; margin-top: 12px; }
+  .stat { flex: 1; min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 7px;
+    border-radius: 13px; background: var(--card); border: 1px solid rgba(255,255,255,.08);
+    font-size: 14px; font-weight: 600; padding: 6px; text-align: center; }
+  .dot { width: 7px; height: 7px; border-radius: 99px; background: var(--am); flex: none; }
+
+  /* ---- analyzer ---- */
+  .analyzer { padding: 12px 13px 9px; }
+  .spec { position: relative; height: 62px; overflow: hidden; }
+  #analyzer .eq { overflow: hidden; }
+  .spec .bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
+  .spec .bars i { flex: 1; border-radius: 3px 3px 1px 1px;
+    background: linear-gradient(180deg, rgba(108,140,255,.75), rgba(108,140,255,.2)); }
+  .spec .bars i.hot { background: linear-gradient(180deg, #C79BFF, var(--bl)); }
+  .spec svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible;
+    opacity: 0; transition: opacity .25s; }
+  .spec .mask { position: absolute; top: 0; bottom: 0; background: rgba(8,11,20,.74);
+    backdrop-filter: blur(1.5px); pointer-events: none; opacity: 0; transition: opacity .28s, left .28s, right .28s; }
+  #maskL { left: 0; } #maskR { right: 0; }
+  .hinttag { display: none; font-size: 14px; font-weight: 700; letter-spacing: .06em; color: var(--am);
+    background: rgba(255,176,32,.16); border: 1px solid rgba(255,176,32,.34);
+    padding: 4px 9px; border-radius: 9px; white-space: nowrap; }
+  [data-phase="ask"] .gainval { visibility: hidden; }
+  [data-phase="hint"] .gainval { display: none; }
+  [data-phase="ask"] .bars i.hot, [data-phase="hint"] .bars i.hot {
+    background: linear-gradient(180deg, rgba(108,140,255,.75), rgba(108,140,255,.2)); }
+  [data-phase="hint"] .hinttag { display: inline-block; animation: fade .28s ease-out; }
+  #altHint { display: none; }
+  #altHint.on { display: inline-block; animation: fade .28s ease-out; }
+  .answers .ans.dim { opacity: .3; }
+  [data-phase="hint"] .mask { opacity: 1; }
+  .bigfield .mask { position: absolute; top: 0; bottom: 0; background: rgba(8,11,20,.72);
+    opacity: 0; transition: opacity .28s, width .28s; pointer-events: none; }
+  [data-phase="hint"] .bigfield .mask { opacity: 1; }
+  #tapMaskL { left: 0; }
+  #tapMaskR { right: 0; }
+  .bigfield .cursor { width: 3px; }
+  .bigfield .cursorlbl { top: 10px; }
+  .bigfield .cursorlbl.correct { top: 58px; }
+  .bigfield .qualitylbl { bottom: 14px; }
+  [data-phase="done"] .eq { opacity: 1; }
+  @keyframes fade { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+  .tspec { flex: 1 1 auto; min-height: 180px; touch-action: none; cursor: crosshair;
+    border-radius: 14px; background: rgba(255,255,255,.02); overflow: hidden; }
+  .cursor { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--am);
+    display: none; pointer-events: none; }
+  .cursor.on { display: block; }
+  .cursor.correct { background: var(--gr); }
+  .cursorlbl { position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+    --nudge: 0px; margin-left: var(--nudge);
+    padding: 6px 10px; border-radius: 10px; background: rgba(6,9,16,.92);
+    border: 1px solid rgba(255,176,32,.5); color: var(--am);
+    font-size: 16px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .cursorlbl.correct { top: 52px; border-color: rgba(43,217,168,.55); color: #8FF3D8; }
+  .gapfill { position: absolute; top: 0; bottom: 0; display: none; pointer-events: none; border-radius: 4px; }
+  .gapfill.on { display: block; }
+  .qualitylbl { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    display: none; padding: 7px 12px; border-radius: 11px; background: rgba(6,9,16,.92);
+    font-size: 16px; font-weight: 700; white-space: nowrap; }
+  .qualitylbl.on { display: block; }
+  .tapHint { padding: 11px 14px; border-radius: 14px; background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.12); color: var(--tx-2);
+    font-size: 15px; font-weight: 600; text-align: center; }
+  .tapHint.off { display: none; }
+  .axis { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,.07); font-size: 14px; font-weight: 600; color: #8C95AB; }
+
+  .answers { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 9px; }
+  .iconmix { padding: 8px 12px; }
+  .mixglyph { font-size: 18px; font-weight: 700; line-height: 1; }
+  .qline { padding: 10px 13px; border-radius: 15px; background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.09); font-size: 16px; font-weight: 700;
+    line-height: 1.3; color: var(--tx); text-wrap: pretty; }
+  .field { position: relative; height: 88px; border-radius: 14px; overflow: hidden;
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); }
+  .fieldmid { position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,.18); }
+  .widthband { position: absolute; top: 14px; bottom: 14px; left: 12.5%; width: 75%;
+    border-radius: 10px; background: linear-gradient(90deg, rgba(108,140,255,.18), rgba(108,140,255,.45), rgba(108,140,255,.18));
+    border: 1px solid rgba(108,140,255,.5); transition: left .2s, width .2s; }
+  .pandot { position: absolute; top: 50%; left: 62%; width: 34px; height: 34px; margin: -17px 0 0 -17px;
+    border-radius: 99px; background: radial-gradient(circle at 35% 35%, #C7D4FF, #4E6BE0);
+    box-shadow: 0 0 0 8px rgba(108,140,255,.16); transition: left .2s; }
+  .bigfield { position: relative; flex: 1 1 auto; min-height: 196px; border-radius: 16px; overflow: hidden;
+    touch-action: none; cursor: crosshair;
+    background: linear-gradient(180deg, rgba(108,140,255,.07), rgba(255,255,255,.03));
+    border: 1px solid rgba(255,255,255,.1); }
+  #altPanel[data-tap="1"] { display: flex; flex-direction: column; }
+  #altPanel[data-tap="1"] #vizTap { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+  .fieldaxis { display: flex; justify-content: space-between; margin-top: 9px;
+    font-size: 15px; font-weight: 700; letter-spacing: .06em; color: #AEB7C9; }
+  .vizreveal { display: none; margin-top: 12px; padding: 10px 13px; border-radius: 13px;
+    background: rgba(43,217,168,.14); border: 1px solid rgba(43,217,168,.32);
+    font-size: 16px; font-weight: 600; color: #C7CEDD; }
+  .vizreveal.on { display: block; }
+  .vizreveal b { color: #8FF3D8; font-weight: 800; }
+  .answers.two { grid-template-columns: 1fr 1fr; }
+  .answers.two .ans { min-height: 82px; }
+  .answers .ans { min-height: 58px; padding: 7px 4px; border-radius: 18px; border: 1px solid var(--line);
+    background: rgba(255,255,255,.05); display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 3px; }
+  .answers .ans b { font-size: 21px; font-weight: 800; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .answers .ans span { font-size: 14px; font-weight: 600; color: #8C95AB; }
+  .answers .ans.pick { border: 2px solid #FFB020; background: rgba(255,176,32,.16); }
+  .answers .ans.pick b { color: #FFD98A; }
+  .answers .ans.right { border: 2px solid var(--gr); background: rgba(43,217,168,.18); }
+  .answers .ans.right b { color: #8FF3D8; }
+  .answers .ans.right span { color: var(--gr); }
+  .answers .ans.wrong { border: 2px solid var(--rd); background: rgba(255,77,109,.16); }
+  .answers .ans.wrong b { color: #FFB3C2; }
+  .answers .ans.wrong span { color: var(--rd); }
+  .stat[disabled] { opacity: .45; }
+  .btn[disabled] { opacity: .4; }
+  .fb.bad { background: rgba(255,77,109,.12); border-color: rgba(255,77,109,.3); }
+  .fb.bad .fb-head { color: #FFB3C2; }
+  .fb.bad .fb-head > span { background: var(--rd) !important; }
+  .fb.warn { background: rgba(255,194,70,.12); border-color: rgba(255,194,70,.32); }
+  .fb.warn .fb-head { color: #FFDC95; }
+  .fb.warn .fb-head > span { background: var(--am) !important; }
+  .cmprow { display: flex; gap: 7px; margin-top: 13px; flex-wrap: wrap; }
+  .cmp { flex: 1 1 auto; min-height: 44px; padding: 9px 11px; border-radius: 13px;
+    border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05);
+    font-size: 15px; font-weight: 700; color: var(--tx-2); white-space: nowrap; }
+  .cmp.on { background: rgba(108,140,255,.22); border-color: rgba(108,140,255,.5); color: #DCE4FF; }
+  .cmp.hide { display: none; }
+
+  .fb { padding: 14px 16px; border-radius: 20px; background: rgba(43,217,168,.13); border: 1px solid rgba(43,217,168,.3); }
+  .fb-head { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 700; color: #8FF3D8; }
+  .fb p { margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: var(--tx-2); text-wrap: pretty; }
+
+  /* ---- motor 2 ---- */
+  .task { padding: 16px; border-radius: 22px;
+    background: linear-gradient(155deg, rgba(168,85,247,.14), rgba(168,85,247,.03));
+    border: 1px solid rgba(168,85,247,.24); }
+  .opt { display: flex; align-items: center; gap: 13px; padding: 12px 13px; border-radius: 20px; width: 100%;
+    text-align: left; background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.09); }
+  .opt-key { width: 52px; height: 52px; flex: none; border-radius: 17px; display: flex; align-items: center;
+    justify-content: center; font-size: 20px; font-weight: 800; color: var(--tx-2); background: rgba(255,255,255,.07); }
+  .opt.pick { border: 2px solid var(--pu); background: rgba(168,85,247,.16); }
+  .opt.pick .opt-key { color: #1A0B2B; background: linear-gradient(150deg, #C79BFF, var(--pu)); }
+  .wave { display: flex; align-items: flex-end; gap: 3px; height: 30px; margin-top: 9px; }
+  .wave i { flex: 1; border-radius: 2px; background: rgba(255,255,255,.22); }
+  .opt.pick .wave i { background: rgba(199,155,255,.85); }
+  .opt.out { opacity: .34; }
+  .opt.playing { box-shadow: 0 0 0 1px rgba(199,155,255,.5), 0 0 22px rgba(168,85,247,.25); }
+  .opt.playing .opt-key { background: linear-gradient(150deg,#C79BFF,var(--pu)); color: #1A0B2B; }
+  .opt.out .opt-key { background: rgba(255,255,255,.05); }
+  .opt.right { border: 2px solid var(--gr); background: rgba(43,217,168,.15); }
+  .opt.right .opt-key { background: var(--gr); color: #04231B; }
+  .opt.wrong { border: 2px solid var(--rd); background: rgba(255,77,109,.13); }
+  .opt.wrong .opt-key { background: var(--rd); color: #2A0710; }
+  #g2HintTag { display: inline-block; }
+
+  /* ---- progress screen ---- */
+  .zone { display: flex; align-items: center; gap: 12px; padding: 13px 14px; border-radius: 18px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+  .zone-bar { flex: 1; height: 10px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+  .zone-bar > i { display: block; height: 100%; border-radius: 99px; }
+  .modelvl { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 14px;
+    border-radius: 18px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+  .spark { display: flex; align-items: flex-end; gap: 6px; height: 110px; }
+  .spark i { flex: 1; border-radius: 5px 5px 2px 2px; background: linear-gradient(180deg, var(--gr), rgba(43,217,168,.25)); }
+  .h2 { margin: 22px 2px 12px; font-size: 19px; font-weight: 700; }
+  .h2:first-child { margin-top: 6px; }
+  .lead { font-size: 15px; line-height: 1.5; color: var(--tx-3); text-wrap: pretty; }
+
+  /* ---- paywall / result ---- */
+  .plan { padding: 16px; border-radius: 22px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.04); }
+  .plan.pro { border-color: rgba(255,176,32,.35); background: linear-gradient(160deg, rgba(255,176,32,.14), rgba(255,122,24,.04)); }
+  .li { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45; color: var(--tx-2); }
+  .li i { width: 6px; height: 6px; border-radius: 99px; background: var(--tx-3); margin-top: 7px; flex: none; }
+  .plan.pro .li i { background: var(--am); }
+  .stat-big { flex: 1; padding: 14px; border-radius: 20px; background: rgba(255,255,255,.045);
+    border: 1px solid rgba(255,255,255,.08); text-align: center; }
+  .stat-big b { display: block; font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .stat-big span { font-size: 15px; font-weight: 600; color: var(--tx-3); }
+
+  /* ---- sheet ---- */
+  .sheet-wrap { position: absolute; inset: 0; z-index: 20; display: none; }
+  .sheet-wrap.on { display: block; }
+  .veil { position: absolute; inset: 0; background: rgba(2,4,10,.62); backdrop-filter: blur(3px); }
+  .sheet { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 20px calc(26px + env(safe-area-inset-bottom));
+    background: #10141F; border-top: 1px solid var(--line); border-radius: 28px 28px 0 0;
+    max-height: 84%; overflow-y: auto; animation: up .22s ease-out; }
+  @keyframes up { from { transform: translateY(16px); opacity: .6; } to { transform: none; opacity: 1; } }
+  .handle { width: 44px; height: 5px; border-radius: 99px; background: rgba(255,255,255,.2); margin: 4px auto 14px; }
+  .set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0;
+    border-bottom: 1px solid rgba(255,255,255,.07); }
+  .set-row:last-of-type { border-bottom: none; }
+  .set-row h5 { margin: 0 0 3px; font-size: 16px; font-weight: 600; }
+  .set-row p { margin: 0; font-size: 15px; color: var(--tx-3); line-height: 1.4; }
+  .seg { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(255,255,255,.06); flex: none; }
+  .seg button { min-height: 38px; padding: 0 12px; border: none; border-radius: 11px; background: none;
+    font-size: 14px; font-weight: 600; color: #8C95AB; }
+  .seg button.on { background: rgba(255,176,32,.2); color: var(--am); }
+  .sw { width: 52px; height: 32px; flex: none; border-radius: 99px; border: none; padding: 3px;
+    background: rgba(255,255,255,.14); display: flex; }
+  .sw i { width: 26px; height: 26px; border-radius: 99px; background: #fff; transition: transform .18s; }
+  .sw.on { background: var(--gr); }
+  .sw.on i { transform: translateX(20px); }
+  .gear { width: 44px; height: 44px; flex: none; border-radius: 14px; border: 1px solid var(--line);
+    background: rgba(255,255,255,.05); display: flex; align-items: center; justify-content: center; }
+  .gear:active { background: rgba(255,255,255,.14); }
+  .gear i { width: 16px; height: 16px; border-radius: 99px; border: 3px solid var(--tx-2); }
+  .dots { width: 40px; height: 44px; flex: none; border-radius: 14px; border: 1px solid var(--line);
+    background: rgba(255,255,255,.05); display: flex; align-items: center; justify-content: center; gap: 3.5px; }
+  .dots:active { background: rgba(255,255,255,.14); }
+  .dots i { width: 4px; height: 4px; border-radius: 99px; background: var(--tx-2); }
+
+  /* ---- grouped settings list ---- */
+  .group { margin-top: 18px; }
+  .group > h6 { margin: 0 0 8px 4px; font-size: 14px; font-weight: 700; letter-spacing: .12em; color: #8C95AB; }
+  .group > .list { border-radius: 18px; background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08); overflow: hidden; }
+  .item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;
+    text-align: left; padding: 14px 16px; background: none; border: none;
+    border-bottom: 1px solid rgba(255,255,255,.07); }
+  .list > .item:last-child { border-bottom: none; }
+  button.item:active { background: rgba(255,255,255,.07); }
+  .item h5 { margin: 0; font-size: 16px; font-weight: 600; line-height: 1.3; }
+  .item p { margin: 4px 0 0; font-size: 15px; line-height: 1.4; color: var(--tx-3); text-wrap: pretty; }
+  .item .val { font-size: 15px; font-weight: 600; color: var(--tx-3); flex: none; }
+  .caret { font-size: 20px; color: #6E7688; flex: none; line-height: 1; }
+  .tick { flex: none; width: 26px; height: 26px; border-radius: 99px; display: flex; align-items: center;
+    justify-content: center; font-size: 14px; font-weight: 800; color: transparent;
+    border: 1.5px solid rgba(255,255,255,.18); }
+  .item.pick .tick { color: #04231B; background: var(--gr); border-color: var(--gr); }
+  .item.pick h5 { color: var(--gr); }
+
+  .chiprow { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+  .chiprow { flex-wrap: nowrap; }
+  .chiprow .srctag { flex: 0 1 auto; min-width: 0; }
+  .chiprow #focusChip { flex: 1 1 auto; }
+  .chiprow .srctag b { overflow: hidden; text-overflow: clip; }
+  .srctag { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1;
+    min-height: 44px; padding: 8px 10px; border-radius: 14px;
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+    font-size: 14px; font-weight: 600; color: var(--tx-3); text-align: left; }
+  .srctag:active { background: rgba(255,255,255,.14); }
+  .srctag b { font-weight: 700; color: var(--tx); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .srctag .caret { font-size: 15px; margin-left: auto; flex: none; }
+  .mixchip { flex: none; min-height: 44px; padding: 8px 12px; border-radius: 14px; display: flex;
+    align-items: center; gap: 8px; font-size: 14px; font-weight: 700; white-space: nowrap;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1); color: #7E8698; }
+  .mixchip .led { width: 8px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.22); flex: none; }
+  .mixchip.on { background: rgba(255,176,32,.16); border-color: rgba(255,176,32,.42); color: var(--am); }
+  .mixchip.on .led { background: var(--am); }
+  .focuschip { flex: none; width: 100%; }
+
+  .abchip { flex: none; padding: 5px; }
+  .abbtn { transition: background .12s, border-color .12s, color .12s;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+    padding: 8px 10px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  .abtitle { font-size: 14px; font-weight: 700; color: var(--tx-2); line-height: 1; }
+  .abpair { display: flex; gap: 3px; }
+  .abside { min-width: 26px; padding: 3px 0; border-radius: 7px; text-align: center;
+    font-size: 15px; font-weight: 800; line-height: 1.1; color: #7E8698;
+    background: rgba(255,255,255,.05); transition: background .12s, color .12s; }
+  .abbtn[data-ab="A"] .abside[data-side="A"] { background: rgba(255,255,255,.2); color: var(--tx); }
+  .abbtn[data-ab="B"] .abside[data-side="B"] { background: rgba(108,140,255,.4); color: #EAF0FF; }
+  .abbtn.loop .abtitle { color: var(--am); }
+  #abToggle.on { background: rgba(108,140,255,.22); border-color: rgba(108,140,255,.5); color: #DCE4FF; }
+  #m3Play .btn.on { background: rgba(43,217,168,.18); border-color: rgba(43,217,168,.42); color: #8FF3D8; }
+  #abToggle.loop { background: rgba(255,176,32,.2); border-color: rgba(255,176,32,.52); color: var(--am); }
+  #abToggle .loopdot { width: 8px; height: 8px; border-radius: 99px; background: var(--am);
+    animation: blink 1s steps(1, end) infinite; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: .18; } }
+  [data-ab="A"] .bars i.hot {
+    background: linear-gradient(180deg, rgba(108,140,255,.75), rgba(108,140,255,.2)); }
+  [data-ab="A"] .eq, [data-ab="A"] .gainval { display: none; }
+  .abbtn:not(.on) { background: rgba(255,255,255,.03); color: var(--tx-3); }
+  .lvlchip { border: none; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--am);
+    display: inline-flex; align-items: center; gap: 5px; }
+  .lvlchip span { width: 15px; height: 15px; border-radius: 99px; border: 1.5px solid currentColor;
+    font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .kv { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 0;
+    border-bottom: 1px solid rgba(255,255,255,.07); font-size: 15px; }
+  .kv:last-child { border-bottom: none; }
+  .kv span { color: var(--tx-3); }
+  .kv b { font-weight: 700; }
+  .sublist { display: none; padding: 4px 0 6px; }
+  .sublist.on { display: block; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="glow" id="glow"></div>
+
+  <div class="statusbar">
+    <span>9:41</span>
+    <div style="display:flex; align-items:center; gap:6px">
+      <div class="sb-net"></div>
+      <div class="sb-bat"><i></i></div>
+    </div>
+  </div>
+
+  <div class="stage">
+
+    <!-- ================= 1. ANA MENÜ ================= -->
+    <section class="screen on" id="s-menu" data-screen-label="01 Ana Menü" data-tab="train">
+      <div class="scroll" style="padding-bottom:calc(96px + env(safe-area-inset-bottom))">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:2px 0 14px">
+          <div style="font-size:18px; font-weight:800; letter-spacing:-.01em; min-width:0">Audio Engineer <span style="color:var(--am)">Academy</span></div>
+          <button class="gear" onclick="openSheet('sheet')" aria-label="Ayarlar"><i></i></button>
+        </div>
+        <div class="card lvl">
+          <div class="lvl-badge"><small>SV</small><b>12</b></div>
+          <div style="flex:1; min-width:0">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px">
+              <div style="font-size:16px; font-weight:700; white-space:nowrap">Kalibre Kulak</div>
+              <div class="num" style="font-size:15px; font-weight:600; color:var(--tx-3)">2.140/3.000</div>
+            </div>
+            <div class="bar" style="margin-top:9px"><i style="width:71%"></i></div>
+            <div style="margin-top:8px; font-size:15px; color:#8C95AB">Sonraki seviyeye <b style="color:var(--am)">860 XP</b></div>
+          </div>
+        </div>
+
+        <div class="sug" id="sug">
+          <div style="display:flex; align-items:center; gap:8px; padding-right:38px">
+            <span class="dot" style="background:var(--gr); width:8px; height:8px"></span>
+            <span class="kicker" style="color:var(--gr)">BUGÜNÜN ÖNERİSİ</span>
+          </div>
+          <button class="x" onclick="document.getElementById('sug').remove()">&times;</button>
+          <p style="margin:10px 0 0; font-size:15px; line-height:1.5; color:#E6EAF2; text-wrap:pretty">
+            Üst-orta bölgede (2–4 kHz) isabetin son 5 seansta <b style="color:#fff">%48</b>. Bugün sadece o bölgeye odaklanan kısa bir set hazırladım.
+          </p>
+          <div class="row" style="margin-top:14px">
+            <button class="btn green" onclick="go('s-game1')">Seti başlat · 8 soru</button>
+            <button class="btn" style="flex:none; width:auto" onclick="document.getElementById('sug').remove()">Şimdi değil</button>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:baseline; justify-content:space-between; margin:22px 2px 12px">
+          <div style="font-size:19px; font-weight:700">Egzersizler</div>
+          <div style="font-size:15px; font-weight:600; color:#8C95AB" id="modeCount">— / — açık</div>
+        </div>
+        <div class="grid" id="modeGrid"></div>
+      </div>
+    </section>
+
+    <!-- ================= 2. MOTOR 1 ================= -->
+    <section class="screen" id="s-game1" data-screen-label="02 Motor 1">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" onclick="go('s-menu')">&#8249;</button>
+          <div style="flex:1; min-width:0">
+            <div style="font-size:16px; font-weight:700" class="gameTitle">Frekans Bulma</div>
+            <div class="num" style="font-size:15px; color:#9AA3B8; white-space:nowrap">Soru 4/10 · <button class="lvlchip" onclick="openSheet('lvlSheet')">Seviye 4 <span>i</span></button></div>
+          </div>
+          <div class="hearts" id="g1Hearts"></div>
+          <div class="stat" id="g1Counter" style="display:none; flex:none; min-height:0; padding:7px 11px; background:rgba(255,176,32,.14); border-color:rgba(255,176,32,.3); color:var(--am); font-weight:800">12 doğru</div>
+          <button class="dots" onclick="openSheet('gameSheet')" aria-label="Oyun ayarları"><i></i><i></i><i></i></button>
+        </div>
+        <div class="stats">
+          <div class="stat"><span class="dot"></span>7 seri</div>
+          <div class="stat" id="hintBtn"><span id="hintCount">2</span><span>ipucu</span></div>
+          <div class="stat" style="background:rgba(43,217,168,.12); border-color:rgba(43,217,168,.24); color:var(--gr); font-weight:700">%75</div>
+        </div>
+      </div>
+
+      <div class="scroll" style="padding-top:9px; display:flex; flex-direction:column; gap:8px">
+        <div class="chiprow">
+          <button class="srctag" onclick="openSheet('srcSheet')"><span class="dot"></span><b class="srcName">Davul</b><span class="caret">&#8250;</span></button>
+          <button class="srctag" id="focusChip" onclick="openSheet('focusSheet')"><b id="focusName" style="color:#AFC0FF">Tüm spektrum</b><span class="caret">&#8250;</span></button>
+          <button class="mixchip iconmix" onclick="toggleMix(this)" aria-label="Karıştır" title="Karıştır"><span class="led"></span><span class="mixglyph">⇄</span></button>
+        </div>
+        <div class="qline" id="g1Question">Hangi frekans artırıldı?</div>
+        <div class="card analyzer" id="analyzer" data-phase="ask">
+          <div style="display:flex; align-items:center; flex-wrap:wrap; row-gap:8px; justify-content:space-between; gap:10px; min-height:22px; margin-bottom:10px">
+            <span style="font-size:15px; font-weight:700; letter-spacing:.08em; color:#8C95AB; flex:0 0 auto; white-space:nowrap">SPEKTRUM · B İŞLENMİŞ</span>
+            <span class="gainval" style="font-size:15px; font-weight:700; color:var(--bl)">+6 dB</span>
+            <span class="hinttag">İPUCU · 2–5 kHz arası</span>
+          </div>
+          <div class="spec">
+            <div class="bars" id="specBars"></div>
+            <div class="mask" id="maskL"></div>
+            <div class="mask" id="maskR"></div>
+            <svg class="eq" viewBox="0 0 320 62" preserveAspectRatio="none" aria-hidden="true">
+              <path id="eqPath" fill="none" stroke="#2BD9A8" stroke-width="2.5" stroke-linecap="round"></path>
+              <circle id="eqDot" cx="200" cy="17" r="4" fill="#2BD9A8"></circle>
+            </svg>
+          </div>
+          <div class="axis" id="specAxis"></div>
+        </div>
+
+        <div class="card" id="altPanel" style="display:none; padding:12px 14px">
+          <div style="display:flex; align-items:center; flex-wrap:wrap; row-gap:8px; gap:10px; justify-content:space-between">
+            <div style="font-size:15px; font-weight:700; letter-spacing:.06em; color:#9AA3B8; flex:0 0 auto" id="altTitle">SEVİYE GÖSTERGESİ</div>
+            <span class="hinttag" id="altHint">İPUCU</span>
+          </div>
+
+          <div id="vizDb" style="display:none; margin-top:14px">
+            <div style="display:flex; align-items:flex-end; gap:16px">
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px">
+                <div style="width:100%; height:84px; border-radius:12px; background:rgba(255,255,255,.05); display:flex; align-items:flex-end; overflow:hidden">
+                  <div style="width:100%; height:58%; background:linear-gradient(180deg,#9AA3B8,#5A6377)"></div>
+                </div>
+                <div style="font-size:15px; font-weight:700; color:var(--tx-2)">A · Referans</div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px">
+                <div style="width:100%; height:84px; border-radius:12px; background:rgba(108,140,255,.1); display:flex; align-items:flex-end; overflow:hidden">
+                  <div style="width:100%; height:82%; background:linear-gradient(180deg,#8FA6FF,#4E6BE0)"></div>
+                </div>
+                <div style="font-size:15px; font-weight:700; color:#AFC0FF">B · İşlenmiş</div>
+              </div>
+            </div>
+            <div class="vizreveal" id="dbReveal">Fark: <b>+6 dB</b></div>
+          </div>
+
+          <div id="vizStereo" style="display:none; margin-top:14px">
+            <div class="field"><div class="fieldmid"></div><div class="widthband" id="widthBand"></div></div>
+            <div class="fieldaxis"><span>SOL</span><span>ORTA</span><span>SAĞ</span></div>
+            <div class="vizreveal" id="stereoReveal">Genişlik: <b>%75</b></div>
+          </div>
+
+          <div id="vizPan" style="display:none; margin-top:14px">
+            <div class="field"><div class="fieldmid"></div><div class="pandot" id="panDot"></div></div>
+            <div class="fieldaxis"><span>SOL</span><span>ORTA</span><span>SAĞ</span></div>
+            <div class="vizreveal" id="panReveal">Konum: <b>Hafif sağ</b></div>
+          </div>
+
+          <div id="vizTap" style="display:none; margin-top:14px">
+            <div class="bigfield" id="tapField">
+              <div class="fieldmid"></div>
+              <div class="mask" id="tapMaskL"></div>
+              <div class="mask" id="tapMaskR"></div>
+              <div class="gapfill" id="tapBand"></div>
+              <div class="cursor" id="tapAns"><span class="cursorlbl correct" id="tapAnsLbl">Hafif sağ</span></div>
+              <div class="cursor" id="tapMark"><span class="cursorlbl" id="tapMarkLbl">Orta</span></div>
+              <span class="qualitylbl" id="tapQuality">çok yakın</span>
+            </div>
+            <div class="fieldaxis" id="tapAxis"><span>SOL</span><span>ORTA</span><span>SAĞ</span></div>
+            <div class="tapHint" id="tapPrompt" style="margin-top:11px">Duyduğun konuma dokun</div>
+          </div>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:11px">
+          <div class="bar" style="height:8px; flex:1"><i id="g1TimeBar" style="width:47%"></i></div>
+          <span class="num" id="g1Time" style="font-size:15px; font-weight:700; color:var(--am); flex:none">14 sn</span>
+        </div>
+
+        <div class="answers" id="answers"></div>
+
+        <div class="fb" id="fbCard">
+          <div class="fb-head"><span style="width:22px; height:22px; border-radius:99px; background:var(--gr)"></span><span id="fbTitle">Doğru bildin</span></div>
+          <p id="fbBody">3,15 kHz’te +6 dB’lik, Q=1,4 genişliğinde bir artırım vardı. Bu bölge vokal ve gitarda “sertlik” olarak duyulur.</p>
+          <div class="cmprow">
+            <button class="cmp mine" onclick="setCmp(this)">Senin cevabın</button>
+            <button class="cmp on" onclick="setCmp(this)">Doğru cevap</button>
+            <button class="cmp" onclick="setCmp(this)">Temiz</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <div class="row">
+          <button class="btn">Tekrar Çal</button>
+          <button class="btn abbtn" id="abToggle" onclick="abTap()">
+            <span class="abtitle">A/B Test</span>
+            <span class="abpair"><span class="abside" data-side="A">A</span><span class="abside" data-side="B">B</span></span>
+          </button>
+          <button class="btn" id="hintBtn2" onclick="useHint()">İpucu · <span id="hintCount2">2</span></button>
+        </div>
+        <div id="abSub" style="margin-top:7px; text-align:center; font-size:14px; font-weight:600; color:#9AA3B8">A · Temiz / B · EQ’lu</div>
+        <button class="btn primary" id="g1cta" style="margin-top:8px" onclick="g1Primary()">Cevabı onayla</button>
+      </div>
+    </section>
+
+    <!-- ================= 2b. MOTOR 1 · DOKUNMALI ================= -->
+    <section class="screen" id="s-game1t" data-screen-label="02b Motor 1 dokunmalı">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" onclick="go('s-menu')">&#8249;</button>
+          <div style="flex:1; min-width:0">
+            <div style="font-size:16px; font-weight:700" class="gameTitle">Frekans Bulma</div>
+            <div class="num" style="font-size:15px; color:#9AA3B8; white-space:nowrap">Soru 4/10 · <button class="lvlchip" onclick="openSheet('lvlSheet')">Seviye 7 <span>i</span></button></div>
+          </div>
+          <div class="hearts"></div>
+          <button class="dots" onclick="openSheet('gameSheet')" aria-label="Oyun ayarları"><i></i><i></i><i></i></button>
+        </div>
+        <div class="stats">
+          <div class="stat"><span class="dot"></span>7 seri</div>
+          <div class="stat" id="tHintStat"><span id="tHintCount">2</span><span>ipucu</span></div>
+          <div class="stat" style="background:rgba(43,217,168,.12); border-color:rgba(43,217,168,.24); color:var(--gr); font-weight:700">%75</div>
+        </div>
+      </div>
+
+      <div class="scroll" style="padding-top:12px; display:flex; flex-direction:column; gap:12px">
+        <div class="chiprow">
+          <button class="srctag" onclick="openSheet('srcSheet')"><span class="dot"></span><b class="srcName">Davul</b><span class="caret">&#8250;</span></button>
+          <button class="srctag" onclick="openSheet('focusSheet')"><b class="focusNameT" style="color:#AFC0FF">Tüm spektrum</b><span class="caret">&#8250;</span></button>
+        </div>
+
+        <div class="card analyzer" id="tAnalyzer" data-phase="ask" data-ab="B" style="flex:1 1 auto; display:flex; flex-direction:column; min-height:0; overflow:hidden">
+          <div style="display:flex; align-items:center; flex-wrap:wrap; row-gap:8px; justify-content:space-between; gap:10px; margin-bottom:10px">
+            <span style="font-size:15px; font-weight:700; letter-spacing:.06em; color:#9AA3B8; flex:0 0 auto; white-space:nowrap">DOKUNARAK İŞARETLE</span>
+            <span class="hinttag" id="tHintTag">İPUCU · 2–5 kHz arası</span>
+          </div>
+          <div class="spec tspec" id="tSpec">
+            <div class="bars" id="tBars"></div>
+            <div class="mask" id="tMaskL"></div>
+            <div class="mask" id="tMaskR"></div>
+            <div class="gapfill" id="tBand"></div>
+            <div class="cursor" id="tCursor"><span class="cursorlbl" id="tCursorLbl">3,15 kHz</span></div>
+            <div class="cursor correct" id="tAnsLine"><span class="cursorlbl correct" id="tAnsLbl">3,15 kHz</span></div>
+            <span class="qualitylbl" id="tQuality">çok yakın</span>
+          </div>
+          <div class="axis" id="tAxis"></div>
+        </div>
+        <div class="tapHint" id="tTapHint">Duyduğun frekansın olduğu yere dokun</div>
+
+        <div>
+          <div style="display:flex; justify-content:space-between; margin-bottom:7px; font-size:15px; font-weight:600">
+            <span style="color:#9AA3B8">Kalan süre</span>
+            <span class="num" style="color:var(--am); font-weight:700">14 sn</span>
+          </div>
+          <div class="bar" style="height:6px"><i style="width:47%"></i></div>
+        </div>
+
+        <div class="fb" id="tFb" style="display:none">
+          <div class="fb-head"><span style="width:22px; height:22px; border-radius:99px; background:var(--gr)"></span><span id="tFbTitle">Çok yakın</span></div>
+          <p id="tFbBody">Cevabın 2,8 kHz, doğrusu 3,15 kHz. Aradaki fark 1/6 oktavdan az.</p>
+          <div class="cmprow">
+            <button class="cmp mine" onclick="setCmp(this)">Senin cevabın</button>
+            <button class="cmp on" onclick="setCmp(this)">Doğru cevap</button>
+            <button class="cmp" onclick="setCmp(this)">Temiz</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <div class="row">
+          <button class="btn">Tekrar Çal</button>
+          <button class="btn abbtn" id="tAbToggle" onclick="tToggleAB()">
+            <span class="abtitle">A/B Test</span>
+            <span class="abpair"><span class="abside" data-side="A">A</span><span class="abside" data-side="B">B</span></span>
+          </button>
+          <button class="btn" id="tHintBtn" onclick="tUseHint()">İpucu · <span id="tHintCount2">2</span></button>
+        </div>
+        <div id="tAbNote" style="margin-top:8px; text-align:center; font-size:15px; font-weight:600; color:#AFC0FF">Ses kesintisiz · EQ zinciri devrede</div>
+        <button class="btn primary" id="tCta" style="margin-top:9px" onclick="tPrimary()" disabled>Cevabı onayla</button>
+      </div>
+    </section>
+
+    <!-- ================= 3. MOTOR 2 ================= -->
+    <section class="screen" id="s-game2" data-screen-label="03 Motor 2">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" onclick="go('s-menu')">&#8249;</button>
+          <div style="flex:1; min-width:0">
+            <div style="font-size:16px; font-weight:700" class="gameTitle">Hangisi Farklı</div>
+            <div class="num" style="font-size:15px; color:#9AA3B8; white-space:nowrap">Soru 2/10 · <button class="lvlchip" onclick="openSheet('lvlSheet')">Seviye 2 <span>i</span></button></div>
+          </div>
+          <div class="hearts"></div>
+          <button class="dots" onclick="openSheet('gameSheet')" aria-label="Oyun ayarları"><i></i><i></i><i></i></button>
+        </div>
+        <div class="stats">
+          <div class="stat"><span class="dot"></span>2 seri</div>
+          <div class="stat" id="g2HintStat"><span id="g2HintCount">3</span><span>ipucu</span></div>
+          <div class="stat" id="g2Count" style="background:rgba(168,85,247,.13); border-color:rgba(168,85,247,.26); color:#C79BFF; font-weight:700">3 ses</div>
+        </div>
+      </div>
+
+      <div class="scroll" style="padding-top:12px; display:flex; flex-direction:column; gap:11px">
+        <div class="task">
+          <div class="kicker" style="color:#C79BFF">GÖREV</div>
+          <p style="margin:8px 0 0; font-size:18px; font-weight:700; line-height:1.35; text-wrap:pretty" id="g2Task">Üçünü dinle, diğerlerinden farklı işlenmiş olanı seç.</p>
+          <p style="margin:8px 0 0; font-size:15px; line-height:1.45; color:#A9B2C6; text-wrap:pretty" id="g2Sub">İki ses aynı, biri farklı.</p>
+        </div>
+        <div class="chiprow">
+          <button class="srctag" onclick="openSheet('srcSheet')"><span class="dot"></span><b class="srcName">Davul</b><span class="caret">&#8250;</span></button>
+          <button class="mixchip iconmix" onclick="toggleMix(this)" aria-label="Karıştır" title="Karıştır"><span class="led"></span><span class="mixglyph">⇄</span></button>
+        </div>
+        <span class="hinttag" id="g2HintTag" style="display:none; align-self:flex-start"></span>
+        <div style="display:flex; flex-direction:column; gap:11px" id="opts"></div>
+        <div class="fb" id="g2Fb" style="display:none">
+          <div class="fb-head"><span style="width:22px; height:22px; border-radius:99px; background:var(--gr)"></span><span id="g2FbTitle">Doğru bildin</span></div>
+          <p id="g2FbBody">B’de 3:1 oranında kompresyon vardı, attack 10 ms.</p>
+          <div class="cmprow">
+            <button class="cmp mine" onclick="setCmp(this)">Senin cevabın</button>
+            <button class="cmp on" onclick="setCmp(this)">Doğru cevap</button>
+            <button class="cmp" onclick="setCmp(this)">Temiz</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <div class="row">
+          <button class="btn" id="g2SeqBtn" onclick="g2Sequence()">Sırayla Çal</button>
+          <button class="btn" id="g2HintBtn" onclick="g2UseHint()">İpucu · <span id="g2HintCount2">3</span></button>
+        </div>
+        <div id="g2Note" style="margin-top:7px; text-align:center; font-size:14px; font-weight:600; color:#9AA3B8">Her seçimde baştan çalar</div>
+        <button class="btn primary" id="g2Cta" style="margin-top:8px" onclick="g2Primary()" disabled>Bir ses seç</button>
+      </div>
+    </section>
+
+    <!-- ================= 4. SEANS SONU ================= -->
+    <section class="screen" id="s-result" data-screen-label="04 Seans Sonu">
+      <div class="scroll" style="padding-top:12px">
+        <div style="text-align:center; padding:10px 4px 4px">
+          <div style="font-size:14px; font-weight:700; letter-spacing:.12em" id="resKicker">SEANS TAMAMLANDI</div>
+          <div style="margin:14px auto 0; width:128px; height:128px; border-radius:99px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; position:relative" id="resRing">
+            <div style="position:absolute; inset:9px; border-radius:99px; background:#0A0E18"></div>
+            <div class="num" style="position:relative; font-size:32px; font-weight:800; line-height:1" id="resPct">%80</div>
+            <div class="num" style="position:relative; font-size:15px; font-weight:600; color:var(--tx-3)" id="resScore">8 / 10 doğru</div>
+          </div>
+          <h1 style="margin:15px 0 0; font-size:23px; font-weight:800; line-height:1.28; text-wrap:pretty" id="resHead">Üst-orta bölgede ilerleme var</h1>
+          <p class="lead" style="margin:9px 0 0" id="resLead">Son seansına göre <b style="color:var(--tx)">+13 puan</b>.</p>
+        </div>
+
+        <div class="card" id="levelUp" style="margin-top:16px; padding:16px; background:linear-gradient(150deg, rgba(255,194,70,.2), rgba(255,122,24,.06)); border-color:rgba(255,176,32,.42)">
+          <div style="display:flex; align-items:center; gap:12px">
+            <div style="width:48px; height:48px; flex:none; border-radius:16px; background:linear-gradient(150deg,var(--am),var(--am-2)); color:#1A1206; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:800; animation:pulseRing 2s ease-out infinite">13</div>
+            <div style="flex:1; min-width:0">
+              <div style="font-size:17px; font-weight:800; color:var(--am)">Seviye atladın</div>
+              <div style="margin-top:3px; font-size:15px; line-height:1.4; color:var(--tx-2); text-wrap:pretty">Bant artık daha dar. Bu modda yeni şıklar açıldı.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px; padding:15px 16px">
+          <div style="display:flex; align-items:baseline; justify-content:space-between; gap:8px">
+            <div style="font-size:16px; font-weight:700">Kazanılan XP</div>
+            <div class="num" style="font-size:20px; font-weight:800; color:var(--am)" id="resXp">+240</div>
+          </div>
+          <div class="bar" style="margin-top:10px"><i style="width:79%" id="resXpBar"></i></div>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:15px; font-weight:600; color:#9AA3B8">
+            <span id="resLvl">Seviye 13</span><span class="num" id="resXpNum">380 / 3.400</span>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <div class="stat-big"><b id="resStreakMax">6</b><span>En uzun seri</span></div>
+          <div class="stat-big"><b id="resStreak">3</b><span>Mevcut seri</span></div>
+          <div class="stat-big"><b style="color:var(--am)" id="resHints">2</b><span>İpucu</span></div>
+        </div>
+
+        <div class="card" style="margin-top:12px; padding:15px 16px">
+          <div class="kicker" style="color:#9AA3B8" id="resSumTitle">BÖLGE HARİTASI</div>
+
+          <div id="resFreqMap" style="margin-top:14px">
+            <div style="position:relative; height:56px">
+              <div style="position:absolute; left:0; right:0; top:27px; height:2px; background:rgba(255,255,255,.12)"></div>
+              <div id="resDots"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:14px; font-weight:700; color:#9AA3B8">
+              <span>60</span><span>250</span><span>1k</span><span>4k</span><span>16k</span>
+            </div>
+          </div>
+
+          <div id="resSeqMap" style="display:none; margin-top:14px">
+            <div id="resBoxes" style="display:flex; gap:6px"></div>
+            <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:14px; font-weight:700; color:#9AA3B8">
+              <span>1. SORU</span><span>SON</span>
+            </div>
+          </div>
+
+          <p style="margin:12px 0 0; font-size:15px; line-height:1.5; color:var(--tx-2); text-wrap:pretty" id="resComment">Üst-orta bölgede zorlandın.</p>
+        </div>
+
+        <div class="sug" id="resSug" style="margin-top:12px">
+          <button class="x" onclick="document.getElementById('resSug').remove()">&times;</button>
+          <p style="margin:0; padding-right:40px; font-size:15px; line-height:1.5; color:#E6EAF2; text-wrap:pretty" id="resSugText">Üst-orta bölgede zorlandın. Yarın oraya odaklanan bir set hazırlayayım mı?</p>
+          <button class="btn green" style="margin-top:12px; min-height:48px; font-size:15px" onclick="resSugAction()" id="resSugBtn">Üst-orta setini aç</button>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <button class="btn primary" id="resCta" onclick="resContinue()">10 soru daha</button>
+        <div class="row" style="margin-top:9px">
+          <button class="btn" onclick="resRestart()">Tekrar oyna</button>
+          <button class="btn" onclick="go('s-menu')">Menüye dön</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 5. İLERLEME ================= -->
+    <section class="screen" id="s-progress" data-screen-label="05 İlerleme" data-tab="progress">
+      <div class="scroll" style="padding-bottom:calc(96px + env(safe-area-inset-bottom))">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:2px 0 14px">
+          <div style="font-size:19px; font-weight:700">İlerleme</div>
+          <button class="gear" onclick="openSheet('sheet')" aria-label="Ayarlar"><i></i></button>
+        </div>
+        <div class="card lvl" style="margin-top:0">
+          <div class="lvl-badge"><small>SV</small><b>12</b></div>
+          <div style="flex:1; min-width:0">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; gap:8px">
+              <div style="font-size:16px; font-weight:700; white-space:nowrap">Kalibre Kulak</div>
+              <div class="num" style="font-size:15px; font-weight:600; color:var(--tx-3)">2.140/3.000</div>
+            </div>
+            <div class="bar" style="margin-top:9px"><i style="width:71%"></i></div>
+            <div style="margin-top:8px; font-size:15px; color:#9AA3B8">Sonraki seviyeye <b style="color:var(--am)">860 XP</b></div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:12px">
+          <div class="stat-big"><b>14s 20d</b><span>Antrenman</span></div>
+          <div class="stat-big"><b>1.860</b><span>Soru</span></div>
+          <div class="stat-big"><b style="color:var(--gr)">%72</b><span>İsabet</span></div>
+        </div>
+
+        <div class="card" style="margin-top:12px; padding:15px 16px">
+          <div class="kicker" style="color:#AFC0FF">ŞU AN NEREDESİN</div>
+          <p style="margin:9px 0 0; font-size:15px; line-height:1.5; color:var(--tx-2); text-wrap:pretty">Bas bölgesinde 1/6 oktav hassasiyete ulaştın, üst-ortada 1/3 oktavdasın. Fark en çok 2–6 kHz arasında açılıyor.</p>
+        </div>
+
+        <div class="card" style="margin-top:22px; padding:0; overflow:hidden">
+          <button class="item" style="border-bottom:none" onclick="togglePanel('zoneWrap','zoneCaret')">
+            <div><h5 style="font-size:17px">Frekans bölgesi</h5><p id="zoneSub">en zayıf: —</p></div>
+            <span class="caret" id="zoneCaret" style="font-size:17px">⌄</span>
+          </button>
+          <div id="zoneWrap" style="display:none; padding:0 14px 14px">
+            <div style="display:flex; flex-direction:column; gap:9px" id="zoneList"></div>
+          </div>
+        </div>
+
+        <div class="h2">Son 30 gün</div>
+        <div class="card" style="padding:16px">
+          <svg viewBox="0 0 320 110" preserveAspectRatio="none" style="width:100%; height:110px; overflow:visible">
+            <path d="M0 78 L36 72 L72 80 L108 62 L144 66 L180 50 L216 54 L252 38 L288 34 L320 26" fill="none" stroke="#2BD9A8" stroke-width="2.5" stroke-linejoin="round"></path>
+            <path d="M0 78 L36 72 L72 80 L108 62 L144 66 L180 50 L216 54 L252 38 L288 34 L320 26 L320 110 L0 110 Z" fill="rgba(43,217,168,.12)" stroke="none"></path>
+            <circle cx="320" cy="26" r="4.5" fill="#2BD9A8"></circle>
+          </svg>
+          <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:15px; font-weight:600; color:#9AA3B8">
+            <span>%58</span><span>bugün <b style="color:var(--gr)">%78</b></span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:22px; padding:0; overflow:hidden">
+          <button class="item" style="border-bottom:none" onclick="toggleModeLevels()">
+            <div><h5 style="font-size:17px">Mod seviyeleri</h5><p id="modeLevelsSub">— mod oynandı</p></div>
+            <span class="caret" id="modeLevelsCaret" style="font-size:17px">⌄</span>
+          </button>
+          <div id="modeLevelsWrap" style="display:none; padding:0 14px 14px">
+            <div style="display:flex; flex-direction:column; gap:9px" id="modeLevels"></div>
+          </div>
+        </div>
+
+        <div class="h2">Rozetler</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px" id="badgeGrid"></div>
+      </div>
+    </section>
+
+    <!-- ================= 6. ARAÇLAR ================= -->
+    <section class="screen" id="s-tools" data-screen-label="06 Araçlar" data-tab="tools">
+      <div class="scroll" style="padding-bottom:calc(96px + env(safe-area-inset-bottom))">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin:2px 0 6px">
+          <div style="font-size:19px; font-weight:700">Araçlar</div>
+          <div style="display:flex; align-items:center; gap:10px">
+            <span class="chip" id="toolsBadge">Pro</span>
+            <button class="gear" onclick="openSheet('sheet')" aria-label="Ayarlar"><i></i></button>
+          </div>
+        </div>
+        <p class="lead" style="margin:0 2px 14px">Kendi miksini ölç, farklı cihazlarda nasıl duyulacağını dinle.</p>
+
+        <div class="card" style="padding:16px">
+          <div style="display:flex; align-items:center; gap:13px">
+            <div style="width:48px; height:48px; flex:none; border-radius:15px; background:rgba(255,176,32,.14); border:1px solid rgba(255,176,32,.3); display:flex; align-items:center; justify-content:center; color:var(--am); font-size:20px; font-weight:800">↑</div>
+            <div style="flex:1; min-width:0">
+              <div style="font-size:16px; font-weight:700">gece_mix_v4.wav</div>
+              <div class="num" style="margin-top:3px; font-size:15px; color:var(--tx-3)">3:42 · 48 kHz · stereo</div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" onclick="toolsGate()">Dosya değiştir</button>
+            <button class="btn abbtn on" onclick="toolsGate()" style="flex-direction:row; gap:8px">Çal</button>
+          </div>
+          <p style="margin:11px 2px 0; font-size:14px; line-height:1.45; color:#8C95AB; text-wrap:pretty">Tek yükleme; hem analiz hem referans filtreleri bu dosyayı kullanır.</p>
+        </div>
+
+        <div class="h2">Analiz</div>
+        <div class="card" style="padding:16px">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px">
+            <span style="font-size:15px; font-weight:700; letter-spacing:.06em; color:#9AA3B8">SPEKTRUM · REFERANSA GÖRE SAPMA</span>
+          </div>
+          <div class="spec" style="height:86px; margin-top:10px">
+            <div class="bars" id="toolBars"></div>
+            <svg viewBox="0 0 320 86" preserveAspectRatio="none" style="position:absolute; inset:0; width:100%; height:100%">
+              <path d="M0 46 C 60 44, 120 48, 180 44 C 240 40, 280 44, 320 42" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-dasharray="5 5"></path>
+            </svg>
+          </div>
+          <div class="axis"><span>40</span><span>160</span><span>640</span><span>2,5k</span><span>16k</span></div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:12px">
+            <div class="stat" style="flex-direction:column; gap:3px; min-height:64px"><b class="num" style="font-size:17px">−9,4 LUFS</b><span style="font-size:14px; color:var(--tx-3)">Bütünleşik</span></div>
+            <div class="stat" style="flex-direction:column; gap:3px; min-height:64px"><b class="num" style="font-size:17px">6,2 LU</b><span style="font-size:14px; color:var(--tx-3)">LRA</span></div>
+            <div class="stat" style="flex-direction:column; gap:3px; min-height:64px"><b class="num" style="font-size:17px">+0,8 dBTP</b><span style="font-size:14px; color:var(--rd)">True peak</span></div>
+            <div class="stat" style="flex-direction:column; gap:3px; min-height:64px"><b class="num" style="font-size:17px">%88</b><span style="font-size:14px; color:var(--tx-3)">Mono uyum</span></div>
+          </div>
+
+          <div style="margin-top:14px; display:flex; flex-direction:column; gap:9px">
+            <div class="li" style="font-size:15px"><i style="background:var(--rd)"></i><span>150 Hz civarında birikme — yaklaşık +4 dB</span></div>
+            <div class="li" style="font-size:15px"><i style="background:var(--am)"></i><span>Üst-orta çukur (2–4 kHz) — vokal öne çıkmıyor</span></div>
+            <div class="li" style="font-size:15px"><i style="background:var(--rd)"></i><span>True peak 0 dBTP üzerinde — kırpma riski</span></div>
+          </div>
+
+          <button class="btn primary" style="margin-top:14px" onclick="toolsGate()">Otomatik düzelt</button>
+          <div class="row" style="margin-top:9px">
+            <button class="btn abbtn on" onclick="toolsGate()" style="flex-direction:row; gap:8px">Öncesi / Sonrası</button>
+            <button class="btn" onclick="toolsGate()">İndir</button>
+          </div>
+          <p style="margin:11px 2px 0; font-size:14px; line-height:1.45; color:#8C95AB; text-wrap:pretty">Bu bir yön göstergesidir, kesin teşhis değildir.</p>
+        </div>
+
+        <div class="h2">Referans filtreleri</div>
+        <div class="card" style="padding:16px">
+          <div id="filterChips" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:4px"></div>
+          <div style="margin-top:13px; padding:13px 14px; border-radius:15px; background:rgba(108,140,255,.1); border:1px solid rgba(108,140,255,.26)">
+            <div style="font-size:16px; font-weight:700; color:#DCE4FF" id="filterName">Düz</div>
+            <div style="margin-top:5px; font-size:15px; line-height:1.45; color:var(--tx-2); text-wrap:pretty" id="filterDesc">Referans — hiçbir renklendirme yok.</div>
+            <div style="margin-top:9px; font-size:15px; line-height:1.45; color:#AFC0FF; text-wrap:pretty" id="filterListen">Ne dinlemeli: miksin kendi dengesi.</div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" onclick="setFilter(0)">Düz’e dön</button>
+            <button class="btn" onclick="toolsGate()">Çal</button>
+          </div>
+          <p style="margin:11px 2px 0; font-size:14px; line-height:1.45; color:#8C95AB; text-wrap:pretty">Tipik cihaz eğrilerine yaklaşıktır, ölçüm değildir. Geçişler kesintisizdir.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MOTOR 3 · FREKANS ÇAKIŞMASI ================= -->
+    <section class="screen" id="s-soon" data-screen-label="09 Motor 3 Çakışma">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" onclick="go('s-menu')">&#8249;</button>
+          <div style="flex:1; min-width:0">
+            <div style="font-size:16px; font-weight:700" class="gameTitle">Frekans Çakışması</div>
+            <div class="num" style="font-size:15px; color:#9AA3B8; white-space:nowrap">Soru 3/10 · <button class="lvlchip" onclick="openSheet('lvlSheet')">Seviye 4 <span>i</span></button></div>
+          </div>
+          <div class="hearts"></div>
+          <button class="dots" onclick="openSheet('m3Sheet')" aria-label="Oyun ayarları"><i></i><i></i><i></i></button>
+        </div>
+        <div class="stats">
+          <div class="stat"><span class="dot"></span>4 seri</div>
+          <div class="stat"><span>2</span><span>ipucu</span></div>
+          <div class="stat" id="m3StageChip" style="background:rgba(43,217,168,.13); border-color:rgba(43,217,168,.26); color:var(--gr); font-weight:700">Aşama 1</div>
+        </div>
+      </div>
+
+      <div class="scroll" style="padding-top:10px; display:flex; flex-direction:column; gap:9px">
+        <div class="chiprow">
+          <button class="srctag" onclick="openSheet('pairSheet')"><span class="dot" style="background:var(--gr)"></span><b id="m3Pair">kick + bas</b><span class="caret">&#8250;</span></button>
+          <button class="srctag" onclick="openSheet('m3Sheet')"><b id="m3StageName" style="color:#8FF3D8">Çakışmayı bul</b><span class="caret">&#8250;</span></button>
+        </div>
+        <div class="qline" id="m3Question">İki kaynağın çakıştığı frekansı işaretle.</div>
+
+        <div class="card analyzer" id="m3Panel" data-phase="ask" style="flex:1 1 auto; display:flex; flex-direction:column; min-height:0; overflow:hidden">
+          <div style="display:flex; align-items:center; flex-wrap:wrap; row-gap:8px; gap:10px; justify-content:space-between">
+            <span style="font-size:15px; font-weight:700; letter-spacing:.06em; color:#9AA3B8; flex:0 0 auto; white-space:nowrap">İKİ KAYNAK · ÜST ÜSTE</span>
+            <span class="hinttag" id="m3HintTag" style="display:none">İPUCU · 80–250 Hz arası</span>
+          </div>
+          <div style="display:flex; gap:14px; margin-top:8px">
+            <span style="display:flex; align-items:center; gap:7px; font-size:14px; font-weight:700; color:#FFC246"><i style="width:11px; height:11px; border-radius:3px; background:#FFC246"></i><span id="m3LegA">Kick</span></span>
+            <span style="display:flex; align-items:center; gap:7px; font-size:14px; font-weight:700; color:#8FA6FF"><i style="width:11px; height:11px; border-radius:3px; background:#8FA6FF"></i><span id="m3LegB">Bas</span></span>
+            <span style="display:flex; align-items:center; gap:7px; font-size:14px; font-weight:700; color:#FF9FB2"><i style="width:11px; height:11px; border-radius:3px; background:#FF7A9B"></i>Çakışma</span>
+          </div>
+          <div class="bigfield" id="m3Field" style="margin-top:10px; min-height:150px">
+            <div class="bars" id="m3BarsA" style="opacity:.9"></div>
+            <div class="bars" id="m3BarsB" style="opacity:.75"></div>
+            <div class="mask" id="m3MaskL"></div>
+            <div class="mask" id="m3MaskR"></div>
+            <div class="gapfill" id="m3Band"></div>
+            <div class="cursor" id="m3Ans"><span class="cursorlbl correct" id="m3AnsLbl">120 Hz</span></div>
+            <div class="cursor" id="m3Mark"><span class="cursorlbl" id="m3MarkLbl">120 Hz</span></div>
+          </div>
+          <div class="axis"><span>40</span><span>80</span><span>160</span><span>320</span><span>640</span></div>
+        </div>
+
+        <div class="row" id="m3Play">
+          <button class="btn" id="m3PlayA" onclick="m3Play(this)">Kick</button>
+          <button class="btn" id="m3PlayB" onclick="m3Play(this)">Bas</button>
+          <button class="btn on" id="m3PlayBoth" onclick="m3Play(this)">İkisi birlikte</button>
+        </div>
+
+        <div id="m3Tap" class="tapHint">Çakışmayı duyduğun yere dokun</div>
+
+        <div id="m3Cards" style="display:none; flex-direction:column; gap:11px"></div>
+
+        <div class="answers" id="m3Answers" style="display:none"></div>
+
+        <div class="fb" id="m3Fb" style="display:none">
+          <div class="fb-head"><span style="width:22px; height:22px; border-radius:99px; background:var(--gr)"></span><span id="m3FbTitle">Doğru bildin</span></div>
+          <p id="m3FbBody">Çakışma 120 Hz’te. Kick’in gövdesi ile basın temel notası burada üst üste biniyor.</p>
+          <div class="cmprow">
+            <button class="cmp mine" onclick="setCmp(this)">Senin cevabın</button>
+            <button class="cmp on" onclick="setCmp(this)">Doğru cevap</button>
+            <button class="cmp" onclick="setCmp(this)">Temiz</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <div class="row">
+          <button class="btn" onclick="m3Hint()">İpucu · <span id="m3HintCount">2</span></button>
+          <button class="btn" onclick="go('s-menu')">Çık</button>
+        </div>
+        <button class="btn primary" id="m3Cta" style="margin-top:9px" onclick="m3Primary()" disabled>Cevabı onayla</button>
+      </div>
+    </section>
+
+    <!-- ================= KALİBRASYON ================= -->
+    <section class="screen" id="s-calib" data-screen-label="08 Kalibrasyon">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" onclick="back()">&#8249;</button>
+          <div style="flex:1; min-width:0">
+            <div style="font-size:16px; font-weight:700">Kalibrasyon</div>
+            <div class="num" style="font-size:15px; color:#9AA3B8">Adım <span id="calStep">1</span>/3</div>
+          </div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-top:16px; display:flex; flex-direction:column; gap:14px">
+        <div class="bar" style="height:6px"><i id="calBar" style="width:33%"></i></div>
+
+        <div>
+          <h1 style="margin:6px 0 0; font-size:23px; font-weight:800; line-height:1.3; text-wrap:pretty" id="calHead">Kulaklığını tak, ortamı sessizleştir</h1>
+          <p class="lead" style="margin:10px 0 0" id="calBody">Egzersizlerdeki dB farkları küçüktür. Seviyeyi bir kez ayarlarsan tüm sorular aynı referansla çalar; sonuçların karşılaştırılabilir olur.</p>
+        </div>
+
+        <div class="card" style="padding:20px 18px; text-align:center">
+          <button class="btn abbtn on" id="calPlay" onclick="calPlay()" style="flex-direction:row; gap:10px; min-height:56px; font-size:16px">Referans tonu çal</button>
+          <div class="num" style="margin-top:16px; font-size:15px; font-weight:700; letter-spacing:.06em; color:#9AA3B8">1 kHz SİNÜS · −20 dBFS</div>
+          <div style="margin-top:14px; display:flex; align-items:flex-end; justify-content:center; gap:5px; height:52px" id="calMeter"></div>
+          <p style="margin:16px 0 0; font-size:16px; line-height:1.5; color:var(--tx-2); text-wrap:pretty" id="calGuide">Rahat duyduğun bir seviyeye getir, sonra onayla. Telefonun ses tuşlarını kullan.</p>
+        </div>
+
+        <div class="card" style="padding:14px 16px">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+            <span style="font-size:16px; font-weight:600">Cihaz seviyesi</span>
+            <span class="num" style="font-size:20px; font-weight:800; color:var(--am)">%62</span>
+          </div>
+          <div class="bar" style="margin-top:10px; height:10px"><i style="width:62%"></i></div>
+        </div>
+
+        <p style="margin:0 2px; font-size:15px; line-height:1.45; color:#8C95AB; text-wrap:pretty">Bu ayarı sonra Ayarlar’dan değiştirebilirsin.</p>
+      </div>
+      <div class="actionbar">
+        <button class="btn primary" id="calCta" onclick="calNext()">Seviye doğru, devam et</button>
+        <button class="btn" style="margin-top:9px; border-color:transparent; background:none; color:var(--tx-3)" onclick="back()">Sonra yaparım</button>
+      </div>
+    </section>
+
+    <!-- ================= YARDIM / METİN EKRANLARI ================= -->
+    <section class="screen" id="s-faq" data-screen-label="10 SSS">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" onclick="back()">&#8249;</button>
+          <div style="flex:1; min-width:0"><div style="font-size:16px; font-weight:700">Sık sorulan sorular</div></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-top:14px; display:flex; flex-direction:column; gap:10px" id="faqList"></div>
+    </section>
+
+    <section class="screen" id="s-feedback" data-screen-label="11 Geri Bildirim">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" onclick="back()">&#8249;</button>
+          <div style="flex:1; min-width:0"><div style="font-size:16px; font-weight:700">Geri bildirim gönder</div></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-top:14px; display:flex; flex-direction:column; gap:12px">
+        <p class="lead" style="margin:0 2px">Eksik bulduğun, kafa karıştıran ya da eklenmesini istediğin şeyleri yaz. Hepsini okuyoruz.</p>
+        <div class="card" style="padding:14px">
+          <div style="font-size:15px; font-weight:700; color:#9AA3B8">MESAJIN</div>
+          <div contenteditable="true" style="margin-top:10px; min-height:150px; font-size:16px; line-height:1.5; color:var(--tx); outline:none" data-ph="Yazmaya başla…">Üst-orta bölgede ipucu daha net olabilir.</div>
+        </div>
+        <div class="card" style="padding:14px 16px; font-size:15px; line-height:1.5; color:var(--tx-2); text-wrap:pretty">Cihaz ve sürüm bilgisi mesaja otomatik eklenir.</div>
+      </div>
+      <div class="actionbar">
+        <button class="btn primary" onclick="back()">Gönder</button>
+      </div>
+    </section>
+
+    <section class="screen" id="s-contact" data-screen-label="12 İletişim">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" onclick="back()">&#8249;</button>
+          <div style="flex:1; min-width:0"><div style="font-size:16px; font-weight:700">Bize ulaşın</div></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-top:14px; display:flex; flex-direction:column; gap:12px">
+        <div class="card" style="padding:18px">
+          <div class="kicker" style="color:var(--am)">E-POSTA</div>
+          <div style="margin-top:10px; font-size:19px; font-weight:700">destek@audioengineer.academy</div>
+          <p style="margin:10px 0 0; font-size:15px; line-height:1.5; color:var(--tx-2); text-wrap:pretty">Genelde iki iş günü içinde dönüyoruz. Hata bildirirken hangi modda olduğunu yazman yeterli.</p>
+        </div>
+        <div class="card" style="padding:16px; font-size:15px; line-height:1.5; color:var(--tx-2); text-wrap:pretty">Satın alma ve iade konuları için mağaza hesabını kullandığın e-postayla yaz.</div>
+      </div>
+    </section>
+
+    <section class="screen" id="s-legal" data-screen-label="13 Metin">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" onclick="back()">&#8249;</button>
+          <div style="flex:1; min-width:0"><div style="font-size:16px; font-weight:700" id="legalTitle">Gizlilik politikası</div></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-top:14px; display:flex; flex-direction:column; gap:12px">
+        <div class="card" style="padding:18px">
+          <div class="kicker" style="color:#9AA3B8" id="legalKicker">GİZLİLİK</div>
+          <h1 style="margin:10px 0 0; font-size:21px; font-weight:800; line-height:1.3; text-wrap:pretty">İçerik yakında eklenecek</h1>
+          <p style="margin:10px 0 0; font-size:15px; line-height:1.5; color:var(--tx-2); text-wrap:pretty" id="legalBody">Bu metin yayın öncesi hukuk kontrolünden geçtikten sonra eklenecek. Prototipte yalnızca yerleşim görünüyor.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 7. KİLİT / SATIN ALMA ================= -->
+    <section class="screen" id="s-paywall" data-screen-label="07 Satın Alma">
+      <div class="scroll" style="padding-top:10px">
+        <div style="display:flex; justify-content:flex-end">
+          <button class="x" style="position:static" onclick="back()">&times;</button>
+        </div>
+        <div style="padding:6px 2px 0">
+          <div class="kicker" style="color:var(--am)"><span id="payWhat">Tam sürüm</span></div>
+          <h1 style="margin:10px 0 0; font-size:25px; font-weight:800; line-height:1.28; text-wrap:pretty">Tam sürüm sadece sınırları kaldırır</h1>
+          <p class="lead" style="margin:10px 0 0">Ücretsiz sürümle çalışmaya devam edebilirsin. Acele etmene gerek yok.</p>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:12px; margin-top:18px">
+          <div class="plan">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px">
+              <div style="font-size:17px; font-weight:700">Ücretsiz</div>
+              <div style="font-size:15px; font-weight:600; color:var(--tx-3)">Şu anki planın</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:9px; margin-top:12px">
+              <div class="li" style="font-size:15px"><i></i><span id="payFreeModes">— egzersiz modu</span></div>
+              <div class="li" style="font-size:15px"><i></i><span>Seans başına 5 soru</span></div>
+              <div class="li" style="font-size:15px"><i></i><span>5 can · 30 dakikada dolar<br><span style="color:var(--tx-3)">Kulağın da dinlensin</span></span></div>
+              <div class="li" style="font-size:15px"><i></i><span>Araçlar sekmesi kapalı</span></div>
+            </div>
+          </div>
+
+          <div class="plan pro">
+            <div style="display:flex; justify-content:space-between; align-items:baseline; gap:10px">
+              <div style="font-size:17px; font-weight:700; color:var(--am)">Pro</div>
+              <div class="num" style="font-size:17px; font-weight:800" id="proPrice">—</div>
+            </div>
+            <div style="margin-top:4px; font-size:15px; font-weight:600; color:var(--tx-3)">Tek seferlik — abonelik değil</div>
+            <div style="display:flex; flex-direction:column; gap:9px; margin-top:12px">
+              <div class="li" style="font-size:15px"><i></i><span id="payProModes">— egzersiz modunun tamamı</span></div>
+              <div class="li" style="font-size:15px"><i></i><span>Seans başına 10 soru</span></div>
+              <div class="li" style="font-size:15px"><i></i><span>Can sınırı yok</span></div>
+              <div class="li" style="font-size:15px"><i></i><span>Araçlar: analiz + referans filtreleri</span></div>
+              <div class="li" style="font-size:15px"><i></i><span>Detaylı ilerleme raporu</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <button class="btn primary" id="buyBtn" onclick="buyPro()">Satın al</button>
+        <div class="row" style="margin-top:9px">
+          <button class="btn" onclick="back()">Geri yükle</button>
+          <button class="btn" style="border-color:transparent; background:none; color:var(--tx-3)" onclick="back()">Ücretsiz devam</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= SEKME ÇUBUĞU ================= -->
+  <div class="tabbar" id="tabbar">
+    <div class="tabs">
+      <button class="tab on" data-tab="train" onclick="go('s-menu')">Antrenman</button>
+      <button class="tab" data-tab="progress" onclick="go('s-progress')">İlerleme</button>
+      <button class="tab" data-tab="tools" onclick="go('s-tools')">Araçlar</button>
+    </div>
+  </div>
+
+  <!-- ================= AYARLAR SHEET (genel) ================= -->
+  <div class="sheet-wrap" id="sheet">
+    <div class="veil" onclick="closeSheet()"></div>
+    <div class="sheet" data-drag="1">
+      <div class="handle"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+        <h3 style="margin:0; font-size:20px; font-weight:700">Ayarlar</h3>
+        <button class="x" style="position:static" onclick="closeSheet()">&times;</button>
+      </div>
+
+      <div class="group">
+        <h6>GENEL</h6>
+        <div class="list">
+          <div class="item">
+            <div><h5>Dil</h5><p>Arayüz ve egzersiz metinleri</p></div>
+            <div class="seg"><button class="on" onclick="seg(this)">Türkçe</button><button onclick="seg(this)">English</button></div>
+          </div>
+          <div class="item">
+            <div style="padding-right:12px"><h5>Bildirimler</h5><p>Günlük antrenman hatırlatması</p></div>
+            <button class="sw on" onclick="this.classList.toggle('on')"><i></i></button>
+          </div>
+          <div class="item">
+            <div style="padding-right:12px"><h5>Kulaklık uyarısı</h5><p>Stereo egzersizlerde kulaklık hatırlatması göster</p></div>
+            <button class="sw on" id="hpWarnSwitch" onclick="this.classList.toggle('on'); resetHpSkips()"><i></i></button>
+          </div>
+          <button class="item" onclick="go('s-calib')">
+            <div><h5>Kalibrasyon</h5><p>Referans tonla kulaklık seviyesini eşitle</p></div>
+            <span class="caret">&#8250;</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h6>ZORLUK</h6>
+        <div class="list">
+          <button class="item pick" onclick="pickDiffMode(this, false)" data-mode="auto">
+            <div><h5>Otomatik</h5><p>Önerilen · performansına göre kendini ayarlar</p></div>
+            <span class="tick">✓</span>
+          </button>
+          <button class="item" onclick="pickDiffMode(this, true)" data-mode="fixed">
+            <div><h5>Sabit</h5><p>Hassasiyeti kendin seç</p></div>
+            <span class="tick">✓</span>
+          </button>
+          <div class="sublist" id="diffList">
+            <button class="item" onclick="pickDiff(this)"><div><h5>Kolay</h5><p>Farklar belirgin, yeni başlayanlar için</p></div><span class="tick">✓</span></button>
+            <button class="item pick" onclick="pickDiff(this)"><div><h5>Orta</h5><p>Dengeli, günlük antrenman</p></div><span class="tick">✓</span></button>
+            <button class="item" onclick="pickDiff(this)"><div><h5>Zor</h5><p>İnce farklar, deneyimli kulak</p></div><span class="tick">✓</span></button>
+            <button class="item" onclick="pickDiff(this)"><div><h5>Pro</h5><p>Stüdyo hassasiyeti</p></div><span class="tick">✓</span></button>
+            <button class="item" onclick="pickDiff(this)"><div><h5>Sınırsız</h5><p>Sınırını kendin ara</p></div><span class="tick">✓</span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="group">
+        <h6>HESAP</h6>
+        <div class="list">
+          <div class="item">
+            <div><h5>Sürüm</h5><p id="verLine">Ücretsiz — seans başına 5 soru</p></div>
+            <button class="btn primary" style="width:auto; min-height:44px; border-radius:14px; padding:0 16px; font-size:14px; flex:none" onclick="go('s-paywall')">Pro’ya geç</button>
+          </div>
+          <button class="item" onclick="closeSheet()">
+            <div><h5>Satın alımları geri yükle</h5><p>Aynı hesapla daha önce satın aldıysan</p></div>
+            <span class="caret">&#8250;</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h6>DESTEK</h6>
+        <div class="list">
+          <button class="item" onclick="closeSheet(); go('s-feedback')"><div><h5>Geri bildirim gönder</h5></div><span class="caret">&#8250;</span></button>
+          <button class="item" onclick="closeSheet(); go('s-faq')"><div><h5>Sık sorulan sorular</h5></div><span class="caret">&#8250;</span></button>
+          <button class="item" onclick="closeSheet(); go('s-contact')"><div><h5>Bize ulaşın</h5></div><span class="caret">&#8250;</span></button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h6>HAKKINDA</h6>
+        <div class="list">
+          <button class="item" onclick="closeSheet(); openLegal('privacy')"><div><h5>Gizlilik politikası</h5></div><span class="caret">&#8250;</span></button>
+          <button class="item" onclick="closeSheet(); openLegal('terms')"><div><h5>Kullanım şartları</h5></div><span class="caret">&#8250;</span></button>
+          <div class="item"><div><h5>Sürüm numarası</h5></div><span class="val num">v1.0.0</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= OYUN AYARLARI SHEET ================= -->
+  <div class="sheet-wrap" id="gameSheet">
+    <div class="veil" onclick="closeSheet()"></div>
+    <div class="sheet" data-drag="1">
+      <div class="handle"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+        <h3 style="margin:0; font-size:20px; font-weight:700">Bu oyun</h3>
+        <button class="x" style="position:static" onclick="closeSheet()">&times;</button>
+      </div>
+
+      <div class="group" style="margin-top:14px">
+        <div class="list">
+          <div class="item">
+            <div><h5>Ses kaynağı</h5><p id="gameSrcLine">Karıştır açık · her soruda değişir</p></div>
+            <button class="btn" style="width:auto; min-height:44px; padding:0 14px; font-size:14px; flex:none" onclick="openSheet('srcSheet')">Değiştir</button>
+          </div>
+          <button class="item" id="gameDiffRow" onclick="gameDiffTap()">
+            <div><h5>Zorluk</h5><p id="gameDiffSub">Performansına göre kendini ayarlıyor</p></div>
+            <span class="val" id="gameDiffLine">Otomatik</span>
+          </button>
+          <div class="sublist" id="gameDiffList">
+            <button class="item" onclick="pickGameDiff('Kolay')"><div><h5>Kolay</h5><p>Farklar belirgin, yeni başlayanlar için</p></div><span class="tick">✓</span></button>
+            <button class="item" onclick="pickGameDiff('Orta')"><div><h5>Orta</h5><p>Dengeli, günlük antrenman</p></div><span class="tick">✓</span></button>
+            <button class="item" onclick="pickGameDiff('Zor')"><div><h5>Zor</h5><p>İnce farklar, deneyimli kulak</p></div><span class="tick">✓</span></button>
+            <button class="item" onclick="pickGameDiff('Pro')"><div><h5>Pro</h5><p>Stüdyo hassasiyeti</p></div><span class="tick">✓</span></button>
+            <button class="item" onclick="pickGameDiff('Sınırsız')"><div><h5>Sınırsız</h5><p>Sınırını kendin ara</p></div><span class="tick">✓</span></button>
+          </div>
+          <div class="item" id="variantRow">
+            <div><h5>Cevap biçimi</h5><p>Şıklardan seç veya spektruma dokun</p></div>
+            <div class="seg"><button class="on" onclick="seg(this); openVariant('s-game1')">Şıklı</button><button onclick="seg(this); openVariant('s-game1t')">Dokunmalı</button></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="autoDiffAsk" style="display:none; margin-top:12px; padding:14px; border-radius:18px; background:rgba(255,176,32,.1); border:1px solid rgba(255,176,32,.3)">
+        <p style="margin:0; font-size:15px; line-height:1.5; color:var(--tx-2); text-wrap:pretty">Zorluk performansına göre otomatik ayarlanıyor. Kendin seçmek ister misin?</p>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" style="min-height:48px; font-size:15px" onclick="switchToFixed()">Sabit’e geç</button>
+          <button class="btn" style="min-height:48px; font-size:15px" onclick="document.getElementById('autoDiffAsk').style.display='none'">Vazgeç</button>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:14px">
+        <button class="btn" style="border-color:rgba(255,77,109,.35); background:rgba(255,77,109,.12); color:#FF9FB2" onclick="go('s-menu')">Oyundan çık</button>
+        <button class="btn" onclick="closeSheet(); openResult('lost')">Can bitti ekranı</button>
+      </div>
+      <p style="margin:10px 4px 0; font-size:15px; line-height:1.45; color:var(--tx-3); text-wrap:pretty">Çıkarsan bu seansın ilerlemesi kaydedilmez.</p>
+      <p style="margin:16px 4px 0; padding-top:12px; border-top:1px solid rgba(255,255,255,.08); font-size:14px; line-height:1.45; color:#7E8698; text-wrap:pretty">Prototip notu: cevap biçimi gerçek uygulamada seviyeye göre otomatik değişecek.</p>
+    </div>
+  </div>
+
+  <!-- ================= KULAKLIK UYARISI ================= -->
+  <div class="sheet-wrap" id="hpSheet">
+    <div class="veil" onclick="closeSheet()"></div>
+    <div class="sheet" data-drag="1">
+      <div class="handle"></div>
+      <div style="display:flex; justify-content:center; margin:6px 0 4px">
+        <div style="width:76px; height:76px; border-radius:26px; background:rgba(255,176,32,.14); border:1px solid rgba(255,176,32,.3); display:flex; align-items:center; justify-content:center">
+          <svg viewBox="0 0 24 24" style="width:38px; height:38px; fill:none; stroke:#FFC246; stroke-width:2; stroke-linecap:round">
+            <path d="M4 14v-2a8 8 0 0 1 16 0v2"></path>
+            <rect x="2.5" y="13.5" width="4.5" height="7.5" rx="2.2"></rect>
+            <rect x="17" y="13.5" width="4.5" height="7.5" rx="2.2"></rect>
+          </svg>
+        </div>
+      </div>
+      <h3 style="margin:14px 0 0; font-size:22px; font-weight:800; line-height:1.3; text-align:center; text-wrap:pretty">Bu egzersiz kulaklık gerektirir</h3>
+      <p style="margin:10px 6px 0; font-size:15px; line-height:1.5; color:var(--tx-2); text-align:center; text-wrap:pretty">Telefon hoparlöründe stereo bilgisi duyulmaz; sonuçlar yanıltıcı olur.</p>
+      <div style="margin-top:18px; display:flex; flex-direction:column; gap:9px">
+        <button class="btn primary" onclick="hpConfirm()">Kulaklığım takılı, başla</button>
+        <button class="btn" onclick="closeSheet()">Geri dön</button>
+      </div>
+      <button class="cbrow" id="hpAgain" onclick="this.classList.toggle('on')">
+        <span class="cb">✓</span>
+        <span>Bu modda bir daha gösterme</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= SEVİYE BİLGİSİ ================= -->
+  <div class="sheet-wrap" id="lvlSheet">
+    <div class="veil" onclick="closeSheet()"></div>
+    <div class="sheet" data-drag="1">
+      <div class="handle"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+        <h3 style="margin:0; font-size:20px; font-weight:700">Seviye 4</h3>
+        <button class="x" style="position:static" onclick="closeSheet()">&times;</button>
+      </div>
+      <p style="margin:8px 2px 0; font-size:15px; line-height:1.5; color:var(--tx-2); text-wrap:pretty">Bant 1/3 oktav genişliğinde, değişim 6 dB. Şu anki hassasiyetin bu.</p>
+
+      <div class="card" style="margin-top:16px; padding:14px 16px">
+        <div class="kv"><span>Bant genişliği</span><b>1/3 oktav</b></div>
+        <div class="kv"><span>Değişim miktarı</span><b>6 dB</b></div>
+        <div class="kv"><span>Şık sayısı</span><b>6</b></div>
+      </div>
+
+      <div style="margin-top:18px">
+        <div style="display:flex; justify-content:space-between; align-items:baseline; font-size:14px; font-weight:600">
+          <span style="color:var(--tx-3)">Seviye 5’e kalan</span>
+          <span class="num" style="color:var(--am); font-weight:700">12 / 20 doğru</span>
+        </div>
+        <div class="bar" style="margin-top:8px"><i style="width:60%"></i></div>
+      </div>
+
+      <div class="card" style="margin-top:16px; padding:14px 16px; background:rgba(108,140,255,.1); border-color:rgba(108,140,255,.26)">
+        <div class="kicker" style="color:#AFC0FF">SIRADAKİ SEVİYE</div>
+        <p style="margin:8px 0 0; font-size:15px; line-height:1.5; color:var(--tx-2); text-wrap:pretty">Seviye 5’te bant 1/4 oktava daralacak ve değişim 4,5 dB’ye düşecek.</p>
+      </div>
+
+      <button class="btn primary" style="margin-top:16px" onclick="closeSheet()">Anladım</button>
+    </div>
+  </div>
+
+  <!-- ================= MOTOR 3 AŞAMA SHEET ================= -->
+  <div class="sheet-wrap" id="m3Sheet">
+    <div class="veil" onclick="closeSheet()"></div>
+    <div class="sheet" data-drag="1">
+      <div class="handle"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+        <h3 style="margin:0; font-size:20px; font-weight:700">Aşama</h3>
+        <button class="x" style="position:static" onclick="closeSheet()">&times;</button>
+      </div>
+      <p style="margin:8px 2px 0; font-size:15px; line-height:1.5; color:var(--tx-3); text-wrap:pretty">Aşamalar seviyeye göre açılır; prototipte üçünü de gezebilmen için burada.</p>
+      <div class="group" style="margin-top:14px">
+        <div class="list" id="m3StageList">
+          <button class="item pick" onclick="m3SetStage(1)"><div><h5>Çakışmayı bul</h5><p>Seviye 1+ · spektruma dokun</p></div><span class="tick">✓</span></button>
+          <button class="item" onclick="m3SetStage(2)"><div><h5>Hangisinden kesilmeli</h5><p>Seviye 4+ · A/B karşılaştırma</p></div><span class="tick">✓</span></button>
+          <button class="item" onclick="m3SetStage(3)"><div><h5>Ne kadar kesilmeli</h5><p>Seviye 7+ · dB tahmini</p></div><span class="tick">✓</span></button>
+        </div>
+      </div>
+      <button class="btn" style="margin-top:14px; border-color:rgba(255,77,109,.35); background:rgba(255,77,109,.12); color:#FF9FB2" onclick="closeSheet(); go('s-menu')">Oyundan çık</button>
+    </div>
+  </div>
+
+  <!-- ================= KAYNAK ÇİFTİ SHEET ================= -->
+  <div class="sheet-wrap" id="pairSheet">
+    <div class="veil" onclick="closeSheet()"></div>
+    <div class="sheet" data-drag="1">
+      <div class="handle"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+        <h3 style="margin:0; font-size:20px; font-weight:700">Kaynak çifti</h3>
+        <button class="x" style="position:static" onclick="closeSheet()">&times;</button>
+      </div>
+      <p style="margin:8px 2px 0; font-size:15px; line-height:1.5; color:var(--tx-3); text-wrap:pretty">Hazır çiftler; kendi stem’lerini yüklemek zorunda değilsin.</p>
+      <div class="group" style="margin-top:14px">
+        <div class="list" id="pairList">
+          <button class="item pick" onclick="m3SetPair(this)" data-a="Kick" data-b="Bas"><div><h5>kick + bas</h5><p>40–250 Hz · en sık çakışma</p></div><span class="tick">✓</span></button>
+          <button class="item" onclick="m3SetPair(this)" data-a="Vokal" data-b="Gitar"><div><h5>vokal + gitar</h5><p>400 Hz – 3 kHz · gövde çatışması</p></div><span class="tick">✓</span></button>
+          <button class="item" onclick="m3SetPair(this)" data-a="Snare" data-b="Gitar"><div><h5>snare + gitar</h5><p>1–5 kHz · atak ve sertlik</p></div><span class="tick">✓</span></button>
+          <button class="item" onclick="m3SetPair(this)" data-a="Kendi A" data-b="Kendi B"><div><h5>kendi stem’lerim</h5><p>İki dosya yükle · WAV veya MP3</p></div><span class="caret">›</span></button>
+        </div>
+      </div>
+      <button class="btn primary" style="margin-top:16px" onclick="closeSheet()">Tamam</button>
+    </div>
+  </div>
+
+  <!-- ================= ODAK SHEET ================= -->
+  <div class="sheet-wrap" id="focusSheet">
+    <div class="veil" onclick="closeSheet()"></div>
+    <div class="sheet" data-drag="1">
+      <div class="handle"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+        <h3 style="margin:0; font-size:20px; font-weight:700">Odak aralığı</h3>
+        <button class="x" style="position:static" onclick="closeSheet()">&times;</button>
+      </div>
+      <p style="margin:8px 2px 0; font-size:14px; line-height:1.5; color:var(--tx-3); text-wrap:pretty">Sorular ve cevap şıkları sadece seçtiğin aralıktan gelir. Zayıf olduğun bölgeye odaklanmak için kullan.</p>
+      <div class="group" style="margin-top:14px">
+        <div class="list" id="focusList">
+          <button class="item pick" onclick="pickFocus(this)" data-focus="full">
+            <div><h5>Tüm spektrum</h5><p>20 Hz – 20 kHz · 6 şık</p></div><span class="tick">✓</span>
+          </button>
+          <button class="item" onclick="pickFocus(this)" data-focus="bass">
+            <div><h5>Bas</h5><p>50 – 400 Hz · gövde ve çamır bölgesi</p></div><span class="tick">✓</span>
+          </button>
+          <button class="item" onclick="pickFocus(this)" data-focus="mid">
+            <div><h5>Orta</h5><p>400 Hz – 2 kHz · vokal ve enstrüman gövdesi</p></div><span class="tick">✓</span>
+          </button>
+          <button class="item" onclick="pickFocus(this)" data-focus="high">
+            <div><h5>Tiz</h5><p>2 – 16 kHz · sertlik, hava ve tıslama</p></div><span class="tick">✓</span>
+          </button>
+        </div>
+      </div>
+      <button class="btn primary" style="margin-top:16px" onclick="closeSheet()">Tamam</button>
+    </div>
+  </div>
+
+  <!-- ================= SES KAYNAĞI SHEET ================= -->
+  <div class="sheet-wrap" id="srcSheet">
+    <div class="veil" onclick="closeSheet()"></div>
+    <div class="sheet" data-drag="1">
+      <div class="handle"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+        <h3 style="margin:0; font-size:20px; font-weight:700">Ses kaynağı</h3>
+        <button class="x" style="position:static" onclick="closeSheet()">&times;</button>
+      </div>
+      <p style="margin:8px 2px 0; font-size:15px; line-height:1.5; color:var(--tx-3); text-wrap:pretty">Karıştır açıkken her soruda uygun kaynaklar arasından rastgele seçilir.</p>
+      <div id="srcGroups"></div>
+      <p style="margin:16px 4px 0; padding-top:12px; border-top:1px solid rgba(255,255,255,.08); font-size:14px; line-height:1.45; color:#8C95AB; text-wrap:pretty">Bu egzersizde yalnızca uygun kaynaklar listelenir.</p>
+      <button class="btn primary" style="margin-top:14px" onclick="closeSheet()">Tamam</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+  var ENGINE_NAME = { 1: 'Değeri bul', 2: 'Hangisi farklı', 3: 'Çakışma' };
+  var LOCK_SVG = '<span class="lock"><svg viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"></rect><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path></svg></span>';
+  var ADV_SVG = '<span class="adv" title="İleri seviye">İLERİ</span>';
+  var HP_SVG = '<span class="hp" title="Kulaklık gerekli"><svg viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0 1 16 0v2"></path><rect x="2.5" y="13.5" width="4.5" height="7.5" rx="2.2"></rect><rect x="17" y="13.5" width="4.5" height="7.5" rx="2.2"></rect></svg></span>';
+
+  // kulaklık uyarısı
+  var hpSkip = {};
+  var hpTarget = null, hpMode = null, hpDesc = null;
+  function setGameTitle(screen, name, desc) {
+    var t = document.querySelector('#' + screen + ' .gameTitle');
+    if (t) { t.textContent = name; }
+  }
+  function hpWarnOn() {
+    var sw = document.getElementById('hpWarnSwitch');
+    return !sw || sw.classList.contains('on');
+  }
+  function askHeadphones(mode, target, name, desc) {
+    hpMode = mode; hpTarget = target; hpDesc = desc;
+    document.getElementById('hpAgain').classList.remove('on');
+    openSheet('hpSheet');
+  }
+  function hpConfirm() {
+    if (document.getElementById('hpAgain').classList.contains('on')) { hpSkip[hpMode] = true; }
+    closeSheet();
+    if (M1[hpMode]) { applyMode(hpMode); }
+    if (M2[hpMode]) { applyM2(hpMode); }
+    setGameTitle(hpTarget, hpMode, hpDesc);
+    go(hpTarget);
+  }
+  function resetHpSkips() { hpSkip = {}; }
+
+  var MODES = [
+    ['Frekans Bulma', 'Hangi frekans artırıldı?', 1, 4, 62, [10,20,14], 0, 0, 1],
+    ['Kesim Noktası', 'Filtrenin kesim frekansı', 1, 3, 45, [20,14,7], 0, 0, 1],
+    ['Q Genişliği', 'Bandın darlığını tahmin et', 1, 2, 30, [8,18,8], 0, 0, 1],
+    ['Boost mu Cut mu', 'Artırım mı, azaltım mı?', 1, 5, 80, [14,7,18], 0, 0, 1],
+    ['Hız Modu', '60 saniyede kaç tane?', 1, 0, 0, [11,20,11], 0, 0, 1],
+    ['dB Seviyesi', 'Kaç dB değişti?', 1, 0, 0, [16,16,10], 0, 0, 0],
+    ['Stereo Genişlik', 'Ses ne kadar geniş?', 1, 0, 0, [9,16,20], 1, 0, 0],
+    ['Pan Konumu', 'Ses nereden geliyor?', 1, 2, 28, [13,8,19], 1, 0, 0],
+    ['Hangisi Farklı', 'Üç sesten farklı olanı bul · ileri', 2, 2, 34, [9,16,20], 0, 1, 0],
+    ['Kompresör', 'Hangisi daha sıkıştırılmış?', 2, 0, 0, [18,10,10], 0, 0, 0],
+    ['Reverb', 'Hangisinin reverb’i farklı?', 2, 0, 0, [20,9,13], 1, 0, 0],
+    ['Distortion', 'Hangisi daha doygun?', 2, 0, 0, [7,20,15], 0, 0, 0],
+    ['Tonal Denge', 'İki mix dinle, hangisinin dengesi bozuk?', 2, 0, 0, [14,18,12], 0, 0, 0],
+    ['Frekans Çakışması', 'Kick ve bas nerede çakışıyor? · Aşama 1/3', 3, 2, 22, [17,17,9], 0, 0, 0]
+  ];
+
+  var grid = document.getElementById('modeGrid');
+  MODES.forEach(function (m) {
+    var name = m[0], desc = m[1], engine = m[2], lvl = m[3], prog = m[4], bars = m[5], needsHp = m[6], adv = m[7];
+    var locked = lvl === 0;
+    var b = document.createElement('button');
+    b.className = 'mode' + (engine === 2 ? ' m2' : engine === 3 ? ' m3' : '') + (locked ? ' locked' : '');
+    b.innerHTML =
+      '<div class="mode-top">' +
+        '<div class="glyph">' + bars.map(function (h) { return '<i style="height:' + h + 'px"></i>'; }).join('') + '</div>' +
+        (locked ? LOCK_SVG : '<div class="chip">Sv ' + lvl + '</div>') +
+      '</div>' +
+      '<span class="engine">' + ENGINE_NAME[engine] + (needsHp ? HP_SVG : '') + (adv ? ADV_SVG : '') + '</span>' +
+      '<h4>' + name + '</h4><p>' + desc + '</p>' +
+      '<div class="mini"><i style="width:' + prog + '%"></i></div>';
+    b.onclick = function () {
+      var target = engine === 3 ? 's-soon' : engine === 2 ? 's-game2' : 's-game1';
+      if (needsHp && hpWarnOn() && !hpSkip[name]) { askHeadphones(name, target, name, desc); return; }
+      if (engine === 1) { applyMode(name); }
+      if (engine === 2) { applyM2(name); }
+      setGameTitle(target, name, desc);
+      go(target);
+    };
+    grid.appendChild(b);
+  });
+
+  // ---- A/B bypass (ses kesintisiz, sadece EQ zinciri devreye girer) ----
+  var abState = 'B';
+  var abLoop = null, abHeld = false, abTimer = null;
+
+  function abLabel() {
+    var btn = document.getElementById('abToggle');
+    btn.dataset.ab = abState;
+    btn.querySelector('.abtitle').innerHTML =
+      (abLoop ? '<span class="loopdot" style="display:inline-block; margin-right:6px"></span>' : '') +
+      (abLoop ? 'Döngü' : 'A/B Test');
+  }
+  function abTap() {
+    if (abHeld) { abHeld = false; return; }
+    if (abLoop) { stopAbLoop(); return; }
+    toggleAB();
+  }
+  function startAbLoop() {
+    if (abLoop) { return; }
+    abLoop = setInterval(function () { toggleAB(); }, 2000);
+    document.getElementById('abToggle').classList.add('loop');
+    abLabel();
+  }
+  function stopAbLoop() {
+    clearInterval(abLoop); abLoop = null;
+    document.getElementById('abToggle').classList.remove('loop');
+    setAB(abState);
+  }
+  (function () {
+    var btn = document.getElementById('abToggle');
+    var t = null;
+    function down() { t = setTimeout(function () { abHeld = true; startAbLoop(); }, 520); }
+    function up() { clearTimeout(t); }
+    btn.addEventListener('pointerdown', down);
+    btn.addEventListener('pointerup', up);
+    btn.addEventListener('pointerleave', up);
+    btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  })();
+
+  function setAB(v) {
+    abState = v;
+    var btn = document.getElementById('abToggle');
+    btn.classList.toggle('on', v === 'B');
+    btn.dataset.ab = v;
+    var t = document.querySelector('#analyzer span');
+    if (t) { t.textContent = v === 'A' ? 'SPEKTRUM · A TEMİZ' : 'SPEKTRUM · B İŞLENMİŞ'; }
+
+    document.getElementById('analyzer').dataset.ab = v;
+    abLabel();
+  }
+  function toggleAB() { setAB(abState === 'A' ? 'B' : 'A'); }
+  setAB('B');
+  // ---- Motor 1 mod tanımları ----
+  var M1 = {
+    'Frekans Bulma': { kind: 'freq', q: 'Hangi frekans artırıldı?', panel: 'SPEKTRUM · B İŞLENMİŞ', ab: 'A · Temiz / B · EQ’lu' },
+    'Hız Modu': { kind: 'freq', q: 'Hangi frekans artırıldı? Süre 60 saniye.', panel: 'SPEKTRUM · HIZ TURU', speed: true, ab: 'A · Temiz / B · EQ’lu' },
+    'Kesim Noktası': {
+      q: 'Filtrenin kesim frekansı nerede?', panel: 'SPEKTRUM · FİLTRE EĞRİSİ', ab: 'A · Temiz / B · Filtreli',
+      answers: [['80 Hz', 'HPF'], ['120 Hz', 'HPF'], ['200 Hz', 'HPF'], ['6 kHz', 'LPF'], ['10 kHz', 'LPF'], ['16 kHz', 'LPF']],
+      answer: 4, hint: '6–16 kHz · alçak geçiren',
+      note: '10 kHz’te bir LPF vardı. Yüksek kesim noktaları en çok “hava” kaybı olarak duyulur.'
+    },
+    'Q Genişliği': {
+      q: 'Artırılan bandın Q değeri kaç?', panel: 'SPEKTRUM · BANT GENİŞLİĞİ', ab: 'A · Temiz / B · EQ’lu',
+      answers: [['0,5', 'çok geniş'], ['1', 'geniş'], ['2', 'orta'], ['4', 'dar'], ['8', 'çok dar'], ['12', 'cerrahi']],
+      answer: 3, hint: 'Q 2 – 8 arası',
+      note: 'Q=4’lük dar bir artırım vardı. Dar bantlar tek bir notayı öne çıkarır, geniş bantlar tonu bütün olarak değiştirir.'
+    },
+    'Boost mu Cut mu': {
+      q: 'Artırım mı, azaltım mı yapıldı?', panel: 'SPEKTRUM · B İŞLENMİŞ', two: true, ab: 'A · Temiz / B · EQ’lu',
+      answers: [['Artırım ▲', 'tepe var'], ['Azaltım ▼', 'çukur var']],
+      answer: 0, hint: '1 – 2 kHz civarı',
+      note: '1,6 kHz’te +5 dB’lik bir artırım vardı. Artırım tepe, azaltım çukur olarak duyulur.'
+    },
+    'dB Seviyesi': {
+      q: 'B sesi kaç dB değişti?', viz: 'db', panel: 'SEVİYE KARŞILAŞTIRMASI', ab: 'A · Referans / B · Değişmiş',
+      answers: [['+1,5 dB', 'çok az'], ['+3 dB', 'az'], ['+6 dB', 'belirgin'], ['−1,5 dB', 'çok az'], ['−3 dB', 'az'], ['−6 dB', 'belirgin']],
+      answer: 2,
+      hint: { Kolay: 'artırım · 3 dB veya üstü', Orta: 'artırım yönünde', Zor: 'artırım yönünde' },
+      hintKeep: { Kolay: [1,2], Orta: [0,1,2], Zor: [0,1,2] },
+      note: 'B sesi A’ya göre 6 dB daha yüksekti. 6 dB, genlik olarak iki katı demek.'
+    },
+    'Stereo Genişlik': {
+      q: 'Sesin genişliğini eksende işaretle.', viz: 'stereo', panel: 'STEREO GENİŞLİK', ab: 'A · Mono / B · Geniş',
+      tap: 'width', tapAnswer: 0.75, tapHintSide: 'right',
+      answer: 3,
+      hint: { Kolay: '%50 – %75 arası', Orta: '%50 – %100 arası', Zor: '%50 – %100 arası' },
+      hintKeep: { Kolay: [2,3], Orta: [2,3,4], Zor: [2,3,4] },
+      note: 'Genişlik %75’ti. %100 üzeri değerler mono uyumunu bozmaya başlar.'
+    },
+    'Pan Konumu': {
+      q: 'Sesin geldiği yeri işaretle.', viz: 'pan', panel: 'STEREO KONUM', ab: 'A · Merkez / B · Pan’li',
+      tap: 'pan', tapAnswer: 0.625, tapHintSide: 'right',
+      answer: 3,
+      hint: { Kolay: 'sağda, uçta değil', Orta: 'sağ yarı', Zor: 'sağ yarı' },
+      hintKeep: { Kolay: [3,4], Orta: [3,4,5], Zor: [3,4,5] },
+      note: 'Kaynak hafif sağda, +25 konumundaydı. Küçük pan kaymaları en çok kulaklıkta duyulur.'
+    }
+  };
+  var curMode = 'Frekans Bulma';
+  function modeDef() { return M1[curMode] || M1['Frekans Bulma']; }
+  function isFreqMode() { return modeDef().kind === 'freq'; }
+  function modeAnswers() { return isFreqMode() ? focus.bands : (modeDef().answers || []); }
+  function modeAnswerIdx() { return isFreqMode() ? focus.answer : modeDef().answer; }
+  function modeNote() { return isFreqMode() ? focus.note : modeDef().note; }
+  function modeHint() {
+    if (isFreqMode()) { return focus.hint[difficulty()]; }
+    var hn = modeDef().hint;
+    return typeof hn === 'string' ? hn : (hn[difficulty()] || hn.Orta);
+  }
+
+  var PAN_ZONES = [[.10,'Tam sol'],[.30,'Sol'],[.46,'Hafif sol'],[.54,'Orta'],[.70,'Hafif sağ'],[.90,'Sağ'],[1.01,'Tam sağ']];
+  var WIDTH_ZONES = [[.10,'Mono'],[.30,'Dar'],[.55,'Normal'],[.80,'Geniş'],[.94,'Tam'],[1.01,'Çok geniş']];
+  var tapPos = null;
+  function tapZones() { return modeDef().tap === 'pan' ? PAN_ZONES : WIDTH_ZONES; }
+  function zoneName(f) {
+    var z = tapZones();
+    for (var i = 0; i < z.length; i++) { if (f < z[i][0]) { return z[i][1]; } }
+    return z[z.length - 1][1];
+  }
+  function placeLbl(lbl, frac, host) {
+    var w = lbl.offsetWidth || 92, hw = host.clientWidth;
+    var center = frac * hw;
+    var nudge = Math.max(w / 2 + 4, Math.min(hw - w / 2 - 4, center)) - center;
+    lbl.style.setProperty('--nudge', nudge.toFixed(1) + 'px');
+  }
+  function setTapMark(frac) {
+    tapPos = Math.max(0, Math.min(1, frac));
+    var host = document.getElementById('tapField');
+    var m = document.getElementById('tapMark'), lbl = document.getElementById('tapMarkLbl');
+    m.classList.add('on');
+    m.style.left = (tapPos * 100) + '%';
+    lbl.textContent = zoneName(tapPos);
+    placeLbl(lbl, tapPos, host);
+    document.getElementById('tapPrompt').style.visibility = 'hidden';
+    document.getElementById('g1cta').disabled = false;
+  }
+  (function () {
+    var host = document.getElementById('tapField');
+    var drag = false;
+    function frac(e) { var r = host.getBoundingClientRect(); return (e.clientX - r.left) / r.width; }
+    host.addEventListener('pointerdown', function (e) {
+      if (phase === 'done') { return; }
+      drag = true; setTapMark(frac(e));
+      try { host.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    host.addEventListener('pointermove', function (e) { if (drag && phase !== 'done') { setTapMark(frac(e)); } });
+    host.addEventListener('pointerup', function () { drag = false; });
+    host.addEventListener('pointercancel', function () { drag = false; });
+  })();
+  function tapReveal() {
+    var d = modeDef(), host = document.getElementById('tapField');
+    var af = d.tapAnswer, pf = tapPos;
+    var diff = Math.abs(af - pf);
+    var tier = diff < .07 ? 0 : diff < .18 ? 1 : 2;
+    var col = ['#2BD9A8', '#FFC246', '#FF4D6D'][tier];
+    var word = ['çok yakın', 'yakın', 'uzak'][tier];
+    var ans = document.getElementById('tapAns'), ansLbl = document.getElementById('tapAnsLbl');
+    ans.classList.add('on', 'correct');
+    ans.style.left = (af * 100) + '%';
+    ansLbl.textContent = zoneName(af);
+    placeLbl(ansLbl, af, host);
+    placeLbl(document.getElementById('tapMarkLbl'), pf, host);
+    var band = document.getElementById('tapBand');
+    band.classList.add('on');
+    band.style.left = (Math.min(af, pf) * 100) + '%';
+    band.style.width = (diff * 100) + '%';
+    band.style.background = col + '2e';
+    band.style.borderLeft = '1px solid ' + col;
+    band.style.borderRight = '1px solid ' + col;
+    var q = document.getElementById('tapQuality');
+    q.classList.add('on');
+    q.textContent = word;
+    q.style.color = col;
+    q.style.border = '1px solid ' + col;
+    q.style.left = ((Math.min(af, pf) + diff / 2) * 100) + '%';
+    return { tier: tier, word: word };
+  }
+  function tapHint() {
+    var d = modeDef(), right = d.tapHintSide === 'right';
+    document.getElementById('tapMaskL').style.width = right ? '50%' : '0%';
+    document.getElementById('tapMaskR').style.width = right ? '0%' : '50%';
+  }
+  function resetTap() {
+    tapPos = null;
+    ['tapMark', 'tapAns'].forEach(function (id) { document.getElementById(id).classList.remove('on'); });
+    document.getElementById('tapBand').classList.remove('on');
+    document.getElementById('tapQuality').classList.remove('on');
+    document.getElementById('tapPrompt').style.visibility = '';
+    document.getElementById('tapPrompt').textContent =
+      modeDef().tap === 'pan' ? 'Duyduğun konuma dokun' : 'Duyduğun genişliği işaretle';
+    document.getElementById('tapAxis').innerHTML = modeDef().tap === 'pan'
+      ? '<span>SOL</span><span>ORTA</span><span>SAĞ</span>'
+      : '<span>MONO</span><span>NORMAL</span><span>ÇOK GENİŞ</span>';
+  }
+
+  function applyMode(name) {
+    if (!M1[name]) { return; }
+    curMode = name;
+    var d = M1[name];
+    document.querySelectorAll('#s-game1 .gameTitle, #s-game1t .gameTitle').forEach(function (t) { t.textContent = name; });
+    document.getElementById('g1Question').textContent = d.q;
+    document.getElementById('focusChip').style.display = isFreqMode() ? '' : 'none';
+    var useViz = !!d.viz;
+    document.getElementById('analyzer').style.display = useViz ? 'none' : '';
+    document.getElementById('altPanel').style.display = useViz ? '' : 'none';
+    var alt = document.getElementById('altPanel');
+    if (useViz) {
+      document.getElementById('altTitle').textContent = d.panel;
+      ['vizDb', 'vizStereo', 'vizPan', 'vizTap'].forEach(function (id) {
+        document.getElementById(id).style.display = 'none';
+      });
+      if (d.tap) {
+        alt.dataset.tap = '1';
+        document.getElementById('vizTap').style.display = '';
+      } else {
+        alt.removeAttribute('data-tap');
+        document.getElementById(d.viz === 'db' ? 'vizDb' : d.viz === 'stereo' ? 'vizStereo' : 'vizPan').style.display = '';
+      }
+    } else {
+      alt.removeAttribute('data-tap');
+      document.querySelector('#analyzer span').textContent = d.panel;
+    }
+    document.getElementById('g1Hearts').style.display = d.speed ? 'none' : '';
+    document.getElementById('g1Counter').style.display = d.speed ? '' : 'none';
+    document.getElementById('g1Time').textContent = d.speed ? '60 sn' : '14 sn';
+    document.getElementById('g1TimeBar').style.width = d.speed ? '100%' : '47%';
+    document.getElementById('variantRow').style.display = isFreqMode() ? '' : 'none';
+    document.getElementById('answers').style.display = d.tap ? 'none' : '';
+    document.getElementById('abSub').textContent = d.ab || 'A · Temiz / B · İşlenmiş';
+    if (document.querySelector('.mixchip.on')) { setSrcLabel(randomSrc()); } else { ensureSrcAllowed(); }
+    drawSrcList();
+    resetG1();
+  }
+
+  // ---- odak aralıkları ----
+  var FOCUS = {
+    full: { name: 'Tüm spektrum', axis: ['60','250','1k','4k','16k'], answer: 4,
+            bands: [['250','alt-orta'],['500','alt-orta'],['1 kHz','orta'],['2 kHz','üst-orta'],['3,15 kHz','üst-orta'],['8 kHz','tiz']],
+            range: [20, 20000], answerHz: 3150, peak: .62, note: '3,15 kHz’te +6 dB’lik, Q=1,4 genişliğinde bir artırım vardı. Bu bölge vokal ve gitarda “sertlik” olarak duyulur.',
+            hint: { Kolay: '1,5–6 kHz', Orta: '2–5 kHz', Zor: '3–4 kHz' } },
+    bass: { name: 'Bas (50–400 Hz)', axis: ['50','80','125','250','400'], answer: 3,
+            bands: [['50','derin'],['63','derin'],['100','gövde'],['160','gövde'],['250','çamır'],['400','alt-orta']],
+            range: [40, 500], answerHz: 160, peak: .58, note: '160 Hz’te +6 dB’lik bir artırım vardı. Bu bölge fazlasıyla arttığında miks “çamırlı” duyulur.',
+            hint: { Kolay: '100–250 Hz', Orta: '125–200 Hz', Zor: '150–180 Hz' } },
+    mid:  { name: 'Orta (400 Hz–2 kHz)', axis: ['400','630','1k','1,6k','2k'], answer: 2,
+            bands: [['400','alt-orta'],['500','alt-orta'],['800','orta'],['1 kHz','orta'],['1,6 kHz','üst-orta'],['2 kHz','üst-orta']],
+            range: [300, 2500], answerHz: 800, peak: .42, note: '800 Hz’te +6 dB’lik bir artırım vardı. Bu bölge fazla olduğunda ses “boru gibi” duyulur.',
+            hint: { Kolay: '500 Hz–1,2 kHz', Orta: '630 Hz–1 kHz', Zor: '700–900 Hz' } },
+    high: { name: 'Tiz (2–16 kHz)', axis: ['2k','3,15k','5k','8k','16k'], answer: 3,
+            bands: [['2 kHz','üst-orta'],['3,15 kHz','üst-orta'],['5 kHz','tiz'],['6,3 kHz','tiz'],['10 kHz','hava'],['16 kHz','hava']],
+            range: [1500, 20000], answerHz: 6300, peak: .56, note: '6,3 kHz’te +6 dB’lik bir artırım vardı. Bu bölge tıslama ve “s” sesleriyle doğrudan ilgili.',
+            hint: { Kolay: '4–10 kHz', Orta: '5–8 kHz', Zor: '6–7 kHz' } }
+  };
+  var focus = FOCUS.full;
+
+  var SPEC_H = 62;
+  function drawSpectrum() {
+    var html = '';
+    for (var i = 0; i < 34; i++) {
+      var t = i / 33;
+      var v = SPEC_H * (.22 + .44 * Math.exp(-Math.pow((t - .16) / .34, 2))
+            + .2 * Math.exp(-Math.pow((t - focus.peak) / .09, 2))
+            + .055 * Math.sin(i * 2.7) + .035 * Math.sin(i * 1.3));
+      v = Math.max(8, Math.min(SPEC_H, v));
+      var hot = Math.abs(t - focus.peak) < .075;
+      html += '<i class="' + (hot ? 'hot' : '') + '" style="height:' + Math.round(v) + 'px"></i>';
+    }
+    document.getElementById('specBars').innerHTML = html;
+    document.getElementById('specAxis').innerHTML =
+      focus.axis.map(function (a) { return '<span>' + a + '</span>'; }).join('');
+    drawEq();
+  }
+
+  function drawEq() {
+    var cx = focus.peak * 320, base = Math.round(SPEC_H * .70), top = Math.round(SPEC_H * .22), w = 42;
+    var d = 'M0 ' + base + ' L' + Math.max(0, cx - w) + ' ' + base +
+            ' C ' + (cx - w * .45) + ' ' + base + ', ' + (cx - w * .3) + ' ' + top + ', ' + cx + ' ' + top +
+            ' C ' + (cx + w * .3) + ' ' + top + ', ' + (cx + w * .45) + ' ' + base + ', ' + Math.min(320, cx + w) + ' ' + base +
+            ' L320 ' + base;
+    document.getElementById('eqPath').setAttribute('d', d);
+    document.getElementById('eqDot').setAttribute('cx', cx);
+    document.getElementById('eqDot').setAttribute('cy', Math.round(SPEC_H * .22));
+  }
+
+  var ansWrap = document.getElementById('answers');
+  var picked = null;
+  function drawAnswers() {
+    ansWrap.innerHTML = '';
+    ansWrap.className = 'answers' + (modeDef().two ? ' two' : '');
+    modeAnswers().forEach(function (bd, i) {
+      var b = document.createElement('button');
+      b.className = 'ans';
+      b.innerHTML = '<b>' + bd[0] + '</b><span>' + bd[1] + '</span>';
+      b.onclick = function () {
+        if (phase === 'done') { return; }
+        [].forEach.call(ansWrap.children, function (c) { c.className = 'ans'; });
+        b.classList.add('pick');
+        picked = i;
+      };
+      ansWrap.appendChild(b);
+    });
+  }
+  var resFromEngine = 1;
+  function lastMode() { return resFromEngine === 2 ? curM2 : curMode; }
+  function isFreqSummary() {
+    var n = lastMode();
+    return ['Frekans Bulma', 'Kesim Noktası', 'Q Genişliği', 'Boost mu Cut mu', 'Hız Modu'].indexOf(n) !== -1;
+  }
+  function drawResDots(lost) {
+    var data = lost
+      ? [[.18, 1], [.34, 1], [.52, 0], [.61, 0], [.72, 1], [.86, 0]]
+      : [[.12, 1], [.22, 1], [.31, 1], [.44, 1], [.55, 0], [.63, 0], [.7, 1], [.78, 1], [.88, 1], [.94, 1]];
+    document.getElementById('resDots').innerHTML = data.map(function (d, i) {
+      var ok = d[1] === 1;
+      var top = i % 2 ? 34 : 8;
+      return '<span style="position:absolute; left:' + (d[0] * 100) + '%; top:' + top + 'px; width:14px; height:14px; margin-left:-7px; border-radius:99px; background:' +
+        (ok ? 'var(--gr)' : 'var(--rd)') + '; box-shadow:0 0 0 3px ' + (ok ? 'rgba(43,217,168,.18)' : 'rgba(255,77,109,.18)') + '"></span>';
+    }).join('');
+  }
+  function drawResBoxes(lost) {
+    var seq = lost ? [1,1,0,1,0,0] : [1,1,0,1,1,1,0,1,1,1];
+    document.getElementById('resBoxes').innerHTML = seq.map(function (v) {
+      return '<span style="flex:1; height:26px; border-radius:7px; background:' +
+        (v ? 'rgba(43,217,168,.85)' : 'rgba(255,77,109,.8)') + '"></span>';
+    }).join('');
+  }
+  function setCmp(btn) {
+    var row = btn.parentNode;
+    [].forEach.call(row.children, function (c) { c.classList.remove('on'); });
+    btn.classList.add('on');
+  }
+  function fillCmp(fbId, right) {
+    var row = document.querySelector('#' + fbId + ' .cmprow');
+    if (!row) { return; }
+    var mine = row.querySelector('.mine');
+    mine.classList.toggle('hide', !!right);
+    [].forEach.call(row.children, function (c) { c.classList.remove('on'); });
+    row.children[1].classList.add('on');
+  }
+
+  // ---- Motor 3 ----
+  var M3 = {
+    1: { name: 'Çakışmayı bul', q: 'İki kaynağın çakıştığı frekansı işaretle.', ans: .42,
+         hint: '80–250 Hz arası',
+         note: 'Çakışma 120 Hz’te. Kick’in gövdesi ile basın temel notası burada üst üste biniyor.' },
+    2: { name: 'Hangisinden kesilmeli', q: 'İki versiyonu dinle, hangisi daha temiz?',
+         cards: [['A', '120 Hz kick’ten kesildi'], ['B', '120 Hz bastan kesildi']], ans: 1,
+         hint: 'Kick’in vuruş gücüne dikkat et',
+         note: 'Doğru olan B: kesim bastan yapılırsa kick’in vuruşu korunur, alt bölge açılır.' },
+    3: { name: 'Ne kadar kesilmeli', q: 'Çakışma bölgesinden kaç dB kesilmeli?',
+         answers: [['−2 dB', 'çok az'], ['−3 dB', 'az'], ['−4 dB', 'dengeli'], ['−6 dB', 'belirgin'], ['−8 dB', 'fazla']], ans: 2,
+         hint: '−2 ile −4 dB arası',
+         note: '−4 dB yeterliydi. Daha fazlası basın gövdesini zayıflatır.' }
+  };
+  var m3Stage = 1, m3Pos = null, m3Pick = null, m3Phase = 'ask', m3Hints = 2;
+  var m3PairA = 'Kick', m3PairB = 'Bas';
+  function m3Def() { return M3[m3Stage]; }
+  function m3Draw() {
+    var peak = m3Def().ans !== undefined && m3Stage === 1 ? M3[1].ans : .42;
+    var ha = '', hb = '';
+    for (var i = 0; i < 34; i++) {
+      var t = i / 33;
+      var va = 20 + 100 * Math.exp(-Math.pow((t - .3) / .2, 2)) + 7 * Math.sin(i * 2.3);
+      var vb = 18 + 95 * Math.exp(-Math.pow((t - .52) / .26, 2)) + 6 * Math.sin(i * 1.7);
+      var overlap = Math.abs(t - peak) < .09;
+      ha += '<i style="height:' + Math.round(Math.max(8, va)) + 'px; background:' + (overlap ? 'linear-gradient(180deg,#FF7A9B,rgba(255,122,155,.3))' : 'linear-gradient(180deg,rgba(255,194,70,.9),rgba(255,194,70,.2))') + '"></i>';
+      hb += '<i style="height:' + Math.round(Math.max(8, vb)) + 'px; background:' + (overlap ? 'linear-gradient(180deg,rgba(255,122,155,.55),rgba(255,122,155,.15))' : 'linear-gradient(180deg,rgba(143,166,255,.75),rgba(143,166,255,.15))') + '"></i>';
+    }
+    document.getElementById('m3BarsA').innerHTML = ha;
+    document.getElementById('m3BarsB').innerHTML = hb;
+  }
+  function m3Hz(f) {
+    var hz = 40 * Math.pow(16, f);
+    return hz < 1000 ? Math.round(hz / 5) * 5 + ' Hz' : (Math.round(hz / 100) / 10).toString().replace('.', ',') + ' kHz';
+  }
+  function m3SetMark(f) {
+    m3Pos = Math.max(0, Math.min(1, f));
+    var m = document.getElementById('m3Mark'), lbl = document.getElementById('m3MarkLbl');
+    m.classList.add('on');
+    m.style.left = (m3Pos * 100) + '%';
+    lbl.textContent = m3Hz(m3Pos);
+    placeLbl(lbl, m3Pos, document.getElementById('m3Field'));
+    document.getElementById('m3Tap').style.visibility = 'hidden';
+    document.getElementById('m3Cta').disabled = false;
+  }
+  (function () {
+    var host = document.getElementById('m3Field');
+    var drag = false;
+    function frac(e) { var r = host.getBoundingClientRect(); return (e.clientX - r.left) / r.width; }
+    host.addEventListener('pointerdown', function (e) {
+      if (m3Stage !== 1 || m3Phase === 'done') { return; }
+      drag = true; m3SetMark(frac(e));
+      try { host.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    host.addEventListener('pointermove', function (e) { if (drag && m3Stage === 1 && m3Phase !== 'done') { m3SetMark(frac(e)); } });
+    host.addEventListener('pointerup', function () { drag = false; });
+  })();
+  function m3Play(btn) {
+    [].forEach.call(btn.parentNode.children, function (c) { c.classList.remove('on'); });
+    btn.classList.add('on');
+  }
+  function m3SetPair(el) {
+    document.querySelectorAll('#pairList .item').forEach(function (c) { c.classList.remove('pick'); });
+    el.classList.add('pick');
+    m3PairA = el.dataset.a; m3PairB = el.dataset.b;
+    document.getElementById('m3Pair').textContent = el.querySelector('h5').textContent;
+    document.getElementById('m3LegA').textContent = m3PairA;
+    document.getElementById('m3LegB').textContent = m3PairB;
+    document.getElementById('m3PlayA').textContent = m3PairA;
+    document.getElementById('m3PlayB').textContent = m3PairB;
+    closeSheet();
+    m3Reset();
+  }
+  function m3SetStage(n) {
+    m3Stage = n;
+    document.querySelectorAll('#m3StageList .item').forEach(function (c, i) { c.classList.toggle('pick', i === n - 1); });
+    document.getElementById('m3StageChip').textContent = 'Aşama ' + n;
+    document.getElementById('m3StageName').textContent = M3[n].name;
+    document.getElementById('m3Question').textContent = M3[n].q;
+    closeSheet();
+    m3Reset();
+  }
+  function m3Reset() {
+    m3Phase = 'ask'; m3Pos = null; m3Pick = null;
+    var d = m3Def();
+    document.getElementById('m3Panel').dataset.phase = 'ask';
+    m3Draw();
+    ['m3Mark', 'm3Ans'].forEach(function (id) { document.getElementById(id).classList.remove('on'); });
+    document.getElementById('m3Band').classList.remove('on');
+    document.getElementById('m3MaskL').style.width = '0%';
+    document.getElementById('m3MaskR').style.width = '0%';
+    document.getElementById('m3Fb').style.display = 'none';
+    document.getElementById('m3HintTag').style.display = 'none';
+    var cta = document.getElementById('m3Cta');
+    cta.textContent = 'Cevabı onayla'; cta.disabled = true;
+    document.getElementById('m3Tap').style.display = m3Stage === 1 ? '' : 'none';
+    document.getElementById('m3Tap').style.visibility = '';
+    var cards = document.getElementById('m3Cards');
+    cards.style.display = m3Stage === 2 ? 'flex' : 'none';
+    var ans = document.getElementById('m3Answers');
+    ans.style.display = m3Stage === 3 ? '' : 'none';
+    if (m3Stage === 2) {
+      cards.innerHTML = '';
+      d.cards.forEach(function (c, i) {
+        var b = document.createElement('button');
+        b.className = 'opt';
+        b.innerHTML = '<div class="opt-key">' + c[0] + '</div>' +
+          '<div style="flex:1; min-width:0"><span style="font-size:16px; font-weight:700">' + c[1] + '</span>' +
+          '<div class="wave">' + WAVES[c[0]].map(function (hh) { return '<i style="height:' + hh + 'px"></i>'; }).join('') + '</div></div>';
+        b.onclick = function () {
+          if (m3Phase === 'done') { return; }
+          [].forEach.call(cards.children, function (x) { x.classList.remove('pick'); });
+          b.classList.add('pick');
+          m3Pick = i;
+          document.getElementById('m3Cta').disabled = false;
+        };
+        cards.appendChild(b);
+      });
+    }
+    if (m3Stage === 3) {
+      ans.innerHTML = '';
+      ans.className = 'answers';
+      d.answers.forEach(function (a, i) {
+        var b = document.createElement('button');
+        b.className = 'ans';
+        b.innerHTML = '<b>' + a[0] + '</b><span>' + a[1] + '</span>';
+        b.onclick = function () {
+          if (m3Phase === 'done') { return; }
+          [].forEach.call(ans.children, function (x) { x.className = 'ans'; });
+          b.classList.add('pick');
+          m3Pick = i;
+          document.getElementById('m3Cta').disabled = false;
+        };
+        ans.appendChild(b);
+      });
+    }
+  }
+  function m3Hint() {
+    if (m3Phase !== 'ask' || m3Hints === 0) { return; }
+    m3Hints--;
+    document.getElementById('m3HintCount').textContent = m3Hints;
+    var tag = document.getElementById('m3HintTag');
+    tag.textContent = 'İPUCU · ' + m3Def().hint;
+    tag.style.display = 'inline-block';
+    if (m3Stage === 1) {
+      document.getElementById('m3Panel').dataset.phase = 'hint';
+      document.getElementById('m3MaskL').style.width = '26%';
+      document.getElementById('m3MaskR').style.width = '44%';
+    }
+  }
+  function m3Primary() {
+    if (m3Phase === 'done') { openResult('done'); return; }
+    var d = m3Def(), right;
+    m3Phase = 'done';
+    document.getElementById('m3Panel').dataset.phase = 'done';
+    document.getElementById('m3MaskL').style.width = '0%';
+    document.getElementById('m3MaskR').style.width = '0%';
+    if (m3Stage === 1) {
+      if (m3Pos === null) { m3Phase = 'ask'; return; }
+      var host = document.getElementById('m3Field');
+      var diff = Math.abs(d.ans - m3Pos);
+      right = diff < .06;
+      var col = right ? '#2BD9A8' : diff < .15 ? '#FFC246' : '#FF4D6D';
+      var ansL = document.getElementById('m3Ans'), ansLbl = document.getElementById('m3AnsLbl');
+      ansL.classList.add('on'); ansL.style.left = (d.ans * 100) + '%';
+      ansLbl.textContent = m3Hz(d.ans);
+      placeLbl(ansLbl, d.ans, host);
+      placeLbl(document.getElementById('m3MarkLbl'), m3Pos, host);
+      var band = document.getElementById('m3Band');
+      band.classList.add('on');
+      band.style.left = (Math.min(d.ans, m3Pos) * 100) + '%';
+      band.style.width = (diff * 100) + '%';
+      band.style.background = col + '2e';
+      band.style.borderLeft = '1px solid ' + col;
+      band.style.borderRight = '1px solid ' + col;
+    } else {
+      if (m3Pick === null) { m3Phase = 'ask'; return; }
+      right = m3Pick === d.ans;
+      var wrap = m3Stage === 2 ? document.getElementById('m3Cards') : document.getElementById('m3Answers');
+      [].forEach.call(wrap.children, function (c, i) {
+        c.classList.remove('pick');
+        if (i === d.ans) { c.classList.add('right'); }
+        else if (i === m3Pick) { c.classList.add('wrong'); }
+      });
+    }
+    var fb = document.getElementById('m3Fb');
+    fb.style.display = '';
+    fb.className = 'fb' + (right ? '' : ' bad');
+    document.getElementById('m3FbTitle').textContent = right ? 'Doğru bildin' : 'Bu değildi';
+    document.getElementById('m3FbBody').textContent = d.note;
+    fillCmp('m3Fb', right);
+    document.getElementById('m3Cta').textContent = 'Sonraki soru';
+  }
+
+  // ---- ilerleme sekmesi ----
+  var ZONES = [
+    ['Sub', '20–60 Hz', 91], ['Bas', '60–250 Hz', 84], ['Alt-orta', '250–600 Hz', 76],
+    ['Orta', '600 Hz–2 kHz', 69], ['Üst-orta', '2–6 kHz', 48], ['Tiz', '6–20 kHz', 63]
+  ];
+  var BADGES = [
+    ['İlk 100 soru', 'Tamamlandı', 1], ['7 gün seri', 'Tamamlandı', 1],
+    ['Bas ustası', '%90 isabet', 1], ['Üst-orta ustası', '%90 isabet gerekli', 0],
+    ['Pro hassasiyet', 'Zorluk: Pro ile 20 doğru', 0], ['Tüm modlar', '14 modda seviye 3', 0]
+  ];
+  function drawProgress() {
+    var zl = document.getElementById('zoneList');
+    if (!zl) { return; }
+    zl.innerHTML = ZONES.map(function (z) {
+      var weak = z[2] < 55;
+      var col = z[2] >= 75 ? 'linear-gradient(90deg,var(--gr),#16C79A)'
+        : z[2] >= 60 ? 'linear-gradient(90deg,var(--am),var(--am-2))'
+        : 'linear-gradient(90deg,#FF7A9B,var(--rd))';
+      var num = z[2] >= 75 ? 'var(--gr)' : z[2] >= 60 ? 'var(--am)' : 'var(--rd)';
+      return '<div class="zone"' + (weak ? ' style="border-color:rgba(255,77,109,.32); background:rgba(255,77,109,.09)"' : '') + '>' +
+        '<div style="width:96px; flex:none"><div style="font-size:15px; font-weight:700">' + z[0] + '</div>' +
+        '<div style="margin-top:2px; font-size:14px; color:#9AA3B8; white-space:nowrap">' + z[1] + '</div></div>' +
+        '<div class="zone-bar"><i style="width:' + z[2] + '%; background:' + col + '"></i></div>' +
+        '<span class="num" style="width:44px; text-align:right; font-size:16px; font-weight:800; color:' + num + '">%' + z[2] + '</span>' +
+      '</div>';
+    }).join('');
+
+    var acc = { 'Frekans Bulma': 78, 'Kesim Noktası': 71, 'Q Genişliği': 64, 'Boost mu Cut mu': 85, 'Pan Konumu': 66, 'Hangisi Farklı': 59, 'Frekans Çakışması': 54 };
+    document.getElementById('modeLevels').innerHTML = MODES.map(function (m) {
+      var lvl = m[3], played = lvl > 0, pct = acc[m[0]] || 0;
+      return '<div class="modelvl"' + (played ? '' : ' style="opacity:.45"') + '>' +
+        '<div style="flex:1; min-width:0">' +
+          '<div style="font-size:15px; font-weight:600">' + m[0] + '</div>' +
+          '<div class="mini" style="margin-top:8px; height:6px"><i style="width:' + (played ? m[4] : 0) + '%"></i></div>' +
+        '</div>' +
+        '<div style="flex:none; text-align:right">' +
+          '<div class="chip" style="display:inline-block">' + (played ? 'Sv ' + lvl : 'Yeni') + '</div>' +
+          '<div class="num" style="margin-top:6px; font-size:15px; font-weight:700; color:' + (played ? 'var(--tx-2)' : '#7E8698') + '">' + (played ? '%' + pct : '—') + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    var weakest = ZONES.slice().sort(function (a, b) { return a[2] - b[2]; })[0];
+    document.getElementById('zoneSub').textContent = 'en zayıf: ' + weakest[0].toLowerCase() + ' · %' + weakest[2];
+    var playedCount = MODES.filter(function (m) { return m[3] !== 0; }).length;
+    document.getElementById('modeLevelsSub').textContent = playedCount + ' / ' + MODES.length + ' mod oynandı';
+    document.getElementById('badgeGrid').innerHTML = BADGES.map(function (b) {
+      var won = b[2] === 1;
+      return '<div style="padding:14px; border-radius:18px; border:1px solid ' + (won ? 'rgba(255,176,32,.34)' : 'rgba(255,255,255,.08)') +
+        '; background:' + (won ? 'linear-gradient(150deg,rgba(255,194,70,.16),rgba(255,122,24,.04))' : 'rgba(255,255,255,.03)') + '">' +
+        '<div style="width:34px; height:34px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:800; background:' +
+          (won ? 'linear-gradient(150deg,var(--am),var(--am-2))' : 'rgba(255,255,255,.06)') + '; color:' + (won ? '#1A1206' : '#6E7688') + '">' + (won ? '★' : '🔒').replace('🔒', '·') + '</div>' +
+        '<div style="margin-top:10px; font-size:15px; font-weight:700; color:' + (won ? 'var(--tx)' : '#8C95AB') + '; text-wrap:pretty">' + b[0] + '</div>' +
+        '<div style="margin-top:4px; font-size:14px; line-height:1.4; color:' + (won ? 'var(--tx-3)' : '#6E7688') + '; text-wrap:pretty">' + b[1] + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // ---- araçlar ----
+  var FILTERS = [
+    ['Düz', 'Referans — hiçbir renklendirme yok.', 'miksin kendi dengesi.'],
+    ['Araba', 'Bas vurgulu, orta bölgede çukur.', 'Bas fazla mı, vokal kayboluyor mu?'],
+    ['Kulüp / PA', 'Aşırı bas, uzun kuyruk.', 'Alt bölge dağılıyor mu, kick belirgin mi?'],
+    ['Laptop', 'Bas zayıf, orta ağırlıklı.', 'Bas hiç duyulmuyorsa gövde yeterli mi?'],
+    ['Teyp / Radyo', 'Dar bant, hafif doygunluk.', 'Şarkı dar bantta da anlaşılıyor mu?'],
+    ['Ucuz kulaklık', 'Bas ve tiz vurgulu.', 'Tizler cırlıyor mu, S sesleri batıyor mu?'],
+    ['Bluetooth hoparlör', 'Dar bant, sıkıştırılmış.', 'Dinamik kalıyor mu, itiliyor mu?'],
+    ['Mono', 'Kanallar toplanmış.', 'Faz kaybı var mı, enstrüman kayboluyor mu?']
+  ];
+  var isPro = false;
+  function drawFilters() {
+    var wrap = document.getElementById('filterChips');
+    if (!wrap) { return; }
+    wrap.innerHTML = FILTERS.map(function (f, i) {
+      return '<button class="fchip' + (i === 0 ? ' on' : '') + '" data-i="' + i + '">' + f[0] + '</button>';
+    }).join('');
+    [].forEach.call(wrap.children, function (c) { c.onclick = function () { setFilter(+c.dataset.i); }; });
+    var bars = document.getElementById('toolBars');
+    var html = '';
+    for (var i = 0; i < 34; i++) {
+      var t = i / 33;
+      var v = 20 + 50 * Math.exp(-Math.pow((t - .2) / .3, 2)) + 16 * Math.exp(-Math.pow((t - .78) / .18, 2)) + 6 * Math.sin(i * 2.1);
+      html += '<i style="height:' + Math.round(Math.max(8, Math.min(84, v))) + 'px"></i>';
+    }
+    bars.innerHTML = html;
+  }
+  function setFilter(i) {
+    if (!isPro && i !== 0) { openPaywall('Referans filtreleri'); return; }
+    var f = FILTERS[i];
+    document.querySelectorAll('#filterChips .fchip').forEach(function (c, idx) { c.classList.toggle('on', idx === i); });
+    document.getElementById('filterName').textContent = f[0];
+    document.getElementById('filterDesc').textContent = f[1];
+    document.getElementById('filterListen').textContent = 'Ne dinlemeli: ' + f[2];
+  }
+  function toolsGate() { if (!isPro) { openPaywall('Araçlar'); } }
+  function openPaywall(what) {
+    var l = document.getElementById('payWhat');
+    if (l) { l.textContent = what; }
+    go('s-paywall');
+  }
+
+  // ---- kalibrasyon ----
+  var calStep = 1, calPlaying = false;
+  var CAL_STEPS = [
+    ['Kulaklığını tak, ortamı sessizleştir', 'Egzersizlerdeki dB farkları küçüktür. Seviyeyi bir kez ayarlarsan tüm sorular aynı referansla çalar; sonuçların karşılaştırılabilir olur.', 'Rahat duyduğun bir seviyeye getir, sonra onayla. Telefonun ses tuşlarını kullan.', 'Seviye doğru, devam et'],
+    ['Referans tonu çal ve seviyeyi ayarla', 'Ton sabit çalıyor. Yorucu olmayan, konuşma sesinden biraz yüksek bir seviye hedefle.', 'Sesi çok açma; ince farkları duymak için yüksek seviye gerekmez.', 'Bu seviye iyi'],
+    ['Hazırsın', 'Bu seviye tüm egzersizlerde referans alınacak. Kulaklığını değiştirirsen kalibrasyonu tekrarla.', 'Ayarlar → Kalibrasyon ile her zaman geri dönebilirsin.', 'Kalibrasyonu bitir']
+  ];
+  function calDraw() {
+    var m = document.getElementById('calMeter');
+    if (!m) { return; }
+    var html = '';
+    for (var i = 0; i < 22; i++) {
+      var hh = calPlaying ? 12 + Math.round(34 * Math.abs(Math.sin(i * 0.7))) : 10;
+      html += '<i style="width:6px; border-radius:3px; height:' + hh + 'px; background:' + (calPlaying ? 'linear-gradient(180deg,#FFC246,#FF7A18)' : 'rgba(255,255,255,.12)') + '"></i>';
+    }
+    m.innerHTML = html;
+  }
+  function calPlay() {
+    calPlaying = !calPlaying;
+    document.getElementById('calPlay').textContent = calPlaying ? 'Tonu durdur' : 'Referans tonu çal';
+    document.getElementById('calPlay').classList.toggle('on', calPlaying);
+    calDraw();
+  }
+  function calSet(n) {
+    calStep = n;
+    var s = CAL_STEPS[n - 1];
+    document.getElementById('calStep').textContent = n;
+    document.getElementById('calBar').style.width = (n / 3 * 100) + '%';
+    document.getElementById('calHead').textContent = s[0];
+    document.getElementById('calBody').textContent = s[1];
+    document.getElementById('calGuide').textContent = s[2];
+    document.getElementById('calCta').textContent = s[3];
+    calDraw();
+  }
+  function calNext() {
+    if (calStep < 3) { calSet(calStep + 1); return; }
+    calPlaying = false;
+    calSet(1);
+    back();
+  }
+  function buyPro() {
+    isPro = true;
+    syncModeCounts();
+    var b = document.getElementById('toolsBadge');
+    if (b) { b.textContent = 'Pro açık'; }
+    go('s-tools');
+  }
+
+  function openResult(kind) {
+    var lost = kind === 'lost';
+    var on = document.querySelector('.screen.on');
+    resFromEngine = (on && on.id === 's-game2') ? 2 : 1;
+    var freq = isFreqSummary();
+    document.getElementById('resKicker').textContent = lost ? 'CANLARIN BİTTİ' : 'SEANS TAMAMLANDI';
+    document.getElementById('resKicker').style.color = lost ? 'var(--rd)' : 'var(--gr)';
+    document.getElementById('resHead').textContent = lost
+      ? 'Canların bitti, seans burada kapandı'
+      : (freq ? 'Üst-orta bölgede ilerleme var' : lastMode() + ' seansını bitirdin');
+    document.getElementById('resLead').innerHTML = lost
+      ? '6/10 soruda bitti. Canlar 30 dakikada dolar; Pro’da can sınırı yok.'
+      : 'Son seansına göre <b style="color:var(--tx)">+13 puan</b>.';
+    document.getElementById('resPct').textContent = lost ? '%50' : '%80';
+    document.getElementById('resScore').textContent = lost ? '3 / 6 doğru' : '8 / 10 doğru';
+    document.getElementById('resRing').style.background = lost
+      ? 'conic-gradient(var(--rd) 0turn 0.5turn, rgba(255,255,255,.08) 0.5turn 1turn)'
+      : 'conic-gradient(var(--gr) 0turn 0.8turn, rgba(255,255,255,.08) 0.8turn 1turn)';
+    document.getElementById('resXp').textContent = lost ? '+90' : '+240';
+    document.getElementById('resXpBar').style.width = lost ? '46%' : '79%';
+    document.getElementById('resXpNum').textContent = lost ? '1.560 / 3.400' : '380 / 3.400';
+    document.getElementById('resLvl').textContent = lost ? 'Seviye 12' : 'Seviye 13';
+    document.getElementById('resStreakMax').textContent = lost ? '2' : '6';
+    document.getElementById('resStreak').textContent = lost ? '0' : '3';
+    document.getElementById('resHints').textContent = lost ? '3' : '2';
+    document.getElementById('levelUp').style.display = lost ? 'none' : '';
+    document.getElementById('resCta').textContent = lost ? 'Tekrar dene' : '10 soru daha';
+
+    document.getElementById('resSumTitle').textContent = freq ? 'BÖLGE HARİTASI' : 'SORU SIRASI';
+    document.getElementById('resFreqMap').style.display = freq ? '' : 'none';
+    document.getElementById('resSeqMap').style.display = freq ? 'none' : '';
+    if (freq) { drawResDots(lost); } else { drawResBoxes(lost); }
+    document.getElementById('resComment').textContent = freq
+      ? (lost ? 'Yanlışların 2–6 kHz arasında toplandı.' : 'Alt ve tiz bölge sağlam; üst-orta bölgede zorlandın.')
+      : (lost ? 'Baştan sonra düşüş var, kısa seanslar dene.' : 'İlk yarıda daha iyiydin, sonlara doğru biraz düştün.');
+
+    var sug = document.getElementById('resSug');
+    if (sug) {
+      document.getElementById('resSugText').textContent = freq
+        ? 'Üst-orta bölgede zorlandın. Yarın oraya odaklanan bir set hazırlayayım mı?'
+        : 'Bu seviyeyi rahat geçtin. Bir üst zorlukta denemek ister misin?';
+      document.getElementById('resSugBtn').textContent = freq ? 'Üst-orta setini aç' : 'Zorluğu artır';
+    }
+    go('s-result');
+  }
+  function resSugAction() {
+    if (isFreqSummary()) {
+      var el = document.querySelector('#focusList .item[data-focus="high"]');
+      if (el) { pickFocus(el); }
+      applyMode('Frekans Bulma');
+      go('s-game1');
+    } else {
+      openSheet('sheet');
+      document.getElementById('gameDiffList');
+      var fixed = document.querySelector('.item[data-mode="fixed"]');
+      if (fixed) { pickDiffMode(fixed, true); }
+    }
+  }
+  function resContinue() {
+    if (resFromEngine === 2) { applyM2(curM2); go('s-game2'); }
+    else { applyMode(curMode); go('s-game1'); }
+  }
+  function resRestart() {
+    if (resFromEngine === 2) { m2Hints = 3; applyM2(curM2); go('s-game2'); }
+    else { hints = 2; applyMode(curMode); go('s-game1'); }
+  }
+
+  function openVariant(id) {
+    setGameTitle(id, curMode);
+    go(id);
+  }
+
+  // ---- dokunmalı varyant ----
+  var tPickHz = null, tPhase = 'ask', tHints = 2, tAb = 'B';
+  function fHz(hz) {
+    if (hz < 1000) { return Math.round(hz) + ' Hz'; }
+    var k = hz / 1000;
+    var s = (k < 10 ? k.toFixed(2) : k.toFixed(1)).replace(/0+$/, '').replace(/\.$/, '');
+    return s.replace('.', ',') + ' kHz';
+  }
+  function hzToFrac(hz) {
+    var r = focus.range;
+    return Math.log(hz / r[0]) / Math.log(r[1] / r[0]);
+  }
+  function fracToHz(f) {
+    var r = focus.range;
+    return r[0] * Math.pow(r[1] / r[0], Math.max(0, Math.min(1, f)));
+  }
+  function tDraw() {
+    var html = '';
+    for (var i = 0; i < 40; i++) {
+      var t = i / 39;
+      var v = 40 + 108 * Math.exp(-Math.pow((t - .16) / .34, 2))
+            + 52 * Math.exp(-Math.pow((t - hzToFrac(focus.answerHz)) / .07, 2))
+            + 12 * Math.sin(i * 2.7) + 7 * Math.sin(i * 1.3);
+      v = Math.max(14, Math.min(272, v));
+      html += '<i style="height:' + Math.round(v) + 'px"></i>';
+    }
+    document.getElementById('tBars').innerHTML = html;
+    document.getElementById('tAxis').innerHTML =
+      focus.axis.map(function (a) { return '<span>' + a + '</span>'; }).join('');
+    document.querySelectorAll('.focusNameT').forEach(function (n) { n.textContent = focus.name; });
+  }
+  function tSetCursor(frac) {
+    tPickHz = fracToHz(frac);
+    var c = document.getElementById('tCursor');
+    c.classList.add('on');
+    c.style.left = (frac * 100) + '%';
+    var lbl = document.getElementById('tCursorLbl');
+    lbl.textContent = fHz(tPickHz);
+    clampLbl(lbl, frac);
+    document.getElementById('tTapHint').classList.add('off');
+    document.getElementById('tCta').disabled = false;
+  }
+  function clampLbl(lbl, frac) {
+    var specW = document.getElementById('tSpec').clientWidth;
+    var w = lbl.offsetWidth || 92;
+    var center = frac * specW;
+    var min = w / 2 + 4, max = specW - w / 2 - 4;
+    var nudge = Math.max(min, Math.min(max, center)) - center;
+    lbl.style.setProperty('--nudge', nudge.toFixed(1) + 'px');
+  }
+  (function () {
+    var spec = document.getElementById('tSpec');
+    var dragging = false;
+    function frac(e) {
+      var r = spec.getBoundingClientRect();
+      return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    }
+    spec.addEventListener('pointerdown', function (e) {
+      if (tPhase === 'done') { return; }
+      dragging = true;
+      tSetCursor(frac(e));
+      try { spec.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    spec.addEventListener('pointermove', function (e) {
+      if (dragging && tPhase !== 'done') { tSetCursor(frac(e)); }
+    });
+    spec.addEventListener('pointerup', function () { dragging = false; });
+    spec.addEventListener('pointercancel', function () { dragging = false; });
+  })();
+  function tUseHint() {
+    if (tPhase !== 'ask' || tHints === 0) { return; }
+    tHints--;
+    document.getElementById('tHintCount').textContent = tHints;
+    document.getElementById('tHintCount2').textContent = tHints;
+    tSetPhase('hint');
+  }
+  function tSetPhase(p) {
+    tPhase = p;
+    document.getElementById('tAnalyzer').dataset.phase = p;
+    if (p === 'hint') {
+      var w = HINT_WIDTH[difficulty()] || .28;
+      var hc = hzToFrac(focus.answerHz);
+      document.getElementById('tMaskL').style.width = (Math.max(0, hc - w / 2) * 100) + '%';
+      document.getElementById('tMaskR').style.width = (Math.max(0, 1 - (hc + w / 2)) * 100) + '%';
+      document.getElementById('tHintTag').textContent = 'İPUCU · ' + focus.hint[difficulty()] + ' arası';
+    }
+    var band = document.getElementById('tBand'), ansL = document.getElementById('tAnsLine'),
+        q = document.getElementById('tQuality'), fb = document.getElementById('tFb'),
+        cta = document.getElementById('tCta');
+    if (p === 'done') {
+      var af = hzToFrac(focus.answerHz), pf = hzToFrac(tPickHz);
+      var oct = Math.abs(Math.log(tPickHz / focus.answerHz) / Math.log(2));
+      var tier = oct < 1 / 6 ? 0 : oct < 0.5 ? 1 : 2;
+      var col = ['#2BD9A8', '#FFC246', '#FF4D6D'][tier];
+      var word = ['çok yakın', 'yakın', 'uzak'][tier];
+      ansL.classList.add('on');
+      ansL.style.left = (af * 100) + '%';
+      document.getElementById('tAnsLbl').textContent = fHz(focus.answerHz);
+      clampLbl(document.getElementById('tAnsLbl'), af);
+      clampLbl(document.getElementById('tCursorLbl'), pf);
+      band.classList.add('on');
+      band.style.left = (Math.min(af, pf) * 100) + '%';
+      band.style.width = (Math.abs(af - pf) * 100) + '%';
+      band.style.background = col + '2e';
+      band.style.borderLeft = '1px solid ' + col;
+      band.style.borderRight = '1px solid ' + col;
+      q.classList.add('on');
+      q.textContent = word;
+      q.style.color = col;
+      q.style.border = '1px solid ' + col;
+      q.style.left = ((Math.min(af, pf) + Math.abs(af - pf) / 2) * 100) + '%';
+      fb.style.display = '';
+      fb.className = 'fb' + (tier === 0 ? '' : tier === 1 ? ' warn' : ' bad');
+      document.getElementById('tFbTitle').textContent = tier === 0 ? 'Çok yakın' : tier === 1 ? 'Yakın' : 'Uzak kaldı';
+      document.getElementById('tFbBody').textContent =
+        'Cevabın ' + fHz(tPickHz) + ', doğrusu ' + fHz(focus.answerHz) + '. Aradaki fark ' +
+        (Math.round(oct * 100) / 100).toString().replace('.', ',') + ' oktav.';
+      fillCmp('tFb', tier === 0);
+      cta.textContent = 'Sonraki soru';
+      cta.disabled = false;
+    } else {
+      band.classList.remove('on');
+      ansL.classList.remove('on');
+      q.classList.remove('on');
+      fb.style.display = 'none';
+      cta.textContent = 'Cevabı onayla';
+      cta.disabled = (tPickHz === null);
+    }
+    document.getElementById('tHintBtn').disabled = (p !== 'ask' || tHints === 0);
+    document.getElementById('tHintStat').style.opacity = (tHints === 0 ? .5 : 1);
+  }
+  function tPrimary() {
+    if (tPhase === 'done') { openResult('done'); return; }
+    if (tPickHz === null) { return; }
+    tSetPhase('done');
+  }
+  function tSetAB(v) {
+    tAb = v;
+    var btn = document.getElementById('tAbToggle');
+    btn.dataset.ab = v;
+    btn.classList.toggle('on', v === 'B');
+    document.getElementById('tAnalyzer').dataset.ab = v;
+    var n = document.getElementById('tAbNote');
+    n.textContent = v === 'A' ? 'Bypass · EQ zinciri devre dışı' : 'Ses kesintisiz · EQ zinciri devrede';
+    n.style.color = v === 'A' ? 'var(--tx-3)' : '#AFC0FF';
+  }
+  function tToggleAB() { tSetAB(tAb === 'A' ? 'B' : 'A'); }
+  function resetG1t() {
+    tPickHz = null;
+    document.getElementById('tCursor').classList.remove('on');
+    document.getElementById('tTapHint').classList.remove('off');
+    tDraw();
+    tSetPhase('ask');
+    tSetAB(tAb);
+  }
+
+  function pickFocus(el) {
+    [].forEach.call(document.getElementById('focusList').children, function (c) { c.classList.remove('pick'); });
+    el.classList.add('pick');
+    focus = FOCUS[el.dataset.focus];
+    document.getElementById('focusName').textContent = focus.name;
+    resetG1();
+    if (document.getElementById('tBars')) { resetG1t(); }
+    closeSheet();
+  }
+
+  // ---- analizör aşamaları: ask → hint → done ----
+  var phase = 'ask';
+  var HINT_WIDTH = { Kolay: .42, Orta: .28, Zor: .16 };
+  var HINT_KEEP = { Kolay: 4, Orta: 3, Zor: 2 };   // spektrumun oranı olarak
+  var hints = 2;
+
+  var DIFF_HINT_KEY = { Kolay: 'Kolay', Orta: 'Orta', Zor: 'Zor', Pro: 'Zor', 'Sınırsız': 'Zor' };
+  function difficulty() {
+    var auto = document.querySelector('#diffList');
+    var mode = document.querySelector('.list > .item.pick[data-mode]');
+    if (!mode || mode.dataset.mode === 'auto') { return 'Orta'; }
+    var sel = auto && auto.querySelector('.item.pick h5');
+    return DIFF_HINT_KEY[sel ? sel.textContent.trim() : 'Orta'] || 'Orta';
+  }
+  function diffLabel() {
+    var mode = document.querySelector('.list > .item.pick[data-mode]');
+    if (!mode || mode.dataset.mode === 'auto') { return 'Otomatik'; }
+    var sel = document.querySelector('#diffList .item.pick h5');
+    return sel ? sel.textContent.trim() : 'Orta';
+  }
+  function syncDiffLine() {
+    var label = diffLabel();
+    var auto = label === 'Otomatik';
+    var l = document.getElementById('gameDiffLine');
+    if (l) { l.textContent = label; }
+    var sub = document.getElementById('gameDiffSub');
+    if (sub) { sub.textContent = auto ? 'Performansına göre kendini ayarlıyor' : 'Değiştirmek için dokun'; }
+    var gl = document.getElementById('gameDiffList');
+    if (gl) {
+      if (auto) { gl.classList.remove('on'); }
+      [].forEach.call(gl.children, function (c) {
+        c.classList.toggle('pick', c.querySelector('h5').textContent.trim() === label);
+      });
+    }
+    var ask = document.getElementById('autoDiffAsk');
+    if (ask && auto === false) { ask.style.display = 'none'; }
+  }
+  function gameDiffTap() {
+    if (diffLabel() === 'Otomatik') {
+      document.getElementById('autoDiffAsk').style.display = '';
+    } else {
+      var gl = document.getElementById('gameDiffList');
+      openSubList('gameDiffList', !gl.classList.contains('on'));
+    }
+  }
+  function switchToFixed() {
+    document.getElementById('autoDiffAsk').style.display = 'none';
+    var fixed = document.querySelector('.item[data-mode="fixed"]');
+    pickDiffMode(fixed, true);
+    openSubList('gameDiffList', true);
+  }
+  function pickGameDiff(name) {
+    var target = [].find.call(document.getElementById('diffList').children, function (c) {
+      return c.querySelector('h5').textContent.trim() === name;
+    });
+    if (!target) { return; }
+    var fixed = document.querySelector('.item[data-mode="fixed"]');
+    document.querySelectorAll('.item[data-mode]').forEach(function (c) { c.classList.remove('pick'); });
+    fixed.classList.add('pick');
+    document.getElementById('diffList').classList.add('on');
+    pickDiff(target);
+    openSubList('gameDiffList', false);
+  }
+  function pickDiffMode(el, showList) {
+    document.querySelectorAll('.item[data-mode]').forEach(function (c) { c.classList.remove('pick'); });
+    el.classList.add('pick');
+    openSubList('diffList', showList);
+    syncDiffLine();
+    if (phase === 'hint') { setPhase('hint'); }
+  }
+  function pickDiff(el) {
+    [].forEach.call(document.getElementById('diffList').children, function (c) { c.classList.remove('pick'); });
+    el.classList.add('pick');
+    syncDiffLine();
+    if (phase === 'hint') { setPhase('hint'); }
+  }
+  function setPhase(p) {
+    phase = p;
+    var an = document.getElementById('analyzer');
+    an.dataset.phase = p;
+    document.getElementById('altPanel').dataset.phase = p;
+    if (p === 'hint') {
+      var w = HINT_WIDTH[difficulty()] || .28;
+      var c = (modeAnswerIdx() + .5) / modeAnswers().length;
+      var l = Math.max(0, c - w / 2), r = Math.max(0, 1 - (c + w / 2));
+      document.getElementById('maskL').style.width = (l * 100) + '%';
+      document.getElementById('maskR').style.width = (r * 100) + '%';
+      document.querySelector('#analyzer .hinttag').textContent = 'İPUCU · ' + modeHint() + (isFreqMode() ? ' arası' : '');
+      var ah = document.getElementById('altHint');
+      ah.textContent = 'İPUCU · ' + modeHint();
+      ah.classList.toggle('on', !!modeDef().viz);
+      if (modeDef().tap) { tapHint(); }
+      if (modeDef().viz && !modeDef().tap) {
+        var d = modeDef(), keepSet;
+        if (d.hintKeep && d.hintKeep[difficulty()]) {
+          keepSet = d.hintKeep[difficulty()].slice();
+        } else {
+          var keep = HINT_KEEP[difficulty()] || 3;
+          var n = modeAnswers().length, ai = modeAnswerIdx();
+          var start = Math.max(0, Math.min(n - keep, ai - Math.floor(keep / 2)));
+          keepSet = [];
+          for (var k = start; k < start + keep; k++) { keepSet.push(k); }
+        }
+        if (keepSet.indexOf(modeAnswerIdx()) === -1) { keepSet.push(modeAnswerIdx()); }
+        [].forEach.call(ansWrap.children, function (c, i) {
+          if (keepSet.indexOf(i) === -1) { c.classList.add('dim'); }
+        });
+      }
+    }
+    var fb = document.getElementById('fbCard');
+    var cta = document.getElementById('g1cta');
+    if (p === 'done') {
+      var right;
+      if (modeDef().tap) {
+        var tr = tapReveal();
+        right = tr.tier === 0;
+      } else {
+        right = picked === modeAnswerIdx();
+      }
+      document.getElementById('altHint').classList.remove('on');
+      [].forEach.call(ansWrap.children, function (c, i) {
+        c.className = 'ans' + (i === modeAnswerIdx() ? ' right' : (i === picked ? ' wrong' : ''));
+      });
+      var vizWrap = document.getElementById(
+        modeDef().viz === 'db' ? 'vizDb' : modeDef().viz === 'stereo' ? 'vizStereo' : 'vizPan');
+      document.querySelectorAll('#altPanel .vizreveal').forEach(function (e) { e.classList.remove('on'); });
+      if (modeDef().viz && vizWrap) { vizWrap.querySelector('.vizreveal').classList.add('on'); }
+      fb.style.display = '';
+      fb.className = 'fb' + (right ? '' : ' bad');
+      document.getElementById('fbTitle').textContent = modeDef().tap
+        ? (right ? 'Çok yakın' : 'Biraz uzak kaldın')
+        : (right ? 'Doğru bildin' : (picked === null ? 'Süre doldu' : 'Yakın ama değil'));
+      document.getElementById('fbBody').textContent = modeNote();
+      fillCmp('fbCard', right);
+      cta.textContent = 'Sonraki soru';
+    } else {
+      fb.style.display = 'none';
+      cta.textContent = 'Cevabı onayla';
+      document.querySelectorAll('#altPanel .vizreveal').forEach(function (e) { e.classList.remove('on'); });
+      if (p === 'ask') {
+        document.getElementById('altHint').classList.remove('on');
+        [].forEach.call(ansWrap.children, function (c) { c.classList.remove('dim'); });
+      }
+    }
+    document.getElementById('hintBtn').style.opacity = (hints === 0 ? .45 : 1);
+    document.getElementById('hintBtn2').disabled = (p !== 'ask' || hints === 0);
+  }
+  function useHint() {
+    if (phase !== 'ask' || hints === 0) { return; }
+    hints--;
+    document.getElementById('hintCount').textContent = hints;
+    document.getElementById('hintCount2').textContent = hints;
+    setPhase('hint');
+  }
+  function g1Primary() {
+    if (phase === 'done') { openResult('done'); return; }
+    if (modeDef().tap && tapPos === null) { return; }
+    setPhase('done');
+  }
+  function resetG1() {
+    picked = null;
+    drawSpectrum();
+    drawAnswers();
+    if (modeDef().tap) { resetTap(); }
+    document.getElementById('tapMaskL').style.width = '0%';
+    document.getElementById('tapMaskR').style.width = '0%';
+    setPhase('ask');
+    if (modeDef().tap) { document.getElementById('g1cta').disabled = true; }
+  }
+
+  // ---- Motor 2 mod tanımları ----
+  var WAVES = {
+    A: [10,18,24,14,20,26,12,22,16,28,13,19,25,11,21,17,23,15,27,12],
+    B: [12,20,15,26,11,23,18,28,14,21,25,13,19,27,16,22,10,24,17,20],
+    C: [11,17,23,13,19,25,12,21,15,27,14,20,24,10,22,18,26,16,19,13]
+  };
+  var M2 = {
+    'Hangisi Farklı': { n: 3, answer: 1,
+      task: 'Üçünü dinle, diğerlerinden farklı işlenmiş olanı seç.',
+      sub: 'İki ses aynı, biri farklı. Bu seviyede fark yalnızca 1,5 dB.',
+      hint: 'C elendi · iki ses kaldı',
+      note: 'Farklı olan B’ydi: 3,15 kHz’te 1,5 dB’lik bir artırım vardı.' },
+    'Kompresör': { n: 2, answer: 1,
+      task: 'İkisini dinle, hangisi daha sıkıştırılmış?',
+      sub: 'Aynı kayıt, farklı ratio. Transientlerin ne kadar bastırıldığına odaklan.',
+      hint: 'Fark en çok trampet vuruşunun ilk 20 ms’inde',
+      note: 'B’de 3:1 oranında kompresyon vardı, attack 10 ms. Vuruşun tepesi yumuşamış, kuyruğu öne çıkmış.' },
+    'Reverb': { n: 3, answer: 2,
+      task: 'Üçünü dinle, reverb’i farklı olanı seç.',
+      sub: 'İkisinde aynı oda var, birinde kuyruk daha uzun.',
+      hint: 'A elendi · iki ses kaldı',
+      note: 'C’de reverb kuyruğu 1,8 saniyeydi, diğerlerinde 0,9. Fark en çok susma anlarında duyulur.' },
+    'Distortion': { n: 2, answer: 0,
+      task: 'İkisini dinle, hangisi daha doygun?',
+      sub: 'Aynı seviye, farklı harmonik içerik.',
+      hint: 'Fark üst harmoniklerde, 4 kHz üzerinde',
+      note: 'A’da tüp tipi doygunluk vardı: tek sayılı harmonikler baskın, tepe seviyesi aynı kalmış.' },
+    'Tonal Denge': { n: 2, answer: 1,
+      task: 'İki mixi dinle, hangisinin dengesi bozuk?',
+      sub: 'Biri dengeli, birinde bir bölge fazla.',
+      hint: 'Sorun bas bölgesinde, 200 Hz civarı',
+      note: 'B’de 200 Hz çevresi 4 dB fazlaydı. Bu bölge şiştiğinde mix çamurlu ve yorucu duyulur.' }
+  };
+  var curM2 = 'Hangisi Farklı';
+  var m2Pick = null, m2Phase = 'ask', m2Hints = 3, m2Out = null;
+  var m2Played = {}, m2Playing = null, m2Timer = null, m2Seq = null;
+  var optWrap = document.getElementById('opts');
+  var OPT_NAMES = { A: 'Birinci ses', B: 'İkinci ses', C: 'Üçüncü ses' };
+  var SYNC_SRC = ['Kendi dosyam', 'Tam davul'];
+
+  function m2Def() { return M2[curM2] || M2['Hangisi Farklı']; }
+  function isSync() { return SYNC_SRC.indexOf(curSrc) !== -1; }
+  function m2NoteText() {
+    return isSync()
+      ? 'Senkron geçiş · pozisyon korunuyor'
+      : 'Her seçimde baştan çalar';
+  }
+  function paintOpts() {
+    [].forEach.call(optWrap.children, function (c, i) {
+      var st = c.querySelector('.optstate');
+      if (c.classList.contains('out')) { st.textContent = 'Elendi'; st.style.color = '#7E8698'; return; }
+      if (m2Playing === i) { st.textContent = 'Çalınıyor'; st.style.color = '#C79BFF'; }
+      else if (m2Played[i]) { st.textContent = 'Çalındı'; st.style.color = '#9AA3B8'; }
+      else { st.textContent = 'Henüz dinlenmedi'; st.style.color = '#9AA3B8'; }
+      c.classList.toggle('playing', m2Playing === i);
+    });
+    document.getElementById('g2Note').textContent = m2NoteText();
+  }
+  function playCard(i, keepSelection) {
+    if (m2Timer) { clearTimeout(m2Timer); }
+    m2Playing = i;
+    m2Played[i] = true;
+    if (!keepSelection && m2Phase !== 'done') {
+      [].forEach.call(optWrap.children, function (c) { c.classList.remove('pick'); });
+      optWrap.children[i].classList.add('pick');
+      m2Pick = i;
+      var cta = document.getElementById('g2Cta');
+      cta.disabled = false;
+      cta.textContent = 'Cevabı onayla';
+    }
+    paintOpts();
+    m2Timer = setTimeout(function () {
+      if (m2Seq === null) { m2Playing = null; paintOpts(); }
+    }, isSync() ? 1400 : 1000);
+  }
+  function drawOpts() {
+    var d = m2Def();
+    var keys = d.n === 2 ? ['A', 'B'] : ['A', 'B', 'C'];
+    optWrap.innerHTML = '';
+    keys.forEach(function (k, i) {
+      var b = document.createElement('button');
+      b.className = 'opt';
+      b.dataset.key = k;
+      b.innerHTML =
+        '<div class="opt-key">' + k + '</div>' +
+        '<div style="flex:1; min-width:0">' +
+          '<div style="display:flex; align-items:center; justify-content:space-between; gap:8px">' +
+            '<span style="font-size:16px; font-weight:700">' + OPT_NAMES[k] + '</span>' +
+            '<span class="optstate" style="font-size:15px; font-weight:600; color:#9AA3B8">Henüz dinlenmedi</span>' +
+          '</div>' +
+          '<div class="wave">' + WAVES[k].map(function (hh) { return '<i style="height:' + hh + 'px"></i>'; }).join('') + '</div>' +
+        '</div>';
+      b.onclick = function () {
+        if (b.classList.contains('out') || m2Seq !== null) { return; }
+        playCard(i, m2Phase === 'done');
+      };
+      optWrap.appendChild(b);
+    });
+    paintOpts();
+  }
+  function g2Sequence() {
+    var btn = document.getElementById('g2SeqBtn');
+    if (m2Seq !== null) { stopSequence(); return; }
+    var order = [];
+    [].forEach.call(optWrap.children, function (c, i) { if (!c.classList.contains('out')) { order.push(i); } });
+    var step = 0;
+    btn.textContent = 'Durdur';
+    m2Seq = setInterval(function () {
+      if (step >= order.length) { stopSequence(); return; }
+      playCard(order[step], true);
+      step++;
+    }, 1100);
+    playCard(order[0], true);
+    step = 1;
+  }
+  function stopSequence() {
+    clearInterval(m2Seq); m2Seq = null;
+    document.getElementById('g2SeqBtn').textContent = 'Sırayla Çal';
+    m2Playing = null;
+    paintOpts();
+  }
+  function applyM2(name) {
+    if (!M2[name]) { return; }
+    curM2 = name;
+    var d = M2[name];
+    document.querySelector('#s-game2 .gameTitle').textContent = name;
+    document.getElementById('g2Task').textContent = d.task;
+    document.getElementById('g2Sub').textContent = d.sub;
+    document.getElementById('g2Count').textContent = d.n + ' ses';
+    if (document.querySelector('#s-game2 .mixchip.on')) { setSrcLabel(randomSrc()); } else { ensureSrcAllowed(); }
+    drawSrcList();
+    resetG2();
+  }
+  function g2UseHint() {
+    if (m2Phase !== 'ask' || m2Hints === 0) { return; }
+    m2Hints--;
+    document.getElementById('g2HintCount').textContent = m2Hints;
+    document.getElementById('g2HintCount2').textContent = m2Hints;
+    var d = m2Def(), tag = document.getElementById('g2HintTag');
+    tag.textContent = 'İPUCU · ' + d.hint;
+    tag.style.display = 'inline-block';
+    if (d.n === 3) {
+      var out = d.answer === 0 ? 1 : 0;
+      m2Out = out;
+      var el = optWrap.children[out];
+      el.classList.add('out');
+      el.classList.remove('pick');
+      if (m2Pick === out) {
+        m2Pick = null;
+        document.getElementById('g2Cta').disabled = true;
+        document.getElementById('g2Cta').textContent = 'Bir ses seç';
+      }
+      paintOpts();
+    }
+    document.getElementById('g2HintBtn').disabled = true;
+  }
+  function g2Primary() {
+    if (m2Phase === 'done') { openResult('done'); return; }
+    if (m2Pick === null) { return; }
+    stopSequence();
+    m2Phase = 'done';
+    var d = m2Def(), right = m2Pick === d.answer;
+    [].forEach.call(optWrap.children, function (c, i) {
+      c.classList.remove('pick');
+      if (i === d.answer) { c.classList.add('right'); }
+      else if (i === m2Pick) { c.classList.add('wrong'); }
+      c.classList.remove('out');
+    });
+    paintOpts();
+    var fb = document.getElementById('g2Fb');
+    fb.style.display = '';
+    fb.className = 'fb' + (right ? '' : ' bad');
+    document.getElementById('g2FbTitle').textContent = right ? 'Doğru bildin' : 'Bu değildi';
+    document.getElementById('g2FbBody').textContent = d.note + ' Kartlara dokunarak farkı tekrar dinleyebilirsin.';
+    fillCmp('g2Fb', right);
+    document.getElementById('g2Cta').textContent = 'Sonraki soru';
+    document.getElementById('g2HintBtn').disabled = true;
+  }
+  function resetG2() {
+    if (m2Timer) { clearTimeout(m2Timer); }
+    if (m2Seq !== null) { stopSequence(); }
+    m2Pick = null; m2Phase = 'ask'; m2Out = null; m2Played = {}; m2Playing = null;
+    drawOpts();
+    document.getElementById('g2Fb').style.display = 'none';
+    document.getElementById('g2HintTag').style.display = 'none';
+    var cta = document.getElementById('g2Cta');
+    cta.disabled = true; cta.textContent = 'Bir ses seç';
+    document.getElementById('g2HintBtn').disabled = (m2Hints === 0);
+    document.getElementById('g2SeqBtn').textContent = 'Sırayla Çal';
+  }
+
+
+  var GLOWS = {
+    's-game1': 'radial-gradient(110% 44% at 50% -6%, rgba(108,140,255,.16), rgba(0,0,0,0) 68%)',
+    's-game2': 'radial-gradient(110% 44% at 50% -6%, rgba(168,85,247,.17), rgba(0,0,0,0) 68%)',
+    's-result': 'radial-gradient(110% 46% at 50% -6%, rgba(43,217,168,.16), rgba(0,0,0,0) 70%)',
+    's-paywall': 'radial-gradient(110% 46% at 50% -6%, rgba(255,176,32,.18), rgba(0,0,0,0) 70%)',
+    's-calib': 'radial-gradient(110% 46% at 50% -6%, rgba(255,176,32,.12), rgba(0,0,0,0) 70%)',
+    's-soon': 'radial-gradient(110% 46% at 50% -6%, rgba(43,217,168,.14), rgba(0,0,0,0) 70%)',
+    's-game1t': 'radial-gradient(110% 44% at 50% -6%, rgba(108,140,255,.16), rgba(0,0,0,0) 68%)'
+  };
+  var DEFAULT_GLOW = getComputedStyle(document.getElementById('glow')).backgroundImage;
+  var navStack = ['s-menu'];
+
+  function go(id) {
+    if (!id) { return; }
+    var cur = document.querySelector('.screen.on');
+    if (cur && cur.id === id) { return; }
+    if (cur) { cur.classList.remove('on'); }
+    var next = document.getElementById(id);
+    next.classList.add('on');
+    next.querySelectorAll('.scroll').forEach(function (s) { s.scrollTop = 0; });
+    if (navStack[navStack.length - 1] !== id) { navStack.push(id); }
+    document.getElementById('glow').style.backgroundImage = GLOWS[id] || DEFAULT_GLOW;
+    if (id === 's-game1') { resetG1(); }
+    if (id === 's-game1t') { resetG1t(); }
+    if (id === 's-game2') { resetG2(); }
+    if (id === 's-soon') { m3Reset(); }
+    if (id !== 's-game1' && typeof abLoop !== 'undefined' && abLoop) { stopAbLoop(); }
+    if (id === 's-game1' || id === 's-game1t' || id === 's-game2') {
+      if (document.querySelector('.mixchip.on')) { setSrcLabel(randomSrc()); }
+      else { ensureSrcAllowed(); }
+      drawSrcList();
+    }
+    var tab = next.getAttribute('data-tab');
+    document.getElementById('tabbar').classList.toggle('hide', !tab);
+    document.querySelectorAll('.tab').forEach(function (t) {
+      t.classList.toggle('on', !!tab && t.getAttribute('data-tab') === tab);
+    });
+    closeSheet();
+  }
+  function back() {
+    navStack.pop();
+    go(navStack.pop() || 's-menu');
+  }
+  var sheetStack = [];
+  function openSheet(id, keepStack) {
+    id = id || 'sheet';
+    var cur = document.querySelector('.sheet-wrap.on');
+    if (cur && cur.id !== id) {
+      if (!keepStack) { sheetStack.push(cur.id); }
+      cur.classList.remove('on');
+    }
+    document.getElementById(id).classList.add('on');
+    syncSheetBack();
+  }
+  function closeSheet() {
+    document.querySelectorAll('.sheet-wrap.on').forEach(function (w) { w.classList.remove('on'); });
+    document.querySelectorAll('.sublist.on').forEach(function (l) { l.classList.remove('on'); });
+    sheetStack = [];
+  }
+  function openSubList(id, show) {
+    var l = document.getElementById(id);
+    if (l) { l.classList.toggle('on', show !== false); }
+    syncSheetBack();
+  }
+  function syncSheetBack() {
+    var cur = document.querySelector('.sheet-wrap.on');
+    document.querySelectorAll('.sheetback').forEach(function (b) { b.style.display = 'none'; });
+    if (!cur) { return; }
+    var openSub = cur.querySelector('.sublist.on');
+    var btn = cur.querySelector('.sheetback');
+    if (btn) { btn.style.display = (openSub || sheetStack.length) ? '' : 'none'; }
+  }
+  function sheetBack() {
+    var cur = document.querySelector('.sheet-wrap.on');
+    if (!cur) { return; }
+    var openSub = cur.querySelector('.sublist.on');
+    if (openSub) { openSub.classList.remove('on'); syncSheetBack(); return; }
+    var parent = sheetStack.pop();
+    cur.classList.remove('on');
+    if (parent) { document.getElementById(parent).classList.add('on'); }
+    syncSheetBack();
+  }
+  (function () {
+    document.querySelectorAll('.sheet-wrap .sheet').forEach(function (sh) {
+      var head = sh.querySelector('h3');
+      if (!head) { return; }
+      var b = document.createElement('button');
+      b.className = 'back sheetback';
+      b.type = 'button';
+      b.innerHTML = '&#8249;';
+      b.style.display = 'none';
+      b.style.marginRight = '2px';
+      b.onclick = sheetBack;
+      head.parentNode.insertBefore(b, head);
+    });
+  })();
+
+  function openLegal(kind) {
+    var privacy = kind === 'privacy';
+    document.getElementById('legalTitle').textContent = privacy ? 'Gizlilik politikası' : 'Kullanım şartları';
+    document.getElementById('legalKicker').textContent = privacy ? 'GİZLİLİK' : 'KULLANIM ŞARTLARI';
+    go('s-legal');
+  }
+  var FAQ = [
+    ['Neden kulaklık gerekiyor?', 'Stereo ve pan egzersizlerinde telefon hoparlörü kanalları birleştirir; fark duyulmaz. Diğer modlarda kulaklık zorunlu değil ama daha güvenilir.'],
+    ['Zorluk otomatik nasıl ayarlanıyor?', 'Son sorulardaki isabetine göre bant genişliği ve değişim miktarı kademeli değişir. Kendin seçmek istersen Ayarlar’dan Sabit’e alabilirsin.'],
+    ['İpucu puanımı düşürür mü?', 'Kazanılan XP’yi bir miktar azaltır, isabet oranını etkilemez. Seans sonunda kaç ipucu kullandığın ayrıca gösterilir.'],
+    ['Kendi dosyamı yükleyince ne oluyor?', 'Dosya cihazında kalır. Karıştır kapanır, böylece her soruda kendi dosyan çalar.'],
+    ['Canlar neye yarıyor?', 'Ücretsiz sürümde 5 can var, her biri 30 dakikada dolar. Ara vermek kulağın için de iyidir. Pro’da can sınırı yoktur.']
+  ];
+  function drawFaq() {
+    var wrap = document.getElementById('faqList');
+    if (!wrap) { return; }
+    wrap.innerHTML = '';
+    FAQ.forEach(function (f) {
+      var card = document.createElement('div');
+      card.className = 'card';
+      card.style.padding = '0';
+      card.innerHTML =
+        '<button class="item" style="border-bottom:none"><div><h5 style="text-wrap:pretty">' + f[0] + '</h5></div><span class="caret">＋</span></button>' +
+        '<p style="display:none; margin:0; padding:0 16px 15px; font-size:15px; line-height:1.5; color:var(--tx-2); text-wrap:pretty">' + f[1] + '</p>';
+      var btn = card.querySelector('button'), p = card.querySelector('p');
+      btn.onclick = function () {
+        var open = p.style.display !== 'none';
+        p.style.display = open ? 'none' : 'block';
+        btn.querySelector('.caret').textContent = open ? '＋' : '－';
+      };
+      wrap.appendChild(card);
+    });
+  }
+  var MAX_LIVES = 5, LIVES_LEFT = 3;
+  var PRO_PRICE = '₺199';
+  function drawHearts() {
+    var html = '';
+    for (var i = 0; i < MAX_LIVES; i++) {
+      html += '<i' + (i < LIVES_LEFT ? '' : ' class="off"') + '></i>';
+    }
+    document.querySelectorAll('.hearts').forEach(function (el) { el.innerHTML = html; });
+  }
+  function togglePanel(wrapId, caretId) {
+    var w = document.getElementById(wrapId);
+    var open = w.style.display !== 'none';
+    w.style.display = open ? 'none' : 'block';
+    document.getElementById(caretId).textContent = open ? '⌄' : '⌃';
+  }
+  function toggleModeLevels() { togglePanel('modeLevelsWrap', 'modeLevelsCaret'); }
+  function syncModeCounts() {
+    var total = MODES.length;
+    // seviye kilidi: kullanıcının açtığı modlar
+    var open = MODES.filter(function (m) { return m[3] !== 0; }).length;
+    // sürüm kilidi: ücretsiz sürümde bulunan modlar (kullanıcıdan bağımsız, sabit)
+    var freeCount = MODES.filter(function (m) { return m[8] === 1; }).length;
+    var c = document.getElementById('modeCount');
+    if (c) { c.textContent = open + ' / ' + total + ' açık'; }
+    var v = document.getElementById('verLine');
+    if (v) { v.textContent = isPro ? 'Pro — ' + total + ' modun tamamı' : 'Ücretsiz — ' + freeCount + ' mod, seans başına 5 soru'; }
+    var f = document.getElementById('payFreeModes');
+    if (f) { f.textContent = freeCount + ' egzersiz modu'; }
+    var p = document.getElementById('payProModes');
+    if (p) { p.textContent = total + ' egzersiz modunun tamamı'; }
+    var pr = document.getElementById('proPrice');
+    if (pr) { pr.textContent = PRO_PRICE; }
+    var bb = document.getElementById('buyBtn');
+    if (bb) { bb.textContent = 'Satın al · ' + PRO_PRICE; }
+  }
+
+  // aşağı kaydırarak kapatma
+  document.querySelectorAll('.sheet[data-drag]').forEach(function (sheet) {
+    var y0 = null;
+    sheet.addEventListener('touchstart', function (e) {
+      y0 = sheet.scrollTop <= 0 ? e.touches[0].clientY : null;
+    }, { passive: true });
+    sheet.addEventListener('touchmove', function (e) {
+      if (y0 === null) { return; }
+      var dy = e.touches[0].clientY - y0;
+      if (dy > 0) { sheet.style.transform = 'translateY(' + dy + 'px)'; }
+    }, { passive: true });
+    sheet.addEventListener('touchend', function () {
+      var dy = parseFloat((sheet.style.transform.match(/([\d.]+)px/) || [0, 0])[1]);
+      sheet.style.transform = '';
+      y0 = null;
+      if (dy > 90) { closeSheet(); }
+    });
+  });
+  // ---- ses kaynakları ----
+  var SRC_GROUPS = [
+    ['SENTETİK', [
+      ['Pembe gürültü', 'Gürültü', 'En nötr referans, bant farkları en net'],
+      ['Synth', 'Synth', 'Sürekli pad ve bas sesleri']
+    ]],
+    ['DAVUL', [
+      ['Kick', 'Kick', 'Tek vuruş, bas ağırlıklı'],
+      ['Snare', 'Snare', 'Keskin transient, geniş bant'],
+      ['Hi-hat', 'Hi-hat', 'Tiz bölge ağırlıklı'],
+      ['Tam davul', 'Davul', 'Loop — tüm bantlar bir arada']
+    ]],
+    ['ENSTRÜMAN', [
+      ['Bas Gitar', 'Bas Gitar', 'Alt bölge ve gövde'],
+      ['Gitar', 'Gitar', 'Temiz ve distorsiyonlu kayıtlar'],
+      ['Vokal', 'Vokal', 'Orta ve üst-orta ağırlıklı']
+    ]],
+    ['KENDİ DOSYAM', [
+      ['Kendi dosyam', 'Dosyam', 'Dosya seçilmedi · WAV veya MP3']
+    ]]
+  ];
+  var ALL_SRC = ['Pembe gürültü','Synth','Kick','Snare','Hi-hat','Tam davul','Bas Gitar','Gitar','Vokal'];
+  var SRC_OK = {
+    'Reverb': ['Snare','Vokal','Gitar','Tam davul'],
+    'Kompresör': ['Kick','Snare','Hi-hat','Tam davul','Bas Gitar','Gitar','Vokal'],
+    'Distortion': ['Gitar','Bas Gitar','Synth','Tam davul'],
+    'Stereo Genişlik': ['Tam davul','Gitar','Synth','Pembe gürültü'],
+    'Pan Konumu': ['Tam davul','Gitar','Synth','Pembe gürültü'],
+    'Tonal Denge': ['Tam davul','Gitar','Vokal','Synth'],
+    'Hangisi Farklı': ['Tam davul','Gitar','Vokal','Synth']
+  };
+  var curSrc = 'Pembe gürültü';
+  function activeMode() {
+    var on = document.querySelector('.screen.on');
+    var id = on ? on.id : 's-game1';
+    return id === 's-game2' ? curM2 : curMode;
+  }
+  function allowedSrc() { return SRC_OK[activeMode()] || ALL_SRC; }
+  function shortSrc(name) {
+    var found = null;
+    SRC_GROUPS.forEach(function (g) { g[1].forEach(function (s) { if (s[0] === name) { found = s[1]; } }); });
+    return found || name;
+  }
+  function setSrcLabel(name) {
+    curSrc = name;
+    document.querySelectorAll('.srcName').forEach(function (n) { n.textContent = shortSrc(name); });
+    var l = document.getElementById('gameSrcLine');
+    if (l) {
+      l.textContent = document.querySelector('.mixchip.on')
+        ? 'Karıştır açık · şu an ' + name
+        : 'Sabit · ' + name;
+    }
+  }
+  function drawSrcList() {
+    var ok = allowedSrc(), wrap = document.getElementById('srcGroups');
+    wrap.innerHTML = '';
+    SRC_GROUPS.forEach(function (g) {
+      var items = g[1].filter(function (s) { return s[0] === 'Kendi dosyam' || ok.indexOf(s[0]) !== -1; });
+      if (!items.length) { return; }
+      var box = document.createElement('div');
+      box.className = 'group';
+      box.innerHTML = '<h6>' + g[0] + '</h6><div class="list">' + items.map(function (s) {
+        return '<button class="item' + (s[0] === curSrc ? ' pick' : '') + '" data-src="' + s[0] + '">' +
+          '<div><h5>' + s[0] + '</h5><p>' + s[2] + '</p></div>' +
+          (s[0] === 'Kendi dosyam' ? '<span class="caret">›</span>' : '<span class="tick">✓</span>') +
+        '</button>';
+      }).join('') + '</div>';
+      box.querySelectorAll('.item').forEach(function (el) { el.onclick = function () { pickSrc(el); }; });
+      wrap.appendChild(box);
+    });
+  }
+  function pickSrc(el) {
+    document.querySelectorAll('#srcGroups .item').forEach(function (c) { c.classList.remove('pick'); });
+    el.classList.add('pick');
+    document.querySelectorAll('.mixchip').forEach(function (c) { c.classList.remove('on'); });
+    setSrcLabel(el.dataset.src);
+    syncMixLock();
+    closeSheet();
+  }
+  function randomSrc() {
+    var ok = allowedSrc();
+    return ok[Math.floor(Math.random() * ok.length)];
+  }
+  function ensureSrcAllowed() {
+    if (curSrc === 'Kendi dosyam') { setSrcLabel(curSrc); return; }
+    var ok = allowedSrc();
+    setSrcLabel(ok.indexOf(curSrc) === -1 ? ok[0] : curSrc);
+  }
+  function syncMixLock() {
+    var own = curSrc === 'Kendi dosyam';
+    document.querySelectorAll('.mixchip').forEach(function (c) {
+      if (own) { c.classList.remove('on'); }
+      c.disabled = own;
+      c.style.opacity = own ? '.4' : '';
+      c.title = own ? 'Kendi dosyanla karıştırma kapalı' : 'Karıştır';
+    });
+  }
+  function toggleMix(el) {
+    if (curSrc === 'Kendi dosyam' && !el.classList.contains('on')) {
+      curSrc = allowedSrc()[0];
+    }
+    var on = !el.classList.contains('on');
+    document.querySelectorAll('.mixchip').forEach(function (c) { c.classList.toggle('on', on); });
+    if (on) {
+      if (curSrc === 'Kendi dosyam') { curSrc = allowedSrc()[0]; }
+      setSrcLabel(randomSrc());
+    } else { ensureSrcAllowed(); }
+    syncMixLock();
+  }
+  function seg(el) {
+    [].forEach.call(el.parentNode.children, function (c) { c.classList.remove('on'); });
+    el.classList.add('on');
+  }
+  resetG1();
+  resetG1t();
+  m3Reset();
+  drawProgress();
+  drawFilters();
+  calSet(1);
+  drawFaq();
+  drawHearts();
+  syncModeCounts();
+  syncDiffLine();
+  drawSrcList();
+  setSrcLabel(curSrc);
+  syncMixLock();
+  go('s-menu');
+</script>
+</body>
+</html>
