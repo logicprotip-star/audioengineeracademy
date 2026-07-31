@@ -340,7 +340,11 @@ let activeQuestion = null;
 let roundActive = false;
 let currentPlayMode = "filtered";
 let visualizerOn = true;
-let currentLives = 4;
+// KÖK SEBEP DÜZELTMESİ: eskiden burada sabit "4" vardı (stats henüz okunmadan) —
+// temiz localStorage'da ilk kalp render'ı gerçek candan ÖNCE 4 ile çiziliyordu.
+// stats zaten yukarıda (satır ~329) yüklendiği için burada doğrudan gerçek
+// değerden başlatılabilir; syncLives() zaten çağrılacak ama ilk boya da doğru olsun.
+let currentLives = stats.lives;
 let session = { correct: 0, wrong: 0, xp: 0, hints: 0 };
 function resetSession() { session = { correct: 0, wrong: 0, xp: 0, hints: 0 }; }
 
@@ -364,7 +368,11 @@ let calPlaying = false;
 let calOsc = null;
 let calGain = null;
 let calMeterRaf = null;
-let calLevel = typeof prefs.calibrationLevel === "number" ? prefs.calibrationLevel : 40;
+let calLevel = typeof prefs.calibrationLevel === "number" ? prefs.calibrationLevel : 35;
+// Aynı TDZ nedeniyle burada: goScreen() donanım ses tuşu dinleyicisinin durumunu
+// (watchVolume()'un döndürdüğü CallbackID) okuyup clearWatch() çağırıp çağırmayacağına
+// karar veriyor — tanım aşağıda (kalibrasyon bölümünde) kalıyor, sadece değişken burada.
+let volumeButtonsWatchId = null;
 
 let autoPlaying = false;
 let autoStopped = false;
@@ -406,11 +414,12 @@ function recordAndPersistDailyAccuracy(correct) {
   }
 })();
 
-// seçili zorluğun kendi durumu (xp/score/bestScore/lives)
+// seçili zorluğun kendi durumu (xp/score/bestScore) — can artık burada DEĞİL,
+// bkz. stats.lives (global, tek havuz).
 function diffState() {
   const key = els.difficultySelect ? els.difficultySelect.value : "medium";
   if (!stats.perDiff) stats.perDiff = storage.freshStats(difficultyLivesMap(), HINTS_PER_GAME).perDiff;
-  if (!stats.perDiff[key]) stats.perDiff[key] = storage.freshDiffState(mode.DIFFICULTY[key].lives);
+  if (!stats.perDiff[key]) stats.perDiff[key] = storage.freshDiffState();
   return stats.perDiff[key];
 }
 
@@ -437,39 +446,37 @@ function renderHearts() {
   }
 }
 
-function resetLives() {
-  currentLives = currentDifficultyConfig().lives;
-  diffState().lives = currentLives;
-  renderHearts();
-  resetSession();
-}
+// Canlar GLOBAL ve TEK bir havuz (stats.lives) — zorluktan, seanstan bağımsız.
+// Otomatik dolum YOK: 0'a inince bir sonraki tur/seans/zorluk değişikliği/uygulama
+// yeniden açılışı hiçbiri canı geri getirmez (ayrı bir "dolum" özelliği bekliyor).
+// Bu yüzden eski resetLives() (canı zorluğun MAX'ına doldururdu) kaldırıldı —
+// hiçbir çağıran artık canı "doldurma" davranışı istemiyor.
 
-// seçili zorluğun kayıtlı canını yükle (zorluk değişince)
+// currentLives'ı kalıcı depodan (stats.lives) okur ve kalpleri çizer. Zorluk
+// değişikliğinde de çağrılabilir ama artık canı DEĞİŞTİRMEZ (global olduğu için).
 function syncLives() {
-  const d = diffState();
-  if (typeof d.lives !== "number") d.lives = currentDifficultyConfig().lives;
-  currentLives = d.lives;
+  if (typeof stats.lives !== "number") stats.lives = storage.TOTAL_LIVES;
+  currentLives = stats.lives;
   renderHearts();
 }
 
-// Bir önceki oturumda canlar tükenip "Tekrar Oyna"ya basılmadan kapatılmışsa,
-// perDiff'te lives:0 kalıcı olarak saklı kalır. Aktif bir oyun-bitti kartı yokken
-// bunu otomatik doldur (XP/skor gibi diğer alanlara dokunmadan).
+// Uygulama her açıldığında/zorluk her değiştiğinde çağrılır — sadece EKRANI günceli
+// tutar, canı DOLDURMAZ. (Eskiden burada "can 0 ve kart açık değilse doldur" vardı;
+// bu tam olarak istenmeyen otomatik dolum davranışıydı, kaldırıldı.)
 function syncLivesEnsureAlive() {
   syncLives();
   if (currentLives <= 0 && !gameOverVisible) {
-    resetLives();
-    persistStats();
+    showGameOverCard();
   }
 }
 
 function loseLife(reasonText) {
   currentLives = Math.max(0, currentLives - 1);
-  diffState().lives = currentLives;
+  stats.lives = currentLives;
   renderHearts();
   if (currentLives <= 0) {
-    setFeedback("Oyun bitti", `${reasonText} Bu zorluktaki canların tükendi. Tekrar başlatabilirsin.`, true, true);
-    toast("💔 Oyun Bitti", "Bu zorlukta canların tükendi.");
+    setFeedback("Oyun bitti", `${reasonText} Canların tükendi.`, true, true);
+    toast("💔 Oyun Bitti", "Canların tükendi.");
   } else {
     setFeedback("Can kaybettin", `${reasonText} Kalan can: ${currentLives}`, true, true);
   }
@@ -593,6 +600,11 @@ function goScreen(name) {
   // planda çalmaya devam etmesin (geri, sekme değişimi, sheet üzerinden nav vb. hepsi
   // buradan geçtiği için tek bir kontrol noktası yeterli).
   if (name !== "calib" && calPlaying) stopCalibrationTone();
+  // Donanım ses tuşu dinleyicisi de AYNI tek kontrol noktasından yönetilir — sadece
+  // kalibrasyon ekranındayken aktif olsun, başka ekranda (özellikle oyun sırasında)
+  // ses tuşları normal sistem davranışına dokunmasın.
+  if (name === "calib") startVolumeButtonsWatch();
+  else if (volumeButtonsWatchId) stopVolumeButtonsWatch();
   if (screenStack[screenStack.length - 1] !== name) screenStack.push(name);
   // HER doğrudan ekran geçişi bu bayrağı sıfırlar (tab tıklama, mod kartı, Araçlar'daki
   // kilit örtüsü → paywall, vb.). SADECE goToSettingsSubpage() kendi çağrısından SONRA
@@ -652,7 +664,10 @@ function renderModeGrid() {
     const entries = byMotor.get(motorNum);
     const group = document.createElement("div");
     group.className = "motor-group";
-    group.innerHTML = `<div class="motor-group-head" style="color:${info.color}">Motor ${motorNum} · ${info.label}</div><div class="mode-grid${entries.length === 1 ? " single" : ""}"></div>`;
+    // Başlıkta sadece oyun-tipi etiketi görünür — "Motor N" iç mimari jargonu,
+    // kullanıcıya anlamsız (bkz. 6-düzeltme maddesi 4). Gruplama/renk mantığı AYNI,
+    // sadece görünen metin değişti.
+    group.innerHTML = `<div class="motor-group-head" style="color:${info.color}">${info.label}</div><div class="mode-grid${entries.length === 1 ? " single" : ""}"></div>`;
     const grid = group.querySelector(".mode-grid");
     entries.forEach(entry => {
       // Kart başlığı/açıklaması YALNIZCA katalogdan okunur — getMeta() artık bunları
@@ -664,17 +679,23 @@ function renderModeGrid() {
       const card = document.createElement("button");
       card.type = "button";
       card.className = `mode-card${playable ? "" : " locked"}`;
+      // "Motor N" rozeti kaldırıldı — kullanıcıya anlamsız iç mimari terimi, aynı
+      // bilgi zaten grup başlığında ve renk kodunda var (bkz. madde 4). Pro rozeti
+      // (tier==="pro") ile seviye kilidi (unlockLevel) AYRI iki gösterge — biri
+      // kart üstünde, diğeri alt satırda; ikisi de gerektiğinde birlikte görünür.
+      const proBadge = entry.tier === "pro" ? `<div class="mode-chip mode-chip-pro">Pro</div>` : "";
+      const lockRow = playable
+        ? `<div class="mode-mini"><i style="width:0%"></i></div>`
+        : `<div class="mode-lock-row">🔒 Seviye ${turkishLocative(entry.unlockLevel)} açılır</div>`;
       card.innerHTML = `
         <div class="mode-top">
           <div class="mode-glyph" style="background:${info.bg}"><i style="height:12px;background:${info.color}"></i><i style="height:22px;background:${info.color}"></i><i style="height:16px;background:${info.color}"></i></div>
-          <div class="mode-chip" style="color:${info.color};background:${info.bg}">Motor ${motorNum}</div>
+          ${proBadge}
         </div>
         <span class="mode-engine" style="color:${info.color}">${info.label}</span>
         <h4>${entry.ad}</h4>
         <p>${entry.aciklama}</p>
-        ${playable
-          ? `<div class="mode-mini"><i style="width:0%"></i></div>`
-          : `<div class="mode-lock-row">🔒 Seviye ${turkishLocative(entry.unlockLevel)} açılır</div>`}
+        ${lockRow}
       `;
       card.addEventListener("click", () => {
         if (playable) { goScreen("game"); return; }
@@ -1612,21 +1633,35 @@ els.gameSettingsBtn.addEventListener("click", openGameSettingsSheet);
 els.gameSettingsCancel.addEventListener("click", closeGameSettingsSheet);
 els.gameSettingsOverlay.addEventListener("click", closeGameSettingsSheet);
 
-// Kart X ile ya da dışına tıklanarak kapatılırsa: canlar yenilensin, yeni seriye hazır
-// olunsun ama oyun OTOMATİK başlamasın — kullanıcı "Oyunu Başlat"a basmalı.
+// Kart X ile ya da dışına tıklanarak kapatılırsa: OTOMATİK CAN DOLUMU YOK — canlar
+// hâlâ 0 ise dürüstçe öyle kalır (ayrı bir "dolum" özelliği bekliyor). Sadece
+// oturum sayaçlarını (session) temizleyip kartı kapatır.
 function closeGameOverAndReset() {
   if (gameOverGuardActive()) return; // kartı açan tıklama overlay'e sızmış olabilir
   hideGameOverCard();
-  resetLives(); // resetSession()'ı da içeride çağırır
-  setFeedback("Yeni seriye hazır", "Kaldığın yerden 'Oyunu Başlat' ile devam edebilirsin.");
+  resetSession();
+  if (currentLives > 0) {
+    setFeedback("Yeni seriye hazır", "Kaldığın yerden 'Oyunu Başlat' ile devam edebilirsin.");
+  } else {
+    setFeedback("Canların bitti", "Şu an devam edemezsin — can dolum özelliği henüz eklenmedi.");
+  }
 }
 if (els.gameoverClose) els.gameoverClose.addEventListener("click", closeGameOverAndReset);
 if (els.gameoverOverlay) els.gameoverOverlay.addEventListener("click", closeGameOverAndReset);
 if (els.gameoverRetryBtn) els.gameoverRetryBtn.addEventListener("click", async () => {
   if (gameOverGuardActive()) return;
   hideGameOverCard();
+  // "Tekrar Oyna" artık can DOLDURMAZ — gameover kartı zaten sadece can 0'ken
+  // açıldığı için bu buton bugün fiilen closeGameOverAndReset ile aynı sonucu
+  // verir (dürüst mesaj + kapatma). Canlar > 0 olsaydı (ör. ileride farklı bir
+  // gameover tetikleyicisi eklenirse) eski "gerçekten devam et" akışı çalışır.
+  if (currentLives <= 0) {
+    resetSession();
+    setFeedback("Canların bitti", "Şu an devam edemezsin — can dolum özelliği henüz eklenmedi.");
+    return;
+  }
   await audioEngine.initAudio();
-  resetLives();
+  resetSession();
   stats.hintsRemaining = HINTS_PER_GAME; // gerçek "Tekrar Oyna" — ipucu hakkı burada sıfırlanır
   persistStats();
   if (isChallenge()) startChallenge();
@@ -1683,10 +1718,13 @@ bindCollapsiblePanel(els.zonePanelToggle, els.zoneWrap, els.zoneCaret);
 bindCollapsiblePanel(els.modeLevelsToggle, els.modeLevelsWrap, els.modeLevelsCaret);
 
 els.difficultySelect.addEventListener("change", () => {
-  // zorluk değişti → o zorluğun kendi canı/puanı/level'i yüklensin
-  syncLivesEnsureAlive();
+  // zorluk değişti → o zorluğun kendi puanı/level'i yüklensin. Canlar GLOBAL
+  // olduğu için zorluk değişince değişmez, sadece ekranı güncel tutmak için
+  // yeniden çizilir (renderHearts — syncLivesEnsureAlive DEĞİL, o boot/otomatik
+  // dolum kontrolü için, burada tekrar tetiklenmesi gerekmiyor).
+  renderHearts();
   updateUI();
-  setFeedback("Zorluk değişti", `${els.difficultySelect.options[els.difficultySelect.selectedIndex].text} — bu zorluğun kendi puanı, level'i ve canı geldi.`);
+  setFeedback("Zorluk değişti", `${els.difficultySelect.options[els.difficultySelect.selectedIndex].text} — bu zorluğun kendi puanı ve level'i geldi.`);
 });
 
 [els.sourceSelect, els.playModeSelect].forEach(el => {
@@ -1803,7 +1841,11 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => g
 // "oyun ayarları" sheet'ine (gameSettingsSheet) dokunmaz.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const FREE_MODE_COUNT = 1; // ücretsiz sürümdeki mod sayısı SABİT — kullanıcı seviyesinden bağımsız
+// Ücretsiz/Pro mod sayısı sihirli sayı DEĞİL — MODE_CATALOG'taki tier alanından
+// sayılır (bkz. core/mode-catalog.js üstündeki not). Kaç modun ŞU AN gerçekten
+// oynanabilir olduğu ayrı bir şey (registry.listModes()) — bu sayı ürün/paywall
+// vaadi, kodlanma durumundan bağımsız.
+const FREE_MODE_COUNT = MODE_CATALOG.filter(e => e.tier === "free").length;
 const PRO_PRICE = "₺199";
 
 function openMainSettingsSheet() {
@@ -1920,7 +1962,9 @@ if (els.langSeg) {
 
 // ---- HESAP / DESTEK / HAKKINDA satırları ----
 function syncAccountLine() {
-  const total = listModes().length;
+  // Pro vaadi TÜM katalog (14) içindir — kaçının şu an kodlandığı/oynanabilir
+  // olduğu (listModes()) ayrı bir şey, paywall metnine karışmaz.
+  const total = MODE_CATALOG.length;
   if (els.accountVerLine) els.accountVerLine.textContent = `Ücretsiz — ${FREE_MODE_COUNT} mod, seans başına 5 soru`;
   if (els.payFreeModes) els.payFreeModes.textContent = `${FREE_MODE_COUNT} egzersiz modu`;
   if (els.payProModes) els.payProModes.textContent = `${total} egzersiz modunun tamamı`;
@@ -2065,6 +2109,39 @@ if (els.calLevelTrack) {
   els.calLevelTrack.addEventListener("pointercancel", () => { dragging = false; });
 }
 setCalLevel(calLevel, { persist: false }); // açılışta UI'ı kayıtlı değere senkronla
+
+// Donanım ses tuşları → kalibrasyon slider'ı (@capacitor-community/volume-buttons).
+// Web'de (Capacitor bridge'i yokken) bu eklenti hiç yok — storage.js'teki getPrefs()
+// ile AYNI desen: global köprüden güvenli okuma, yoksa sessizce no-op.
+function getVolumeButtonsPlugin() {
+  return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.VolumeButtons) || null;
+}
+// watchVolume() bir CallbackID döndürür ve dinleme aktif olduğu sürece elde tutulur;
+// null olması "şu an dinlemiyoruz" anlamına gelir — goScreen()'deki tek kontrol
+// noktası bunu okuyarak clearWatch()'u sadece gerçekten dinlenirken çağırır.
+// (volumeButtonsWatchId'nin let tanımı dosya başında — bkz. calLevel yanındaki not.)
+async function startVolumeButtonsWatch() {
+  const vb = getVolumeButtonsPlugin();
+  if (!vb || volumeButtonsWatchId) return;
+  const platform = window.Capacitor && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : "web";
+  const options = {};
+  // iOS: sistem ses HUD'ının çıkmaması için ZORUNLU (aksi halde her basışta ekrana
+  // taşan bir gösterge belirir). Android'de karşılığı suppressVolumeIndicator.
+  if (platform === "ios") options.disableSystemVolumeHandler = true;
+  else if (platform === "android") options.suppressVolumeIndicator = true;
+  try {
+    volumeButtonsWatchId = await vb.watchVolume(options, (result) => {
+      if (!result || !result.direction) return;
+      setCalLevel(calLevel + (result.direction === "up" ? 5 : -5));
+    });
+  } catch (e) {}
+}
+async function stopVolumeButtonsWatch() {
+  const vb = getVolumeButtonsPlugin();
+  volumeButtonsWatchId = null;
+  if (!vb) return;
+  try { await vb.clearWatch(); } catch (e) {}
+}
 
 function stopCalibrationTone() {
   calRequestId++; // devam eden bir startCalibrationTone() varsa artık geçersiz

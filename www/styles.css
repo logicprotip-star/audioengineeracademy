@@ -182,6 +182,9 @@
       font-size:14px;font-weight:700;letter-spacing:.02em;padding:5px 9px;border-radius:9px;
       color:var(--am);background:rgba(255,176,32,.14);white-space:nowrap;
     }
+    /* Pro rozeti: motor renginden bağımsız, sabit — seviye kilidiyle (mode-lock-row)
+       karışmaması için ayrı renk/konum (kart üstü vs. kart altı). */
+    .mode-chip-pro{color:#f2c94c;background:rgba(242,201,76,.16)}
     .mode-card h4{margin:0;font-size:15px;font-weight:700;line-height:1.25}
     .mode-card p{margin:0;font-size:14px;line-height:1.4;color:var(--tx-3)}
     .mode-mini{margin-top:auto;height:5px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}

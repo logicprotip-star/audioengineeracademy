@@ -9,6 +9,13 @@ const PREFS_KEY = "eqEarTrainerProXPrefs";
 const DAILY_ACC_KEY = "eqEarTrainerProXDailyAcc";
 const DAILY_ACC_KEEP_DAYS = 35; // grafik son 30 günü gösterir, birkaç gün pay bırakılır
 
+// Canlar artık zorluğa göre DEĞİL — tek, global bir havuz (bkz. freshStats().lives).
+// Eskiden her zorluğun kendi canı vardı (perDiff[key].lives); bu yüzden zorluk
+// değiştirmek ya da "Tekrar Oyna" basmak canı sıfırdan dolduruyordu — istenen
+// davranış buydu ("can seans başına"), ama gerçek istek "5 can TOPLAM, hiç
+// otomatik dolmaz" idi. freshDiffState() artık lives DÖNDÜRMÜYOR.
+export const TOTAL_LIVES = 5;
+
 // WKWebView bazen depolama baskısı altında localStorage'ı temizleyebiliyor;
 // her yazımda sessizce Preferences'a da mirror atıp, açılışta eksikse oradan kurtarıyoruz.
 export function getPrefs() {
@@ -25,15 +32,17 @@ export function mirrorRemove(key) {
   if (p) p.remove({ key }).catch(() => {});
 }
 
-export function freshDiffState(lives) {
-  return { xp: 0, score: 0, bestScore: 0, lives };
+export function freshDiffState() {
+  return { xp: 0, score: 0, bestScore: 0 };
 }
 
-// difficultyLives: { [difficultyKey]: defaultLives } — moddan gelir.
+// difficultyLives: { [difficultyKey]: defaultLives } — moddan gelir. Değerler artık
+// SADECE anahtar kümesini (hangi zorluklar var) belirlemek için kullanılıyor;
+// canlar bu haritadan bağımsız, tek bir global sayaç (bkz. TOTAL_LIVES/lives alanı).
 export function freshStats(difficultyLives, hintsPerGame) {
   const perDiff = {};
-  Object.entries(difficultyLives).forEach(([key, lives]) => {
-    perDiff[key] = freshDiffState(lives);
+  Object.keys(difficultyLives).forEach(key => {
+    perDiff[key] = freshDiffState();
   });
   return {
     rounds: 0,
@@ -47,7 +56,8 @@ export function freshStats(difficultyLives, hintsPerGame) {
     hintsRemaining: hintsPerGame,
     bossWins: 0,
     history: [],
-    perDiff
+    perDiff,
+    lives: TOTAL_LIVES
   };
 }
 
@@ -56,8 +66,8 @@ export function loadStats(difficultyLives, hintsPerGame) {
     const raw = localStorage.getItem(STATS_KEY);
     const s = raw ? JSON.parse(raw) : freshStats(difficultyLives, hintsPerGame);
     if (!s.perDiff) s.perDiff = freshStats(difficultyLives, hintsPerGame).perDiff;
-    Object.entries(difficultyLives).forEach(([key, lives]) => {
-      if (!s.perDiff[key]) s.perDiff[key] = freshDiffState(lives);
+    Object.keys(difficultyLives).forEach(key => {
+      if (!s.perDiff[key]) s.perDiff[key] = freshDiffState();
       // Eskiden (skor tabanı eklenmeden önce) kaydedilmiş negatif skorlar kalıcı
       // olarak sıfıra çekilir — taban kuralı sadece YENİ düşüşleri değil, daha
       // önce localStorage'a yazılmış değerleri de kapsamalı.
@@ -66,6 +76,10 @@ export function loadStats(difficultyLives, hintsPerGame) {
       if (typeof d.bestScore === "number" && d.bestScore < 0) d.bestScore = 0;
     });
     if (typeof s.hintsRemaining !== "number") s.hintsRemaining = hintsPerGame;
+    // Eski kayıtlarda (bu değişiklikten önce) top-level "lives" hiç yoktu — temiz
+    // localStorage'da olduğu gibi TOTAL_LIVES'a çekilir. Eski perDiff[key].lives
+    // artık okunmuyor (yoksayılır, silinmez).
+    if (typeof s.lives !== "number") s.lives = TOTAL_LIVES;
     return s;
   } catch {
     return freshStats(difficultyLives, hintsPerGame);
@@ -134,7 +148,7 @@ export function clearDaily() {
 // planlama altyapısı henüz yok (sadece tercih saklanır); Kulaklık uyarısı ise
 // gerçekten .mobile-warn banner'ının görünürlüğünü kontrol eder.
 export function freshPrefs() {
-  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 40 };
+  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35 };
 }
 
 export function loadPrefs() {
