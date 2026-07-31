@@ -1629,11 +1629,20 @@ els.gameSettingsBtn.addEventListener("click", openGameSettingsSheet);
 els.gameSettingsCancel.addEventListener("click", closeGameSettingsSheet);
 els.gameSettingsOverlay.addEventListener("click", closeGameSettingsSheet);
 
-// Kart X ile ya da dışına tıklanarak kapatılırsa: OTOMATİK CAN DOLUMU YOK — canlar
-// hâlâ 0 ise dürüstçe öyle kalır (ayrı bir "dolum" özelliği bekliyor). Sadece
-// oturum sayaçlarını (session) temizleyip kartı kapatır.
+// KÖK SEBEP (2. bulgu): overlay'in TAMAMI (tüm ekranı kaplayan karartılmış zemin)
+// "dışına tıkla → kapat" davranışındaydı. Kartı açan cevap tam da ekranın o anki
+// dokunma/tıklama noktasında biter — konsolda ÖLÇÜLDÜ: bir tek dokunuştan SONRA
+// ~3.9 SANİYE gecikmeli bir "click" olayı overlay'e ulaşıp kartı hemen kapattı
+// (muhtemelen tarayıcı/WKWebView'in olayı ana iş parçacığı meşgulken kuyruğa
+// alması). GAMEOVER_CLICK_GUARD_MS (400ms) böylesi bir gecikmeyi YAKALAYAMAZ.
+// Kart aniden kapanınca kullanıcı "Oyun Bitti"yi hiç okuyamadan geri menüdeymiş
+// gibi bir arayüzle karşılaşır — bildirilen "kalp dolu görünürken can 0" hissi
+// büyük ihtimalle budur. Çözüm: overlay'e tıklamayı KAPATMA tetikleyicisi olmaktan
+// çıkar — kart artık SADECE X butonu ya da "Tekrar Oyna" ile kapanır.
+// OTOMATİK CAN DOLUMU YOK — canlar hâlâ 0 ise dürüstçe öyle kalır (ayrı bir
+// "dolum" özelliği bekliyor). Sadece oturum sayaçlarını (session) temizleyip kartı kapatır.
 function closeGameOverAndReset() {
-  if (gameOverGuardActive()) return; // kartı açan tıklama overlay'e sızmış olabilir
+  if (gameOverGuardActive()) return; // ekstra güvenlik ağı, artık backdrop'tan tetiklenmiyor
   hideGameOverCard();
   resetSession();
   if (currentLives > 0) {
@@ -1643,7 +1652,6 @@ function closeGameOverAndReset() {
   }
 }
 if (els.gameoverClose) els.gameoverClose.addEventListener("click", closeGameOverAndReset);
-if (els.gameoverOverlay) els.gameoverOverlay.addEventListener("click", closeGameOverAndReset);
 if (els.gameoverRetryBtn) els.gameoverRetryBtn.addEventListener("click", async () => {
   if (gameOverGuardActive()) return;
   hideGameOverCard();
@@ -1735,10 +1743,23 @@ els.difficultySelect.addEventListener("change", () => {
   });
 });
 
-window.addEventListener("visibilitychange", () => {
+// KÖK SEBEP: "visibilitychange" olayı SADECE document üzerinde ateşlenir, window
+// üzerinde DEĞİL (konsolda doğrulandı: document.dispatchEvent ile tetiklendiğinde
+// window.addEventListener hiç çalışmadı). Bu satır eskiden window'a bağlıydı — yani
+// bu handler hiçbir zaman çalışmıyordu: uygulama arka plana alındığında NE ses
+// durduruluyordu NE DE tur zamanlayıcısı duraklatılıyordu. Arka planda WKWebView/
+// tarayıcı setInterval/setTimeout'ları kısıtlar (throttle); ön plana dönüldüğünde
+// birikmiş tur zamanlayıcıları arka arkaya patlayarak birden çok "süre doldu" turunu
+// neredeyse anında tüketebilir — kalp/can arayüzünün tutarsız görünmesinin ve
+// "Oyun Bitti"den sonra sayaçların artmaya devam etmesinin en olası açıklaması bu.
+document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     audioEngine.stopAudio();
     uploadManager.pausePlayback();
+    // Aktif bir tur varsa zamanlayıcıyı/otomatik-geçişi duraklat — "Durdur" butonuyla
+    // AYNI mekanizma (pauseRound). Arka planda tur zamanlayıcısının çalışmaya devam
+    // edip biriken tikleri ön plana dönünce art arda boşaltması engellenir.
+    if (activeQuestion && !autoStopped) pauseRound();
   } else if (audioEngine.audioCtx && audioEngine.audioCtx.state === "suspended") {
     try { audioEngine.audioCtx.resume(); } catch (e) {}
   }

@@ -43,6 +43,22 @@
 
     *,*::before,*::after{box-sizing:border-box}
     html,body{margin:0;min-height:100%;background:#04060C}
+    /* Metin seçimi kapalı — bu bir oyun arayüzü, uzun basış "Kopyala/Ara/Çevir"
+       menüsünü açıp oyun ekranını kapatıyordu (bkz. 6-düzeltme maddesi 2).
+       İSTİSNA: kullanıcının GERÇEKTEN kopyalaması/düzenlemesi gerekebilecek
+       iki yer — geri bildirim metin kutusu ve destek e-posta adresi (masaüstünde
+       farklı bir posta istemcisine kopyalamak isteyebilir). Diğer her yerde
+       (kartlar, geri bildirim metni, SSS, istatistikler vb.) seçim kapalı. */
+    *{
+      -webkit-user-select:none;
+      user-select:none;
+      -webkit-touch-callout:none;
+    }
+    textarea, input, a[href^="mailto:"]{
+      -webkit-user-select:text;
+      user-select:text;
+      -webkit-touch-callout:default;
+    }
     body{
       font-family:Inter,-apple-system,system-ui,Segoe UI,Roboto,Arial,sans-serif;
       -webkit-font-smoothing:antialiased;
