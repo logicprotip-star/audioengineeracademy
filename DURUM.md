@@ -109,4 +109,51 @@ Gerçek liste 9 rozet. Hedef 12 miydi? Öyleyse eksik 3 tanımlanmalı.
 
 ## SIRADAKİ
 
-1. madde — geri bildirim kartı konumu.
+1. madde — geri bildirim kartı konumu.## ÜRÜN NOTLARI (önceki sohbetlerden)
+
+**Ses kaynağı planı**
+Kick / snare / gitar / vokal örnekleri henüz yok. Sentez öncelikli yaklaşım,
+CC0 lisanslı örnekler alternatif olarak değerlendirilecek.
+
+**Referans filtreleri**
+Araçlar sekmesinde, Pro özelliği. Cihaz adı etiketli filtre setleri.
+
+**Otomatik master / tonal balance**
+Ücretli sürüme ek değer olarak düşünüldü. Kapsam tanımlanmadı.
+
+**Fiyat ve can ekonomisi**
+Pro ₺199, tek seferlik. Ücretsiz: 5 can, 30 dakikada bir dolum.
+Can dolumu KODDA YOK — tasarım kararı, prototipte metin olarak geçiyor,
+mekanizma hiç yazılmadı. Ayrı bir özellik olarak yapılacak.
+Paywall ekranında dolum süresi hiç geçmiyor, sadece "5 can" yazıyor — eksik bilgi.
+Not: 3. bug (oyun 0 canla başlıyor) bundan bağımsız — mevcut can sistemi
+başlangıç değerini doğru atamıyor.
+
+## ZORLUK MİMARİSİ (tasarım kararı — HİÇBİRİ KODDA YOK)
+
+**Seans içi rampa**
+10 soru: 3 kolay / 3 orta / 3 zor / 1 pro.
+
+**Basamak yerleşimi kişiselleştirilecek**
+Performans verisinden hesaplanacak (bölge bazlı isabet, ortalama sapma).
+Zayıf bölgeler daha sık gelecek.
+
+**Seviye yapısı**
+Seviye mod başına tutulacak. Genel akademi seviyesi toplamdan hesaplanacak.
+
+**Zorluk ölçeği**
+Logaritmik, tavanlı. Tavana ulaşıldıktan sonra hassasiyet artırılmayacak;
+bunun yerine bağlam zorluğu devreye girecek (gain azalması, katman, süre).
+
+**Ayarlar**
+Otomatik (varsayılan) / Sabit (Kolay / Orta / Zor / Pro / Sınırsız).
+
+## AÇIK KALAN KARAR
+
+Kilit tipleri (kodlanmadı / seviye / Pro) — öneri sunuldu, karar verilmedi.
+Yeni mod yazılmadan netleşmeli.
+NOTEOF
+
+git add -A
+git commit -m "DURUM.md: urun notlari ve zorluk mimarisi kararlari eklendi"
+wc -l DURUM.md

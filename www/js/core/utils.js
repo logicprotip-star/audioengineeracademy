@@ -35,3 +35,18 @@ export function hexToRgba(hex, alpha) {
   const b = parseInt(v.substring(4, 6), 16);
   return `rgba(${r},${g},${b},${alpha})`;
 }
+
+// Türkçe bulunma hâli eki ('de/'da/'te/'ta), sayının YAZIYLA okunuşunun son harfine
+// göre (ünlü uyumu + ünsüz sertleşmesi/devoicing). 1-20 arası tanımlı — uygulamanın
+// gerçekte kullandığı unlockLevel aralığı budur. Tablo dışı bir sayı gelirse
+// SESSİZCE yanlış ek üretmek yerine hata fırlatır (bkz. çağıran taraf bunu
+// beklenmedik/tanımsız bir seviye olarak ele almalı).
+const TURKISH_LOCATIVE_SUFFIX = {
+  1: "de", 2: "de", 3: "te", 4: "te", 5: "te", 6: "da", 7: "de", 8: "de", 9: "da", 10: "da",
+  11: "de", 12: "de", 13: "te", 14: "te", 15: "te", 16: "da", 17: "de", 18: "de", 19: "da", 20: "de"
+};
+export function turkishLocative(n) {
+  const suffix = TURKISH_LOCATIVE_SUFFIX[n];
+  if (!suffix) throw new Error(`turkishLocative: ${n} için tanımlı ek yok (1-20 aralığı dışında)`);
+  return `${n}'${suffix}`;
+}

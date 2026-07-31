@@ -86,11 +86,12 @@ const LABEL_Y = GUESS_LABEL_Y;
 // MOD SÖZLEŞMESİ
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ad/aciklama BİLEREK yok — kart başlığı/açıklaması yalnızca core/mode-catalog.js'ten
+// okunur (tek görüntü kaynağı). getMeta() sadece oyun mantığının ihtiyaç duyduğu
+// meta'yı döndürür (id/motor/kulaklikGerekli/uyumluKaynaklar/ucretsiz/videoUrl/difficulty).
 export function getMeta() {
   return {
     id: MODE_ID,
-    ad: "Frekans Bulma",
-    aciklama: "EQ ile değiştirilen frekansı A/B karşılaştırmasıyla dinleyip dalga üzerinde işaretle.",
     motor: 1,
     kulaklikGerekli: true,
     uyumluKaynaklar: ["pink", "white", "saw", "square", "triangle", "upload"],

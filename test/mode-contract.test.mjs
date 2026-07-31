@@ -13,17 +13,23 @@ for (const mode of MODES) {
   const meta = mode.getMeta();
   const levels = Object.keys(meta.difficulty);
 
-  describe(`mod sözleşmesi: ${meta.ad} (${meta.id})`, () => {
+  describe(`mod sözleşmesi: ${meta.id}`, () => {
+    // ad/aciklama BİLEREK burada değil — kart metni artık yalnızca
+    // core/mode-catalog.js'ten okunuyor, getMeta() sadece oyun mantığı meta'sı
+    // döndürüyor (bkz. frekans-bulma.js:getMeta() yorumu).
     it("getMeta() gerekli alanları döndürür", () => {
       assert.equal(typeof meta.id, "string");
       assert.ok(meta.id.length > 0);
-      assert.equal(typeof meta.ad, "string");
-      assert.equal(typeof meta.aciklama, "string");
       assert.ok(Number.isInteger(meta.motor));
       assert.equal(typeof meta.kulaklikGerekli, "boolean");
       assert.ok(Array.isArray(meta.uyumluKaynaklar) && meta.uyumluKaynaklar.length > 0);
       assert.equal(typeof meta.ucretsiz, "boolean");
       assert.equal(typeof meta.videoUrl, "string");
+    });
+
+    it("getMeta() kart metni (ad/aciklama) DÖNDÜRMEZ — tek kaynak mode-catalog.js", () => {
+      assert.equal(meta.ad, undefined);
+      assert.equal(meta.aciklama, undefined);
     });
 
     for (const level of levels) {

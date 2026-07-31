@@ -8,7 +8,7 @@ import { createRoundFlow } from "./core/round-flow.js";
 import * as storage from "./core/storage.js";
 import * as progress from "./core/progress.js";
 import { toast, spawnXp, burst, shake } from "./core/fx.js";
-import { formatHz } from "./core/utils.js";
+import { formatHz, turkishLocative } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
 import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
@@ -594,10 +594,39 @@ function goScreen(name) {
   // buradan geçtiği için tek bir kontrol noktası yeterli).
   if (name !== "calib" && calPlaying) stopCalibrationTone();
   if (screenStack[screenStack.length - 1] !== name) screenStack.push(name);
+  // HER doğrudan ekran geçişi bu bayrağı sıfırlar (tab tıklama, mod kartı, Araçlar'daki
+  // kilit örtüsü → paywall, vb.). SADECE goToSettingsSubpage() kendi çağrısından SONRA
+  // true'ya çeker — böylece bayrak her zaman "en son navigasyon ayarlardan mıydı?"
+  // sorusuna doğru cevap verir, unutulmuş eski bir true değeri asla sızmaz.
+  cameFromSettingsSheet = false;
 }
 function goBack(fallback = "menu") {
   screenStack.pop();
   goScreen(screenStack.pop() || fallback);
+}
+
+// Ayarlar sheet'inden açılan alt sayfalar (Kalibrasyon/SSS/Geri bildirim/Bize ulaşın/
+// Gizlilik/Kullanım şartları/Pro'ya geç) için: geri tuşu doğrudan ana ekrana ATLAMAMALI,
+// sheet'in açıldığı ekrana dönüp sheet'i TEKRAR açmalı. Paywall AYRICA Araçlar
+// sekmesindeki kilit örtülerinden de açılabiliyor — o yol goScreen() üzerinden gittiği
+// için bayrak otomatik false'a döner, goBackFromSubpage normal goBack() davranışına düşer.
+let settingsReturnScreen = "menu";
+let cameFromSettingsSheet = false;
+function goToSettingsSubpage(name) {
+  const active = document.querySelector(".screen.active");
+  const returnScreen = active ? active.id.replace("screen-", "") : "menu";
+  goScreen(name); // içeride cameFromSettingsSheet'i false yapar — sırayla ÖNCE bu çağrılır
+  settingsReturnScreen = returnScreen;
+  cameFromSettingsSheet = true; // ...sonra burada true'ya çekilir, kalıcı olan bu olur
+}
+function goBackFromSubpage(fallback = "menu") {
+  if (cameFromSettingsSheet) {
+    cameFromSettingsSheet = false;
+    goScreen(settingsReturnScreen);
+    openMainSettingsSheet();
+    return;
+  }
+  goBack(fallback);
 }
 
 // Şimdilik tek mod var; kayıt defterinden beslenir, elle yazılmaz (bkz. core/registry.js).
@@ -626,9 +655,12 @@ function renderModeGrid() {
     group.innerHTML = `<div class="motor-group-head" style="color:${info.color}">Motor ${motorNum} · ${info.label}</div><div class="mode-grid${entries.length === 1 ? " single" : ""}"></div>`;
     const grid = group.querySelector(".mode-grid");
     entries.forEach(entry => {
+      // Kart başlığı/açıklaması YALNIZCA katalogdan okunur — getMeta() artık bunları
+      // döndürmüyor (bkz. frekans-bulma.js). Tek kaynak: 14 kart da aynı uzunluk
+      // bandında, ızgara eşit duruyor. playable SADECE tıklama davranışı/kilit
+      // görünümü için registry.js'teki gerçek kayda bakılarak belirlenir.
       const realMode = registeredModes.find(m => m.getMeta().id === entry.id);
       const playable = !!realMode;
-      const meta = playable ? realMode.getMeta() : entry;
       const card = document.createElement("button");
       card.type = "button";
       card.className = `mode-card${playable ? "" : " locked"}`;
@@ -638,11 +670,11 @@ function renderModeGrid() {
           <div class="mode-chip" style="color:${info.color};background:${info.bg}">Motor ${motorNum}</div>
         </div>
         <span class="mode-engine" style="color:${info.color}">${info.label}</span>
-        <h4>${meta.ad}</h4>
-        <p>${meta.aciklama}</p>
+        <h4>${entry.ad}</h4>
+        <p>${entry.aciklama}</p>
         ${playable
           ? `<div class="mode-mini"><i style="width:0%"></i></div>`
-          : `<div class="mode-lock-row">🔒 Seviye ${entry.unlockLevel}'te açılır</div>`}
+          : `<div class="mode-lock-row">🔒 Seviye ${turkishLocative(entry.unlockLevel)} açılır</div>`}
       `;
       card.addEventListener("click", () => {
         if (playable) { goScreen("game"); return; }
@@ -815,6 +847,10 @@ function renderModeLevels() {
   if (els.modeLevelsList) {
     els.modeLevelsList.innerHTML = modes.map(m => {
       const meta = m.getMeta();
+      // Ad, getMeta()'da yok (kart metni yalnızca MODE_CATALOG'tan okunur) — burada
+      // da aynı tek kaynağa bakılır, id üzerinden eşleştirilir.
+      const catalogEntry = MODE_CATALOG.find(e => e.id === meta.id);
+      const displayName = catalogEntry ? catalogEntry.ad : meta.id;
       const totalXp = modeTotalXp(m);
       const played = totalXp > 0;
       const xp = progress.xpProgress(totalXp);
@@ -822,7 +858,7 @@ function renderModeLevels() {
       const acc = played ? progress.accuracy(stats) : null;
       return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;${played ? "" : "opacity:.45"}">
         <div style="flex:1;min-width:0">
-          <div style="font-size:15px;font-weight:600">${meta.ad}</div>
+          <div style="font-size:15px;font-weight:600">${displayName}</div>
           <div style="margin-top:8px;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden">
             <i style="display:block;height:100%;width:${pct}%;border-radius:99px;background:linear-gradient(90deg,var(--gr),#16C79A)"></i>
           </div>
@@ -1893,11 +1929,11 @@ function syncAccountLine() {
 }
 syncAccountLine();
 
-if (els.calibRow) els.calibRow.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("calib"); });
-if (els.feedbackRow) els.feedbackRow.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("feedback"); });
-if (els.faqRow) els.faqRow.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("faq"); });
-if (els.contactRow) els.contactRow.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("contact"); });
-if (els.goProBtn) els.goProBtn.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("paywall"); });
+if (els.calibRow) els.calibRow.addEventListener("click", () => goToSettingsSubpage("calib"));
+if (els.feedbackRow) els.feedbackRow.addEventListener("click", () => goToSettingsSubpage("feedback"));
+if (els.faqRow) els.faqRow.addEventListener("click", () => goToSettingsSubpage("faq"));
+if (els.contactRow) els.contactRow.addEventListener("click", () => goToSettingsSubpage("contact"));
+if (els.goProBtn) els.goProBtn.addEventListener("click", () => goToSettingsSubpage("paywall"));
 if (els.restoreRow) els.restoreRow.addEventListener("click", () => {
   toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
 });
@@ -1906,21 +1942,22 @@ function openLegal(kind) {
   const privacy = kind === "privacy";
   if (els.legalTitle) els.legalTitle.textContent = privacy ? "Gizlilik politikası" : "Kullanım şartları";
   if (els.legalKicker) els.legalKicker.textContent = privacy ? "GİZLİLİK" : "KULLANIM ŞARTLARI";
-  goScreen("legal");
+  goToSettingsSubpage("legal");
 }
-if (els.privacyRow) els.privacyRow.addEventListener("click", () => { closeMainSettingsSheet(); openLegal("privacy"); });
-if (els.termsRow) els.termsRow.addEventListener("click", () => { closeMainSettingsSheet(); openLegal("terms"); });
+if (els.privacyRow) els.privacyRow.addEventListener("click", () => openLegal("privacy"));
+if (els.termsRow) els.termsRow.addEventListener("click", () => openLegal("terms"));
 
-// Tek seviye derinlikteki yardım ekranlarının geri okları/kapatma düğmeleri.
+// Ayarlar sheet'inden açılan yardım ekranlarının geri okları/kapatma düğmeleri —
+// goBackFromSubpage() sheet'i tekrar açar (bkz. goToSettingsSubpage tanımı).
 [els.faqBackBtn, els.feedbackBackBtn, els.contactBackBtn, els.legalBackBtn, els.paywallCloseBtn, els.payFreeContinueBtn]
-  .forEach(btn => { if (btn) btn.addEventListener("click", () => goBack()); });
+  .forEach(btn => { if (btn) btn.addEventListener("click", () => goBackFromSubpage()); });
 
 // ---- Kalibrasyon ----
 // Referans ton audioEngine'in KENDİ audioCtx/analyser'ını kullanır — buildQuestionChain'in
 // tam soru/filtre zincirini kurmaya gerek yok, ama analyser'a bağlanınca metre GERÇEK
 // veriyi okur ve genel çıkış zincirinden (masterGain/destination) geçer.
 const CAL_STEPS = [
-  ["Kulaklığını tak, ortamı sessizleştir", "Egzersizlerdeki dB farkları küçüktür. Seviyeyi bir kez ayarlarsan tüm sorular aynı referansla çalar; sonuçların karşılaştırılabilir olur.", "Çizgiyi sürükleyip rahat duyduğun bir seviyeye getir, sonra onayla.", "Seviye doğru, devam et"],
+  ["Kulaklığını tak, ortamı sessizleştir", "Egzersizlerdeki dB farkları küçüktür. Seviyeyi bir kez ayarlarsan tüm sorular aynı referansla çalar; sonuçların karşılaştırılabilir olur.", "Alttaki kaydırıcıyı sürükleyip rahat duyduğun bir seviyeye getir, sonra onayla.", "Seviye doğru, devam et"],
   ["Referans tonu çal ve seviyeyi ayarla", "Ton sabit çalıyor. Yorucu olmayan, konuşma sesinden biraz yüksek bir seviye hedefle.", "Sesi çok açma; ince farkları duymak için yüksek seviye gerekmez.", "Bu seviye iyi"],
   ["Hazırsın", "Bu seviye tüm egzersizlerde referans alınacak. Kulaklığını değiştirirsen kalibrasyonu tekrarla.", "Ayarlar → Kalibrasyon ile her zaman geri dönebilirsin.", "Kalibrasyonu bitir"]
 ];
@@ -2101,10 +2138,10 @@ if (els.calCtaBtn) els.calCtaBtn.addEventListener("click", () => {
   storage.savePrefs(prefs);
   updateCalibRowLabel();
   resetCalibration();
-  goBack();
+  goBackFromSubpage();
 });
-if (els.calSkipBtn) els.calSkipBtn.addEventListener("click", () => { resetCalibration(); goBack(); });
-if (els.calibBackBtn) els.calibBackBtn.addEventListener("click", () => { resetCalibration(); goBack(); });
+if (els.calSkipBtn) els.calSkipBtn.addEventListener("click", () => { resetCalibration(); goBackFromSubpage(); });
+if (els.calibBackBtn) els.calibBackBtn.addEventListener("click", () => { resetCalibration(); goBackFromSubpage(); });
 renderCalStep();
 updateCalibRowLabel();
 
@@ -2147,7 +2184,7 @@ if (els.feedbackSendBtn) els.feedbackSendBtn.addEventListener("click", () => {
   }
   if (els.feedbackTextarea) els.feedbackTextarea.value = "";
   toast("Teşekkürler", "Geri bildirimin alındı.");
-  goBack();
+  goBackFromSubpage();
 });
 
 // ---- Satın alma (gerçek IAP kapsam dışı — dürüst placeholder'lar) ----
