@@ -152,8 +152,4 @@ Otomatik (varsayılan) / Sabit (Kolay / Orta / Zor / Pro / Sınırsız).
 
 Kilit tipleri (kodlanmadı / seviye / Pro) — öneri sunuldu, karar verilmedi.
 Yeni mod yazılmadan netleşmeli.
-NOTEOF
 
-git add -A
-git commit -m "DURUM.md: urun notlari ve zorluk mimarisi kararlari eklendi"
-wc -l DURUM.md
