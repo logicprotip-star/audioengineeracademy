@@ -33,9 +33,14 @@ export const DIFFICULTY = {
 export const BOOST_ONLY_DIFFICULTIES = new Set(["easy", "medium"]);
 
 // --- Frekans bölgesi bilgileri — cevap sonrası öğretici ipucu ---
+// BAS eskiden 120–500 Hz'i tek bölge olarak kapsıyordu; ALT-ORTA eklenirken ikiye
+// bölündü (120–250 / 250–500). BAS'ın "200–400 Hz birikirse çamur" ipucu artık
+// ALT-ORTA'yı tarif ediyordu, bu yüzden BAS'ın metni de 120–250 Hz'e göre yeniden
+// yazıldı — sadece sınır kaydırılıp eski metin bırakılsaydı yanlış bilgi olurdu.
 export const FA_ZONES = [
   { a: 20, b: 120, t: "SUB (20–120 Hz)", tip: "Gövde ve güç. Kick ve bas burada yaşar. Yükseltince ağırlık/derinlik gelir; fazlası çamur ve boğukluk, azı cılızlık yapar." },
-  { a: 120, b: 500, t: "BAS (120–500 Hz)", tip: "Doluluk ve sıcaklık. 200–400 Hz birikirse 'çamur' hissi verir; mix'te en çok kesilen bölge. Yükseltmek sesi kalınlaştırır, kesmek temizler." },
+  { a: 120, b: 250, t: "BAS (120–250 Hz)", tip: "Sıcaklık ve doluluk. Bas ve kick'in temel gövdesi burada oturur. Yükseltmek sesi ısıtır ve kalınlaştırır; fazlası ağırlaşır, azı ince ve zayıf kalır." },
+  { a: 250, b: 500, t: "ALT-ORTA (250–500 Hz)", tip: "Doluluk ve gövde. Birikirse 'çamur' hissi verir; mix'te en çok kesilen aralıklardan biri. Yükseltmek sesi kalınlaştırır, kesmek temizler ve açar." },
   { a: 500, b: 2000, t: "ORTA (500 Hz–2 kHz)", tip: "Enstrümanların gövdesi ve vokal netliği. 800 Hz–1 kHz fazlaysa 'kutu / telefon' sesi olur. Kesmek açar, yükseltmek öne çıkarır ama abartısı burun sesi yapar." },
   { a: 2000, b: 8000, t: "ÜST-ORTA (2–8 kHz)", tip: "Netlik, atak, sertlik. Kulağın en hassas bölgesi (2–4 kHz). Yükseltmek anlaşılırlık ve parlaklık katar; fazlası yorucu ve batıcı olur, tıslama artar." },
   { a: 8000, b: 20000, t: "TİZ / HAVA (8–20 kHz)", tip: "Parlaklık ve hava. Yükseltmek açıklık ve 'pahalı' his verir; azı boğuk, fazlası tiz ve cırtlak. Vokale hava burada eklenir." }
@@ -46,7 +51,7 @@ export function faZoneOf(f) {
 }
 
 // İpucu chip'inde gösterilecek kısa bölge adı (FA_ZONES'un uzun tip metninden bağımsız).
-const HINT_ZONE_SHORT = { SUB: "Sub bas", BAS: "Bas", ORTA: "Orta", "ÜST-ORTA": "Üst-orta", "TİZ / HAVA": "Tiz" };
+const HINT_ZONE_SHORT = { SUB: "Sub bas", BAS: "Bas", "ALT-ORTA": "Alt-orta", ORTA: "Orta", "ÜST-ORTA": "Üst-orta", "TİZ / HAVA": "Tiz" };
 export function hintZoneLabel(freq) {
   const zone = faZoneOf(freq);
   return HINT_ZONE_SHORT[zone.t.split(" (")[0]] || zone.t.split(" (")[0];

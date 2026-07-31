@@ -98,7 +98,10 @@ export function freshDaily() {
       { id: "d1", title: "5 tur oyna", desc: "Bugün 5 tur tamamla.", target: 5, value: 0, reward: 40, claimed: false },
       { id: "d2", title: "3 doğru yap", desc: "Bugün 3 doğru cevap ver.", target: 3, value: 0, reward: 50, claimed: false },
       { id: "d3", title: "2 combo yap", desc: "En az 2’lik combo kur.", target: 2, value: 0, reward: 35, claimed: false }
-    ]
+    ],
+    // "Bugünün önerisi" kartı bu gün için kapatıldı mı — key ile aynı güne bağlı,
+    // gün değişince (loadDaily key kontrolüyle) otomatik sıfırlanır.
+    tipDismissed: false
   };
 }
 
@@ -131,7 +134,7 @@ export function clearDaily() {
 // planlama altyapısı henüz yok (sadece tercih saklanır); Kulaklık uyarısı ise
 // gerçekten .mobile-warn banner'ının görünürlüğünü kontrol eder.
 export function freshPrefs() {
-  return { notifications: true, hpWarning: true, calibrationDone: false };
+  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 40 };
 }
 
 export function loadPrefs() {
@@ -181,6 +184,16 @@ export function recordDailyAccuracy(dailyAcc, correct) {
   return dailyAcc;
 }
 
+// Geçiş notu (BAS 120–500 Hz → BAS 120–250 Hz + ALT-ORTA 250–500 Hz bölünmesi):
+// burada kayıtlı veriyi taşıyan/dönüştüren bir işlem YOK — kasıtlı. Eski "BAS"
+// anahtarı aynı isimle kalmaya devam ediyor (sadece üst sınırı kaydı), eski
+// birikmiş isabet verisi bozulmadan okunmaya devam eder. "ALT-ORTA" anahtarı
+// henüz hiç var olmadığı için okuyan taraf (frekans-bulma.js:faZoneOf/recordZone,
+// app.js:zoneScores) zaten `zoneStats[key] || {n:0,ok:0}` ile eksik anahtarı
+// sıfırdan başlatıyor — yeni bölge organik olarak, kullanıcı o aralıkta soru
+// çözdükçe dolar. Eski aralığı geriye dönük ikiye bölmek (veriyi kaybetmeden)
+// mümkün değil çünkü hangi tekil cevabın 120–250 mi yoksa 250–500 Hz mi
+// olduğu ayrıca saklanmıyor.
 export function loadZoneStats() {
   try {
     return JSON.parse(localStorage.getItem(ZONESTATS_KEY)) || {};

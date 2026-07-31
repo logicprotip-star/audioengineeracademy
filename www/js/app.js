@@ -10,6 +10,7 @@ import * as progress from "./core/progress.js";
 import { toast, spawnXp, burst, shake } from "./core/fx.js";
 import { formatHz } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
+import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 
 registerMode(frekansBulma);
@@ -44,11 +45,27 @@ const els = {
   modeCount: document.getElementById("modeCount"),
   backBtn: document.getElementById("backBtn"),
   tabbar: document.getElementById("tabbar"),
+  dailyTipCard: document.getElementById("dailyTipCard"),
+  dailyTipClose: document.getElementById("dailyTipClose"),
+  dailyTipText: document.getElementById("dailyTipText"),
+  dailyTipStartBtn: document.getElementById("dailyTipStartBtn"),
 
   // genel ayarlar (dişli) + yardım/bilgi ekranları
   menuSettingsBtn: document.getElementById("menuSettingsBtn"),
   progressSettingsBtn: document.getElementById("progressSettingsBtn"),
   toolsSettingsBtn: document.getElementById("toolsSettingsBtn"),
+  toolsFileName: document.getElementById("toolsFileName"),
+  toolsFileMeta: document.getElementById("toolsFileMeta"),
+  toolsUploadBtn: document.getElementById("toolsUploadBtn"),
+  toolsFileInput: document.getElementById("toolsFileInput"),
+  toolBars: document.getElementById("toolBars"),
+  filterChips: document.getElementById("filterChips"),
+  filterName: document.getElementById("filterName"),
+  filterDesc: document.getElementById("filterDesc"),
+  filterListen: document.getElementById("filterListen"),
+  filterResetBtn: document.getElementById("filterResetBtn"),
+  analyzeLock: document.getElementById("analyzeLock"),
+  filtersLock: document.getElementById("filtersLock"),
   mainSettingsOverlay: document.getElementById("mainSettingsOverlay"),
   mainSettingsSheet: document.getElementById("mainSettingsSheet"),
   mainSettingsBack: document.getElementById("mainSettingsBack"),
@@ -71,12 +88,16 @@ const els = {
 
   calibBackBtn: document.getElementById("calibBackBtn"),
   calStep: document.getElementById("calStep"),
-  calBar: document.getElementById("calBar"),
+  calStepDots: document.getElementById("calStepDots"),
   calHead: document.getElementById("calHead"),
   calBody: document.getElementById("calBody"),
   calGuide: document.getElementById("calGuide"),
   calPlayBtn: document.getElementById("calPlayBtn"),
   calMeter: document.getElementById("calMeter"),
+  calLevelTrack: document.getElementById("calLevelTrack"),
+  calLevelFill: document.getElementById("calLevelFill"),
+  calLevelThumb: document.getElementById("calLevelThumb"),
+  calLevelValue: document.getElementById("calLevelValue"),
   calCtaBtn: document.getElementById("calCtaBtn"),
   calSkipBtn: document.getElementById("calSkipBtn"),
 
@@ -167,6 +188,7 @@ const els = {
   bestComboValue: document.getElementById("bestComboValue"),
   bestScoreValue: document.getElementById("bestScoreValue"),
   achievementList: document.getElementById("achievementList"),
+  achievementCount: document.getElementById("achievementCount"),
   historyList: document.getElementById("historyList"),
   dailyList: document.getElementById("dailyList"),
 
@@ -342,6 +364,7 @@ let calPlaying = false;
 let calOsc = null;
 let calGain = null;
 let calMeterRaf = null;
+let calLevel = typeof prefs.calibrationLevel === "number" ? prefs.calibrationLevel : 40;
 
 let autoPlaying = false;
 let autoStopped = false;
@@ -578,28 +601,56 @@ function goBack(fallback = "menu") {
 }
 
 // Şimdilik tek mod var; kayıt defterinden beslenir, elle yazılmaz (bkz. core/registry.js).
+// Menü ızgarası: core/mode-catalog.js'teki TÜM egzersiz listesinden (14 kayıt)
+// besleniyor, motorlara göre gruplanıyor. Sadece registry.js'te GERÇEKTEN kayıtlı
+// olan mod (listModes()) tıklanabilir/oynanabilir; diğerleri kilitli kart olarak
+// görünür, tıklanınca "yakında" mesajı gösterir — oyun mantığı içermezler.
 function renderModeGrid() {
   if (!els.modeGrid) return;
-  const modes = listModes();
-  if (els.modeCount) els.modeCount.textContent = `${modes.length} / ${modes.length} açık`;
-  els.modeGrid.classList.toggle("single", modes.length === 1);
+  const registeredModes = listModes();
+  const motorCount = new Set(MODE_CATALOG.map(e => e.motor)).size;
+  if (els.modeCount) els.modeCount.textContent = `${MODE_CATALOG.length} egzersiz · ${motorCount} oyun tipi`;
+
+  const byMotor = new Map();
+  MODE_CATALOG.forEach(entry => {
+    if (!byMotor.has(entry.motor)) byMotor.set(entry.motor, []);
+    byMotor.get(entry.motor).push(entry);
+  });
+
   els.modeGrid.innerHTML = "";
-  modes.forEach(m => {
-    const meta = m.getMeta();
-    const card = document.createElement("button");
-    card.className = "mode-card";
-    card.innerHTML = `
-      <div class="mode-top">
-        <div class="mode-glyph"><i style="height:12px"></i><i style="height:22px"></i><i style="height:16px"></i></div>
-        <div class="mode-chip">Motor ${meta.motor}</div>
-      </div>
-      <span class="mode-engine">Değeri bul</span>
-      <h4>${meta.ad}</h4>
-      <p>${meta.aciklama}</p>
-      <div class="mode-mini"><i style="width:0%"></i></div>
-    `;
-    card.addEventListener("click", () => goScreen("game"));
-    els.modeGrid.appendChild(card);
+  [...byMotor.keys()].sort((a, b) => a - b).forEach(motorNum => {
+    const info = MOTOR_INFO[motorNum] || { label: "", color: "var(--tx)", bg: "rgba(255,255,255,.08)" };
+    const entries = byMotor.get(motorNum);
+    const group = document.createElement("div");
+    group.className = "motor-group";
+    group.innerHTML = `<div class="motor-group-head" style="color:${info.color}">Motor ${motorNum} · ${info.label}</div><div class="mode-grid${entries.length === 1 ? " single" : ""}"></div>`;
+    const grid = group.querySelector(".mode-grid");
+    entries.forEach(entry => {
+      const realMode = registeredModes.find(m => m.getMeta().id === entry.id);
+      const playable = !!realMode;
+      const meta = playable ? realMode.getMeta() : entry;
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = `mode-card${playable ? "" : " locked"}`;
+      card.innerHTML = `
+        <div class="mode-top">
+          <div class="mode-glyph" style="background:${info.bg}"><i style="height:12px;background:${info.color}"></i><i style="height:22px;background:${info.color}"></i><i style="height:16px;background:${info.color}"></i></div>
+          <div class="mode-chip" style="color:${info.color};background:${info.bg}">Motor ${motorNum}</div>
+        </div>
+        <span class="mode-engine" style="color:${info.color}">${info.label}</span>
+        <h4>${meta.ad}</h4>
+        <p>${meta.aciklama}</p>
+        ${playable
+          ? `<div class="mode-mini"><i style="width:0%"></i></div>`
+          : `<div class="mode-lock-row">🔒 Seviye ${entry.unlockLevel}'te açılır</div>`}
+      `;
+      card.addEventListener("click", () => {
+        if (playable) { goScreen("game"); return; }
+        toast("Yakında", "Bu egzersiz yakında eklenecek.");
+      });
+      grid.appendChild(card);
+    });
+    els.modeGrid.appendChild(group);
   });
 }
 
@@ -628,6 +679,7 @@ function updateUI() {
   renderAchievements();
   renderHearts();
   renderAnalysis();
+  renderDailyTip();
   updateHintChipLabel();
 }
 
@@ -653,6 +705,7 @@ function renderDaily() {
 
 function renderAchievements() {
   const unlocked = new Set(stats.unlocked || []);
+  if (els.achievementCount) els.achievementCount.textContent = `${unlocked.size} / ${progress.ACHIEVEMENTS.length} kazanıldı`;
   els.achievementList.innerHTML = "";
   progress.ACHIEVEMENTS.forEach(a => {
     const div = document.createElement("div");
@@ -691,7 +744,7 @@ function renderHistory() {
 // SADECE zoneStats'ı bu bölge tanımına göre bir "harita"ya çeviriyoruz.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const ZONE_SHORT_LABEL = { "SUB": "Sub", "BAS": "Bas", "ORTA": "Orta", "ÜST-ORTA": "Üst-orta", "TİZ / HAVA": "Tiz" };
+const ZONE_SHORT_LABEL = { "SUB": "Sub", "BAS": "Bas", "ALT-ORTA": "Alt-orta", "ORTA": "Orta", "ÜST-ORTA": "Üst-orta", "TİZ / HAVA": "Tiz" };
 
 function zoneScores() {
   return mode.FA_ZONES.map(z => {
@@ -732,6 +785,20 @@ function renderWhereNow(zoneResult) {
   const sorted = enough.slice().sort((a, b) => a.pct - b.pct);
   const weak = sorted[0], strong = sorted[sorted.length - 1];
   els.whereNowText.textContent = `${strong.label} bölgesinde iyisin (%${strong.pct}), ${weak.label.toLowerCase()} bölgesinde zorlanıyorsun (%${weak.pct}).`;
+}
+
+// Ana menüdeki "Bugünün Önerisi" kartı — en zayıf bölgeyi zoneScores()'tan (İlerleme
+// sekmesiyle aynı hesap) okuyup tek cümlelik öneri üretir. Yeterli veri yoksa
+// (en az 1 bölgede n>=2) kart hiç gösterilmez — genel bir karşılama mesajı YAZMADIK,
+// çünkü "Başla" butonu odak-aralığı özelliği olmadan anlamsız bir vaat olurdu.
+function renderDailyTip() {
+  if (!els.dailyTipCard) return;
+  if (daily.tipDismissed) { els.dailyTipCard.classList.add("hidden"); return; }
+  const enough = zoneScores().filter(s => s.n >= 2);
+  if (!enough.length) { els.dailyTipCard.classList.add("hidden"); return; }
+  const weakest = enough.slice().sort((a, b) => a.pct - b.pct)[0];
+  if (els.dailyTipText) els.dailyTipText.textContent = `${weakest.label} bölgede isabetin %${weakest.pct}. Bugün oraya odaklanmayı dene.`;
+  els.dailyTipCard.classList.remove("hidden");
 }
 
 // Bir modun "seviyesi": o moda ait TÜM zorlukların (mode.DIFFICULTY anahtarları)
@@ -1629,6 +1696,13 @@ document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => goScreen(TAB_TO_SCREEN[btn.dataset.tab] || "menu"));
 });
 
+if (els.dailyTipClose) els.dailyTipClose.addEventListener("click", () => {
+  daily.tipDismissed = true;
+  persistDaily();
+  renderDailyTip();
+});
+if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => goScreen("game"));
+
 // Ayarlar bottom sheet: select'leri gizleyip yerine tıklanabilir satır koyduk,
 // seçim yapılınca gizli select'in value'su güncellenip change event tetikleniyor.
 (function initSettingsSheet() {
@@ -1846,7 +1920,7 @@ if (els.termsRow) els.termsRow.addEventListener("click", () => { closeMainSettin
 // tam soru/filtre zincirini kurmaya gerek yok, ama analyser'a bağlanınca metre GERÇEK
 // veriyi okur ve genel çıkış zincirinden (masterGain/destination) geçer.
 const CAL_STEPS = [
-  ["Kulaklığını tak, ortamı sessizleştir", "Egzersizlerdeki dB farkları küçüktür. Seviyeyi bir kez ayarlarsan tüm sorular aynı referansla çalar; sonuçların karşılaştırılabilir olur.", "Rahat duyduğun bir seviyeye getir, sonra onayla. Telefonun ses tuşlarını kullan.", "Seviye doğru, devam et"],
+  ["Kulaklığını tak, ortamı sessizleştir", "Egzersizlerdeki dB farkları küçüktür. Seviyeyi bir kez ayarlarsan tüm sorular aynı referansla çalar; sonuçların karşılaştırılabilir olur.", "Çizgiyi sürükleyip rahat duyduğun bir seviyeye getir, sonra onayla.", "Seviye doğru, devam et"],
   ["Referans tonu çal ve seviyeyi ayarla", "Ton sabit çalıyor. Yorucu olmayan, konuşma sesinden biraz yüksek bir seviye hedefle.", "Sesi çok açma; ince farkları duymak için yüksek seviye gerekmez.", "Bu seviye iyi"],
   ["Hazırsın", "Bu seviye tüm egzersizlerde referans alınacak. Kulaklığını değiştirirsen kalibrasyonu tekrarla.", "Ayarlar → Kalibrasyon ile her zaman geri dönebilirsin.", "Kalibrasyonu bitir"]
 ];
@@ -1890,6 +1964,12 @@ function animateCalMeter() {
 // başlatabilir — calRequestId, o an EN GÜNCEL tıklamanın sonucu olmayan bir
 // startCalibrationTone() çağrısının node'ları sessizce kurup bırakmasını engeller.
 let calRequestId = 0;
+// Referans seviyesi (%0-100) ↔ gerçek kazanç. %0 tamamen sessiz değil (çizgiyi
+// kaybetmemek için), %100 rahat dinlenebilir üst sınır — aşırı yüksek değil.
+function calLevelToGain(pct) {
+  return 0.01 + (pct / 100) * 0.29;
+}
+
 async function startCalibrationTone(requestId) {
   await audioEngine.initAudio();
   if (requestId !== calRequestId) return; // bu arada durduruldu/başka istek geldi
@@ -1903,9 +1983,51 @@ async function startCalibrationTone(requestId) {
   calGain.gain.value = 0.0001;
   calOsc.connect(calGain);
   calGain.connect(analyser); // analyser zaten destination'a bağlı — sesi de duyulur yapar
-  calGain.gain.exponentialRampToValueAtTime(0.1, ctx.currentTime + 0.05); // ~-20 dBFS
+  calGain.gain.exponentialRampToValueAtTime(calLevelToGain(calLevel), ctx.currentTime + 0.05);
   calOsc.start();
 }
+
+// Sürükleme sırasında hem UI'ı hem (çalıyorsa) GERÇEK ton seviyesini günceller,
+// prefs'e kalıcı yazar. persist:false yalnızca açılışta UI'ı senkronlamak için.
+function setCalLevel(pct, { persist = true } = {}) {
+  calLevel = Math.max(0, Math.min(100, Math.round(pct)));
+  if (els.calLevelFill) els.calLevelFill.style.width = `${calLevel}%`;
+  if (els.calLevelThumb) els.calLevelThumb.style.left = `${calLevel}%`;
+  if (els.calLevelValue) els.calLevelValue.textContent = `%${calLevel}`;
+  if (calPlaying && calGain && audioEngine.audioCtx) {
+    const now = audioEngine.audioCtx.currentTime;
+    try {
+      calGain.gain.cancelScheduledValues(now);
+      calGain.gain.setValueAtTime(calGain.gain.value, now);
+      calGain.gain.linearRampToValueAtTime(calLevelToGain(calLevel), now + 0.03);
+    } catch (e) {}
+  }
+  if (persist) {
+    prefs.calibrationLevel = calLevel;
+    storage.savePrefs(prefs);
+  }
+}
+
+function calLevelPctFromClientX(clientX) {
+  const rect = els.calLevelTrack.getBoundingClientRect();
+  if (rect.width <= 0) return calLevel;
+  return ((clientX - rect.left) / rect.width) * 100;
+}
+if (els.calLevelTrack) {
+  let dragging = false;
+  els.calLevelTrack.addEventListener("pointerdown", e => {
+    dragging = true;
+    try { els.calLevelTrack.setPointerCapture(e.pointerId); } catch (err) {}
+    setCalLevel(calLevelPctFromClientX(e.clientX));
+  });
+  els.calLevelTrack.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    setCalLevel(calLevelPctFromClientX(e.clientX));
+  });
+  els.calLevelTrack.addEventListener("pointerup", () => { dragging = false; });
+  els.calLevelTrack.addEventListener("pointercancel", () => { dragging = false; });
+}
+setCalLevel(calLevel, { persist: false }); // açılışta UI'ı kayıtlı değere senkronla
 
 function stopCalibrationTone() {
   calRequestId++; // devam eden bir startCalibrationTone() varsa artık geçersiz
@@ -1938,7 +2060,13 @@ function stopCalibrationTone() {
 function renderCalStep() {
   const s = CAL_STEPS[calStep - 1];
   if (els.calStep) els.calStep.textContent = calStep;
-  if (els.calBar) els.calBar.style.width = `${(calStep / 3) * 100}%`;
+  if (els.calStepDots) {
+    [...els.calStepDots.children].forEach((dot, i) => {
+      const n = i + 1;
+      dot.classList.toggle("active", n === calStep);
+      dot.classList.toggle("done", n < calStep);
+    });
+  }
   if (els.calHead) els.calHead.textContent = s[0];
   if (els.calBody) els.calBody.textContent = s[1];
   if (els.calGuide) els.calGuide.textContent = s[2];
@@ -1956,7 +2084,7 @@ function updateCalibRowLabel() {
   const p = row.querySelector("p");
   if (p) p.textContent = prefs.calibrationDone
     ? "Tamamlandı ✓ · Referans tonla tekrar eşitle"
-    : "Referans tonla kulaklık seviyesini eşitle";
+    : "Tamamlanmadı · Referans tonla kulaklık seviyesini eşitle";
 }
 if (els.calPlayBtn) els.calPlayBtn.addEventListener("click", async () => {
   if (calPlaying) { stopCalibrationTone(); return; }
@@ -2029,4 +2157,59 @@ if (els.buyProBtn) els.buyProBtn.addEventListener("click", () => {
 });
 if (els.restorePurchaseBtn) els.restorePurchaseBtn.addEventListener("click", () => {
   toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Araçlar sekmesi — iskelet (Dizayn/prototype.html'den taşındı). Analiz ve Referans
+// Filtreleri gerçek DSP/analiz içermiyor, sadece düzen + Pro kilit davranışı —
+// gerçek satın alma bu sürümde yok, o yüzden kilit her zaman devrede kalacak.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TOOL_FILTERS = [
+  ["Düz", "Referans — hiçbir renklendirme yok.", "miksin kendi dengesi."],
+  ["Araba", "Bas vurgulu, orta bölgede çukur.", "Bas fazla mı, vokal kayboluyor mu?"],
+  ["Kulüp / PA", "Aşırı bas, uzun kuyruk.", "Alt bölge dağılıyor mu, kick belirgin mi?"],
+  ["Laptop", "Bas zayıf, orta ağırlıklı.", "Bas hiç duyulmuyorsa gövde yeterli mi?"],
+  ["Teyp / Radyo", "Dar bant, hafif doygunluk.", "Şarkı dar bantta da anlaşılıyor mu?"],
+  ["Ucuz kulaklık", "Bas ve tiz vurgulu.", "Tizler cırlıyor mu, S sesleri batıyor mu?"],
+  ["Bluetooth hoparlör", "Dar bant, sıkıştırılmış.", "Dinamik kalıyor mu, itiliyor mu?"],
+  ["Mono", "Kanallar toplanmış.", "Faz kaybı var mı, enstrüman kayboluyor mu?"]
+];
+
+function renderToolBars() {
+  if (!els.toolBars) return;
+  let html = "";
+  for (let i = 0; i < 34; i++) {
+    const t = i / 33;
+    const v = 20 + 50 * Math.exp(-Math.pow((t - 0.2) / 0.3, 2)) + 16 * Math.exp(-Math.pow((t - 0.78) / 0.18, 2)) + 6 * Math.sin(i * 2.1);
+    html += `<i style="height:${Math.round(Math.max(8, Math.min(74, v)))}px"></i>`;
+  }
+  els.toolBars.innerHTML = html;
+}
+renderToolBars();
+
+function renderFilterChips() {
+  if (!els.filterChips) return;
+  els.filterChips.innerHTML = TOOL_FILTERS.map((f, i) => `<button type="button" class="fchip${i === 0 ? " on" : ""}">${f[0]}</button>`).join("");
+  if (els.filterName) els.filterName.textContent = TOOL_FILTERS[0][0];
+  if (els.filterDesc) els.filterDesc.textContent = TOOL_FILTERS[0][1];
+  if (els.filterListen) els.filterListen.textContent = `Ne dinlemeli: ${TOOL_FILTERS[0][2]}`;
+}
+renderFilterChips();
+
+if (els.toolsUploadBtn && els.toolsFileInput) {
+  els.toolsUploadBtn.addEventListener("click", () => els.toolsFileInput.click());
+  els.toolsFileInput.addEventListener("change", () => {
+    const file = els.toolsFileInput.files && els.toolsFileInput.files[0];
+    if (!file) return;
+    if (els.toolsFileName) els.toolsFileName.textContent = file.name;
+    if (els.toolsFileMeta) els.toolsFileMeta.textContent = `${Math.max(1, Math.round(file.size / 1024))} KB`;
+  });
+}
+
+// Gerçek satın alma bu sürümde yok — Analiz/Referans Filtreleri her zaman kilitli
+// görünür, dokununca paywall'a yönlendirir (diğer Pro noktalarıyla aynı davranış).
+[els.analyzeLock, els.filtersLock].forEach(btn => {
+  if (!btn) return;
+  btn.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("paywall"); });
 });

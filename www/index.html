@@ -38,11 +38,21 @@
           🎧 En iyi sonuç için kulaklık kullan. · 📱 <b>iPhone'da ses gelmiyorsa:</b> sessiz anahtarını kapat.
         </div>
 
+        <div class="card sug hidden" id="dailyTipCard">
+          <button class="x" id="dailyTipClose" aria-label="Kapat">&times;</button>
+          <div style="display:flex;align-items:center;gap:8px;padding-right:38px">
+            <span style="display:block;width:8px;height:8px;border-radius:99px;background:var(--gr);flex:none"></span>
+            <span class="kicker" style="color:var(--gr)">BUGÜNÜN ÖNERİSİ</span>
+          </div>
+          <p id="dailyTipText" style="margin:10px 0 0;font-size:15px;line-height:1.5;color:var(--tx-2)"></p>
+          <button class="btn green" id="dailyTipStartBtn" style="margin-top:14px">Başla</button>
+        </div>
+
         <div class="section-head">
           <div class="section-title">Egzersizler</div>
-          <div class="section-count" id="modeCount">— / — açık</div>
+          <div class="section-count" id="modeCount">— egzersiz · — oyun tipi</div>
         </div>
-        <div class="mode-grid" id="modeGrid"></div>
+        <div id="modeGrid"></div>
       </div>
     </section>
 
@@ -211,7 +221,10 @@
         <div class="h2">📅 Günlük Görevler</div>
         <div class="daily-grid" id="dailyList"></div>
 
-        <div class="h2">🏆 Başarımlar</div>
+        <div class="h2" style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+          <span>🏆 Başarımlar</span>
+          <span id="achievementCount" style="font-size:14px;font-weight:600;color:var(--tx-3)">0 / 0 kazanıldı</span>
+        </div>
         <div class="achievement-list" id="achievementList"></div>
 
         <div class="h2">🧭 Şu An Neredesin</div>
@@ -279,10 +292,69 @@
           <div class="section-title">Araçlar</div>
           <button class="gear" id="toolsSettingsBtn" aria-label="Ayarlar"><i></i></button>
         </div>
-        <div class="placeholder">
-          <div class="placeholder-icon">🛠️</div>
-          <h3>Yakında burada</h3>
-          <p>Kalibrasyon ve ek araçlar ileride bu sekmeye eklenecek.</p>
+        <p class="lead" style="margin:0 2px 14px">Kendi miksini yükle, farklı cihazlarda nasıl duyulacağını dinle.</p>
+
+        <div class="card" style="padding:16px">
+          <div style="display:flex;align-items:center;gap:13px">
+            <div style="width:46px;height:46px;flex:none;border-radius:15px;background:rgba(255,176,32,.14);border:1px solid rgba(255,176,32,.3);display:flex;align-items:center;justify-content:center;color:var(--am);font-size:19px;font-weight:800">↑</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:15px;font-weight:700" id="toolsFileName">Henüz dosya yok</div>
+              <div class="num" style="margin-top:3px;font-size:14px;color:var(--tx-3)" id="toolsFileMeta">Analiz ve referans filtreleri için yükle</div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" id="toolsUploadBtn">Dosya yükle</button>
+          </div>
+          <input type="file" id="toolsFileInput" accept="audio/*" class="hidden" />
+          <p style="margin:11px 2px 0;font-size:14px;line-height:1.45;color:var(--tx-3)">Tek yükleme; hem analiz hem referans filtreleri bu dosyayı kullanır.</p>
+        </div>
+
+        <div class="h2">Analiz</div>
+        <div class="pro-lock">
+          <div class="card" style="padding:16px">
+            <span style="font-size:14px;font-weight:700;letter-spacing:.06em;color:var(--tx-3)">SPEKTRUM · REFERANSA GÖRE SAPMA</span>
+            <div class="tool-spec" style="margin-top:10px"><div class="tool-bars" id="toolBars"></div></div>
+            <div class="tool-axis"><span>40</span><span>160</span><span>640</span><span>2,5k</span><span>16k</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px">
+              <div class="stat" style="flex-direction:column;gap:3px;min-height:60px"><b class="num" style="font-size:16px">−9,4 LUFS</b><span style="font-size:14px;color:var(--tx-3)">Bütünleşik</span></div>
+              <div class="stat" style="flex-direction:column;gap:3px;min-height:60px"><b class="num" style="font-size:16px">6,2 LU</b><span style="font-size:14px;color:var(--tx-3)">LRA</span></div>
+              <div class="stat" style="flex-direction:column;gap:3px;min-height:60px"><b class="num" style="font-size:16px;color:var(--rd)">+0,8 dBTP</b><span style="font-size:14px;color:var(--tx-3)">True peak</span></div>
+              <div class="stat" style="flex-direction:column;gap:3px;min-height:60px"><b class="num" style="font-size:16px">%88</b><span style="font-size:14px;color:var(--tx-3)">Mono uyum</span></div>
+            </div>
+            <div style="margin-top:14px;display:flex;flex-direction:column;gap:9px">
+              <div class="li"><i style="background:var(--rd)"></i><span>150 Hz civarında birikme — yaklaşık +4 dB</span></div>
+              <div class="li"><i style="background:var(--am)"></i><span>Üst-orta çukur (2–4 kHz) — vokal öne çıkmıyor</span></div>
+              <div class="li"><i style="background:var(--rd)"></i><span>True peak 0 dBTP üzerinde — kırpma riski</span></div>
+            </div>
+            <button class="btn primary" style="margin-top:14px">Otomatik düzelt</button>
+            <p style="margin:11px 2px 0;font-size:14px;line-height:1.45;color:var(--tx-3)">Bu bir yön göstergesidir, kesin teşhis değildir.</p>
+          </div>
+          <button class="pro-lock-overlay" id="analyzeLock" type="button">
+            <div class="pro-lock-icon">🔒</div>
+            <b>Analiz — Pro özelliği</b>
+            <span>LUFS/LRA/true peak ölçümü ve otomatik düzeltme önerileri Pro'da açılır.</span>
+          </button>
+        </div>
+
+        <div class="h2">Referans filtreleri</div>
+        <div class="pro-lock">
+          <div class="card" style="padding:16px">
+            <div id="filterChips" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px"></div>
+            <div style="margin-top:13px;padding:13px 14px;border-radius:15px;background:rgba(108,140,255,.1);border:1px solid rgba(108,140,255,.26)">
+              <div style="font-size:15px;font-weight:700;color:#DCE4FF" id="filterName">Düz</div>
+              <div style="margin-top:5px;font-size:14px;line-height:1.45;color:var(--tx-2)" id="filterDesc">Referans — hiçbir renklendirme yok.</div>
+              <div style="margin-top:9px;font-size:14px;line-height:1.45;color:#AFC0FF" id="filterListen">Ne dinlemeli: miksin kendi dengesi.</div>
+            </div>
+            <div class="row" style="margin-top:12px">
+              <button class="btn" id="filterResetBtn">Düz'e dön</button>
+            </div>
+            <p style="margin:11px 2px 0;font-size:14px;line-height:1.45;color:var(--tx-3)">Tipik cihaz eğrilerine yaklaşıktır, ölçüm değildir.</p>
+          </div>
+          <button class="pro-lock-overlay" id="filtersLock" type="button">
+            <div class="pro-lock-icon">🔒</div>
+            <b>Referans filtreleri — Pro özelliği</b>
+            <span>Miksini araba, Bluetooth hoparlör, ucuz kulaklık gibi ortamlarda simüle et.</span>
+          </button>
         </div>
       </div>
     </section>
@@ -299,7 +371,11 @@
         </div>
       </div>
       <div class="scroll" style="padding-top:16px;display:flex;flex-direction:column;gap:14px">
-        <div class="bar" style="height:6px"><i id="calBar" style="width:33%"></i></div>
+        <div class="cal-steps" id="calStepDots">
+          <span class="cal-step-dot"></span>
+          <span class="cal-step-dot"></span>
+          <span class="cal-step-dot"></span>
+        </div>
 
         <div>
           <h1 style="margin:6px 0 0;font-size:22px;font-weight:800;line-height:1.3" id="calHead">Kulaklığını tak, ortamı sessizleştir</h1>
@@ -308,9 +384,22 @@
 
         <div class="card" style="padding:20px 18px;text-align:center">
           <button class="btn" id="calPlayBtn" style="min-height:56px;font-size:16px">Referans tonu çal</button>
-          <div class="num" style="margin-top:16px;font-size:14px;font-weight:700;letter-spacing:.06em;color:var(--tx-3)">1 kHz SİNÜS · −20 dBFS</div>
+          <div class="num" style="margin-top:16px;font-size:14px;font-weight:700;letter-spacing:.06em;color:var(--tx-3)">1 kHz SİNÜS</div>
           <div class="cal-meter" id="calMeter"></div>
-          <p style="margin:16px 0 0;font-size:15px;line-height:1.5;color:var(--tx-2)" id="calGuide">Rahat duyduğun bir seviyeye getir, sonra onayla. Telefonun ses tuşlarını kullan.</p>
+          <p style="margin:16px 0 0;font-size:15px;line-height:1.5;color:var(--tx-2)" id="calGuide">Çizgiyi sürükleyip rahat duyduğun bir seviyeye getir, sonra onayla.</p>
+        </div>
+
+        <div class="card" style="padding:14px 16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+            <span style="font-size:15px;font-weight:600">Referans dinleme seviyesi</span>
+            <span class="num" id="calLevelValue" style="font-size:18px;font-weight:800;color:var(--am)">%40</span>
+          </div>
+          <div id="calLevelTrack" style="position:relative;margin-top:16px;padding:15px 0;touch-action:none;cursor:pointer">
+            <div class="bar" style="height:10px;pointer-events:none"><i id="calLevelFill" style="width:40%"></i></div>
+            <div id="calLevelThumb" style="position:absolute;top:50%;left:40%;width:28px;height:28px;border-radius:99px;background:var(--am);box-shadow:0 2px 10px rgba(0,0,0,.45);transform:translate(-50%,-50%);pointer-events:none"></div>
+          </div>
+          <p style="margin:10px 2px 0;font-size:14px;line-height:1.4;color:var(--tx-3)">Sürükledikçe çalan tonun seviyesi de değişir.</p>
+          <p style="margin:8px 2px 0;font-size:14px;line-height:1.4;color:var(--tx-3)">Telefonun ses tuşları da toplam seviyeyi etkiler — kalibrasyondan sonra değiştirme.</p>
         </div>
 
         <p style="margin:0 2px;font-size:14px;line-height:1.45;color:var(--tx-3)">Bu ayarı sonra Ayarlar'dan değiştirebilirsin.</p>
