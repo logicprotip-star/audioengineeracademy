@@ -16,12 +16,16 @@ export const MODE_ID = "frekans-bulma";
 
 // hintBandOct: ipucu maskesinde doğru bandın etrafında AÇIK bırakılan tam genişlik
 // (oktav). Kolayda geniş (bulması kolay), zorda dar (yine de zorlayıcı).
+//
+// MAX_LIVES: can sayısı zorluğa göre değişmez — tek bir sabitten üretilir (kalp
+// ızgarası da bu sayıyı kullanır, bkz. app.js renderHearts).
+export const MAX_LIVES = 5;
 export const DIFFICULTY = {
-  easy: { label: "Kolay", gain: 10, q: 0.9, xp: 16, options: 3, time: 16, lives: 5, hintBandOct: 2.4 },
-  medium: { label: "Orta", gain: 8, q: 1.3, xp: 24, options: 4, time: 13, lives: 4, hintBandOct: 1.6 },
-  hard: { label: "Zor", gain: 6, q: 2.5, xp: 36, options: 5, time: 11, lives: 3, hintBandOct: 1.0 },
-  pro: { label: "Pro", gain: 4.5, q: 4.2, xp: 52, options: 6, time: 9, lives: 3, hintBandOct: 0.6 },
-  proplus: { label: "Pro Plus (Çok Bantlı)", gain: 8, q: 3.2, xp: 45, options: 4, time: 20, lives: 3, hintBandOct: 1.0 }
+  easy: { label: "Kolay", gain: 10, q: 0.9, xp: 16, options: 3, time: 16, lives: MAX_LIVES, hintBandOct: 2.4 },
+  medium: { label: "Orta", gain: 8, q: 1.3, xp: 24, options: 4, time: 13, lives: MAX_LIVES, hintBandOct: 1.6 },
+  hard: { label: "Zor", gain: 6, q: 2.5, xp: 36, options: 5, time: 11, lives: MAX_LIVES, hintBandOct: 1.0 },
+  pro: { label: "Pro", gain: 4.5, q: 4.2, xp: 52, options: 6, time: 9, lives: MAX_LIVES, hintBandOct: 0.6 },
+  proplus: { label: "Pro Plus (Çok Bantlı)", gain: 8, q: 3.2, xp: 45, options: 4, time: 20, lives: MAX_LIVES, hintBandOct: 1.0 }
 };
 
 // Kolay/Orta'da EQ değişimi sadece boost (pozitif gain) olsun — dar bir kesim komşu
@@ -58,12 +62,20 @@ const FA_TICKS_ALL = [100, 200, 400, 800, 1600, 3200, 6400, 12800];
 // app.js'in spektrum çubuklarını eksen şeridiyle hizalayabilmesi için dışa açık
 // (bkz. drawVisualizer: barlar AXIS_H kadar üstte durur, eksen etiketleri altta kalır).
 export const AXIS_H = 50;
-const AXIS_FONT_PX = 22;
-const LABEL_FONT_PX = 32;
-const LABEL_Y = 50;
-const CLOSENESS_FONT_PX = 28;
-const CLOSENESS_Y = 104;
-const CURVE_TOP = 122;
+const AXIS_FONT_PX = 14;
+// Bu boyutlar/konumlar CSS-piksel çizim uzayında (bkz. app.js resizeCanvas) — dar
+// telefon panellerinde bile okunaklı ama paneli işgal etmeyecek ölçüde küçük tutulur.
+// Tahmin ("sen") ve doğru cevap etiketleri her zaman FARKLI satırlarda çizilir
+// (biri üstte, biri altta) — yatay olarak ne kadar yakın olurlarsa olsunlar asla
+// üst üste binmezler (bkz. drawOverlay tek-bant bloğu).
+const LABEL_FONT_PX = 15;
+const GUESS_LABEL_Y = 22;
+const ANSWER_LABEL_Y = 48;
+// app.js'in spektrum çubuklarını EQ eğrisi/etiket şeridiyle aynı bölgede tutabilmesi
+// için dışa açık (bkz. drawSpectrumBars: çubuklar bu çizginin ÜSTÜNE taşmaz).
+export const CURVE_TOP = 88;
+// Geriye dönük uyumluluk: proplus reveal etiketleri "üst satır" için bunu kullanır.
+const LABEL_Y = GUESS_LABEL_Y;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MOD SÖZLEŞMESİ
@@ -289,21 +301,22 @@ export function getFeedbackData(question, answer, context = {}) {
       showResult: true,
       panel: {
         ok: true,
-        color: "var(--green)",
+        color: "var(--gr)",
         head: `✅ ${formatHz(question.freq)} ${result.act} · +${gained} XP`,
         zone: result.zone
       }
     };
   }
+  const closeness = closenessWord(result.dOct);
   return {
     result,
     title: "Kaçtı — ama öğren:",
-    detail: `Doğru ${formatHz(question.freq)} ${result.act}, sen ${formatHz(result.guessHz)} dedin (${result.dOct.toFixed(2)} oktav, ${result.dir}). ${result.zone.t}: ${result.zone.tip}`,
+    detail: `Doğru ${formatHz(question.freq)} ${result.act}, sen ${formatHz(result.guessHz)} dedin (${result.dOct.toFixed(2)} oktav, ${closeness} — ${result.dir}). ${result.zone.t}: ${result.zone.tip}`,
     showResult: true,
     panel: {
       ok: false,
-      color: "var(--red)",
-      head: `❌ Doğru: ${formatHz(question.freq)} ${result.act} · sen ${formatHz(result.guessHz)} dedin (${result.dir})`,
+      color: "var(--rd)",
+      head: `❌ Doğru: ${formatHz(question.freq)} ${result.act} · sen ${formatHz(result.guessHz)} dedin (${closeness}, ${result.dir})`,
       zone: result.zone
     }
   };
@@ -345,17 +358,17 @@ export function renderAnalysisHtml(zoneStats) {
     .sort((a, b) => a.pct - b.pct);
   const weak = scored[0], strong = scored[scored.length - 1];
   const bars = scored.map(s => {
-    const col = s.pct >= 70 ? "var(--green)" : s.pct >= 45 ? "var(--yellow)" : "var(--red)";
-    return `<div style="display:flex;align-items:center;gap:8px;margin-top:5px">
-      <span style="width:70px;color:var(--muted);font-size:11px">${s.k}</span>
+    const col = s.pct >= 70 ? "var(--gr)" : s.pct >= 45 ? "var(--am)" : "var(--rd)";
+    return `<div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+      <span style="width:76px;flex:none;color:var(--tx-3);font-size:14px">${s.k}</span>
       <div style="flex:1;height:7px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden">
         <i style="display:block;height:100%;width:${s.pct}%;background:${col}"></i></div>
-      <span style="width:34px;text-align:right;font-family:'JetBrains Mono';font-size:11px;color:${col}">${s.pct}%</span>
+      <span style="width:42px;flex:none;text-align:right;font-size:14px;font-weight:700;color:${col}">${s.pct}%</span>
     </div>`;
   }).join("");
-  return `<div style="margin-bottom:8px">En zayıf bölgen <b style="color:var(--red)">${weak.k}</b> (%${weak.pct}). En güçlü: <b style="color:var(--green)">${strong.k}</b> (%${strong.pct}).</div>` +
+  return `<div style="margin-bottom:8px">En zayıf bölgen <b style="color:var(--rd)">${weak.k}</b> (%${weak.pct}). En güçlü: <b style="color:var(--gr)">${strong.k}</b> (%${strong.pct}).</div>` +
     bars +
-    `<div style="margin-top:9px;color:var(--cyan);font-size:12px">💡 Öneri: bir süre <b>${weak.k}</b> aralığına odaklan; A/B'yi bol kullanıp farkı yakala.</div>`;
+    `<div style="margin-top:10px;color:var(--am);font-size:14px">💡 Öneri: bir süre <b>${weak.k}</b> aralığına odaklan; A/B'yi bol kullanıp farkı yakala.</div>`;
 }
 
 export function renderHintMask(hintMaskLayerEl, question) {
@@ -407,44 +420,49 @@ export function clearHintMask(hintMaskLayerEl) {
   if (hintMaskLayerEl) hintMaskLayerEl.innerHTML = "";
 }
 
+// Tek bant modunda soru metni ("Hangi frekansla oynandı? Dalga üzerine tıkla.") zaten
+// aynı yönergeyi veriyor — burada tekrar etmiyoruz. Pro Plus'ta ise bu satır statik
+// değil, canlı bir sayaç ("kalan: N") taşıdığı için ayrı tutuluyor.
 export function renderGuessAreaControls(freqGuessAreaEl, q) {
   if (q.mode !== "proplus") {
-    freqGuessAreaEl.innerHTML = `<span style="color:var(--cyan);font-size:14px;font-weight:700">👆 Dalga üzerine tıklayarak doğru frekansı işaretle</span>`;
+    freqGuessAreaEl.textContent = "";
+    freqGuessAreaEl.classList.add("hidden");
     return;
   }
-  freqGuessAreaEl.innerHTML = `<span id="ppCount" style="color:var(--cyan);font-size:14px;font-weight:700">👆 Dört ayrı frekansı işaretle · kalan: 4</span>`;
+  freqGuessAreaEl.classList.remove("hidden");
+  freqGuessAreaEl.innerHTML = `<span id="ppCount">👆 Dört ayrı frekansı işaretle · kalan: 4</span>`;
 }
 
 export function showFreqInfoPanel(freqInfoEl, feedback) {
   if (!freqInfoEl || !feedback.panel) return;
   const { ok, head, zone } = feedback.panel;
-  const color = ok ? "var(--green)" : "var(--red)";
+  const color = ok ? "var(--gr)" : "var(--rd)";
   freqInfoEl.style.borderColor = color;
-  freqInfoEl.style.background = ok ? "rgba(104,240,171,.10)" : "rgba(255,108,136,.10)";
+  freqInfoEl.style.background = ok ? "rgba(43,217,168,.10)" : "rgba(255,77,109,.10)";
   freqInfoEl.innerHTML =
-    `<div style="font-weight:800;color:${color};margin-bottom:6px;font-size:15px">${head}</div>` +
-    `<div style="font-weight:700;color:var(--text);margin-bottom:4px">${zone.t}</div>` +
-    `<div style="color:var(--muted);font-size:13.5px;line-height:1.55">${zone.tip}</div>`;
+    `<div style="font-weight:800;color:${color};margin-bottom:6px;font-size:16px">${head}</div>` +
+    `<div style="font-weight:700;color:var(--tx);margin-bottom:4px;font-size:14px">${zone.t}</div>` +
+    `<div style="color:var(--tx-3);font-size:14px;line-height:1.55">${zone.tip}</div>`;
   freqInfoEl.classList.remove("hidden");
 }
 
 export function showProPlusInfoPanel(freqInfoEl, feedback) {
   if (!freqInfoEl || !feedback.panel) return;
   const { ok, hit, bands } = feedback.panel;
-  const color = ok ? "var(--green)" : "var(--red)";
+  const color = ok ? "var(--gr)" : "var(--rd)";
   freqInfoEl.style.borderColor = color;
-  freqInfoEl.style.background = ok ? "rgba(104,240,171,.10)" : "rgba(255,108,136,.10)";
+  freqInfoEl.style.background = ok ? "rgba(43,217,168,.10)" : "rgba(255,77,109,.10)";
   const rows = bands.map(b => {
     const act = b.gain >= 0 ? "▲ açık" : "▼ kısık";
     const zone = faZoneOf(b.freq);
     const dogru = b.dOct !== null && b.dOct <= 0.5;
     const mark = dogru ? "✅" : "❌";
     const senin = b.guessHz ? `sen: ${formatHz(b.guessHz)}` : "işaretlemedin";
-    return `<div style="padding:6px 0;border-top:1px solid rgba(255,255,255,.08)">
-      <b style="color:${dogru ? "var(--green)" : "var(--red)"}">${mark} ${formatHz(b.freq)} ${act}</b>
-      <span style="color:var(--muted)">· ${zone.t.split(" (")[0]} · ${senin}</span></div>`;
+    return `<div style="padding:7px 0;border-top:1px solid rgba(255,255,255,.08);font-size:14px">
+      <b style="color:${dogru ? "var(--gr)" : "var(--rd)"}">${mark} ${formatHz(b.freq)} ${act}</b>
+      <span style="color:var(--tx-3)">· ${zone.t.split(" (")[0]} · ${senin}</span></div>`;
   }).join("");
-  freqInfoEl.innerHTML = `<div style="font-weight:800;color:${color};margin-bottom:4px;font-size:15px">${hit}/4 doğru</div>` + rows;
+  freqInfoEl.innerHTML = `<div style="font-weight:800;color:${color};margin-bottom:4px;font-size:16px">${hit}/4 doğru</div>` + rows;
   freqInfoEl.classList.remove("hidden");
 }
 
@@ -504,7 +522,7 @@ function roundRectPath(ctx2d, x, y, w, h, r) {
 function drawPillLabel(ctx2d, text, x, y, bg, fg, font, fontSizePx, clampW) {
   ctx2d.font = font;
   ctx2d.textAlign = "center";
-  const padX = 16, padY = 10;
+  const padX = 8, padY = 5;
   const tw = ctx2d.measureText(text).width;
   const rw = tw + padX * 2;
   const rh = fontSizePx + padY * 2;
@@ -528,9 +546,10 @@ function pickFreqTicks(ctx2d, canvasEl, w) {
   const cacheKey = w + ":" + Math.round(cssW);
   if (_faTicksCache.key === cacheKey) return _faTicksCache.ticks;
 
-  ctx2d.font = `700 ${AXIS_FONT_PX}px 'JetBrains Mono', monospace`;
+  ctx2d.font = `600 ${AXIS_FONT_PX}px Inter, sans-serif`;
   const scale = cssW / w;
-  const minGapInternal = 64 / Math.max(0.05, scale);
+  // Pill zemini yok artık — sade metin için daha dar bir minimum boşluk yeterli.
+  const minGapInternal = 34 / Math.max(0.05, scale);
 
   function fits(arr) {
     let lastRight = -Infinity;
@@ -551,18 +570,22 @@ function pickFreqTicks(ctx2d, canvasEl, w) {
   return ticks;
 }
 
+// Eksen etiketleri: prototipteki gibi sade metin, panelin alt kenarına yakın, pill
+// zemin YOK — sadece dikey ızgara çizgisi + küçük gri rakam.
 function drawFreqAxis(ctx2d, canvasEl, w, h) {
   const plotBottom = h - AXIS_H;
-  const labelY = h - 16;
-  const font = `700 ${AXIS_FONT_PX}px 'JetBrains Mono', monospace`;
-  ctx2d.font = font;
+  const labelY = h - 12;
+  ctx2d.font = `600 ${AXIS_FONT_PX}px Inter, sans-serif`;
+  ctx2d.textAlign = "center";
   pickFreqTicks(ctx2d, canvasEl, w).forEach(f => {
     const x = faFToX(f, w);
-    ctx2d.strokeStyle = "rgba(255,255,255,.10)";
+    ctx2d.strokeStyle = "rgba(255,255,255,.08)";
     ctx2d.beginPath(); ctx2d.moveTo(x, 6); ctx2d.lineTo(x, plotBottom); ctx2d.stroke();
     const label = f >= 1000 ? (f / 1000) + "k" : String(f);
-    drawPillLabel(ctx2d, label, x, labelY, "rgba(8,13,22,.82)", "#eef6ff", font, AXIS_FONT_PX, w);
+    ctx2d.fillStyle = "#8C95AB";
+    ctx2d.fillText(label, x, labelY);
   });
+  ctx2d.textAlign = "left";
 }
 
 // Soruda uygulanan peaking filtre(ler)in gerçek frekans yanıtını (dB) hesaplar.
@@ -615,7 +638,7 @@ function drawEqResponseCurve(ctx2d, audioCtx, w, h, q) {
   ctx2d.lineTo(w, midY);
   ctx2d.lineTo(0, midY);
   ctx2d.closePath();
-  ctx2d.fillStyle = "rgba(255,209,102,.14)";
+  ctx2d.fillStyle = "rgba(43,217,168,.14)";
   ctx2d.fill();
 
   ctx2d.beginPath();
@@ -623,7 +646,7 @@ function drawEqResponseCurve(ctx2d, audioCtx, w, h, q) {
     const x = (i / (N - 1)) * w;
     if (i === 0) ctx2d.moveTo(x, yAt(i)); else ctx2d.lineTo(x, yAt(i));
   }
-  ctx2d.strokeStyle = "#ffd166";
+  ctx2d.strokeStyle = "#2BD9A8";
   ctx2d.lineWidth = 2;
   ctx2d.globalAlpha = 0.85;
   ctx2d.stroke();
@@ -632,12 +655,25 @@ function drawEqResponseCurve(ctx2d, audioCtx, w, h, q) {
 
 // Tahmin ile doğru cevap arasındaki mesafeyi OKTAV cinsinden değerlendirip (lineer Hz
 // DEĞİL) renkli bir bant + kısa metinle gösterir. Eşikler puanlamayla aynı (0.17/0.5 oktav).
+// Tahmin/cevap oktav mesafesinin sözel karşılığı — canvas panelindeki pill KALDIRILDI
+// (dar panelde tahmin/cevap etiketleriyle çakışıyordu); artık aynı kelime geri
+// bildirim kartının metnine gömülüyor (bkz. getFeedbackData).
+export function closenessWord(dOct) {
+  if (dOct <= 0.17) return "çok yakın";
+  if (dOct <= 0.5) return "yakın";
+  return "uzak";
+}
+function closenessColor(dOct) {
+  if (dOct <= 0.17) return "#2BD9A8";
+  if (dOct <= 0.5) return "#FFC246";
+  return "#FF4D6D";
+}
+
+// Sadece renkli "mesafe bandı" (arka plan dolgusu) — sözel etiket (chip) artık
+// buraya çizilmiyor.
 function drawClosenessBand(ctx2d, w, h, q, guessHz) {
   const dOct = Math.abs(Math.log2(guessHz / q.freq));
-  let color, text;
-  if (dOct <= 0.17) { color = "#68f0ab"; text = "çok yakın"; }
-  else if (dOct <= 0.5) { color = "#ffb347"; text = "yakın"; }
-  else { color = "#ff6c88"; text = "uzak"; }
+  const color = closenessColor(dOct);
 
   const plotBottom = h - AXIS_H;
   const x1 = faFToX(guessHz, w);
@@ -647,10 +683,6 @@ function drawClosenessBand(ctx2d, w, h, q, guessHz) {
 
   ctx2d.fillStyle = hexToRgba(color, 0.16);
   ctx2d.fillRect(left, top, Math.max(2, right - left), bottom - top);
-
-  const midX = (left + right) / 2;
-  const font = `800 ${CLOSENESS_FONT_PX}px 'JetBrains Mono', monospace`;
-  drawPillLabel(ctx2d, text, midX, CLOSENESS_Y, hexToRgba(color, 0.92), "#0b1220", font, CLOSENESS_FONT_PX, w);
 }
 
 // Tur boyunca canvas üzerine dalga/EQ eğrisinin ÜSTÜNE binen; tahmin/cevap/hint
@@ -665,7 +697,7 @@ export function drawOverlay(ctx2d, canvasEl, w, h, state) {
 
   if (freqHoverHz && roundActive) {
     const x = faFToX(freqHoverHz, w);
-    ctx2d.strokeStyle = "rgba(111,211,255,.55)";
+    ctx2d.strokeStyle = "rgba(255,194,70,.55)";
     ctx2d.setLineDash([4, 4]);
     ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, plotBottom); ctx2d.stroke();
     ctx2d.setLineDash([]);
@@ -678,19 +710,19 @@ export function drawOverlay(ctx2d, canvasEl, w, h, state) {
     }
     (q.guesses || []).forEach(gHz => {
       const x = faFToX(gHz, w);
-      ctx2d.strokeStyle = roundActive ? "#6fd3ff" : "rgba(111,211,255,.85)";
+      ctx2d.strokeStyle = roundActive ? "#FFC246" : "rgba(255,194,70,.85)";
       ctx2d.lineWidth = roundActive ? 3 : 2;
       ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, plotBottom); ctx2d.stroke();
       if (!roundActive) {
-        drawPillLabel(ctx2d, "sen", x, plotBottom - 14, "rgba(15,23,32,.82)", "rgba(111,211,255,.95)",
-          "700 18px 'JetBrains Mono', monospace", 18, w);
+        drawPillLabel(ctx2d, "sen", x, plotBottom - 12, "rgba(15,23,32,.82)", "rgba(255,194,70,.95)",
+          "700 14px 'JetBrains Mono', monospace", 14, w);
       }
     });
     if (!roundActive && q.freqRevealed && q._result && revealAnimator) {
       q._result.forEach((b, i) => {
         if (i >= revealAnimator.count) return;
         const x = faFToX(b.freq, w);
-        const col = b.correct ? "#68f0ab" : "#ff6c88";
+        const col = b.correct ? "#2BD9A8" : "#FF4D6D";
         const up = b.gain >= 0;
         if (i === revealAnimator.count - 1 && revealAnimator.glow > 0) {
           ctx2d.save();
@@ -702,7 +734,7 @@ export function drawOverlay(ctx2d, canvasEl, w, h, state) {
         ctx2d.strokeStyle = col; ctx2d.lineWidth = 3; ctx2d.setLineDash([5, 4]);
         ctx2d.beginPath(); ctx2d.moveTo(x, 4); ctx2d.lineTo(x, plotBottom); ctx2d.stroke(); ctx2d.setLineDash([]);
         drawPillLabel(ctx2d, (b.correct ? "✓ " : "✗ ") + (up ? "▲" : "▼") + formatHz(b.freq), x, up ? LABEL_Y : h / 2,
-          "rgba(15,23,32,.82)", col, "800 20px 'JetBrains Mono', monospace", 20, w);
+          "rgba(15,23,32,.82)", col, "800 15px 'JetBrains Mono', monospace", 15, w);
       });
     }
     return;
@@ -719,24 +751,23 @@ export function drawOverlay(ctx2d, canvasEl, w, h, state) {
 
   const guessX = showGuess ? faFToX(showGuess, w) : null;
   const answerX = revealed ? faFToX(q.freq, w) : null;
-  let guessDx = 0, answerDx = 0;
-  if (guessX !== null && answerX !== null && Math.abs(guessX - answerX) < 110) {
-    if (guessX <= answerX) { guessDx = -66; answerDx = 66; }
-    else { guessDx = 66; answerDx = -66; }
-  }
 
+  // Tahmin ve doğru cevap etiketleri YATAY mesafeden bağımsız olarak her zaman farklı
+  // satırlarda çizilir (tahmin üstte, cevap altta) — bu yüzden ne kadar yakın olurlarsa
+  // olsunlar asla üst üste binmezler. Yatay kenar taşması drawPillLabel'ın clampW'ü ile
+  // ayrıca önlenir.
   const labelFont = `800 ${LABEL_FONT_PX}px 'JetBrains Mono', monospace`;
   if (showGuess) {
-    ctx2d.strokeStyle = "#6fd3ff"; ctx2d.lineWidth = 3;
+    ctx2d.strokeStyle = "#FFC246"; ctx2d.lineWidth = 3;
     ctx2d.beginPath(); ctx2d.moveTo(guessX, 4); ctx2d.lineTo(guessX, plotBottom); ctx2d.stroke();
-    drawPillLabel(ctx2d, formatHz(showGuess), guessX + guessDx, LABEL_Y, "rgba(15,23,32,.88)", "#6fd3ff",
+    drawPillLabel(ctx2d, formatHz(showGuess), guessX, GUESS_LABEL_Y, "rgba(15,23,32,.9)", "#FFC246",
       labelFont, LABEL_FONT_PX, w);
   }
   if (revealed) {
     const up = q.gain >= 0;
-    ctx2d.strokeStyle = "#ffd166"; ctx2d.lineWidth = 3; ctx2d.setLineDash([5, 4]);
+    ctx2d.strokeStyle = "#2BD9A8"; ctx2d.lineWidth = 3; ctx2d.setLineDash([5, 4]);
     ctx2d.beginPath(); ctx2d.moveTo(answerX, 4); ctx2d.lineTo(answerX, plotBottom); ctx2d.stroke(); ctx2d.setLineDash([]);
-    drawPillLabel(ctx2d, (up ? "▲ " : "▼ ") + formatHz(q.freq), answerX + answerDx, LABEL_Y, "rgba(15,23,32,.88)", "#ffd166",
+    drawPillLabel(ctx2d, (up ? "▲ " : "▼ ") + formatHz(q.freq), answerX, ANSWER_LABEL_Y, "rgba(15,23,32,.9)", "#2BD9A8",
       labelFont, LABEL_FONT_PX, w);
   }
 }

@@ -22,6 +22,9 @@ export function createAudioEngine() {
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = 2048;
+      // Varsayılan .8 çok yumuşatıyor (çubuklar pürüzsüz azalan bir eğri gibi
+      // görünüyordu, "canlı" hissettirmiyordu) — düşürünce görsel tepki hızlanır.
+      analyser.smoothingTimeConstant = 0.4;
       masterGain = audioCtx.createGain();
       masterGain.gain.value = 0.82;
       // Kalıcı susturma node'u: "Durdur" artık hiçbir kaynağı/filtreyi durdurmuyor,

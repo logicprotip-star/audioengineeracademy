@@ -3,252 +3,447 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>EQ Ear Trainer Pro X</title>
+  <title>Audio Engineer Academy</title>
   <link rel="stylesheet" href="styles.css">
+  <script>
+    // iOS WKWebView'de 100dvh, WKWebView'in gerçek görünür sınırlarıyla
+    // (fixed-position elemanların hizalandığı sınır) tutarsız hesaplanabiliyor.
+    // window.innerHeight (gerekirse visualViewport.height) her zaman gerçek
+    // WKWebView içerik yüksekliğini verir; bunu --app-vh'ye yazıp .screen/.app-shell
+    // bunu kullanır. Senkron ve <head>'de: ilk boyanmadan önce çalışır, dvh'den
+    // farklı bir değere "zıplama" olmaz.
+    (function () {
+      function setAppVh() {
+        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+        document.documentElement.style.setProperty('--app-vh', h + 'px');
+      }
+      setAppVh();
+      window.addEventListener('resize', setAppVh);
+      window.addEventListener('orientationchange', setAppVh);
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', setAppVh);
+    })();
+  </script>
 </head>
 <body>
-  <div class="app">
-    <section class="hero" style="display:none">
-      <div class="glass hero-main">
-        <div class="eyebrow" style="display:none">EQ Ear Trainer Pro X</div>
-        <h1 style="display:none">Daha hızlı duy. Daha doğru tanı. Daha zor boss round’ları geç.</h1>
-        <div class="sub intro-long" style="display:none">
-          Bu sürümde zaman baskısı, can sistemi, günlük görevler, A/B karşılaştırma modu, boss round, yüklenen ses desteği,
-          mobil uyum, başarımlar, XP ve combo akışı birlikte çalışır.
+  <div class="app-shell">
+
+    <!-- ================= EKRAN: ANA MENÜ (Antrenman) ================= -->
+    <section class="screen active" id="screen-menu" data-tab="train">
+      <div class="scroll">
+        <div class="menu-topbar">
+          <div class="brand">Audio Engineer <span class="accent">Academy</span></div>
+          <button class="gear" id="menuSettingsBtn" aria-label="Ayarlar"><i></i></button>
         </div>
-        <div class="sub mobile-warn" style="display:none;margin-top:10px;color:var(--yellow);font-size:13px">
-          🎧 En iyi sonuç için kulaklık kullan. · 📱 <b>iPhone'da ses gelmiyorsa:</b> yan taraftaki sessiz (zil/sessiz) anahtarını kapat — sessiz modda tarayıcı sesi susar.
+        <div class="sub mobile-warn" style="font-size:13px;color:var(--am);margin-bottom:14px">
+          🎧 En iyi sonuç için kulaklık kullan. · 📱 <b>iPhone'da ses gelmiyorsa:</b> sessiz anahtarını kapat.
+        </div>
+
+        <div class="section-head">
+          <div class="section-title">Egzersizler</div>
+          <div class="section-count" id="modeCount">— / — açık</div>
+        </div>
+        <div class="mode-grid" id="modeGrid"></div>
+      </div>
+    </section>
+
+    <!-- ================= EKRAN: OYUN (Motor 1) ================= -->
+    <section class="screen" id="screen-game">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" id="backBtn" aria-label="Menüye dön">&#8249;</button>
+          <div class="ghead-titles">
+            <div class="game-title" id="gameTitle">Frekans Bulma</div>
+            <div class="game-sub num">
+              <span id="roundChip">Soru 0</span>
+              <span id="streakText" class="hidden">Hazır</span>
+            </div>
+          </div>
+          <div class="chip hidden" id="bossChip">Normal</div>
+          <div class="hearts" id="hearts"></div>
+          <button class="dots" id="gameSettingsBtn" aria-label="Oyun ayarları"><i></i><i></i><i></i></button>
+        </div>
+        <div class="stats-row">
+          <div class="stat"><span class="dot"></span><span id="seriChip">Seri 0</span></div>
+          <div class="stat num" id="scoreChip">Skor 0</div>
+          <div class="stat"><span id="hintStatCount">3</span>&nbsp;ipucu</div>
+          <div class="stat stat-acc" id="gameAccValue">%0</div>
+        </div>
+      </div>
+
+      <div class="scroll game-scroll" id="gameScroll">
+        <div class="chiprow">
+          <div class="control control-sheet" style="flex:1;min-width:0">
+            <label class="hidden">Kaynak</label>
+            <select id="sourceSelect" class="hidden">
+              <option value="pink">Pembe Gürültü</option>
+              <option value="white">Beyaz Gürültü</option>
+              <option value="saw">Testere Synth</option>
+              <option value="square">Kare Synth</option>
+              <option value="triangle">Üçgen Synth</option>
+              <option value="upload">Yüklenen Ses Dosyası</option>
+            </select>
+            <button class="srctag setting-row" data-sheet-select="sourceSelect" data-sheet-title="Kaynak">
+              <span class="dot"></span><b class="setting-row-value-text" id="sourceChipLabel">Pembe Gürültü</b><span class="chev">&#8250;</span>
+            </button>
+          </div>
+          <button class="mixchip" id="mixToggle" aria-label="Karıştır" title="Karıştır"><span class="led"></span><span>⇄</span></button>
+        </div>
+
+        <div class="qline" id="questionTitle">Başlamak için "Oyunu Başlat"a dokun.</div>
+        <div class="qline-sub hidden" id="questionMeta"></div>
+
+        <div class="card analyzer" id="analyzer" data-phase="ask">
+          <div class="analyzer-head">
+            <span class="analyzer-label" id="analyzerLabel">SPEKTRUM · B İŞLENMİŞ</span>
+            <span class="gainval" id="gainValue">+0 dB</span>
+            <span class="hinttag" id="hintTag">İPUCU</span>
+          </div>
+          <div class="canvas-stage">
+            <canvas id="visualizer" width="1200" height="320"></canvas>
+            <div class="hint-mask" id="hintMaskLayer"></div>
+          </div>
+        </div>
+
+        <div id="freqGuessArea" class="tapHint hidden"></div>
+        <div id="freqInfo" class="hidden"></div>
+
+        <div class="timer-row">
+          <div class="bar"><i id="timerBar"></i></div>
+          <span class="num timer-text" id="timerText">0.0s</span>
+        </div>
+
+        <div class="fb" id="feedbackBox">
+          <div class="fb-head"><span class="fb-dot"></span><strong>Başlamak için "Oyunu Başlat"a dokun.</strong></div>
+          <p id="feedbackDetail"></p>
+        </div>
+      </div>
+
+      <div class="actionbar" id="gameActionbar">
+        <div class="row">
+          <button class="btn" id="startBtn">Oyunu Başlat</button>
+          <button class="btn abbtn" id="abToggle" data-ab="B">
+            <span class="abtitle">A/B Test</span>
+            <span class="abpair"><span class="abside" data-side="A">A</span><span class="abside" data-side="B">B</span></span>
+          </button>
+          <button class="btn" id="hintBtn">İpucu Ver (3)</button>
+        </div>
+        <button class="btn primary" id="nextBtn">Atla ▶</button>
+      </div>
+
+      <!-- Zorluk/Oyun Türü/Süre/Dosya yükleme: dots ikonuyla açılan sheet -->
+      <div class="sheet-overlay" id="gameSettingsOverlay"></div>
+      <div class="bottom-sheet" id="gameSettingsSheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <h3>Oyun Ayarları</h3>
+          <button class="sheet-cancel" id="gameSettingsCancel" type="button">Kapat</button>
+        </div>
+        <div class="settings-group">
+          <div class="control control-sheet">
+            <select id="difficultySelect" class="hidden">
+              <option value="easy">Kolay</option>
+              <option value="medium" selected>Orta</option>
+              <option value="hard">Zor</option>
+              <option value="pro">Pro</option>
+              <option value="proplus">Pro Plus (Çok Bantlı)</option>
+            </select>
+            <button class="setting-row" data-sheet-select="difficultySelect" data-sheet-title="Zorluk">
+              <span class="settings-row-label">Zorluk</span>
+              <span class="settings-row-value"><span class="setting-row-value-text"></span><span class="chev">&#8250;</span></span>
+            </button>
+          </div>
+          <div class="control control-sheet">
+            <select id="playModeSelect" class="hidden">
+              <option value="free" selected>Serbest (sonsuz)</option>
+              <option value="challenge">10 Soruluk Bölüm (+%50 XP)</option>
+            </select>
+            <button class="setting-row" data-sheet-select="playModeSelect" data-sheet-title="Oyun Türü">
+              <span class="settings-row-label">Oyun Türü</span>
+              <span class="settings-row-value"><span class="setting-row-value-text"></span><span class="chev">&#8250;</span></span>
+            </button>
+          </div>
+          <div class="control control-sheet">
+            <select id="timerModeSelect" class="hidden">
+              <option value="on" selected>Süreli</option>
+              <option value="off">Süresiz</option>
+            </select>
+            <button class="setting-row" data-sheet-select="timerModeSelect" data-sheet-title="Süre">
+              <span class="settings-row-label">Süre</span>
+              <span class="settings-row-value"><span class="setting-row-value-text"></span><span class="chev">&#8250;</span></span>
+            </button>
+          </div>
+          <div class="upload-row">
+            <label>Ses dosyası yükle</label>
+            <input type="file" id="audioFileInput" accept="audio/*" />
+          </div>
         </div>
       </div>
     </section>
 
-    <div class="tabs glass">
-      <button class="tab-btn active" data-tab="oyun">Oyun</button>
-      <button class="tab-btn" data-tab="ilerleme">İlerleme</button>
-      <button class="tab-btn" data-tab="analiz">Analiz</button>
-    </div>
+    <!-- ================= EKRAN: İLERLEME ================= -->
+    <section class="screen" id="screen-progress" data-tab="progress">
+      <div class="scroll">
+        <div class="section-head" style="margin-top:6px;align-items:center">
+          <div class="section-title">İlerleme</div>
+          <button class="gear" id="progressSettingsBtn" aria-label="Ayarlar"><i></i></button>
+        </div>
 
-    <div class="bottom-bar glass">
-      <button class="btn" id="startBtn">Oyunu Başlat</button>
-      <button class="btn secondary btn-with-sub" id="playACleanBtn">A - Temiz<span class="btn-sub">referans</span></button>
-      <button class="btn secondary btn-with-sub" id="playBFilteredBtn">B - İşlenmiş<span class="btn-sub">EQ'lu</span></button>
-      <button class="btn success" id="nextBtn">Atla ▶</button>
-    </div>
+        <div class="prog-grid">
+          <div class="stat-big"><b id="levelValue">1</b><span>Seviye</span></div>
+          <div class="stat-big"><b id="xpValue">0</b><span>XP</span></div>
+          <div class="stat-big"><b id="comboValue">0x</b><span>Seri</span></div>
+          <div class="stat-big"><b id="accuracyValue">%0</b><span>Doğruluk</span></div>
+        </div>
 
-    <div class="tab-content active" data-tab-content="oyun">
-      <section class="layout">
-        <div class="glass panel panel-arena">
-          <div class="topbar">
-            <div class="arena-title">
-              <h2 class="arena-title-main">Kulak Eğitimi</h2>
-              <div class="arena-title-sub">Antrenman Arenası</div>
-            </div>
-            <div class="arena-title-chips">
-              <div class="arena-title-top-row">
-                <div class="hearts" id="hearts"></div>
-                <span id="seriChip" class="chip chip-seri">Seri 0</span>
-              </div>
-              <div class="arena-title-bottom-row">
-                <button class="chip chip-hint" id="hintBtn">İpucu Ver</button>
-                <button class="chip chip-ab-demo" id="abAutoBtn">A/B Test</button>
-              </div>
-            </div>
+        <div class="block" style="margin-top:14px">
+          <div class="progress-label" style="display:flex;justify-content:space-between;font-size:13px;color:var(--tx-3)">
+            <span>Bir sonraki seviye</span>
+            <span id="progressText">0 / 120 XP</span>
           </div>
-          <div class="arena">
-            <div class="visualizer-wrap">
-              <div class="question-main analyzer-caption" id="questionTitle">Başlamak için “Oyunu Başlat”a dokun.</div>
-              <div class="canvas-stage">
-                <canvas id="visualizer" width="1200" height="320"></canvas>
-                <div class="hint-mask" id="hintMaskLayer"></div>
-              </div>
+          <div class="bar" style="margin-top:9px"><i id="xpBar" style="width:0%"></i></div>
+        </div>
+
+        <div class="prog-grid" style="margin-top:10px;grid-template-columns:1fr 1fr">
+          <div class="stat-big"><b id="totalPracticeValue">0d</b><span style="font-size:14px">Antrenman</span></div>
+          <div class="stat-big"><b id="totalRoundsValue">0</b><span style="font-size:14px">Soru</span></div>
+        </div>
+
+        <div class="h2">📅 Günlük Görevler</div>
+        <div class="daily-grid" id="dailyList"></div>
+
+        <div class="h2">🏆 Başarımlar</div>
+        <div class="achievement-list" id="achievementList"></div>
+
+        <div class="h2">🧭 Şu An Neredesin</div>
+        <div class="block" id="whereNowBlock">
+          <p id="whereNowText" style="margin:0;font-size:14px;line-height:1.55;color:var(--tx-2)">
+            Birkaç tur daha oynayınca burada kişisel bir özet göreceksin.
+          </p>
+        </div>
+
+        <div class="card" style="margin-top:22px;padding:0;overflow:hidden">
+          <button class="item" type="button" id="zonePanelToggle" style="border-bottom:none">
+            <div><h5>Frekans bölgesi</h5><p id="zoneSub">en zayıf: —</p></div>
+            <span class="caret" id="zoneCaret" style="transition:transform .18s">⌄</span>
+          </button>
+          <div id="zoneWrap" class="hidden" style="padding:0 16px 16px">
+            <div class="zone-bars" id="zoneList"></div>
+            <div style="display:flex;justify-content:flex-end;margin-top:10px">
+              <span id="analysisReset" style="cursor:pointer;color:var(--tx-3);font-size:14px;text-decoration:underline">temizle</span>
             </div>
           </div>
         </div>
 
-        <div class="glass panel panel-question">
-          <div class="arena">
-            <div class="question-box">
-              <div class="timer-compact">
-                <div class="timer-bar"><span id="timerBar"></span></div>
-                <span id="timerText" class="timer-compact-text">0.0s</span>
-              </div>
-
-              <div class="question-row">
-                <div>
-                  <div class="question-sub hidden" id="questionMeta">Boss round her 5 turda gelir. A/B ile temiz ve işlenmiş sesi hızlıca karşılaştırabilirsin.</div>
-                </div>
-
-                <div class="streak" style="display:none">
-                  <span id="streakText">Hazır</span>
-                </div>
-              </div>
-
-              <div class="answers hidden" id="answers"></div>
-              <div id="freqGuessArea" class="hidden" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-                <span style="color:var(--cyan);font-size:14px;font-weight:700">👆 Dalga üzerine tıklayarak doğru frekansı işaretle</span>
-              </div>
-              <div id="freqInfo" class="hidden" style="padding:14px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.12);margin-top:2px"></div>
-
-              <div class="feed" id="feedbackBox">
-                <div>
-                  <strong>Başlamak için “Oyunu Başlat”a dokun.</strong>
-                  <span id="feedbackDetail"></span>
-                </div>
-                <div class="chips">
-                  <div class="chip hidden" id="roundChip">Round 0</div>
-                  <div class="chip hidden" id="scoreChip">Skor 0</div>
-                  <div class="chip hidden" id="bossChip">Normal</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="footer-note hidden">
-            A modu temiz sesi, B modu işlenmiş sesi çalar. Boss round’larda etkiler biraz daha yakın duyulur. Süre biterse can kaybedersin.
-            Yüklediğin ses dosyası seçiliyse oyun onun üstüne filtre uygular.
+        <div class="h2">📈 Son 30 Gün</div>
+        <div class="card" style="padding:16px">
+          <svg id="accChartSvg" viewBox="0 0 320 110" preserveAspectRatio="none" style="width:100%;height:110px;overflow:visible" class="hidden"></svg>
+          <p id="accChartEmpty" style="margin:0;font-size:14px;line-height:1.5;color:var(--tx-3)">Grafik için en az birkaç günde tur oynaman gerekiyor. Birkaç gün antrenman yaptıkça burada isabet trendin belirecek.</p>
+          <div id="accChartLabels" class="hidden" style="display:flex;justify-content:space-between;margin-top:8px;font-size:14px;font-weight:600;color:var(--tx-3)">
+            <span id="accChartFirst">—</span><span id="accChartLast">—</span>
           </div>
         </div>
 
-        <div class="glass panel panel-settings">
-          <div class="cluster">
-              <div class="control control-sheet">
-                <label class="hidden">Oyun türü</label>
-                <select id="playModeSelect" class="hidden">
-                  <option value="free" selected>Serbest (sonsuz)</option>
-                  <option value="challenge">10 Soruluk Bölüm (+%50 XP)</option>
-                </select>
-                <div class="setting-row" data-sheet-select="playModeSelect" data-sheet-title="Oyun Türü">
-                  <span class="setting-row-label">Oyun Türü</span>
-                  <span class="setting-row-value"><span class="setting-row-value-text"></span><span class="chev">›</span></span>
-                </div>
-              </div>
-
-              <div class="control control-sheet">
-                <label class="hidden">Zorluk</label>
-                <select id="difficultySelect" class="hidden">
-                  <option value="easy">Kolay</option>
-                  <option value="medium" selected>Orta</option>
-                  <option value="hard">Zor</option>
-                  <option value="pro">Pro</option>
-                  <option value="proplus">Pro Plus (Çok Bantlı)</option>
-                </select>
-                <div class="setting-row" data-sheet-select="difficultySelect" data-sheet-title="Zorluk">
-                  <span class="setting-row-label">Zorluk</span>
-                  <span class="setting-row-value"><span class="setting-row-value-text"></span><span class="chev">›</span></span>
-                </div>
-              </div>
-
-              <div class="control control-sheet">
-                <label class="hidden">Süre</label>
-                <select id="timerModeSelect" class="hidden">
-                  <option value="on" selected>Süreli</option>
-                  <option value="off">Süresiz</option>
-                </select>
-                <div class="setting-row" data-sheet-select="timerModeSelect" data-sheet-title="Süre">
-                  <span class="setting-row-label">Süre</span>
-                  <span class="setting-row-value"><span class="setting-row-value-text"></span><span class="chev">›</span></span>
-                </div>
-              </div>
-
-              <div class="control control-sheet">
-                <label class="hidden">Kaynak</label>
-                <select id="sourceSelect" class="hidden">
-                  <option value="pink">Pink Noise</option>
-                  <option value="white">White Noise</option>
-                  <option value="saw">Saw Synth</option>
-                  <option value="square">Square Synth</option>
-                  <option value="triangle">Triangle Synth</option>
-                  <option value="upload">Yüklenen Ses Dosyası</option>
-                </select>
-                <div class="setting-row" data-sheet-select="sourceSelect" data-sheet-title="Kaynak">
-                  <span class="setting-row-label">Kaynak</span>
-                  <span class="setting-row-value"><span class="setting-row-value-text"></span><span class="chev">›</span></span>
-                </div>
-              </div>
-
-              <div class="control">
-                <label>Ses dosyası yükle</label>
-                <input type="file" id="audioFileInput" />
-              </div>
+        <div class="card" style="margin-top:22px;padding:0;overflow:hidden">
+          <button class="item" type="button" id="modeLevelsToggle" style="border-bottom:none">
+            <div><h5>Mod seviyeleri</h5><p id="modeLevelsSub">— mod oynandı</p></div>
+            <span class="caret" id="modeLevelsCaret" style="transition:transform .18s">⌄</span>
+          </button>
+          <div id="modeLevelsWrap" class="hidden" style="padding:0 16px 16px">
+            <div style="display:flex;flex-direction:column;gap:10px" id="modeLevelsList"></div>
           </div>
         </div>
-      </section>
-    </div>
 
-    <div class="tab-content" data-tab-content="ilerleme">
-      <div class="glass hero-side">
-        <div class="stat-grid">
-            <div class="mini-card">
-              <div class="label">Level</div>
-              <div class="value" id="levelValue">1</div>
-            </div>
-            <div class="mini-card">
-              <div class="label">XP</div>
-              <div class="value" id="xpValue">0</div>
-            </div>
-            <div class="mini-card">
-              <div class="label">Combo</div>
-              <div class="value" id="comboValue">0x</div>
-            </div>
-            <div class="mini-card">
-              <div class="label">Doğruluk</div>
-              <div class="value" id="accuracyValue">%0</div>
-            </div>
-          </div>
+        <div class="h2">📊 Canlı İstatistikler</div>
+        <div class="metrics">
+          <div class="metric"><div class="k">Toplam Tur</div><div class="v" id="roundsValue">0</div></div>
+          <div class="metric"><div class="k">Doğru</div><div class="v" id="correctValue" style="color:var(--gr)">0</div></div>
+          <div class="metric"><div class="k">Yanlış</div><div class="v" id="wrongValue" style="color:var(--rd)">0</div></div>
+          <div class="metric"><div class="k">Ort. Puan / Tur</div><div class="v" id="avgScoreValue">0</div></div>
+          <div class="metric"><div class="k">En İyi Seri</div><div class="v" id="bestComboValue">0x</div></div>
+          <div class="metric"><div class="k">En Yüksek Skor</div><div class="v" id="bestScoreValue">0</div></div>
+        </div>
 
-          <div class="progress-shell">
-            <div class="progress-label">
-              <span>Bir sonraki level</span>
-              <span id="progressText">0 / 120 XP</span>
-            </div>
-            <div class="progress"><span id="xpBar"></span></div>
-          </div>
+        <div class="h2">🕐 Son Turlar</div>
+        <div class="history-list" id="historyList"></div>
 
-          <div class="block">
-            <div class="progress-label" style="margin-bottom:10px"><span>📅 Günlük Görevler</span></div>
-            <div class="daily-grid" id="dailyList"></div>
-          </div>
-
-          <div class="block">
-            <div class="progress-label" style="margin-bottom:10px"><span>🏆 Başarımlar</span></div>
-            <div class="achievement-list" id="achievementList"></div>
-          </div>
-
-          <div class="block">
-            <div class="progress-label" style="margin-bottom:10px"><span>🕐 Son Turlar</span></div>
-            <div class="history-list" id="historyList"></div>
-          </div>
-
-          <div class="block danger-zone">
-            <button class="btn danger-btn" id="resetStatsBtn">İstatistikleri Sıfırla</button>
-          </div>
+        <div class="block danger-zone" style="margin-top:22px">
+          <button class="btn danger" id="resetStatsBtn">İstatistikleri Sıfırla</button>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <div class="tab-content" data-tab-content="analiz">
-      <div class="glass hero-side">
-        <div class="block" id="analysisBlock">
-          <div class="progress-label">
-            <span>🎯 Kişisel Analiz</span>
-            <span id="analysisReset" style="cursor:pointer;color:var(--muted2);font-size:11px;text-decoration:underline">temizle</span>
-          </div>
-          <div id="analysisBody" style="font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:6px">
-            Birkaç tur oyna, kulağının hangi frekans bölgesinde güçlü/zayıf olduğunu burada göstereceğim.
-          </div>
+    <!-- ================= EKRAN: ARAÇLAR (yer tutucu) ================= -->
+    <section class="screen" id="screen-tools" data-tab="tools">
+      <div class="scroll">
+        <div class="section-head" style="margin-top:6px;align-items:center">
+          <div class="section-title">Araçlar</div>
+          <button class="gear" id="toolsSettingsBtn" aria-label="Ayarlar"><i></i></button>
         </div>
+        <div class="placeholder">
+          <div class="placeholder-icon">🛠️</div>
+          <h3>Yakında burada</h3>
+          <p>Kalibrasyon ve ek araçlar ileride bu sekmeye eklenecek.</p>
+        </div>
+      </div>
+    </section>
 
-        <div class="block">
-          <div class="progress-label" style="margin-bottom:10px"><span>📊 Canlı İstatistikler</span></div>
-          <div class="metrics">
-            <div class="metric"><div class="k">Toplam Tur</div><div class="v" id="roundsValue">0</div></div>
-            <div class="metric"><div class="k">Doğru</div><div class="v" id="correctValue" style="color:var(--green)">0</div></div>
-            <div class="metric"><div class="k">Yanlış</div><div class="v" id="wrongValue" style="color:var(--red)">0</div></div>
-            <div class="metric"><div class="k">Ort. Puan / Tur</div><div class="v" id="avgScoreValue">0</div></div>
-            <div class="metric"><div class="k">En İyi Combo</div><div class="v" id="bestComboValue">0x</div></div>
-            <div class="metric"><div class="k">En Yüksek Skor</div><div class="v" id="bestScoreValue">0</div></div>
+    <!-- ================= EKRAN: KALİBRASYON ================= -->
+    <section class="screen" id="screen-calib">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" id="calibBackBtn" aria-label="Geri">&#8249;</button>
+          <div class="ghead-titles">
+            <div class="game-title">Kalibrasyon</div>
+            <div class="game-sub num">Adım <span id="calStep">1</span>/3</div>
           </div>
         </div>
       </div>
+      <div class="scroll" style="padding-top:16px;display:flex;flex-direction:column;gap:14px">
+        <div class="bar" style="height:6px"><i id="calBar" style="width:33%"></i></div>
+
+        <div>
+          <h1 style="margin:6px 0 0;font-size:22px;font-weight:800;line-height:1.3" id="calHead">Kulaklığını tak, ortamı sessizleştir</h1>
+          <p class="lead" style="margin:10px 0 0" id="calBody">Egzersizlerdeki dB farkları küçüktür. Seviyeyi bir kez ayarlarsan tüm sorular aynı referansla çalar; sonuçların karşılaştırılabilir olur.</p>
+        </div>
+
+        <div class="card" style="padding:20px 18px;text-align:center">
+          <button class="btn" id="calPlayBtn" style="min-height:56px;font-size:16px">Referans tonu çal</button>
+          <div class="num" style="margin-top:16px;font-size:14px;font-weight:700;letter-spacing:.06em;color:var(--tx-3)">1 kHz SİNÜS · −20 dBFS</div>
+          <div class="cal-meter" id="calMeter"></div>
+          <p style="margin:16px 0 0;font-size:15px;line-height:1.5;color:var(--tx-2)" id="calGuide">Rahat duyduğun bir seviyeye getir, sonra onayla. Telefonun ses tuşlarını kullan.</p>
+        </div>
+
+        <p style="margin:0 2px;font-size:14px;line-height:1.45;color:var(--tx-3)">Bu ayarı sonra Ayarlar'dan değiştirebilirsin.</p>
+      </div>
+      <div class="actionbar">
+        <button class="btn primary" id="calCtaBtn">Seviye doğru, devam et</button>
+        <button class="btn" style="margin-top:9px;border-color:transparent;background:none;color:var(--tx-3)" id="calSkipBtn">Sonra yaparım</button>
+      </div>
+    </section>
+
+    <!-- ================= EKRAN: SIK SORULAN SORULAR ================= -->
+    <section class="screen" id="screen-faq">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" id="faqBackBtn" aria-label="Geri">&#8249;</button>
+          <div class="ghead-titles"><div class="game-title">Sık sorulan sorular</div></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-top:14px;display:flex;flex-direction:column;gap:10px" id="faqList"></div>
+    </section>
+
+    <!-- ================= EKRAN: GERİ BİLDİRİM ================= -->
+    <section class="screen" id="screen-feedback">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" id="feedbackBackBtn" aria-label="Geri">&#8249;</button>
+          <div class="ghead-titles"><div class="game-title">Geri bildirim gönder</div></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-top:14px;display:flex;flex-direction:column;gap:12px">
+        <p class="lead" style="margin:0 2px">Eksik bulduğun, kafa karıştıran ya da eklenmesini istediğin şeyleri yaz. Hepsini okuyoruz.</p>
+        <div class="card" style="padding:14px">
+          <div style="font-size:14px;font-weight:700;letter-spacing:.06em;color:var(--tx-3)">MESAJIN</div>
+          <textarea class="feedback-textarea" id="feedbackTextarea" placeholder="Yazmaya başla…" style="margin-top:10px"></textarea>
+        </div>
+        <div class="card" style="padding:14px 16px;font-size:14px;line-height:1.5;color:var(--tx-2)">Cihaz ve sürüm bilgisi mesaja otomatik eklenir.</div>
+      </div>
+      <div class="actionbar">
+        <button class="btn primary" id="feedbackSendBtn">Gönder</button>
+      </div>
+    </section>
+
+    <!-- ================= EKRAN: BİZE ULAŞIN ================= -->
+    <section class="screen" id="screen-contact">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" id="contactBackBtn" aria-label="Geri">&#8249;</button>
+          <div class="ghead-titles"><div class="game-title">Bize ulaşın</div></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-top:14px;display:flex;flex-direction:column;gap:12px">
+        <div class="card" style="padding:18px">
+          <div class="kicker" style="color:var(--am)">E-POSTA</div>
+          <a href="mailto:destek@audioengineer.academy" style="display:block;margin-top:10px;font-size:17px;font-weight:700;color:var(--tx);text-decoration:none">destek@audioengineer.academy</a>
+          <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:var(--tx-2)">Genelde iki iş günü içinde dönüyoruz. Hata bildirirken hangi modda olduğunu yazman yeterli.</p>
+        </div>
+        <div class="card" style="padding:16px;font-size:14px;line-height:1.5;color:var(--tx-2)">Satın alma ve iade konuları için mağaza hesabını kullandığın e-postayla yaz.</div>
+      </div>
+    </section>
+
+    <!-- ================= EKRAN: GİZLİLİK / KULLANIM ŞARTLARI ================= -->
+    <section class="screen" id="screen-legal">
+      <div class="ghead">
+        <div class="ghead-row">
+          <button class="back" id="legalBackBtn" aria-label="Geri">&#8249;</button>
+          <div class="ghead-titles"><div class="game-title" id="legalTitle">Gizlilik politikası</div></div>
+        </div>
+      </div>
+      <div class="scroll" style="padding-top:14px;display:flex;flex-direction:column;gap:12px">
+        <div class="card" style="padding:18px">
+          <div class="kicker" id="legalKicker">GİZLİLİK</div>
+          <h1 style="margin:10px 0 0;font-size:20px;font-weight:800;line-height:1.3">İçerik yakında eklenecek</h1>
+          <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:var(--tx-2)">Bu metin yayın öncesi hukuk kontrolünden geçtikten sonra eklenecek. Şimdilik yalnızca yerleşim görünüyor.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= EKRAN: SATIN ALMA ================= -->
+    <section class="screen" id="screen-paywall">
+      <div class="scroll" style="padding-top:10px">
+        <div style="display:flex;justify-content:flex-end">
+          <button class="back" id="paywallCloseBtn" aria-label="Kapat" style="font-size:20px">&times;</button>
+        </div>
+        <div style="padding:6px 2px 0">
+          <div class="kicker" style="color:var(--am)">TAM SÜRÜM</div>
+          <h1 style="margin:10px 0 0;font-size:22px;font-weight:800;line-height:1.28">Tam sürüm sadece sınırları kaldırır</h1>
+          <p class="lead" style="margin:10px 0 0">Ücretsiz sürümle çalışmaya devam edebilirsin. Acele etmene gerek yok.</p>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:18px">
+          <div class="plan">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+              <div style="font-size:16px;font-weight:700">Ücretsiz</div>
+              <div style="font-size:14px;font-weight:600;color:var(--tx-3)">Şu anki planın</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:9px;margin-top:12px">
+              <div class="li"><i></i><span id="payFreeModes">— egzersiz modu</span></div>
+              <div class="li"><i></i><span>Seans başına 5 soru</span></div>
+              <div class="li"><i></i><span>5 can</span></div>
+            </div>
+          </div>
+
+          <div class="plan pro">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+              <div style="font-size:16px;font-weight:700;color:var(--am)">Pro</div>
+              <div class="num" style="font-size:16px;font-weight:800" id="proPrice">₺199</div>
+            </div>
+            <div style="margin-top:4px;font-size:14px;font-weight:600;color:var(--tx-3)">Tek seferlik — abonelik değil</div>
+            <div style="display:flex;flex-direction:column;gap:9px;margin-top:12px">
+              <div class="li"><i></i><span id="payProModes">— egzersiz modunun tamamı</span></div>
+              <div class="li"><i></i><span>Seans başına 10 soru</span></div>
+              <div class="li"><i></i><span>Can sınırı yok</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <button class="btn primary" id="buyProBtn">Satın al</button>
+        <div class="row" style="margin-top:9px">
+          <button class="btn" id="restorePurchaseBtn">Geri yükle</button>
+          <button class="btn" style="border-color:transparent;background:none;color:var(--tx-3)" id="payFreeContinueBtn">Ücretsiz devam</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="tabbar" id="tabbar">
+    <div class="tabs">
+      <button class="tab active" data-tab="train">Antrenman</button>
+      <button class="tab" data-tab="progress">İlerleme</button>
+      <button class="tab" data-tab="tools">Araçlar</button>
     </div>
   </div>
 
@@ -257,7 +452,96 @@
     <button class="gameover-close" id="gameoverClose" type="button" aria-label="Kapat">✕</button>
     <div class="gameover-title">🏁 Oyun Bitti</div>
     <div class="gameover-stats" id="gameoverStats">0 doğru · 0 yanlış · +0 XP</div>
-    <button class="btn" id="gameoverRetryBtn">Tekrar Oyna</button>
+    <button class="btn primary" id="gameoverRetryBtn">Tekrar Oyna</button>
+  </div>
+
+  <!-- ================= GENEL AYARLAR SHEET ================= -->
+  <div class="sheet-overlay" id="mainSettingsOverlay"></div>
+  <div class="bottom-sheet" id="mainSettingsSheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <button class="back hidden" id="mainSettingsBack" aria-label="Geri">&#8249;</button>
+      <h3 style="flex:1">Ayarlar</h3>
+      <button class="sheet-cancel" id="mainSettingsClose">✕</button>
+    </div>
+
+    <div class="group">
+      <h6>GENEL</h6>
+      <div class="list">
+        <div class="item">
+          <div><h5>Dil</h5><p>Arayüz ve egzersiz metinleri</p></div>
+          <div class="seg" id="langSeg">
+            <button type="button" class="on" data-lang="tr">Türkçe</button>
+            <button type="button" data-lang="en">English</button>
+          </div>
+        </div>
+        <div class="item">
+          <div style="padding-right:12px"><h5>Bildirimler</h5><p>Günlük antrenman hatırlatması</p></div>
+          <button type="button" class="sw" id="notifSwitch" aria-label="Bildirimler"><i></i></button>
+        </div>
+        <div class="item">
+          <div style="padding-right:12px"><h5>Kulaklık uyarısı</h5><p>Ana menüde kulaklık hatırlatma notunu göster</p></div>
+          <button type="button" class="sw" id="hpWarnSwitch" aria-label="Kulaklık uyarısı"><i></i></button>
+        </div>
+        <button class="item" id="calibRow">
+          <div><h5>Kalibrasyon</h5><p>Referans tonla kulaklık seviyesini eşitle</p></div>
+          <span class="caret">&#8250;</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h6>ZORLUK</h6>
+      <div class="list">
+        <button class="item pick" id="diffAutoBtn" data-mode="auto">
+          <div><h5>Otomatik</h5><p>Önerilen · performansına göre kendini ayarlar</p></div>
+          <span class="tick">✓</span>
+        </button>
+        <button class="item" id="diffFixedBtn" data-mode="fixed">
+          <div><h5>Sabit</h5><p>Hassasiyeti kendin seç</p></div>
+          <span class="tick">✓</span>
+        </button>
+        <div class="sublist" id="diffSublist">
+          <button class="item" data-diff="easy"><div><h5>Kolay</h5><p>Farklar belirgin, yeni başlayanlar için</p></div><span class="tick">✓</span></button>
+          <button class="item" data-diff="medium"><div><h5>Orta</h5><p>Dengeli, günlük antrenman</p></div><span class="tick">✓</span></button>
+          <button class="item" data-diff="hard"><div><h5>Zor</h5><p>İnce farklar, deneyimli kulak</p></div><span class="tick">✓</span></button>
+          <button class="item" data-diff="pro"><div><h5>Pro</h5><p>Stüdyo hassasiyeti</p></div><span class="tick">✓</span></button>
+          <button class="item" data-diff="proplus"><div><h5>Sınırsız</h5><p>Sınırını kendin ara</p></div><span class="tick">✓</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <h6>HESAP</h6>
+      <div class="list">
+        <div class="item">
+          <div><h5>Sürüm</h5><p id="accountVerLine">Ücretsiz — 1 mod, seans başına 5 soru</p></div>
+          <button class="btn primary" style="width:auto;min-height:44px;border-radius:14px;padding:0 16px;font-size:14px;flex:none" id="goProBtn">Pro'ya geç</button>
+        </div>
+        <button class="item" id="restoreRow">
+          <div><h5>Satın alımları geri yükle</h5><p>Aynı hesapla daha önce satın aldıysan</p></div>
+          <span class="caret">&#8250;</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h6>DESTEK</h6>
+      <div class="list">
+        <button class="item" id="feedbackRow"><div><h5>Geri bildirim gönder</h5></div><span class="caret">&#8250;</span></button>
+        <button class="item" id="faqRow"><div><h5>Sık sorulan sorular</h5></div><span class="caret">&#8250;</span></button>
+        <button class="item" id="contactRow"><div><h5>Bize ulaşın</h5></div><span class="caret">&#8250;</span></button>
+      </div>
+    </div>
+
+    <div class="group">
+      <h6>HAKKINDA</h6>
+      <div class="list">
+        <button class="item" id="privacyRow"><div><h5>Gizlilik politikası</h5></div><span class="caret">&#8250;</span></button>
+        <button class="item" id="termsRow"><div><h5>Kullanım şartları</h5></div><span class="caret">&#8250;</span></button>
+        <div class="item"><div><h5>Sürüm numarası</h5></div><span class="val num">v1.0.0</span></div>
+      </div>
+    </div>
   </div>
 
   <div class="sheet-overlay" id="sheetOverlay"></div>

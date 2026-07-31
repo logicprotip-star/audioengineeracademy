@@ -28,3 +28,28 @@ koşul her zaman false. Orijinalde de böyleydi.
 **3. Odak aralığı özelliği kodda yok**
 Tasarımda "Odak: Tüm spektrum / Bas / Orta / Tiz" chip'i var ama
 uygulamada karşılığı yok. Tasarım aktarımında eklenecek.
+
+## Açık işler (31.07.2026)
+
+**1. Geri bildirim kartı ilk saniyelerde kesiliyor**
+Kart açıldığı an alt aksiyon çubuğunun altında kalıyor, birkaç saniye
+sonra kendini düzeltiyor. Telefonda ölçüldü: fark=-209 → -170 → +21.
+Padding hesabı doğru ama layout hesaplanmadan ölçüm yapılıyor.
+Çözüm yönü: requestAnimationFrame zinciri veya kart görünür olmadan
+önce güvenli padding verip sonra kesinleştirme.
+Ölçüm komutu (Safari konsolu, Hatalar filtresi açık):
+```
+setInterval(()=>{const fb=document.querySelector('#gameScroll .fb');
+const b=document.getElementById('gameActionbar');
+if(fb&&fb.getBoundingClientRect().height>0){console.error('FB fark='+
+Math.round(b.getBoundingClientRect().top-fb.getBoundingClientRect().bottom))}},1000)
+```
+Kabul kriteri: ilk ölçümde bile fark ≥ +16
+
+**2. Kalibrasyon — sarı seviye çizgisi dokunmatik olmalı**
+Ekrandaki seviye göstergesi parmakla sürüklenerek ayarlanabilsin.
+
+**3. A/B Test gerçek bypass değil**
+Buton tasarıma göre görünüyor ama playQuestion() zinciri sıfırdan
+kuruyor; ses baştan başlıyor. Mixteki bypass gibi kesintisiz geçiş
+için ses motoruna paralel bir bypass yolu gerekiyor.

@@ -9,7 +9,7 @@ import * as storage from "./core/storage.js";
 import * as progress from "./core/progress.js";
 import { toast, spawnXp, burst, shake } from "./core/fx.js";
 import { formatHz } from "./core/utils.js";
-import { registerMode, getMode } from "./core/registry.js";
+import { registerMode, getMode, listModes } from "./core/registry.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 
 registerMode(frekansBulma);
@@ -25,11 +25,11 @@ function difficultyLivesMap() {
 
 function labelSource(s) {
   return {
-    pink: "Pink Noise",
-    white: "White Noise",
-    saw: "Saw Synth",
-    square: "Square Synth",
-    triangle: "Triangle Synth",
+    pink: "Pembe Gürültü",
+    white: "Beyaz Gürültü",
+    saw: "Testere Synth",
+    square: "Kare Synth",
+    triangle: "Üçgen Synth",
     upload: "Yüklenen Ses"
   }[s] || s;
 }
@@ -39,27 +39,121 @@ function labelSource(s) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const els = {
-  startBtn: document.getElementById("startBtn"),
-  nextBtn: document.getElementById("nextBtn"),
-  playACleanBtn: document.getElementById("playACleanBtn"),
-  playBFilteredBtn: document.getElementById("playBFilteredBtn"),
-  abAutoBtn: document.getElementById("abAutoBtn"),
+  // ekran yönlendirme
+  modeGrid: document.getElementById("modeGrid"),
+  modeCount: document.getElementById("modeCount"),
+  backBtn: document.getElementById("backBtn"),
+  tabbar: document.getElementById("tabbar"),
+
+  // genel ayarlar (dişli) + yardım/bilgi ekranları
+  menuSettingsBtn: document.getElementById("menuSettingsBtn"),
+  progressSettingsBtn: document.getElementById("progressSettingsBtn"),
+  toolsSettingsBtn: document.getElementById("toolsSettingsBtn"),
+  mainSettingsOverlay: document.getElementById("mainSettingsOverlay"),
+  mainSettingsSheet: document.getElementById("mainSettingsSheet"),
+  mainSettingsBack: document.getElementById("mainSettingsBack"),
+  mainSettingsClose: document.getElementById("mainSettingsClose"),
+  langSeg: document.getElementById("langSeg"),
+  notifSwitch: document.getElementById("notifSwitch"),
+  hpWarnSwitch: document.getElementById("hpWarnSwitch"),
+  calibRow: document.getElementById("calibRow"),
+  diffAutoBtn: document.getElementById("diffAutoBtn"),
+  diffFixedBtn: document.getElementById("diffFixedBtn"),
+  diffSublist: document.getElementById("diffSublist"),
+  accountVerLine: document.getElementById("accountVerLine"),
+  goProBtn: document.getElementById("goProBtn"),
+  restoreRow: document.getElementById("restoreRow"),
+  feedbackRow: document.getElementById("feedbackRow"),
+  faqRow: document.getElementById("faqRow"),
+  contactRow: document.getElementById("contactRow"),
+  privacyRow: document.getElementById("privacyRow"),
+  termsRow: document.getElementById("termsRow"),
+
+  calibBackBtn: document.getElementById("calibBackBtn"),
+  calStep: document.getElementById("calStep"),
+  calBar: document.getElementById("calBar"),
+  calHead: document.getElementById("calHead"),
+  calBody: document.getElementById("calBody"),
+  calGuide: document.getElementById("calGuide"),
+  calPlayBtn: document.getElementById("calPlayBtn"),
+  calMeter: document.getElementById("calMeter"),
+  calCtaBtn: document.getElementById("calCtaBtn"),
+  calSkipBtn: document.getElementById("calSkipBtn"),
+
+  faqBackBtn: document.getElementById("faqBackBtn"),
+  faqList: document.getElementById("faqList"),
+
+  feedbackBackBtn: document.getElementById("feedbackBackBtn"),
+  feedbackTextarea: document.getElementById("feedbackTextarea"),
+  feedbackSendBtn: document.getElementById("feedbackSendBtn"),
+
+  contactBackBtn: document.getElementById("contactBackBtn"),
+
+  legalBackBtn: document.getElementById("legalBackBtn"),
+  legalTitle: document.getElementById("legalTitle"),
+  legalKicker: document.getElementById("legalKicker"),
+
+  paywallCloseBtn: document.getElementById("paywallCloseBtn"),
+  payFreeModes: document.getElementById("payFreeModes"),
+  payProModes: document.getElementById("payProModes"),
+  proPrice: document.getElementById("proPrice"),
+  buyProBtn: document.getElementById("buyProBtn"),
+  restorePurchaseBtn: document.getElementById("restorePurchaseBtn"),
+  payFreeContinueBtn: document.getElementById("payFreeContinueBtn"),
+
+  // oyun başlığı / durum
+  bossChip: document.getElementById("bossChip"),
+  hearts: document.getElementById("hearts"),
+  gameSettingsBtn: document.getElementById("gameSettingsBtn"),
   seriChip: document.getElementById("seriChip"),
-  hintBtn: document.getElementById("hintBtn"),
-  hintMaskLayer: document.getElementById("hintMaskLayer"),
-  resetStatsBtn: document.getElementById("resetStatsBtn"),
-  difficultySelect: document.getElementById("difficultySelect"),
-  playModeSelect: document.getElementById("playModeSelect"),
-  sourceSelect: document.getElementById("sourceSelect"),
-  audioFileInput: document.getElementById("audioFileInput"),
-  questionTitle: document.getElementById("questionTitle"),
-  questionMeta: document.getElementById("questionMeta"),
-  answers: document.getElementById("answers"),
-  feedbackBox: document.getElementById("feedbackBox"),
-  feedbackDetail: document.getElementById("feedbackDetail"),
+  hintStatCount: document.getElementById("hintStatCount"),
+  gameAccValue: document.getElementById("gameAccValue"),
   roundChip: document.getElementById("roundChip"),
   scoreChip: document.getElementById("scoreChip"),
-  bossChip: document.getElementById("bossChip"),
+  streakText: document.getElementById("streakText"),
+
+  // kaynak / karıştır
+  sourceSelect: document.getElementById("sourceSelect"),
+  mixToggle: document.getElementById("mixToggle"),
+  gameScroll: document.getElementById("gameScroll"),
+  gameActionbar: document.getElementById("gameActionbar"),
+  sourceChipLabel: document.getElementById("sourceChipLabel"),
+
+  // soru / spektrum
+  questionTitle: document.getElementById("questionTitle"),
+  questionMeta: document.getElementById("questionMeta"),
+  analyzer: document.getElementById("analyzer"),
+  analyzerLabel: document.getElementById("analyzerLabel"),
+  gainValue: document.getElementById("gainValue"),
+  hintTag: document.getElementById("hintTag"),
+  hintMaskLayer: document.getElementById("hintMaskLayer"),
+  canvas: document.getElementById("visualizer"),
+  freqGuessArea: document.getElementById("freqGuessArea"),
+  freqInfo: document.getElementById("freqInfo"),
+
+  // süre / geri bildirim
+  timerText: document.getElementById("timerText"),
+  timerBar: document.getElementById("timerBar"),
+  feedbackBox: document.getElementById("feedbackBox"),
+  feedbackDetail: document.getElementById("feedbackDetail"),
+
+  // alt aksiyon çubuğu
+  startBtn: document.getElementById("startBtn"),
+  abToggle: document.getElementById("abToggle"),
+  hintBtn: document.getElementById("hintBtn"),
+  nextBtn: document.getElementById("nextBtn"),
+
+  // oyun ayarları sheet (dots)
+  gameSettingsOverlay: document.getElementById("gameSettingsOverlay"),
+  gameSettingsSheet: document.getElementById("gameSettingsSheet"),
+  gameSettingsCancel: document.getElementById("gameSettingsCancel"),
+  difficultySelect: document.getElementById("difficultySelect"),
+  playModeSelect: document.getElementById("playModeSelect"),
+  timerModeSelect: document.getElementById("timerModeSelect"),
+  audioFileInput: document.getElementById("audioFileInput"),
+  resetStatsBtn: document.getElementById("resetStatsBtn"),
+
+  // ilerleme ekranı
   comboValue: document.getElementById("comboValue"),
   xpValue: document.getElementById("xpValue"),
   levelValue: document.getElementById("levelValue"),
@@ -72,17 +166,31 @@ const els = {
   avgScoreValue: document.getElementById("avgScoreValue"),
   bestComboValue: document.getElementById("bestComboValue"),
   bestScoreValue: document.getElementById("bestScoreValue"),
-  streakText: document.getElementById("streakText"),
   achievementList: document.getElementById("achievementList"),
   historyList: document.getElementById("historyList"),
-  hearts: document.getElementById("hearts"),
-  timerText: document.getElementById("timerText"),
-  timerBar: document.getElementById("timerBar"),
   dailyList: document.getElementById("dailyList"),
-  canvas: document.getElementById("visualizer"),
-  freqGuessArea: document.getElementById("freqGuessArea"),
-  freqInfo: document.getElementById("freqInfo"),
-  timerModeSelect: document.getElementById("timerModeSelect"),
+
+  // ilerleme: ek istatistikler / şu an neredesin / frekans bölgesi / mod seviyeleri / grafik
+  totalPracticeValue: document.getElementById("totalPracticeValue"),
+  totalRoundsValue: document.getElementById("totalRoundsValue"),
+  whereNowText: document.getElementById("whereNowText"),
+  zonePanelToggle: document.getElementById("zonePanelToggle"),
+  zoneCaret: document.getElementById("zoneCaret"),
+  zoneWrap: document.getElementById("zoneWrap"),
+  zoneSub: document.getElementById("zoneSub"),
+  zoneList: document.getElementById("zoneList"),
+  modeLevelsToggle: document.getElementById("modeLevelsToggle"),
+  modeLevelsCaret: document.getElementById("modeLevelsCaret"),
+  modeLevelsWrap: document.getElementById("modeLevelsWrap"),
+  modeLevelsSub: document.getElementById("modeLevelsSub"),
+  modeLevelsList: document.getElementById("modeLevelsList"),
+  accChartSvg: document.getElementById("accChartSvg"),
+  accChartEmpty: document.getElementById("accChartEmpty"),
+  accChartLabels: document.getElementById("accChartLabels"),
+  accChartFirst: document.getElementById("accChartFirst"),
+  accChartLast: document.getElementById("accChartLast"),
+
+  // oyun bitti kartı
   gameoverOverlay: document.getElementById("gameoverOverlay"),
   gameoverCard: document.getElementById("gameoverCard"),
   gameoverStats: document.getElementById("gameoverStats"),
@@ -91,6 +199,80 @@ const els = {
 };
 
 const ctx2d = els.canvas.getContext("2d");
+
+// Canvas'ın çizim koordinat uzayı CSS piksel cinsindendir (canvasCssW/H) — bitmap
+// çözünürlüğü devicePixelRatio ile çarpılıp ctx2d.setTransform ile ölçeklenir, böylece
+// hem Retina ekranlarda net çizim olur hem de eksen/etiket boyutları dar telefon
+// ekranlarında küçülüp okunmaz hale gelmez (sabit 1200x320 iç çözünürlüğün CSS'e göre
+// küçülmesi yerine, gerçek CSS piksel boyutunda çizim yapılır).
+let canvasCssW = 1200;
+let canvasCssH = 320;
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = els.canvas.getBoundingClientRect();
+  // Ekran henüz gizliyken (ör. oyun ekranına hiç girilmediyse) genişlik/yükseklik 0
+  // ölçülebilir — bu durumda önceki bilinen boyutu koru, canvas'ı çökertme.
+  if (rect.width > 0) canvasCssW = rect.width;
+  if (rect.height > 0) canvasCssH = rect.height;
+  const targetW = Math.max(1, Math.round(canvasCssW * dpr));
+  const targetH = Math.max(1, Math.round(canvasCssH * dpr));
+  if (els.canvas.width !== targetW || els.canvas.height !== targetH) {
+    els.canvas.width = targetW;
+    els.canvas.height = targetH;
+  }
+  ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", resizeCanvas);
+window.addEventListener("orientationchange", resizeCanvas);
+
+// Oyun ekranındaki .scroll'un alt boşluğu, sabit alt aksiyon çubuğunun (2 satır
+// buton + not metni — içeriğe göre boyu değişebilir) GERÇEKTEN ÖLÇÜLEN yüksekliğine
+// göre ayarlanır; sabit piksel tahmini cihaza/duruma göre yetersiz kalabiliyordu.
+// actionbar'ın kendi CSS'i zaten "padding-bottom: ... + env(safe-area-inset-bottom)"
+// içerdiği için getBoundingClientRect().height safe-area'yı da otomatik kapsar.
+function syncGameScrollPadding() {
+  if (!els.gameActionbar || !els.gameScroll) return;
+  const h = els.gameActionbar.getBoundingClientRect().height;
+  if (h > 0) els.gameScroll.style.paddingBottom = `${Math.ceil(h) + 24}px`;
+}
+if (window.ResizeObserver && els.gameActionbar) {
+  new ResizeObserver(syncGameScrollPadding).observe(els.gameActionbar);
+}
+// actionbar'ın boyu SABİT kalsa bile, cevap sonrası DOM'a eklenen geri bildirim
+// kartının kendi yüksekliği moda/bölgeye göre değişir (kısa "Kaçtı" satırından çok
+// satırlı bölge açıklamasına kadar) — kartı da ayrıca izlemek gerekiyor, sadece
+// actionbar'ı izlemek yetmiyordu (bir önceki turun eksik kalan kısmı buydu).
+if (window.ResizeObserver && els.feedbackBox) {
+  new ResizeObserver(syncGameScrollPadding).observe(els.feedbackBox);
+}
+window.addEventListener("resize", syncGameScrollPadding);
+window.addEventListener("orientationchange", syncGameScrollPadding);
+
+// Cevap sonrası geri bildirim kartının TAMAMI görünür olsun diye scroll alanını
+// alta kaydırır. requestAnimationFrame: DOM içerik güncellemesi (setFeedback)
+// senkron olsa da, .game-scroll'un gerçek scrollHeight'ı ancak reflow'dan SONRA
+// doğru okunur.
+// Senkron çalışır — requestAnimationFrame KULLANMAZ. scrollHeight/getBoundingClientRect
+// okumak zaten DOM az önce değiştiyse tarayıcıyı senkron reflow'a zorluyor, yani rAF
+// beklemeye gerek yok; üstelik rAF arka plandaki/pasif sekmelerde geciktirilebiliyor
+// (bu da doğrulama sırasında ölçümlerin tutarsız çıkmasına neden olmuştu).
+//
+// iOS WKWebView KÖK SEBEP (telefonda ölçümle bulundu — padding değil, ZAMANLAMA
+// sorunuydu): .scroll'daki -webkit-overflow-scrolling:touch, programatik scrollTop
+// atamasını ANİMASYONLU/gecikmeli uyguluyor (native momentum scroll devreye giriyor).
+// scrollTop = scrollHeight satırı senkron çalışsa da görsel kaydırma 1-2 saniyeye
+// yayılıyordu (ölçüm: fark -209 → -170 → -170 → +21, kademeli düzeliyordu). Momentum'u
+// atama anında geçici kapatmak sıçramayı gerçekten anlık yapar; bir sonraki frame'de
+// geri açılır ki kullanıcının kendi parmak kaydırması yumuşak/native kalsın.
+function scrollFeedbackIntoView() {
+  syncGameScrollPadding();
+  if (!els.gameScroll) return;
+  els.gameScroll.style.setProperty("-webkit-overflow-scrolling", "auto");
+  els.gameScroll.scrollTop = els.gameScroll.scrollHeight;
+  requestAnimationFrame(() => {
+    els.gameScroll.style.setProperty("-webkit-overflow-scrolling", "touch");
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Çekirdek altyapı
@@ -124,8 +306,13 @@ const roundFlow = createRoundFlow({
 
 let stats = storage.loadStats(difficultyLivesMap(), HINTS_PER_GAME);
 let history = stats.history || [];
+// loadStats negatif skorları belleğe yüklerken 0'a çeker — düzeltilmiş değer hemen
+// kalıcı hale gelsin diye (kullanıcı ilk aksiyonunu almadan önce bile) burada yazılır.
+storage.saveStats(stats, history);
 let daily = storage.loadDaily();
 let zoneStats = storage.loadZoneStats();
+let prefs = storage.loadPrefs();
+let dailyAcc = storage.loadDailyAcc();
 
 let activeQuestion = null;
 let roundActive = false;
@@ -138,6 +325,24 @@ function resetSession() { session = { correct: 0, wrong: 0, xp: 0, hints: 0 }; }
 let freqGuessHz = null;
 let freqHoverHz = null;
 
+// İlerleme sekmesindeki "toplam antrenman süresi" istatistiği: her tur startRound()'da
+// başlar, cevap/timeout ile biter — soru ekranda GERÇEKTEN açık kaldığı süreyi toplar.
+let roundStartedAt = null;
+function accumulatePracticeTime() {
+  if (!roundStartedAt) return;
+  stats.totalPracticeMs = (stats.totalPracticeMs || 0) + Math.max(0, Date.now() - roundStartedAt);
+  roundStartedAt = null;
+}
+
+// Kalibrasyon durumu — burada (dosyanın başında) tanımlı çünkü goScreen() (aşağıda)
+// ekrandan çıkışta stopCalibrationTone()'u çağırır; goScreen boot sırasında bu
+// let'lerin tanımlandığı satırdan ÖNCE çağrılıyorsa TDZ hatası olurdu.
+let calStep = 1;
+let calPlaying = false;
+let calOsc = null;
+let calGain = null;
+let calMeterRaf = null;
+
 let autoPlaying = false;
 let autoStopped = false;
 let pausedAutoAdvanceRemainingMs = null;
@@ -149,7 +354,9 @@ function gameOverGuardActive() {
   return Date.now() - gameOverOpenedAt < GAMEOVER_CLICK_GUARD_MS;
 }
 
-let abDemoLock = false;
+// "Karıştır": açıkken her tur rastgele bir kaynak seçilir (yüklenen dosya hariç);
+// kapalıyken kaynak seçicideki değer kullanılır. Oturum içi, kalıcı değil.
+let mixSources = false;
 
 // 10 soruluk bölüm (challenge) durumu
 let challenge = { active: false, total: 10, done: 0, correct: 0, xp: 0 };
@@ -159,6 +366,10 @@ function xpMult() { return (challenge.active && isChallenge()) ? CHALLENGE_XP_MU
 
 function persistStats() { storage.saveStats(stats, history); }
 function persistDaily() { storage.saveDaily(daily); }
+function recordAndPersistDailyAccuracy(correct) {
+  storage.recordDailyAccuracy(dailyAcc, correct);
+  storage.saveDailyAcc(dailyAcc);
+}
 
 // localStorage boşsa (ör. WKWebView temizlemişse) Preferences'taki yedekten kurtar.
 (async function reconcileFromPreferences() {
@@ -166,6 +377,7 @@ function persistDaily() { storage.saveDaily(daily); }
   if (recovered.stats) { stats = storage.loadStats(difficultyLivesMap(), HINTS_PER_GAME); history = stats.history || []; }
   if (recovered.daily) { daily = storage.loadDaily(); }
   if (recovered.zoneStats) { zoneStats = storage.loadZoneStats(); }
+  if (recovered.prefs) { prefs = storage.loadPrefs(); applyPrefs(); }
   if (recovered.stats || recovered.daily || recovered.zoneStats) {
     updateUI(); renderHistory(); renderDaily(); renderAnalysis();
   }
@@ -233,10 +445,10 @@ function loseLife(reasonText) {
   diffState().lives = currentLives;
   renderHearts();
   if (currentLives <= 0) {
-    setFeedback("Oyun bitti", `${reasonText} Bu zorluktaki canların tükendi. Tekrar başlatabilirsin.`, true);
+    setFeedback("Oyun bitti", `${reasonText} Bu zorluktaki canların tükendi. Tekrar başlatabilirsin.`, true, true);
     toast("💔 Oyun Bitti", "Bu zorlukta canların tükendi.");
   } else {
-    setFeedback("Can kaybettin", `${reasonText} Kalan can: ${currentLives}`, true);
+    setFeedback("Can kaybettin", `${reasonText} Kalan can: ${currentLives}`, true, true);
   }
 }
 
@@ -276,10 +488,14 @@ function hideGameOverCard() {
 // Geri bildirim / genel UI yardımcıları
 // ═══════════════════════════════════════════════════════════════════════════
 
-function setFeedback(title, detail, showResult = false) {
+function setFeedback(title, detail, showResult = false, bad = false) {
   els.feedbackBox.querySelector("strong").textContent = title;
   els.feedbackDetail.textContent = detail;
   els.feedbackBox.classList.toggle("show-result", !!showResult);
+  els.feedbackBox.classList.toggle("bad", !!bad);
+  // Gerçek bir sonuç kartı gösterildiğinde (ambient/durum mesajları değil) kartın
+  // tamamı görünür olsun diye alan yeniden ölçülür ve en alta kaydırılır.
+  if (showResult) scrollFeedbackIntoView();
 }
 
 function updateStartBtnLabel() {
@@ -294,6 +510,7 @@ function updateStartBtnLabel() {
 }
 
 function updateHintChipLabel() {
+  if (els.hintStatCount) els.hintStatCount.textContent = stats.hintsRemaining;
   if (!els.hintBtn) return;
   const used = !!(activeQuestion && activeQuestion.hintUsed);
   els.hintBtn.textContent = used && activeQuestion.hintText
@@ -302,9 +519,88 @@ function updateHintChipLabel() {
   els.hintBtn.disabled = stats.hintsRemaining <= 0 || !activeQuestion || !roundActive || used;
 }
 
-function switchToOyunTab() {
-  const btn = document.querySelector('.tab-btn[data-tab="oyun"]');
-  if (btn && !btn.classList.contains('active')) btn.click();
+function setAnalyzerPhase(phase) {
+  if (els.analyzer) els.analyzer.dataset.phase = phase;
+}
+
+function formatGainDb(gain) {
+  const rounded = Math.round(gain * 10) / 10;
+  return `${rounded > 0 ? "+" : ""}${rounded} dB`;
+}
+
+// A/B tek buton durumunu (A|B göstergesi + spektrum başlığı) currentPlayMode'a göre günceller.
+function updateAbToggleUI() {
+  if (!els.abToggle) return;
+  const ab = currentPlayMode === "clean" ? "A" : "B";
+  els.abToggle.dataset.ab = ab;
+  if (els.analyzerLabel) els.analyzerLabel.textContent = ab === "A" ? "SPEKTRUM · A TEMİZ" : "SPEKTRUM · B İŞLENMİŞ";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Ekran yönlendirme (menü / oyun / ilerleme / araçlar)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const TAB_TO_SCREEN = { train: "menu", progress: "progress", tools: "tools" };
+
+// Ayarlar sheet'inden açılan yardım/bilgi ekranları (kalibrasyon, SSS, geri bildirim,
+// iletişim, yasal metin, satın alma) tek seviye derinlikte — hangi ekrandan açıldığını
+// hatırlayıp geri okuyla oraya dönmek için minik bir gezinme yığını yeterli.
+let screenStack = ["menu"];
+function goScreen(name) {
+  const targetId = `screen-${name}`;
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === targetId));
+  const target = document.getElementById(targetId);
+  const tab = target && target.dataset.tab;
+  if (els.tabbar) els.tabbar.classList.toggle("hide", !tab);
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", !!tab && t.dataset.tab === tab));
+  if (target) {
+    const scrollEl = target.querySelector(".scroll");
+    if (scrollEl) scrollEl.scrollTop = 0;
+  }
+  if (name === "game") {
+    // Oyun ekranı bir önceki karede "display:none" idi (canvas/actionbar 0 yükseklikte
+    // ölçülürdü). .active sınıfı yukarıda SENKRON uygulandığı için getBoundingClientRect
+    // okumak tarayıcıyı güncel layout'u hesaplamaya zorlar — rAF'a gerek yok (rAF arka
+    // planda/pasif sekmelerde ertelenebiliyor, bu da güvenilmez ölçümlere yol açıyordu).
+    resizeCanvas();
+    syncGameScrollPadding();
+  }
+  closeMainSettingsSheet();
+  // Kalibrasyon tonu sadece o ekrandayken çalsın — başka bir ekrana geçilince arka
+  // planda çalmaya devam etmesin (geri, sekme değişimi, sheet üzerinden nav vb. hepsi
+  // buradan geçtiği için tek bir kontrol noktası yeterli).
+  if (name !== "calib" && calPlaying) stopCalibrationTone();
+  if (screenStack[screenStack.length - 1] !== name) screenStack.push(name);
+}
+function goBack(fallback = "menu") {
+  screenStack.pop();
+  goScreen(screenStack.pop() || fallback);
+}
+
+// Şimdilik tek mod var; kayıt defterinden beslenir, elle yazılmaz (bkz. core/registry.js).
+function renderModeGrid() {
+  if (!els.modeGrid) return;
+  const modes = listModes();
+  if (els.modeCount) els.modeCount.textContent = `${modes.length} / ${modes.length} açık`;
+  els.modeGrid.classList.toggle("single", modes.length === 1);
+  els.modeGrid.innerHTML = "";
+  modes.forEach(m => {
+    const meta = m.getMeta();
+    const card = document.createElement("button");
+    card.className = "mode-card";
+    card.innerHTML = `
+      <div class="mode-top">
+        <div class="mode-glyph"><i style="height:12px"></i><i style="height:22px"></i><i style="height:16px"></i></div>
+        <div class="mode-chip">Motor ${meta.motor}</div>
+      </div>
+      <span class="mode-engine">Değeri bul</span>
+      <h4>${meta.ad}</h4>
+      <p>${meta.aciklama}</p>
+      <div class="mode-mini"><i style="width:0%"></i></div>
+    `;
+    card.addEventListener("click", () => goScreen("game"));
+    els.modeGrid.appendChild(card);
+  });
 }
 
 function updateUI() {
@@ -319,6 +615,7 @@ function updateUI() {
   els.xpBar.style.width = `${percent}%`;
 
   if (els.seriChip) els.seriChip.textContent = 'Seri ' + stats.rounds;
+  if (els.gameAccValue) els.gameAccValue.textContent = `%${progress.accuracy(stats)}`;
   els.roundsValue.textContent = stats.rounds;
   els.correctValue.textContent = stats.correct;
   if (els.wrongValue) els.wrongValue.textContent = stats.wrong;
@@ -388,10 +685,144 @@ function renderHistory() {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// İlerleme sekmesi — Frekans bölgesi / Mod seviyeleri / Son 30 gün / Şu an neredesin
+// mode.FA_ZONES zaten dışa açık (mod dosyasına dokunmadan içe aktarılıyor) — burada
+// SADECE zoneStats'ı bu bölge tanımına göre bir "harita"ya çeviriyoruz.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ZONE_SHORT_LABEL = { "SUB": "Sub", "BAS": "Bas", "ORTA": "Orta", "ÜST-ORTA": "Üst-orta", "TİZ / HAVA": "Tiz" };
+
+function zoneScores() {
+  return mode.FA_ZONES.map(z => {
+    const key = z.t.split(" (")[0];
+    const v = zoneStats[key] || { n: 0, ok: 0 };
+    const pct = v.n > 0 ? Math.round((v.ok / v.n) * 100) : null;
+    return { key, label: ZONE_SHORT_LABEL[key] || key, n: v.n, pct };
+  });
+}
+
+function renderZonePanel() {
+  const scores = zoneScores();
+  if (els.zoneList) {
+    els.zoneList.innerHTML = scores.map(s => {
+      const hasData = s.pct !== null;
+      const pct = hasData ? s.pct : 0;
+      const color = !hasData ? "rgba(255,255,255,.18)" : pct >= 70 ? "var(--gr)" : pct >= 45 ? "var(--am)" : "var(--rd)";
+      return `<div class="zone-bar-row">
+        <span style="width:76px;flex:none;font-size:14px;color:var(--tx-3)">${s.label}</span>
+        <div class="zone-bar-track"><i style="width:${pct}%;background:${color}"></i></div>
+        <span class="num" style="width:42px;flex:none;text-align:right;font-size:14px;font-weight:700;color:${hasData ? color : "var(--tx-3)"}">${hasData ? "%" + s.pct : "—"}</span>
+      </div>`;
+    }).join("");
+  }
+  const enough = scores.filter(s => s.n >= 2);
+  const weakest = enough.length ? enough.slice().sort((a, b) => a.pct - b.pct)[0] : null;
+  if (els.zoneSub) els.zoneSub.textContent = weakest ? `en zayıf: ${weakest.label.toLowerCase()} · %${weakest.pct}` : "henüz yeterli veri yok";
+  return { scores, enough };
+}
+
+function renderWhereNow(zoneResult) {
+  if (!els.whereNowText) return;
+  const enough = zoneResult.enough;
+  if (enough.length < 2) {
+    els.whereNowText.textContent = "Birkaç tur daha oynayınca burada kişisel bir özet göreceksin.";
+    return;
+  }
+  const sorted = enough.slice().sort((a, b) => a.pct - b.pct);
+  const weak = sorted[0], strong = sorted[sorted.length - 1];
+  els.whereNowText.textContent = `${strong.label} bölgesinde iyisin (%${strong.pct}), ${weak.label.toLowerCase()} bölgesinde zorlanıyorsun (%${weak.pct}).`;
+}
+
+// Bir modun "seviyesi": o moda ait TÜM zorlukların (mode.DIFFICULTY anahtarları)
+// toplam XP'sinden hesaplanır — diffState().xp yalnızca SEÇİLİ zorluğa aittir.
+// İsabet yüzdesi şu an GENEL istatistiktir (progress.accuracy(stats)); tek mod
+// olduğu için bugün doğru — birden fazla mod eklendiğinde mod-bazlı isabet takibi
+// ayrıca kurulmalı (stats şemasına dokunmak bu adımın kapsamı dışında).
+function modeTotalXp(modeApi) {
+  return Object.keys(modeApi.DIFFICULTY).reduce((sum, k) => sum + ((stats.perDiff[k] && stats.perDiff[k].xp) || 0), 0);
+}
+
+function renderModeLevels() {
+  const modes = listModes();
+  if (els.modeLevelsList) {
+    els.modeLevelsList.innerHTML = modes.map(m => {
+      const meta = m.getMeta();
+      const totalXp = modeTotalXp(m);
+      const played = totalXp > 0;
+      const xp = progress.xpProgress(totalXp);
+      const pct = played ? Math.max(0, Math.min(100, Math.round((xp.current / xp.required) * 100))) : 0;
+      const acc = played ? progress.accuracy(stats) : null;
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;${played ? "" : "opacity:.45"}">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:15px;font-weight:600">${meta.ad}</div>
+          <div style="margin-top:8px;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden">
+            <i style="display:block;height:100%;width:${pct}%;border-radius:99px;background:linear-gradient(90deg,var(--gr),#16C79A)"></i>
+          </div>
+        </div>
+        <div style="flex:none;text-align:right">
+          <div style="display:inline-block;padding:4px 9px;border-radius:99px;background:rgba(255,255,255,.08);font-size:14px;font-weight:700">${played ? `Sv ${xp.level}` : "Yeni"}</div>
+          <div class="num" style="margin-top:6px;font-size:14px;font-weight:700;color:${played ? "var(--tx-2)" : "var(--tx-3)"}">${played ? `%${acc}` : "—"}</div>
+        </div>
+      </div>`;
+    }).join("");
+  }
+  const playedCount = modes.filter(m => modeTotalXp(m) > 0).length;
+  if (els.modeLevelsSub) els.modeLevelsSub.textContent = `${playedCount} / ${modes.length} mod oynandı`;
+}
+
+function last30DailyAccPoints() {
+  const today = new Date();
+  const points = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+    const key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    const v = dailyAcc[key];
+    if (v && v.total > 0) points.push({ key, pct: Math.round((v.correct / v.total) * 100) });
+  }
+  return points;
+}
+
+function renderAccuracyChart() {
+  const points = last30DailyAccPoints();
+  const hasChart = points.length >= 3;
+  if (els.accChartSvg) els.accChartSvg.classList.toggle("hidden", !hasChart);
+  if (els.accChartLabels) els.accChartLabels.classList.toggle("hidden", !hasChart);
+  if (els.accChartEmpty) els.accChartEmpty.classList.toggle("hidden", hasChart);
+  if (!hasChart) return;
+  const W = 320, H = 110;
+  const xs = points.map((p, i) => (i / (points.length - 1)) * W);
+  const ys = points.map(p => H - (p.pct / 100) * H);
+  const line = xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)} ${ys[i].toFixed(1)}`).join(" ");
+  const fill = `${line} L${xs[xs.length - 1].toFixed(1)} ${H} L${xs[0].toFixed(1)} ${H} Z`;
+  if (els.accChartSvg) {
+    els.accChartSvg.innerHTML =
+      `<path d="${fill}" fill="rgba(43,217,168,.12)" stroke="none"></path>` +
+      `<path d="${line}" fill="none" stroke="var(--gr)" stroke-width="2.5" stroke-linejoin="round"></path>` +
+      `<circle cx="${xs[xs.length - 1].toFixed(1)}" cy="${ys[ys.length - 1].toFixed(1)}" r="4.5" fill="var(--gr)"></circle>`;
+  }
+  if (els.accChartFirst) els.accChartFirst.textContent = `%${points[0].pct}`;
+  if (els.accChartLast) els.accChartLast.textContent = `bugün %${points[points.length - 1].pct}`;
+}
+
+function formatPracticeDuration(ms) {
+  const totalMin = Math.floor(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}s ${m}d` : `${m}d`;
+}
+
+function renderExtraStats() {
+  if (els.totalRoundsValue) els.totalRoundsValue.textContent = stats.rounds;
+  if (els.totalPracticeValue) els.totalPracticeValue.textContent = formatPracticeDuration(stats.totalPracticeMs || 0);
+}
+
 function renderAnalysis() {
-  const body = document.getElementById("analysisBody");
-  if (!body) return;
-  body.innerHTML = mode.renderAnalysisHtml(zoneStats);
+  const zoneResult = renderZonePanel();
+  renderWhereNow(zoneResult);
+  renderModeLevels();
+  renderAccuracyChart();
+  renderExtraStats();
 }
 
 function pushHistory(correct) {
@@ -442,6 +873,8 @@ function giveHint() {
   persistStats();
 
   activeQuestion.hintText = mode.getHintText(activeQuestion);
+  if (els.hintTag) els.hintTag.textContent = "İPUCU · " + activeQuestion.hintText;
+  setAnalyzerPhase("hint");
 
   mode.renderHintMask(els.hintMaskLayer, activeQuestion);
   updateHintChipLabel();
@@ -465,7 +898,7 @@ function renderQuestion() {
 
   els.questionMeta.textContent = mode.modeDescription(q);
   els.streakText.textContent = q.boss ? "Boss round aktif" : (stats.combo > 1 ? `${stats.combo}x combo aktif` : "Yeni challenge");
-  els.roundChip.textContent = `Round ${stats.rounds + 1}`;
+  els.roundChip.textContent = `Soru ${stats.rounds + 1}`;
   els.scoreChip.textContent = `Skor ${diffState().score}`;
   els.bossChip.textContent = q.boss ? "Boss" : "Normal";
   els.bossChip.className = `chip ${q.boss ? "boss" : ""}`;
@@ -473,8 +906,9 @@ function renderQuestion() {
   freqGuessHz = null; freqHoverHz = null;
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
   revealAnimator.reset();
-  els.answers.innerHTML = "";
-  els.answers.classList.add("hidden");
+  setAnalyzerPhase("ask");
+  if (els.gainValue) els.gainValue.textContent = "";
+  if (els.hintTag) els.hintTag.textContent = "";
   els.freqGuessArea.classList.remove("hidden");
   mode.renderGuessAreaControls(els.freqGuessArea, q);
   if (els.freqInfo) els.freqInfo.classList.add("hidden");
@@ -491,15 +925,19 @@ function onTimeUp() {
   if (!roundActive || !activeQuestion) return;
   roundActive = false;
   if (activeQuestion.mode === "frequency") activeQuestion.freqRevealed = true;
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = activeQuestion.mode === "frequency" ? formatGainDb(activeQuestion.gain) : "";
   stats.rounds++;
   stats.wrong++;
   stats.combo = 0;
-  diffState().score -= 20;
+  diffState().score = Math.max(0, diffState().score - 20); // skor 0 altına inmez
   session.wrong++;
   audioEngine.stopAudio();
   loseLife(`Süre doldu. Doğru cevap: ${mode.correctLabel(activeQuestion)}.`);
   pushHistory(false);
   updateDaily(false);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(false);
   updateUI();
   persistStats();
   persistDaily();
@@ -515,6 +953,8 @@ function submitFrequencyGuess(guessHz) {
   const q = activeQuestion;
   q.freqRevealed = true;
   const result = mode.evaluateAnswer(q, guessHz);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = formatGainDb(q.gain);
 
   stats.rounds++;
   let gained = 0;
@@ -534,7 +974,7 @@ function submitFrequencyGuess(guessHz) {
     session.correct++; session.xp += gained;
 
     const feedback = mode.getFeedbackData(q, guessHz, { gained });
-    setFeedback(feedback.title, feedback.detail, feedback.showResult);
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
     mode.showFreqInfoPanel(els.freqInfo, feedback);
     mode.recordZone(zoneStats, q.freq, true);
     audioEngine.sfxDing();
@@ -544,11 +984,11 @@ function submitFrequencyGuess(guessHz) {
   } else {
     stats.wrong++;
     stats.combo = 0;
-    diffState().score -= 20;
+    diffState().score = Math.max(0, diffState().score - 20); // skor 0 altına inmez
     session.wrong++;
 
     const feedback = mode.getFeedbackData(q, guessHz, { gained: 0 });
-    setFeedback(feedback.title, feedback.detail, feedback.showResult);
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
     mode.showFreqInfoPanel(els.freqInfo, feedback);
     mode.recordZone(zoneStats, q.freq, false);
     audioEngine.sfxBuzz();
@@ -562,6 +1002,8 @@ function submitFrequencyGuess(guessHz) {
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
   updateUI();
   persistStats();
@@ -577,6 +1019,8 @@ function submitProPlusGuess() {
   const q = activeQuestion;
   q.freqRevealed = true;
   const result = mode.evaluateAnswer(q, q.guesses);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = ""; // çok bantlı: tek bir gain değeri anlamlı değil
 
   result.bands.forEach(b => mode.recordZone(zoneStats, b.freq, b.correct));
   storage.saveZoneStats(zoneStats);
@@ -599,24 +1043,24 @@ function submitProPlusGuess() {
     session.correct++; session.xp += gained;
 
     feedback = mode.getFeedbackData(q, q.guesses, { gained });
-    setFeedback(feedback.title, feedback.detail, feedback.showResult);
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
   } else {
     stats.wrong++;
     stats.combo = 0;
-    diffState().score -= 15;
+    diffState().score = Math.max(0, diffState().score - 15); // skor 0 altına inmez
     session.wrong++;
 
     feedback = mode.getFeedbackData(q, q.guesses, { gained: 0 });
-    setFeedback(feedback.title, feedback.detail, feedback.showResult);
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
     shake(els.canvas);
     loseLife("Bantları ıskaladın."); // NOT: yukarıdaki setFeedback'i BİLEREK ezer (orijinal davranış)
   }
 
   challengeTick(result.correct, gained);
   mode.showProPlusInfoPanel(els.freqInfo, feedback);
-  els.freqGuessArea.innerHTML = `<span style="color:var(--muted);font-size:13px">Tur bitti · "Yeni Soru" ile devam.</span>`;
+  els.freqGuessArea.innerHTML = `<span style="color:var(--tx-3);font-size:13px">Tur bitti · "Yeni Soru" ile devam.</span>`;
 
   q._result = result.bands.map(b => ({ freq: b.freq, gain: b.gain, correct: b.correct })).sort((a, z) => a.freq - z.freq);
   revealAnimator.start(q._result);
@@ -624,6 +1068,8 @@ function submitProPlusGuess() {
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
   updateUI();
   persistStats();
@@ -641,24 +1087,14 @@ function playQuestion(processed = true) {
     try { audioEngine.audioCtx.resume(); } catch (e) {}
   }
   currentPlayMode = processed ? "filtered" : "clean";
-  audioEngine.buildQuestionChain(activeQuestion, processed, els.sourceSelect.value, uploadManager.mediaSource, mode.applyProcessing);
+  audioEngine.buildQuestionChain(activeQuestion, processed, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+  updateAbToggleUI();
 }
 
-async function playABDemo() {
-  if (!activeQuestion || abDemoLock) return;
-  abDemoLock = true;
-  await audioEngine.initAudio();
-  playQuestion(false);
-  setFeedback("A çalıyor", "Şu an temiz referans sesi dinliyorsun.");
-  setTimeout(() => {
-    if (!activeQuestion) return;
-    playQuestion(true);
-    setFeedback("B çalıyor", "Şu an işlenmiş sesi dinliyorsun.");
-  }, 1400);
-  setTimeout(() => {
-    abDemoLock = false;
-    setFeedback("A/B tamamlandı", "İstersen tekrar A veya B düğmeleriyle ayrı ayrı dinleyebilirsin.");
-  }, 2900);
+// A/B tek buton: kesintisiz bypass geçişi (mevcut muteGain/buildQuestionChain
+// mantığı aynen korunur — sadece üç ayrı düğme yerine tek toggle'a bağlanır).
+function toggleAB() {
+  playQuestion(currentPlayMode !== "filtered");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -725,11 +1161,15 @@ function startRound() {
 
   autoStopped = false;
   autoPlaying = true;
+  roundStartedAt = Date.now();
 
   activeQuestion = mode.createQuestion(els.difficultySelect.value, {
-    source: els.sourceSelect.value,
+    source: pickRoundSource(),
     boss: mode.isBossRound(stats.rounds)
   });
+  // Karıştır açıkken çalan kaynak sourceSelect'ten farklı olabilir — chip her zaman
+  // o turda GERÇEKTEN çalan kaynağın adını göstersin.
+  if (els.sourceChipLabel) els.sourceChipLabel.textContent = labelSource(activeQuestion.source);
   renderQuestion();
   playQuestion(true);
   updateStartBtnLabel();
@@ -737,11 +1177,22 @@ function startRound() {
   startTimerForCurrentQuestion();
 }
 
+// Kaynak seçimi: "Karıştır" açıksa her tur rastgele bir üretici kaynak seçilir
+// (yüklenen dosya hariç); kapalıyken kaynak seçicideki değer kullanılır.
+function pickRoundSource() {
+  const sel = els.sourceSelect.value;
+  if (mixSources && sel !== "upload") {
+    const pool = ["pink", "white", "saw", "square", "triangle"];
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  return sel;
+}
+
 // Mobilde oyun başlayınca dalgayı görünür yap (tıklama alanına hızlı erişim)
 function scrollToAnalyzer() {
   const isTouch = window.matchMedia("(hover:none) and (pointer:coarse)").matches;
   if (!isTouch) return;
-  const wrap = els.canvas && els.canvas.closest(".visualizer-wrap");
+  const wrap = els.canvas && els.canvas.closest(".analyzer");
   const target = wrap || els.canvas;
   if (!target) return;
   requestAnimationFrame(() => {
@@ -809,8 +1260,8 @@ function challengeTick(wasCorrect, gainedXp) {
 function drawVisualizer() {
   requestAnimationFrame(drawVisualizer);
 
-  const w = els.canvas.width;
-  const h = els.canvas.height;
+  const w = canvasCssW;
+  const h = canvasCssH;
   ctx2d.clearRect(0, 0, w, h);
 
   ctx2d.fillStyle = "rgba(255,255,255,.04)";
@@ -838,50 +1289,85 @@ function drawVisualizer() {
   audioEngine.analyser.getByteFrequencyData(data);
 
   const plotBottom = h - mode.AXIS_H;
-
-  const grad = ctx2d.createLinearGradient(0, 0, w, plotBottom);
-  grad.addColorStop(0, "rgba(111,211,255,.95)");
-  grad.addColorStop(1, "rgba(139,125,255,.95)");
-
-  ctx2d.beginPath();
-  ctx2d.lineWidth = 3;
-  ctx2d.strokeStyle = grad;
-
-  const step = w / data.length;
-  for (let i = 0; i < data.length; i++) {
-    const x = i * step;
-    const y = plotBottom - (data[i] / 255) * (plotBottom - 18) - 8;
-    if (i === 0) ctx2d.moveTo(x, y);
-    else ctx2d.lineTo(x, y);
-  }
-  ctx2d.stroke();
-
-  for (let i = 0; i < data.length; i += 8) {
-    const x = i * step;
-    const barH = (data[i] / 255) * (plotBottom * 0.75);
-    ctx2d.fillStyle = i % 16 === 0 ? "rgba(111,211,255,.32)" : "rgba(139,125,255,.18)";
-    ctx2d.fillRect(x, plotBottom - barH, Math.max(2, step * 3.5), barH);
-  }
+  drawSpectrumBars(data, w, plotBottom);
 
   mode.drawOverlay(ctx2d, els.canvas, w, h, overlayState);
 }
 
-// Canvas tıklama/hover — sadece tur aktifken (aktif mod her zaman dalga tabanlı)
+// Prototipteki spektrum paneliyle aynı dil: ~40 kalın, aralıklı, üstü yuvarlatılmış
+// çubuk (FFT bin'lerinin bitişik ince çizgileri değil). Çubuklar FA_MIN–FA_MAX
+// arasında LOGARİTMİK olarak yerleştirilir — bu, eksen etiketleriyle (drawFreqAxis)
+// ve tıklama→Hz dönüşümüyle (faXToF) AYNI ölçektir; aksi halde enerji sol uçta
+// sıkışır ve tıklanan yer ile ölçülen frekans uyuşmaz.
+const SPEC_BAR_COUNT = 40;
+// Çubuk:boşluk oranı prototipteki gibi ~3:1 (kalın, tıknaz çubuklar — ince dikey
+// çizgiler değil). Tepe yüksekliği CURVE_TOP..plotBottom bölgesinin %75'i kadar —
+// prototipteki panelle aynı oranda (üstte bir miktar nefes payı bırakır ama
+// çubukları alt yarıya sıkıştırmaz), yine de CURVE_TOP'un üstüne (etiket şeridine)
+// taşmaz.
+function drawSpectrumBars(data, w, plotBottom) {
+  const sampleRate = (audioEngine.audioCtx && audioEngine.audioCtx.sampleRate) || 44100;
+  const fftSize = (audioEngine.analyser && audioEngine.analyser.fftSize) || 2048;
+  const hzPerBin = sampleRate / fftSize;
+  const maxBin = data.length - 1;
+  const slotW = w / SPEC_BAR_COUNT;
+  const barW = Math.max(1, slotW * 0.75);
+  const barRegion = Math.max(20, plotBottom - mode.CURVE_TOP);
+  const maxBarH = barRegion * 0.75;
+
+  for (let b = 0; b < SPEC_BAR_COUNT; b++) {
+    // Bu çubuğun kapsadığı Hz aralığı — eksenle birebir aynı log ölçek (bkz. mode.faFToX),
+    // bu yüzden aralık sınırları w üzerinde her zaman eşit genişlikte düşer.
+    const f0 = mode.FA_MIN * Math.pow(mode.FA_MAX / mode.FA_MIN, b / SPEC_BAR_COUNT);
+    const f1 = mode.FA_MIN * Math.pow(mode.FA_MAX / mode.FA_MIN, (b + 1) / SPEC_BAR_COUNT);
+    const bin0 = Math.max(0, Math.floor(f0 / hzPerBin));
+    const bin1 = Math.max(bin0, Math.min(maxBin, Math.ceil(f1 / hzPerBin)));
+    let sum = 0;
+    for (let k = bin0; k <= bin1; k++) sum += data[k];
+    const avg = sum / (bin1 - bin0 + 1);
+
+    const barH = (avg / 255) * maxBarH;
+    if (barH < 1) continue;
+    const x = b * slotW + (slotW - barW) / 2;
+    drawSpectrumBar(x, plotBottom - barH, barW, barH);
+  }
+}
+
+function drawSpectrumBar(x, y, w, h) {
+  const r = Math.min(4, w / 2, h);
+  ctx2d.beginPath();
+  ctx2d.moveTo(x, y + h);
+  ctx2d.lineTo(x, y + r);
+  ctx2d.arcTo(x, y, x + r, y, r);
+  ctx2d.lineTo(x + w - r, y);
+  ctx2d.arcTo(x + w, y, x + w, y + r, r);
+  ctx2d.lineTo(x + w, y + h);
+  ctx2d.closePath();
+  const grad = ctx2d.createLinearGradient(0, y, 0, y + h);
+  grad.addColorStop(0, "rgba(108,140,255,.85)");
+  grad.addColorStop(1, "rgba(108,140,255,.15)");
+  ctx2d.fillStyle = grad;
+  ctx2d.fill();
+}
+
+// Canvas tıklama/hover — sadece tur aktifken (aktif mod her zaman dalga tabanlı).
+// Çizim koordinat uzayı CSS piksel cinsinden olduğu için (bkz. resizeCanvas), tıklama
+// pozisyonu da doğrudan CSS piksele göre hesaplanır — ayrı bir iç-çözünürlük çevrimi gerekmez.
 function faCanvasPos(e) {
   const r = els.canvas.getBoundingClientRect();
   const cssX = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
-  return Math.max(0, Math.min(els.canvas.width, cssX * (els.canvas.width / r.width)));
+  return Math.max(0, Math.min(canvasCssW, cssX));
 }
 const isWaveMode = () => !!activeQuestion;
 
 els.canvas.addEventListener("pointermove", e => {
   if (!isWaveMode() || !roundActive) return;
-  freqHoverHz = mode.faXToF(faCanvasPos(e), els.canvas.width);
+  freqHoverHz = mode.faXToF(faCanvasPos(e), canvasCssW);
 });
 els.canvas.addEventListener("pointerleave", () => { freqHoverHz = null; });
 els.canvas.addEventListener("pointerdown", e => {
   if (!isWaveMode() || !roundActive) return;
-  const hz = mode.faXToF(faCanvasPos(e), els.canvas.width);
+  const hz = mode.faXToF(faCanvasPos(e), canvasCssW);
   const q = activeQuestion;
 
   if (q.mode !== "proplus") {
@@ -948,7 +1434,6 @@ els.audioFileInput.addEventListener("change", async (e) => {
 // startBtn duruma göre 3 iş yapar: Oyunu Başlat / Tekrar Çal / Durdur (bkz. updateStartBtnLabel)
 els.startBtn.addEventListener("click", async () => {
   await audioEngine.initAudio();
-  switchToOyunTab();
   if (currentLives <= 0) { showGameOverCard(); return; }
 
   if (!activeQuestion) {
@@ -979,7 +1464,6 @@ els.startBtn.addEventListener("click", async () => {
 
 els.nextBtn.addEventListener("click", async () => {
   await audioEngine.initAudio();
-  switchToOyunTab();
   if (currentLives <= 0) { showGameOverCard(); return; }
   autoStopped = false;
   roundFlow.clearAutoAdvance();
@@ -987,36 +1471,43 @@ els.nextBtn.addEventListener("click", async () => {
   startRound();
 });
 
-els.playACleanBtn.addEventListener("click", async () => {
+// A/B tek buton: ilk A/B'ye kesintisiz geçiş, henüz round yoksa taze başlangıç yapar.
+els.abToggle.addEventListener("click", async () => {
   await audioEngine.initAudio();
   if (!activeQuestion) {
     setAutoPlay(true);
     return;
   }
-  playQuestion(false);
-  setFeedback("A modu", "Şu an temiz referans sesi dinliyorsun.");
-});
-
-els.playBFilteredBtn.addEventListener("click", async () => {
-  await audioEngine.initAudio();
-  if (!activeQuestion) {
-    setAutoPlay(true);
-    return;
-  }
-  playQuestion(true);
-  setFeedback("B modu", "Şu an işlenmiş sesi dinliyorsun.");
-});
-
-els.abAutoBtn.addEventListener("click", async () => {
-  await audioEngine.initAudio();
-  if (!activeQuestion) {
-    setAutoPlay(true);
-    return;
-  }
-  playABDemo();
+  toggleAB();
+  setFeedback(
+    currentPlayMode === "clean" ? "A modu" : "B modu",
+    currentPlayMode === "clean" ? "Şu an temiz referans sesi dinliyorsun." : "Şu an işlenmiş sesi dinliyorsun."
+  );
 });
 
 els.hintBtn.addEventListener("click", giveHint);
+
+els.backBtn.addEventListener("click", () => {
+  if (activeQuestion && !autoStopped) pauseRound();
+  goScreen("menu");
+});
+
+els.mixToggle.addEventListener("click", () => {
+  mixSources = !mixSources;
+  els.mixToggle.classList.toggle("on", mixSources);
+});
+
+function openGameSettingsSheet() {
+  els.gameSettingsOverlay.classList.add("open");
+  els.gameSettingsSheet.classList.add("open");
+}
+function closeGameSettingsSheet() {
+  els.gameSettingsOverlay.classList.remove("open");
+  els.gameSettingsSheet.classList.remove("open");
+}
+els.gameSettingsBtn.addEventListener("click", openGameSettingsSheet);
+els.gameSettingsCancel.addEventListener("click", closeGameSettingsSheet);
+els.gameSettingsOverlay.addEventListener("click", closeGameSettingsSheet);
 
 // Kart X ile ya da dışına tıklanarak kapatılırsa: canlar yenilensin, yeni seriye hazır
 // olunsun ama oyun OTOMATİK başlamasın — kullanıcı "Oyunu Başlat"a basmalı.
@@ -1032,7 +1523,6 @@ if (els.gameoverRetryBtn) els.gameoverRetryBtn.addEventListener("click", async (
   if (gameOverGuardActive()) return;
   hideGameOverCard();
   await audioEngine.initAudio();
-  switchToOyunTab();
   resetLives();
   stats.hintsRemaining = HINTS_PER_GAME; // gerçek "Tekrar Oyna" — ipucu hakkı burada sıfırlanır
   persistStats();
@@ -1076,6 +1566,19 @@ renderAnalysis();
   });
 })();
 
+// İlerleme sekmesindeki katlanır paneller (Frekans bölgesi / Mod seviyeleri) — varsayılan
+// kapalı, kapalıyken bile üst satırda özet bilgi (renderAnalysis zaten dolduruyor).
+function bindCollapsiblePanel(toggleBtn, wrapEl, caretEl) {
+  if (!toggleBtn || !wrapEl) return;
+  toggleBtn.addEventListener("click", () => {
+    const opening = wrapEl.classList.contains("hidden");
+    wrapEl.classList.toggle("hidden", !opening);
+    if (caretEl) caretEl.style.transform = opening ? "rotate(180deg)" : "none";
+  });
+}
+bindCollapsiblePanel(els.zonePanelToggle, els.zoneWrap, els.zoneCaret);
+bindCollapsiblePanel(els.modeLevelsToggle, els.modeLevelsWrap, els.modeLevelsCaret);
+
 els.difficultySelect.addEventListener("change", () => {
   // zorluk değişti → o zorluğun kendi canı/puanı/level'i yüklensin
   syncLivesEnsureAlive();
@@ -1117,13 +1620,13 @@ updateTimerUI();
 updateUI();
 updateStartBtnLabel();
 updateHintChipLabel();
+updateAbToggleUI();
+renderModeGrid();
+goScreen("menu");
+resizeCanvas();
 
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const target = btn.dataset.tab;
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.dataset.tabContent === target));
-  });
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => goScreen(TAB_TO_SCREEN[btn.dataset.tab] || "menu"));
 });
 
 // Ayarlar bottom sheet: select'leri gizleyip yerine tıklanabilir satır koyduk,
@@ -1173,9 +1676,357 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (!select) return;
     updateRowText(select);
     row.addEventListener('click', () => openSheet(select, row.dataset.sheetTitle || ''));
+    // select'in değeri BAŞKA bir yerden değişse bile (ör. Genel Ayarlar sheet'indeki
+    // Zorluk → Sabit alt listesi) bu satırın metni senkron kalsın.
+    select.addEventListener('change', () => updateRowText(select));
   });
 
   overlay.addEventListener('click', closeSheet);
   sheetCancel.addEventListener('click', closeSheet);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Genel Ayarlar sheet'i + yardım/bilgi ekranları
+// Dizayn/prototype.html'deki gruplu liste dilinden taşındı. Sadece 3 ana sekmenin
+// (Antrenman/İlerleme/Araçlar) dişli ikonundan açılır; oyun ekranının kendi
+// "oyun ayarları" sheet'ine (gameSettingsSheet) dokunmaz.
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FREE_MODE_COUNT = 1; // ücretsiz sürümdeki mod sayısı SABİT — kullanıcı seviyesinden bağımsız
+const PRO_PRICE = "₺199";
+
+function openMainSettingsSheet() {
+  if (!els.mainSettingsOverlay) return;
+  syncDiffSheetUI();
+  els.mainSettingsOverlay.classList.add("open");
+  els.mainSettingsSheet.classList.add("open");
+}
+function closeMainSettingsSheet() {
+  if (!els.mainSettingsOverlay) return;
+  els.mainSettingsOverlay.classList.remove("open");
+  els.mainSettingsSheet.classList.remove("open");
+}
+[els.menuSettingsBtn, els.progressSettingsBtn, els.toolsSettingsBtn].forEach(btn => {
+  if (btn) btn.addEventListener("click", openMainSettingsSheet);
+});
+if (els.mainSettingsOverlay) els.mainSettingsOverlay.addEventListener("click", closeMainSettingsSheet);
+if (els.mainSettingsClose) els.mainSettingsClose.addEventListener("click", closeMainSettingsSheet);
+
+// aşağı kaydırarak kapatma (prototipteki .sheet[data-drag] davranışı)
+if (els.mainSettingsSheet) {
+  let dragY0 = null;
+  els.mainSettingsSheet.addEventListener("touchstart", e => {
+    dragY0 = els.mainSettingsSheet.scrollTop <= 0 ? e.touches[0].clientY : null;
+  }, { passive: true });
+  els.mainSettingsSheet.addEventListener("touchmove", e => {
+    if (dragY0 === null) return;
+    const dy = e.touches[0].clientY - dragY0;
+    if (dy > 0) els.mainSettingsSheet.style.transform = `translateY(${dy}px)`;
+  }, { passive: true });
+  els.mainSettingsSheet.addEventListener("touchend", () => {
+    const dy = parseFloat((els.mainSettingsSheet.style.transform.match(/([\d.]+)px/) || [0, 0])[1]);
+    els.mainSettingsSheet.style.transform = "";
+    dragY0 = null;
+    if (dy > 90) closeMainSettingsSheet();
+  });
+}
+
+// ---- ZORLUK: Otomatik/Sabit + Sabit alt listesi ----
+// "Otomatik" şu an için yalnızca görsel bir seçenek — performansa göre kendini
+// ayarlayan gerçek bir algoritma bu adımın kapsamı dışında (oyun mantığına
+// dokunulmuyor). Seçili olsun ya da olmasın, gerçekte kullanılan zorluk her zaman
+// els.difficultySelect.value'dur; "Sabit" alt listesi bunu doğrudan değiştirir ve
+// oyun ekranındaki zorluk seçici ile TEK bir kaynaktan (aynı <select>) senkron kalır.
+let diffModeAuto = true;
+let diffSublistOpen = false;
+
+function syncDiffSheetUI() {
+  const cur = els.difficultySelect ? els.difficultySelect.value : "medium";
+  if (els.diffSublist) {
+    els.diffSublist.querySelectorAll(".item").forEach(btn => {
+      btn.classList.toggle("pick", btn.dataset.diff === cur);
+    });
+    els.diffSublist.classList.toggle("on", diffSublistOpen);
+  }
+  if (els.diffAutoBtn) els.diffAutoBtn.classList.toggle("pick", diffModeAuto);
+  if (els.diffFixedBtn) els.diffFixedBtn.classList.toggle("pick", !diffModeAuto);
+  if (els.mainSettingsBack) els.mainSettingsBack.classList.toggle("hidden", !diffSublistOpen);
+}
+if (els.diffAutoBtn) els.diffAutoBtn.addEventListener("click", () => {
+  diffModeAuto = true;
+  diffSublistOpen = false;
+  syncDiffSheetUI();
+});
+if (els.diffFixedBtn) els.diffFixedBtn.addEventListener("click", () => {
+  diffModeAuto = false;
+  diffSublistOpen = true;
+  syncDiffSheetUI();
+});
+if (els.diffSublist) {
+  els.diffSublist.querySelectorAll(".item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      els.difficultySelect.value = btn.dataset.diff;
+      els.difficultySelect.dispatchEvent(new Event("change", { bubbles: true }));
+      syncDiffSheetUI();
+    });
+  });
+}
+if (els.mainSettingsBack) els.mainSettingsBack.addEventListener("click", () => {
+  diffSublistOpen = false;
+  syncDiffSheetUI();
+});
+// Oyun ekranındaki mevcut zorluk seçici değişirse (dots → Oyun Ayarları → Zorluk)
+// bu sheet'teki Sabit alt listesi de anında senkron kalsın.
+if (els.difficultySelect) els.difficultySelect.addEventListener("change", syncDiffSheetUI);
+
+// ---- GENEL: tercihler (Dil görsel, Bildirimler/Kulaklık uyarısı kalıcı) ----
+function applyPrefs() {
+  document.body.classList.toggle("hp-warn-off", !prefs.hpWarning);
+  if (els.notifSwitch) els.notifSwitch.classList.toggle("on", prefs.notifications);
+  if (els.hpWarnSwitch) els.hpWarnSwitch.classList.toggle("on", prefs.hpWarning);
+  updateCalibRowLabel();
+}
+applyPrefs();
+if (els.notifSwitch) els.notifSwitch.addEventListener("click", () => {
+  // Not: gerçek bir bildirim planlama altyapısı yok, sadece tercih saklanıyor.
+  prefs.notifications = !prefs.notifications;
+  applyPrefs();
+  storage.savePrefs(prefs);
+});
+if (els.hpWarnSwitch) els.hpWarnSwitch.addEventListener("click", () => {
+  prefs.hpWarning = !prefs.hpWarning;
+  applyPrefs();
+  storage.savePrefs(prefs);
+});
+if (els.langSeg) {
+  els.langSeg.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      // Dil seçimi şimdilik yalnızca görsel — i18n altyapısı sonraki adımda eklenecek.
+      els.langSeg.querySelectorAll("button").forEach(b => b.classList.toggle("on", b === btn));
+    });
+  });
+}
+
+// ---- HESAP / DESTEK / HAKKINDA satırları ----
+function syncAccountLine() {
+  const total = listModes().length;
+  if (els.accountVerLine) els.accountVerLine.textContent = `Ücretsiz — ${FREE_MODE_COUNT} mod, seans başına 5 soru`;
+  if (els.payFreeModes) els.payFreeModes.textContent = `${FREE_MODE_COUNT} egzersiz modu`;
+  if (els.payProModes) els.payProModes.textContent = `${total} egzersiz modunun tamamı`;
+  if (els.proPrice) els.proPrice.textContent = PRO_PRICE;
+  if (els.buyProBtn) els.buyProBtn.textContent = `Satın al · ${PRO_PRICE}`;
+}
+syncAccountLine();
+
+if (els.calibRow) els.calibRow.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("calib"); });
+if (els.feedbackRow) els.feedbackRow.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("feedback"); });
+if (els.faqRow) els.faqRow.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("faq"); });
+if (els.contactRow) els.contactRow.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("contact"); });
+if (els.goProBtn) els.goProBtn.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("paywall"); });
+if (els.restoreRow) els.restoreRow.addEventListener("click", () => {
+  toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
+});
+
+function openLegal(kind) {
+  const privacy = kind === "privacy";
+  if (els.legalTitle) els.legalTitle.textContent = privacy ? "Gizlilik politikası" : "Kullanım şartları";
+  if (els.legalKicker) els.legalKicker.textContent = privacy ? "GİZLİLİK" : "KULLANIM ŞARTLARI";
+  goScreen("legal");
+}
+if (els.privacyRow) els.privacyRow.addEventListener("click", () => { closeMainSettingsSheet(); openLegal("privacy"); });
+if (els.termsRow) els.termsRow.addEventListener("click", () => { closeMainSettingsSheet(); openLegal("terms"); });
+
+// Tek seviye derinlikteki yardım ekranlarının geri okları/kapatma düğmeleri.
+[els.faqBackBtn, els.feedbackBackBtn, els.contactBackBtn, els.legalBackBtn, els.paywallCloseBtn, els.payFreeContinueBtn]
+  .forEach(btn => { if (btn) btn.addEventListener("click", () => goBack()); });
+
+// ---- Kalibrasyon ----
+// Referans ton audioEngine'in KENDİ audioCtx/analyser'ını kullanır — buildQuestionChain'in
+// tam soru/filtre zincirini kurmaya gerek yok, ama analyser'a bağlanınca metre GERÇEK
+// veriyi okur ve genel çıkış zincirinden (masterGain/destination) geçer.
+const CAL_STEPS = [
+  ["Kulaklığını tak, ortamı sessizleştir", "Egzersizlerdeki dB farkları küçüktür. Seviyeyi bir kez ayarlarsan tüm sorular aynı referansla çalar; sonuçların karşılaştırılabilir olur.", "Rahat duyduğun bir seviyeye getir, sonra onayla. Telefonun ses tuşlarını kullan.", "Seviye doğru, devam et"],
+  ["Referans tonu çal ve seviyeyi ayarla", "Ton sabit çalıyor. Yorucu olmayan, konuşma sesinden biraz yüksek bir seviye hedefle.", "Sesi çok açma; ince farkları duymak için yüksek seviye gerekmez.", "Bu seviye iyi"],
+  ["Hazırsın", "Bu seviye tüm egzersizlerde referans alınacak. Kulaklığını değiştirirsen kalibrasyonu tekrarla.", "Ayarlar → Kalibrasyon ile her zaman geri dönebilirsin.", "Kalibrasyonu bitir"]
+];
+
+function drawCalMeterIdle() {
+  if (!els.calMeter) return;
+  els.calMeter.classList.remove("playing");
+  let html = "";
+  for (let i = 0; i < 22; i++) html += `<i style="height:10px"></i>`;
+  els.calMeter.innerHTML = html;
+}
+
+// GERÇEK bir SEVİYE metresi (spektrum değil) — audioEngine.analyser'ın zaman-alanı
+// verisinden RMS hesaplanır. Sabit 1 kHz sinüs çaldığı için seviye doğal olarak
+// neredeyse sabit çıkar; bu DOĞRUdur (Math.sin ile sahte "canlı" animasyon değil).
+// Not: getByteFrequencyData ile bin-bazlı örnekleme denendi ama 1 kHz'in enerjisi
+// tek bir dar bin'e düştüğü için çubukların çoğu boş görünüyordu — RMS tüm çubuklara
+// aynı gerçek seviyeyi yansıtır.
+function animateCalMeter() {
+  if (!calPlaying || !audioEngine.analyser || !els.calMeter) return;
+  els.calMeter.classList.add("playing");
+  const analyser = audioEngine.analyser;
+  const data = new Uint8Array(analyser.fftSize);
+  analyser.getByteTimeDomainData(data);
+  let sumSq = 0;
+  for (let i = 0; i < data.length; i++) {
+    const v = (data[i] - 128) / 128;
+    sumSq += v * v;
+  }
+  const rms = Math.sqrt(sumSq / data.length);
+  const level = Math.min(1, rms * 3.2); // okunaklı bir görsel aralığa ölçekle
+  const bars = 22;
+  const h = 10 + Math.round(level * 34);
+  let html = "";
+  for (let i = 0; i < bars; i++) html += `<i style="height:${h}px"></i>`;
+  els.calMeter.innerHTML = html;
+  calMeterRaf = requestAnimationFrame(animateCalMeter);
+}
+
+// initAudio()'nun await'i sırasında kullanıcı tekrar tıklayıp durdurabilir/yeniden
+// başlatabilir — calRequestId, o an EN GÜNCEL tıklamanın sonucu olmayan bir
+// startCalibrationTone() çağrısının node'ları sessizce kurup bırakmasını engeller.
+let calRequestId = 0;
+async function startCalibrationTone(requestId) {
+  await audioEngine.initAudio();
+  if (requestId !== calRequestId) return; // bu arada durduruldu/başka istek geldi
+  const ctx = audioEngine.audioCtx;
+  const analyser = audioEngine.analyser;
+  if (!ctx || !analyser) return;
+  calOsc = ctx.createOscillator();
+  calOsc.type = "sine";
+  calOsc.frequency.value = 1000;
+  calGain = ctx.createGain();
+  calGain.gain.value = 0.0001;
+  calOsc.connect(calGain);
+  calGain.connect(analyser); // analyser zaten destination'a bağlı — sesi de duyulur yapar
+  calGain.gain.exponentialRampToValueAtTime(0.1, ctx.currentTime + 0.05); // ~-20 dBFS
+  calOsc.start();
+}
+
+function stopCalibrationTone() {
+  calRequestId++; // devam eden bir startCalibrationTone() varsa artık geçersiz
+  if (calMeterRaf) { cancelAnimationFrame(calMeterRaf); calMeterRaf = null; }
+  calPlaying = false;
+  if (els.calPlayBtn) {
+    els.calPlayBtn.textContent = "Referans tonu çal";
+    els.calPlayBtn.classList.remove("on");
+  }
+  const osc = calOsc, gain = calGain;
+  calOsc = null; calGain = null;
+  if (gain && audioEngine.audioCtx) {
+    const now = audioEngine.audioCtx.currentTime;
+    try {
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(gain.gain.value, now);
+      gain.gain.linearRampToValueAtTime(0.0001, now + 0.05);
+    } catch (e) {}
+  }
+  if (osc && audioEngine.audioCtx) {
+    try { osc.stop(audioEngine.audioCtx.currentTime + 0.08); } catch (e) {}
+  }
+  setTimeout(() => {
+    try { if (osc) osc.disconnect(); } catch (e) {}
+    try { if (gain) gain.disconnect(); } catch (e) {}
+  }, 150);
+  drawCalMeterIdle();
+}
+
+function renderCalStep() {
+  const s = CAL_STEPS[calStep - 1];
+  if (els.calStep) els.calStep.textContent = calStep;
+  if (els.calBar) els.calBar.style.width = `${(calStep / 3) * 100}%`;
+  if (els.calHead) els.calHead.textContent = s[0];
+  if (els.calBody) els.calBody.textContent = s[1];
+  if (els.calGuide) els.calGuide.textContent = s[2];
+  if (els.calCtaBtn) els.calCtaBtn.textContent = s[3];
+  drawCalMeterIdle();
+}
+function resetCalibration() {
+  stopCalibrationTone();
+  calStep = 1;
+  renderCalStep();
+}
+function updateCalibRowLabel() {
+  const row = els.calibRow;
+  if (!row) return;
+  const p = row.querySelector("p");
+  if (p) p.textContent = prefs.calibrationDone
+    ? "Tamamlandı ✓ · Referans tonla tekrar eşitle"
+    : "Referans tonla kulaklık seviyesini eşitle";
+}
+if (els.calPlayBtn) els.calPlayBtn.addEventListener("click", async () => {
+  if (calPlaying) { stopCalibrationTone(); return; }
+  calPlaying = true;
+  const requestId = ++calRequestId;
+  els.calPlayBtn.textContent = "Tonu durdur";
+  els.calPlayBtn.classList.add("on");
+  await startCalibrationTone(requestId);
+  if (calPlaying && requestId === calRequestId) animateCalMeter();
+});
+if (els.calCtaBtn) els.calCtaBtn.addEventListener("click", () => {
+  if (calStep < 3) { calStep++; renderCalStep(); return; }
+  prefs.calibrationDone = true;
+  storage.savePrefs(prefs);
+  updateCalibRowLabel();
+  resetCalibration();
+  goBack();
+});
+if (els.calSkipBtn) els.calSkipBtn.addEventListener("click", () => { resetCalibration(); goBack(); });
+if (els.calibBackBtn) els.calibBackBtn.addEventListener("click", () => { resetCalibration(); goBack(); });
+renderCalStep();
+updateCalibRowLabel();
+
+// ---- Sık sorulan sorular (uygulamanın GERÇEK davranışına göre yazıldı) ----
+const FAQ = [
+  ["İpucu puanımı düşürür mü?", "Evet — ipucu kullandığın sorularda kazanılan XP yarıya iner. Doğru/yanlış değerlendirmeni ya da isabet oranını etkilemez."],
+  ["Zorluk seviyeleri birbirinden nasıl farklı?", "Kolay'dan Sınırsız'a gittikçe frekans/bant farkları daralır ve süre kısalır. Ayarlar → Zorluk → Sabit'ten istediğin seviyeyi seçebilirsin; oyun ekranındaki zorluk göstergesiyle her zaman senkrondur."],
+  ["Canlar neye yarıyor, nasıl dolar?", "Her zorluğun kendi can hakkı var. Canların biterse o zorlukta 'Oyun Bitti' kartı çıkar; otomatik dolma yoktur, 'Tekrar Oyna' ile yeniden dolar."],
+  ["Kendi ses dosyamı yükleyince ne oluyor?", "Dosya yalnızca cihazında kalır, hiçbir sunucuya gönderilmez. Kaynak olarak seçili kaldığı sürece sorularda o dosya çalar; Karıştır (⇄) açıksa her turda rastgele bir kaynağa geçilir."],
+  ["Neden kulaklık öneriliyor?", "Filtre/frekans farkları genelde incedir; telefon hoparlörü bunu kolayca maskeleyebilir. Kulaklık zorunlu değil ama çok daha güvenilir ve tutarlı sonuç verir."]
+];
+function renderFaq() {
+  if (!els.faqList) return;
+  els.faqList.innerHTML = "";
+  FAQ.forEach(([q, a]) => {
+    const card = document.createElement("div");
+    card.className = "card faq-item";
+    card.innerHTML = `
+      <button class="faq-q" type="button"><h5>${q}</h5><span class="caret">＋</span></button>
+      <p class="faq-a">${a}</p>
+    `;
+    const btn = card.querySelector(".faq-q");
+    const answer = card.querySelector(".faq-a");
+    const caret = card.querySelector(".caret");
+    btn.addEventListener("click", () => {
+      const open = answer.classList.toggle("open");
+      caret.textContent = open ? "－" : "＋";
+    });
+    els.faqList.appendChild(card);
+  });
+}
+renderFaq();
+
+// ---- Geri bildirim gönder (backend yok — yerel onay + temizleme) ----
+if (els.feedbackSendBtn) els.feedbackSendBtn.addEventListener("click", () => {
+  const text = els.feedbackTextarea ? els.feedbackTextarea.value.trim() : "";
+  if (!text) {
+    toast("Boş görünüyor", "Göndermeden önce birkaç kelime yaz.");
+    return;
+  }
+  if (els.feedbackTextarea) els.feedbackTextarea.value = "";
+  toast("Teşekkürler", "Geri bildirimin alındı.");
+  goBack();
+});
+
+// ---- Satın alma (gerçek IAP kapsam dışı — dürüst placeholder'lar) ----
+syncAccountLine();
+if (els.buyProBtn) els.buyProBtn.addEventListener("click", () => {
+  toast("Yakında", "Satın alma bu sürümde henüz açık değil.");
+});
+if (els.restorePurchaseBtn) els.restorePurchaseBtn.addEventListener("click", () => {
+  toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
+});

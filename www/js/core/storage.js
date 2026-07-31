@@ -5,6 +5,9 @@
 const STATS_KEY = "eqEarTrainerProXStats";
 const DAILY_KEY = "eqEarTrainerProXDaily";
 const ZONESTATS_KEY = "fa_zonestats";
+const PREFS_KEY = "eqEarTrainerProXPrefs";
+const DAILY_ACC_KEY = "eqEarTrainerProXDailyAcc";
+const DAILY_ACC_KEEP_DAYS = 35; // grafik son 30 günü gösterir, birkaç gün pay bırakılır
 
 // WKWebView bazen depolama baskısı altında localStorage'ı temizleyebiliyor;
 // her yazımda sessizce Preferences'a da mirror atıp, açılışta eksikse oradan kurtarıyoruz.
@@ -55,6 +58,12 @@ export function loadStats(difficultyLives, hintsPerGame) {
     if (!s.perDiff) s.perDiff = freshStats(difficultyLives, hintsPerGame).perDiff;
     Object.entries(difficultyLives).forEach(([key, lives]) => {
       if (!s.perDiff[key]) s.perDiff[key] = freshDiffState(lives);
+      // Eskiden (skor tabanı eklenmeden önce) kaydedilmiş negatif skorlar kalıcı
+      // olarak sıfıra çekilir — taban kuralı sadece YENİ düşüşleri değil, daha
+      // önce localStorage'a yazılmış değerleri de kapsamalı.
+      const d = s.perDiff[key];
+      if (typeof d.score === "number" && d.score < 0) d.score = 0;
+      if (typeof d.bestScore === "number" && d.bestScore < 0) d.bestScore = 0;
     });
     if (typeof s.hintsRemaining !== "number") s.hintsRemaining = hintsPerGame;
     return s;
@@ -118,6 +127,60 @@ export function clearDaily() {
   } catch (e) {}
 }
 
+// Genel Ayarlar sheet'indeki basit tercihler. Bildirimler'in gerçek bir bildirim
+// planlama altyapısı henüz yok (sadece tercih saklanır); Kulaklık uyarısı ise
+// gerçekten .mobile-warn banner'ının görünürlüğünü kontrol eder.
+export function freshPrefs() {
+  return { notifications: true, hpWarning: true, calibrationDone: false };
+}
+
+export function loadPrefs() {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    return raw ? { ...freshPrefs(), ...JSON.parse(raw) } : freshPrefs();
+  } catch {
+    return freshPrefs();
+  }
+}
+
+export function savePrefs(prefs) {
+  const raw = JSON.stringify(prefs);
+  localStorage.setItem(PREFS_KEY, raw);
+  mirrorSet(PREFS_KEY, raw);
+}
+
+// İlerleme sekmesindeki "son 30 gün" grafiği için günlük isabet oranı. dailyKey()
+// ile aynı yerel-tarih anahtarını kullanır (daily görevlerle aynı gün sınırı).
+export function loadDailyAcc() {
+  try {
+    return JSON.parse(localStorage.getItem(DAILY_ACC_KEY)) || {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveDailyAcc(dailyAcc) {
+  const raw = JSON.stringify(dailyAcc);
+  localStorage.setItem(DAILY_ACC_KEY, raw);
+  mirrorSet(DAILY_ACC_KEY, raw);
+}
+
+// dailyAcc'ı YERİNDE günceller (bugünün sayacını artırır) ve DAILY_ACC_KEEP_DAYS'ten
+// eski günleri buda. Kaydetmeyi çağıran taraf yapar (saveDailyAcc).
+export function recordDailyAccuracy(dailyAcc, correct) {
+  const key = dailyKey();
+  dailyAcc[key] = dailyAcc[key] || { correct: 0, total: 0 };
+  dailyAcc[key].total++;
+  if (correct) dailyAcc[key].correct++;
+  const cutoff = Date.now() - DAILY_ACC_KEEP_DAYS * 24 * 60 * 60 * 1000;
+  Object.keys(dailyAcc).forEach(k => {
+    const [y, m, d] = k.split("-").map(Number);
+    if (!y || !m || !d) { delete dailyAcc[k]; return; }
+    if (new Date(y, m - 1, d).getTime() < cutoff) delete dailyAcc[k];
+  });
+  return dailyAcc;
+}
+
 export function loadZoneStats() {
   try {
     return JSON.parse(localStorage.getItem(ZONESTATS_KEY)) || {};
@@ -146,8 +209,8 @@ export function clearZoneStats() {
 // UI'ı tazeleyebilsin.
 export async function reconcileFromPreferences() {
   const p = getPrefs();
-  if (!p) return { stats: false, daily: false, zoneStats: false };
-  const recovered = { stats: false, daily: false, zoneStats: false };
+  if (!p) return { stats: false, daily: false, zoneStats: false, prefs: false };
+  const recovered = { stats: false, daily: false, zoneStats: false, prefs: false };
   try {
     if (!localStorage.getItem(STATS_KEY)) {
       const { value } = await p.get({ key: STATS_KEY });
@@ -160,6 +223,10 @@ export async function reconcileFromPreferences() {
     if (!localStorage.getItem(ZONESTATS_KEY)) {
       const { value } = await p.get({ key: ZONESTATS_KEY });
       if (value) { localStorage.setItem(ZONESTATS_KEY, value); recovered.zoneStats = true; }
+    }
+    if (!localStorage.getItem(PREFS_KEY)) {
+      const { value } = await p.get({ key: PREFS_KEY });
+      if (value) { localStorage.setItem(PREFS_KEY, value); recovered.prefs = true; }
     }
   } catch (e) {}
   return recovered;
