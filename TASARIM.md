@@ -31,8 +31,8 @@
 |---|---|---|---|---|
 | Geri butonu | ✓ | ✓ | Tam | — |
 | Oyun başlığı | ✓ | ✓ | Tam | — |
-| "Soru N/10" sayacı | ✓ | ✓ | Kısmi | Kodda sadece "Soru N" (toplam yok) — sadece 10-Soruluk-Bölüm modunda auto-advance etiketinde "/10" görünüyor, ana sayaçta değil |
-| Seviye chip'i (tıklanınca `lvlSheet` açılır) | ✓ | ✗ | **Yok** | Seviye bilgisi/detay sheet'i (bant genişliği, değişim miktarı, şık sayısı, sıradaki seviye) kodda hiç yok |
+| "Soru N/10" sayacı | ✓ | ✓ | Tam (uyarlanmış) | `M1-7, ff8f862`: ana sayaç artık "Soru N/10" gösteriyor — ama SADECE 10 Soruluk Bölüm'de (`challenge.active`); Serbest (sonsuz) modda "Soru N" kalıyor, çünkü tasarımda "Serbest" kavramı hiç yok (oradaki 10 sabit varsayılan) |
+| Seviye chip'i (tıklanınca `lvlSheet` açılır) | ✓ | ✗ | **Yok** | Seviye bilgisi/detay sheet'i (bant genişliği, değişim miktarı, şık sayısı, sıradaki seviye) kodda hiç yok — DURUM.md BEKLEYEN KARARLAR **E**: bu sheet, XP-seviyesine bağlı sürekli bir bant/dB formülü varsayıyor, kodda böyle bir formül (ve "Seviye" ile `DIFFICULTY` arasında bağlantı) yok |
 | Kalp göstergesi | ✓ | ✓ | Tam | — |
 | Özel sayaç (Hız Modu için "12 doğru") | ✓ | ✗ | N/A | Hız Modu mod olarak kodda yok, dolayısıyla bulunamadı |
 | Dots (oyun ayarları) butonu | ✓ | ✓ | Tam | — |
@@ -41,7 +41,7 @@
 | Stats satırı: isabet % | ✓ | ✓ | Tam | — |
 | Kaynak seçici chip | ✓ | ✓ | Kısmi | Var ama kaynak kataloğu tamamen farklı: tasarımda gerçek enstrüman/davul isimleri (Kick, Snare, Hi-hat, Tam davul, Bas Gitar, Gitar, Vokal, Pembe gürültü, Synth) gruplu; kodda sadece 5 sentetik dalga formu (pembe/beyaz gürültü, testere/kare/üçgen synth) + yükleme |
 | Kaynak sheet'i (SENTETİK/DAVUL/ENSTRÜMAN/KENDİ DOSYAM grupları) | ✓ | ✗ | **Kısmi/Yok** | Kodda düz bir `<select>` var, gruplu liste sheet'i yok |
-| Odak aralığı chip'i (Tüm spektrum/Bas/Orta/Tiz) | ✓ | ✗ | **Yok** | `focusChip`/`focusSheet` karşılığı bulunamadı — sorular her zaman tüm spektrumdan geliyor |
+| Odak aralığı chip'i (Tüm spektrum/Bas/Orta/Tiz) | ✓ | ✓ | Tam | `M1-4, 5c608f4`: `focusChip`/`focusSheet` eklendi (`FOCUS_RANGES`), soru ve çeldiriciler seçili aralıkla sınırlanıyor, tercih kalıcı. Dar aralıkta Pro Plus'ın 4 bandı her zaman sığmayabiliyor — DURUM.md BEKLEYEN KARARLAR **H** |
 | Karıştır (⇄) butonu | ✓ | ✓ | Tam | — |
 | Soru satırı | ✓ | ✓ | Tam | — |
 | Spektrum paneli (bars, eksen) | ✓ | ✓ | Tam | — |
@@ -53,10 +53,10 @@
 | Dokunmalı işaretleme (spektruma dokun) | ✓ | ✓ | Tam | Canvas üzerinde pointerdown/pointermove ile çalışıyor |
 | Kalite etiketi (çok yakın/yakın/uzak, renkli bant) | ✓ | ✓ | Tam | `frekans-bulma.js:668-670` — 3 kademeli sistem birebir örtüşüyor |
 | Zaman çubuğu + geri sayım | ✓ | ✓ | Tam | — |
-| Geri bildirim kartı | ✓ | ✓ | Kısmi | Başlık+metin var; "Senin cevabın / Doğru cevap / Temiz" karşılaştırma butonları (`cmprow`/`setCmp`) kodda YOK |
-| "Tekrar Çal" butonu (sesi baştan çalar) | ✓ | ✗ | **Kısmi/Yok** | Kodda ayrı bir "Tekrar Çal" yok; en soldaki buton Başlat/Durdur/Devam rollerini üstleniyor — davranışı farklı (baştan çalma değil, duraklat/devam) |
+| Geri bildirim kartı | ✓ | ✓ | Tam | `M1-6, 5a8e3b0`: "Senin cevabın / Doğru cevap / Temiz" (`cmprow`) eklendi ve prototipten farklı olarak GERÇEK ses çalıyor. Sadece tek-bant modu kapsandı, Pro Plus'ta yok (4 tahminden hangisi belirsiz) |
+| "Tekrar Çal" butonu (sesi baştan çalar) | ✓ | ✗ | **Kısmi/Yok** | Kodda ayrı bir "Tekrar Çal" yok; en soldaki buton Başlat/Durdur/Devam rollerini üstleniyor — davranışı farklı (baştan çalma değil, duraklat/devam). DURUM.md BEKLEYEN KARARLAR **F**: sentetik kaynaklarda "baştan"ın bir anlamı yok, sadece upload'da anlamlı — kapsam kararı bekliyor |
 | A/B Test kısa dokunma (toggle) | ✓ | ✓ | Tam | — |
-| A/B Test uzun basma → otomatik döngü | ✓ | ✗ | **Yok** | `pointerdown`+520ms+`setInterval(2000ms)` döngü mekanizması kodda hiç bulunamadı |
+| A/B Test uzun basma → otomatik döngü | ✓ | ✓ | Tam | `M1-5, 1a8dd7b`: `pointerdown`+520ms+`setInterval(2000ms)` prototiple birebir aynı zamanlamayla eklendi |
 | İpucu butonu | ✓ | ✓ | Tam | — |
 | Ana CTA ("Cevabı onayla"/"Sonraki soru") | ✓ | ✗ | **Kısmi** | Kodda bu tek bir birleşik buton değil — "Atla ▶" (skip/otomatik ilerleme) ayrı bir buton; cevap onaylama dokunmayla (pointerdown) anında oluyor, ayrı bir "onayla" adımı yok |
 | Oyun ayarları sheet'i: Ses kaynağı | ✓ | ✓ | Tam | — |
@@ -65,8 +65,8 @@
 | Oyun ayarları sheet'i: Oyun Türü (Serbest/10 Soruluk Bölüm) | ✗ | ✓ | **Ters fark** | Tasarımda karşılığı yok — kod-only ekleme |
 | Oyun ayarları sheet'i: Süre (Süreli/Süresiz) | ✗ | ✓ | **Ters fark** | Tasarımda karşılığı yok — kod-only ekleme |
 | Oyun ayarları sheet'i: Ses dosyası yükleme | ✓ (kaynak sheet'i içinde) | ✓ | Tam | Konum farklı (kod: dots sheet içinde; tasarım: kaynak sheet'i içinde) ama işlev var |
-| "Oyundan çık" butonu (dots sheet) | ✓ | ✗ | **Yok** | Kodda dots sheet'inde böyle bir buton bulunamadı (geri butonuyla çıkılıyor) |
-| Otomatik zorluk sorgusu ("Sabit'e geçmek ister misin?") | ✓ | ✗ | **Yok** | `autoDiffAsk` karşılığı bulunamadı |
+| "Oyundan çık" butonu (dots sheet) | ✓ | ✓ | Tam | `M1-7, ff8f862`: Oyun Ayarları sheet'inin altına eklendi (`.btn.danger`), backBtn ile aynı güvenli çıkış deseni |
+| Otomatik zorluk sorgusu ("Sabit'e geçmek ister misin?") | ✓ | ✗ | **Yok** | `autoDiffAsk` karşılığı bulunamadı — DURUM.md BEKLEYEN KARARLAR **G**: prototipteki "Otomatik" zorluk MODU kodda hiç yok (sadece sabit seçenekler var), bu mod tasarlanmadan sorgu kutusu bağlanacak bir şeyi yok |
 | Boss round rozeti/mekaniği | ✗ | ✓ | **Ters fark** | Tasarımda hiç yok — kod-only özellik (bossChip, boss XP çarpanı, bossWins başarımı) |
 | Combo/seri XP çarpanı | ✗ | ✓ | **Ters fark** | Tasarımda combo kavramı görsel olarak var (seri sayacı) ama XP çarpanına bağlı değil; kodda `stats.combo` XP hesaplamasını doğrudan etkiliyor |
 
