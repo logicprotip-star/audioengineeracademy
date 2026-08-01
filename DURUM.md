@@ -7,6 +7,43 @@ Son güncelleme: 01.08.2026
 
 ## BİTTİ
 
+Commit `5b3775f` — M1-3: "Kendi dosyam" dosya seçici açmıyordu (bug).
+Teşhis: Kaynak sheet'inin "Kendi dosyam" satırı diğer seçenekler gibi
+davranıyordu — sourceSelect'i sessizce "upload" değerine çekip kapanıyordu,
+hiçbir dosya seçici AÇMIYORDU. Gerçek dosya inputu (upload-row) tamamen ayrı
+bir sheet'te (Oyun Ayarları/dots) gömülüydü. Düzeltme: bu satır artık (dosya
+henüz yüklenmemişse) native dosya seçiciyi doğrudan tetikliyor; dosya zaten
+yüklüyse normal seçenek gibi davranıyor. Tarayıcıda gerçek bir WAV dosyasıyla
+uçtan uca doğrulandı (seçim→yükleme→round başlatma). npm test 62/62.
+
+Commit `5c608f4` — M1-4: odak aralığı (Tüm spektrum/Bas/Orta/Tiz).
+Kaynak chip'inin yanına focusChip/focusSheet eklendi (frekans-bulma.js:
+FOCUS_RANGES). Seçilen aralık hem soruyu hem çeldiricileri sınırlıyor,
+tercih localStorage'da kalıcı. Ana menüdeki "Bugünün Önerisi"nin "Başla"
+butonu artık gerçekten işlevsel — en zayıf bölgeyi otomatik odağa çeviriyor.
+Dar odak aralıklarında (Bas/Orta) üst zorluklarda/Pro Plus'ta geometrik
+kapasite sınırı var (bkz. BEKLEYEN KARARLAR H). 6 yeni test + tarayıcı
+doğrulaması (sayfa yenilemede tercih kalıcı kaldı). npm test 68/68.
+
+Commit `1a8dd7b` — M1-5: A/B uzun basma döngüsü (pointerdown+520ms+2000ms
+interval, prototype.html ile birebir). Kısa dokunma eski davranışı koruyor.
+Sentetik PointerEvent'lerle gerçek bir turda zamanlama ayrı ayrı ölçüldü
+(150ms→toggle yok, 600ms→döngü başladı, 2100ms bekleyince otomatik flip
+oldu, tekrar dokununca durdu, geri butonuyla da duruyor).
+
+Commit `5a8e3b0` — M1-6: geri bildirim kartına "Senin cevabın/Doğru cevap/
+Temiz" karşılaştırma butonları eklendi — üçü de GERÇEK ses çalıyor (prototipte
+sadece görsel toggle'dı). Sadece tek-bant "frequency" modu kapsandı, Pro
+Plus bilerek dışarıda bırakıldı (4 tahminden hangisi "senin cevabın" olacağı
+belirsiz). Senkron JS ile gerçek bir turda üç buton da tıklanıp doğrulandı.
+
+Commit `ff8f862` — M1-7 (kısmi): "Soru N/10" sayacı (sadece 10 Soruluk
+Bölüm'de) + "Oyundan çık" butonu (Oyun Ayarları sheet'i). Kalan 3 alt madde
+(Seviye bilgi sheet'i, ayrı "Tekrar Çal" butonu, Otomatik zorluk sorgusu)
+ATLANDI — prototipin öngördüğü temel altyapı (seviyeye bağlı sürekli zorluk
+formülü / gerçek "Otomatik" zorluk modu) kodda hiç yok, tahminle
+doldurulmadı. Bkz. BEKLEYEN KARARLAR E/F/G.
+
 Commit `abd17e4` — G1: başarım denetimi (9 rozetin TAMAMI tarandı):
 
 | Rozet | Koşul | Okuduğu alan | Alan var mı | Tetiklenebilir mi | Düzeltildi mi |
@@ -101,9 +138,10 @@ bypass yolu (kuru/işlenmiş iki zincir + gain crossfade) gerekiyor.
 **6. Kalibrasyon — sarı seviye çizgisi dokunmatik olmalı**
 Ekrandaki seviye göstergesi parmakla sürüklenerek ayarlanabilsin.
 
-**7. Odak aralığı özelliği kodda yok**
-Tasarımda "Odak: Tüm spektrum / Bas / Orta / Tiz" chip'i var, uygulamada karşılığı
-yok. Seans sonu ekranındaki öneri kartı (`resSug`) da bu yüzden G2'de eklenmedi.
+**7. ~~Odak aralığı özelliği kodda yok~~ — M1-4'te eklendi, `5c608f4`**
+Seans sonu ekranındaki öneri kartı (`resSug`) HÂLÂ eklenmedi — bu M1
+turunun kapsamı dışında (G2/seans-sonu ekranına dokunmuyordu), artık
+engel ortadan kalktığı için ayrı bir işte eklenebilir.
 
 **8. İlerleme sekmesi prototiple örtüşmüyor**
 Bölümler var, düzen farklı. `Dizayn/prototype.html` referans.
@@ -141,9 +179,43 @@ ekranındaki "Canlar 30 dakikada dolar" metni bu yüzden G2'de kullanılmadı, y
 dürüst "can dolum özelliği henüz eklenmedi" metni yazıldı. Gerçek dolum özelliği
 ayrı bir iş.
 
+**E. Seviye → hassasiyet formülü (lvlSheet için gerekli)**
+prototype.html'nin `lvlSheet`'i (Seviye chip'ine tıklanınca açılan bilgi kartı)
+"Seviye N'de bant genişliği X, değişim Y dB, sıradaki seviyede bunlar küçülecek"
+diye SÜREKLİ bir formüle dayanıyor. Kodda XP'den türeyen "Seviye" (`levelFromXp`)
+ile ses zincirini kuran `DIFFICULTY` (Kolay/Orta/Zor/Pro/Pro Plus, sabit ön ayar)
+BİRBİRİNE BAĞLI DEĞİL — ikisi tamamen ayrı sayı sistemleri. DURUM.md'nin ZORLUK
+MİMARİSİ bölümünde bu zaten "tasarım kararı — HİÇBİRİ KODDA YOK" olarak kayıtlı.
+Karar gereken: her XP-seviyesinde bant/dB tam olarak ne olacak (bir formül veya
+tablo)? Bu tanımlanmadan `lvlSheet` "doğru" sayılarla doldurulamaz.
+
+**F. "Tekrar Çal" butonu kapsamı**
+Sentetik kaynaklarda (gürültü/synth) anlamsız — sürekli sinyaller, "başı" yok.
+Sadece "upload" kaynağında anlamlı (ve onun için zaten `uploadManager.
+startFromZero` var, şu an sadece tur/seans başında çağrılıyor). Karar gereken:
+sadece upload kaynağında görünen küçük bir "baştan çal" ikonu mı eklensin, yoksa
+madde tamamen atlansın mı? Ayrı bir buton eklemek actionbar'ın layout'unu
+değiştirir.
+
+**G. Otomatik zorluk modu**
+prototype.html'nin `autoDiffAsk`'ı ("Zorluk performansına göre otomatik
+ayarlanıyor, sabit'e geçmek ister misin?") kodda hiç var olmayan bir "Otomatik"
+zorluk modunu varsayıyor — mevcut `difficultySelect`'te sadece sabit seçenekler
+var. DURUM.md'nin ZORLUK MİMARİSİ bölümünde "AÇIK KALAN KARAR" olarak zaten
+kayıtlı. Bu mod tasarlanıp kodlanmadan sorgu kutusunun bağlanacağı bir şey yok.
+
+**H. Dar odak aralığında Pro Plus bant sayısı**
+M1-4 ile gelen odak aralığı (Bas/Orta ~2.3 oktav) Pro Plus'ın istediği 4 ayrık
+bandı (gereken ~2.7 oktav) her zaman sığdıramıyor — ölçülen 500 denemede hep
+2-3 bant üretiliyor (bkz. `test/frekans-bulma.test.mjs`). Kod güvenli tarafta
+duruyor (asla range dışına taşmıyor, asla çakışan bant üretmiyor) ama bu bir
+ürün kararı gerektiriyor: Pro Plus dar odakta kısıtlansın mı (o kombinasyon
+seçilemesin), yoksa az bantla mı devam etsin?
+
 ## SIRADAKİ
 
-1. madde — geri bildirim kartı konumu.
+E/F/G/H kararlarından biri — kullanıcıya sorulacak, kod tarafında bekleyen bir
+şey yok. Karar gelmezse 1. madde (geri bildirim kartı konumu) sıradaki teknik iş.
 
 ## ÜRÜN NOTLARI (önceki sohbetlerden)
 
