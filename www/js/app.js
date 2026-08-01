@@ -168,6 +168,7 @@ const els = {
   gameSettingsOverlay: document.getElementById("gameSettingsOverlay"),
   gameSettingsSheet: document.getElementById("gameSettingsSheet"),
   gameSettingsCancel: document.getElementById("gameSettingsCancel"),
+  quitGameBtn: document.getElementById("quitGameBtn"),
   difficultySelect: document.getElementById("difficultySelect"),
   playModeSelect: document.getElementById("playModeSelect"),
   timerModeSelect: document.getElementById("timerModeSelect"),
@@ -1200,7 +1201,13 @@ function renderQuestion() {
 
   els.questionMeta.textContent = mode.modeDescription(q);
   els.streakText.textContent = q.boss ? "Boss round aktif" : (stats.combo > 1 ? `${stats.combo}x combo aktif` : "Yeni challenge");
-  els.roundChip.textContent = `Soru ${stats.rounds + 1}`;
+  // prototype.html'de sayaç her zaman "Soru N/10" — ama tasarımda "Serbest (sonsuz)"
+  // diye bir kavram hiç yok, oradaki "10" sabit varsayılan seans uzunluğu. Bizde bu
+  // ayrım gerçek (challenge.active), bu yüzden "/10" SADECE 10 Soruluk Bölüm'de
+  // gösteriliyor — Serbest'te sonsuz bir "/10" yanıltıcı olurdu.
+  els.roundChip.textContent = challenge.active
+    ? `Soru ${challenge.done + 1}/${challenge.total}`
+    : `Soru ${stats.rounds + 1}`;
   els.scoreChip.textContent = `Skor ${diffState().score}`;
   els.bossChip.textContent = q.boss ? "Boss" : "Normal";
   els.bossChip.className = `chip ${q.boss ? "boss" : ""}`;
@@ -1907,6 +1914,17 @@ function closeGameSettingsSheet() {
 els.gameSettingsBtn.addEventListener("click", openGameSettingsSheet);
 els.gameSettingsCancel.addEventListener("click", closeGameSettingsSheet);
 els.gameSettingsOverlay.addEventListener("click", closeGameSettingsSheet);
+
+// "Oyundan çık" (prototype.html: gameSettingsSheet içindeki kırmızı buton, go('s-menu')).
+// backBtn ile aynı güvenli çıkış deseni: round aktifse önce duraklat, sonra menüye dön —
+// prototipteki "ilerleme kaydedilmez" uyarısı buraya taşınmadı çünkü YANLIŞ olurdu: bu
+// uygulamada her tur persistStats()/persistDaily() ile anında kalıcılaşıyor, prototipin
+// aksine gerçekten kaybolan bir "seans ilerlemesi" yok.
+if (els.quitGameBtn) els.quitGameBtn.addEventListener("click", () => {
+  closeGameSettingsSheet();
+  if (activeQuestion && !autoStopped) pauseRound();
+  goScreen("menu");
+});
 
 // Seans Sonu ekranının 3 CTA'sı — G2 karar (kullanıcı onaylı):
 // - "10 soru daha": hangi modda bitmiş olursa olsun HER ZAMAN yeni bir 10 Soruluk
