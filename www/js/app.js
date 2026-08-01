@@ -160,6 +160,7 @@ const els = {
   // alt aksiyon çubuğu
   startBtn: document.getElementById("startBtn"),
   abToggle: document.getElementById("abToggle"),
+  abTitle: document.getElementById("abTitle"),
   hintBtn: document.getElementById("hintBtn"),
   nextBtn: document.getElementById("nextBtn"),
 
@@ -386,6 +387,14 @@ let activeQuestion = null;
 let roundActive = false;
 let currentPlayMode = "filtered";
 let visualizerOn = true;
+// A/B uzun basma döngüsü (prototype.html: pointerdown + 520ms eşik + setInterval 2000ms).
+// abPressTimer: 520ms eşik zamanlayıcısı (pointerup/leave'de iptal edilir).
+// abHeld: eşik dolup döngü başladıysa true — ardından gelen "click" olayının (pointerup
+// sonrası tarayıcının kendiliğinden ürettiği) normal kısa-dokunma davranışını tekrar
+// tetiklemesini engeller.
+let abPressTimer = null;
+let abHeld = false;
+let abLoopTimer = null;
 // KÖK SEBEP DÜZELTMESİ: eskiden burada sabit "4" vardı (stats henüz okunmadan) —
 // temiz localStorage'da ilk kalp render'ı gerçek candan ÖNCE 4 ile çiziliyordu.
 // stats zaten yukarıda (satır ~329) yüklendiği için burada doğrudan gerçek
@@ -756,6 +765,10 @@ function goScreen(name) {
     // planda/pasif sekmelerde ertelenebiliyor, bu da güvenilmez ölçümlere yol açıyordu).
     resizeCanvas();
     syncGameScrollPadding();
+  } else if (abLoopTimer) {
+    // Oyun ekranından çıkılınca A/B döngüsü arka planda dönmeye devam etmesin
+    // (prototype.html: go() içindeki aynı temizlik, "s-game1" dışına çıkınca stopAbLoop).
+    stopAbLoop();
   }
   closeMainSettingsSheet();
   // Kalibrasyon tonu sadece o ekrandayken çalsın — başka bir ekrana geçilince arka
@@ -1388,6 +1401,25 @@ function toggleAB() {
   playQuestion(currentPlayMode !== "filtered");
 }
 
+// A/B uzun basma döngüsü: her 2000ms'de bir toggleAB() çağırıp A/B arasında otomatik
+// gidip gelir (prototype.html ile aynı zamanlama). toggleAB() zaten playQuestion()
+// üzerinden çalıyor — döngü SADECE bu çağrıyı periyodik tekrarlıyor, A/B geçişinin
+// kesintisiz bypass olmayışı (ses baştan başlıyor) burada ÇÖZÜLMEDİ, ayrı bir iş.
+function startAbLoop() {
+  if (abLoopTimer) return;
+  abLoopTimer = setInterval(toggleAB, 2000);
+  if (els.abToggle) els.abToggle.classList.add("loop");
+  if (els.abTitle) els.abTitle.textContent = "Döngü";
+}
+function stopAbLoop() {
+  if (!abLoopTimer) return;
+  clearInterval(abLoopTimer);
+  abLoopTimer = null;
+  if (els.abToggle) els.abToggle.classList.remove("loop");
+  if (els.abTitle) els.abTitle.textContent = "A/B Test";
+  updateAbToggleUI();
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Tur akışı: timer / otomatik geçiş / duraklat-devam / 10 soruluk bölüm
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1787,8 +1819,31 @@ els.nextBtn.addEventListener("click", async () => {
   startRound();
 });
 
+// A/B uzun basma döngüsü: 520ms eşik dolmadan bırakılırsa (pointerup/leave) zamanlayıcı
+// iptal edilir ve aşağıdaki "click" normal kısa-dokunma gibi davranır (prototype.html
+// ile aynı 520ms/2000ms zamanlaması).
+els.abToggle.addEventListener("pointerdown", () => {
+  clearTimeout(abPressTimer);
+  abPressTimer = setTimeout(() => {
+    // Henüz hiç round başlamadıysa uzun basma bir şey yapmaz — kısa dokunma zaten
+    // oyunu başlatıyor (aşağıdaki click'teki setAutoPlay(true) dalı), döngünün
+    // karşılaştıracağı bir ses yok.
+    if (!activeQuestion) return;
+    abHeld = true;
+    startAbLoop();
+  }, 520);
+});
+els.abToggle.addEventListener("pointerup", () => clearTimeout(abPressTimer));
+els.abToggle.addEventListener("pointerleave", () => clearTimeout(abPressTimer));
+els.abToggle.addEventListener("contextmenu", e => e.preventDefault());
+
 // A/B tek buton: ilk A/B'ye kesintisiz geçiş, henüz round yoksa taze başlangıç yapar.
 els.abToggle.addEventListener("click", async () => {
+  // Uzun basma döngüyü zaten başlattı — pointerup'ın ürettiği bu click'i yut, kısa
+  // dokunma davranışı bir kez daha tetiklenmesin.
+  if (abHeld) { abHeld = false; return; }
+  // Döngü çalışırken dokunmak onu durdurur (prototype.html: abTap → stopAbLoop).
+  if (abLoopTimer) { stopAbLoop(); return; }
   await audioEngine.initAudio();
   if (!activeQuestion) {
     setAutoPlay(true);
