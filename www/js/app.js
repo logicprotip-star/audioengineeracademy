@@ -2017,8 +2017,18 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => g
       }
       const row = document.createElement('div');
       row.className = 'sheet-option' + (opt.selected ? ' selected' : '');
-      row.innerHTML = `<span>${opt.text}</span><span class="check">✓</span>`;
+      // "Kendi dosyam" bir dosya seçilene kadar diğer şıklar gibi anında
+      // işaretlenemez — tıklanınca native dosya seçiciyi açar (prototype.html'de
+      // bu satır ✓ yerine › ile ayrılmıştı, aynı ayrım burada davranışa taşındı).
+      const isUnloadedUpload = select.id === 'sourceSelect' && opt.value === 'upload' && !uploadManager.mediaSource;
+      const checkStyle = isUnloadedUpload ? ' style="opacity:1"' : '';
+      row.innerHTML = `<span>${opt.text}</span><span class="check"${checkStyle}>${isUnloadedUpload ? '›' : '✓'}</span>`;
       row.addEventListener('click', () => {
+        if (isUnloadedUpload) {
+          closeSheet();
+          els.audioFileInput.click();
+          return;
+        }
         select.value = opt.value;
         select.dispatchEvent(new Event('change', { bubbles: true }));
         updateRowText(select);
