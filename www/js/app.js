@@ -171,6 +171,8 @@ const els = {
   difficultySelect: document.getElementById("difficultySelect"),
   playModeSelect: document.getElementById("playModeSelect"),
   timerModeSelect: document.getElementById("timerModeSelect"),
+  answerFormatSelect: document.getElementById("answerFormatSelect"),
+  answers: document.getElementById("answers"),
   audioFileInput: document.getElementById("audioFileInput"),
   resetStatsBtn: document.getElementById("resetStatsBtn"),
 
@@ -471,6 +473,26 @@ function currentDifficultyConfig() {
 
 function timerOff() {
   return els.timerModeSelect && els.timerModeSelect.value === "off";
+}
+
+// proplus'ta şıklı arayüz yok (4 bandı aynı anda işaretlemek gerekiyor) — o modda
+// bu her zaman false döner, dokunmalı akış değişmeden çalışır.
+function isChoiceFormat() {
+  return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
+    && activeQuestion && activeQuestion.mode !== "proplus");
+}
+
+// Aktif sorunun .ans grid'ini görünür/gizli tutar — hem yeni soru render'ında hem
+// de "Cevap biçimi" ayarı değiştiğinde (bkz. answerFormatSelect'in change dinleyicisi)
+// çağrılır.
+function syncAnswerArea() {
+  if (!els.answers) return;
+  if (activeQuestion && isChoiceFormat()) {
+    mode.renderAnswerChoices(els.answers, activeQuestion);
+  } else {
+    els.answers.innerHTML = "";
+    els.answers.classList.add("hidden");
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1154,6 +1176,7 @@ function renderQuestion() {
   els.freqGuessArea.classList.remove("hidden");
   mode.renderGuessAreaControls(els.freqGuessArea, q);
   if (els.freqInfo) els.freqInfo.classList.add("hidden");
+  syncAnswerArea();
 
   setFeedback(
     q.boss ? "Boss round başladı!" : "Hazır mısın?",
@@ -1197,6 +1220,7 @@ function submitFrequencyGuess(guessHz) {
   const result = mode.evaluateAnswer(q, guessHz);
   setAnalyzerPhase("done");
   if (els.gainValue) els.gainValue.textContent = formatGainDb(q.gain);
+  if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, guessHz);
 
   stats.rounds++;
   let gained = 0;
@@ -1610,8 +1634,11 @@ els.canvas.addEventListener("pointermove", e => {
 els.canvas.addEventListener("pointerleave", () => { freqHoverHz = null; });
 els.canvas.addEventListener("pointerdown", e => {
   if (!isWaveMode() || !roundActive) return;
-  const hz = mode.faXToF(faCanvasPos(e), canvasCssW);
   const q = activeQuestion;
+  // Şıklı biçimde spektrum sadece görsel — cevap .ans butonlarından verilir,
+  // dalgaya dokunma ayrıca (ikinci, çelişen) bir cevap göndermemeli.
+  if (isChoiceFormat()) return;
+  const hz = mode.faXToF(faCanvasPos(e), canvasCssW);
 
   if (q.mode !== "proplus") {
     freqGuessHz = hz;
@@ -1629,6 +1656,17 @@ els.canvas.addEventListener("pointerdown", e => {
     try { submitProPlusGuess(); } catch (err) { console.error(err); }
     ensureAutoNext();
   }
+});
+
+if (els.answers) els.answers.addEventListener("click", e => {
+  if (!isChoiceFormat() || !roundActive) return;
+  const btn = e.target.closest(".ans");
+  if (!btn || btn.disabled) return;
+  btn.classList.add("pick");
+  const hz = Number(btn.dataset.freq);
+  freqGuessHz = hz;
+  try { submitFrequencyGuess(hz); } catch (err) { console.error(err); }
+  ensureAutoNext();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1867,6 +1905,14 @@ els.difficultySelect.addEventListener("change", () => {
   });
 });
 
+if (els.answerFormatSelect) els.answerFormatSelect.addEventListener("change", () => {
+  prefs.answerFormat = els.answerFormatSelect.value;
+  storage.savePrefs(prefs);
+  // Cevaplanmamış bir soru ortasında biçim değişirse görünümü hemen senkronla —
+  // soru/timer/skor state'ine dokunmaz, sadece .ans grid'i gösterir/gizler.
+  if (activeQuestion && roundActive) syncAnswerArea();
+});
+
 // KÖK SEBEP: "visibilitychange" olayı SADECE document üzerinde ateşlenir, window
 // üzerinde DEĞİL (konsolda doğrulandı: document.dispatchEvent ile tetiklendiğinde
 // window.addEventListener hiç çalışmadı). Bu satır eskiden window'a bağlıydı — yani
@@ -2082,6 +2128,10 @@ function applyPrefs() {
   document.body.classList.toggle("hp-warn-off", !prefs.hpWarning);
   if (els.notifSwitch) els.notifSwitch.classList.toggle("on", prefs.notifications);
   if (els.hpWarnSwitch) els.hpWarnSwitch.classList.toggle("on", prefs.hpWarning);
+  if (els.answerFormatSelect && prefs.answerFormat) {
+    els.answerFormatSelect.value = prefs.answerFormat;
+    els.answerFormatSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  }
   updateCalibRowLabel();
 }
 applyPrefs();

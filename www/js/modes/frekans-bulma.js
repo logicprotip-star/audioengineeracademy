@@ -28,6 +28,47 @@ export const DIFFICULTY = {
   proplus: { label: "Pro Plus (Çok Bantlı)", gain: 8, q: 3.2, xp: 45, options: 4, time: 20, lives: MAX_LIVES, hintBandOct: 1.0 }
 };
 
+// Şıklı cevap modunda çeldiricilerin doğru cevaptan oktav cinsinden minimum
+// mesafesi. evaluateAnswer'daki doğruluk toleransı (dOct <= 0.5) burada SERT bir
+// alt sınır — bu değerler her zaman 0.5'in üstünde kalmalı, yoksa "yanlış" bir
+// şıkka basmak evaluateAnswer'da yine "doğru" sayılır. hintBandOct'un pro'daki
+// değeri (0.6) bu sınıra çok yakın olduğu için ayrı bir sabit tanımlandı — doğrudan
+// hintBandOct'tan türetilmedi.
+export const DISTRACTOR_STEP_OCT = { easy: 1.2, medium: 0.9, hard: 0.75, pro: 0.65 };
+
+// SAF FONKSİYON. correctFreq etrafında (options-1) çeldirici üretir, hepsini
+// karıştırıp döndürür — her eleman { freq, correct }. proplus için kullanılmaz
+// (4 bandı aynı anda işaretlemek şıklı tek-seçim arayüzüne uymuyor, dokunmalı kalır).
+//
+// Çeldiriciler TAM k*step oktav mesafede üretilir (k>=1 tam sayı) — FA_MIN/FA_MAX'a
+// hiç KIRPMA yapılmaz. Kırpma yapılsaydı (örn. correctFreq FA_MIN'e çok yakınken bir
+// çeldirici sınıra yapıştırılsaydı) o çeldirici DISTRACTOR_STEP_OCT'tan çok daha yakın
+// düşüp evaluateAnswer'ın 0.5 oktavlık tolerans sınırının içine sızabilirdi. Bunun
+// yerine hangi tarafta (aşağı/yukarı) kaç tam adımlık yer olduğu hesaplanır, iki
+// taraftan sırayla en yakın müsait adım kullanılır — 80–17000 Hz (~7.7 oktav) aralığı
+// bu modun en büyük ihtiyacından (pro: 5 çeldirici × 0.65 oktav = en çok 3.25 oktav
+// tek taraflı) kat kat geniş olduğu için taraflardan biri her zaman yeterli yer bulur.
+export function generateChoices(correctFreq, level) {
+  const diff = DIFFICULTY[level] || DIFFICULTY.medium;
+  const step = DISTRACTOR_STEP_OCT[level] || DISTRACTOR_STEP_OCT.medium;
+  const count = diff.options;
+  const correctOct = Math.log2(correctFreq);
+  const minOct = Math.log2(FA_MIN), maxOct = Math.log2(FA_MAX);
+  const maxBelow = Math.max(0, Math.floor((correctOct - minOct) / step));
+  const maxAbove = Math.max(0, Math.floor((maxOct - correctOct) / step));
+
+  const offsetsOct = [];
+  let below = 1, above = 1;
+  while (offsetsOct.length < count - 1 && (below <= maxBelow || above <= maxAbove)) {
+    if (above <= maxAbove) offsetsOct.push(above++ * step);
+    if (offsetsOct.length >= count - 1) break;
+    if (below <= maxBelow) offsetsOct.push(-(below++) * step);
+  }
+  const freqs = [correctFreq, ...offsetsOct.map(o => correctFreq * Math.pow(2, o))];
+  const choices = freqs.map(f => ({ freq: f, correct: f === correctFreq }));
+  return shuffle(choices);
+}
+
 // Kolay/Orta'da EQ değişimi sadece boost (pozitif gain) olsun — dar bir kesim komşu
 // bandın yükselmiş gibi duyulmasına yol açıp yeni başlayanı kafa karıştırıyor.
 export const BOOST_ONLY_DIFFICULTIES = new Set(["easy", "medium"]);
@@ -161,7 +202,10 @@ export function createQuestion(level, settings = {}) {
     q,
     source,
     hintUsed: false,
-    boss
+    boss,
+    // Şıklı cevap modu bunu kullanır; dokunmalı modda görmezden gelinir — ikisi de
+    // aynı soru nesnesini okur, giriş biçimi farkı sadece UI katmanındadır.
+    choices: generateChoices(freq, level)
   };
 }
 
@@ -437,6 +481,36 @@ export function renderGuessAreaControls(freqGuessAreaEl, q) {
   }
   freqGuessAreaEl.classList.remove("hidden");
   freqGuessAreaEl.innerHTML = `<span id="ppCount">👆 Dört ayrı frekansı işaretle · kalan: 4</span>`;
+}
+
+// Şıklı cevap modunun .ans grid'ini kurar. Tıklama app.js'te delege edilir
+// (butonların dataset.freq'i okunup submitFrequencyGuess'e geçilir) — bu fonksiyon
+// sadece DOM'u kurar, cevabı DEĞERLENDİRMEZ (evaluateAnswer saf kalır).
+export function renderAnswerChoices(answersEl, q) {
+  if (!answersEl) return;
+  if (q.mode === "proplus" || !q.choices) {
+    answersEl.innerHTML = "";
+    answersEl.classList.add("hidden");
+    return;
+  }
+  answersEl.className = "answers";
+  answersEl.innerHTML = q.choices.map(c => {
+    const zone = faZoneOf(c.freq);
+    return `<button type="button" class="ans" data-freq="${c.freq}">` +
+      `<b>${formatHz(c.freq)}</b><span>${hintZoneLabel(c.freq) || zone.t.split(" (")[0]}</span></button>`;
+  }).join("");
+}
+
+// Cevap verildikten sonra .ans butonlarını doğru/yanlış/seçili olarak işaretler.
+export function markAnswerChoices(answersEl, q, pickedFreq) {
+  if (!answersEl || q.mode === "proplus" || !q.choices) return;
+  Array.from(answersEl.querySelectorAll(".ans")).forEach(btn => {
+    const f = Number(btn.dataset.freq);
+    btn.classList.remove("pick");
+    btn.disabled = true;
+    if (f === q.freq) btn.classList.add("right");
+    else if (pickedFreq != null && f === pickedFreq) btn.classList.add("wrong");
+  });
 }
 
 export function showFreqInfoPanel(freqInfoEl, feedback) {

@@ -122,6 +122,8 @@
           <span class="num timer-text" id="timerText">0.0s</span>
         </div>
 
+        <div class="answers hidden" id="answers"></div>
+
         <div class="fb" id="feedbackBox">
           <div class="fb-head"><span class="fb-dot"></span><strong>Başlamak için "Oyunu Başlat"a dokun.</strong></div>
           <p id="feedbackDetail"></p>
@@ -179,6 +181,16 @@
             </select>
             <button class="setting-row" data-sheet-select="timerModeSelect" data-sheet-title="Süre">
               <span class="settings-row-label">Süre</span>
+              <span class="settings-row-value"><span class="setting-row-value-text"></span><span class="chev">&#8250;</span></span>
+            </button>
+          </div>
+          <div class="control control-sheet">
+            <select id="answerFormatSelect" class="hidden">
+              <option value="choice">Şıklı</option>
+              <option value="touch" selected>Dokunmalı</option>
+            </select>
+            <button class="setting-row" data-sheet-select="answerFormatSelect" data-sheet-title="Cevap Biçimi">
+              <span class="settings-row-label">Cevap biçimi</span>
               <span class="settings-row-value"><span class="setting-row-value-text"></span><span class="chev">&#8250;</span></span>
             </button>
           </div>
