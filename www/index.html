@@ -529,6 +529,77 @@
       </div>
     </section>
 
+    <!-- ================= EKRAN: SEANS SONU ================= -->
+    <section class="screen" id="screen-result">
+      <div class="scroll" style="padding-top:12px">
+        <div style="text-align:center;padding:10px 4px 4px">
+          <div style="font-size:13px;font-weight:700;letter-spacing:.12em" id="resKicker">SEANS TAMAMLANDI</div>
+          <div style="margin:14px auto 0;width:128px;height:128px;border-radius:99px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative" id="resRing">
+            <div style="position:absolute;inset:9px;border-radius:99px;background:#0A0E18"></div>
+            <div class="num" style="position:relative;font-size:30px;font-weight:800;line-height:1" id="resPct">%0</div>
+            <div class="num" style="position:relative;font-size:14px;font-weight:600;color:var(--tx-3)" id="resScore">0 / 0 doğru</div>
+          </div>
+          <h1 style="margin:15px 0 0;font-size:21px;font-weight:800;line-height:1.28" id="resHead">Seans tamamlandı</h1>
+          <p class="lead hidden" style="margin:9px 0 0" id="resLead"></p>
+        </div>
+
+        <div class="card hidden" id="resLevelUp" style="margin-top:16px;padding:16px;background:linear-gradient(150deg,rgba(255,194,70,.2),rgba(255,122,24,.06));border-color:rgba(255,176,32,.42)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:48px;height:48px;flex:none;border-radius:16px;background:linear-gradient(150deg,var(--am),var(--am-2));color:#1A1206;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800" id="resLevelUpBadge">—</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:16px;font-weight:800;color:var(--am)">Seviye atladın</div>
+              <div style="margin-top:3px;font-size:14px;line-height:1.4;color:var(--tx-2)">Yeni seviyene ulaştın.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px;padding:15px 16px">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
+            <div style="font-size:15px;font-weight:700">Kazanılan XP</div>
+            <div class="num" style="font-size:19px;font-weight:800;color:var(--am)" id="resXp">+0</div>
+          </div>
+          <div class="bar" style="margin-top:10px"><i id="resXpBar" style="width:0%"></i></div>
+          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:14px;font-weight:600;color:var(--tx-3)">
+            <span id="resLvl">Seviye 1</span><span class="num" id="resXpNum">0 / 120</span>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:10px">
+          <div class="stat-big"><b id="resStreakMax">0</b><span>En uzun seri</span></div>
+          <div class="stat-big"><b id="resStreak">0</b><span>Mevcut seri</span></div>
+          <div class="stat-big" style="color:var(--am)"><b id="resHints">0</b><span>İpucu</span></div>
+        </div>
+
+        <div class="card" style="margin-top:12px;padding:15px 16px">
+          <div class="kicker" id="resSumTitle">BÖLGE HARİTASI</div>
+          <div id="resFreqMap" style="margin-top:14px">
+            <div style="position:relative;height:56px">
+              <div style="position:absolute;left:0;right:0;top:27px;height:2px;background:rgba(255,255,255,.12)"></div>
+              <div id="resDots" style="position:relative;height:100%"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:var(--tx-3)">
+              <span>60</span><span>250</span><span>1k</span><span>4k</span><span>16k</span>
+            </div>
+          </div>
+          <div id="resSeqMap" class="hidden" style="margin-top:14px">
+            <div id="resBoxes" style="display:flex;gap:6px"></div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:13px;font-weight:700;color:var(--tx-3)">
+              <span>1. SORU</span><span>SON</span>
+            </div>
+          </div>
+          <p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:var(--tx-2)" id="resComment"></p>
+        </div>
+      </div>
+
+      <div class="actionbar">
+        <button class="btn primary" id="resCta">10 soru daha</button>
+        <div class="row" style="margin-top:9px">
+          <button class="btn" id="resRetryBtn">Tekrar oyna</button>
+          <button class="btn" id="resMenuBtn">Menüye dön</button>
+        </div>
+      </div>
+    </section>
+
   </div>
 
   <div class="tabbar" id="tabbar">
@@ -537,14 +608,6 @@
       <button class="tab" data-tab="progress">İlerleme</button>
       <button class="tab" data-tab="tools">Araçlar</button>
     </div>
-  </div>
-
-  <div class="gameover-overlay" id="gameoverOverlay"></div>
-  <div class="gameover-card" id="gameoverCard">
-    <button class="gameover-close" id="gameoverClose" type="button" aria-label="Kapat">✕</button>
-    <div class="gameover-title">🏁 Oyun Bitti</div>
-    <div class="gameover-stats" id="gameoverStats">0 doğru · 0 yanlış · +0 XP</div>
-    <button class="btn primary" id="gameoverRetryBtn">Tekrar Oyna</button>
   </div>
 
   <!-- ================= GENEL AYARLAR SHEET ================= -->

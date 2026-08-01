@@ -458,24 +458,6 @@
     .placeholder h3{margin:0 0 6px;color:var(--tx);font-size:17px}
     .placeholder p{margin:0;font-size:14px;line-height:1.5}
 
-    /* ---- can bitince çıkan sonuç kartı ---- */
-    .gameover-overlay{position:fixed;inset:0;background:rgba(2,4,10,.7);z-index:95;opacity:0;pointer-events:none;transition:opacity .2s ease}
-    .gameover-overlay.open{opacity:1;pointer-events:auto}
-    .gameover-card{
-      position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.94);
-      width:min(340px, calc(100% - 40px));z-index:96;padding:28px 22px 22px;border-radius:24px;
-      background:#10141F;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,.5);
-      text-align:center;opacity:0;pointer-events:none;transition:opacity .2s ease, transform .2s ease;
-    }
-    .gameover-card.open{opacity:1;pointer-events:auto;transform:translate(-50%,-50%) scale(1)}
-    .gameover-close{
-      position:absolute;top:14px;right:14px;background:rgba(255,255,255,.08);border:0;color:var(--tx-3);
-      width:28px;height:28px;border-radius:50%;font-size:14px;
-    }
-    .gameover-title{font-size:21px;font-weight:800;margin-bottom:10px}
-    .gameover-stats{color:var(--tx-3);font-size:14px;margin-bottom:22px}
-    .gameover-card .btn{width:100%}
-
     /* ---- efektler (toast/xp/particle) ---- */
     .floating-xp,.toast,.particle{position:fixed;pointer-events:none;z-index:9999}
     .floating-xp{font-weight:900;color:#fff;text-shadow:0 0 20px rgba(255,176,32,.7);animation:floatUp 1.4s ease forwards}

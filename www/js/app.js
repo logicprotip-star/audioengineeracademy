@@ -212,12 +212,31 @@ const els = {
   accChartFirst: document.getElementById("accChartFirst"),
   accChartLast: document.getElementById("accChartLast"),
 
-  // oyun bitti kartı
-  gameoverOverlay: document.getElementById("gameoverOverlay"),
-  gameoverCard: document.getElementById("gameoverCard"),
-  gameoverStats: document.getElementById("gameoverStats"),
-  gameoverClose: document.getElementById("gameoverClose"),
-  gameoverRetryBtn: document.getElementById("gameoverRetryBtn")
+  // seans sonu ekranı
+  resKicker: document.getElementById("resKicker"),
+  resRing: document.getElementById("resRing"),
+  resPct: document.getElementById("resPct"),
+  resScore: document.getElementById("resScore"),
+  resHead: document.getElementById("resHead"),
+  resLead: document.getElementById("resLead"),
+  resLevelUp: document.getElementById("resLevelUp"),
+  resLevelUpBadge: document.getElementById("resLevelUpBadge"),
+  resXp: document.getElementById("resXp"),
+  resXpBar: document.getElementById("resXpBar"),
+  resLvl: document.getElementById("resLvl"),
+  resXpNum: document.getElementById("resXpNum"),
+  resStreakMax: document.getElementById("resStreakMax"),
+  resStreak: document.getElementById("resStreak"),
+  resHints: document.getElementById("resHints"),
+  resSumTitle: document.getElementById("resSumTitle"),
+  resFreqMap: document.getElementById("resFreqMap"),
+  resDots: document.getElementById("resDots"),
+  resSeqMap: document.getElementById("resSeqMap"),
+  resBoxes: document.getElementById("resBoxes"),
+  resComment: document.getElementById("resComment"),
+  resCta: document.getElementById("resCta"),
+  resRetryBtn: document.getElementById("resRetryBtn"),
+  resMenuBtn: document.getElementById("resMenuBtn")
 };
 
 const ctx2d = els.canvas.getContext("2d");
@@ -345,8 +364,22 @@ let visualizerOn = true;
 // stats zaten yukarıda (satır ~329) yüklendiği için burada doğrudan gerçek
 // değerden başlatılabilir; syncLives() zaten çağrılacak ama ilk boya da doğru olsun.
 let currentLives = stats.lives;
-let session = { correct: 0, wrong: 0, xp: 0, hints: 0 };
-function resetSession() { session = { correct: 0, wrong: 0, xp: 0, hints: 0 }; }
+// log: bu oturumdaki HER turun {correct, freq} kaydı — Seans Sonu ekranındaki
+// bölge haritası (dokunmalı/tek frekans) ya da soru sırası (proplus/çok bantlı)
+// görselleştirmesi buradan besleniyor. freq sadece "frequency" tipi sorularda
+// dolar (proplus'ta null) — pushHistory() ile birlikte doldurulur.
+let session = { correct: 0, wrong: 0, xp: 0, hints: 0, log: [] };
+// Seans Sonu'nda "Seviye atladın" kartı için: bu oturum/deneme BAŞLARKEN hangi
+// seviyedeydi. resetSession() her yeni deneme başında (Oyunu Başlat/Tekrar Oyna/
+// 10 Soru Daha) çağrıldığında güncellenir; burada da (currentLives ile aynı mantık)
+// açılıştaki GERÇEK seviyeden başlatılır — yoksa kullanıcının ilk oturumunda
+// (hiç resetSession() tetiklenmeden 10 Soruluk Bölüm bitirse bile) "Seviye atladın"
+// kartı hiç çıkmazdı (null !== null her zaman false döner).
+let sessionStartLevel = progress.xpProgress(diffState().xp).level;
+function resetSession() {
+  session = { correct: 0, wrong: 0, xp: 0, hints: 0, log: [] };
+  sessionStartLevel = progress.xpProgress(diffState().xp).level;
+}
 
 let freqGuessHz = null;
 let freqHoverHz = null;
@@ -378,12 +411,21 @@ let autoPlaying = false;
 let autoStopped = false;
 let pausedAutoAdvanceRemainingMs = null;
 
-let gameOverVisible = false;
-let gameOverOpenedAt = 0;
-const GAMEOVER_CLICK_GUARD_MS = 400;
-function gameOverGuardActive() {
-  return Date.now() - gameOverOpenedAt < GAMEOVER_CLICK_GUARD_MS;
-}
+// Seans Sonu artık gerçek bir ekran (goScreen("result")) — eski "Oyun Bitti"
+// KARTI'nın tam ekranı kaplayan yarı saydam overlay'i ve o overlay'e sızan
+// gecikmeli tıklamalar (bkz. önceki turdaki "3.9 saniye gecikmeli click" bulgusu)
+// artık mümkün değil: normal bir ekran, sadece butonlarla kapanıyor. Bu yüzden
+// eski gameOverGuardActive()/GAMEOVER_CLICK_GUARD_MS koruması tamamen kaldırıldı.
+let sessionEndVisible = false;
+
+// Gerçek bir satın alma/IAP altyapısı henüz yok (bkz. buyProBtn — sadece "Yakında"
+// toast'ı gösteriyor) — bu sabit o yüzden ŞU AN HER ZAMAN false. "Canların bitti"
+// varyasyonu bu yüzden bugün her kullanıcıda erişilebilir durumda (gerçekte kimse
+// Pro satın alamıyor). Gerçek Pro state'i eklenince: (a) bu sabit kaldırılıp gerçek
+// duruma bağlanmalı, (b) Pro kullanıcılar için can sınırının da kaldırılması gerekir
+// (DURUM.md'deki ürün notu: "Pro'da can sınırı yok") — aksi halde currentLives<=0
+// yine tetiklenir ama hangi ekranın açılacağı belirsiz kalır.
+const isPro = false;
 
 // "Karıştır": açıkken her tur rastgele bir kaynak seçilir (yüklenen dosya hariç);
 // kapalıyken kaynak seçicideki değer kullanılır. Oturum içi, kalıcı değil.
@@ -485,29 +527,106 @@ function finalizeIfGameOver() {
   uploadManager.pausePlayback();
   activeQuestion = null;
   updateStartBtnLabel();
-  showGameOverCard();
+  // "Canların bitti" varyasyonu SADECE ücretsiz sürümde gösterilir (kullanıcı kararı) —
+  // isPro şu an her zaman false olduğu için bu satır bugün pratikte hep çalışır;
+  // bkz. isPro tanımındaki not.
+  if (!isPro) showSessionEnd("lost");
   return true;
 }
 
-function showGameOverCard() {
-  // Güvenlik ağı: bu kart SADECE oyun ekranında gösterilsin, başka bir ekranın
-  // (ör. menü) üstünde asla açılmasın. Kök neden buydu — boot'ta ekrandan bağımsız
-  // zorla açan syncLivesEnsureAlive() kaldırıldı; bütün çağıranlar artık zaten
-  // oyun ekranı içi aksiyonlardan (Oyunu Başlat/cevap ver) geliyor, ama bu satır
-  // gelecekte yanlış bir çağrı eklenirse sessizce yanlış ekranda açılmasını engeller.
-  if (screenStack[screenStack.length - 1] !== "game") return;
-  gameOverVisible = true;
-  gameOverOpenedAt = Date.now();
-  if (els.gameoverStats) {
-    els.gameoverStats.textContent = `${session.correct} doğru · ${session.wrong} yanlış · +${session.xp} XP · ${session.hints} ipucu`;
-  }
-  if (els.gameoverOverlay) els.gameoverOverlay.classList.add("open");
-  if (els.gameoverCard) els.gameoverCard.classList.add("open");
+// zoneScores() DÜZ bir dizi döndürür (renderZonePanel() bunu {scores,enough}'a
+// sarıp ayrıca DOM'a da yazıyor — burada o yan etkiyi istemediğimiz için aynı
+// "n>=2 yeterli veri" filtresi lokal olarak tekrarlanıyor, renderDailyTip()'teki
+// desenin aynısı). "Şu An Neredesin" (renderWhereNow) ile aynı cümle kalıbını üretir.
+function zoneInsightSentence(enough) {
+  if (enough.length < 2) return "";
+  const sorted = enough.slice().sort((a, b) => a.pct - b.pct);
+  const weak = sorted[0], strong = sorted[sorted.length - 1];
+  return `${strong.label} bölgesinde iyisin (%${strong.pct}), ${weak.label.toLowerCase()} bölgesinde zorlanıyorsun (%${weak.pct}).`;
 }
-function hideGameOverCard() {
-  gameOverVisible = false;
-  if (els.gameoverOverlay) els.gameoverOverlay.classList.remove("open");
-  if (els.gameoverCard) els.gameoverCard.classList.remove("open");
+
+// kind: "lost" (canlar bitti) | "normal" (10 Soruluk Bölüm tamamlandı).
+// Tasarımdaki (Dizayn/prototype.html #s-result) alanların TAMAMI gerçek oyun
+// state'inden okunur — karşılığı olmayanlar (bkz. rapor: "önceki seansa göre +N
+// puan" ve "odak setini aç" önerisi) BİLEREK atlandı, uydurulmadı.
+function showSessionEnd(kind) {
+  sessionEndVisible = true;
+  const lost = kind === "lost";
+  const xp = progress.xpProgress(diffState().xp);
+  const nowLevel = xp.level;
+  const leveledUp = !lost && sessionStartLevel !== null && nowLevel > sessionStartLevel;
+
+  els.resKicker.textContent = lost ? "CANLARIN BİTTİ" : "SEANS TAMAMLANDI";
+  els.resKicker.style.color = lost ? "var(--rd)" : "var(--gr)";
+
+  const total = lost ? (session.correct + session.wrong) : challenge.total;
+  const correctCount = lost ? session.correct : challenge.correct;
+  const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+  els.resPct.textContent = `%${pct}`;
+  els.resScore.textContent = `${correctCount} / ${total} doğru`;
+  const ringColor = lost ? "var(--rd)" : "var(--gr)";
+  els.resRing.style.background = `conic-gradient(${ringColor} 0turn ${(pct / 100).toFixed(3)}turn, rgba(255,255,255,.08) ${(pct / 100).toFixed(3)}turn 1turn)`;
+
+  const zoneEnough = zoneScores().filter(s => s.n >= 2);
+  const insight = zoneInsightSentence(zoneEnough);
+  const weakest = zoneEnough.length ? zoneEnough.slice().sort((a, b) => a.pct - b.pct)[0] : null;
+
+  els.resHead.textContent = lost
+    ? "Canların bitti, seans burada kapandı"
+    : (weakest ? `${weakest.label} bölgede ilerleme var` : "Frekans Bulma seansını bitirdin");
+
+  // Tasarımdaki "Son seansına göre +N puan" karşılaştırması VERİ KAYNAĞI YOK —
+  // önceki seansın skor anlık görüntüsü hiçbir yerde tutulmuyor. Uydurmak yerine
+  // sadece "lost" durumunda gerçek veriye dayanan bir cümle gösteriliyor, "normal"
+  // durumda bu satır boş/gizli kalıyor.
+  if (lost) {
+    els.resLead.textContent = `${total} soruda bitti. Canların tükendi — can dolum özelliği henüz eklenmedi.`;
+    els.resLead.classList.remove("hidden");
+  } else {
+    els.resLead.textContent = "";
+    els.resLead.classList.add("hidden");
+  }
+
+  els.resLevelUp.classList.toggle("hidden", !leveledUp);
+  if (leveledUp) els.resLevelUpBadge.textContent = nowLevel;
+
+  els.resXp.textContent = `+${session.xp}`;
+  els.resXpBar.style.width = `${Math.max(0, Math.min(100, (xp.current / xp.required) * 100))}%`;
+  els.resLvl.textContent = `Seviye ${nowLevel}`;
+  els.resXpNum.textContent = `${xp.current} / ${xp.required}`;
+
+  els.resStreakMax.textContent = stats.bestCombo;
+  els.resStreak.textContent = stats.combo;
+  els.resHints.textContent = session.hints;
+
+  const freqEntries = session.log.filter(e => e.freq != null);
+  const hasFreqData = freqEntries.length > 0;
+  els.resSumTitle.textContent = hasFreqData ? "BÖLGE HARİTASI" : "SORU SIRASI";
+  els.resFreqMap.classList.toggle("hidden", !hasFreqData);
+  els.resSeqMap.classList.toggle("hidden", hasFreqData);
+  if (hasFreqData) {
+    els.resDots.innerHTML = freqEntries.map((e, i) => {
+      const x = mode.faFToX(e.freq, 1) * 100;
+      const top = i % 2 ? 34 : 8;
+      const color = e.correct ? "var(--gr)" : "var(--rd)";
+      const glow = e.correct ? "rgba(43,217,168,.18)" : "rgba(255,77,109,.18)";
+      return `<span style="position:absolute;left:${x}%;top:${top}px;width:14px;height:14px;margin-left:-7px;border-radius:99px;background:${color};box-shadow:0 0 0 3px ${glow}"></span>`;
+    }).join("");
+  } else if (session.log.length) {
+    els.resBoxes.innerHTML = session.log.map(e =>
+      `<span style="flex:1;height:26px;border-radius:7px;background:${e.correct ? "rgba(43,217,168,.85)" : "rgba(255,77,109,.8)"}"></span>`
+    ).join("");
+  } else {
+    els.resBoxes.innerHTML = "";
+  }
+
+  els.resComment.textContent = insight || (weakest ? `${weakest.label} bölgesinde %${weakest.pct} isabetin var.` : "");
+
+  goScreen("result");
+}
+
+function hideSessionEnd() {
+  sessionEndVisible = false;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -956,6 +1075,9 @@ function pushHistory(correct) {
   });
   history = history.slice(0, 12);
   renderHistory();
+  // Seans Sonu'ndaki bölge haritası/soru sırası için — freq sadece tek-frekanslı
+  // sorularda (proplus DEĞİL) dolu olur, bkz. session.log tanımındaki not.
+  session.log.push({ correct, freq: activeQuestion.mode === "frequency" ? activeQuestion.freq : null });
 }
 
 function updateDaily(correct) {
@@ -1272,8 +1394,8 @@ function startTimerForCurrentQuestion() {
 }
 
 function startRound() {
-  if (gameOverVisible) return; // kart açıkken hiçbir tetikleyici yeni tur başlatamaz
-  if (currentLives <= 0) { showGameOverCard(); return; }
+  if (sessionEndVisible) return; // seans sonu ekranı açıkken hiçbir tetikleyici yeni tur başlatamaz
+  if (currentLives <= 0) { if (!isPro) showSessionEnd("lost"); return; }
   if (els.sourceSelect.value === "upload" && !uploadManager.mediaSource) {
     setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
     return;
@@ -1331,7 +1453,7 @@ function setAutoPlay(on) {
   roundFlow.clearAutoAdvance();
   pausedAutoAdvanceRemainingMs = null;
   if (on) {
-    // NOT: ipucu hakkı BURADA sıfırlanmaz (bkz. gameoverRetryBtn) — reload sonrası
+    // NOT: ipucu hakkı BURADA sıfırlanmaz (bkz. startFreshAttempt) — reload sonrası
     // "Oyunu Başlat"a tekrar basmak sınırsız ipucu üretmemeli.
     if (els.sourceSelect.value === "upload") {
       uploadManager.startFromZero(err => {
@@ -1362,9 +1484,10 @@ function finishChallenge() {
   activeQuestion = null;
   updateStartBtnLabel();
   if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
-  const acc = Math.round((challenge.correct / challenge.total) * 100);
-  setFeedback(`🏁 Bölüm bitti — ${challenge.correct}/10 doğru`, `Toplam +${challenge.xp} XP (%${acc} isabet). Yeni bölüm için 'Oyunu Başlat'.`);
-  toast("🏁 10 Soruluk Bölüm bitti", `${challenge.correct}/10 doğru · +${challenge.xp} XP`);
+  // "Normal" (kaybetmeden biten) Seans Sonu SADECE burada, 10 Soruluk Bölüm
+  // tamamlanınca tetiklenir (kullanıcı kararı) — serbest modun doğal bir bitişi
+  // olmadığı için serbest modda bu ekran hiç çıkmaz.
+  showSessionEnd("normal");
 }
 function challengeTick(wasCorrect, gainedXp) {
   if (!challenge.active) return;
@@ -1554,7 +1677,7 @@ els.audioFileInput.addEventListener("change", async (e) => {
 // startBtn duruma göre 3 iş yapar: Oyunu Başlat / Tekrar Çal / Durdur (bkz. updateStartBtnLabel)
 els.startBtn.addEventListener("click", async () => {
   await audioEngine.initAudio();
-  if (currentLives <= 0) { showGameOverCard(); return; }
+  if (currentLives <= 0) { if (!isPro) showSessionEnd("lost"); return; }
 
   if (!activeQuestion) {
     if (isChallenge()) startChallenge();
@@ -1584,7 +1707,7 @@ els.startBtn.addEventListener("click", async () => {
 
 els.nextBtn.addEventListener("click", async () => {
   await audioEngine.initAudio();
-  if (currentLives <= 0) { showGameOverCard(); return; }
+  if (currentLives <= 0) { if (!isPro) showSessionEnd("lost"); return; }
   autoStopped = false;
   roundFlow.clearAutoAdvance();
   pausedAutoAdvanceRemainingMs = null;
@@ -1629,47 +1752,48 @@ els.gameSettingsBtn.addEventListener("click", openGameSettingsSheet);
 els.gameSettingsCancel.addEventListener("click", closeGameSettingsSheet);
 els.gameSettingsOverlay.addEventListener("click", closeGameSettingsSheet);
 
-// KÖK SEBEP (2. bulgu): overlay'in TAMAMI (tüm ekranı kaplayan karartılmış zemin)
-// "dışına tıkla → kapat" davranışındaydı. Kartı açan cevap tam da ekranın o anki
-// dokunma/tıklama noktasında biter — konsolda ÖLÇÜLDÜ: bir tek dokunuştan SONRA
-// ~3.9 SANİYE gecikmeli bir "click" olayı overlay'e ulaşıp kartı hemen kapattı
-// (muhtemelen tarayıcı/WKWebView'in olayı ana iş parçacığı meşgulken kuyruğa
-// alması). GAMEOVER_CLICK_GUARD_MS (400ms) böylesi bir gecikmeyi YAKALAYAMAZ.
-// Kart aniden kapanınca kullanıcı "Oyun Bitti"yi hiç okuyamadan geri menüdeymiş
-// gibi bir arayüzle karşılaşır — bildirilen "kalp dolu görünürken can 0" hissi
-// büyük ihtimalle budur. Çözüm: overlay'e tıklamayı KAPATMA tetikleyicisi olmaktan
-// çıkar — kart artık SADECE X butonu ya da "Tekrar Oyna" ile kapanır.
-// OTOMATİK CAN DOLUMU YOK — canlar hâlâ 0 ise dürüstçe öyle kalır (ayrı bir
-// "dolum" özelliği bekliyor). Sadece oturum sayaçlarını (session) temizleyip kartı kapatır.
-function closeGameOverAndReset() {
-  if (gameOverGuardActive()) return; // ekstra güvenlik ağı, artık backdrop'tan tetiklenmiyor
-  hideGameOverCard();
-  resetSession();
-  if (currentLives > 0) {
-    setFeedback("Yeni seriye hazır", "Kaldığın yerden 'Oyunu Başlat' ile devam edebilirsin.");
-  } else {
-    setFeedback("Canların bitti", "Şu an devam edemezsin — can dolum özelliği henüz eklenmedi.");
-  }
-}
-if (els.gameoverClose) els.gameoverClose.addEventListener("click", closeGameOverAndReset);
-if (els.gameoverRetryBtn) els.gameoverRetryBtn.addEventListener("click", async () => {
-  if (gameOverGuardActive()) return;
-  hideGameOverCard();
-  // "Tekrar Oyna" artık can DOLDURMAZ — gameover kartı zaten sadece can 0'ken
-  // açıldığı için bu buton bugün fiilen closeGameOverAndReset ile aynı sonucu
-  // verir (dürüst mesaj + kapatma). Canlar > 0 olsaydı (ör. ileride farklı bir
-  // gameover tetikleyicisi eklenirse) eski "gerçekten devam et" akışı çalışır.
+// Seans Sonu ekranının 3 CTA'sı — G2 karar (kullanıcı onaylı):
+// - "10 soru daha": hangi modda bitmiş olursa olsun HER ZAMAN yeni bir 10 Soruluk
+//   Bölüm başlatır (bu yüzden tasarımdaki gibi "Tekrar dene"/"10 soru daha" arası
+//   metin değişmiyor — davranış hep aynı olduğu için etiket de hep aynı).
+// - "Tekrar oyna": seans hangi moddaysa (serbest/bölüm) O modda yeniden başlar.
+// - "Menüye dön": ana menüye çıkar.
+// Üçü de: OTOMATİK CAN DOLUMU YOK — can hâlâ 0 ise dürüstçe "can dolum özelliği
+// henüz eklenmedi" mesajıyla kalır, sessizce yeni tur başlatmaz.
+function startFreshAttempt({ forceChallenge }) {
+  hideSessionEnd();
   if (currentLives <= 0) {
     resetSession();
+    // Önceki turun kalıntı UI'ı (soru başlığı + sonuç kartı) startRound()
+    // çağrılmadığı için burada temizlenmezse ekranda "canların bitti" mesajı
+    // yerine eski soru metni/yanlış-doğru cevap kartı görünmeye devam eder —
+    // bkz. G2 doğrulaması.
+    if (els.freqInfo) els.freqInfo.classList.add("hidden");
+    if (els.questionTitle) els.questionTitle.textContent = "Canların bitti";
+    if (els.questionMeta) els.questionMeta.textContent = "";
     setFeedback("Canların bitti", "Şu an devam edemezsin — can dolum özelliği henüz eklenmedi.");
+    goScreen("game");
     return;
   }
-  await audioEngine.initAudio();
   resetSession();
-  stats.hintsRemaining = HINTS_PER_GAME; // gerçek "Tekrar Oyna" — ipucu hakkı burada sıfırlanır
+  stats.hintsRemaining = HINTS_PER_GAME;
   persistStats();
-  if (isChallenge()) startChallenge();
+  if (forceChallenge || isChallenge()) startChallenge();
+  goScreen("game");
   setAutoPlay(true);
+}
+if (els.resCta) els.resCta.addEventListener("click", async () => {
+  await audioEngine.initAudio();
+  startFreshAttempt({ forceChallenge: true });
+});
+if (els.resRetryBtn) els.resRetryBtn.addEventListener("click", async () => {
+  await audioEngine.initAudio();
+  startFreshAttempt({ forceChallenge: false });
+});
+if (els.resMenuBtn) els.resMenuBtn.addEventListener("click", () => {
+  hideSessionEnd();
+  resetSession();
+  goScreen("menu");
 });
 
 els.resetStatsBtn.addEventListener("click", () => {
