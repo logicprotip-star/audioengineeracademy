@@ -28,6 +28,16 @@ export function accuracy(stats) {
   return stats.rounds ? Math.round((stats.correct / stats.rounds) * 100) : 0;
 }
 
+// XP hiçbir zaman stats.xp'de tutulmadı — her zorluğun kendi perDiff[key].xp'si var,
+// tek/global bir XP alanı yok. "Level 5 ol" başarımı bu yüzden hiç tetiklenmiyordu
+// (levelFromXp(undefined) her zaman 1 döner). Zorluklar arası toplam XP, koduna
+// modeTotalXp()'nin (app.js) zaten kullandığı aynı yaklaşım — tek moddayken bu,
+// kullanıcının o moddaki TOPLAM ilerlemesi anlamına gelir.
+function totalXp(stats) {
+  if (!stats.perDiff) return 0;
+  return Object.values(stats.perDiff).reduce((sum, d) => sum + ((d && d.xp) || 0), 0);
+}
+
 export const ACHIEVEMENTS = [
   { id: "first_blood", icon: "🎧", title: "İlk Kulak", desc: "İlk doğru cevabı ver.", check: s => s.correct >= 1 },
   { id: "combo_5", icon: "🔥", title: "Alev Zinciri", desc: "5 combo yap.", check: s => s.bestCombo >= 5 },
@@ -35,7 +45,7 @@ export const ACHIEVEMENTS = [
   { id: "round_25", icon: "🏁", title: "Dayanıklılık", desc: "25 tur tamamla.", check: s => s.rounds >= 25 },
   { id: "round_100", icon: "🧠", title: "EQ Beyni", desc: "100 tur tamamla.", check: s => s.rounds >= 100 },
   { id: "accuracy_70", icon: "🎯", title: "Keskin Hedef", desc: "En az 20 turda %70 doğruluk yakala.", check: s => s.rounds >= 20 && accuracy(s) >= 70 },
-  { id: "level_5", icon: "🚀", title: "Yükseliş", desc: "Level 5 ol.", check: s => levelFromXp(s.xp) >= 5 },
+  { id: "level_5", icon: "🚀", title: "Yükseliş", desc: "Level 5 ol.", check: s => levelFromXp(totalXp(s)) >= 5 },
   { id: "pro_clear", icon: "👑", title: "Pro Kulak", desc: "Pro zorlukta 8 doğru yap.", check: s => s.proCorrect >= 8 },
   { id: "boss_win", icon: "💀", title: "Boss Avcısı", desc: "Bir boss round kazan.", check: s => s.bossWins >= 1 }
 ];
