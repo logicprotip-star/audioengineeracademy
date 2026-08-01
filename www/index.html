@@ -84,14 +84,8 @@
         <div class="chiprow">
           <div class="control control-sheet" style="flex:1;min-width:0">
             <label class="hidden">Kaynak</label>
-            <select id="sourceSelect" class="hidden">
-              <option value="pink">Pembe Gürültü</option>
-              <option value="white">Beyaz Gürültü</option>
-              <option value="saw">Testere Synth</option>
-              <option value="square">Kare Synth</option>
-              <option value="triangle">Üçgen Synth</option>
-              <option value="upload">Yüklenen Ses Dosyası</option>
-            </select>
+            <!-- <option>/<optgroup> listesi app.js'te SOURCE_GROUPS'tan üretilir (bkz. populateSourceSelect) -->
+            <select id="sourceSelect" class="hidden"></select>
             <button class="srctag setting-row" data-sheet-select="sourceSelect" data-sheet-title="Kaynak">
               <span class="dot"></span><b class="setting-row-value-text" id="sourceChipLabel">Pembe Gürültü</b><span class="chev">&#8250;</span>
             </button>

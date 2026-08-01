@@ -1,7 +1,9 @@
 // Ses zinciri kurulumu ve yönetimi: AudioContext/analyser/masterGain/muteGain,
-// kaynak üretimi (gürültü/synth), mute/unmute (A/B bypass), stopAudio. Bir modun
-// filtre/EQ zincirini nasıl kurduğunu BİLMEZ — bunun için applyProcessing callback'i
-// alır (bkz. modes/*.js: applyProcessing(question, { audioCtx })).
+// kaynak üretimi (gürültü/synth/örnek dosya), mute/unmute (A/B bypass), stopAudio.
+// Bir modun filtre/EQ zincirini nasıl kurduğunu BİLMEZ — bunun için applyProcessing
+// callback'i alır (bkz. modes/*.js: applyProcessing(question, { audioCtx })).
+
+import { findSource } from "./source-catalog.js";
 
 const MUTE_RAMP_SEC = 0.05; // ~50ms — Durdur/Tekrar Çal arasındaki geçiş
 
@@ -153,6 +155,31 @@ export function createAudioEngine() {
     return [noise];
   }
 
+  // ---- örnek (dosya) tabanlı kaynaklar — henüz katalogda hiçbir girdi bu yolu
+  // kullanmıyor (gerçek ses dosyaları yok), ama mekanizma çalışır durumda: bir
+  // sonraki katalog girdisi kind:"sample" + samplePath ile eklendiğinde kod
+  // değişikliği gerekmeden çalar. AudioBuffer decode edildikten sonra CACHE'lenir
+  // (immutable, paylaşılması güvenli) — ama her turda YİNE DE yeni bir
+  // AudioBufferSourceNode oluşturulur, "kalıcı graf mutasyonu yok" kuralı bozulmaz.
+  const sampleBufferCache = new Map();
+  async function loadSampleBuffer(path) {
+    if (sampleBufferCache.has(path)) return sampleBufferCache.get(path);
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`Örnek yüklenemedi: ${path} (HTTP ${res.status})`);
+    const arrayBuffer = await res.arrayBuffer();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    sampleBufferCache.set(path, audioBuffer);
+    return audioBuffer;
+  }
+  async function buildSampleSource(path) {
+    const buffer = await loadSampleBuffer(path);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    src.start();
+    return [src];
+  }
+
   function buildSynthSource(sourceType) {
     const osc1 = audioCtx.createOscillator();
     const osc2 = audioCtx.createOscillator();
@@ -178,7 +205,7 @@ export function createAudioEngine() {
   // processed=false ise filtre zinciri hiç kurulmaz (A/B bypass — temiz referans sesi).
   // uploadedMediaSource: upload.js'in yönettiği kalıcı MediaElementAudioSourceNode (varsa).
   // applyProcessing: aktif modun applyProcessing(question, { audioCtx }) fonksiyonu.
-  function buildQuestionChain(question, processed, sourceType, uploadedMediaSource, applyProcessing) {
+  async function buildQuestionChain(question, processed, sourceType, uploadedMediaSource, applyProcessing) {
     stopAudio();
 
     // Güvenlik: bir önceki durum (Durdur) muteGain'i 0'da bırakmış olabilir; yeni bir
@@ -213,11 +240,37 @@ export function createAudioEngine() {
       const [noise] = buildNoiseSource(sourceType);
       noise.connect(sourceMix);
       currentNodes.push(noise);
+    } else if (findSource(sourceType)?.kind === "sample") {
+      const samplePath = findSource(sourceType).samplePath;
+      try {
+        const [sample] = await buildSampleSource(samplePath);
+        // stopAudio() bu zincirin kurulumu sırasında (decode beklerken) başka bir
+        // soru/tur başladıysa currentNodes'u zaten temizlemiş olabilir — o zaman bu
+        // node'u YİNE DE bağlamak eski bir zinciri diriltir. Zincirin hâlâ güncel
+        // olduğunu currentNodes referansı üzerinden doğrula.
+        if (currentNodes.includes(out)) {
+          sample.connect(sourceMix);
+          currentNodes.push(sample);
+        } else {
+          sample.stop();
+        }
+      } catch (err) {
+        console.error(err);
+        const [noise] = buildNoiseSource("pink");
+        noise.connect(sourceMix);
+        currentNodes.push(noise);
+      }
     } else {
       const { nodes, outputs } = buildSynthSource(sourceType);
       outputs.forEach(o => o.connect(sourceMix));
       currentNodes.push(...nodes);
     }
+
+    // Yalnızca örnek-dosya dalında gerçek bir await gecikmesi var — o sırada
+    // stopAudio() başka bir tur tarafından çağrılmış olabilir. Böyle bir durumda bu
+    // zincirin geri kalanını (filtre/compressor/muteGain bağlantısı) KURMA, yoksa
+    // eski/öksüz bir zincir sessizce arka planda çalmaya başlar.
+    if (!currentNodes.includes(out)) return;
 
     if (processed) {
       let node = sourceMix;

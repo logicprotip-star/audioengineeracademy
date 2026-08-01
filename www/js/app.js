@@ -11,6 +11,7 @@ import { toast, spawnXp, burst, shake } from "./core/fx.js";
 import { formatHz, turkishLocative } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
 import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
+import { SOURCE_GROUPS, findSource } from "./core/source-catalog.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 
 registerMode(frekansBulma);
@@ -25,14 +26,7 @@ function difficultyLivesMap() {
 }
 
 function labelSource(s) {
-  return {
-    pink: "Pembe Gürültü",
-    white: "Beyaz Gürültü",
-    saw: "Testere Synth",
-    square: "Kare Synth",
-    triangle: "Üçgen Synth",
-    upload: "Yüklenen Ses"
-  }[s] || s;
+  return findSource(s)?.label || s;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -240,6 +234,18 @@ const els = {
   resRetryBtn: document.getElementById("resRetryBtn"),
   resMenuBtn: document.getElementById("resMenuBtn")
 };
+
+// sourceSelect'in <option>/<optgroup> listesi SOURCE_GROUPS'tan üretilir — kaynak
+// sheet'i tek kaynaktan (source-catalog.js) beslenir, HTML'de ayrıca elle tutulmaz.
+// Boş gruplar (DAVUL/ENSTRÜMAN — henüz örnek yok) hiç render edilmez.
+function populateSourceSelect() {
+  if (!els.sourceSelect) return;
+  els.sourceSelect.innerHTML = SOURCE_GROUPS
+    .filter(g => g.sources.length > 0)
+    .map(g => `<optgroup label="${g.label}">${g.sources.map(s => `<option value="${s.id}">${s.label}</option>`).join("")}</optgroup>`)
+    .join("");
+}
+populateSourceSelect();
 
 const ctx2d = els.canvas.getContext("2d");
 
@@ -1448,7 +1454,7 @@ function startRound() {
 function pickRoundSource() {
   const sel = els.sourceSelect.value;
   if (mixSources && sel !== "upload") {
-    const pool = ["pink", "white", "saw", "square", "triangle"];
+    const pool = SOURCE_GROUPS.flatMap(g => g.sources).filter(s => s.kind !== "upload").map(s => s.id);
     return pool[Math.floor(Math.random() * pool.length)];
   }
   return sel;
@@ -1994,7 +2000,21 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => g
   function openSheet(select, title) {
     sheetTitle.textContent = title;
     sheetOptions.innerHTML = '';
+    // Kaynak sheet'i gibi <optgroup> ile gruplanmış select'lerde grup başlığı
+    // (.kicker) araya serpiştirilir; gruplanmamış select'lerde (Zorluk/Oyun Türü/
+    // Süre/Cevap biçimi) hiç fark etmez, düz liste olarak kalır.
+    let lastGroup = null;
     Array.from(select.options).forEach(opt => {
+      const groupLabel = opt.parentElement && opt.parentElement.tagName === "OPTGROUP"
+        ? opt.parentElement.label : null;
+      if (groupLabel && groupLabel !== lastGroup) {
+        const header = document.createElement('div');
+        header.className = 'kicker';
+        header.style.margin = lastGroup === null ? '4px 4px 6px' : '18px 4px 6px';
+        header.textContent = groupLabel;
+        sheetOptions.appendChild(header);
+        lastGroup = groupLabel;
+      }
       const row = document.createElement('div');
       row.className = 'sheet-option' + (opt.selected ? ' selected' : '');
       row.innerHTML = `<span>${opt.text}</span><span class="check">✓</span>`;
