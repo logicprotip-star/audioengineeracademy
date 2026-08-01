@@ -134,6 +134,11 @@ const els = {
   gameActionbar: document.getElementById("gameActionbar"),
   sourceChipLabel: document.getElementById("sourceChipLabel"),
 
+  // odak aralığı
+  focusSelect: document.getElementById("focusSelect"),
+  focusChipWrap: document.getElementById("focusChipWrap"),
+  focusChipLabel: document.getElementById("focusChipLabel"),
+
   // soru / spektrum
   questionTitle: document.getElementById("questionTitle"),
   questionMeta: document.getElementById("questionMeta"),
@@ -246,6 +251,20 @@ function populateSourceSelect() {
     .join("");
 }
 populateSourceSelect();
+
+// focusSelect'in <option> listesi mode.FOCUS_RANGES'tan üretilir (frekans-bulma.js) —
+// odak aralığı bu modun kendine özgü bir kavramı, SOURCE_GROUPS gibi global bir
+// kataloğa taşınmadı. Mod bunu dışa açmıyorsa (gelecekte odak kavramı olmayan bir mod)
+// chip'in kendisi de hiç gösterilmez.
+function populateFocusSelect() {
+  if (!els.focusSelect) return;
+  if (!mode.FOCUS_RANGES) { if (els.focusChipWrap) els.focusChipWrap.classList.add("hidden"); return; }
+  els.focusSelect.innerHTML = Object.values(mode.FOCUS_RANGES)
+    .map(f => `<option value="${f.id}">${f.label}</option>`)
+    .join("");
+  if (els.focusChipWrap) els.focusChipWrap.classList.remove("hidden");
+}
+populateFocusSelect();
 
 const ctx2d = els.canvas.getContext("2d");
 
@@ -1437,7 +1456,8 @@ function startRound() {
 
   activeQuestion = mode.createQuestion(els.difficultySelect.value, {
     source: pickRoundSource(),
-    boss: mode.isBossRound(stats.rounds)
+    boss: mode.isBossRound(stats.rounds),
+    focusRange: currentFocusRange()
   });
   // Karıştır açıkken çalan kaynak sourceSelect'ten farklı olabilir — chip her zaman
   // o turda GERÇEKTEN çalan kaynağın adını göstersin.
@@ -1458,6 +1478,15 @@ function pickRoundSource() {
     return pool[Math.floor(Math.random() * pool.length)];
   }
   return sel;
+}
+
+// Seçili odak aralığının [min, max] Hz'ini döndürür. Mod odak kavramını desteklemiyorsa
+// (mode.FOCUS_RANGES yok) veya chip/select henüz kurulmadıysa undefined döner —
+// createQuestion bunu "tüm spektrum" olarak yorumlar (bkz. frekans-bulma.js).
+function currentFocusRange() {
+  if (!mode.FOCUS_RANGES || !els.focusSelect) return undefined;
+  const focus = mode.FOCUS_RANGES[els.focusSelect.value];
+  return focus ? focus.range : undefined;
 }
 
 // Mobilde oyun başlayınca dalgayı görünür yap (tıklama alanına hızlı erişim)
@@ -1919,6 +1948,11 @@ if (els.answerFormatSelect) els.answerFormatSelect.addEventListener("change", ()
   if (activeQuestion && roundActive) syncAnswerArea();
 });
 
+if (els.focusSelect) els.focusSelect.addEventListener("change", () => {
+  prefs.focusRange = els.focusSelect.value;
+  storage.savePrefs(prefs);
+});
+
 // KÖK SEBEP: "visibilitychange" olayı SADECE document üzerinde ateşlenir, window
 // üzerinde DEĞİL (konsolda doğrulandı: document.dispatchEvent ile tetiklendiğinde
 // window.addEventListener hiç çalışmadı). Bu satır eskiden window'a bağlıydı — yani
@@ -1972,7 +2006,25 @@ if (els.dailyTipClose) els.dailyTipClose.addEventListener("click", () => {
   persistDaily();
   renderDailyTip();
 });
-if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => goScreen("game"));
+// "Bugünün Önerisi" kartındaki "Başla" — renderDailyTip() ile AYNI hesabı (zoneScores()
+// üzerinden en zayıf bölge) kullanıp odak aralığını o bölgeye kilitler, sonra oyun
+// ekranına geçer. mode.focusIdForZone yoksa (odak özelliği olmayan bir mod) veya
+// yeterli veri yoksa (renderDailyTip zaten kartı gizler ama buton yine de tıklanabilir
+// kalabilir) sadece ekran değiştirir — eskisi gibi tüm spektrumda başlar.
+if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => {
+  if (mode.FOCUS_RANGES && mode.focusIdForZone && els.focusSelect) {
+    const enough = zoneScores().filter(s => s.n >= 2);
+    if (enough.length) {
+      const weakest = enough.slice().sort((a, b) => a.pct - b.pct)[0];
+      const focusId = mode.focusIdForZone(weakest.key);
+      if (mode.FOCUS_RANGES[focusId]) {
+        els.focusSelect.value = focusId;
+        els.focusSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+  }
+  goScreen("game");
+});
 
 // Ayarlar bottom sheet: select'leri gizleyip yerine tıklanabilir satır koyduk,
 // seçim yapılınca gizli select'in value'su güncellenip change event tetikleniyor.
@@ -2161,6 +2213,10 @@ function applyPrefs() {
   if (els.answerFormatSelect && prefs.answerFormat) {
     els.answerFormatSelect.value = prefs.answerFormat;
     els.answerFormatSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  if (els.focusSelect && prefs.focusRange && mode.FOCUS_RANGES && mode.FOCUS_RANGES[prefs.focusRange]) {
+    els.focusSelect.value = prefs.focusRange;
+    els.focusSelect.dispatchEvent(new Event("change", { bubbles: true }));
   }
   updateCalibRowLabel();
 }

@@ -90,6 +90,14 @@
               <span class="dot"></span><b class="setting-row-value-text" id="sourceChipLabel">Pembe Gürültü</b><span class="chev">&#8250;</span>
             </button>
           </div>
+          <div class="control control-sheet hidden" id="focusChipWrap" style="flex:1;min-width:0">
+            <label class="hidden">Odak aralığı</label>
+            <!-- <option> listesi app.js'te mode.FOCUS_RANGES'tan üretilir (bkz. populateFocusSelect) -->
+            <select id="focusSelect" class="hidden"></select>
+            <button class="srctag setting-row" data-sheet-select="focusSelect" data-sheet-title="Odak aralığı">
+              <b class="setting-row-value-text" id="focusChipLabel" style="color:var(--bl)">Tüm spektrum</b><span class="chev">&#8250;</span>
+            </button>
+          </div>
           <button class="mixchip" id="mixToggle" aria-label="Karıştır" title="Karıştır"><span class="led"></span><span>⇄</span></button>
         </div>
 

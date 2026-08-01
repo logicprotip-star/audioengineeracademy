@@ -40,22 +40,29 @@ export const DISTRACTOR_STEP_OCT = { easy: 1.2, medium: 0.9, hard: 0.75, pro: 0.
 // karıştırıp döndürür — her eleman { freq, correct }. proplus için kullanılmaz
 // (4 bandı aynı anda işaretlemek şıklı tek-seçim arayüzüne uymuyor, dokunmalı kalır).
 //
-// Çeldiriciler TAM k*step oktav mesafede üretilir (k>=1 tam sayı) — FA_MIN/FA_MAX'a
-// hiç KIRPMA yapılmaz. Kırpma yapılsaydı (örn. correctFreq FA_MIN'e çok yakınken bir
+// Çeldiriciler TAM k*step oktav mesafede üretilir (k>=1 tam sayı) — range'e hiç
+// KIRPMA yapılmaz. Kırpma yapılsaydı (örn. correctFreq alt sınıra çok yakınken bir
 // çeldirici sınıra yapıştırılsaydı) o çeldirici DISTRACTOR_STEP_OCT'tan çok daha yakın
 // düşüp evaluateAnswer'ın 0.5 oktavlık tolerans sınırının içine sızabilirdi. Bunun
 // yerine hangi tarafta (aşağı/yukarı) kaç tam adımlık yer olduğu hesaplanır, iki
-// taraftan sırayla en yakın müsait adım kullanılır — 80–17000 Hz (~7.7 oktav) aralığı
-// bu modun en büyük ihtiyacından (pro: 5 çeldirici × 0.65 oktav = en çok 3.25 oktav
-// tek taraflı) kat kat geniş olduğu için taraflardan biri her zaman yeterli yer bulur.
-export function generateChoices(correctFreq, level) {
+// taraftan sırayla en yakın müsait adım kullanılır.
+//
+// range: [min, max] — varsayılan tüm spektrum (FA_MIN–FA_MAX, ~7.7 oktav), bu modun
+// en büyük ihtiyacından (pro: 5 çeldirici × 0.65 oktav = en çok 3.25 oktav tek taraflı)
+// kat kat geniş olduğu için taraflardan biri her zaman yeterli yer bulur. Odak
+// aralığıyla (bkz. FOCUS_RANGES) çağrıldığında range çok daha dar olabilir (Bas/Orta
+// ~2.3 oktav) — üst zorluklarda istenen şık sayısı için geometrik olarak yeterli yer
+// olmayabilir. Bu durumda count, iki taraftan toplam üretilebilecek MAKSİMUMLA
+// sınırlanır (en az 2: doğru cevap + 1 çeldirici) — aksi halde fonksiyon sessizce
+// diff.options'tan az eleman döndürüp UI'da tutarsız bir şık sayısına yol açardı.
+export function generateChoices(correctFreq, level, range = [FA_MIN, FA_MAX]) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const step = DISTRACTOR_STEP_OCT[level] || DISTRACTOR_STEP_OCT.medium;
-  const count = diff.options;
   const correctOct = Math.log2(correctFreq);
-  const minOct = Math.log2(FA_MIN), maxOct = Math.log2(FA_MAX);
+  const minOct = Math.log2(range[0]), maxOct = Math.log2(range[1]);
   const maxBelow = Math.max(0, Math.floor((correctOct - minOct) / step));
   const maxAbove = Math.max(0, Math.floor((maxOct - correctOct) / step));
+  const count = Math.max(2, Math.min(diff.options, maxBelow + maxAbove + 1));
 
   const offsetsOct = [];
   let below = 1, above = 1;
@@ -102,6 +109,34 @@ export function hintZoneLabel(freq) {
 // FA_MIN/FA_MAX, createQuestion()/buildProPlusBands()'teki GERÇEK soru havuzuyla
 // (logFreq(80, 17000)) birebir eşleşir.
 export const FA_MIN = 80, FA_MAX = 17000;
+
+// Odak aralığı (prototype.html: focusChip/focusSheet) — soruyu ve cevap şıklarını
+// FA_MIN–FA_MAX'ın bir alt kümesine sınırlar. createQuestion'a settings.focusRange
+// olarak geçilir; verilmezse tüm spektrum kullanılır (mevcut testlerin FA_MIN–FA_MAX
+// beklentisiyle geriye dönük uyumlu). Sınırlar FA_MIN/FA_MAX'a kenetlenir — prototipin
+// "50 Hz" / "16 kHz" gibi yuvarlak sayıları burada kullanılmadı, çünkü eksen çizimi
+// (faXToF/faFToX) ve çeldirici üretimi FA_MIN/FA_MAX'ın DIŞINA hiç çıkmıyor; "Bas"ı
+// 50 Hz'den başlatmak üretilen frekansı ekseninin sol kenarının dışına düşürebilirdi.
+export const FOCUS_RANGES = {
+  full: { id: "full", label: "Tüm spektrum", desc: `${FA_MIN} Hz – ${Math.round(FA_MAX / 1000)} kHz`, range: [FA_MIN, FA_MAX] },
+  bass: { id: "bass", label: "Bas", desc: `${FA_MIN} – 400 Hz · gövde ve çamur bölgesi`, range: [FA_MIN, 400] },
+  mid: { id: "mid", label: "Orta", desc: "400 Hz – 2 kHz · vokal ve enstrüman gövdesi", range: [400, 2000] },
+  high: { id: "high", label: "Tiz", desc: `2 – ${Math.round(FA_MAX / 1000)} kHz · sertlik, hava ve tıslama`, range: [2000, FA_MAX] }
+};
+
+// FA_ZONES analiz bölgesini (İlerleme sekmesi / "Bugünün Önerisi") en yakın odak
+// aralığına eşler — elle yazılmış bir tablo yerine bölgenin (log ölçekte) orta
+// frekansının hangi FOCUS_RANGES aralığına düştüğü hesaplanır. Yeni bir FA_ZONES veya
+// FOCUS_RANGES sınırı eklendiğinde tablo bayatlamaz, otomatik doğru kalır.
+export function focusIdForZone(zoneKey) {
+  const zone = FA_ZONES.find(z => z.t.split(" (")[0] === zoneKey);
+  if (!zone) return "full";
+  const mid = Math.sqrt(zone.a * zone.b);
+  const candidates = Object.values(FOCUS_RANGES).filter(f => f.id !== "full");
+  const hit = candidates.find(f => mid >= f.range[0] && mid <= f.range[1]);
+  return hit ? hit.id : "full";
+}
+
 export const faXToF = (x, w) => FA_MIN * Math.pow(FA_MAX / FA_MIN, x / w);
 export const faFToX = (f, w) => w * Math.log(f / FA_MIN) / Math.log(FA_MAX / FA_MIN);
 const FA_TICKS_ALL = [100, 200, 400, 800, 1600, 3200, 6400, 12800];
@@ -147,12 +182,18 @@ export function isBossRound(roundsCompleted) {
 }
 
 // Pro Plus için birbirinden ayrık `count` bant üret (frekanslar üst üste binmesin).
-export function buildProPlusBands(count, gainAbs) {
+// range: [min, max] — varsayılan tüm spektrum. Dar bir odak aralığında (bkz.
+// FOCUS_RANGES) `count` bandı ~0.9 oktav aralıkla sığdırmak için yeterli yer
+// olmayabilir (Bas/Orta ~2.3 oktav, 4 bant için ~2.7 oktav gerekir) — bu durumda
+// 200 deneme sonunda `count`'tan az bant dönebilir; bu bilerek böyle bırakıldı
+// (dar aralıkla dörtten az bant, çakışan/ayırt edilemez dört banttan iyidir) ve
+// createQuestion çağıranı buna göre `bands.length` okur.
+export function buildProPlusBands(count, gainAbs, range = [FA_MIN, FA_MAX]) {
   const bands = [];
   let tries = 0;
   while (bands.length < count && tries < 200) {
     tries++;
-    const f = logFreq(80, 17000);
+    const f = logFreq(range[0], range[1]);
     // en az ~0.9 oktav aralık bırak ki ayırt edilebilsin
     if (bands.some(b => Math.abs(Math.log2(f / b.freq)) < 0.9)) continue;
     const sign = Math.random() > 0.5 ? 1 : -1;
@@ -164,16 +205,18 @@ export function buildProPlusBands(count, gainAbs) {
 
 // SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz — sadece veri üretir.
 // level: DIFFICULTY anahtarlarından biri ("easy" | "medium" | "hard" | "pro" | "proplus")
-// settings: { source: "pink"|"white"|"saw"|"square"|"triangle"|"upload", boss: boolean }
+// settings: { source: "pink"|"white"|"saw"|"square"|"triangle"|"upload", boss: boolean,
+//             focusRange: [min, max] — bkz. FOCUS_RANGES, verilmezse tüm spektrum }
 export function createQuestion(level, settings = {}) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const boss = !!settings.boss;
   const source = settings.source || "pink";
+  const range = settings.focusRange || [FA_MIN, FA_MAX];
 
   // ---- PRO PLUS: 4 bant, sadece frekans işaretleme ----
   if (level === "proplus") {
     const gainAbs = boss ? diff.gain * 0.85 : diff.gain;
-    const bands = buildProPlusBands(4, Math.max(6, gainAbs));
+    const bands = buildProPlusBands(4, Math.max(6, gainAbs), range);
     return {
       mode: "proplus",
       difficulty: level,
@@ -184,7 +227,7 @@ export function createQuestion(level, settings = {}) {
   }
 
   // ---- FREKANS (tek bant) ----
-  const freq = logFreq(80, 17000);
+  const freq = logFreq(range[0], range[1]);
   // Kolay/Orta'da sadece boost (kesim yok) — dar bir kesim komşu bandın yükselmiş gibi
   // duyulmasına yol açıp yeni başlayanı kafa karıştırıyor. Zor ve üstünde ikisi de var.
   const gainSign = BOOST_ONLY_DIFFICULTIES.has(level) ? 1 : (Math.random() > 0.5 ? 1 : -1);
@@ -205,7 +248,7 @@ export function createQuestion(level, settings = {}) {
     boss,
     // Şıklı cevap modu bunu kullanır; dokunmalı modda görmezden gelinir — ikisi de
     // aynı soru nesnesini okur, giriş biçimi farkı sadece UI katmanındadır.
-    choices: generateChoices(freq, level)
+    choices: generateChoices(freq, level, range)
   };
 }
 

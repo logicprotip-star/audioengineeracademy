@@ -157,7 +157,7 @@ export function clearDaily() {
 // planlama altyapısı henüz yok (sadece tercih saklanır); Kulaklık uyarısı ise
 // gerçekten .mobile-warn banner'ının görünürlüğünü kontrol eder.
 export function freshPrefs() {
-  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch" };
+  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full" };
 }
 
 export function loadPrefs() {

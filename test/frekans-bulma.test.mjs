@@ -1,13 +1,6 @@
 // Frekans Bulma moduna özel testler: boost-only kolay/orta kuralı, oktav bazlı
-// puanlama (lineer Hz DEĞİL), soru havuzunun frekans aralığı, Pro Plus bant ayrımı.
-//
-// NOT: İstenen "Odak aralığı seçildiğinde sorular o aralıktan mı geliyor?" testi
-// için: mevcut uygulamada kullanıcının seçebileceği bir "odak aralığı" (frequency
-// focus range) AYARI YOK — bu refactor adımında yeni bir özellik eklenmedi (görsel/
-// davranışsal hiçbir şey değişmemesi istendi). En yakın karşılığı, soru havuzunun
-// SABİT aralığıdır (FA_MIN–FA_MAX, 80–17000 Hz): aşağıdaki "havuz aralığı" testi
-// bunu doğruluyor. Gerçek bir odak-aralığı seçici eklenirse bu test dosyasına yeni
-// bir describe bloğu eklenmeli.
+// puanlama (lineer Hz DEĞİL), soru havuzunun frekans aralığı, Pro Plus bant ayrımı,
+// odak aralığı (FOCUS_RANGES).
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -157,5 +150,78 @@ describe("Frekans Bulma — isBossRound", () => {
     assert.equal(mode.isBossRound(9), true);  // 10. round
     assert.equal(mode.isBossRound(0), false);
     assert.equal(mode.isBossRound(3), false);
+  });
+});
+
+describe("Frekans Bulma — odak aralığı (FOCUS_RANGES)", () => {
+  it("her odak seçeneğinde, tüm zorluklarda üretilen frekans(lar) SADECE seçilen aralıkta kalır (10 soru × zorluk × seçenek)", () => {
+    const report = [];
+    for (const focus of Object.values(mode.FOCUS_RANGES)) {
+      for (const level of Object.keys(mode.DIFFICULTY)) {
+        let n = 0;
+        for (let i = 0; i < 10; i++) {
+          const q = mode.createQuestion(level, { source: "pink", boss: false, focusRange: focus.range });
+          const freqs = q.mode === "proplus" ? q.bands.map(b => b.freq) : [q.freq];
+          freqs.forEach(f => {
+            n++;
+            assert.ok(f >= focus.range[0] - 1e-9, `${focus.id}/${level}: ${f} < ${focus.range[0]}`);
+            assert.ok(f <= focus.range[1] + 1e-9, `${focus.id}/${level}: ${f} > ${focus.range[1]}`);
+          });
+        }
+        report.push(`${focus.id}/${level}: ${n} freq kontrol edildi`);
+      }
+    }
+    assert.equal(report.length, Object.keys(mode.FOCUS_RANGES).length * Object.keys(mode.DIFFICULTY).length);
+  });
+
+  it("şıklı moddaki cevap seçenekleri de odak aralığının DIŞINA çıkmaz (dar aralıkta bile)", () => {
+    for (const focus of Object.values(mode.FOCUS_RANGES)) {
+      for (const level of ["easy", "medium", "hard", "pro"]) {
+        for (let i = 0; i < 20; i++) {
+          const q = mode.createQuestion(level, { source: "pink", boss: false, focusRange: focus.range });
+          q.choices.forEach(c => {
+            assert.ok(c.freq >= focus.range[0] - 1e-9, `${focus.id}/${level}: şık ${c.freq} < ${focus.range[0]}`);
+            assert.ok(c.freq <= focus.range[1] + 1e-9, `${focus.id}/${level}: şık ${c.freq} > ${focus.range[1]}`);
+          });
+        }
+      }
+    }
+  });
+
+  it("dar odak aralığında (Bas/Orta, ~2.3 oktav) generateChoices EN AZ 2 şık üretir, asla 1'e düşmez", () => {
+    for (const focusId of ["bass", "mid"]) {
+      const focus = mode.FOCUS_RANGES[focusId];
+      for (const level of ["hard", "pro"]) {
+        for (let i = 0; i < 30; i++) {
+          const q = mode.createQuestion(level, { source: "pink", boss: false, focusRange: focus.range });
+          assert.ok(q.choices.length >= 2, `${focusId}/${level}: sadece ${q.choices.length} şık`);
+        }
+      }
+    }
+  });
+
+  it("focusRange verilmezse davranış TAMAMEN eskisiyle aynı (tüm spektrum, geriye dönük uyumlu)", () => {
+    const q = mode.createQuestion("pro", { source: "pink", boss: false });
+    assert.equal(q.choices.length, mode.DIFFICULTY.pro.options);
+  });
+
+  it("focusIdForZone her FA_ZONES bölgesi için geçerli bir FOCUS_RANGES anahtarı döndürür", () => {
+    mode.FA_ZONES.forEach(z => {
+      const key = z.t.split(" (")[0];
+      const focusId = mode.focusIdForZone(key);
+      assert.ok(Object.prototype.hasOwnProperty.call(mode.FOCUS_RANGES, focusId),
+        `${key} → "${focusId}" FOCUS_RANGES'ta yok`);
+    });
+  });
+
+  it("buildProPlusBands dar bir odak aralığında istenenden az bant dönebilir ama ASLA range dışına taşmaz", () => {
+    const focus = mode.FOCUS_RANGES.bass; // ~2.3 oktav, 4 bant için ~2.7 oktav gerekir
+    for (let i = 0; i < 20; i++) {
+      const bands = mode.buildProPlusBands(4, 8, focus.range);
+      assert.ok(bands.length <= 4);
+      bands.forEach(b => {
+        assert.ok(b.freq >= focus.range[0] - 1e-9 && b.freq <= focus.range[1] + 1e-9);
+      });
+    }
   });
 });
