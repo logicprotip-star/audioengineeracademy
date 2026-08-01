@@ -396,7 +396,8 @@ export function getFeedbackData(question, answer, context = {}) {
         ok: true,
         color: "var(--gr)",
         head: `✅ ${formatHz(question.freq)} ${result.act} · +${gained} XP`,
-        zone: result.zone
+        zone: result.zone,
+        guessHz: result.guessHz
       }
     };
   }
@@ -410,7 +411,8 @@ export function getFeedbackData(question, answer, context = {}) {
       ok: false,
       color: "var(--rd)",
       head: `❌ Doğru: ${formatHz(question.freq)} ${result.act} · sen ${formatHz(result.guessHz)} dedin (${closeness}, ${result.dir})`,
-      zone: result.zone
+      zone: result.zone,
+      guessHz: result.guessHz
     }
   };
 }
@@ -556,16 +558,26 @@ export function markAnswerChoices(answersEl, q, pickedFreq) {
   });
 }
 
+// prototype.html'deki cmprow: "Senin cevabın" doğru bilindiyse gösterilmez (Doğru
+// cevap ile aynı sesi çalardı, bkz. fillCmp'teki mine.classList.toggle('hide', right)).
+// Butonların gerçek ses çalma davranışı app.js'te delege ediliyor (bkz. #freqInfo
+// click dinleyicisi) — bu fonksiyon SADECE DOM kurar, ses/DOM saflığı ihlal etmez
+// (sözleşmenin DIŞINDaki render yardımcılarından biri, bkz. dosya başındaki not).
 export function showFreqInfoPanel(freqInfoEl, feedback) {
   if (!freqInfoEl || !feedback.panel) return;
-  const { ok, head, zone } = feedback.panel;
+  const { ok, head, zone, guessHz } = feedback.panel;
   const color = ok ? "var(--gr)" : "var(--rd)";
   freqInfoEl.style.borderColor = color;
   freqInfoEl.style.background = ok ? "rgba(43,217,168,.10)" : "rgba(255,77,109,.10)";
   freqInfoEl.innerHTML =
     `<div style="font-weight:800;color:${color};margin-bottom:6px;font-size:16px">${head}</div>` +
     `<div style="font-weight:700;color:var(--tx);margin-bottom:4px;font-size:14px">${zone.t}</div>` +
-    `<div style="color:var(--tx-3);font-size:14px;line-height:1.55">${zone.tip}</div>`;
+    `<div style="color:var(--tx-3);font-size:14px;line-height:1.55">${zone.tip}</div>` +
+    `<div class="cmprow">` +
+    `<button type="button" class="cmp${ok ? " hide" : ""}" data-preview="mine" data-guess-hz="${guessHz}">Senin cevabın</button>` +
+    `<button type="button" class="cmp on" data-preview="correct">Doğru cevap</button>` +
+    `<button type="button" class="cmp" data-preview="clean">Temiz</button>` +
+    `</div>`;
   freqInfoEl.classList.remove("hidden");
 }
 

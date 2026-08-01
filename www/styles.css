@@ -362,6 +362,14 @@
     .fb.bad .fb-head{color:#FFB3C2}
     .fb.bad .fb-dot{background:var(--rd)}
 
+    /* Geri bildirim kartı karşılaştırma butonları (prototype.html: cmprow/cmp) */
+    .cmprow{display:flex;gap:7px;margin-top:13px;flex-wrap:wrap}
+    .cmp{flex:1 1 auto;min-height:44px;padding:9px 11px;border-radius:13px;
+      border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);
+      font-size:15px;font-weight:700;color:var(--tx-2);white-space:nowrap}
+    .cmp.on{background:rgba(108,140,255,.22);border-color:rgba(108,140,255,.5);color:#DCE4FF}
+    .cmp.hide{display:none}
+
     /* ---- alt sabit aksiyon çubuğu ---- */
     .actionbar{
       position:fixed;left:0;right:0;bottom:0;z-index:60;

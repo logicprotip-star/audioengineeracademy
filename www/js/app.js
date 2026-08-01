@@ -1856,6 +1856,34 @@ els.abToggle.addEventListener("click", async () => {
   );
 });
 
+// Geri bildirim kartındaki karşılaştırma butonları (prototype.html: cmprow/setCmp).
+// mode.showFreqInfoPanel her cevaptan sonra #freqInfo'yu YENİDEN kurduğu için
+// (innerHTML tamamen değişiyor) tek tek buton değil, sabit kalan #freqInfo üzerinde
+// delegasyon kullanılıyor. Prototipte butonlar sadece görsel toggle'dı (statik
+// mockup); burada üçü de GERÇEK ses çalıyor — activeQuestion'ın kendisini
+// MUTASYONA UĞRATMADAN geçici bir soru kopyası üzerinden buildQuestionChain'i
+// yeniden kuruyor (aynı desen: her önizleme sıfırdan bir zincir, kalıcı graf
+// mutasyonu yok — bkz. CLAUDE.md "Ses motoru notları").
+if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".cmp");
+  if (!btn || !activeQuestion || activeQuestion.mode !== "frequency") return;
+  els.freqInfo.querySelectorAll(".cmp").forEach(c => c.classList.remove("on"));
+  btn.classList.add("on");
+
+  await audioEngine.initAudio();
+  const preview = btn.dataset.preview;
+  if (preview === "clean") {
+    audioEngine.buildQuestionChain(activeQuestion, false, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+  } else if (preview === "correct") {
+    audioEngine.buildQuestionChain(activeQuestion, true, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+  } else if (preview === "mine") {
+    const guessHz = Number(btn.dataset.guessHz);
+    if (!Number.isFinite(guessHz)) return;
+    const guessQuestion = { ...activeQuestion, freq: guessHz };
+    audioEngine.buildQuestionChain(guessQuestion, true, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+  }
+});
+
 els.hintBtn.addEventListener("click", giveHint);
 
 els.backBtn.addEventListener("click", () => {
