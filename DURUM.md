@@ -1,23 +1,54 @@
 # DURUM
 
-Son güncelleme: 31.07.2026
+Son güncelleme: 01.08.2026
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Commit `f0e144a` — 14 mod menüsü + mode-catalog:
+Commit `abd17e4` — G1: başarım denetimi (9 rozetin TAMAMI tarandı):
 
-- 14 modun tamamı menüde; `www/js/core/mode-catalog.js` eklendi (sadece görüntüleme
-  meta'sı, oyun mantığı yok)
-- Rozet vitrini sayacı — `stats.unlocked` / `progress.ACHIEVEMENTS.length` ile canlı
-- Motor bazlı gruplama ve renkler (Motor 1 turuncu, 2 mavi, 3 mor)
-- Kilit kartlarında `unlockLevel` etiketi
-- Ölçüm: son kart alt kenarı ↔ sekme çubuğu üst kenarı = 62px
-- `npm test` 46/46, konsol temiz
+| Rozet | Koşul | Okuduğu alan | Alan var mı | Tetiklenebilir mi | Düzeltildi mi |
+|---|---|---|---|---|---|
+| İlk Kulak | `s.correct >= 1` | `stats.correct` | Evet (`app.js:1205,1275`) | Evet | Gerek yoktu |
+| Alev Zinciri | `s.bestCombo >= 5` | `stats.bestCombo` | Evet (`app.js:1207,1277`) | Evet | Gerek yoktu |
+| Şimşek Kulak | `s.bestCombo >= 10` | `stats.bestCombo` | Evet | Evet | Gerek yoktu |
+| Dayanıklılık | `s.rounds >= 25` | `stats.rounds` | Evet (`app.js:1172,1201,1270`) | Evet | Gerek yoktu |
+| EQ Beyni | `s.rounds >= 100` | `stats.rounds` | Evet | Evet | Gerek yoktu |
+| Keskin Hedef | `rounds>=20 && accuracy>=70` | `stats.correct`/`stats.rounds` | Evet | Evet | Gerek yoktu |
+| Yükseliş (level_5) | `levelFromXp(s.xp)>=5` | `stats.xp` | **Yok** — hiç böyle bir alan yazılmamış, sadece `stats.perDiff[key].xp` var | **Hayır (her zaman false)** | **Evet** — `totalXp()` helper eklendi, tüm zorlukların XP'si toplanıyor |
+| Pro Kulak | `s.proCorrect >= 8` | `stats.proCorrect` | Evet (`app.js:1214`) | Evet | Gerek yoktu |
+| Boss Avcısı | `s.bossWins >= 1` | `stats.bossWins` | Evet (`app.js:1215,1284`) | Evet | Gerek yoktu |
 
-Öncesindeki mimari (core modülleri + mod kayıt sistemi) commit'li.
+Sonuç: 8/9 rozet zaten sağlamdı, sadece `level_5` kırıktı — kod `www/js/core/progress.js`.
+TASARIM.md'de kayıtlı "tasarımda 6, kodda 9 rozet" farkı bu denetimle çözülmedi —
+hangi setin kalacağı ürün kararı, bkz. BEKLEYEN KARARLAR **C**.
+
+Commit `ac505c3` — G2: seans sonu ekranı (TASARIM.md EKRAN 5, madde 9 kapandı):
+
+- Eski küçük "Oyun Bitti" modalı kaldırıldı (`#gameoverOverlay` + ilgili CSS silindi),
+  `#screen-result` adında tam ekran eklendi — prototype.html'deki yapı/metin/sıra
+  birebir aktarıldı (sonuç halkası, seviye atladın kartı, XP kartı+bar, seri/ipucu
+  istatistikleri, bölge haritası/soru sırası, yorum cümlesi, 3 CTA).
+- "Canların bitti" ve normal tamamlanma ayrı varyasyon; ikisi de canlı state'ten
+  okunuyor, uydurma veri yok.
+- Veri kaynağı olmayan iki alan tasarımdan bilerek çıkarıldı: önceki seans
+  karşılaştırması (`resLead` normal varyantta), öneri kartı (`resSug` — "odak seti"
+  özelliği kodda yok).
+- CTA'lar gerçek işlev görüyor: "10 soru daha" her zaman yeni 10 Soruluk Bölüm
+  başlatıyor, "Tekrar oyna" aynı modda (serbest/bölüm) yeniden başlıyor, "Menüye dön"
+  ana menüye çıkıyor. Üçü de can sıfırken sessizce yeni tur başlatmıyor.
+- Doğrulama sırasında gerçek bug bulundu ve düzeltildi: can sıfırken "Tekrar oyna"
+  önceki turun kalıntı soru başlığını (`questionTitle`) ve sonuç kartını (`freqInfo`)
+  temizlemiyordu — `startRound()` çağrılmadığı için bu elemanları sıfırlayan kod hiç
+  çalışmıyordu, ekranda "canların bitti" yerine eski yanlış/doğru cevap kartı
+  görünmeye devam ediyordu. Konsoldan `currentLives`/`startRound` çağrı izi alınarak
+  doğrulandı (tahminle değil), üç ayrı DOM elemanı (`freqInfo`, `questionTitle`,
+  `questionMeta`) guard branch'e eklendi.
+- `npm test`: G1 öncesi 62/62, G1+G2 sonrası 62/62 — regresyon yok, konsol hatası yok.
+
+Öncesindeki mimari (core modülleri + mod kayıt sistemi + 14 mod menüsü) commit'li.
 
 ## AÇIK İŞLER
 
@@ -58,35 +89,28 @@ Refactor'de bilerek korundu, orijinal davranış buydu.
 **Kabul kriteri:** yanlış cevapta hem can mesajı hem doğru frekans/bölge bilgisi
 aynı kartta görünür
 
-**5. `level_5` başarımı hiç tetiklenmiyor**
-`levelFromXp(s.xp)` kontrolü yapılıyor ama `stats.xp` diye bir alan yok — koşul her
-zaman false. Orijinalde de böyleydi.
-**Kabul kriteri:** doğru alan bağlandıktan sonra test verisiyle seviye 5'e ulaşınca
-rozet açılıyor
-
 ### Eksik özellikler
 
-**6. A/B Test gerçek bypass değil**
+**5. A/B Test gerçek bypass değil**
 Buton tasarıma göre görünüyor ama `playQuestion()` zinciri sıfırdan kuruyor, ses
 baştan başlıyor. Mixteki bypass gibi kesintisiz geçiş için ses motoruna paralel
 bypass yolu (kuru/işlenmiş iki zincir + gain crossfade) gerekiyor.
 **Kabul kriteri:** A/B geçişinde `currentTime` sıfırlanmıyor, geçiş kesintisiz
 **Not:** Kesim Noktası modundan ÖNCE yapılmalı — o modun tüm değeri bu karşılaştırmada
 
-**7. Kalibrasyon — sarı seviye çizgisi dokunmatik olmalı**
+**6. Kalibrasyon — sarı seviye çizgisi dokunmatik olmalı**
 Ekrandaki seviye göstergesi parmakla sürüklenerek ayarlanabilsin.
 
-**8. Odak aralığı özelliği kodda yok**
-Tasarımda "Odak: Tüm spektrum / Bas / Orta / Tiz" chip'i var, uygulamada karşılığı yok.
+**7. Odak aralığı özelliği kodda yok**
+Tasarımda "Odak: Tüm spektrum / Bas / Orta / Tiz" chip'i var, uygulamada karşılığı
+yok. Seans sonu ekranındaki öneri kartı (`resSug`) da bu yüzden G2'de eklenmedi.
 
-**9. Seans sonu ekranı yok**
-
-**10. İlerleme sekmesi prototiple örtüşmüyor**
+**8. İlerleme sekmesi prototiple örtüşmüyor**
 Bölümler var, düzen farklı. `Dizayn/prototype.html` referans.
 
 ### Yayın öncesi
 
-**11. Logo / uygulama ikonu yapılmadı**
+**9. Logo / uygulama ikonu yapılmadı**
 Capacitor `resources/icon.png` + `resources/splash.png`, `@capacitor/assets` ile üretilir.
 Store yüklemesinden önce gerekli, şimdi öncelikli değil.
 
@@ -104,12 +128,24 @@ Store yüklemesinden önce gerekli, şimdi öncelikli değil.
 14 modun kaçı Pro, kaçı seviyeyle açılıyor? Mevcut `unlockLevel` değerleri
 kullanıcı tarafından belirlenmedi.
 
-**C. Rozet sayısı**
-Gerçek liste 9 rozet. Hedef 12 miydi? Öyleyse eksik 3 tanımlanmalı.
+**C. Rozet sayısı ve seti**
+Kod 9 rozet tanımlıyor (G1 denetimiyle 9'u da artık gerçekten tetiklenebiliyor),
+TASARIM.md'de tasarımda 6 rozet olduğu ve isimlerin örtüşmediği kayıtlı. Hangi
+setin kalacağı (6, 9, yoksa birleşim mi) ürün kararı — kodlanmadı.
+
+**D. Can dolumu**
+`www/js/core/storage.js:91` — uygulama yeniden açıldığında can 0 ise otomatik
+`TOTAL_LIVES`'a (5) çekiliyor (bilinçli ödün, seans içinde dolum YOK). Gerçek bir
+"30 dakikada dolum" mekanizması hâlâ kodda yok; prototype.html'nin seans sonu
+ekranındaki "Canlar 30 dakikada dolar" metni bu yüzden G2'de kullanılmadı, yerine
+dürüst "can dolum özelliği henüz eklenmedi" metni yazıldı. Gerçek dolum özelliği
+ayrı bir iş.
 
 ## SIRADAKİ
 
-1. madde — geri bildirim kartı konumu.## ÜRÜN NOTLARI (önceki sohbetlerden)
+1. madde — geri bildirim kartı konumu.
+
+## ÜRÜN NOTLARI (önceki sohbetlerden)
 
 **Ses kaynağı planı**
 Kick / snare / gitar / vokal örnekleri henüz yok. Sentez öncelikli yaklaşım,
@@ -122,9 +158,8 @@ Araçlar sekmesinde, Pro özelliği. Cihaz adı etiketli filtre setleri.
 Ücretli sürüme ek değer olarak düşünüldü. Kapsam tanımlanmadı.
 
 **Fiyat ve can ekonomisi**
-Pro ₺199, tek seferlik. Ücretsiz: 5 can, 30 dakikada bir dolum.
-Can dolumu KODDA YOK — tasarım kararı, prototipte metin olarak geçiyor,
-mekanizma hiç yazılmadı. Ayrı bir özellik olarak yapılacak.
+Pro ₺199, tek seferlik. Ücretsiz: 5 can, 30 dakikada bir dolum (tasarım niyeti).
+Can dolumu KODDA YOK — bkz. BEKLEYEN KARARLAR **D**.
 Paywall ekranında dolum süresi hiç geçmiyor, sadece "5 can" yazıyor — eksik bilgi.
 Not: 3. bug (oyun 0 canla başlıyor) bundan bağımsız — mevcut can sistemi
 başlangıç değerini doğru atamıyor.
@@ -152,4 +187,3 @@ Otomatik (varsayılan) / Sabit (Kolay / Orta / Zor / Pro / Sınırsız).
 
 Kilit tipleri (kodlanmadı / seviye / Pro) — öneri sunuldu, karar verilmedi.
 Yeni mod yazılmadan netleşmeli.
-
