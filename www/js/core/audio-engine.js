@@ -285,6 +285,19 @@ export function createAudioEngine() {
     out.connect(muteGain);
   }
 
+  // F2: karşılaştırma önizlemesi (cmp butonları) artık sabit bir pencere sonunda
+  // duruyor (kullanıcı kararı: en az minMs, ama buffer tabanlı kaynaklarda —
+  // gürültü/ileride örnek dosya — döngü yarıda kesilmesin diye buffer uzunluğunun
+  // tam katına yuvarlanıyor). Osilatör tabanlı synth kaynaklarında (sine/saw/square/
+  // triangle) buffer yok, minMs aynen kullanılır.
+  function loopAwarePreviewMs(minMs) {
+    const bufferNode = currentNodes.find(n => n && n.buffer);
+    if (!bufferNode) return minMs;
+    const loopMs = bufferNode.buffer.duration * 1000;
+    if (!(loopMs > 0)) return minMs;
+    return Math.ceil(minMs / loopMs) * loopMs;
+  }
+
   return {
     unlockAudio,
     initAudio,
@@ -294,6 +307,7 @@ export function createAudioEngine() {
     unmuteOutput,
     stopAudio,
     buildQuestionChain,
+    loopAwarePreviewMs,
     set onReady(fn) { onReady = fn; },
     get audioCtx() { return audioCtx; },
     get analyser() { return analyser; },

@@ -456,6 +456,14 @@ let autoPlaying = false;
 let autoStopped = false;
 let pausedAutoAdvanceRemainingMs = null;
 
+// F2: karşılaştırma butonuna (cmp) basılınca otomatik-geçiş sayacı duraklar, önizleme
+// penceresi bitince kaldığı yerden devam eder. pausedAutoAdvanceRemainingMs'den AYRI
+// tutuluyor çünkü ikisi aynı anda (Durdur + cmp önizleme) tetiklenirse birbirini
+// ezmemeli — pratikte nadiren çakışır ama iki farklı duraklatma nedeni birbirinden
+// bağımsız izlenmeli.
+let cmpPreviewRemainingMs = null;
+let cmpPreviewStopTimer = null;
+
 // Seans Sonu artık gerçek bir ekran (goScreen("result")) — eski "Oyun Bitti"
 // KARTI'nın tam ekranı kaplayan yarı saydam overlay'i ve o overlay'e sızan
 // gecikmeli tıklamalar (bkz. önceki turdaki "3.9 saniye gecikmeli click" bulgusu)
@@ -1378,7 +1386,9 @@ function submitFrequencyGuess(guessHz) {
   updateUI();
   persistStats();
   persistDaily();
-  if (!finalizeIfGameOver()) scheduleNext();
+  // F2 (kullanıcı kararı): doğru cevapta 4sn, yanlışta 6sn — içerik yoğun kart artık
+  // 1.5sn'de okunamıyordu.
+  if (!finalizeIfGameOver()) scheduleNext(result.correct ? 4000 : 6000);
 }
 
 function submitProPlusGuess() {
@@ -1454,7 +1464,8 @@ function submitProPlusGuess() {
   updateUI();
   persistStats();
   persistDaily();
-  if (!finalizeIfGameOver()) scheduleNext();
+  // F2 (kullanıcı kararı): doğru cevapta 4sn, yanlışta 6sn.
+  if (!finalizeIfGameOver()) scheduleNext(result.correct ? 4000 : 6000);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1513,15 +1524,35 @@ function ensureAutoNext(durationMs) {
   roundFlow.ensureAutoNext(durationMs, label);
 }
 
-function scheduleNext() {
-  ensureAutoNext();
+function scheduleNext(durationMs) {
+  ensureAutoNext(durationMs);
+}
+
+// F2: bekleyen bir cmp-önizleme duraklatması varsa iptal eder (zamanlayıcıyı VE
+// biriktirilmiş kalan süreyi atar, geri YÜKLEMEZ). Yeni bir tur başlarken ya da manuel
+// "Durdur"/"Atla" ile akış değiştiğinde çağrılır — aksi halde önizleme zamanlayıcısı
+// birkaç saniye sonra ateşlenip YENİ turun sesini durdurup sahte bir ensureAutoNext()
+// tetikleyebilir.
+function cancelCmpPreviewPause() {
+  clearTimeout(cmpPreviewStopTimer);
+  cmpPreviewStopTimer = null;
+  cmpPreviewRemainingMs = null;
 }
 
 // "Durdur" — hiçbir kaynağı/node'u durdurmaz, sadece sesi/zamanlayıcıyı askıya alır.
 function pauseRound() {
   autoPlaying = false;
   autoStopped = true;
+  // F2: bir cmp-önizleme duraklatması zaten aktifse (autoAdvance zamanlayıcısı onun
+  // tarafından temizlenmiş durumda) roundFlow'dan captureRemainingAndClear() null
+  // dönerdi — biriktirilmiş cmpPreviewRemainingMs'i buraya devral, önizleme
+  // zamanlayıcısını iptal et (Durdur bittiğinde "Tekrar Çal" zaten kendi akışıyla
+  // devam ettirecek, önizlemenin kendi resume'u tekrar tetiklenmesin).
   pausedAutoAdvanceRemainingMs = roundFlow.captureRemainingAndClear();
+  if (pausedAutoAdvanceRemainingMs === null && cmpPreviewRemainingMs !== null) {
+    pausedAutoAdvanceRemainingMs = cmpPreviewRemainingMs;
+  }
+  cancelCmpPreviewPause();
   roundFlow.clearTimer(); // timeLeft'e DOKUNMAZ
   audioEngine.muteOutput();
   els.feedbackBox.classList.remove("show-result");
@@ -1558,6 +1589,7 @@ function startRound() {
     return;
   }
 
+  cancelCmpPreviewPause();
   autoStopped = false;
   autoPlaying = true;
   roundStartedAt = Date.now();
@@ -1785,8 +1817,10 @@ els.canvas.addEventListener("pointerdown", e => {
 
   if (q.mode !== "proplus") {
     freqGuessHz = hz;
+    // F2: submitFrequencyGuess kendi içinde scheduleNext(duration) çağırıyor
+    // (doğru/yanlışa göre 4sn/6sn) — burada tekrar ensureAutoNext() çağırmak
+    // varsayılan 1500ms ile üzerine yazardı, o yüzden KALDIRILDI.
     try { submitFrequencyGuess(hz); } catch (err) { console.error(err); }
-    ensureAutoNext();
     return;
   }
 
@@ -1796,8 +1830,9 @@ els.canvas.addEventListener("pointerdown", e => {
   if (kalan > 0) {
     if (cnt) cnt.textContent = `👆 Dört ayrı frekansı işaretle · kalan: ${kalan}`;
   } else {
+    // F2: submitProPlusGuess de kendi scheduleNext(duration)'ını çağırıyor, aynı sebeple
+    // burada ikinci bir ensureAutoNext() yok.
     try { submitProPlusGuess(); } catch (err) { console.error(err); }
-    ensureAutoNext();
   }
 });
 
@@ -1808,8 +1843,9 @@ if (els.answers) els.answers.addEventListener("click", e => {
   btn.classList.add("pick");
   const hz = Number(btn.dataset.freq);
   freqGuessHz = hz;
+  // F2: bkz. yukarıdaki pointerdown handler'daki not — submitFrequencyGuess kendi
+  // scheduleNext(duration)'ını çağırıyor, ikinci ensureAutoNext() burada yok.
   try { submitFrequencyGuess(hz); } catch (err) { console.error(err); }
-  ensureAutoNext();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1953,21 +1989,48 @@ els.abToggle.addEventListener("click", async () => {
 if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
   const btn = e.target.closest(".cmp");
   if (!btn || !activeQuestion || activeQuestion.mode !== "frequency") return;
+
+  const preview = btn.dataset.preview;
+  let guessQuestion = null;
+  if (preview === "mine") {
+    const guessHz = Number(btn.dataset.guessHz);
+    if (!Number.isFinite(guessHz)) return;
+    guessQuestion = { ...activeQuestion, freq: guessHz };
+  } else if (preview !== "clean" && preview !== "correct") {
+    return;
+  }
+
   els.freqInfo.querySelectorAll(".cmp").forEach(c => c.classList.remove("on"));
   btn.classList.add("on");
 
   await audioEngine.initAudio();
-  const preview = btn.dataset.preview;
   if (preview === "clean") {
-    audioEngine.buildQuestionChain(activeQuestion, false, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+    await audioEngine.buildQuestionChain(activeQuestion, false, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
   } else if (preview === "correct") {
-    audioEngine.buildQuestionChain(activeQuestion, true, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
-  } else if (preview === "mine") {
-    const guessHz = Number(btn.dataset.guessHz);
-    if (!Number.isFinite(guessHz)) return;
-    const guessQuestion = { ...activeQuestion, freq: guessHz };
-    audioEngine.buildQuestionChain(guessQuestion, true, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+    await audioEngine.buildQuestionChain(activeQuestion, true, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+  } else {
+    await audioEngine.buildQuestionChain(guessQuestion, true, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
   }
+
+  // F2 (kullanıcı kararı): önizleme sırasında otomatik-geçiş sayacı duraklar; kaynaklar
+  // loop:true ile sonsuz çaldığı için "bitti" burada en az 3sn'lik, buffer tabanlı
+  // kaynaklarda (gürültü/ileride örnek dosya) döngü tam katına yuvarlanan bir pencere —
+  // döngü yarıda kesilmesin (ileride gerçek örnekler eklenince önemli).
+  clearTimeout(cmpPreviewStopTimer);
+  if (cmpPreviewRemainingMs === null) {
+    cmpPreviewRemainingMs = roundFlow.captureRemainingAndClear();
+  }
+  const previewMs = audioEngine.loopAwarePreviewMs(3000);
+  cmpPreviewStopTimer = setTimeout(() => {
+    cmpPreviewStopTimer = null;
+    audioEngine.stopAudio();
+    els.freqInfo.querySelectorAll(".cmp").forEach(c => c.classList.remove("on"));
+    if (cmpPreviewRemainingMs !== null) {
+      const remain = cmpPreviewRemainingMs;
+      cmpPreviewRemainingMs = null;
+      if (activeQuestion && !autoStopped) ensureAutoNext(remain);
+    }
+  }, previewMs);
 });
 
 els.hintBtn.addEventListener("click", giveHint);
