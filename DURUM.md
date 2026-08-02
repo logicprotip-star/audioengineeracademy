@@ -7,6 +7,56 @@ Son güncelleme: 02.08.2026
 
 ## BİTTİ
 
+Commit `a377d80` — F1: geri bildirim iki kez gösteriliyordu (bug, AÇIK İŞLER
+madde 4'ün ta kendisi — bu maddeyle KAPANDI). Kök sebep: `submitFrequencyGuess`/
+`submitProPlusGuess` hem `#feedbackBox`'ı (basit kart) hem `#freqInfo`'yu (zengin
+kart — bölge açıklaması, karşılaştırma butonları) AYNI ANDA dolduruyordu, ikisi
+de görünür kalıyordu. Çözüm: `#feedbackBox` artık gösterilmiyor (`showResult`
+zorla false); ondaki, `#freqInfo`'da OLMAYAN bilgi (kalite sözcüğü "🎯 Tam
+isabet!" vb. ve yanlışta "Kalan can: N") yeni `appendFreqInfoNote()` yardımcısıyla
+`#freqInfo`'nun içine taşınıyor — bilgi kaybı yok. `onTimeUp()` bilerek
+dokunulmadı (kendi `showFreqInfoPanel`'ı çağırmıyor, `#feedbackBox` orada hâlâ
+tek mekanizma). Masaüstü Chrome'da hem doğru hem yanlış cevap için TEK kart
+doğrulandı (skor/XP doğru işleniyor). `npm test` 68/68. Cihazda KONTROL EDİLMEDİ.
+
+Commit `160e37c` — F2: geri bildirim süresi 1.5sn sabitten doğru=4sn/yanlış=6sn'ye
+çıkarıldı (F1'in içerik-yoğun kartı artık okunabiliyor). Bu sırada gerçek bir bug
+bulundu: üç cevap-verme handler'ı `submitFrequencyGuess`/`submitProPlusGuess`'i
+çağırdıktan HEMEN SONRA ayrıca kendi `ensureAutoNext()`'lerini çağırıyordu —
+submit* zaten kendi süresini kurduğu için bu ikinci çağrı sessizce 1500ms
+varsayılana geri dönüyordu; kaldırıldı. Karşılaştırma butonuna (Senin cevabın/
+Doğru cevap/Temiz) basınca otomatik-geçiş sayacı duraklıyor (`pauseRound`'un
+KULLANDIĞI AYNI primitif), en az 3sn'lik/buffer-tabanlı kaynaklarda döngü tam
+katına yuvarlanan bir önizleme penceresi sonunda kaldığı yerden devam ediyor
+(KULLANICI KARARI — sonradan gerçek örnek dosyalar eklenince döngü yarıda
+kesilmesin). Yanlış-cevap süresi (6sn) ve donma/devam-etme davranışı masaüstü
+Chrome'da ölçülerek doğrulandı (nextBtn "Sonraki (6)"da ~5sn donuyor, sonra
+normal tikliyor); doğru-cevap süresi (4sn) SADECE kod simetrisiyle doğrulandı —
+otomasyon ortamının CDP gecikmesi/timeout'ları temiz bir ölçüm almaya izin
+vermedi. `npm test` 68/68. Cihazda KONTROL EDİLMEDİ.
+
+Commit `a7b0be3` — F3: XP animasyonu soru metninin üzerine biniyordu (bug) —
+`spawnXp` artık canvas'ın ÜST kenarından değil DÜŞEY ORTASINDAN başlıyor, 90px'lik
+yukarı süzülme canvas sınırları içinde kalıyor. Toast'lar (günlük görev/başarım)
+aynı sabit konumda üst üste biniyordu (bug) — artık aktif toast'ların yüksekliği
+toplanarak birbirinin ALTINA diziliyor (`relayoutToasts`), konum sağ-alttan
+(actionbar/karşılaştırma butonlarıyla çakışıyordu) sağ-üste taşındı (`.ghead`'in
+GERÇEK yüksekliği kadar aşağıdan başlıyor, oyun ekranındaki geri/ayarlar
+butonlarının üzerine binmiyor). `pointer-events:none` zaten vardı, override
+edilmediği doğrulandı. fx.js fonksiyonları doğrudan çağrılarak masaüstü
+Chrome'da test edildi (2 toast üst üste binmeden dizildi). `npm test` 68/68.
+Cihazda KONTROL EDİLMEDİ.
+
+Commit `37f2491` — F4: çift dokunma/pinch zoom kapatıldı. İki katmanlı: viewport
+meta'ya `maximum-scale=1.0, user-scalable=no` eklendi (pinch), `html,body{
+touch-action:manipulation}` eklendi (çift-dokunma zoom, kaydırma etkilenmez),
+`#visualizer{touch-action:none}` (spektrum tap-hedefi, pan/zoom gerekmiyor).
+Dokunmalı moddaki spektrum-tıkla-cevapla (pointerdown tabanlı) mekanizması
+touch-action:none SONRASI test edildi, regresyon yok (573 Hz, "Tam isabet!").
+Gerçek çift-dokunma/pinch DAVRANIŞI mouse-tabanlı otomasyonla üretilemedi —
+sadece computed style/viewport meta içeriği ve fonksiyonel regresyon (tıklama,
+kaydırma) doğrulandı. `npm test` 68/68. Cihazda KONTROL EDİLMEDİ (öncelikli).
+
 Commit `bc45b38` — E1: "Dosya seç" ile WAV seçilemiyordu (bug). Kod tarafında
 (validateAudioFile'ın uzantı kontrolü) WAV'ı özel olarak eleyen bir şey
 bulunamadı — 7 format da Node'da tek tek doğrulandı. En olası açıklama iOS
@@ -192,12 +242,10 @@ nerede atandığı kontrol edilecek — state başlatılırken varsayılan atlan
 UI render'ı state'ten önce çalışıyor olabilir.
 **Kabul kriteri:** temiz `localStorage` ile açılışta can = tanımlı başlangıç değeri
 
-**4. `loseLife()` zengin geri bildirimi eziyor**
-Yanlış cevapta kullanıcı sadece "Can kaybettin · Kalan can: N" görüyor. Ayrıntılı
-açıklama (doğru frekans, bölge bilgisi) `freqInfo` panelinde kalıyor.
-Refactor'de bilerek korundu, orijinal davranış buydu.
-**Kabul kriteri:** yanlış cevapta hem can mesajı hem doğru frekans/bölge bilgisi
-aynı kartta görünür
+**4. ~~`loseLife()` zengin geri bildirimi eziyor~~ — F1'de düzeltildi, `a377d80`**
+Yanlış cevapta artık TEK kartta hem "Kalan can: N" hem doğru frekans/bölge bilgisi
+görünüyor (`appendFreqInfoNote`). Aynı kökten (feedbackBox + freqInfo aynı anda
+görünür kalması) doğru cevap tarafındaki DUPLIKE kart bug'ı da düzeldi.
 
 ### Eksik özellikler
 
@@ -306,13 +354,23 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-E/F/G/H/I kararlarından biri — kullanıcıya sorulacak, kod tarafında bekleyen bir
-şey yok. Karar gelmezse en öncelikli teknik iş: D1/D5/E1/E3'ün simülatör veya
-gerçek cihazda (Xcode/Android Studio bu ortamda yoktu) doğrulanması — bu turda
-sadece masaüstü tarayıcı/dosya düzeyinde doğrulandı. E1 özellikle önemli: WAV
-seçme sorununun kök sebebi (accept/UTI) kanıtlanamadı, sadece en olası açıklamaya
-göre düzeltildi — cihazda [upload] konsol logunun görünüp görünmediği kontrol
-edilmeli.
+En öncelikli teknik iş: D1/D5/E1/E3/F1-F4'ün simülatör veya gerçek cihazda
+(Xcode/Android Studio bu ortamda yok) doğrulanması — hepsi bu turlarda sadece
+masaüstü tarayıcı/dosya düzeyinde doğrulandı. Öncelik sırası:
+- **F4** (çift-dokunma/pinch zoom kapatma) — gerçek dokunmatik jest gerektiriyor,
+  mouse-tabanlı otomasyonla HİÇ üretilemedi, sadece CSS/viewport meta içeriği
+  doğrulandı.
+- **F2**'nin karşılaştırma-önizlemesi duraklat/devam davranışı gerçek ses
+  çalarken hissedilir bir gecikme yaratıyor mu, ve `loopAwarePreviewMs`'in
+  buffer yuvarlaması ileride gerçek örnek dosyalar eklenince beklendiği gibi
+  çalışıyor mu (şu an sadece noise/synth test edildi, "sample" kind hiçbir
+  katalog girdisinde yok).
+- **E1**: WAV seçme sorununun kök sebebi (accept/UTI) kanıtlanamadı, sadece en
+  olası açıklamaya göre düzeltildi — cihazda [upload] konsol logunun görünüp
+  görünmediği kontrol edilmeli.
+
+Kod tarafında bekleyen karar yok; E/F/G/H/I (BEKLEYEN KARARLAR) kullanıcıya
+sorulmayı bekliyor ama hiçbiri şu an engelleyici değil.
 
 ## ÜRÜN NOTLARI (önceki sohbetlerden)
 
