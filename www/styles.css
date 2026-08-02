@@ -441,19 +441,39 @@
     .sheet-option .check{color:var(--am);font-weight:700;opacity:0;transition:opacity .12s ease}
     .sheet-option.selected .check{opacity:1}
 
-    /* dots ile açılan oyun ayarları grubu: mevcut sheet-option satır dili tekrar kullanılır */
+    /* dots ile açılan oyun ayarları grubu: mevcut sheet-option satır dili tekrar kullanılır.
+       KÖK SEBEP (cihazda görüldü, prototype.html'deki .item ile karşılaştırılarak bulundu):
+       satırlar gerçek <button> elemanları — WebKit'te display:flex bir <button>'a
+       uygulandığında width/text-align UA varsayılanları (shrink-to-fit içerik genişliği,
+       ortalanmış metin) flex düzenini SESSİZCE bozabiliyor; masaüstü Chrome'da fark
+       etmiyordu. prototype.html'nin AYNI bileşeni (.item) tam olarak bu ikisini açıkça
+       set ediyor — aynısı burada da uygulandı: width:100% (satırlar artık HER ZAMAN tam
+       genişlik ve birbirleriyle eşit), text-align:left (etiket/değer artık asla ortalanıp
+       birbirine yapışmıyor). */
     .settings-group{display:flex;flex-direction:column;gap:10px;margin-top:4px}
     .settings-group .setting-row{
-      display:flex;justify-content:space-between;align-items:center;min-height:54px;padding:0 16px;
+      display:flex;justify-content:space-between;align-items:center;gap:12px;
+      width:100%;min-height:54px;padding:0 16px;text-align:left;
       border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
     }
     .settings-group .setting-row:active{background:rgba(255,255,255,.1)}
-    .settings-row-label{color:var(--tx-3);font-size:14px}
-    .settings-row-value{display:flex;align-items:center;gap:6px;font-weight:700;color:var(--tx);font-size:15px}
+    .settings-row-label{flex:none;color:var(--tx-3);font-size:14px}
+    .settings-row-value{display:flex;align-items:center;gap:6px;flex:none;font-weight:700;color:var(--tx);font-size:15px}
     .settings-row-value .chev{color:var(--tx-3);font-size:16px;line-height:1}
     .upload-row{padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09)}
     .upload-row label{display:block;margin-bottom:8px;color:var(--tx-3);font-size:14px}
     .upload-row input[type="file"]{width:100%;color:var(--tx-2);font-size:13px}
+    /* Native "Dosya Seç" butonu tarayıcı varsayılanında (beyaz/köşeli) geliyordu —
+       ::file-selector-button ile uygulamanın buton diline (mevcut --am/--line/--radius
+       değişkenleri, yeni renk yok) uyduruldu. -webkit-file-upload-button eski WebKit
+       için aynı kurallar. */
+    .upload-row input[type="file"]::file-selector-button,
+    .upload-row input[type="file"]::-webkit-file-upload-button{
+      margin-right:10px;padding:8px 14px;border-radius:12px;border:1px solid var(--line);
+      background:rgba(255,255,255,.08);color:var(--tx);font-size:13px;font-weight:700;
+    }
+    .upload-row input[type="file"]::file-selector-button:active,
+    .upload-row input[type="file"]::-webkit-file-upload-button:active{background:rgba(255,255,255,.16)}
 
     select{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 
