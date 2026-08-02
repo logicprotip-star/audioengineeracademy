@@ -183,8 +183,10 @@ export function clearDaily() {
 // Genel Ayarlar sheet'indeki basit tercihler. Bildirimler'in gerçek bir bildirim
 // planlama altyapısı henüz yok (sadece tercih saklanır); Kulaklık uyarısı ise
 // gerçekten .mobile-warn banner'ının görünürlüğünü kontrol eder.
+// Z5: difficultyMode — "auto" (VARSAYILAN, Z1+Z3'ten türetilir, kullanıcı müdahale
+// etmez) | "fixed" (kullanıcının difficultySelect'ten kendi seçtiği zorluk geçerli).
 export function freshPrefs() {
-  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full" };
+  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full", difficultyMode: "auto" };
 }
 
 export function loadPrefs() {

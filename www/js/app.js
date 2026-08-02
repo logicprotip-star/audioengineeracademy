@@ -12,6 +12,7 @@ import { formatHz, turkishLocative } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
 import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import { SOURCE_GROUPS, findSource } from "./core/source-catalog.js";
+import { tierForLevel } from "./core/difficulty-curve.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 
 registerMode(frekansBulma);
@@ -1633,6 +1634,7 @@ function startRound() {
   autoStopped = false;
   autoPlaying = true;
   roundStartedAt = Date.now();
+  applyAutoDifficulty(); // Z5: Otomatik modda els.difficultySelect.value burada güncellenir
 
   activeQuestion = mode.createQuestion(els.difficultySelect.value, {
     source: pickRoundSource(),
@@ -2450,13 +2452,39 @@ if (els.mainSettingsSheet) {
 }
 
 // ---- ZORLUK: Otomatik/Sabit + Sabit alt listesi ----
-// "Otomatik" şu an için yalnızca görsel bir seçenek — performansa göre kendini
-// ayarlayan gerçek bir algoritma bu adımın kapsamı dışında (oyun mantığına
-// dokunulmuyor). Seçili olsun ya da olmasın, gerçekte kullanılan zorluk her zaman
-// els.difficultySelect.value'dur; "Sabit" alt listesi bunu doğrudan değiştirir ve
-// oyun ekranındaki zorluk seçici ile TEK bir kaynaktan (aynı <select>) senkron kalır.
-let diffModeAuto = true;
+// Z5: "Otomatik" ARTIK GERÇEK — applyAutoDifficulty() (aşağıda) her round
+// başlangıcında Z1 (difficulty-curve.js: tierForLevel) + Z3'ten (progress.js:
+// modeLevel) türetilen zorluğu els.difficultySelect.value'ya YAZAR. "Sabit"
+// alt listesi hâlâ bunu doğrudan değiştirir; ikisi de AYNI tek kaynaktan (aynı
+// <select>) okur — Otomatik'te sadece o kaynağı KİM yazdığı değişir (kullanıcı
+// yerine applyAutoDifficulty). Tercih (auto/fixed) prefs.difficultyMode'da kalıcı.
+let diffModeAuto = prefs.difficultyMode !== "fixed";
 let diffSublistOpen = false;
+
+// Z5 KARAR: Otomatik modda Z1'in TAM sürekli (logaritmik) eğrisi (difficultyParams'ın
+// ondalık gain/Q değerleri) createQuestion/evaluateAnswer'a DOĞRUDAN enjekte
+// EDİLMEDİ — bu, evaluateAnswer'ın sabit 0.5 oktav tolerans sınırını ve DIFFICULTY
+// tablosunun okunduğu HER yeri (generateChoices, hint mask, round timer) parametrik
+// hale getirmeyi gerektirirdi; kapsamı "ayarlar arayüzü" maddesinin çok ötesine
+// taşıyan ayrı bir refactor (bkz. DURUM.md). Bunun yerine Z1'in tierForLevel()
+// köprüsü kullanılıyor: mod seviyesi (Z3) → en yakın isimli kademe (easy/medium/
+// hard/pro) → o kademenin MEVCUT DIFFICULTY parametreleri. proplus bu merdivenin
+// dışında (tierForLevel hiç "proplus" döndürmez) — Otomatik modda asla seçilmez.
+function applyAutoDifficulty() {
+  if (!diffModeAuto || !els.difficultySelect) return;
+  const level = progress.modeLevel(stats, mode.getMeta().id);
+  const tier = tierForLevel(level);
+  if (els.difficultySelect.value !== tier) {
+    els.difficultySelect.value = tier;
+    renderHearts();
+    updateUI();
+    syncDiffSheetUI();
+  }
+}
+// Açılışta da uygula (ilk round'u beklemeden) — Otomatik varsayılan olduğu için
+// taze bir kullanıcıda difficultySelect'in HTML varsayılanı ("Orta") yerine
+// gerçek (seviye 1 → "easy") değeri göstermesi gerekir.
+applyAutoDifficulty();
 
 function syncDiffSheetUI() {
   const cur = els.difficultySelect ? els.difficultySelect.value : "medium";
@@ -2473,11 +2501,16 @@ function syncDiffSheetUI() {
 if (els.diffAutoBtn) els.diffAutoBtn.addEventListener("click", () => {
   diffModeAuto = true;
   diffSublistOpen = false;
+  prefs.difficultyMode = "auto";
+  storage.savePrefs(prefs);
+  applyAutoDifficulty(); // hemen o anki seviyeye göre uygula, bir sonraki turu bekleme
   syncDiffSheetUI();
 });
 if (els.diffFixedBtn) els.diffFixedBtn.addEventListener("click", () => {
   diffModeAuto = false;
   diffSublistOpen = true;
+  prefs.difficultyMode = "fixed";
+  storage.savePrefs(prefs);
   syncDiffSheetUI();
 });
 if (els.diffSublist) {
