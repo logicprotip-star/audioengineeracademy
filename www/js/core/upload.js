@@ -5,7 +5,9 @@
 // zincirine yeniden bağlanır (bkz. audio-engine.js: buildQuestionChain).
 
 const ALLOWED_AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "aac", "aiff", "flac", "ogg"];
-const MAX_AUDIO_FILE_MB = 150; // HTMLAudioElement dosyayı akışla oynatır (decodeAudioData gibi tamamını RAM'e açmaz)
+const MAX_AUDIO_FILE_MB = 120; // Kullanıcı onayı (D4): 150'den düşürüldü. HTMLAudioElement dosyayı akışla oynatır
+// (decodeAudioData gibi tamamını RAM'e açmaz) — bu sınırın gerekçesi bellek çökmesi değil,
+// kulak eğitimi için gereğinden büyük bir dosyanın kazara seçilmesini engellemek.
 
 export function validateAudioFile(file) {
   const ext = (file.name.split(".").pop() || "").toLowerCase();
