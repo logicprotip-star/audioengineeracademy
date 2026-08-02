@@ -1,11 +1,44 @@
 # DURUM
 
-Son güncelleme: 02.08.2026
+Son güncelleme: 03.08.2026
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
+
+**Z1-Z7 — ZORLUK MİMARİSİ (gece oturumu, kullanıcı yoktu, sabah gözden geçirilmeli)**
+DURUM.md'de tasarım kararı olarak kayıtlı ama kodda hiç olmayan zorluk mimarisi
+(logaritmik ölçek, seans rampası, mod-bazlı seviye, kişiselleştirme, Otomatik/
+Sabit ayarı, lvlSheet, autoDiffAsk) baştan sona koda geçirildi. Her karar
+noktasında (kullanıcı olmadığı için) makul bir değer seçilip DURUM.md
+"ZORLUK MİMARİSİ — OTOMATİK VERİLEN KARARLAR" bölümüne gerekçesiyle yazıldı —
+hiçbiri kesin doğru iddia edilmiyor, kulakla ayarlanmayı bekliyor.
+- `61a50a4` Z1: `core/difficulty-curve.js` — logaritmik zorluk eğrisi (gain/Q/
+  tolerans/süre), LEVEL_CAP=20 tavanı, tavan-sonrası bağlam zorluğu (gain+süre,
+  katman-ekleme UYGULANMADI). 9 yeni test.
+- `446c465` Z2: `core/session-plan.js` — largest-remainder seans rampası
+  (10 soru: 3/3/3/1, 5 soru: 2/2/1/0), ilk-soru-kolay+kalan-karışık kararı,
+  serbest mod için ağırlıklı per-soru seçim. 8 yeni test.
+- `7f47a01` Z3: `core/storage.js`+`core/progress.js` — mod başına XP (perMode,
+  perDiff'ten AYRI ad alanı — YAPISAL bir çakışma riskini önceden önledi),
+  akademi seviyesi (mod seviyelerinin toplamı), göç (eski veri kaybolmadan
+  taşındı, canlı doğrulandı: 99→126 XP). 16 yeni test.
+- `16f0806` Z4: `core/personalization.js` — bölge bazlı zayıflık skoru (isabet+
+  ortalama sapma), ağırlıklı soru üretimi (agresiflik sınırı: en fazla 3x),
+  frekans-bulma.js'e WIRE EDİLDİ. 11 yeni test.
+- `f576bc9` Z5: "Otomatik" zorluk modu GERÇEK oldu (`applyAutoDifficulty`,
+  `tierForLevel` köprüsü, `prefs.difficultyMode` kalıcı).
+- `973865e` Z6: `lvlSheet` sıfırdan kuruldu — Z1/Z3'ün gerçek değerlerini
+  gösteriyor (qToOctaveBandwidth RBJ formülü dahil, +5 test), canlı elle
+  çapraz doğrulandı.
+- `ffc394f` Z7: `autoDiffAsk` sıfırdan kuruldu — tetikleme koşulu PROTOTİPTEN
+  okundu (dokunma-tetiklemeli, performans-tetiklemeli DEĞİL). Testte YAN BUG
+  bulundu ve düzeltildi (Oyun Ayarları'ndaki Zorluk satırı auto-değişimde
+  donuk kalıyordu).
+`npm test`: 68→117 (49 yeni test, hepsi saf fonksiyon). Konsol hatası hiçbir
+adımda yok. Detaylı kararlar/gerekçeler için bkz. "ZORLUK MİMARİSİ — OTOMATİK
+VERİLEN KARARLAR" bölümü altta.
 
 A/B döngüsünde pitch kayması (bug raporu → teşhis → düzeltme) — kullanıcı (14 yıllık
 müzik prodüktörü) yüklenen WAV dosyasında A/B otomatik döngüsü sırasında pitch'in
@@ -316,6 +349,12 @@ Store yüklemesinden önce gerekli, şimdi öncelikli değil.
 çıkıyor — çelişkili vaat.
 14 modun kaçı Pro, kaçı seviyeyle açılıyor? Mevcut `unlockLevel` değerleri
 kullanıcı tarafından belirlenmedi.
+**Kısmen ilerledi (Z3):** "seviye" kilidi HANGİ seviye sayısına bakacak sorusu
+karara bağlandı (akademi/toplam seviyesi — `progress.academyLevel()`) ve KODLANDI
+(`app.js` renderModeGrid, `meetsLevel` kontrolü). Ama bu, üç durumun (kodlanmadı/
+seviye-yetersiz/Pro) UI'da AYRIŞTIRILMASI sorununu ÇÖZMEDİ — hâlâ "Yakında" toast'ı
+hem "henüz kodlanmadı" hem "seviyen yetmiyor" için aynı görünüyor. Bu madde AÇIK
+kalıyor.
 
 **C. Rozet sayısı ve seti**
 Kod 9 rozet tanımlıyor (G1 denetimiyle 9'u da artık gerçekten tetiklenebiliyor),
@@ -330,15 +369,12 @@ ekranındaki "Canlar 30 dakikada dolar" metni bu yüzden G2'de kullanılmadı, y
 dürüst "can dolum özelliği henüz eklenmedi" metni yazıldı. Gerçek dolum özelliği
 ayrı bir iş.
 
-**E. Seviye → hassasiyet formülü (lvlSheet için gerekli)**
-prototype.html'nin `lvlSheet`'i (Seviye chip'ine tıklanınca açılan bilgi kartı)
-"Seviye N'de bant genişliği X, değişim Y dB, sıradaki seviyede bunlar küçülecek"
-diye SÜREKLİ bir formüle dayanıyor. Kodda XP'den türeyen "Seviye" (`levelFromXp`)
-ile ses zincirini kuran `DIFFICULTY` (Kolay/Orta/Zor/Pro/Pro Plus, sabit ön ayar)
-BİRBİRİNE BAĞLI DEĞİL — ikisi tamamen ayrı sayı sistemleri. DURUM.md'nin ZORLUK
-MİMARİSİ bölümünde bu zaten "tasarım kararı — HİÇBİRİ KODDA YOK" olarak kayıtlı.
-Karar gereken: her XP-seviyesinde bant/dB tam olarak ne olacak (bir formül veya
-tablo)? Bu tanımlanmadan `lvlSheet` "doğru" sayılarla doldurulamaz.
+**E. ~~Seviye → hassasiyet formülü (lvlSheet için gerekli)~~ — Z1/Z6 ile çözüldü**
+`core/difficulty-curve.js: difficultyParams(level)` artık SÜREKLİ (logaritmik)
+bir formülle her seviye için gainDb/Q/tolerans/süre üretiyor; `lvlSheet` (Z6)
+bunu GERÇEKTEN okuyor. Bkz. DURUM.md "ZORLUK MİMARİSİ — OTOMATİK VERİLEN
+KARARLAR" — buradaki sayısal değerler (GAIN_DB_AT_LEVEL_1/CAP, Q_AT_LEVEL_1/CAP
+vb.) OTOMATİK/varsayılan seçildi, kulakla doğrulanmadı; sabah gözden geçirilmeli.
 
 **F. "Tekrar Çal" butonu kapsamı**
 Sentetik kaynaklarda (gürültü/synth) anlamsız — sürekli sinyaller, "başı" yok.
@@ -348,12 +384,13 @@ sadece upload kaynağında görünen küçük bir "baştan çal" ikonu mı eklen
 madde tamamen atlansın mı? Ayrı bir buton eklemek actionbar'ın layout'unu
 değiştirir.
 
-**G. Otomatik zorluk modu**
-prototype.html'nin `autoDiffAsk`'ı ("Zorluk performansına göre otomatik
-ayarlanıyor, sabit'e geçmek ister misin?") kodda hiç var olmayan bir "Otomatik"
-zorluk modunu varsayıyor — mevcut `difficultySelect`'te sadece sabit seçenekler
-var. DURUM.md'nin ZORLUK MİMARİSİ bölümünde "AÇIK KALAN KARAR" olarak zaten
-kayıtlı. Bu mod tasarlanıp kodlanmadan sorgu kutusunun bağlanacağı bir şey yok.
+**G. ~~Otomatik zorluk modu~~ — Z5/Z7 ile çözüldü**
+"Otomatik" artık gerçek: `applyAutoDifficulty()` (app.js) her round başında
+Z1+Z3'ten türetilen zorluğu uyguluyor, `autoDiffAsk` (Z7) prototipteki gibi
+DOKUNMA-tetiklemeli. KAPSAM SINIRI (bkz. Z5 commit mesajı): Z1'in TAM sürekli
+eğrisi değil, `tierForLevel()` köprüsüyle en yakın isimli kademe (easy/medium/
+hard/pro) kullanılıyor — evaluateAnswer'ın sabit tolerans sınırını parametrik
+hale getirmek AYRI bir iş (aşağıda not edildi).
 
 **H. Dar odak aralığında Pro Plus bant sayısı**
 M1-4 ile gelen odak aralığı (Bas/Orta ~2.3 oktav) Pro Plus'ın istediği 4 ayrık
@@ -384,23 +421,26 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-En öncelikli teknik iş: D1/D5/E1/E3/F1-F4'ün simülatör veya gerçek cihazda
-(Xcode/Android Studio bu ortamda yok) doğrulanması — hepsi bu turlarda sadece
-masaüstü tarayıcı/dosya düzeyinde doğrulandı. Öncelik sırası:
-- **F4** (çift-dokunma/pinch zoom kapatma) — gerçek dokunmatik jest gerektiriyor,
-  mouse-tabanlı otomasyonla HİÇ üretilemedi, sadece CSS/viewport meta içeriği
-  doğrulandı.
-- **F2**'nin karşılaştırma-önizlemesi duraklat/devam davranışı gerçek ses
-  çalarken hissedilir bir gecikme yaratıyor mu, ve `loopAwarePreviewMs`'in
-  buffer yuvarlaması ileride gerçek örnek dosyalar eklenince beklendiği gibi
-  çalışıyor mu (şu an sadece noise/synth test edildi, "sample" kind hiçbir
-  katalog girdisinde yok).
-- **E1**: WAV seçme sorununun kök sebebi (accept/UTI) kanıtlanamadı, sadece en
-  olası açıklamaya göre düzeltildi — cihazda [upload] konsol logunun görünüp
-  görünmediği kontrol edilmeli.
+**Tek sonraki adım: Z1-Z7'nin sayısal değerlerini KULAKLA dinleyip ayarla.**
+Hiçbiri test edilmeden/dinlenmeden seçilmedi — bkz. SON RAPOR'daki "kulakla
+ayarlanması gereken değerler" listesi (DIFFICULTY_CONFIG, SESSION_RAMP_WEIGHTS,
+PERSONALIZATION_CONFIG — hepsi tek dosyada, kolay değiştirilir).
 
-Kod tarafında bekleyen karar yok; E/F/G/H/I (BEKLEYEN KARARLAR) kullanıcıya
-sorulmayı bekliyor ama hiçbiri şu an engelleyici değil.
+Bundan sonraki öncelik sırası:
+- **Z1/Z5**: Otomatik moddaki `tierForLevel()` köprüsünün mü yoksa Z1'in tam
+  sürekli eğrisinin mi (gain/Q'nun createQuestion/evaluateAnswer'a doğrudan
+  enjekte edilmesi) doğru uzun-vadeli mimari olduğuna karar ver — ikincisi
+  `evaluateAnswer`'ın sabit 0.5 oktav toleransını parametrik hale getirmeyi
+  gerektiriyor (ayrı bir refactor, bkz. OTOMATİK VERİLEN KARARLAR).
+- **F4** (çift-dokunma/pinch zoom kapatma, önceki tur) — gerçek dokunmatik
+  jest gerektiriyor, mouse-tabanlı otomasyonla HİÇ üretilemedi.
+- **A/B pitch fix** (önceki tur, `8f66de1`) — gerçek cihazda kulakla pitch'in
+  artık sabit kaldığı doğrulanmalı, bu ortamda ses duyulamıyor.
+- **F2**'nin karşılaştırma-önizlemesi duraklat/devam davranışı, **E1**'in WAV
+  seçme kök sebebi — önceki turlardan, hâlâ cihaz doğrulaması bekliyor.
+
+Kod tarafında bekleyen karar yok; E/F/G/H/I (BEKLEYEN KARARLAR, Z1-Z7 ile E/G
+kapandı) kullanıcıya sorulmayı bekliyor ama hiçbiri şu an engelleyici değil.
 
 ## ÜRÜN NOTLARI (önceki sohbetlerden)
 
@@ -421,26 +461,161 @@ Paywall ekranında dolum süresi hiç geçmiyor, sadece "5 can" yazıyor — eks
 Not: 3. bug (oyun 0 canla başlıyor) bundan bağımsız — mevcut can sistemi
 başlangıç değerini doğru atamıyor.
 
-## ZORLUK MİMARİSİ (tasarım kararı — HİÇBİRİ KODDA YOK)
+## ZORLUK MİMARİSİ — KODLANDI (Z1-Z7, gece oturumu)
 
-**Seans içi rampa**
-10 soru: 3 kolay / 3 orta / 3 zor / 1 pro.
+Bu bölümdeki tasarım kararları (aşağıda özetleniyor) Z1-Z7 turunda KODA GEÇTİ.
+Uygulama detayları ve gerekçeli kararlar için bkz. "ZORLUK MİMARİSİ — OTOMATİK
+VERİLEN KARARLAR" altındaki bölüm — kullanıcı YOKTU (gece oturumu), her karar
+noktasında makul bir değer seçilip GEREKÇESİYLE buraya yazıldı. Hiçbiri "kesin
+doğru" değil, kulakla ayarlanmayı bekliyor.
 
-**Basamak yerleşimi kişiselleştirilecek**
-Performans verisinden hesaplanacak (bölge bazlı isabet, ortalama sapma).
-Zayıf bölgeler daha sık gelecek.
+**Seans içi rampa** — `core/session-plan.js` — KODLANDI, henüz app.js'e WIRE
+EDİLMEDİ (10 Soruluk Bölüm hâlâ zorluğu `els.difficultySelect`'ten okuyor).
 
-**Seviye yapısı**
-Seviye mod başına tutulacak. Genel akademi seviyesi toplamdan hesaplanacak.
+**Basamak yerleşimi kişiselleştirme** — `core/personalization.js` — KODLANDI
+VE app.js'e WIRE EDİLDİ (`startRound()` → `createQuestion(..., {zoneStats})`).
 
-**Zorluk ölçeği**
-Logaritmik, tavanlı. Tavana ulaşıldıktan sonra hassasiyet artırılmayacak;
-bunun yerine bağlam zorluğu devreye girecek (gain azalması, katman, süre).
+**Seviye yapısı** — `core/progress.js` (modeXp/modeLevel/academyLevel) +
+`core/storage.js` (perMode, migration) — KODLANDI VE WIRE EDİLDİ.
 
-**Ayarlar**
-Otomatik (varsayılan) / Sabit (Kolay / Orta / Zor / Pro / Sınırsız).
+**Zorluk ölçeği** — `core/difficulty-curve.js` (difficultyParams, tierForLevel)
+— KODLANDI. Oyun parametrelerine (gain/Q) SADECE `tierForLevel()` köprüsüyle
+DOLAYLI bağlı (Otomatik mod DIFFICULTY[tier]'ı kullanıyor) — Z1'in tam sürekli
+eğrisi henüz createQuestion/evaluateAnswer'a DOĞRUDAN enjekte edilmedi (bkz.
+altta, "Sonraki adım" notu).
+
+**Ayarlar** — Otomatik (varsayılan)/Sabit — KODLANDI VE WIRE EDİLDİ
+(`applyAutoDifficulty()`, `prefs.difficultyMode`).
+
+## ZORLUK MİMARİSİ — OTOMATİK VERİLEN KARARLAR (gece oturumu, kullanıcı yok)
+
+Her madde: karar + gerekçe. Sayısal değerler KESİN DOĞRU İDDİA EDİLMİYOR —
+makul başlangıç noktaları, kulakla ayarlanmalı (liste SON RAPOR'da).
+
+**Z1 — Tavandan sonra hangi bağlam-zorluğu mekanizmaları uygulandı**
+Üç önerilenden (gain azalması / katman ekleme / süre kısaltma) İKİSİ
+uygulandı: gain azalması ve süre kısaltma (küçük doğrusal adımlarla, birer
+tabanın altına inmez). "Katman ekleme" (soruya ikinci bir gürültü/enstrüman
+katmanı karıştırmak) UYGULANMADI — bu audio-engine.js'te yeni bir kaynak-
+karıştırma yolu gerektiren ayrı bir ses-mimarisi işi, bir "saf veri fonksiyonu"
+yazmanın kapsamının dışında. Kodda `contextLayering: false` (hep) olarak
+işaretlendi, TODO.
+
+**Z1 — Başlangıç sayısal değerleri (LEVEL_CAP=20, GAIN_DB 10→3, Q 0.8→5.0,
+TOLERANCE_OCT 0.6→0.35 [henüz kullanılmıyor], TIME_SEC 16→8)**
+Mevcut `DIFFICULTY` tablosunun easy (gain:10,q:0.9,time:16) ve pro
+(gain:4.5,q:4.2,time:9) uç noktalarına YAKLAŞIK oturacak şekilde seçildi —
+tamamen keyfi değil ama kulakla DOĞRULANMADI. LEVEL_CAP=20, mode-catalog.js'nin
+en yüksek `unlockLevel` değeriyle (20) BİLİNÇLİ olarak eşleşiyor (akademi
+yol haritasının tamamı = bir modun tam hassasiyet eğrisi varsayımı) — bu
+eşleşme kesin doğru olmayabilir, sabah gözden geçirilmeli.
+
+**Z1 — Tolerans (toleranceOct) hesaplanıyor ama KULLANILMIYOR**
+`difficultyParams()` bir `toleranceOct` alanı üretiyor ama `evaluateAnswer()`
+(frekans-bulma.js) hâlâ SABİT 0.5 oktavlık kabul sınırını kullanıyor —
+bu alanı gerçekten bağlamak `evaluateAnswer`'ı parametrik hale getirmeyi
+gerektirirdi (saf fonksiyon/test sözleşmesini bozma riski, gece oturumunda
+alınmadı). Alan kodda DURUYOR ama etkisiz — bir sonraki oturumda ya bağlanmalı
+ya da kaldırılmalı.
+
+**Z2 — Seans içi sıralama: sabit blok mu, tam karışık mı, ikisi de değil**
+İlk soru HER ZAMAN en kolay kademeden (caydırıcı olmasın diye — Z2'nin kendi
+notu), KALAN sorular TAMAMEN karıştırılır. Gerekçe: sabit 3-3-3-1 blok sırası
+tekdüze/tahmin edilebilir; tam karışıklık (ilk soru dahil) yine zor bir açılış
+riski taşır.
+
+**Z2 — SESSION_RAMP_WEIGHTS oranı (easy/medium/hard/pro = .3/.3/.3/.1)**
+DURUM.md'de zaten kayıtlı "3 kolay/3 orta/3 zor/1 pro" kararının doğrudan
+oranı — icat edilmedi, verilen kararın matematiksel karşılığı.
+
+**Z2 — 5 soruluk (ücretsiz?) seans ölçekleme yöntemi**
+Naif yuvarlama yerine EN BÜYÜK KALAN (largest remainder/Hare-Niemeyer) yöntemi
+— toplamın HER ZAMAN tam soru sayısına eşit kalmasını garantiler (naif
+yuvarlama 5 soruda 1.5/1.5/1.5/.5→2/2/2/1=7 gibi taşardı). Sonuç: 2 kolay/2
+orta/1 zor/0 pro — bu SPESİFİK dağılım elle seçilmedi, yöntemin matematiksel
+sonucu.
+
+**Z2 — Serbest (sonsuz) mod**
+Sabit bir soru sayısı olmadığı için önceden dizi kurulmuyor — her soruda
+BAĞIMSIZ ağırlıklı seçim (`pickWeightedDifficulty`) yapılıyor, uzun vadede
+aynı orana yaklaşıyor.
+
+**Z3 — Akademi seviyesi: mod seviyelerinin TOPLAMI (XP toplamından level'e
+çevirme değil)**
+"Genel akademi seviyesi toplamdan hesaplanacak" kararı İKİ farklı okunabilirdi:
+(a) tüm modların XP'sini topla, SONRA seviyeye çevir, ya da (b) her modun
+KENDİ seviyesini hesapla, SONRA seviyeleri topla. (b) seçildi — "toplam"
+kelimesi seviye sayılarının toplamı olarak yorumlandı, gerekçe: tek mod
+varken bu, ESKİ (Z3 öncesi) global seviye davranışıyla BİREBİR tutarlı kalıyor
+(academyLevel === modeLevel, tek mod olduğu sürece).
+
+**Z3 — Bilinen ödün: hiç oynanmamış modlar da +1 katkı yapar**
+`levelFromXp(0)` her zaman 1 döner — yani akademi toplamına, kullanıcının HİÇ
+dokunmadığı bir mod bile +1 ekler. Bugün (1 oynanabilir mod) sorun değil ama
+2. mod kodlandığında "bedava seviye şişmesi" yaratır. Bilinçli ödün: sıfır-
+tabanlı bir toplam (xp=0 → katkı=0) yerine seçildi çünkü YENİ bir kullanıcıyı
+(academyLevel=0) `unlockLevel:1` kilidinde bile tıkardı. **2. mod eklendiğinde
+yeniden değerlendirilmeli.**
+
+**Z3 — Kilit sistemi hangi seviyeye bakar: mod mu, akademi mi**
+Akademi (toplam) seviyesi. Gerekçe: `unlockLevel` değerleri (1-20) henüz
+kodlanmamış 13 modu kapsayan GENEL bir içerik yol haritasını temsil ediyor —
+o modların kendi XP kaynağı olmadığı için mod-bazlı seviyeye bakmak anlamsız
+olurdu. Bugün TEK oynanabilir mod olduğu için GÖRÜNÜR bir etkisi yok.
+
+**Z3 — Zorluk parametreleri (Z1) hangi seviyeden beslenir: mod mu, akademi mi**
+MOD seviyesi (o modun kendi XP'sinden). Gerekçe: bir modda yeni olan kullanıcı
+başka bir modda ileri seviyede olsa bile o YENİ modda kolay sorularla
+başlamalı — "zorluk" o spesifik beceriye dair bir sinyal, genel akademi
+ilerlemesine değil.
+
+**Z4 — Zayıflık skoru ağırlıkları (isabet %60, ortalama sapma %40)**
+Doğruluk biraz daha ağır basıyor — yanlış cevap vermek, doğru cevaba yakın
+ıskalamaktan daha güçlü bir "zayıflık" sinyali sayıldı. Kesin bilimsel bir
+dayanağı yok, makul bir varsayılan.
+
+**Z4 — Agresiflik sınırı (MAX_BOOST=2.0 → en fazla 3x ağırlık)**
+En zayıf bölge en güçlü bölgeye göre en fazla 3 kat daha sık gelebilir —
+sonsuz değil. Sayı keyfi seçildi (kullanıcı sadece zayıf bölgeyle
+"boğulmasın" isteği somutlaştırıldı), kulakla/kullanım verisiyle ayarlanmalı.
+
+**Z4 — MIN_SAMPLES=3 (yetersiz veri eşiği)**
+3'ün altında bir bölgenin isabet oranı istatistiksel olarak anlamsız kabul
+edildi (nötr ağırlık=1). Keyfi bir sayı, çok küçük/büyük olduğunda "yeni
+kullanıcı eşit dağılım" davranışının ne kadar hızlı "kişiselleştirilmiş"
+davranışa geçtiğini değiştirir.
+
+**Z4 — Proplus (çok bantlı) kişiselleştirme kapsamı dışı**
+`buildProPlusBands` KİŞİSELLEŞTİRİLMEDİ — 4 bandın HER BİRİ için ayrı zon
+seçimi yapmak (çakışmama kısıtıyla) gece oturumunun süresini aşan ayrı bir iş.
+
+**Z5 — Otomatik modda Z1'in TAM sürekli eğrisi DEĞİL, tierForLevel() köprüsü**
+Kapsam sınırı — bkz. yukarıdaki "Zorluk ölçeği" notu. Z1'in ondalık gain/Q
+değerlerini gerçekten oyuna bağlamak `evaluateAnswer`'ın sabit toleransını ve
+`DIFFICULTY`'nin okunduğu her yeri (generateChoices, hint mask, round timer)
+parametrik hale getirmeyi gerektirir — "ayarlar arayüzü" maddesinin ÇOK
+ötesine geçen bir refactor, ayrı bir iş olarak bırakıldı.
+
+**Z5 — proplus Otomatik'te hiç seçilmez**
+`tierForLevel()` proplus'ı hiç döndürmüyor — proplus çok bantlı, farklı bir
+oyun deneyimi (dokunmalı, 4 ayrı işaretleme), doğrusal hassasiyet merdiveninin
+bir noktası değil. Kullanıcı proplus'ı SADECE Sabit modda elle seçebilir.
+
+**Z6 — "Sıradaki seviyeye kalan" XP ile gösteriliyor, prototipin "N/M doğru"
+çerçevesi DEĞİL**
+prototype.html "12/20 doğru" gösteriyordu — bizim sistemimiz (Z3) XP-bazlı,
+"doğru sayısı" bazlı bir eşik hiç yok. XP ilerlemesi (`progress.xpProgress`)
+kullanıldı — mevcut sistemle tutarlı tek seçenek.
+
+**Z7 — autoDiffAsk tetikleme koşulu İCAT EDİLMEDİ, prototipten okundu**
+M1-7'de "performansa göre tetiklenir" varsayılmıştı ama prototype.html'nin
+kendi JS'i (`gameDiffTap`) DOKUNMA-tetiklemeli olduğunu gösterdi — Otomatik
+moddayken Zorluk satırına dokunmak soruyu açıyor, konsekütif yanlış cevap
+sayısı gibi bir performans sinyali YOK. Bu proje tasarım kararı OLMADIĞI için
+"karar verildi" değil, "yanlış varsayım düzeltildi" olarak kayda geçti.
 
 ## AÇIK KALAN KARAR
 
-Kilit tipleri (kodlanmadı / seviye / Pro) — öneri sunuldu, karar verilmedi.
-Yeni mod yazılmadan netleşmeli.
+Kilit tipleri (kodlanmadı / seviye / Pro) — Z3 ile HANGİ seviye sayısının
+kullanılacağı karara bağlandı (BEKLEYEN KARARLAR **B**), ama üç durumun UI'da
+nasıl ayrıştırılacağı hâlâ açık. Yeni mod yazılmadan netleşmeli.

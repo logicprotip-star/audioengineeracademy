@@ -32,7 +32,7 @@
 | Geri butonu | ✓ | ✓ | Tam | — |
 | Oyun başlığı | ✓ | ✓ | Tam | — |
 | "Soru N/10" sayacı | ✓ | ✓ | Tam (uyarlanmış) | `M1-7, ff8f862`: ana sayaç artık "Soru N/10" gösteriyor — ama SADECE 10 Soruluk Bölüm'de (`challenge.active`); Serbest (sonsuz) modda "Soru N" kalıyor, çünkü tasarımda "Serbest" kavramı hiç yok (oradaki 10 sabit varsayılan) |
-| Seviye chip'i (tıklanınca `lvlSheet` açılır) | ✓ | ✗ | **Yok** | Seviye bilgisi/detay sheet'i (bant genişliği, değişim miktarı, şık sayısı, sıradaki seviye) kodda hiç yok — DURUM.md BEKLEYEN KARARLAR **E**: bu sheet, XP-seviyesine bağlı sürekli bir bant/dB formülü varsayıyor, kodda böyle bir formül (ve "Seviye" ile `DIFFICULTY` arasında bağlantı) yok |
+| Seviye chip'i (tıklanınca `lvlSheet` açılır) | ✓ | ✓ | Tam (uyarlanmış) | `Z6`: `#levelChip` + `#lvlSheet` eklendi, içerik `core/difficulty-curve.js` (Z1) + `core/progress.js` (Z3) GERÇEK değerlerinden okunuyor. "Sıradaki seviye"nin XP ilerlemesi prototipteki "12/20 doğru" yerine "X/Y XP" gösteriyor — sistemimiz XP-bazlı, doğru-sayısı-bazlı değil (bilinçli uyarlama, bkz. DURUM.md ZORLUK MİMARİSİ — OTOMATİK VERİLEN KARARLAR) |
 | Kalp göstergesi | ✓ | ✓ | Tam | — |
 | Özel sayaç (Hız Modu için "12 doğru") | ✓ | ✗ | N/A | Hız Modu mod olarak kodda yok, dolayısıyla bulunamadı |
 | Dots (oyun ayarları) butonu | ✓ | ✓ | Tam | — |
@@ -66,7 +66,7 @@
 | Oyun ayarları sheet'i: Süre (Süreli/Süresiz) | ✗ | ✓ | **Ters fark** | Tasarımda karşılığı yok — kod-only ekleme |
 | Oyun ayarları sheet'i: Ses dosyası yükleme | ✓ (kaynak sheet'i içinde) | ✓ | Tam | Konum farklı (kod: dots sheet içinde; tasarım: kaynak sheet'i içinde) ama işlev var |
 | "Oyundan çık" butonu (dots sheet) | ✓ | ✓ | Tam | `M1-7, ff8f862`: Oyun Ayarları sheet'inin altına eklendi (`.btn.danger`), backBtn ile aynı güvenli çıkış deseni |
-| Otomatik zorluk sorgusu ("Sabit'e geçmek ister misin?") | ✓ | ✗ | **Yok** | `autoDiffAsk` karşılığı bulunamadı — DURUM.md BEKLEYEN KARARLAR **G**: prototipteki "Otomatik" zorluk MODU kodda hiç yok (sadece sabit seçenekler var), bu mod tasarlanmadan sorgu kutusu bağlanacak bir şeyi yok |
+| Otomatik zorluk sorgusu ("Sabit'e geçmek ister misin?") | ✓ | ✓ | Tam | `Z7`: `#autoDiffAsk` eklendi, tetikleme koşulu prototipteki gibi DOKUNMA-tetiklemeli (performans-tetiklemeli değil) — Otomatik moddayken Zorluk satırına dokununca seçim listesi yerine bu soru çıkıyor |
 | Boss round rozeti/mekaniği | ✗ | ✓ | **Ters fark** | Tasarımda hiç yok — kod-only özellik (bossChip, boss XP çarpanı, bossWins başarımı) |
 | Combo/seri XP çarpanı | ✗ | ✓ | **Ters fark** | Tasarımda combo kavramı görsel olarak var (seri sayacı) ama XP çarpanına bağlı değil; kodda `stats.combo` XP hesaplamasını doğrudan etkiliyor |
 
@@ -165,7 +165,7 @@
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |
 |---|---|---|---|---|
 | Kulaklık uyarısı sheet'i (mod özel, "bu modda bir daha gösterme") | ✓ | ✗ | **Yok** | Karşılığı bulunamadı (yukarıda da not edildi) |
-| Seviye bilgisi sheet'i (`lvlSheet`) | ✓ | ✗ | **Yok** | Karşılığı bulunamadı |
+| Seviye bilgisi sheet'i (`lvlSheet`) | ✓ | ✓ | Tam (uyarlanmış) | `Z6` — bkz. EKRAN 2 satırı yukarıda |
 | Motor 3 aşama sheet'i | ✓ | ✗ | N/A | Motor 3 kodda yok |
 | Kaynak çifti sheet'i (Motor 3) | ✓ | ✗ | N/A | Motor 3 kodda yok |
 | Odak aralığı sheet'i | ✓ | ✗ | **Yok** | Karşılığı bulunamadı |
@@ -209,9 +209,9 @@
 
 **Toplam öğe sayısı (bu tabloda listelenen ayrı satırlar): 108**
 
-- **Tam olanlar: 52**
+- **Tam olanlar: 55** (Z-batch: Seviye chip'i/`lvlSheet`, Otomatik zorluk sorgusu, `lvlSheet` [DİĞER SHEET'LER] artık Tam — bkz. DURUM.md ZORLUK MİMARİSİ)
 - **Kısmi olanlar: 22**
-- **Hiç olmayanlar ("Yok"): 26**
+- **Hiç olmayanlar ("Yok"): 23**
 - **N/A (bağlı olduğu mod/ekran zaten yok, ayrıca sayılmadı): 4**
 - **Kodda olup tasarımda olmayanlar ("Ters fark"): 9**
 
@@ -222,10 +222,9 @@
 4. Şıklı cevap modu (Motor 1)
 5. A/B uzun basma → otomatik döngü
 6. Odak aralığı seçimi (Bas/Orta/Tiz)
-7. Seviye bilgisi sheet'i
-8. Mod özel kulaklık uyarısı sheet'i
-9. Menüdeki seviye/XP kartı
-10. Geri bildirim kartındaki "Senin cevabın/Doğru cevap/Temiz" karşılaştırma
+7. Mod özel kulaklık uyarısı sheet'i
+8. Menüdeki seviye/XP kartı
+9. Geri bildirim kartındaki "Senin cevabın/Doğru cevap/Temiz" karşılaştırma
 
 **Kodda olup tasarımda olmayanlar (9 — hepsi listelendi yukarıda, toplu):**
 1. Boss round mekaniği
