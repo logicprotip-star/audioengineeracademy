@@ -109,3 +109,20 @@ export function tierForLevel(level, config = DIFFICULTY_CONFIG) {
   const hit = config.TIER_BOUNDARIES.find(b => safeLevel <= b.max);
   return hit ? hit.tier : config.TIER_BOUNDARIES[config.TIER_BOUNDARIES.length - 1].tier;
 }
+
+// Z6 (lvlSheet): difficultyParams().q bir biquad Q faktörü — kullanıcıya "bant
+// genişliği" olarak GÖSTERMEK için oktava çevrilmesi gerekiyor. Standart RBJ audio-EQ
+// cookbook ilişkisi: Q = 1 / (2*sinh(ln2/2 * BW)) → BW = 2*asinh(1/(2Q))/ln2.
+export function qToOctaveBandwidth(q) {
+  if (!(q > 0)) return 0;
+  return (2 * Math.asinh(1 / (2 * q))) / Math.LN2;
+}
+
+// 1 oktavın altında "1/N oktav" (prototipteki "1/3 oktav" gibi), üstünde "X.X oktav"
+// biçiminde. Sadece GÖRÜNTÜLEME içindir — hesaplamalarda kullanılmaz.
+export function formatOctaveBandwidth(bwOctaves) {
+  if (!(bwOctaves > 0)) return "0 oktav";
+  if (bwOctaves >= 1) return `${bwOctaves.toFixed(1)} oktav`;
+  const denom = Math.max(1, Math.round(1 / bwOctaves));
+  return `1/${denom} oktav`;
+}

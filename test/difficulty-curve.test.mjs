@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { difficultyParams, tierForLevel, DIFFICULTY_CONFIG } from "../www/js/core/difficulty-curve.js";
+import { difficultyParams, tierForLevel, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG } from "../www/js/core/difficulty-curve.js";
 
 describe("difficultyParams()", () => {
   it("seviye 1'de config'teki başlangıç değerlerini birebir döndürür", () => {
@@ -94,5 +94,37 @@ describe("tierForLevel()", () => {
     assert.equal(tierForLevel(12), "hard");
     assert.equal(tierForLevel(13), "pro");
     assert.equal(tierForLevel(999), "pro");
+  });
+});
+
+describe("qToOctaveBandwidth() / formatOctaveBandwidth() — Z6 lvlSheet", () => {
+  it("Q arttıkça bant genişliği (oktav) AZALIR (dar bant = yüksek Q)", () => {
+    const bwLow = qToOctaveBandwidth(0.8);
+    const bwHigh = qToOctaveBandwidth(5.0);
+    assert.ok(bwHigh < bwLow, `Q arttıkça bant daralmadı: ${bwLow} → ${bwHigh}`);
+  });
+
+  it("makul aralıkta gerçekçi oktav değerleri üretir (RBJ formülü sağlaması)", () => {
+    // Q=1 için standart RBJ tablolarında BW ~1.4 oktav civarıdır.
+    const bw = qToOctaveBandwidth(1);
+    assert.ok(bw > 1.2 && bw < 1.6, `Q=1 için beklenmeyen bant genişliği: ${bw}`);
+  });
+
+  it("q<=0 için 0 döner, çökmez", () => {
+    assert.equal(qToOctaveBandwidth(0), 0);
+    assert.equal(qToOctaveBandwidth(-1), 0);
+  });
+
+  it("formatOctaveBandwidth: 1 oktavın altında '1/N oktav', üstünde ondalık", () => {
+    assert.equal(formatOctaveBandwidth(0.333), "1/3 oktav");
+    assert.equal(formatOctaveBandwidth(0.25), "1/4 oktav");
+    assert.equal(formatOctaveBandwidth(1.7), "1.7 oktav");
+    assert.equal(formatOctaveBandwidth(0), "0 oktav");
+  });
+
+  it("difficultyParams'ın q çıktısıyla uçtan uca tutarlı — seviye arttıkça bant daralır", () => {
+    const bwAtLevel1 = qToOctaveBandwidth(difficultyParams(1).q);
+    const bwAtCap = qToOctaveBandwidth(difficultyParams(DIFFICULTY_CONFIG.LEVEL_CAP).q);
+    assert.ok(bwAtCap < bwAtLevel1);
   });
 });

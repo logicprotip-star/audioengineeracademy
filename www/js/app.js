@@ -12,7 +12,7 @@ import { formatHz, turkishLocative } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
 import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import { SOURCE_GROUPS, findSource } from "./core/source-catalog.js";
-import { tierForLevel } from "./core/difficulty-curve.js";
+import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG } from "./core/difficulty-curve.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 
 registerMode(frekansBulma);
@@ -170,6 +170,14 @@ const els = {
   gameSettingsOverlay: document.getElementById("gameSettingsOverlay"),
   gameSettingsSheet: document.getElementById("gameSettingsSheet"),
   gameSettingsCancel: document.getElementById("gameSettingsCancel"),
+
+  // Z6: seviye bilgisi sheet'i
+  levelChip: document.getElementById("levelChip"),
+  lvlSheetOverlay: document.getElementById("lvlSheetOverlay"),
+  lvlSheet: document.getElementById("lvlSheet"),
+  lvlSheetTitle: document.getElementById("lvlSheetTitle"),
+  lvlSheetClose: document.getElementById("lvlSheetClose"),
+  lvlSheetBody: document.getElementById("lvlSheetBody"),
   quitGameBtn: document.getElementById("quitGameBtn"),
   difficultySelect: document.getElementById("difficultySelect"),
   playModeSelect: document.getElementById("playModeSelect"),
@@ -965,6 +973,9 @@ function updateUI() {
   els.xpBar.style.width = `${percent}%`;
 
   if (els.seriChip) els.seriChip.textContent = 'Seri ' + stats.rounds;
+  // Z3/Z6: bu MOD seviyesi — diffState()'in yukarıdaki (perDiff, zorluk-bazlı) xp'sinden
+  // FARKLI, progress.modeLevel() perMode'dan (mod-bazlı) okur.
+  if (els.levelChip) els.levelChip.textContent = 'Seviye ' + progress.modeLevel(stats, mode.getMeta().id);
   if (els.gameAccValue) els.gameAccValue.textContent = `%${progress.accuracy(stats)}`;
   els.roundsValue.textContent = stats.rounds;
   els.correctValue.textContent = stats.correct;
@@ -2099,6 +2110,64 @@ function closeGameSettingsSheet() {
 els.gameSettingsBtn.addEventListener("click", openGameSettingsSheet);
 els.gameSettingsCancel.addEventListener("click", closeGameSettingsSheet);
 els.gameSettingsOverlay.addEventListener("click", closeGameSettingsSheet);
+
+// Z6: seviye bilgisi sheet'i — levelChip'e tıklanınca açılır, içeriği Z1
+// (difficulty-curve.js) + Z3'ten (progress.js) HER AÇILIŞTA taze hesaplanır
+// (statik/sabit metin YOK).
+function renderLevelSheet() {
+  const modeId = mode.getMeta().id;
+  const level = progress.modeLevel(stats, modeId);
+  const xpProg = progress.xpProgress(progress.modeXp(stats, modeId));
+  const tier = tierForLevel(level);
+  const diff = mode.DIFFICULTY[tier];
+  const params = difficultyParams(level);
+  const bw = formatOctaveBandwidth(qToOctaveBandwidth(params.q));
+  const gainStr = `${params.gainDb.toFixed(1)} dB`;
+  const percent = Math.max(0, Math.min(100, (xpProg.current / xpProg.required) * 100));
+
+  let nextLevelText;
+  if (params.capped) {
+    nextLevelText = `En üst hassasiyettesin (Seviye ${DIFFICULTY_CONFIG.LEVEL_CAP}). Bundan sonra bant/tolerans SABİT kalıyor — bunun yerine süre kısalıyor, değişim miktarı küçülmeye devam ediyor.`;
+  } else {
+    const nextParams = difficultyParams(level + 1);
+    const nextBw = formatOctaveBandwidth(qToOctaveBandwidth(nextParams.q));
+    nextLevelText = `Seviye ${level + 1}'te bant ${nextBw}'a daralacak ve değişim ${nextParams.gainDb.toFixed(1)} dB'ye düşecek.`;
+  }
+
+  if (els.lvlSheetTitle) els.lvlSheetTitle.textContent = `Seviye ${level}`;
+  if (!els.lvlSheetBody) return;
+  els.lvlSheetBody.innerHTML = `
+    <p style="margin:8px 2px 0;font-size:15px;line-height:1.5;color:var(--tx-2)">Bant ${bw} genişliğinde, değişim ${gainStr}. Şu anki hassasiyetin bu.</p>
+    <div class="card" style="margin-top:16px;padding:14px 16px">
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--tx-3)">Bant genişliği</span><b>${bw}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--tx-3)">Değişim miktarı</span><b>${gainStr}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--tx-3)">Şık sayısı</span><b>${diff ? diff.options : "—"}</b></div>
+    </div>
+    <div style="margin-top:18px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:14px;font-weight:600">
+        <span style="color:var(--tx-3)">Seviye ${level + 1}'e kalan</span>
+        <span class="num" style="color:var(--am);font-weight:700">${xpProg.current} / ${xpProg.required} XP</span>
+      </div>
+      <div class="bar" style="margin-top:8px"><i style="width:${percent}%"></i></div>
+    </div>
+    <div class="card" style="margin-top:16px;padding:14px 16px;background:rgba(108,140,255,.1);border-color:rgba(108,140,255,.26)">
+      <div style="font-size:12px;font-weight:700;letter-spacing:.05em;color:#AFC0FF">SIRADAKİ SEVİYE</div>
+      <p style="margin:8px 0 0;font-size:15px;line-height:1.5;color:var(--tx-2)">${nextLevelText}</p>
+    </div>
+  `;
+}
+function openLevelSheet() {
+  renderLevelSheet();
+  if (els.lvlSheetOverlay) els.lvlSheetOverlay.classList.add("open");
+  if (els.lvlSheet) els.lvlSheet.classList.add("open");
+}
+function closeLevelSheet() {
+  if (els.lvlSheetOverlay) els.lvlSheetOverlay.classList.remove("open");
+  if (els.lvlSheet) els.lvlSheet.classList.remove("open");
+}
+if (els.levelChip) els.levelChip.addEventListener("click", openLevelSheet);
+if (els.lvlSheetClose) els.lvlSheetClose.addEventListener("click", closeLevelSheet);
+if (els.lvlSheetOverlay) els.lvlSheetOverlay.addEventListener("click", closeLevelSheet);
 
 // "Oyundan çık" (prototype.html: gameSettingsSheet içindeki kırmızı buton, go('s-menu')).
 // backBtn ile aynı güvenli çıkış deseni: round aktifse önce duraklat, sonra menüye dön —
