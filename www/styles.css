@@ -568,13 +568,18 @@
     .floating-xp{font-weight:900;color:#fff;text-shadow:0 0 20px rgba(255,176,32,.7);animation:floatUp 1.4s ease forwards}
     @keyframes floatUp{from{transform:translateY(0) scale(.9);opacity:0}15%{opacity:1}to{transform:translateY(-90px) scale(1.15);opacity:0}}
     .toast{
-      right:16px;bottom:calc(96px + env(safe-area-inset-bottom));width:min(340px, calc(100vw - 32px));
+      /* F3: eskiden sağ-alt köşede sabitti — actionbar/geri bildirim kartındaki
+         karşılaştırma butonlarıyla (özellikle kısa ekranlarda) çakışıyordu. Ekranın
+         ÜSTÜNDE, tüm oyun içeriğinin/actionbar'ın dışında sabit — top değeri
+         relayoutToasts() (fx.js) tarafından JS'ten yönetiliyor, aynı anda birden
+         fazla toast üst üste binmez. */
+      right:16px;width:min(340px, calc(100vw - 32px));
       padding:14px 16px;border-radius:18px;background:rgba(9,16,29,.92);border:1px solid rgba(255,176,32,.2);
       backdrop-filter:blur(14px);animation:toastIn .32s ease;
     }
     .toast b{display:block;margin-bottom:4px;font-size:14px}
     .toast small{color:var(--tx-3);line-height:1.5;font-size:13px}
-    @keyframes toastIn{from{transform:translateY(12px);opacity:0}to{transform:translateY(0);opacity:1}}
+    @keyframes toastIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}
     .particle{
       width:8px;height:8px;border-radius:50%;background:radial-gradient(circle, white, var(--am));
       box-shadow:0 0 16px rgba(255,176,32,.7);animation:burst 900ms ease-out forwards;
