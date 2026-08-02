@@ -36,14 +36,26 @@ export function freshDiffState() {
   return { xp: 0, score: 0, bestScore: 0 };
 }
 
+// Z3: mod başına XP — perDiff'ten AYRI bir eksen. perDiff zorluk-adı ile (easy/
+// medium/...) anahtarlanıyor; birden fazla mod aynı zorluk adlarını kullanırsa
+// (ör. iki modun da "easy" zorluğu varsa) perDiff'te XP'leri KARIŞIRDI — bu yüzden
+// mod seviyesi perDiff'ten DEĞİL, kendi ad alanı olan perMode'dan hesaplanır.
+export function freshModeState() {
+  return { xp: 0 };
+}
+
 // difficultyLives: { [difficultyKey]: defaultLives } — moddan gelir. Değerler artık
 // SADECE anahtar kümesini (hangi zorluklar var) belirlemek için kullanılıyor;
 // canlar bu haritadan bağımsız, tek bir global sayaç (bkz. TOTAL_LIVES/lives alanı).
-export function freshStats(difficultyLives, hintsPerGame) {
+// modeIds: oynanabilir mod id'lerinin listesi (bkz. app.js: registeredModes) — perMode
+// anahtar kümesini belirler, difficultyLives'la aynı desende.
+export function freshStats(difficultyLives, hintsPerGame, modeIds = []) {
   const perDiff = {};
   Object.keys(difficultyLives).forEach(key => {
     perDiff[key] = freshDiffState();
   });
+  const perMode = {};
+  modeIds.forEach(id => { perMode[id] = freshModeState(); });
   return {
     rounds: 0,
     correct: 0,
@@ -57,15 +69,21 @@ export function freshStats(difficultyLives, hintsPerGame) {
     bossWins: 0,
     history: [],
     perDiff,
+    perMode,
     lives: TOTAL_LIVES
   };
 }
 
-export function loadStats(difficultyLives, hintsPerGame) {
+// legacyModeId: perMode İLK KEZ oluşturulurken (yani daha önce hiç yoktu — eski bir
+// kayıt) TÜM geçmiş XP'nin (perDiff toplamı) hangi mod'a ait sayılacağı. Bu SADECE
+// perMode hiç yoksa (ilk göç anında) uygulanır — perMode zaten varsa (yeni bir mod
+// id'si SONRADAN eklendiğinde) o yeni mod sıfırdan başlar, geçmiş XP'yi MİRAS ALMAZ
+// (aksi hâlde ileride eklenecek her yeni mod bedavadan XP kazanmış olurdu).
+export function loadStats(difficultyLives, hintsPerGame, modeIds = [], legacyModeId = null) {
   try {
     const raw = localStorage.getItem(STATS_KEY);
-    const s = raw ? JSON.parse(raw) : freshStats(difficultyLives, hintsPerGame);
-    if (!s.perDiff) s.perDiff = freshStats(difficultyLives, hintsPerGame).perDiff;
+    const s = raw ? JSON.parse(raw) : freshStats(difficultyLives, hintsPerGame, modeIds);
+    if (!s.perDiff) s.perDiff = freshStats(difficultyLives, hintsPerGame, modeIds).perDiff;
     Object.keys(difficultyLives).forEach(key => {
       if (!s.perDiff[key]) s.perDiff[key] = freshDiffState();
       // Eskiden (skor tabanı eklenmeden önce) kaydedilmiş negatif skorlar kalıcı
@@ -75,6 +93,15 @@ export function loadStats(difficultyLives, hintsPerGame) {
       if (typeof d.score === "number" && d.score < 0) d.score = 0;
       if (typeof d.bestScore === "number" && d.bestScore < 0) d.bestScore = 0;
     });
+    const isFirstPerModeMigration = !s.perMode;
+    if (!s.perMode) s.perMode = {};
+    modeIds.forEach(id => {
+      if (!s.perMode[id]) s.perMode[id] = freshModeState();
+    });
+    if (isFirstPerModeMigration && legacyModeId && s.perMode[legacyModeId]) {
+      const totalLegacyXp = Object.values(s.perDiff || {}).reduce((sum, d) => sum + ((d && d.xp) || 0), 0);
+      s.perMode[legacyModeId].xp = totalLegacyXp;
+    }
     if (typeof s.hintsRemaining !== "number") s.hintsRemaining = hintsPerGame;
     // Eski kayıtlarda (bu değişiklikten önce) top-level "lives" hiç yoktu — temiz
     // localStorage'da olduğu gibi TOTAL_LIVES'a çekilir. Eski perDiff[key].lives
@@ -91,7 +118,7 @@ export function loadStats(difficultyLives, hintsPerGame) {
     if (typeof s.lives !== "number" || s.lives <= 0) s.lives = TOTAL_LIVES;
     return s;
   } catch {
-    return freshStats(difficultyLives, hintsPerGame);
+    return freshStats(difficultyLives, hintsPerGame, modeIds);
   }
 }
 

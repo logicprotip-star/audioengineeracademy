@@ -30,12 +30,37 @@ export function accuracy(stats) {
 
 // XP hiçbir zaman stats.xp'de tutulmadı — her zorluğun kendi perDiff[key].xp'si var,
 // tek/global bir XP alanı yok. "Level 5 ol" başarımı bu yüzden hiç tetiklenmiyordu
-// (levelFromXp(undefined) her zaman 1 döner). Zorluklar arası toplam XP, koduna
-// modeTotalXp()'nin (app.js) zaten kullandığı aynı yaklaşım — tek moddayken bu,
-// kullanıcının o moddaki TOPLAM ilerlemesi anlamına gelir.
+// (levelFromXp(undefined) her zaman 1 döner). Zorluklar arası toplam XP — DİKKAT: bu,
+// TÜM zorlukları TEK bir moda aitmiş gibi toplar; birden fazla mod perDiff'in aynı
+// anahtar adlarını (easy/medium/...) paylaşırsa YANLIŞ sonuç verir. Sadece bu dosyanın
+// İÇİNDE (başarım kontrolü) kullanılır — Z3 ile gelen mod-bazlı XP için bkz. modeXp/
+// modeLevel/academyLevel altta, onlar stats.perMode'u (mod-adına göre AYRIŞTIRILMIŞ) okur.
 function totalXp(stats) {
   if (!stats.perDiff) return 0;
   return Object.values(stats.perDiff).reduce((sum, d) => sum + ((d && d.xp) || 0), 0);
+}
+
+// Z3: MOD BAŞINA seviye. stats.perMode[modeId].xp'den (perDiff'in aksine, mod adına
+// göre doğru şekilde ayrıştırılmış) hesaplanır — bkz. core/storage.js freshModeState/
+// loadStats (migration).
+export function modeXp(stats, modeId) {
+  return (stats.perMode && stats.perMode[modeId] && stats.perMode[modeId].xp) || 0;
+}
+export function modeLevel(stats, modeId) {
+  return levelFromXp(modeXp(stats, modeId));
+}
+
+// AKADEMİ (genel) seviyesi — KARAR (Z3): mod seviyelerinin TOPLAMI (her modLevel()
+// levelFromXp gibi her zaman >=1 döner — sıfır XP'li bir mod bile "seviye 1" sayılır).
+// Bu, tek oynanabilir mod olduğu SÜRECE academyLevel === modeLevel(o mod) demektir
+// (mevcut davranışla birebir tutarlı). NOT (gelecek için): yeni modlar eklendikçe
+// HİÇ OYNANMAMIŞ modlar da +1 katkı yapacak ("bedava seviye şişmesi") — bugün bunu
+// önleyecek bir eşik (ör. sadece xp>0 olan modları say) EKLENMEDİ, çünkü mevcut tek-mod
+// gerçekliğinde unlockLevel:1 kilidinin her zaman >=1 seviyeyle geçmesi gerekiyor
+// (0 tabanlı bir toplam, sıfır-XP'li yeni kullanıcıyı ilk moddan bile kilitlerdi).
+// İkinci mod eklendiğinde bu ödün yeniden değerlendirilmeli.
+export function academyLevel(stats, modeIds) {
+  return (modeIds || []).reduce((sum, id) => sum + modeLevel(stats, id), 0);
 }
 
 export const ACHIEVEMENTS = [

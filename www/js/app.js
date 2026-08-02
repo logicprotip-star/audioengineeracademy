@@ -382,7 +382,12 @@ const roundFlow = createRoundFlow({
 // Oyun durumu
 // ═══════════════════════════════════════════════════════════════════════════
 
-let stats = storage.loadStats(difficultyLivesMap(), HINTS_PER_GAME);
+// Z3: mod başına XP takibi için oynanabilir mod id'leri (registry.js'te KAYITLI
+// olanlar — MODE_CATALOG'taki 14 girdinin çoğu henüz kodlanmadı, onlar için perMode
+// girdisi açılmaz). legacyModeId: perMode İLK KEZ oluşturulurken (göç) tüm geçmiş
+// XP'nin frekans-bulma'ya ait sayılması için — bugüne kadar oynanabilir TEK mod oydu.
+function playableModeIds() { return listModes().map(m => m.getMeta().id); }
+let stats = storage.loadStats(difficultyLivesMap(), HINTS_PER_GAME, playableModeIds(), frekansBulma.MODE_ID);
 let history = stats.history || [];
 // loadStats negatif skorları belleğe yüklerken 0'a çeker — düzeltilmiş değer hemen
 // kalıcı hale gelsin diye (kullanıcı ilk aksiyonunu almadan önce bile) burada yazılır.
@@ -500,7 +505,7 @@ function recordAndPersistDailyAccuracy(correct) {
 // localStorage boşsa (ör. WKWebView temizlemişse) Preferences'taki yedekten kurtar.
 (async function reconcileFromPreferences() {
   const recovered = await storage.reconcileFromPreferences();
-  if (recovered.stats) { stats = storage.loadStats(difficultyLivesMap(), HINTS_PER_GAME); history = stats.history || []; }
+  if (recovered.stats) { stats = storage.loadStats(difficultyLivesMap(), HINTS_PER_GAME, playableModeIds(), frekansBulma.MODE_ID); history = stats.history || []; }
   if (recovered.daily) { daily = storage.loadDaily(); }
   if (recovered.zoneStats) { zoneStats = storage.loadZoneStats(); }
   if (recovered.prefs) { prefs = storage.loadPrefs(); applyPrefs(); }
@@ -513,9 +518,19 @@ function recordAndPersistDailyAccuracy(correct) {
 // bkz. stats.lives (global, tek havuz).
 function diffState() {
   const key = els.difficultySelect ? els.difficultySelect.value : "medium";
-  if (!stats.perDiff) stats.perDiff = storage.freshStats(difficultyLivesMap(), HINTS_PER_GAME).perDiff;
+  if (!stats.perDiff) stats.perDiff = storage.freshStats(difficultyLivesMap(), HINTS_PER_GAME, playableModeIds()).perDiff;
   if (!stats.perDiff[key]) stats.perDiff[key] = storage.freshDiffState();
   return stats.perDiff[key];
+}
+
+// Z3: şu an OYNANAN modun kendi XP durumu — diffState() zorluk-adına göre, bu MOD
+// adına göre ayrışır (bkz. core/storage.js freshModeState notu: perDiff birden fazla
+// mod arasında çakışabilir, perMode çakışmaz).
+function modeState() {
+  const id = mode.getMeta().id;
+  if (!stats.perMode) stats.perMode = storage.freshStats(difficultyLivesMap(), HINTS_PER_GAME, playableModeIds()).perMode;
+  if (!stats.perMode[id]) stats.perMode[id] = storage.freshModeState();
+  return stats.perMode[id];
 }
 
 function currentDifficultyConfig() {
@@ -896,7 +911,15 @@ function renderModeGrid() {
       // bandında, ızgara eşit duruyor. playable SADECE tıklama davranışı/kilit
       // görünümü için registry.js'teki gerçek kayda bakılarak belirlenir.
       const realMode = registeredModes.find(m => m.getMeta().id === entry.id);
-      const playable = !!realMode;
+      // Z3 KARARI: "Seviye N'de açılır" kilidi AKADEMİ (toplam) seviyesine bakar,
+      // mod'un KENDİ seviyesine değil — unlockLevel'lar (1..20) henüz kodlanmamış
+      // 13 modu da kapsayan genel bir içerik yol haritasını temsil ediyor; o modların
+      // kendi XP kaynağı olmadığı için mod-bazlı seviyeye bakmak anlamsız olurdu.
+      // Bugün TEK oynanabilir mod (frekans-bulma, unlockLevel:1) academyLevel her
+      // zaman >=1 olduğu için bu kontrolden HER ZAMAN geçer — görünür bir değişiklik
+      // yok, ama ikinci mod kodlandığında doğru mekanizma hazır olacak.
+      const meetsLevel = progress.academyLevel(stats, playableModeIds()) >= entry.unlockLevel;
+      const playable = !!realMode && meetsLevel;
       const card = document.createElement("button");
       card.type = "button";
       card.className = `mode-card${playable ? "" : " locked"}`;
@@ -920,6 +943,7 @@ function renderModeGrid() {
       `;
       card.addEventListener("click", () => {
         if (playable) { goScreen("game"); return; }
+        if (realMode && !meetsLevel) { toast("Seviye yetersiz", `Bu egzersiz Seviye ${entry.unlockLevel}'de açılır.`); return; }
         toast("Yakında", "Bu egzersiz yakında eklenecek.");
       });
       grid.appendChild(card);
@@ -1075,13 +1099,16 @@ function renderDailyTip() {
   els.dailyTipCard.classList.remove("hidden");
 }
 
-// Bir modun "seviyesi": o moda ait TÜM zorlukların (mode.DIFFICULTY anahtarları)
-// toplam XP'sinden hesaplanır — diffState().xp yalnızca SEÇİLİ zorluğa aittir.
-// İsabet yüzdesi şu an GENEL istatistiktir (progress.accuracy(stats)); tek mod
-// olduğu için bugün doğru — birden fazla mod eklendiğinde mod-bazlı isabet takibi
-// ayrıca kurulmalı (stats şemasına dokunmak bu adımın kapsamı dışında).
+// Bir modun "seviyesi": stats.perMode[modId].xp'den hesaplanır (bkz. progress.modeXp).
+// Z3 ÖNCESİ bu fonksiyon mode.DIFFICULTY anahtarlarının perDiff'teki XP'sini
+// TOPLUYORDU — tek mod varken doğru sonuç veriyordu ama YAPISAL OLARAK YANLIŞTI:
+// perDiff zorluk-ADINA göre anahtarlanıyor (easy/medium/...), MOD'a göre değil; iki
+// farklı mod aynı zorluk adını kullanırsa (çoğu MODE_CATALOG girdisi muhtemelen
+// kullanacak) XP'leri KARIŞIRDI. perMode (Z3) her modun kendi ad alanı olduğu için
+// bu çakışmayı yapısal olarak önlüyor. İsabet yüzdesi hâlâ GENEL istatistik
+// (progress.accuracy(stats)) — mod-bazlı isabet takibi Z3'ün kapsamı dışında.
 function modeTotalXp(modeApi) {
-  return Object.keys(modeApi.DIFFICULTY).reduce((sum, k) => sum + ((stats.perDiff[k] && stats.perDiff[k].xp) || 0), 0);
+  return progress.modeXp(stats, modeApi.getMeta().id);
 }
 
 function renderModeLevels() {
@@ -1336,6 +1363,7 @@ function submitFrequencyGuess(guessHz) {
       combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
     });
     diffState().xp += gained;
+    modeState().xp += gained; // Z3: mod-bazlı seviye buradan besleniyor (bkz. progress.modeLevel)
     diffState().score += gained * Math.max(1, stats.combo);
     diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
     if (q.difficulty === "pro") stats.proCorrect++;
@@ -1418,6 +1446,7 @@ function submitProPlusGuess() {
       combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
     });
     diffState().xp += gained;
+    modeState().xp += gained; // Z3: mod-bazlı seviye buradan besleniyor (bkz. progress.modeLevel)
     diffState().score += gained * Math.max(1, stats.combo);
     diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
     if (q.boss) stats.bossWins++;
@@ -2127,7 +2156,7 @@ els.resetStatsBtn.addEventListener("click", () => {
   if (!confirm("Tüm istatistikler, ilerleme ve görevler sıfırlansın mı?")) return;
   storage.clearStats();
   storage.clearDaily();
-  stats = storage.freshStats(difficultyLivesMap(), HINTS_PER_GAME);
+  stats = storage.freshStats(difficultyLivesMap(), HINTS_PER_GAME, playableModeIds());
   history = [];
   daily = storage.freshDaily();
   activeQuestion = null;
