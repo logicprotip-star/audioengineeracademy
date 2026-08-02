@@ -132,6 +132,7 @@ const els = {
   mixToggle: document.getElementById("mixToggle"),
   gameScroll: document.getElementById("gameScroll"),
   gameActionbar: document.getElementById("gameActionbar"),
+  gameScreen: document.getElementById("screen-game"),
   sourceChipLabel: document.getElementById("sourceChipLabel"),
 
   // odak aralığı
@@ -300,6 +301,31 @@ window.addEventListener("orientationchange", resizeCanvas);
 // .game-scroll). Burada eskiden bir ResizeObserver/syncGameScrollPadding vardı;
 // cihazda ilk saniyelerde negatif fark bırakıyordu (actionbar henüz ölçülmeden
 // önceki kare) — CSS çözümü bu tür bir zamanlama penceresi bırakmıyor.
+
+// E3: cevap verildikten (veya süre dolduktan) sonra actionbar'daki hiçbir kontrol
+// (Durdur/A-B/İpucu/Atla) işlevsiz kalıyordu — çubuğu geçici olarak aşağı kaydırıp
+// geri bildirim kartına o alanı da bırakır. Sadece bir CSS sınıfı değiştirir;
+// gerçek kayma/boşluk animasyonu styles.css'teki .actionbar-tucked geçişleriyle
+// olur (D1'in --actionbar-h tabanlı, ölçüme dayanmayan boşluk sistemi bozulmaz —
+// sadece iki durum arasında GEÇİŞ ekleniyor, mekanizma aynı kalıyor).
+// instant=true: sınıf animasyonsuz (bir kare) uygulanır — SADECE yeni tur açılışında
+// (renderQuestion) kullanılır, çünkü .game-scroll'un margin-bottom geçişi devam
+// ederken şıklı moddaki otomatik kaydırma (scrollFeedbackIntoView) scrollHeight'ı
+// SENKRON okuyor; geçiş yarıda yakalanırsa yanlış (eski) değeri görür (bkz.
+// styles.css .actionbar-no-transition yorumu — gerçek bulunmuş bir bug). Cevap
+// verilince gizlenme (tuck) HER ZAMAN animasyonlu kalır, instant SADECE geri
+// gelirken (untuck) ve SADECE bu tek race'i önlemek için var.
+function setActionbarTucked(tucked, { instant = false } = {}) {
+  if (!els.gameScreen) return;
+  if (!instant) {
+    els.gameScreen.classList.toggle("actionbar-tucked", tucked);
+    return;
+  }
+  els.gameScreen.classList.add("actionbar-no-transition");
+  els.gameScreen.classList.toggle("actionbar-tucked", tucked);
+  void els.gameScreen.offsetHeight; // stilin (margin/transform) bu karede kesinleşmesini zorla
+  els.gameScreen.classList.remove("actionbar-no-transition");
+}
 
 // Cevap sonrası geri bildirim kartının TAMAMI görünür olsun diye scroll alanını
 // alta kaydırır. requestAnimationFrame: DOM içerik güncellemesi (setFeedback)
@@ -747,6 +773,12 @@ function goScreen(name) {
     // okumak tarayıcıyı güncel layout'u hesaplamaya zorlar — rAF'a gerek yok (rAF arka
     // planda/pasif sekmelerde ertelenebiliyor, bu da güvenilmez ölçümlere yol açıyordu).
     resizeCanvas();
+    // E3 güvenlik ağı: cevap verilip actionbar tucked'ken kullanıcı "Geri"ye basıp
+    // menüye çıkarsa (sonraki tur hiç renderQuestion() çağırmadan), bu sınıf DOM'da
+    // takılı kalırdı — bir dahaki oyun ekranı girişinde "Oyunu Başlat" butonu bile
+    // görünmez olurdu. Ekrana her girişte kayıtsız şartsız sıfırlanır; instant çünkü
+    // bu bir ekran GİRİŞİ, kullanıcı çubuğun içeri kaymasını izlemiyor olmalı zaten.
+    setActionbarTucked(false, { instant: true });
   } else if (abLoopTimer) {
     // Oyun ekranından çıkılınca A/B döngüsü arka planda dönmeye devam etmesin
     // (prototype.html: go() içindeki aynı temizlik, "s-game1" dışına çıkınca stopAbLoop).
@@ -1171,6 +1203,10 @@ function giveHint() {
 function renderQuestion() {
   const q = activeQuestion;
   roundActive = true;
+  // instant:true — bkz. setActionbarTucked tanımı: birazdan aynı fonksiyon içinde
+  // şıklı modda scrollFeedbackIntoView senkron scrollHeight okuyacak, margin geçişi
+  // yarıda yakalanmasın diye bu tek çağrı animasyonsuz.
+  setActionbarTucked(false, { instant: true }); // yeni soru — kontroller tekrar anlamlı, çubuk geri gelsin
 
   mode.clearHintMask(els.hintMaskLayer);
   updateHintChipLabel();
@@ -1222,6 +1258,7 @@ function renderQuestion() {
 function onTimeUp() {
   if (!roundActive || !activeQuestion) return;
   roundActive = false;
+  setActionbarTucked(true); // süre doldu — cevap verilmemiş olsa da tur bitti, kontroller aynı şekilde işlevsiz
   if (activeQuestion.mode === "frequency") activeQuestion.freqRevealed = true;
   setAnalyzerPhase("done");
   if (els.gainValue) els.gainValue.textContent = activeQuestion.mode === "frequency" ? formatGainDb(activeQuestion.gain) : "";
@@ -1247,6 +1284,7 @@ function submitFrequencyGuess(guessHz) {
   if (guessHz == null) return;
   roundActive = false;
   roundFlow.clearTimer();
+  setActionbarTucked(true);
 
   const q = activeQuestion;
   q.freqRevealed = true;
@@ -1314,6 +1352,7 @@ function submitProPlusGuess() {
   if (!roundActive || !activeQuestion || activeQuestion.mode !== "proplus") return;
   roundActive = false;
   roundFlow.clearTimer();
+  setActionbarTucked(true);
 
   const q = activeQuestion;
   q.freqRevealed = true;
