@@ -3,7 +3,7 @@
 // mantık (ses zinciri, soru üretimi/puanlama, kalıcılık) core/ ve modes/ içindedir.
 
 import { createAudioEngine } from "./core/audio-engine.js";
-import { createUploadManager, validateAudioFile } from "./core/upload.js";
+import { createUploadManager, validateAudioFile, audioAcceptAttr } from "./core/upload.js";
 import { createRoundFlow } from "./core/round-flow.js";
 import * as storage from "./core/storage.js";
 import * as progress from "./core/progress.js";
@@ -1735,9 +1735,19 @@ if (els.answers) els.answers.addEventListener("click", e => {
 // Ses dosyası yükleme
 // ═══════════════════════════════════════════════════════════════════════════
 
+// accept özniteliği validateAudioFile'ın kabul ettiği listeyle AYNI kaynaktan (bkz. E1) —
+// native dosya seçicinin WAV gibi formatları elemesini önlemek için MIME joker + WAV
+// MIME varyantları + uzantı listesi birleşimi kullanılıyor.
+if (els.audioFileInput) els.audioFileInput.accept = audioAcceptAttr();
+if (els.toolsFileInput) els.toolsFileInput.accept = audioAcceptAttr();
+
 els.audioFileInput.addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
+  // E1 teşhis logu: seçim native picker'dan GERÇEKTEN geçti mi, hangi ad/MIME/boyutla?
+  // Bu log hiç görünmüyorsa dosya JS'e hiç ulaşmadan native seçicide elenmiş demektir
+  // (accept/UTI sorunu); görünüp de sonrası başarısız oluyorsa sorun doğrulama/oynatmadadır.
+  console.log("[upload] dosya seçildi:", file.name, "| tip:", file.type || "(boş)", "|", Math.round(file.size / 1024), "KB");
   const validation = validateAudioFile(file);
   if (!validation.ok) {
     setFeedback(validation.title, validation.detail);

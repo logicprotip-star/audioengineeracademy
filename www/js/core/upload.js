@@ -4,10 +4,25 @@
 // uploadedMediaSource TUR DEĞİŞTİĞİNDE yeniden oluşturulmaz/kesilmez — sadece filtre
 // zincirine yeniden bağlanır (bkz. audio-engine.js: buildQuestionChain).
 
-const ALLOWED_AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "aac", "aiff", "flac", "ogg"];
+export const ALLOWED_AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "aac", "aiff", "flac", "ogg"];
 const MAX_AUDIO_FILE_MB = 120; // Kullanıcı onayı (D4): 150'den düşürüldü. HTMLAudioElement dosyayı akışla oynatır
 // (decodeAudioData gibi tamamını RAM'e açmaz) — bu sınırın gerekçesi bellek çökmesi değil,
 // kulak eğitimi için gereğinden büyük bir dosyanın kazara seçilmesini engellemek.
+
+// iOS WKWebView'de <input accept="audio/*"> TEK BAŞINA bazı formatları (özellikle WAV)
+// native dosya seçicide hiç göstermeyebiliyor/seçilemez bırakabiliyor — audio/* MIME
+// joker karakterinin WebKit'teki UTI (Uniform Type Identifier) karşılığı platforma göre
+// eksik kalabiliyor (bilinen, belgelenmiş bir WebKit sınırlaması; bkz. E1). Bunu MIME
+// joker + WAV'ın bilinen tüm MIME varyantları + dosya uzantısı listesiyle birleştirmek
+// picker'a birden fazla eşleşme yolu veriyor. ALLOWED_AUDIO_EXTENSIONS ile TEK kaynaktan
+// üretiliyor — validateAudioFile'ın kabul ettiğinden FARKLI bir liste asla oluşamaz.
+export function audioAcceptAttr() {
+  return [
+    "audio/*",
+    "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave",
+    ...ALLOWED_AUDIO_EXTENSIONS.map(ext => `.${ext}`)
+  ].join(",");
+}
 
 export function validateAudioFile(file) {
   const ext = (file.name.split(".").pop() || "").toLowerCase();
