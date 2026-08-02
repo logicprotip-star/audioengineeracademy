@@ -188,6 +188,16 @@
               <span class="settings-row-value"><span class="setting-row-value-text"></span><span class="chev">&#8250;</span></span>
             </button>
           </div>
+          <!-- Z7: Otomatik zorluk modundayken "Zorluk" satırına dokununca (yukarıdaki
+               data-sheet-select tıklaması app.js'te YAKALANIR, sheet AÇILMAZ) burası
+               açılır — prototype.html: gameDiffTap/autoDiffAsk. -->
+          <div class="auto-diff-ask hidden" id="autoDiffAsk">
+            <p>Zorluk performansına göre otomatik ayarlanıyor. Kendin seçmek ister misin?</p>
+            <div class="row">
+              <button class="btn primary" id="autoDiffSwitchBtn" type="button">Sabit'e geç</button>
+              <button class="btn" id="autoDiffDismissBtn" type="button">Vazgeç</button>
+            </div>
+          </div>
           <div class="control control-sheet">
             <select id="playModeSelect" class="hidden">
               <option value="free" selected>Serbest (sonsuz)</option>

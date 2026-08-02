@@ -179,6 +179,9 @@ const els = {
   lvlSheetClose: document.getElementById("lvlSheetClose"),
   lvlSheetBody: document.getElementById("lvlSheetBody"),
   quitGameBtn: document.getElementById("quitGameBtn"),
+  autoDiffAsk: document.getElementById("autoDiffAsk"),
+  autoDiffSwitchBtn: document.getElementById("autoDiffSwitchBtn"),
+  autoDiffDismissBtn: document.getElementById("autoDiffDismissBtn"),
   difficultySelect: document.getElementById("difficultySelect"),
   playModeSelect: document.getElementById("playModeSelect"),
   timerModeSelect: document.getElementById("timerModeSelect"),
@@ -2106,6 +2109,9 @@ function openGameSettingsSheet() {
 function closeGameSettingsSheet() {
   els.gameSettingsOverlay.classList.remove("open");
   els.gameSettingsSheet.classList.remove("open");
+  // Z7: sheet kapanınca autoDiffAsk'ı da sıfırla — bir sonraki açılışta stale
+  // (önceki oturumdan açık kalmış) görünmesin.
+  if (els.autoDiffAsk) els.autoDiffAsk.classList.add("hidden");
 }
 els.gameSettingsBtn.addEventListener("click", openGameSettingsSheet);
 els.gameSettingsCancel.addEventListener("click", closeGameSettingsSheet);
@@ -2459,10 +2465,36 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => {
     const select = document.getElementById(row.dataset.sheetSelect);
     if (!select) return;
     updateRowText(select);
-    row.addEventListener('click', () => openSheet(select, row.dataset.sheetTitle || ''));
+    row.addEventListener('click', () => {
+      // Z7: Otomatik zorluk modundayken "Zorluk" satırına dokunmak seçim listesini
+      // AÇMAZ — kullanıcı zaten müdahale etmiyor demektir (Z5 kararı); bunun yerine
+      // "Sabit'e geçmek ister misin?" sorusu gösterilir (prototype.html: gameDiffTap/
+      // autoDiffAsk). diffModeAuto module-level `let` İLE bu IIFE'DEN SONRA
+      // tanımlanıyor ama bu satır sadece TIKLAMA anında çalışıyor — o ana kadar
+      // script'in tamamı (diffModeAuto dahil) zaten değerlendirilmiş olur, TDZ
+      // sorunu yok.
+      if (select.id === 'difficultySelect' && diffModeAuto) {
+        if (els.autoDiffAsk) els.autoDiffAsk.classList.remove('hidden');
+        return;
+      }
+      openSheet(select, row.dataset.sheetTitle || '');
+    });
     // select'in değeri BAŞKA bir yerden değişse bile (ör. Genel Ayarlar sheet'indeki
     // Zorluk → Sabit alt listesi) bu satırın metni senkron kalsın.
     select.addEventListener('change', () => updateRowText(select));
+  });
+
+  // Z7: autoDiffAsk'ın iki butonu.
+  if (els.autoDiffSwitchBtn) els.autoDiffSwitchBtn.addEventListener('click', () => {
+    if (els.autoDiffAsk) els.autoDiffAsk.classList.add('hidden');
+    diffModeAuto = false;
+    prefs.difficultyMode = "fixed";
+    storage.savePrefs(prefs);
+    syncDiffSheetUI(); // Genel Ayarlar'daki Otomatik/Sabit görünümü de senkron kalsın
+    openSheet(document.getElementById('difficultySelect'), 'Zorluk'); // hemen seçim yapabilsin (prototype.html: switchToFixed)
+  });
+  if (els.autoDiffDismissBtn) els.autoDiffDismissBtn.addEventListener('click', () => {
+    if (els.autoDiffAsk) els.autoDiffAsk.classList.add('hidden');
   });
 
   overlay.addEventListener('click', closeSheet);
@@ -2548,6 +2580,16 @@ function applyAutoDifficulty() {
     renderHearts();
     updateUI();
     syncDiffSheetUI();
+    // "change" event BİLEREK dispatch edilmiyor (2205 civarındaki listener her
+    // değişiklikte "Zorluk değişti" toast'ı gösteriyor — Otomatik'te her turda
+    // spam olurdu). Ama initSettingsSheet IIFE'indeki updateRowText() de SADECE o
+    // "change" event'ini dinliyor — bu yüzden Oyun Ayarları sheet'indeki "Zorluk"
+    // satırının metnini BURADA elle güncelliyoruz (aynı DOM deseni: upload.js'in
+    // change handler'ında da kullanılan .setting-row[data-sheet-select] sorgusu).
+    document.querySelectorAll('.setting-row[data-sheet-select="difficultySelect"] .setting-row-value-text').forEach(txt => {
+      const opt = els.difficultySelect.options[els.difficultySelect.selectedIndex];
+      if (opt) txt.textContent = opt.text;
+    });
   }
 }
 // Açılışta da uygula (ilk round'u beklemeden) — Otomatik varsayılan olduğu için

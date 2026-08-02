@@ -513,6 +513,11 @@
     .settings-row-label{flex:none;color:var(--tx-3);font-size:14px}
     .settings-row-value{display:flex;align-items:center;gap:6px;flex:none;font-weight:700;color:var(--tx);font-size:15px}
     .settings-row-value .chev{color:var(--tx-3);font-size:16px;line-height:1}
+    /* Z7: autoDiffAsk — prototype.html'deki callout ile aynı renk dili (uyarı/amber). */
+    .auto-diff-ask{margin-top:12px;padding:14px;border-radius:18px;background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.3)}
+    .auto-diff-ask p{margin:0;font-size:15px;line-height:1.5;color:var(--tx-2)}
+    .auto-diff-ask .row{margin-top:12px}
+    .auto-diff-ask .row .btn{min-height:48px;font-size:15px}
     .upload-row{padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09)}
     .upload-row label{display:block;margin-bottom:8px;color:var(--tx-3);font-size:14px}
     .upload-row input[type="file"]{width:100%;color:var(--tx-2);font-size:13px}
