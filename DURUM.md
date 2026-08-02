@@ -7,6 +7,42 @@ Son güncelleme: 02.08.2026
 
 ## BİTTİ
 
+Commit `bc45b38` — E1: "Dosya seç" ile WAV seçilemiyordu (bug). Kod tarafında
+(validateAudioFile'ın uzantı kontrolü) WAV'ı özel olarak eleyen bir şey
+bulunamadı — 7 format da Node'da tek tek doğrulandı. En olası açıklama iOS
+WKWebView'in `accept="audio/*"` MIME-jokerini UTI'ye çevirirken bazı
+formatları (özellikle WAV) dışarıda bırakabilmesi (bilinen bir WebKit
+sınırlaması) — bu ortamda fiziksel cihaz olmadığı için konsol logu ile
+BİREBİR KANITLANAMADI. Düzeltme: accept artık MIME joker + WAV'ın bilinen
+MIME varyantları + uzantı listesi birleşimi (audioAcceptAttr(), tek kaynak
+ALLOWED_AUDIO_EXTENSIONS'tan üretiliyor); change handler'ına kalıcı bir
+teşhis logu eklendi ([upload] dosya seçildi: ad|tip|boyut) — bir sonraki
+cihaz testinde bu log konsolda görünüyor mu diye bakılmalı.
+
+Commit `17eb76c` — E2: "Cevap biçimi" chip'i oyun ekranına eklendi (Kaynak/
+Odak'ın yanına, 3. chip). Bunu yaparken initSettingsSheet'te gerçek bir bug
+bulundu (updateRowText tekil querySelector kullanıyordu, aynı select'e bağlı
+2. bir satırı hiç güncellemiyordu — querySelectorAll'a çevrildi) VE .srctag'ın
+gerçek flex kapsayıcısının .chiprow değil aradaki .control.control-sheet
+div'i olduğu, .srctag'ın o div'in flex öğesi olmadığı için flex:1/min-width:0'ının
+hiç uygulanmadığı (width:100% ile düzeltildi) bulundu — bu ikinci bug 2
+chip'te geniş pay yüzünden hiç fark edilmiyordu. Yeni chip flex:0 0 auto
+(kısa metin hiç kesilmiyor), Kaynak/Odak flex:1 kalıyor.
+
+Commit `96e56d7` — E3: cevap sonrası alt bar gizleniyor (.actionbar-tucked,
+transform tabanlı, D1'in --actionbar-h sistemini bozmadan). Bunu yaparken
+D1'in şıklı-mod otomatik kaydırmasıyla (scrollFeedbackIntoView) etkileşen
+gerçek bir race bulundu: yeni tur açılışında untuck animasyonlu olunca,
+senkron scrollHeight okuması geçiş tamamlanmadan eski (küçük margin) değeri
+görüyordu — auto-advance edilmiş turlarda D1 bug'ı GERİ GELİYORDU. Çözüm:
+setActionbarTucked'a instant seçeneği eklendi, SADECE yeni-tur-açılış
+untuck'ında kullanılıyor (tuck her zaman animasyonlu kalıyor).
+
+Üçü de: npm test 68/68 her adımdan sonra, konsol hatası yok. D1/D5 gibi bu
+üçü de gerçek cihazda/simülatörde KONTROL EDİLMEDİ (bu ortamda yok) — sadece
+tarayıcı/dosya düzeyinde doğrulandı; E1 özellikle cihazda ayrıca kontrol
+edilmeli (bkz. üstteki not).
+
 Commit `a1c837a` — D1: alt bar CSS-tabanlı padding düzeltmesi (cihaz testinden
 çıkan bug). Kök sebep yeniden teşhis edildi: `.game-scroll` flex:1 ile ekranın
 TÜM artan alanını (position:fixed actionbar'ın kapladığı ~168px dahil) kendi
@@ -271,9 +307,12 @@ hazır, sadece onay bekliyor.
 ## SIRADAKİ
 
 E/F/G/H/I kararlarından biri — kullanıcıya sorulacak, kod tarafında bekleyen bir
-şey yok. Karar gelmezse en öncelikli teknik iş: D1/D5'in simülatör veya gerçek
-cihazda (Xcode/Android Studio bu ortamda yoktu) doğrulanması — bu turda sadece
-masaüstü tarayıcı/dosya düzeyinde doğrulandı.
+şey yok. Karar gelmezse en öncelikli teknik iş: D1/D5/E1/E3'ün simülatör veya
+gerçek cihazda (Xcode/Android Studio bu ortamda yoktu) doğrulanması — bu turda
+sadece masaüstü tarayıcı/dosya düzeyinde doğrulandı. E1 özellikle önemli: WAV
+seçme sorununun kök sebebi (accept/UTI) kanıtlanamadı, sadece en olası açıklamaya
+göre düzeltildi — cihazda [upload] konsol logunun görünüp görünmediği kontrol
+edilmeli.
 
 ## ÜRÜN NOTLARI (önceki sohbetlerden)
 
