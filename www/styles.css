@@ -292,13 +292,25 @@
 
     /* ---- kaynak / karıştır chip satırı ---- */
     .chiprow{display:flex;gap:8px;align-items:stretch}
+    /* KÖK SEBEP (E2'nin 3. chip'i eklemesiyle ortaya çıktı, tarayıcıda ölçülerek
+       bulundu): .srctag'ın gerçek flex kapsayıcısı .chiprow DEĞİL — .chiprow ile
+       .srctag arasında ekstra bir <div class="control control-sheet"> katmanı var
+       (Kaynak/Odak/Cevap-biçimi sheet'lerinin select+label çiftini sarmalamak için).
+       O div flex:1 ile doğru şekilde daralıyordu (88px ölçüldü) ama .srctag'ın
+       KENDİSİ o div'in flex ÖĞESİ değil, sıradan bir blok çocuğu — üstündeki
+       flex:1/min-width:0 hiç uygulanmıyordu (etkisiz), width:auto'su içeriğe göre
+       taştı (134px ölçüldü, 88px'lik kapsayıcıyı görmezden gelerek). width:100%
+       bunu doğrudan kapsayan div'in genişliğine kenetler; .srctag b'deki
+       min-width:0 da OLMADAN ellipsis hiç devreye girmiyordu (flex metin
+       çocukları varsayılan min-width:auto ile içeriğin doğal genişliğinin altına
+       küçülmez) — ikisi birlikte gerekli. */
     .srctag{
-      display:flex;align-items:center;gap:6px;min-width:0;flex:1;min-height:44px;padding:8px 10px;
+      display:flex;align-items:center;gap:6px;width:100%;min-width:0;flex:1;min-height:44px;padding:8px 10px;
       border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
       font-size:14px;font-weight:600;color:var(--tx-3);text-align:left;
     }
     .srctag:active{background:rgba(255,255,255,.14)}
-    .srctag b{font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .srctag b{min-width:0;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .srctag .chev{font-size:15px;margin-left:auto;flex:none;color:var(--tx-3)}
     .mixchip{
       flex:none;min-height:44px;padding:8px 12px;border-radius:14px;display:flex;align-items:center;gap:8px;

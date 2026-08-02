@@ -2138,12 +2138,17 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => {
   const sheetCancel = document.getElementById('sheetCancel');
   if (!overlay || !sheet) return;
 
+  // E2: Cevap biçimi artık İKİ yerden değiştirilebiliyor (oyun ekranındaki chip +
+  // Oyun Ayarları sheet'indeki satır), ikisi de AYNI answerFormatSelect'e bağlı —
+  // querySelectorAll ile TÜMÜ güncellenir, tek eşleşmeli querySelector'da sadece
+  // DOM'daki ilk satır güncellenip diğeri eski değerde donuk kalırdı.
   function updateRowText(select) {
-    const row = document.querySelector(`.setting-row[data-sheet-select="${select.id}"]`);
-    const txt = row && row.querySelector('.setting-row-value-text');
-    if (txt && select.options[select.selectedIndex]) {
-      txt.textContent = select.options[select.selectedIndex].text;
-    }
+    document.querySelectorAll(`.setting-row[data-sheet-select="${select.id}"]`).forEach(row => {
+      const txt = row.querySelector('.setting-row-value-text');
+      if (txt && select.options[select.selectedIndex]) {
+        txt.textContent = select.options[select.selectedIndex].text;
+      }
+    });
   }
 
   function closeSheet() {

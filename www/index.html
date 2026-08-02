@@ -98,6 +98,22 @@
               <b class="setting-row-value-text" id="focusChipLabel" style="color:var(--bl)">Tüm spektrum</b><span class="chev">&#8250;</span>
             </button>
           </div>
+          <!-- E2: cevap biçimi chip'i — answerFormatSelect'in KENDİSİ burada değil, Oyun
+               Ayarları sheet'inde tanımlı (bkz. o sheet'teki control-sheet bloğu); bu satır
+               AYNI select'e data-sheet-select ile bağlanıyor. initSettingsSheet'in generic
+               mekanizması (bkz. app.js) iki satırı da otomatik senkron tutar.
+               flex:0 0 auto BİLEREK Kaynak/Odak'tan farklı (onlar flex:1) — 375px'te 3 eşit
+               flex:1 chip "Pink ..."/"Tüm ..."/"Doku..." gibi hepsini okunmaz kesiyordu
+               (ölçüldü). Değerleri KISA (Dokunmalı/Şıklı) olduğu için içeriğine göre
+               daralıp Kaynak/Odak'a (uzun olabilen etiketler: Pink Noise, Tüm spektrum)
+               daha çok pay bırakıyor — üçü de hâlâ taşmıyor/binişmiyor, sadece Kaynak/
+               Odak'ın kırpma payı biraz daha cömert kalıyor. -->
+          <div class="control control-sheet" style="flex:0 0 auto;min-width:0">
+            <label class="hidden">Cevap biçimi</label>
+            <button class="srctag setting-row" data-sheet-select="answerFormatSelect" data-sheet-title="Cevap biçimi">
+              <b class="setting-row-value-text" id="answerFormatChipLabel" style="color:var(--gr)">Dokunmalı</b><span class="chev">&#8250;</span>
+            </button>
+          </div>
           <button class="mixchip" id="mixToggle" aria-label="Karıştır" title="Karıştır"><span class="led"></span><span>⇄</span></button>
         </div>
 
