@@ -11,6 +11,7 @@
 // tarif eder. Gelecekteki modların böyle bir arayüze ihtiyacı olmayabilir.
 
 import { logFreq, shuffle, formatHz, hexToRgba } from "../core/utils.js";
+import { personalizedRange } from "../core/personalization.js";
 
 export const MODE_ID = "frekans-bulma";
 
@@ -203,10 +204,17 @@ export function buildProPlusBands(count, gainAbs, range = [FA_MIN, FA_MAX]) {
   return bands;
 }
 
-// SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz — sadece veri üretir.
+// SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz — sadece veri üretir (zoneStats/rng birer
+// VERİ/enjekte-edilebilir fonksiyon parametresi, dış duruma dokunmaz — saflık bozulmaz).
 // level: DIFFICULTY anahtarlarından biri ("easy" | "medium" | "hard" | "pro" | "proplus")
 // settings: { source: "pink"|"white"|"saw"|"square"|"triangle"|"upload", boss: boolean,
-//             focusRange: [min, max] — bkz. FOCUS_RANGES, verilmezse tüm spektrum }
+//             focusRange: [min, max] — bkz. FOCUS_RANGES, verilmezse tüm spektrum,
+//             zoneStats — Z4: verilirse SADECE tek-bant "frequency" modunda test edilen
+//             frekans zayıf bölgelere doğru ağırlıklanır (proplus'ın çok-bantlı üretimi
+//             KAPSAM DIŞI bırakıldı — bkz. personalization.js yorumu); ÇELDİRİCİLER
+//             (generateChoices) HER ZAMAN tam focusRange kullanır, daralmış kişisel
+//             aralığı DEĞİL — aksi hâlde şıklar zayıf bölgeye sıkışıp doğru cevabı
+//             fazla belli ederdi. rng — test edilebilirlik, verilmezse Math.random. }
 export function createQuestion(level, settings = {}) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const boss = !!settings.boss;
@@ -227,7 +235,10 @@ export function createQuestion(level, settings = {}) {
   }
 
   // ---- FREKANS (tek bant) ----
-  const freq = logFreq(range[0], range[1]);
+  const personalizedFreqRange = settings.zoneStats
+    ? personalizedRange(settings.zoneStats, FA_ZONES, range, settings.rng)
+    : range;
+  const freq = logFreq(personalizedFreqRange[0], personalizedFreqRange[1]);
   // Kolay/Orta'da sadece boost (kesim yok) — dar bir kesim komşu bandın yükselmiş gibi
   // duyulmasına yol açıp yeni başlayanı kafa karıştırıyor. Zor ve üstünde ikisi de var.
   const gainSign = BOOST_ONLY_DIFFICULTIES.has(level) ? 1 : (Math.random() > 0.5 ? 1 : -1);
@@ -430,13 +441,21 @@ export function getHintText(question) {
   return centers.map(hintZoneLabel).join(" / ");
 }
 
-export function recordZone(zoneStats, freq, correct) {
+// dOct (Z4): tahminin doğru frekanstan oktav cinsinden sapması (evaluateAnswer'dan) —
+// opsiyonel, verilmezse sadece n/ok güncellenir (geriye dönük uyumlu, eski çağıranlar
+// bozulmaz). Bölge bazlı zayıflık skoru (core/personalization.js) hem isabet oranını
+// (ok/n) hem ortalama sapmayı (sumDOct/dOctCount) kullanır.
+export function recordZone(zoneStats, freq, correct, dOct = null) {
   const z = FA_ZONES.find(zz => freq >= zz.a && freq < zz.b);
   if (!z) return zoneStats;
   const key = z.t.split(" (")[0];
-  zoneStats[key] = zoneStats[key] || { n: 0, ok: 0 };
+  zoneStats[key] = zoneStats[key] || { n: 0, ok: 0, sumDOct: 0, dOctCount: 0 };
   zoneStats[key].n++;
   if (correct) zoneStats[key].ok++;
+  if (typeof dOct === "number" && Number.isFinite(dOct)) {
+    zoneStats[key].sumDOct = (zoneStats[key].sumDOct || 0) + dOct;
+    zoneStats[key].dOctCount = (zoneStats[key].dOctCount || 0) + 1;
+  }
   return zoneStats;
 }
 

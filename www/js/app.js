@@ -1378,7 +1378,7 @@ function submitFrequencyGuess(guessHz) {
     mode.showFreqInfoPanel(els.freqInfo, feedback);
     appendFreqInfoNote(feedback.title, true);
     scrollFeedbackIntoView();
-    mode.recordZone(zoneStats, q.freq, true);
+    mode.recordZone(zoneStats, q.freq, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
@@ -1395,7 +1395,7 @@ function submitFrequencyGuess(guessHz) {
     // taşınıyor (currentLives, loseLife çağrısından SONRA okunuyor — güncel değer).
     setFeedback(feedback.title, feedback.detail, false, true);
     mode.showFreqInfoPanel(els.freqInfo, feedback);
-    mode.recordZone(zoneStats, q.freq, false);
+    mode.recordZone(zoneStats, q.freq, false, result.dOct);
     audioEngine.sfxBuzz();
     shake(els.canvas);
     loseLife("Frekansı ıskaladın.", { silent: true });
@@ -1431,7 +1431,7 @@ function submitProPlusGuess() {
   setAnalyzerPhase("done");
   if (els.gainValue) els.gainValue.textContent = ""; // çok bantlı: tek bir gain değeri anlamlı değil
 
-  result.bands.forEach(b => mode.recordZone(zoneStats, b.freq, b.correct));
+  result.bands.forEach(b => mode.recordZone(zoneStats, b.freq, b.correct, b.dOct));
   storage.saveZoneStats(zoneStats);
 
   stats.rounds++;
@@ -1637,7 +1637,8 @@ function startRound() {
   activeQuestion = mode.createQuestion(els.difficultySelect.value, {
     source: pickRoundSource(),
     boss: mode.isBossRound(stats.rounds),
-    focusRange: currentFocusRange()
+    focusRange: currentFocusRange(),
+    zoneStats // Z4: zayıf bölgelere ağırlıklı test frekansı — proplus/çeldiriciler etkilenmez
   });
   // Karıştır açıkken çalan kaynak sourceSelect'ten farklı olabilir — chip her zaman
   // o turda GERÇEKTEN çalan kaynağın adını göstersin.
