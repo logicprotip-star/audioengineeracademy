@@ -1472,6 +1472,9 @@ function submitProPlusGuess() {
 // Ses oynatma
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Turun sesini SIFIRDAN kurar — sadece round başlangıcında (ve F2'nin karşılaştırma
+// önizleme butonlarında) çağrılmalı. A/B toggle'ı ARTIK bunu çağırmıyor (bkz. toggleAB) —
+// kaynak/filtre grafiği bir kez kurulup tur boyunca bozulmuyor.
 function playQuestion(processed = true) {
   if (!audioEngine.audioReady || !activeQuestion) return;
   if (audioEngine.audioCtx && audioEngine.audioCtx.state === "suspended") {
@@ -1482,10 +1485,18 @@ function playQuestion(processed = true) {
   updateAbToggleUI();
 }
 
-// A/B tek buton: kesintisiz bypass geçişi (mevcut muteGain/buildQuestionChain
-// mantığı aynen korunur — sadece üç ayrı düğme yerine tek toggle'a bağlanır).
+// A/B tek buton: GERÇEK kesintisiz bypass — grafiği yeniden KURMUYOR, sadece
+// audioEngine.setProcessed() ile paralel kuru/işlenmiş yollar arasında gain crossfade
+// yapıyor (bkz. audio-engine.js buildQuestionChain'in üstündeki not). Kök sebep: canlı
+// çalan uploadedMediaSource'un (yüklenen dosya) A/B döngüsünde 2sn'de bir disconnect/
+// reconnect edilmesi WebKit'te JS'ten gözlemlenemeyen bir motor-düzeyi pitch/hız
+// sapmasına yol açabiliyordu (kullanıcı raporu + teşhis) — reconnect deseni tamamen
+// kaldırıldı.
 function toggleAB() {
-  playQuestion(currentPlayMode !== "filtered");
+  const processed = currentPlayMode !== "filtered";
+  currentPlayMode = processed ? "filtered" : "clean";
+  audioEngine.setProcessed(processed);
+  updateAbToggleUI();
 }
 
 // A/B uzun basma döngüsü: her 2000ms'de bir toggleAB() çağırıp A/B arasında otomatik

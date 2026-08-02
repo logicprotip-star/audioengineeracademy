@@ -16,6 +16,10 @@ export function createAudioEngine() {
   let audioUnlocked = false;
   let currentNodes = [];
   let onReady = null; // audioReady olduğunda bir kere çağrılır (ör. drawVisualizer'ı başlatmak için)
+  // A/B kuru/işlenmiş crossfade gain'leri (bkz. buildQuestionChain/setProcessed) — bir
+  // sonraki buildQuestionChain çağrısına kadar geçerli, o an aktif zincire ait.
+  let dryGain = null;
+  let wetGain = null;
 
   function unlockAudio() {
     // Mobil (özellikle iOS) için: ilk kullanıcı dokunuşunda context'i aç,
@@ -133,6 +137,8 @@ export function createAudioEngine() {
       } catch {}
     });
     currentNodes = [];
+    dryGain = null;
+    wetGain = null;
   }
 
   function buildNoiseSource(sourceType) {
@@ -201,8 +207,20 @@ export function createAudioEngine() {
     return { nodes: [osc1, osc2, g1, g2], outputs: [g1, g2] };
   }
 
+  const CROSSFADE_SEC = 0.05; // ~50ms — MUTE_RAMP_SEC ile aynı, tıklamasız geçiş
+
   // question: mod tarafından üretilmiş soru nesnesi (createQuestion çıktısı).
-  // processed=false ise filtre zinciri hiç kurulmaz (A/B bypass — temiz referans sesi).
+  // processed: başlangıç durumu (true=işlenmiş/wet, false=temiz/dry) — filtre zinciri
+  // ARTIK HER ZAMAN kuruluyor, sadece hangi yolun başlangıçta duyulur olduğunu belirliyor
+  // (bkz. aşağıdaki dryGain/wetGain paralel yollar). A/B arasında geçiş artık BU
+  // fonksiyonu tekrar çağırmıyor — setProcessed() ile SADECE gain crossfade yapılıyor,
+  // kaynak/filtre grafiği bir kez kurulup tur boyunca hiç bozulmuyor. Kök sebep: canlı
+  // çalan bir MediaElementAudioSourceNode'un (yüklenen dosya) A/B döngüsünde 2sn'de bir
+  // disconnect/reconnect edilmesi, bazı motorlarda (WebKit) JS'ten hiç görünmeyen bir
+  // dahili resample sapmasına yol açabiliyordu (kullanıcı raporu + teşhis, konsol
+  // düzeyinde audioCtx.sampleRate/playbackRate'te fark YOKTU ama motor davranışı JS'ten
+  // gözlemlenemez) — reconnect deseni tamamen kaldırılarak bu olası tetikleyici ortadan
+  // kalkıyor.
   // uploadedMediaSource: upload.js'in yönettiği kalıcı MediaElementAudioSourceNode (varsa).
   // applyProcessing: aktif modun applyProcessing(question, { audioCtx }) fonksiyonu.
   async function buildQuestionChain(question, processed, sourceType, uploadedMediaSource, applyProcessing) {
@@ -228,9 +246,18 @@ export function createAudioEngine() {
     compressor.knee.value = 22;
     compressor.ratio.value = 2.2;
 
-    const filters = processed ? (applyProcessing(question, { audioCtx }).filters || []) : [];
+    // Filtreler artık KOŞULSUZ kuruluyor (processed=false'ta bile) — wet yol her zaman
+    // hazır bekliyor, A/B toggle'ı sadece gain crossfade ile arasında geçiyor.
+    const filters = applyProcessing(question, { audioCtx }).filters || [];
 
-    currentNodes.push(out, sourceMix, compressor, ...filters);
+    const localDryGain = audioCtx.createGain();
+    const localWetGain = audioCtx.createGain();
+    localDryGain.gain.value = processed ? 0.0001 : 1;
+    localWetGain.gain.value = processed ? 1 : 0.0001;
+    dryGain = localDryGain;
+    wetGain = localWetGain;
+
+    currentNodes.push(out, sourceMix, compressor, localDryGain, localWetGain, ...filters);
 
     if (sourceType === "upload" && uploadedMediaSource) {
       // Kalıcı node — burada YENİDEN oluşturulmuyor, sadece yeni filtre zincirine bağlanıyor.
@@ -272,17 +299,35 @@ export function createAudioEngine() {
     // eski/öksüz bir zincir sessizce arka planda çalmaya başlar.
     if (!currentNodes.includes(out)) return;
 
-    if (processed) {
-      let node = sourceMix;
-      filters.forEach(f => { node.connect(f); node = f; });
-      node.connect(compressor);
-      compressor.connect(out);
-    } else {
-      sourceMix.connect(compressor);
-      compressor.connect(out);
-    }
+    // Paralel kuru/işlenmiş yollar — İKİSİ DE her zaman bağlı, aralarında SADECE
+    // localDryGain/localWetGain'in değeri (0.0001 ↔ 1) geçiş yapıyor. setProcessed()
+    // bu ikisini crossfade eder; kaynak (sourceMix) veya filtreler bir daha ASLA
+    // disconnect/reconnect edilmez.
+    sourceMix.connect(localDryGain);
+    localDryGain.connect(compressor);
 
+    let wetNode = sourceMix;
+    filters.forEach(f => { wetNode.connect(f); wetNode = f; });
+    wetNode.connect(localWetGain);
+    localWetGain.connect(compressor);
+
+    compressor.connect(out);
     out.connect(muteGain);
+  }
+
+  // A/B toggle — ARTIK grafiği yeniden kurmuyor, sadece dryGain/wetGain arasında kısa
+  // bir crossfade yapıyor. Kaynak (özellikle canlı çalan MediaElementAudioSourceNode)
+  // hiç dokunulmadan çalmaya devam ediyor.
+  function setProcessed(processed) {
+    if (!audioCtx || !dryGain || !wetGain) return;
+    const now = audioCtx.currentTime;
+    const [d, w] = processed ? [0.0001, 1] : [1, 0.0001];
+    dryGain.gain.cancelScheduledValues(now);
+    dryGain.gain.setValueAtTime(dryGain.gain.value, now);
+    dryGain.gain.linearRampToValueAtTime(d, now + CROSSFADE_SEC);
+    wetGain.gain.cancelScheduledValues(now);
+    wetGain.gain.setValueAtTime(wetGain.gain.value, now);
+    wetGain.gain.linearRampToValueAtTime(w, now + CROSSFADE_SEC);
   }
 
   // F2: karşılaştırma önizlemesi (cmp butonları) artık sabit bir pencere sonunda
@@ -307,6 +352,7 @@ export function createAudioEngine() {
     unmuteOutput,
     stopAudio,
     buildQuestionChain,
+    setProcessed,
     loopAwarePreviewMs,
     set onReady(fn) { onReady = fn; },
     get audioCtx() { return audioCtx; },

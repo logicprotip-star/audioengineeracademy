@@ -7,6 +7,29 @@ Son güncelleme: 02.08.2026
 
 ## BİTTİ
 
+A/B döngüsünde pitch kayması (bug raporu → teşhis → düzeltme) — kullanıcı (14 yıllık
+müzik prodüktörü) yüklenen WAV dosyasında A/B otomatik döngüsü sırasında pitch'in
+kaydığını bildirdi ("44.100'den 48.000 olmuş gibi"). Teşhis aşaması: AudioContext
+tek bir singleton, sabit sampleRate — hiç değişemez; playbackRate hiçbir yerde set
+edilmiyor; 44 canlı konsol ölçümünde (eşleşen 44.1kHz, uyuşmayan 48kHz dosya/44.1kHz
+context, sentetik Pink Noise) audioCtx.sampleRate/playbackRate ilk çalma ile A/B
+döngüsü arasında BİREBİR AYNI kaldı — JS düzeyinde fark kanıtlanamadı. Kod incelemesi
+gerçek kök sebebi buldu: A/B döngüsü (M1-5) her 2000ms'de `buildQuestionChain`'i
+YENİDEN çağırıyordu, bu da yüklenen dosya için CANLI ÇALAN `uploadedMediaSource`'u
+(MediaElementAudioSourceNode) disconnect edip yeniden connect ediyordu — WebKit'te
+bu deseni JS'ten hiç gözlemlenemeyen bir motor-düzeyi resample sapmasına yol açabilir
+(zaten AÇIK İŞLER madde 5'te "A/B gerçek bypass değil" olarak kayıtlıydı). Kullanıcı
+onayıyla asıl mimari çözüm uygulandı: `audio-engine.js`'te artık HER ZAMAN paralel
+kuru+işlenmiş yol kuruluyor (dryGain/wetGain), A/B toggle'ı `audioEngine.
+setProcessed()` ile SADECE 50ms'lik bir gain crossfade yapıyor — kaynak/filtre
+grafiği tur boyunca hiç bozulmuyor. `app.js`'teki `toggleAB()` artık `buildQuestionChain`'i
+hiç çağırmıyor. Enstrümante edilmiş canlı doğrulama (AudioNode.prototype.connect/
+disconnect'e geçici sayaç eklenerek): eski kodda her A/B toggle'ı 1 connect+1
+disconnect üretiyordu; yeni kodda uzun bir A/B döngüsü boyunca (tek tur içinde,
+birden fazla toggle) SIFIR connect/disconnect ölçüldü. `npm test`: 68/68. Gerçek
+pitch algısı (kulakla) DOĞRULANMADI — bu ortamda ses duyulamıyor, cihazda kontrol
+edilmeli.
+
 Commit `a377d80` — F1: geri bildirim iki kez gösteriliyordu (bug, AÇIK İŞLER
 madde 4'ün ta kendisi — bu maddeyle KAPANDI). Kök sebep: `submitFrequencyGuess`/
 `submitProPlusGuess` hem `#feedbackBox`'ı (basit kart) hem `#freqInfo`'yu (zengin
@@ -249,12 +272,19 @@ görünür kalması) doğru cevap tarafındaki DUPLIKE kart bug'ı da düzeldi.
 
 ### Eksik özellikler
 
-**5. A/B Test gerçek bypass değil**
-Buton tasarıma göre görünüyor ama `playQuestion()` zinciri sıfırdan kuruyor, ses
-baştan başlıyor. Mixteki bypass gibi kesintisiz geçiş için ses motoruna paralel
-bypass yolu (kuru/işlenmiş iki zincir + gain crossfade) gerekiyor.
-**Kabul kriteri:** A/B geçişinde `currentTime` sıfırlanmıyor, geçiş kesintisiz
-**Not:** Kesim Noktası modundan ÖNCE yapılmalı — o modun tüm değeri bu karşılaştırmada
+**5. ~~A/B Test gerçek bypass değil~~ — bir kullanıcı raporuyla birlikte düzeltildi, bkz. BİTTİ**
+Kullanıcı (14 yıllık müzik prodüktörü) A/B döngüsünde pitch kayması bildirdi
+("44.100'den 48.000 olmuş gibi"). Teşhis: konsol düzeyinde (audioCtx.sampleRate/
+audioEl.playbackRate, 44 ölçüm, eşleşen+uyuşmayan sample rate'ler, upload+sentetik)
+hiçbir fark kanıtlanamadı — ama A/B döngüsünün her 2sn'de bir CANLI ÇALAN
+uploadedMediaSource'u (MediaElementAudioSourceNode) disconnect/reconnect ettiği
+kod incelemesiyle doğrulandı; bu WebKit'te JS'ten hiç gözlemlenemeyen bir motor
+davranışı olabilir. Kullanıcı onayıyla asıl mimari eksiklik (bu madde) çözüldü:
+artık paralel kuru/işlenmiş yol + gain crossfade (`audioEngine.setProcessed`) var,
+`buildQuestionChain` A/B toggle'ında BİR DAHA hiç çağrılmıyor. Enstrümante edilmiş
+canlı testte (AudioNode.prototype.connect/disconnect sayaçları) tur içi A/B
+döngüsünde MediaElementAudioSourceNode üzerinde SIFIR connect/disconnect ölçüldü
+(önce her toggle bunu 1 kez tetikliyordu).
 
 **6. Kalibrasyon — sarı seviye çizgisi dokunmatik olmalı**
 Ekrandaki seviye göstergesi parmakla sürüklenerek ayarlanabilsin.
