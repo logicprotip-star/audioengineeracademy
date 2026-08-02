@@ -567,14 +567,18 @@ function syncLives() {
   renderHearts();
 }
 
-function loseLife(reasonText) {
+// silent: F1 — frekans/proplus modunda zengin #freqInfo paneli zaten gösterileceği
+// için buradaki #feedbackBox panelini AYRICA göstermez (can kaybı bilgisi çağıran
+// tarafından appendFreqInfoNote ile #freqInfo'nun içine taşınıyor). onTimeUp gibi
+// #freqInfo göstermeyen yerlerde silent VERİLMEZ — oradaki tek geri bildirim hâlâ bu.
+function loseLife(reasonText, { silent = false } = {}) {
   currentLives = Math.max(0, currentLives - 1);
   stats.lives = currentLives;
   renderHearts();
   if (currentLives <= 0) {
-    setFeedback("Oyun bitti", `${reasonText} Canların tükendi.`, true, true);
+    if (!silent) setFeedback("Oyun bitti", `${reasonText} Canların tükendi.`, true, true);
     toast("💔 Oyun Bitti", "Canların tükendi.");
-  } else {
+  } else if (!silent) {
     setFeedback("Can kaybettin", `${reasonText} Kalan can: ${currentLives}`, true, true);
   }
 }
@@ -706,6 +710,26 @@ function setFeedback(title, detail, showResult = false, bad = false) {
   // Gerçek bir sonuç kartı gösterildiğinde (ambient/durum mesajları değil) kartın
   // tamamı görünür olsun diye alan yeniden ölçülür ve en alta kaydırılır.
   if (showResult) scrollFeedbackIntoView();
+}
+
+// F1: cevap sonrası #feedbackBox (basit başlık+metin) ve #freqInfo (mode.showFreqInfoPanel/
+// showProPlusInfoPanel — karşılaştırma butonlu zengin panel) AYNI bilgiyi tekrar
+// ediyordu, iki ayrı kart olarak görünüyordu. Tek kart kalsın diye submitFrequencyGuess/
+// submitProPlusGuess artık #feedbackBox'ı GÖSTERMİYOR (showResult=false) — ama eski
+// panelde olup yeni panelde HİÇ olmayan iki bilgi vardı (kalite sözcüğü: "🎯 Tam
+// isabet!"/"Çok iyi!"/"Doğru!", ve yanlışta "Kalan can: N") — mode dosyalarına
+// dokunmadan (bkz. iş kuralları) bunlar burada, #freqInfo'nun İÇİNE küçük bir not
+// olarak ekleniyor. Var olan .cmprow'un (karşılaştırma butonları) hemen üstüne
+// yerleşir; proplus'ta .cmprow yok, o zaman panelin sonuna eklenir.
+function appendFreqInfoNote(text, ok) {
+  if (!els.freqInfo || !text) return;
+  const note = document.createElement("div");
+  note.className = "freq-info-note";
+  note.style.cssText = `margin-top:8px;font-size:14px;font-weight:700;color:${ok ? "var(--gr)" : "var(--rd)"}`;
+  note.textContent = text;
+  const cmprow = els.freqInfo.querySelector(".cmprow");
+  if (cmprow) els.freqInfo.insertBefore(note, cmprow);
+  else els.freqInfo.appendChild(note);
 }
 
 function updateStartBtnLabel() {
@@ -1311,8 +1335,13 @@ function submitFrequencyGuess(guessHz) {
     session.correct++; session.xp += gained;
 
     const feedback = mode.getFeedbackData(q, guessHz, { gained });
-    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    // F1: #feedbackBox artık GÖSTERİLMİYOR (showResult zorla false) — #freqInfo aynı
+    // bilgiyi zaten veriyor. feedback.title'daki kalite sözcüğü ("🎯 Tam isabet!" vb.)
+    // #freqInfo'nun kendi içeriğinde YOK, kaybolmasın diye panelin içine taşınıyor.
+    setFeedback(feedback.title, feedback.detail, false, false);
     mode.showFreqInfoPanel(els.freqInfo, feedback);
+    appendFreqInfoNote(feedback.title, true);
+    scrollFeedbackIntoView();
     mode.recordZone(zoneStats, q.freq, true);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -1325,13 +1354,17 @@ function submitFrequencyGuess(guessHz) {
     session.wrong++;
 
     const feedback = mode.getFeedbackData(q, guessHz, { gained: 0 });
-    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    // F1: aynı — #feedbackBox gösterilmiyor, loseLife de silent (kendi panelini
+    // göstermiyor); "Kalan can: N" bilgisi kaybolmasın diye #freqInfo'nun içine
+    // taşınıyor (currentLives, loseLife çağrısından SONRA okunuyor — güncel değer).
+    setFeedback(feedback.title, feedback.detail, false, true);
     mode.showFreqInfoPanel(els.freqInfo, feedback);
     mode.recordZone(zoneStats, q.freq, false);
     audioEngine.sfxBuzz();
     shake(els.canvas);
-    loseLife("Frekansı ıskaladın."); // NOT: bu, yukarıdaki setFeedback'i BİLEREK ezer (orijinal davranış) —
-    // ayrıntılı geri bildirim freqInfo panelinde kalıcı olarak görünür durur.
+    loseLife("Frekansı ıskaladın.", { silent: true });
+    appendFreqInfoNote(currentLives > 0 ? `Kalan can: ${currentLives}` : "Canların tükendi.", false);
+    scrollFeedbackIntoView();
     challengeTick(false, 0);
   }
 
@@ -1381,7 +1414,9 @@ function submitProPlusGuess() {
     session.correct++; session.xp += gained;
 
     feedback = mode.getFeedbackData(q, q.guesses, { gained });
-    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    // F1: aynı desen — #feedbackBox gösterilmiyor, kaybolan bilgi (kalite başlığı)
+    // aşağıda showProPlusInfoPanel'den SONRA #freqInfo'ya taşınıyor.
+    setFeedback(feedback.title, feedback.detail, false, false);
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
   } else {
@@ -1391,13 +1426,20 @@ function submitProPlusGuess() {
     session.wrong++;
 
     feedback = mode.getFeedbackData(q, q.guesses, { gained: 0 });
-    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    setFeedback(feedback.title, feedback.detail, false, true);
     shake(els.canvas);
-    loseLife("Bantları ıskaladın."); // NOT: yukarıdaki setFeedback'i BİLEREK ezer (orijinal davranış)
+    loseLife("Bantları ıskaladın.", { silent: true });
   }
 
   challengeTick(result.correct, gained);
   mode.showProPlusInfoPanel(els.freqInfo, feedback);
+  // F1: showProPlusInfoPanel'in kendi içeriğinde olmayan bilgi — doğruysa kalite
+  // başlığı, yanlışsa kalan can sayısı — panelin sonuna not olarak ekleniyor.
+  appendFreqInfoNote(
+    result.correct ? feedback.title : (currentLives > 0 ? `Kalan can: ${currentLives}` : "Canların tükendi."),
+    result.correct
+  );
+  scrollFeedbackIntoView();
   els.freqGuessArea.innerHTML = `<span style="color:var(--tx-3);font-size:13px">Tur bitti · "Yeni Soru" ile devam.</span>`;
 
   q._result = result.bands.map(b => ({ freq: b.freq, gain: b.gain, correct: b.correct })).sort((a, z) => a.freq - z.freq);
