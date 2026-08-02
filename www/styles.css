@@ -52,7 +52,12 @@
     }
 
     *,*::before,*::after{box-sizing:border-box}
-    html,body{margin:0;min-height:100%;background:#04060C}
+    /* F4: çift dokunma zoom'u kapatır (kaydırma/pinch etkilenmez — manipulation
+       pan-x/pan-y'ye izin verir). index.html'deki viewport meta'daki
+       user-scalable=no ile birlikte iki katmanlı koruma: bazı WKWebView
+       sürümlerinde user-scalable=no tek başına çift-dokunma zoom'unu güvenilir
+       engellemiyor. */
+    html,body{margin:0;min-height:100%;background:#04060C;touch-action:manipulation}
     /* Metin seçimi kapalı — bu bir oyun arayüzü, uzun basış "Kopyala/Ara/Çevir"
        menüsünü açıp oyun ekranını kapatıyordu (bkz. 6-düzeltme maddesi 2).
        İSTİSNA: kullanıcının GERÇEKTEN kopyalaması/düzenlemesi gerekebilecek
@@ -352,7 +357,12 @@
     @keyframes fade{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 
     .canvas-stage{position:relative;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.02)}
-    #visualizer{width:100%;height:280px;display:block}
+    /* F4: cevap dokunmalı burada veriliyor (pointerdown/pointermove, app.js) — kaydırma/
+       pan/zoom gerekmiyor, touch-action:none tarayıcının kendi jest tanımasını (çift
+       dokunma zoom dahil) tamamen devre dışı bırakıyor. pointerdown/pointermove olayları
+       touch-action'dan ETKİLENMEZ, sadece tarayıcının PARALEL varsayılan jestleri
+       engellenir. */
+    #visualizer{width:100%;height:280px;display:block;touch-action:none}
     .hint-mask{position:absolute;inset:0;pointer-events:none;overflow:hidden}
     .hint-mask-seg{position:absolute;top:0;bottom:0;background:rgba(8,11,20,.74);opacity:0;transition:opacity .28s ease}
     .hint-mask-seg.show{opacity:1}

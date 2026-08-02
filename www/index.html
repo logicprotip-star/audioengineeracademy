@@ -2,7 +2,12 @@
 <html lang="tr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- F4: maximum-scale=1/user-scalable=no pinch-zoom'u kapatır. Bu uygulama tamamen
+       dokunmatik (spektrum üzerine tıklayarak cevap verme) — kazara pinch/çift dokunma
+       zoom'u akışı bozuyordu. Bazı WKWebView sürümlerinde user-scalable=no tek başına
+       çift-dokunma zoom'unu güvenilir engellemiyor; bu yüzden styles.css'te
+       touch-action:manipulation ile de destekleniyor (bkz. F4 notu orada). -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Audio Engineer Academy</title>
   <link rel="stylesheet" href="styles.css">
   <script>
