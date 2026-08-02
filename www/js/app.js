@@ -2161,7 +2161,7 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => {
       }
       const row = document.createElement('div');
       row.className = 'sheet-option' + (opt.selected ? ' selected' : '');
-      // "Kendi dosyam" bir dosya seçilene kadar diğer şıklar gibi anında
+      // "Dosya seç" (upload) bir dosya seçilene kadar diğer şıklar gibi anında
       // işaretlenemez — tıklanınca native dosya seçiciyi açar (prototype.html'de
       // bu satır ✓ yerine › ile ayrılmıştı, aynı ayrım burada davranışa taşındı).
       const isUnloadedUpload = select.id === 'sourceSelect' && opt.value === 'upload' && !uploadManager.mediaSource;

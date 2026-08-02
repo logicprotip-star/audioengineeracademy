@@ -16,18 +16,20 @@ export const SOURCE_GROUPS = [
   {
     id: "synthetic", label: "SENTETİK",
     sources: [
-      { id: "pink", label: "Pembe Gürültü", kind: "noise", desc: "En nötr referans, bant farkları en net duyulur" },
-      { id: "white", label: "Beyaz Gürültü", kind: "noise", desc: "Daha sert, tüm frekanslarda eşit enerji" },
-      { id: "saw", label: "Testere (Synth)", kind: "synth", desc: "Zengin harmonik, sürekli pad/bas karakteri" },
-      { id: "square", label: "Kare (Synth)", kind: "synth", desc: "İçi boş, tek sayılı harmonikler ağırlıklı" },
-      { id: "triangle", label: "Üçgen (Synth)", kind: "synth", desc: "Yumuşak, az harmonikli" }
+      { id: "pink", label: "Pink Noise", kind: "noise", desc: "En nötr referans, bant farkları en net duyulur" },
+      { id: "white", label: "White Noise", kind: "noise", desc: "Daha sert, tüm frekanslarda eşit enerji" },
+      { id: "saw", label: "Saw", kind: "synth", desc: "Zengin harmonik, sürekli pad/bas karakteri" },
+      { id: "square", label: "Square", kind: "synth", desc: "İçi boş, tek sayılı harmonikler ağırlıklı" },
+      { id: "triangle", label: "Triangle", kind: "synth", desc: "Yumuşak, az harmonikli" }
     ]
   },
   { id: "drums", label: "DAVUL", sources: [] },
   { id: "instruments", label: "ENSTRÜMAN", sources: [] },
   {
+    // Satır adı grup başlığıyla ("KENDİ DOSYAM") aynı olmasın diye "Dosya seç" —
+    // bkz. D2 (cihaz testinden çıkan düzeltme).
     id: "own", label: "KENDİ DOSYAM",
-    sources: [{ id: "upload", label: "Kendi dosyam", kind: "upload", desc: "Yüklediğin ses dosyası" }]
+    sources: [{ id: "upload", label: "Dosya seç", kind: "upload", desc: "Yüklediğin ses dosyası" }]
   }
 ];
 
