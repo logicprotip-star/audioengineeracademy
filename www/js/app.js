@@ -74,6 +74,10 @@ const els = {
   diffSublist: document.getElementById("diffSublist"),
   accountVerLine: document.getElementById("accountVerLine"),
   goProBtn: document.getElementById("goProBtn"),
+  versionRow: document.getElementById("versionRow"),
+  devGroup: document.getElementById("devGroup"),
+  devProSwitch: document.getElementById("devProSwitch"),
+  devModeOffBtn: document.getElementById("devModeOffBtn"),
   restoreRow: document.getElementById("restoreRow"),
   feedbackRow: document.getElementById("feedbackRow"),
   faqRow: document.getElementById("faqRow"),
@@ -408,6 +412,7 @@ let daily = storage.loadDaily();
 let zoneStats = storage.loadZoneStats();
 let prefs = storage.loadPrefs();
 let dailyAcc = storage.loadDailyAcc();
+let devFlags = storage.loadDevFlags();
 
 let activeQuestion = null;
 let roundActive = false;
@@ -488,14 +493,16 @@ let cmpPreviewStopTimer = null;
 // eski gameOverGuardActive()/GAMEOVER_CLICK_GUARD_MS koruması tamamen kaldırıldı.
 let sessionEndVisible = false;
 
-// Gerçek bir satın alma/IAP altyapısı henüz yok (bkz. buyProBtn — sadece "Yakında"
-// toast'ı gösteriyor) — bu sabit o yüzden ŞU AN HER ZAMAN false. "Canların bitti"
-// varyasyonu bu yüzden bugün her kullanıcıda erişilebilir durumda (gerçekte kimse
-// Pro satın alamıyor). Gerçek Pro state'i eklenince: (a) bu sabit kaldırılıp gerçek
-// duruma bağlanmalı, (b) Pro kullanıcılar için can sınırının da kaldırılması gerekir
-// (DURUM.md'deki ürün notu: "Pro'da can sınırı yok") — aksi halde currentLives<=0
-// yine tetiklenir ama hangi ekranın açılacağı belirsiz kalır.
-const isPro = false;
+// "Kullanıcı Pro mu?" — TEK cevap noktası. Gerçek bir satın alma/IAP altyapısı
+// henüz yok (bkz. buyProBtn — sadece "Yakında" toast'ı gösteriyor), bu yüzden
+// gerçekPro her zaman false. devFlags.simulatePro — gizli geliştirici anahtarı
+// (Hakkında/Sürüm numarasına 7 dokunuş, bkz. initDevMode) — SADECE test için,
+// IAP yazılınca `gerçekPro || devFlags.simulatePro` deseni KORUNMALI (simülasyon
+// katmanı gerçek satın alma mantığının ÜZERİNE eklendi, yerine geçmedi).
+function isUserPro() {
+  const realPro = false; // gerçek satın alma durumu — IAP yazılınca buraya bağlanacak
+  return realPro || devFlags.simulatePro;
+}
 
 // "Karıştır": açıkken her tur rastgele bir kaynak seçilir (yüklenen dosya hariç);
 // kapalıyken kaynak seçicideki değer kullanılır. Oturum içi, kalıcı değil.
@@ -607,6 +614,12 @@ function syncLives() {
 // tarafından appendFreqInfoNote ile #freqInfo'nun içine taşınıyor). onTimeUp gibi
 // #freqInfo göstermeyen yerlerde silent VERİLMEZ — oradaki tek geri bildirim hâlâ bu.
 function loseLife(reasonText, { silent = false } = {}) {
+  // Pro (gerçek ya da geliştirici simülasyonu): can sınırı yok — DURUM.md'deki
+  // ürün notu ("Pro'da can sınırı yok") + bu görevin isteği. currentLives hiç
+  // AZALMAZ, bu yüzden aşağı akıştaki TÜM `currentLives<=0` kontrolleri (7 yer)
+  // Pro'da doğal olarak hiç tetiklenmez — onları tek tek değiştirmek yerine kökten
+  // (can hiç bitmiyor) çözüldü.
+  if (isUserPro()) return;
   currentLives = Math.max(0, currentLives - 1);
   stats.lives = currentLives;
   renderHearts();
@@ -632,9 +645,10 @@ function finalizeIfGameOver() {
   activeQuestion = null;
   updateStartBtnLabel();
   // "Canların bitti" varyasyonu SADECE ücretsiz sürümde gösterilir (kullanıcı kararı) —
-  // isPro şu an her zaman false olduğu için bu satır bugün pratikte hep çalışır;
-  // bkz. isPro tanımındaki not.
-  if (!isPro) showSessionEnd("lost");
+  // Pro'da (gerçek ya da simüle) loseLife() zaten currentLives'ı hiç 0'a düşürmüyor
+  // (bkz. loseLife tanımı) — bu satır o yüzden Pro'da pratikte hiç tetiklenmez, ama
+  // yine de isUserPro() üzerinden doğru cevaba bakıyor (savunmacı, tek kaynak).
+  if (!isUserPro()) showSessionEnd("lost");
   return true;
 }
 
@@ -1638,7 +1652,7 @@ function startTimerForCurrentQuestion() {
 
 function startRound() {
   if (sessionEndVisible) return; // seans sonu ekranı açıkken hiçbir tetikleyici yeni tur başlatamaz
-  if (currentLives <= 0) { if (!isPro) showSessionEnd("lost"); return; }
+  if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
   if (els.sourceSelect.value === "upload" && !uploadManager.mediaSource) {
     setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
     return;
@@ -1961,7 +1975,7 @@ els.audioFileInput.addEventListener("change", async (e) => {
 // startBtn duruma göre 3 iş yapar: Oyunu Başlat / Tekrar Çal / Durdur (bkz. updateStartBtnLabel)
 els.startBtn.addEventListener("click", async () => {
   await audioEngine.initAudio();
-  if (currentLives <= 0) { if (!isPro) showSessionEnd("lost"); return; }
+  if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
 
   if (!activeQuestion) {
     if (isChallenge()) startChallenge();
@@ -1991,7 +2005,7 @@ els.startBtn.addEventListener("click", async () => {
 
 els.nextBtn.addEventListener("click", async () => {
   await audioEngine.initAudio();
-  if (currentLives <= 0) { if (!isPro) showSessionEnd("lost"); return; }
+  if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
   autoStopped = false;
   roundFlow.clearAutoAdvance();
   pausedAutoAdvanceRemainingMs = null;
@@ -2682,13 +2696,63 @@ function syncAccountLine() {
   // Pro vaadi TÜM katalog (14) içindir — kaçının şu an kodlandığı/oynanabilir
   // olduğu (listModes()) ayrı bir şey, paywall metnine karışmaz.
   const total = MODE_CATALOG.length;
-  if (els.accountVerLine) els.accountVerLine.textContent = `Ücretsiz — ${FREE_MODE_COUNT} mod, seans başına 5 soru`;
+  if (els.accountVerLine) {
+    els.accountVerLine.textContent = isUserPro()
+      ? `Pro${devFlags.simulatePro ? " (simüle)" : ""} — ${total} mod, seans başına 10 soru, can sınırsız`
+      : `Ücretsiz — ${FREE_MODE_COUNT} mod, seans başına 5 soru`;
+  }
   if (els.payFreeModes) els.payFreeModes.textContent = `${FREE_MODE_COUNT} egzersiz modu`;
   if (els.payProModes) els.payProModes.textContent = `${total} egzersiz modunun tamamı`;
   if (els.proPrice) els.proPrice.textContent = PRO_PRICE;
   if (els.buyProBtn) els.buyProBtn.textContent = `Satın al · ${PRO_PRICE}`;
 }
 syncAccountLine();
+
+// ---- Geliştirici modu (gizli Pro test anahtarı) ----
+// "Hakkında" → "Sürüm numarası" satırına 7 kez ÜST ÜSTE (art arda 1.2sn içinde)
+// dokununca açılır. Amaç: Pro özelliklerini (Araçlar kilidi, can sınırsız) yayın
+// öncesi test edebilmek — gerçek bir satın alma/IAP DEĞİL, sadece isUserPro()'nun
+// okuduğu bir simülasyon bayrağı (bkz. isUserPro tanımı).
+function syncDevUI() {
+  if (els.devGroup) els.devGroup.classList.toggle("hidden", !devFlags.unlocked);
+  if (els.devProSwitch) els.devProSwitch.classList.toggle("on", devFlags.simulatePro);
+  applyProLockVisibility();
+  syncAccountLine();
+  renderModeGrid();
+}
+let versionTapCount = 0;
+let versionTapTimer = null;
+if (els.versionRow) els.versionRow.addEventListener("click", () => {
+  versionTapCount++;
+  clearTimeout(versionTapTimer);
+  versionTapTimer = setTimeout(() => { versionTapCount = 0; }, 1200);
+  if (versionTapCount >= 7) {
+    versionTapCount = 0;
+    clearTimeout(versionTapTimer);
+    if (!devFlags.unlocked) {
+      devFlags.unlocked = true;
+      storage.saveDevFlags(devFlags);
+      syncDevUI();
+      toast("🛠️ Geliştirici modu açıldı", "Ayarlar'ın altında yeni bir bölüm var.");
+    }
+  }
+});
+if (els.devProSwitch) els.devProSwitch.addEventListener("click", () => {
+  devFlags.simulatePro = !devFlags.simulatePro;
+  storage.saveDevFlags(devFlags);
+  syncDevUI();
+});
+if (els.devModeOffBtn) els.devModeOffBtn.addEventListener("click", () => {
+  // Kapatınca simülasyonu da sıfırla — "kapalı" durum yarı-Pro bir state
+  // bırakmasın (bir sonraki açılışta devFlags.unlocked=false, simulatePro=false
+  // olarak baştan başlar).
+  devFlags.unlocked = false;
+  devFlags.simulatePro = false;
+  storage.saveDevFlags(devFlags);
+  syncDevUI();
+  toast("Geliştirici modu kapatıldı", "");
+});
+syncDevUI();
 
 if (els.calibRow) els.calibRow.addEventListener("click", () => goToSettingsSubpage("calib"));
 if (els.feedbackRow) els.feedbackRow.addEventListener("click", () => goToSettingsSubpage("feedback"));
@@ -3038,9 +3102,20 @@ if (els.toolsUploadBtn && els.toolsFileInput) {
   });
 }
 
-// Gerçek satın alma bu sürümde yok — Analiz/Referans Filtreleri her zaman kilitli
-// görünür, dokununca paywall'a yönlendirir (diğer Pro noktalarıyla aynı davranış).
+// Gerçek satın alma bu sürümde yok — Analiz/Referans Filtreleri normalde her zaman
+// kilitli görünür, dokununca paywall'a yönlendirir. isUserPro() true ise (gerçek ya
+// da geliştirici simülasyonu) kilit örtüsü gizlenir, altındaki .card görünür/
+// dokunulabilir olur — İÇERİK hâlâ statik örnek veri (gerçek analiz motoru bu
+// görevin kapsamı dışı), sadece ERİŞİM engeli kaldırılıyor.
+function applyProLockVisibility() {
+  const pro = isUserPro();
+  [els.analyzeLock, els.filtersLock].forEach(btn => {
+    if (!btn) return;
+    btn.classList.toggle("hidden", pro);
+  });
+}
 [els.analyzeLock, els.filtersLock].forEach(btn => {
   if (!btn) return;
   btn.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("paywall"); });
 });
+applyProLockVisibility();

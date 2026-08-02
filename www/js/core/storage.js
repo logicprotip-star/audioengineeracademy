@@ -8,6 +8,7 @@ const ZONESTATS_KEY = "fa_zonestats";
 const PREFS_KEY = "eqEarTrainerProXPrefs";
 const DAILY_ACC_KEY = "eqEarTrainerProXDailyAcc";
 const DAILY_ACC_KEEP_DAYS = 35; // grafik son 30 günü gösterir, birkaç gün pay bırakılır
+const DEV_KEY = "eqEarTrainerProXDev";
 
 // Canlar artık zorluğa göre DEĞİL — tek, global bir havuz (bkz. freshStats().lives).
 // Eskiden her zorluğun kendi canı vardı (perDiff[key].lives); bu yüzden zorluk
@@ -202,6 +203,31 @@ export function savePrefs(prefs) {
   const raw = JSON.stringify(prefs);
   localStorage.setItem(PREFS_KEY, raw);
   mirrorSet(PREFS_KEY, raw);
+}
+
+// Geliştirici modu (Pro test anahtarı) — Genel Ayarlar/Hakkında/Sürüm numarasına
+// 7 kez dokununca açılır (bkz. app.js initDevMode). Yayında da kalacak (normal
+// kullanıcı bulamayacağı için sorun değil, görev tanımında böyle istendi) — bu
+// yüzden AYRI bir anahtarda tutuluyor, prefs'e KARIŞTIRILMADI: prefs.js'i temizle/
+// dışa aktar gibi bir işlem eklenirse geliştirici bayrakları yanlışlıkla kullanıcı
+// tercihiymiş gibi görünmesin.
+export function freshDevFlags() {
+  return { unlocked: false, simulatePro: false };
+}
+
+export function loadDevFlags() {
+  try {
+    const raw = localStorage.getItem(DEV_KEY);
+    return raw ? { ...freshDevFlags(), ...JSON.parse(raw) } : freshDevFlags();
+  } catch {
+    return freshDevFlags();
+  }
+}
+
+export function saveDevFlags(devFlags) {
+  const raw = JSON.stringify(devFlags);
+  localStorage.setItem(DEV_KEY, raw);
+  mirrorSet(DEV_KEY, raw);
 }
 
 // İlerleme sekmesindeki "son 30 gün" grafiği için günlük isabet oranı. dailyKey()

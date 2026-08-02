@@ -755,7 +755,20 @@
       <div class="list">
         <button class="item" id="privacyRow"><div><h5>Gizlilik politikası</h5></div><span class="caret">&#8250;</span></button>
         <button class="item" id="termsRow"><div><h5>Kullanım şartları</h5></div><span class="caret">&#8250;</span></button>
-        <div class="item"><div><h5>Sürüm numarası</h5></div><span class="val num">v1.0.0</span></div>
+        <!-- Gizli geliştirici anahtarı: bu satıra 7 kez üst üste dokununca #devGroup açılır
+             (bkz. app.js initDevMode). Normal kullanıcı bunu bilerek aramadıkça bulamaz. -->
+        <div class="item" id="versionRow"><div><h5>Sürüm numarası</h5></div><span class="val num">v1.0.0</span></div>
+      </div>
+    </div>
+
+    <div class="group hidden" id="devGroup">
+      <h6>GELİŞTİRİCİ</h6>
+      <div class="list">
+        <div class="item">
+          <div style="padding-right:12px"><h5>Pro'yu simüle et</h5><p>Test için — gerçek bir satın alma DEĞİL</p></div>
+          <button type="button" class="sw" id="devProSwitch" aria-label="Pro'yu simüle et"><i></i></button>
+        </div>
+        <button class="item" id="devModeOffBtn"><div><h5 style="color:var(--rd)">Geliştirici modunu kapat</h5></div></button>
       </div>
     </div>
   </div>
