@@ -1,11 +1,55 @@
 # DURUM
 
-Son güncelleme: 01.08.2026
+Son güncelleme: 02.08.2026
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
+
+Commit `a1c837a` — D1: alt bar CSS-tabanlı padding düzeltmesi (cihaz testinden
+çıkan bug). Kök sebep yeniden teşhis edildi: `.game-scroll` flex:1 ile ekranın
+TÜM artan alanını (position:fixed actionbar'ın kapladığı ~168px dahil) kendi
+kutusu sayıyordu; eski ölçüm-tabanlı çözüm (syncGameScrollPadding +
+ResizeObserver) sadece ekstra scroll payı ekliyordu, kutunun kendisini
+actionbar'ın önünde durdurmuyordu. Çözüm: `--actionbar-h` sabit CSS
+değişkeni + `.game-scroll`'a margin-bottom (ölçüme dayanmıyor, ilk boyamadan
+itibaren doğru) — syncGameScrollPadding tamamen kaldırıldı. Ayrıca 4-6 şıklı
+durumda (.answers 2 satıra taşıyor) otomatik kaydırma eklendi (SADECE şıklı
+modda — dokunmalı modda analizör görünür kalmalı). Gerçek DOM ölçümüyle
+doğrulandı: 3/4/5/6 şık hepsi ≥+16 (38px), geri bildirim kartı 3 ölçümde
+sabit +20px (hiç negatif dip yok).
+
+Commit `4943634` — D2: kaynak isimleri İngilizceye çevrildi (Pink Noise/White
+Noise/Saw/Square/Triangle) + "Kendi dosyam" satırı "Dosya seç" oldu (grup
+başlığıyla tekrar ediyordu). source-catalog.js tek kaynak olduğu için sadece
+6 label değişti, grep ile eski isimlerden hiçbiri kalmadığı doğrulandı.
+
+Commit `382f030` — D3: Oyun Ayarları sheet'i düzeni. Kök sebep: satırlar
+gerçek `<button>` — WebKit'te display:flex bir button'a uygulandığında
+width/text-align UA varsayılanları flex düzenini bozabiliyor (prototype.html'
+nin aynı bileşeni tam olarak width:100%+text-align:left'i açıkça set ediyordu,
+bizde eksikti). Aynı ikisi eklendi + native "Dosya Seç" butonu
+::file-selector-button ile uygulamanın buton diline uydurtuldu. Ölçümle
+doğrulandı: 4 satır artık bayt-bayt eşit genişlikte (522px), etiket-değer
+arası hiç sıfırlanmıyor.
+
+Commit `5e00e9d` — D4: dosya boyutu sınırı 150→120 MB. Tespit: bu pipeline
+decodeAudioData KULLANMIYOR (HTMLAudioElement akışı, PCM'i RAM'e açmıyor) —
+150 MB'ın riski "bellek çökmesi" değildi, sadece gereksiz büyüktü. Kullanıcı
+120 MB'ı onayladı.
+
+Commit `bf898f8` — D5: splash koyu temada minik kalıyordu (bug). Kök sebep:
+-dark PNG'ler AYNI kanvas boyutundaydı (2732x2732) ama logo kanvasın sadece
+~%6.5'ini kaplıyordu (açık varyantta ~%35-40) — storyboard/Contents.json
+doğruydu, sorun kaynak görselin kendisindeydi. Açık varyant (uygulamanın
+teması zaten neredeyse siyah) doğrudan koyu varyantın yerine kopyalandı —
+iOS (3 dosya) + Android'de AYNI bug bulunup düzeltildi (13 dosya, night/
+drawable-night). Simülatör/cihazda gerçek render KONTROL EDİLMEDİ (Xcode/
+Android Studio bu ortamda yok) — sadece dosya/piksel düzeyinde doğrulandı.
+
+D6 (isimlendirme denetimi) — düzeltme YAPILMADI, sadece rapor edildi, bkz.
+BEKLEYEN KARARLAR I.
 
 Commit `5b3775f` — M1-3: "Kendi dosyam" dosya seçici açmıyordu (bug).
 Teşhis: Kaynak sheet'inin "Kendi dosyam" satırı diğer seçenekler gibi
@@ -91,20 +135,13 @@ Commit `ac505c3` — G2: seans sonu ekranı (TASARIM.md EKRAN 5, madde 9 kapand�
 
 ### Bug'lar
 
-**1. Geri bildirim kartı ilk saniyelerde alt bar'ın altında**
-Kart açıldığı an aksiyon çubuğunun altında kalıyor, birkaç saniye sonra düzeliyor.
-Telefonda ölçüldü: fark = −209 → −170 → +21. Padding hesabı doğru, layout
-hesaplanmadan ölçüm yapılıyor.
-Çözüm yönü: `requestAnimationFrame` zinciri veya kart görünür olmadan önce güvenli
-padding, sonra kesinleştirme.
-Ölçüm komutu (Safari konsolu, Hatalar filtresi açık):
-```js
-setInterval(()=>{const fb=document.querySelector('#gameScroll .fb');
-const b=document.getElementById('gameActionbar');
-if(fb&&fb.getBoundingClientRect().height>0){console.error('FB fark='+
-Math.round(b.getBoundingClientRect().top-fb.getBoundingClientRect().bottom))}},1000)
-```
-**Kabul kriteri:** ilk ölçümde bile fark ≥ +16
+**1. ~~Geri bildirim kartı ilk saniyelerde alt bar'ın altında~~ — D1'de düzeltildi, `a1c837a`**
+Üç kez ölçüm-tabanlı çözüm denenmiş, tutmamıştı. D1'de mimari değişti: padding
+yerine CSS `--actionbar-h` değişkeninden margin-bottom — ölçüme hiç bağlı değil,
+ilk boyamadan itibaren doğru. Aynı turda şıklı cevap modundaki 4-6 şıklık
+grid'in altbar arkasında kalması da (aynı kökten) düzeltildi. Simülatör/cihazda
+gerçek render henüz KONTROL EDİLMEDİ — sadece masaüstü Chrome'da gerçek DOM
+ölçümüyle doğrulandı (bkz. commit mesajı).
 
 **2. Pause sonrası ilk play'de duraksama**
 Durdurup tekrar başlatınca ses takılarak giriyor, sonra düzeliyor. Muhtemel sebep:
@@ -212,10 +249,31 @@ duruyor (asla range dışına taşmıyor, asla çakışan bant üretmiyor) ama b
 ürün kararı gerektiriyor: Pro Plus dar odakta kısıtlansın mı (o kombinasyon
 seçilemesin), yoksa az bantla mı devam etsin?
 
+**I. İsimlendirme tutarsızlıkları (D6 denetimi — düzeltilmedi, sadece raporlandı)**
+1. Zorluk `proplus` değeri iki yerde iki farklı isimle: Oyun Ayarları sheet'inde
+   "Pro Plus (Çok Bantlı)", Genel Ayarlar'ın Zorluk alt-listesinde (`data-diff=
+   "proplus"`) "Sınırsız" / "Sınırını kendin ara". Aynı seçenek, iki ayrı kavram.
+2. Can bitişi iki farklı başlıkla art arda gösteriliyor: `loseLife()` içindeki
+   feedback+toast "Oyun bitti" diyor, hemen ardından açılan seans-sonu tam ekranı
+   "CANLARIN BİTTİ" diyor.
+3. Desteklenen ses formatları tutarsız anlatılıyor: `validateAudioFile`'ın kendi
+   hata mesajı 7 formatı doğru listeliyor (wav/mp3/m4a/aac/aiff/flac/ogg), ama
+   "Ses oynatılamadı"/"Yükleme hatası" mesajları sadece "mp3/wav" öneriyor.
+4. Paywall'daki "Seans başına 5 soru" (Ücretsiz) / "Seans başına 10 soru" (Pro)
+   iddiası kodda YOK — `10 Soruluk Bölüm` Pro'ya bağlı değil, herkes seçebiliyor;
+   ücretsiz kullanıcıyı 5 soruyla sınırlayan bir mekanizma da yok. İsimlendirme
+   değil ama satın alma sayfası var olmayan bir kısıtlamayı vaat ediyor.
+5. "Ses dosyası yükle" (Oyun Ayarları) / "Dosya yükle" (Araçlar) — aynı eylem
+   için iki farklı buton metni.
+Hangisinin düzeltileceği/nasıl birleştirileceği ürün kararı — kod tarafında
+hazır, sadece onay bekliyor.
+
 ## SIRADAKİ
 
-E/F/G/H kararlarından biri — kullanıcıya sorulacak, kod tarafında bekleyen bir
-şey yok. Karar gelmezse 1. madde (geri bildirim kartı konumu) sıradaki teknik iş.
+E/F/G/H/I kararlarından biri — kullanıcıya sorulacak, kod tarafında bekleyen bir
+şey yok. Karar gelmezse en öncelikli teknik iş: D1/D5'in simülatör veya gerçek
+cihazda (Xcode/Android Studio bu ortamda yoktu) doğrulanması — bu turda sadece
+masaüstü tarayıcı/dosya düzeyinde doğrulandı.
 
 ## ÜRÜN NOTLARI (önceki sohbetlerden)
 
