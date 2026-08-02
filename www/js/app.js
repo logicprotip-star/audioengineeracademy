@@ -295,28 +295,11 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 window.addEventListener("orientationchange", resizeCanvas);
 
-// Oyun ekranındaki .scroll'un alt boşluğu, sabit alt aksiyon çubuğunun (2 satır
-// buton + not metni — içeriğe göre boyu değişebilir) GERÇEKTEN ÖLÇÜLEN yüksekliğine
-// göre ayarlanır; sabit piksel tahmini cihaza/duruma göre yetersiz kalabiliyordu.
-// actionbar'ın kendi CSS'i zaten "padding-bottom: ... + env(safe-area-inset-bottom)"
-// içerdiği için getBoundingClientRect().height safe-area'yı da otomatik kapsar.
-function syncGameScrollPadding() {
-  if (!els.gameActionbar || !els.gameScroll) return;
-  const h = els.gameActionbar.getBoundingClientRect().height;
-  if (h > 0) els.gameScroll.style.paddingBottom = `${Math.ceil(h) + 24}px`;
-}
-if (window.ResizeObserver && els.gameActionbar) {
-  new ResizeObserver(syncGameScrollPadding).observe(els.gameActionbar);
-}
-// actionbar'ın boyu SABİT kalsa bile, cevap sonrası DOM'a eklenen geri bildirim
-// kartının kendi yüksekliği moda/bölgeye göre değişir (kısa "Kaçtı" satırından çok
-// satırlı bölge açıklamasına kadar) — kartı da ayrıca izlemek gerekiyor, sadece
-// actionbar'ı izlemek yetmiyordu (bir önceki turun eksik kalan kısmı buydu).
-if (window.ResizeObserver && els.feedbackBox) {
-  new ResizeObserver(syncGameScrollPadding).observe(els.feedbackBox);
-}
-window.addEventListener("resize", syncGameScrollPadding);
-window.addEventListener("orientationchange", syncGameScrollPadding);
+// Oyun ekranındaki .game-scroll'un alt boşluğu artık ÖLÇÜLMÜYOR — CSS'teki
+// --actionbar-h değişkeninden margin-bottom ile türetiliyor (bkz. styles.css
+// .game-scroll). Burada eskiden bir ResizeObserver/syncGameScrollPadding vardı;
+// cihazda ilk saniyelerde negatif fark bırakıyordu (actionbar henüz ölçülmeden
+// önceki kare) — CSS çözümü bu tür bir zamanlama penceresi bırakmıyor.
 
 // Cevap sonrası geri bildirim kartının TAMAMI görünür olsun diye scroll alanını
 // alta kaydırır. requestAnimationFrame: DOM içerik güncellemesi (setFeedback)
@@ -335,7 +318,6 @@ window.addEventListener("orientationchange", syncGameScrollPadding);
 // atama anında geçici kapatmak sıçramayı gerçekten anlık yapar; bir sonraki frame'de
 // geri açılır ki kullanıcının kendi parmak kaydırması yumuşak/native kalsın.
 function scrollFeedbackIntoView() {
-  syncGameScrollPadding();
   if (!els.gameScroll) return;
   els.gameScroll.style.setProperty("-webkit-overflow-scrolling", "auto");
   els.gameScroll.scrollTop = els.gameScroll.scrollHeight;
@@ -760,12 +742,11 @@ function goScreen(name) {
     if (scrollEl) scrollEl.scrollTop = 0;
   }
   if (name === "game") {
-    // Oyun ekranı bir önceki karede "display:none" idi (canvas/actionbar 0 yükseklikte
+    // Oyun ekranı bir önceki karede "display:none" idi (canvas 0 yükseklikte
     // ölçülürdü). .active sınıfı yukarıda SENKRON uygulandığı için getBoundingClientRect
     // okumak tarayıcıyı güncel layout'u hesaplamaya zorlar — rAF'a gerek yok (rAF arka
     // planda/pasif sekmelerde ertelenebiliyor, bu da güvenilmez ölçümlere yol açıyordu).
     resizeCanvas();
-    syncGameScrollPadding();
   } else if (abLoopTimer) {
     // Oyun ekranından çıkılınca A/B döngüsü arka planda dönmeye devam etmesin
     // (prototype.html: go() içindeki aynı temizlik, "s-game1" dışına çıkınca stopAbLoop).
@@ -1222,6 +1203,13 @@ function renderQuestion() {
   mode.renderGuessAreaControls(els.freqGuessArea, q);
   if (els.freqInfo) els.freqInfo.classList.add("hidden");
   syncAnswerArea();
+  // Şıklı cevap modunda 4-6 şık iki satıra taşıyor (.answers: 3 sütunlu grid) — bu,
+  // dokunmalı moddaki analizöre göre EKSTRA yükseklik demek. Dokunmalı modda scroll
+  // ETMİYORUZ (kullanıcının tıklaması gereken dalga/analizör görünür kalmalı); şıklı
+  // modda ise analizör sadece dekoratif, cevap kullanıcının GÖRMESİ gereken asıl
+  // içerik — son şıkkın altbar arkasında kalmaması için tur başlar başlamaz
+  // scrollFeedbackIntoView'ın AYNI momentum-scroll-güvenli mekanizmasıyla aşağı kaydır.
+  if (isChoiceFormat()) scrollFeedbackIntoView();
 
   setFeedback(
     q.boss ? "Boss round başladı!" : "Hazır mısın?",
@@ -2046,7 +2034,10 @@ if (els.answerFormatSelect) els.answerFormatSelect.addEventListener("change", ()
   storage.savePrefs(prefs);
   // Cevaplanmamış bir soru ortasında biçim değişirse görünümü hemen senkronla —
   // soru/timer/skor state'ine dokunmaz, sadece .ans grid'i gösterir/gizler.
-  if (activeQuestion && roundActive) syncAnswerArea();
+  if (activeQuestion && roundActive) {
+    syncAnswerArea();
+    if (isChoiceFormat()) scrollFeedbackIntoView();
+  }
 });
 
 if (els.focusSelect) els.focusSelect.addEventListener("change", () => {

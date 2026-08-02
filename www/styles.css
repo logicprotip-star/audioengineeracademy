@@ -39,6 +39,16 @@
       /* Varsayılan/JS-öncesi düşüş: index.html <head>'deki senkron script bunu
          gerçek window.innerHeight (px) ile ezer — bkz. .screen/.app-shell yorumu. */
       --app-vh:100dvh;
+      /* Oyun ekranındaki sabit alt aksiyon çubuğunun (#gameActionbar) GERÇEK içerik
+         yüksekliği (env(safe-area-inset-bottom) HARİÇ — o ayrıca eklenir, .actionbar'ın
+         kendi padding'inde olduğu gibi). Masaüstü Chrome'da ölçülen gerçek yükseklik
+         ~150px (padding-top 12 + satır 1 ~54 + margin 8 + nextBtn 56 + padding-bottom 16);
+         iOS WKWebView'de font rendering farkına karşı güvenlik payıyla yuvarlandı.
+         Sabit bir SAYI — .game-scroll'un margin-bottom'u bunu KULLANIR, ölçmez; böylece
+         boşluk ilk boyamadan önce bile doğrudur, ResizeObserver/JS senkronizasyonuna
+         hiç ihtiyaç yoktur (bkz. .game-scroll ve app.js: eski syncGameScrollPadding
+         kaldırıldı — cihazda geçmeyen ölçüm-tabanlı yaklaşımın yerini bu aldı). */
+      --actionbar-h:168px;
     }
 
     *,*::before,*::after{box-sizing:border-box}
@@ -267,12 +277,18 @@
     .stat.stat-acc{background:rgba(43,217,168,.12);border-color:rgba(43,217,168,.24);color:var(--gr);font-weight:700}
     .stat.stat-boss{background:rgba(255,77,109,.15);border-color:rgba(255,77,109,.3);color:#FFB3C2;font-weight:700}
 
-    /* Alt boşluk buradaki sabit değer sadece İLK BOYA/yedek içindir — gerçek değer
-       app.js tarafından alt aksiyon çubuğunun ÖLÇÜLEN yüksekliğine göre satır-içi
-       style ile ayarlanır (bkz. syncGameScrollPadding). Buton satırı içeriğe göre
-       (2 satır + not metni) boy değiştirebildiği için sabit piksel güvenilir değil. */
+    /* KÖK SEBEP (cihazda bulundu, tarayıcıda geçen ölçüm-tabanlı yaklaşım geçmedi):
+       .game-scroll .scroll'dan flex:1 devralır — bu, ekranın .ghead'den ARTAN TÜM
+       alanını (position:fixed .actionbar'ın kapladığı alt ~168px DAHİL) kendi kutusu
+       sayar. padding-bottom sadece "scroll edilebilir FAZLA alan" ekler, kutunun
+       kendisini actionbar'ın önünde DURDURMAZ — bu yüzden scrollTop=0 haldeyken
+       (soru yeni render edildiğinde, kullanıcı henüz kaydırmadan) son şık/kart
+       actionbar'ın ARKASINDA render olabiliyordu. margin-bottom bunun yerine
+       KUTUNUN KENDİSİNİ actionbar'ın üst kenarında durdurur — artık hangi anda
+       bakılırsa bakılsın (ölçüm/reflow/JS beklemeden) içerik asla actionbar'ın
+       arkasına düşemez. padding-bottom küçük bir nefes payı için kalıyor. */
     .game-scroll{display:flex;flex-direction:column;gap:10px;padding-top:10px;
-      padding-bottom:calc(220px + env(safe-area-inset-bottom))}
+      padding-bottom:20px;margin-bottom:calc(var(--actionbar-h) + env(safe-area-inset-bottom))}
 
     /* ---- kaynak / karıştır chip satırı ---- */
     .chiprow{display:flex;gap:8px;align-items:stretch}
