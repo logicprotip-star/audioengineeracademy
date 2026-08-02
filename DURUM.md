@@ -7,6 +7,27 @@ Son güncelleme: 03.08.2026
 
 ## BİTTİ
 
+Commit `b8c4cab` — G3: geliştirici modu (gizli Pro test anahtarı). Ayarlar >
+Hakkında > Sürüm numarasına 7 kez dokununca "Geliştirici" bölümü açılıyor
+("Pro'yu simüle et" anahtarı + kapatma seçeneği), ayrı bir localStorage
+anahtarında (`eqEarTrainerProXDev`) saklanıyor — prefs'e KARIŞTIRILMADI.
+Tek doğruluk kaynağı: `isUserPro()` (app.js:502) = `realPro` (şu an sabit
+false, IAP yazılınca buraya bağlanacak) `|| devFlags.simulatePro`. 7 çağrı
+noktası: `loseLife()`, `finalizeIfGameOver()`, 3x `currentLives<=0` kontrolü,
+`syncAccountLine()`, `applyProLockVisibility()`. `loseLife()` artık bu
+fonksiyonun arkasına alındı — Pro'da `currentLives` hiç azalmıyor.
+
+Tarayıcıda canlı doğrulandı: Pro kapalıyken kilitler normal (can 4→3 azaldı),
+Pro açıkken Araçlar'daki iki kilit (Analiz/Referans filtreleri) kalkıyor ve 3
+art arda yanlış cevapta can "4"te sabit kaldı (hiç azalmadı). 7-dokunuşla
+açılma+toast, localStorage kalıcılığı (reload sonrası bölüm otomatik görünür)
+ve "Geliştirici modunu kapat" ayrı ayrı test edildi. Mod sayısı (14) ve seans
+soru sayısı (10) Pro açılınca DEĞİŞMEDİ — kodda hiçbir mod tier'a göre kilitli
+değil (sadece seviyeye göre, bkz. BEKLEYEN KARARLAR **B**) ve "10 Soruluk
+Bölüm" zaten herkes için sabit 10 soru (bkz. BEKLEYEN KARARLAR **I.4** — bu
+görev var olmayan bir kısıtlamayı kaldırmadı, zaten yoktu). `npm test`:
+117/117.
+
 **Z1-Z7 — ZORLUK MİMARİSİ (gece oturumu, kullanıcı yoktu, sabah gözden geçirilmeli)**
 DURUM.md'de tasarım kararı olarak kayıtlı ama kodda hiç olmayan zorluk mimarisi
 (logaritmik ölçek, seans rampası, mod-bazlı seviye, kişiselleştirme, Otomatik/
