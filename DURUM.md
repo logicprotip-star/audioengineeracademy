@@ -7,6 +7,66 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `304946c` — G17: **Mod 2 "Kesim Noktası" — çalışan iskelet** (HPF/LPF
+kesim frekansı bulma, şıklı cevap, zorlukla tip ayrımı). Frekans Bulma'dan sonra
+ilk GERÇEK ikinci mod — bu, `app.js`'in `mode.X()` genel dispatch mekanizmasının
+(registry.js) BİRDEN FAZLA mod arasında ilk kez fiilen çalıştığı yer. `mode`
+artık module-seviyesi bir `let` (önceden `const` idi, tek mod olduğu için hiç
+değişmiyordu) — menüden hangi karta basıldığına göre değişiyor (bkz.
+`renderModeGrid`'in kart click handler'ı, mod değişiminde eski modun round'u/
+sesi/ekran metni temizleniyor).
+
+`www/js/modes/kesim-noktasi.js` (yeni, ŞABLON niyetiyle yazıldı — 6 sözleşme
+fonksiyonu + Frekans Bulma'yla aynı-isimli render yardımcıları). Frekans-ekseni
+sabitleri (FA_MIN/FA_MAX/AXIS_H/faXToF/faFToX/FA_ZONES/faZoneOf/recordZone/
+isBossRound) frekans-bulma.js'ten re-export edilir (jenerik, mode-bağımsız,
+duplike edilmedi). Kesim frekansı merkeze (log-geometrik orta, ~1166 Hz) en az
+`marginOct` oktav uzakta seçilir (kolayda büyük/uca yakın, zorlaştıkça küçülüp
+merkeze yaklaşır) — **bu eşleme KULAKLA DOĞRULANMADI**, Z1'in hassasiyet
+eğrisiyle AYNI durum (bkz. dosya başı yorum), makul bir başlangıç noktası.
+Kolay/orta: tip söylenir, tüm şıklar aynı tipte. Zor/pro: tip gizlenir, en az
+bir çeldiricinin filtre tipi ÇEVRİLİR (doğru şık hariç) — kullanıcı gerçekten
+hem tip hem frekans ayrımı yapmak zorunda kalır. Şık sayısı 3/4/5/6
+(DIFFICULTY.options). `applyProcessing` tek bir BiquadFilterNode (Q=0.707 sabit,
+eğim zorlukla değişimi KAPSAM DIŞI) kurup audio-engine.js'in mevcut kuru/işlenmiş
+A/B yoluna bağlanır — o dosyaya DOKUNULMADI.
+
+**Kapsam dışı (bilerek, sonraki bir prompt):** filtre eğrisi görseli
+(drawOverlay sadece frekans eksenini çizer), öğretici zone-tip metni,
+karşılaştırma-önizleme butonları (Senin cevabın/Doğru cevap/Temiz — app.js'in
+`#freqInfo` click-delegasyonu hâlâ SADECE "frequency" moduna kilitli).
+`submitCutoffGuess` bu yüzden `submitFrequencyGuess`'in YAPISAL PARALELİ olarak
+AYRI yazıldı (ortak "submitAnswer" özütlemesi yerine) — gerçek tekrar ağrısı
+3. modda netleşince ortak bir çekirdek çıkarılabilir.
+
+**Doğrulama sırasında bulunup aynı commit'te düzeltilen bir hata:** `#gameTitle`
+(oyun ekranı başlığı) `index.html`'de statik "Frekans Bulma" metniydi, `app.js`
+hiç güncellemiyordu (tek mod varken sorun değildi — ilk kez Kesim Noktası'na
+girilince başlık YANLIŞ "Frekans Bulma" göstererek fark edildi). Artık her kart
+tıklamasında doğru mod adıyla senkronlanıyor; aynı kökten, seans-sonu ekranının
+"veri yok" fallback başlığı da aktif modun katalog adına bağlandı.
+
+**Dürüst not — ÜRÜN KARARI GEREKTİRİYOR:** `mode-catalog.js`'teki kesim-noktasi
+girdisi `unlockLevel:2` — ama `academyLevel` formülü (Z3) HİÇ oynanmamış bir
+modun bile +1 katkı yaptığı bilinen bir ödün taşıyor (DURUM.md'de "2. mod
+eklendiğinde yeniden değerlendirilmeli" diye ÖNCEDEN kayıtlıydı, bkz. BEKLEYEN
+KARARLAR B). Sonuç: kesim-noktasi artık KAYITLI olduğu İÇİN academyLevel
+otomatik 2'ye çıkıyor ve kendi kilidini kendi açıyor — canlı doğrulandı (az
+ilerlemiş bir hesapta kart hiç kilitli görünmedi, doğrudan oynanabilir geldi).
+Kod tarafında dokunulmadı — bu formülün nasıl değişmesi gerektiği (ya da bu
+davranışın kabul edilip edilmeyeceği) bir ürün kararı.
+
+Doğrulama (tarayıcıda + npm test): mod oynanabilir (menüden "Kesim Noktası"
+başlığıyla oyun ekranı açılıyor, round başlıyor); HPF/LPF gerçekten uygulanıyor
+(spektrumda roll-off görsel olarak doğrulandı); zorlukla tip ayrımı çalışıyor
+(medium: "Bu bir LPF, kesim frekansı nerede?" + tüm şıklar "LPF"; pro: "Ne tür
+filtre, hangi frekansta?" + 6 şıktan 5'i HPF 1'i LPF, canlı ekran görüntüsüyle
+doğrulandı); şık sayısı medium'da 4, pro'da 6; boss round doğru çalışıyor;
+Frekans Bulma'da REGRESYON YOK (mod değiştirilip geri dönüldüğünde başlık/
+Dokunmalı chip/EQ eğrisi/zone-tip/karşılaştırma butonları hepsi eskisi gibi,
+konsolda sıfır hata). `npm test`: **160/160** (140 eski + 20 yeni
+kesim-noktasi testi).
+
 Commit `ae50e9d` — G16: Kaynak menüsü accordion gruplara çevrildi (kullanıcı
 raporu — SENTETİK/DAVUL/ENSTRÜMAN/KENDİ DOSYAM düz liste halinde hepsi açık
 duruyordu, "Kendi Dosyam" en altta kalıp ulaşmak için çok kaydırma
@@ -751,6 +811,13 @@ karara bağlandı (akademi/toplam seviyesi — `progress.academyLevel()`) ve KOD
 seviye-yetersiz/Pro) UI'da AYRIŞTIRILMASI sorununu ÇÖZMEDİ — hâlâ "Yakında" toast'ı
 hem "henüz kodlanmadı" hem "seviyen yetmiyor" için aynı görünüyor. Bu madde AÇIK
 kalıyor.
+**G17 ile SOMUTLAŞTI:** Z3'ün "hiç oynanmamış bir mod bile academyLevel'e +1
+katkı yapar" ödünü (bkz. o maddenin BİTTİ'deki notu, "2. mod eklendiğinde
+yeniden değerlendirilmeli" diye önceden kayıtlıydı) artık teorik değil — Kesim
+Noktası (`unlockLevel:2`) kayıtlı olduğu İÇİN academyLevel otomatik 2'ye çıkıyor
+ve kendi kilidini kendi açıyor (canlı doğrulandı). Karar gerekiyor: bu "yeni bir
+mod eklenince önceki kilitler ücretsiz açılıyor" davranışı kabul mü, yoksa
+academyLevel formülü (ya da unlockLevel değerleri) yeniden mi tasarlanmalı?
 
 **C. Rozet sayısı ve seti**
 Kod 9 rozet tanımlıyor (G1 denetimiyle 9'u da artık gerçekten tetiklenebiliyor),
@@ -817,7 +884,15 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım: Z1-Z7'nin sayısal değerlerini KULAKLA dinleyip ayarla.**
+**Tek sonraki adım: Kesim Noktası'nın kapsam dışı bırakılan iki parçası —
+filtre eğrisi görseli (drawOverlay) ve öğretici geri bildirim (zone-tip
+metni + karşılaştırma-önizleme butonları) — bir sonraki promptta eklenmeli.**
+Bundan ÖNCE, kullanıcıya sorulması gereken bir ürün kararı var: BEKLEYEN
+KARARLAR **B**'deki yeni not — Kesim Noktası kayıtlı olduğu için academyLevel
+otomatik yükselip kendi kilidini kendi açıyor, bu davranış kabul mü?
+
+Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi Kesim Noktası'nın marginOct/
+hintBandOct tablosu) hâlâ KULAKLA dinlenip ayarlanmayı bekliyor —
 Hiçbiri test edilmeden/dinlenmeden seçilmedi — bkz. SON RAPOR'daki "kulakla
 ayarlanması gereken değerler" listesi (DIFFICULTY_CONFIG, SESSION_RAMP_WEIGHTS,
 PERSONALIZATION_CONFIG — hepsi tek dosyada, kolay değiştirilir).
