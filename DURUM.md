@@ -7,6 +7,39 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `3a5c84c` — G19: Kesim Noktası — cevap sonrası filtre eğrisi görseli
+(kullanıcı + doğru cevap, iki renk). Soru sırasında spektrumda SADECE barlar
+görünür (kulakla bulma ilkesi korunur); cevap verildikten SONRA (`!roundActive
+&& activeQuestion` — tek gate, hem doğru cevapta hem süre dolunca otomatik)
+spektrumun üstüne İKİ eğri çiziliyor: kullanıcının cevabı (amber `--am`
+#FFC246) ve doğru cevap (yeşil `--gr` #2BD9A8) — mevcut paletten, yeni renk
+yok. Eğriler GERÇEK bir `BiquadFilterNode`'un `getFrequencyResponse()`'u
+okunarak çiziliyor (frekans-bulma.js:`getEqCurveForQuestion` ile AYNI teknik),
+eksenle (`faXToF`, N=160) aynı log ölçekte örnekleniyor. HPF/LPF yanıtı
+peaking'in aksine tek yönlü (0 dB geçen bantta, durdurma bandında -∞'a
+yaklaşır) — 0 dB ÜSTE (düz, geçen bant), -30dB ALTA (durdurma bandı) oturan
+tek-yönlü bir eşleme kullanıldı; "HPF solda iner sağda düz, LPF sağda iner
+solda düz" görünümü bundan DOĞAL olarak çıkıyor, elle yön mantığı yazılmadı.
+
+Kullanıcının cevabı (freq+filterType) yeni bir app.js değişkeninde
+(`cutoffGuess`) tutuluyor — frekans-bulma.js'in `freqGuessHz`'i sadece Hz
+taşıyor, bu modun cevabı hem frekans HEM tip içerdiği için (tip gizli
+sorularda yanlış tip seçilebiliyor) ayrı bir alan gerekti; `submitCutoffGuess`
+answer'ı AYNEN (yanlış tip dahil) kaydediyor — kullanıcı yanlış tip seçtiyse
+eğrisi de o YANLIŞ tipte çiziliyor (öğretici, canlı doğrulandı). Her yeni
+soruda (`renderQuestion`) null'a dönüyor; `drawVisualizer`'ın `overlayState`'ine
+eklendi, Frekans Bulma bu alanı hiç okumuyor.
+
+Doğrulama (tarayıcıda, canlı): iki eğri farklı renkte çiziliyor (amber+yeşil,
+küçük lejant, zoom ile renk ayrımı doğrulandı); soru sırasında eğri gizli
+(sadece bar+eksen); HPF/LPF yönü ve kesim frekansı hizası doğru (761 Hz LPF
+amber + 1.75 kHz HPF yeşil aynı ekranda, ikisi de doğru yönde/frekansta);
+doğru cevapta tek yeşil çizgi görünüyor (amber tam örtüşüyor, altta); tip
+yanlış seçilince kullanıcı eğrisi doğru cevabın TAM TERSİ yönünde çiziliyor
+(yukarıdaki 761Hz LPF/1.75kHz HPF örneği). `npm test`: **168/168**. Frekans
+Bulma regresyonu yok (kendi peaking-EQ eğrisi/panel canlı doğrulandı, sıfır
+konsol hatası).
+
 Commit `71dad21` — G18: Kesim Noktası — tip gizleme seans içi rampaya bağlandı,
 "Dokunmalı" gizlendi, sıkı bug taraması. Cihaz testinde bulunan iki sorun +
 şablon olacağı için modun genelinde derinlemesine bug taraması istendi.
@@ -925,11 +958,12 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım: Kesim Noktası'nın kapsam dışı bırakılan iki parçası —
-filtre eğrisi görseli (drawOverlay) ve öğretici geri bildirim (zone-tip
-metni + karşılaştırma-önizleme butonları) — bir sonraki promptta eklenmeli.**
-Bundan ÖNCE, kullanıcıya sorulması gereken bir ürün kararı var: BEKLEYEN
-KARARLAR **B**'deki yeni not — Kesim Noktası kayıtlı olduğu için academyLevel
+**Tek sonraki adım: Kesim Noktası'nın kapsam dışı bırakılan SON parçası —
+öğretici geri bildirim (zone-tip benzeri "neden" metni + karşılaştırma-
+önizleme butonları Senin cevabın/Doğru cevap/Temiz) — bir sonraki promptta
+eklenmeli.** Filtre eğrisi görseli G19 ile bitti (bkz. BİTTİ). Bundan ÖNCE,
+kullanıcıya sorulması gereken bir ürün kararı var: BEKLEYEN KARARLAR
+**B**'deki yeni not — Kesim Noktası kayıtlı olduğu için academyLevel
 otomatik yükselip kendi kilidini kendi açıyor, bu davranış kabul mü?
 
 Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi Kesim Noktası'nın marginOct/
