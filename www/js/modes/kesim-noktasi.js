@@ -8,8 +8,11 @@
 // dosya başındaki "SÖZLEŞMENİN DIŞINDA" notu, burada da geçerli).
 //
 // KAPSAM (bu iskelet turunda BİLEREK YOK, sonraki bir promptta eklenecek):
-// - Filtre eğrisi görseli — drawOverlay burada SADECE frekans eksenini çizer.
-// - Öğretici "neden" geri bildirimi — getFeedbackData zone/tip metni ÜRETMEZ.
+// - Öğretici "neden" geri bildirimi — getFeedbackData zone/tip metni ÜRETMEZ (G19'da
+//   sadece GÖRSEL filtre eğrisi eklendi — bkz. drawOverlay — metin geri bildirimi ayrı).
+// - Filtre eğrisi görseli G19'da eklendi (bkz. drawOverlay) — SADECE cevap sonrası,
+//   soru sırasında (roundActive) eksen dışında hiçbir şey çizilmez (kulakla bulma
+//   ilkesi bozulmasın diye, task kararı).
 // - Karşılaştırma-önizleme butonları (Senin cevabın/Doğru cevap/Temiz) — app.js'in
 //   #freqInfo click-delegasyonu hâlâ SADECE "frequency" moduna kilitli, bilerek
 //   dokunulmadı; bu mod hiç zengin panel göstermiyor (submitCutoffGuess sadece
@@ -368,12 +371,11 @@ export function markAnswerChoices(answersEl, q, picked) {
   });
 }
 
-// Filtre eğrisi görseli BİLEREK yok (bkz. dosya başı not) — sadece paylaşılan
-// frekans ekseni (gridline + tik etiketleri), spektrum çubuklarının altında/
-// arkasında aynı ölçekte dursun diye (drawVisualizer her zaman mode.drawOverlay
-// çağırır, bkz. app.js).
+// Paylaşılan frekans ekseni (gridline + tik etiketleri) — spektrum çubuklarının
+// altında/arkasında aynı ölçekte dursun diye (drawVisualizer her zaman
+// mode.drawOverlay çağırır, bkz. app.js).
 const AXIS_TICKS = [100, 200, 400, 800, 1600, 3200, 6400, 12800];
-export function drawOverlay(ctx2d, canvasEl, w, h) {
+function drawAxis(ctx2d, w, h) {
   const plotBottom = h - AXIS_H;
   ctx2d.font = "600 14px Inter, sans-serif";
   ctx2d.textAlign = "center";
@@ -386,4 +388,104 @@ export function drawOverlay(ctx2d, canvasEl, w, h) {
     ctx2d.fillText(label, x, h - 12);
   });
   ctx2d.textAlign = "left";
+}
+
+// Cevap sonrası filtre eğrisi — GERÇEK bir BiquadFilterNode kurup getFrequencyResponse()
+// okuyor (frekans-bulma.js:getEqCurveForQuestion ile AYNI teknik — ses motoruyla
+// BİREBİR aynı matematik, elle yaklaşıklık değil). N=160 nokta, eksenle (faXToF) AYNI
+// log ölçekte örnekleniyor ki eğri gerçekten doğru x konumuna otursun.
+const CURVE_POINTS = 160;
+function computeFilterCurveDb(audioCtx, freq, filterType, w) {
+  if (!audioCtx) return null;
+  const freqs = new Float32Array(CURVE_POINTS);
+  for (let i = 0; i < CURVE_POINTS; i++) freqs[i] = faXToF((i / (CURVE_POINTS - 1)) * w, w);
+  const mag = new Float32Array(CURVE_POINTS);
+  const phase = new Float32Array(CURVE_POINTS);
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = filterType;
+  filter.frequency.value = freq;
+  filter.Q.value = FILTER_Q;
+  filter.getFrequencyResponse(freqs, mag, phase);
+  const db = new Float32Array(CURVE_POINTS);
+  for (let i = 0; i < CURVE_POINTS; i++) db[i] = 20 * Math.log10(Math.max(mag[i], 1e-6));
+  return db;
+}
+
+// HPF/LPF yanıtı peaking'in aksine SINIRSIZ tek yönlü (0 dB geçen bantta, -∞'a
+// yaklaşan durdurma bandında) — bu yüzden frekans-bulma.js'in "±maxAbsDb, merkez
+// çizgi" eşlemesi yerine 0 dB'yi ÜSTE (geçen bant, düz), -DB_RANGE'i ALTA (durdurma
+// bandı, çubukların hemen üstü) oturtan tek-yönlü bir eşleme kullanılıyor — "HPF
+// solda iner sağda düz, LPF sağda iner solda düz" görünümü doğal olarak bundan çıkıyor.
+const DB_RANGE = 30;
+function drawFilterCurve(ctx2d, w, h, db, color, alpha) {
+  const plotBottom = h - AXIS_H;
+  const curveTop = CURVE_TOP, curveBottom = plotBottom - 6;
+  const yAt = i => {
+    const d = Math.max(-DB_RANGE, Math.min(0, db[i]));
+    const t = (d + DB_RANGE) / DB_RANGE; // 0 = tam kesilmiş, 1 = tam geçen bant
+    return curveBottom - t * (curveBottom - curveTop);
+  };
+  ctx2d.save();
+  ctx2d.beginPath();
+  for (let i = 0; i < CURVE_POINTS; i++) {
+    const x = (i / (CURVE_POINTS - 1)) * w;
+    if (i === 0) ctx2d.moveTo(x, yAt(i)); else ctx2d.lineTo(x, yAt(i));
+  }
+  ctx2d.strokeStyle = color;
+  ctx2d.lineWidth = 3;
+  ctx2d.globalAlpha = alpha;
+  ctx2d.lineJoin = "round";
+  ctx2d.stroke();
+  ctx2d.restore();
+}
+
+// Renkler mevcut paletten (styles.css :root — --am/--gr) — canvas CSS custom
+// property okuyamadığı için frekans-bulma.js'in AYNI hardcode deseni (drawEqResponseCurve/
+// drawOverlay'deki "#2BD9A8"/"#FFC246") burada da tekrarlanıyor, yeni renk YOK.
+const GUESS_COLOR = "#FFC246"; // --am
+const CORRECT_COLOR = "#2BD9A8"; // --gr
+
+function drawCurveLegend(ctx2d, w, showGuess) {
+  const y = 22;
+  let x = 10;
+  ctx2d.font = "700 12px Inter, sans-serif";
+  ctx2d.textAlign = "left";
+  if (showGuess) {
+    ctx2d.fillStyle = GUESS_COLOR;
+    ctx2d.fillText("●", x, y);
+    x += 12;
+    ctx2d.fillStyle = "#C7CEDD";
+    ctx2d.fillText("Senin cevabın", x, y);
+    x += ctx2d.measureText("Senin cevabın").width + 16;
+  }
+  ctx2d.fillStyle = CORRECT_COLOR;
+  ctx2d.fillText("●", x, y);
+  x += 12;
+  ctx2d.fillStyle = "#C7CEDD";
+  ctx2d.fillText("Doğru", x, y);
+}
+
+// Soru sırasında (roundActive) eğri BİLEREK gösterilmez — kullanıcı kesim noktasını
+// KULAĞIYLA bulmalı, göz hile olur (task kararı). Sadece cevap verildikten SONRA
+// (roundActive=false) hem kullanıcının seçtiği (freq+TİP — tip gizliyken yanlış tip
+// seçtiyse eğri de o YANLIŞ tipte çizilir, öğretici) hem doğru cevabın eğrisi çizilir;
+// doğru bilinmişse ikisi aynı yerde üst üste biner. state: { audioCtx, activeQuestion,
+// roundActive, cutoffGuess } — cutoffGuess app.js'te submitCutoffGuess'in {freq,
+// filterType} olarak kaydettiği KULLANICI cevabı (bkz. app.js dosyasındaki tanım notu),
+// yeni soru başında null'a döner.
+export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
+  drawAxis(ctx2d, w, h);
+  const { audioCtx, activeQuestion: q, roundActive, cutoffGuess } = state;
+  if (!q || roundActive) return;
+
+  const correctDb = computeFilterCurveDb(audioCtx, q.freq, q.filterType, w);
+  const guessDb = cutoffGuess ? computeFilterCurveDb(audioCtx, cutoffGuess.freq, cutoffGuess.filterType, w) : null;
+  if (!correctDb && !guessDb) return;
+
+  // Kullanıcının eğrisi ÖNCE (altta), doğru cevap SONRA (üstte) — tam isabette
+  // üstteki yeşil baskın görünür ("bu doğruydu"), ıskalamada ikisi ayrı ayrı seçilir.
+  if (guessDb) drawFilterCurve(ctx2d, w, h, guessDb, GUESS_COLOR, 0.85);
+  if (correctDb) drawFilterCurve(ctx2d, w, h, correctDb, CORRECT_COLOR, 0.85);
+
+  drawCurveLegend(ctx2d, w, !!guessDb);
 }

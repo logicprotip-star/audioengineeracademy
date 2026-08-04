@@ -477,6 +477,13 @@ let roundsInThisPlaySession = 0;
 
 let freqGuessHz = null;
 let freqHoverHz = null;
+// G19: Kesim Noktası'nın cevap-sonrası filtre eğrisi görseli için — kullanıcının
+// verdiği cevap {freq, filterType} (bkz. submitCutoffGuess). frekans-bulma.js'in
+// freqGuessHz'i sadece bir Hz sayısı taşıyor, bu modun cevabı hem frekans HEM tip
+// içerdiği (tip gizli sorularda yanlış tip seçilebiliyor) için AYRI bir alan —
+// drawVisualizer'ın overlayState'ine geçiyor, mode.drawOverlay bunu okur. Her yeni
+// soruda (renderQuestion) null'a döner, submitCutoffGuess cevaplanınca doldurur.
+let cutoffGuess = null;
 
 // İlerleme sekmesindeki "toplam antrenman süresi" istatistiği: her tur startRound()'da
 // başlar, cevap/timeout ile biter — soru ekranda GERÇEKTEN açık kaldığı süreyi toplar.
@@ -1401,6 +1408,7 @@ function renderQuestion() {
   els.bossChip.className = `chip ${q.boss ? "boss" : ""}`;
 
   freqGuessHz = null; freqHoverHz = null;
+  cutoffGuess = null;
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
   revealAnimator.reset();
   setAnalyzerPhase("ask");
@@ -1559,6 +1567,10 @@ function submitCutoffGuess(answer) {
   setAnalyzerPhase("done");
   if (els.gainValue) els.gainValue.textContent = ""; // bu modda "gain" kavramı yok
   if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, answer);
+  // G19: filtre eğrisi görseli için — drawVisualizer'ın overlayState'ine geçiyor
+  // (bkz. cutoffGuess tanımındaki not). answer.filterType tip-gizli sorularda
+  // YANLIŞ olabilir — bilerek AYNEN taşınıyor, eğri de o yanlış tipte çizilsin diye.
+  cutoffGuess = { freq: answer.freq, filterType: answer.filterType };
 
   stats.rounds++;
   let gained = 0;
@@ -1960,7 +1972,8 @@ function drawVisualizer() {
     roundActive,
     freqGuessHz,
     freqHoverHz,
-    revealAnimator
+    revealAnimator,
+    cutoffGuess // G19: bkz. Kesim Noktası'nın drawOverlay'i — diğer modlar okumuyor
   };
 
   if (!visualizerOn || !audioEngine.audioReady) {
@@ -2459,6 +2472,7 @@ els.resetStatsBtn.addEventListener("click", () => {
   activeQuestion = null;
   roundActive = false;
   freqGuessHz = null; freqHoverHz = null;
+  cutoffGuess = null;
   syncLives();
   roundFlow.clearTimer();
   audioEngine.stopAudio();
