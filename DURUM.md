@@ -7,6 +7,23 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+G9 — "odak aralığı spektrumu daraltmıyor" teşhisi (kod değişikliği YOK,
+sadece DURUM.md notu — bkz. AÇIK İŞLER madde 11). Kullanıcı raporu G7/G8'in
+(AudioBufferSourceNode geçişi) analyser bağlantısını kopardığını
+varsayıyordu — kod incelemesiyle (git log + doğrudan kaynak okuma) bunun
+YANLIŞ olduğu kanıtlandı: (1) odak aralığı seçimi doğru yere ulaşıyor ve
+GERÇEKTEN çalışıyor, ama SADECE soru üretim havuzunu (`createQuestion`'a
+geçen `focusRange`) daraltıyor; (2) spektrum ekseni M1-4'ten (`5c608f4`,
+aylar önce) beri `FA_MIN`/`FA_MAX` (80 Hz–17 kHz) sabitine kenetli — kodun
+kendi yorumu bunu açıkça belgeliyor, hiçbir zaman odak aralığından
+beslenmedi; (3) `analyser`/`masterGain`/`muteGain` bağlantısı G4-G8'in
+HİÇBİRİNDE değişmedi (`git log -p` ile üç commit tek tek tarandı). Sonuç:
+"önceden çalışıyordu" öncülü yanlıştı — bu bir regresyon değil, davranış
+her zaman böyleydi. Kullanıcı onayıyla (ekseni de daraltmak ayrı, riskli
+bir refactor — FA_MIN/FA_MAX okuyan tüm çizim fonksiyonları + tıklama→Hz
+haritalaması etkileniyor) kod değişikliği yapılmadı, bulgu AÇIK ÖZELLİK
+olarak kaydedildi.
+
 Commit `e9dfd4e` — G8: kullanıcı dosyası yükleme AudioBuffer'a taşındı, "ses
 motoru kilitleniyor" bug'ı çözüldü (E1'in devamı — WAV picker sorunundan
 AYRI, yeni bir bug: kullanıcı dosya yükleyince TÜM kaynaklar çalmaz
@@ -452,6 +469,24 @@ engel ortadan kalktığı için ayrı bir işte eklenebilir.
 
 **8. İlerleme sekmesi prototiple örtüşmüyor**
 Bölümler var, düzen farklı. `Dizayn/prototype.html` referans.
+
+**11. AÇIK ÖZELLİK — Odaklı pratik modu**
+Kullanıcı raporu (G9 teşhisi, kod değişikliği YAPILMADI — bkz. BİTTİ):
+Odak aralığı (Bas/Orta/Tiz) şu an SADECE soru üretim havuzunu daraltıyor
+(`createQuestion`'a `focusRange` olarak geçiyor) — spektrum ekseni
+(`drawFreqAxis`/`faXToF`/`faFToX`/`drawSpectrumBars`) tasarım gereği sabit
+80 Hz–17 kHz'e (`FA_MIN`/`FA_MAX`) kenetli, M1-4'ten (`5c608f4`) beri hiç
+değişmedi — bu, G7/G8'deki AudioBufferSourceNode geçişinden ETKİLENMEDİ
+(git log ile doğrulandı, analyser bağlantısı da hiç kopmadı).
+İstenen: kullanıcı zayıf bölgesini (bas/orta/tiz) seçip odaklı çalışırken
+spektrum GÖRSEL olarak da o bölgeye daralsın — hem kulak hem göz o dar
+bölgeye odaklansın. Kullanım senaryosu: günün önerisi (8 soru) bitince
+kullanıcı zayıf bölgesini seçip tekrar tekrar çalışır.
+Gerekli iş: `drawFreqAxis`/`faXToF`/`faFToX`/`drawSpectrumBars` + ipucu/A-B
+işaretleyicileri gibi `FA_MIN`/`FA_MAX` okuyan çizim fonksiyonlarının
+tamamının dinamik bir aralık alacak şekilde refactor edilmesi (tıklama→Hz
+haritalamasını da etkiliyor, riskli) — ayrı bir iş, bu turun kapsamı
+dışında bırakıldı (kullanıcı kararı).
 
 ### Yayın öncesi
 
