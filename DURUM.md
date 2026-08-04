@@ -7,6 +7,48 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `77278b8` — G15: X butonu otomatik geçişle BİRLİKTE geri geldi,
+**madde 13 KAPANDI**. G14'te kaldırılan `.freq-info-close` butonu geri
+eklendi (`frekans-bulma.js`'in iki panel fonksiyonu, `styles.css`,
+`app.js`'in `#freqInfo` click-delegasyonu) — G13'ten farklı olarak bu kez
+otomatik geçiş mekanizmasıyla ÇAKIŞMADAN birlikte çalışıyor: X'e basan
+hemen `goToNextRound()` ile ilerler, basmayan normal otomatik geçişi
+bekler, karşılaştırma butonuna basan için otomatik geçiş dinleme
+bitene kadar ertelenir.
+
+Madde 13'ün kök sebebi (`loopAwarePreviewMs`'in karşılaştırma-sonrası
+geçiş beklemesini kaynağın TAM DÖNGÜ uzunluğuna yuvarlaması — uzun
+yüklenen dosyada dakikalarca sürebiliyordu) çözüldü: `audio-engine.js`'ten
+`loopAwarePreviewMs` TAMAMEN kaldırıldı (grep doğrulandı — export'ta/kodda
+kalmadı, sadece bunu açıklayan bir yorum satırında adı geçiyor). Yerine
+`app.js`'te sabit `CMP_PREVIEW_RESUME_MS=3000` geldi — geçiş beklemesi
+artık kaynak uzunluğundan TAMAMEN bağımsız. Önizleme sesi (`loop:true`)
+bu noktada durdurulmuyor, kesilmeden çalmaya devam ediyor; sadece
+otomatik-geçiş zamanlayıcısı bu sabit süre sonunda yeniden kuruluyor.
+
+**Doğrulama sırasında ikinci, daha ciddi bir hata bulundu ve düzeltildi:**
+`cmpPreviewStopTimer`'ın geri çağrısı, `roundFlow.captureRemainingAndClear()`
+`null` DÖNMEDİĞİNDE `ensureAutoNext`'i yeniden kuruyordu. Orijinal
+cevap-sonrası otomatik-geçiş zamanlayıcısı, kullanıcı karşılaştırma
+butonuna basana kadar zaten ateşlenmişse (gerçek kullanımda birkaç saniye
+sürebilir — otomasyon ortamında da tekrar tekrar gözlendi) `captureRemainingAndClear()`
+`null` döner; bu durumda geçiş HİÇ yeniden kurulmuyordu ve tur KALICI
+olarak askıda kalıyordu (X/Atla dışında çıkış yolu yoktu) — madde 13'ün
+"geç gelir" tanısından daha kötü bir "hiç gelmeyebilir" davranışı.
+Canlı testte doğrulandı: 20 saniyelik yüklenmiş WAV'da "Doğru cevap"
+önizlemesine basıldıktan sonra tur 15+ saniye boyunca hiç ilerlemedi,
+konsolda hata yok. Düzeltme: `remain` null/0 olsa bile `ensureAutoNext`
+her zaman çağrılıyor — `roundFlow` zaten null/0 durumunda 1500ms
+varsayılana düşüyor (`round-flow.js: ensureAutoNext`).
+
+Doğrulama (tarayıcıda, `test-pause.wav` — 20sn'lik yüklenmiş WAV ile):
+X butonu görünür ve basınca feedback paneli anında kapanıp yeni tur
+başlıyor (~500ms içinde); hiçbir şeye basmadan bekleme normal otomatik
+geçişle ilerliyor (müdahalesiz art arda birden fazla tur); "Doğru cevap"
+önizlemesine basıp dinleme artık kalıcı askıda KALMIYOR, birkaç saniye
+içinde tur ilerliyor — düzeltmeden önce dakikalarca (hatta hiç) gelmeyen
+geçiş artık güvenilir. `npm test`: 140/140.
+
 Commit `0cfd4e3` — G14: geri bildirim geçişi X butonundan tamamen otomatiğe
 çevrildi (kullanıcı kararı — X'in "devam mı/çıkış mı/atla mı" olduğu
 yorumlanabilir bulundu, akış buton olmadan tamamen otomatik olmalı).
@@ -628,23 +670,15 @@ Kullanıcı Pro Plus'ta ayarı kapatırsa panel yine de açılır.
 açılmadan hızlı ilerleniyor, `revealAnimator` animasyonu düzgün tamamlanıyor
 (yarıda kesilmiyor).
 
-**13. Uzun yüklenen dosyada karşılaştırma sonrası otomatik geçiş hâlâ çok geç gelebilir**
-G13'te teşhis edildi, G14'te (X butonunun kaldırılması) ÇÖZÜLMEDİ — bilerek,
-"ses çalma davranışı" kritik-korunacaklar listesindeydi. Kök sebep:
-`audio-engine.js`'teki `loopAwarePreviewMs(minMs)` karşılaştırma önizlemesinin
-bitiş süresini kaynağın TAM DÖNGÜ uzunluğuna yuvarlıyor — kısa gömülü
-kaynaklar için doğru (~1-2sn), ama "upload" kaynağının `AudioBuffer`'ı
-kullanıcının yüklediği TÜM ŞARKI kadar olabiliyor (G7/G8'den beri). 3
-dakikalık bir şarkıda bu, önizleme bitiş süresini ~3 dakikaya çıkarır —
-kullanıcı karşılaştırma dinlerse sonraki soru o kadar gecikir. Artık
-"asla gelmeyecek" değil (G14 öncesi X ile aşılıyordu, G14 sonrası hiçbir
-buton yok) ama "çok geç gelecek" — X'in çözdüğü kilitlenmenin YERİNE geçen
-daha yumuşak bir versiyonu.
-**Kabul kriteri (olası çözüm, ürün kararı gerekiyor):** `loopAwarePreviewMs`
-upload kaynağı için bir ÜST SINIR alsın (ör. 8-10sn) — kaynağın döngüsünü
-yarıda kesmek pahasına, önizleme süresi asla birkaç saniyeden uzun sürmesin.
-Ya da: bu üst sınırın "döngü yarıda kesilmesin" tasarım kararıyla (bkz. F2)
-nasıl uzlaşacağı kullanıcıya sorulmalı.
+**13. ~~Uzun yüklenen dosyada karşılaştırma sonrası otomatik geçiş hâlâ çok geç gelebilir~~ — G15'te KAPANDI, `77278b8`**
+Kök sebep (`loopAwarePreviewMs`'in geçiş beklemesini kaynağın TAM DÖNGÜ
+uzunluğuna yuvarlaması) çözüldü — fonksiyon tamamen kaldırıldı, geçiş
+beklemesi artık kaynak uzunluğundan bağımsız sabit `CMP_PREVIEW_RESUME_MS`
+(3000ms). Önizleme sesi kesilmiyor, sadece geçiş zamanlayıcısı bu sabit
+süre sonunda yeniden kuruluyor; X butonu da geri geldi (basan hemen
+ilerler). Doğrulama sırasında bulunan ve aynı commit'te düzeltilen ikinci
+bir hata (`cmpPreviewRemainingMs` null olduğunda geçişin HİÇ yeniden
+kurulmaması, turun kalıcı askıda kalması) için bkz. BİTTİ.
 
 **11. AÇIK ÖZELLİK — Odaklı pratik modu**
 Kullanıcı raporu (G9 teşhisi, kod değişikliği YAPILMADI — bkz. BİTTİ):
@@ -770,8 +804,9 @@ Bundan sonraki öncelik sırası:
   jest gerektiriyor, mouse-tabanlı otomasyonla HİÇ üretilemedi.
 - **A/B pitch fix** (önceki tur, `8f66de1`) — gerçek cihazda kulakla pitch'in
   artık sabit kaldığı doğrulanmalı, bu ortamda ses duyulamıyor.
-- **F2**'nin karşılaştırma-önizlemesi duraklat/devam davranışı — önceki
-  turdan, hâlâ cihaz doğrulaması bekliyor. (**E1** G10 ile KAPANDI.)
+- **F2**'nin karşılaştırma-önizlemesi duraklat/devam davranışı — G15 ile
+  masaüstünde sağlamlaştırıldı (madde 13 kapandı), hâlâ cihaz doğrulaması
+  bekliyor. (**E1** G10 ile KAPANDI.)
 
 Kod tarafında bekleyen karar yok; E/F/G/H/I (BEKLEYEN KARARLAR, Z1-Z7 ile E/G
 kapandı) kullanıcıya sorulmayı bekliyor ama hiçbiri şu an engelleyici değil.
