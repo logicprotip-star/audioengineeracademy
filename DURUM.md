@@ -7,6 +7,31 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `2ceb992` — G6: sample yükleme yolu HTMLAudioElement'e taşındı, iOS
+"HTTP 0" çözüldü. Kök sebep (kullanıcı cihazda ölçtü, Safari Web Inspector):
+`buildSampleSource` (G4'te eklenen yol) `fetch()+decodeAudioData()`
+kullanıyordu — WKWebView yerel bundle dosyalarını `fetch()` ile çekmeyi
+engelliyor, "HTTP 0" veriyor (format sorunu değildi, G5'teki .aiff→.m4a
+değişikliği bu yüzden HTTP 0'ı çözmedi). `upload.js`'in zaten kullandığı
+ÇALIŞAN desene (`new Audio(path)` + `createMediaElementSource`) taşındı.
+`{el,node}` path başına KALICI cache'leniyor (`uploadedMediaSource` ile aynı
+ilke — bir elementten `createMediaElementSource` sadece bir kez çağrılabilir),
+ilk yüklemede `canplaythrough` bekleniyor, hata durumunda mevcut try/catch +
+pink noise fallback DEĞİŞMEDİ. `buildQuestionChain`'deki eski `sample.stop()`
+çağrısı kaldırıldı (MediaElementAudioSourceNode'da yok).
+
+Doğrulama sırasında kullanıcı gerçek 9 m4a dosyasını `www/audio/` altına
+koymuştu (bu görevden BAĞIMSIZ, kendi işlemi) — tarayıcıda "kick" ve "hihat"
+ayrı ayrı test edildi, konsolda SIFIR hata, iki spektrum görsel olarak
+BİRBİRİNDEN AYRI ve doğru karakterde (kick: düşük frekans kümesi, hi-hat:
+geniş bant/tiz ağırlıklı) — gerçek dosyaların pink noise fallback'i DEĞİL,
+doğrudan decode edilip çalındığı doğrulandı. `npm test`: 117/117. iOS
+cihazda HTTP 0'ın gerçekten kalktığı KULLANICI TARAFINDAN doğrulanacak (bu
+ortamda gerçek cihaz/simülatör yok). NOT: 9 gerçek m4a dosyası bu commit'e
+dahil edilmedi (kod-yolu değişikliğinin kapsamı dışında), `www/audio/`
+altında halen untracked — ayrı bir kararla eklenmeli (bkz. AÇIK İŞLER 10,
+güncellenmesi gerekiyor artık dosyalar mevcut).
+
 Commit `2d2bd6f` — G4: gerçek ses kaynakları eklendi (9 sample, DAVUL+ENSTRÜMAN).
 `www/audio/` klasörü oluşturuldu (dosyaların KENDİSİ henüz yok, kullanıcı elle
 koyacak — `.gitkeep` ile izleniyor, `cap sync` sonrası `ios/App/App/public/audio/`
@@ -340,17 +365,14 @@ görünür kalması) doğru cevap tarafındaki DUPLIKE kart bug'ı da düzeldi.
 
 ### Eksik özellikler
 
-**10. Gerçek ses dosyaları (DAVUL/ENSTRÜMAN) katalogda tanımlı ama dosyaların kendisi yok**
-G4 ile `source-catalog.js`'e 9 `kind:"sample"` girdisi eklendi (kick/snare/
-hihat/tom/groove_090 + bass/bass_alt/acoustic_guitar/vocal), hepsi
-`www/audio/<ad>.aiff` bekliyor. Klasör var, dosyaların kendisi YOK — bu
-kaynaklar seçildiğinde şu an sessizce pink noise'a düşüyor (404, yakalanmış
-hata). Dosyalar `www/audio/` altına konana kadar bu 9 girdi kullanıcıya
-görünür ama işlevsiz kalır.
-**Kabul kriteri:** 9 dosyanın hepsi `www/audio/` altında, her biri seçilip
-round başlatıldığında konsolda "Örnek yüklenemedi" hatası YOK, spektrumda
-gerçek örneğin karakteri (kick=düşük frekans enerjisi, hihat=yüksek vb.)
-görülüyor.
+**10. ~~Gerçek ses dosyaları (DAVUL/ENSTRÜMAN) katalogda tanımlı ama dosyaların kendisi yok~~ — dosyalar mevcut, git'e eklenmedi**
+G4 ile `source-catalog.js`'e 9 `kind:"sample"` girdisi eklendi, G5 ile
+uzantı `.m4a`'ya çevrildi, G6 ile yükleme yolu HTMLAudioElement'e taşındı.
+9 gerçek m4a dosyası artık `www/audio/` altında VAR (kullanıcı elle koydu,
+tarayıcıda kick/hihat doğrulandı — konsolda hata yok, spektrum doğru) ama
+henüz git'e commit'lenmedi (`git status` → untracked). **Kalan tek adım:**
+`git add www/audio/*.m4a` + commit — ürün kararı değil, sadece unutulmamalı.
+iOS cihazda gerçek doğrulama (HTTP 0'ın kalkması) kullanıcıda.
 
 **5. ~~A/B Test gerçek bypass değil~~ — bir kullanıcı raporuyla birlikte düzeltildi, bkz. BİTTİ**
 Kullanıcı (14 yıllık müzik prodüktörü) A/B döngüsünde pitch kayması bildirdi
