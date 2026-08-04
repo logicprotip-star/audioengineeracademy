@@ -7,10 +7,12 @@
 // kind:
 //   "noise"  — audio-engine.js'teki buildNoiseSource (id doğrudan sourceType olarak geçer)
 //   "synth"  — audio-engine.js'teki buildSynthSource (id doğrudan osilatör tipi olarak geçer)
-//   "sample" — samplePath'teki dosya fetch+decodeAudioData ile çalınır (bkz.
-//              audio-engine.js buildSampleSource). Dosyanın kendisi www/audio/
+//   "sample" — samplePath'teki dosya HTMLAudioElement + MediaElementAudioSourceNode ile
+//              çalınır (bkz. audio-engine.js buildSampleSource — upload.js'teki AYNI
+//              desen; fetch()+decodeAudioData DEĞİL, WKWebView yerel bundle dosyalarını
+//              fetch() ile çekemiyor, "HTTP 0" veriyor). Dosyanın kendisi www/audio/
 //              altına elle konur (bu dosyada sadece katalog girdisi tutulur) —
-//              samplePath yoksa/404 verirse audio-engine.js sessizce pink noise'a
+//              samplePath yoksa/yüklenemezse audio-engine.js sessizce pink noise'a
 //              düşer (bkz. buildQuestionChain'deki try/catch), uygulama çökmez.
 //   "upload" — kullanıcının kendi yüklediği dosya (uploadManager, değişmedi).
 export const SOURCE_GROUPS = [
