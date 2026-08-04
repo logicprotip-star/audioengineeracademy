@@ -161,45 +161,53 @@ export function createAudioEngine() {
     return [noise];
   }
 
-  // ---- örnek (dosya) tabanlı kaynaklar — HTMLAudioElement + MediaElementAudioSourceNode
-  // (upload.js'teki AYNI desen — fetch()+decodeAudioData DEĞİL). Kök sebep: WKWebView
-  // yerel bundle dosyalarını fetch() ile çekemiyor ("HTTP 0", cihazda ölçüldü — format
-  // fark etmiyor, hem .aiff hem .m4a aynı hatayı verdi). <audio src=...> ise (upload.js'in
-  // zaten kullandığı, çalışan yol) bu kısıtlamaya tabi değil.
-  // MediaElementAudioSourceNode bir <audio> elementinden SADECE BİR KEZ oluşturulabilir
-  // (ikinci createMediaElementSource çağrısı hata fırlatır) — bu yüzden path başına
-  // KALICI olarak cache'leniyor (uploadedMediaSource ile aynı ilke: TUR DEĞİŞTİĞİNDE
-  // yeniden oluşturulmuyor, sadece yeni filtre zincirine yeniden bağlanıyor).
-  const sampleNodeCache = new Map();
-  function getOrCreateSampleNode(path) {
-    if (sampleNodeCache.has(path)) return sampleNodeCache.get(path);
-    const el = new Audio(path);
-    el.loop = true;
-    el.preload = "auto";
-    el.playsInline = true;
-    const node = audioCtx.createMediaElementSource(el);
-    const entry = { el, node };
-    sampleNodeCache.set(path, entry);
-    return entry;
+  // ---- örnek (dosya) tabanlı kaynaklar — XMLHttpRequest(arraybuffer) + decodeAudioData +
+  // AudioBufferSourceNode (sentetik kaynakların ZATEN kullandığı yol). İki ayrı sorun tek
+  // tek çözüldü: (1) fetch() WKWebView'da yerel bundle dosyasını çekemiyordu ("HTTP 0") —
+  // XMLHttpRequest (arraybuffer response) aynı işi yerel dosyalarda da görüyor, fetch()
+  // KULLANILMIYOR. (2) HTMLAudioElement (bir önceki commit) HTTP 0'ı çözdü ama iOS'ta
+  // kesik kesik çaldı ve loop noktasında tıklama/boşluk vardı — streaming/element tabanlı
+  // çalma kısa ve hassas zamanlamalı döngüler için uygun değil. AudioBufferSourceNode
+  // kusursuz loop + örnek-hassas zamanlama sağlıyor. Kaynaklar küçük (en büyüğü ~130 KB/
+  // 5.6sn) — decodeAudioData burada RAM riski TAŞIMIYOR (upload.js'in BÜYÜK kullanıcı
+  // dosyaları için bu yoldan kaçınmasıyla çelişmiyor, o farklı bir ölçek — bkz. upload.js
+  // başındaki not). AudioBuffer path başına decode edilip CACHE'lenir (immutable, paylaşımı
+  // güvenli) — ama her turda YİNE DE yeni bir AudioBufferSourceNode oluşturulur, "kalıcı
+  // graf mutasyonu yok" kuralı bozulmaz (sentetik kaynaklarla aynı desen).
+  const sampleBufferCache = new Map(); // path -> Promise<AudioBuffer>, decode SADECE BİR KEZ
+  function loadSampleBuffer(path) {
+    if (sampleBufferCache.has(path)) return sampleBufferCache.get(path);
+    const promise = new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", path, true);
+      xhr.responseType = "arraybuffer";
+      xhr.onload = () => {
+        if (xhr.status !== 0 && xhr.status !== 200) {
+          reject(new Error(`Örnek yüklenemedi: ${path} (HTTP ${xhr.status})`));
+          return;
+        }
+        audioCtx.decodeAudioData(
+          xhr.response,
+          resolve,
+          err => reject(err instanceof Error ? err : new Error(`Örnek decode edilemedi: ${path}`))
+        );
+      };
+      xhr.onerror = () => reject(new Error(`Örnek yüklenemedi: ${path} (ağ hatası)`));
+      xhr.send();
+    });
+    // Başarısız denemeyi cache'leme — bir sonraki seçimde yeniden denensin (ör. dosya
+    // sonradan eklendi).
+    promise.catch(() => sampleBufferCache.delete(path));
+    sampleBufferCache.set(path, promise);
+    return promise;
   }
   async function buildSampleSource(path) {
-    const { el, node } = getOrCreateSampleNode(path);
-    if (el.readyState < 3) { // HAVE_FUTURE_DATA — iOS'ta ilk yüklemede beklenmesi gerekir
-      await new Promise((resolve, reject) => {
-        const onReady = () => { cleanup(); resolve(); };
-        const onError = () => { cleanup(); reject(new Error(`Örnek yüklenemedi: ${path}`)); };
-        function cleanup() {
-          el.removeEventListener("canplaythrough", onReady);
-          el.removeEventListener("error", onError);
-        }
-        el.addEventListener("canplaythrough", onReady, { once: true });
-        el.addEventListener("error", onError, { once: true });
-      });
-    }
-    el.currentTime = 0;
-    const p = el.play();
-    if (p && p.catch) p.catch(() => {});
-    return [node];
+    const buffer = await loadSampleBuffer(path);
+    const src = audioCtx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    src.start();
+    return [src];
   }
 
   function buildSynthSource(sourceType) {
@@ -287,17 +295,16 @@ export function createAudioEngine() {
       const samplePath = findSource(sourceType).samplePath;
       try {
         const [sample] = await buildSampleSource(samplePath);
-        // stopAudio() bu zincirin kurulumu sırasında (yükleme/canplaythrough beklenirken)
-        // başka bir soru/tur başladıysa currentNodes'u zaten temizlemiş olabilir — o zaman
-        // bu node'u YİNE DE bağlamak eski bir zinciri diriltir. Zincirin hâlâ güncel
+        // stopAudio() bu zincirin kurulumu sırasında (decode beklerken) başka bir
+        // soru/tur başladıysa currentNodes'u zaten temizlemiş olabilir — o zaman bu
+        // node'u YİNE DE bağlamak eski bir zinciri diriltir. Zincirin hâlâ güncel
         // olduğunu currentNodes referansı üzerinden doğrula.
         if (currentNodes.includes(out)) {
           sample.connect(sourceMix);
           currentNodes.push(sample);
+        } else {
+          sample.stop();
         }
-        // else: bağlanmadan bırak — sample KALICI/cache'li bir MediaElementAudioSourceNode
-        // (uploadedMediaSource ile aynı ilke, bkz. yukarıdaki case), .stop() metodu yok ve
-        // zaten hiçbir yere bağlı değil; bir sonraki başarılı zincirde yeniden kullanılacak.
       } catch (err) {
         console.error(err);
         const [noise] = buildNoiseSource("pink");
