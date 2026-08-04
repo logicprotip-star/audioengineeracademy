@@ -261,7 +261,8 @@ const els = {
 
 // sourceSelect'in <option>/<optgroup> listesi SOURCE_GROUPS'tan üretilir — kaynak
 // sheet'i tek kaynaktan (source-catalog.js) beslenir, HTML'de ayrıca elle tutulmaz.
-// Boş gruplar (DAVUL/ENSTRÜMAN — henüz örnek yok) hiç render edilmez.
+// Boş gruplar (sources:[]) hiç render edilmez — bugün için hepsi dolu ama yeni
+// bir motor/grup boş eklenirse yine otomatik gizlenir.
 function populateSourceSelect() {
   if (!els.sourceSelect) return;
   els.sourceSelect.innerHTML = SOURCE_GROUPS
