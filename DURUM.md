@@ -7,6 +7,41 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `e9dfd4e` — G8: kullanıcı dosyası yükleme AudioBuffer'a taşındı, "ses
+motoru kilitleniyor" bug'ı çözüldü (E1'in devamı — WAV picker sorunundan
+AYRI, yeni bir bug: kullanıcı dosya yükleyince TÜM kaynaklar çalmaz
+oluyordu). Kök sebep KOD İNCELEMESİYLE teşhis edildi (tahmin değil):
+tek AudioContext var (grep doğrulandı), createMediaElementSource path
+başına bir kez çağrılıyordu, null mediaSource'la buildQuestionChain'e
+ulaşan bir yol da yoktu — yani "çift context" ve "çift createMediaElementSource"
+hipotezleri EKARTE edildi. Geriye kalan açıklama: G7'de gömülü örnekler
+AudioBufferSourceNode'a taşınmıştı ama kullanıcı dosyası hâlâ
+MediaElementAudioSourceNode kullanıyordu — AYNI ses grafiğinde İKİ FARKLI
+source-node tipinin karışması, iOS WebKit'te bilinen ama bu ortamda
+(masaüstü Chrome) yeniden üretilemeyen bir etkileşim sorunu.
+
+Kullanıcı onayıyla (30 MB/OOM trade-off'u soruldu): upload.js tamamen
+AudioBuffer yoluna taşındı (File.arrayBuffer()+decodeAudioData+
+AudioBufferSourceNode, gömülü örneklerle AYNI çalma yolu). MAX_AUDIO_FILE_MB
+120→**30** (decodeAudioData sıkıştırılmamış PCM'e açar — 120 MB'lık bir
+dosya 2+ GB'a çıkıp OOM ile çökertebilirdi, try/catch bunu YAKALAYAMAZ).
+Pozisyon elle takip ediliyor (offset/startedAt — AudioBufferSourceNode
+pause/resume desteklemiyor), her tur/karşılaştırma-önizlemesi TAZE bir node
+alıp kaldığı yerden devam ediyor.
+
+Tarayıcıda GERÇEK doğrulama: sentetik bir WAV (440 Hz) yüklendi ve çalındı
+(spektrum beklenen dar tepeyi gösterdi), AYNI oturumda ARDINDAN "kick" ve
+"hihat" (gömülü örnekler) ayrı ayrı sorunsuz çaldı, konsolda sıfır hata —
+yani upload SONRASI gömülü kaynaklar KİLİTLENMEDİ (bildirilen bug'ın tam
+tersi canlı doğrulandı). 30 MB üstü dosya AudioContext'e dokunmadan
+reddediliyor (canlı test edildi). `npm test`: 117/117. **Metodolojik not:**
+doğrulama sırasında dev sunucusunun (python http.server, Cache-Control
+header'ı yok) bazı JS modüllerinin Chrome'da agresif önbelleklendiği
+(yeni sekme + hard reload bile yetmedi) keşfedildi — `fetch(url,
+{cache:'reload'})` ile elle tazelendi; bu sadece bu geliştirme ortamına
+özgü, üretim/iOS bundle'ını etkilemiyor. **iOS cihazda kilitlenmenin
+gerçekten kalktığı kullanıcı tarafından doğrulanacak.**
+
 Commit `4a75785` — G7: sample çalma AudioBuffer'a taşındı (XHR/blob çekme +
 decodeAudioData + AudioBufferSourceNode), iOS kesiklik ve loop sorunu çözüldü.
 G6'nın HTMLAudioElement yolu "HTTP 0"ı çözmüştü ama cihazda kesik kesik çaldı
