@@ -6,7 +6,7 @@
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadStats, freshStats, freshModeState } from "../www/js/core/storage.js";
+import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs } from "../www/js/core/storage.js";
 
 function installLocalStorageMock(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -108,5 +108,33 @@ describe("loadStats() — perMode migration (eski format → yeni)", () => {
 
     const s = loadStats(DIFF_LIVES, 3, ["frekans-bulma"]); // legacyModeId YOK
     assert.equal(s.perMode["frekans-bulma"].xp, 0);
+  });
+});
+
+const PREFS_KEY = "eqEarTrainerProXPrefs";
+
+describe("feedbackScreen tercihi (G13) — açık/kapalı iki durum", () => {
+  beforeEach(() => { installLocalStorageMock(); });
+
+  it("freshPrefs(): varsayılan AÇIK (true)", () => {
+    assert.equal(freshPrefs().feedbackScreen, true);
+  });
+
+  it("loadPrefs(): localStorage'da feedbackScreen:false kayıtlıysa KAPALI olarak okunur", () => {
+    installLocalStorageMock({ [PREFS_KEY]: JSON.stringify({ feedbackScreen: false }) });
+    assert.equal(loadPrefs().feedbackScreen, false);
+  });
+
+  it("loadPrefs(): localStorage'da feedbackScreen:true kayıtlıysa AÇIK olarak okunur", () => {
+    installLocalStorageMock({ [PREFS_KEY]: JSON.stringify({ feedbackScreen: true }) });
+    assert.equal(loadPrefs().feedbackScreen, true);
+  });
+
+  it("loadPrefs(): G13'ten ÖNCEKİ bir kayıtta (feedbackScreen alanı hiç yok) varsayılan true'ya göç eder, çökmez", () => {
+    const preG13 = { notifications: false, hpWarning: true, answerFormat: "touch" };
+    installLocalStorageMock({ [PREFS_KEY]: JSON.stringify(preG13) });
+    const p = loadPrefs();
+    assert.equal(p.feedbackScreen, true);
+    assert.equal(p.notifications, false); // eski alanlar KAYBOLMADI
   });
 });

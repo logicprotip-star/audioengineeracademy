@@ -187,7 +187,7 @@ export function clearDaily() {
 // Z5: difficultyMode — "auto" (VARSAYILAN, Z1+Z3'ten türetilir, kullanıcı müdahale
 // etmez) | "fixed" (kullanıcının difficultySelect'ten kendi seçtiği zorluk geçerli).
 export function freshPrefs() {
-  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full", difficultyMode: "auto" };
+  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full", difficultyMode: "auto", feedbackScreen: true };
 }
 
 export function loadPrefs() {

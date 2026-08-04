@@ -68,6 +68,7 @@ const els = {
   langSeg: document.getElementById("langSeg"),
   notifSwitch: document.getElementById("notifSwitch"),
   hpWarnSwitch: document.getElementById("hpWarnSwitch"),
+  feedbackScreenSwitch: document.getElementById("feedbackScreenSwitch"),
   calibRow: document.getElementById("calibRow"),
   diffAutoBtn: document.getElementById("diffAutoBtn"),
   diffFixedBtn: document.getElementById("diffFixedBtn"),
@@ -486,6 +487,11 @@ let pausedAutoAdvanceRemainingMs = null;
 // bağımsız izlenmeli.
 let cmpPreviewRemainingMs = null;
 let cmpPreviewStopTimer = null;
+
+// G13: geri bildirim ekranı (prefs.feedbackScreen) kapalıyken cevap sonrası bu kadar
+// bekleyip sıradaki soruya geçilir — 0 değil, ding/buzz sfx'i duyulabilsin diye kısa
+// bir pay bırakılıyor (F2'nin 4000/6000'ine kıyasla "hızlı akış").
+const QUICK_ADVANCE_MS = 700;
 
 // Seans Sonu artık gerçek bir ekran (goScreen("result")) — eski "Oyun Bitti"
 // KARTI'nın tam ekranı kaplayan yarı saydam overlay'i ve o overlay'e sızan
@@ -1405,9 +1411,11 @@ function submitFrequencyGuess(guessHz) {
     // bilgiyi zaten veriyor. feedback.title'daki kalite sözcüğü ("🎯 Tam isabet!" vb.)
     // #freqInfo'nun kendi içeriğinde YOK, kaybolmasın diye panelin içine taşınıyor.
     setFeedback(feedback.title, feedback.detail, false, false);
-    mode.showFreqInfoPanel(els.freqInfo, feedback);
-    appendFreqInfoNote(feedback.title, true);
-    scrollFeedbackIntoView();
+    if (prefs.feedbackScreen) {
+      mode.showFreqInfoPanel(els.freqInfo, feedback);
+      appendFreqInfoNote(feedback.title, true);
+      scrollFeedbackIntoView();
+    }
     mode.recordZone(zoneStats, q.freq, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -1424,13 +1432,15 @@ function submitFrequencyGuess(guessHz) {
     // göstermiyor); "Kalan can: N" bilgisi kaybolmasın diye #freqInfo'nun içine
     // taşınıyor (currentLives, loseLife çağrısından SONRA okunuyor — güncel değer).
     setFeedback(feedback.title, feedback.detail, false, true);
-    mode.showFreqInfoPanel(els.freqInfo, feedback);
+    if (prefs.feedbackScreen) mode.showFreqInfoPanel(els.freqInfo, feedback);
     mode.recordZone(zoneStats, q.freq, false, result.dOct);
     audioEngine.sfxBuzz();
     shake(els.canvas);
     loseLife("Frekansı ıskaladın.", { silent: true });
-    appendFreqInfoNote(currentLives > 0 ? `Kalan can: ${currentLives}` : "Canların tükendi.", false);
-    scrollFeedbackIntoView();
+    if (prefs.feedbackScreen) {
+      appendFreqInfoNote(currentLives > 0 ? `Kalan can: ${currentLives}` : "Canların tükendi.", false);
+      scrollFeedbackIntoView();
+    }
     challengeTick(false, 0);
   }
 
@@ -1445,8 +1455,10 @@ function submitFrequencyGuess(guessHz) {
   persistStats();
   persistDaily();
   // F2 (kullanıcı kararı): doğru cevapta 4sn, yanlışta 6sn — içerik yoğun kart artık
-  // 1.5sn'de okunamıyordu.
-  if (!finalizeIfGameOver()) scheduleNext(result.correct ? 4000 : 6000);
+  // 1.5sn'de okunamıyordu. G13: geri bildirim ekranı kapalıyken kart hiç gösterilmediği
+  // için bu süreye gerek yok — QUICK_ADVANCE_MS sadece ding/buzz'ın duyulmasına yetecek
+  // kadar kısa bir bekleme.
+  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
 function submitProPlusGuess() {
@@ -2001,14 +2013,24 @@ els.startBtn.addEventListener("click", async () => {
   }
 });
 
-els.nextBtn.addEventListener("click", async () => {
+// "Atla ▶" / geri bildirimdeki X (freq-info-close) — HER İKİSİ de sıradaki soruya
+// aynı yoldan geçer. Karşılaştırma önizlemesinin kendi bekleyen zamanlayıcısını
+// (cmpPreviewStopTimer/cmpPreviewRemainingMs — roundFlow.clearAutoAdvance()'in
+// KAPSAMI DIŞINDA, app.js seviyesinde ayrı tutulur) da iptal eder — aksi halde
+// yeni turun ortasında eski önizlemenin zamanlayıcısı tetiklenip yanlışlıkla ikinci
+// bir otomatik-geçiş kurabilirdi (bkz. G13).
+async function goToNextRound() {
   await audioEngine.initAudio();
   if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
+  clearTimeout(cmpPreviewStopTimer);
+  cmpPreviewStopTimer = null;
+  cmpPreviewRemainingMs = null;
   autoStopped = false;
   roundFlow.clearAutoAdvance();
   pausedAutoAdvanceRemainingMs = null;
   startRound();
-});
+}
+els.nextBtn.addEventListener("click", goToNextRound);
 
 // A/B uzun basma döngüsü: 520ms eşik dolmadan bırakılırsa (pointerup/leave) zamanlayıcı
 // iptal edilir ve aşağıdaki "click" normal kısa-dokunma gibi davranır (prototype.html
@@ -2055,7 +2077,15 @@ els.abToggle.addEventListener("click", async () => {
 // MUTASYONA UĞRATMADAN geçici bir soru kopyası üzerinden buildQuestionChain'i
 // yeniden kuruyor (aynı desen: her önizleme sıfırdan bir zincir, kalıcı graf
 // mutasyonu yok — bkz. CLAUDE.md "Ses motoru notları").
+// G13: geri bildirim kartındaki X — karşılaştırma önizlemesi (uzun bir yüklenen
+// dosyada loopAwarePreviewMs buffer'ın TAM UZUNLUĞUNA yuvarladığı için dakikalarca
+// sürebilir, bkz. audio-engine.js) yüzünden otomatik geçiş pratikte çok uzun bir
+// süre kilitlenmiş gibi görünüyordu — X her durumda ÇALIŞAN bir çıkış yolu sağlar.
 if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
+  if (e.target.closest(".freq-info-close")) {
+    goToNextRound();
+    return;
+  }
   const btn = e.target.closest(".cmp");
   if (!btn || !activeQuestion || activeQuestion.mode !== "frequency") return;
 
@@ -2658,6 +2688,7 @@ function applyPrefs() {
   document.body.classList.toggle("hp-warn-off", !prefs.hpWarning);
   if (els.notifSwitch) els.notifSwitch.classList.toggle("on", prefs.notifications);
   if (els.hpWarnSwitch) els.hpWarnSwitch.classList.toggle("on", prefs.hpWarning);
+  if (els.feedbackScreenSwitch) els.feedbackScreenSwitch.classList.toggle("on", prefs.feedbackScreen);
   if (els.answerFormatSelect && prefs.answerFormat) {
     els.answerFormatSelect.value = prefs.answerFormat;
     els.answerFormatSelect.dispatchEvent(new Event("change", { bubbles: true }));
@@ -2677,6 +2708,11 @@ if (els.notifSwitch) els.notifSwitch.addEventListener("click", () => {
 });
 if (els.hpWarnSwitch) els.hpWarnSwitch.addEventListener("click", () => {
   prefs.hpWarning = !prefs.hpWarning;
+  applyPrefs();
+  storage.savePrefs(prefs);
+});
+if (els.feedbackScreenSwitch) els.feedbackScreenSwitch.addEventListener("click", () => {
+  prefs.feedbackScreen = !prefs.feedbackScreen;
   applyPrefs();
   storage.savePrefs(prefs);
 });
