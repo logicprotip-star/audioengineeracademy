@@ -13,6 +13,17 @@
 // (masaüstü Chrome) yeniden üretilemeyen bir etkileşim sorunu. Tek yola indirgendi
 // (kullanıcı kararı — bkz. MAX_AUDIO_FILE_MB notu).
 //
+// G10: decodeAudioData bazı WAV alt-tiplerini (özellikle 24-bit PCM ve 32-bit float —
+// Logic Pro/Pro Tools'un export ettiği, WAVE_FORMAT_EXTENSIBLE ile paketlenmiş
+// alt-tipler) iOS WKWebView'de AÇAMIYOR (bilinen WebKit sınırlaması). decodeAudioData
+// başarısız olur ve dosya bir WAV (RIFF/WAVE imzalı) ise wav-parser.js'teki elle
+// ayrıştırıcıya (decodeWavPcm) düşülüyor — PCM/float verisini kendisi Float32'ye
+// çevirip audioCtx.createBuffer ile AYNI AudioBuffer sonucunu üretiyor, AYNI
+// AudioBufferSourceNode çalma zincirine giriyor (iki yol da buildQuestionChain'e göre
+// ayırt edilemez). decodeAudioData bir kopya üzerinde çalışır (bazı motorlar girdi
+// ArrayBuffer'ı "neuter" edebiliyor) — orijinal arrayBuffer WAV yedeği için sağlam
+// kalır.
+//
 // AudioBufferSourceNode PAUSE/RESUME DESTEKLEMEZ (sadece start/stop, start() ikinci
 // kez çağrılamaz) — bu yüzden ÇALMA POZİSYONU elle takip ediliyor (offset/startedAt):
 // getSourceNode() her çağrıldığında (yeni tur, karşılaştırma önizlemesi), varsa
@@ -22,6 +33,8 @@
 // sonuç). Node'un KENDİSİNİN fiziksel olarak durdurulması audio-engine.js'in genel
 // stopAudio() döngüsüne bırakılır (currentNodes üzerinden, tüm kaynak tipleri için
 // tek/ortak mekanizma) — burada SADECE mantıksal pozisyon güncellenir.
+
+import { decodeWavPcm } from "./wav-parser.js";
 
 export const ALLOWED_AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "aac", "aiff", "flac", "ogg"];
 const MAX_AUDIO_FILE_MB = 30; // KULLANICI KARARI (G8) — decodeAudioData dosyayı
@@ -114,13 +127,44 @@ export function createUploadManager(getAudioCtx) {
       console.error("[upload] dosya okunamadı:", e && e.name, e && e.message, e);
       return { ok: false, title: "Dosya okunamadı", detail: "Bu dosya açılamadı. Farklı bir mp3/wav/m4a dosyası dene." };
     }
+    if (arrayBuffer.byteLength === 0) {
+      return { ok: false, title: "Dosya boş", detail: "Bu dosyada okunacak veri yok. Farklı bir dosya dene." };
+    }
 
+    const ctx = getAudioCtx();
+    let decodeErr = null;
     try {
-      buffer = await getAudioCtx().decodeAudioData(arrayBuffer);
+      // Kopya üzerinde çalış — bazı motorlar decodeAudioData'ya verilen ArrayBuffer'ı
+      // "neuter" edebiliyor; başarısız olursa orijinal arrayBuffer WAV yedeği için
+      // sağlam kalmalı.
+      buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
     } catch (e) {
-      console.error("[upload] decodeAudioData hatası:", e && e.name, e && e.message, e);
+      decodeErr = e;
       buffer = null;
-      return { ok: false, title: "Bu dosya çözümlenemedi", detail: "Format desteklenmiyor olabilir. Farklı bir mp3/wav/m4a dosyası dene." };
+    }
+
+    if (!buffer) {
+      const isRiffWave = arrayBuffer.byteLength >= 12
+        && String.fromCharCode(...new Uint8Array(arrayBuffer, 0, 4)) === "RIFF"
+        && String.fromCharCode(...new Uint8Array(arrayBuffer, 8, 4)) === "WAVE";
+      if (isRiffWave) {
+        try {
+          const wav = decodeWavPcm(arrayBuffer);
+          const wavBuffer = ctx.createBuffer(wav.numChannels, wav.channelData[0].length, wav.sampleRate);
+          for (let ch = 0; ch < wav.numChannels; ch++) wavBuffer.copyToChannel(wav.channelData[ch], ch);
+          buffer = wavBuffer;
+        } catch (wavErr) {
+          console.error("[upload] decodeAudioData hatası:", decodeErr && decodeErr.name, decodeErr && decodeErr.message, decodeErr);
+          console.error("[upload] elle WAV ayrıştırma hatası:", wavErr && wavErr.message, wavErr);
+          buffer = null;
+        }
+      } else {
+        console.error("[upload] decodeAudioData hatası:", decodeErr && decodeErr.name, decodeErr && decodeErr.message, decodeErr);
+      }
+    }
+
+    if (!buffer) {
+      return { ok: false, title: "Bu dosya açılamadı", detail: "Lütfen mp3, m4a veya WAV formatında bir dosya dene." };
     }
 
     return { ok: true };
