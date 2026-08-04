@@ -7,6 +7,25 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `4a75785` — G7: sample çalma AudioBuffer'a taşındı (XHR/blob çekme +
+decodeAudioData + AudioBufferSourceNode), iOS kesiklik ve loop sorunu çözüldü.
+G6'nın HTMLAudioElement yolu "HTTP 0"ı çözmüştü ama cihazda kesik kesik çaldı
+ve loop noktasında tıklama/boşluk vardı (kullanıcı raporu) — streaming/
+element tabanlı çalma kısa, hassas zamanlamalı döngüler için uygun değil.
+Yeni yol iki yöntemin iyi yanını birleştiriyor: ÇEKME için `fetch()` yerine
+`XMLHttpRequest` (arraybuffer) — WKWebView'da yerel dosya `fetch()`'i
+engelliyordu, XHR aynı işi görüyor; ÇALMA için `decodeAudioData` +
+`AudioBufferSourceNode` — sentetik kaynakların (noise/synth) ZATEN kullandığı
+yol, kusursuz loop sağlıyor. AudioBuffer path başına Promise olarak
+cache'leniyor (decode SADECE BİR KEZ, canlıda geçici bir teşhis loguyla
+ölçüldü: ilk çalma "miss-xhr", ikincisi "hit" — sıfır yeni istek). Her turda
+yine de taze bir `AudioBufferSourceNode` kuruluyor ("kalıcı graf mutasyonu
+yok" kuralı korunuyor). `npm test`: 117/117. Tarayıcıda 6 farklı örnek (kick/
+hihat/snare/vokal/tom/bas) tek tek test edildi, konsolda sıfır hata, her
+birinin spektrumu görsel olarak kendi karakterinde. **iOS cihazda kesikliğin
+gerçekten gittiği kullanıcı tarafından doğrulanacak** — bu ortamda gerçek
+cihaz/simülatör yok.
+
 Commit `2ceb992` — G6: sample yükleme yolu HTMLAudioElement'e taşındı, iOS
 "HTTP 0" çözüldü. Kök sebep (kullanıcı cihazda ölçtü, Safari Web Inspector):
 `buildSampleSource` (G4'te eklenen yol) `fetch()+decodeAudioData()`
