@@ -28,11 +28,19 @@
 // kez çağrılamaz) — bu yüzden ÇALMA POZİSYONU elle takip ediliyor (offset/startedAt):
 // getSourceNode() her çağrıldığında (yeni tur, karşılaştırma önizlemesi), varsa
 // önceki node'un o ana kadar ne kadar çaldığı offset'e eklenir, YENİ node o
-// pozisyondan start() edilir — kullanıcı arka planda kesintisiz akan bir şarkı
-// dinliyormuş gibi hissetsin diye (eski HTMLAudioElement'in doğal davranışıyla aynı
-// sonuç). Node'un KENDİSİNİN fiziksel olarak durdurulması audio-engine.js'in genel
-// stopAudio() döngüsüne bırakılır (currentNodes üzerinden, tüm kaynak tipleri için
-// tek/ortak mekanizma) — burada SADECE mantıksal pozisyon güncellenir.
+// pozisyondan start() edilir. Node'un KENDİSİNİN fiziksel olarak durdurulması
+// audio-engine.js'in genel stopAudio() döngüsüne bırakılır (currentNodes üzerinden,
+// tüm kaynak tipleri için tek/ortak mekanizma).
+//
+// G12: stopAudio() ARTIK (audio-engine.js'teki activeUploadManager referansı
+// üzerinden) HER çağrıldığında bu modülün pausePlayback()'ini de çağırıyor — yani
+// fiziksel susma ile mantıksal offset dondurma AYNI ANDA olur. Önceden stopAudio()
+// sadece Web Audio node'unu durduruyordu, offset'i DONDURMUYORDU — bir sonraki
+// getSourceNode() çağrısı GERÇEK (duvar saati) geçen süreyi offset'e eklediği için,
+// kullanıcı cevap verip geri bildirimde kaldığı süre kadar şarkı "ileri sarılmış"
+// gibi başlıyordu (bug, DURUM.md'de kayıtlı). Artık offset SADECE ses gerçekten
+// çalarken ilerliyor — cevap verilince donuyor, oyuna dönünce kaldığı yerden devam
+// ediyor, karşılaştırma önizlemeleri de aynı dondurulmuş noktadan başlıyor.
 
 import { decodeWavPcm } from "./wav-parser.js";
 

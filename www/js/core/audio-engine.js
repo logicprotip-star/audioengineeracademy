@@ -20,6 +20,11 @@ export function createAudioEngine() {
   // sonraki buildQuestionChain çağrısına kadar geçerli, o an aktif zincire ait.
   let dryGain = null;
   let wetGain = null;
+  // G12: "upload" kaynağı aktifken buildQuestionChain'in geçirdiği uploadManager
+  // referansı — SADECE stopAudio()'nun onu duraklatabilmesi için tutuluyor (bkz.
+  // stopAudio). Kaynak upload DEĞİLSE null'a çekilir; böylece stopAudio() gömülü/
+  // sentetik kaynaklarda hiçbir şey yapmaz (davranışları BOZULMAZ).
+  let activeUploadManager = null;
 
   function unlockAudio() {
     // Mobil (özellikle iOS) için: ilk kullanıcı dokunuşunda context'i aç,
@@ -119,6 +124,12 @@ export function createAudioEngine() {
 
   function stopAudio() {
     if (!audioCtx) return;
+    // G12: fiziksel durdurmayla AYNI anda upload'ın MANTIKSAL çalma konumunu da
+    // duraklat — aksi halde AudioBufferSourceNode gerçekten susar ama uploadManager
+    // hâlâ "çalıyor" sanıp bir sonraki getSourceNode() çağrısında geçen GERÇEK
+    // (duvar saati) süreyi offset'e ekler; kullanıcı cevap verip geri bildirimde
+    // kaldığı süre kadar şarkı "ileri sarılmış" gibi görünürdü (bkz. DURUM.md G12).
+    if (activeUploadManager) activeUploadManager.pausePlayback();
     const now = audioCtx.currentTime;
     currentNodes.forEach(node => {
       try {
@@ -246,7 +257,11 @@ export function createAudioEngine() {
   // elle takip edildiği için kaldığı yerden devam eder.
   // applyProcessing: aktif modun applyProcessing(question, { audioCtx }) fonksiyonu.
   async function buildQuestionChain(question, processed, sourceType, uploadManager, applyProcessing) {
-    stopAudio();
+    stopAudio(); // ÖNCEKİ zincirin (varsa) upload konumunu duraklatır — bkz. activeUploadManager notu
+    // Bu turun kaynağı upload İSE stopAudio()'nun bir SONRAKİ çağrısı bunu duraklatabilsin
+    // diye referans burada güncelleniyor; değilse null (gömülü/sentetik kaynaklarda
+    // stopAudio() hiçbir şey yapmaz).
+    activeUploadManager = sourceType === "upload" ? uploadManager : null;
 
     // Güvenlik: bir önceki durum (Durdur) muteGain'i 0'da bırakmış olabilir; yeni bir
     // soru/round zinciri kuruluyorsa duyulabilir olmalı.
