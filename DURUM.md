@@ -1,11 +1,44 @@
 # DURUM
 
-Son güncelleme: 04.08.2026
+Son güncelleme: 05.08.2026
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
+
+Commit `a6c0c74` — G20: Kesim Noktası — cevap sonrası öğretici metin geri
+bildirimi (mix mantığı). **Kesim Noktası'nın kapsam dışı bırakılan SON
+parçasıydı — mod artık HPF/LPF + şıklı + tip gizleme rampası + iki renkli
+filtre eğrisi + öğretici Türkçe metinle tam iskelet.** Üç durum, TEK yerde
+(`ZONE_EFFECT` tablosu, kesim-noktasi.js) şablonlanmış: (1) doğru — kısa
+onay + o bölgede/tipte filtrenin mix'te ne işe yaradığı; (2) tip doğru,
+frekans yanlış — hangi YÖNE kaçtığını (çok yukarı/çok aşağı) + o yöndeki ses
+etkisini anlatır (HPF'de yukarı kaçmak DAHA agresif/inceltir, LPF'de yukarı
+kaçmak DAHA AZ agresif/fazla tiz bırakır — yön↔etki eşlemesi filtre tipine
+göre BİLEREK ters); (3) tip yanlış — HPF/LPF farkını karşılaştırmalı
+hatırlatır, frekans hatası bu durumda AYRICA anlatılmaz (kısa tutmak için).
+Teknik değer (dB/oct, Q) hiç verilmiyor. `teachingText(question, answer)`
+YENİ, saf, doğrudan test edilebilir bir fonksiyon; `getFeedbackData` bunu
+çağırıp title/detail'e bölüyor.
+
+**Doğrulama sırasında bulunup aynı commit'te düzeltilen bir hata:** app.js'te
+`submitCutoffGuess`, `setFeedback`'i HER ZAMAN `showResult=false` ile
+çağırıyordu — Frekans Bulma'nın kalıbından (o, `#freqInfo` zengin panelini
+kullandığı için `false` geçiyor) G17'de körü körüne kopyalanmıştı. Kesim
+Noktası'nın `#freqInfo` gibi bir paneli YOK — `#feedbackBox` onun TEK geri
+bildirim yüzeyi; `showResult=false` iken kart `display:none` kalıyor,
+öğretici metin (G13'ten beri, hatta bu görevden önce de) HİÇ GÖRÜNMÜYORDU.
+Artık `feedback.showResult` (her zaman `true`) kullanılıyor.
+
+Frekans Bulma'ya (frekans-bulma.js) dokunulmadı — canlı doğrulandı: kendi
+`#freqInfo` akışı aynen çalışıyor, `#feedbackBox` hâlâ `display:none` (hiç
+sızma yok). Doğrulama ekran görüntüsüyle DEĞİL (QUICK_ADVANCE_MS=700ms'in
+altına düşmüyor), JS ile "tıkla+150ms bekle+DOM oku" tekniğiyle yapıldı —
+üç durum da (`cls`, `title`, `detail`) tam beklenen metinle doğrulandı
+(örnekler için bkz. commit mesajı). `npm test`: **177/177** (168 eski + 9
+yeni — 3 durum × üretim doğruluğu + kısalık(<280 karakter) + saflık +
+showResult garantisi).
 
 Commit `3a5c84c` — G19: Kesim Noktası — cevap sonrası filtre eğrisi görseli
 (kullanıcı + doğru cevap, iki renk). Soru sırasında spektrumda SADECE barlar
@@ -958,13 +991,17 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım: Kesim Noktası'nın kapsam dışı bırakılan SON parçası —
-öğretici geri bildirim (zone-tip benzeri "neden" metni + karşılaştırma-
-önizleme butonları Senin cevabın/Doğru cevap/Temiz) — bir sonraki promptta
-eklenmeli.** Filtre eğrisi görseli G19 ile bitti (bkz. BİTTİ). Bundan ÖNCE,
-kullanıcıya sorulması gereken bir ürün kararı var: BEKLEYEN KARARLAR
-**B**'deki yeni not — Kesim Noktası kayıtlı olduğu için academyLevel
-otomatik yükselip kendi kilidini kendi açıyor, bu davranış kabul mü?
+**Kesim Noktası'nın iskeleti G20 ile TAMAMLANDI** (HPF/LPF + şıklı + tip
+gizleme rampası + iki renkli filtre eğrisi + öğretici Türkçe metin —
+sırasıyla G17-G20). Karşılaştırma-önizleme butonları (Senin cevabın/Doğru
+cevap/Temiz) BİLEREK hâlâ yok (app.js'in `#freqInfo` click-delegasyonu
+sadece "frequency" moduna kilitli) — istenirse ayrı bir iş, şu an engelleyici
+değil. **Tek sonraki adım netleşmedi** — ya Kesim Noktası'nın kulakla/cihazda
+doğrulanması (marginOct/hintBandOct/ZONE_EFFECT metinleri hiçbiri gerçek
+kullanıcı testinden geçmedi), ya da Mod 3'e geçiş, ya da BEKLEYEN KARARLAR
+**B**'deki açık soru (Kesim Noktası kayıtlı olduğu için academyLevel
+otomatik yükselip kendi kilidini kendi açıyor, bu davranış kabul mü) —
+kullanıcıya sorulmalı.
 
 Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi Kesim Noktası'nın marginOct/
 hintBandOct tablosu) hâlâ KULAKLA dinlenip ayarlanmayı bekliyor —
