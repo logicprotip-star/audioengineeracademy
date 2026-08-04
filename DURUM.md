@@ -1,11 +1,25 @@
 # DURUM
 
-Son güncelleme: 03.08.2026
+Son güncelleme: 04.08.2026
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
+
+Commit `2d2bd6f` — G4: gerçek ses kaynakları eklendi (9 sample, DAVUL+ENSTRÜMAN).
+`www/audio/` klasörü oluşturuldu (dosyaların KENDİSİ henüz yok, kullanıcı elle
+koyacak — `.gitkeep` ile izleniyor, `cap sync` sonrası `ios/App/App/public/audio/`
+altında doğrulandı). `source-catalog.js`'teki DAVUL (5: kick/snare/hihat/tom/
+groove) ve ENSTRÜMAN (4: bass/bass_alt/guitar/vocal) grupları `kind:"sample"` +
+`samplePath:"audio/<dosya>.aiff"` ile dolduruldu. Kaynak menüsü (`app.js
+populateSourceSelect`) `SOURCE_GROUPS`'tan otomatik üretildiği ve boş grupları
+zaten filtrelediği için kod değişikliği gerekmedi — tarayıcıda DOM'dan doğrulandı
+(4 optgroup, 9 yeni option). `audio-engine.js`'teki `buildQuestionChain` sample
+404/decode hatasında zaten sessizce pink noise'a düşüyordu (`kind:"sample"` daha
+önce hiç kullanılmadığı için bu yol hiç tetiklenmemişti) — bu görev ilk kez
+gerçek koşullarda (kick.aiff 404) tetikledi: konsolda YAKALANMIŞ hata, uygulama
+çökmedi, round pink noise ile normal aktı. `npm test`: 117/117 (değişmedi).
 
 Commit `b8c4cab` — G3: geliştirici modu (gizli Pro test anahtarı). Ayarlar >
 Hakkında > Sürüm numarasına 7 kez dokununca "Geliştirici" bölümü açılıyor
@@ -325,6 +339,18 @@ görünüyor (`appendFreqInfoNote`). Aynı kökten (feedbackBox + freqInfo aynı
 görünür kalması) doğru cevap tarafındaki DUPLIKE kart bug'ı da düzeldi.
 
 ### Eksik özellikler
+
+**10. Gerçek ses dosyaları (DAVUL/ENSTRÜMAN) katalogda tanımlı ama dosyaların kendisi yok**
+G4 ile `source-catalog.js`'e 9 `kind:"sample"` girdisi eklendi (kick/snare/
+hihat/tom/groove_090 + bass/bass_alt/acoustic_guitar/vocal), hepsi
+`www/audio/<ad>.aiff` bekliyor. Klasör var, dosyaların kendisi YOK — bu
+kaynaklar seçildiğinde şu an sessizce pink noise'a düşüyor (404, yakalanmış
+hata). Dosyalar `www/audio/` altına konana kadar bu 9 girdi kullanıcıya
+görünür ama işlevsiz kalır.
+**Kabul kriteri:** 9 dosyanın hepsi `www/audio/` altında, her biri seçilip
+round başlatıldığında konsolda "Örnek yüklenemedi" hatası YOK, spektrumda
+gerçek örneğin karakteri (kick=düşük frekans enerjisi, hihat=yüksek vb.)
+görülüyor.
 
 **5. ~~A/B Test gerçek bypass değil~~ — bir kullanıcı raporuyla birlikte düzeltildi, bkz. BİTTİ**
 Kullanıcı (14 yıllık müzik prodüktörü) A/B döngüsünde pitch kayması bildirdi
