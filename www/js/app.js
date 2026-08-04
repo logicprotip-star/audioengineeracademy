@@ -1540,17 +1540,19 @@ function playQuestion(processed = true) {
     try { audioEngine.audioCtx.resume(); } catch (e) {}
   }
   currentPlayMode = processed ? "filtered" : "clean";
-  audioEngine.buildQuestionChain(activeQuestion, processed, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+  audioEngine.buildQuestionChain(activeQuestion, processed, activeQuestion.source, uploadManager, mode.applyProcessing);
   updateAbToggleUI();
 }
 
 // A/B tek buton: GERÇEK kesintisiz bypass — grafiği yeniden KURMUYOR, sadece
 // audioEngine.setProcessed() ile paralel kuru/işlenmiş yollar arasında gain crossfade
-// yapıyor (bkz. audio-engine.js buildQuestionChain'in üstündeki not). Kök sebep: canlı
-// çalan uploadedMediaSource'un (yüklenen dosya) A/B döngüsünde 2sn'de bir disconnect/
-// reconnect edilmesi WebKit'te JS'ten gözlemlenemeyen bir motor-düzeyi pitch/hız
-// sapmasına yol açabiliyordu (kullanıcı raporu + teşhis) — reconnect deseni tamamen
-// kaldırıldı.
+// yapıyor (bkz. audio-engine.js buildQuestionChain'in üstündeki not). Kök sebep (tarihsel):
+// eski MediaElementAudioSourceNode tabanlı upload yolunda (bkz. G8 — artık
+// AudioBufferSourceNode'a taşındı) canlı çalan node'un A/B döngüsünde 2sn'de bir
+// disconnect/reconnect edilmesi WebKit'te JS'ten gözlemlenemeyen bir motor-düzeyi
+// pitch/hız sapmasına yol açabiliyordu (kullanıcı raporu + teşhis) — reconnect deseni
+// tamamen kaldırıldı, hâlâ geçerli (kaynak tipi değişse de A/B'nin grafiği yeniden
+// kurmaması gerekliliği aynı).
 function toggleAB() {
   const processed = currentPlayMode !== "filtered";
   currentPlayMode = processed ? "filtered" : "clean";
@@ -1654,7 +1656,7 @@ function startTimerForCurrentQuestion() {
 function startRound() {
   if (sessionEndVisible) return; // seans sonu ekranı açıkken hiçbir tetikleyici yeni tur başlatamaz
   if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
-  if (els.sourceSelect.value === "upload" && !uploadManager.mediaSource) {
+  if (els.sourceSelect.value === "upload" && !uploadManager.hasBuffer) {
     setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
     return;
   }
@@ -1727,9 +1729,7 @@ function setAutoPlay(on) {
     // NOT: ipucu hakkı BURADA sıfırlanmaz (bkz. startFreshAttempt) — reload sonrası
     // "Oyunu Başlat"a tekrar basmak sınırsız ipucu üretmemeli.
     if (els.sourceSelect.value === "upload") {
-      uploadManager.startFromZero(err => {
-        setFeedback("Ses oynatılamadı", "Tarayıcı sesi başlatmayı engelledi. 'Oyunu Başlat'a tekrar dokun.");
-      });
+      uploadManager.startFromZero();
     }
     startRound();
   } else {
@@ -1945,10 +1945,7 @@ els.audioFileInput.addEventListener("change", async (e) => {
   }
   try {
     await audioEngine.initAudio();
-    const res = await uploadManager.loadFile(file, {
-      onError: () => setFeedback("Ses oynatılamadı", "Dosya oynatılırken bir hata oluştu. Farklı bir dosya dene."),
-      onStalled: () => setFeedback("Yükleme takıldı", "Ses dosyası okunurken takıldı. Bağlantıyı/dosyayı kontrol edip tekrar dene.")
-    });
+    const res = await uploadManager.loadFile(file);
     if (!res.ok) {
       setFeedback(res.title, res.detail);
       return;
@@ -2077,11 +2074,11 @@ if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
 
   await audioEngine.initAudio();
   if (preview === "clean") {
-    await audioEngine.buildQuestionChain(activeQuestion, false, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+    await audioEngine.buildQuestionChain(activeQuestion, false, activeQuestion.source, uploadManager, mode.applyProcessing);
   } else if (preview === "correct") {
-    await audioEngine.buildQuestionChain(activeQuestion, true, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+    await audioEngine.buildQuestionChain(activeQuestion, true, activeQuestion.source, uploadManager, mode.applyProcessing);
   } else {
-    await audioEngine.buildQuestionChain(guessQuestion, true, activeQuestion.source, uploadManager.mediaSource, mode.applyProcessing);
+    await audioEngine.buildQuestionChain(guessQuestion, true, activeQuestion.source, uploadManager, mode.applyProcessing);
   }
 
   // F2 (kullanıcı kararı): önizleme sırasında otomatik-geçiş sayacı duraklar; kaynaklar
@@ -2456,7 +2453,7 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => {
       // "Dosya seç" (upload) bir dosya seçilene kadar diğer şıklar gibi anında
       // işaretlenemez — tıklanınca native dosya seçiciyi açar (prototype.html'de
       // bu satır ✓ yerine › ile ayrılmıştı, aynı ayrım burada davranışa taşındı).
-      const isUnloadedUpload = select.id === 'sourceSelect' && opt.value === 'upload' && !uploadManager.mediaSource;
+      const isUnloadedUpload = select.id === 'sourceSelect' && opt.value === 'upload' && !uploadManager.hasBuffer;
       const checkStyle = isUnloadedUpload ? ' style="opacity:1"' : '';
       row.innerHTML = `<span>${opt.text}</span><span class="check"${checkStyle}>${isUnloadedUpload ? '›' : '✓'}</span>`;
       row.addEventListener('click', () => {

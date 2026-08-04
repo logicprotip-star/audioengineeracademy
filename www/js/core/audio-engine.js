@@ -238,16 +238,14 @@ export function createAudioEngine() {
   // ARTIK HER ZAMAN kuruluyor, sadece hangi yolun başlangıçta duyulur olduğunu belirliyor
   // (bkz. aşağıdaki dryGain/wetGain paralel yollar). A/B arasında geçiş artık BU
   // fonksiyonu tekrar çağırmıyor — setProcessed() ile SADECE gain crossfade yapılıyor,
-  // kaynak/filtre grafiği bir kez kurulup tur boyunca hiç bozulmuyor. Kök sebep: canlı
-  // çalan bir MediaElementAudioSourceNode'un (yüklenen dosya) A/B döngüsünde 2sn'de bir
-  // disconnect/reconnect edilmesi, bazı motorlarda (WebKit) JS'ten hiç görünmeyen bir
-  // dahili resample sapmasına yol açabiliyordu (kullanıcı raporu + teşhis, konsol
-  // düzeyinde audioCtx.sampleRate/playbackRate'te fark YOKTU ama motor davranışı JS'ten
-  // gözlemlenemez) — reconnect deseni tamamen kaldırılarak bu olası tetikleyici ortadan
-  // kalkıyor.
-  // uploadedMediaSource: upload.js'in yönettiği kalıcı MediaElementAudioSourceNode (varsa).
+  // kaynak/filtre grafiği bir kez kurulup tur boyunca hiç bozulmuyor.
+  // uploadManager: upload.js'in döndürdüğü nesne (varsa) — "upload" kaynağı için HER
+  // ÇAĞRIDA uploadManager.getSourceNode() ile TAZE bir AudioBufferSourceNode istenir
+  // (gömülü örneklerle AYNI node tipi — bkz. G8, DURUM.md E1: iki farklı source-node
+  // tipinin karışması iOS'ta ses motorunu kilitliyordu). Pozisyon upload.js içinde
+  // elle takip edildiği için kaldığı yerden devam eder.
   // applyProcessing: aktif modun applyProcessing(question, { audioCtx }) fonksiyonu.
-  async function buildQuestionChain(question, processed, sourceType, uploadedMediaSource, applyProcessing) {
+  async function buildQuestionChain(question, processed, sourceType, uploadManager, applyProcessing) {
     stopAudio();
 
     // Güvenlik: bir önceki durum (Durdur) muteGain'i 0'da bırakmış olabilir; yeni bir
@@ -283,10 +281,12 @@ export function createAudioEngine() {
 
     currentNodes.push(out, sourceMix, compressor, localDryGain, localWetGain, ...filters);
 
-    if (sourceType === "upload" && uploadedMediaSource) {
-      // Kalıcı node — burada YENİDEN oluşturulmuyor, sadece yeni filtre zincirine bağlanıyor.
-      uploadedMediaSource.connect(sourceMix);
-      currentNodes.push(uploadedMediaSource);
+    if (sourceType === "upload" && uploadManager && uploadManager.hasBuffer) {
+      const node = uploadManager.getSourceNode();
+      if (node) {
+        node.connect(sourceMix);
+        currentNodes.push(node);
+      }
     } else if (sourceType === "pink" || sourceType === "white") {
       const [noise] = buildNoiseSource(sourceType);
       noise.connect(sourceMix);

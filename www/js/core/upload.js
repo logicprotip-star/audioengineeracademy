@@ -1,13 +1,34 @@
-// Kullanıcının yüklediği ses dosyasının yönetimi: HTMLAudioElement +
-// MediaElementAudioSourceNode akışı (decodeAudioData yerine — büyük dosyalarda
-// tüm PCM'i RAM'e açmadığı için iOS WKWebView'da çökmeye yol açmaz).
-// uploadedMediaSource TUR DEĞİŞTİĞİNDE yeniden oluşturulmaz/kesilmez — sadece filtre
-// zincirine yeniden bağlanır (bkz. audio-engine.js: buildQuestionChain).
+// Kullanıcının yüklediği ses dosyasının yönetimi: File.arrayBuffer() (dosya zaten
+// bellekte — ağ isteği ya da bundle sınırlaması yok) + decodeAudioData +
+// AudioBufferSourceNode — gömülü örnek kaynaklarla (source-catalog.js kind:"sample",
+// bkz. audio-engine.js buildSampleSource) AYNI çalma yolu.
+//
+// G8: önceki HTMLAudioElement + MediaElementAudioSourceNode yolu, cihazda (iOS) bir
+// dosya yüklenince TÜM ses motorunu kilitleyen bir bug'a yol açıyordu — kod
+// incelemesiyle tek AudioContext / tek createMediaElementSource çağrısı / null
+// mediaSource ile buildQuestionChain'e ulaşan bir yol OLMADIĞI doğrulandı (bkz.
+// DURUM.md E1); geriye kalan açıklama, gömülü örneklerin (AudioBufferSourceNode) ve
+// kullanıcı dosyasının (MediaElementAudioSourceNode) AYNI ses grafiğinde İKİ FARKLI
+// source-node tipi olarak karışmasıydı — iOS WebKit'te bilinen ama bu ortamda
+// (masaüstü Chrome) yeniden üretilemeyen bir etkileşim sorunu. Tek yola indirgendi
+// (kullanıcı kararı — bkz. MAX_AUDIO_FILE_MB notu).
+//
+// AudioBufferSourceNode PAUSE/RESUME DESTEKLEMEZ (sadece start/stop, start() ikinci
+// kez çağrılamaz) — bu yüzden ÇALMA POZİSYONU elle takip ediliyor (offset/startedAt):
+// getSourceNode() her çağrıldığında (yeni tur, karşılaştırma önizlemesi), varsa
+// önceki node'un o ana kadar ne kadar çaldığı offset'e eklenir, YENİ node o
+// pozisyondan start() edilir — kullanıcı arka planda kesintisiz akan bir şarkı
+// dinliyormuş gibi hissetsin diye (eski HTMLAudioElement'in doğal davranışıyla aynı
+// sonuç). Node'un KENDİSİNİN fiziksel olarak durdurulması audio-engine.js'in genel
+// stopAudio() döngüsüne bırakılır (currentNodes üzerinden, tüm kaynak tipleri için
+// tek/ortak mekanizma) — burada SADECE mantıksal pozisyon güncellenir.
 
 export const ALLOWED_AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "aac", "aiff", "flac", "ogg"];
-const MAX_AUDIO_FILE_MB = 120; // Kullanıcı onayı (D4): 150'den düşürüldü. HTMLAudioElement dosyayı akışla oynatır
-// (decodeAudioData gibi tamamını RAM'e açmaz) — bu sınırın gerekçesi bellek çökmesi değil,
-// kulak eğitimi için gereğinden büyük bir dosyanın kazara seçilmesini engellemek.
+const MAX_AUDIO_FILE_MB = 30; // KULLANICI KARARI (G8) — decodeAudioData dosyayı
+// SIKIŞTIRILMAMIŞ PCM'e açar (120 MB'lık bir mp3 ~2+ GB'a çıkabilir, iOS WKWebView'ı
+// OOM ile çökertebilir — try/catch bunu YAKALAYAMAZ, motor seviyesinde çöker). Kulak
+// eğitimi için birkaç dakikalık bir referans parçası fazlasıyla yeterli, 30 MB tipik
+// kullanımı kısıtlamıyor ama OOM riskini yapısal olarak önlüyor.
 
 // iOS WKWebView'de <input accept="audio/*"> TEK BAŞINA bazı formatları (özellikle WAV)
 // native dosya seçicide hiç göstermeyebiliyor/seçilemez bırakabiliyor — audio/* MIME
@@ -39,89 +60,67 @@ export function validateAudioFile(file) {
 // (unlockAudio) oluşturulduğu için burada sabit değer değil, geç bağlanan bir
 // erişimci alınır.
 export function createUploadManager(getAudioCtx) {
-  let uploadedAudioEl = null;
-  let uploadedObjectUrl = null;
-  let uploadedMediaSource = null;
+  let buffer = null;     // decode edilmiş AudioBuffer — dosya değişene kadar sabit
+  let offset = 0;        // mantıksal çalma pozisyonu (saniye), duraklatıldığında/yeni
+                          // node kurulurken güncellenir
+  let startedAt = 0;      // audioCtx.currentTime — en son getSourceNode() çağrıldığı an
+  let playing = false;
 
   function pausePlayback() {
-    if (uploadedAudioEl) {
-      try { uploadedAudioEl.pause(); } catch {}
-    }
+    if (!playing || !buffer) return;
+    const ctx = getAudioCtx();
+    offset = (offset + (ctx.currentTime - startedAt)) % buffer.duration;
+    playing = false;
   }
 
-  // Ham play() çağrısı — currentTime'a dokunmaz. Hem sıfırdan başlatma hem de kaldığı
-  // yerden devam ettirme bunun üzerine kurulu.
-  function playRaw(onRejected) {
-    if (!uploadedAudioEl) return;
-    const p = uploadedAudioEl.play();
-    if (p && p.catch) {
-      p.catch(err => {
-        console.error("[upload] play() reddedildi:", err && err.name, err && err.message, err);
-        if (onRejected) onRejected(err);
-      });
+  // audio-engine.js'in buildQuestionChain'i çağırır: TAZE bir AudioBufferSourceNode
+  // döndürür (AudioBufferSourceNode tek kullanımlıktır, start() ikinci kez çağrılamaz),
+  // kaldığı yerden devam eder. Dönen node HENÜZ bağlanmamıştır — çağıran taraf
+  // sourceMix'e (ya da eşdeğerine) connect() etmeli.
+  function getSourceNode() {
+    if (!buffer) return null;
+    const ctx = getAudioCtx();
+    if (playing) {
+      offset = (offset + (ctx.currentTime - startedAt)) % buffer.duration;
     }
+    const node = ctx.createBufferSource();
+    node.buffer = buffer;
+    node.loop = true;
+    node.start(0, offset);
+    startedAt = ctx.currentTime;
+    playing = true;
+    return node;
   }
 
-  // Yüklenen dosyayı BAŞINDAN (currentTime=0) çalmaya başlat. SADECE gerçek "yeni oturum"
-  // anlarında çağrılmalı: Oyunu Başlat (sıfırdan), Tekrar Oyna.
-  function startFromZero(onRejected) {
-    if (!uploadedAudioEl) return;
-    try {
-      uploadedAudioEl.currentTime = 0;
-    } catch (e) {
-      console.error("[upload] currentTime=0 ayarlanamadı:", e);
-    }
-    playRaw(onRejected);
+  // Yüklenen dosyayı BAŞINDAN çalmaya başlat. SADECE gerçek "yeni oturum" anlarında
+  // çağrılmalı: Oyunu Başlat (sıfırdan), Tekrar Oyna.
+  function startFromZero() {
+    offset = 0;
+    playing = false;
   }
 
-  async function loadFile(file, { onError, onStalled } = {}) {
+  async function loadFile(file) {
     if (!file) return { ok: false };
 
-    // Önceki dosyanın kaynaklarını serbest bırak (aynı element'ten ikinci kez
-    // createMediaElementSource() çağrılamaz).
-    if (uploadedMediaSource) {
-      try { uploadedMediaSource.disconnect(); } catch {}
-      uploadedMediaSource = null;
-    }
-    if (uploadedAudioEl) {
-      // NOT: .src = "" YAPMA — elementin kendi "error" dinleyicisini (Empty src attribute)
-      // tetikleyip yanlışlıkla bir hata mesajı gösterir. revokeObjectURL + referansı bırakmak
-      // (GC) temizlik için yeterli.
-      try { uploadedAudioEl.pause(); } catch {}
-      uploadedAudioEl = null;
-    }
-    if (uploadedObjectUrl) {
-      URL.revokeObjectURL(uploadedObjectUrl);
-      uploadedObjectUrl = null;
-    }
+    pausePlayback();
+    buffer = null;
+    offset = 0;
+    playing = false;
 
-    const url = URL.createObjectURL(file);
-    const audioEl = new Audio();
-    audioEl.loop = true;
-    audioEl.preload = "auto";
-    audioEl.playsInline = true;
-    audioEl.src = url;
-
-    audioEl.addEventListener("error", () => {
-      const err = audioEl.error;
-      console.error("[upload] <audio> error event:", err && err.code, err && err.message);
-      if (onError) onError();
-    });
-    audioEl.addEventListener("stalled", () => {
-      if (onStalled) onStalled();
-    });
-
-    uploadedAudioEl = audioEl;
-    uploadedObjectUrl = url;
+    let arrayBuffer;
+    try {
+      arrayBuffer = await file.arrayBuffer();
+    } catch (e) {
+      console.error("[upload] dosya okunamadı:", e && e.name, e && e.message, e);
+      return { ok: false, title: "Dosya okunamadı", detail: "Bu dosya açılamadı. Farklı bir mp3/wav/m4a dosyası dene." };
+    }
 
     try {
-      uploadedMediaSource = getAudioCtx().createMediaElementSource(audioEl);
+      buffer = await getAudioCtx().decodeAudioData(arrayBuffer);
     } catch (e) {
-      console.error("[upload] createMediaElementSource hatası:", e && e.name, e && e.message, e);
-      uploadedAudioEl = null;
-      uploadedObjectUrl = null;
-      URL.revokeObjectURL(url);
-      return { ok: false, title: "Bu dosya çözümlenemedi", detail: "Ses kaynağı oluşturulamadı. Farklı bir mp3/wav/m4a dosyası dene." };
+      console.error("[upload] decodeAudioData hatası:", e && e.name, e && e.message, e);
+      buffer = null;
+      return { ok: false, title: "Bu dosya çözümlenemedi", detail: "Format desteklenmiyor olabilir. Farklı bir mp3/wav/m4a dosyası dene." };
     }
 
     return { ok: true };
@@ -130,9 +129,8 @@ export function createUploadManager(getAudioCtx) {
   return {
     loadFile,
     pausePlayback,
-    playRaw,
     startFromZero,
-    get mediaSource() { return uploadedMediaSource; },
-    get element() { return uploadedAudioEl; }
+    getSourceNode,
+    get hasBuffer() { return !!buffer; }
   };
 }
