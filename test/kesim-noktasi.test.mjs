@@ -289,3 +289,89 @@ describe("Kesim Noktası — applyProcessing (A/B: kuru/işlenmiş yol audio-eng
     }
   });
 });
+
+describe("Kesim Noktası — öğretici metin (G20, teachingText/getFeedbackData)", () => {
+  it("DOĞRU cevap: metin frekans+tip etiketini VE bir 'etki' cümlesi içerir, teknik değer (dB/oct, Q) YOK", () => {
+    const q = { freq: 300, filterType: "highpass", filterLabel: "HPF" };
+    const text = mode.teachingText(q, { freq: 300, filterType: "highpass" });
+    assert.match(text, /300 Hz HPF/);
+    assert.ok(text.length > 15, "sadece etiket değil, bir 'etki' açıklaması da olmalı");
+    assert.doesNotMatch(text, /dB|Q=|oktav|slope/i);
+  });
+
+  it("DOĞRU cevap: bölgeye göre FARKLI etki metni üretir (aynı tip, farklı frekans → farklı cümle)", () => {
+    const low = mode.teachingText({ freq: 100, filterType: "highpass", filterLabel: "HPF" }, { freq: 100, filterType: "highpass" });
+    const high = mode.teachingText({ freq: 5000, filterType: "highpass", filterLabel: "HPF" }, { freq: 5000, filterType: "highpass" });
+    assert.notEqual(low, high);
+  });
+
+  it("TİP DOĞRU, FREKANS YANLIŞ: kullanıcının hangi YÖNE kaçtığını belirtir (yukarı/aşağı) ve bu yöndeki etkiyi anlatır", () => {
+    const q = { freq: 167, filterType: "highpass", filterLabel: "HPF" };
+    const higher = mode.teachingText(q, { freq: 882, filterType: "highpass" }); // kullanıcı daha YUKARI dedi
+    assert.match(higher, /yukarı/);
+    assert.match(higher, /167 Hz/);
+    assert.match(higher, /882 Hz/);
+    assert.match(higher, /inceleşir|gövde/); // HPF'de yukarı kaçmak = daha fazla gövde gider
+
+    const lower = mode.teachingText(q, { freq: 90, filterType: "highpass" }); // kullanıcı daha AŞAĞI dedi
+    assert.match(lower, /aşağı/);
+    assert.notEqual(higher, lower);
+  });
+
+  it("TİP DOĞRU, FREKANS YANLIŞ: LPF'de yön↔etki HPF'nin TERSİ (yukarı=az agresif/fazla tiz kalır, aşağı=fazla boğuklaşır)", () => {
+    const q = { freq: 2000, filterType: "lowpass", filterLabel: "LPF" };
+    const higher = mode.teachingText(q, { freq: 6000, filterType: "lowpass" });
+    const lower = mode.teachingText(q, { freq: 600, filterType: "lowpass" });
+    assert.match(higher, /tiz|sertlik/);
+    assert.match(lower, /boğukla|netlik/);
+  });
+
+  it("TİP YANLIŞ: HPF/LPF farkını karşılaştırmalı hatırlatır, doğru VE kullanıcının seçtiği tip ikisi de metinde geçer", () => {
+    const q = { freq: 500, filterType: "highpass", filterLabel: "HPF" };
+    const text = mode.teachingText(q, { freq: 500, filterType: "lowpass" });
+    assert.match(text, /HPF/);
+    assert.match(text, /LPF/);
+  });
+
+  it("TİP YANLIŞ: hangi tip doğruysa metin ona göre değişir (HPF doğruyken vs LPF doğruyken FARKLI metin)", () => {
+    const hpfCorrect = mode.teachingText({ freq: 500, filterType: "highpass", filterLabel: "HPF" }, { freq: 500, filterType: "lowpass" });
+    const lpfCorrect = mode.teachingText({ freq: 500, filterType: "lowpass", filterLabel: "LPF" }, { freq: 500, filterType: "highpass" });
+    assert.notEqual(hpfCorrect, lpfCorrect);
+  });
+
+  it("üç durumun HEPSİ kısa kalır (1-2 cümle hedefi — 280 karakterin altında, uzun paragraf yok)", () => {
+    const cases = [
+      mode.teachingText({ freq: 1000, filterType: "highpass", filterLabel: "HPF" }, { freq: 1000, filterType: "highpass" }),
+      mode.teachingText({ freq: 1000, filterType: "highpass", filterLabel: "HPF" }, { freq: 2000, filterType: "highpass" }),
+      mode.teachingText({ freq: 1000, filterType: "highpass", filterLabel: "HPF" }, { freq: 1000, filterType: "lowpass" })
+    ];
+    cases.forEach(text => assert.ok(text.length < 280, `çok uzun: ${text.length} karakter`));
+  });
+
+  it("getFeedbackData: title+detail'e bölünmüş döner, showResult HER ZAMAN true (bu modun TEK geri bildirim yüzeyi #feedbackBox)", () => {
+    const q = mode.createQuestion("medium", { source: "pink", boss: false });
+    const correctFeedback = mode.getFeedbackData(q, { freq: q.freq, filterType: q.filterType }, { gained: 20 });
+    assert.equal(correctFeedback.title, "Doğru!");
+    assert.match(correctFeedback.detail, /\+20 XP/);
+    assert.equal(correctFeedback.showResult, true);
+    assert.equal(correctFeedback.panel, null);
+
+    const wrongType = { freq: q.freq, filterType: q.filterType === "highpass" ? "lowpass" : "highpass" };
+    const wrongFeedback = mode.getFeedbackData(q, wrongType, { gained: 0 });
+    assert.equal(wrongFeedback.title, "Ters yöne gittin");
+    assert.equal(wrongFeedback.showResult, true);
+
+    const wrongFreq = { freq: q.freq * 4, filterType: q.filterType };
+    const closeFeedback = mode.getFeedbackData(q, wrongFreq, { gained: 0 });
+    assert.equal(closeFeedback.title, "Yakın ama kaçtı");
+    assert.equal(closeFeedback.showResult, true);
+  });
+
+  it("teachingText SAF FONKSİYON: DOM/ses'e dokunmaz, aynı girdi için aynı çıktıyı üretir", () => {
+    const q = { freq: 800, filterType: "lowpass", filterLabel: "LPF" };
+    const answer = { freq: 200, filterType: "lowpass" };
+    const a = mode.teachingText(q, answer);
+    const b = mode.teachingText(q, answer);
+    assert.equal(a, b);
+  });
+});

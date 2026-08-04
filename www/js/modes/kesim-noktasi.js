@@ -268,24 +268,106 @@ export function calculateXP(question, result, hintUsed, level, context = {}) {
   return Math.max(0, raw);
 }
 
-// Zengin panel/zone-tip BİLEREK yok (bkz. dosya başı not) — sadece kısa bir başlık/
-// detay metni, app.js'in genel setFeedback() satırında gösterilir.
+// ═══════════════════════════════════════════════════════════════════════════
+// ÖĞRETİCİ METİN ŞABLONLARI (G20) — TEK YERDE, kolay düzenlenebilir. Bunlar
+// makul/doğru bir BAŞLANGIÇ — kullanıcı ("kanalın sesi") sonradan kendi
+// üslubuyla değiştirecek, KESİN NİHAİ metin iddia edilmiyor (Z1'in hassasiyet
+// tablosuyla AYNI durum, bkz. o dosyanın notu). Teknik değer (dB/oct, Q) HİÇ
+// verilmiyor — sadece frekans + sesin üzerindeki etki (mix dili).
+//
+// ZONE_EFFECT: bölge anahtarları FA_ZONES'un kısa adlarıyla (faZoneOf(...).t.
+// split(" (")[0]) BİREBİR AYNI — frekans-bulma.js'e yeni bir bölge eklenirse
+// burası da güncellenmeli (bu modun havuzu CUTOFF_MIN–CUTOFF_MAX olduğu için
+// pratikte SUB'ın üst kısmından ÜST-ORTA'nın alt kısmına kadar kullanılıyor,
+// TİZ/HAVA ve SUB'ın tamamı CUTOFF_MAX/MIN dışında kaldığı için nadiren/hiç
+// tetiklenmez — yine de havuz sınırları ilerde genişlerse diye TÜM 6 bölge
+// dolduruldu, boş bırakılmadı).
+const ZONE_EFFECT = {
+  highpass: {
+    "SUB": "rumble/masa gürültüsünü ve gereksiz alt uğultuyu temizler, gövdeye dokunmaz",
+    "BAS": "bas/kick gövdesinin bir kısmını da alır — dikkatli kullan, ince bir alt kalır",
+    "ALT-ORTA": "gövdeyi ciddi inceltir, ses zayıflamaya başlar",
+    "ORTA": "sesin gövdesinin çoğu gider, ince/telefon gibi bir ton kalır",
+    "ÜST-ORTA": "neredeyse her şeyi keser, sadece en tiz kısım kalır",
+    "TİZ / HAVA": "sesin neredeyse tamamını keser, çok az bir tıslama kalır"
+  },
+  lowpass: {
+    "SUB": "neredeyse her şeyi keser, sadece en pes uğultu kalır",
+    "BAS": "sesi ciddi boğar, sadece bas/gövde bölgesi kalır",
+    "ALT-ORTA": "netlik ve tizlik gider, ses kalınlaşıp boğuklaşır",
+    "ORTA": "sesi boğar, netlik gider",
+    "ÜST-ORTA": "tiz sertliğini/parlaklığı alır, ses yumuşar",
+    "TİZ / HAVA": "sadece en tepedeki havayı/parlaklığı alır, ses neredeyse aynı kalır"
+  }
+};
+const ZONE_EFFECT_FALLBACK = "sesi belirgin şekilde değiştirir";
+
+// Tip yanlış seçilince (case 3) HPF/LPF'in ne yaptığını karşılaştırmalı hatırlatan
+// ifadeler — filterType'a göre.
+const TYPE_EXPLAIN = { highpass: "altı kesiyor, üstü geçiyor", lowpass: "üstü kesiyor, altı geçiyor" };
+const TYPE_REMINDER = { highpass: "HPF'de tiz kalır, alt gider", lowpass: "LPF'de alt kalır, tiz gider" };
+
+// Tip doğru ama frekans yanlışken (case 2) YÖNE göre (kullanıcı doğrudan daha
+// yukarıda mı aşağıda mı dedi) ses üzerindeki etki — HPF'de yukarı gitmek daha
+// AGRESİF kesim (gövde de gider), LPF'de yukarı gitmek daha AZ agresif (gereğinden
+// fazla tiz kalır) demek — bu yüzden iki filtre tipi için yön↔etki eşlemesi TERS.
+const DIRECTION_EFFECT = {
+  highpass: {
+    higher: "gövdenin bir kısmı da gider, ses inceleşir",
+    lower: "istenen kısım tam temizlenmez, biraz gürültü/gövde kalır"
+  },
+  lowpass: {
+    higher: "gereğinden fazla tiz kalır, sertlik tam gitmez",
+    lower: "gereğinden fazla boğuklaşır, netlik daha çok gider"
+  }
+};
+
+function typeLabelOf(filterType) {
+  return filterType === "highpass" ? "HPF" : "LPF";
+}
+
+// SAF FONKSİYON. Cevap sonrası öğretici Türkçe metin gövdesi (1-2 cümle) — ÜÇ
+// durum: (1) doğru — kısa onay + o filtrenin bu bölgede mix'te ne işe yaradığı;
+// (2) tip doğru, frekans yanlış — hangi YÖNE kaçtığını + o yöndeki ses etkisini
+// anlatır; (3) tip yanlış — HPF/LPF farkını karşılaştırmalı hatırlatır (bu
+// durumda frekans hatası AYRICA anlatılmaz, kısa tutmak için — task kararı).
+// getFeedbackData bunu çağırıp title/detail'e böler (bkz. altı).
+export function teachingText(question, answer) {
+  const result = evaluateAnswer(question, answer);
+
+  if (result.correct) {
+    const effect = (ZONE_EFFECT[question.filterType] && ZONE_EFFECT[question.filterType][faZoneOf(question.freq).t.split(" (")[0]]) || ZONE_EFFECT_FALLBACK;
+    return `${correctLabel(question)} — ${effect}.`;
+  }
+
+  if (!result.typeOk) {
+    const guessLabel = typeLabelOf(result.guessType);
+    return `Bu bir ${question.filterLabel}'ti — ${TYPE_EXPLAIN[question.filterType]}. Sen ${guessLabel} dedin, o ${TYPE_EXPLAIN[result.guessType]}. Dinle: ${TYPE_REMINDER[question.filterType]}.`;
+  }
+
+  // typeOk && !freqOk
+  const direction = result.guessFreq > question.freq ? "higher" : "lower";
+  const directionWord = direction === "higher" ? "çok yukarı" : "çok aşağı";
+  const effect = DIRECTION_EFFECT[question.filterType][direction];
+  return `${question.filterLabel}'yi doğru duydun ama kesimi ${directionWord} koydun. ${formatHz(question.freq)}'di, sen ${formatHz(result.guessFreq)} dedin — ${effect}.`;
+}
+
+// getFeedbackData: teachingText'in gövdesini title (kısa başlık, #feedbackBox'ın
+// kalın satırı) ve detail (açıklama, #feedbackBox'ın gövde metni) arasında
+// böler — panel BİLEREK yok (bkz. dosya başı not, karşılaştırma-önizleme
+// butonları ayrı bir iş), showResult:true — app.js bunu artık GÖSTERİYOR
+// (G20 düzeltmesi: önceki commit'lerde showResult:false yanlışlıkla kartı
+// hep gizli bırakıyordu, bkz. DURUM.md).
 export function getFeedbackData(question, answer, context = {}) {
   const result = evaluateAnswer(question, answer);
   const gained = context.gained || 0;
-  const label = correctLabel(question);
+  const text = teachingText(question, answer);
 
   if (result.correct) {
-    return { result, title: "Doğru!", detail: `${label} (+${gained} XP)`, showResult: true, panel: null };
+    return { result, title: "Doğru!", detail: `${text} (+${gained} XP)`, showResult: true, panel: null };
   }
-  const guessLabel = `${formatHz(result.guessFreq)} ${result.guessType === "highpass" ? "HPF" : "LPF"}`;
-  return {
-    result,
-    title: "Kaçtı",
-    detail: `Doğru: ${label}. Sen: ${guessLabel} dedin.`,
-    showResult: true,
-    panel: null
-  };
+  const title = result.typeOk ? "Yakın ama kaçtı" : "Ters yöne gittin";
+  return { result, title, detail: text, showResult: true, panel: null };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

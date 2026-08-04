@@ -1591,7 +1591,12 @@ function submitCutoffGuess(answer) {
     session.correct++; session.xp += gained;
 
     const feedback = mode.getFeedbackData(q, answer, { gained });
-    setFeedback(feedback.title, feedback.detail, false, false);
+    // G20: Kesim Noktası'nın zengin bir #freqInfo paneli YOK (bilerek, bkz.
+    // kesim-noktasi.js dosya başı not) — #feedbackBox bu modun TEK geri
+    // bildirim yüzeyi, o yüzden showResult:true (Frekans Bulma'nın #freqInfo
+    // kullandığı için showResult:false geçtiği yerlerle KARIŞTIRILMASIN —
+    // buradaki `false` öğretici metnin hiç görünmemesine yol açan bir hataydı).
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
     mode.recordZone(zoneStats, q.freq, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -1604,7 +1609,7 @@ function submitCutoffGuess(answer) {
     session.wrong++;
 
     const feedback = mode.getFeedbackData(q, answer, { gained: 0 });
-    setFeedback(feedback.title, feedback.detail, false, true);
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
     mode.recordZone(zoneStats, q.freq, false, result.dOct);
     audioEngine.sfxBuzz();
     shake(els.canvas);
