@@ -7,6 +7,42 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `080c884` — G21: **Kesim Noktası TAMAMLANDI, SERT TEST GEÇTİ.**
+İki parça: (1) geçiş süresi hizalaması, (2) modun tamamının sert taraması.
+
+**Hizalama:** `submitCutoffGuess`'in geçiş süresi artık Frekans Bulma'nın
+`submitFrequencyGuess`'iyle AYNI formül (`prefs.feedbackScreen ? (correct?
+4000:6000) : QUICK_ADVANCE_MS`) — öncesinde HER ZAMAN 700ms'ydi, G20'de
+eklenen öğretici metin + iki renkli filtre eğrisi okunacak kadar kalmıyordu
+(kullanıcı raporu). Kesim Noktası'nın kendi X butonu yok (bilerek) ama
+"Atla ▶" zaten mod-bağımsız aynı anında-geçiş işini görüyor — canlı
+doğrulandı (6000ms/4000ms dwell JS ile ölçüldü, "Atla" her an anında geçiyor).
+
+**Sert test:** pure-function stress script'i (5000+ soru, 1000+ örnek/zorluk
+HPF/LPF dengesi, 6 bölge×2 tip×3 durum=36 öğretici-metin kombinasyonu) + canlı
+tarayıcı testi (Kick/sample-kind kaynak, pro zorluk+sabit mod, "10 Soruluk
+Bölüm" TAM 10 soru + 2 boss round + seans tamamlama simulatePro ile, A/B
+kuru/işlenmiş, konsol) — **kod tarafında SIFIR gerçek bug bulundu.** Test
+sırasında "pro'da 3 şık geliyor" gibi görünen bir gözlem, oturumun canları
+tükenmişken session-end ekranının stale DOM'unu okumaktan kaynaklanan bir
+TEST METODOLOJİSİ artefaktıydı (temiz oturumda pro'nun her zaman 6 şık
+ürettiği doğrulandı) — kod değişikliği gerekmedi, sadece not düşüldü.
+
+13 yeni kalıcı test: 36/36 bölge×tip×durum öğretici-metin taraması (boş/
+bozuk/teknik-değer-sızdıran metin yok) + 600 sorulu (5 zorluk×8 seans-
+indeksi×15 tekrar) tam matris testi — 5 kez tekrarlı çalıştırıldı, flake yok.
+
+Frekans Bulma'ya dokunulmadı — canlı regresyon: accordion, X butonu, rich
+panel/EQ eğrisi/karşılaştırma butonları hepsi eskisi gibi, sıfır konsol
+hatası. `npm test`: **190/190** (177 eski + 13 yeni).
+
+**Kesim Noktası artık G17-G21'in TAMAMIYLA production-hazır bir şablon:**
+HPF/LPF + şıklı + tip gizleme rampası + seans-index eşiği + iki renkli
+filtre eğrisi + öğretici Türkçe metin + Frekans Bulma'yla hizalı geçiş
+süresi — hepsi sert testten geçti. Kalan tek şey (bilerek kapsam dışı):
+karşılaştırma-önizleme butonları (Senin cevabın/Doğru cevap/Temiz) — ayrı
+bir iş, engelleyici değil.
+
 Commit `a6c0c74` — G20: Kesim Noktası — cevap sonrası öğretici metin geri
 bildirimi (mix mantığı). **Kesim Noktası'nın kapsam dışı bırakılan SON
 parçasıydı — mod artık HPF/LPF + şıklı + tip gizleme rampası + iki renkli
@@ -991,17 +1027,18 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Kesim Noktası'nın iskeleti G20 ile TAMAMLANDI** (HPF/LPF + şıklı + tip
-gizleme rampası + iki renkli filtre eğrisi + öğretici Türkçe metin —
-sırasıyla G17-G20). Karşılaştırma-önizleme butonları (Senin cevabın/Doğru
-cevap/Temiz) BİLEREK hâlâ yok (app.js'in `#freqInfo` click-delegasyonu
-sadece "frequency" moduna kilitli) — istenirse ayrı bir iş, şu an engelleyici
-değil. **Tek sonraki adım netleşmedi** — ya Kesim Noktası'nın kulakla/cihazda
-doğrulanması (marginOct/hintBandOct/ZONE_EFFECT metinleri hiçbiri gerçek
-kullanıcı testinden geçmedi), ya da Mod 3'e geçiş, ya da BEKLEYEN KARARLAR
-**B**'deki açık soru (Kesim Noktası kayıtlı olduğu için academyLevel
-otomatik yükselip kendi kilidini kendi açıyor, bu davranış kabul mü) —
-kullanıcıya sorulmalı.
+**Kesim Noktası G17-G21 ile TAMAMLANDI ve SERT TEST GEÇTİ** (HPF/LPF + şıklı
++ tip gizleme rampası + iki renkli filtre eğrisi + öğretici Türkçe metin +
+Frekans Bulma'yla hizalı geçiş süresi — hepsi kapsamlı testten geçti, bkz.
+BİTTİ). Karşılaştırma-önizleme butonları (Senin cevabın/Doğru cevap/Temiz)
+BİLEREK hâlâ yok (app.js'in `#freqInfo` click-delegasyonu sadece "frequency"
+moduna kilitli) — istenirse ayrı bir iş, şu an engelleyici değil. **Tek
+sonraki adım netleşmedi** — ya Kesim Noktası'nın kulakla/cihazda doğrulanması
+(marginOct/hintBandOct/ZONE_EFFECT metinleri hiçbiri gerçek kullanıcı
+testinden geçmedi — sert test KOD DOĞRULUĞUNU kanıtladı, kulakla algı/his
+AYRI bir doğrulama), ya da Mod 3'e geçiş, ya da BEKLEYEN KARARLAR **B**'deki
+açık soru (Kesim Noktası kayıtlı olduğu için academyLevel otomatik yükselip
+kendi kilidini kendi açıyor, bu davranış kabul mü) — kullanıcıya sorulmalı.
 
 Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi Kesim Noktası'nın marginOct/
 hintBandOct tablosu) hâlâ KULAKLA dinlenip ayarlanmayı bekliyor —
