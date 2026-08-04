@@ -27,20 +27,20 @@ export const SOURCE_GROUPS = [
   {
     id: "drums", label: "DAVUL",
     sources: [
-      { id: "kick", label: "Kick", kind: "sample", samplePath: "audio/kick.aiff", desc: "Kick davul — SUB/BAS bölgesi" },
-      { id: "snare", label: "Snare", kind: "sample", samplePath: "audio/snare.aiff", desc: "Snare — orta/üst bölge gövde + tel" },
-      { id: "hihat", label: "Hi-Hat", kind: "sample", samplePath: "audio/hihat.aiff", desc: "Hi-hat — tiz bölge" },
-      { id: "tom", label: "Tom", kind: "sample", samplePath: "audio/tom.aiff", desc: "Tom — alt-orta rezonans" },
-      { id: "groove", label: "Davul Döngüsü", kind: "sample", samplePath: "audio/groove_090.aiff", desc: "90 BPM davul döngüsü — mix bağlamı" }
+      { id: "kick", label: "Kick", kind: "sample", samplePath: "audio/kick.m4a", desc: "Kick davul — SUB/BAS bölgesi" },
+      { id: "snare", label: "Snare", kind: "sample", samplePath: "audio/snare.m4a", desc: "Snare — orta/üst bölge gövde + tel" },
+      { id: "hihat", label: "Hi-Hat", kind: "sample", samplePath: "audio/hihat.m4a", desc: "Hi-hat — tiz bölge" },
+      { id: "tom", label: "Tom", kind: "sample", samplePath: "audio/tom.m4a", desc: "Tom — alt-orta rezonans" },
+      { id: "groove", label: "Davul Döngüsü", kind: "sample", samplePath: "audio/groove_090.m4a", desc: "90 BPM davul döngüsü — mix bağlamı" }
     ]
   },
   {
     id: "instruments", label: "ENSTRÜMAN",
     sources: [
-      { id: "bass", label: "Bas (C2)", kind: "sample", samplePath: "audio/bass.aiff", desc: "Bas gitar C2, 65 Hz — SUB/BAS" },
-      { id: "bass_alt", label: "Bas (E2)", kind: "sample", samplePath: "audio/bass_alt.aiff", desc: "Bas gitar E2, 82 Hz — BAS" },
-      { id: "guitar", label: "Akustik Gitar", kind: "sample", samplePath: "audio/acoustic_guitar.aiff", desc: "Akustik gitar A2, 110 Hz — alt-orta" },
-      { id: "vocal", label: "Vokal", kind: "sample", samplePath: "audio/vocal.aiff", desc: "Lead vokal frazı — orta bölge" }
+      { id: "bass", label: "Bas (C2)", kind: "sample", samplePath: "audio/bass.m4a", desc: "Bas gitar C2, 65 Hz — SUB/BAS" },
+      { id: "bass_alt", label: "Bas (E2)", kind: "sample", samplePath: "audio/bass_alt.m4a", desc: "Bas gitar E2, 82 Hz — BAS" },
+      { id: "guitar", label: "Akustik Gitar", kind: "sample", samplePath: "audio/acoustic_guitar.m4a", desc: "Akustik gitar A2, 110 Hz — alt-orta" },
+      { id: "vocal", label: "Vokal", kind: "sample", samplePath: "audio/vocal.m4a", desc: "Lead vokal frazı — orta bölge" }
     ]
   },
   {
