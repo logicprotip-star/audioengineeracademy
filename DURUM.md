@@ -7,6 +7,37 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `0cfd4e3` — G14: geri bildirim geçişi X butonundan tamamen otomatiğe
+çevrildi (kullanıcı kararı — X'in "devam mı/çıkış mı/atla mı" olduğu
+yorumlanabilir bulundu, akış buton olmadan tamamen otomatik olmalı).
+G13'ün eklediği `.freq-info-close` butonu (frekans-bulma.js'in iki panel
+fonksiyonundan, styles.css'ten, app.js'in `#freqInfo` click-delegasyonundan)
+kaldırıldı. `goToNextRound()` KORUNDU (hâlâ "Atla ▶" tarafından kullanılıyor).
+Karşılaştırma-önizlemesi-bitince-otomatik-geçiş-yeniden-kurma mekanizması
+(`cmpPreviewStopTimer` bloğu: `captureRemainingAndClear` → dinletme biter →
+aynı kalan süreyle `ensureAutoNext`) HİÇ DOKUNULMADI — G13'ten önce de
+vardı, X eklenirken üstüne sadece bir dal eklenmişti; o dalı kaldırınca kod
+otomatik olarak G13-öncesi doğru davranışına döndü. "Geri bildirim ekranı"
+ayar toggle'ı (`prefs.feedbackScreen`) TAMAMEN KORUNDU, hiç değişmedi.
+
+**Dürüst teknik not:** kullanıcının "bu, asıl kilitlenme sorununu da
+çözer" varsayımı KISMEN doğru — otomatik yeniden-kurma zaten çalışıyordu
+(G13'te bozulmamıştı). Ama G13'ün asıl teşhis ettiği kök neden
+(`loopAwarePreviewMs`'in UZUN yüklenen dosyalarda önizleme bitiş süresini
+TAM DÖNGÜYE — dakikalarca — yuvarlaması, `audio-engine.js`, DOKUNULMADI,
+"ses çalma" davranışı kritik-korunacaklar listesindeydi) bu turda
+ÇÖZÜLMEDİ — çok uzun bir şarkıda karşılaştırma dinleyen kullanıcı için
+sonraki soru hâlâ dakikalarca gecikebilir, sadece artık "asla gelmeyecek"
+değil "geç gelecek" (bkz. AÇIK İŞLER madde 13).
+
+Doğrulama: 6 yeni birim testi (`test/round-flow.test.mjs`, `node:test`'in
+`mock.timers`'ıyla — 140/140 toplam): tek seferlik tetikleme, kalan süreyi
+doğru yakalayıp zamanlayıcıyı iptal etme (dinlerken soru DEĞİŞMEZ), yakalanan
+süreyle yeniden kurulunca o süre sonunda tetiklenme, art arda dinletmede
+SADECE SONUNCUSUNUN sayılması. Tarayıcıda: kartta X yok (ekran görüntüsü),
+"Doğru cevap" tıklanıp HİÇBİR buton kullanılmadan round kendiliğinden
+ilerledi (Soru 151→153), sıfır konsol hatası.
+
 Commit `4119bce` — G13: geri bildirimde X (kapat) butonu + "Geri bildirim
 ekranı" ayarı (kullanıcı raporu — karşılaştırma butonuna basınca sonraki
 soruya geçiş kilitleniyordu, cihazda doğrulanmıştı). Kök sebep KANITLANDI:
@@ -596,6 +627,24 @@ Kullanıcı Pro Plus'ta ayarı kapatırsa panel yine de açılır.
 **Kabul kriteri:** Pro Plus'ta cevap verilince, ayar kapalıyken de panel
 açılmadan hızlı ilerleniyor, `revealAnimator` animasyonu düzgün tamamlanıyor
 (yarıda kesilmiyor).
+
+**13. Uzun yüklenen dosyada karşılaştırma sonrası otomatik geçiş hâlâ çok geç gelebilir**
+G13'te teşhis edildi, G14'te (X butonunun kaldırılması) ÇÖZÜLMEDİ — bilerek,
+"ses çalma davranışı" kritik-korunacaklar listesindeydi. Kök sebep:
+`audio-engine.js`'teki `loopAwarePreviewMs(minMs)` karşılaştırma önizlemesinin
+bitiş süresini kaynağın TAM DÖNGÜ uzunluğuna yuvarlıyor — kısa gömülü
+kaynaklar için doğru (~1-2sn), ama "upload" kaynağının `AudioBuffer`'ı
+kullanıcının yüklediği TÜM ŞARKI kadar olabiliyor (G7/G8'den beri). 3
+dakikalık bir şarkıda bu, önizleme bitiş süresini ~3 dakikaya çıkarır —
+kullanıcı karşılaştırma dinlerse sonraki soru o kadar gecikir. Artık
+"asla gelmeyecek" değil (G14 öncesi X ile aşılıyordu, G14 sonrası hiçbir
+buton yok) ama "çok geç gelecek" — X'in çözdüğü kilitlenmenin YERİNE geçen
+daha yumuşak bir versiyonu.
+**Kabul kriteri (olası çözüm, ürün kararı gerekiyor):** `loopAwarePreviewMs`
+upload kaynağı için bir ÜST SINIR alsın (ör. 8-10sn) — kaynağın döngüsünü
+yarıda kesmek pahasına, önizleme süresi asla birkaç saniyeden uzun sürmesin.
+Ya da: bu üst sınırın "döngü yarıda kesilmesin" tasarım kararıyla (bkz. F2)
+nasıl uzlaşacağı kullanıcıya sorulmalı.
 
 **11. AÇIK ÖZELLİK — Odaklı pratik modu**
 Kullanıcı raporu (G9 teşhisi, kod değişikliği YAPILMADI — bkz. BİTTİ):
