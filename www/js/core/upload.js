@@ -37,11 +37,14 @@
 import { decodeWavPcm } from "./wav-parser.js";
 
 export const ALLOWED_AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "aac", "aiff", "flac", "ogg"];
-const MAX_AUDIO_FILE_MB = 30; // KULLANICI KARARI (G8) — decodeAudioData dosyayı
-// SIKIŞTIRILMAMIŞ PCM'e açar (120 MB'lık bir mp3 ~2+ GB'a çıkabilir, iOS WKWebView'ı
-// OOM ile çökertebilir — try/catch bunu YAKALAYAMAZ, motor seviyesinde çöker). Kulak
-// eğitimi için birkaç dakikalık bir referans parçası fazlasıyla yeterli, 30 MB tipik
-// kullanımı kısıtlamıyor ama OOM riskini yapısal olarak önlüyor.
+const MAX_AUDIO_FILE_MB = 100; // KULLANICI KARARI (G11) — G8'de 30 MB'a çekilmişti
+// (decodeAudioData dosyayı SIKIŞTIRILMAMIŞ PCM'e açar, büyük bir mp3/m4a OOM ile
+// iOS WKWebView'ı çökertebilir — try/catch bunu YAKALAYAMAZ, motor seviyesinde çöker).
+// Kullanıcı gerçek WAV dosyalarının 30 MB'ı aştığını bildirdi, riski BİLEREK kabul
+// ederek 100 MB'a çıkardı (WAV zaten sıkıştırılmamış — ~1:1 açılır, güvenli; ama bu
+// sınır mp3/m4a/aac/ogg gibi SIKIŞTIRILMIŞ formatlara da uygulanıyor — 100 MB'lık
+// sıkıştırılmış bir dosya OOM riskini geri getirebilir, kullanıcıya bu ayrım
+// açıklanıp onaylandı).
 
 // iOS WKWebView'de <input accept="audio/*"> TEK BAŞINA bazı formatları (özellikle WAV)
 // native dosya seçicide hiç göstermeyebiliyor/seçilemez bırakabiliyor — audio/* MIME
