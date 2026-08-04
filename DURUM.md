@@ -7,6 +7,34 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `ae50e9d` — G16: Kaynak menüsü accordion gruplara çevrildi (kullanıcı
+raporu — SENTETİK/DAVUL/ENSTRÜMAN/KENDİ DOSYAM düz liste halinde hepsi açık
+duruyordu, "Kendi Dosyam" en altta kalıp ulaşmak için çok kaydırma
+gerekiyordu). `openSheet()`'in `<optgroup>`'lu select'ler (bugün için sadece
+`sourceSelect`) için ürettiği grup başlıkları artık tıklanabilir birer
+`.sheet-group-header` (gerçek `<button>`, D3'te bulunan WebKit flex-buton
+genişlik hatasından kaçınmak için `width:100%+text-align:left` açıkça set)
+— yanında chevron (▸, açılınca 90° dönüp amber oluyor). Grup gövdesi
+VARSAYILAN kapalı (`.collapsed`); `collapseOtherGroups()` bir başlığa
+basılınca DİĞER açık grupları kapatıp tıklanan grubu toggle ediyor — tek
+açık kuralı. Boş grup gizleme yeni bir mekanizma gerektirmedi:
+`populateSourceSelect()`'in var olan `sources.length>0` filtresi
+korunduğu için boş `<optgroup>` zaten hiç üretilmiyor, accordion'da da
+boş başlık çıkmıyor. Kapsam: sadece sheet'in DOM/CSS üretimi değişti —
+`select.value`/`change` akışı, `source-catalog.js`, ses zinciri, A/B,
+pitch, pause/resume, WAV parser, X butonu/otomatik geçiş dokunulmadı;
+gruplanmamış select'ler (Zorluk/Oyun Türü/Süre/Cevap biçimi) davranış
+değiştirmedi (`currentBody` hep `sheetOptions`).
+
+Doğrulama (tarayıcıda, DOM state ölçümüyle): 4 grup accordion, başlığa
+basınca açılıyor (ENSTRÜMAN'a basınca 4 satır göründü); tek açık kuralı
+JS ile ölçüldü (ENSTRÜMAN açıkken KENDİ DOSYAM'a basınca ENSTRÜMAN
+otomatik kapandı, aynı anda tam 1 grup `.open`); sheet HER açılışta 4
+grup da kapalı geldi (kapatıp yeniden açılarak doğrulandı); sadece 4
+gerçek grup render edildi, fazladan/boş başlık yok; DAVUL > Kick seçildi,
+pill "Kick" oldu, round gerçekten Kick kaynağıyla başladı, konsolda sıfır
+hata. `npm test`: 140/140.
+
 Commit `77278b8` — G15: X butonu otomatik geçişle BİRLİKTE geri geldi,
 **madde 13 KAPANDI**. G14'te kaldırılan `.freq-info-close` butonu geri
 eklendi (`frekans-bulma.js`'in iki panel fonksiyonu, `styles.css`,
