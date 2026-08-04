@@ -375,3 +375,61 @@ describe("Kesim Noktası — öğretici metin (G20, teachingText/getFeedbackData
     assert.equal(a, b);
   });
 });
+
+// G21 SERT TEST TARAMASI: 6 bölge × 2 filtre tipi × 3 durum = 36 kombinasyonun
+// TAMAMI — hiçbiri boş/kısa/bozuk (undefined, NaN, [object) metin üretmemeli.
+// Bölge temsilcisi frekanslar FA_ZONES'un (frekans-bulma.js) her bölgesinden
+// birer örnek — CUTOFF_MIN–CUTOFF_MAX havuzunun dışında kalan bölgeler
+// (SUB'ın alt ucu, TİZ/HAVA) bile burada taranıyor çünkü teachingText'in
+// KENDİSİ (createQuestion'ın aksine) frekansı hiçbir havuza kırpmıyor —
+// havuz sınırları ileride değişirse bu tarama hâlâ geçerli kalsın diye.
+describe("Kesim Noktası — G21 sert test: öğretici metin 6 bölge × 2 tip × 3 durum TAMAMI", () => {
+  const ZONE_SAMPLES = { "SUB": 60, "BAS": 180, "ALT-ORTA": 350, "ORTA": 1000, "ÜST-ORTA": 4000, "TİZ / HAVA": 12000 };
+
+  for (const [zoneKey, freq] of Object.entries(ZONE_SAMPLES)) {
+    for (const filterType of ["highpass", "lowpass"]) {
+      const filterLabel = filterType === "highpass" ? "HPF" : "LPF";
+      const q = { freq, filterType, filterLabel };
+      const otherType = filterType === "highpass" ? "lowpass" : "highpass";
+
+      it(`${zoneKey}/${filterLabel}: üç durumun HİÇBİRİ boş/bozuk metin üretmez`, () => {
+        const cases = [
+          mode.teachingText(q, { freq, filterType }),                    // doğru
+          mode.teachingText(q, { freq: freq * 2, filterType }),          // tip doğru, yukarı
+          mode.teachingText(q, { freq: freq / 2, filterType }),          // tip doğru, aşağı
+          mode.teachingText(q, { freq, filterType: otherType })          // tip yanlış
+        ];
+        cases.forEach((text, i) => {
+          assert.ok(text && text.length >= 10, `durum ${i}: boş/çok kısa metin: ${JSON.stringify(text)}`);
+          assert.doesNotMatch(text, /undefined|NaN|\[object/i, `durum ${i}: bozuk metin: ${text}`);
+          assert.doesNotMatch(text, /dB|Q=|\boktav\b|slope/i, `durum ${i}: teknik değer sızmış: ${text}`);
+        });
+      });
+    }
+  }
+});
+
+// G21 SERT TEST TARAMASI: büyük örneklemli sağlamlık — kalıcı test paketinde
+// (öncekiler zaten büyük N kullanıyor) EK olarak ramp'in TÜM (zorluk × seans
+// indeksi) hücrelerini TEK testte topluca tarar — 5 zorluk × 8 indeks × 15
+// deneme = 600 soru, hem options hem typeRevealed hem havuz sınırı birden.
+describe("Kesim Noktası — G21 sert test: zorluk rampası × seans indeksi TAM matris", () => {
+  it("600 soru (5 zorluk × 8 seans-indeksi × 15 tekrar): options, typeRevealed, havuz sınırı HİÇ sapmıyor", () => {
+    let checked = 0;
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      for (let idx = 0; idx <= 7; idx++) {
+        for (let i = 0; i < 15; i++) {
+          const q = mode.createQuestion(level, { source: "pink", boss: i % 4 === 0, sessionQuestionIndex: idx });
+          checked++;
+          assert.equal(q.choices.length, mode.DIFFICULTY[level].options, `${level}/idx${idx}: yanlış şık sayısı`);
+          assert.equal(q.typeRevealed, idx < mode.TYPE_REVEAL_QUESTION_COUNT, `${level}/idx${idx}: yanlış typeRevealed`);
+          assert.ok(q.freq >= mode.CUTOFF_MIN - 1e-6 && q.freq <= mode.CUTOFF_MAX + 1e-6, `${level}/idx${idx}: havuz dışı freq`);
+          const correctChoice = q.choices.find(c => c.correct);
+          assert.ok(correctChoice && Math.abs(correctChoice.freq - q.freq) < 1e-6 && correctChoice.filterType === q.filterType,
+            `${level}/idx${idx}: doğru şık eksik/yanlış`);
+        }
+      }
+    }
+    assert.equal(checked, 5 * 8 * 15);
+  });
+});

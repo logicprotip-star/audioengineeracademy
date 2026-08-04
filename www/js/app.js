@@ -1627,9 +1627,18 @@ function submitCutoffGuess(answer) {
   updateUI();
   persistStats();
   persistDaily();
-  // Zengin panel yok (bkz. dosya başı not) — okunacak içerik-yoğun bir kart
-  // olmadığı için doğru/yanlış farketmeksizin her zaman QUICK_ADVANCE_MS.
-  if (!finalizeIfGameOver()) scheduleNext(QUICK_ADVANCE_MS);
+  // G21: Frekans Bulma'nın #freqInfo süresiyle AYNI formül — G20'de eklenen
+  // öğretici metin + iki renkli filtre eğrisi (bkz. drawOverlay) okunacak
+  // içerik-yoğun bir kart, eskisi gibi hep QUICK_ADVANCE_MS (700ms) kullanmak
+  // kullanıcı metni okumadan geçiyordu (kullanıcı raporu). "Geri bildirim
+  // ekranı" ayarı kapalıyken (prefs.feedbackScreen=false) Frekans Bulma'da da
+  // zengin panel hiç açılmadan hızlı geçildiği için AYNI mantık burada da
+  // geçerli — kart yoksa/istenmiyorsa hızlı geç. Her zaman "Atla ▶" (els.
+  // nextBtn → goToNextRound()) ile ANINDA atlanabilir; bu modun kendi bir
+  // X butonu YOK (#freqInfo paneli yok, bkz. dosya başı not) ama "Atla"
+  // zaten mod-bağımsız aynı işi görüyor — ayrı bir düğme eklemek gereksiz
+  // tekrar olurdu.
+  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
 function submitProPlusGuess() {
