@@ -114,7 +114,7 @@
                daralıp Kaynak/Odak'a (uzun olabilen etiketler: Pink Noise, Tüm spektrum)
                daha çok pay bırakıyor — üçü de hâlâ taşmıyor/binişmiyor, sadece Kaynak/
                Odak'ın kırpma payı biraz daha cömert kalıyor. -->
-          <div class="control control-sheet" style="flex:0 0 auto;min-width:0">
+          <div class="control control-sheet" style="flex:0 0 auto;min-width:0" id="answerFormatChipWrap">
             <label class="hidden">Cevap biçimi</label>
             <button class="srctag setting-row" data-sheet-select="answerFormatSelect" data-sheet-title="Cevap biçimi">
               <b class="setting-row-value-text" id="answerFormatChipLabel" style="color:var(--gr)">Dokunmalı</b><span class="chev">&#8250;</span>
@@ -218,7 +218,7 @@
               <span class="settings-row-value"><span class="setting-row-value-text"></span><span class="chev">&#8250;</span></span>
             </button>
           </div>
-          <div class="control control-sheet">
+          <div class="control control-sheet" id="answerFormatSettingsRow">
             <select id="answerFormatSelect" class="hidden">
               <option value="choice">Şıklı</option>
               <option value="touch" selected>Dokunmalı</option>

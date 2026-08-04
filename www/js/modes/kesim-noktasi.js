@@ -31,30 +31,44 @@ export const MODE_ID = "kesim-noktasi";
 // zorluğa göre değişmez).
 export const MAX_LIVES = 5;
 
-// typeRevealed: kolay/orta filtre TİPİNİ (HPF/LPF) soru metninde söyler, kullanıcı
-// sadece kesim frekansını bulur; zor/pro tipi SÖYLEMEZ, şıklar hem tip hem frekans
-// içerir (bkz. generateChoices). marginOct/hintBandOct AŞAĞIDAKİ NOTA bakınız.
+// typeRevealed BURADA YOK — G18'de zorluktan AYRILDI, artık SEANS İÇİ SORU
+// SIRASINA bağlı (bkz. TYPE_REVEAL_QUESTION_COUNT ve createQuestion). Kullanıcı
+// raporu: tip her zaman söyleniyordu, ilerlemiş sorularda bile — istenen davranış
+// her zorlukta AYNI: ilk birkaç soru "ısınma" (tip belli), sonrası "ters köşe"
+// (tip gizli). marginOct/hintBandOct hâlâ zorluğa bağlı (bkz. aşağıdaki not).
 //
 // proplus BURADA çok-bantlı bir varyant DEĞİL — sadece paylaşılan (global,
 // mod-bağımsız) Zorluk seçicisinde (index.html #difficultySelect, 5 sabit
 // seçenek) bu değer HER ZAMAN seçilebildiği için mode.DIFFICULTY[level]'in HER
 // zorluk anahtarında tanımlı dönmesi gerekiyor (aksi halde currentDifficultyConfig()
-// çöker) — pro ile AYNI davranır (tip gizli, 6 şık).
+// çöker) — pro ile AYNI davranır (6 şık).
 //
 // marginOct/hintBandOct KULAKLA DOĞRULANMADI — Z1'in hassasiyet eğrisiyle AYNI
 // durum (bkz. DURUM.md "ZORLUK MİMARİSİ — OTOMATİK VERİLEN KARARLAR"): makul bir
 // başlangıç noktası, gerçek algı testiyle ayarlanmalı. marginOct, kesim frekansının
-// tüm havuzun (FA_MIN–FA_MAX) log-orta noktasından ("ORTA" bölgesine yakın) en az
-// kaç oktav UZAKTA seçileceğini belirler — kolayda büyük (kesim net bir şekilde bir
-// UCA yakın, etkisi bariz varsayılıyor), zorlaştıkça küçülüp ORTA'ya yaklaşır (etkisi
-// daha ince varsayılıyor). Bu bir PSİKOAKUSTİK VARSAYIM, ölçülmedi.
+// havuzun (bkz. CUTOFF_MIN/CUTOFF_MAX) log-orta noktasından en az kaç oktav UZAKTA
+// seçileceğini belirler — kolayda büyük (kesim net bir şekilde bir UCA yakın, etkisi
+// bariz varsayılıyor), zorlaştıkça küçülüp ORTA'ya yaklaşır (etkisi daha ince
+// varsayılıyor). Bu bir PSİKOAKUSTİK VARSAYIM, ölçülmedi.
 export const DIFFICULTY = {
-  easy: { label: "Kolay", xp: 14, options: 3, time: 14, lives: MAX_LIVES, typeRevealed: true, marginOct: 2.2, hintBandOct: 2.0 },
-  medium: { label: "Orta", xp: 20, options: 4, time: 12, lives: MAX_LIVES, typeRevealed: true, marginOct: 1.4, hintBandOct: 1.4 },
-  hard: { label: "Zor", xp: 32, options: 5, time: 11, lives: MAX_LIVES, typeRevealed: false, marginOct: 0.8, hintBandOct: 0.9 },
-  pro: { label: "Pro", xp: 46, options: 6, time: 9, lives: MAX_LIVES, typeRevealed: false, marginOct: 0.45, hintBandOct: 0.5 },
-  proplus: { label: "Pro Plus (Çok Bantlı)", xp: 46, options: 6, time: 9, lives: MAX_LIVES, typeRevealed: false, marginOct: 0.45, hintBandOct: 0.5 }
+  easy: { label: "Kolay", xp: 14, options: 3, time: 14, lives: MAX_LIVES, marginOct: 1.6, hintBandOct: 2.0 },
+  medium: { label: "Orta", xp: 20, options: 4, time: 12, lives: MAX_LIVES, marginOct: 1.0, hintBandOct: 1.4 },
+  hard: { label: "Zor", xp: 32, options: 5, time: 11, lives: MAX_LIVES, marginOct: 0.55, hintBandOct: 0.9 },
+  pro: { label: "Pro", xp: 46, options: 6, time: 9, lives: MAX_LIVES, marginOct: 0.3, hintBandOct: 0.5 },
+  proplus: { label: "Pro Plus (Çok Bantlı)", xp: 46, options: 6, time: 9, lives: MAX_LIVES, marginOct: 0.3, hintBandOct: 0.5 }
 };
+
+// G18: seans içi rampa — her SEANSTA (resetSession() ile sınırlanır, bkz. app.js:
+// Oyunu Başlat/Tekrar Oyna/10 Soru Daha) ilk TYPE_REVEAL_QUESTION_COUNT soru tipi
+// SÖYLER (ısınma), sonrasında tip GİZLENİR. Zorluktan BAĞIMSIZ — kolay/pro fark
+// etmez, tek belirleyici seans içindeki soru sırası. session-plan.js'teki
+// buildSessionPlan/pickWeightedDifficulty ile AYNI "seans içi rampa" felsefesini
+// paylaşır (10 soruluk zorluk rampası) ama o dosyadan bir şey İTHAL ETMİYORUZ —
+// orada "tip gizleme" diye bir kavram yok (sadece zorluk-kademesi dağılımı), sahte
+// bir bağımlılık kurmak yerine kendi tek-satırlık eşiği burada tutuluyor. app.js
+// `session.correct + session.wrong`'u (0-tabanlı, cevaplanan soru sayısı — resetSession
+// ile sıfırlanır) `settings.sessionQuestionIndex` olarak geçirir.
+export const TYPE_REVEAL_QUESTION_COUNT = 3;
 
 // Şıklardaki frekans çeldiricilerinin doğru cevaptan oktav cinsinden minimum
 // mesafesi — evaluateAnswer'daki FREQ_TOLERANCE_OCT'tan (0.5) her zaman büyük
@@ -70,35 +84,50 @@ export const FREQ_TOLERANCE_OCT = 0.5;
 // sonraki bir iş (bkz. dosya başı not).
 const FILTER_Q = Math.SQRT1_2; // ≈ 0.707
 
-// Kesim frekansı havuzunun (log) geometrik ortası — "ORTA" bölgesine yakın düşer
-// (80*17000'in karekökü ≈ 1166 Hz). marginOct bu noktadan itibaren ölçülür.
-const CENTER_FREQ = Math.sqrt(FA_MIN * FA_MAX);
+// G18 bug taraması bulgusu: FA_MIN–FA_MAX (80 Hz–17 kHz) Frekans Bulma'nın PEAKING
+// bant merkezleri için seçilmişti (bkz. o dosyanın notu) — bir HPF/LPF KESİMİ için
+// bu havuzun mutlak uçlarına çok yakın bir değer (ör. FA_MIN'e yakın bir HPF, FA_MAX'a
+// yakın bir LPF) filtrenin etkisini neredeyse hiç yok kılar (geçen bant zaten
+// baskındır); öbür uçta (FA_MIN'e yakın bir LPF, FA_MAX'a yakın bir HPF) filtre AŞIRI
+// agresif olur — kalan dar bant içinde şıklar arasında kulakla ayrım yapmak
+// zorlaşabilir (kullanıcı raporu: "172 Hz LPF ayırt edilemeyebilir"). Bu yüzden kesim
+// noktası artık TÜM FA_MIN–FA_MAX'tan değil, dar bir CUTOFF_MIN–CUTOFF_MAX
+// havuzundan seçiliyor — mix'te HPF/LPF'in gerçekten anlamlı olduğu aralığa daha
+// yakın. Bu sınırlar da KULAKLA DOĞRULANMADI, makul bir başlangıç noktası.
+export const CUTOFF_MIN = 100;
+export const CUTOFF_MAX = 8000;
+
+// Kesim frekansı havuzunun (log) geometrik ortası (100*8000'in karekökü ≈ 894 Hz,
+// ALT-ORTA/ORTA sınırına yakın düşer). marginOct bu noktadan itibaren ölçülür.
+const CENTER_FREQ = Math.sqrt(CUTOFF_MIN * CUTOFF_MAX);
 const CENTER_LOG = Math.log2(CENTER_FREQ);
 
-// SAF FONKSİYON. Log-havuzdan (FA_MIN–FA_MAX) merkeze en az marginOct oktav uzak bir
-// frekans çeker (reddet-örnekle). marginOct değerleri (bkz. DIFFICULTY) havuzun yarı
-// log-genişliğinin (~3.87 oktav) çok altında kaldığı için 200 denemede pratikte HER
-// ZAMAN başarılı olur; güvenlik ağı olarak son denemeyi (kısıtlamayı gözardı ederek)
-// döndürür — sessizce hatalı bir frekans üretmek yerine en azından havuz İÇİNDE kalır.
+// SAF FONKSİYON. Log-havuzdan (CUTOFF_MIN–CUTOFF_MAX) merkeze en az marginOct oktav
+// uzak bir frekans çeker (reddet-örnekle). marginOct değerleri (bkz. DIFFICULTY)
+// havuzun yarı log-genişliğinin (~3.16 oktav) altında kaldığı için 200 denemede
+// pratikte HER ZAMAN başarılı olur; güvenlik ağı olarak son denemeyi (kısıtlamayı
+// gözardı ederek) döndürür — sessizce hatalı bir frekans üretmek yerine en azından
+// havuz İÇİNDE kalır.
 export function pickCutoffFreq(marginOct, rng = Math.random) {
   for (let i = 0; i < 200; i++) {
-    const f = logFreq(FA_MIN, FA_MAX);
+    const f = logFreq(CUTOFF_MIN, CUTOFF_MAX);
     if (Math.abs(Math.log2(f) - CENTER_LOG) >= marginOct) return f;
   }
-  return FA_MIN * Math.pow(FA_MAX / FA_MIN, rng());
+  return CUTOFF_MIN * Math.pow(CUTOFF_MAX / CUTOFF_MIN, rng());
 }
 
 // SAF FONKSİYON. correctFreq etrafında (options-1) çeldirici üretir — frekans
 // mesafesi frekans-bulma.js:generateChoices ile AYNI "tam k*step oktav, taraf taraf"
-// algoritması (range her zaman FA_MIN–FA_MAX, bu modun odak aralığı kavramı yok).
-// typeRevealed=false ise en az bir çeldiricinin filtre TİPİ çevrilir (doğru şık ASLA)
-// — tip gizliyken kullanıcı gerçekten hem tip hem frekans ayrımı yapmak zorunda kalsın
-// diye; typeRevealed=true ise TÜM şıklar doğru tiple aynı kalır (tip zaten söylendi).
+// algoritması (range her zaman CUTOFF_MIN–CUTOFF_MAX, bu modun odak aralığı kavramı
+// yok). typeRevealed=false ise en az bir çeldiricinin filtre TİPİ çevrilir (doğru şık
+// ASLA) — tip gizliyken kullanıcı gerçekten hem tip hem frekans ayrımı yapmak zorunda
+// kalsın diye; typeRevealed=true ise TÜM şıklar doğru tiple aynı kalır (tip zaten
+// söylendi).
 export function generateChoices(correctFreq, correctType, level, typeRevealed) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const step = DISTRACTOR_STEP_OCT[level] || DISTRACTOR_STEP_OCT.medium;
   const correctOct = Math.log2(correctFreq);
-  const minOct = Math.log2(FA_MIN), maxOct = Math.log2(FA_MAX);
+  const minOct = Math.log2(CUTOFF_MIN), maxOct = Math.log2(CUTOFF_MAX);
   const maxBelow = Math.max(0, Math.floor((correctOct - minOct) / step));
   const maxAbove = Math.max(0, Math.floor((maxOct - correctOct) / step));
   const count = Math.max(2, Math.min(diff.options, maxBelow + maxAbove + 1));
@@ -139,12 +168,19 @@ export function getMeta() {
     uyumluKaynaklar: SOURCE_GROUPS.flatMap(g => g.sources.map(s => s.id)),
     ucretsiz: true,
     videoUrl: "",
-    difficulty: DIFFICULTY
+    difficulty: DIFFICULTY,
+    // G18 bug taraması: bu mod "Dokunmalı" (dalgaya tıklama) DESTEKLEMİYOR — SADECE
+    // şıklı. app.js bu bayrağı okuyup "Cevap biçimi" toggle'ını (chip + Oyun Ayarları
+    // satırı) bu mod aktifken GİZLİYOR (kullanıcı raporu: toggle görünüyordu ama
+    // "Dokunmalı"ya bağlı hiçbir şey yoktu, seçilince sessizce hiçbir şey olmuyordu).
+    choiceOnly: true
   };
 }
 
-// SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz. settings: { source, boss }. Bu modun
-// odak aralığı (FOCUS_RANGES) kavramı yok — her zaman tüm FA_MIN–FA_MAX havuzu.
+// SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz. settings: { source, boss,
+// sessionQuestionIndex — bkz. TYPE_REVEAL_QUESTION_COUNT notu, 0-tabanlı, verilmezse
+// 0 (yani ilk soru gibi davranır — typeRevealed=true, geriye dönük güvenli varsayılan) }.
+// Bu modun odak aralığı (FOCUS_RANGES) kavramı yok — her zaman CUTOFF_MIN–CUTOFF_MAX havuzu.
 export function createQuestion(level, settings = {}) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const boss = !!settings.boss;
@@ -154,7 +190,8 @@ export function createQuestion(level, settings = {}) {
   // "boss'ta gain/q daha yakın/zor" desenine paralel (bkz. o dosyanın createQuestion'ı).
   const marginOct = boss ? diff.marginOct * 0.6 : diff.marginOct;
   const freq = pickCutoffFreq(marginOct);
-  const typeRevealed = diff.typeRevealed;
+  const sessionQuestionIndex = Number.isFinite(settings.sessionQuestionIndex) ? settings.sessionQuestionIndex : 0;
+  const typeRevealed = sessionQuestionIndex < TYPE_REVEAL_QUESTION_COUNT;
 
   return {
     mode: "cutoff",
@@ -264,6 +301,10 @@ export function renderHintMask(hintMaskLayerEl, question) {
   const halfOct = (diff.hintBandOct || 1.4) / 2;
   const lo = Math.max(FA_MIN, question.freq / Math.pow(2, halfOct));
   const hi = Math.min(FA_MAX, question.freq * Math.pow(2, halfOct));
+  // NOT: FA_MIN/FA_MAX (eksen tam görünür aralığı) ile kırpılıyor, CUTOFF_MIN/MAX
+  // (soru havuzu) ile DEĞİL — ipucu maskesi ekranın TAMAMINI kapsayan bir katman,
+  // dar soru havuzuna kırpılırsa maskenin geri kalanı (hiç soru gelemeyecek ama
+  // ekranda GÖRÜNEN) bölgede yanlışlıkla "açık" görünüp ipucunu gevşetirdi.
   const a = faFToX(lo, 1), b = faFToX(hi, 1);
 
   hintMaskLayerEl.innerHTML = "";

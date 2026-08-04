@@ -46,6 +46,8 @@ const els = {
   modeGrid: document.getElementById("modeGrid"),
   modeCount: document.getElementById("modeCount"),
   gameTitle: document.getElementById("gameTitle"),
+  answerFormatChipWrap: document.getElementById("answerFormatChipWrap"),
+  answerFormatSettingsRow: document.getElementById("answerFormatSettingsRow"),
   backBtn: document.getElementById("backBtn"),
   tabbar: document.getElementById("tabbar"),
   dailyTipCard: document.getElementById("dailyTipCard"),
@@ -456,7 +458,22 @@ let sessionStartLevel = progress.xpProgress(diffState().xp).level;
 function resetSession() {
   session = { correct: 0, wrong: 0, xp: 0, hints: 0, log: [] };
   sessionStartLevel = progress.xpProgress(diffState().xp).level;
+  roundsInThisPlaySession = 0;
 }
+
+// G18 bug taraması bulgusu: `session` (yukarıda) sadece Seans Sonu ekranının 3
+// CTA'sında (startFreshAttempt → resetSession) sıfırlanıyor — normal "Oyunu Başlat"
+// tuşuna basmak `session.correct+wrong`'a HİÇ dokunmuyordu (updateStartBtnLabel'ın
+// !activeQuestion dalı sadece setAutoPlay(true) çağırıyor). İlk denemede
+// `sessionQuestionIndex: session.correct+session.wrong` kullanılmıştı — bu, Durdur→
+// Oyunu Başlat ile devam eden GERÇEKTEN yeni bir "oturumda" bile tip-gizleme
+// eşiğinin (bkz. kesim-noktasi.js TYPE_REVEAL_QUESTION_COUNT) daha ilk turda
+// tetiklenmesine yol açıyordu (canlı doğrulandı: Durdur+Oyunu Başlat sonrası soru 1
+// hep "Ne tür filtre" gösterdi). Bu yüzden AYRI, dar kapsamlı bir sayaç: her GERÇEK
+// fresh-start noktasında (resetSession() + "Oyunu Başlat"ın !activeQuestion dalı,
+// bkz. aşağıdaki startBtn click handler'ı) sıfırlanır, her startRound()'da 1 artar.
+// `session`'ın kendisine (Seans Sonu ekranı istatistikleri) DOKUNULMADI.
+let roundsInThisPlaySession = 0;
 
 let freqGuessHz = null;
 let freqHoverHz = null;
@@ -590,6 +607,18 @@ function isChoiceFormat() {
   if (activeQuestion && activeQuestion.mode === "cutoff") return true;
   return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
     && activeQuestion && activeQuestion.mode !== "proplus");
+}
+
+// G18 bug taraması: Kesim Noktası'nda "Dokunmalı" hiçbir şeye bağlı değildi (mod
+// dalgaya tıklamayı hiç desteklemiyor, isChoiceFormat() zaten hep şıklıya zorluyor)
+// — ama toggle GÖRÜNÜR kalıyordu, seçilince sessizce hiçbir etkisi olmuyordu. Aktif
+// modun getMeta().choiceOnly bayrağına göre (bkz. kesim-noktasi.js) chip + Oyun
+// Ayarları satırının İKİSİNİ birden gizler/gösterir — Frekans Bulma'da (choiceOnly
+// yok/false) davranış DEĞİŞMEDİ.
+function syncAnswerFormatVisibility() {
+  const hide = !!mode.getMeta().choiceOnly;
+  if (els.answerFormatChipWrap) els.answerFormatChipWrap.classList.toggle("hidden", hide);
+  if (els.answerFormatSettingsRow) els.answerFormatSettingsRow.classList.toggle("hidden", hide);
 }
 
 // Aktif sorunun .ans grid'ini görünür/gizli tutar — hem yeni soru render'ında hem
@@ -1011,6 +1040,7 @@ function renderModeGrid() {
             roundActive = false;
             autoStopped = true;
             mode = realMode;
+            syncAnswerFormatVisibility();
             els.questionTitle.textContent = 'Başlamak için "Oyunu Başlat"a dokun.';
             els.questionMeta.textContent = "";
             if (els.freqInfo) els.freqInfo.classList.add("hidden");
@@ -1807,8 +1837,14 @@ function startRound() {
     source: pickRoundSource(),
     boss: mode.isBossRound(stats.rounds),
     focusRange: currentFocusRange(),
-    zoneStats // Z4: zayıf bölgelere ağırlıklı test frekansı — proplus/çeldiriciler etkilenmez
+    zoneStats, // Z4: zayıf bölgelere ağırlıklı test frekansı — proplus/çeldiriciler etkilenmez
+    // G18: bu OYUN OTURUMUNDAKİ (bkz. roundsInThisPlaySession tanımındaki not) 0-tabanlı
+    // soru sırası. Kesim Noktası bunu tip-gizleme rampası için okuyor (bkz.
+    // kesim-noktasi.js TYPE_REVEAL_QUESTION_COUNT); diğer modlar görmezden gelir
+    // (frekans-bulma.js createQuestion bu alanı hiç okumuyor).
+    sessionQuestionIndex: roundsInThisPlaySession
   });
+  roundsInThisPlaySession++;
   // Karıştır açıkken çalan kaynak sourceSelect'ten farklı olabilir — chip her zaman
   // o turda GERÇEKTEN çalan kaynağın adını göstersin.
   if (els.sourceChipLabel) els.sourceChipLabel.textContent = labelSource(activeQuestion.source);
@@ -2120,6 +2156,9 @@ els.startBtn.addEventListener("click", async () => {
   if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
 
   if (!activeQuestion) {
+    // Gerçek bir fresh-start (bkz. roundsInThisPlaySession tanımındaki not) —
+    // Tekrar Çal (autoStopped dalı, aşağıda) BUNU sıfırlamaz, sadece burası.
+    roundsInThisPlaySession = 0;
     if (isChallenge()) startChallenge();
     setAutoPlay(true);
     return;

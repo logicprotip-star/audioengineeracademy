@@ -1,59 +1,69 @@
-// Kesim Noktası moduna özel testler: zorlukla tip-ayrımı (kolay/orta'da tip
-// söylenir, zor/pro'da gizlenir), şık sayısı zorlukla değişimi, çeldirici üretimi
-// (frekans mesafesi + tip karışımı), evaluateAnswer'ın hem frekans HEM tip
-// eşleşmesi arayan mantığı, kesim frekansının merkeze uzaklığı (marginOct).
+// Kesim Noktası moduna özel testler: seans içi soru sırasına bağlı tip-gizleme
+// rampası (G18 — zorluktan BAĞIMSIZ), şık sayısı zorlukla değişimi, çeldirici
+// üretimi (frekans mesafesi + tip karışımı, tekrarlayan etiket yok), kesim
+// frekansı havuzunun (CUTOFF_MIN–CUTOFF_MAX) uç değerlerden korunması,
+// evaluateAnswer'ın hem frekans HEM tip eşleşmesi arayan mantığı.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as mode from "../www/js/modes/kesim-noktasi.js";
 
-describe("Kesim Noktası — zorlukla tip ayrımı", () => {
-  it("kolay ve orta seviyede typeRevealed HER ZAMAN true", () => {
-    for (const level of ["easy", "medium"]) {
-      for (let i = 0; i < 30; i++) {
-        const q = mode.createQuestion(level, { source: "pink", boss: false });
-        assert.equal(q.typeRevealed, true, `${level}: typeRevealed false olmamalıydı`);
+describe("Kesim Noktası — tip gizleme SEANS İÇİ SORU SIRASINA bağlı (G18)", () => {
+  it("sessionQuestionIndex 0,1,2 (ilk 3 soru) → typeRevealed HER ZAMAN true, HANGİ zorlukta olursa olsun", () => {
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      for (let idx = 0; idx < mode.TYPE_REVEAL_QUESTION_COUNT; idx++) {
+        for (let i = 0; i < 15; i++) {
+          const q = mode.createQuestion(level, { source: "pink", boss: false, sessionQuestionIndex: idx });
+          assert.equal(q.typeRevealed, true, `${level}/idx=${idx}: typeRevealed false olmamalıydı`);
+        }
       }
     }
   });
 
-  it("zor ve pro seviyede typeRevealed HER ZAMAN false", () => {
-    for (const level of ["hard", "pro"]) {
-      for (let i = 0; i < 30; i++) {
-        const q = mode.createQuestion(level, { source: "pink", boss: false });
-        assert.equal(q.typeRevealed, false, `${level}: typeRevealed true olmamalıydı`);
+  it(`sessionQuestionIndex >= ${mode.TYPE_REVEAL_QUESTION_COUNT} (4. sorudan itibaren) → typeRevealed HER ZAMAN false, HANGİ zorlukta olursa olsun`, () => {
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      for (const idx of [mode.TYPE_REVEAL_QUESTION_COUNT, mode.TYPE_REVEAL_QUESTION_COUNT + 1, 10, 50]) {
+        for (let i = 0; i < 15; i++) {
+          const q = mode.createQuestion(level, { source: "pink", boss: false, sessionQuestionIndex: idx });
+          assert.equal(q.typeRevealed, false, `${level}/idx=${idx}: typeRevealed true olmamalıydı`);
+        }
       }
     }
+  });
+
+  it("sessionQuestionIndex verilmezse varsayılan 0 (typeRevealed=true) — geriye dönük güvenli", () => {
+    const q = mode.createQuestion("pro", { source: "pink", boss: false });
+    assert.equal(q.typeRevealed, true);
+  });
+
+  it("EŞİK TEK BİR SABİTTE (TYPE_REVEAL_QUESTION_COUNT), kolay değiştirilebilir", () => {
+    assert.equal(typeof mode.TYPE_REVEAL_QUESTION_COUNT, "number");
+    assert.ok(mode.TYPE_REVEAL_QUESTION_COUNT > 0);
   });
 
   it("typeRevealed=true iken TÜM şıklar doğru şıkla AYNI filtre tipini taşır (tip zaten söylendi, çeldirici sadece frekans)", () => {
-    for (const level of ["easy", "medium"]) {
-      for (let i = 0; i < 30; i++) {
-        const q = mode.createQuestion(level, { source: "pink", boss: false });
-        q.choices.forEach(c => assert.equal(c.filterType, q.filterType));
-      }
+    for (let i = 0; i < 30; i++) {
+      const q = mode.createQuestion("pro", { source: "pink", boss: false, sessionQuestionIndex: 0 });
+      q.choices.forEach(c => assert.equal(c.filterType, q.filterType));
     }
   });
 
   it("typeRevealed=false iken en az bir (doğru olmayan) şıkkın filtre tipi ÇEVRİLMİŞ — tip gerçekten test ediliyor", () => {
-    for (const level of ["hard", "pro"]) {
-      let sawFlipped = false;
-      for (let i = 0; i < 60; i++) {
-        const q = mode.createQuestion(level, { source: "pink", boss: false });
+    for (const level of ["easy", "medium", "hard", "pro"]) {
+      for (let i = 0; i < 40; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false, sessionQuestionIndex: 10 });
         const flipped = q.choices.some(c => !c.correct && c.filterType !== q.filterType);
-        if (flipped) sawFlipped = true;
         assert.ok(flipped, `${level}: hiçbir şık tip çevrilmemiş (deneme ${i})`);
       }
-      assert.ok(sawFlipped);
     }
   });
 
-  it("doğru şık ASLA tip-çevrilmez (her zaman question.filterType ile aynı)", () => {
-    for (const level of ["easy", "medium", "hard", "pro"]) {
-      for (let i = 0; i < 30; i++) {
-        const q = mode.createQuestion(level, { source: "pink", boss: false });
+  it("doğru şık ASLA tip-çevrilmez (her zaman question.filterType ile aynı), typeRevealed durumundan bağımsız", () => {
+    for (const sessionQuestionIndex of [0, 10]) {
+      for (let i = 0; i < 20; i++) {
+        const q = mode.createQuestion("pro", { source: "pink", boss: false, sessionQuestionIndex });
         const correctChoice = q.choices.find(c => c.correct);
-        assert.ok(correctChoice, `${level}: doğru şık bulunamadı`);
+        assert.ok(correctChoice, "doğru şık bulunamadı");
         assert.equal(correctChoice.filterType, q.filterType);
         assert.ok(Math.abs(correctChoice.freq - q.freq) < 1e-9);
       }
@@ -61,11 +71,23 @@ describe("Kesim Noktası — zorlukla tip ayrımı", () => {
   });
 });
 
+describe("Kesim Noktası — HPF/LPF dengesi", () => {
+  it("her iki filtre tipi de ~%50/%50 civarında dengeli üretiliyor (2000 örnek, ±10 puan tolerans)", () => {
+    const counts = { highpass: 0, lowpass: 0 };
+    for (let i = 0; i < 2000; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false });
+      counts[q.filterType]++;
+    }
+    const hpPct = (counts.highpass / 2000) * 100;
+    assert.ok(hpPct > 40 && hpPct < 60, `HPF oranı %${hpPct.toFixed(1)} — dengesiz görünüyor`);
+  });
+});
+
 describe("Kesim Noktası — şık sayısı zorlukla değişir", () => {
-  it("her zorlukta üretilen şık sayısı DIFFICULTY.options'a eşit (tam spektrumda daralma yok)", () => {
+  it("her zorlukta üretilen şık sayısı DIFFICULTY.options'a TAM eşit (dar havuzda bile daralma yok)", () => {
     for (const level of Object.keys(mode.DIFFICULTY)) {
-      for (let i = 0; i < 15; i++) {
-        const q = mode.createQuestion(level, { source: "pink", boss: false });
+      for (let i = 0; i < 40; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false, sessionQuestionIndex: i % 8 });
         assert.equal(q.choices.length, mode.DIFFICULTY[level].options, `${level}: ${q.choices.length} şık`);
       }
     }
@@ -76,25 +98,54 @@ describe("Kesim Noktası — şık sayısı zorlukla değişir", () => {
     assert.ok(mode.DIFFICULTY.medium.options < mode.DIFFICULTY.hard.options);
     assert.ok(mode.DIFFICULTY.hard.options < mode.DIFFICULTY.pro.options);
   });
+
+  it("DISTRACTOR_STEP_OCT kolayda EN GENİŞ, zorlaştıkça daralır (şık mesafesi kolayda uzak, zorda yakın)", () => {
+    assert.ok(mode.DISTRACTOR_STEP_OCT.easy > mode.DISTRACTOR_STEP_OCT.medium);
+    assert.ok(mode.DISTRACTOR_STEP_OCT.medium > mode.DISTRACTOR_STEP_OCT.hard);
+    assert.ok(mode.DISTRACTOR_STEP_OCT.hard > mode.DISTRACTOR_STEP_OCT.pro);
+  });
+
+  it("marginOct kolayda EN BÜYÜK (merkezden en uzak/bariz), zorlaştıkça küçülür (merkeze yaklaşır/ince)", () => {
+    assert.ok(mode.DIFFICULTY.easy.marginOct > mode.DIFFICULTY.medium.marginOct);
+    assert.ok(mode.DIFFICULTY.medium.marginOct > mode.DIFFICULTY.hard.marginOct);
+    assert.ok(mode.DIFFICULTY.hard.marginOct > mode.DIFFICULTY.pro.marginOct);
+  });
 });
 
-describe("Kesim Noktası — çeldirici frekans mesafesi", () => {
-  it("her şık FA_MIN–FA_MAX havuzunda kalır", () => {
+describe("Kesim Noktası — çeldirici üretimi ve kesim frekansı havuzu (CUTOFF_MIN–CUTOFF_MAX)", () => {
+  it("her şık ve doğru cevap CUTOFF_MIN–CUTOFF_MAX havuzunda kalır (FA_MIN–FA_MAX'ın TAMAMI değil — bkz. dosya başı 'uç değer' notu)", () => {
     for (const level of Object.keys(mode.DIFFICULTY)) {
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < 25; i++) {
         const q = mode.createQuestion(level, { source: "pink", boss: false });
+        assert.ok(q.freq >= mode.CUTOFF_MIN - 1e-6 && q.freq <= mode.CUTOFF_MAX + 1e-6, `${level}: ${q.freq} havuz dışı`);
         q.choices.forEach(c => {
-          assert.ok(c.freq >= mode.FA_MIN - 1e-6 && c.freq <= mode.FA_MAX + 1e-6, `${level}: ${c.freq} havuz dışı`);
+          assert.ok(c.freq >= mode.CUTOFF_MIN - 1e-6 && c.freq <= mode.CUTOFF_MAX + 1e-6, `${level}: ${c.freq} havuz dışı`);
         });
       }
     }
   });
 
+  it("CUTOFF_MIN/CUTOFF_MAX, FA_MIN/FA_MAX'ın KESİN İÇİNDE kalır (eksen sınırını asla aşmaz)", () => {
+    assert.ok(mode.CUTOFF_MIN > mode.FA_MIN);
+    assert.ok(mode.CUTOFF_MAX < mode.FA_MAX);
+  });
+
   it("şıklar arasında tekrarlanan frekans yok (her şık ayırt edilebilir)", () => {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 30; i++) {
       const q = mode.createQuestion("pro", { source: "pink", boss: false });
       const freqs = q.choices.map(c => c.freq);
       assert.equal(new Set(freqs).size, freqs.length);
+    }
+  });
+
+  it("şıklar arasında GÖRÜNTÜLENEN etiket (formatHz yuvarlaması) de tekrarlamıyor — kullanıcı iki özdeş görünen şıkla karşılaşmıyor", () => {
+    const formatLike = f => f >= 1000 ? `${(f / 1000).toFixed(f >= 10000 ? 1 : 2)}kHz` : `${Math.round(f)}Hz`;
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      for (let i = 0; i < 40; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false });
+        const labels = q.choices.map(c => formatLike(c.freq));
+        assert.equal(new Set(labels).size, labels.length, `${level}: görünen etiketlerde tekrar var (${labels.join(",")})`);
+      }
     }
   });
 });
@@ -139,6 +190,26 @@ describe("Kesim Noktası — evaluateAnswer (frekans + tip)", () => {
         `${level}: step ${mode.DISTRACTOR_STEP_OCT[level]} <= tolerans ${mode.FREQ_TOLERANCE_OCT}`);
     }
   });
+
+  it("edge case — ilk ve son şıkkı (dizi sırasına göre) seçmek, doğru/yanlışlığı DOĞRU DEĞERLENDİRİR (evaluateAnswer şık DİZİ KONUMUNU hiç bilmiyor)", () => {
+    const q = mode.createQuestion("pro", { source: "pink", boss: false, sessionQuestionIndex: 10 });
+    const first = q.choices[0];
+    const last = q.choices[q.choices.length - 1];
+    [first, last].forEach(choice => {
+      const result = mode.evaluateAnswer(q, { freq: choice.freq, filterType: choice.filterType });
+      assert.equal(result.correct, choice.correct, `şık (freq=${choice.freq}, type=${choice.filterType}, correct=${choice.correct}) yanlış değerlendirildi`);
+    });
+  });
+
+  it("edge case — tip gizli soruda, YANLIŞ TİPTEKİ bir şık seçilirse asla 'doğru' sayılmaz (frekans tam tutsa bile)", () => {
+    for (let i = 0; i < 20; i++) {
+      const q = mode.createQuestion("pro", { source: "pink", boss: false, sessionQuestionIndex: 10 });
+      const flippedChoice = q.choices.find(c => !c.correct && c.filterType !== q.filterType);
+      if (!flippedChoice) continue; // bu deneme hiç çevrilmiş şık üretmemiş olabilir, sorun değil
+      const result = mode.evaluateAnswer(q, { freq: flippedChoice.freq, filterType: flippedChoice.filterType });
+      assert.equal(result.correct, false);
+    }
+  });
 });
 
 describe("Kesim Noktası — createQuestion genel sözleşme", () => {
@@ -150,26 +221,19 @@ describe("Kesim Noktası — createQuestion genel sözleşme", () => {
       assert.equal(q.hintUsed, false);
       assert.ok(q.filterType === "highpass" || q.filterType === "lowpass");
       assert.ok(q.filterLabel === "HPF" || q.filterLabel === "LPF");
-      assert.ok(q.freq >= mode.FA_MIN && q.freq <= mode.FA_MAX);
+      assert.ok(q.freq >= mode.CUTOFF_MIN && q.freq <= mode.CUTOFF_MAX);
       const json = JSON.stringify(q);
       assert.ok(json.length > 0);
     }
   });
 
-  it("her iki filtre tipi de (istatistiksel olarak) üretilebiliyor", () => {
-    let sawHP = false, sawLP = false;
-    for (let i = 0; i < 100; i++) {
-      const q = mode.createQuestion("medium", { source: "pink", boss: false });
-      if (q.filterType === "highpass") sawHP = true;
-      if (q.filterType === "lowpass") sawLP = true;
-    }
-    assert.ok(sawHP && sawLP, "100 denemede her iki tip de görülmeliydi");
-  });
-
-  it("boss round'da kesim frekansı merkeze normal round'dan daha yakın (daha zor/ince)", () => {
-    const centerLog = Math.log2(Math.sqrt(mode.FA_MIN * mode.FA_MAX));
+  it("boss round'da kesim frekansı merkeze normal round'dan (istatistiksel olarak) daha yakın (daha zor/ince)", () => {
+    // N=80'de nadiren (örneklem şansı) yanlış-negatif flake gözlendi — etki
+    // gerçek ama küçük (marginOct 1.0→0.6), N büyütülerek örneklem hatası payı
+    // ihmal edilebilir seviyeye indirildi (bkz. commit mesajı).
+    const centerLog = Math.log2(Math.sqrt(mode.CUTOFF_MIN * mode.CUTOFF_MAX));
     let normalDistSum = 0, bossDistSum = 0;
-    const N = 60;
+    const N = 600;
     for (let i = 0; i < N; i++) {
       const normal = mode.createQuestion("medium", { source: "pink", boss: false });
       const boss = mode.createQuestion("medium", { source: "pink", boss: true });
@@ -190,11 +254,12 @@ describe("Kesim Noktası — createQuestion genel sözleşme", () => {
     assert.equal(zero, 0);
   });
 
-  it("getMeta(): kart metni yok, difficulty tüm 5 zorluk anahtarını (paylaşılan seçici) kapsar", () => {
+  it("getMeta(): kart metni yok, choiceOnly:true (Dokunmalı'yı desteklemiyor), difficulty tüm 5 zorluk anahtarını (paylaşılan seçici) kapsar", () => {
     const meta = mode.getMeta();
     assert.equal(meta.ad, undefined);
     assert.equal(meta.aciklama, undefined);
     assert.equal(meta.id, "kesim-noktasi");
+    assert.equal(meta.choiceOnly, true);
     for (const level of ["easy", "medium", "hard", "pro", "proplus"]) {
       assert.ok(meta.difficulty[level], `${level} DIFFICULTY'de yok`);
       assert.ok(typeof meta.difficulty[level].lives === "number");
@@ -203,8 +268,8 @@ describe("Kesim Noktası — createQuestion genel sözleşme", () => {
   });
 });
 
-describe("Kesim Noktası — applyProcessing", () => {
-  it("questionType'a göre doğru BiquadFilterNode type'ı kurar (sahte audioCtx ile)", () => {
+describe("Kesim Noktası — applyProcessing (A/B: kuru/işlenmiş yol audio-engine.js'e devrediliyor)", () => {
+  it("questionType'a göre doğru BiquadFilterNode type'ı kurar, TEK filtre döner (sahte audioCtx ile)", () => {
     for (const filterType of ["highpass", "lowpass"]) {
       const created = [];
       const fakeAudioCtx = {
