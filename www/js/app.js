@@ -2013,12 +2013,11 @@ els.startBtn.addEventListener("click", async () => {
   }
 });
 
-// "Atla ▶" / geri bildirimdeki X (freq-info-close) — HER İKİSİ de sıradaki soruya
-// aynı yoldan geçer. Karşılaştırma önizlemesinin kendi bekleyen zamanlayıcısını
-// (cmpPreviewStopTimer/cmpPreviewRemainingMs — roundFlow.clearAutoAdvance()'in
-// KAPSAMI DIŞINDA, app.js seviyesinde ayrı tutulur) da iptal eder — aksi halde
-// yeni turun ortasında eski önizlemenin zamanlayıcısı tetiklenip yanlışlıkla ikinci
-// bir otomatik-geçiş kurabilirdi (bkz. G13).
+// "Atla ▶" — sıradaki soruya elle geçiş. Karşılaştırma önizlemesinin kendi bekleyen
+// zamanlayıcısını (cmpPreviewStopTimer/cmpPreviewRemainingMs — roundFlow.
+// clearAutoAdvance()'in KAPSAMI DIŞINDA, app.js seviyesinde ayrı tutulur) da iptal
+// eder — aksi halde yeni turun ortasında eski önizlemenin zamanlayıcısı tetiklenip
+// yanlışlıkla ikinci bir otomatik-geçiş kurabilirdi.
 async function goToNextRound() {
   await audioEngine.initAudio();
   if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
@@ -2077,15 +2076,12 @@ els.abToggle.addEventListener("click", async () => {
 // MUTASYONA UĞRATMADAN geçici bir soru kopyası üzerinden buildQuestionChain'i
 // yeniden kuruyor (aynı desen: her önizleme sıfırdan bir zincir, kalıcı graf
 // mutasyonu yok — bkz. CLAUDE.md "Ses motoru notları").
-// G13: geri bildirim kartındaki X — karşılaştırma önizlemesi (uzun bir yüklenen
-// dosyada loopAwarePreviewMs buffer'ın TAM UZUNLUĞUNA yuvarladığı için dakikalarca
-// sürebilir, bkz. audio-engine.js) yüzünden otomatik geçiş pratikte çok uzun bir
-// süre kilitlenmiş gibi görünüyordu — X her durumda ÇALIŞAN bir çıkış yolu sağlar.
+// G14: G13'te eklenen kapat (X) butonu kaldırıldı — akış tamamen otomatik olmalı,
+// kullanıcının "devam mı/çıkış mı/atla mı" diye yorumlaması gereken bir buton
+// olmasın (kullanıcı kararı). Karşılaştırma önizlemesi bittiğinde otomatik geçiş
+// zaten KENDİLİĞİNDEN yeniden kuruluyor (bkz. aşağıdaki cmpPreviewStopTimer bloğu —
+// bu mekanizma G13'ten ÖNCE de vardı, X eklenirken dokunulmamıştı).
 if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
-  if (e.target.closest(".freq-info-close")) {
-    goToNextRound();
-    return;
-  }
   const btn = e.target.closest(".cmp");
   if (!btn || !activeQuestion || activeQuestion.mode !== "frequency") return;
 

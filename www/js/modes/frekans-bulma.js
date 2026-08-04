@@ -589,7 +589,6 @@ export function showFreqInfoPanel(freqInfoEl, feedback) {
   freqInfoEl.style.borderColor = color;
   freqInfoEl.style.background = ok ? "rgba(43,217,168,.10)" : "rgba(255,77,109,.10)";
   freqInfoEl.innerHTML =
-    `<button type="button" class="freq-info-close" aria-label="Kapat, sıradaki soruya geç">✕</button>` +
     `<div style="font-weight:800;color:${color};margin-bottom:6px;font-size:16px">${head}</div>` +
     `<div style="font-weight:700;color:var(--tx);margin-bottom:4px;font-size:14px">${zone.t}</div>` +
     `<div style="color:var(--tx-3);font-size:14px;line-height:1.55">${zone.tip}</div>` +
@@ -617,9 +616,7 @@ export function showProPlusInfoPanel(freqInfoEl, feedback) {
       <b style="color:${dogru ? "var(--gr)" : "var(--rd)"}">${mark} ${formatHz(b.freq)} ${act}</b>
       <span style="color:var(--tx-3)">· ${zone.t.split(" (")[0]} · ${senin}</span></div>`;
   }).join("");
-  freqInfoEl.innerHTML =
-    `<button type="button" class="freq-info-close" aria-label="Kapat, sıradaki soruya geç">✕</button>` +
-    `<div style="font-weight:800;color:${color};margin-bottom:4px;font-size:16px">${hit}/4 doğru</div>` + rows;
+  freqInfoEl.innerHTML = `<div style="font-weight:800;color:${color};margin-bottom:4px;font-size:16px">${hit}/4 doğru</div>` + rows;
   freqInfoEl.classList.remove("hidden");
 }
 
