@@ -493,6 +493,13 @@ let cmpPreviewStopTimer = null;
 // bir pay bırakılıyor (F2'nin 4000/6000'ine kıyasla "hızlı akış").
 const QUICK_ADVANCE_MS = 700;
 
+// G15: karşılaştırma önizlemesine (Senin cevabın/Doğru cevap/Temiz) basıldıktan bu
+// kadar sonra otomatik-geçiş zamanlayıcısı YENİDEN kurulur — kaynağın (upload'ta
+// dakikalarca olabilen) döngü uzunluğuna DEĞİL, sabit bu süreye bağlı (bkz. DURUM.md
+// madde 13). Önizleme sesinin kendisi bu noktada durdurulmuyor, sadece geçiş
+// beklemesi başlıyor — kullanıcı hâlâ dinliyorsa X ile istediği an atlayabilir.
+const CMP_PREVIEW_RESUME_MS = 3000;
+
 // Seans Sonu artık gerçek bir ekran (goScreen("result")) — eski "Oyun Bitti"
 // KARTI'nın tam ekranı kaplayan yarı saydam overlay'i ve o overlay'e sızan
 // gecikmeli tıklamalar (bkz. önceki turdaki "3.9 saniye gecikmeli click" bulgusu)
@@ -2076,12 +2083,16 @@ els.abToggle.addEventListener("click", async () => {
 // MUTASYONA UĞRATMADAN geçici bir soru kopyası üzerinden buildQuestionChain'i
 // yeniden kuruyor (aynı desen: her önizleme sıfırdan bir zincir, kalıcı graf
 // mutasyonu yok — bkz. CLAUDE.md "Ses motoru notları").
-// G14: G13'te eklenen kapat (X) butonu kaldırıldı — akış tamamen otomatik olmalı,
-// kullanıcının "devam mı/çıkış mı/atla mı" diye yorumlaması gereken bir buton
-// olmasın (kullanıcı kararı). Karşılaştırma önizlemesi bittiğinde otomatik geçiş
-// zaten KENDİLİĞİNDEN yeniden kuruluyor (bkz. aşağıdaki cmpPreviewStopTimer bloğu —
-// bu mekanizma G13'ten ÖNCE de vardı, X eklenirken dokunulmamıştı).
+// G15: X (kapat) butonu OTOMATİK geçişle BİRLİKTE çalışır (G14'te kaldırılmıştı,
+// kullanıcı kararıyla geri getirildi) — üç durum: X'e basan hemen sıradaki soruya
+// geçer; hiçbir şeye basmayan otomatik geçişi bekler; karşılaştırma dinleyen kişi
+// için otomatik geçiş dinleme bitene kadar ertelenir. Ses hâlâ çalıyorsa X ile
+// her zaman atlanabilir.
 if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
+  if (e.target.closest(".freq-info-close")) {
+    goToNextRound();
+    return;
+  }
   const btn = e.target.closest(".cmp");
   if (!btn || !activeQuestion || activeQuestion.mode !== "frequency") return;
 
@@ -2107,25 +2118,31 @@ if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
     await audioEngine.buildQuestionChain(guessQuestion, true, activeQuestion.source, uploadManager, mode.applyProcessing);
   }
 
-  // F2 (kullanıcı kararı): önizleme sırasında otomatik-geçiş sayacı duraklar; kaynaklar
-  // loop:true ile sonsuz çaldığı için "bitti" burada en az 3sn'lik, buffer tabanlı
-  // kaynaklarda (gürültü/ileride örnek dosya) döngü tam katına yuvarlanan bir pencere —
-  // döngü yarıda kesilmesin (ileride gerçek örnekler eklenince önemli).
+  // F2 (kullanıcı kararı): önizleme sırasında otomatik-geçiş sayacı duraklar.
+  // G15: bu bekleme ARTIK kaynağın döngü uzunluğuna DEĞİL, SABİT CMP_PREVIEW_RESUME_MS
+  // süresine bağlı (bkz. DURUM.md madde 13 — eskiden loopAwarePreviewMs uzun bir
+  // yüklenen dosyada bu süreyi dakikalarca sürecek şekilde buffer'ın TAM UZUNLUĞUNA
+  // yuvarlıyordu). Önizleme sesi (loop:true) burada DURDURULMUYOR — kesilmeden çalmaya
+  // devam eder, sadece otomatik-geçiş zamanlayıcısı bu sabit süre sonunda yeniden
+  // kurulur; asıl susturma bir sonraki turun buildQuestionChain'indeki stopAudio()
+  // ile (ya da kullanıcı X'e basarsa hemen) gerçekleşir.
   clearTimeout(cmpPreviewStopTimer);
   if (cmpPreviewRemainingMs === null) {
     cmpPreviewRemainingMs = roundFlow.captureRemainingAndClear();
   }
-  const previewMs = audioEngine.loopAwarePreviewMs(3000);
   cmpPreviewStopTimer = setTimeout(() => {
     cmpPreviewStopTimer = null;
-    audioEngine.stopAudio();
     els.freqInfo.querySelectorAll(".cmp").forEach(c => c.classList.remove("on"));
-    if (cmpPreviewRemainingMs !== null) {
-      const remain = cmpPreviewRemainingMs;
-      cmpPreviewRemainingMs = null;
-      if (activeQuestion && !autoStopped) ensureAutoNext(remain);
-    }
-  }, previewMs);
+    // G15 düzeltme: captureRemainingAndClear() orijinal otomatik-geçiş zamanlayıcısı bu
+    // önizlemeye basılana kadar zaten ateşlenmişse (gerçek dünyada birkaç saniye sürebilir)
+    // null döner. Eskiden bu null değeri "yeniden kurma" adımını tamamen atlatıyordu ve tur
+    // kalıcı olarak asılı kalıyordu (X/Atla dışında çıkış yolu yoktu). remain null/0 olsa
+    // bile ensureAutoNext her zaman çağrılır — roundFlow zaten null/0 durumunda 1500ms
+    // varsayılana düşüyor (bkz. round-flow.js ensureAutoNext).
+    const remain = cmpPreviewRemainingMs;
+    cmpPreviewRemainingMs = null;
+    if (activeQuestion && !autoStopped) ensureAutoNext(remain);
+  }, CMP_PREVIEW_RESUME_MS);
 });
 
 els.hintBtn.addEventListener("click", giveHint);

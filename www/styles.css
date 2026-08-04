@@ -374,7 +374,9 @@
       font-size:14px;font-weight:600;text-align:center;
     }
 
-    #freqInfo{padding:14px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.12);font-size:13.5px;line-height:1.55}
+    #freqInfo{position:relative;padding:14px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.12);font-size:13.5px;line-height:1.55}
+    #freqInfo .freq-info-close{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:var(--tx-3);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    #freqInfo .freq-info-close:active{background:rgba(255,255,255,.16)}
 
     /* ---- şıklı cevap ---- */
     .answers{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
