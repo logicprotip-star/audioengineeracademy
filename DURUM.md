@@ -7,6 +7,40 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `f603693` — G10: WAV yüklemesi kalıcı düzeltildi, **E1 KAPANDI**
+(kök sebep artık kanıtlı — eski E1 girdisindeki "BİREBİR KANITLANAMADI"
+notu geçerliliğini yitirdi, bkz. aşağıdaki E1 tarihçesi). G8'de upload
+decodeAudioData yoluna taşınınca WAV kırıldı: kök sebep, iOS WKWebView'in
+decodeAudioData'sının bazı WAV alt-tiplerini (24-bit PCM, 32-bit float —
+Logic Pro/Pro Tools'un WAVE_FORMAT_EXTENSIBLE ile export ettiği alt-tipler)
+açamaması, bilinen bir WebKit sınırlaması. Masaüstü Chrome'da bu hatayı
+ÜRETEMEDİM (decodeAudioData üçünü de sorunsuz decode etti) — bunun yerine
+`decodeAudioData`'yı geçici olarak her zaman reddedecek şekilde yamalayıp
+iOS'taki başarısızlığı KONTROLLÜ olarak simüle ettim, düzeltmenin
+devreye girdiğini kanıtladım.
+
+Çözüm: `www/js/core/wav-parser.js` — SAF fonksiyon (`decodeWavPcm`,
+AudioContext/DOM bağımlılığı yok), RIFF/fmt/data chunk'larını elle
+ayrıştırıp PCM/float veriyi Float32'ye çeviriyor (8/16/24/32-bit PCM +
+32/64-bit float, WAVE_FORMAT_EXTENSIBLE SubFormat GUID'i dahil).
+`upload.js`: önce `decodeAudioData` dener (KOPYA üzerinde — orijinal
+arrayBuffer WAV yedeği için sağlam kalır), başarısız olur ve dosya
+RIFF/WAVE imzalıysa `decodeWavPcm`'e düşer, sonucu `audioCtx.createBuffer`+
+`copyToChannel` ile AYNI AudioBuffer'a çevirir — gömülü örneklerle AYNI
+AudioBufferSourceNode zincirine girer. İkisi de başarısız olursa
+AudioContext'e dokunmadan net hata, pink noise'a SESSİZCE düşülmüyor.
+
+Doğrulama: 8 yeni birim testi (16/24/32-bit/stereo/EXTENSIBLE/hata
+senaryoları, 117→**125**). Tarayıcıda gerçek 523.25 Hz sinüs WAV'ları
+(16/24/32-bit float) yüklendi — Chrome'da native decode başarılı; ardından
+decodeAudioData yamalı-başarısız haldeyken AYNI 24-bit ve 32-bit float
+dosyalar tekrar yüklendi: konsolda "decodeAudioData hatası → elle WAV
+ayrıştırma BAŞARILI", round başlatıldı, spektrum doğru 523 Hz tepesini
+gösterdi (pink fallback DEĞİL). Yama kaldırıldıktan sonra "kick" (gömülü
+örnek) sorunsuz çaldı — G8'in kilitlenme çözümü BOZULMADI. `npm test`:
+125/125. **iOS cihazda gerçek Logic Pro WAV'ının çalıştığı kullanıcı
+tarafından doğrulanacak** — bu ortamda gerçek cihaz yok.
+
 G9 — "odak aralığı spektrumu daraltmıyor" teşhisi (kod değişikliği YOK,
 sadece DURUM.md notu — bkz. AÇIK İŞLER madde 11). Kullanıcı raporu G7/G8'in
 (AudioBufferSourceNode geçişi) analyser bağlantısını kopardığını
@@ -244,7 +278,9 @@ Gerçek çift-dokunma/pinch DAVRANIŞI mouse-tabanlı otomasyonla üretilemedi �
 sadece computed style/viewport meta içeriği ve fonksiyonel regresyon (tıklama,
 kaydırma) doğrulandı. `npm test` 68/68. Cihazda KONTROL EDİLMEDİ (öncelikli).
 
-Commit `bc45b38` — E1: "Dosya seç" ile WAV seçilemiyordu (bug). Kod tarafında
+Commit `bc45b38` — E1: "Dosya seç" ile WAV seçilemiyordu (bug) — **KAPANDI**,
+bkz. G10 (yukarıda BİTTİ'nin başında): asıl kök sebep (decodeAudioData'nın
+bazı WAV alt-tiplerini açamaması) elle WAV parser'ıyla çözüldü. Kod tarafında
 (validateAudioFile'ın uzantı kontrolü) WAV'ı özel olarak eleyen bir şey
 bulunamadı — 7 format da Node'da tek tek doğrulandı. En olası açıklama iOS
 WKWebView'in `accept="audio/*"` MIME-jokerini UTI'ye çevirirken bazı
@@ -594,8 +630,8 @@ Bundan sonraki öncelik sırası:
   jest gerektiriyor, mouse-tabanlı otomasyonla HİÇ üretilemedi.
 - **A/B pitch fix** (önceki tur, `8f66de1`) — gerçek cihazda kulakla pitch'in
   artık sabit kaldığı doğrulanmalı, bu ortamda ses duyulamıyor.
-- **F2**'nin karşılaştırma-önizlemesi duraklat/devam davranışı, **E1**'in WAV
-  seçme kök sebebi — önceki turlardan, hâlâ cihaz doğrulaması bekliyor.
+- **F2**'nin karşılaştırma-önizlemesi duraklat/devam davranışı — önceki
+  turdan, hâlâ cihaz doğrulaması bekliyor. (**E1** G10 ile KAPANDI.)
 
 Kod tarafında bekleyen karar yok; E/F/G/H/I (BEKLEYEN KARARLAR, Z1-Z7 ile E/G
 kapandı) kullanıcıya sorulmayı bekliyor ama hiçbiri şu an engelleyici değil.
