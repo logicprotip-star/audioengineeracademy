@@ -7,6 +7,16 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `6ce73a8` — G11: upload dosya boyutu sınırı 30→**100 MB**. Kullanıcı
+gerçek WAV dosyalarının 30 MB'ı aştığını bildirdi. OOM riski (G8'de 30 MB'ın
+seçilme sebebi — decodeAudioData sıkıştırılmış formatları büyük PCM'e açar,
+iOS WKWebView'ı çökertebilir) mp3/m4a/aac/ogg için hâlâ geçerli olduğu
+açıklandı; kullanıcı bunu BİLEREK kabul ederek tek sınırı 100 MB'a çıkardı
+(WAV zaten sıkıştırılmamış olduğu için kendisi güvenli, ama sınır tüm
+formatlara ortak). Sadece `MAX_AUDIO_FILE_MB` sabiti değişti — kilitlenme
+çözümü (G8), WAV parser (G10), çalma yolu dokunulmadı. `npm test`: 125/125
+(değişmedi).
+
 Commit `f603693` — G10: WAV yüklemesi kalıcı düzeltildi, **E1 KAPANDI**
 (kök sebep artık kanıtlı — eski E1 girdisindeki "BİREBİR KANITLANAMADI"
 notu geçerliliğini yitirdi, bkz. aşağıdaki E1 tarihçesi). G8'de upload
