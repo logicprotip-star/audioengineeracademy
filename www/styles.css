@@ -496,6 +496,21 @@
     .sheet-option .check{color:var(--am);font-weight:700;opacity:0;transition:opacity .12s ease}
     .sheet-option.selected .check{opacity:1}
 
+    /* Kaynak sheet'i gibi <optgroup>'lu select'lerde grup başlıkları accordion:
+       varsayılan kapalı, tek açık kuralı (bkz. app.js openSheet/collapseOtherGroups).
+       .sheet-group-header gerçek bir <button> — D3'te bulunan WebKit flex-buton
+       genişlik/hizalama hatasından kaçınmak için width:100%+text-align:left açıkça set. */
+    .sheet-group + .sheet-group{margin-top:10px}
+    .sheet-group-header{
+      display:flex;justify-content:space-between;align-items:center;width:100%;
+      text-align:left;background:none;border:0;padding:10px 4px;margin:0;cursor:pointer;
+    }
+    .sheet-group-header .kicker{margin:0}
+    .sheet-group-header .chev{color:var(--tx-3);font-size:13px;transition:transform .15s ease,color .15s ease}
+    .sheet-group.open .sheet-group-header .chev{color:var(--am);transform:rotate(90deg)}
+    .sheet-group-body{display:flex;flex-direction:column;gap:8px;margin-top:2px}
+    .sheet-group-body.collapsed{display:none}
+
     /* dots ile açılan oyun ayarları grubu: mevcut sheet-option satır dili tekrar kullanılır.
        KÖK SEBEP (cihazda görüldü, prototype.html'deki .item ile karşılaştırılarak bulundu):
        satırlar gerçek <button> elemanları — WebKit'te display:flex bir <button>'a

@@ -2473,23 +2473,52 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => {
     sheet.classList.remove('open');
   }
 
+  // Bir grup açılınca (tek açık kuralı) diğer açık grupları kapatır — grup
+  // başlıklarının click handler'ından çağrılır, groupEl kapatılan grubun DIŞINDA
+  // tutulacaksa (yani onu YENİDEN açacaksak) skip parametresiyle atlanır.
+  function collapseOtherGroups(exceptGroupEl) {
+    sheetOptions.querySelectorAll('.sheet-group.open').forEach(g => {
+      if (g === exceptGroupEl) return;
+      g.classList.remove('open');
+      g.querySelector('.sheet-group-body').classList.add('collapsed');
+    });
+  }
+
   function openSheet(select, title) {
     sheetTitle.textContent = title;
     sheetOptions.innerHTML = '';
-    // Kaynak sheet'i gibi <optgroup> ile gruplanmış select'lerde grup başlığı
-    // (.kicker) araya serpiştirilir; gruplanmamış select'lerde (Zorluk/Oyun Türü/
-    // Süre/Cevap biçimi) hiç fark etmez, düz liste olarak kalır.
+    // Kaynak sheet'i gibi <optgroup> ile gruplanmış select'lerde her grup
+    // açılır/kapanır bir başlığa (chevron'lu, tıklanabilir) sarılır — VARSAYILAN
+    // KAPALI, bir grup açılınca diğeri otomatik kapanır (collapseOtherGroups).
+    // Gruplanmamış select'lerde (Zorluk/Oyun Türü/Süre/Cevap biçimi) hiç fark
+    // etmez, düz liste olarak kalır (currentBody hep sheetOptions'ın kendisi).
     let lastGroup = null;
+    let currentBody = sheetOptions;
     Array.from(select.options).forEach(opt => {
       const groupLabel = opt.parentElement && opt.parentElement.tagName === "OPTGROUP"
         ? opt.parentElement.label : null;
       if (groupLabel && groupLabel !== lastGroup) {
-        const header = document.createElement('div');
-        header.className = 'kicker';
-        header.style.margin = lastGroup === null ? '4px 4px 6px' : '18px 4px 6px';
-        header.textContent = groupLabel;
-        sheetOptions.appendChild(header);
         lastGroup = groupLabel;
+        const groupEl = document.createElement('div');
+        groupEl.className = 'sheet-group';
+        const header = document.createElement('button');
+        header.type = 'button';
+        header.className = 'sheet-group-header';
+        header.innerHTML = `<span class="kicker">${groupLabel}</span><span class="chev">▸</span>`;
+        const body = document.createElement('div');
+        body.className = 'sheet-group-body collapsed';
+        header.addEventListener('click', () => {
+          const willOpen = !groupEl.classList.contains('open');
+          collapseOtherGroups(willOpen ? groupEl : null);
+          groupEl.classList.toggle('open', willOpen);
+          body.classList.toggle('collapsed', !willOpen);
+        });
+        groupEl.appendChild(header);
+        groupEl.appendChild(body);
+        sheetOptions.appendChild(groupEl);
+        currentBody = body;
+      } else if (!groupLabel) {
+        currentBody = sheetOptions;
       }
       const row = document.createElement('div');
       row.className = 'sheet-option' + (opt.selected ? ' selected' : '');
@@ -2510,7 +2539,7 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => {
         updateRowText(select);
         closeSheet();
       });
-      sheetOptions.appendChild(row);
+      currentBody.appendChild(row);
     });
     overlay.classList.add('open');
     sheet.classList.add('open');
