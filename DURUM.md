@@ -7,6 +7,37 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `5d86afa` — G12: yüklenen ses cevap verince duraklıyor, kaldığı
+yerden devam ediyor (kullanıcı raporu — cihazda doğrulanmıştı, "ses geri
+bildirimde ilerliyor" bug'ı). Kök sebep KANITLANDI (kod incelemesi + canlı
+ölçüm): cevap-işleme yolları `audioEngine.stopAudio()`'yu zaten
+çağırıyordu (ses fiziksel olarak susuyordu) ama `stopAudio()` `upload.js`'in
+mantıksal `offset`/`startedAt`/`playing` durumundan HABERDAR DEĞİLDİ — bir
+sonraki `getSourceNode()` çağrısı `playing` hâlâ `true` olduğu için GERÇEK
+(duvar saati) geçen süreyi offset'e ekliyordu. Canlı ölçüm: cevap sonrası
+`pausePlayback()` hiç çağrılmadan art arda iki `getSourceNode()` çağrısı
+offset'i 0.000→14.611→4.764'e sıçrattı.
+
+Çözüm — TEK merkezi düzeltme: `audio-engine.js`'e `activeUploadManager`
+referansı eklendi (`buildQuestionChain` her çağrıldığında `sourceType===
+"upload"` ise güncellenir). `stopAudio()` artık HER çağrıldığında (cevap
+verme, karşılaştırma önizlemesi bitişi, Durdur, oyun bitti, mod değişimi —
+app.js'teki ~10 çağrı sitesinin HİÇBİRİNE dokunmadan) fiziksel durdurmayla
+AYNI ANDA `pausePlayback()`'i de çağırıp offset'i donduruyor. Karşılaştırma
+dinletmesi ayrıca ele alınmadı — YAPISAL olarak aynı `getSourceNode()`'u
+kullanıyor, donmuş offset'i otomatik okuyor. Gömülü/sentetik kaynaklar
+`activeUploadManager=null` olduğu için hiç etkilenmedi.
+
+Doğrulama: 5 yeni birim testi (`test/upload-pause-resume.test.mjs`,
+125→**130** — start/pause/resume, pause-olmadan-drift regresyon
+karşılaştırması, buffer-aşımı modulo, startFromZero, art-arda-pause).
+Tarayıcıda gerçek WAV yüklendi, ~10sn çaldıktan sonra cevap verildi —
+offset 9.9265'te donduruldu; birkaç GERÇEK saniye sonra otomatik başlayan
+YENİ tur TAM 9.9265'ten devam etti (hiç ilerlemedi). Ardından "kick"
+(gömülü örnek) sorunsuz çaldı, konsolda sıfır hata (regresyon yok).
+`npm test`: 130/130. **iOS cihazda kulakla doğrulama kullanıcıda** — bu
+ortamda gerçek cihaz yok.
+
 Commit `6ce73a8` — G11: upload dosya boyutu sınırı 30→**100 MB**. Kullanıcı
 gerçek WAV dosyalarının 30 MB'ı aştığını bildirdi. OOM riski (G8'de 30 MB'ın
 seçilme sebebi — decodeAudioData sıkıştırılmış formatları büyük PCM'e açar,
