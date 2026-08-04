@@ -14,9 +14,16 @@ import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import { SOURCE_GROUPS, findSource } from "./core/source-catalog.js";
 import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG } from "./core/difficulty-curve.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
+import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 
 registerMode(frekansBulma);
-const mode = getMode(frekansBulma.MODE_ID);
+registerMode(kesimNoktasi);
+// Artık birden fazla oynanabilir mod var — `mode` menüden hangi karta basıldığına
+// göre DEĞİŞİR (bkz. renderModeGrid'in kart click handler'ı). Başlangıç değeri
+// Frekans Bulma (ilk açılışta menüde gösterilen ekran budur, henüz hiçbir kart
+// tıklanmamış olsa bile modül-seviyesi kod — difficultyLivesMap() vb. — bir
+// varsayılana ihtiyaç duyuyor).
+let mode = getMode(frekansBulma.MODE_ID);
 
 const HINTS_PER_GAME = 3;
 
@@ -38,6 +45,7 @@ const els = {
   // ekran yönlendirme
   modeGrid: document.getElementById("modeGrid"),
   modeCount: document.getElementById("modeCount"),
+  gameTitle: document.getElementById("gameTitle"),
   backBtn: document.getElementById("backBtn"),
   tabbar: document.getElementById("tabbar"),
   dailyTipCard: document.getElementById("dailyTipCard"),
@@ -575,8 +583,11 @@ function timerOff() {
 }
 
 // proplus'ta şıklı arayüz yok (4 bandı aynı anda işaretlemek gerekiyor) — o modda
-// bu her zaman false döner, dokunmalı akış değişmeden çalışır.
+// bu her zaman false döner, dokunmalı akış değişmeden çalışır. Kesim Noktası'nda
+// ("cutoff") ise TERSİ: dalgaya tıklama affordance'ı yok, "Cevap biçimi" ayarından
+// BAĞIMSIZ olarak her zaman şıklı (bkz. kesim-noktasi.js dosya başı not).
 function isChoiceFormat() {
+  if (activeQuestion && activeQuestion.mode === "cutoff") return true;
   return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
     && activeQuestion && activeQuestion.mode !== "proplus");
 }
@@ -703,9 +714,10 @@ function showSessionEnd(kind) {
   const insight = zoneInsightSentence(zoneEnough);
   const weakest = zoneEnough.length ? zoneEnough.slice().sort((a, b) => a.pct - b.pct)[0] : null;
 
+  const activeModeCatalogEntry = MODE_CATALOG.find(e => e.id === mode.getMeta().id);
   els.resHead.textContent = lost
     ? "Canların bitti, seans burada kapandı"
-    : (weakest ? `${weakest.label} bölgede ilerleme var` : "Frekans Bulma seansını bitirdin");
+    : (weakest ? `${weakest.label} bölgede ilerleme var` : `${activeModeCatalogEntry ? activeModeCatalogEntry.ad : "Bu"} seansını bitirdin`);
 
   // Tasarımdaki "Son seansına göre +N puan" karşılaştırması VERİ KAYNAĞI YOK —
   // önceki seansın skor anlık görüntüsü hiçbir yerde tutulmuyor. Uydurmak yerine
@@ -982,7 +994,32 @@ function renderModeGrid() {
         ${lockRow}
       `;
       card.addEventListener("click", () => {
-        if (playable) { goScreen("game"); return; }
+        if (playable) {
+          // #gameTitle statik HTML'de "Frekans Bulma" — tek mod varken hiç
+          // güncellenmesi gerekmiyordu, artık her kart tıklamasında (moda özgü
+          // "eski başlık asılı kalır" riskini önden kapatmak için mod DEĞİŞMESE
+          // bile) doğru isimle senkronlanıyor.
+          if (els.gameTitle) els.gameTitle.textContent = entry.ad;
+          if (mode !== realMode) {
+            // Farklı bir moda geçiliyor — önceki modun round'u/sesi/ekran metni
+            // yeni moda SIZMASIN diye temiz bir sayfayla başlanır (aksi halde
+            // "Oyunu Başlat"a basılana kadar eski modun BAŞLIĞI/şıkları ekranda
+            // asılı kalırdı — bu, tek mod varken hiç mümkün olmayan bir geçişti).
+            audioEngine.stopAudio();
+            roundFlow.stopAll();
+            activeQuestion = null;
+            roundActive = false;
+            autoStopped = true;
+            mode = realMode;
+            els.questionTitle.textContent = 'Başlamak için "Oyunu Başlat"a dokun.';
+            els.questionMeta.textContent = "";
+            if (els.freqInfo) els.freqInfo.classList.add("hidden");
+            if (els.answers) { els.answers.innerHTML = ""; els.answers.classList.add("hidden"); }
+            updateStartBtnLabel();
+          }
+          goScreen("game");
+          return;
+        }
         if (realMode && !meetsLevel) { toast("Seviye yetersiz", `Bu egzersiz Seviye ${entry.unlockLevel}'de açılır.`); return; }
         toast("Yakında", "Bu egzersiz yakında eklenecek.");
       });
@@ -1314,9 +1351,11 @@ function renderQuestion() {
   updateHintChipLabel();
 
   els.questionTitle.textContent =
-    q.mode !== "proplus"
-      ? "Hangi frekansla oynandı? Dalga üzerine tıkla."
-      : "4 frekansla oynandı — dördünü de dalga üzerinde işaretle.";
+    q.mode === "proplus" ? "4 frekansla oynandı — dördünü de dalga üzerinde işaretle."
+    : q.mode === "cutoff" ? (q.typeRevealed
+        ? `Bu bir ${q.filterLabel}, kesim frekansı nerede?`
+        : "Ne tür filtre, hangi frekansta?")
+    : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
 
   els.questionMeta.textContent = mode.modeDescription(q);
   els.streakText.textContent = q.boss ? "Boss round aktif" : (stats.combo > 1 ? `${stats.combo}x combo aktif` : "Yeni challenge");
@@ -1351,9 +1390,9 @@ function renderQuestion() {
 
   setFeedback(
     q.boss ? "Boss round başladı!" : "Hazır mısın?",
-    q.mode !== "proplus"
-      ? "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
-      : "A/B ile karşılaştır. 4 frekansla oynandı (kimi açık, kimi kısık). Dört noktaya da tıkla."
+    q.mode === "proplus" ? "A/B ile karşılaştır. 4 frekansla oynandı (kimi açık, kimi kısık). Dört noktaya da tıkla."
+    : q.mode === "cutoff" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan kesim frekansını seç."
+    : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
 }
 
@@ -1466,6 +1505,84 @@ function submitFrequencyGuess(guessHz) {
   // için bu süreye gerek yok — QUICK_ADVANCE_MS sadece ding/buzz'ın duyulmasına yetecek
   // kadar kısa bir bekleme.
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+}
+
+// Kesim Noktası ("cutoff") için submitFrequencyGuess'in YAPISAL PARALELİ — bilerek
+// AYRI bir fonksiyon (paylaşılan bir "submitAnswer" özütlemesi yerine): iki modun
+// soru şekli (freq+gain'e karşı freq+filterType) ve geri bildirimi (zengin panel'e
+// karşı sade metin — bkz. kesim-noktasi.js dosya başı not) yeterince farklı ki ortak
+// bir gövde ya dallanmayla karmaşıklaşır ya da yanlışlıkla frekans-bulma'yı bozma
+// riski taşır. ŞABLON niyeti tam olarak bu: bir SONRAKİ mod da muhtemelen kendi
+// submitXGuess'ini yazacak, gerçek tekrar ağrısı 3. modda netleşince ortak bir
+// çekirdek çıkarılabilir.
+// answer: { freq, filterType } — bkz. .ans click-delegasyonu ve kesim-noktasi.js
+// evaluateAnswer.
+function submitCutoffGuess(answer) {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "cutoff") return;
+  if (!answer || answer.freq == null) return;
+  roundActive = false;
+  roundFlow.clearTimer();
+  setActionbarTucked(true);
+
+  const q = activeQuestion;
+  const result = mode.evaluateAnswer(q, answer);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = ""; // bu modda "gain" kavramı yok
+  if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, answer);
+
+  stats.rounds++;
+  let gained = 0;
+
+  if (result.correct) {
+    stats.correct++;
+    stats.combo++;
+    stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
+    gained = mode.calculateXP(q, result, q.hintUsed, q.difficulty, {
+      combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
+    });
+    diffState().xp += gained;
+    modeState().xp += gained;
+    diffState().score += gained * Math.max(1, stats.combo);
+    diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
+    if (q.difficulty === "pro") stats.proCorrect++;
+    if (q.boss) stats.bossWins++;
+    session.correct++; session.xp += gained;
+
+    const feedback = mode.getFeedbackData(q, answer, { gained });
+    setFeedback(feedback.title, feedback.detail, false, false);
+    mode.recordZone(zoneStats, q.freq, true, result.dOct);
+    audioEngine.sfxDing();
+    spawnXp(`+${gained} XP`, els.canvas);
+    burst(els.canvas);
+    challengeTick(true, gained);
+  } else {
+    stats.wrong++;
+    stats.combo = 0;
+    diffState().score = Math.max(0, diffState().score - 20);
+    session.wrong++;
+
+    const feedback = mode.getFeedbackData(q, answer, { gained: 0 });
+    setFeedback(feedback.title, feedback.detail, false, true);
+    mode.recordZone(zoneStats, q.freq, false, result.dOct);
+    audioEngine.sfxBuzz();
+    shake(els.canvas);
+    loseLife("Kesim noktasını ıskaladın.", { silent: true });
+    challengeTick(false, 0);
+  }
+
+  storage.saveZoneStats(zoneStats);
+  audioEngine.stopAudio();
+  pushHistory(result.correct);
+  updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
+  notifyNewAchievements();
+  updateUI();
+  persistStats();
+  persistDaily();
+  // Zengin panel yok (bkz. dosya başı not) — okunacak içerik-yoğun bir kart
+  // olmadığı için doğru/yanlış farketmeksizin her zaman QUICK_ADVANCE_MS.
+  if (!finalizeIfGameOver()) scheduleNext(QUICK_ADVANCE_MS);
 }
 
 function submitProPlusGuess() {
@@ -1932,6 +2049,14 @@ if (els.answers) els.answers.addEventListener("click", e => {
   const btn = e.target.closest(".ans");
   if (!btn || btn.disabled) return;
   btn.classList.add("pick");
+  // Kesim Noktası'nda ("cutoff") şıklar frekans+filtre tipi TAŞIR (data-filter-type) —
+  // ayrı bir gönderim fonksiyonuna yönlendirilir (bkz. submitCutoffGuess dosya başı not).
+  if (activeQuestion && activeQuestion.mode === "cutoff") {
+    const freq = Number(btn.dataset.freq);
+    const filterType = btn.dataset.filterType || activeQuestion.filterType;
+    try { submitCutoffGuess({ freq, filterType }); } catch (err) { console.error(err); }
+    return;
+  }
   const hz = Number(btn.dataset.freq);
   freqGuessHz = hz;
   // F2: bkz. yukarıdaki pointerdown handler'daki not — submitFrequencyGuess kendi
