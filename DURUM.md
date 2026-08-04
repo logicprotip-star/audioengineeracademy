@@ -7,6 +7,47 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `71dad21` — G18: Kesim Noktası — tip gizleme seans içi rampaya bağlandı,
+"Dokunmalı" gizlendi, sıkı bug taraması. Cihaz testinde bulunan iki sorun +
+şablon olacağı için modun genelinde derinlemesine bug taraması istendi.
+
+**Sorun 1 çözümü:** tip gizleme (HPF/LPF SÖYLENİR mi SÖYLENMEZ mi) artık
+zorluğa DEĞİL, oyun oturumu içindeki soru sırasına bağlı — her fresh-start'ta
+sıfırlanan yeni bir sayaç (`roundsInThisPlaySession`) ilk `TYPE_REVEAL_
+QUESTION_COUNT` (=3) soruda tip söyler, sonrasında HANGİ zorlukta olursa olsun
+gizler. **Doğrulama sırasında bulunan gerçek bir hata:** ilk denemede eşik
+`session.correct+session.wrong`'a bağlanmıştı — ama `session` SADECE Seans
+Sonu ekranının 3 CTA'sında sıfırlanıyor, normal "Oyunu Başlat" tuşu ona hiç
+dokunmuyor (kod incelemesiyle doğrulandı, `resetSession()`'ın yorumundaki
+"Oyunu Başlat" iddiası YANLIŞ/bayat — düzeltilmedi, sadece not edildi). Bu,
+Durdur→Oyunu Başlat ile devam eden GERÇEKTEN yeni bir oturumda bile eşiğin
+daha ilk turda tetiklenmesine yol açıyordu (canlı doğrulandı). Ayrı, dar
+kapsamlı bir sayaçla düzeltildi — `session`'ın kendisine dokunulmadı.
+
+**Sorun 2 çözümü:** "Dokunmalı" toggle'ı (chip + Oyun Ayarları satırı) artık
+Kesim Noktası'nda gizli — aktif modun `getMeta().choiceOnly` bayrağına göre
+(yeni, opsiyonel meta alanı) `syncAnswerFormatVisibility()` ikisini birden
+gizler/gösterir. Frekans Bulma'da (choiceOnly yok) davranış değişmedi.
+
+**Sıkı bug taraması bulguları:** HPF/LPF dengesi 2000-3000 örneklik testlerle
+KANITLANDI dengeli (~%49/%51) — "hep LPF geldi" gözlemi kod bugı DEĞİL, küçük
+örneklem tesadüfüydü. UÇ DEĞER sorunu GERÇEKTİ: FA_MIN–FA_MAX (80 Hz–17 kHz)
+Frekans Bulma'nın PEAKING bant merkezleri için seçilmişti, HPF/LPF KESİMİ için
+uygun değildi — kesim havuzu artık dar `CUTOFF_MIN`–`CUTOFF_MAX` (100 Hz–8 kHz)
+aralığına alındı (sınırlar KULAKLA DOĞRULANMADI, makul başlangıç noktası).
+Çeldirici üretiminde tekrarlanan frekans/GÖRÜNEN ETİKET yok (yeni test);
+zorlukla ölçekleme (şık sayısı 3/4/5/6, mesafe/margin) canlı+testle doğrulandı;
+A/B (kuru/işlenmiş) canlı doğrulandı, audio-engine.js'e dokunulmadı;
+evaluateAnswer'ın dizi-konumundan bağımsız değerlendirmesi ve tip-gizli
+edge case'i testle garanti altına alındı. Bir test flake'i bulunup düzeltildi
+(boss-round mesafe testi N=80→600, 8/8 tekrarlı çalıştırmada temiz).
+
+Kapsam korundu: filtre eğrisi görseli/öğretici geri bildirim EKLENMEDİ (sonraki
+prompt), createQuestion/evaluateAnswer saf fonksiyon kaldı. Frekans Bulma'ya
+regresyon yok (canlı doğrulandı: dalgaya tıklama, EQ eğrisi, zone-tip,
+karşılaştırma butonları, "Dokunmalı" chip'i hepsi eskisi gibi). `npm test`:
+**168/168** (140 eski + 28 kesim-noktasi).
+
 Commit `304946c` — G17: **Mod 2 "Kesim Noktası" — çalışan iskelet** (HPF/LPF
 kesim frekansı bulma, şıklı cevap, zorlukla tip ayrımı). Frekans Bulma'dan sonra
 ilk GERÇEK ikinci mod — bu, `app.js`'in `mode.X()` genel dispatch mekanizmasının
