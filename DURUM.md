@@ -7,6 +7,46 @@ Son güncelleme: 04.08.2026
 
 ## BİTTİ
 
+Commit `4119bce` — G13: geri bildirimde X (kapat) butonu + "Geri bildirim
+ekranı" ayarı (kullanıcı raporu — karşılaştırma butonuna basınca sonraki
+soruya geçiş kilitleniyordu, cihazda doğrulanmıştı). Kök sebep KANITLANDI:
+sonraki soruya geçiş `roundFlow.ensureAutoNext()`'in kurduğu bir
+`setTimeout` ile tetikleniyor; karşılaştırma butonuna basınca bu BİLEREK
+duraklatılıyor, önizleme bitince `audioEngine.loopAwarePreviewMs(3000)` ile
+hesaplanan bir süre sonra devam ediyor — bu fonksiyon süreyi kaynağın TAM
+DÖNGÜ uzunluğuna yuvarlıyor (kısa gömülü örnekler için doğru tasarım). G7/
+G8'den beri "upload" kaynağının `AudioBuffer`'ı KULLANICININ YÜKLEDİĞİ TÜM
+ŞARKI kadar uzun olabiliyor — 20 saniyelik bir dosyada yuvarlama 3000ms'yi
+20000ms'ye çıkarıyor, dakikalarca sürebilecek dosyalarda kullanıcı fiilen
+kilitlenmiş gibi görünüyordu.
+
+Çözüm 1 — X butonu: `showFreqInfoPanel`/`showProPlusInfoPanel`'in kurduğu
+karta `.freq-info-close` eklendi (mevcut `#freqInfo` click-delegasyonuna
+dahil, yeni dinleyici açılmadı). "Atla ▶"'nın çalışan ilerletme mantığı
+`goToNextRound()` adıyla ortak fonksiyona çıkarıldı; X hem bunu çağırıyor
+hem karşılaştırma önizlemesinin bekleyen zamanlayıcısını iptal ediyor —
+uzun bir önizleme sürsün ya da sürmesin HER ZAMAN çalışan bir çıkış yolu
+var artık. `loopAwarePreviewMs`'e (ses çalma davranışı) dokunulmadı —
+otomatik yol hâlâ uzun sürebilir ama artık TEK yol değil.
+
+Çözüm 2 — "Geri bildirim ekranı" ayarı: `prefs.feedbackScreen` (varsayılan
+`true`), Bildirimler/Kulaklık uyarısı ile AYNI localStorage/toggle deseni.
+Kapalıyken cevap sonrası panel HİÇ açılmıyor, `scheduleNext()`
+`QUICK_ADVANCE_MS` (700ms) kullanıyor — skor/XP/can mantığı DEĞİŞMEDİ,
+sadece görsel kart ve bekleme süresi. **Kapsam notu:** `submitProPlusGuess`
+(Pro Plus zorluğu) bilerek KAPSAM DIŞI bırakıldı — `revealAnimator`'ın
+kendi bant-bant açılma animasyonu hızlı-ilerleme ile çakışma riski
+taşıyordu; X butonu proplus panelinde de var ama ayar toggle'ı sadece
+frekans modunda etkili.
+
+Doğrulama: 4 yeni birim testi (`freshPrefs`/`loadPrefs`, 130→**134**).
+Tarayıcıda: 20sn'lik gerçek bir WAV yüklenip cevap verildi, "Doğru cevap"
+önizlemesi tıklanıp HEMEN ardından X tıklandı — round anında ilerledi
+(20sn beklemeden), sıfır konsol hatası. Ayar kapatılınca `#freqInfo` hiç
+açılmadı (`classList.contains('hidden')===true`), round hızlı ilerledi;
+switch localStorage ile senkron doğrulandı (kapalı↔açık). `npm test`:
+134/134. **iOS cihazda kulakla doğrulama kullanıcıda.**
+
 Commit `5d86afa` — G12: yüklenen ses cevap verince duraklıyor, kaldığı
 yerden devam ediyor (kullanıcı raporu — cihazda doğrulanmıştı, "ses geri
 bildirimde ilerliyor" bug'ı). Kök sebep KANITLANDI (kod incelemesi + canlı
@@ -546,6 +586,16 @@ engel ortadan kalktığı için ayrı bir işte eklenebilir.
 
 **8. İlerleme sekmesi prototiple örtüşmüyor**
 Bölümler var, düzen farklı. `Dizayn/prototype.html` referans.
+
+**12. "Geri bildirim ekranı" ayarı Pro Plus zorluğunda etkisiz**
+G13 ile eklenen `prefs.feedbackScreen` toggle'ı SADECE `submitFrequencyGuess`'te
+(normal frekans sorusu) uygulandı — `submitProPlusGuess` bilerek dokunulmadı,
+çünkü `revealAnimator`'ın bant-bant açılma animasyonu G13'ün hızlı-ilerleme
+süresiyle (`QUICK_ADVANCE_MS`) çakışma riski taşıyordu, zamanı yoktu.
+Kullanıcı Pro Plus'ta ayarı kapatırsa panel yine de açılır.
+**Kabul kriteri:** Pro Plus'ta cevap verilince, ayar kapalıyken de panel
+açılmadan hızlı ilerleniyor, `revealAnimator` animasyonu düzgün tamamlanıyor
+(yarıda kesilmiyor).
 
 **11. AÇIK ÖZELLİK — Odaklı pratik modu**
 Kullanıcı raporu (G9 teşhisi, kod değişikliği YAPILMADI — bkz. BİTTİ):
