@@ -7,6 +7,76 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `69c0259` — G31: **Kompresör'de cihazda bulunan ÜÇ hata — toggle ilk
+render, geri bildirim sırasında ses, Durdur döngüyü durdurmuyor.** Üçü de
+TEK bir kök sebebe iniyor: G30'da eklenen A/B/C döngü mekanizması
+(`cycleKompresorPreview`/`abLoopTimer`) mevcut pause/geri-bildirim akışına
+DOĞRU bağlanmamıştı — Motor 2'nin ilk modu olarak yeni bir davranış (üç
+yönlü döngü) ekleyip onu paylaşılan sistemin gerektirdiği TÜM çıkış
+noktalarına (round bitişi, Durdur) bağlamayı unutmuştu.
+
+**1. Toggle ilk render'da yanlış (kod okumasıyla KANITLANDI):**
+`updateAbToggleUI()`'nin `isKompresor` kontrolü `activeQuestion.mode`'a
+bakıyordu — ama "Oyunu Başlat"a basılana kadar `activeQuestion` NULL
+(G17'nin mod-değiştirme bloğu sıfırlıyor) — mod GERÇEKTEN Kompresör olsa
+bile ilk ekranda HER ZAMAN "A/B Test" (yanlış) gösteriyordu (canlı ekran
+görüntüsüyle YAKALANDI). Düzeltme: kontrol artık `activeQuestion` yerine
+SEÇİLİ MOD MODÜLÜNE (`mode.MODE_ID`) bakıyor — altı modun ALTISI da
+`MODE_ID` export ediyor (kod incelemesiyle doğrulandı), bu yüzden genel/
+güvenli bir düzeltme; ilk render dahil her zaman doğru.
+
+**2 + 3. Geri bildirim açıkken ses başlıyordu / Durdur döngüyü
+durdurmuyordu (AYNI kök sebep, koddan KANITLANDI):** `abLoopTimer`
+(`setInterval(toggleAB, 2000)`) hiçbir round-bitişi ya da Durdur
+noktasında TEMİZLENMİYORDU. Diğer beş modda bu ZARARSIZDI çünkü
+`toggleAB()` onlarda sadece `audioEngine.setProcessed()` çağırıyor —
+`stopAudio()` sonrası `dryGain`/`wetGain` null olunca bu fonksiyon
+SESSİZCE no-op oluyor (`audio-engine.js:361`: `if (!audioCtx || !dryGain
+|| !wetGain) return;`). Kompresör'de ise HER döngü tetiklemesi
+`buildQuestionChain()`'i YENİDEN çağırıyor — bu (a) sesi baştan
+başlatıyor (roundActive'e/geri bildirim durumuna hiç bakmadan) VE (b)
+"güvenlik" amaçlı `muteGain`'i 1'e geri açıyor (bkz. `audio-engine.js`
+`buildQuestionChain`'in başındaki yorum: "bir önceki durum [Durdur]
+muteGain'i 0'da bırakmış olabilir") — Durdur'un uyguladığı mute, bir
+sonraki döngü tetiklemesinde SESSİZCE iptal ediliyordu.
+
+**Düzeltme — yeni bir paralel sistem KURMADAN, döngüyü mevcut iki ortak
+noktaya bağladı:**
+- `setActionbarTucked(tucked=true)` — her modun HER cevap-sonrası/süre-
+  dolumu yolunun (onTimeUp + altı submit*Guess fonksiyonu) ÇAĞIRDIĞI TEK
+  ortak nokta (grep ile doğrulandı, 9 çağrı yeri) — artık `abLoopTimer`
+  varsa `stopAbLoop()` çağırıyor. Diğer beş modda davranış DEĞİŞMİYOR
+  (loop zaten sesli bir etkisi olmayan bir zamanlayıcıydı, şimdi sadece
+  GERÇEKTEN temizleniyor), Kompresör'de artık geri bildirim kartı sesle
+  ÇAKIŞMIYOR.
+- `pauseRound()` (Durdur) — `setActionbarTucked`'ı HİÇ çağırmadığı için
+  (çubuk görünür kalmalı, "Tekrar Çal" basılabilsin diye) yukarıdaki
+  merkezi nokta buraya ulaşmıyordu — AYRICA kendi `stopAbLoop()` çağrısı
+  eklendi.
+
+**Doğrulama (canlı tarayıcıda, DOM state + zamanlanmış JS enstrümantasyonuyla
+— ekran görüntüsü değil, senkron/atomik state okumaları):**
+- Toggle: mod kartına tıklanır tıklanmaz (Oyunu Başlat'tan ÖNCE) "A/B/C
+  Test" + üç pill görünüyor (ekran görüntüsüyle doğrulandı).
+- Döngü+Durdur: `pointerdown` (700ms) → `abLoopTimer` başladı (harf A,
+  `loop` class var, başlık "Döngü") → 2.3sn sonra harf B'ye ilerledi
+  (döngü GERÇEKTEN tetikleniyor) → Durdur'a basılınca ANINDA `loop:false`,
+  başlık "A/B Test"e döndü, `startBtn` "🔄 Tekrar Çal" oldu → 2.3sn DAHA
+  beklenince harf HÂLÂ B'de sabit (önceden sonsuz ilerlerdi) — döngü
+  GERÇEKTEN durdu, sadece gizlenmedi.
+- Döngü+cevap: aynı döngü çalışırken bir cevap gönderildi → ANINDA
+  `loop:false`, `feedbackShown:true`, `actionbarTucked:true` → 2.3sn geri
+  bildirim kartı AÇIK kalırken harf/döngü SESSİZ kaldı (önceden bu sırada
+  yeni ses duyulabiliyordu).
+- AYNI enstrümantasyon Frekans Bulma'da (beş modun temsilcisi) da
+  çalıştırıldı — loop/Durdur davranışı ÖNCEDEN OLDUĞU GİBİ (A/B tek
+  başına ilerliyor, Durdur'da donuyor, davranış hiç değişmedi).
+- `npm test`: **488/488** DEĞİŞMEDEN geçti (düzeltme DOM/zamanlayıcı
+  katmanında, pure-function testlerini etkilemiyor, yeni test gerekmedi).
+- 2 mod canlı regresyon: Frekans Bulma (tam tur + loop/Durdur + normal
+  cevap akışı) ve Q Genişliği (tam tur, 4 şık, zengin geri bildirim) sıfır
+  konsol hatasıyla çalıştı.
+
 Commit `464ce8e` — G30: **Mod 6 "Kompresör" — Motor 2'nin İLK modu (3 ses,
 hangisi farklı), ŞABLON.** İlk beş mod Motor 1'di ("değeri bul" — tek bir
 sayısal/etiket değeri tahmin ediliyordu); bu, Motor 2'nin ("hangisi farklı"
