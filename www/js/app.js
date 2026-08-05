@@ -15,9 +15,11 @@ import { SOURCE_GROUPS, findSource } from "./core/source-catalog.js";
 import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier } from "./core/difficulty-curve.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
+import * as dbSeviyesi from "./modes/db-seviyesi.js";
 
 registerMode(frekansBulma);
 registerMode(kesimNoktasi);
+registerMode(dbSeviyesi);
 // Artık birden fazla oynanabilir mod var — `mode` menüden hangi karta basıldığına
 // göre DEĞİŞİR (bkz. renderModeGrid'in kart click handler'ı). Başlangıç değeri
 // Frekans Bulma (ilk açılışta menüde gösterilen ekran budur, henüz hiçbir kart
@@ -484,6 +486,10 @@ let freqHoverHz = null;
 // drawVisualizer'ın overlayState'ine geçiyor, mode.drawOverlay bunu okur. Her yeni
 // soruda (renderQuestion) null'a döner, submitCutoffGuess cevaplanınca doldurur.
 let cutoffGuess = null;
+// dB Seviyesi'nin cevap-sonrası dB göstergesi için — kullanıcının verdiği cevabın
+// SAYISAL değeri (bkz. submitLevelGuess). cutoffGuess'in AYNI deseni — her yeni
+// soruda (renderQuestion) null'a döner, submitLevelGuess cevaplanınca doldurur.
+let dbGuess = null;
 
 // İlerleme sekmesindeki "toplam antrenman süresi" istatistiği: her tur startRound()'da
 // başlar, cevap/timeout ile biter — soru ekranda GERÇEKTEN açık kaldığı süreyi toplar.
@@ -639,7 +645,7 @@ function timerOff() {
 // ("cutoff") ise TERSİ: dalgaya tıklama affordance'ı yok, "Cevap biçimi" ayarından
 // BAĞIMSIZ olarak her zaman şıklı (bkz. kesim-noktasi.js dosya başı not).
 function isChoiceFormat() {
-  if (activeQuestion && activeQuestion.mode === "cutoff") return true;
+  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel")) return true;
   return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
     && activeQuestion && activeQuestion.mode !== "proplus");
 }
@@ -1343,8 +1349,12 @@ function renderAnalysis() {
 }
 
 function pushHistory(correct) {
+  // dblevel'in ne filterLabel'ı (frequency/cutoff'un ortak alanı) ne freq'i var —
+  // ELSE dalına düşseydi "undefined · NaN Hz · ..." üretirdi, bu yüzden AYRI bir dal.
   const desc = activeQuestion.mode === "proplus"
     ? `Pro Plus · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+    : activeQuestion.mode === "dblevel"
+    ? `dB Seviyesi · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`;
   history.unshift({
     icon: correct ? "✅" : "❌",
@@ -1420,6 +1430,9 @@ function renderQuestion() {
     : q.mode === "cutoff" ? (q.typeRevealed
         ? `Bu bir ${q.filterLabel}, kesim frekansı nerede?`
         : "Ne tür filtre, hangi frekansta?")
+    : q.mode === "dblevel" ? (q.directionRevealed
+        ? `Bu ses ${q.directionLabel}, ne kadar?`
+        : "Açıldı mı kısıldı mı, ne kadar?")
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
 
   els.questionMeta.textContent = mode.modeDescription(q);
@@ -1437,6 +1450,7 @@ function renderQuestion() {
 
   freqGuessHz = null; freqHoverHz = null;
   cutoffGuess = null;
+  dbGuess = null;
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
   revealAnimator.reset();
   setAnalyzerPhase("ask");
@@ -1458,6 +1472,7 @@ function renderQuestion() {
     q.boss ? "Boss round başladı!" : "Hazır mısın?",
     q.mode === "proplus" ? "A/B ile karşılaştır. 4 frekansla oynandı (kimi açık, kimi kısık). Dört noktaya da tıkla."
     : q.mode === "cutoff" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan kesim frekansını seç."
+    : q.mode === "dblevel" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan dB farkını seç."
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
 }
@@ -1666,6 +1681,85 @@ function submitCutoffGuess(answer) {
   // X butonu YOK (#freqInfo paneli yok, bkz. dosya başı not) ama "Atla"
   // zaten mod-bağımsız aynı işi görüyor — ayrı bir düğme eklemek gereksiz
   // tekrar olurdu.
+  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+}
+
+// dB Seviyesi ("dblevel") için submitCutoffGuess'in YAPISAL PARALELİ — aynı ŞABLON
+// gerekçesi (bkz. submitCutoffGuess dosya başı not): 3. modda bile gerçek tekrar
+// ağrısı ortak bir "submitAnswer" özütlemesini haklı çıkaracak kadar netleşmedi
+// (üç modun da soru şekli/geri bildirimi farklı — freq+gain / freq+filterType /
+// tek işaretli sayı), bu yüzden ayrı bir fonksiyon.
+// answer: value (Number, işaretli dB) — bkz. .ans click-delegasyonu ve
+// db-seviyesi.js evaluateAnswer. Bu modda mode.recordZone HİÇ çağrılmıyor —
+// seviye değişimi tek bir frekans BÖLGESİNE ait değil (tüm spektrumu eşit
+// etkiler), zoneStats'ın "hangi bölgede zayıfsın" kavramı burada anlamsız.
+function submitLevelGuess(value) {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "dblevel") return;
+  if (!Number.isFinite(value)) return;
+  roundActive = false;
+  roundFlow.clearTimer();
+  setActionbarTucked(true);
+
+  const q = activeQuestion;
+  const result = mode.evaluateAnswer(q, value);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = ""; // bu modda ayrı bir "gain" göstergesi yok, kendi dB göstergesi var (bkz. drawOverlay)
+  if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, value);
+  // Cevap sonrası dB göstergesi için — drawVisualizer'ın overlayState'ine geçiyor
+  // (bkz. dbGuess tanımındaki not, Kesim Noktası'nın cutoffGuess'iyle AYNI desen).
+  dbGuess = value;
+
+  stats.rounds++;
+  let gained = 0;
+
+  if (result.correct) {
+    stats.correct++;
+    stats.combo++;
+    stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
+    gained = mode.calculateXP(q, result, q.hintUsed, q.difficulty, {
+      combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
+    });
+    diffState().xp += gained;
+    modeState().xp += gained;
+    diffState().score += gained * Math.max(1, stats.combo);
+    diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
+    if (q.difficulty === "pro") stats.proCorrect++;
+    if (q.boss) stats.bossWins++;
+    session.correct++; session.xp += gained;
+
+    const feedback = mode.getFeedbackData(q, value, { gained });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    audioEngine.sfxDing();
+    spawnXp(`+${gained} XP`, els.canvas);
+    burst(els.canvas);
+    challengeTick(true, gained);
+  } else {
+    stats.wrong++;
+    stats.combo = 0;
+    diffState().score = Math.max(0, diffState().score - 20);
+    session.wrong++;
+
+    const feedback = mode.getFeedbackData(q, value, { gained: 0 });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    audioEngine.sfxBuzz();
+    shake(els.canvas);
+    loseLife("dB farkını ıskaladın.", { silent: true });
+    challengeTick(false, 0);
+  }
+
+  audioEngine.stopAudio();
+  pushHistory(result.correct);
+  updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
+  notifyNewAchievements();
+  updateUI();
+  persistStats();
+  persistDaily();
+  // Diğer iki modla AYNI hizalı geçiş formülü (bkz. G21) — öğretici metin +
+  // görsel dB göstergesi okunacak içerik taşıyor, eskisi gibi hep 700ms kullanmak
+  // kullanıcı metni okumadan geçirirdi. Bu modun da kendi bir X butonu YOK, "Atla"
+  // zaten mod-bağımsız aynı işi görüyor.
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2021,7 +2115,8 @@ function drawVisualizer() {
     freqGuessHz,
     freqHoverHz,
     revealAnimator,
-    cutoffGuess // G19: bkz. Kesim Noktası'nın drawOverlay'i — diğer modlar okumuyor
+    cutoffGuess, // G19: bkz. Kesim Noktası'nın drawOverlay'i — diğer modlar okumuyor
+    dbGuess // bkz. dB Seviyesi'nin drawOverlay'i — diğer modlar okumuyor
   };
 
   if (!visualizerOn || !audioEngine.audioReady) {
@@ -2152,6 +2247,13 @@ if (els.answers) els.answers.addEventListener("click", e => {
     const freq = Number(btn.dataset.freq);
     const filterType = btn.dataset.filterType || activeQuestion.filterType;
     try { submitCutoffGuess({ freq, filterType }); } catch (err) { console.error(err); }
+    return;
+  }
+  // dB Seviyesi ("dblevel") — şıklar tek bir işaretli dB sayısı taşır (bkz.
+  // data-db, kesim'in data-freq'iyle AYNI desen).
+  if (activeQuestion && activeQuestion.mode === "dblevel") {
+    const value = Number(btn.dataset.db);
+    try { submitLevelGuess(value); } catch (err) { console.error(err); }
     return;
   }
   const hz = Number(btn.dataset.freq);
@@ -2521,6 +2623,7 @@ els.resetStatsBtn.addEventListener("click", () => {
   roundActive = false;
   freqGuessHz = null; freqHoverHz = null;
   cutoffGuess = null;
+  dbGuess = null;
   syncLives();
   roundFlow.clearTimer();
   audioEngine.stopAudio();
