@@ -7,6 +7,37 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `754d875` — G34: **Cevap sonrası görsellerde "senin cevabın" rengi
+amber yerine kırmızı — merkezileştirildi.** Kesim Noktası eğrisi/dB
+göstergesi/Boost-Cut bell/Q genişlik/Kompresör dinamik zarfının HEPSİNDE
+"senin cevabın = amber (#FFC246), doğru = yeşil (#2BD9A8)" ikilisi vardı —
+standart doğru/yanlış renk mantığına (kırmızı=yanlış, yeşil=doğru) uymuyordu,
+ayrıca zaten `.ans.wrong` CSS class'ının (styles.css: `var(--rd)`)
+kullandığı "yanlış şık" kırmızısıyla TUTARSIZDI.
+
+**Merkezileştirme:** renk ikilisi beş mod dosyasında AYRI AYRI (kopyala-
+yapıştır) tanımlıydı, merkezi bir kaynak YOKTU — bu görevin kendisi (5
+dosyada AYNI ANDA değişmesi gereken bir renk) gerçek bir tekrar ağrısı
+olduğunu kanıtladığı için yeni bir paylaşılan modül
+(`core/feedback-colors.js`: `GUESS_COLOR`/`CORRECT_COLOR`) çıkarıldı — beş
+mod dosyası da (`kesim-noktasi.js`/`db-seviyesi.js`/`boost-mu-cut-mu.js`/
+`q-genisligi.js`/`kompresor.js`) artık BURADAN import ediyor, kendi local
+sabitlerini kaldırdı. `GUESS_COLOR="#FF4D6D"` (styles.css'in `--rd`'si),
+`CORRECT_COLOR="#2BD9A8"` (`--gr`, DEĞİŞMEDİ).
+
+**BİLEREK dokunulmayan:** Frekans Bulma'nın `closenessColor`'ı (üç kademeli
+yakınlık gradyanı: yeşil/amber/kırmızı, tıklanan noktanın doğru cevaba ne
+kadar yakın olduğunu gösterir) TAMAMEN farklı bir görsel dil — "senin
+cevabın vs doğru" iki-renkli karşılaştırma DEĞİL, bu görevin kapsamı
+dışında bırakıldı.
+
+Doğrulama: 5 dosyada da `GUESS_COLOR`/`CORRECT_COLOR` artık import edilen
+AYNI sabitler (grep ile hardcoded `"#FFC246"` kalmadığı doğrulandı). Canlı
+tarayıcıda Kesim Noktası ve Kompresör'de test edildi — legend ("● Senin
+cevabın ● Doğru") ve eğri/zarf renkleri ikisinde de kırmızı/yeşil, sıfır
+konsol hatası. `npm test`: **499/499** DEĞİŞMEDEN geçti (renk değişikliği
+testleri etkilemiyor, hiçbir test rengi assert etmiyordu).
+
 Commit `baf7761` — G33: **Kompresör mimarisini TAM oturt (Motor 2 şablonu) —
 ratio+threshold birlikte, geçiş fade'i, öğretim.** Derin araştırma (SoundGym
 Dr. Compressor + öğretmen içgörüleri) ışığında G30'un yarı-gerçekçi (SADECE
