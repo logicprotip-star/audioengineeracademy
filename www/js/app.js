@@ -608,19 +608,19 @@ function currentDifficultyConfig() {
 // tier'ın TIER_BOUNDARIES'teki temsilci noktası, bkz. representativeLevelForTier)
 // + seans içi rampa ofseti (ısınma→zorlaşma→boss, bkz. sessionRampOffset).
 //
-// SADECE Kesim Noktası bu sayıyı OKUYOR (bkz. createQuestion çağrısındaki
-// settings.difficultyPosition notu) — applyAutoDifficulty()'nin KENDİSİ
-// (els.difficultySelect.value'ya HANGİ tier'ı yazdığı) BİLEREK DEĞİŞTİRİLMEDİ,
-// bu yüzden Frekans Bulma'nın Otomatik zorluk davranışı (hangi turda hangi
-// tier'a geçtiği, DIFFICULTY tablosundan hangi satırın okunduğu) BİREBİR aynı
-// kalıyor — bu fonksiyon createQuestion'a giden EK bir sayı üretiyor, mevcut
-// tier-seçim akışının YANINDA duruyor, YERİNE geçmiyor (bkz. DURUM.md: "iki mod
-// geçici olarak farklı mekanizma kullanacak, bu normal" kararı).
+// MOD-AGNOSTİK — createQuestion çağrısına HER moda geçiyor (sessionQuestionIndex'le
+// AYNI desen, tek taraflı okunur). ADIM 1'de SADECE Kesim Noktası bunu okuyordu;
+// ADIM 2 ile Frekans Bulma da kendi paramsForDifficultyPosition'ını yazıp bağlandığı
+// için BU FONKSİYONA hiç dokunulmadı — ikisi de AYNI zorlukKonumu'nu, AYNI baseline/
+// rampa formülüyle okuyor (bkz. DURUM.md tutarlılık doğrulaması). `applyAutoDifficulty()`
+// (hangi tier'ı `els.difficultySelect.value`'ya yazdığı) hâlâ DEĞİŞMEDİ — tier-seçim
+// akışı (hangi turda hangi ADI görürsün) BİREBİR eskisi gibi, sadece o tier İÇİNDEKİ
+// gerçek sayılar artık her iki modda da eğriden geliyor.
 //
 // proplus BİLEREK bu eğrinin DIŞINDA (undefined döner, createQuestion o zaman
 // eski statik DIFFICULTY[level] yoluna düşer) — Z5 kararıyla aynı çizgide
 // (proplus Otomatik'te zaten hiç seçilmiyor, Sabit'te elle seçilirse de eğri
-// değil kendi statik satırı kullanılır).
+// değil kendi statik satırı kullanılır) — bu HER İKİ mod için de geçerli.
 function currentDifficultyPosition(boss) {
   const tier = els.difficultySelect ? els.difficultySelect.value : "medium";
   if (tier === "proplus") return undefined;
@@ -1898,11 +1898,10 @@ function startRound() {
     // kesim-noktasi.js TYPE_REVEAL_QUESTION_COUNT); diğer modlar görmezden gelir
     // (frekans-bulma.js createQuestion bu alanı hiç okumuyor).
     sessionQuestionIndex: roundsInThisPlaySession,
-    // ADIM 1 (zorluk sisteminin merkezi bağlanması, bkz. currentDifficultyPosition
-    // altındaki not): SADECE Kesim Noktası bunu okuyor (paramsForDifficultyPosition
-    // üzerinden) — Frekans Bulma'nın createQuestion'ı bu alanı hiç görmüyor/okumuyor,
-    // bu yüzden buradan HER ZAMAN geçirmek Frekans Bulma'nın davranışını DEĞİŞTİRMEZ
-    // (aynı desen: sessionQuestionIndex de zaten böyle, tek-taraflı okunuyor).
+    // ADIM 1+2 (zorluk sisteminin merkezi bağlanması, bkz. currentDifficultyPosition
+    // altındaki not): HER İKİ mod da (Kesim Noktası + Frekans Bulma) kendi
+    // paramsForDifficultyPosition'ı üzerinden bunu okuyor — proplus (undefined
+    // döndüğünde) HARİÇ, o zaman ilgili mod eski statik DIFFICULTY[level] yoluna düşer.
     difficultyPosition: currentDifficultyPosition(boss)
   });
   roundsInThisPlaySession++;

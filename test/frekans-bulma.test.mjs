@@ -225,3 +225,140 @@ describe("Frekans Bulma — odak aralığı (FOCUS_RANGES)", () => {
     }
   });
 });
+
+// ADIM 2 — zorluk sisteminin merkezi bağlanması, Kesim Noktası'nın ADIM 1'de kurduğu
+// AYNI desen. paramsForDifficultyPosition() SAF fonksiyon testleri + createQuestion'ın
+// settings.difficultyPosition VARSA eğriyi, YOKSA (yukarıdaki testlerin TAMAMI gibi)
+// eski statik DIFFICULTY[level] yolunu kullandığının doğrulanması.
+describe("Frekans Bulma — paramsForDifficultyPosition() (ADIM 2 zorluk eğrisi)", () => {
+  it("position arttıkça gainDb PÜRÜZSÜZ (monoton) KÜÇÜLÜR — ara adımlarda ATLAMA yok", () => {
+    let prev = Infinity;
+    for (let p = 1; p <= 20; p += 0.25) {
+      const { gainDb } = mode.paramsForDifficultyPosition(p);
+      assert.ok(gainDb <= prev + 1e-9, `position ${p}'de gainDb azalmadı`);
+      prev = gainDb;
+    }
+  });
+
+  it("position arttıkça q PÜRÜZSÜZ (monoton) ARTAR", () => {
+    let prev = -Infinity;
+    for (let p = 1; p <= 20; p += 0.25) {
+      const { q } = mode.paramsForDifficultyPosition(p);
+      assert.ok(q >= prev - 1e-9, `position ${p}'de q azaldı`);
+      prev = q;
+    }
+  });
+
+  it("q, LEVEL_CAP'ten SONRA SABİT kalır (Z1'in gain/Q asimetrisiyle aynı — applyPostCapFloor çağrılmıyor)", () => {
+    const cfg = mode.FREKANS_CURVE_CONFIG;
+    const atCap = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP);
+    const over5 = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP + 5);
+    const farOver = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP + 500);
+    assert.equal(over5.q, atCap.q);
+    assert.equal(farOver.q, atCap.q);
+  });
+
+  it("gainDb/timeSec/hintBandOct/distractorStepOct LEVEL_CAP'ten SONRA azalır ama bir TABANIN altına inmez", () => {
+    const cfg = mode.FREKANS_CURVE_CONFIG;
+    const atCap = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP);
+    const farOver = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP + 1000);
+    assert.ok(farOver.gainDb < atCap.gainDb);
+    assert.ok(farOver.gainDb >= cfg.GAIN_DB_FLOOR - 1e-9);
+    assert.ok(farOver.timeSec >= cfg.TIME_SEC_FLOOR - 1e-9);
+    assert.ok(farOver.hintBandOct >= cfg.HINT_BAND_OCT_FLOOR - 1e-9);
+    assert.ok(farOver.distractorStepOct >= cfg.STEP_OCT_FLOOR - 1e-9);
+  });
+
+  it("distractorStepOct HER ZAMAN 0.5 oktavlık evaluateAnswer toleransından büyük — tavanın ÇOK üzerinde bile", () => {
+    for (const p of [1, 5, 10, 20, 50, 500]) {
+      const { distractorStepOct } = mode.paramsForDifficultyPosition(p);
+      assert.ok(distractorStepOct > 0.5, `position ${p}: step ${distractorStepOct} <= 0.5`);
+    }
+  });
+
+  it("position arttıkça options MONOTON ARTAR ve her zaman 3-6 arası tam sayı", () => {
+    let prev = 0;
+    for (let p = 1; p <= 20; p += 0.5) {
+      const { options } = mode.paramsForDifficultyPosition(p);
+      assert.ok(Number.isInteger(options) && options >= 3 && options <= 6, `position ${p}: geçersiz options ${options}`);
+      assert.ok(options >= prev, `position ${p}'de options azaldı`);
+      prev = options;
+    }
+  });
+
+  it("position=1'de config'in AT_1 değerlerini birebir döner (tavan aşılmadı)", () => {
+    const cfg = mode.FREKANS_CURVE_CONFIG;
+    const p = mode.paramsForDifficultyPosition(1);
+    assert.ok(Math.abs(p.gainDb - cfg.GAIN_DB_AT_1) < 1e-9);
+    assert.ok(Math.abs(p.q - cfg.Q_AT_1) < 1e-9);
+    assert.ok(Math.abs(p.timeSec - cfg.TIME_SEC_AT_1) < 1e-9);
+  });
+
+  it("position=LEVEL_CAP'te config'in AT_CAP değerlerini birebir döner", () => {
+    const cfg = mode.FREKANS_CURVE_CONFIG;
+    const p = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP);
+    assert.ok(Math.abs(p.gainDb - cfg.GAIN_DB_AT_CAP) < 1e-9);
+    assert.ok(Math.abs(p.q - cfg.Q_AT_CAP) < 1e-9);
+  });
+
+  it("position<1 veya ondalık için düşmez, position 1 gibi davranır", () => {
+    assert.doesNotThrow(() => mode.paramsForDifficultyPosition(0));
+    assert.doesNotThrow(() => mode.paramsForDifficultyPosition(-5));
+    assert.equal(mode.paramsForDifficultyPosition(0).position, 1);
+  });
+});
+
+describe("Frekans Bulma — createQuestion(settings.difficultyPosition) entegrasyonu", () => {
+  it("difficultyPosition VERİLİRSE üretilen şık sayısı paramsForDifficultyPosition().options'a eşit (statik tablo DEĞİL)", () => {
+    for (const p of [1, 5, 10, 15, 20]) {
+      const expectedOptions = mode.paramsForDifficultyPosition(p).options;
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: p });
+      assert.equal(q.choices.length, expectedOptions, `position ${p}: beklenen ${expectedOptions}, gelen ${q.choices.length}`);
+    }
+  });
+
+  it("difficultyPosition VERİLMEZSE (geriye dönük uyumluluk) davranış eski statik tabloyla BİREBİR aynı kalır", () => {
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      if (level === "proplus") continue;
+      for (let i = 0; i < 20; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false });
+        assert.equal(q.choices.length, mode.DIFFICULTY[level].options);
+        assert.equal(q.hintBandOct, mode.DIFFICULTY[level].hintBandOct);
+        assert.equal(q.timeSec, mode.DIFFICULTY[level].time);
+      }
+    }
+  });
+
+  it("difficultyPosition YÜKSEK (zor) verildiğinde |gain| istatistiksel olarak KÜÇÜK (eğriden geliyor, statikten değil)", () => {
+    const N = 300;
+    let easySum = 0, hardSum = 0;
+    for (let i = 0; i < N; i++) {
+      const easy = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: 1 });
+      const hard = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: 20 });
+      easySum += Math.abs(easy.gain);
+      hardSum += Math.abs(hard.gain);
+    }
+    assert.ok(hardSum / N < easySum / N, "yüksek position ortalama olarak DAHA KÜÇÜK |gain| üretmeliydi");
+  });
+
+  it("hintBandOct/timeSec soru nesnesinde taşınır ve renderHintMask/DIFFICULTY[level] yerine BUNU kullanır", () => {
+    const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: 10 });
+    const expected = mode.paramsForDifficultyPosition(10);
+    assert.ok(Math.abs(q.hintBandOct - expected.hintBandOct) < 1e-9);
+    assert.ok(Math.abs(q.timeSec - expected.timeSec) < 1e-9);
+  });
+
+  it("boost-only kuralı (easy/medium HER ZAMAN pozitif gain) eğri modunda da KORUNUR — tier ismine bağlı, sürekliye çevrilmedi", () => {
+    for (let i = 0; i < 100; i++) {
+      const q = mode.createQuestion("easy", { source: "pink", boss: false, difficultyPosition: 15 });
+      assert.ok(q.gain > 0, `easy+eğri modunda negatif gain: ${q.gain}`);
+    }
+  });
+
+  it("proplus'ta difficultyPosition verilse BİLE eğri devreye girmez — her zaman kendi statik satırı kullanılır (Z5 kararıyla aynı çizgi)", () => {
+    for (let i = 0; i < 10; i++) {
+      const q = mode.createQuestion("proplus", { source: "pink", boss: false, difficultyPosition: 20 });
+      assert.ok(Math.abs(q.bands[0].gain) <= mode.DIFFICULTY.proplus.gain + 1e-9);
+    }
+  });
+});

@@ -12,6 +12,7 @@
 
 import { logFreq, shuffle, formatHz, hexToRgba } from "../core/utils.js";
 import { personalizedRange } from "../core/personalization.js";
+import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 
 export const MODE_ID = "frekans-bulma";
 
@@ -37,6 +38,83 @@ export const DIFFICULTY = {
 // hintBandOct'tan türetilmedi.
 export const DISTRACTOR_STEP_OCT = { easy: 1.2, medium: 0.9, hard: 0.75, pro: 0.65 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ZORLUK EĞRİSİ (ADIM 2 — zorluk sisteminin merkezi bağlanması, Kesim Noktası'nın
+// ADIM 1'de kurduğu AYNI desen). Yukarıdaki statik DIFFICULTY tablosu KALDIRILMADI
+// (geriye dönük uyumluluk + "Sabit" modun çapası + proplus için hâlâ gerekli, bkz.
+// core/difficulty-curve.js dosya başı not) — YANINA FREKANS_CURVE_CONFIG +
+// paramsForDifficultyPosition eklendi.
+//
+// AT_1/AT_CAP uçları statik easy/pro değerleriyle BİREBİR aynı seçildi (Kesim
+// Noktası'nda kullanılan AYNI kalibrasyon yöntemi — geçişte UÇLARDA davranış
+// korunsun diye); ARADAKİ (medium/hard) noktalar YAKLAŞIK kalır (tek log-eğri 4
+// keyfi noktaya birden oturamaz) — bkz. DURUM.md'deki karşılaştırma tablosu,
+// KULAKLA DOĞRULANMALI. Q, Z1'in ORİJİNAL asimetrisiyle AYNI: tavandan (LEVEL_CAP)
+// SONRA SABİT kalır (bkz. difficulty-curve.js: difficultyParams — "tavandan SONRA
+// hassasiyet (gain/Q/tolerans) SABİT kalır, sadece gain/süre bağlam zorluğuyla
+// azalır") — bu yüzden Q için applyPostCapFloor ÇAĞRILMAZ, gainDb/timeSec/
+// hintBandOct/distractorStepOct için çağrılır.
+export const FREKANS_CURVE_CONFIG = {
+  LEVEL_CAP: 20,
+
+  GAIN_DB_AT_1: 10,   // DIFFICULTY.easy.gain
+  GAIN_DB_AT_CAP: 4.5, // DIFFICULTY.pro.gain
+  GAIN_DB_FLOOR: 1.5,
+  GAIN_DB_REDUCTION_PER_STEP: 0.15,
+
+  Q_AT_1: 0.9,  // DIFFICULTY.easy.q
+  Q_AT_CAP: 4.2, // DIFFICULTY.pro.q — tavandan sonra SABİT (bkz. yukarıdaki not)
+
+  TIME_SEC_AT_1: 16,  // DIFFICULTY.easy.time
+  TIME_SEC_AT_CAP: 9,  // DIFFICULTY.pro.time
+  TIME_SEC_FLOOR: 5,
+  TIME_SEC_REDUCTION_PER_STEP: 0.2,
+
+  HINT_BAND_OCT_AT_1: 2.4,  // DIFFICULTY.easy.hintBandOct
+  HINT_BAND_OCT_AT_CAP: 0.6, // DIFFICULTY.pro.hintBandOct
+  HINT_BAND_OCT_FLOOR: 0.3,
+  HINT_BAND_OCT_REDUCTION_PER_STEP: 0.02,
+
+  // DISTRACTOR_STEP_OCT'un eğri hali — FLOOR (0.55) evaluateAnswer'ın 0.5 oktavlık
+  // toleransından HER ZAMAN büyük kalacak şekilde seçildi (bkz. DISTRACTOR_STEP_OCT'un
+  // yukarıdaki invaryant notu).
+  STEP_OCT_AT_1: 1.2,  // DISTRACTOR_STEP_OCT.easy
+  STEP_OCT_AT_CAP: 0.65, // DISTRACTOR_STEP_OCT.pro
+  STEP_OCT_FLOOR: 0.55,
+  STEP_OCT_REDUCTION_PER_STEP: 0.005,
+
+  OPTIONS_AT_1: 3,
+  OPTIONS_AT_CAP: 6
+};
+
+// SAF FONKSİYON. position: zorlukKonumu (continuousLevel + sessionRampOffset,
+// bkz. app.js currentDifficultyPosition) — Kesim Noktası'nın paramsForDifficultyPosition'ıyla
+// AYNI mod-agnostik girdi, AYNI merkezi logLerp/applyPostCapFloor'u KENDİ sayılarıyla
+// çağırır. boss'un etkisi BURADA DEĞİL — position'ın KENDİSİ zaten app.js'te
+// sessionRampOffset(...,{boss}) ile yükseltilmiş gelir (çifte ceza olmasın diye,
+// Kesim Noktası'yla AYNI kural).
+export function paramsForDifficultyPosition(position, config = FREKANS_CURVE_CONFIG) {
+  const safePos = Math.max(1, position);
+  const cappedPos = Math.min(safePos, config.LEVEL_CAP);
+  const t = config.LEVEL_CAP > 1 ? (cappedPos - 1) / (config.LEVEL_CAP - 1) : 1;
+
+  const gainCurve = logLerp(config.GAIN_DB_AT_1, config.GAIN_DB_AT_CAP, t);
+  const timeCurve = logLerp(config.TIME_SEC_AT_1, config.TIME_SEC_AT_CAP, t);
+  const hintCurve = logLerp(config.HINT_BAND_OCT_AT_1, config.HINT_BAND_OCT_AT_CAP, t);
+  const stepCurve = logLerp(config.STEP_OCT_AT_1, config.STEP_OCT_AT_CAP, t);
+  const optionsCurve = logLerp(config.OPTIONS_AT_1, config.OPTIONS_AT_CAP, t);
+
+  return {
+    position: safePos,
+    gainDb: applyPostCapFloor(gainCurve, safePos, config.LEVEL_CAP, config.GAIN_DB_FLOOR, config.GAIN_DB_REDUCTION_PER_STEP),
+    q: logLerp(config.Q_AT_1, config.Q_AT_CAP, t), // tavandan sonra SABİT (applyPostCapFloor çağrılmıyor)
+    timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP),
+    hintBandOct: applyPostCapFloor(hintCurve, safePos, config.LEVEL_CAP, config.HINT_BAND_OCT_FLOOR, config.HINT_BAND_OCT_REDUCTION_PER_STEP),
+    distractorStepOct: applyPostCapFloor(stepCurve, safePos, config.LEVEL_CAP, config.STEP_OCT_FLOOR, config.STEP_OCT_REDUCTION_PER_STEP),
+    options: Math.max(3, Math.min(6, Math.round(optionsCurve)))
+  };
+}
+
 // SAF FONKSİYON. correctFreq etrafında (options-1) çeldirici üretir, hepsini
 // karıştırıp döndürür — her eleman { freq, correct }. proplus için kullanılmaz
 // (4 bandı aynı anda işaretlemek şıklı tek-seçim arayüzüne uymuyor, dokunmalı kalır).
@@ -56,14 +134,16 @@ export const DISTRACTOR_STEP_OCT = { easy: 1.2, medium: 0.9, hard: 0.75, pro: 0.
 // olmayabilir. Bu durumda count, iki taraftan toplam üretilebilecek MAKSİMUMLA
 // sınırlanır (en az 2: doğru cevap + 1 çeldirici) — aksi halde fonksiyon sessizce
 // diff.options'tan az eleman döndürüp UI'da tutarsız bir şık sayısına yol açardı.
-export function generateChoices(correctFreq, level, range = [FA_MIN, FA_MAX]) {
-  const diff = DIFFICULTY[level] || DIFFICULTY.medium;
-  const step = DISTRACTOR_STEP_OCT[level] || DISTRACTOR_STEP_OCT.medium;
+// ADIM 2: `level` string yerine ÇÖZÜLMÜŞ {options, step} alıyor (Kesim Noktası'ndaki
+// AYNI refactor) — createQuestion ister statik DIFFICULTY[level]'den ister
+// paramsForDifficultyPosition()'dan doldurup buraya geçiriyor.
+export function generateChoices(correctFreq, resolved, range = [FA_MIN, FA_MAX]) {
+  const step = resolved.step;
   const correctOct = Math.log2(correctFreq);
   const minOct = Math.log2(range[0]), maxOct = Math.log2(range[1]);
   const maxBelow = Math.max(0, Math.floor((correctOct - minOct) / step));
   const maxAbove = Math.max(0, Math.floor((maxOct - correctOct) / step));
-  const count = Math.max(2, Math.min(diff.options, maxBelow + maxAbove + 1));
+  const count = Math.max(2, Math.min(resolved.options, maxBelow + maxAbove + 1));
 
   const offsetsOct = [];
   let below = 1, above = 1;
@@ -234,6 +314,22 @@ export function createQuestion(level, settings = {}) {
     };
   }
 
+  // ADIM 2: settings.difficultyPosition varsa (app.js'in gerçek oyun akışı HER ZAMAN
+  // verir, proplus hariç — bkz. app.js currentDifficultyPosition) gain/q/hintBandOct/
+  // options/step EĞRİDEN gelir; yoksa (mevcut testler, doğrudan çağrılar) eski statik
+  // DIFFICULTY[level] davranışı BİREBİR korunur (Kesim Noktası'ndaki AYNI kural).
+  const curve = Number.isFinite(settings.difficultyPosition)
+    ? paramsForDifficultyPosition(settings.difficultyPosition)
+    : null;
+
+  const resolvedGain = curve ? curve.gainDb : (boss ? diff.gain * 0.75 : diff.gain);
+  const resolvedQ = curve ? curve.q : (boss ? diff.q * 1.35 : diff.q);
+  const resolvedTimeSec = curve ? curve.timeSec : diff.time;
+  const resolvedHintBandOct = curve ? curve.hintBandOct : diff.hintBandOct;
+  const resolvedChoiceParams = curve
+    ? { options: curve.options, step: curve.distractorStepOct }
+    : { options: diff.options, step: DISTRACTOR_STEP_OCT[level] || DISTRACTOR_STEP_OCT.medium };
+
   // ---- FREKANS (tek bant) ----
   const personalizedFreqRange = settings.zoneStats
     ? personalizedRange(settings.zoneStats, FA_ZONES, range, settings.rng)
@@ -241,10 +337,11 @@ export function createQuestion(level, settings = {}) {
   const freq = logFreq(personalizedFreqRange[0], personalizedFreqRange[1]);
   // Kolay/Orta'da sadece boost (kesim yok) — dar bir kesim komşu bandın yükselmiş gibi
   // duyulmasına yol açıp yeni başlayanı kafa karıştırıyor. Zor ve üstünde ikisi de var.
+  // Bu, TİER İSMİNE bağlı (isim/çapa) kalitatif bir kural — eğri/statik ayrımından
+  // BAĞIMSIZ, sürekliye çevrilmedi (bkz. dosya başı ADIM 2 notu, madde 5).
   const gainSign = BOOST_ONLY_DIFFICULTIES.has(level) ? 1 : (Math.random() > 0.5 ? 1 : -1);
-  const baseGain = boss ? diff.gain * 0.75 : diff.gain;
-  const gain = baseGain * gainSign;
-  const q = boss ? diff.q * 1.35 : diff.q;
+  const gain = resolvedGain * gainSign;
+  const q = resolvedQ;
 
   return {
     mode: "frequency",
@@ -257,9 +354,13 @@ export function createQuestion(level, settings = {}) {
     source,
     hintUsed: false,
     boss,
+    // ADIM 1'deki (kesim-noktasi.js) AYNI desen — renderHintMask artık DIFFICULTY[level]
+    // yerine BUNA bakabilir.
+    hintBandOct: resolvedHintBandOct,
+    timeSec: resolvedTimeSec,
     // Şıklı cevap modu bunu kullanır; dokunmalı modda görmezden gelinir — ikisi de
     // aynı soru nesnesini okur, giriş biçimi farkı sadece UI katmanındadır.
-    choices: generateChoices(freq, level, range)
+    choices: generateChoices(freq, resolvedChoiceParams, range)
   };
 }
 
@@ -487,8 +588,12 @@ export function renderAnalysisHtml(zoneStats) {
 
 export function renderHintMask(hintMaskLayerEl, question) {
   if (!hintMaskLayerEl || !question) return;
+  // ADIM 2: question.hintBandOct (createQuestion'ın koyduğu, eğri/statik farkını
+  // zaten çözmüş değer) ÖNCELİKLİ — Kesim Noktası'ndaki AYNI kural. proplus'ta
+  // hintBandOct hiç set edilmiyor (bkz. createQuestion'ın proplus dalı), o yüzden
+  // DIFFICULTY[question.difficulty] fallback'i proplus için hâlâ gerekli.
   const diff = DIFFICULTY[question.difficulty] || DIFFICULTY.medium;
-  const halfOct = (diff.hintBandOct || 1.4) / 2;
+  const halfOct = (question.hintBandOct != null ? question.hintBandOct : (diff.hintBandOct || 1.4)) / 2;
   const centers = question.mode === "proplus" && question.bands
     ? question.bands.map(b => b.freq)
     : [question.freq];
