@@ -19,6 +19,7 @@ import { shuffle } from "../core/utils.js";
 import { SOURCE_GROUPS } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
+import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
 // HER moddan mode-agnostik olarak okur (spektrum çubukları frekans ekseninde çizilir,
@@ -481,8 +482,6 @@ function drawAxis(ctx2d, w, h) {
 // görsel ölçek (gerçek değerler DIFFICULTY_easy*jitter üst sınırının [~3.6] rahatça
 // içinde kalır, ölçek taşmaz).
 const DB_RANGE = 5;
-const GUESS_COLOR = "#FFC246"; // --am, diğer iki modla AYNI palet
-const CORRECT_COLOR = "#2BD9A8"; // --gr
 
 function dbToX(db, w) {
   const t = (Math.max(-DB_RANGE, Math.min(DB_RANGE, db)) + DB_RANGE) / (2 * DB_RANGE);

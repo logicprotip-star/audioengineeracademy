@@ -35,6 +35,7 @@ import { shuffle, formatHz, logFreq } from "../core/utils.js";
 import { SOURCE_GROUPS } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor, representativeLevelForTier } from "../core/difficulty-curve.js";
+import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
 // HER moddan mode-agnostik olarak okur — diğer üç modla AYNI re-export deseni.
@@ -529,9 +530,6 @@ function drawBellCurve(ctx2d, w, h, db, color, alpha) {
   ctx2d.stroke();
   ctx2d.restore();
 }
-
-const GUESS_COLOR = "#FFC246"; // --am
-const CORRECT_COLOR = "#2BD9A8"; // --gr
 
 function drawCurveLegend(ctx2d, showGuess) {
   const y = 22;

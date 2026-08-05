@@ -26,6 +26,7 @@ import { formatHz, shuffle, logFreq } from "../core/utils.js";
 import { SOURCE_GROUPS } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
+import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 
 export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound };
 
@@ -660,12 +661,6 @@ function drawFilterCurve(ctx2d, w, h, db, color, alpha) {
   ctx2d.stroke();
   ctx2d.restore();
 }
-
-// Renkler mevcut paletten (styles.css :root — --am/--gr) — canvas CSS custom
-// property okuyamadığı için frekans-bulma.js'in AYNI hardcode deseni (drawEqResponseCurve/
-// drawOverlay'deki "#2BD9A8"/"#FFC246") burada da tekrarlanıyor, yeni renk YOK.
-const GUESS_COLOR = "#FFC246"; // --am
-const CORRECT_COLOR = "#2BD9A8"; // --gr
 
 function drawCurveLegend(ctx2d, w, showGuess) {
   const y = 22;
