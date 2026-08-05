@@ -7,6 +7,34 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `9783adb` — G32: **Kompresör'de yeni soruda A/B/C döngüsü otomatik
+başlasın.** Kullanıcı raporu: yeni soru gelince ses otomatik başlıyordu
+(`playQuestion`'ın varsayılanı, `variants[0]`/A) ama döngü kapalı kalıyordu
+— kullanıcı A'yı bir kez dinleyip B/C'ye HİÇ geçmiyordu, döngüyü elle
+(uzun basma) açması gerekiyordu; istenen, kullanıcı hiçbir şey yapmadan
+A→B→C otomatik ilerlemesiydi.
+
+`startRound()`'a (tüm modların ORTAK tek round-başlatma noktası)
+Kompresör'e özgü TEK satırlık bir dal eklendi: `playQuestion(true)`'dan
+hemen sonra `mode.MODE_ID === "kompresor"` ise `startAbLoop()` çağrılıyor.
+Diğer beş moda dokunulmadı — onlarda A/B tek bir dry/wet karşılaştırması,
+döngü hâlâ isteğe bağlı bir kısayol; Kompresör'de ise A/B/C karşılaştırması
+modun ÖZÜ (odd-one-out ancak üçünü de dinleyince bulunabilir), döngünün
+otomatik olması gerekiyordu. G31'in Durdur/cevap-sonrası döngü durdurma
+mekanizması (`setActionbarTucked`/`pauseRound`) değişmeden çalışıyor — bu
+görev SADECE döngünün ne zaman BAŞLADIĞINI değiştirdi, ne zaman
+DURDUĞUNU değil.
+
+Doğrulama (canlı tarayıcıda, DOM state örneklemesiyle — 1sn aralıklarla
+12sn boyunca `roundChip`/`abToggle.dataset.ab`/`.loop` class izlendi): tek
+bir round içinde (roundChip SABİT "Soru 1101") harf A→B→C→A→B döngüsü
+kullanıcı hiçbir tıklama yapmadan otomatik ilerledi, `.loop` class baştan
+itibaren `true`. Frekans Bulma'da (regresyon) aynı senaryo (round başlat +
+3.5sn bekle) `.loop:false` kaldı — değişiklik Kompresör'e izole, diğer beş
+modun A/B'si hâlâ isteğe bağlı. `npm test`: **488/488** DEĞİŞMEDEN geçti
+(davranış değişikliği DOM/round-başlatma katmanında, pure-function
+testlerini etkilemiyor). Sıfır konsol hatası.
+
 Commit `69c0259` — G31: **Kompresör'de cihazda bulunan ÜÇ hata — toggle ilk
 render, geri bildirim sırasında ses, Durdur döngüyü durdurmuyor.** Üçü de
 TEK bir kök sebebe iniyor: G30'da eklenen A/B/C döngü mekanizması
