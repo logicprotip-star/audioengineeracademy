@@ -7,6 +7,97 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `baf7761` — G33: **Kompresör mimarisini TAM oturt (Motor 2 şablonu) —
+ratio+threshold birlikte, geçiş fade'i, öğretim.** Derin araştırma (SoundGym
+Dr. Compressor + öğretmen içgörüleri) ışığında G30'un yarı-gerçekçi (SADECE
+ratio değişiyordu) tasarımı tamamlandı — bu dosya artık Motor 2'nin GERÇEK
+şablonu.
+
+**1. RATIO + THRESHOLD BİRLİKTE (gerçekçi kompresyon):** Tek bir
+"kompresyon yoğunluğu" kontrol değişkeni (`k ∈ [0,1]`) eklendi — k arttıkça
+`ratioAtK` YÜKSELİR (1.3→14) VE `thresholdAtK` DÜŞER (-8→-34 dB) BİRLİKTE,
+ikisi tek bir algısal eksene (`gainReductionDb` — statik kompresör transfer
+eğrisi yaklaşıklığı: `(refLevel-threshold)*(1-1/ratio)`) indirgeniyor.
+Attack/release (ve knee) HİÇBİR zorlukta değişmiyor — araştırma dersi: hız
+değişirse "hangisi daha sıkışmış" sorusunun net cevabı kalmıyor (yavaş
+attack'lı ses daha AZ sıkışmış DUYULUR ama daha ÇOK sıkışmıştır).
+`COMP_BASE_K=0.5` (aralığın TAM ortası) — FARKLI olan varyant simetrik iki
+yöne (daha çok/az sıkışmış) uzaklaşıyor, hiçbir zorlukta clamp'e çarpmıyor
+(G30'un merkezi-olmayan `COMP_BASE_RATIO=3.5` tasarımının aksine — testle
+doğrulandı, up/down ortalamaları %10'dan az sapıyor).
+
+**Zorluk eğrisi (öğretmen yöntemi — kolay=ekstrem, zorlukla ince nüansa
+in):** ikili aramayla İKİ koşul BİRLİKTE doğrulandı:
+
+| tier | repr.sv | kGap | GR farkı (~) |
+|---|---|---|---|
+| easy | 4 | 0.3256 (statik 0.45) | ~11.5dB — EKSTREM/bariz |
+| medium | 8 | 0.2115 (statik 0.30) | ~7.7dB |
+| hard | 12 | 0.1374 (statik 0.15) | ~3.9dB |
+| pro | 20 | 0.0580 (statik 0.06) | ~1.5dB — ince/subtle |
+
+`K_GAP_FLOOR=0.046`'da bile GR farkı hesapla (node ile) doğrulandı: >=1.2dB
+(kulağın ayırt edebileceği varsayılan bir alt sınır — KULAKLA
+DOĞRULANMADI, ama sıfıra/algılanamaz bir farka ASLA inmiyor; 2000 örnek/pro
+testinde ölçülen en küçük fark 0.8dB üstünde kaldı).
+
+**2. GEÇİŞ FADE'İ (kesiklik düzeltmesi, koddan KANITLANDI):**
+`audio-engine.js:stopAudio()`'nun eski zincir söndürme zaman sabiti (0.03)
+`node.stop()`'un sabit gecikmesine (0.08sn) göre GEVŞEKTİ —
+`setTargetAtTime` asimptotik olduğu için `.stop()` ateşlendiğinde gain hâlâ
+~%7 seviyesindeydi (e^(-80/30)≈0.070), sonra SERT kesiliyordu. Diğer beş
+modda bu SEYREK tetiklenir (tur başına bir kez) ama Kompresör'ün A/B/C
+döngüsü `buildQuestionChain`'i (ve dolayısıyla `stopAudio`'yu) her ~2sn'de
+bir YENİDEN çağırıyor — aynı gevşek söndürme Kompresör'de ÇOK daha sık
+duyuluyordu ("ses/kaynak değişince kesiklik" — kullanıcı raporu). Zaman
+sabiti sıkılaştırıldı (`STOP_RAMP_TIME_CONSTANT`, 0.03→0.012, `.stop()`
+zamanlaması DEĞİŞMEDİ) — artık gain `.stop()` ateşlendiğinde ~%0.1'e inmiş
+oluyor (e^(-80/12)≈0.0013). Paylaşılan fonksiyon ama davranış SADECE daha
+sıkı — hiçbir modun round geçiş SÜRESİ değişmedi, sadece söndürme EĞRİSİ.
+KULAKLA/CİHAZDA DOĞRULANMADI (bu ortamda ses duyulamıyor, CLAUDE.md
+"tahminle düzeltme yapma" notu gereği bu açıkça işaretleniyor) — ama kök
+sebep Web Audio API semantiğinden MATEMATİKSEL olarak kanıtlanabilir, tahmin
+değil.
+
+**3. CEVAP SONRASI ÖĞRETİM (mix dili, gerçekçi):** `teachingText` artık
+ratio+threshold+gainReductionDb'yi BİRLİKTE açıklıyor. İki varyant AYNI
+kompresyon kademesindeyse (`COMPRESSION_TIERS`'ın aynı aralığı — ince
+nüans) "İkisi de X sıkıştırılmıştı, B daha ağır — mixte daha geride/oturmuş
+durur" dili; FARKLI kademedeyse net "B farklıydı (ratio X:1, eşik Y dB) —
+ağır/hafif kompresyon" dili (canlı doğrulandı: "A farklıydı (ratio 10.8:1,
+eşik -27 dB) — ağır kompresyon — dinamik ÇOK dar..."). Şablonlar TEK yerde
+(`COMPRESSION_TIERS`).
+
+**4. KAYNAK ÖNCELİĞİ:** tüm kaynaklar AÇIK kalıyor (varsayılan kaynak
+değişikliği bir ürün kararı — CLAUDE.md "Ürün kararı verme" — BİLİNÇLİ
+yapılmadı), dosya başına kompresyonun transient kaynakta (davul/perküsyon/
+groove) çok daha net duyulduğu, ince kompresyonun vokal/string'de zor
+duyulduğu NOT edildi.
+
+**MOTOR 2 ŞABLON NİTELİĞİ:** `previewRatio` (tek-parametreli, G30'un
+tasarımı) yerine `previewLetter` (parametre-agnostik) geçti —
+`applyProcessing` artık HANGİ harfin TÜM parametrelerini okuyacağını
+`previewLetter`'dan öğreniyor, kaç parametre olursa olsun (reverb:
+decay+mix+size gibi) AYNI mekanizma çalışır — yeni bir "previewX" alanı
+GEREKMEZ. Dosya başına "MOTOR 2 ŞABLONU" bölümü eklendi — tek algısal eksen
+(k) + previewLetter + tek-yerde öğretim şablonları (COMPRESSION_TIERS)
+deseni gelecekteki modlar (Reverb/Distortion/Tonal Denge) için AÇIKÇA
+belgelendi; app.js'in `activeQuestion.mode === "kompresor"` dallarının
+genelleştirilmesi (2. Motor 2 modu geldiğinde) SIRADAKİ'ye not edildi.
+
+Doğrulama: `gainReductionDb`'nin k'de MONOTON arttığı + ratio/threshold'un
+AYNI ANDA değiştiği (biri değişip diğeri sabit kalamaz — testle doğrulandı)
++ K_GAP_FLOOR'da GR farkının hesapla doğrulandığı + easy ortalama GR
+farkının >=6dB, pro'nun <3dB olduğu (N=200/tier, öğretmen yöntemi
+doğrulandı) için 11 yeni test. Toplam 46→57 Kompresör testi, suite
+488→**499**, hepsi geçti. Canlı tarayıcıda: yeni teaching text formatı
+doğrulandı, G31/G32'nin toggle/döngü/Durdur davranışı DEĞİŞMEDEN çalışıyor
+(ilk render A/B/C, otomatik döngü, Durdur döngüyü durduruyor — hiçbiri
+regresyona uğramadı), Frekans Bulma + Q Genişliği (stopAudio zaman sabiti
+değişikliği paylaşılan bir dosyayı etkilediği için ÖZELLİKLE test edildi)
+tam tur (round başlat + cevap ver + geri bildirim) sıfır konsol hatasıyla
+çalıştı.
+
 Commit `9783adb` — G32: **Kompresör'de yeni soruda A/B/C döngüsü otomatik
 başlasın.** Kullanıcı raporu: yeni soru gelince ses otomatik başlıyordu
 (`playQuestion`'ın varsayılanı, `variants[0]`/A) ama döngü kapalı kalıyordu
@@ -2162,17 +2253,35 @@ engelleyici yok:
    sabitleri KULAKLA DOĞRULANMADI** — spec'in "Notch ~8-12/Dar ~3-5/Geniş
    ~0.5-1" aralıklarına makul bir başlangıç noktası, kesin nihai sayı iddia
    edilmiyor (diğer dört modun `*_CURVE_CONFIG`'iyle AYNI dürüstlük notu).
-10. **Kompresör'ün `COMP_THRESHOLD_DB=-20`/`COMP_KNEE_DB=6`/
-    `COMP_ATTACK_SEC=0.003`/`COMP_RELEASE_SEC=0.15`/`COMP_BASE_RATIO=3.5`
-    sabitleri KULAKLA DOĞRULANMADI** — SoundGym Dr. Compressor deseninden
-    (kısa attack/release, sadece ratio değişkeni) makul bir başlangıç
-    noktası, kesin nihai sayı iddia edilmiyor. Ayrıca `audio-engine.js`'in
-    HER modda zaten aktif olan master-bus compressor'ıyla (threshold=-16,
-    ratio=2.2, `buildQuestionChain`'de sabit) ETKİLEŞİMİ kulakla
-    doğrulanmadı — iki kompresör zincirleniyor (Kompresör'ün kendi
-    gameplay compressor'ı → master-bus'ın her zaman-açık compressor'ı),
-    teorik olarak sorun değil (farklı amaçlar) ama işitsel olarak fark
-    edilir bir "çifte sıkışma" hissi yaratıp yaratmadığı test edilmedi.
+10. **Kompresör'ün `COMP_RATIO_MIN/MAX_PRACTICAL` (1.3-14)/
+    `COMP_THRESHOLD_HIGH/LOW_DB` (-8/-34)/`COMP_REF_LEVEL_DB` (-6)/
+    `COMP_BASE_K` (0.5)/`COMP_KNEE_DB`/`COMP_ATTACK_SEC`/`COMP_RELEASE_SEC`
+    sabitleri KULAKLA DOĞRULANMADI** (G33'te BAŞTAN tasarlandı — bkz. BİTTİ)
+    — SoundGym Dr. Compressor deseninden (kısa attack/release, ratio+
+    threshold birlikte) + statik kompresör transfer eğrisi yaklaşıklığından
+    (`gainReductionDb`) makul bir başlangıç noktası, kesin nihai sayı iddia
+    edilmiyor. `COMP_REF_LEVEL_DB` ÖZELLİKLE bir tasarım sabiti — GERÇEK bir
+    sinyal ölçümü DEĞİL, ratio+threshold'u tek bir dB farkına indirgemek
+    için seçilen nominal bir değer. Ayrıca `audio-engine.js`'in HER modda
+    zaten aktif olan master-bus compressor'ıyla (threshold=-16, ratio=2.2,
+    `buildQuestionChain`'de sabit) ETKİLEŞİMİ kulakla doğrulanmadı — iki
+    kompresör zincirleniyor (Kompresör'ün kendi gameplay compressor'ı →
+    master-bus'ın her zaman-açık compressor'ı), teorik olarak sorun değil
+    (farklı amaçlar) ama işitsel olarak fark edilir bir "çifte sıkışma"
+    hissi yaratıp yaratmadığı test edilmedi.
+11. **G33'ün `audio-engine.js:stopAudio()` zaman-sabiti düzeltmesi (0.03→
+    0.012) KULAKLA/CİHAZDA DOĞRULANMADI** — kök sebep matematiksel olarak
+    kanıtlandı (Web Audio API semantiği, node ile hesaplandı) ama bu ortamda
+    ses duyulamadığı için "tıklama artık yok" iddiası test EDİLMEDİ, sadece
+    "tıklama riski azaldı" iddiası kod-seviyesinde doğrulandı. Gerçek
+    cihazda A/B/C döngüsü dinlenerek kontrol edilmeli.
+12. **app.js'in `activeQuestion.mode === "kompresor"` dallarının (toggleAB/
+    updateAbToggleUI/startRound'daki startAbLoop çağrısı) genelleştirilmesi
+    BİLEREK yapılmadı** — G33'ün "MOTOR 2 ŞABLONU" notu bunu Motor 2'nin
+    2. modu (Reverb/Distortion) geldiğinde ele alınacak bir sonraki adım
+    olarak işaretliyor (bkz. dosya başı yorum) — şimdilik SADECE
+    previewLetter mekanizması (parametre-agnostik) genelleştirildi,
+    app.js'in mod-kontrol noktaları hâlâ hardcoded "kompresor" string'i.
 
 Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi BEŞ modun `*_CURVE_CONFIG`'i)
 hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test edilmeden/
