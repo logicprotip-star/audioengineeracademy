@@ -16,10 +16,12 @@ import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwid
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
+import * as boostMuCutMu from "./modes/boost-mu-cut-mu.js";
 
 registerMode(frekansBulma);
 registerMode(kesimNoktasi);
 registerMode(dbSeviyesi);
+registerMode(boostMuCutMu);
 // Artık birden fazla oynanabilir mod var — `mode` menüden hangi karta basıldığına
 // göre DEĞİŞİR (bkz. renderModeGrid'in kart click handler'ı). Başlangıç değeri
 // Frekans Bulma (ilk açılışta menüde gösterilen ekran budur, henüz hiçbir kart
@@ -490,6 +492,11 @@ let cutoffGuess = null;
 // SAYISAL değeri (bkz. submitLevelGuess). cutoffGuess'in AYNI deseni — her yeni
 // soruda (renderQuestion) null'a döner, submitLevelGuess cevaplanınca doldurur.
 let dbGuess = null;
+// Boost/Cut'ın cevap-sonrası bell-eğrisi görseli için — dbGuess/cutoffGuess'in
+// AYNI deseni, ama KATMANA göre normalize edilmiş {freq, gainDb} (bkz.
+// submitBoostCutGuess'in notu: Katman 1/2'de freq her zaman question.freq'tir,
+// çünkü kullanıcı onu guess ETMEDİ — sadece Katman 3'te gerçek bir guess'tir).
+let boostCutGuess = null;
 
 // İlerleme sekmesindeki "toplam antrenman süresi" istatistiği: her tur startRound()'da
 // başlar, cevap/timeout ile biter — soru ekranda GERÇEKTEN açık kaldığı süreyi toplar.
@@ -645,7 +652,7 @@ function timerOff() {
 // ("cutoff") ise TERSİ: dalgaya tıklama affordance'ı yok, "Cevap biçimi" ayarından
 // BAĞIMSIZ olarak her zaman şıklı (bkz. kesim-noktasi.js dosya başı not).
 function isChoiceFormat() {
-  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel")) return true;
+  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut")) return true;
   return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
     && activeQuestion && activeQuestion.mode !== "proplus");
 }
@@ -1353,12 +1360,15 @@ function renderAnalysis() {
 }
 
 function pushHistory(correct) {
-  // dblevel'in ne filterLabel'ı (frequency/cutoff'un ortak alanı) ne freq'i var —
-  // ELSE dalına düşseydi "undefined · NaN Hz · ..." üretirdi, bu yüzden AYRI bir dal.
+  // dblevel/boostcut'ın filterLabel'ı yok — ELSE dalına düşselerdi
+  // "undefined · NaN Hz · ..." üretirdi (bkz. G22'de bulunan gerçek hata),
+  // bu yüzden HER YENİ mod AYRI bir dal gerektiriyor.
   const desc = activeQuestion.mode === "proplus"
     ? `Pro Plus · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : activeQuestion.mode === "dblevel"
     ? `dB Seviyesi · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+    : activeQuestion.mode === "boostcut"
+    ? `Boost/Cut · Katman ${activeQuestion.layer} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`;
   history.unshift({
     icon: correct ? "✅" : "❌",
@@ -1437,6 +1447,7 @@ function renderQuestion() {
     : q.mode === "dblevel" ? (q.directionRevealed
         ? `Bu ses ${q.directionLabel}, ne kadar?`
         : "Açıldı mı kısıldı mı, ne kadar?")
+    : q.mode === "boostcut" ? mode.questionTitle(q)
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
 
   els.questionMeta.textContent = mode.modeDescription(q);
@@ -1455,6 +1466,7 @@ function renderQuestion() {
   freqGuessHz = null; freqHoverHz = null;
   cutoffGuess = null;
   dbGuess = null;
+  boostCutGuess = null;
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
   revealAnimator.reset();
   setAnalyzerPhase("ask");
@@ -1477,6 +1489,7 @@ function renderQuestion() {
     q.mode === "proplus" ? "A/B ile karşılaştır. 4 frekansla oynandı (kimi açık, kimi kısık). Dört noktaya da tıkla."
     : q.mode === "cutoff" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan kesim frekansını seç."
     : q.mode === "dblevel" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan dB farkını seç."
+    : q.mode === "boostcut" ? mode.modeDescription(q)
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
 }
@@ -1764,6 +1777,90 @@ function submitLevelGuess(value) {
   // görsel dB göstergesi okunacak içerik taşıyor, eskisi gibi hep 700ms kullanmak
   // kullanıcı metni okumadan geçirirdi. Bu modun da kendi bir X butonu YOK, "Atla"
   // zaten mod-bağımsız aynı işi görüyor.
+  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+}
+
+// Boost/Cut ("boostcut") için submitLevelGuess'in YAPISAL PARALELİ — aynı ŞABLON
+// gerekçesi. answer şekli KATMANA göre değişir (bkz. .ans click-delegasyonu ve
+// boost-mu-cut-mu.js evaluateAnswer): Katman 1 → { direction }, Katman 2 →
+// { gainDb }, Katman 3 → { freq, gainDb }. mode.recordZone SADECE Katman 3'te
+// çağrılır — Katman 1/2'de frekans zaten VERİLMİŞ, "hangi bölgede zayıfsın"
+// ölçümü ancak kullanıcı frekansı GERÇEKTEN aradığında (Katman 3) anlamlı.
+function submitBoostCutGuess(answer) {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "boostcut") return;
+  if (!answer) return;
+  roundActive = false;
+  roundFlow.clearTimer();
+  setActionbarTucked(true);
+
+  const q = activeQuestion;
+  const result = mode.evaluateAnswer(q, answer);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = "";
+  if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, answer);
+  // Cevap-sonrası bell-eğrisi için — Katman 1/2'de kullanıcı frekansı guess
+  // ETMEDİ (verilmişti), o yüzden guess eğrisinin freq'i her zaman q.freq;
+  // sadece Katman 3'te answer.freq gerçek bir guess'tir (bkz. boostCutGuess
+  // tanımındaki not).
+  const guessGainDb = q.layer === 1
+    ? (Math.abs(q.gainDb) * (answer.direction === "cut" ? -1 : 1))
+    : answer.gainDb;
+  const guessFreq = q.layer === 3 ? answer.freq : q.freq;
+  boostCutGuess = { freq: guessFreq, gainDb: guessGainDb };
+
+  stats.rounds++;
+  let gained = 0;
+
+  if (result.correct) {
+    stats.correct++;
+    stats.combo++;
+    stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
+    gained = mode.calculateXP(q, result, q.hintUsed, q.difficulty, {
+      combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
+    });
+    diffState().xp += gained;
+    modeState().xp += gained;
+    diffState().score += gained * Math.max(1, stats.combo);
+    diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
+    if (q.difficulty === "pro") stats.proCorrect++;
+    if (q.boss) stats.bossWins++;
+    session.correct++; session.xp += gained;
+
+    const feedback = mode.getFeedbackData(q, answer, { gained });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    if (q.layer === 3) mode.recordZone(zoneStats, q.freq, true, result.dOct);
+    audioEngine.sfxDing();
+    spawnXp(`+${gained} XP`, els.canvas);
+    burst(els.canvas);
+    challengeTick(true, gained);
+  } else {
+    stats.wrong++;
+    stats.combo = 0;
+    diffState().score = Math.max(0, diffState().score - 20);
+    session.wrong++;
+
+    const feedback = mode.getFeedbackData(q, answer, { gained: 0 });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    if (q.layer === 3) mode.recordZone(zoneStats, q.freq, false, result.dOct);
+    audioEngine.sfxBuzz();
+    shake(els.canvas);
+    loseLife("Boost/Cut'ı ıskaladın.", { silent: true });
+    challengeTick(false, 0);
+  }
+
+  if (q.layer === 3) storage.saveZoneStats(zoneStats);
+  audioEngine.stopAudio();
+  pushHistory(result.correct);
+  updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
+  notifyNewAchievements();
+  updateUI();
+  persistStats();
+  persistDaily();
+  // Diğer üç modla AYNI hizalı geçiş formülü (bkz. G21). Bu modun da kendi bir
+  // X butonu YOK — task notu: "X/Atla butonu tüm modlarda en sonda merkezi
+  // eklenecek, bu modda da o zaman gelecek — şimdi mevcut akışı kullan."
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2120,7 +2217,8 @@ function drawVisualizer() {
     freqHoverHz,
     revealAnimator,
     cutoffGuess, // G19: bkz. Kesim Noktası'nın drawOverlay'i — diğer modlar okumuyor
-    dbGuess // bkz. dB Seviyesi'nin drawOverlay'i — diğer modlar okumuyor
+    dbGuess, // bkz. dB Seviyesi'nin drawOverlay'i — diğer modlar okumuyor
+    boostCutGuess // bkz. Boost/Cut'ın drawOverlay'i — diğer modlar okumuyor
   };
 
   if (!visualizerOn || !audioEngine.audioReady) {
@@ -2258,6 +2356,19 @@ if (els.answers) els.answers.addEventListener("click", e => {
   if (activeQuestion && activeQuestion.mode === "dblevel") {
     const value = Number(btn.dataset.db);
     try { submitLevelGuess(value); } catch (err) { console.error(err); }
+    return;
+  }
+  // Boost/Cut ("boostcut") — şıkların taşıdığı veri KATMANA göre değişir (bkz.
+  // boost-mu-cut-mu.js renderAnswerChoices): Katman 1 sadece data-direction,
+  // Katman 2 sadece data-gain, Katman 3 hem data-freq hem data-gain.
+  if (activeQuestion && activeQuestion.mode === "boostcut") {
+    const layer = activeQuestion.layer;
+    const answer = layer === 1
+      ? { direction: btn.dataset.direction }
+      : layer === 2
+      ? { gainDb: Number(btn.dataset.gain) }
+      : { freq: Number(btn.dataset.freq), gainDb: Number(btn.dataset.gain) };
+    try { submitBoostCutGuess(answer); } catch (err) { console.error(err); }
     return;
   }
   const hz = Number(btn.dataset.freq);
@@ -2628,6 +2739,7 @@ els.resetStatsBtn.addEventListener("click", () => {
   freqGuessHz = null; freqHoverHz = null;
   cutoffGuess = null;
   dbGuess = null;
+  boostCutGuess = null;
   syncLives();
   roundFlow.clearTimer();
   audioEngine.stopAudio();
