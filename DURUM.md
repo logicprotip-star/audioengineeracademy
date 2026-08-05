@@ -7,6 +7,46 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `3b8c8ec` — G23: **Geliştirici modu artık tam erişim (Pro + seviye
+kilitleri, tek anahtar).** Kullanıcı raporu: geliştirici anahtarı
+("Pro'yu simüle et") sadece `isUserPro()`'yu (Pro-kilitli özellikler)
+açıyordu — seviye kilidi (`unlockLevel`) AYRI bir eksen olduğu için hâlâ
+engelliyordu, dB Seviyesi (`unlockLevel:6`) "seviye yetersiz" diyerek
+test edilemiyordu.
+
+`renderModeGrid()`'deki `meetsLevel` artık `devFlags.simulatePro ||
+academyLevel >= unlockLevel`. BİLEREK `isUserPro()` üzerinden DEĞİL,
+`devFlags.simulatePro`'ya DOĞRUDAN bağlandı — gerçek Pro kullanıcıların
+(ileride IAP gelince) seviye kilidini de atlaması İSTENMEDİ, bu görev sadece
+geliştirici anahtarını güçlendiriyor, kilit tiplerinin (Pro/seviye) kalıcı
+birleştirilmesi kararı (BEKLEYEN KARARLAR **B**) AYRI ve dokunulmadı. Henüz
+KODLANMAMIŞ modlar (`realMode` yok — Q Genişliği, Boost mu Cut mu vb.)
+anahtar açıkken BİLE kilitli kalıyor (`!!realMode && meetsLevel` — `realMode`
+false olduğu sürece `meetsLevel` ne olursa olsun `playable=false`) — anahtar
+var OLMAYAN bir modu sahte açmıyor, sadece kodlanmış ama seviye/Pro kilitli
+olanları.
+
+Etiket güncellendi: "Pro'yu simüle et" → **"Geliştirici: tam erişim"**
+(açıklama metni de artık Pro + seviye kilitlerini BİRLİKTE açtığını
+yansıtıyor: "Tüm modlar + seviye kilitleri + Pro açılır").
+
+Test yok — bu tamamen DOM/UI kablolaması (`renderModeGrid`), app.js hiçbir
+test dosyası tarafından import edilmiyor (mevcut, önceden kurulu desen —
+app.js'in DOM'a bağımlı kodu testlerin kapsamı dışında, core/ ve modes/
+saf fonksiyonları test ediliyor). 299 test değişmeden geçti.
+
+Doğrulama (tarayıcıda, canlı): 0 XP + geliştirici modu KAPALI'yken dB
+Seviyesi kilitli ("Seviye 6'da açılır") — taban durum doğrulandı; gerçek
+7-dokunuş akışıyla (`document.getElementById('versionRow').click()` × 7,
+UI'daki tıklama-sayaç zaman aşımı [1200ms] yavaş elle tıklamada sayaç
+sıfırlanabiliyor, JS ile hızlı tetiklendi) geliştirici modu açılıp anahtar
+("Geliştirici: tam erişim") açılınca dB Seviyesi'nin kilidi KALKTI ve mod
+GERÇEKTEN oynanabildi (Soru 0'dan başlayarak); kodlanmamış modlar (Q
+Genişliği, Boost mu Cut mu) anahtar açıkken BİLE kilitli kaldı (doğru
+davranış, "Yakında" toast'ı); anahtar kapatılınca dB Seviyesi kilidi GERİ
+geldi ("Seviye 6'da açılır" yeniden göründü); sıfır konsol hatası (tüm
+akış boyunca).
+
 Commit `0b34220` — G22: **Mod 3 "dB Seviyesi" — seviye/genlik farkı algısı,
 merkezi zorluk eğrisine SIFIRDAN bağlı.** Frekans Bulma + Kesim Noktası'ndan
 sonra 3. oynanabilir mod — Kesim Noktası ŞABLONU izlendi (aynı mod sözleşmesi/
@@ -1420,6 +1460,10 @@ engelleyici yok:
    yeni bir mod kaydolunca otomatik yükseliyor, 3. modun kaydı bunu YİNE
    somutlaştırdı — artık üç modun ikisi zaten oynanabilirken üçüncü modun
    +1 katkısı önceki kilitleri de etkileyebilir, kullanıcıya sorulmalı).
+   **G23 ile TEST ENGELİ kalktı** (geliştirici modu artık seviye kilidini de
+   atlıyor) — ama bu SADECE test/geliştirme kolaylığı, kalıcı ürün kararının
+   (gerçek kullanıcılar için unlockLevel ne olmalı) YERİNE geçmiyor, madde
+   hâlâ açık.
 6. **`teachingText`'in "yön doğru, miktar yanlış" metni** hafif tekrarlı
    okunabiliyor (bkz. BİTTİ'deki not) — küçük bir metin cilası, engelleyici
    değil.
