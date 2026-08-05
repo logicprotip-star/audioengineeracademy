@@ -353,6 +353,19 @@ window.addEventListener("orientationchange", resizeCanvas);
 // gelirken (untuck) ve SADECE bu tek race'i önlemek için var.
 function setActionbarTucked(tucked, { instant = false } = {}) {
   if (!els.gameScreen) return;
+  // G31 (bug 2 düzeltmesi): tur bitti (cevap verildi/süre doldu) diye çubuk
+  // tucked oluyorsa, hâlâ dönen bir A/B döngüsü de (varsa) burada durur —
+  // Kompresör'ün cycleKompresorPreview'ı (diğer modların setProcessed'inin
+  // AKSİNE) buildQuestionChain'i YENİDEN çağırıp SESİ BAŞTAN başlatıyor;
+  // döngü zamanlayıcısı roundActive/actionbar durumuna hiç bakmadan 2sn'de
+  // bir tetiklenmeye devam ederse geri bildirim kartı AÇIKKEN yeni ses
+  // duyulabiliyordu (canlı cihazda YAKALANDI). Bu fonksiyon HER modun HER
+  // cevap-sonrası/süre-dolumu yolunda tucked=true ile çağrıldığı TEK ortak
+  // nokta (bkz. çağıran satırlar) — diğer beş modda abLoopTimer zaten bu
+  // noktada sesli bir etkisi olmayan (setProcessed dryGain/wetGain null
+  // olunca no-op) bir zamanlayıcıydı, burada durdurmak onlar için davranış
+  // DEĞİŞTİRMİYOR, sadece artık gerçekten temizleniyor.
+  if (tucked && abLoopTimer) stopAbLoop();
   if (!instant) {
     els.gameScreen.classList.toggle("actionbar-tucked", tucked);
     return;
@@ -938,9 +951,15 @@ function formatGainDb(gain) {
 // (üç FARKLI kompresyon varyantı) gösteriyor — bkz. toggleAB'nin "kompresor" dalı,
 // spec'in "mevcut A/B altyapısını 3'e genişlet" isteğinin BİREBİR karşılığı.
 // `.three-way` class'ı CSS'te 3. (C) pill'i görünür yapıyor (bkz. styles.css).
+// G31 (bug 1 düzeltmesi): isKompresor ARTIK activeQuestion'a değil, seçili MOD
+// MODÜLÜNE (mode.MODE_ID) bakıyor — activeQuestion "Oyunu Başlat"a kadar null
+// (bkz. renderModeGrid'in mod-değiştirme bloğu), o pencerede eskiden HER ZAMAN
+// A/B (yanlış) gösteriyordu, mod GERÇEKTEN Kompresör olsa bile (canlı cihazda
+// YAKALANDI). `mode` değişkeni kart tıklamasında ANINDA güncellendiği için artık
+// ilk render dahil HER ZAMAN doğru.
 function updateAbToggleUI() {
   if (!els.abToggle) return;
-  const isKompresor = activeQuestion && activeQuestion.mode === "kompresor";
+  const isKompresor = mode.MODE_ID === "kompresor";
   els.abToggle.classList.toggle("three-way", isKompresor);
   if (!abLoopTimer && els.abTitle) els.abTitle.textContent = isKompresor ? "A/B/C Test" : "A/B Test";
   if (isKompresor) {
@@ -2248,6 +2267,17 @@ function pauseRound() {
     pausedAutoAdvanceRemainingMs = cmpPreviewRemainingMs;
   }
   cancelCmpPreviewPause();
+  // G31 (bug 3 düzeltmesi): Durdur bu fonksiyonda setActionbarTucked'ı HİÇ
+  // çağırmıyor (çubuk görünür kalmalı ki "Tekrar Çal" basılabilsin) — bu
+  // yüzden yukarıdaki merkezi tucked=true noktası (bkz. setActionbarTucked)
+  // buraya ulaşmıyor, döngü AYRICA burada durdurulmalı. Kompresör'de bu
+  // olmadan: abLoopTimer 2sn'de bir cycleKompresorPreview→buildQuestionChain
+  // çağırmaya devam ediyordu, o da HER ÇAĞRIDA muteGain'i "güvenlik" amaçlı
+  // 1'e geri açıyordu (bkz. audio-engine.js buildQuestionChain başındaki
+  // not) — Durdur'un birazdan aşağıda uyguladığı muteOutput() bir sonraki
+  // döngü tetiklemesinde SESSİZCE iptal oluyordu, "Durdur" görünürde
+  // basılmamış gibi ses geri geliyordu (canlı cihazda YAKALANDI).
+  if (abLoopTimer) stopAbLoop();
   roundFlow.clearTimer(); // timeLeft'e DOKUNMAZ
   audioEngine.muteOutput();
   els.feedbackBox.classList.remove("show-result");
