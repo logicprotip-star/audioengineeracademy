@@ -1040,7 +1040,11 @@ function renderModeGrid() {
       // Bugün TEK oynanabilir mod (frekans-bulma, unlockLevel:1) academyLevel her
       // zaman >=1 olduğu için bu kontrolden HER ZAMAN geçer — görünür bir değişiklik
       // yok, ama ikinci mod kodlandığında doğru mekanizma hazır olacak.
-      const meetsLevel = progress.academyLevel(stats, playableModeIds()) >= entry.unlockLevel;
+      // devFlags.simulatePro (Geliştirici: tam erişim) BİLEREK isUserPro() ÜZERİNDEN
+      // değil DOĞRUDAN buraya bağlandı — gerçek Pro kullanıcıların seviye kilidini
+      // atlaması İSTENMEDİ (o AYRI bir eksen, bkz. BEKLEYEN KARARLAR B), sadece
+      // geliştirici anahtarı açıkken TÜM modlar test edilebilsin diye.
+      const meetsLevel = devFlags.simulatePro || progress.academyLevel(stats, playableModeIds()) >= entry.unlockLevel;
       const playable = !!realMode && meetsLevel;
       const card = document.createElement("button");
       card.type = "button";
