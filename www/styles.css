@@ -387,6 +387,11 @@
     .answers.hidden{display:none}
     .ans{min-height:58px;padding:7px 4px;border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.05);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
     .ans b{font-size:21px;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+    /* Q Genişliği'ne özel — bkz. q-genisligi.js:renderAnswerChoices notu. Şık
+       metni SAYI değil KELİME (tabular-nums gereksiz) ve "Çok Geniş" iki
+       kelime — dar telefon genişliğinde (~375px) sarmasın diye küçültülüyor,
+       SADECE bu sınıfı taşıyan butonları etkiler. */
+    .ans b.ans-word{font-size:16px;font-variant-numeric:normal}
     .ans span{font-size:14px;font-weight:600;color:#8C95AB}
     .ans.pick{border:2px solid #FFB020;background:rgba(255,176,32,.16)}
     .ans.pick b{color:#FFD98A}

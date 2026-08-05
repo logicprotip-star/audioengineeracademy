@@ -1457,7 +1457,7 @@ function renderQuestion() {
         ? `Bu ses ${q.directionLabel}, ne kadar?`
         : "Açıldı mı kısıldı mı, ne kadar?")
     : q.mode === "boostcut" ? mode.questionTitle(q)
-    : q.mode === "qwidth" ? "Bu EQ'nun genişlik karakteri ne — Notch mu, Dar mı, Geniş mi?"
+    : q.mode === "qwidth" ? mode.questionTitle(q)
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
 
   els.questionMeta.textContent = mode.modeDescription(q);

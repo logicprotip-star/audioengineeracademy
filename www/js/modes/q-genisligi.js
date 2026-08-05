@@ -263,6 +263,28 @@ export function createQuestion(level, settings = {}) {
   };
 }
 
+// Türkçe soru eki ("mu/mı/mi/mü") her etiketin SON ünlüsüne göre SABİT — sadece
+// 5 olası etiket olduğu için elle bir tablo, dinamik ünlü uyumu hesaplamaya
+// gerek yok. Notch→son ünlü "o" (yuvarlak-kalın)→mu; Dar/Orta→"a" (düz-kalın)→
+// mı; Geniş/Çok Geniş→"i" (düz-ince, "Geniş"in son ünlüsü)→mi.
+const QUESTION_PARTICLE = { notch: "mu", dar: "mı", orta: "mı", genis: "mi", cokgenis: "mi" };
+
+// SAF FONKSİYON. Başlık HER ZAMAN o SORUNUN gerçek q.choices'ını sayar/adlandırır
+// — Boost/Cut'ın (G25) katman-bazlı mode.questionTitle(q) deseniyle AYNI, app.js
+// bunu hardcoded bir metin yerine ÇAĞIRIR (bkz. app.js questionTitle ternary).
+// Canlı cihazda bulunan gerçek hata: eskiden burası HER ZAMAN sabit "Notch mu,
+// Dar mı, Geniş mi?" metniydi — kolayda 2 şık (ör. Çok Geniş/Dar) çıktığında
+// metin 3 SEÇENEK saydırıyordu VE isimler o turun GERÇEK şıklarıyla hiç
+// eşleşmeyebiliyordu (Notch hiç şık değilken bile metinde geçiyordu). Etiketler
+// GÖSTERİM sırasında (renderAnswerChoices) shuffle'lanır ama başlıkta doğal
+// okunuş için LABELS'in KENDİ (dar→geniş) sırasıyla listelenir.
+export function questionTitle(q) {
+  const idsInQuestion = new Set(q.choices.map(c => c.id));
+  const ordered = LABELS.filter(l => idsInQuestion.has(l.id));
+  const parts = ordered.map(l => `${l.tr} ${QUESTION_PARTICLE[l.id]}`);
+  return `Bu EQ'nun genişlik karakteri ne — ${parts.join(", ")}?`;
+}
+
 export function modeDescription() {
   return "A/B ile karşılaştır, EQ'nun GENİŞLİK karakterini (Notch/Dar/Orta/Geniş) şıklardan seç.";
 }
@@ -362,13 +384,21 @@ export function renderGuessAreaControls(freqGuessAreaEl) {
 }
 
 // Şıklar SADECE etiket metni taşır — sayısal Q değeri şıklarda YOK (spec'in
-// açık isteği, kullanıcı DEĞERİ değil KARAKTERİ tanısın).
+// açık isteği, kullanıcı DEĞERİ değil KARAKTERİ tanısın). `.ans-word` (styles.css):
+// diğer dört modun TÜM şık metinleri kısa sayı/tek-kelime (ör. "1.33 kHz",
+// "Boost", "LPF") — HİÇBİRİ 375px'lik dar bir telefonda `.ans b`'nin 21px
+// tabular-nums boyutunda sarmıyor. "Çok Geniş" bu modun TEK iki-kelimelik
+// etiketi — cihazda ÖLÇÜLEN gerçek hata: o genişlikte "Çok"/"Geniş" iki satıra
+// bölünüyor, o satırdaki diğer (tek satırlık) şıklarla eşit kalmayan bir kutu
+// yüksekliği üretiyor. `.ans-word` daha küçük/tabular-olmayan bir font-size'la
+// bunu tek satıra sığdırıyor — SADECE bu modun şıklarını etkiler, diğer dört
+// modun `.ans b` varsayılanına dokunulmadı.
 export function renderAnswerChoices(answersEl, q) {
   if (!answersEl) return;
   if (!q.choices) { answersEl.innerHTML = ""; answersEl.classList.add("hidden"); return; }
   answersEl.className = "answers";
   answersEl.innerHTML = q.choices.map(c =>
-    `<button type="button" class="ans" data-label-id="${c.id}"><b>${c.tr}</b></button>`
+    `<button type="button" class="ans" data-label-id="${c.id}"><b class="ans-word">${c.tr}</b></button>`
   ).join("");
 }
 

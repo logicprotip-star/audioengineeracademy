@@ -475,6 +475,55 @@ describe("Q Genişliği — Sabit mod eğriye bağlı ('kolaylaşma yok' invarya
   });
 });
 
+// G28 — cihazda bulunan gerçek hata: questionTitle SABİT bir metindi ("Notch
+// mu, Dar mı, Geniş mi?") — gerçek q.choices'la HİÇ bağlantısı yoktu, kolay
+// zorlukta 2 şık (ör. Çok Geniş/Dar) çıktığında hem SAYI hem İSİM uyuşmuyordu.
+describe("Q Genişliği — questionTitle() (cihazda bulunan sayı/isim uyuşmazlığı)", () => {
+  it("başlıktaki her etiket TAM OLARAK q.choices'taki etiketlerle eşleşir — fazla/eksik yok", () => {
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      for (let i = 0; i < 30; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false });
+        const title = mode.questionTitle(q);
+        const choiceLabels = new Set(q.choices.map(c => c.tr));
+        // Başlıktan HER etiketi çıkar, sonunda hiçbir etiket ismi KALMAMALI —
+        // yani başlıkta olup şıklarda OLMAYAN bir isim yok.
+        for (const c of q.choices) {
+          assert.match(title, new RegExp(c.tr.replace(/ /g, "\\s")), `${level}: "${c.tr}" şıklarda var ama başlıkta yok — "${title}"`);
+        }
+        // Ters yönde: 5 olası etiketten şıklarda OLMAYANLAR başlıkta da OLMAMALI.
+        const allLabelNames = ["Notch", "Dar", "Orta", "Geniş", "Çok Geniş"];
+        for (const name of allLabelNames) {
+          if (!choiceLabels.has(name)) {
+            // "Geniş" "Çok Geniş"in İÇİNDE bir alt-dize olduğu için o çifti atla —
+            // asıl kontrol edilen tam eşleşme değil, YANLIŞ bir etiketin YALNIZ
+            // başına geçmediği (ör. "Notch" hiç şık değilken başlıkta geçmemeli).
+            if (name === "Geniş" && choiceLabels.has("Çok Geniş")) continue;
+            const soleOccurrence = new RegExp(`(?<!Çok )${name}\\b`);
+            assert.doesNotMatch(title, soleOccurrence, `${level}: "${name}" şık DEĞİL ama başlıkta geçiyor — "${title}"`);
+          }
+        }
+      }
+    }
+  });
+
+  it("başlıktaki etiket SAYISI q.choices.length'e TAM eşit (virgülle ayrılmış parça sayısı)", () => {
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      for (let i = 0; i < 20; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false });
+        const title = mode.questionTitle(q);
+        const partCount = title.split(",").length;
+        assert.equal(partCount, q.choices.length, `${level}: başlıkta ${partCount} parça ama ${q.choices.length} şık var — "${title}"`);
+      }
+    }
+  });
+
+  it("her etiket doğru Türkçe soru ekiyle biter (mu/mı/mi) — bozuk/eksik ek yok", () => {
+    const q2 = { choices: [{ id: "notch", tr: "Notch" }, { id: "cokgenis", tr: "Çok Geniş" }] };
+    const title = mode.questionTitle(q2);
+    assert.equal(title, "Bu EQ'nun genişlik karakteri ne — Notch mu, Çok Geniş mi?");
+  });
+});
+
 describe("Q Genişliği — getMeta() sözleşme alanları", () => {
   it("id/motor/kulaklikGerekli/uyumluKaynaklar/ucretsiz/videoUrl/difficulty/choiceOnly tanımlı", () => {
     const meta = mode.getMeta();
