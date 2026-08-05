@@ -25,6 +25,7 @@
 import { formatHz, shuffle, logFreq } from "../core/utils.js";
 import { SOURCE_GROUPS } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
+import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 
 export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound };
 
@@ -60,6 +61,93 @@ export const DIFFICULTY = {
   pro: { label: "Pro", xp: 46, options: 6, time: 9, lives: MAX_LIVES, marginOct: 0.3, hintBandOct: 0.5 },
   proplus: { label: "Pro Plus (Çok Bantlı)", xp: 46, options: 6, time: 9, lives: MAX_LIVES, marginOct: 0.3, hintBandOct: 0.5 }
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ZORLUK EĞRİSİ (ADIM 1 — zorluk sisteminin merkezi bağlanması, Kesim Noktası
+// PİLOT modu). Yukarıdaki statik DIFFICULTY tablosu KALDIRILMADI — hem geriye
+// dönük uyumluluk (mevcut testler, doğrudan createQuestion çağrıları, proplus,
+// app.js'in currentDifficultyConfig()/renderLevelSheet'i) HEM "Sabit" zorluk
+// modunun/tier isimlerinin ÇAPASI olarak duruyor (bkz. core/difficulty-curve.js
+// dosya başı not: tier isimleri artık DEĞER kaynağı değil, sadece GÖSTERİM/ÇAPA).
+//
+// Bu bloktaki sayılar (AT_1/AT_CAP/FLOOR/REDUCTION_PER_STEP) yukarıdaki statik
+// DIFFICULTY.easy/pro değerlerinden TÜRETİLDİ (geçiş davranış-koruyucu olsun diye)
+// ama KESİN DOĞRU İDDİA EDİLMİYOR — Z1'in kendi eğrisiyle AYNI durum: makul bir
+// başlangıç noktası, KULAKLA DOĞRULANMALI (bkz. DURUM.md). LEVEL_CAP, global
+// DIFFICULTY_CONFIG'inkiyle (20) AYNI seçildi ama BİLEREK KENDİ ALANI — modlar
+// istedikleri zaman farklı bir tavan seçebilsin diye merkezi DIFFICULTY_CONFIG'e
+// bağlanmadı (bkz. difficulty-curve.js dosya başı not: "her mod kendi sayılarını
+// taşır").
+export const KESIM_CURVE_CONFIG = {
+  LEVEL_CAP: 20,
+
+  // Kesim frekansının havuzun log-merkezinden minimum uzaklığı (oktav) — bkz.
+  // pickCutoffFreq/CENTER_LOG. AT_1 = DIFFICULTY.easy.marginOct, AT_CAP =
+  // DIFFICULTY.pro.marginOct (birebir aynı sayılar, eğrinin UÇLARI statik
+  // tabloyla ÇAKIŞSIN diye — aradaki (medium/hard) noktalar YAKLAŞIK kalır,
+  // bkz. DURUM.md'deki karşılaştırma tablosu).
+  MARGIN_OCT_AT_1: 1.6,
+  MARGIN_OCT_AT_CAP: 0.3,
+  MARGIN_OCT_FLOOR: 0.15,
+  MARGIN_OCT_REDUCTION_PER_STEP: 0.01,
+
+  // İpucu maskesinin açık bıraktığı bant genişliği (oktav) — bkz. renderHintMask.
+  HINT_BAND_OCT_AT_1: 2.0,
+  HINT_BAND_OCT_AT_CAP: 0.5,
+  HINT_BAND_OCT_FLOOR: 0.2,
+  HINT_BAND_OCT_REDUCTION_PER_STEP: 0.01,
+
+  // Soru süresi (sn) — HENÜZ round-timer'a BAĞLANMADI (bkz. app.js
+  // currentDifficultyPosition notu) — G21'in hizalı süre davranışını riske
+  // atmamak için bilinçli bir kapsam kararı, bu turda SADECE hesaplanıyor/
+  // test ediliyor, oyun ekranına yansımıyor.
+  TIME_SEC_AT_1: 14,
+  TIME_SEC_AT_CAP: 9,
+  TIME_SEC_FLOOR: 6,
+  TIME_SEC_REDUCTION_PER_STEP: 0.1,
+
+  // Çeldiricilerin doğru cevaptan minimum oktav mesafesi — bkz. generateChoices/
+  // DISTRACTOR_STEP_OCT. FLOOR (0.55) FREQ_TOLERANCE_OCT'tan (0.5) HER ZAMAN
+  // büyük kalacak şekilde seçildi (bkz. o sabitin invaryant notu) — tavanın çok
+  // üzerinde bile (marjinal) yanlış bir şık asla "doğru" sayılamaz.
+  STEP_OCT_AT_1: 1.2,
+  STEP_OCT_AT_CAP: 0.65,
+  STEP_OCT_FLOOR: 0.55,
+  STEP_OCT_REDUCTION_PER_STEP: 0.005,
+
+  // Şık sayısı — tam sayıya yuvarlanır (bkz. paramsForDifficultyPosition), 3-6
+  // arası kırpılır (dar CUTOFF_MIN-CUTOFF_MAX havuzunda generateChoices zaten
+  // kendi içinde MEVCUT/sığdırılabilir sayıya düşürüyor, bkz. o fonksiyonun notu).
+  OPTIONS_AT_1: 3,
+  OPTIONS_AT_CAP: 6
+};
+
+// SAF FONKSİYON. position: zorlukKonumu (continuousLevel + sessionRampOffset,
+// bkz. app.js currentDifficultyPosition) — MOD-AGNOSTİK bir sayı, bu fonksiyon
+// onu KESİM NOKTASI'NIN kendi parametrelerine çevirir (bkz. difficulty-curve.js
+// dosya başı not: "mod kendi çeviri fonksiyonunu yazar"). boss'un etkisi BURADA
+// DEĞİL — position'ın KENDİSİ zaten app.js'te sessionRampOffset(...,{boss}) ile
+// yükseltilmiş olarak gelir (çifte ceza olmasın diye, bkz. o fonksiyonun notu).
+export function paramsForDifficultyPosition(position, config = KESIM_CURVE_CONFIG) {
+  const safePos = Math.max(1, position);
+  const cappedPos = Math.min(safePos, config.LEVEL_CAP);
+  const t = config.LEVEL_CAP > 1 ? (cappedPos - 1) / (config.LEVEL_CAP - 1) : 1;
+
+  const marginCurve = logLerp(config.MARGIN_OCT_AT_1, config.MARGIN_OCT_AT_CAP, t);
+  const hintCurve = logLerp(config.HINT_BAND_OCT_AT_1, config.HINT_BAND_OCT_AT_CAP, t);
+  const timeCurve = logLerp(config.TIME_SEC_AT_1, config.TIME_SEC_AT_CAP, t);
+  const stepCurve = logLerp(config.STEP_OCT_AT_1, config.STEP_OCT_AT_CAP, t);
+  const optionsCurve = logLerp(config.OPTIONS_AT_1, config.OPTIONS_AT_CAP, t);
+
+  return {
+    position: safePos,
+    marginOct: applyPostCapFloor(marginCurve, safePos, config.LEVEL_CAP, config.MARGIN_OCT_FLOOR, config.MARGIN_OCT_REDUCTION_PER_STEP),
+    hintBandOct: applyPostCapFloor(hintCurve, safePos, config.LEVEL_CAP, config.HINT_BAND_OCT_FLOOR, config.HINT_BAND_OCT_REDUCTION_PER_STEP),
+    timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP),
+    distractorStepOct: applyPostCapFloor(stepCurve, safePos, config.LEVEL_CAP, config.STEP_OCT_FLOOR, config.STEP_OCT_REDUCTION_PER_STEP),
+    options: Math.max(3, Math.min(6, Math.round(optionsCurve)))
+  };
+}
 
 // G18: seans içi rampa — her SEANSTA (resetSession() ile sınırlanır, bkz. app.js:
 // Oyunu Başlat/Tekrar Oyna/10 Soru Daha) ilk TYPE_REVEAL_QUESTION_COUNT soru tipi
@@ -125,15 +213,16 @@ export function pickCutoffFreq(marginOct, rng = Math.random) {
 // yok). typeRevealed=false ise en az bir çeldiricinin filtre TİPİ çevrilir (doğru şık
 // ASLA) — tip gizliyken kullanıcı gerçekten hem tip hem frekans ayrımı yapmak zorunda
 // kalsın diye; typeRevealed=true ise TÜM şıklar doğru tiple aynı kalır (tip zaten
-// söylendi).
-export function generateChoices(correctFreq, correctType, level, typeRevealed) {
-  const diff = DIFFICULTY[level] || DIFFICULTY.medium;
-  const step = DISTRACTOR_STEP_OCT[level] || DISTRACTOR_STEP_OCT.medium;
+// söylendi). ADIM 1: level STRING yerine ÇÖZÜLMÜŞ {options, step} alıyor — createQuestion
+// bunu ister statik DIFFICULTY[level]'den ister paramsForDifficultyPosition()'dan
+// doldurup buraya geçiriyor, generateChoices'in KENDİSİ eğri/statik farkını bilmiyor.
+export function generateChoices(correctFreq, correctType, resolved, typeRevealed) {
+  const step = resolved.step;
   const correctOct = Math.log2(correctFreq);
   const minOct = Math.log2(CUTOFF_MIN), maxOct = Math.log2(CUTOFF_MAX);
   const maxBelow = Math.max(0, Math.floor((correctOct - minOct) / step));
   const maxAbove = Math.max(0, Math.floor((maxOct - correctOct) / step));
-  const count = Math.max(2, Math.min(diff.options, maxBelow + maxAbove + 1));
+  const count = Math.max(2, Math.min(resolved.options, maxBelow + maxAbove + 1));
 
   const offsetsOct = [];
   let below = 1, above = 1;
@@ -182,16 +271,41 @@ export function getMeta() {
 
 // SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz. settings: { source, boss,
 // sessionQuestionIndex — bkz. TYPE_REVEAL_QUESTION_COUNT notu, 0-tabanlı, verilmezse
-// 0 (yani ilk soru gibi davranır — typeRevealed=true, geriye dönük güvenli varsayılan) }.
+// 0 (yani ilk soru gibi davranır — typeRevealed=true, geriye dönük güvenli varsayılan);
+// difficultyPosition — ADIM 1: app.js'in GERÇEK oyun akışı (startRound) HER ZAMAN
+// bir sayı verir (bkz. o dosyadaki currentDifficultyPosition) — verilirse marginOct/
+// hintBandOct/options/step EĞRİDEN (paramsForDifficultyPosition) gelir, 4 sabit
+// basamak yerine SÜREKLİ zorlukKonumu'ndan beslenir. VERİLMEZSE (mevcut testler,
+// doğrudan çağrılar, proplus — bkz. app.js'in proplus'u eğri dışında bırakma kararı)
+// ESKİ statik DIFFICULTY[level] davranışı BİREBİR korunur — geriye dönük uyumluluk }.
 // Bu modun odak aralığı (FOCUS_RANGES) kavramı yok — her zaman CUTOFF_MIN–CUTOFF_MAX havuzu.
 export function createQuestion(level, settings = {}) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const boss = !!settings.boss;
   const source = settings.source || "pink";
   const filterType = Math.random() < 0.5 ? "highpass" : "lowpass";
-  // Boss round'da merkeze daha yakın (daha ince/zor) bir kesim — frekans-bulma.js'in
-  // "boss'ta gain/q daha yakın/zor" desenine paralel (bkz. o dosyanın createQuestion'ı).
-  const marginOct = boss ? diff.marginOct * 0.6 : diff.marginOct;
+
+  // proplus BİLEREK eğri DIŞINDA TUTULUR — app.js'in currentDifficultyPosition()'ı
+  // proplus için zaten difficultyPosition hiç ÜRETMEZ (undefined geçer), ama bu
+  // kontrol BURADA da (savunma katmanı) tekrarlanıyor — createQuestion doğrudan
+  // (app.js dışından, ör. testten) çağrılırsa bile proplus'un kendi statik satırına
+  // sadık kalması GARANTİ olsun diye (bkz. Z5 kararı: proplus merdivenin dışında).
+  const curve = (level !== "proplus" && Number.isFinite(settings.difficultyPosition))
+    ? paramsForDifficultyPosition(settings.difficultyPosition)
+    : null;
+
+  // Eğri YOKSA (statik yol): boss round'da merkeze daha yakın (daha ince/zor) bir
+  // kesim — frekans-bulma.js'in "boss'ta gain/q daha yakın/zor" desenine paralel.
+  // Eğri VARSA bu çarpan UYGULANMAZ — boss'un etkisi zaten position'ın İÇİNDE
+  // (app.js sessionRampOffset(...,{boss}) ile position'ı yükseltmiş olarak verir,
+  // burada TEKRAR küçültmek çifte ceza olurdu, bkz. paramsForDifficultyPosition notu).
+  const marginOct = curve ? curve.marginOct : (boss ? diff.marginOct * 0.6 : diff.marginOct);
+  const resolved = curve
+    ? { options: curve.options, step: curve.distractorStepOct }
+    : { options: diff.options, step: DISTRACTOR_STEP_OCT[level] || DISTRACTOR_STEP_OCT.medium };
+  const hintBandOct = curve ? curve.hintBandOct : diff.hintBandOct;
+  const timeSec = curve ? curve.timeSec : diff.time;
+
   const freq = pickCutoffFreq(marginOct);
   const sessionQuestionIndex = Number.isFinite(settings.sessionQuestionIndex) ? settings.sessionQuestionIndex : 0;
   const typeRevealed = sessionQuestionIndex < TYPE_REVEAL_QUESTION_COUNT;
@@ -206,7 +320,11 @@ export function createQuestion(level, settings = {}) {
     source,
     hintUsed: false,
     boss,
-    choices: generateChoices(freq, filterType, level, typeRevealed)
+    // ADIM 1: soru üzerinde taşınır ki renderHintMask DIFFICULTY[level]'e değil
+    // BUNA baksın (eğri/statik farkını bilmeden) — bkz. o fonksiyonun notu.
+    hintBandOct,
+    timeSec,
+    choices: generateChoices(freq, filterType, resolved, typeRevealed)
   };
 }
 
@@ -382,8 +500,11 @@ export function getHintText(question) {
 
 export function renderHintMask(hintMaskLayerEl, question) {
   if (!hintMaskLayerEl || !question) return;
+  // ADIM 1: question.hintBandOct (createQuestion'ın koyduğu, eğri/statik farkını
+  // zaten çözmüş değer) ÖNCELİKLİ — DIFFICULTY[question.difficulty] sadece question
+  // nesnesi elle kurulmuş (ör. eski bir test) ve hintBandOct hiç yoksa devreye girer.
   const diff = DIFFICULTY[question.difficulty] || DIFFICULTY.medium;
-  const halfOct = (diff.hintBandOct || 1.4) / 2;
+  const halfOct = (question.hintBandOct != null ? question.hintBandOct : (diff.hintBandOct || 1.4)) / 2;
   const lo = Math.max(FA_MIN, question.freq / Math.pow(2, halfOct));
   const hi = Math.min(FA_MAX, question.freq * Math.pow(2, halfOct));
   // NOT: FA_MIN/FA_MAX (eksen tam görünür aralığı) ile kırpılıyor, CUTOFF_MIN/MAX

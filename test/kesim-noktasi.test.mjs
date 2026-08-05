@@ -433,3 +433,127 @@ describe("Kesim Noktası — G21 sert test: zorluk rampası × seans indeksi TAM
     assert.equal(checked, 5 * 8 * 15);
   });
 });
+
+// ADIM 1 — zorluk sisteminin merkezi bağlanması, Kesim Noktası PİLOT modu.
+// paramsForDifficultyPosition() SAF fonksiyon testleri + createQuestion'ın
+// settings.difficultyPosition VARSA eğriyi, YOKSA (mevcut testlerin hepsi gibi)
+// eski statik DIFFICULTY[level] yolunu kullandığının doğrulanması.
+describe("Kesim Noktası — paramsForDifficultyPosition() (ADIM 1 zorluk eğrisi)", () => {
+  it("position arttıkça marginOct PÜRÜZSÜZ (monoton) KÜÇÜLÜR — ara adımlarda ATLAMA yok", () => {
+    let prev = Infinity;
+    for (let p = 1; p <= 20; p += 0.25) {
+      const { marginOct } = mode.paramsForDifficultyPosition(p);
+      assert.ok(marginOct <= prev + 1e-9, `position ${p}'de marginOct azalmadı`);
+      prev = marginOct;
+    }
+  });
+
+  it("position arttıkça hintBandOct de PÜRÜZSÜZ küçülür", () => {
+    let prev = Infinity;
+    for (let p = 1; p <= 20; p += 0.5) {
+      const { hintBandOct } = mode.paramsForDifficultyPosition(p);
+      assert.ok(hintBandOct <= prev + 1e-9, `position ${p}'de hintBandOct azalmadı`);
+      prev = hintBandOct;
+    }
+  });
+
+  it("position arttıkça options MONOTON ARTAR ve her zaman 3-6 arası tam sayı", () => {
+    let prev = 0;
+    for (let p = 1; p <= 20; p += 0.5) {
+      const { options } = mode.paramsForDifficultyPosition(p);
+      assert.ok(Number.isInteger(options) && options >= 3 && options <= 6, `position ${p}: geçersiz options ${options}`);
+      assert.ok(options >= prev, `position ${p}'de options azaldı`);
+      prev = options;
+    }
+  });
+
+  it("distractorStepOct HER ZAMAN FREQ_TOLERANCE_OCT'tan büyük — tavanın ÇOK üzerinde bile", () => {
+    for (const p of [1, 5, 10, 20, 50, 500]) {
+      const { distractorStepOct } = mode.paramsForDifficultyPosition(p);
+      assert.ok(distractorStepOct > mode.FREQ_TOLERANCE_OCT, `position ${p}: step ${distractorStepOct} <= tolerans`);
+    }
+  });
+
+  it("tavanın (LEVEL_CAP) ÇOK ötesinde marginOct/hintBandOct/distractorStepOct bir TABANIN altına inmez", () => {
+    const cfg = mode.KESIM_CURVE_CONFIG;
+    const far = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP + 1000);
+    assert.ok(far.marginOct >= cfg.MARGIN_OCT_FLOOR - 1e-9);
+    assert.ok(far.hintBandOct >= cfg.HINT_BAND_OCT_FLOOR - 1e-9);
+    assert.ok(far.distractorStepOct >= cfg.STEP_OCT_FLOOR - 1e-9);
+    assert.ok(far.timeSec >= cfg.TIME_SEC_FLOOR - 1e-9);
+  });
+
+  it("position=1'de config'in AT_1 değerlerini birebir döner (tavan aşılmadı)", () => {
+    const cfg = mode.KESIM_CURVE_CONFIG;
+    const p = mode.paramsForDifficultyPosition(1);
+    assert.ok(Math.abs(p.marginOct - cfg.MARGIN_OCT_AT_1) < 1e-9);
+    assert.ok(Math.abs(p.hintBandOct - cfg.HINT_BAND_OCT_AT_1) < 1e-9);
+    assert.ok(Math.abs(p.timeSec - cfg.TIME_SEC_AT_1) < 1e-9);
+  });
+
+  it("position=LEVEL_CAP'te config'in AT_CAP değerlerini birebir döner", () => {
+    const cfg = mode.KESIM_CURVE_CONFIG;
+    const p = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP);
+    assert.ok(Math.abs(p.marginOct - cfg.MARGIN_OCT_AT_CAP) < 1e-9);
+    assert.ok(Math.abs(p.hintBandOct - cfg.HINT_BAND_OCT_AT_CAP) < 1e-9);
+  });
+
+  it("position<1 veya ondalık için düşmez, position 1 gibi davranır", () => {
+    assert.doesNotThrow(() => mode.paramsForDifficultyPosition(0));
+    assert.doesNotThrow(() => mode.paramsForDifficultyPosition(-5));
+    assert.equal(mode.paramsForDifficultyPosition(0).position, 1);
+  });
+});
+
+describe("Kesim Noktası — createQuestion(settings.difficultyPosition) entegrasyonu", () => {
+  it("difficultyPosition VERİLİRSE üretilen şık sayısı paramsForDifficultyPosition().options'a eşit (statik tablo DEĞİL)", () => {
+    for (const p of [1, 5, 10, 15, 20]) {
+      const expectedOptions = mode.paramsForDifficultyPosition(p).options;
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: p });
+      assert.equal(q.choices.length, expectedOptions, `position ${p}: beklenen ${expectedOptions}, gelen ${q.choices.length}`);
+    }
+  });
+
+  it("difficultyPosition VERİLMEZSE (geriye dönük uyumluluk) davranış eski statik tabloyla BİREBİR aynı kalır", () => {
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      for (let i = 0; i < 20; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false });
+        assert.equal(q.choices.length, mode.DIFFICULTY[level].options);
+        assert.equal(q.hintBandOct, mode.DIFFICULTY[level].hintBandOct);
+        assert.equal(q.timeSec, mode.DIFFICULTY[level].time);
+      }
+    }
+  });
+
+  it("difficultyPosition YÜKSEK (zor) verildiğinde üretilen kesim frekansı merkeze YAKIN olma eğiliminde (istatistiksel)", () => {
+    const centerFreq = Math.sqrt(mode.CUTOFF_MIN * mode.CUTOFF_MAX);
+    const centerLog = Math.log2(centerFreq);
+    const N = 400;
+    let easyDistSum = 0, hardDistSum = 0;
+    for (let i = 0; i < N; i++) {
+      const easy = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: 1 });
+      const hard = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: 20 });
+      easyDistSum += Math.abs(Math.log2(easy.freq) - centerLog);
+      hardDistSum += Math.abs(Math.log2(hard.freq) - centerLog);
+    }
+    assert.ok(hardDistSum / N < easyDistSum / N, "yüksek position ortalama olarak merkeze DAHA UZAK olmamalıydı");
+  });
+
+  it("hintBandOct/timeSec soru nesnesinde taşınır ve renderHintMask/DIFFICULTY[level] yerine BUNU kullanır", () => {
+    const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: 10 });
+    const expected = mode.paramsForDifficultyPosition(10);
+    assert.ok(Math.abs(q.hintBandOct - expected.hintBandOct) < 1e-9);
+    assert.ok(Math.abs(q.timeSec - expected.timeSec) < 1e-9);
+  });
+
+  it("proplus'ta difficultyPosition verilse BİLE eğri devreye girmez — her zaman kendi statik satırı kullanılır (Z5 kararıyla aynı çizgi)", () => {
+    // NOT: app.js'in currentDifficultyPosition() proplus için difficultyPosition'ı
+    // HİÇ ÜRETMEZ (undefined geçer) — burada createQuestion'ın KENDİSİNİN de
+    // 'level' proplus olduğunda paramsForDifficultyPosition sonucuna DEĞİL kendi
+    // DIFFICULTY.proplus satırına sadık kaldığını doğrudan doğruluyoruz (savunma katmanı).
+    for (let i = 0; i < 10; i++) {
+      const q = mode.createQuestion("proplus", { source: "pink", boss: false, difficultyPosition: 20 });
+      assert.equal(q.choices.length, mode.DIFFICULTY.proplus.options);
+    }
+  });
+});

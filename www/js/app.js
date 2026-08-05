@@ -12,7 +12,7 @@ import { formatHz, turkishLocative } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
 import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import { SOURCE_GROUPS, findSource } from "./core/source-catalog.js";
-import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG } from "./core/difficulty-curve.js";
+import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier } from "./core/difficulty-curve.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 
@@ -600,6 +600,34 @@ function modeState() {
 
 function currentDifficultyConfig() {
   return mode.DIFFICULTY[els.difficultySelect.value];
+}
+
+// ADIM 1 (zorluk sisteminin merkezi bağlanması — bkz. core/difficulty-curve.js
+// dosya başı not): zorlukKonumu = taban (Otomatik'te sürekli/kesirli seviye —
+// XP'nin İÇİNDEKİ ilerlemeyi de sayar, bkz. continuousLevel; Sabit'te seçili
+// tier'ın TIER_BOUNDARIES'teki temsilci noktası, bkz. representativeLevelForTier)
+// + seans içi rampa ofseti (ısınma→zorlaşma→boss, bkz. sessionRampOffset).
+//
+// SADECE Kesim Noktası bu sayıyı OKUYOR (bkz. createQuestion çağrısındaki
+// settings.difficultyPosition notu) — applyAutoDifficulty()'nin KENDİSİ
+// (els.difficultySelect.value'ya HANGİ tier'ı yazdığı) BİLEREK DEĞİŞTİRİLMEDİ,
+// bu yüzden Frekans Bulma'nın Otomatik zorluk davranışı (hangi turda hangi
+// tier'a geçtiği, DIFFICULTY tablosundan hangi satırın okunduğu) BİREBİR aynı
+// kalıyor — bu fonksiyon createQuestion'a giden EK bir sayı üretiyor, mevcut
+// tier-seçim akışının YANINDA duruyor, YERİNE geçmiyor (bkz. DURUM.md: "iki mod
+// geçici olarak farklı mekanizma kullanacak, bu normal" kararı).
+//
+// proplus BİLEREK bu eğrinin DIŞINDA (undefined döner, createQuestion o zaman
+// eski statik DIFFICULTY[level] yoluna düşer) — Z5 kararıyla aynı çizgide
+// (proplus Otomatik'te zaten hiç seçilmiyor, Sabit'te elle seçilirse de eğri
+// değil kendi statik satırı kullanılır).
+function currentDifficultyPosition(boss) {
+  const tier = els.difficultySelect ? els.difficultySelect.value : "medium";
+  if (tier === "proplus") return undefined;
+  const baseline = diffModeAuto
+    ? continuousLevel(progress.xpProgress(progress.modeXp(stats, mode.getMeta().id)))
+    : representativeLevelForTier(tier);
+  return baseline + sessionRampOffset(roundsInThisPlaySession, { boss });
 }
 
 function timerOff() {
@@ -1859,16 +1887,23 @@ function startRound() {
   roundStartedAt = Date.now();
   applyAutoDifficulty(); // Z5: Otomatik modda els.difficultySelect.value burada güncellenir
 
+  const boss = mode.isBossRound(stats.rounds);
   activeQuestion = mode.createQuestion(els.difficultySelect.value, {
     source: pickRoundSource(),
-    boss: mode.isBossRound(stats.rounds),
+    boss,
     focusRange: currentFocusRange(),
     zoneStats, // Z4: zayıf bölgelere ağırlıklı test frekansı — proplus/çeldiriciler etkilenmez
     // G18: bu OYUN OTURUMUNDAKİ (bkz. roundsInThisPlaySession tanımındaki not) 0-tabanlı
     // soru sırası. Kesim Noktası bunu tip-gizleme rampası için okuyor (bkz.
     // kesim-noktasi.js TYPE_REVEAL_QUESTION_COUNT); diğer modlar görmezden gelir
     // (frekans-bulma.js createQuestion bu alanı hiç okumuyor).
-    sessionQuestionIndex: roundsInThisPlaySession
+    sessionQuestionIndex: roundsInThisPlaySession,
+    // ADIM 1 (zorluk sisteminin merkezi bağlanması, bkz. currentDifficultyPosition
+    // altındaki not): SADECE Kesim Noktası bunu okuyor (paramsForDifficultyPosition
+    // üzerinden) — Frekans Bulma'nın createQuestion'ı bu alanı hiç görmüyor/okumuyor,
+    // bu yüzden buradan HER ZAMAN geçirmek Frekans Bulma'nın davranışını DEĞİŞTİRMEZ
+    // (aynı desen: sessionQuestionIndex de zaten böyle, tek-taraflı okunuyor).
+    difficultyPosition: currentDifficultyPosition(boss)
   });
   roundsInThisPlaySession++;
   // Karıştır açıkken çalan kaynak sourceSelect'ten farklı olabilir — chip her zaman

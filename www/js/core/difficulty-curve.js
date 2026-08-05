@@ -58,11 +58,95 @@ export const DIFFICULTY_CONFIG = {
   ]
 };
 
-function logLerp(atLevel1, atCap, t) {
-  // t=0 → atLevel1, t=1 → atCap, ARADA ORANSAL (geometrik) ilerler — kulak
-  // logaritmik algıladığı için doğrusal interpolasyon DEĞİL.
+// ADIM 1 (merkezi zorluk bağlanması): bu dosya artık TEK bir global eğri değil,
+// PAYLAŞILAN, mod-agnostik bir MATEMATİK KÜTÜPHANESİ — logLerp/applyPostCapFloor/
+// continuousLevel/sessionRampOffset/representativeLevelForTier hiçbir sayı
+// TAŞIMAZ, her mod (bkz. kesim-noktasi.js: KESIM_CURVE_CONFIG + paramsForDifficultyPosition)
+// KENDİ AT_1/AT_CAP/FLOOR sayılarıyla bu fonksiyonları çağırır. difficultyParams()
+// (yukarıdaki, Frekans Bulma'nın bilgi kartı için kullandığı) bu ikisini KENDİ
+// DIFFICULTY_CONFIG'iyle çağıran BİR ÖRNEK haline geldi (aşağıda dogfood edilir) —
+// davranışı/çıktısı DEĞİŞMEDİ (difficulty-curve.test.mjs aynı kalıyor).
+
+// SAF FONKSİYON, export edilir (ADIM 1'den önce private'tı). t=0 → atLevel1,
+// t=1 → atCap, ARADA ORANSAL (geometrik) ilerler — kulak logaritmik algıladığı
+// için doğrusal interpolasyon DEĞİL.
+export function logLerp(atLevel1, atCap, t) {
   if (atLevel1 <= 0 || atCap <= 0) return atLevel1 + (atCap - atLevel1) * t; // sıfır/negatifte log tanımsız, güvenli düşüş
   return atLevel1 * Math.pow(atCap / atLevel1, t);
+}
+
+// SAF FONKSİYON. difficultyParams()'ın "tavandan sonra bağlam zorluğu" desenini
+// (gain/süre için tekrarlanan Math.max(floor, curveVal - over*reductionPerStep)
+// kalıbı) genellemesi — ARTIK herhangi bir mod, kendi eğri değeri/tabanı/adım
+// büyüklüğüyle çağırabilir. level<=levelCap ise curveValue AYNEN döner (henüz
+// tavan aşılmadı).
+export function applyPostCapFloor(curveValue, level, levelCap, floor, reductionPerStep) {
+  const safeLevel = Math.max(1, level);
+  const over = safeLevel > levelCap ? safeLevel - levelCap : 0;
+  if (over <= 0) return curveValue;
+  return Math.max(floor, curveValue - over * reductionPerStep);
+}
+
+// SAF FONKSİYON. progress.js:xpProgress()'in {level, current, required} çıktısını
+// KESİRLİ bir seviyeye çevirir (ör. seviye 6'nın %40'ı → 6.4) — YUVARLAMA YOK.
+// Bu, "zorlukKonumu = sürekliSeviye + seansRampaOfseti" birleşiminin taban
+// (baseline) terimi (bkz. ADIM 1 tasarımı). required<=0 (teorik olarak
+// xpNeeded hep >0 döner, ama savunmacı) ise sadece tam seviyeye düşer.
+export function continuousLevel(xpProg) {
+  if (!xpProg) return 1;
+  if (!(xpProg.required > 0)) return Math.max(1, xpProg.level);
+  const frac = Math.max(0, Math.min(1, xpProg.current / xpProg.required));
+  return Math.max(1, xpProg.level + frac);
+}
+
+// Seans içi zorluk rampasının şekli — ısınma (negatif ofset, seans/döngünün
+// başı) → zorlaşma (pozitif ofset, döngünün sonuna doğru) → boss (en yüksek,
+// {boss:true} geldiğinde döngüdeki konumdan BAĞIMSIZ olarak). CYCLE_LENGTH=5,
+// isBossRound()'un (frekans-bulma.js) KULLANDIĞI AYNI periyot — bilerek: iki
+// kavram (boss round'un GERÇEK belirlenmesi — stats.rounds, ÖMÜR BOYU sayaç —
+// ile rampanın seans-içi şekli — roundsInThisPlaySession, HER DENEMEDE sıfırlanan
+// yerel sayaç) FARKLI sayaçlara dayanır (bkz. app.js roundsInThisPlaySession
+// tanımındaki not) ve HER ZAMAN hizalı olmayabilir — bu yüzden ramp kendi
+// "hangi index boss" tahminini YAPMAZ, çağıran tarafın (app.js, mode.isBossRound
+// sonucunu) verdiği GERÇEK {boss} bayrağına güvenir.
+export const SESSION_RAMP_CONFIG = {
+  CYCLE_LENGTH: 5,
+  MIN_OFFSET: -1.5,  // döngü başı (ısınma) — taban seviyeden bir miktar KOLAY
+  MAX_OFFSET: 1.0,   // döngü sonu, boss OLMAYAN son soru — taban seviyeden ZOR
+  BOSS_OFFSET: 2.0   // boss round — döngüdeki konumdan bağımsız, HER ZAMAN en yüksek
+};
+
+// SAF FONKSİYON. sessionIndex: 0-tabanlı, seans/deneme İÇİNDEKİ soru sırası
+// (app.js: roundsInThisPlaySession, resetSession()'da sıfırlanır). Dönen ofset,
+// continuousLevel()'ın SEVİYE BİRİMİYLE AYNI birimde (mod-agnostik) — çağıran
+// taraf "zorlukKonumu = continuousLevel(...) + sessionRampOffset(...)" ile toplar.
+export function sessionRampOffset(sessionIndex, { boss = false } = {}, config = SESSION_RAMP_CONFIG) {
+  if (boss) return config.BOSS_OFFSET;
+  const idx = Math.max(0, Math.floor(sessionIndex || 0));
+  const cycleLen = Math.max(1, config.CYCLE_LENGTH);
+  const p = idx % cycleLen;
+  const t = cycleLen > 1 ? p / (cycleLen - 1) : 0;
+  return config.MIN_OFFSET + (config.MAX_OFFSET - config.MIN_OFFSET) * t;
+}
+
+// SAF FONKSİYON. "Sabit" zorluk modunda kullanıcı bir İSİM (ör. "hard") seçtiğinde,
+// zorlukKonumu'nun taban terimi ne olacak? — o kademenin TIER_BOUNDARIES'teki
+// ARALIĞININ ORTA NOKTASI (ör. hard: 9-12 → 10.5). Üst sınırı Infinity olan son
+// kademe (pro) için üst sınır olarak LEVEL_CAP-4 kullanılır (tavana yakın ama
+// tam tavan değil — "pro"nun tipik/temsilci bir noktası, tavanın kendisi değil).
+// config PARAMETRESİ verilirse (bkz. kesim-noktasi.js) o modun KENDİ TIER_BOUNDARIES'i
+// yerine geçebilir — bugün tüm modlar difficulty-curve.js'in TEK TIER_BOUNDARIES'ini
+// paylaşıyor (bkz. dosya başı not), bu yüzden varsayılan DIFFICULTY_CONFIG yeterli.
+export function representativeLevelForTier(tier, config = DIFFICULTY_CONFIG) {
+  let prevMax = 0;
+  for (const b of config.TIER_BOUNDARIES) {
+    if (b.tier === tier) {
+      const upper = Number.isFinite(b.max) ? b.max : config.LEVEL_CAP - 4;
+      return (prevMax + 1 + upper) / 2;
+    }
+    prevMax = b.max;
+  }
+  return 1;
 }
 
 // SAF FONKSİYON. level: 1'den başlayan tam sayı (veya ondalık, kırpılmaz —
@@ -79,15 +163,14 @@ export function difficultyParams(level, config = DIFFICULTY_CONFIG) {
   const timeSecAtCurve = logLerp(config.TIME_SEC_AT_LEVEL_1, config.TIME_SEC_AT_CAP, t);
 
   const capped = safeLevel >= config.LEVEL_CAP;
-  const over = capped ? safeLevel - config.LEVEL_CAP : 0;
-  const contextApplied = over > 0;
+  const contextApplied = capped && safeLevel > config.LEVEL_CAP;
 
-  const gainDb = contextApplied
-    ? Math.max(config.CONTEXT_GAIN_FLOOR_DB, gainDbAtCurve - over * config.CONTEXT_GAIN_REDUCTION_PER_STEP_DB)
-    : gainDbAtCurve;
-  const timeSec = contextApplied
-    ? Math.max(config.CONTEXT_TIME_FLOOR_SEC, timeSecAtCurve - over * config.CONTEXT_TIME_REDUCTION_PER_STEP_SEC)
-    : timeSecAtCurve;
+  // ADIM 1: artık paylaşılan applyPostCapFloor() üzerinden (dogfood) — davranış/
+  // çıktı DEĞİŞMEDİ (safeLevel<=LEVEL_CAP'te applyPostCapFloor curveVal'i aynen
+  // döner, difficulty-curve.test.mjs bunu doğruluyor), sadece "tavandan sonra
+  // taban" kalıbı artık TEK yerde (bkz. dosya başı not).
+  const gainDb = applyPostCapFloor(gainDbAtCurve, safeLevel, config.LEVEL_CAP, config.CONTEXT_GAIN_FLOOR_DB, config.CONTEXT_GAIN_REDUCTION_PER_STEP_DB);
+  const timeSec = applyPostCapFloor(timeSecAtCurve, safeLevel, config.LEVEL_CAP, config.CONTEXT_TIME_FLOOR_SEC, config.CONTEXT_TIME_REDUCTION_PER_STEP_SEC);
 
   return {
     level: safeLevel,
