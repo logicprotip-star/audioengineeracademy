@@ -7,6 +7,101 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `5870e09` — ADIM 1: **zorluk sisteminin merkezi bağlanması — Kesim
+Noktası pilotu.** Önceki turda onaylanan tasarımın (Seçenek C, kademeli
+geçiş) İLK adımı: merkezi zorluk matematiği kuruldu + SADECE Kesim Noktası
+buna bağlandı. Frekans Bulma'ya HİÇ DOKUNULMADI (bilerek, sıradaki adımda
+taşınacak) — iki mod şu an GEÇİCİ olarak farklı mekanizma kullanıyor.
+
+**Merkezi kütüphane (`core/difficulty-curve.js`, artık tek bir global eğri
+değil, mod-agnostik matematik kütüphanesi):**
+- `logLerp` export edildi (önceden private'tı).
+- `applyPostCapFloor(curveValue, level, levelCap, floor, reductionPerStep)` —
+  Z1'in "tavandan sonra taban" kalıbının genellenmiş hali; `difficultyParams()`
+  bunun üzerinden dogfood edildi (davranış/çıktı DEĞİŞMEDİ, difficulty-curve.
+  test.mjs aynı kaldı).
+- `continuousLevel(xpProg)` — `progress.xpProgress()`'in `{level,current,
+  required}`'ından KESİRLİ seviye (ör. seviye 6'nın %40'ı → 6.4), yuvarlama
+  yok.
+- `sessionRampOffset(sessionIndex, {boss})` — ısınma (negatif ofset, döngü
+  başı) → zorlaşma (pozitif, döngü sonu) → boss (en yüksek, döngüdeki
+  konumdan BAĞIMSIZ, çağıranın verdiği GERÇEK `{boss}` bayrağıyla). Döngü
+  uzunluğu 5 — `isBossRound()`'un (frekans-bulma.js) kullandığı AYNI periyot,
+  ama İKİ AYRI sayaca dayanır (boss'un GERÇEK belirlenmesi: `stats.rounds`,
+  ömür boyu; rampanın şekli: `roundsInThisPlaySession`, seans-yerel) — bu
+  yüzden ramp kendi "hangi index boss" tahminini YAPMAZ, güvenmez.
+- `representativeLevelForTier(tier)` — "Sabit" modun tier→sürekli-seviye
+  çapası (TIER_BOUNDARIES aralığının orta noktası; pro için LEVEL_CAP-4).
+
+**Kesim Noktası (`modes/kesim-noktasi.js`) — pilot mod:** statik `DIFFICULTY`
+tablosu KALDIRILMADI (geriye dönük uyumluluk + "Sabit" modun çapası +
+proplus için hâlâ gerekli) — YANINA `KESIM_CURVE_CONFIG` +
+`paramsForDifficultyPosition(position)` eklendi. Eğrinin AT_1/AT_CAP uçları
+statik `easy`/`pro` değerleriyle BİREBİR aynı seçildi (geçiş uçlarda
+davranış-koruyucu olsun diye); `createQuestion`, `settings.difficultyPosition`
+sayısal bir değer VERİLİRSE marginOct/hintBandOct/timeSec/distractorStepOct/
+options'ı eğriden hesaplar (boss'un etkisi ARTIK burada tekrar
+uygulanmıyor — zaten position'ın içinde, çifte ceza olmasın diye),
+VERİLMEZSE (mevcut 435 satırlık test dosyasının TAMAMI, proplus) eski statik
+davranışı BİREBİR korur. `generateChoices` imzası `level` string yerine
+çözülmüş `{options,step}` alacak şekilde refactor edildi (dışa açık bir
+sözleşme değil, test etkilenmedi). `renderHintMask` artık `question.
+hintBandOct`'u (createQuestion'ın koyduğu, eğri/statik farkını zaten çözmüş
+değer) tercih ediyor.
+
+**app.js:** `currentDifficultyPosition(boss)` yeni — zorlukKonumu = taban
+(Otomatik'te `continuousLevel`, Sabit'te `representativeLevelForTier`) +
+`sessionRampOffset(roundsInThisPlaySession, {boss})`. `startRound()`'daki
+`createQuestion` çağrısına EK bir alan olarak geçiyor (`sessionQuestionIndex`
+ile AYNI desen — tek taraflı okunur, Frekans Bulma hiç bakmaz). proplus için
+BİLEREK `undefined` döner (curve'ün dışında kalır, Z5 kararıyla aynı çizgi;
+kesim-noktasi.js'in `createQuestion`'ı da bunu KENDİSİ bir daha kontrol
+ediyor — savunma katmanı). `applyAutoDifficulty()`'nin KENDİSİ (hangi tier'a
+yazdığı) BİLEREK DEĞİŞTİRİLMEDİ — Frekans Bulma'nın Otomatik zorluk
+davranışı (hangi turda hangi statik satırın okunduğu) BİREBİR aynı kaldı.
+
+**Kapsam dışı bırakılan (bilerek):** round-timer HÂLÂ `currentDifficultyConfig
+().time`'dan (statik tier) okuyor — `paramsForDifficultyPosition`'ın
+`timeSec`'i HESAPLANIYOR/test ediliyor ama oyun ekranına henüz BAĞLANMADI;
+G21'in kulakla hizalanmış geri bildirim/geçiş süresini riske atmamak için
+bilinçli bir kapsam kararı, ayrı bir işte ele alınmalı. `renderLevelSheet`
+("Seviye" bilgi sayfası) de dokunulmadı — hâlâ global `difficultyParams`'ı
+(gainDb/Q dilinde) gösteriyor, Kesim Noktası aktifken bu metin semantik
+olarak YANLIŞ/anlamsız kalıyor (marginOct değil gainDb/Q gösteriyor) — bu
+ÖNCEDEN de böyleydi (renderLevelSheet hep frekans-bulma-şekilli), bu turun
+bir regresyonu DEĞİL, ama düzeltilmesi gereken bilinen bir kalan.
+
+**Kalibrasyon karşılaştırma tablosu (gerçek kod çalıştırılarak ölçüldü,
+UYDURULMADI) — statik DIFFICULTY[tier] vs eğrinin o tier'ın temsilci
+seviyesinde (`representativeLevelForTier`) ürettiği değer:**
+
+| tier | temsilci sv. | margin eski→yeni | hint eski→yeni | time eski→yeni | opt eski→yeni | step eski→yeni |
+|---|---|---|---|---|---|---|
+| easy | 2.5 | 1.600→1.402 | 2.00→1.79 | 14→13.52 | 3→3 | 1.20→1.143 |
+| medium | 6.5 | 1.000→0.986 | 1.40→1.34 | 12→12.32 | 4→4 | 0.90→1.005 |
+| hard | 10.5 | 0.550→0.693 | 0.90→1.00 | 11→11.22 | 5→4 | 0.75→0.883 |
+| pro | 14.5 | 0.300→0.487 | 0.50→0.75 | 9→10.23 | 6→5 | 0.65→0.776 |
+
+easy/medium ucu YAKIN (uçlar zaten eğrinin AT_1/AT_CAP'ı statik easy/pro'yla
+BİREBİR aynı seçildiği için — beklenen). hard/pro'da GERÇEK bir sapma var:
+eğri o iki tier'da statikten daha KOLAY (margin daha geniş, hard/pro'da 1
+eksik şık) — tek bir log-eğrinin 4 keyfi noktaya birden tam oturamamasının
+doğal sonucu, ZORLAMA (piecewise fit) yapılmadı. **KULAKLA DOĞRULANMALI** —
+hard/pro'da Otomatik moddaki bir kullanıcı bu geçişte fark edilir bir
+kolaylaşma hissedebilir; AT_1/AT_CAP'ın kulakla yeniden kalibre edilmesi
+gerekebilir (bkz. SIRADAKİ).
+
+Doğrulama: 33 yeni test (difficulty-curve.test.mjs +20: logLerp/
+applyPostCapFloor/continuousLevel/sessionRampOffset/representativeLevelForTier
+saf fonksiyon testleri; kesim-noktasi.test.mjs +13: paramsForDifficultyPosition
+pürüzsüzlük/taban/uç-değer testleri + createQuestion entegrasyonu + proplus'un
+eğri dışında kaldığının doğrulanması) + mevcut 190 test DEĞİŞMEDEN geçti —
+**223/223**. Tarayıcıda canlı: Otomatik/seviye 1'de 3 şık (curve options=3,
+statikle aynı — beklenen, AT_1 eşleşiyor); Sabit/Pro'da **5 şık** (curve'ün
+ürettiği, eski statik 6'dan FARKLI — kalibrasyon tablosuyla TUTARLI, kod
+hatası değil); Frekans Bulma'da SIFIR regresyon (dokunmalı mod, EQ eğrisi,
+zone-tip hepsi eskisi gibi çalıştı), konsolda sıfır hata.
+
 Commit `080c884` — G21: **Kesim Noktası TAMAMLANDI, SERT TEST GEÇTİ.**
 İki parça: (1) geçiş süresi hizalaması, (2) modun tamamının sert taraması.
 
@@ -1027,31 +1122,49 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Kesim Noktası G17-G21 ile TAMAMLANDI ve SERT TEST GEÇTİ** (HPF/LPF + şıklı
-+ tip gizleme rampası + iki renkli filtre eğrisi + öğretici Türkçe metin +
-Frekans Bulma'yla hizalı geçiş süresi — hepsi kapsamlı testten geçti, bkz.
-BİTTİ). Karşılaştırma-önizleme butonları (Senin cevabın/Doğru cevap/Temiz)
-BİLEREK hâlâ yok (app.js'in `#freqInfo` click-delegasyonu sadece "frequency"
-moduna kilitli) — istenirse ayrı bir iş, şu an engelleyici değil. **Tek
-sonraki adım netleşmedi** — ya Kesim Noktası'nın kulakla/cihazda doğrulanması
-(marginOct/hintBandOct/ZONE_EFFECT metinleri hiçbiri gerçek kullanıcı
-testinden geçmedi — sert test KOD DOĞRULUĞUNU kanıtladı, kulakla algı/his
-AYRI bir doğrulama), ya da Mod 3'e geçiş, ya da BEKLEYEN KARARLAR **B**'deki
-açık soru (Kesim Noktası kayıtlı olduğu için academyLevel otomatik yükselip
-kendi kilidini kendi açıyor, bu davranış kabul mü) — kullanıcıya sorulmalı.
+**ADIM 2 (zorluk sisteminin merkezi bağlanması, kademeli geçiş — Seçenek C):
+Frekans Bulma'yı aynı merkezi eğriye taşı.** ADIM 1'de kurulan desen (mod
+kendi `*_CURVE_CONFIG` + `paramsForDifficultyPosition`'ını yazar, app.js
+`currentDifficultyPosition`'ı zaten HER moda geçiriyor — sadece Frekans
+Bulma'nın `createQuestion`'ı henüz OKUMUYOR) Kesim Noktası'nda kanıtlandı;
+aynı deseni Frekans Bulma'nın 2 eksenli (gain+Q) DIFFICULTY tablosuna
+uygulamak — AT_1/AT_CAP'lar zaten `difficulty-curve.js`'in ESKİ
+`DIFFICULTY_CONFIG`'inde var (GAIN_DB_AT_LEVEL_1/CAP, Q_AT_LEVEL_1/CAP),
+sadece `createQuestion`'a BAĞLANMASI gerekiyor. Migrasyon PLANINDA (önceki
+turda onaylanan) belirtildiği gibi `evaluateAnswer`'ın sabit 0.5 oktav
+toleransı da bu turda ele alınmalı mı, yoksa AYRI mı bırakılmalı — karar
+gerektirir.
 
-Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi Kesim Noktası'nın marginOct/
-hintBandOct tablosu) hâlâ KULAKLA dinlenip ayarlanmayı bekliyor —
-Hiçbiri test edilmeden/dinlenmeden seçilmedi — bkz. SON RAPOR'daki "kulakla
-ayarlanması gereken değerler" listesi (DIFFICULTY_CONFIG, SESSION_RAMP_WEIGHTS,
-PERSONALIZATION_CONFIG — hepsi tek dosyada, kolay değiştirilir).
+**Bundan ÖNCE (veya ADIM 2 ile birlikte) ele alınması gereken, ADIM 1'in
+kendi AÇIK bıraktıkları:**
+- Kalibrasyon tablosundaki hard/pro sapması (bkz. BİTTİ) — Kesim Noktası'nın
+  KESIM_CURVE_CONFIG'i (MARGIN_OCT_AT_1/CAP vb.) KULAKLA yeniden ayarlanmalı
+  mı, yoksa mevcut sapma kabul mü? Ürün kararı — Otomatik moddaki bir
+  kullanıcı hard/pro civarında eskisinden BELİRGİN kolay bir deneyim
+  yaşayabilir.
+- Round-timer (`currentDifficultyConfig().time`) hâlâ eğriye BAĞLANMADI —
+  `paramsForDifficultyPosition().timeSec` hesaplanıyor ama kullanılmıyor.
+  Bağlanacaksa G21'in hizalı geçiş süresiyle etkileşimi (boss'ta ÇİFTE kısalma
+  riski — hem curve'ün position'ı boss'ta yükseliyor hem app.js'in genel
+  `baseTime-2`'si) ayrıca değerlendirilmeli.
+- `renderLevelSheet` (Seviye bilgi sayfası) Kesim Noktası aktifken hâlâ
+  gainDb/Q dilinde konuşuyor — ADIM 2 (Frekans Bulma taşınınca) ya da ayrı
+  bir işte, `mode`'a göre HANGİ eğri/hangi dil gösterileceği genelleştirilmeli.
 
-Bundan sonraki öncelik sırası:
-- **Z1/Z5**: Otomatik moddaki `tierForLevel()` köprüsünün mü yoksa Z1'in tam
-  sürekli eğrisinin mi (gain/Q'nun createQuestion/evaluateAnswer'a doğrudan
-  enjekte edilmesi) doğru uzun-vadeli mimari olduğuna karar ver — ikincisi
-  `evaluateAnswer`'ın sabit 0.5 oktav toleransını parametrik hale getirmeyi
-  gerektiriyor (ayrı bir refactor, bkz. OTOMATİK VERİLEN KARARLAR).
+Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi Kesim Noktası'nın KESIM_CURVE_
+CONFIG'i) hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test
+edilmeden/dinlenmeden seçilmedi.
+
+Kesim Noktası'nın kendisi G17-G21 ile TAMAMLANDI ve SERT TEST GEÇTİ (HPF/LPF
++ şıklı + tip gizleme rampası + iki renkli filtre eğrisi + öğretici Türkçe
+metin + Frekans Bulma'yla hizalı geçiş süresi). Karşılaştırma-önizleme
+butonları (Senin cevabın/Doğru cevap/Temiz) BİLEREK hâlâ yok — istenirse ayrı
+bir iş, şu an engelleyici değil. BEKLEYEN KARARLAR **B**'deki açık soru
+(Kesim Noktası kayıtlı olduğu için academyLevel otomatik yükselip kendi
+kilidini kendi açıyor, bu davranış kabul mü) da hâlâ kullanıcıya sorulmayı
+bekliyor.
+
+Diğer bekleyen (öncelik sırası):
 - **F4** (çift-dokunma/pinch zoom kapatma, önceki tur) — gerçek dokunmatik
   jest gerektiriyor, mouse-tabanlı otomasyonla HİÇ üretilemedi.
 - **A/B pitch fix** (önceki tur, `8f66de1`) — gerçek cihazda kulakla pitch'in
@@ -1060,8 +1173,8 @@ Bundan sonraki öncelik sırası:
   masaüstünde sağlamlaştırıldı (madde 13 kapandı), hâlâ cihaz doğrulaması
   bekliyor. (**E1** G10 ile KAPANDI.)
 
-Kod tarafında bekleyen karar yok; E/F/G/H/I (BEKLEYEN KARARLAR, Z1-Z7 ile E/G
-kapandı) kullanıcıya sorulmayı bekliyor ama hiçbiri şu an engelleyici değil.
+Kod tarafında bekleyen karar yok; E/F/G/H/I (BEKLEYEN KARARLAR) kullanıcıya
+sorulmayı bekliyor ama hiçbiri şu an engelleyici değil.
 
 ## ÜRÜN NOTLARI (önceki sohbetlerden)
 
