@@ -149,9 +149,28 @@ export function formatDb(value) {
 // sayı DEĞİL, o zorluk seviyesinin civarında farklı bir gerçek değer taşır). Bu aynı
 // zamanda görev kararının istediği "ondalıklı, gerçekçi (2.30, 5.25 gibi) — yuvarlak
 // sayı YOK" sonucunu doğal olarak üretir.
+//
+// G24 DÜZELTMESİ — İKİ GERÇEK HATA BURADAYDI (kullanıcı raporu: "zorluk rampası
+// çalışmıyor, 10-12 soru boyunca hep kolay kalıyor"). Kesim Noktası'yla karşılaştırmalı
+// kanıtla (bkz. commit mesajı) BAĞLANTININ kendisi (currentDifficultyPosition →
+// paramsForDifficultyPosition) SAĞLAMDI — iki mod da AYNI continuousLevel/
+// sessionRampOffset'i okuyor, position BİREBİR aynı şekilde hesaplanıyor. Asıl sorun
+// BURADAYDI:
+//   1) ±%20 (0.8x-1.2x) jitter, seans rampasının seviye-1 bir oyuncuda ürettiği
+//      GERÇEK ama KÜÇÜK eğilimi (position 1→2 arası ~%11 düşüş — matematiksel olarak
+//      KANITLANDI, bkz. commit mesajı) BOĞUYORDU: gürültü (±%20) sinyalden (~%11)
+//      BÜYÜKTÜ, kullanıcı "hiç değişmiyor" hissediyordu. ±%6'ya indirildi — hâlâ her
+//      soru farklı (asla tekrar YOK, jitter'ın asıl amacı buydu, o korunuyor) ama artık
+//      seans rampasının ürettiği eğilim GÖRÜLEBİLİYOR.
+//   2) DB_FLOOR (0.25 dB, "kulağın gerçek ayırt sınırı") jitter'dan SONRA HİÇ
+//      kontrol edilmiyordu — pro'da (dbDelta=0.32) ±%20 jitter değeri 0.256'ya kadar
+//      düşürebiliyordu (0.32*0.8=0.256 < 0.32 ama FLOOR'un [0.25] altına da
+//      inebiliyordu — ölçüldü: 5000 örnekte %45 floor ihlali). Şimdi jitter'dan SONRA
+//      Math.max(DB_FLOOR,...) ile taban GARANTİ ediliyor.
 export function pickDbDelta(baseDelta, rng = Math.random) {
-  const jitter = 0.8 + rng() * 0.4; // 0.8x – 1.2x
-  return Math.round(baseDelta * jitter * 100) / 100;
+  const jitter = 0.94 + rng() * 0.12; // 0.94x – 1.06x (G24: eskiden 0.8x-1.2x)
+  const jittered = baseDelta * jitter;
+  return Math.round(Math.max(DB_CURVE_CONFIG.DB_FLOOR, jittered) * 100) / 100;
 }
 
 // SAF FONKSİYON. trueDbDelta (İŞARETLİ) etrafında (options-1) çeldirici üretir.

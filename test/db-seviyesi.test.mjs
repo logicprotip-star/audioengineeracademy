@@ -7,7 +7,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as mode from "../www/js/modes/db-seviyesi.js";
-import { representativeLevelForTier } from "../www/js/core/difficulty-curve.js";
+import { representativeLevelForTier, continuousLevel, sessionRampOffset } from "../www/js/core/difficulty-curve.js";
 
 describe("dB Seviyesi — createQuestion() genel sözleşme", () => {
   for (const level of Object.keys(mode.DIFFICULTY)) {
@@ -423,5 +423,133 @@ describe("dB Seviyesi — getMeta() sözleşme alanları", () => {
     const meta = mode.getMeta();
     assert.equal(meta.ad, undefined);
     assert.equal(meta.aciklama, undefined);
+  });
+});
+
+// G24 — kullanıcı raporu: "zorluk rampası çalışmıyor, 10-12 soru boyunca hep kolay
+// kalıyor". Kök sebep KANITLANDI (Kesim Noktası'yla karşılaştırmalı, bkz. commit
+// mesajı): bağlantının kendisi SAĞLAMDI (continuousLevel/sessionRampOffset/
+// paramsForDifficultyPosition Kesim Noktası'yla BİREBİR aynı yoldan çağrılıyor) —
+// asıl sorun pickDbDelta'nın ±%20 jitter'inin seans rampasının seviye-1 bir oyuncuda
+// ürettiği KÜÇÜK (~%11/adım) ama GERÇEK eğilimi boğması + jitter'ın DB_FLOOR'u (0.25)
+// hiç kontrol etmemesiydi (5000 örnekte %45 ihlal). Bu blok İKİSİNİ de kalıcı
+// regresyon testine bağlıyor.
+describe("dB Seviyesi — G24: pickDbDelta artık DB_FLOOR'u ihlal etmiyor + seans rampası eğilimi görülebiliyor", () => {
+  it("pickDbDelta HİÇBİR ZAMAN DB_FLOOR'un altına inmez — baseDelta TAM floor'da bile (5000 örnek)", () => {
+    const floor = mode.DB_CURVE_CONFIG.DB_FLOOR;
+    for (let i = 0; i < 5000; i++) {
+      const v = mode.pickDbDelta(floor);
+      assert.ok(Math.abs(v) >= floor - 1e-9, `floor ihlali: ${v} < ${floor}`);
+    }
+  });
+
+  it("pickDbDelta'nın ortalaması (N=2000) baseDelta'ya YAKIN kalır — jitter sinyali BOĞMUYOR", () => {
+    const N = 2000;
+    for (const base of [3.0, 1.5, 0.5, mode.DB_CURVE_CONFIG.DB_FLOOR + 0.1]) {
+      let sum = 0;
+      for (let i = 0; i < N; i++) sum += Math.abs(mode.pickDbDelta(base));
+      const avg = sum / N;
+      assert.ok(Math.abs(avg - base) / base < 0.03, `base=${base}: ortalama ${avg.toFixed(4)}, sapma %${(Math.abs(avg - base) / base * 100).toFixed(1)}`);
+    }
+  });
+
+  it("pickDbDelta hâlâ AYNI baseDelta'dan farklı, ondalıklı değerler üretir (tekrarlama/durgunluk YOK — jitter'ın asıl amacı, ±%6'da da geçerli)", () => {
+    const values = new Set();
+    for (let i = 0; i < 50; i++) values.add(mode.pickDbDelta(3.0));
+    // ±%6 (eski ±%20'den DAHA DAR) 2 ondalıkta ~36 farklı kovaya düşer — 50 çekimde
+    // doğum günü paradoksuyla çakışma NORMAL, asıl kontrol edilen "TEK bir sabit
+    // değere donmadığı" (eski jitter'sız hâlin ürettiği tekrar bug'ı, bkz. dosya
+    // başı G24 notu) — >15 bu ayrımı net yapıyor.
+    assert.ok(values.size > 15, `50 örnekte sadece ${values.size} FARKLI değer — jitter etkisiz kalmış olabilir`);
+  });
+
+  it("SEANS RAMPASI: taze oyuncuda (seviye 1) bile ortalama |dbDelta| POSITION arttıkça İNER — N=1000 seans", () => {
+    // NOT: seviye 1'de idx 0/1/2'nin ramp ofseti (-1.5/-0.875/-0.25) hepsi
+    // Math.max(1, baseline+ramp) ile AYNI position'a (1.0) KIRPILIYOR — bu ÜÇÜ
+    // arasında bir eğilim beklenmez (aynı hedef, sadece jitter gürültüsü), bu
+    // yüzden idx bazında değil POSITION bazında gruplanıp karşılaştırılıyor
+    // (gerçek app.js akışıyla AYNI: position her zaman Math.max(1, baseline+ramp)).
+    const N = 1000;
+    const baseline = continuousLevel({ level: 1, current: 0, required: 100 });
+    const byPosition = new Map();
+    for (let trial = 0; trial < N; trial++) {
+      for (let idx = 0; idx < 5; idx++) {
+        const ramp = sessionRampOffset(idx, { boss: false });
+        const position = Math.max(1, baseline + ramp);
+        const base = mode.paramsForDifficultyPosition(position).dbDelta;
+        const key = position.toFixed(3);
+        if (!byPosition.has(key)) byPosition.set(key, { sum: 0, n: 0, position });
+        const bucket = byPosition.get(key);
+        bucket.sum += Math.abs(mode.pickDbDelta(base));
+        bucket.n++;
+      }
+    }
+    const buckets = [...byPosition.values()].sort((a, b) => a.position - b.position);
+    assert.ok(buckets.length >= 2, "seans rampasının en az 2 farklı position üretmesi beklenirdi (kırpılmayan bir uç olmalı)");
+    let prevAvg = Infinity;
+    for (const b of buckets) {
+      const avg = b.sum / b.n;
+      assert.ok(avg <= prevAvg + 0.05, `position ${b.position.toFixed(3)}: ortalama ${avg.toFixed(4)} öncekinden (${prevAvg.toFixed(4)}) BELİRGİN büyük — eğilim İNMEDİ`);
+      prevAvg = avg;
+    }
+    const lowest = buckets[0], highest = buckets[buckets.length - 1];
+    assert.ok(highest.sum / highest.n < lowest.sum / lowest.n, `en yüksek position (${highest.position.toFixed(3)}) ortalaması en düşükten KÜÇÜK olmalıydı`);
+  });
+
+  it("SEANS RAMPASI: boss round, AYNI seviyede normal round'dan istatistiksel olarak DAHA ZOR (küçük |dbDelta|) — N=500", () => {
+    const N = 500;
+    const baseline = continuousLevel({ level: 1, current: 0, required: 100 });
+    let normalSum = 0, bossSum = 0;
+    for (let i = 0; i < N; i++) {
+      const normalPos = Math.max(1, baseline + sessionRampOffset(2, { boss: false }));
+      const bossPos = Math.max(1, baseline + sessionRampOffset(2, { boss: true }));
+      normalSum += Math.abs(mode.pickDbDelta(mode.paramsForDifficultyPosition(normalPos).dbDelta));
+      bossSum += Math.abs(mode.pickDbDelta(mode.paramsForDifficultyPosition(bossPos).dbDelta));
+    }
+    assert.ok(bossSum / N < normalSum / N, `boss (${(bossSum / N).toFixed(4)}) normal'den (${(normalSum / N).toFixed(4)}) küçük/zor olmalıydı`);
+  });
+
+  it("SEVİYE KARŞILAŞTIRMASI: seviye 10'daki bir oyuncunun ortalama |dbDelta|'sı seviye 1'dekinden AÇIKÇA küçük — N=500 seans, aynı ramp indeksinde", () => {
+    const N = 500;
+    const baseline1 = continuousLevel({ level: 1, current: 0, required: 100 });
+    const baseline10 = continuousLevel({ level: 10, current: 0, required: 100 });
+    let sum1 = 0, sum10 = 0;
+    for (let i = 0; i < N; i++) {
+      for (let idx = 0; idx < 10; idx++) {
+        const ramp = sessionRampOffset(idx, { boss: false });
+        sum1 += Math.abs(mode.pickDbDelta(mode.paramsForDifficultyPosition(Math.max(1, baseline1 + ramp)).dbDelta));
+        sum10 += Math.abs(mode.pickDbDelta(mode.paramsForDifficultyPosition(Math.max(1, baseline10 + ramp)).dbDelta));
+      }
+    }
+    const avg1 = sum1 / (N * 10), avg10 = sum10 / (N * 10);
+    assert.ok(avg10 < avg1 * 0.6, `seviye 10 ortalaması (${avg10.toFixed(3)}) seviye 1'in (${avg1.toFixed(3)}) en az %40 altında olmalıydı`);
+  });
+
+  it("createQuestion (uçtan uca, gerçek app.js kompozisyonuyla) seans rampasını doğru yansıtır — boss soru, aynı seviyede komşu normal sorulardan istatistiksel olarak daha zor", () => {
+    const N = 400;
+    const baseline = continuousLevel({ level: 1, current: 0, required: 100 });
+    let normalSum = 0, bossSum = 0;
+    for (let i = 0; i < N; i++) {
+      const normalPos = Math.max(1, baseline + sessionRampOffset(2, { boss: false }));
+      const bossPos = Math.max(1, baseline + sessionRampOffset(2, { boss: true }));
+      const qNormal = mode.createQuestion("medium", { source: "pink", boss: false, sessionQuestionIndex: 2, difficultyPosition: normalPos });
+      const qBoss = mode.createQuestion("medium", { source: "pink", boss: true, sessionQuestionIndex: 2, difficultyPosition: bossPos });
+      normalSum += Math.abs(qNormal.dbDelta);
+      bossSum += Math.abs(qBoss.dbDelta);
+    }
+    assert.ok(bossSum / N < normalSum / N);
+  });
+
+  it("Kesim Noktası'yla KARŞILAŞTIRMA: AYNI position'da iki modun da eğrisi (mod-özel sayılarla) aynı yönde hareket eder — bağlantı mekanizması ORTAK, dB'ye özgü bir kopukluk YOK", async () => {
+    const kesim = await import("../www/js/modes/kesim-noktasi.js");
+    const positions = [1, 2, 5, 10, 15, 20];
+    let dbPrev = Infinity, kesimPrev = Infinity;
+    for (const p of positions) {
+      const dbVal = mode.paramsForDifficultyPosition(p).dbDelta;
+      const kesimVal = kesim.paramsForDifficultyPosition(p).marginOct;
+      assert.ok(dbVal <= dbPrev + 1e-9, `dB: position ${p}'de artış`);
+      assert.ok(kesimVal <= kesimPrev + 1e-9, `Kesim: position ${p}'de artış`);
+      dbPrev = dbVal; kesimPrev = kesimVal;
+    }
   });
 });
