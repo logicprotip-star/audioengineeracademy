@@ -7,6 +7,103 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `0b34220` — G22: **Mod 3 "dB Seviyesi" — seviye/genlik farkı algısı,
+merkezi zorluk eğrisine SIFIRDAN bağlı.** Frekans Bulma + Kesim Noktası'ndan
+sonra 3. oynanabilir mod — Kesim Noktası ŞABLONU izlendi (aynı mod sözleşmesi/
+render yardımcıları/seans-içi rampa deseni, bkz. `modes/db-seviyesi.js`).
+
+**Mod mantığı:** kaynağa bir `GainNode` ile +/- dB seviye değişimi uygulanır
+(linear gain = 10^(dB/20)); kullanıcı A/B ile kuru/işlenmiş sesi karşılaştırıp
+farkın hem BÜYÜKLÜĞÜNÜ hem YÖNÜNÜ (açıldı/kısıldı) şıklardan bulur. Şıklar
+ONDALIKLI ve gerçekçi (`pickDbDelta`: curve'ün ürettiği tipik büyüklüğe ±%20
+jitter + 2 ondalık haneye yuvarlama — asla "3.00" gibi yuvarlak bir sayı) ve
+İŞARETLİ ("+3.25 dB"/"-1.75 dB"). Çeldiriciler doğru cevaptan TAM k*step dB
+mesafede (Kesim Noktası'nın "tam k*oktav" deseninin dB karşılığı) — bu sayede
+işaret çevirme (aşağıda) ASLA bir değer çakışmasına yol açmaz.
+
+**Yön-gizleme (Kesim Noktası'nın tip-gizleme deseninin BİREBİR kopyası):**
+`DIRECTION_REVEAL_QUESTION_COUNT=3` — seans içi ilk 3 soru yönü söyler
+("Bu ses AÇILDI, ne kadar?"), sonrası gizler ("Açıldı mı kısıldı mı, ne
+kadar?") — o zaman şıklar KARIŞIK işaretli üretilir (en az bir ters-yön
+çeldirici garanti, `sessionQuestionIndex`'e bağlı — aynı `roundsInThisPlaySession`
+sayacı).
+
+**Merkezi zorluk eğrisine bağlanma — SIFIRDAN doğru kalibre edilen İLK mod:**
+Kesim Noktası/Frekans Bulma'nın ADIM 1/2'de yaşadığı geçiş dönemi (statik
+tablo → eğri) ve ADIM 3'teki SONRADAN kalibrasyon düzeltmesi ("Sabit modda
+kolaylaşma" bulgusu) burada hiç GEREKMEDİ — `DB_CURVE_CONFIG`'in AT_CAP'leri
+BAŞTAN ikili aramayla, `representativeLevelForTier`'ın (ADIM 3'te değişen
+YENİ semantiği — her tier kendi TIER_BOUNDARIES üst sınırında: easy=4,
+medium=8, hard=12, pro=LEVEL_CAP) HİÇBİR temsilci seviyesinde eski statik
+değeri aşmayacak şekilde çözüldü:
+
+| tier | repr.sv | dbDelta eski→yeni | step eski→yeni | opt eski→yeni |
+|---|---|---|---|---|
+| easy | 4 | 3.00→**2.107** | 1.50→**1.151** | 3→**3** |
+| medium | 8 | 1.75→**1.315** | 1.00→**0.808** | 4→**4** |
+| hard | 12 | 0.90→**0.821** | 0.60→**0.568** | 5→**5** |
+| pro | 20 | 0.50→**0.320** | 0.35→**0.280** | 6→**6** |
+
+Tüm tier'lar eşit ya da zor — HİÇBİRİ kolaylaşmadı, tek seferde doğru
+kalibre edildi (Kesim Noktası/Frekans Bulma'nın 2 turluk "önce bağla, sonra
+düzelt" döngüsünden kaçınıldı). `DB_FLOOR=0.25` (kulağın gerçek ayırt sınırına
+yakın kabul edilen bir değer, KESİN ölçülmedi) — `applyPostCapFloor` eğrinin
+LEVEL_CAP'ten SONRA bunun altına inmesini engelliyor.
+
+**Görsel geri bildirim:** Kesim Noktası'nın filtre eğrisinin basitleştirilmiş
+karşılığı — tek bir dB değeri olduğu için eğri değil, yatay bir -5..+5 dB
+ölçekte amber ("Senin cevabın") + yeşil ("Doğru") nokta-markör (bkz.
+`drawDbGauge`). Soru sırasında BİLEREK gizli (kulakla bulma ilkesi), sadece
+cevap sonrası.
+
+**Öğretici metin** (`teachingText`, DB_EFFECT/DIRECTION_EFFECT deseni,
+Kesim Noktası'nın ZONE_EFFECT'iyle AYNI TEK-YERDE-şablon felsefesi) üç
+durumda (doğru / yön-doğru-miktar-yanlış / yön-yanlış) mix dilinde algısal
+karşılık anlatıyor — teknik jargon (JND, RMS) hiç yok, makul bir başlangıç,
+kesin nihai metin iddia edilmiyor.
+
+**app.js değişiklikleri:** `registerMode(dbSeviyesi)` + `isChoiceFormat`/
+`questionTitle`/`setFeedback` ternary'lerine `"dblevel"` dalı + yeni
+`submitLevelGuess()` (submitCutoffGuess'in YAPISAL paraleli — 3. modda bile
+ortak bir "submitAnswer" özütlemesini haklı çıkaracak kadar gerçek tekrar
+ağrısı netleşmedi, bkz. o fonksiyonların dosya başı notu). Bu mod
+`mode.recordZone` HİÇ ÇAĞIRMIYOR — seviye değişimi tek bir frekans bölgesine
+ait değil, `zoneStats`'ın "hangi bölgede zayıfsın" kavramı burada anlamsız.
+
+**Doğrulama sırasında bulunup aynı commit'te düzeltilen bir hata:**
+`pushHistory()`'nin `desc` ternary'sinin ELSE dalı `activeQuestion.filterLabel`/
+`.freq` alanlarının HER modda var olduğunu varsayıyordu (Frekans Bulma +
+Kesim Noktası'nda ikisi de gerçekten var) — dB Seviyesi'nde İKİSİ DE YOK
+(`.dbDelta` var), ELSE'e düşseydi Antrenman geçmişinde "undefined · NaN Hz ·
+Kaynak" üretirdi. Ayrı bir dal eklenerek düzeltildi (kod incelemesiyle
+BULUNDU, canlı test bunu tetiklemeden önce).
+
+`mode-catalog.js`: `db-seviyesi` artık `playable:true` — `unlockLevel:6`/
+`tier:"pro"` (ÖNCEDEN kayıtlı değerler) BİLEREK değiştirilmedi, ürün kararı
+değil (bkz. CLAUDE.md "Ürün kararı verme").
+
+Doğrulama: 51 yeni test (createQuestion/evaluateAnswer/generateChoices'in
+ondalık+çakışmasız+işaretli üretimi, yön-gizleme rampası, calculateXP,
+3-durum öğretici metin, applyProcessing'in linear gain doğruluğu [sahte
+audioCtx], curve pürüzsüzlüğü/tabanı, Sabit-mod "kolaylaşma yok" invaryantı)
++ mevcut 248 test DEĞİŞMEDEN geçti — **299/299**. Tarayıcıda canlı (XP
+localStorage üzerinden yükseltilip kilit açılarak): mod menüden açılıyor;
+Otomatik/düşük seviyede 3-4 şık; Sabit/Pro'da 6 şık (ince ~0.3 dB adımlarla,
+kalibrasyon tablosuyla tutarlı); yön-gizleme seans içinde ilk 3 sorudan
+sonra devreye girdi (karışık işaretli şıklar canlı gözlendi: "-4.08/+1.31/
++3.16/-2.23 dB" gibi); İpucu Ver doğru yönü ("Açıldı (+)") açıkladı; cevap
+sonrası dB göstergesi (amber/yeşil markör + "0 dB" ekseni) + öğretici metin
++ hizalı geçiş süresi hepsi çalıştı; "Cevap biçimi" satırı doğru gizlendi
+(choiceOnly); Frekans Bulma + Kesim Noktası'nda (mod değişimleri dahil,
+tüm oturum boyunca) regresyon yok, sıfır konsol hatası.
+
+**Bilinen küçük eksik (engelleyici değil):** `teachingText`'in "yön doğru,
+miktar yanlış" durumunda iki `magnitudeWord(...)` çağrısı benzer büyüklükte
+değerlerde ("fark edilir bir değişim...belirgin bir fark" gibi) hafif
+tekrarlı okunabiliyor — canlı testte gözlendi, kod hatası değil, salt bir
+metin kalitesi notu (diğer modların "kesin nihai metin değil" notuyla aynı
+kategoride).
+
 Commit `61c76c5` — ADIM 3: **Sabit modu eğriye bağla + hard/pro kolaylaşmasını
 düzelt.** Kullanıcı raporu: "Otomatik ile Sabit uyumsuz, hard/pro geçişte
 kolaylaşmış görünüyor" — talep "Sabit modu eğriye bağla"ydı.
@@ -1288,49 +1385,58 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Zorluk sisteminin merkezi bağlanması (Seçenek C, kademeli geçiş) TAMAMLANDI
-— ADIM 1 + ADIM 2 + ADIM 3 üçü de bitti.** Hem Kesim Noktası hem Frekans
-Bulma, hem Otomatik hem Sabit modda AYNI merkezi eğriden besleniyor
-(`continuousLevel`/`representativeLevelForTier`+`sessionRampOffset`,
-mod-agnostik `logLerp`/`applyPostCapFloor`), pro her iki modda da eğrinin
-GERÇEK tavanı, hiçbir tier eski statikten kolay değil. **Tek sonraki adım
-netleşmedi** — kalan işler ürün kararı gerektiriyor, kod tarafında
+**Zorluk sisteminin merkezi bağlanması (Seçenek C) + Mod 3 "dB Seviyesi"
+TAMAMLANDI.** ARTIK ÜÇ oynanabilir mod var (Frekans Bulma, Kesim Noktası,
+dB Seviyesi), üçü de AYNI merkezi eğriden besleniyor (`continuousLevel`/
+`representativeLevelForTier`+`sessionRampOffset`, mod-agnostik `logLerp`/
+`applyPostCapFloor`), hem Otomatik hem Sabit modda, pro her üç modda da
+eğrinin GERÇEK tavanı, hiçbir tier eski statikten kolay değil. **Tek sonraki
+adım netleşmedi** — kalan işler ürün kararı gerektiriyor, kod tarafında
 engelleyici yok:
 
-1. **KULAKLA doğrulama — hâlâ yapılmadı.** ADIM 3'ün AT_CAP'leri "eski
-   statikten kolay olmasın" MATEMATİKSEL şartını sağlıyor (ikili aramayla
-   ölçüldü, testle garanti altında) ama bu ALGISAL/HİSSİYAT açısından doğru
-   olduğu anlamına gelmiyor — özellikle "easy"nin de bir miktar zorlaşmış
-   olması (bkz. BİTTİ'deki tablo) yeni oyuncular için fark edilir bir sertlik
-   artışı olabilir. Gerçek kullanıcı testinden geçmedi.
+1. **KULAKLA doğrulama — hâlâ yapılmadı (ÜÇ modun da).** Kalibrasyon
+   MATEMATİKSEL şartı sağlıyor (ikili aramayla ölçüldü, testle garanti
+   altında) ama ALGISAL/HİSSİYAT açısından doğru olduğu anlamına gelmiyor —
+   özellikle "easy"nin de bir miktar zorlaşmış olması (Kesim Noktası/Frekans
+   Bulma'da ADIM 3'ten, dB Seviyesi'nde baştan) yeni oyuncular için fark
+   edilir bir sertlik artışı olabilir. Gerçek kullanıcı testinden geçmedi.
 2. **Round-timer eğriye bağlanacak mı?** `paramsForDifficultyPosition().
-   timeSec` HER İKİ modda da hesaplanıyor ama `currentDifficultyConfig().time`
+   timeSec` ÜÇ modda da hesaplanıyor ama `currentDifficultyConfig().time`
    (statik) hâlâ kullanılıyor. Bağlanırsa G21'in hizalı geçiş süresiyle
    etkileşimi (boss'ta çifte kısalma riski) ayrıca değerlendirilmeli.
-3. **`renderLevelSheet`** (Seviye bilgi sayfası) hâlâ TEK bir dil (gainDb/Q)
-   konuşuyor — Kesim Noktası aktifken bu metin semantik olarak yanlış
-   (marginOct değil gainDb/Q gösteriyor). `mode`'a göre hangi eğri/hangi dilin
-   gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi, ADIM 1/2/3'ün bir
-   regresyonu değil ama artık İKİ modda da geçerli bilinen bir eksik.
+3. **`renderLevelSheet`** (Seviye bilgi sayfası) hâlâ TEK bir dil (gainDb/Q,
+   Frekans Bulma'nınki) konuşuyor — Kesim Noktası/dB Seviyesi aktifken bu
+   metin semantik olarak yanlış. `mode`'a göre hangi eğri/hangi dilin
+   gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi, bu turların bir
+   regresyonu değil ama artık ÜÇ modda da geçerli bilinen bir eksik.
 4. **Statik DIFFICULTY tabloları hâlâ duruyor mu, kaldırılacak mı?** Bilerek
    kaldırılmadı (Sabit modun tier-isim çapası + proplus + geriye dönük test
-   uyumluluğu için gerekliydi, ADIM 3'te de aynı kaldı) — kalıcı olarak mı
+   uyumluluğu için gerekli, dB Seviyesi'nde de AYNI karar) — kalıcı olarak mı
    kalacak, yoksa TAMAMEN eğriye mi devredilecek? Şimdilik ikili sistem
-   (statik+eğri, opt-in) kalıcı bir mimari, geçici bir ödün değil — ama bu
-   bilinçli bir seçim olarak teyit edilmeli.
+   (statik+eğri, opt-in) kalıcı bir mimari — bu artık ÜÇ moddan geçen,
+   tekrarlanan bir desen, bilinçli bir seçim olarak teyit edilmeli.
+5. **`db-seviyesi` unlockLevel:6/tier:"pro"** — kayıtlı ama ürün kararı
+   olarak DOKUNULMADI (BEKLEYEN KARARLAR **B**'nin bir parçası: academyLevel
+   yeni bir mod kaydolunca otomatik yükseliyor, 3. modun kaydı bunu YİNE
+   somutlaştırdı — artık üç modun ikisi zaten oynanabilirken üçüncü modun
+   +1 katkısı önceki kilitleri de etkileyebilir, kullanıcıya sorulmalı).
+6. **`teachingText`'in "yön doğru, miktar yanlış" metni** hafif tekrarlı
+   okunabiliyor (bkz. BİTTİ'deki not) — küçük bir metin cilası, engelleyici
+   değil.
 
-Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi her iki modun `*_CURVE_CONFIG`'i,
-ADIM 3'te yeniden kalibre edildi) hâlâ KULAKLA dinlenip ayarlanmayı
-bekliyor — hiçbiri test edilmeden/dinlenmeden seçilmedi.
+Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi ÜÇ modun `*_CURVE_CONFIG`'i)
+hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test edilmeden/
+dinlenmeden seçilmedi.
 
 Kesim Noktası'nın kendisi G17-G21 ile TAMAMLANDI ve SERT TEST GEÇTİ (HPF/LPF
 + şıklı + tip gizleme rampası + iki renkli filtre eğrisi + öğretici Türkçe
-metin + Frekans Bulma'yla hizalı geçiş süresi). Karşılaştırma-önizleme
-butonları (Senin cevabın/Doğru cevap/Temiz) BİLEREK hâlâ yok — istenirse ayrı
-bir iş, şu an engelleyici değil. BEKLEYEN KARARLAR **B**'deki açık soru
-(Kesim Noktası kayıtlı olduğu için academyLevel otomatik yükselip kendi
-kilidini kendi açıyor, bu davranış kabul mü) da hâlâ kullanıcıya sorulmayı
-bekliyor.
+metin + Frekans Bulma'yla hizalı geçiş süresi). dB Seviyesi de G22 ile aynı
+derinlikte kuruldu (görsel gösterge + öğretici metin + yön-gizleme rampası +
+hizalı geçiş, bkz. BİTTİ) ama Kesim Noktası'nın G21'deki SERT TEST taramasının
+(600+ soruluk tam-matris canlı stres testi) AYNI kapsamlısından henüz
+geçmedi — sadece bu turun 51 birim testi + canlı elle doğrulamadan. Karşılaştırma-
+önizleme butonları (Senin cevabın/Doğru cevap/Temiz) Kesim Noktası'nda BİLEREK
+hâlâ yok — istenirse ayrı bir iş, şu an engelleyici değil.
 
 Diğer bekleyen (öncelik sırası):
 - **F4** (çift-dokunma/pinch zoom kapatma, önceki tur) — gerçek dokunmatik
