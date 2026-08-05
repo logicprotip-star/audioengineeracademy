@@ -471,6 +471,12 @@
     }
     .abbtn[data-ab="A"] .abside[data-side="A"]{background:rgba(255,255,255,.2);color:var(--tx)}
     .abbtn[data-ab="B"] .abside[data-side="B"]{background:rgba(108,140,255,.4);color:#EAF0FF}
+    /* G30: Kompresör'ün 3-yönlü dinleme genişlemesi — "C" pill'i SADECE bu mod
+       aktifken (app.js:updateAbToggleUI'nin eklediği .three-way class'ı) görünür,
+       diğer beş modun A/B ikilisinde HİÇ görünmez. */
+    .abside-c{display:none}
+    .abbtn.three-way .abside-c{display:block}
+    .abbtn[data-ab="C"] .abside[data-side="C"]{background:rgba(168,85,247,.4);color:#F5EAFF}
     /* A/B uzun basma döngüsü aktifken (bkz. app.js startAbLoop/stopAbLoop) */
     .abbtn.loop{background:rgba(255,176,32,.14);border-color:rgba(255,176,32,.4)}
     .abbtn.loop .abtitle{color:var(--am)}

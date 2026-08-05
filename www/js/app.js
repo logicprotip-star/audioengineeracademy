@@ -18,12 +18,14 @@ import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
 import * as boostMuCutMu from "./modes/boost-mu-cut-mu.js";
 import * as qGenisligi from "./modes/q-genisligi.js";
+import * as kompresor from "./modes/kompresor.js";
 
 registerMode(frekansBulma);
 registerMode(kesimNoktasi);
 registerMode(dbSeviyesi);
 registerMode(boostMuCutMu);
 registerMode(qGenisligi);
+registerMode(kompresor);
 // Artık birden fazla oynanabilir mod var — `mode` menüden hangi karta basıldığına
 // göre DEĞİŞİR (bkz. renderModeGrid'in kart click handler'ı). Başlangıç değeri
 // Frekans Bulma (ilk açılışta menüde gösterilen ekran budur, henüz hiçbir kart
@@ -504,6 +506,16 @@ let boostCutGuess = null;
 // q-genisligi.js:drawOverlay'in notu — kullanıcı burada sadece GENİŞLİĞİ guess
 // ediyor, frekans/gain'i değil).
 let qGuessLabelId = null;
+// Kompresör'ün cevap-sonrası dinamik-zarf görseli için — kullanıcının SEÇTİĞİ
+// harfin ("A"/"B"/"C") id'si; drawOverlay bu harfin GERÇEK ratio'sunu
+// (question.variants'tan) okuyor.
+let kompresorGuessLetter = null;
+// Kompresör'ün 3-yönlü dinleme durumu — diğer modların currentPlayMode'undan
+// (o "clean"/"filtered" İKİLİ semantiği taşıyor) BİLEREK AYRI: burası "A"/"B"/
+// "C" harfleri taşıyor. Her yeni turda (renderQuestion) "A"ya döner — turun
+// İLK çalışı zaten variants[0] (A) ile başlıyor (bkz. kompresor.js:
+// applyProcessing'in notu), bu ikisi HER ZAMAN senkron kalmalı.
+let kompresorPlayLetter = "A";
 
 // İlerleme sekmesindeki "toplam antrenman süresi" istatistiği: her tur startRound()'da
 // başlar, cevap/timeout ile biter — soru ekranda GERÇEKTEN açık kaldığı süreyi toplar.
@@ -659,7 +671,7 @@ function timerOff() {
 // ("cutoff") ise TERSİ: dalgaya tıklama affordance'ı yok, "Cevap biçimi" ayarından
 // BAĞIMSIZ olarak her zaman şıklı (bkz. kesim-noktasi.js dosya başı not).
 function isChoiceFormat() {
-  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth")) return true;
+  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth" || activeQuestion.mode === "kompresor")) return true;
   return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
     && activeQuestion && activeQuestion.mode !== "proplus");
 }
@@ -922,8 +934,20 @@ function formatGainDb(gain) {
 }
 
 // A/B tek buton durumunu (A|B göstergesi + spektrum başlığı) currentPlayMode'a göre günceller.
+// G30: Kompresör aktifken bu buton "A/B" (temiz/işlenmiş İKİLİSİ) DEĞİL, "A/B/C"
+// (üç FARKLI kompresyon varyantı) gösteriyor — bkz. toggleAB'nin "kompresor" dalı,
+// spec'in "mevcut A/B altyapısını 3'e genişlet" isteğinin BİREBİR karşılığı.
+// `.three-way` class'ı CSS'te 3. (C) pill'i görünür yapıyor (bkz. styles.css).
 function updateAbToggleUI() {
   if (!els.abToggle) return;
+  const isKompresor = activeQuestion && activeQuestion.mode === "kompresor";
+  els.abToggle.classList.toggle("three-way", isKompresor);
+  if (!abLoopTimer && els.abTitle) els.abTitle.textContent = isKompresor ? "A/B/C Test" : "A/B Test";
+  if (isKompresor) {
+    els.abToggle.dataset.ab = kompresorPlayLetter;
+    if (els.analyzerLabel) els.analyzerLabel.textContent = `SPEKTRUM · ${kompresorPlayLetter} DİNLENİYOR`;
+    return;
+  }
   const ab = currentPlayMode === "clean" ? "A" : "B";
   els.abToggle.dataset.ab = ab;
   if (els.analyzerLabel) els.analyzerLabel.textContent = ab === "A" ? "SPEKTRUM · A TEMİZ" : "SPEKTRUM · B İŞLENMİŞ";
@@ -1105,6 +1129,7 @@ function renderModeGrid() {
             if (els.freqInfo) els.freqInfo.classList.add("hidden");
             if (els.answers) { els.answers.innerHTML = ""; els.answers.classList.add("hidden"); }
             updateStartBtnLabel();
+            updateAbToggleUI();
           }
           goScreen("game");
           return;
@@ -1378,6 +1403,8 @@ function pushHistory(correct) {
     ? `Boost/Cut · Katman ${activeQuestion.layer} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : activeQuestion.mode === "qwidth"
     ? `Q Genişliği · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+    : activeQuestion.mode === "kompresor"
+    ? `Kompresör · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`;
   history.unshift({
     icon: correct ? "✅" : "❌",
@@ -1458,6 +1485,7 @@ function renderQuestion() {
         : "Açıldı mı kısıldı mı, ne kadar?")
     : q.mode === "boostcut" ? mode.questionTitle(q)
     : q.mode === "qwidth" ? mode.questionTitle(q)
+    : q.mode === "kompresor" ? "Üç ses (A/B/C) — hangisi FARKLI sıkıştırılmış?"
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
 
   els.questionMeta.textContent = mode.modeDescription(q);
@@ -1478,6 +1506,8 @@ function renderQuestion() {
   dbGuess = null;
   boostCutGuess = null;
   qGuessLabelId = null;
+  kompresorGuessLetter = null;
+  kompresorPlayLetter = "A";
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
   revealAnimator.reset();
   setAnalyzerPhase("ask");
@@ -1502,6 +1532,7 @@ function renderQuestion() {
     : q.mode === "dblevel" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan dB farkını seç."
     : q.mode === "boostcut" ? mode.modeDescription(q)
     : q.mode === "qwidth" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan genişlik karakterini seç."
+    : q.mode === "kompresor" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI olanı seç."
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
 }
@@ -1948,6 +1979,78 @@ function submitQWidthGuess(labelId) {
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
+// Kompresör ("kompresor") için submitQWidthGuess'in YAPISAL PARALELİ — aynı
+// ŞABLON gerekçesi. answer: harf ("A"/"B"/"C") — bkz. .ans click-delegasyonu
+// ve kompresor.js evaluateAnswer. mode.recordZone HİÇ ÇAĞRILMIYOR — bu modun
+// bir frekans-bölgesi kavramı yok (dB Seviyesi'yle AYNI karar).
+function submitKompresorGuess(letter) {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "kompresor") return;
+  if (!letter) return;
+  roundActive = false;
+  roundFlow.clearTimer();
+  setActionbarTucked(true);
+
+  const q = activeQuestion;
+  const result = mode.evaluateAnswer(q, letter);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = "";
+  if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, letter);
+  // Cevap-sonrası dinamik-zarf görseli için — drawVisualizer'ın overlayState'ine
+  // geçiyor (bkz. kompresorGuessLetter tanımındaki not).
+  kompresorGuessLetter = letter;
+
+  stats.rounds++;
+  let gained = 0;
+
+  if (result.correct) {
+    stats.correct++;
+    stats.combo++;
+    stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
+    gained = mode.calculateXP(q, result, q.hintUsed, q.difficulty, {
+      combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
+    });
+    diffState().xp += gained;
+    modeState().xp += gained;
+    diffState().score += gained * Math.max(1, stats.combo);
+    diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
+    if (q.difficulty === "pro") stats.proCorrect++;
+    if (q.boss) stats.bossWins++;
+    session.correct++; session.xp += gained;
+
+    const feedback = mode.getFeedbackData(q, letter, { gained });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    audioEngine.sfxDing();
+    spawnXp(`+${gained} XP`, els.canvas);
+    burst(els.canvas);
+    challengeTick(true, gained);
+  } else {
+    stats.wrong++;
+    stats.combo = 0;
+    diffState().score = Math.max(0, diffState().score - 20);
+    session.wrong++;
+
+    const feedback = mode.getFeedbackData(q, letter, { gained: 0 });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    audioEngine.sfxBuzz();
+    shake(els.canvas);
+    loseLife("Farklı sesi ıskaladın.", { silent: true });
+    challengeTick(false, 0);
+  }
+
+  audioEngine.stopAudio();
+  pushHistory(result.correct);
+  updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
+  notifyNewAchievements();
+  updateUI();
+  persistStats();
+  persistDaily();
+  // Diğer beş modla AYNI hizalı geçiş formülü (bkz. G21). #feedbackBox'ın
+  // KENDİ X'i (#feedbackClose, G27) de merkezi delegasyondan otomatik geldi.
+  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+}
+
 function submitProPlusGuess() {
   if (!roundActive || !activeQuestion || activeQuestion.mode !== "proplus") return;
   roundActive = false;
@@ -2052,7 +2155,28 @@ function playQuestion(processed = true) {
 // pitch/hız sapmasına yol açabiliyordu (kullanıcı raporu + teşhis) — reconnect deseni
 // tamamen kaldırıldı, hâlâ geçerli (kaynak tipi değişse de A/B'nin grafiği yeniden
 // kurmaması gerekliliği aynı).
+// G30: Kompresör'de bu buton İKİLİ crossfade (setProcessed) DEĞİL, ÜÇ farklı
+// kompresyon varyantı arasında dönüyor — dry/wet paralel yol kavramı burada
+// anlamsız (üçü de "wet", sadece ratio'ları farklı). Bu yüzden HER basışta
+// audioEngine.buildQuestionChain'i (cmprow'un post-answer önizleme butonlarıyla
+// AYNI teknik: geçici bir soru kopyası, activeQuestion MUTASYONA UĞRAMADAN)
+// YENİDEN çağırıyor — ses o an baştan başlar (crossfade'siz), ama bu zaten
+// mevcut önizleme butonlarının da kabul ettiği bir ödün (bkz. o butonların
+// dosya başı notu).
+function cycleKompresorPreview() {
+  const q = activeQuestion;
+  const idx = q.variants.findIndex(v => v.letter === kompresorPlayLetter);
+  const next = q.variants[(idx + 1) % q.variants.length];
+  kompresorPlayLetter = next.letter;
+  audioEngine.buildQuestionChain({ ...q, previewRatio: next.ratio }, true, q.source, uploadManager, mode.applyProcessing);
+  updateAbToggleUI();
+}
+
 function toggleAB() {
+  if (activeQuestion && activeQuestion.mode === "kompresor") {
+    cycleKompresorPreview();
+    return;
+  }
   const processed = currentPlayMode !== "filtered";
   currentPlayMode = processed ? "filtered" : "clean";
   audioEngine.setProcessed(processed);
@@ -2303,7 +2427,8 @@ function drawVisualizer() {
     cutoffGuess, // G19: bkz. Kesim Noktası'nın drawOverlay'i — diğer modlar okumuyor
     dbGuess, // bkz. dB Seviyesi'nin drawOverlay'i — diğer modlar okumuyor
     boostCutGuess, // bkz. Boost/Cut'ın drawOverlay'i — diğer modlar okumuyor
-    qGuessLabelId // bkz. Q Genişliği'nin drawOverlay'i — diğer modlar okumuyor
+    qGuessLabelId, // bkz. Q Genişliği'nin drawOverlay'i — diğer modlar okumuyor
+    kompresorGuessLetter // bkz. Kompresör'ün drawOverlay'i — diğer modlar okumuyor
   };
 
   if (!visualizerOn || !audioEngine.audioReady) {
@@ -2461,6 +2586,13 @@ if (els.answers) els.answers.addEventListener("click", e => {
   if (activeQuestion && activeQuestion.mode === "qwidth") {
     const labelId = btn.dataset.labelId;
     try { submitQWidthGuess(labelId); } catch (err) { console.error(err); }
+    return;
+  }
+  // Kompresör ("kompresor") — şıklar SADECE harf taşır (bkz. data-letter,
+  // kompresor.js renderAnswerChoices).
+  if (activeQuestion && activeQuestion.mode === "kompresor") {
+    const letter = btn.dataset.letter;
+    try { submitKompresorGuess(letter); } catch (err) { console.error(err); }
     return;
   }
   const hz = Number(btn.dataset.freq);
@@ -2845,6 +2977,8 @@ els.resetStatsBtn.addEventListener("click", () => {
   dbGuess = null;
   boostCutGuess = null;
   qGuessLabelId = null;
+  kompresorGuessLetter = null;
+  kompresorPlayLetter = "A";
   syncLives();
   roundFlow.clearTimer();
   audioEngine.stopAudio();
