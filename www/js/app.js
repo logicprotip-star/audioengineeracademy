@@ -2343,6 +2343,13 @@ function startRound() {
   if (els.sourceChipLabel) els.sourceChipLabel.textContent = labelSource(activeQuestion.source);
   renderQuestion();
   playQuestion(true);
+  // G32: Kompresör'de A/B/C karşılaştırması modun ÖZÜ (odd-one-out ancak
+  // üçünü de dinleyince bulunabilir) — diğer modların AKSİNE kullanıcının
+  // döngüyü elle (uzun basma) açması BEKLENMİYOR, ses zaten A ile başladığı
+  // (playQuestion'ın varsayılanı, bkz. kompresor.js applyProcessing) gibi
+  // döngü de otomatik başlıyor. Diğer beş modda BİLEREK dokunulmadı — onlarda
+  // A/B tek bir dry/wet karşılaştırması, döngü hâlâ isteğe bağlı bir kısayol.
+  if (mode.MODE_ID === "kompresor") startAbLoop();
   updateStartBtnLabel();
   scrollToAnalyzer();
   startTimerForCurrentQuestion();
