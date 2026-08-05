@@ -7,6 +7,97 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `61c76c5` — ADIM 3: **Sabit modu eğriye bağla + hard/pro kolaylaşmasını
+düzelt.** Kullanıcı raporu: "Otomatik ile Sabit uyumsuz, hard/pro geçişte
+kolaylaşmış görünüyor" — talep "Sabit modu eğriye bağla"ydı.
+
+**Önce dürüst bir düzeltme:** kod incelemesiyle doğrulandı ki Sabit mod
+ADIM 1/2'den BERİ zaten `paramsForDifficultyPosition` üzerinden besleniyordu
+(`app.js: currentDifficultyPosition()`, `diffModeAuto` false olduğunda
+`representativeLevelForTier(tier)`'ı taban olarak kullanıyordu) — statik
+DIFFICULTY tablosu ZATEN değer kaynağı DEĞİLDİ, bu iddia YANLIŞTI (raporlandı,
+"tahminle düzeltme yapma" kuralı gereği önce doğrulandı). **Asıl sorun
+KALİBRASYONDU**: eski `representativeLevelForTier` her tier'ı ARALIĞININ ORTA
+NOKTASINDA değerlendiriyordu (ör. pro→14.5, LEVEL_CAP'in [20] belirgin
+altında) — bu da ADIM 2 sonrası DURUM.md'de ZATEN flagli olan "hard/pro'da
+eğri statikten kolay" sapmasının doğrudan nedeniydi.
+
+**Değişiklik 1 — `representativeLevelForTier` (core/difficulty-curve.js):**
+artık her tier'ı KENDİ `TIER_BOUNDARIES` ÜST SINIRINDA değerlendiriyor —
+easy=4, medium=8, hard=12, pro=**LEVEL_CAP'in TAM KENDİSİ (20)**, orta nokta
+DEĞİL. "Pro" seçildiğinde kullanıcı artık GERÇEKTEN eğrinin en zor noktasını
+alıyor (`paramsForDifficultyPosition(LEVEL_CAP)` ile bitişik/deepEqual,
+testle garanti altına alındı) — "yakını" değil.
+
+**Değişiklik 2 — AT_CAP kalibrasyonu (her iki mod, `*_CURVE_CONFIG`):**
+sadece representative level'ı değiştirmek yetmiyordu — LEVEL_CAP=20'ye kadar
+tek bir log-eğri, eski AT_CAP (=eski statik pro) ile hard'ın (level 12)
+eski statik değerini hâlâ AŞAMIYORDU (ikili aramayla ÖLÇÜLDÜ, ör. Kesim
+Noktası'nın marginOct'unda hard=12'de eski hard'ı (0.55) aşmamak için gereken
+en gevşek AT_CAP ~0.253'tü — eski AT_CAP 0.3 bu şartı sağlamıyordu). Bu yüzden
+AT_CAP'lar (ve iki yerde FLOOR'lar) HER parametre için ayrı ayrı, ikili
+aramayla, "hiçbir tier'da (easy dahil) eski statiği aşmasın" şartını
+sağlayacak şekilde yeniden çözüldü:
+
+| Kesim Noktası | eski AT_CAP | yeni AT_CAP | Frekans Bulma | eski AT_CAP | yeni AT_CAP |
+|---|---|---|---|---|---|
+| marginOct | 0.30 | **0.22** | gainDb | 4.5 | **3.8** |
+| hintBandOct | 0.50 | **0.45** | q (yön TERS — büyük=zor) | 4.2 | **5.5** |
+| distractorStepOct | 0.65 | **0.52** | timeSec | 9 | **8.0** |
+| options | 6 | **6.15**† | hintBandOct | 0.6 | **0.48** |
+| | | | distractorStepOct | 0.65 | **0.52** |
+| | | | options | 6 | **6.15**† |
+
+†options'ın ARA hesabı 6.15'i geçebilir ama çıktı yine `Math.min(6,...)` ile
+kırpılır — oyuna hiçbir zaman 6'dan fazla şık yansımaz, sadece round(...)'un
+hard'da (12) TAM 5'e ulaşması için gerekliydi (6 ile 4'e yuvarlanıyordu).
+`distractorStepOct` FLOOR'u da (Kesim + Frekans, ikisinde de) 0.55→0.51
+indirildi — AT_CAP'in ALTINDA kalması gerekiyordu; 0.51 hâlâ
+`FREQ_TOLERANCE_OCT`'tan (0.5) HER ZAMAN büyük, invaryant KIRILMADI (testle
+garanti altında), sadece güvenlik payı 0.05'ten 0.01'e daraldı.
+
+**Kalibrasyon karşılaştırma tablosu (gerçek kod çalıştırılarak ölçüldü) —
+Sabit modun ARTIK ürettiği değer, HİÇBİR tier'da eski statikten kolay değil
+(eşit ya da zor):**
+
+Kesim Noktası:
+
+| tier | repr.sv | margin eski→yeni | hint eski→yeni | step eski→yeni | opt eski→yeni |
+|---|---|---|---|---|---|
+| easy | 4 | 1.60→**1.170** | 2.00→**1.580** | 1.20→**1.052** | 3→**3** |
+| medium | 8 | 1.00→**0.770** | 1.40→**1.154** | 0.90→**0.882** | 4→**4** |
+| hard | 12 | 0.55→**0.507** | 0.90→**0.843** | 0.75→**0.739** | 5→**5** |
+| pro | 20 | 0.30→**0.220** | 0.50→**0.450** | 0.65→**0.520** | 6→**6** |
+
+Frekans Bulma:
+
+| tier | repr.sv | gain eski→yeni | q eski→yeni | time eski→yeni | hint eski→yeni | step eski→yeni | opt eski→yeni |
+|---|---|---|---|---|---|---|---|
+| easy | 4 | 10.0→**8.583** | 0.90→**1.198** | 16→**14.341** | 2.40→**1.861** | 1.20→**1.052** | 3→**3** |
+| medium | 8 | 8.0→**7.001** | 1.30→**1.753** | 13→**12.394** | 1.60→**1.326** | 0.90→**0.882** | 4→**4** |
+| hard | 12 | 6.0→**5.711** | 2.50→**2.567** | 11→**10.711** | 1.00→**0.945** | 0.75→**0.739** | 5→**5** |
+| pro | 20 | 4.5→**3.800** | 4.20→**5.500** | 9→**8.000** | 0.60→**0.480** | 0.65→**0.520** | 6→**6** |
+
+**Pro artık ikisinde de eskisine EŞİT ya da DAHA ZOR** (options birebir aynı
+6, sürekli parametreler — margin/gain/hint/step küçülüyor=zor, Q büyüyor=zor
+— hepsi eski pro'yu eşitliyor ya da geçiyor). **easy dahi bir miktar
+zorlaştı** (repr.sv=4, AT_1'in [level 1] biraz üstünde) — bu, "hiçbir tier
+kolaylaşmasın" kararının SİMETRİK sonucu, sadece pro'ya özel bir istisna
+değil; BİLEREK böyle, raporda açıkça not edildi.
+
+Doğrulama: 10 yeni "kolaylaşma yok" invaryant testi (her iki modda: sürekli
+parametreler için `<=eski`, options/Q için `>=eski`, dört tier'ın TAMAMINDA)
++ `representativeLevelForTier`'ın yeni semantiğini doğrulayan güncellenmiş
+testler + mevcut 238 test DEĞİŞMEDEN geçti — **248/248**. Tarayıcıda canlı:
+Kesim Noktası Sabit/Pro **6 şık** (ADIM 1/2 sonrası 5'ti, şimdi eskiyle
+birebir eşit); Frekans Bulma Sabit/Pro **6 şık** (aynı); Otomatik mod her iki
+modda da (Kesim Noktası + Frekans Bulma, ayrı ayrı `localStorage` üzerinden
+`difficultyMode` değiştirilerek) test edildi, bozulmadı — Seviye 1'de 3 şık,
+normal akış; sıfır konsol hatası. **KULAKLA DOĞRULANMALI** — AT_CAP'ler ikili
+arama ile "eskisinden kolay olmasın" şartını sağlayacak EN AZ sapmayla
+seçildi (küçük güvenlik payıyla), ama gerçek algısal zorluk hissi test
+edilmedi.
+
 Commit `680d2ab` — ADIM 2: **zorluk sisteminin merkezi bağlanması — Frekans
 Bulma eğri sistemine taşındı.** Kademeli geçişin (Seçenek C) İKİNCİ ve SON
 adımı: ADIM 1'de Kesim Noktası'nda kanıtlanan desen Frekans Bulma'ya da
@@ -1198,18 +1289,20 @@ hazır, sadece onay bekliyor.
 ## SIRADAKİ
 
 **Zorluk sisteminin merkezi bağlanması (Seçenek C, kademeli geçiş) TAMAMLANDI
-— ADIM 1 + ADIM 2 ikisi de bitti.** Hem Kesim Noktası hem Frekans Bulma artık
-AYNI merkezi eğriden (`continuousLevel`+`sessionRampOffset`, mod-agnostik
-`logLerp`/`applyPostCapFloor`) besleniyor, yapısal olarak TEK kod yolu (bkz.
-BİTTİ'deki tutarlılık doğrulaması). **Tek sonraki adım netleşmedi** — kalan
-işler ürün kararı gerektiriyor, kod tarafında engelleyici yok:
+— ADIM 1 + ADIM 2 + ADIM 3 üçü de bitti.** Hem Kesim Noktası hem Frekans
+Bulma, hem Otomatik hem Sabit modda AYNI merkezi eğriden besleniyor
+(`continuousLevel`/`representativeLevelForTier`+`sessionRampOffset`,
+mod-agnostik `logLerp`/`applyPostCapFloor`), pro her iki modda da eğrinin
+GERÇEK tavanı, hiçbir tier eski statikten kolay değil. **Tek sonraki adım
+netleşmedi** — kalan işler ürün kararı gerektiriyor, kod tarafında
+engelleyici yok:
 
-1. **Kalibrasyon — KULAKLA ayarlanmalı mı, mevcut sapma kabul mü?** İki modda
-   da AYNI desen: hard/pro'da eğri statikten sistematik olarak kolay (bkz.
-   BİTTİ'deki iki karşılaştırma tablosu). Tek log-eğrinin 4 keyfi noktaya
-   oturamamasının doğal sonucu — düzeltmenin yolu muhtemelen AT_1/AT_CAP'ı
-   oynamak değil, eğri şeklinin kendisini (ör. piecewise) yeniden düşünmek.
-   Gerçek kullanıcı testinden geçmedi.
+1. **KULAKLA doğrulama — hâlâ yapılmadı.** ADIM 3'ün AT_CAP'leri "eski
+   statikten kolay olmasın" MATEMATİKSEL şartını sağlıyor (ikili aramayla
+   ölçüldü, testle garanti altında) ama bu ALGISAL/HİSSİYAT açısından doğru
+   olduğu anlamına gelmiyor — özellikle "easy"nin de bir miktar zorlaşmış
+   olması (bkz. BİTTİ'deki tablo) yeni oyuncular için fark edilir bir sertlik
+   artışı olabilir. Gerçek kullanıcı testinden geçmedi.
 2. **Round-timer eğriye bağlanacak mı?** `paramsForDifficultyPosition().
    timeSec` HER İKİ modda da hesaplanıyor ama `currentDifficultyConfig().time`
    (statik) hâlâ kullanılıyor. Bağlanırsa G21'in hizalı geçiş süresiyle
@@ -1217,19 +1310,18 @@ işler ürün kararı gerektiriyor, kod tarafında engelleyici yok:
 3. **`renderLevelSheet`** (Seviye bilgi sayfası) hâlâ TEK bir dil (gainDb/Q)
    konuşuyor — Kesim Noktası aktifken bu metin semantik olarak yanlış
    (marginOct değil gainDb/Q gösteriyor). `mode`'a göre hangi eğri/hangi dilin
-   gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi, ADIM 1/2'nin bir
+   gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi, ADIM 1/2/3'ün bir
    regresyonu değil ama artık İKİ modda da geçerli bilinen bir eksik.
 4. **Statik DIFFICULTY tabloları hâlâ duruyor mu, kaldırılacak mı?** Bilerek
-   kaldırılmadı (Sabit modun çapası + proplus + geriye dönük test uyumluluğu
-   için gerekliydi) — kalıcı olarak mı kalacak, yoksa "Sabit" modun UX'i
-   (temsilci-seviye tabanlı) yeterince olgunlaşınca statik tablolar TAMAMEN
-   eğriye mi devredilecek? Şimdilik ikili sistem (statik+eğri, opt-in) kalıcı
-   bir mimari, geçici bir ödün değil — ama bu bilinçli bir seçim olarak
-   teyit edilmeli.
+   kaldırılmadı (Sabit modun tier-isim çapası + proplus + geriye dönük test
+   uyumluluğu için gerekliydi, ADIM 3'te de aynı kaldı) — kalıcı olarak mı
+   kalacak, yoksa TAMAMEN eğriye mi devredilecek? Şimdilik ikili sistem
+   (statik+eğri, opt-in) kalıcı bir mimari, geçici bir ödün değil — ama bu
+   bilinçli bir seçim olarak teyit edilmeli.
 
-Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi her iki modun `*_CURVE_CONFIG`'i)
-hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test edilmeden/
-dinlenmeden seçilmedi.
+Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi her iki modun `*_CURVE_CONFIG`'i,
+ADIM 3'te yeniden kalibre edildi) hâlâ KULAKLA dinlenip ayarlanmayı
+bekliyor — hiçbiri test edilmeden/dinlenmeden seçilmedi.
 
 Kesim Noktası'nın kendisi G17-G21 ile TAMAMLANDI ve SERT TEST GEÇTİ (HPF/LPF
 + şıklı + tip gizleme rampası + iki renkli filtre eğrisi + öğretici Türkçe
