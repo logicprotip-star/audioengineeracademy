@@ -7,6 +7,73 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `6130d94` — G27: **Geri bildirim X/Atla butonu merkezileştirildi — artık
+BEŞ modun da hepsinde var.** Kullanıcı raporu (cihazda): X sadece Frekans
+Bulma'da görünüyor, Kesim Noktası/dB Seviyesi/Boost mu Cut mu/Q Genişliği'nde
+YOK.
+
+**TEŞHİS (kod okumasıyla KANITLANDI, tahmin YOK):** X butonu HİÇBİR ZAMAN
+merkezi bir mekanizma DEĞİLDİ — Frekans Bulma'nın KENDİ zengin `#freqInfo`
+panelinin (`mode.showFreqInfoPanel`/`showProPlusInfoPanel`, SADECE
+frekans-bulma.js'in export ettiği, sözleşme DIŞI iki fonksiyon) ürettiği
+innerHTML string'inin İÇİNE gömülü bir `<button class="freq-info-close">`
+idi. app.js'teki `#freqInfo` üzerindeki click-delegasyonu (`.freq-info-close`
+→ `goToNextRound()`) ZATEN mod-agnostikti — ama `#freqInfo`'nun KENDİSİ
+SADECE `activeQuestion.mode==="frequency"`/`"proplus"` olduğunda
+dolduruluyordu (`submitFrequencyGuess`/`onTimeUp`/`submitProPlusGuess`
+içinde). Diğer dört modun submit fonksiyonları (`submitCutoffGuess`/
+`submitLevelGuess`/`submitBoostCutGuess`/`submitQWidthGuess`) HİÇBİRİ
+`#freqInfo`'ya dokunmuyor — hepsi `setFeedback()` (paylaşılan TEK fonksiyon,
+`app.js:864`) ile `#feedbackBox`'ı dolduruyor, o da HER ZAMAN sade
+başlık+metin (`.textContent`) — hiçbir kapat butonu HİÇ BAKILMADI. Kök sebep:
+X, "geri bildirim akışının" bir parçası olarak DEĞİL, Frekans Bulma'ya ÖZGÜ
+bir panel özelliği olarak inşa edilmişti (G15'te eklendiğinde henüz tek
+oynanabilir mod Frekans Bulma'ydı) — sonraki dört mod (G20-G26) kendi
+`#feedbackBox`'larını doğru şekilde paylaştı ama HİÇBİRİ X'i miras almadı,
+çünkü miras alınacak bir "merkez" YOKTU.
+
+**MERKEZİLEŞTİRME:** `#feedbackBox`'ın HTML'ine (`index.html`) STATİK bir
+`<button id="feedbackClose" class="fb-close">✕</button>` eklendi —
+`setFeedback()` sadece `.textContent` günceller, innerHTML'i ASLA yeniden
+kurmaz (Frekans Bulma'nın `#freqInfo`'sunun AKSİNE), bu yüzden HTML'e BİR KEZ
+eklenen buton SONSUZA DEK orada kalır, `.fb.show-result` class'ıyla (CSS:
+`.fb{display:none}`/`.fb.show-result{display:block}`) box'ın KENDİSİYLE
+BİRLİKTE otomatik görünür/gizlenir — hiçbir mod dosyası ya da ekstra JS
+GEREKMEDEN. app.js'te TEK bir yeni delegasyon: `els.feedbackBox` üzerinde
+`.fb-close` → `goToNextRound()` (freqInfo'nunkiyle BİREBİR AYNI semantik).
+CSS'te `.freq-info-close`/`.fb-close` ORTAK bir seçiciyle (`#freqInfo
+.freq-info-close, .fb .fb-close`) AYNI görsel tanımı PAYLAŞIYOR — merkezi
+olan sadece davranış değil, görünüm de TEK yerden.
+
+**Sonuç — 6. bir mod eklendiğinde:** `getFeedbackData` içeren HER yeni mod
+zaten `setFeedback(...)` çağırmak ZORUNDA (mod sözleşmesinin bir parçası,
+G22'den beri TÜM modlar bunu yapıyor) — X, `#feedbackBox`'ın KENDİSİYLE
+birlikte OTOMATİK gelir, elle eklenecek hiçbir satır YOK. Frekans Bulma'nın
+KENDİ `#freqInfo`/`.freq-info-close`'una DOKUNULMADI (hâlâ çalışıyor,
+KENDİ mekanizmasıyla) — iki sistem ÇAKIŞMIYOR: `#feedbackBox` Frekans
+Bulma'da HİÇ gösterilmiyor (`showResult` o modda HER ZAMAN zorla false,
+F1'den beri), `#freqInfo` diğer dört modda HİÇ doldurulmuyor — canlı DOM
+denetimiyle DOĞRULANDI (aşağıya bkz.).
+
+Doğrulama: DOM-seviyesinde (JS ile, `getBoundingClientRect`/computed
+`display` okunarak — ekran görüntüsünden DAHA KESİN, ekran görüntüsü bu
+oturumun yüksek gecikmesi yüzünden turların otomatik ilerlemesiyle
+YARIŞTIĞI için güvenilir yakalanamadı ama DOM okumaları anlık/atomik):
+Kesim Noktası/dB Seviyesi/Boost mu Cut mu/Q Genişliği'nin DÖRDÜNDE de
+cevap sonrası `#feedbackClose` VAR + görünür (`getBoundingClientRect().
+width>0`) + basılınca `goToNextRound()` TETİKLENDİ (roundChip her modda
+gözlemlenebilir şekilde arttı, `.show-result` class'ı kalktı) + X'e
+BASILMADAN bekleyince (dB Seviyesi'nde 6.8sn, yanlış cevabın hizalı
+süresinden UZUN) tur KENDİLİĞİNDEN ilerledi (basılmazsa otomatik geçiş
+devam ediyor invaryantı doğrulandı). Frekans Bulma'da: `#feedbackBox`
+HİÇ gösterilmedi (`display:none` computed, `show-result` class YOK),
+`#freqInfo`'nun KENDİ `.freq-info-close`'u hâlâ VARDI ve basılınca aynı
+şekilde round'u ilerletti, `#feedbackClose` (yeni, genel buton) o ekranda
+GÖRÜNMEDİ (`display:none`) — iki mekanizma arasında ÇAKIŞMA/ÇİFT-X YOK.
+Sıfır konsol hatası (beş modun TAMAMI test edilirken). `npm test`: pure-
+function testleri (bu görev sadece DOM/CSS/app.js kablolaması, hiçbir
+mod dosyası değişmedi) DEĞİŞMEDEN geçti — **434/434**.
+
 Commit `f2e8642` — G26: **Mod 5 "Q Genişliği" — EQ genişlik karakteri tanıma,
 merkezi eğriye SIFIRDAN bağlı.** 5. oynanabilir mod — Boost/Cut'ın peaking-EQ
 motorunu kullanır ama sorulan eksen FARKLI: orada boost/cut yönü+miktarı+
