@@ -45,11 +45,16 @@ export const DISTRACTOR_STEP_OCT = { easy: 1.2, medium: 0.9, hard: 0.75, pro: 0.
 // core/difficulty-curve.js dosya başı not) — YANINA FREKANS_CURVE_CONFIG +
 // paramsForDifficultyPosition eklendi.
 //
-// AT_1/AT_CAP uçları statik easy/pro değerleriyle BİREBİR aynı seçildi (Kesim
-// Noktası'nda kullanılan AYNI kalibrasyon yöntemi — geçişte UÇLARDA davranış
-// korunsun diye); ARADAKİ (medium/hard) noktalar YAKLAŞIK kalır (tek log-eğri 4
-// keyfi noktaya birden oturamaz) — bkz. DURUM.md'deki karşılaştırma tablosu,
-// KULAKLA DOĞRULANMALI. Q, Z1'in ORİJİNAL asimetrisiyle AYNI: tavandan (LEVEL_CAP)
+// AT_1'ler statik easy değerleriyle BİREBİR aynı seçildi (Kesim Noktası'nda
+// kullanılan AYNI kalibrasyon yöntemi). AT_CAP'lar ARTIK statik pro'yla BİREBİR
+// AYNI DEĞİL — bkz. kesim-noktasi.js:KESIM_CURVE_CONFIG'in "AT_CAP KALİBRASYONU"
+// notuyla AYNI gerekçe: representativeLevelForTier artık her tier'ı KENDİ üst
+// sınırında (easy=4, medium=8, hard=12, pro=LEVEL_CAP) değerlendiriyor, salt
+// AT_CAP=eski-pro ile ARADA (özellikle hard'da) eski statikten KOLAY çıkıyordu
+// (bkz. ADIM 2 sonrası DURUM.md'deki ilk karşılaştırma tablosu). Bu ADIM'da
+// AT_CAP'lar, hiçbir tier eskisinden kolay olmayacak (eşit ya da zor) şekilde
+// yeniden çözüldü — bkz. DURUM.md'deki YENİ karşılaştırma tablosu. KULAKLA
+// DOĞRULANMALI. Q, Z1'in ORİJİNAL asimetrisiyle AYNI: tavandan (LEVEL_CAP)
 // SONRA SABİT kalır (bkz. difficulty-curve.js: difficultyParams — "tavandan SONRA
 // hassasiyet (gain/Q/tolerans) SABİT kalır, sadece gain/süre bağlam zorluğuyla
 // azalır") — bu yüzden Q için applyPostCapFloor ÇAĞRILMAZ, gainDb/timeSec/
@@ -57,34 +62,47 @@ export const DISTRACTOR_STEP_OCT = { easy: 1.2, medium: 0.9, hard: 0.75, pro: 0.
 export const FREKANS_CURVE_CONFIG = {
   LEVEL_CAP: 20,
 
+  // AT_CAP KALİBRASYONU: eski pro (4.5) yerine 3.8 — representativeLevelForTier
+  // ("hard")=12'de eğrinin eski hard'ı (6) AŞMAMASI için gereken en gevşek tavan
+  // ~4.14'tü (hesaplandı, bkz. commit mesajı), 3.8 güvenlik payı bırakıyor.
   GAIN_DB_AT_1: 10,   // DIFFICULTY.easy.gain
-  GAIN_DB_AT_CAP: 4.5, // DIFFICULTY.pro.gain
+  GAIN_DB_AT_CAP: 3.8,
   GAIN_DB_FLOOR: 1.5,
   GAIN_DB_REDUCTION_PER_STEP: 0.15,
 
+  // AT_CAP KALİBRASYONU: eski pro (4.2) yerine 5.5 — hard=12'de eski hard'ı
+  // (2.5) ALTINDA KALMAMASI için gereken en gevşek tavan ~5.26'ydı, 5.5 güvenlik
+  // payı bırakıyor (Q'da BÜYÜK=ZOR, bu yüzden diğerlerinin tersine YUKARI ayarlandı).
   Q_AT_1: 0.9,  // DIFFICULTY.easy.q
-  Q_AT_CAP: 4.2, // DIFFICULTY.pro.q — tavandan sonra SABİT (bkz. yukarıdaki not)
+  Q_AT_CAP: 5.5, // tavandan sonra SABİT (bkz. yukarıdaki not)
 
+  // AT_CAP KALİBRASYONU: eski pro (9) yerine 8.0 (hesaplanan en gevşek tavan ~8.38).
   TIME_SEC_AT_1: 16,  // DIFFICULTY.easy.time
-  TIME_SEC_AT_CAP: 9,  // DIFFICULTY.pro.time
+  TIME_SEC_AT_CAP: 8,
   TIME_SEC_FLOOR: 5,
   TIME_SEC_REDUCTION_PER_STEP: 0.2,
 
+  // AT_CAP KALİBRASYONU: eski pro (0.6) yerine 0.48 (hesaplanan en gevşek tavan ~0.529).
   HINT_BAND_OCT_AT_1: 2.4,  // DIFFICULTY.easy.hintBandOct
-  HINT_BAND_OCT_AT_CAP: 0.6, // DIFFICULTY.pro.hintBandOct
+  HINT_BAND_OCT_AT_CAP: 0.48,
   HINT_BAND_OCT_FLOOR: 0.3,
   HINT_BAND_OCT_REDUCTION_PER_STEP: 0.02,
 
-  // DISTRACTOR_STEP_OCT'un eğri hali — FLOOR (0.55) evaluateAnswer'ın 0.5 oktavlık
-  // toleransından HER ZAMAN büyük kalacak şekilde seçildi (bkz. DISTRACTOR_STEP_OCT'un
-  // yukarıdaki invaryant notu).
+  // DISTRACTOR_STEP_OCT'un eğri hali — AT_CAP KALİBRASYONU: eski pro (0.65)
+  // yerine 0.52 (Kesim Noktası'yla AYNI hesap, aynı eski tablo). FLOOR de
+  // BİRLİKTE indirildi (0.55→0.51) — AT_CAP'in ALTINDA kalması gerekiyordu;
+  // 0.51 hâlâ evaluateAnswer'ın 0.5 oktavlık toleransından HER ZAMAN büyük
+  // (invaryant KIRILMADI, sadece güvenlik payı 0.05'ten 0.01'e daraldı).
   STEP_OCT_AT_1: 1.2,  // DISTRACTOR_STEP_OCT.easy
-  STEP_OCT_AT_CAP: 0.65, // DISTRACTOR_STEP_OCT.pro
-  STEP_OCT_FLOOR: 0.55,
-  STEP_OCT_REDUCTION_PER_STEP: 0.005,
+  STEP_OCT_AT_CAP: 0.52,
+  STEP_OCT_FLOOR: 0.51,
+  STEP_OCT_REDUCTION_PER_STEP: 0.002,
 
+  // AT_CAP KALİBRASYONU: 6→6.15 — round(logLerp(...)) hard=12'de TAM 5'e (eski
+  // hard) ulaşsın diye (6 ile 4'e yuvarlanıyordu). Son değer yine
+  // Math.min(6,...) ile kırpılıyor, oyuna hiçbir zaman 6'dan fazla şık yansımaz.
   OPTIONS_AT_1: 3,
-  OPTIONS_AT_CAP: 6
+  OPTIONS_AT_CAP: 6.15
 };
 
 // SAF FONKSİYON. position: zorlukKonumu (continuousLevel + sessionRampOffset,

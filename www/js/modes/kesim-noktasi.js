@@ -64,36 +64,47 @@ export const DIFFICULTY = {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ZORLUK EĞRİSİ (ADIM 1 — zorluk sisteminin merkezi bağlanması, Kesim Noktası
-// PİLOT modu). Yukarıdaki statik DIFFICULTY tablosu KALDIRILMADI — hem geriye
+// PİLOT modu; ADIM 3'te — bkz. altta "AT_CAP KALİBRASYONU" notu — AT_CAP'lar
+// "Sabit mod hiçbir tier'da eskisinden kolay olmasın" kararıyla yeniden
+// ayarlandı). Yukarıdaki statik DIFFICULTY tablosu KALDIRILMADI — hem geriye
 // dönük uyumluluk (mevcut testler, doğrudan createQuestion çağrıları, proplus,
 // app.js'in currentDifficultyConfig()/renderLevelSheet'i) HEM "Sabit" zorluk
 // modunun/tier isimlerinin ÇAPASI olarak duruyor (bkz. core/difficulty-curve.js
-// dosya başı not: tier isimleri artık DEĞER kaynağı değil, sadece GÖSTERİM/ÇAPA).
+// dosya başı not: tier isimleri artık DEĞER kaynağı değil, sadece GÖSTERİM/ÇAPA
+// — ama artık DEĞER kaynağı OLARAK da hiç okunmuyor, bkz. app.js
+// currentDifficultyPosition: Sabit modda representativeLevelForTier(tier) →
+// paramsForDifficultyPosition() — Otomatik'le TAMAMEN AYNI yol).
 //
-// Bu bloktaki sayılar (AT_1/AT_CAP/FLOOR/REDUCTION_PER_STEP) yukarıdaki statik
-// DIFFICULTY.easy/pro değerlerinden TÜRETİLDİ (geçiş davranış-koruyucu olsun diye)
-// ama KESİN DOĞRU İDDİA EDİLMİYOR — Z1'in kendi eğrisiyle AYNI durum: makul bir
-// başlangıç noktası, KULAKLA DOĞRULANMALI (bkz. DURUM.md). LEVEL_CAP, global
-// DIFFICULTY_CONFIG'inkiyle (20) AYNI seçildi ama BİLEREK KENDİ ALANI — modlar
-// istedikleri zaman farklı bir tavan seçebilsin diye merkezi DIFFICULTY_CONFIG'e
-// bağlanmadı (bkz. difficulty-curve.js dosya başı not: "her mod kendi sayılarını
-// taşır").
+// AT_1'ler statik DIFFICULTY.easy değerleriyle birebir aynı (uçta davranış
+// korunsun diye). AT_CAP'lar ARTIK statik DIFFICULTY.pro'yla birebir AYNI
+// DEĞİL — bkz. "AT_CAP KALİBRASYONU" notu altta: representativeLevelForTier
+// artık her tier'ı KENDİ üst sınırında (easy=4, medium=8, hard=12, pro=
+// LEVEL_CAP) değerlendirdiği için, salt AT_CAP=eski-pro ile eğri ARADA
+// (özellikle hard'da) eski statikten KOLAY çıkıyordu (bkz. ADIM 2 sonrası
+// DURUM.md'deki ilk karşılaştırma tablosu) — bu ADIM'da AT_CAP'lar, hard/
+// medium/pro'nun HİÇBİRİ eskisinden kolay olmayacak şekilde (gerekirse eski
+// pro'dan daha da zor) yeniden çözüldü (bkz. DURUM.md'deki YENİ karşılaştırma
+// tablosu — TÜM tier'lar eşit ya da zor). KULAKLA DOĞRULANMALI (bu hâlâ
+// makul bir başlangıç noktası, kesin doğru iddia edilmiyor). LEVEL_CAP,
+// global DIFFICULTY_CONFIG'inkiyle (20) AYNI seçildi ama BİLEREK KENDİ ALANI.
 export const KESIM_CURVE_CONFIG = {
   LEVEL_CAP: 20,
 
   // Kesim frekansının havuzun log-merkezinden minimum uzaklığı (oktav) — bkz.
-  // pickCutoffFreq/CENTER_LOG. AT_1 = DIFFICULTY.easy.marginOct, AT_CAP =
-  // DIFFICULTY.pro.marginOct (birebir aynı sayılar, eğrinin UÇLARI statik
-  // tabloyla ÇAKIŞSIN diye — aradaki (medium/hard) noktalar YAKLAŞIK kalır,
-  // bkz. DURUM.md'deki karşılaştırma tablosu).
+  // pickCutoffFreq/CENTER_LOG. AT_CAP KALİBRASYONU: eski pro (0.3) yerine 0.22 —
+  // representativeLevelForTier("hard")=12'de eğrinin 0.55'i (eski hard) AŞMAMASI
+  // için gereken en gevşek tavan ~0.253'tü (hesaplandı, bkz. commit mesajı); 0.22
+  // güvenlik payı bırakıyor. Sonuç: pro artık eski pro'dan ~%27 daha zor (0.22<0.3).
   MARGIN_OCT_AT_1: 1.6,
-  MARGIN_OCT_AT_CAP: 0.3,
+  MARGIN_OCT_AT_CAP: 0.22,
   MARGIN_OCT_FLOOR: 0.15,
   MARGIN_OCT_REDUCTION_PER_STEP: 0.01,
 
   // İpucu maskesinin açık bıraktığı bant genişliği (oktav) — bkz. renderHintMask.
+  // AT_CAP KALİBRASYONU: 0.5→0.45 (aynı gerekçe — hard=12'de eski hard'ı (0.9)
+  // aşmasın, hesaplanan en gevşek tavan ~0.500'dü, 0.45 güvenlik payı bırakıyor).
   HINT_BAND_OCT_AT_1: 2.0,
-  HINT_BAND_OCT_AT_CAP: 0.5,
+  HINT_BAND_OCT_AT_CAP: 0.45,
   HINT_BAND_OCT_FLOOR: 0.2,
   HINT_BAND_OCT_REDUCTION_PER_STEP: 0.01,
 
@@ -107,19 +118,27 @@ export const KESIM_CURVE_CONFIG = {
   TIME_SEC_REDUCTION_PER_STEP: 0.1,
 
   // Çeldiricilerin doğru cevaptan minimum oktav mesafesi — bkz. generateChoices/
-  // DISTRACTOR_STEP_OCT. FLOOR (0.55) FREQ_TOLERANCE_OCT'tan (0.5) HER ZAMAN
-  // büyük kalacak şekilde seçildi (bkz. o sabitin invaryant notu) — tavanın çok
-  // üzerinde bile (marjinal) yanlış bir şık asla "doğru" sayılamaz.
+  // DISTRACTOR_STEP_OCT. AT_CAP KALİBRASYONU: 0.65→0.52 (hesaplanan en gevşek
+  // tavan ~0.533'tü). FLOOR de BİRLİKTE indirildi (0.55→0.51) — AT_CAP'in
+  // ALTINDA kalması gerekiyordu (aksi halde applyPostCapFloor hiç anlamlı
+  // azalma yapamazdı); 0.51 hâlâ FREQ_TOLERANCE_OCT'tan (0.5) HER ZAMAN büyük
+  // (bkz. o sabitin invaryant notu, test.mjs bunu doğruluyor) — tavanın çok
+  // üzerinde bile (marjinal) yanlış bir şık asla "doğru" sayılamaz, sadece
+  // eski GÜVENLİK PAYI (0.05) daralıp (0.01) oldu, invaryant KIRILMADI.
   STEP_OCT_AT_1: 1.2,
-  STEP_OCT_AT_CAP: 0.65,
-  STEP_OCT_FLOOR: 0.55,
-  STEP_OCT_REDUCTION_PER_STEP: 0.005,
+  STEP_OCT_AT_CAP: 0.52,
+  STEP_OCT_FLOOR: 0.51,
+  STEP_OCT_REDUCTION_PER_STEP: 0.002,
 
   // Şık sayısı — tam sayıya yuvarlanır (bkz. paramsForDifficultyPosition), 3-6
   // arası kırpılır (dar CUTOFF_MIN-CUTOFF_MAX havuzunda generateChoices zaten
-  // kendi içinde MEVCUT/sığdırılabilir sayıya düşürüyor, bkz. o fonksiyonun notu).
+  // kendi içinde MEVCUT/sığdırılabilir sayıya düşürüyor, bkz. o fonksiyonun
+  // notu). AT_CAP KALİBRASYONU: 6→6.15 — round(logLerp(...)) hard=12'de TAM 5'e
+  // (eski hard) ulaşsın diye (6 ile 4'e yuvarlanıyordu, eskisinden AZ şık
+  // demekti); son değer yine Math.min(6,...) ile 6'da kırpılıyor, oyun ekranına
+  // hiçbir zaman 6'dan fazla şık YANSIMAZ, sadece ARA hesaplama 6'yı geçebiliyor.
   OPTIONS_AT_1: 3,
-  OPTIONS_AT_CAP: 6
+  OPTIONS_AT_CAP: 6.15
 };
 
 // SAF FONKSİYON. position: zorlukKonumu (continuousLevel + sessionRampOffset,

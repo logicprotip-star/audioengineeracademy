@@ -130,23 +130,28 @@ export function sessionRampOffset(sessionIndex, { boss = false } = {}, config = 
 }
 
 // SAF FONKSİYON. "Sabit" zorluk modunda kullanıcı bir İSİM (ör. "hard") seçtiğinde,
-// zorlukKonumu'nun taban terimi ne olacak? — o kademenin TIER_BOUNDARIES'teki
-// ARALIĞININ ORTA NOKTASI (ör. hard: 9-12 → 10.5). Üst sınırı Infinity olan son
-// kademe (pro) için üst sınır olarak LEVEL_CAP-4 kullanılır (tavana yakın ama
-// tam tavan değil — "pro"nun tipik/temsilci bir noktası, tavanın kendisi değil).
+// zorlukKonumu'nun taban terimi ne olacak? — o kademenin TIER_BOUNDARIES'teki ÜST
+// SINIRI (ör. hard: max=12 → 12) — yani "bu kademenin İÇİNDEKİ en zorlayıcı nokta".
+// Üst sınırı Infinity olan son kademe (pro) için üst sınır LEVEL_CAP'İN KENDİSİ —
+// "Pro" seçilince kullanıcı GERÇEKTEN eğrinin tavanını (en zor noktasını) alır,
+// tavana yakın bir yer DEĞİL (bkz. GÖREV: "pro = eğrinin en zor noktası, gerçekten
+// en zor" kararı — ÖNCEKİ sürüm orta-nokta/LEVEL_CAP-4 kullanıyordu, bu ADIM'da
+// (Sabit modun eğriyle "kolaylaşma olmadan" hizalanması) değiştirildi).
+//
+// SONUÇ: her tier'ın Sabit-mod değeri, o tier'ın statik ESKİ değerinden EŞİT ya
+// da DAHA ZOR çıkar (bkz. kesim-noktasi.js/frekans-bulma.js'in *_CURVE_CONFIG
+// AT_CAP'lerinin bu GÖREVDE yeniden kalibre edilmesi + DURUM.md karşılaştırma
+// tablosu) — "easy" bile artık eskisinden biraz zor (tier'ın KENDİ üst sınırında
+// değerlendirildiği için), bu BİLEREK böyle: "hiçbir tier eskisinden kolay
+// olmasın" kararının simetrik sonucu, sadece pro'ya özel bir istisna değil.
+//
 // config PARAMETRESİ verilirse (bkz. kesim-noktasi.js) o modun KENDİ TIER_BOUNDARIES'i
 // yerine geçebilir — bugün tüm modlar difficulty-curve.js'in TEK TIER_BOUNDARIES'ini
 // paylaşıyor (bkz. dosya başı not), bu yüzden varsayılan DIFFICULTY_CONFIG yeterli.
 export function representativeLevelForTier(tier, config = DIFFICULTY_CONFIG) {
-  let prevMax = 0;
-  for (const b of config.TIER_BOUNDARIES) {
-    if (b.tier === tier) {
-      const upper = Number.isFinite(b.max) ? b.max : config.LEVEL_CAP - 4;
-      return (prevMax + 1 + upper) / 2;
-    }
-    prevMax = b.max;
-  }
-  return 1;
+  const hit = config.TIER_BOUNDARIES.find(b => b.tier === tier);
+  if (!hit) return 1;
+  return Number.isFinite(hit.max) ? hit.max : config.LEVEL_CAP;
 }
 
 // SAF FONKSİYON. level: 1'den başlayan tam sayı (veya ondalık, kırpılmaz —

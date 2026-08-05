@@ -7,6 +7,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as mode from "../www/js/modes/kesim-noktasi.js";
+import { representativeLevelForTier } from "../www/js/core/difficulty-curve.js";
 
 describe("Kesim Noktası — tip gizleme SEANS İÇİ SORU SIRASINA bağlı (G18)", () => {
   it("sessionQuestionIndex 0,1,2 (ilk 3 soru) → typeRevealed HER ZAMAN true, HANGİ zorlukta olursa olsun", () => {
@@ -555,5 +556,59 @@ describe("Kesim Noktası — createQuestion(settings.difficultyPosition) entegra
       const q = mode.createQuestion("proplus", { source: "pink", boss: false, difficultyPosition: 20 });
       assert.equal(q.choices.length, mode.DIFFICULTY.proplus.options);
     }
+  });
+});
+
+// ADIM 3 — "Sabit" modu eğriye bağlama (app.js:currentDifficultyPosition'ın
+// Sabit dalıyla AYNI kompozisyon: representativeLevelForTier(tier) →
+// paramsForDifficultyPosition()). Bu blok, SABİT MODUN GERÇEKTEN eskisinden
+// kolay OLMADIĞINI garanti eden invaryant testleri — her tier'ın temsilci
+// seviyesinde üretilen eğri değeri, o tier'ın ESKİ statik değerinden EŞİT ya
+// da DAHA ZOR olmalı (asla kolay).
+describe("Kesim Noktası — Sabit mod eğriye bağlı (ADIM 3, 'kolaylaşma yok' invaryantı)", () => {
+  const TIERS = ["easy", "medium", "hard", "pro"];
+
+  it("her tier'da: marginOct/hintBandOct/distractorStepOct eski statikten BÜYÜK DEĞİL (kolaylaşma yok — küçük=zor)", () => {
+    for (const tier of TIERS) {
+      const level = representativeLevelForTier(tier);
+      const p = mode.paramsForDifficultyPosition(level);
+      const old = mode.DIFFICULTY[tier];
+      const oldStep = mode.DISTRACTOR_STEP_OCT[tier];
+      assert.ok(p.marginOct <= old.marginOct + 1e-9, `${tier}: marginOct ${p.marginOct} > eski ${old.marginOct}`);
+      assert.ok(p.hintBandOct <= old.hintBandOct + 1e-9, `${tier}: hintBandOct ${p.hintBandOct} > eski ${old.hintBandOct}`);
+      assert.ok(p.distractorStepOct <= oldStep + 1e-9, `${tier}: step ${p.distractorStepOct} > eski ${oldStep}`);
+    }
+  });
+
+  it("her tier'da: options eski statikten KÜÇÜK DEĞİL (kolaylaşma yok — çok=zor)", () => {
+    for (const tier of TIERS) {
+      const level = representativeLevelForTier(tier);
+      const p = mode.paramsForDifficultyPosition(level);
+      const old = mode.DIFFICULTY[tier];
+      assert.ok(p.options >= old.options, `${tier}: options ${p.options} < eski ${old.options}`);
+    }
+  });
+
+  it("pro'nun temsilci seviyesi TAM LEVEL_CAP — eğrinin en zor noktası, 'yakını' değil", () => {
+    assert.equal(representativeLevelForTier("pro"), mode.KESIM_CURVE_CONFIG.LEVEL_CAP);
+    const atLevelCap = mode.paramsForDifficultyPosition(mode.KESIM_CURVE_CONFIG.LEVEL_CAP);
+    const proRepr = mode.paramsForDifficultyPosition(representativeLevelForTier("pro"));
+    assert.deepEqual(atLevelCap, proRepr);
+  });
+
+  it("Sabit modun kompozisyonu (representativeLevelForTier → paramsForDifficultyPosition → createQuestion) uçtan uca doğru şık sayısını üretir", () => {
+    for (const tier of TIERS) {
+      const level = representativeLevelForTier(tier);
+      const expectedOptions = mode.paramsForDifficultyPosition(level).options;
+      for (let i = 0; i < 10; i++) {
+        const q = mode.createQuestion(tier, { source: "pink", boss: false, difficultyPosition: level });
+        assert.equal(q.choices.length, expectedOptions, `${tier}: beklenen ${expectedOptions}, gelen ${q.choices.length}`);
+      }
+    }
+  });
+
+  it("STEP_OCT_FLOOR (yeni, daraltılmış) hâlâ FREQ_TOLERANCE_OCT'tan büyük — invaryant kırılmadı", () => {
+    assert.ok(mode.KESIM_CURVE_CONFIG.STEP_OCT_FLOOR > mode.FREQ_TOLERANCE_OCT);
+    assert.ok(mode.KESIM_CURVE_CONFIG.STEP_OCT_AT_CAP > mode.FREQ_TOLERANCE_OCT);
   });
 });

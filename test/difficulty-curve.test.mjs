@@ -216,14 +216,14 @@ describe("sessionRampOffset() — seans içi ısınma→zorlaşma→boss rampas�
 });
 
 describe("representativeLevelForTier() — 'Sabit' modun tier→sürekli-seviye çapası", () => {
-  it("her tier kendi TIER_BOUNDARIES aralığının ORTA NOKTASINI döner", () => {
-    assert.equal(representativeLevelForTier("easy"), 2.5);   // (1+4)/2
-    assert.equal(representativeLevelForTier("medium"), 6.5); // (5+8)/2
-    assert.equal(representativeLevelForTier("hard"), 10.5);  // (9+12)/2
+  it("her tier KENDİ TIER_BOUNDARIES üst sınırını döner (o kademenin İÇİNDEKİ en zorlayıcı nokta)", () => {
+    assert.equal(representativeLevelForTier("easy"), 4);
+    assert.equal(representativeLevelForTier("medium"), 8);
+    assert.equal(representativeLevelForTier("hard"), 12);
   });
-  it("üst sınırı Infinity olan son tier (pro) LEVEL_CAP-4 civarına çapalanır, sonsuza gitmez", () => {
+  it("üst sınırı Infinity olan son tier (pro) TAM LEVEL_CAP'e eşittir — eğrinin EN ZOR noktası, yakını değil", () => {
     const pro = representativeLevelForTier("pro");
-    assert.ok(Number.isFinite(pro) && pro > 12 && pro < DIFFICULTY_CONFIG.LEVEL_CAP);
+    assert.equal(pro, DIFFICULTY_CONFIG.LEVEL_CAP);
   });
   it("tier isimleri MONOTON ARTAN temsilci seviye üretir (easy < medium < hard < pro)", () => {
     const easy = representativeLevelForTier("easy");
