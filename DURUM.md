@@ -7,6 +7,87 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `bd47c8b` — G29: **Q Genişliği — derinlemesine denetim ve FELSEFE düzeltmesi
+(yüzeysel yama YOK).** G28'in font-küçültme yaması gerçek sorunu çözmemişti;
+bu tur modu BAŞTAN SONA denetleyip TERSİNE ÇEVİRDİ.
+
+**1. ŞIK SAYISI — TERSİNE ÇEVRİLDİ:** G26'da kolay zorlukta havuz "en uzak
+iki uç" mantığıyla 2'ye düşüyordu (Notch/Dar/Geniş çekirdek üçlüsünden BİRİNİ
+atlayarak), G28 bunu sadece BAŞLIĞI gerçek şıklara uydurarak "çözmüştü" —
+ama modun FELSEFESİ ("cerrahi mi müzikal mi EQ" → Notch/Dar/Geniş) hâlâ
+ihlal ediliyordu. Bu tur `poolForSize`/`INTRODUCTION_ORDER` ile TAMAMEN
+yeniden kuruldu: **çekirdek üçlü (Notch/Dar/Geniş) HER ZAMAN havuzda, kolay
+dahil, ASLA 2'ye inmiyor.** Orta zor'da, Çok Geniş pro'da SONRADAN ekleniyor
+— önce 3 kategori ustalaşılır, sonra nüans öğretilir. `pickDistractorIndices`/
+`preferredDistanceForOptions` (artık gereksiz — çeldirici SEÇİMİ yok, havuzun
+TAMAMI şık oluyor) kaldırıldı, kod basitleşti.
+
+**2. EKRAN KAYMASI — GERÇEK KÖK SEBEP bulundu (375px'te ÖLÇÜLDÜ, tahmin
+DEĞİL):** `.app-shell` genişliğini zorlayan bir simülasyon TEK BAŞINA yanıltıcı
+çıktı verdi (`.actionbar`'ın KENDİ `width:min(560px,100%)` kuralı GERÇEK
+[1728px] pencereye göre hesaplanıp app-shell'den taşıyordu) — ikisi de aynı
+şekilde zorlanınca (gerçek cihazda ikisi zaten AYNI temelden hesaplanır)
+GERÇEK ölçüm ortaya çıktı: Boost mu Cut mu'nun KENDİ en kötü durumu (6 şık,
+tek satır başlık) `.game-scroll`'da 47px taşma+otomatik-kaydırma üretiyor —
+BU ZATEN VARDI, Q'ya özgü değil, sistem genelinde paylaşılan (ve zaten
+`scrollFeedbackIntoView`'la doğru YÖNETİLEN) bir davranış. Ama Q'nun 5-etiketli
+turu (G28'in dinamik başlığı TÜM etiketleri tek cümlede sayıyordu, 3 satıra
+sarıyordu) taşmayı 63px'e çıkarıyordu — Boost/Cut'ın KENDİ en kötüsünden
+BELİRGİN fazla, kullanıcının "ekran yukarı kayıyor" tarifiyle örtüşen
+ÖLÇÜLEBİLİR fark. Kök neden TEK: başlık boyu. Çözüm: `TITLE_ENUMERATION_LIMIT`
+— ≤3 şıkta (modun çekirdek/en sık karşılaşılan katmanı) etiketler sayılmaya
+devam ediyor, >3 şıkta (zor/pro) kısa/sabit bir cümleye düşüyor ("Aşağıdaki
+şıklardan seç.") — bu seviyedeki oyuncu etiketleri zaten biliyor. Sonuç:
+375px'te ÖLÇÜLEN taşma 63px→42px (Boost/Cut'ın kendi en kötüsünden [47px]
+DAHA AZ).
+
+**3. Denetimde bulunan ÜÇÜNCÜ bir gerçek hata (kalibrasyon):** Yeni statik
+tabloyla (`hard.options=4`) birlikte ilk seçilen `OPTIONS_AT_CAP` (6.7)
+yeniden hesaplandığında hard'ın TEMSİLCİ seviyesi (12) BİLE ZATEN 5'e
+yuvarlanıyordu (4'e değil) — Sabit moddaki "zor" tier PRATİKTE hiçbir zaman
+4 göstermiyordu, temsilci seviyede bile 5'ti (sadece "eski statikten kolay
+değil" testi `>=4` kontrol ettiği için bu FARK EDİLMEDİ). `OPTIONS_AT_CAP`
+6.0'a düşürülerek düzeltildi — artık hard'ın TEMSİLCİ seviyesi TAM 4,
+seans rampasının üst ucunda (boss/geç-döngü) DOĞAL olarak 5'e çıkabiliyor
+(canlı ölçüldü: 10 ardışık "zor" turda `[4,4,5,5,5,4,4,5,5,5]` — spec'in
+"4-5'e çıkar" ifadesiyle BİREBİR tutarlı, ama artık 4 GERÇEKTEN ulaşılabilir
+bir değer). Yeni bir regresyon testi bu kalibrasyonu kilitliyor.
+
+**Denetim sonuçları (madde madde, hepsi CANLI/testle doğrulandı):**
+- Başlık-şık tutarlılığı: ≤3 şıkta HER ZAMAN birebir eşleşiyor (8 ardışık
+  tur + 30 örnek/zorluk testle), >3 şıkta artık uzun liste YOK.
+- 3-5 kademe: kolay/orta HER ZAMAN TAM {Notch,Dar,Geniş} (200 örnek/zorlukta
+  ASLA 3'ün altına inmedi), zor 4 ile 5 arası, pro/proplus HER ZAMAN 5 —
+  doğru cevap HER ZAMAN o turun havuzunda, çakışma/tekrar YOK (testle).
+- İzole Q: kolay/orta'da frekans HER ZAMAN 1 kHz (DEĞİŞMEDİ, bu tur
+  dokunulmadı), `ISOLATE_UNTIL_POSITION`'ı geçince serbest — çalışıyor.
+- Öğretici metin: Q+frekans+yön+mix HER kombinasyonda doğru, boş/bozuk metin
+  yok (mix dili "cerrahi"/"müzikal" felsefeyle tutarlı, DEĞİŞMEDİ).
+- İki renkli görsel (`drawOverlay`/`computeEqCurveDb`): bu tur HİÇ
+  değiştirilmedi (koddan doğrulandı, diff'te yok) — G28'de zaten canlı
+  kanıtlanmıştı (Notch dar-sivri/Çok Geniş geniş-yayvan kontrastı).
+- Merkezi eğri: FLOOR (0.05) çalışıyor, boss/pro en zor (temsilci seviye
+  LEVEL_CAP'e eşit), "kolaylaşma yok" invaryantı YENİ statik tabloyla testle
+  yeniden doğrulandı.
+- X/Atla + hizalı geçiş: G27'nin merkezi mekanizması bu moddan HİÇ
+  etkilenmedi (canlı doğrulandı — basınca hemen geçiyor, box gizleniyor).
+- Layout 375px: kolay (3 şık) SIFIR taşma; pro (5 şık, en uzun durum) 42px
+  taşma+otomatik-kaydırma — Boost/Cut'ın kendi en kötüsünden (47px) AZ,
+  hiçbir yerde kesilme/çakışma yok (canlı ölçüldü + ekran görüntüsüyle
+  doğrulandı).
+- Konsol hatası: SIFIR (tüm oturum boyunca, her zorlukta).
+
+Doğrulama: 5 yeni pure-function testi grubu (poolForSize'ın felsefeye bağlı
+büyümesi + generateChoices'ın havuzun TAMAMI olduğu + pickTrueQ'nun havuz-
+tabanlı komşuluk kontrolü + createQuestion'ın kolay/orta'da HER ZAMAN çekirdek
+üçlü ürettiği + questionTitle'ın uzunluk-duyarlı davranışı + hard'ın temsilci
+seviyede TAM 4 kalibrasyon regresyonu) + mevcut testler güncellenerek
+(min-3 invaryantı, 2 yerine) DEĞİŞTİRİLDİ — **442/442** (69 Q-özel test).
+Diğer dört mod (Frekans Bulma, Kesim Noktası, dB Seviyesi, Boost mu Cut mu)
+bu turda TEK BİR DOSYASI bile değişmedi (`git status`la doğrulandı — sadece
+`q-genisligi.js`+testi) — canlı üçünde de (Kesim Noktası/Boost-Cut/dB
+Seviyesi) regresyon YOK, sıfır konsol hatası.
+
 Commit `ba688e0` — G28: **Q Genişliği'nde şık sayısı/metin uyuşmazlığı + "Çok
 Geniş" satır taşması düzeltildi.** Kullanıcı raporu (cihazda): soru metni 3
 seçenek söylüyor ama ekranda 2 şık çıkıyordu; ekran/layout "kayıyordu",
