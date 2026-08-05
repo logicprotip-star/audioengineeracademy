@@ -7,6 +7,71 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `ba688e0` — G28: **Q Genişliği'nde şık sayısı/metin uyuşmazlığı + "Çok
+Geniş" satır taşması düzeltildi.** Kullanıcı raporu (cihazda): soru metni 3
+seçenek söylüyor ama ekranda 2 şık çıkıyordu; ekran/layout "kayıyordu",
+şıklar sığmıyormuş gibi görünüyordu.
+
+**TEŞHİS 1 (kod okumasıyla KANITLANDI):** `app.js`'teki soru başlığı SABİT
+bir metindi — `"Bu EQ'nun genişlik karakteri ne — Notch mu, Dar mı, Geniş
+mi?"` — HER ZAMAN aynı üç isim, o turun GERÇEK `q.choices`'ıyla hiçbir
+bağlantısı yoktu. Kolay zorlukta (options=2, spec'in "uçlar bariz" tasarımı,
+BOZUK DEĞİL) şık sayısı 2 iken metin hâlâ 3 sayıyordu; DAHA KÖTÜSÜ, kolayda
+çıkan gerçek çiftler (ör. "Çok Geniş"/"Dar") metindeki üç isimle (Notch/Dar/
+Geniş) çoğu zaman hiç ÖRTÜŞMÜYORDU (Notch şık bile değilken metinde
+geçiyordu). Kök sebep: başlık G26'da (Q'nun ilk yazıldığı tur) diğer üç
+modun ("Boost mu Cut mu?" gibi) sabit-metin desenine bakılarak yazılmış ama
+Q'nun (2-5 arası, 5 olası etiketten HANGİLERİ seçildiği HER turda değişen)
+DİNAMİK şık kümesi için bu desen baştan YANLIŞTI — canlı DOM denetimiyle
+doğrulandı (8 ardışık tur loglandı, metin hep sabit kalırken şıklar
+değişiyordu).
+
+**TEŞHİS 2 (375px simüle telefon genişliğinde CANLI ÖLÇÜLDÜ):** Diğer dört
+modun TÜM şık metinleri kısa sayı/tek-kelime (`"1.33 kHz"`, `"Boost"`,
+`"LPF"`, `"+3.25 dB"`) — hiçbiri `.ans b`'nin 21px tabular-nums boyutunda
+dar bir telefonda SARMIYOR. Q Genişliği'nin **"Çok Geniş"** etiketi BEŞ
+etiket arasında TEK iki-kelimelik olan — 375px'lik bir `.app-shell`'de
+("gerçek" masaüstü testinin HİÇ yakalayamadığı genişlik, `.app-shell{width:
+min(560px,100%)}` masaüstünde HER ZAMAN 560px'e sabitleniyor) bu etiket
+"Çok"/"Geniş" diye İKİ satıra bölünüyor, o satırdaki (CSS Grid'in en uzun
+hücreye göre yükseklik belirlemesi yüzünden) diğer tek-satırlık şıklarla
+EŞİT OLMAYAN bir kutu yüksekliği üretiyor — kullanıcının "sığmıyor/yerleşim
+hatası" tarifiyle örtüşen, ÖLÇÜLEBİLİR bir fark (`.ans b`'nin 21px'te
+`scrollWidth` buton genişliğini AŞIYORDU, DevTools'ta doğrulandı).
+
+**DÜZELTME 1 — dinamik başlık:** `q-genisligi.js`'e yeni `questionTitle(q)`
+(Boost/Cut'ın G25'te kurduğu `mode.questionTitle(q)` deseniyle AYNI —
+app.js artık hardcoded metin yerine bunu ÇAĞIRIYOR) — o turun GERÇEK
+`q.choices`'ını, LABELS'in kendi (dar→geniş) doğal sırasıyla, doğru Türkçe
+soru ekiyle (`mu/mı/mi`, 5 olası etiket için elle bir tablo — ünlü uyumu
+her zaman sabit, dinamik hesaba GEREK yok) listeler. Artık başlıktaki
+isim/sayı HER ZAMAN ekrandaki şıklarla birebir eşleşiyor.
+
+**DÜZELTME 2 — `.ans-word` (SADECE Q'ya özgü, diğer dört modun `.ans b`
+varsayılanına DOKUNULMADI):** `renderAnswerChoices` artık `<b class=
+"ans-word">` basıyor, CSS'te `.ans b.ans-word{font-size:16px;font-variant-
+numeric:normal}` — 21px yerine 16px, sayısal olmayan kelime etiketleri için
+`tabular-nums` da gereksiz olduğundan kapatıldı. 375px'te ölçülen sonuç:
+"Çok Geniş" artık TEK satırda (`scrollWidth` buton genişliğinin İÇİNDE),
+tüm şıklar (2'den 5'e kadar, en zor 5-etiket Pro turu dahil) EŞİT
+yükseklikte tek satır.
+
+Doğrulama: 3 yeni pure-function testi (`questionTitle`'ın 30 örnek × 5
+zorlukta HER ZAMAN gerçek q.choices'ı birebir saydığı/adlandırdığı +
+şık-sayısı=parça-sayısı invaryantı + soru eki doğruluğu) + mevcut 434 test
+DEĞİŞMEDEN geçti — **437/437**. Tarayıcıda canlı: masaüstü genişliğinde
+(560px cap) 8 ardışık turda başlık HER ZAMAN ekrandaki şıklarla birebir
+örtüştü (ör. "Notch mu, Orta mı, Çok Geniş mi?" ↔ tam o üç buton); 375px
+simüle telefon genişliğinde Kolay'da GERÇEK 2-şıklı bir tur (`{"Notch",
+"Çok Geniş"}`) başlıkla ("Notch mu, Çok Geniş mi?") birebir eşleşti VE
+"Çok Geniş" tek satırda kaldı; Pro'nun 5-etiketli (en uzun başlık, 3 satıra
+sarıyor ama TAŞMA/ÇAKIŞMA yok) turunda da tüm 5 buton tek-satır+eşit
+yükseklikte kaldı (ekran görüntüsüyle doğrulandı). Regresyon: Boost mu Cut
+mu'nun `.ans b`'si hâlâ 21px/`ans-word` class'ı YOK (izole değişiklik
+doğrulandı), sıfır konsol hatası. `npm run test` sırasında CSS önbelleği
+bayat kalıp (`fetch({cache:'reload'})` ile önce doğrulanıp) devre dışı
+bırakıldığı bir doğrulama-metodolojisi notu — kod hatası değil.
+
 Commit `6130d94` — G27: **Geri bildirim X/Atla butonu merkezileştirildi — artık
 BEŞ modun da hepsinde var.** Kullanıcı raporu (cihazda): X sadece Frekans
 Bulma'da görünüyor, Kesim Noktası/dB Seviyesi/Boost mu Cut mu/Q Genişliği'nde
