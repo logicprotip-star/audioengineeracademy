@@ -7,6 +7,102 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `e28be55` — G35: **Mod 7 "Reverb" — Motor 2'nin İKİNCİ modu (Kompresör
+şablonundan türetildi).** (Not: commit mesajında yanlışlıkla "Mod 8"
+yazıldı — kod/testler doğru, sadece commit mesajı metninde bir yazım hatası;
+gerçek sıra Frekans Bulma/Kesim Noktası/dB/Boost-Cut/Q/Kompresör/**Reverb**
+= 7.) Motor 2'nin ("A/B/C odd-one-out") ikinci oynanabilir modu — Kompresör'ün
+G33'te olgunlaşan şablonunu MİRAS ALDI ve gerçek tekrar ağrısını netleştirdi.
+
+**Mod mantığı:** 3 ses (A/B/C), aynı kaynak, ikisi AYNI reverb biri FARKLI.
+Tek kontrol değişkeni `k∈[0,1]` decay+preDelay+size'ı BİRLİKTE sürüyor
+(Kompresör'ün ratio+threshold'u sürmesinin AYNI deseni), `reverbAmountScore`
+tek algısal eksen (GERÇEK bir akustik birim DEĞİL, tasarım sabiti —
+Kompresör'ün `gainReductionDb`'siyle AYNI dürüstlük notu).
+
+**KADEMELİ zorluk (Reverb'e özgü, Kompresör'de olmayan bir katman):**
+kolay/orta/zor AYNI TİP (Room/Hall/Plate) içinde miktar farkı (kolay=
+ekstrem ~%84 oransal fark, zorlukla ince nüansa iniyor), pro/proplus TİP
+farkına geçiyor (`TYPE_SWAP_POSITION_THRESHOLD=18`, Otomatik modda da
+çalışıyor). Öğretmen yöntemi: TİP farkı EN İNCE/zor katman — SoundGym
+Reverb Wizard'ın forumda eleştirilen "türü öğretmiyor" zayıflığına karşı
+bizim ayrıştırıcımız: cevap sonrası TİP HER ZAMAN adıyla söyleniyor.
+
+**Zorluk eğrisi kalibrasyonu (Kompresör'ün BAŞTAN-doğru yöntemiyle, ikili
+arama):**
+
+| tier | repr.sv | kGap | statik | OK |
+|---|---|---|---|---|
+| easy | 4 | 0.3229 | 0.45 | ✓ |
+| medium | 8 | 0.2074 | 0.28 | ✓ |
+| hard | 12 | 0.1333 | 0.14 | ✓ |
+| pro | 20 | 0.0550 | 0.06 | ✓ (type-swap'a geçtiği İÇİN fiilen kullanılmıyor) |
+
+`K_GAP_FLOOR=0.05`'te (room tipinde) base'ten en az ~%7.6 oransal
+`amountScore` farkı kalıyor (KULAKLA DOĞRULANMADI, ama sıfıra/algılanamaz
+bir farka ASLA inmiyor — 2000 örnek/hard testinde ölçülen en küçük oransal
+fark %5 üstünde kaldı).
+
+**Sentetik IR (hazır dosya YOK, `generateImpulseResponse`):** preDelay
+sessizliği + RT60 formülüyle (-60dB'ye `decaySec`'te iner) üstel sönümlü
+beyaz gürültü + size'a bağlı bir "yoğunluk" çarpanı + tip-özgü tek-kutuplu
+(one-pole) IIR alçak-geçiren filtre (`brightness`: Plate=0.85/az filtre/
+parlak, Hall=0.4/çok filtre/donuk, Room=0.65/orta). Gerçek bir akustik
+mekan ölçümü DEĞİL, algoritmik bir yaklaşıklık — testle doğrulandı (kuyruk
+genel olarak azalan RMS eğiliminde, donuk/parlak IR'ler arasında ölçülebilir
+pürüzlülük farkı var).
+
+**MİMARİ — Motor 2 genelleştirmesi (G33'ün "2. modda netleşirse ortak bir
+çekirdek çıkarılabilir" öngörüsünün GERÇEKLEŞTİĞİ an):** app.js'te
+`THREE_WAY_MODE_IDS` listesi + `isThreeWayModule`/`isThreeWayQuestion`
+yardımcıları TEK yerde tutuluyor — gelecekteki bir Motor 2 modu (Distortion)
+SADECE bu listeye eklenir. `submitKompresorGuess`→`submitThreeWayGuess`,
+`cycleKompresorPreview`→`cycleThreeWayPreview` (gövdeleri ZATEN tamamen
+mode-agnostikti, SADECE değişken isimleri Kompresör'e özeldi — genelleştirme
+davranış DEĞİŞTİRMEDİ). `kompresorGuessLetter`/`kompresorPlayLetter`→
+`threeWayGuessLetter`/`threeWayPlayLetter` — TEK paylaşılan değişken (aynı
+anda sadece BİR three-way mod aktif olabildiği için Kompresör'le Reverb
+arasında güvenle paylaşılıyor, dbGuess/boostCutGuess gibi her modun KENDİ
+değişkeni olduğu desenin BİLİNÇLİ istisnası). Kompresör'ün `drawOverlay`'i
+de `state.guessLetter` okuyacak şekilde güncellendi (overlayState bag'in
+per-mode-key geleneği KORUNARAK — sadece anahtar adı genelleşti). Motor
+1'in beş modu (kendi submit fonksiyonları) BİLEREK dokunulmadı — o tekrar
+ağrısı hâlâ netleşmedi (proje kararı, tekrarlanan bir desen).
+
+**Kuru/ıslak karışımı — audio-engine.js'e HİÇ dokunmadan:** `applyProcessing`
+`filters=[input, output]` döndürüyor — `buildQuestionChain`'in genel "seri
+bağla" döngüsü OTOMATİK olarak kuru payı (`input.gain=1-wetMix`) taşırken,
+`applyProcessing` İÇİNDE (dışarıdan görünmeden) kurulan
+`input→convolver→wetGain→output` bağlantısı ıslak payı ekliyor —
+`output` ikisini TOPLUYOR (GainNode'un varsayılan davranışı). Şık bir
+çözüm: mevcut tek-parametreli "filters zinciri" sözleşmesi hiç
+DEĞİŞTİRİLMEDEN paralel bir dry/wet mix elde edildi.
+
+**Testler yazılırken bulunup AYNI turda düzeltilen gerçek bir hata:**
+`isTypeSwapTier`'in hesaplanışı `level === "pro" || level === "proplus" ||
+(curve && curve.position >= ESIK)` şeklindeydi — `curve` null olduğunda
+(`difficultyPosition` verilmediğinde) `false || false || null` JavaScript'te
+`null` döner, `false` DEĞİL — `q.typeSwap` alanı yanlışlıkla `null` oluyordu
+(testle YAKALANDI: `assert.equal(q.typeSwap, false)` başarısız oldu, `!!(...)`
+ile kısa-devrenin sonucu zorla boolean'a çevrilerek düzeltildi).
+
+Doğrulama: 62 yeni Reverb testi (3 ses üretimi, odd-one-out, k-ekseni
+monotonikliği, AYNI-tip/TİP-farkı kademe geçişi [Otomatik+Sabit], FLOOR,
+previewLetter, IR üretimi, Kompresör'le çapraz-tutarlılık) — suite
+**561/561** (499+62). Canlı tarayıcıda: mod menüden açılıyor (Reverb kartı
+kilitsiz), A/B/C döngü otomatik başlıyor, doğru cevapta "İkisi de Room
+(ince/hafif yankı) sesti, C daha uzun/derin (decay 0.7s) — mixte daha
+geride durur" gibi metin + kırmızı/yeşil kuyruk zarfı, yanlış cevapta AYNI
+kalitede karşılaştırmalı metin doğrulandı, sıfır konsol hatası. Kompresör'de
+TAM regresyon: envelope/teaching-text/loop-otomatik-başlama/Durdur-döngü-
+durdurma HEPSİ değişmeden çalışıyor (DOM enstrümantasyonuyla ölçüldü: döngü
+A→B ilerliyor, Durdur'a basınca anında duruyor, 2.2sn sonra bile harf
+sabit). Frekans Bulma + Q Genişliği'nde de tam tur (round+cevap+geri
+bildirim) regresyon yok. Tip-farkı (pro) katmanı canlı UI'da elle
+zorlanamadı (Seviye bilgi sayfası zorluk seçici değil, renderLevelSheet
+açıyor — bilinen ÖNCEDEN kayıtlı kısıt) ama 62 testin ~8'i bunu doğrudan
+ve N=100-200 örnekle istatistiksel olarak doğruluyor.
+
 Commit `754d875` — G34: **Cevap sonrası görsellerde "senin cevabın" rengi
 amber yerine kırmızı — merkezileştirildi.** Kesim Noktası eğrisi/dB
 göstergesi/Boost-Cut bell/Q genişlik/Kompresör dinamik zarfının HEPSİNDE
@@ -2206,20 +2302,22 @@ hazır, sadece onay bekliyor.
 ## SIRADAKİ
 
 **Zorluk sisteminin merkezi bağlanması (Seçenek C) + Mod 3 "dB Seviyesi" +
-Mod 4 "Boost mu Cut mu" + Mod 5 "Q Genişliği" + Mod 6 "Kompresör" (Motor
-2'nin İLK modu) TAMAMLANDI.** ARTIK ALTI oynanabilir mod var (Frekans
-Bulma, Kesim Noktası, dB Seviyesi, Boost mu Cut mu, Q Genişliği, Kompresör),
-altısı da AYNI merkezi eğriden besleniyor (`continuousLevel`/
-`representativeLevelForTier`+`sessionRampOffset`, mod-agnostik `logLerp`/
-`applyPostCapFloor`), hem Otomatik hem Sabit modda, pro her altı modda da
-eğrinin GERÇEK tavanı, hiçbir tier eski statikten kolay değil. Kompresör
-AYRICA Motor 2'nin ("hangisi farklı") ilk şablonu — gelecekteki reverb/
-tonal denge modları bunu izleyecek (bkz. BİTTİ). **Tek sonraki adım
-netleşmedi** — kalan işler ürün kararı gerektiriyor, kod tarafında
-engelleyici yok:
+Mod 4 "Boost mu Cut mu" + Mod 5 "Q Genişliği" + Mod 6 "Kompresör" + Mod 7
+"Reverb" (Motor 2'nin İKİ modu) TAMAMLANDI.** ARTIK YEDİ oynanabilir mod var
+(Frekans Bulma, Kesim Noktası, dB Seviyesi, Boost mu Cut mu, Q Genişliği,
+Kompresör, Reverb), yedisi de AYNI merkezi eğriden besleniyor
+(`continuousLevel`/`representativeLevelForTier`+`sessionRampOffset`,
+mod-agnostik `logLerp`/`applyPostCapFloor`), hem Otomatik hem Sabit modda,
+pro her yedi modda da eğrinin GERÇEK tavanı, hiçbir tier eski statikten
+kolay değil. G35'te Motor 2'nin app.js kablolaması GERÇEKTEN genelleşti
+(`THREE_WAY_MODE_IDS`, bkz. BİTTİ) — gelecekteki bir 3. Motor 2 modu
+(Distortion/Tonal Denge) SADECE o listeye eklenmeli, submit/preview/toggle
+mekanizmalarını YENİDEN YAZMAMALI. **Tek sonraki adım netleşmedi** — kalan
+işler ürün kararı gerektiriyor, kod tarafında engelleyici yok:
 
-1. **KULAKLA doğrulama — hâlâ yapılmadı (ALTI modun da, Kompresör'ün
-   `COMP_CURVE_CONFIG`/`GAP_FLOOR`/attack-release sabitleri DAHİL).**
+1. **KULAKLA doğrulama — hâlâ yapılmadı (YEDİ modun da, Kompresör'ün
+   `COMP_CURVE_CONFIG`/`GAP_FLOOR`/attack-release + Reverb'in
+   `REVERB_CURVE_CONFIG`/`REVERB_TYPES`/IR-sentezleme sabitleri DAHİL).**
    Kalibrasyon
    MATEMATİKSEL şartı sağlıyor (ikili aramayla ölçüldü, testle garanti
    altında) ama ALGISAL/HİSSİYAT açısından doğru olduğu anlamına gelmiyor —
