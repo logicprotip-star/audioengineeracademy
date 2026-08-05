@@ -17,11 +17,13 @@ import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
 import * as boostMuCutMu from "./modes/boost-mu-cut-mu.js";
+import * as qGenisligi from "./modes/q-genisligi.js";
 
 registerMode(frekansBulma);
 registerMode(kesimNoktasi);
 registerMode(dbSeviyesi);
 registerMode(boostMuCutMu);
+registerMode(qGenisligi);
 // Artık birden fazla oynanabilir mod var — `mode` menüden hangi karta basıldığına
 // göre DEĞİŞİR (bkz. renderModeGrid'in kart click handler'ı). Başlangıç değeri
 // Frekans Bulma (ilk açılışta menüde gösterilen ekran budur, henüz hiçbir kart
@@ -497,6 +499,11 @@ let dbGuess = null;
 // submitBoostCutGuess'in notu: Katman 1/2'de freq her zaman question.freq'tir,
 // çünkü kullanıcı onu guess ETMEDİ — sadece Katman 3'te gerçek bir guess'tir).
 let boostCutGuess = null;
+// Q Genişliği'nin cevap-sonrası bell-eğrisi görseli için — kullanıcının SEÇTİĞİ
+// genişlik etiketinin id'si (freq/gain her zaman true değerlerle aynı, bkz.
+// q-genisligi.js:drawOverlay'in notu — kullanıcı burada sadece GENİŞLİĞİ guess
+// ediyor, frekans/gain'i değil).
+let qGuessLabelId = null;
 
 // İlerleme sekmesindeki "toplam antrenman süresi" istatistiği: her tur startRound()'da
 // başlar, cevap/timeout ile biter — soru ekranda GERÇEKTEN açık kaldığı süreyi toplar.
@@ -652,7 +659,7 @@ function timerOff() {
 // ("cutoff") ise TERSİ: dalgaya tıklama affordance'ı yok, "Cevap biçimi" ayarından
 // BAĞIMSIZ olarak her zaman şıklı (bkz. kesim-noktasi.js dosya başı not).
 function isChoiceFormat() {
-  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut")) return true;
+  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth")) return true;
   return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
     && activeQuestion && activeQuestion.mode !== "proplus");
 }
@@ -1369,6 +1376,8 @@ function pushHistory(correct) {
     ? `dB Seviyesi · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : activeQuestion.mode === "boostcut"
     ? `Boost/Cut · Katman ${activeQuestion.layer} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+    : activeQuestion.mode === "qwidth"
+    ? `Q Genişliği · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`;
   history.unshift({
     icon: correct ? "✅" : "❌",
@@ -1448,6 +1457,7 @@ function renderQuestion() {
         ? `Bu ses ${q.directionLabel}, ne kadar?`
         : "Açıldı mı kısıldı mı, ne kadar?")
     : q.mode === "boostcut" ? mode.questionTitle(q)
+    : q.mode === "qwidth" ? "Bu EQ'nun genişlik karakteri ne — Notch mu, Dar mı, Geniş mi?"
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
 
   els.questionMeta.textContent = mode.modeDescription(q);
@@ -1467,6 +1477,7 @@ function renderQuestion() {
   cutoffGuess = null;
   dbGuess = null;
   boostCutGuess = null;
+  qGuessLabelId = null;
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
   revealAnimator.reset();
   setAnalyzerPhase("ask");
@@ -1490,6 +1501,7 @@ function renderQuestion() {
     : q.mode === "cutoff" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan kesim frekansını seç."
     : q.mode === "dblevel" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan dB farkını seç."
     : q.mode === "boostcut" ? mode.modeDescription(q)
+    : q.mode === "qwidth" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan genişlik karakterini seç."
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
 }
@@ -1864,6 +1876,80 @@ function submitBoostCutGuess(answer) {
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
+// Q Genişliği ("qwidth") için submitBoostCutGuess'in YAPISAL PARALELİ — aynı
+// ŞABLON gerekçesi. answer: etiket id'si (string, "notch"/"dar"/"orta"/"genis"/
+// "cokgenis") — bkz. .ans click-delegasyonu ve q-genisligi.js evaluateAnswer.
+// mode.recordZone HİÇ ÇAĞRILMIYOR — dB Seviyesi'nin AYNI kararı: frekans bu
+// modda kullanıcıya hiç açıklanmıyor/guess ettirilmiyor (sadece genişlik
+// sorulur), "hangi bölgede zayıfsın" ölçümü burada anlamsız.
+function submitQWidthGuess(labelId) {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "qwidth") return;
+  if (!labelId) return;
+  roundActive = false;
+  roundFlow.clearTimer();
+  setActionbarTucked(true);
+
+  const q = activeQuestion;
+  const result = mode.evaluateAnswer(q, labelId);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = "";
+  if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, labelId);
+  // Cevap-sonrası bell-eğrisi için — drawVisualizer'ın overlayState'ine geçiyor
+  // (bkz. qGuessLabelId tanımındaki not).
+  qGuessLabelId = labelId;
+
+  stats.rounds++;
+  let gained = 0;
+
+  if (result.correct) {
+    stats.correct++;
+    stats.combo++;
+    stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
+    gained = mode.calculateXP(q, result, q.hintUsed, q.difficulty, {
+      combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
+    });
+    diffState().xp += gained;
+    modeState().xp += gained;
+    diffState().score += gained * Math.max(1, stats.combo);
+    diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
+    if (q.difficulty === "pro") stats.proCorrect++;
+    if (q.boss) stats.bossWins++;
+    session.correct++; session.xp += gained;
+
+    const feedback = mode.getFeedbackData(q, labelId, { gained });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    audioEngine.sfxDing();
+    spawnXp(`+${gained} XP`, els.canvas);
+    burst(els.canvas);
+    challengeTick(true, gained);
+  } else {
+    stats.wrong++;
+    stats.combo = 0;
+    diffState().score = Math.max(0, diffState().score - 20);
+    session.wrong++;
+
+    const feedback = mode.getFeedbackData(q, labelId, { gained: 0 });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    audioEngine.sfxBuzz();
+    shake(els.canvas);
+    loseLife("Genişlik karakterini ıskaladın.", { silent: true });
+    challengeTick(false, 0);
+  }
+
+  audioEngine.stopAudio();
+  pushHistory(result.correct);
+  updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
+  notifyNewAchievements();
+  updateUI();
+  persistStats();
+  persistDaily();
+  // Diğer dört modla AYNI hizalı geçiş formülü (bkz. G21). Bu modun da kendi
+  // bir X butonu YOK — "Atla" mod-bağımsız aynı işi görüyor.
+  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+}
+
 function submitProPlusGuess() {
   if (!roundActive || !activeQuestion || activeQuestion.mode !== "proplus") return;
   roundActive = false;
@@ -2218,7 +2304,8 @@ function drawVisualizer() {
     revealAnimator,
     cutoffGuess, // G19: bkz. Kesim Noktası'nın drawOverlay'i — diğer modlar okumuyor
     dbGuess, // bkz. dB Seviyesi'nin drawOverlay'i — diğer modlar okumuyor
-    boostCutGuess // bkz. Boost/Cut'ın drawOverlay'i — diğer modlar okumuyor
+    boostCutGuess, // bkz. Boost/Cut'ın drawOverlay'i — diğer modlar okumuyor
+    qGuessLabelId // bkz. Q Genişliği'nin drawOverlay'i — diğer modlar okumuyor
   };
 
   if (!visualizerOn || !audioEngine.audioReady) {
@@ -2369,6 +2456,13 @@ if (els.answers) els.answers.addEventListener("click", e => {
       ? { gainDb: Number(btn.dataset.gain) }
       : { freq: Number(btn.dataset.freq), gainDb: Number(btn.dataset.gain) };
     try { submitBoostCutGuess(answer); } catch (err) { console.error(err); }
+    return;
+  }
+  // Q Genişliği ("qwidth") — şıklar SADECE etiket id'si taşır (bkz. data-label-id,
+  // q-genisligi.js renderAnswerChoices — sayısal Q değeri şıklarda BİLEREK yok).
+  if (activeQuestion && activeQuestion.mode === "qwidth") {
+    const labelId = btn.dataset.labelId;
+    try { submitQWidthGuess(labelId); } catch (err) { console.error(err); }
     return;
   }
   const hz = Number(btn.dataset.freq);
@@ -2740,6 +2834,7 @@ els.resetStatsBtn.addEventListener("click", () => {
   cutoffGuess = null;
   dbGuess = null;
   boostCutGuess = null;
+  qGuessLabelId = null;
   syncLives();
   roundFlow.clearTimer();
   audioEngine.stopAudio();
