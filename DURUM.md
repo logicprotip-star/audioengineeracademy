@@ -7,6 +7,103 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `cf0cae3` — G25: **Mod 4 "Boost mu Cut mu" — üç katmanlı EQ tanıma,
+merkezi eğriye SIFIRDAN bağlı.** 4. oynanabilir mod — Kesim Noktası/dB
+Seviyesi ŞABLONU izlendi (aynı mod sözleşmesi/render yardımcıları), ama
+Frekans Bulma'nın peaking-EQ motoruyla dB Seviyesi'nin yön/miktar mantığını
+BİRLEŞTİRİYOR — bu, task'ın istediği "özgün fark".
+
+**Mod mantığı:** kaynağa sabit Q'lu (1.4) tek bir peaking `BiquadFilterNode`
+ile ±dB boost/cut uygulanır (frekans havuzu Frekans Bulma'nınkiyle AYNI
+FA_MIN–FA_MAX/80 Hz–17 kHz); kullanıcı A/B ile karşılaştırıp yönü/miktarı/
+frekansı bulur.
+
+**Üç katmanlı seans-içi rampa (Kesim Noktası'nın tip-gizleme/dB Seviyesi'nin
+yön-gizleme ikili rampasının GENİŞLETİLMİŞ hali — iki eşik, üç bilinmeyen
+seviyesi):**
+- Katman 1 (`sessionQuestionIndex`<3): frekans+miktar BELLİ, sadece YÖN
+  soruluyor (2 şık: Boost/Cut).
+- Katman 2 (<6): frekans BELLİ, yön+miktar GİZLİ (işaretli/ondalıklı dB
+  şıkları, dB Seviyesi'nin `generateChoices`'ıyla AYNI algoritma).
+- Katman 3 (≥6, boss dahil): hepsi gizli — şıklar KOMBİNE `{freq, gainDb}`
+  çiftleri, çeldiriciler İKİ EKSENDEN (frekans YA DA gain, asla ikisi
+  birden) true'dan ayrılıyor, gain-ekseninde en az bir işaret flip garantili
+  (yön de test edilsin diye).
+
+**Merkezi zorluk eğrisine bağlanma — dB Seviyesi'nin G22'de kurduğu, G24'te
+ACI ÇEKEREK öğrendiği dersler BAŞTAN uygulanan 2. mod:** `BOOSTCUT_CURVE_
+CONFIG`'in AT_CAP'leri ikili aramayla, hiçbir temsilci seviyede eski statiği
+aşmayacak şekilde ÖNCEDEN çözüldü (G22/ADIM 3'ün "önce bağla sonra düzelt"
+döngüsünden yine kaçınıldı):
+
+| parametre | easy(4) eski→yeni | medium(8) eski→yeni | hard(12) eski→yeni | pro(20) eski→yeni |
+|---|---|---|---|---|
+| gainDb | 8.0→**6.075** | 5.5→**4.209** | 3.2→**2.916** | 1.8→**1.400** |
+| freqStepOct | 1.4→**1.158** | 1.0→**0.898** | 0.75→**0.697** | 0.55→**0.420** |
+| gainStepDb | 2.5→**1.907** | 1.6→**1.329** | 1.0→**0.926** | 0.6→**0.450** |
+| options | 3→**3** | 4→**4** | 5→**5** | 6→**6** |
+
+`pickGainDb` (dB Seviyesi'nin G24-SONRASI `pickDbDelta`'sının BİREBİR
+deseni): ±%6 dar jitter + jitter-SONRASI `GAIN_DB_FLOOR` (1.0 dB) garantisi
+— G24'te SONRADAN düzeltilen iki hata (dar jitter + floor kontrolü) burada
+İLK GÜNDEN doğru yazıldı, regresyon riski yok.
+
+**app.js kablolaması:** `registerMode(boostMuCutMu)` + `isChoiceFormat`/
+`questionTitle` (yeni `mode.questionTitle(q)` fonksiyonu — 3 katmanlı metin
+app.js'in ternary zincirine yazmak yerine mod dosyasına devredildi)/
+`setFeedback`/`pushHistory` ternary'lerine `"boostcut"` dalı + yeni
+`submitBoostCutGuess()` (submitLevelGuess'in yapısal paraleli, `answer`
+şekli KATMANA göre değişiyor: `{direction}`/`{gainDb}`/`{freq,gainDb}`) +
+yeni `boostCutGuess` overlay state'i (cutoffGuess/dbGuess'in AYNI deseni).
+`mode.recordZone` SADECE Katman 3'te çağrılıyor — Katman 1/2'de frekans
+zaten VERİLMİŞ, "hangi bölgede zayıfsın" ölçümü ancak kullanıcı frekansı
+GERÇEKTEN aradığında (Katman 3) anlamlı.
+
+**Görsel geri bildirim:** Frekans Bulma'nın `getEqCurveForQuestion`
+tekniğiyle (gerçek `BiquadFilterNode.getFrequencyResponse()`, elle
+yaklaşıklık yok) + Kesim Noktası'nın iki renkli (amber/yeşil) deseni
+BİRLEŞTİRİLDİ — cevap sonrası İKİ bell-eğrisi (senin cevabın/doğru)
+FA_MIN–FA_MAX ekseninde çiziliyor. Katman 1/2'de "senin eğrin"in frekansı
+her zaman `question.freq` (kullanıcı onu guess ETMEDİ), sadece Katman 3'te
+gerçek bir guess.
+
+**Canlı testte bulunup AYNI turda düzeltilen gerçek bir hata:**
+`generateLayer3Choices`'ın frekans-ekseni çeldiricileri naif `trueFreq *
+2^(k*step)` çarpımıyla üretiliyordu — true frekans FA_MAX'a (17 kHz) yakın
+olduğunda bu, havuzun TAMAMEN DIŞINDA bir çeldirici (ör. 21.6 kHz)
+üretebiliyordu (canlı tarayıcıda Pro zorlukta gözlemlendi). Kesim Noktası'nın
+`generateChoices`'ındaki AYNI "havuz sınırına göre adım sayısını kırp"
+deseni (maxBelow/maxAbove oktav) uygulanarak düzeltildi — havuz bir yönde
+dar kalırsa fazla adım gain eksenine devrediliyor, frekans ekseni artık asla
+aşmıyor. Regresyon testi eklendi (uç frekanslarda 1000 tur, ihlal yok).
+
+`mode-catalog.js`: `boost-mu-cut-mu` artık `playable:true` — `unlockLevel:4`/
+`tier:"free"` (ÖNCEDEN kayıtlı değerler) BİLEREK değiştirilmedi, ürün kararı
+değil.
+
+Doğrulama: 66 yeni test (createQuestion'ın 3 katmanı doğru üretmesi + her
+katmanın kendi `generateLayerNChoices`'ının ondalık/çakışmasız/eksen-ayrık/
+flip-garantili üretimi + FA_MIN–FA_MAX taşma regresyonu + evaluateAnswer'ın
+3 katman için ayrı mantığı + calculateXP'nin katman çarpanı [3>2>1] +
+öğretici metin + applyProcessing'in peaking filtre doğruluğu [sahte
+audioCtx] + curve pürüzsüzlüğü/tabanı/tolerans-güvenlik-payı + Sabit-mod
+"kolaylaşma yok" invaryantı + üç modla çapraz eğri-yönü karşılaştırması) +
+mevcut 307 test DEĞİŞMEDEN geçti — **373/373**. Tarayıcıda canlı (Geliştirici:
+tam erişim ile): mod menüden açılıyor; Katman 1 çalıştı (2 şık, doğru/yanlış
+işaretleme, iki renkli eğri, "Ters yöne gittin" öğretici metni); Katman 2
+hem Kolay [3 şık] hem Pro'da [6 şık, ~1-2 dB ince aralıklarla kalibrasyon
+tablosuyla tutarlı] çalıştı (boss round dahil, işaretli/ondalıklı şıklar,
+yanlışta doğru/yanlış renklendirme + eğri); Katman 3 Pro'da (6 kombine şık,
+3 frekans-ekseni + 2 gain-ekseni + 1 doğru, canlı gözlemlenen gerçek
+kombinasyon: "607/801/801/801/1.06k/1.39k Hz" ve "607/801(×3)/1.06k/1.39k"
+desenleri BEKLENEN yapıyla birebir örtüştü) hem doğru hem yanlış (frekans-
+öncelikli "Frekansı kaçırdın" mesajı, bölge adı dahil) cevap test edildi;
+İpucu Ver Katman 3'te frekans BÖLGESİNİ ("ORTA") açıkladı; Frekans Bulma +
+Kesim Noktası'nda (mod geçişleri dahil) regresyon yok, sıfır konsol hatası
+tüm oturum boyunca. `renderLevelSheet`'in hâlâ tek dil (gainDb/Q) konuştuğu
+ÖNCEDEN bilinen kısıt bu modda da doğrulandı (SIRADAKİ madde 3, yeni bir
+regresyon değil).
+
 Commit `eddbabd` — G24: **dB Seviyesi zorluk rampası — teşhis + pickDbDelta'daki
 2 gerçek hata düzeltildi.** Kullanıcı raporu (cihazda): "10-12 soru boyunca
 zorluk hep aynı kolay seviyede kalıyor, ilerledikçe zorlaşmıyor — sınırsız XP
@@ -1484,40 +1581,45 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Zorluk sisteminin merkezi bağlanması (Seçenek C) + Mod 3 "dB Seviyesi"
-TAMAMLANDI.** ARTIK ÜÇ oynanabilir mod var (Frekans Bulma, Kesim Noktası,
-dB Seviyesi), üçü de AYNI merkezi eğriden besleniyor (`continuousLevel`/
-`representativeLevelForTier`+`sessionRampOffset`, mod-agnostik `logLerp`/
-`applyPostCapFloor`), hem Otomatik hem Sabit modda, pro her üç modda da
-eğrinin GERÇEK tavanı, hiçbir tier eski statikten kolay değil. **Tek sonraki
-adım netleşmedi** — kalan işler ürün kararı gerektiriyor, kod tarafında
-engelleyici yok:
+**Zorluk sisteminin merkezi bağlanması (Seçenek C) + Mod 3 "dB Seviyesi" +
+Mod 4 "Boost mu Cut mu" TAMAMLANDI.** ARTIK DÖRT oynanabilir mod var
+(Frekans Bulma, Kesim Noktası, dB Seviyesi, Boost mu Cut mu), dördü de AYNI
+merkezi eğriden besleniyor (`continuousLevel`/`representativeLevelForTier`+
+`sessionRampOffset`, mod-agnostik `logLerp`/`applyPostCapFloor`), hem
+Otomatik hem Sabit modda, pro her dört modda da eğrinin GERÇEK tavanı,
+hiçbir tier eski statikten kolay değil. **Tek sonraki adım netleşmedi** —
+kalan işler ürün kararı gerektiriyor, kod tarafında engelleyici yok:
 
-1. **KULAKLA doğrulama — hâlâ yapılmadı (ÜÇ modun da).** Kalibrasyon
+1. **KULAKLA doğrulama — hâlâ yapılmadı (DÖRT modun da).** Kalibrasyon
    MATEMATİKSEL şartı sağlıyor (ikili aramayla ölçüldü, testle garanti
    altında) ama ALGISAL/HİSSİYAT açısından doğru olduğu anlamına gelmiyor —
    özellikle "easy"nin de bir miktar zorlaşmış olması (Kesim Noktası/Frekans
    Bulma'da ADIM 3'ten, dB Seviyesi'nde baştan) yeni oyuncular için fark
    edilir bir sertlik artışı olabilir. Gerçek kullanıcı testinden geçmedi.
 2. **Round-timer eğriye bağlanacak mı?** `paramsForDifficultyPosition().
-   timeSec` ÜÇ modda da hesaplanıyor ama `currentDifficultyConfig().time`
+   timeSec` DÖRT modda da hesaplanıyor ama `currentDifficultyConfig().time`
    (statik) hâlâ kullanılıyor. Bağlanırsa G21'in hizalı geçiş süresiyle
    etkileşimi (boss'ta çifte kısalma riski) ayrıca değerlendirilmeli.
 3. **`renderLevelSheet`** (Seviye bilgi sayfası) hâlâ TEK bir dil (gainDb/Q,
-   Frekans Bulma'nınki) konuşuyor — Kesim Noktası/dB Seviyesi aktifken bu
-   metin semantik olarak yanlış. `mode`'a göre hangi eğri/hangi dilin
-   gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi, bu turların bir
-   regresyonu değil ama artık ÜÇ modda da geçerli bilinen bir eksik.
+   Frekans Bulma'nınki) konuşuyor — Kesim Noktası/dB Seviyesi/Boost mu Cut
+   mu aktifken bu metin semantik olarak yanlış (G25'te canlı doğrulandı:
+   "Bant genişliği"/"Değişim miktarı" gösteriyor, Boost/Cut'ın kendi
+   gainDb/freqStepOct/gainStepDb dilini konuşmuyor). `mode`'a göre hangi
+   eğri/hangi dilin gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi,
+   bu turların bir regresyonu değil ama artık DÖRT modda da geçerli bilinen
+   bir eksik.
 4. **Statik DIFFICULTY tabloları hâlâ duruyor mu, kaldırılacak mı?** Bilerek
    kaldırılmadı (Sabit modun tier-isim çapası + proplus + geriye dönük test
-   uyumluluğu için gerekli, dB Seviyesi'nde de AYNI karar) — kalıcı olarak mı
-   kalacak, yoksa TAMAMEN eğriye mi devredilecek? Şimdilik ikili sistem
-   (statik+eğri, opt-in) kalıcı bir mimari — bu artık ÜÇ moddan geçen,
-   tekrarlanan bir desen, bilinçli bir seçim olarak teyit edilmeli.
-5. **`db-seviyesi` unlockLevel:6/tier:"pro"** — kayıtlı ama ürün kararı
-   olarak DOKUNULMADI (BEKLEYEN KARARLAR **B**'nin bir parçası: academyLevel
-   yeni bir mod kaydolunca otomatik yükseliyor, 3. modun kaydı bunu YİNE
-   somutlaştırdı — artık üç modun ikisi zaten oynanabilirken üçüncü modun
+   uyumluluğu için gerekli, dB Seviyesi/Boost mu Cut mu'da da AYNI karar) —
+   kalıcı olarak mı kalacak, yoksa TAMAMEN eğriye mi devredilecek? Şimdilik
+   ikili sistem (statik+eğri, opt-in) kalıcı bir mimari — bu artık DÖRT
+   moddan geçen, tekrarlanan bir desen, bilinçli bir seçim olarak teyit
+   edilmeli.
+5. **`db-seviyesi` unlockLevel:6/tier:"pro"**, **`boost-mu-cut-mu`
+   unlockLevel:4/tier:"free"** — ikisi de kayıtlı ama ürün kararı olarak
+   DOKUNULMADI (BEKLEYEN KARARLAR **B**'nin bir parçası: academyLevel yeni
+   bir mod kaydolunca otomatik yükseliyor, 4. modun kaydı bunu YİNE
+   somutlaştırdı — artık dört modun üçü zaten oynanabilirken dördüncünün
    +1 katkısı önceki kilitleri de etkileyebilir, kullanıcıya sorulmalı).
    **G23 ile TEST ENGELİ kalktı** (geliştirici modu artık seviye kilidini de
    atlıyor) — ama bu SADECE test/geliştirme kolaylığı, kalıcı ürün kararının
@@ -1532,14 +1634,19 @@ engelleyici yok:
    kısmen jitter/floor hatalarıyla açıklandı (bkz. BİTTİ) ama kısmen de
    GERÇEK bir tasarım özelliği: taze/düşük seviyeli bir oyuncuda seans
    rampasının mutlak genliği küçük (bkz. commit mesajı: position 1→2 arası
-   sadece ~%11 değişim). Bu, ÜÇ modun HEPSİNİ etkileyen paylaşılan bir
-   sabit — G24 kapsamında BİLEREK değiştirilmedi (dB'ye özgü olmayan bir
-   değişiklik, Kesim Noktası/Frekans Bulma'yı da etkiler). Genlik artırılmalı
-   mı (daha dramatik seans-içi salınım) yoksa mevcut "ince/gerçekçi" genlik
-   mi tercih edilsin — ürün kararı, kulakla + kullanıcı geri bildirimiyle
+   sadece ~%11 değişim). Bu, DÖRT modun HEPSİNİ etkileyen paylaşılan bir
+   sabit — G24/G25 kapsamında BİLEREK değiştirilmedi (dB'ye/Boost-Cut'a özgü
+   olmayan bir değişiklik, diğer üç modu da etkiler). Genlik artırılmalı mı
+   (daha dramatik seans-içi salınım) yoksa mevcut "ince/gerçekçi" genlik mi
+   tercih edilsin — ürün kararı, kulakla + kullanıcı geri bildirimiyle
    birlikte değerlendirilmeli.
+8. **Boost mu Cut mu'nun üç katmanlı rampası Kesim Noktası'nın G21'deki
+   SERT TEST kapsamından (600+ soruluk tam-matris canlı stres testi) henüz
+   geçmedi** — sadece G25'in 66 birim testi + canlı elle doğrulama (üç
+   katmanın her biri, boss dahil, Pro tier). Ayrı bir tur gerekiyorsa madde
+   burada tutuluyor.
 
-Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi ÜÇ modun `*_CURVE_CONFIG`'i)
+Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi DÖRT modun `*_CURVE_CONFIG`'i)
 hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test edilmeden/
 dinlenmeden seçilmedi.
 
