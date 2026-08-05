@@ -6,6 +6,20 @@
 import { findSource } from "./source-catalog.js";
 
 const MUTE_RAMP_SEC = 0.05; // ~50ms — Durdur/Tekrar Çal arasındaki geçiş
+// G33: stopAudio()'nun eski zincir söndürme zaman sabiti (0.03) node.stop()'un
+// sabit gecikmesine (0.08sn) göre GEVŞEKTİ — setTargetAtTime asimptotik
+// olduğu için 80ms'de gain hâlâ ~%7 seviyesindeydi, sonra node.stop() bunu
+// SERT kesiyordu — bu, ZİNCİRİN HER YENİDEN KURULUŞUNDA (buildQuestionChain
+// HER ÇAĞRILDIĞINDA) duyulabilir bir tıklama riski taşıyordu. Diğer beş modda
+// bu SEYREK tetiklenir (tur başına bir kez) ama Kompresör'ün A/B/C döngüsü
+// (her ~2sn'de) VE önizleme butonu HER basışta buildQuestionChain'i YENİDEN
+// çağırıyor — aynı gevşek söndürme, Kompresör'de ÇOK daha sık duyulur hale
+// geliyordu ("ses/kaynak değişince kesiklik" — kullanıcı raporu). Zaman
+// sabiti sıkılaştırıldı (0.03→0.012) — .stop() ateşlendiğinde gain artık
+// ~%0.1'e inmiş oluyor (pratikte sessiz), .stop()'un KENDİ zamanlaması
+// (now+0.08) DEĞİŞMEDİ — hiçbir modun round geçiş SÜRESİ etkilenmiyor,
+// sadece söndürme EĞRİSİ daha SIKI.
+const STOP_RAMP_TIME_CONSTANT = 0.012;
 
 export function createAudioEngine() {
   let audioCtx = null;
@@ -135,7 +149,7 @@ export function createAudioEngine() {
       try {
         if (node.gain && node.gain.cancelScheduledValues) {
           node.gain.cancelScheduledValues(now);
-          node.gain.setTargetAtTime(0.0001, now, 0.03);
+          node.gain.setTargetAtTime(0.0001, now, STOP_RAMP_TIME_CONSTANT);
         }
       } catch {}
       try {

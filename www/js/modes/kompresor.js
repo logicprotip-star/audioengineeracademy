@@ -3,39 +3,78 @@
 // OYUN TİPİ — orada "bir DEĞERİ bul" soruluyordu, burada "ÜÇ sesten FARKLI olanı
 // bul" (odd-one-out). Aynı merkezi zorluk eğrisi + geri bildirim akışı + mod
 // sözleşmesi ALTYAPISINI kullanıyor — SoundGym'in "Dr. Compressor" oyununun
-// felsefesine yakın (ratio farkını tanıma) ama üç-şıklı (%33 şans, BİLEREK zor)
-// odd-one-out formatında.
+// felsefesine yakın (kompresyon miktarını tanıma) ama üç-şıklı (%33 şans,
+// BİLEREK zor) odd-one-out formatında.
+//
+// ═══════════════════════════════════════════════════════════════════════════
+// MOTOR 2 ŞABLONU — bu dosya G30'da ilk yazıldı, G33'te (derin araştırma
+// sonrası) mimarisi OTURTULDU. Gelecekteki Motor 2 modları (Reverb, Distortion,
+// Tonal Denge) buradaki ÜÇ deseni miras almalı:
+//
+//   1. TEK ALGISAL EKSEN + BİRLEŞİK PARAMETRELER: gerçek ses işleme tek bir
+//      parametreyle tanımlanmaz (kompresyonda ratio+threshold EL ELE çalışır —
+//      "ne kadar VE nereden"). Ama odd-one-out'un net kalması için kullanıcıya
+//      TEK bir algısal fark sunulmalı. Çözüm: parametreleri tek bir "yoğunluk"
+//      kontrol değişkenine (k ∈ [0,1]) bağla — k arttıkça TÜM alt parametreler
+//      birlikte "daha fazla efekt" yönünde hareket eder (bkz. aşağıda ratioAtK/
+//      thresholdAtK). Zorluk eğrisi SADECE k'nin farkını (kGap) üretir, ama
+//      gerçek ses motoru İKİ (ya da daha fazla) gerçek parametre kullanır.
+//      Reverb için bu decay+mix+size olabilir, hepsi kendi r(k)/m(k)/s(k)
+//      fonksiyonlarıyla TEK bir k'ye bağlanır.
+//   2. previewLetter (previewRatio DEĞİL): app.js'in A/B/C önizleme butonu
+//      hangi varyantı dinleteceğini `question.previewLetter` ile bildirir —
+//      `applyProcessing` o harfin TÜM parametrelerini `question.variants`'tan
+//      okur. Tek bir "previewX" alanı YOK — kaç parametre olursa olsun aynı
+//      mekanizma çalışır (bkz. applyProcessing).
+//   3. Öğretim şablonları TEK yerde (bkz. COMPRESSION_TIERS) — mix dilinde,
+//      "ikisi de X kademesindeyse nüans dili, farklı kademedeyse net dil"
+//      ayrımı (bkz. teachingText) gelecekteki modlarda da aynı desen.
+// ═══════════════════════════════════════════════════════════════════════════
 //
 // Bu dosya bir ŞABLON niyetiyle yazıldı — Motor 2'nin SONRAKİ modları (Reverb,
 // Distortion) AYNI üç-ses/odd-one-out iskeletini (createQuestion'ın variants[]
-// şekli, applyProcessing'in previewRatio deseni, app.js'in abToggle 3-yönlü
-// genişletmesi) izleyebilir. Şimdilik ortak bir soyutlama ÇIKARILMADI (bu
-// projenin YERLEŞİK kararı — "3. modda bile ortak bir özütlemeyi haklı
-// çıkaracak kadar gerçek tekrar ağrısı netleşmedi", bkz. submitCutoffGuess/
-// submitLevelGuess'in dosya başı notları) — gerçek tekrar ağrısı Motor 2'nin
-// 2. modunda netleşirse o zaman ortak bir çekirdek çıkarılabilir.
+// şekli, app.js'in abToggle 3-yönlü genişletmesi) izleyebilir. Şimdilik ortak
+// bir soyutlama ÇIKARILMADI (bu projenin YERLEŞİK kararı — "3. modda bile
+// ortak bir özütlemeyi haklı çıkaracak kadar gerçek tekrar ağrısı netleşmedi",
+// bkz. submitCutoffGuess/submitLevelGuess'in dosya başı notları) — gerçek
+// tekrar ağrısı Motor 2'nin 2. modunda netleşirse o zaman ortak bir çekirdek
+// çıkarılabilir (app.js'in `activeQuestion.mode === "kompresor"` dallarının
+// "bu mod 3-yönlü önizleme destekliyor mu" gibi bir yetenek bayrağına
+// genelleştirilmesi dahil).
 //
 // MANTIK: 3 ses (A/B/C) çalınır, AYNI kaynaktan (kompresyon İZOLE duyulsun —
-// kaynak/frekans/gain farkı YOK, SADECE dinamik). İkisi AYNI ratio'da
-// sıkıştırılmış, biri (oddIndex, rastgele konumda) FARKLI. Kullanıcı A/B/C
-// dinleme kontrolüyle (bkz. app.js: mevcut abToggle 3'e genişletildi) üçünü de
-// dinleyip FARKLI olanı üç şıktan (A/B/C, HER ZAMAN tam 3 — 2'ye inmez/4'e
-// çıkmaz, "%33 şans kasıtlı zor" spec'in açık isteği) işaretler.
+// kaynak/frekans/gain farkı YOK, SADECE dinamik). İkisi AYNI kompresyon
+// yoğunluğunda (k), biri (oddIndex, rastgele konumda) FARKLI. Kullanıcı A/B/C
+// dinleme kontrolüyle (bkz. app.js: mevcut abToggle 3'e genişletildi, YENİ
+// soruda OTOMATİK döngüye giriyor — bkz. G32) üçünü de dinleyip FARKLI olanı
+// üç şıktan (A/B/C, HER ZAMAN tam 3) işaretler.
 //
-// İZOLASYON İLKESİ (Q Genişliği'nin AYNI felsefesi): threshold/knee/attack/
-// release HER ZAMAN sabit (COMP_THRESHOLD_DB/KNEE_DB/ATTACK_SEC/RELEASE_SEC) —
-// SADECE ratio değişir, zorlukla da SADECE ratio farkı (gap) küçülür. Attack/
-// release BİLEREK kısa (SoundGym Dr. Compressor deseni: hızlı attack + orta
-// release, pumping/dinamik daralması KOLAY duyulsun).
+// İZOLASYON İLKESİ (Q Genişliği'nin AYNI felsefesi, ARAŞTIRMA DERSİ): knee/
+// attack/release HER ZAMAN sabit (COMP_KNEE_DB/ATTACK_SEC/RELEASE_SEC) — hız
+// DEĞİŞMEZ, çünkü değişirse "hangisi daha sıkışmış" sorusunun net cevabı
+// kalmaz (yavaş attack'lı ses daha AZ sıkışmış DUYULUR ama daha ÇOK
+// sıkışmıştır — sinyal bulanır, SoundGym Dr. Compressor'ın attack/release'i
+// sabit-hızlı tutma sebebi budur). SADECE ratio+threshold (BİRLİKTE, tek k
+// ekseninden türetilerek) değişir — gerçek kompresyonda bu ikili EL ELE
+// çalışır ("ne kadar VE nereden sıkışıyor"), G30'un SADECE-ratio tasarımı
+// yarı-gerçekçiydi.
 //
-// Soru SADE (3 şık, hep A/B/C), geri bildirim ZENGİN: FARKLI olanın ratio
-// değeri + mix anlamı (cerrahi/müzikal DİLİNİN kompresyon karşılığı: ağır/
-// hafif kompresyon) cevap sonrası açıklanıyor.
+// Soru SADE (3 şık, hep A/B/C), geri bildirim ZENGİN: FARKLI olanın ratio+
+// threshold+gain-reduction değeri + mix anlamı cevap sonrası açıklanıyor.
 //
 // Mod sözleşmesi diğer beşiyle AYNI (getMeta/createQuestion/applyProcessing/
 // evaluateAnswer/calculateXP/getFeedbackData) + aynı-isimli render yardımcıları.
 // Merkezi zorluk eğrisine Boost/Cut'ın (G25) BAŞTAN-doğru-kalibrasyon + Q
 // Genişliği'nin (G29) FELSEFE-öncelikli tasarım dersleriyle bağlandı.
+//
+// KAYNAK: kompresyon en zor duyulan beceri; ince kompresyon transient-olmayan
+// kaynakta (vokal/string) neredeyse duyulmaz. Tüm kaynaklar AÇIK kalıyor
+// (kullanıcı istediğini seçebilir, bu bir kısıtlama DEĞİL) — ama davul/
+// perküsyon/groove gibi TRANSIENT kaynaklar kompresyonu çok daha net ortaya
+// çıkarır (transient'in "ezilmesi" kulakla kolayca duyulur). Varsayılan kaynak
+// (pink noise, diğer beş modla PAYLAŞILAN varsayılan) BİLEREK değiştirilmedi —
+// hangi belirli örnek dosyasının "doğru" varsayılan olacağı bir ürün kararı
+// (bkz. CLAUDE.md "Ürün kararı verme"), burada sadece NOT edildi.
 //
 // SADECE ŞIKLI (choiceOnly:true) — diğer dört yeni modla AYNI karar.
 
@@ -53,51 +92,97 @@ export const MODE_ID = "kompresor";
 export const MAX_LIVES = 5;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// İZOLASYON + SABİT KOMPRESYON PARAMETRELERİ — Q Genişliği'nin "gain HER ZAMAN
-// sabit" ilkesinin bu moddaki karşılığı: ratio DIŞINDAKİ HER şey sabit, hiçbir
-// zorlukta değişmez.
-export const COMP_THRESHOLD_DB = -20; // dB — orta bir eşik, üç varyantta da AYNI
-export const COMP_KNEE_DB = 6; // dB — orta-sert diz, üç varyantta da AYNI
-export const COMP_ATTACK_SEC = 0.003; // 3ms — HIZLI, pumping/daralma kolay duyulsun
-export const COMP_RELEASE_SEC = 0.15; // 150ms — SoundGym Dr. Compressor'a yakın orta değer
-export const COMP_BASE_RATIO = 3.5; // "aynı" ikilinin ratio'su — sabit referans nokta
-export const RATIO_MIN = 1; // DynamicsCompressorNode.ratio'nun pratik/spesifikasyon alt sınırı
-export const RATIO_MAX = 20; // DynamicsCompressorNode.ratio'nun spesifikasyon üst sınırı
+// KOMPRESYON YOĞUNLUĞU (k) — RATIO + THRESHOLD'un TEK bir algısal eksene
+// (k ∈ [0,1], "ne kadar sıkışmış") bağlı BİRLİKTE hareket etmesini sağlayan
+// TEK kontrol değişkeni (bkz. dosya başındaki "MOTOR 2 ŞABLONU" notu). k
+// arttıkça:
+//   - ratio yükselir (COMP_RATIO_MIN_PRACTICAL → COMP_RATIO_MAX_PRACTICAL)
+//   - threshold DÜŞER (COMP_THRESHOLD_HIGH_DB → COMP_THRESHOLD_LOW_DB) —
+//     daha az sinyal eşiğin üstünde kalır, kompresör daha ERKEN devreye girer
+// İkisi BİRLİKTE "sıkışma miktarı"nı (gain reduction, dB — bkz. gainReductionDb)
+// belirler. Aralıklar DynamicsCompressorNode'un GERÇEK [RATIO_MIN,RATIO_MAX]
+// sınırının (spesifikasyon) İÇİNDE kalan, oyun için "pratik" bir alt küme.
+// KULAKLA DOĞRULANMADI — diğer beş modun AYNI dürüstlük notu, makul bir
+// başlangıç noktası, kesin nihai sayı iddia edilmiyor.
+export const RATIO_MIN = 1; // DynamicsCompressorNode.ratio'nun spesifikasyon ALT sınırı
+export const RATIO_MAX = 20; // DynamicsCompressorNode.ratio'nun spesifikasyon ÜST sınırı
+export const COMP_RATIO_MIN_PRACTICAL = 1.3; // k=0 — neredeyse sıkıştırılmamış
+export const COMP_RATIO_MAX_PRACTICAL = 14; // k=1 — ekstrem, bariz ezme
+export const COMP_THRESHOLD_HIGH_DB = -8; // k=0 — sadece en tepe darbeleri yakalar
+export const COMP_THRESHOLD_LOW_DB = -34; // k=1 — sinyalin çoğu eşiğin üstünde kalır
+export const COMP_KNEE_DB = 6; // dB — orta-sert diz, HER ZAMAN sabit (izolasyon ilkesi)
+export const COMP_ATTACK_SEC = 0.003; // 3ms — HIZLI, HİÇBİR zorlukta değişmez (araştırma dersi)
+export const COMP_RELEASE_SEC = 0.15; // 150ms — SoundGym Dr. Compressor'a yakın, HİÇBİR zorlukta değişmez
+export const COMP_BASE_K = 0.5; // "aynı" ikilinin sabit referans yoğunluğu — [0,1]'in ORTASI,
+// böylece FARKLI olan k=0.5'ten iki yöne de (daha çok/az sıkışmış) SİMETRİK
+// uzaklaşabilir, hiçbir zorlukta clamp'e (0 ya da 1 sınırına) çarpmaz (bkz.
+// pickOddK) — G30'un merkezi olmayan COMP_BASE_RATIO=3.5 tasarımının aksine,
+// buradaki simetri "kolaylaşma yok" hesaplarını da BASİTLEŞTİRİYOR.
+// Gain-reduction HESABI için varsayılan/nominal bir "sinyal eşiğin ne kadar
+// üstünde" değeri — GERÇEK ses ölçümü DEĞİL, ratio+threshold'u TEK bir dB
+// farkına indirgemek için kullanılan bir TASARIM sabiti (KULAKLA/ÖLÇÜMLE
+// DOĞRULANMADI).
+export const COMP_REF_LEVEL_DB = -6;
+
+// SAF FONKSİYON.
+export function ratioAtK(k) {
+  return COMP_RATIO_MIN_PRACTICAL + k * (COMP_RATIO_MAX_PRACTICAL - COMP_RATIO_MIN_PRACTICAL);
+}
+// SAF FONKSİYON.
+export function thresholdAtK(k) {
+  return COMP_THRESHOLD_HIGH_DB + k * (COMP_THRESHOLD_LOW_DB - COMP_THRESHOLD_HIGH_DB);
+}
+// SAF FONKSİYON. Statik bir kompresör transfer eğrisi yaklaşıklığı: sinyal
+// eşiğin (threshold) refLevel kadar üstündeyse, "aşan" kısım (refLevel-
+// threshold) ratio'ya göre azaltılır — azaltılan miktar (dB) = gain
+// reduction. refLevel HER ZAMAN COMP_THRESHOLD_HIGH_DB'nin üstünde kalacak
+// şekilde seçildi (bkz. COMP_REF_LEVEL_DB notu) — bu yüzden k arttıkça
+// (ratio↑ VE threshold↓ ikisi de) gainReductionDb KESİNTİSİZ/MONOTON artar,
+// asla küçülmez (testle doğrulandı).
+export function gainReductionDb(ratio, threshold, refLevel = COMP_REF_LEVEL_DB) {
+  if (refLevel <= threshold) return 0;
+  return (refLevel - threshold) * (1 - 1 / ratio);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STATİK DIFFICULTY — diğer beş modla AYNI ikili rol: (a) settings.
 // difficultyPosition verilmezse fallback, (b) "Sabit" modun tier-adı çapası,
 // (c) proplus için tek kaynak (eğri proplus'a hiç uygulanmıyor, Z5 kararı).
 // `options` alan adı diğer modlarla AYNI SEBEPTEN korunuyor (app.js:
-// renderLevelSheet TÜM modların DIFFICULTY[level].options'ını GENERİK okuyor,
-// bkz. q-genisligi.js'in AYNI notu) — Kompresör'de HER ZAMAN 3 (A/B/C, hiç
-// değişmiyor, "%33 şans kasıtlı" spec'in AÇIK isteği — Q'nun kademe-büyüyen
-// tasarımının AKSİNE, burada büyüyen şey gap'in KENDİSİ/küçülmesi, şık sayısı
-// değil).
-// gap: FARKLI olanın COMP_BASE_RATIO'dan ne kadar UZAKTA olacağı (ratio
-// biriminde) — küçük=zor (üç ses birbirine benziyor).
+// renderLevelSheet TÜM modların DIFFICULTY[level].options'ını GENERİK okuyor).
+// kGap: FARKLI olanın k'sinin COMP_BASE_K'dan ne kadar UZAKTA olacağı —
+// küçük=zor (üç ses birbirine benziyor). ARAŞTIRMA DERSİ (öğretmen yöntemi):
+// kolay = EKSTREM fark (bariz ezme), zorlukla ince nüansa iniyor.
 //
 // KULAKLA DOĞRULANMADI — diğer beş modun AYNI dürüstlük notu.
 export const DIFFICULTY = {
-  easy: { label: "Kolay", xp: 14, options: 3, time: 16, lives: MAX_LIVES, gap: 5.5 },
-  medium: { label: "Orta", xp: 22, options: 3, time: 13, lives: MAX_LIVES, gap: 3.0 },
-  hard: { label: "Zor", xp: 32, options: 3, time: 11, lives: MAX_LIVES, gap: 1.5 },
-  pro: { label: "Pro", xp: 46, options: 3, time: 9, lives: MAX_LIVES, gap: 0.6 },
-  proplus: { label: "Pro Plus (Çok Bantlı)", xp: 46, options: 3, time: 9, lives: MAX_LIVES, gap: 0.6 }
+  easy: { label: "Kolay", xp: 14, options: 3, time: 16, lives: MAX_LIVES, kGap: 0.45 },
+  medium: { label: "Orta", xp: 22, options: 3, time: 13, lives: MAX_LIVES, kGap: 0.30 },
+  hard: { label: "Zor", xp: 32, options: 3, time: 11, lives: MAX_LIVES, kGap: 0.15 },
+  pro: { label: "Pro", xp: 46, options: 3, time: 9, lives: MAX_LIVES, kGap: 0.06 },
+  proplus: { label: "Pro Plus (Çok Bantlı)", xp: 46, options: 3, time: 9, lives: MAX_LIVES, kGap: 0.06 }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ZORLUK EĞRİSİ — Boost/Cut'ın (G25) BAŞTAN-doğru-kalibrasyon yöntemiyle
-// bağlanan 5. mod. AT_1 statik easy değeriyle birebir aynı. AT_CAP ikili
-// aramayla, representativeLevelForTier'ın HİÇBİR temsilci seviyesinde eski
-// statik tablodan kolay çıkmayacak şekilde ÖNCEDEN çözüldü.
+// bağlı. AT_1 statik easy değeriyle birebir aynı. AT_CAP + FLOOR ikili
+// aramayla İKİ koşulu birlikte sağlayacak şekilde ÖNCEDEN çözüldü:
+//   (1) representativeLevelForTier'ın HİÇBİR temsilci seviyesinde eski
+//       statik tablodan kolay çıkmıyor ("kolaylaşma yok" — bkz. test),
+//   (2) K_GAP_FLOOR'da bile |gainReductionDb farkı| >= ~1.2 dB (kulağın
+//       ayırt edebileceği varsayılan bir alt sınır — KULAKLA DOĞRULANMADI,
+//       ama sıfıra/algılanamaz bir farka ASLA inmiyor).
+// Hesap (node ile doğrudan doğrulandı): K_GAP_FLOOR=0.046 → GR farkı 1.20dB;
+// representativeLevelForTier: easy(4)=0.3256≤0.45, medium(8)=0.2115≤0.30,
+// hard(12)=0.1374≤0.15, pro(20)=0.0580≤0.06 — hepsi eski statikten en az o
+// kadar zor.
 export const COMP_CURVE_CONFIG = {
   LEVEL_CAP: 20,
 
-  GAP_AT_1: 5.5,
-  GAP_AT_CAP: 0.55,
-  GAP_FLOOR: 0.4,
-  GAP_REDUCTION_PER_STEP: 0.01,
+  K_GAP_AT_1: 0.45,
+  K_GAP_AT_CAP: 0.058,
+  K_GAP_FLOOR: 0.046,
+  K_GAP_REDUCTION_PER_STEP: 0.001,
 
   TIME_SEC_AT_1: 16,
   TIME_SEC_AT_CAP: 9,
@@ -112,40 +197,37 @@ export function paramsForDifficultyPosition(position, config = COMP_CURVE_CONFIG
   const cappedPos = Math.min(safePos, config.LEVEL_CAP);
   const t = config.LEVEL_CAP > 1 ? (cappedPos - 1) / (config.LEVEL_CAP - 1) : 1;
 
-  const gapCurve = logLerp(config.GAP_AT_1, config.GAP_AT_CAP, t);
+  const kGapCurve = logLerp(config.K_GAP_AT_1, config.K_GAP_AT_CAP, t);
   const timeCurve = logLerp(config.TIME_SEC_AT_1, config.TIME_SEC_AT_CAP, t);
 
   return {
     position: safePos,
-    gap: applyPostCapFloor(gapCurve, safePos, config.LEVEL_CAP, config.GAP_FLOOR, config.GAP_REDUCTION_PER_STEP),
+    kGap: applyPostCapFloor(kGapCurve, safePos, config.LEVEL_CAP, config.K_GAP_FLOOR, config.K_GAP_REDUCTION_PER_STEP),
     timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP)
   };
 }
 
 // SAF FONKSİYON. dB Seviyesi'nin pickDbDelta'sıyla AYNI (G24'te ÖĞRENİLEN
 // dersler BAŞTAN uygulandı): ±%6 dar jitter (seans rampasının küçük ama
-// gerçek eğilimini BOĞMASIN) + jitter SONRASI GAP_FLOOR garantisi (Math.max) —
+// gerçek eğilimini BOĞMASIN) + jitter SONRASI K_GAP_FLOOR garantisi (Math.max) —
 // floor'un jitter'la delinmesi G24'te ÖLÇÜLEN gerçek bir hataydı, burada
-// baştan önleniyor. Jitter olmasaydı AYNI gap HER ZAMAN AYNI ratio çiftini
-// üretirdi (ör. hep "3.5 vs 9.0") — tekrar/ezber riski, dB Seviyesi'nde
-// AYNI gerekçeyle çözülmüştü.
-export function pickGap(baseGap, rng = Math.random) {
+// baştan önleniyor.
+export function pickKGap(baseKGap, rng = Math.random) {
   const jitter = 0.94 + rng() * 0.12; // 0.94x – 1.06x
-  const jittered = baseGap * jitter;
-  return Math.round(Math.max(COMP_CURVE_CONFIG.GAP_FLOOR, jittered) * 100) / 100;
+  const jittered = baseKGap * jitter;
+  return Math.max(COMP_CURVE_CONFIG.K_GAP_FLOOR, jittered);
 }
 
-// SAF FONKSİYON. base'den (COMP_BASE_RATIO) rastgele bir yönde (daha ÇOK ya da
-// daha AZ sıkıştırılmış) gap kadar uzaklaşan bir ratio üretir — [RATIO_MIN,
-// RATIO_MAX] dışına ASLA taşmaz (DynamicsCompressorNode'un geçerli aralığı).
-// Kırpma (clamp) FARKLI olanı BAZEN gap'ten daha da belirgin yapabilir (ör.
-// gap=5.5, base-gap=-2 → 1'e kırpılır, fark aslında 2.5 olur) — bu YÖNDE bir
-// sapma HER ZAMAN daha KOLAY (daha büyük fark) tarafına düşer, asla daha zor
-// tarafına, "kolaylaşma yok" invaryantını BOZMAZ.
-export function pickOddRatio(base, gap, rng = Math.random) {
+// SAF FONKSİYON. base'den (COMP_BASE_K) rastgele bir yönde (daha ÇOK ya da
+// daha AZ sıkıştırılmış) kGap kadar uzaklaşan bir k üretir — [0,1] dışına
+// ASLA taşmaz. COMP_BASE_K=0.5 (aralığın ORTASI) ve K_GAP_AT_1=0.45 < 0.5
+// olduğu İÇİN pratikte clamp'e hiç gerek kalmıyor (en kolay turda bile
+// 0.5±0.45 = [0.05, 0.95], [0,1] içinde) — G30'un merkezi-olmayan tasarımının
+// AKSİNE iki yön SİMETRİK zorluk üretir.
+export function pickOddK(base, kGap, rng = Math.random) {
   const direction = rng() < 0.5 ? 1 : -1;
-  const raw = base + direction * gap;
-  return Math.round(Math.min(RATIO_MAX, Math.max(RATIO_MIN, raw)) * 100) / 100;
+  const raw = base + direction * kGap;
+  return Math.min(1, Math.max(0, raw));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -170,7 +252,7 @@ export function getMeta() {
 }
 
 // SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz. settings: { source, boss,
-// difficultyPosition — verilirse gap/timeSec EĞRİDEN gelir, verilmezse
+// difficultyPosition — verilirse kGap/timeSec EĞRİDEN gelir, verilmezse
 // (mevcut testler, doğrudan çağrılar, proplus) statik DIFFICULTY[level]
 // davranışı korunur }.
 export function createQuestion(level, settings = {}) {
@@ -182,18 +264,20 @@ export function createQuestion(level, settings = {}) {
     ? paramsForDifficultyPosition(settings.difficultyPosition)
     : null;
 
-  const baseGap = curve ? curve.gap : diff.gap;
+  const baseKGap = curve ? curve.kGap : diff.kGap;
   const timeSec = curve ? curve.timeSec : diff.time;
 
   const oddIndex = Math.floor(Math.random() * 3);
-  const gap = pickGap(baseGap);
-  const oddRatio = pickOddRatio(COMP_BASE_RATIO, gap);
+  const kGap = pickKGap(baseKGap);
+  const oddK = pickOddK(COMP_BASE_K, kGap);
 
   const letters = ["A", "B", "C"];
-  const variants = letters.map((letter, i) => ({
-    letter,
-    ratio: i === oddIndex ? oddRatio : COMP_BASE_RATIO
-  }));
+  const variants = letters.map((letter, i) => {
+    const k = i === oddIndex ? oddK : COMP_BASE_K;
+    const ratio = ratioAtK(k);
+    const threshold = thresholdAtK(k);
+    return { letter, k, ratio, threshold, gainReductionDb: gainReductionDb(ratio, threshold) };
+  });
   const choices = letters.map((letter, i) => ({ id: letter, tr: letter, correct: i === oddIndex }));
 
   return {
@@ -210,25 +294,28 @@ export function createQuestion(level, settings = {}) {
 }
 
 export function modeDescription() {
-  return "A/B/C ile üçünü de dinle, FARKLI sıkıştırılmış olanı (cerrahi mi müzikal mi) şıklardan seç.";
+  return "A/B/C ile üçünü de dinle, FARKLI sıkıştırılmış olanı (dinamiği ne kadar daraltılmış) şıklardan seç.";
 }
 
 export function correctLabel(question) {
   const odd = question.variants[question.oddIndex];
-  return `${odd.letter} (ratio ${odd.ratio.toFixed(1)}:1)`;
+  return `${odd.letter} (ratio ${odd.ratio.toFixed(1)}:1, GR ${odd.gainReductionDb.toFixed(1)}dB)`;
 }
 
-// Soruda uygulanan kompresyonu audioCtx üzerinde kurar. question.previewRatio
-// VERİLİRSE (app.js'in 3-yönlü abToggle'ının o an dinletmek istediği varyant)
-// O ratio kullanılır; verilmezse (turun İLK çalışı, henüz hiçbir A/B/C
-// butonuna basılmamış) variants[0] (harf A) çalar — kullanıcı A'yı dinleyerek
-// başlar, sonra B/C'ye geçebilir.
+// Soruda uygulanan kompresyonu audioCtx üzerinde kurar. question.previewLetter
+// VERİLİRSE (app.js'in 3-yönlü abToggle'ının o an dinletmek istediği harf) O
+// harfin TÜM parametreleri (ratio+threshold) question.variants'tan okunur;
+// verilmezse (turun İLK çalışı, henüz hiçbir A/B/C butonuna basılmamış)
+// variants[0] (harf A) çalar. previewLetter (previewRatio DEĞİL) — MOTOR 2
+// ŞABLONU: kaç parametre olursa olsun AYNI mekanizma çalışır, bkz. dosya başı
+// not.
 export function applyProcessing(question, { audioCtx }) {
-  const ratio = Number.isFinite(question.previewRatio) ? question.previewRatio : question.variants[0].ratio;
+  const letter = question.previewLetter || question.variants[0].letter;
+  const variant = question.variants.find(v => v.letter === letter) || question.variants[0];
   const comp = audioCtx.createDynamicsCompressor();
-  comp.threshold.value = COMP_THRESHOLD_DB;
+  comp.threshold.value = variant.threshold;
   comp.knee.value = COMP_KNEE_DB;
-  comp.ratio.value = ratio;
+  comp.ratio.value = variant.ratio;
   comp.attack.value = COMP_ATTACK_SEC;
   comp.release.value = COMP_RELEASE_SEC;
   return { filters: [comp] };
@@ -260,26 +347,56 @@ export function calculateXP(question, result, hintUsed, level, context = {}) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ÖĞRETİCİ METİN — soru SADE, geri bildirim ZENGİN: FARKLI olanın ratio
-// değeri + mix anlamı TEK yerde, HER zaman gösterilir.
+// ÖĞRETİCİ METİN — soru SADE, geri bildirim ZENGİN: FARKLI olanın kompresyon
+// karakteri + mix anlamı TEK yerde, HER zaman gösterilir. MOTOR 2 ŞABLONU:
+// kademe tablosu (COMPRESSION_TIERS) + "aynı kademe mi farklı kademe mi"
+// ayrımı (teachingText) — gelecekteki modlar (reverb/distortion) kendi
+// kademe tablolarıyla AYNI deseni izleyebilir.
 // ═══════════════════════════════════════════════════════════════════════════
+
+// SAF VERİ. Kademe sınırları gainReductionDb üzerinde — COMP_BASE_K=0.5'in
+// GR'si (~13dB) "orta" kademenin İÇİNDE düşecek şekilde seçildi (node ile
+// doğrulandı), aralık [~0.5dB, ~26dB] arasında dört kademeyi kapsar.
+const COMPRESSION_TIERS = [
+  { max: 3, word: "hafif kompresyon", detail: "dinamik geniş kalır, ses canlı ama kontrolsüz kalabilir, mixte öne fırlayabilir" },
+  { max: 9, word: "orta kompresyon", detail: "dengeli, dinamiği hafifçe kontrol altına alır" },
+  { max: 17, word: "belirgin kompresyon", detail: "dinamik gözle görülür şekilde daralır, ses mixte oturmaya başlar" },
+  { max: Infinity, word: "ağır kompresyon", detail: "dinamik ÇOK dar, ses tamamen mixte oturur, öne fırlamaz ama tutarlı kalır" }
+];
+
+function compressionTier(gr) {
+  return COMPRESSION_TIERS.find(t => gr < t.max) || COMPRESSION_TIERS[COMPRESSION_TIERS.length - 1];
+}
 
 // SAF FONKSİYON. Mix dili — Kesim Noktası'nın ZONE_EFFECT/Q Genişliği'nin
 // mixText desenindeki AYNI TEK-YERDE-şablon felsefesi.
-export function compressionWord(ratio) {
-  if (ratio < 2) return "hafif kompresyon — dinamik geniş kalır, ses canlı ama kontrolsüz kalabilir, mixte öne fırlayabilir";
-  if (ratio < 5) return "orta kompresyon — dengeli, dinamiği hafifçe kontrol altına alır";
-  if (ratio < 10) return "belirgin kompresyon — dinamik gözle görülür şekilde daralır, ses mixte oturmaya başlar";
-  return "ağır kompresyon — dinamik ÇOK dar, ses tamamen mixte oturur, öne fırlamaz ama tutarlı kalır";
+export function compressionWord(gr) {
+  const tier = compressionTier(gr);
+  return `${tier.word} — ${tier.detail}`;
 }
 
+// SAF FONKSİYON. İki varyant AYNI kademedeyse (ince nüans — kolaylık aynı
+// KELİMEyle iki kere geçmesin diye "ikisi de X, biri daha Y" dili), FARKLI
+// kademedeyse net "bu tür kompresyon" dili (araştırma dersi: kolay/ekstrem
+// turlarda net kontrast, zor/ince turlarda nüans dili).
 export function teachingText(question, answer) {
   const result = evaluateAnswer(question, answer);
   const odd = question.variants[question.oddIndex];
-  const base = `${odd.letter} farklıydı (ratio ${odd.ratio.toFixed(1)}:1) — ${compressionWord(odd.ratio)}.`;
+  const same = question.variants.find((v, i) => i !== question.oddIndex);
+  const oddTier = compressionTier(odd.gainReductionDb);
+  const sameTier = compressionTier(same.gainReductionDb);
+
+  let base;
+  if (oddTier === sameTier) {
+    const heavier = odd.gainReductionDb > same.gainReductionDb;
+    const yonMetni = heavier ? "daha ağır" : "daha hafif";
+    const mixMetni = heavier ? "mixte daha geride/oturmuş durur" : "biraz daha dinamik/canlı kalır";
+    base = `İkisi de ${sameTier.word} sıkıştırılmıştı, ${odd.letter} ${yonMetni} — ${mixMetni}.`;
+  } else {
+    base = `${odd.letter} farklıydı (ratio ${odd.ratio.toFixed(1)}:1, eşik ${odd.threshold.toFixed(0)} dB) — ${compressionWord(odd.gainReductionDb)}.`;
+  }
 
   if (result.correct) return `Doğru! ${base}`;
-
   return `Yanlış — sen ${result.guessLetter} dedin. ${base}`;
 }
 
@@ -302,7 +419,8 @@ export function getFeedbackData(question, answer, context = {}) {
 // YÖNÜ söyler (Q Genişliği'nin/Boost-Cut'ın AYNI kısmi-yardım ilkesi).
 export function getHintText(question) {
   const odd = question.variants[question.oddIndex];
-  return odd.ratio > COMP_BASE_RATIO ? "Farklı olan DAHA ÇOK sıkıştırılmış" : "Farklı olan DAHA AZ sıkıştırılmış";
+  const same = question.variants.find((v, i) => i !== question.oddIndex);
+  return odd.gainReductionDb > same.gainReductionDb ? "Farklı olan DAHA ÇOK sıkıştırılmış" : "Farklı olan DAHA AZ sıkıştırılmış";
 }
 
 export function renderHintMask(hintMaskLayerEl) {
@@ -314,8 +432,7 @@ export function clearHintMask(hintMaskLayerEl) {
 
 // Dinleme kontrolü artık #freqGuessArea'da DEĞİL — app.js'in mevcut A/B
 // butonu (#abToggle) bu mod aktifken 3-yönlü döngüye genişletiliyor (bkz.
-// app.js: toggleAB/updateAbToggleUI'nin "kompresor" dalı, "mevcut A/B
-// altyapısını 3'e genişlet" spec isteğinin BİREBİR karşılığı). Bu yüzden
+// app.js: toggleAB/updateAbToggleUI'nin "kompresor" dalı). Bu yüzden
 // #freqGuessArea diğer dört modla AYNI şekilde gizli kalıyor.
 export function renderGuessAreaControls(freqGuessAreaEl) {
   if (!freqGuessAreaEl) return;
@@ -351,23 +468,26 @@ export function markAnswerChoices(answersEl, q, picked) {
 // ═══════════════════════════════════════════════════════════════════════════
 // GÖRSEL — diğer modların frekans-yanıtı eğrisinin AKSİNE, kompresyonun
 // frekans ekseni YOK — burada gösterilen "DİNAMİK ZARF" (basit bir genlik-
-// zaman temsili, spec'in "waveform zarfı ya da dinamik aralık çubuğu — basit
-// ve net" isteğine karşılık): dar/düz zarf = sıkışmış (yüksek ratio), geniş/
-// dalgalı zarf = açık (düşük ratio). Gerçek bir ses ANALİZİ DEĞİL — sentetik,
-// SADECE ratio değerinden türetilen İLLÜSTRATİF bir eğri (audioCtx'e HİÇ
-// ihtiyaç yok, diğer modların getFrequencyResponse'undan FARKLI).
+// zaman temsili): dar/düz zarf = sıkışmış (yüksek gain reduction), geniş/
+// dalgalı zarf = açık (düşük gain reduction). Gerçek bir ses ANALİZİ DEĞİL —
+// sentetik, SADECE gainReductionDb değerinden türetilen İLLÜSTRATİF bir eğri
+// (audioCtx'e HİÇ ihtiyaç yok, diğer modların getFrequencyResponse'undan
+// FARKLI). ratio TEK BAŞINA değil, ratio+threshold'un BİRLEŞİK etkisi
+// (gainReductionDb) çiziliyor — G30'un sadece-ratio tasarımının aksine artık
+// görsel de "tek algısal eksen" ilkesini yansıtıyor.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const ENV_POINTS = 200;
-function computeEnvelopeY(ratio, w, h) {
+const MAX_PLAUSIBLE_GR_DB = 30; // gainReductionDb'nin pratik üst sınırı (k=1'de ~26dB) — görsel ölçekleme İÇİN
+function computeEnvelopeY(gr, w, h) {
   const plotBottom = h - AXIS_H;
   const curveTop = CURVE_TOP, curveBottom = plotBottom - 6;
   const midY = (curveTop + curveBottom) / 2;
   const bandH = (curveBottom - curveTop) * 0.42;
-  // Ratio arttıkça genlik küçülür (dinamik daralır) ama HİÇBİR ZAMAN sıfıra
-  // inmez (ratio=20'de bile hafif bir kıpırtı kalır — "tamamen düz çizgi"
+  // GR arttıkça genlik küçülür (dinamik daralır) ama HİÇBİR ZAMAN sıfıra
+  // inmez (GR=30dB'de bile hafif bir kıpırtı kalır — "tamamen düz çizgi"
   // gerçekçi değil, limiter'da bile mikro-dinamik vardır).
-  const compressionFactor = 1 / (1 + (ratio - 1) * 0.15);
+  const compressionFactor = Math.max(0.08, 1 - gr / MAX_PLAUSIBLE_GR_DB);
   const ys = new Float32Array(ENV_POINTS + 1);
   for (let i = 0; i <= ENV_POINTS; i++) {
     const t = i / ENV_POINTS;
@@ -419,9 +539,10 @@ function drawEnvelopeLegend(ctx2d, showGuess) {
 // Soru sırasında (roundActive) zarf BİLEREK gizli — kulakla bulma ilkesi.
 // Sadece cevap sonrası çizilir. state: { activeQuestion, roundActive,
 // kompresorGuessLetter } — kompresorGuessLetter app.js'in submitKompresorGuess'te
-// sakladığı, kullanıcının SEÇTİĞİ harf; guess zarfı o harfin GERÇEK ratio'suyla
-// çizilir (diğer modların AKSİNE burada "temsili" bir değere gerek yok — her
-// harfin GERÇEK ratio'su zaten question.variants içinde mevcut).
+// sakladığı, kullanıcının SEÇTİĞİ harf; guess zarfı o harfin GERÇEK
+// gainReductionDb'siyle çizilir (diğer modların AKSİNE burada "temsili" bir
+// değere gerek yok — her harfin GERÇEK parametreleri zaten question.variants
+// içinde mevcut).
 export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
   const { activeQuestion: q, roundActive, kompresorGuessLetter } = state;
   if (!q || roundActive) return;
@@ -429,8 +550,8 @@ export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
   const correctVariant = q.variants[q.oddIndex];
   const guessVariant = kompresorGuessLetter ? q.variants.find(v => v.letter === kompresorGuessLetter) : null;
 
-  const correctYs = computeEnvelopeY(correctVariant.ratio, w, h);
-  const guessYs = guessVariant ? computeEnvelopeY(guessVariant.ratio, w, h) : null;
+  const correctYs = computeEnvelopeY(correctVariant.gainReductionDb, w, h);
+  const guessYs = guessVariant ? computeEnvelopeY(guessVariant.gainReductionDb, w, h) : null;
 
   if (guessYs) drawEnvelope(ctx2d, w, guessYs, GUESS_COLOR, 0.85);
   drawEnvelope(ctx2d, w, correctYs, CORRECT_COLOR, 0.85);

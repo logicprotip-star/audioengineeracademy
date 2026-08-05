@@ -2176,18 +2176,23 @@ function playQuestion(processed = true) {
 // kurmaması gerekliliği aynı).
 // G30: Kompresör'de bu buton İKİLİ crossfade (setProcessed) DEĞİL, ÜÇ farklı
 // kompresyon varyantı arasında dönüyor — dry/wet paralel yol kavramı burada
-// anlamsız (üçü de "wet", sadece ratio'ları farklı). Bu yüzden HER basışta
+// anlamsız (üçü de "wet", sadece parametreleri farklı). Bu yüzden HER basışta
 // audioEngine.buildQuestionChain'i (cmprow'un post-answer önizleme butonlarıyla
 // AYNI teknik: geçici bir soru kopyası, activeQuestion MUTASYONA UĞRAMADAN)
 // YENİDEN çağırıyor — ses o an baştan başlar (crossfade'siz), ama bu zaten
 // mevcut önizleme butonlarının da kabul ettiği bir ödün (bkz. o butonların
-// dosya başı notu).
+// dosya başı notu). G33: previewRatio (TEK parametreye özel) yerine
+// previewLetter geçti — kompresor.js'in applyProcessing'i o harfin TÜM
+// parametrelerini (artık ratio+threshold) question.variants'tan okuyor;
+// Motor 2'nin gelecekteki modları (reverb/distortion, muhtemelen 2+
+// parametreli) da AYNI previewLetter mekanizmasını kullanabilir — mode'a
+// özel "previewX" alanları GEREKMEZ.
 function cycleKompresorPreview() {
   const q = activeQuestion;
   const idx = q.variants.findIndex(v => v.letter === kompresorPlayLetter);
   const next = q.variants[(idx + 1) % q.variants.length];
   kompresorPlayLetter = next.letter;
-  audioEngine.buildQuestionChain({ ...q, previewRatio: next.ratio }, true, q.source, uploadManager, mode.applyProcessing);
+  audioEngine.buildQuestionChain({ ...q, previewLetter: next.letter }, true, q.source, uploadManager, mode.applyProcessing);
   updateAbToggleUI();
 }
 

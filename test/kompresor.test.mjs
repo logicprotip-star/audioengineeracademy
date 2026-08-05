@@ -1,9 +1,11 @@
-// Kompresör moduna özel testler: 3-sesli odd-one-out üretimi (iki AYNI ratio,
-// biri FARKLI, konumu rastgele), izole kompresyon (threshold/knee/attack/
-// release HER ZAMAN sabit, SADECE ratio değişir), zorlukla farkın (gap)
-// küçülmesi + FLOOR, merkezi zorluk eğrisine bağlanma + "kolaylaşma yok"
-// invaryantı, evaluateAnswer'ın harf-eşleşme mantığı, applyProcessing'in
-// doğru DynamicsCompressorNode'u kurması.
+// Kompresör moduna özel testler: 3-sesli odd-one-out üretimi (iki AYNI
+// kompresyon yoğunluğu k, biri FARKLI, konumu rastgele), ratio+threshold'un
+// TEK bir k eksenine bağlı BİRLİKTE hareket ettiği (izolasyon: knee/attack/
+// release HER ZAMAN sabit), zorlukla kGap'in (ve türetilen gain-reduction
+// farkının) küçülmesi + K_GAP_FLOOR, merkezi zorluk eğrisine bağlanma +
+// "kolaylaşma yok" invaryantı, evaluateAnswer'ın harf-eşleşme mantığı,
+// applyProcessing'in previewLetter'a göre doğru DynamicsCompressorNode'u
+// kurması.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -66,75 +68,173 @@ describe("Kompresör — createQuestion() genel sözleşme", () => {
     }
   });
 
-  it("iki AYNI ratio'lu varyant TAM COMP_BASE_RATIO'da, FARKLI olan HİÇBİR ZAMAN buna eşit değil", () => {
+  it("iki AYNI varyant TAM COMP_BASE_K'da (ratio+threshold+GR birebir eşit), FARKLI olan HİÇBİR ZAMAN buna eşit değil", () => {
     for (let i = 0; i < 200; i++) {
       const q = mode.createQuestion("medium", { source: "pink", boss: false });
       const sameCount = q.variants.filter((v, i2) => i2 !== q.oddIndex).length;
       assert.equal(sameCount, 2);
       q.variants.forEach((v, i2) => {
-        if (i2 !== q.oddIndex) assert.equal(v.ratio, mode.COMP_BASE_RATIO, `aynı çift base'te olmalıydı`);
-        else assert.notEqual(v.ratio, mode.COMP_BASE_RATIO, `farklı olan base'e eşit OLMAMALI`);
+        if (i2 !== q.oddIndex) {
+          assert.equal(v.k, mode.COMP_BASE_K, "aynı çift base k'de olmalıydı");
+          assert.equal(v.ratio, mode.ratioAtK(mode.COMP_BASE_K));
+          assert.equal(v.threshold, mode.thresholdAtK(mode.COMP_BASE_K));
+        } else {
+          assert.notEqual(v.k, mode.COMP_BASE_K, "farklı olan base'e eşit OLMAMALI");
+        }
       });
     }
   });
 
-  it("ratio HER ZAMAN [RATIO_MIN, RATIO_MAX] aralığında kalır — DynamicsCompressorNode'un geçerli sınırı", () => {
+  it("ratio HER ZAMAN [COMP_RATIO_MIN_PRACTICAL, COMP_RATIO_MAX_PRACTICAL] ⊂ [RATIO_MIN, RATIO_MAX] aralığında kalır", () => {
     for (const level of Object.keys(mode.DIFFICULTY)) {
       for (let i = 0; i < 100; i++) {
         const q = mode.createQuestion(level, { source: "pink", boss: false });
         q.variants.forEach(v => {
-          assert.ok(v.ratio >= mode.RATIO_MIN - 1e-9 && v.ratio <= mode.RATIO_MAX + 1e-9, `${level}: ratio ${v.ratio} aralık dışı`);
+          assert.ok(v.ratio >= mode.COMP_RATIO_MIN_PRACTICAL - 1e-9 && v.ratio <= mode.COMP_RATIO_MAX_PRACTICAL + 1e-9, `${level}: ratio ${v.ratio} pratik aralık dışı`);
+          assert.ok(v.ratio >= mode.RATIO_MIN && v.ratio <= mode.RATIO_MAX, `${level}: ratio ${v.ratio} node spesifikasyonu dışı`);
+          assert.ok(v.threshold >= mode.COMP_THRESHOLD_LOW_DB - 1e-9 && v.threshold <= mode.COMP_THRESHOLD_HIGH_DB + 1e-9, `${level}: threshold ${v.threshold} aralık dışı`);
         });
       }
     }
   });
 
-  it("kolaydan pro'ya FARKLI olanın |ratio - base| farkı KÜÇÜLÜR — istatistiksel olarak (N=300, jitter var)", () => {
+  it("kolaydan pro'ya FARKLI olanın |gainReductionDb - base GR| farkı KÜÇÜLÜR — istatistiksel olarak (N=300, jitter var)", () => {
     const N = 300;
+    const baseGr = mode.gainReductionDb(mode.ratioAtK(mode.COMP_BASE_K), mode.thresholdAtK(mode.COMP_BASE_K));
     let easySum = 0, proSum = 0;
     for (let i = 0; i < N; i++) {
       const qEasy = mode.createQuestion("easy", { source: "pink", boss: false });
       const qPro = mode.createQuestion("pro", { source: "pink", boss: false });
-      easySum += Math.abs(qEasy.variants[qEasy.oddIndex].ratio - mode.COMP_BASE_RATIO);
-      proSum += Math.abs(qPro.variants[qPro.oddIndex].ratio - mode.COMP_BASE_RATIO);
+      easySum += Math.abs(qEasy.variants[qEasy.oddIndex].gainReductionDb - baseGr);
+      proSum += Math.abs(qPro.variants[qPro.oddIndex].gainReductionDb - baseGr);
     }
-    assert.ok(proSum / N < easySum / N, "pro ortalama olarak easy'den DAHA KÜÇÜK fark üretmeliydi");
+    assert.ok(proSum / N < easySum / N, "pro ortalama olarak easy'den DAHA KÜÇÜK GR farkı üretmeliydi");
   });
 });
 
-describe("Kompresör — pickGap/pickOddRatio (dar jitter + FLOOR garantisi, BAŞTAN uygulandı)", () => {
-  it("pickGap HİÇBİR ZAMAN GAP_FLOOR'un altına inmez — baseGap TAM floor'da bile (5000 örnek)", () => {
-    const floor = mode.COMP_CURVE_CONFIG.GAP_FLOOR;
+describe("Kompresör — RATIO + THRESHOLD BİRLİKTE hareket ediyor (araştırma dersi: tek algısal eksen)", () => {
+  it("ratioAtK ve thresholdAtK k arttıkça İKİSİ de 'daha çok sıkışma' yönünde hareket eder (ratio↑, threshold↓)", () => {
+    let prevRatio = -Infinity, prevThreshold = Infinity;
+    for (let k = 0; k <= 1; k += 0.05) {
+      const r = mode.ratioAtK(k), t = mode.thresholdAtK(k);
+      assert.ok(r >= prevRatio - 1e-9, `k=${k}: ratio azaldı`);
+      assert.ok(t <= prevThreshold + 1e-9, `k=${k}: threshold arttı`);
+      prevRatio = r; prevThreshold = t;
+    }
+  });
+
+  it("gainReductionDb k arttıkça KESİNTİSİZ/MONOTON artar — ratio+threshold'un BİRLEŞİK etkisi tek yönlü", () => {
+    let prev = -Infinity;
+    for (let k = 0; k <= 1; k += 0.02) {
+      const gr = mode.gainReductionDb(mode.ratioAtK(k), mode.thresholdAtK(k));
+      assert.ok(gr >= prev - 1e-9, `k=${k.toFixed(2)}'de GR azaldı: ${gr} < ${prev}`);
+      prev = gr;
+    }
+  });
+
+  it("createQuestion'da FARKLI olan varyantın ratio VE threshold'u AYNI ANDA base'ten sapar — biri sabit kalıp diğeri değişmiyor", () => {
+    for (let i = 0; i < 200; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false });
+      const odd = q.variants[q.oddIndex];
+      const baseRatio = mode.ratioAtK(mode.COMP_BASE_K);
+      const baseThreshold = mode.thresholdAtK(mode.COMP_BASE_K);
+      const ratioChanged = Math.abs(odd.ratio - baseRatio) > 1e-6;
+      const thresholdChanged = Math.abs(odd.threshold - baseThreshold) > 1e-6;
+      assert.equal(ratioChanged, thresholdChanged, "ratio ve threshold AYNI ANDA değişmeli — biri değişip diğeri sabit kalamaz (tek k ekseninden türetiliyorlar)");
+      assert.ok(ratioChanged, "FARKLI varyantta İKİSİ de gerçekten değişmiş olmalı");
+    }
+  });
+
+  it("knee/attack/release HİÇBİR zorlukta/varyantta DEĞİŞMEZ — SADECE ratio+threshold değişir (araştırma dersi: hız sabit kalmalı)", () => {
+    const fakeAudioCtx = { createDynamicsCompressor: () => ({ threshold: { value: 0 }, knee: { value: 0 }, ratio: { value: 0 }, attack: { value: 0 }, release: { value: 0 } }) };
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      const q = mode.createQuestion(level, { source: "pink", boss: false });
+      for (const letter of ["A", "B", "C"]) {
+        const { filters } = mode.applyProcessing({ ...q, previewLetter: letter }, { audioCtx: fakeAudioCtx });
+        assert.equal(filters[0].knee.value, mode.COMP_KNEE_DB);
+        assert.equal(filters[0].attack.value, mode.COMP_ATTACK_SEC);
+        assert.equal(filters[0].release.value, mode.COMP_RELEASE_SEC);
+      }
+    }
+  });
+});
+
+describe("Kompresör — pickKGap/pickOddK (dar jitter + FLOOR garantisi, BAŞTAN uygulandı)", () => {
+  it("pickKGap HİÇBİR ZAMAN K_GAP_FLOOR'un altına inmez — baseKGap TAM floor'da bile (5000 örnek)", () => {
+    const floor = mode.COMP_CURVE_CONFIG.K_GAP_FLOOR;
     for (let i = 0; i < 5000; i++) {
-      const v = mode.pickGap(floor);
+      const v = mode.pickKGap(floor);
       assert.ok(v >= floor - 1e-9, `floor ihlali: ${v} < ${floor}`);
     }
   });
 
-  it("pickGap'in ortalaması (N=2000) baseGap'e YAKIN kalır — jitter sinyali BOĞMUYOR", () => {
+  it("pickKGap'in ortalaması (N=2000) baseKGap'e YAKIN kalır — jitter sinyali BOĞMUYOR", () => {
     const N = 2000;
-    for (const base of [5.5, 3.0, 1.5, mode.COMP_CURVE_CONFIG.GAP_FLOOR + 0.1]) {
+    for (const base of [0.45, 0.30, 0.15, mode.COMP_CURVE_CONFIG.K_GAP_FLOOR + 0.02]) {
       let sum = 0;
-      for (let i = 0; i < N; i++) sum += mode.pickGap(base);
+      for (let i = 0; i < N; i++) sum += mode.pickKGap(base);
       const avg = sum / N;
       assert.ok(Math.abs(avg - base) / base < 0.03, `base=${base}: ortalama ${avg.toFixed(4)}, sapma %${(Math.abs(avg - base) / base * 100).toFixed(1)}`);
     }
   });
 
-  it("pickOddRatio [RATIO_MIN,RATIO_MAX] dışına ASLA taşmaz, iki yönde de (büyük gap'lerde bile)", () => {
+  it("pickOddK [0,1] dışına ASLA taşmaz, iki yönde de (büyük kGap'lerde bile)", () => {
     for (let i = 0; i < 500; i++) {
-      const r = mode.pickOddRatio(mode.COMP_BASE_RATIO, 50); // bilerek aşırı büyük gap
-      assert.ok(r >= mode.RATIO_MIN - 1e-9 && r <= mode.RATIO_MAX + 1e-9, `r=${r} aralık dışı`);
+      const k = mode.pickOddK(mode.COMP_BASE_K, 5); // bilerek aşırı büyük kGap
+      assert.ok(k >= -1e-9 && k <= 1 + 1e-9, `k=${k} [0,1] dışında`);
     }
   });
 
-  it("pickOddRatio her iki yönde de (daha çok/az sıkıştırılmış) değer üretir — tek yönlü SAPLANMAZ", () => {
+  it("pickOddK her iki yönde de (daha çok/az sıkıştırılmış) değer üretir — tek yönlü SAPLANMAZ", () => {
     let above = 0, below = 0;
     for (let i = 0; i < 200; i++) {
-      const r = mode.pickOddRatio(mode.COMP_BASE_RATIO, 2);
-      if (r > mode.COMP_BASE_RATIO) above++; else if (r < mode.COMP_BASE_RATIO) below++;
+      const k = mode.pickOddK(mode.COMP_BASE_K, 0.1);
+      if (k > mode.COMP_BASE_K) above++; else if (k < mode.COMP_BASE_K) below++;
     }
     assert.ok(above > 50 && below > 50, `above=${above} below=${below} — bir yöne saplanmış olabilir`);
+  });
+
+  it("COMP_BASE_K=0.5 (ORTA) olduğu ve K_GAP_AT_1 < 0.5 olduğu İÇİN en kolay turda bile clamp'e gerek KALMAZ — iki yön SİMETRİK", () => {
+    assert.ok(mode.COMP_CURVE_CONFIG.K_GAP_AT_1 < mode.COMP_BASE_K, "K_GAP_AT_1 taşarsa simetri bozulur");
+    const N = 500;
+    let upSum = 0, downSum = 0, upCount = 0, downCount = 0;
+    for (let i = 0; i < N; i++) {
+      const q = mode.createQuestion("easy", { source: "pink", boss: false });
+      const odd = q.variants[q.oddIndex];
+      if (odd.k > mode.COMP_BASE_K) { upSum += odd.k - mode.COMP_BASE_K; upCount++; }
+      else { downSum += mode.COMP_BASE_K - odd.k; downCount++; }
+    }
+    const upAvg = upSum / upCount, downAvg = downSum / downCount;
+    assert.ok(Math.abs(upAvg - downAvg) / upAvg < 0.1, `up ortalama ${upAvg.toFixed(3)} vs down ${downAvg.toFixed(3)} — simetri bozuk (clamp'e çarpıyor olabilir)`);
+  });
+});
+
+describe("Kompresör — COMP_FLOOR (K_GAP_FLOOR'un gain-reduction karşılığı) — kulağın ayıramayacağı fark ASLA üretilmez", () => {
+  it("K_GAP_FLOOR'da (jitter yok) |GR farkı| en az ~1.2dB — hesap DOĞRUDAN doğrulanır (tahmin değil)", () => {
+    const floor = mode.COMP_CURVE_CONFIG.K_GAP_FLOOR;
+    const baseGr = mode.gainReductionDb(mode.ratioAtK(mode.COMP_BASE_K), mode.thresholdAtK(mode.COMP_BASE_K));
+    const upGr = mode.gainReductionDb(mode.ratioAtK(mode.COMP_BASE_K + floor), mode.thresholdAtK(mode.COMP_BASE_K + floor));
+    const downGr = mode.gainReductionDb(mode.ratioAtK(mode.COMP_BASE_K - floor), mode.thresholdAtK(mode.COMP_BASE_K - floor));
+    assert.ok(upGr - baseGr >= 1.0, `yukarı yön GR farkı ${(upGr - baseGr).toFixed(2)}dB < 1.0dB`);
+    assert.ok(baseGr - downGr >= 1.0, `aşağı yön GR farkı ${(baseGr - downGr).toFixed(2)}dB < 1.0dB`);
+  });
+
+  it("LEVEL_CAP'in ÇOK ötesinde (pro'nun da ötesi) bile |GR farkı| asla algılanamaz bir düzeye (0dB'ye yakın) inmez", () => {
+    const far = mode.paramsForDifficultyPosition(mode.COMP_CURVE_CONFIG.LEVEL_CAP + 1000);
+    const baseGr = mode.gainReductionDb(mode.ratioAtK(mode.COMP_BASE_K), mode.thresholdAtK(mode.COMP_BASE_K));
+    const oddGr = mode.gainReductionDb(mode.ratioAtK(mode.COMP_BASE_K + far.kGap), mode.thresholdAtK(mode.COMP_BASE_K + far.kGap));
+    assert.ok(oddGr - baseGr >= 1.0, `far kGap'te GR farkı ${(oddGr - baseGr).toFixed(2)}dB < 1.0dB`);
+  });
+
+  it("gerçek createQuestion çıktısında (jitter dahil, 2000 örnek/pro) |GR farkı| ASLA 0.8dB'nin altına inmez", () => {
+    let minDiff = Infinity;
+    for (let i = 0; i < 2000; i++) {
+      const q = mode.createQuestion("pro", { source: "pink", boss: false, difficultyPosition: mode.COMP_CURVE_CONFIG.LEVEL_CAP });
+      const odd = q.variants[q.oddIndex];
+      const same = q.variants.find((v, i2) => i2 !== q.oddIndex);
+      minDiff = Math.min(minDiff, Math.abs(odd.gainReductionDb - same.gainReductionDb));
+    }
+    assert.ok(minDiff >= 0.8, `2000 örnekte en küçük GR farkı ${minDiff.toFixed(3)}dB < 0.8dB (floor delinmiş olabilir)`);
   });
 });
 
@@ -185,31 +285,51 @@ describe("Kompresör — calculateXP sağlamlık", () => {
   });
 });
 
-describe("Kompresör — öğretici metin (teachingText/getFeedbackData) — harf + ratio + mix anlamı", () => {
-  it("metin FARKLI olan harfi + ratio değerini (1 ondalık) + mix anlamını içerir", () => {
-    const q = { oddIndex: 1, variants: [{ letter: "A", ratio: 3.5 }, { letter: "B", ratio: 9.2 }, { letter: "C", ratio: 3.5 }] };
+describe("Kompresör — öğretici metin (teachingText/getFeedbackData) — mix dilinde, gerçekçi", () => {
+  it("FARKLI kademedeki varyantlarda metin harfi + ratio + threshold + mix anlamını içerir", () => {
+    const q = { oddIndex: 1, variants: [
+      { letter: "A", ratio: 7.65, threshold: -21, gainReductionDb: 13.0 },
+      { letter: "B", ratio: 12.5, threshold: -29, gainReductionDb: 22.0 },
+      { letter: "C", ratio: 7.65, threshold: -21, gainReductionDb: 13.0 }
+    ] };
     const text = mode.teachingText(q, "B");
     assert.match(text, /B/);
-    assert.match(text, /9\.2/);
+    assert.match(text, /12\.5/);
+    assert.match(text, /-29/);
     assert.match(text, /kompresyon/i);
   });
 
+  it("AYNI kademedeki (ince nüans) varyantlarda 'ikisi de X, biri daha Y' dili kullanılır", () => {
+    // ikisi de aynı COMPRESSION_TIERS aralığına düşecek şekilde (orta kademe, 3-9dB)
+    const q = { oddIndex: 1, variants: [
+      { letter: "A", ratio: 3, threshold: -12, gainReductionDb: 5.0 },
+      { letter: "B", ratio: 3.5, threshold: -13, gainReductionDb: 7.0 },
+      { letter: "C", ratio: 3, threshold: -12, gainReductionDb: 5.0 }
+    ] };
+    const text = mode.teachingText(q, "B");
+    assert.match(text, /İkisi de/);
+    assert.match(text, /daha ağır/);
+  });
+
   it("YANLIŞ durumda kullanıcının seçtiği harf de metinde geçer", () => {
-    const q = { oddIndex: 1, variants: [{ letter: "A", ratio: 3.5 }, { letter: "B", ratio: 9.2 }, { letter: "C", ratio: 3.5 }] };
+    const q = { oddIndex: 1, variants: [
+      { letter: "A", ratio: 5, threshold: -20, gainReductionDb: 8 },
+      { letter: "B", ratio: 12, threshold: -30, gainReductionDb: 20 },
+      { letter: "C", ratio: 5, threshold: -20, gainReductionDb: 8 }
+    ] };
     const text = mode.teachingText(q, "A");
     assert.match(text, /sen A dedin/);
     assert.match(text, /B farklıydı/);
   });
 
-  it("hiçbir durum boş/bozuk metin üretmez (3 harf × 2 durum × birkaç ratio)", () => {
-    for (const oddIndex of [0, 1, 2]) {
-      for (const oddRatio of [1.2, 3.9, 8.5, 15.0]) {
-        const variants = ["A", "B", "C"].map((letter, i) => ({ letter, ratio: i === oddIndex ? oddRatio : mode.COMP_BASE_RATIO }));
-        const q = { oddIndex, variants };
+  it("hiçbir durum boş/bozuk metin üretmez (3 harf × 2 durum × gerçek createQuestion çıktıları)", () => {
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      for (let i = 0; i < 10; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false });
         for (const guess of ["A", "B", "C"]) {
           const text = mode.teachingText(q, guess);
-          assert.ok(text && text.length >= 10, `oddIndex=${oddIndex} guess=${guess}: kısa/boş metin`);
-          assert.doesNotMatch(text, /undefined|NaN|\[object/, `oddIndex=${oddIndex} guess=${guess}: bozuk metin: ${text}`);
+          assert.ok(text && text.length >= 10, `${level} guess=${guess}: kısa/boş metin`);
+          assert.doesNotMatch(text, /undefined|NaN|\[object/, `${level} guess=${guess}: bozuk metin: ${text}`);
         }
       }
     }
@@ -227,17 +347,25 @@ describe("Kompresör — öğretici metin (teachingText/getFeedbackData) — har
     assert.equal(wrongFb.panel, null);
   });
 
-  it("compressionWord dört eşiği de (hafif/orta/belirgin/ağır) boş/bozuk metin ÜRETMEDEN kapsar", () => {
-    for (const ratio of [1.0, 1.9, 2.0, 4.9, 5.0, 9.9, 10.0, 20.0]) {
-      const w = mode.compressionWord(ratio);
-      assert.ok(w && w.length >= 5, `ratio=${ratio}: kısa/boş metin`);
+  it("compressionWord dört kademeyi de (hafif/orta/belirgin/ağır) boş/bozuk metin ÜRETMEDEN kapsar", () => {
+    for (const gr of [0.5, 2.9, 3.0, 8.9, 9.0, 16.9, 17.0, 26.0]) {
+      const w = mode.compressionWord(gr);
+      assert.ok(w && w.length >= 5, `gr=${gr}: kısa/boş metin`);
       assert.match(w, /kompresyon/);
     }
   });
+
+  it("correctLabel ratio + GR değerini birlikte gösterir", () => {
+    const q = { oddIndex: 0, variants: [{ letter: "A", ratio: 9.2, threshold: -28, gainReductionDb: 19.4 }] };
+    const label = mode.correctLabel(q);
+    assert.match(label, /A/);
+    assert.match(label, /9\.2/);
+    assert.match(label, /19\.4/);
+  });
 });
 
-describe("Kompresör — applyProcessing (doğru peaking... DynamicsCompressorNode, sahte audioCtx ile)", () => {
-  it("previewRatio VERİLİRSE onu, verilmezse variants[0]'ı kullanan TEK DynamicsCompressorNode döner", () => {
+describe("Kompresör — applyProcessing (previewLetter'a göre doğru DynamicsCompressorNode, sahte audioCtx ile)", () => {
+  it("previewLetter VERİLİRSE o harfin ratio+threshold'unu, verilmezse variants[0]'ınkini kullanan TEK DynamicsCompressorNode döner", () => {
     const created = [];
     const fakeAudioCtx = {
       createDynamicsCompressor: () => {
@@ -246,27 +374,27 @@ describe("Kompresör — applyProcessing (doğru peaking... DynamicsCompressorNo
         return c;
       }
     };
-    const q = { variants: [{ letter: "A", ratio: 3.5 }, { letter: "B", ratio: 9.0 }, { letter: "C", ratio: 3.5 }] };
+    const q = { variants: [{ letter: "A", ratio: 3.5, threshold: -18 }, { letter: "B", ratio: 12.0, threshold: -30 }, { letter: "C", ratio: 3.5, threshold: -18 }] };
 
     const { filters: f1 } = mode.applyProcessing(q, { audioCtx: fakeAudioCtx });
     assert.equal(f1.length, 1);
-    assert.equal(f1[0].ratio.value, 3.5, "previewRatio yokken variants[0] (A) kullanılmalıydı");
-    assert.equal(f1[0].threshold.value, mode.COMP_THRESHOLD_DB);
+    assert.equal(f1[0].ratio.value, 3.5, "previewLetter yokken variants[0] (A) kullanılmalıydı");
+    assert.equal(f1[0].threshold.value, -18);
     assert.equal(f1[0].knee.value, mode.COMP_KNEE_DB);
     assert.equal(f1[0].attack.value, mode.COMP_ATTACK_SEC);
     assert.equal(f1[0].release.value, mode.COMP_RELEASE_SEC);
 
-    const { filters: f2 } = mode.applyProcessing({ ...q, previewRatio: 9.0 }, { audioCtx: fakeAudioCtx });
-    assert.equal(f2[0].ratio.value, 9.0, "previewRatio verilince O kullanılmalıydı");
+    const { filters: f2 } = mode.applyProcessing({ ...q, previewLetter: "B" }, { audioCtx: fakeAudioCtx });
+    assert.equal(f2[0].ratio.value, 12.0, "previewLetter='B' verilince O harfin ratio'su kullanılmalıydı");
+    assert.equal(f2[0].threshold.value, -30, "previewLetter='B' verilince O harfin threshold'u da kullanılmalıydı");
 
     assert.equal(created.length, 2);
   });
 
-  it("threshold/knee/attack/release HER ZAMAN sabit — sadece ratio değişir (izolasyon ilkesi)", () => {
+  it("knee/attack/release HER ZAMAN sabit — ratio+threshold DEĞİŞSE bile (izolasyon ilkesi)", () => {
     const fakeAudioCtx = { createDynamicsCompressor: () => ({ threshold: { value: 0 }, knee: { value: 0 }, ratio: { value: 0 }, attack: { value: 0 }, release: { value: 0 } }) };
-    for (const ratio of [1, 3.5, 9, 20]) {
-      const { filters } = mode.applyProcessing({ variants: [{ letter: "A", ratio }] }, { audioCtx: fakeAudioCtx });
-      assert.equal(filters[0].threshold.value, mode.COMP_THRESHOLD_DB);
+    for (const [ratio, threshold] of [[1.3, -8], [5, -18], [9, -25], [14, -34]]) {
+      const { filters } = mode.applyProcessing({ variants: [{ letter: "A", ratio, threshold }] }, { audioCtx: fakeAudioCtx });
       assert.equal(filters[0].knee.value, mode.COMP_KNEE_DB);
       assert.equal(filters[0].attack.value, mode.COMP_ATTACK_SEC);
       assert.equal(filters[0].release.value, mode.COMP_RELEASE_SEC);
@@ -275,12 +403,12 @@ describe("Kompresör — applyProcessing (doğru peaking... DynamicsCompressorNo
 });
 
 describe("Kompresör — paramsForDifficultyPosition() (merkezi zorluk eğrisi)", () => {
-  it("position arttıkça gap PÜRÜZSÜZ (monoton) KÜÇÜLÜR", () => {
+  it("position arttıkça kGap PÜRÜZSÜZ (monoton) KÜÇÜLÜR", () => {
     let prev = Infinity;
     for (let p = 1; p <= 20; p += 0.25) {
-      const { gap } = mode.paramsForDifficultyPosition(p);
-      assert.ok(gap <= prev + 1e-9, `position ${p}'de gap azalmadı`);
-      prev = gap;
+      const { kGap } = mode.paramsForDifficultyPosition(p);
+      assert.ok(kGap <= prev + 1e-9, `position ${p}'de kGap azalmadı`);
+      prev = kGap;
     }
   });
 
@@ -288,14 +416,14 @@ describe("Kompresör — paramsForDifficultyPosition() (merkezi zorluk eğrisi)"
     const cfg = mode.COMP_CURVE_CONFIG;
     const p1 = mode.paramsForDifficultyPosition(1);
     const pCap = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP);
-    assert.ok(Math.abs(p1.gap - cfg.GAP_AT_1) < 1e-9);
-    assert.ok(Math.abs(pCap.gap - cfg.GAP_AT_CAP) < 1e-9);
+    assert.ok(Math.abs(p1.kGap - cfg.K_GAP_AT_1) < 1e-9);
+    assert.ok(Math.abs(pCap.kGap - cfg.K_GAP_AT_CAP) < 1e-9);
   });
 
-  it("LEVEL_CAP'in ÇOK ötesinde gap bir TABANIN altına inmez", () => {
+  it("LEVEL_CAP'in ÇOK ötesinde kGap bir TABANIN altına inmez", () => {
     const cfg = mode.COMP_CURVE_CONFIG;
     const far = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP + 1000);
-    assert.ok(far.gap >= cfg.GAP_FLOOR - 1e-9);
+    assert.ok(far.kGap >= cfg.K_GAP_FLOOR - 1e-9);
   });
 
   it("position<1 veya ondalık için düşmez, position 1 gibi davranır", () => {
@@ -330,12 +458,12 @@ describe("Kompresör — createQuestion(settings.difficultyPosition) entegrasyon
 describe("Kompresör — Sabit mod eğriye bağlı ('kolaylaşma yok' invaryantı)", () => {
   const TIERS = ["easy", "medium", "hard", "pro"];
 
-  it("her tier'da: gap eski statikten BÜYÜK DEĞİL (kolaylaşma yok — küçük=zor)", () => {
+  it("her tier'da: kGap eski statikten BÜYÜK DEĞİL (kolaylaşma yok — küçük=zor)", () => {
     for (const tier of TIERS) {
       const level = representativeLevelForTier(tier);
       const p = mode.paramsForDifficultyPosition(level);
       const old = mode.DIFFICULTY[tier];
-      assert.ok(p.gap <= old.gap + 1e-9, `${tier}: gap ${p.gap} > eski ${old.gap}`);
+      assert.ok(p.kGap <= old.kGap + 1e-9, `${tier}: kGap ${p.kGap} > eski ${old.kGap}`);
     }
   });
 
@@ -346,7 +474,7 @@ describe("Kompresör — Sabit mod eğriye bağlı ('kolaylaşma yok' invaryant�
     assert.deepEqual(atCap, proRepr);
   });
 
-  it("Sabit modun kompozisyonu uçtan uca hâlâ TAM 3 şık üretir (gap ne olursa olsun)", () => {
+  it("Sabit modun kompozisyonu uçtan uca hâlâ TAM 3 şık üretir (kGap ne olursa olsun)", () => {
     for (const tier of TIERS) {
       const level = representativeLevelForTier(tier);
       for (let i = 0; i < 10; i++) {
@@ -354,6 +482,22 @@ describe("Kompresör — Sabit mod eğriye bağlı ('kolaylaşma yok' invaryant�
         assert.equal(q.choices.length, 3, `${tier}: beklenen 3, gelen ${q.choices.length}`);
       }
     }
+  });
+
+  it("EASY (temsilci seviye) → EKSTREM/bariz GR farkı, PRO (temsilci seviye) → ince/subtle GR farkı — öğretmen yöntemi (N=200/tier)", () => {
+    const N = 200;
+    const baseGr = mode.gainReductionDb(mode.ratioAtK(mode.COMP_BASE_K), mode.thresholdAtK(mode.COMP_BASE_K));
+    let easySum = 0, proSum = 0;
+    for (let i = 0; i < N; i++) {
+      const qEasy = mode.createQuestion("easy", { source: "pink", boss: false, difficultyPosition: representativeLevelForTier("easy") });
+      const qPro = mode.createQuestion("pro", { source: "pink", boss: false, difficultyPosition: representativeLevelForTier("pro") });
+      easySum += Math.abs(qEasy.variants[qEasy.oddIndex].gainReductionDb - baseGr);
+      proSum += Math.abs(qPro.variants[qPro.oddIndex].gainReductionDb - baseGr);
+    }
+    const easyAvg = easySum / N, proAvg = proSum / N;
+    assert.ok(easyAvg >= 6, `easy ortalama GR farkı ${easyAvg.toFixed(2)}dB — EKSTREM/bariz olmalıydı (>=6dB)`);
+    assert.ok(proAvg < 3, `pro ortalama GR farkı ${proAvg.toFixed(2)}dB — ince/subtle olmalıydı (<3dB)`);
+    assert.ok(proAvg < easyAvg, "pro her zaman easy'den daha ince olmalı");
   });
 });
 
@@ -383,7 +527,7 @@ describe("Kompresör — getMeta() sözleşme alanları", () => {
 });
 
 describe("Kompresör — diğer modlarla KARŞILAŞTIRMA (bağlantı mekanizması ORTAK)", () => {
-  it("AYNI position'da beş modun da eğrisi aynı yönde (monoton) hareket eder — Kompresör'e özgü bir kopukluk YOK", async () => {
+  it("AYNI position'da altı modun da eğrisi aynı yönde (monoton) hareket eder — Kompresör'e özgü bir kopukluk YOK", async () => {
     const kesim = await import("../www/js/modes/kesim-noktasi.js");
     const db = await import("../www/js/modes/db-seviyesi.js");
     const boostCut = await import("../www/js/modes/boost-mu-cut-mu.js");
@@ -391,7 +535,7 @@ describe("Kompresör — diğer modlarla KARŞILAŞTIRMA (bağlantı mekanizmas�
     const positions = [1, 2, 5, 10, 15, 20];
     let compPrev = Infinity, kesimPrev = Infinity, dbPrev = Infinity, bcPrev = Infinity, qPrev = Infinity;
     for (const p of positions) {
-      const compVal = mode.paramsForDifficultyPosition(p).gap;
+      const compVal = mode.paramsForDifficultyPosition(p).kGap;
       const kesimVal = kesim.paramsForDifficultyPosition(p).marginOct;
       const dbVal = db.paramsForDifficultyPosition(p).dbDelta;
       const bcVal = boostCut.paramsForDifficultyPosition(p).gainDb;
