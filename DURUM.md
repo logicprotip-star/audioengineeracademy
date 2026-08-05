@@ -7,6 +7,65 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `eddbabd` — G24: **dB Seviyesi zorluk rampası — teşhis + pickDbDelta'daki
+2 gerçek hata düzeltildi.** Kullanıcı raporu (cihazda): "10-12 soru boyunca
+zorluk hep aynı kolay seviyede kalıyor, ilerledikçe zorlaşmıyor — sınırsız XP
+kasılabilir, ciddi denge sorunu." Talep bir "kopuk bağlantı" varsayıyordu —
+KANIT ölçülünce bu YANLIŞ çıktı, ama iki AYRI, gerçek hata bulundu.
+
+**Teşhis (Kesim Noktası'yla karşılaştırmalı, gerçek kodla ÖLÇÜLDÜ, tahmin
+YOK):** `currentDifficultyPosition() → continuousLevel + sessionRampOffset →
+paramsForDifficultyPosition()` zinciri dB'de Kesim Noktası'yla BİREBİR AYNI
+yoldan çağrılıyor — iki modun position'ları (aynı seviye+ramp girdisiyle)
+KARŞILAŞTIRILDI, ikisi de position arttıkça AYNI ŞEKİLDE monoton azalıyor
+(bkz. commit mesajındaki simülasyon). Yön-gizleme (`roundsInThisPlaySession`
+sayacı, Kesim Noktası'nın tip-gizleme sayacıyla PAYLAŞILAN mekanizma)
+CANLIDA doğrulandı: taze bir oturumda ilk sorular yön BELLİ (aynı işaretli
+şıklar), birkaç sorudan sonra GİZLİ (karışık işaretli şıklar) — sayaç KOPUK
+DEĞİLDİ.
+
+**Asıl sorun `pickDbDelta`'daydı — İKİ ayrı, ölçülmüş hata:**
+1. ±%20 (0.8x-1.2x) jitter, seans rampasının seviye-1 (TAZE) bir oyuncuda
+   ürettiği GERÇEK ama küçük eğilimi (position 1→2 arası ~%11 düşüş —
+   logLerp'in geometrik/oransal doğası GEREĞİ, HER seviye adımında SABİT
+   oranda değişir, matematiksel olarak hesaplandı) BOĞUYORDU: gürültü
+   (±%20) sinyalden (~%11) BÜYÜKTÜ. Kullanıcı "hiç değişmiyor" hissediyordu
+   çünkü İSTATİSTİKSEL olarak öyleydi. ±%6'ya (0.94x-1.06x) indirildi — jitter'ın
+   asıl amacı (her soru curve'ün sabit bir sayısı DEĞİL, testle doğrulandı —
+   50 örnekte hâlâ >15 farklı değer) KORUNDU, sadece SNR (sinyal/gürültü)
+   düzeltildi.
+2. `DB_FLOOR` (0.25 dB, "kulağın gerçek ayırt sınırı") jitter'dan SONRA HİÇ
+   kontrol edilmiyordu — pro zorlukta (dbDelta=0.32) jitter değeri 0.256'ya
+   kadar düşürebiliyordu, **5000 örnekte %45 taban ihlali ÖLÇÜLDÜ** (kullanıcı
+   raporunda bahsedilmedi ama koddan BAĞIMSIZ bir gerçek hataydı — kulağın
+   fiziksel olarak ayıramayacağı bir farkı "doğru cevap" olarak sunuyordu).
+   `Math.max(DB_CURVE_CONFIG.DB_FLOOR, jittered)` ile taban artık GARANTİ.
+
+**Dürüst not — "her zaman kolay" algısının BÜYÜK kısmı bu ikisiyle
+AÇIKLANMIYOR, ayrı bir gerçek:** dB Seviyesi'nin kendi (mod-özel, Z3 kararı)
+XP/seviyesi TAZE bir oyuncuda (hatta diğer modlarda tecrübeli bir oyuncuda
+bile, çünkü seviye MOD BAŞINA) düşük başlıyor — Kesim Noktası da İLK
+oynandığında aynı durumdaydı. Seans rampasının GENLİĞİ de bilerek küçük
+(Z2 kararı, "ilk soru kolay, caydırma" felsefesi) — bu iki tasarım kararı
+BİLEREK DEĞİŞTİRİLMEDİ (`SESSION_RAMP_CONFIG` paylaşılan, Kesim Noktası/
+Frekans Bulma'yı da etkiler — KORUMA talimatı kapsamında dokunulmadı).
+Düzeltilen SADECE dB'ye özgü, kodda GERÇEKTEN var olan iki hataydı.
+
+Doğrulama: 8 yeni test (floor hiç ihlal edilmiyor [5000 örnek] + jitter
+ortalaması hedeften %3'ten az sapıyor + hâlâ tekrar/durgunluk yok [>15/50
+farklı değer] + seans rampası eğilimi POSITION bazında istatistiksel olarak
+iniyor [N=1000] + boss round aynı seviyede normal round'dan istatistiksel
+olarak daha zor [N=500, hem düşük seviyeli hem createQuestion uçtan uca] +
+seviye 10 ortalaması seviye 1'in en az %40 altında [N=500] + Kesim
+Noktası'yla eğri yönü karşılaştırması) + mevcut 299 test DEĞİŞMEDEN geçti —
+**307/307**, 5 kez tekrarlı çalıştırıldı, flake yok. Tarayıcıda canlı: taze
+bir Otomatik/seviye-1 oturumunda ilk sorular yön belli (3 şık, aynı işaret),
+birkaç sorudan sonra yön gizli (karışık işaretli şıklar, ör. "-5.27/-2.58/
++3.93 dB") — şıklar hâlâ ondalıklı ve k*step aralıklı (Kesim Noktası'nın
+"tam adım" deseniyle aynı, geniş görünen aralık DOĞRU — çeldiriciler true
+değerden UZAKLAŞARAK üretiliyor, true değerin kendisi DEĞİL); Kesim
+Noktası + Frekans Bulma'da regresyon yok, sıfır konsol hatası.
+
 Commit `3b8c8ec` — G23: **Geliştirici modu artık tam erişim (Pro + seviye
 kilitleri, tek anahtar).** Kullanıcı raporu: geliştirici anahtarı
 ("Pro'yu simüle et") sadece `isUserPro()`'yu (Pro-kilitli özellikler)
@@ -1467,6 +1526,18 @@ engelleyici yok:
 6. **`teachingText`'in "yön doğru, miktar yanlış" metni** hafif tekrarlı
    okunabiliyor (bkz. BİTTİ'deki not) — küçük bir metin cilası, engelleyici
    değil.
+7. **ÜRÜN SORUSU (G24'te ortaya çıktı): seans rampasının genliği (`SESSION_
+   RAMP_CONFIG`: MIN_OFFSET=-1.5/MAX_OFFSET=+1.0/BOSS_OFFSET=+2.0) yeterince
+   BÜYÜK mü?** dB Seviyesi'nde kullanıcı raporu ("zorluk hiç değişmiyor")
+   kısmen jitter/floor hatalarıyla açıklandı (bkz. BİTTİ) ama kısmen de
+   GERÇEK bir tasarım özelliği: taze/düşük seviyeli bir oyuncuda seans
+   rampasının mutlak genliği küçük (bkz. commit mesajı: position 1→2 arası
+   sadece ~%11 değişim). Bu, ÜÇ modun HEPSİNİ etkileyen paylaşılan bir
+   sabit — G24 kapsamında BİLEREK değiştirilmedi (dB'ye özgü olmayan bir
+   değişiklik, Kesim Noktası/Frekans Bulma'yı da etkiler). Genlik artırılmalı
+   mı (daha dramatik seans-içi salınım) yoksa mevcut "ince/gerçekçi" genlik
+   mi tercih edilsin — ürün kararı, kulakla + kullanıcı geri bildirimiyle
+   birlikte değerlendirilmeli.
 
 Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi ÜÇ modun `*_CURVE_CONFIG`'i)
 hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test edilmeden/
