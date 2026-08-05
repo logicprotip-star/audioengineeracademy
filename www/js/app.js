@@ -19,6 +19,7 @@ import * as dbSeviyesi from "./modes/db-seviyesi.js";
 import * as boostMuCutMu from "./modes/boost-mu-cut-mu.js";
 import * as qGenisligi from "./modes/q-genisligi.js";
 import * as kompresor from "./modes/kompresor.js";
+import * as reverb from "./modes/reverb.js";
 
 registerMode(frekansBulma);
 registerMode(kesimNoktasi);
@@ -26,6 +27,17 @@ registerMode(dbSeviyesi);
 registerMode(boostMuCutMu);
 registerMode(qGenisligi);
 registerMode(kompresor);
+registerMode(reverb);
+// Motor 2'nin ("A/B/C odd-one-out") HANGİ mod id'lerini kapsadığını TEK yerde
+// tutar — yeni bir Motor 2 modu (ör. Distortion) eklenince SADECE bu listeye
+// eklenir, aşağıdaki TÜM çağıranlar (toggle/döngü/submit/önizleme/overlay)
+// otomatik kapsar. G30'da SADECE Kompresör vardı (activeQuestion.mode==="kompresor"
+// hardcoded), G35'te Reverb eklenince bu liste + iki yardımcı fonksiyon
+// (isThreeWayModule/isThreeWayQuestion) çıkarıldı — G33'ün "MOTOR 2 ŞABLONU"
+// notunun öngördüğü ikinci-modda-genelleştirme adımı budur.
+const THREE_WAY_MODE_IDS = ["kompresor", "reverb"];
+function isThreeWayModule(m) { return !!m && THREE_WAY_MODE_IDS.includes(m.MODE_ID); }
+function isThreeWayQuestion(q) { return !!q && THREE_WAY_MODE_IDS.includes(q.mode); }
 // Artık birden fazla oynanabilir mod var — `mode` menüden hangi karta basıldığına
 // göre DEĞİŞİR (bkz. renderModeGrid'in kart click handler'ı). Başlangıç değeri
 // Frekans Bulma (ilk açılışta menüde gösterilen ekran budur, henüz hiçbir kart
@@ -355,7 +367,7 @@ function setActionbarTucked(tucked, { instant = false } = {}) {
   if (!els.gameScreen) return;
   // G31 (bug 2 düzeltmesi): tur bitti (cevap verildi/süre doldu) diye çubuk
   // tucked oluyorsa, hâlâ dönen bir A/B döngüsü de (varsa) burada durur —
-  // Kompresör'ün cycleKompresorPreview'ı (diğer modların setProcessed'inin
+  // Motor 2 modlarının cycleThreeWayPreview'ı (diğer modların setProcessed'inin
   // AKSİNE) buildQuestionChain'i YENİDEN çağırıp SESİ BAŞTAN başlatıyor;
   // döngü zamanlayıcısı roundActive/actionbar durumuna hiç bakmadan 2sn'de
   // bir tetiklenmeye devam ederse geri bildirim kartı AÇIKKEN yeni ses
@@ -519,16 +531,20 @@ let boostCutGuess = null;
 // q-genisligi.js:drawOverlay'in notu — kullanıcı burada sadece GENİŞLİĞİ guess
 // ediyor, frekans/gain'i değil).
 let qGuessLabelId = null;
-// Kompresör'ün cevap-sonrası dinamik-zarf görseli için — kullanıcının SEÇTİĞİ
-// harfin ("A"/"B"/"C") id'si; drawOverlay bu harfin GERÇEK ratio'sunu
-// (question.variants'tan) okuyor.
-let kompresorGuessLetter = null;
-// Kompresör'ün 3-yönlü dinleme durumu — diğer modların currentPlayMode'undan
+// Motor 2'nin (A/B/C odd-one-out — Kompresör + G35'ten beri Reverb) cevap-
+// sonrası görseli için — kullanıcının SEÇTİĞİ harfin ("A"/"B"/"C") id'si;
+// mode.drawOverlay bu harfin GERÇEK parametrelerini (question.variants'tan)
+// okuyor. TEK bir değişken — aynı anda sadece BİR three-way mod aktif
+// olabildiği için Kompresör'le Reverb arasında PAYLAŞILIYOR (dbGuess/
+// boostCutGuess gibi her modun KENDİ değişkeni olduğu desenin AKSİNE — burada
+// iki modun TAMAMEN aynı anlamda kullandığı, gerçek bir ortak durum).
+let threeWayGuessLetter = null;
+// Motor 2'nin 3-yönlü dinleme durumu — diğer modların currentPlayMode'undan
 // (o "clean"/"filtered" İKİLİ semantiği taşıyor) BİLEREK AYRI: burası "A"/"B"/
 // "C" harfleri taşıyor. Her yeni turda (renderQuestion) "A"ya döner — turun
-// İLK çalışı zaten variants[0] (A) ile başlıyor (bkz. kompresor.js:
+// İLK çalışı zaten variants[0] (A) ile başlıyor (bkz. kompresor.js/reverb.js:
 // applyProcessing'in notu), bu ikisi HER ZAMAN senkron kalmalı.
-let kompresorPlayLetter = "A";
+let threeWayPlayLetter = "A";
 
 // İlerleme sekmesindeki "toplam antrenman süresi" istatistiği: her tur startRound()'da
 // başlar, cevap/timeout ile biter — soru ekranda GERÇEKTEN açık kaldığı süreyi toplar.
@@ -684,7 +700,7 @@ function timerOff() {
 // ("cutoff") ise TERSİ: dalgaya tıklama affordance'ı yok, "Cevap biçimi" ayarından
 // BAĞIMSIZ olarak her zaman şıklı (bkz. kesim-noktasi.js dosya başı not).
 function isChoiceFormat() {
-  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth" || activeQuestion.mode === "kompresor")) return true;
+  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth" || isThreeWayQuestion(activeQuestion))) return true;
   return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
     && activeQuestion && activeQuestion.mode !== "proplus");
 }
@@ -947,24 +963,24 @@ function formatGainDb(gain) {
 }
 
 // A/B tek buton durumunu (A|B göstergesi + spektrum başlığı) currentPlayMode'a göre günceller.
-// G30: Kompresör aktifken bu buton "A/B" (temiz/işlenmiş İKİLİSİ) DEĞİL, "A/B/C"
-// (üç FARKLI kompresyon varyantı) gösteriyor — bkz. toggleAB'nin "kompresor" dalı,
-// spec'in "mevcut A/B altyapısını 3'e genişlet" isteğinin BİREBİR karşılığı.
-// `.three-way` class'ı CSS'te 3. (C) pill'i görünür yapıyor (bkz. styles.css).
-// G31 (bug 1 düzeltmesi): isKompresor ARTIK activeQuestion'a değil, seçili MOD
-// MODÜLÜNE (mode.MODE_ID) bakıyor — activeQuestion "Oyunu Başlat"a kadar null
-// (bkz. renderModeGrid'in mod-değiştirme bloğu), o pencerede eskiden HER ZAMAN
-// A/B (yanlış) gösteriyordu, mod GERÇEKTEN Kompresör olsa bile (canlı cihazda
-// YAKALANDI). `mode` değişkeni kart tıklamasında ANINDA güncellendiği için artık
-// ilk render dahil HER ZAMAN doğru.
+// G30: Motor 2 modları (Kompresör, G35'ten beri Reverb) aktifken bu buton
+// "A/B" (temiz/işlenmiş İKİLİSİ) DEĞİL, "A/B/C" (üç FARKLI varyant) gösteriyor
+// — bkz. toggleAB'nin three-way dalı, spec'in "mevcut A/B altyapısını 3'e
+// genişlet" isteğinin BİREBİR karşılığı. `.three-way` class'ı CSS'te 3. (C)
+// pill'i görünür yapıyor (bkz. styles.css).
+// G31 (bug 1 düzeltmesi): isThreeWay ARTIK activeQuestion'a değil, seçili MOD
+// MODÜLÜNE (mode.MODE_ID, bkz. isThreeWayModule) bakıyor — activeQuestion
+// "Oyunu Başlat"a kadar null (bkz. renderModeGrid'in mod-değiştirme bloğu), o
+// pencerede eskiden HER ZAMAN A/B (yanlış) gösteriyordu. `mode` değişkeni kart
+// tıklamasında ANINDA güncellendiği için artık ilk render dahil HER ZAMAN doğru.
 function updateAbToggleUI() {
   if (!els.abToggle) return;
-  const isKompresor = mode.MODE_ID === "kompresor";
-  els.abToggle.classList.toggle("three-way", isKompresor);
-  if (!abLoopTimer && els.abTitle) els.abTitle.textContent = isKompresor ? "A/B/C Test" : "A/B Test";
-  if (isKompresor) {
-    els.abToggle.dataset.ab = kompresorPlayLetter;
-    if (els.analyzerLabel) els.analyzerLabel.textContent = `SPEKTRUM · ${kompresorPlayLetter} DİNLENİYOR`;
+  const isThreeWay = isThreeWayModule(mode);
+  els.abToggle.classList.toggle("three-way", isThreeWay);
+  if (!abLoopTimer && els.abTitle) els.abTitle.textContent = isThreeWay ? "A/B/C Test" : "A/B Test";
+  if (isThreeWay) {
+    els.abToggle.dataset.ab = threeWayPlayLetter;
+    if (els.analyzerLabel) els.analyzerLabel.textContent = `SPEKTRUM · ${threeWayPlayLetter} DİNLENİYOR`;
     return;
   }
   const ab = currentPlayMode === "clean" ? "A" : "B";
@@ -1424,6 +1440,8 @@ function pushHistory(correct) {
     ? `Q Genişliği · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : activeQuestion.mode === "kompresor"
     ? `Kompresör · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+    : activeQuestion.mode === "reverb"
+    ? `Reverb · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`;
   history.unshift({
     icon: correct ? "✅" : "❌",
@@ -1505,6 +1523,7 @@ function renderQuestion() {
     : q.mode === "boostcut" ? mode.questionTitle(q)
     : q.mode === "qwidth" ? mode.questionTitle(q)
     : q.mode === "kompresor" ? "Üç ses (A/B/C) — hangisi FARKLI sıkıştırılmış?"
+    : q.mode === "reverb" ? "Üç ses (A/B/C) — hangisi FARKLI yankılanıyor?"
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
 
   els.questionMeta.textContent = mode.modeDescription(q);
@@ -1525,8 +1544,8 @@ function renderQuestion() {
   dbGuess = null;
   boostCutGuess = null;
   qGuessLabelId = null;
-  kompresorGuessLetter = null;
-  kompresorPlayLetter = "A";
+  threeWayGuessLetter = null;
+  threeWayPlayLetter = "A";
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
   revealAnimator.reset();
   setAnalyzerPhase("ask");
@@ -1552,6 +1571,7 @@ function renderQuestion() {
     : q.mode === "boostcut" ? mode.modeDescription(q)
     : q.mode === "qwidth" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan genişlik karakterini seç."
     : q.mode === "kompresor" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI olanı seç."
+    : q.mode === "reverb" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI yankılanan sesi seç."
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
 }
@@ -1998,12 +2018,19 @@ function submitQWidthGuess(labelId) {
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
-// Kompresör ("kompresor") için submitQWidthGuess'in YAPISAL PARALELİ — aynı
-// ŞABLON gerekçesi. answer: harf ("A"/"B"/"C") — bkz. .ans click-delegasyonu
-// ve kompresor.js evaluateAnswer. mode.recordZone HİÇ ÇAĞRILMIYOR — bu modun
-// bir frekans-bölgesi kavramı yok (dB Seviyesi'yle AYNI karar).
-function submitKompresorGuess(letter) {
-  if (!roundActive || !activeQuestion || activeQuestion.mode !== "kompresor") return;
+// Motor 2'nin (A/B/C odd-one-out) HER modu için ORTAK submit fonksiyonu —
+// G30'da Kompresör'e özgü submitKompresorGuess olarak yazılmıştı, G35'te
+// Reverb eklenirken gövdesinin ZATEN tamamen mode-agnostik olduğu görüldü
+// (mode.evaluateAnswer/getFeedbackData/calculateXP/markAnswerChoices'ın
+// GENERİK dispatch'i sayesinde) — SADECE guard koşulu ve değişken isimleri
+// mod-özeldi, o yüzden burada genelleştirildi (diğer Motor 1 modlarının
+// KENDİ submit fonksiyonlarını KORUDUĞU "3. modda bile ortak özütleme
+// haklı çıkmadı" kararından FARKLI: Motor 2'nin 2. modu bu tekrar ağrısını
+// GERÇEKTEN netleştirdi). answer: harf ("A"/"B"/"C") — bkz. .ans click-
+// delegasyonu. mode.recordZone HİÇ ÇAĞRILMIYOR — Motor 2 modlarının bir
+// frekans-bölgesi kavramı yok (dB Seviyesi'yle AYNI karar).
+function submitThreeWayGuess(letter) {
+  if (!roundActive || !isThreeWayQuestion(activeQuestion)) return;
   if (!letter) return;
   roundActive = false;
   roundFlow.clearTimer();
@@ -2014,9 +2041,9 @@ function submitKompresorGuess(letter) {
   setAnalyzerPhase("done");
   if (els.gainValue) els.gainValue.textContent = "";
   if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, letter);
-  // Cevap-sonrası dinamik-zarf görseli için — drawVisualizer'ın overlayState'ine
-  // geçiyor (bkz. kompresorGuessLetter tanımındaki not).
-  kompresorGuessLetter = letter;
+  // Cevap-sonrası görsel için — drawVisualizer'ın overlayState'ine geçiyor
+  // (bkz. threeWayGuessLetter tanımındaki not).
+  threeWayGuessLetter = letter;
 
   stats.rounds++;
   let gained = 0;
@@ -2174,31 +2201,33 @@ function playQuestion(processed = true) {
 // pitch/hız sapmasına yol açabiliyordu (kullanıcı raporu + teşhis) — reconnect deseni
 // tamamen kaldırıldı, hâlâ geçerli (kaynak tipi değişse de A/B'nin grafiği yeniden
 // kurmaması gerekliliği aynı).
-// G30: Kompresör'de bu buton İKİLİ crossfade (setProcessed) DEĞİL, ÜÇ farklı
-// kompresyon varyantı arasında dönüyor — dry/wet paralel yol kavramı burada
-// anlamsız (üçü de "wet", sadece parametreleri farklı). Bu yüzden HER basışta
-// audioEngine.buildQuestionChain'i (cmprow'un post-answer önizleme butonlarıyla
-// AYNI teknik: geçici bir soru kopyası, activeQuestion MUTASYONA UĞRAMADAN)
-// YENİDEN çağırıyor — ses o an baştan başlar (crossfade'siz), ama bu zaten
-// mevcut önizleme butonlarının da kabul ettiği bir ödün (bkz. o butonların
-// dosya başı notu). G33: previewRatio (TEK parametreye özel) yerine
-// previewLetter geçti — kompresor.js'in applyProcessing'i o harfin TÜM
-// parametrelerini (artık ratio+threshold) question.variants'tan okuyor;
-// Motor 2'nin gelecekteki modları (reverb/distortion, muhtemelen 2+
-// parametreli) da AYNI previewLetter mekanizmasını kullanabilir — mode'a
-// özel "previewX" alanları GEREKMEZ.
-function cycleKompresorPreview() {
+// G30: Motor 2 modlarında (Kompresör, G35'ten beri Reverb) bu buton İKİLİ
+// crossfade (setProcessed) DEĞİL, ÜÇ farklı varyant arasında dönüyor — dry/wet
+// paralel yol kavramı burada anlamsız (üçü de "wet", sadece parametreleri
+// farklı). Bu yüzden HER basışta audioEngine.buildQuestionChain'i (cmprow'un
+// post-answer önizleme butonlarıyla AYNI teknik: geçici bir soru kopyası,
+// activeQuestion MUTASYONA UĞRAMADAN) YENİDEN çağırıyor — ses o an baştan
+// başlar (crossfade'siz), ama bu zaten mevcut önizleme butonlarının da kabul
+// ettiği bir ödün (bkz. o butonların dosya başı notu). G33: previewRatio (TEK
+// parametreye özel) yerine previewLetter geçti — her modun applyProcessing'i
+// o harfin TÜM parametrelerini question.variants'tan okuyor; G35'te Reverb
+// bunu 3 parametreyle (decay/preDelay/size) MİRAS ALARAK previewLetter'ın
+// gerçekten parametre-sayısından bağımsız olduğunu doğruladı. G35: fonksiyonun
+// GÖVDESİ zaten tamamen mode-agnostikti (SADECE değişken isimleri Kompresör'e
+// özeldi) — genelleştirildi, isThreeWayModule listesindeki HER mod bunu
+// PAYLAŞIYOR.
+function cycleThreeWayPreview() {
   const q = activeQuestion;
-  const idx = q.variants.findIndex(v => v.letter === kompresorPlayLetter);
+  const idx = q.variants.findIndex(v => v.letter === threeWayPlayLetter);
   const next = q.variants[(idx + 1) % q.variants.length];
-  kompresorPlayLetter = next.letter;
+  threeWayPlayLetter = next.letter;
   audioEngine.buildQuestionChain({ ...q, previewLetter: next.letter }, true, q.source, uploadManager, mode.applyProcessing);
   updateAbToggleUI();
 }
 
 function toggleAB() {
-  if (activeQuestion && activeQuestion.mode === "kompresor") {
-    cycleKompresorPreview();
+  if (isThreeWayQuestion(activeQuestion)) {
+    cycleThreeWayPreview();
     return;
   }
   const processed = currentPlayMode !== "filtered";
@@ -2275,8 +2304,8 @@ function pauseRound() {
   // G31 (bug 3 düzeltmesi): Durdur bu fonksiyonda setActionbarTucked'ı HİÇ
   // çağırmıyor (çubuk görünür kalmalı ki "Tekrar Çal" basılabilsin) — bu
   // yüzden yukarıdaki merkezi tucked=true noktası (bkz. setActionbarTucked)
-  // buraya ulaşmıyor, döngü AYRICA burada durdurulmalı. Kompresör'de bu
-  // olmadan: abLoopTimer 2sn'de bir cycleKompresorPreview→buildQuestionChain
+  // buraya ulaşmıyor, döngü AYRICA burada durdurulmalı. Motor 2 modlarında bu
+  // olmadan: abLoopTimer 2sn'de bir cycleThreeWayPreview→buildQuestionChain
   // çağırmaya devam ediyordu, o da HER ÇAĞRIDA muteGain'i "güvenlik" amaçlı
   // 1'e geri açıyordu (bkz. audio-engine.js buildQuestionChain başındaki
   // not) — Durdur'un birazdan aşağıda uyguladığı muteOutput() bir sonraki
@@ -2348,13 +2377,14 @@ function startRound() {
   if (els.sourceChipLabel) els.sourceChipLabel.textContent = labelSource(activeQuestion.source);
   renderQuestion();
   playQuestion(true);
-  // G32: Kompresör'de A/B/C karşılaştırması modun ÖZÜ (odd-one-out ancak
-  // üçünü de dinleyince bulunabilir) — diğer modların AKSİNE kullanıcının
-  // döngüyü elle (uzun basma) açması BEKLENMİYOR, ses zaten A ile başladığı
-  // (playQuestion'ın varsayılanı, bkz. kompresor.js applyProcessing) gibi
-  // döngü de otomatik başlıyor. Diğer beş modda BİLEREK dokunulmadı — onlarda
-  // A/B tek bir dry/wet karşılaştırması, döngü hâlâ isteğe bağlı bir kısayol.
-  if (mode.MODE_ID === "kompresor") startAbLoop();
+  // G32: Motor 2 modlarında (Kompresör, G35'ten beri Reverb) A/B/C
+  // karşılaştırması modun ÖZÜ (odd-one-out ancak üçünü de dinleyince
+  // bulunabilir) — diğer modların AKSİNE kullanıcının döngüyü elle (uzun
+  // basma) açması BEKLENMİYOR, ses zaten A ile başladığı (playQuestion'ın
+  // varsayılanı, bkz. applyProcessing) gibi döngü de otomatik başlıyor.
+  // Motor 1'in beş modunda BİLEREK dokunulmadı — onlarda A/B tek bir dry/wet
+  // karşılaştırması, döngü hâlâ isteğe bağlı bir kısayol.
+  if (isThreeWayModule(mode)) startAbLoop();
   updateStartBtnLabel();
   scrollToAnalyzer();
   startTimerForCurrentQuestion();
@@ -2470,7 +2500,7 @@ function drawVisualizer() {
     dbGuess, // bkz. dB Seviyesi'nin drawOverlay'i — diğer modlar okumuyor
     boostCutGuess, // bkz. Boost/Cut'ın drawOverlay'i — diğer modlar okumuyor
     qGuessLabelId, // bkz. Q Genişliği'nin drawOverlay'i — diğer modlar okumuyor
-    kompresorGuessLetter // bkz. Kompresör'ün drawOverlay'i — diğer modlar okumuyor
+    guessLetter: threeWayGuessLetter // bkz. Motor 2 modlarının (Kompresör/Reverb) drawOverlay'i — diğer modlar okumuyor
   };
 
   if (!visualizerOn || !audioEngine.audioReady) {
@@ -2630,11 +2660,11 @@ if (els.answers) els.answers.addEventListener("click", e => {
     try { submitQWidthGuess(labelId); } catch (err) { console.error(err); }
     return;
   }
-  // Kompresör ("kompresor") — şıklar SADECE harf taşır (bkz. data-letter,
-  // kompresor.js renderAnswerChoices).
-  if (activeQuestion && activeQuestion.mode === "kompresor") {
+  // Motor 2 modları (Kompresör/Reverb) — şıklar SADECE harf taşır (bkz.
+  // data-letter, kompresor.js/reverb.js renderAnswerChoices — AYNI şablon).
+  if (isThreeWayQuestion(activeQuestion)) {
     const letter = btn.dataset.letter;
-    try { submitKompresorGuess(letter); } catch (err) { console.error(err); }
+    try { submitThreeWayGuess(letter); } catch (err) { console.error(err); }
     return;
   }
   const hz = Number(btn.dataset.freq);
@@ -3019,8 +3049,8 @@ els.resetStatsBtn.addEventListener("click", () => {
   dbGuess = null;
   boostCutGuess = null;
   qGuessLabelId = null;
-  kompresorGuessLetter = null;
-  kompresorPlayLetter = "A";
+  threeWayGuessLetter = null;
+  threeWayPlayLetter = "A";
   syncLives();
   roundFlow.clearTimer();
   audioEngine.stopAudio();

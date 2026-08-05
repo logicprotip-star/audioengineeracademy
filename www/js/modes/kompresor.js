@@ -91,6 +91,10 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 
 export const MODE_ID = "kompresor";
 export const MAX_LIVES = 5;
+// Motor 2'nin ("A/B/C odd-one-out") HANGİ modları kapsadığını app.js TEK
+// yerde (THREE_WAY_MODE_IDS) tutuyor — bu bayrak SADECE dokümantasyon/
+// kendi-kendini-açıklama amaçlı (G35'te Reverb bunu MİRAS ALDI).
+export const THREE_WAY = true;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // KOMPRESYON YOĞUNLUĞU (k) — RATIO + THRESHOLD'un TEK bir algısal eksene
@@ -536,17 +540,17 @@ function drawEnvelopeLegend(ctx2d, showGuess) {
 
 // Soru sırasında (roundActive) zarf BİLEREK gizli — kulakla bulma ilkesi.
 // Sadece cevap sonrası çizilir. state: { activeQuestion, roundActive,
-// kompresorGuessLetter } — kompresorGuessLetter app.js'in submitKompresorGuess'te
-// sakladığı, kullanıcının SEÇTİĞİ harf; guess zarfı o harfin GERÇEK
-// gainReductionDb'siyle çizilir (diğer modların AKSİNE burada "temsili" bir
-// değere gerek yok — her harfin GERÇEK parametreleri zaten question.variants
-// içinde mevcut).
+// guessLetter } — guessLetter app.js'in (G35'ten beri Reverb'le PAYLAŞILAN,
+// mode-agnostik) submitThreeWayGuess'te sakladığı, kullanıcının SEÇTİĞİ harf;
+// guess zarfı o harfin GERÇEK gainReductionDb'siyle çizilir (diğer modların
+// AKSİNE burada "temsili" bir değere gerek yok — her harfin GERÇEK
+// parametreleri zaten question.variants içinde mevcut).
 export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
-  const { activeQuestion: q, roundActive, kompresorGuessLetter } = state;
+  const { activeQuestion: q, roundActive, guessLetter } = state;
   if (!q || roundActive) return;
 
   const correctVariant = q.variants[q.oddIndex];
-  const guessVariant = kompresorGuessLetter ? q.variants.find(v => v.letter === kompresorGuessLetter) : null;
+  const guessVariant = guessLetter ? q.variants.find(v => v.letter === guessLetter) : null;
 
   const correctYs = computeEnvelopeY(correctVariant.gainReductionDb, w, h);
   const guessYs = guessVariant ? computeEnvelopeY(guessVariant.gainReductionDb, w, h) : null;
