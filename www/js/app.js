@@ -1706,10 +1706,8 @@ function submitCutoffGuess(answer) {
   // ekranı" ayarı kapalıyken (prefs.feedbackScreen=false) Frekans Bulma'da da
   // zengin panel hiç açılmadan hızlı geçildiği için AYNI mantık burada da
   // geçerli — kart yoksa/istenmiyorsa hızlı geç. Her zaman "Atla ▶" (els.
-  // nextBtn → goToNextRound()) ile ANINDA atlanabilir; bu modun kendi bir
-  // X butonu YOK (#freqInfo paneli yok, bkz. dosya başı not) ama "Atla"
-  // zaten mod-bağımsız aynı işi görüyor — ayrı bir düğme eklemek gereksiz
-  // tekrar olurdu.
+  // nextBtn → goToNextRound()) İLE ya da G27'den beri #feedbackBox'ın KENDİ
+  // X'iyle (bkz. #feedbackClose, merkezi delegasyon) ANINDA atlanabilir.
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -1787,8 +1785,8 @@ function submitLevelGuess(value) {
   persistDaily();
   // Diğer iki modla AYNI hizalı geçiş formülü (bkz. G21) — öğretici metin +
   // görsel dB göstergesi okunacak içerik taşıyor, eskisi gibi hep 700ms kullanmak
-  // kullanıcı metni okumadan geçirirdi. Bu modun da kendi bir X butonu YOK, "Atla"
-  // zaten mod-bağımsız aynı işi görüyor.
+  // kullanıcı metni okumadan geçirirdi. G27'den beri #feedbackBox'ın KENDİ X'i
+  // (#feedbackClose) de var — merkezi delegasyon, bu mod hiçbir şey eklemedi.
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -1870,9 +1868,9 @@ function submitBoostCutGuess(answer) {
   updateUI();
   persistStats();
   persistDaily();
-  // Diğer üç modla AYNI hizalı geçiş formülü (bkz. G21). Bu modun da kendi bir
-  // X butonu YOK — task notu: "X/Atla butonu tüm modlarda en sonda merkezi
-  // eklenecek, bu modda da o zaman gelecek — şimdi mevcut akışı kullan."
+  // Diğer üç modla AYNI hizalı geçiş formülü (bkz. G21). G27: "en sonda merkezi
+  // eklenecek" notu artık gerçekleşti — #feedbackBox'ın KENDİ X'i (#feedbackClose)
+  // bu mod hiçbir şey eklemeden otomatik geldi.
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -1945,8 +1943,8 @@ function submitQWidthGuess(labelId) {
   updateUI();
   persistStats();
   persistDaily();
-  // Diğer dört modla AYNI hizalı geçiş formülü (bkz. G21). Bu modun da kendi
-  // bir X butonu YOK — "Atla" mod-bağımsız aynı işi görüyor.
+  // Diğer dört modla AYNI hizalı geçiş formülü (bkz. G21). #feedbackBox'ın
+  // KENDİ X'i (#feedbackClose, G27) de merkezi delegasyondan otomatik geldi.
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2679,6 +2677,18 @@ if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
     cmpPreviewRemainingMs = null;
     if (activeQuestion && !autoStopped) ensureAutoNext(remain);
   }, CMP_PREVIEW_RESUME_MS);
+});
+
+// G27: X (kapat) butonu artık MERKEZİ — #freqInfo'nun .freq-info-close'uyla AYNI
+// goToNextRound() semantiği (basınca hemen sıradaki soru, basılmazsa hizalı otomatik
+// geçiş devam eder), ama #feedbackBox STATİK bir HTML elemanı olduğu (setFeedback()
+// sadece .textContent günceller, innerHTML'i asla YENİDEN KURMAZ — bkz. #freqInfo'nun
+// AKSİNE) için TEK bir delegasyon burada yeter: Kesim Noktası/dB Seviyesi/Boost mu Cut
+// mu/Q Genişliği (ve #feedbackBox kullanan HER GELECEK mod) hiçbir mod-dosyası/app.js
+// değişikliği GEREKMEDEN bunu otomatik alır — buton zaten index.html'de, .fb.show-
+// result ile AYNI anda görünür/gizlenir (bkz. styles.css).
+if (els.feedbackBox) els.feedbackBox.addEventListener("click", e => {
+  if (e.target.closest(".fb-close")) goToNextRound();
 });
 
 els.hintBtn.addEventListener("click", giveHint);

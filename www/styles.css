@@ -375,8 +375,12 @@
     }
 
     #freqInfo{position:relative;padding:14px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.12);font-size:13.5px;line-height:1.55}
-    #freqInfo .freq-info-close{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:var(--tx-3);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
-    #freqInfo .freq-info-close:active{background:rgba(255,255,255,.16)}
+    /* Geri bildirim kartlarının ORTAK kapat-butonu stili — #freqInfo (Frekans Bulma'nın
+       zengin panel, kendi HTML'ini basıyor) VE #feedbackBox (diğer modların TEK ortak
+       yüzeyi, bkz. app.js:setFeedback) AYNI görsel/konum kuralını PAYLAŞIYOR — X'in
+       "merkezi" olması sadece davranış (goToNextRound) değil, görünüm de TEK yerden. */
+    #freqInfo .freq-info-close, .fb .fb-close{position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;border:none;background:rgba(255,255,255,.08);color:var(--tx-3);font-size:14px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    #freqInfo .freq-info-close:active, .fb .fb-close:active{background:rgba(255,255,255,.16)}
 
     /* ---- şıklı cevap ---- */
     .answers{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
@@ -400,9 +404,9 @@
     .timer-text{font-size:14px;font-weight:700;color:var(--am);flex:none}
 
     /* ---- geri bildirim kartı ---- */
-    .fb{padding:14px 16px;border-radius:20px;background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);display:none}
+    .fb{position:relative;padding:14px 16px;border-radius:20px;background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);display:none}
     .fb.show-result{display:block}
-    .fb-head{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:700;color:#8FF3D8}
+    .fb-head{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:700;color:#8FF3D8;padding-right:32px}
     .fb-dot{width:20px;height:20px;flex:none;border-radius:99px;background:var(--gr)}
     .fb p{margin:8px 0 0;font-size:14px;line-height:1.5;color:var(--tx-2)}
     .fb.bad{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3)}
