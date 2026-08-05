@@ -7,6 +7,81 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `680d2ab` — ADIM 2: **zorluk sisteminin merkezi bağlanması — Frekans
+Bulma eğri sistemine taşındı.** Kademeli geçişin (Seçenek C) İKİNCİ ve SON
+adımı: ADIM 1'de Kesim Noktası'nda kanıtlanan desen Frekans Bulma'ya da
+uygulandı — **artık HER İKİ mod da AYNI merkezi eğri mimarisini kullanıyor.**
+
+**Frekans Bulma (`modes/frekans-bulma.js`):** Kesim Noktası'ndaki BİREBİR
+desen — statik `DIFFICULTY` tablosu KALMAYA devam ediyor (geriye dönük
+uyumluluk + "Sabit" modun çapası + proplus için hâlâ gerekli), yanına
+`FREKANS_CURVE_CONFIG` + `paramsForDifficultyPosition(position)` eklendi.
+AT_1/AT_CAP uçları statik `easy`/`pro` değerleriyle BİREBİR aynı (Kesim
+Noktası'ndaki AYNI kalibrasyon yöntemi). **Tek fark — Q ekseni:** Z1'in
+ORİJİNAL asimetrisi korundu, Q (ve difficulty-curve.js'in eski global
+`DIFFICULTY_CONFIG`'indeki tolerans) LEVEL_CAP'ten SONRA SABİT kalıyor
+(`applyPostCapFloor` Q için ÇAĞRILMIYOR) — sadece gainDb/timeSec/hintBandOct/
+distractorStepOct tavandan sonra azalıp bir tabanda duruyor. `generateChoices`
+Kesim Noktası'ndaki AYNI refactor'dan geçti (`level` yerine çözülmüş
+`{options,step}`). `createQuestion`, `settings.difficultyPosition` verilirse
+eski `boss ? diff.gain*0.75 : diff.gain` / `boss ? diff.q*1.35 : diff.q`
+çarpanlarını UYGULAMIYOR (boss'un etkisi zaten position'ın içinde, çifte
+ceza olmasın diye) — vermezse (proplus dahil, o zaten ayrı bir dalda erken
+dönüyor) eski statik davranış BİREBİR korunuyor. `BOOST_ONLY_DIFFICULTIES`
+(easy/medium'da hep boost, hiç kesim yok) TİER İSMİNE bağlı kalitatif bir
+kural olarak KALDI, sürekliye çevrilmedi (bilerek — bu bir "ne kadar" değil
+"hangi tür" sorusu).
+
+**app.js: SIFIR değişiklik gerekti.** ADIM 1'de `currentDifficultyPosition()`
+zaten mod-agnostik yazılmıştı (`mode.getMeta().id` üzerinden hangi mod
+aktifse onun XP'sini okuyordu) ve `createQuestion` çağrısına HER moda
+(sessionQuestionIndex'le AYNI desen) geçiyordu — ADIM 1'de bunu SADECE
+Kesim Noktası okuyordu, ADIM 2 ile Frekans Bulma da kendi
+`paramsForDifficultyPosition`'ını yazıp bağlandığı için OTOMATİK olarak
+aynı sayıyı almaya başladı. Sadece iki yerdeki artık BAYAT yorum ("SADECE
+Kesim Noktası okuyor") güncellendi — bu, ADIM 1'in mimarisinin doğru
+kurulduğunun somut bir kanıtı.
+
+**Tutarlılık doğrulaması (yapısal, kod okumasıyla):** her iki mod dosyası
+da `logLerp`/`applyPostCapFloor`'u AYNI `core/difficulty-curve.js`'ten
+import ediyor; `continuousLevel`/`sessionRampOffset`/`representativeLevelForTier`
+TEK bir yerde (`app.js: currentDifficultyPosition`) hesaplanıyor, iki mod
+için AYRI birer implementasyon YOK — bu, "iki eğri zamanla birbirinden
+uzaklaşır mı" riskini yapısal olarak ortadan kaldırıyor (drift mümkün değil,
+tek kod yolu var).
+
+**Kalibrasyon karşılaştırma tablosu (gerçek kod çalıştırılarak ölçüldü) —
+statik DIFFICULTY[tier] vs eğrinin o tier'ın temsilci seviyesinde ürettiği
+değer:**
+
+| tier | temsilci sv. | gain eski→yeni | Q eski→yeni | time eski→yeni | opt eski→yeni | hint eski→yeni | step eski→yeni |
+|---|---|---|---|---|---|---|---|
+| easy | 2.5 | 10.000→9.389 | 0.90→1.02 | 16→15.29 | 3→3 | 2.40→2.15 | 1.20→1.143 |
+| medium | 6.5 | 8.000→7.936 | 1.30→1.41 | 13→13.55 | 4→4 | 1.60→1.61 | 0.90→1.005 |
+| hard | 10.5 | 6.000→6.708 | 2.50→1.94 | 11→12.00 | 5→4 | 1.00→1.20 | 0.75→0.883 |
+| pro | 14.5 | 4.500→5.670 | 4.20→2.69 | 9→10.63 | 6→5 | 0.60→0.90 | 0.65→0.776 |
+
+**Aynı desen Kesim Noktası'nda görülenle BİREBİR tekrarlıyor**: easy/medium
+ucu yakın (uçlar AT_1/AT_CAP'la birebir eşleştiği için), hard/pro'da eğri
+statikten SİSTEMATİK olarak KOLAY (gain daha büyük/belirgin, Q daha geniş/
+dar-olmayan, hard/pro'da 1 eksik şık) — bu ARTIK iki modda da aynı yönde
+tekrar eden bir desen, tek seferlik bir tuhaflık değil: tek bir log-eğrinin
+4 keyfi statik noktaya birden oturamamasının YAPISAL sonucu. **KULAKLA
+DOĞRULANMALI** — muhtemelen HER İKİ modun da AT_1/AT_CAP'ı değil, ARADAKİ
+(medium/hard sınırı civarı) eğri şeklinin kendisi (ör. iki-parçalı/piecewise
+bir eğriye geçmek) yeniden değerlendirilmeli; bu bir SONRAKİ kalibrasyon
+turunun konusu, bu turun kapsamı sadece "bağla" idi.
+
+Doğrulama: 15 yeni test (paramsForDifficultyPosition pürüzsüzlük/taban/uç-
+değer + Q'nun tavandan sonra SABİT kaldığının doğrulanması + createQuestion
+entegrasyonu + boost-only kuralının eğri modunda da korunduğu + proplus'un
+eğri dışında kaldığı) + mevcut 223 test DEĞİŞMEDEN geçti — **238/238**.
+Tarayıcıda canlı: Otomatik/seviye 1'de 3 şık (AT_1 eşleşiyor, statikle
+aynı); Sabit/Pro'da **5 şık** (curve'ün ürettiği, eski statik 6'dan farklı
+— tabloyla tutarlı); İpucu Ver/EQ eğrisi/karşılaştırma butonları (Senin
+cevabın/Doğru cevap/Temiz)/boss round hepsi çalıştı; Kesim Noktası'na
+GEÇİŞ SONRASI da test edildi, regresyon yok; konsolda sıfır hata.
+
 Commit `5870e09` — ADIM 1: **zorluk sisteminin merkezi bağlanması — Kesim
 Noktası pilotu.** Önceki turda onaylanan tasarımın (Seçenek C, kademeli
 geçiş) İLK adımı: merkezi zorluk matematiği kuruldu + SADECE Kesim Noktası
@@ -1122,38 +1197,39 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**ADIM 2 (zorluk sisteminin merkezi bağlanması, kademeli geçiş — Seçenek C):
-Frekans Bulma'yı aynı merkezi eğriye taşı.** ADIM 1'de kurulan desen (mod
-kendi `*_CURVE_CONFIG` + `paramsForDifficultyPosition`'ını yazar, app.js
-`currentDifficultyPosition`'ı zaten HER moda geçiriyor — sadece Frekans
-Bulma'nın `createQuestion`'ı henüz OKUMUYOR) Kesim Noktası'nda kanıtlandı;
-aynı deseni Frekans Bulma'nın 2 eksenli (gain+Q) DIFFICULTY tablosuna
-uygulamak — AT_1/AT_CAP'lar zaten `difficulty-curve.js`'in ESKİ
-`DIFFICULTY_CONFIG`'inde var (GAIN_DB_AT_LEVEL_1/CAP, Q_AT_LEVEL_1/CAP),
-sadece `createQuestion`'a BAĞLANMASI gerekiyor. Migrasyon PLANINDA (önceki
-turda onaylanan) belirtildiği gibi `evaluateAnswer`'ın sabit 0.5 oktav
-toleransı da bu turda ele alınmalı mı, yoksa AYRI mı bırakılmalı — karar
-gerektirir.
+**Zorluk sisteminin merkezi bağlanması (Seçenek C, kademeli geçiş) TAMAMLANDI
+— ADIM 1 + ADIM 2 ikisi de bitti.** Hem Kesim Noktası hem Frekans Bulma artık
+AYNI merkezi eğriden (`continuousLevel`+`sessionRampOffset`, mod-agnostik
+`logLerp`/`applyPostCapFloor`) besleniyor, yapısal olarak TEK kod yolu (bkz.
+BİTTİ'deki tutarlılık doğrulaması). **Tek sonraki adım netleşmedi** — kalan
+işler ürün kararı gerektiriyor, kod tarafında engelleyici yok:
 
-**Bundan ÖNCE (veya ADIM 2 ile birlikte) ele alınması gereken, ADIM 1'in
-kendi AÇIK bıraktıkları:**
-- Kalibrasyon tablosundaki hard/pro sapması (bkz. BİTTİ) — Kesim Noktası'nın
-  KESIM_CURVE_CONFIG'i (MARGIN_OCT_AT_1/CAP vb.) KULAKLA yeniden ayarlanmalı
-  mı, yoksa mevcut sapma kabul mü? Ürün kararı — Otomatik moddaki bir
-  kullanıcı hard/pro civarında eskisinden BELİRGİN kolay bir deneyim
-  yaşayabilir.
-- Round-timer (`currentDifficultyConfig().time`) hâlâ eğriye BAĞLANMADI —
-  `paramsForDifficultyPosition().timeSec` hesaplanıyor ama kullanılmıyor.
-  Bağlanacaksa G21'in hizalı geçiş süresiyle etkileşimi (boss'ta ÇİFTE kısalma
-  riski — hem curve'ün position'ı boss'ta yükseliyor hem app.js'in genel
-  `baseTime-2`'si) ayrıca değerlendirilmeli.
-- `renderLevelSheet` (Seviye bilgi sayfası) Kesim Noktası aktifken hâlâ
-  gainDb/Q dilinde konuşuyor — ADIM 2 (Frekans Bulma taşınınca) ya da ayrı
-  bir işte, `mode`'a göre HANGİ eğri/hangi dil gösterileceği genelleştirilmeli.
+1. **Kalibrasyon — KULAKLA ayarlanmalı mı, mevcut sapma kabul mü?** İki modda
+   da AYNI desen: hard/pro'da eğri statikten sistematik olarak kolay (bkz.
+   BİTTİ'deki iki karşılaştırma tablosu). Tek log-eğrinin 4 keyfi noktaya
+   oturamamasının doğal sonucu — düzeltmenin yolu muhtemelen AT_1/AT_CAP'ı
+   oynamak değil, eğri şeklinin kendisini (ör. piecewise) yeniden düşünmek.
+   Gerçek kullanıcı testinden geçmedi.
+2. **Round-timer eğriye bağlanacak mı?** `paramsForDifficultyPosition().
+   timeSec` HER İKİ modda da hesaplanıyor ama `currentDifficultyConfig().time`
+   (statik) hâlâ kullanılıyor. Bağlanırsa G21'in hizalı geçiş süresiyle
+   etkileşimi (boss'ta çifte kısalma riski) ayrıca değerlendirilmeli.
+3. **`renderLevelSheet`** (Seviye bilgi sayfası) hâlâ TEK bir dil (gainDb/Q)
+   konuşuyor — Kesim Noktası aktifken bu metin semantik olarak yanlış
+   (marginOct değil gainDb/Q gösteriyor). `mode`'a göre hangi eğri/hangi dilin
+   gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi, ADIM 1/2'nin bir
+   regresyonu değil ama artık İKİ modda da geçerli bilinen bir eksik.
+4. **Statik DIFFICULTY tabloları hâlâ duruyor mu, kaldırılacak mı?** Bilerek
+   kaldırılmadı (Sabit modun çapası + proplus + geriye dönük test uyumluluğu
+   için gerekliydi) — kalıcı olarak mı kalacak, yoksa "Sabit" modun UX'i
+   (temsilci-seviye tabanlı) yeterince olgunlaşınca statik tablolar TAMAMEN
+   eğriye mi devredilecek? Şimdilik ikili sistem (statik+eğri, opt-in) kalıcı
+   bir mimari, geçici bir ödün değil — ama bu bilinçli bir seçim olarak
+   teyit edilmeli.
 
-Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi Kesim Noktası'nın KESIM_CURVE_
-CONFIG'i) hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test
-edilmeden/dinlenmeden seçilmedi.
+Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi her iki modun `*_CURVE_CONFIG`'i)
+hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test edilmeden/
+dinlenmeden seçilmedi.
 
 Kesim Noktası'nın kendisi G17-G21 ile TAMAMLANDI ve SERT TEST GEÇTİ (HPF/LPF
 + şıklı + tip gizleme rampası + iki renkli filtre eğrisi + öğretici Türkçe
