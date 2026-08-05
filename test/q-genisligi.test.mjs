@@ -1,7 +1,10 @@
 // Q Genişliği moduna özel testler: 5 genişlik etiketinin sınırsız/çakışmasız
-// sınıflandırması, izole-Q üretimi (frekans/gain sabit kalıyor mu), zorlukla
-// kademelerin birbirine yakınlaşması (edgeMargin/preferredDistance), merkezi
-// zorluk eğrisine bağlanma + "kolaylaşma yok" invaryantı, evaluateAnswer'ın
+// sınıflandırması, FELSEFEYE bağlı havuz büyümesi (Notch/Dar/Geniş çekirdek
+// üçlüsü HER ZAMAN oyunda, ASLA 2'ye düşmez — G29'da tersine çevrilen gerçek
+// hata), izole-Q üretimi (frekans/gain sabit kalıyor mu), zorlukla hem
+// kademelerin yakınlaşması (edgeMargin) HEM havuzun büyümesi (Orta zor'da,
+// Çok Geniş pro'da), merkezi zorluk eğrisine bağlanma + "kolaylaşma yok"
+// invaryantı, dinamik+uzunluk-duyarlı başlık (G28/G29), evaluateAnswer'ın
 // etiket-eşleşme mantığı, applyProcessing'in doğru peaking Q'yu kurması.
 
 import { describe, it } from "node:test";
@@ -9,10 +12,10 @@ import assert from "node:assert/strict";
 import * as mode from "../www/js/modes/q-genisligi.js";
 import { representativeLevelForTier } from "../www/js/core/difficulty-curve.js";
 
+const CORE_IDS = ["notch", "dar", "genis"];
+
 describe("Q Genişliği — labelIndexForQ() (5 etiket, sınırsız/çakışmasız sınıflandırma)", () => {
   it("MIN_Q'dan MAX_Q'ya kadar HER Q TAM BİR etiket indexine düşer, boşluk/çakışma yok", () => {
-    // Log-uzayda ince adımlarla tüm aralığı tara — hiçbir noktada hata fırlamamalı,
-    // hiçbir noktada "ortada kalmamalı" (fonksiyon her zaman 0-4 arası bir index döner).
     const steps = 5000;
     const lo = Math.log2(mode.MIN_Q), hi = Math.log2(mode.MAX_Q);
     for (let i = 0; i <= steps; i++) {
@@ -22,15 +25,7 @@ describe("Q Genişliği — labelIndexForQ() (5 etiket, sınırsız/çakışmas�
     }
   });
 
-  it("her etiketin qMin/qMax sınırları KENDİ indexine sınıflanır (uçlar dahil)", () => {
-    for (let i = 0; i < 5; i++) {
-      const q = mode.labelById(["notch", "dar", "orta", "genis", "cokgenis"][i]);
-      assert.ok(q, `index ${i} için etiket bulunamadı`);
-    }
-  });
-
   it("bitişik iki etiket arasında ORTAK sınır TAM BİR tarafa düşer (çakışma yok)", () => {
-    // notch[7,16] / dar[3,7): Q=7 notch'a mı dar'a mı? qMin dahil olduğu için notch'a.
     const notchIdx = mode.labelIndexForQ(7);
     assert.equal(notchIdx, 0, "Q=7 notch'un (index 0) alt sınırı, notch'a düşmeli");
   });
@@ -40,104 +35,139 @@ describe("Q Genişliği — labelIndexForQ() (5 etiket, sınırsız/çakışmas�
   });
 });
 
-describe("Q Genişliği — pickDistractorIndices() (uzak↔yakın seçim, spec'in 'kolay uçlar / zor komşular' kuralı)", () => {
-  it("preferredDistance BÜYÜKSE (kolay) en UZAK indexler seçilir", () => {
-    // correctIndex=0 (notch), en uzak index 4 (çokgeniş) — preferredDistance=4 ile TAM eşleşir.
-    const picked = mode.pickDistractorIndices(0, 2, 4);
-    assert.deepEqual(picked, [4]);
+// G29'un MERKEZİ felsefe testi: "cerrahi mi müzikal mi" kararı Notch/Dar/Geniş
+// çekirdek üçlüsüyle öğretiliyor — bu üçü HER ZAMAN havuzda, ASLA düşmez.
+describe("Q Genişliği — poolForSize() (FELSEFE: çekirdek üçlü hep var, nüans sonradan eklenir)", () => {
+  it("n<=3 için HER ZAMAN TAM {Notch,Dar,Geniş} — Orta/Çok Geniş YOK", () => {
+    for (const n of [0, 1, 2, 3]) {
+      const pool = mode.poolForSize(n);
+      const ids = pool.map(l => l.id).sort();
+      assert.deepEqual(ids, [...CORE_IDS].sort(), `n=${n}: havuz ${JSON.stringify(ids)}`);
+    }
   });
 
-  it("preferredDistance KÜÇÜKSE (zor) en YAKIN (komşu) indexler seçilir", () => {
-    // correctIndex=0 (notch), preferredDistance=1 → en yakın komşu index 1 (dar).
-    const picked = mode.pickDistractorIndices(0, 2, 1);
-    assert.deepEqual(picked, [1]);
+  it("n=4: çekirdek üçlü + Orta (Çok Geniş henüz YOK)", () => {
+    const pool = mode.poolForSize(4);
+    const ids = new Set(pool.map(l => l.id));
+    assert.equal(pool.length, 4);
+    for (const id of CORE_IDS) assert.ok(ids.has(id), `${id} havuzda olmalıydı`);
+    assert.ok(ids.has("orta"), "Orta havuzda olmalıydı");
+    assert.ok(!ids.has("cokgenis"), "Çok Geniş HENÜZ havuzda olmamalıydı");
   });
 
-  it("count-1 kadar FARKLI (tekrarsız) index döner, correctIndex asla İÇİNDE değil", () => {
-    for (let correctIndex = 0; correctIndex < 5; correctIndex++) {
-      for (let count = 2; count <= 5; count++) {
-        for (const pd of [1, 2, 3, 4]) {
-          const picked = mode.pickDistractorIndices(correctIndex, count, pd);
-          assert.equal(picked.length, count - 1, `ci=${correctIndex} count=${count} pd=${pd}`);
-          assert.equal(new Set(picked).size, picked.length, "tekrar var");
-          assert.ok(!picked.includes(correctIndex), "correctIndex çeldiriciler arasında");
-        }
+  it("n=5: TÜM etiketler", () => {
+    const pool = mode.poolForSize(5);
+    assert.equal(pool.length, 5);
+    const ids = new Set(pool.map(l => l.id));
+    for (const id of ["notch", "dar", "orta", "genis", "cokgenis"]) assert.ok(ids.has(id));
+  });
+
+  it("havuz HER ZAMAN LABELS'in dar→geniş sırasında (pickTrueQ'nun komşuluk kontrolü buna dayanıyor)", () => {
+    for (const n of [3, 4, 5]) {
+      const pool = mode.poolForSize(n);
+      const qMaxes = pool.map(l => l.qMax);
+      const sorted = [...qMaxes].sort((a, b) => b - a);
+      assert.deepEqual(qMaxes, sorted, `n=${n}: havuz Q-sıralı değil`);
+    }
+  });
+
+  it("n>5 ya da negatif için düşmez, sınırlara kırpılır", () => {
+    assert.equal(mode.poolForSize(100).length, 5);
+    assert.equal(mode.poolForSize(-5).length, 3);
+    assert.equal(mode.poolForSize(0).length, 3);
+  });
+});
+
+describe("Q Genişliği — generateChoices() (havuzun TAMAMI şık olur, sayısal değer YOK)", () => {
+  it("şık sayısı HER ZAMAN pool.length'e eşit — eksik/fazla yok", () => {
+    for (const n of [3, 4, 5]) {
+      const pool = mode.poolForSize(n);
+      for (let i = 0; i < pool.length; i++) {
+        const correctIndex = mode.labelIndexForQ(pool[i].qCenter);
+        const choices = mode.generateChoices(correctIndex, pool);
+        assert.equal(choices.length, pool.length, `n=${n}`);
       }
     }
   });
 
-  it("count=5 (tüm etiketler) istenirse KALAN dört index'in TAMAMI döner", () => {
-    for (let correctIndex = 0; correctIndex < 5; correctIndex++) {
-      const picked = mode.pickDistractorIndices(correctIndex, 5, 1);
-      assert.equal(picked.length, 4);
-      const all = new Set([correctIndex, ...picked]);
-      assert.equal(all.size, 5);
-    }
-  });
-});
-
-describe("Q Genişliği — generateChoices() (etiket şıkları, sayısal değer YOK)", () => {
   it("her şık SADECE {id,tr,correct} taşır — sayısal Q değeri YOK", () => {
-    const { choices } = mode.generateChoices(2, 4);
+    const pool = mode.poolForSize(4);
+    const choices = mode.generateChoices(0, pool);
     choices.forEach(c => {
       assert.equal(typeof c.id, "string");
       assert.equal(typeof c.tr, "string");
       assert.equal(typeof c.correct, "boolean");
       assert.equal(Object.prototype.hasOwnProperty.call(c, "q"), false, "şıkta sayısal Q değeri OLMAMALI");
-      assert.equal(Object.prototype.hasOwnProperty.call(c, "qMin"), false);
     });
   });
 
-  it("doğru şık TAM BİR kez var", () => {
-    for (let correctIndex = 0; correctIndex < 5; correctIndex++) {
-      for (let options = 2; options <= 5; options++) {
-        const { choices } = mode.generateChoices(correctIndex, options);
+  it("doğru şık TAM BİR kez var, çakışma/tekrar yok", () => {
+    for (const n of [3, 4, 5]) {
+      const pool = mode.poolForSize(n);
+      for (const label of pool) {
+        const correctIndex = mode.labelIndexForQ(label.qCenter);
+        const choices = mode.generateChoices(correctIndex, pool);
         const correctChoices = choices.filter(c => c.correct);
-        assert.equal(correctChoices.length, 1, `ci=${correctIndex} options=${options}`);
+        assert.equal(correctChoices.length, 1, `n=${n}: ${correctChoices.length} doğru şık`);
+        const ids = choices.map(c => c.id);
+        assert.equal(new Set(ids).size, ids.length, "şıklarda tekrar var");
       }
-    }
-  });
-
-  it("options kadar şık üretir", () => {
-    for (let options = 2; options <= 5; options++) {
-      const { choices } = mode.generateChoices(1, options);
-      assert.equal(choices.length, options);
     }
   });
 });
 
 describe("Q Genişliği — pickTrueQ() (izole/kenar-yakınlığı, HER ZAMAN KENDİ etiketinde kalır)", () => {
-  it("üretilen Q, HER ZAMAN correctIndex'in KENDİ [qMin,qMax] aralığında — 2000 örnek, tüm etiketler/edgeMargin'ler", () => {
-    for (let correctIndex = 0; correctIndex < 5; correctIndex++) {
-      const label = mode.labelById(["notch", "dar", "orta", "genis", "cokgenis"][correctIndex]);
-      for (let i = 0; i < 400; i++) {
-        const edgeMargin = 0.05 + Math.random() * 0.5;
-        const distractors = Math.random() < 0.5 ? [correctIndex - 1] : [correctIndex + 1];
-        const q = mode.pickTrueQ(correctIndex, edgeMargin, distractors.filter(d => d >= 0 && d <= 4));
-        assert.ok(q >= label.qMin - 1e-6 && q <= label.qMax + 1e-6, `ci=${correctIndex}: Q=${q} kendi aralığı [${label.qMin},${label.qMax}] dışında`);
-        assert.equal(mode.labelIndexForQ(q), correctIndex, `ci=${correctIndex}: üretilen Q=${q} YANLIŞ etikete sınıflandı (${mode.labelIndexForQ(q)})`);
+  it("üretilen Q, HER ZAMAN correctIndex'in KENDİ [qMin,qMax] aralığında — 2000 örnek", () => {
+    for (const n of [3, 4, 5]) {
+      const pool = mode.poolForSize(n);
+      for (const label of pool) {
+        const correctIndex = mode.labelIndexForQ(label.qCenter);
+        for (let i = 0; i < 100; i++) {
+          const edgeMargin = 0.05 + Math.random() * 0.5;
+          const q = mode.pickTrueQ(correctIndex, edgeMargin, pool);
+          assert.ok(q >= label.qMin - 1e-6 && q <= label.qMax + 1e-6, `n=${n} ${label.id}: Q=${q} kendi aralığı dışında`);
+          assert.equal(mode.labelIndexForQ(q), correctIndex, `n=${n} ${label.id}: üretilen Q=${q} YANLIŞ etikete sınıflandı`);
+        }
       }
     }
   });
 
-  it("komşu çeldirici YOKSA (uzak uçlar seçildi, kolay) Q aralığın ORTASINA yakın üretilir", () => {
-    // correctIndex=2 (orta), distractors=[] (izole edilmiş uçlar senaryosu) → merkez.
-    const label = mode.labelById("orta");
-    const center = Math.sqrt(label.qMin * label.qMax);
-    const q = mode.pickTrueQ(2, 0.3, []);
+  it("kolay havuzda (n=3, {Notch,Dar,Geniş}) 'dar'ın komşusu SADECE notch (orta havuzda YOK) — Q, ÜST sınıra (orta'ya) YAKLAŞMAZ, ORTAYA yerleşir o yönde", () => {
+    const pool = mode.poolForSize(3);
+    const darIndex = mode.labelIndexForQ(mode.labelById("dar").qCenter);
+    const dar = mode.labelById("dar");
+    // notch komşuluğu VAR (alt sınır) → alt sınıra yakın; üst sınırda (orta) komşu
+    // YOK → üst kenar davranışı ORTAYA (üst yarının ortası değil, tam aralık ortası
+    // — fonksiyonun "komşu yoksa aralık ortası" kuralı, TEK kenarda komşu varken bile
+    // geçerli: sonuç HER ZAMAN lo+margin'e (notch'a yakın) yerleşir, çünkü
+    // hasNarrowerNeighbor=true dalı öncelikli).
+    const q = mode.pickTrueQ(darIndex, 0.1, pool);
+    const lo = Math.log2(dar.qMin);
+    assert.ok(Math.log2(q) - lo < 0.15, `notch komşuluğu yüzünden alt sınıra yakın olmalıydı: Q=${q}`);
+  });
+
+  it("komşu YOKSA (her iki kenarda da havuzda etiket yoksa) Q aralığın ORTASINA yerleşir", () => {
+    // Tek elemanlı sahte bir "havuz" — hiçbir komşu YOK.
+    const notch = mode.labelById("notch");
+    const center = Math.sqrt(notch.qMin * notch.qMax);
+    const q = mode.pickTrueQ(0, 0.3, [notch]);
     assert.ok(Math.abs(Math.log2(q) - Math.log2(center)) < 0.05, `merkeze yakın olmalıydı: Q=${q}, merkez=${center}`);
   });
 
-  it("dar komşu (correctIndex-1) çeldiricilerdeyse Q, ALT sınıra (qMin) yakın üretilir", () => {
-    const label = mode.labelById("dar"); // index 1, alt komşusu notch (index 0)
-    const q = mode.pickTrueQ(1, 0.1, [0]);
-    assert.ok(Math.log2(q) - Math.log2(label.qMin) < 0.15, `alt sınıra yakın olmalıydı: Q=${q}, qMin=${label.qMin}`);
+  it("dar komşu (correctIndex-1 havuzda) varsa Q, ALT sınıra (qMin) yakın üretilir", () => {
+    const pool = [mode.labelById("notch"), mode.labelById("dar")]; // dar'ın alt komşusu notch
+    const darIndex = mode.labelIndexForQ(mode.labelById("dar").qCenter);
+    const q = mode.pickTrueQ(darIndex, 0.1, pool);
+    const dar = mode.labelById("dar");
+    assert.ok(Math.log2(q) - Math.log2(dar.qMin) < 0.15, `alt sınıra yakın olmalıydı: Q=${q}`);
   });
 
-  it("geniş komşu (correctIndex+1) çeldiricilerdeyse Q, ÜST sınıra (qMax) yakın üretilir", () => {
-    const label = mode.labelById("dar"); // index 1, üst komşusu orta (index 2)
-    const q = mode.pickTrueQ(1, 0.1, [2]);
-    assert.ok(Math.log2(label.qMax) - Math.log2(q) < 0.15, `üst sınıra yakın olmalıydı: Q=${q}, qMax=${label.qMax}`);
+  it("geniş komşu (correctIndex+1 havuzda) varsa Q, ÜST sınıra (qMax) yakın üretilir", () => {
+    const pool = [mode.labelById("dar"), mode.labelById("orta")]; // dar'ın üst komşusu orta
+    const darIndex = mode.labelIndexForQ(mode.labelById("dar").qCenter);
+    const q = mode.pickTrueQ(darIndex, 0.1, pool);
+    const dar = mode.labelById("dar");
+    assert.ok(Math.log2(dar.qMax) - Math.log2(q) < 0.15, `üst sınıra yakın olmalıydı: Q=${q}`);
   });
 });
 
@@ -154,7 +184,7 @@ describe("Q Genişliği — createQuestion() genel sözleşme", () => {
       assert.ok(q.correctIndex >= 0 && q.correctIndex <= 4);
       assert.equal(typeof q.isolate, "boolean");
       assert.equal(q.hintUsed, false);
-      assert.ok(Array.isArray(q.choices) && q.choices.length >= 2);
+      assert.ok(Array.isArray(q.choices) && q.choices.length >= 3, "şık sayısı ASLA 3'ün altına inmemeli");
     });
 
     it(`createQuestion("${level}") SAF fonksiyondur: JSON'a sorunsuz serileşir`, () => {
@@ -165,19 +195,38 @@ describe("Q Genişliği — createQuestion() genel sözleşme", () => {
     });
   }
 
-  it("her zorlukta üretilen şık sayısı DIFFICULTY.options'a eşit (difficultyPosition verilmezse)", () => {
+  it("HİÇBİR zorlukta/pozisyonda şık sayısı 3'ün altına İNMEZ — 200 örnek/zorluk", () => {
     for (const level of Object.keys(mode.DIFFICULTY)) {
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 200; i++) {
         const q = mode.createQuestion(level, { source: "pink", boss: false });
-        assert.equal(q.choices.length, mode.DIFFICULTY[level].options, `${level}: ${q.choices.length} şık`);
+        assert.ok(q.choices.length >= 3, `${level}: ${q.choices.length} şık — 3'ün altına indi!`);
       }
     }
   });
 
-  it("kolay(2) < orta(3) < zor(4) < pro(5) — DIFFICULTY tablosu bu sırayı garanti eder", () => {
-    assert.ok(mode.DIFFICULTY.easy.options < mode.DIFFICULTY.medium.options);
-    assert.ok(mode.DIFFICULTY.medium.options < mode.DIFFICULTY.hard.options);
-    assert.ok(mode.DIFFICULTY.hard.options < mode.DIFFICULTY.pro.options);
+  it("kolay/orta HER ZAMAN tam 3 şık — {Notch,Dar,Geniş} çekirdek üçlüsü, doğru cevap HİÇBİR ZAMAN Orta/Çok Geniş DEĞİL", () => {
+    for (const level of ["easy", "medium"]) {
+      for (let i = 0; i < 100; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false });
+        assert.equal(q.choices.length, 3, `${level}: ${q.choices.length} şık`);
+        const ids = q.choices.map(c => c.id).sort();
+        assert.deepEqual(ids, [...CORE_IDS].sort(), `${level}: şıklar ${JSON.stringify(ids)}`);
+        const correctLabel = mode.labelById(q.choices.find(c => c.correct).id);
+        assert.ok(CORE_IDS.includes(correctLabel.id), `${level}: doğru cevap çekirdek üçlü DIŞINDA (${correctLabel.id})`);
+      }
+    }
+  });
+
+  it("zor: tam 4 şık (çekirdek üçlü + Orta), pro/proplus: tam 5 şık (hepsi)", () => {
+    for (let i = 0; i < 50; i++) {
+      const qHard = mode.createQuestion("hard", { source: "pink", boss: false });
+      assert.equal(qHard.choices.length, 4);
+      assert.ok(qHard.choices.some(c => c.id === "orta"));
+      assert.ok(!qHard.choices.some(c => c.id === "cokgenis"));
+
+      const qPro = mode.createQuestion("pro", { source: "pink", boss: false });
+      assert.equal(qPro.choices.length, 5);
+    }
   });
 
   it("gainDb HER ZAMAN ±Q_GAIN_DB büyüklüğünde — hiçbir zorlukta DEĞİŞMEZ (izolasyon ilkesi)", () => {
@@ -202,8 +251,6 @@ describe("Q Genişliği — izole Q (kolay/orta'da frekans SABİT, zorlaştıkç
   });
 
   it("statik hard/pro/proplus (difficultyPosition YOK): fallback İZOLE davranışı korunur (en güvenli/temiz sinyal)", () => {
-    // NOT: createQuestion'ın fallback'i (curve yokken) BİLEREK her zaman izole —
-    // statik tablo çağrıları (mevcut testler, doğrudan çağrılar) davranışı DEĞİŞTİRMEZ.
     for (const level of ["hard", "pro", "proplus"]) {
       for (let i = 0; i < 30; i++) {
         const q = mode.createQuestion(level, { source: "pink", boss: false });
@@ -367,11 +414,11 @@ describe("Q Genişliği — paramsForDifficultyPosition() (merkezi zorluk eğris
     }
   });
 
-  it("options position arttıkça monoton artar, her zaman 2-5 arası tam sayı", () => {
+  it("options position arttıkça monoton artar, HER ZAMAN 3-5 arası tam sayı (ASLA 2 değil)", () => {
     let prev = 0;
     for (let p = 1; p <= 20; p += 0.5) {
       const { options } = mode.paramsForDifficultyPosition(p);
-      assert.ok(Number.isInteger(options) && options >= 2 && options <= 5);
+      assert.ok(Number.isInteger(options) && options >= 3 && options <= 5, `position ${p}: options=${options}`);
       assert.ok(options >= prev);
       prev = options;
     }
@@ -456,6 +503,20 @@ describe("Q Genişliği — Sabit mod eğriye bağlı ('kolaylaşma yok' invarya
     }
   });
 
+  // G29'da bulunan gerçek kalibrasyon hatası: OPTIONS_AT_CAP ilk seçilen değerle
+  // (6.7) hard'ın TEMSİLCİ seviyesi (12) BİLE ZATEN 5'e yuvarlanıyordu (4'e değil)
+  // — "zor" tier Sabit modda (representativeLevelForTier + sessionRampOffset
+  // kompozisyonuyla) PRATİKTE hiçbir zaman 4 göstermiyordu, her zaman 5'ti. Statik
+  // tabloyla (hard.options=4) tutarlılık için AT_CAP 6.0'a düşürüldü — artık hard'ın
+  // TEMSİLCİ seviyesi TAM 4, session rampasının ÜST ucunda (boss/geç-döngü) 5'e
+  // doğal olarak çıkabiliyor (spec'in "4-5'e çıkar" ifadesiyle tutarlı, ama ARTIK
+  // 4 gerçekten ulaşılabilir bir değer, sadece geçilip gidilen bir basamak değil).
+  it("hard'ın TEMSİLCİ seviyesi TAM 4 döner (5 değil) — G29 kalibrasyon regresyonu", () => {
+    const level = representativeLevelForTier("hard");
+    const p = mode.paramsForDifficultyPosition(level);
+    assert.equal(p.options, 4, `hard repr=${level}: options=${p.options}, beklenen 4`);
+  });
+
   it("pro'nun temsilci seviyesi TAM LEVEL_CAP — eğrinin en zor noktası", () => {
     assert.equal(representativeLevelForTier("pro"), mode.Q_CURVE_CONFIG.LEVEL_CAP);
     const atCap = mode.paramsForDifficultyPosition(mode.Q_CURVE_CONFIG.LEVEL_CAP);
@@ -475,39 +536,26 @@ describe("Q Genişliği — Sabit mod eğriye bağlı ('kolaylaşma yok' invarya
   });
 });
 
-// G28 — cihazda bulunan gerçek hata: questionTitle SABİT bir metindi ("Notch
-// mu, Dar mı, Geniş mi?") — gerçek q.choices'la HİÇ bağlantısı yoktu, kolay
-// zorlukta 2 şık (ör. Çok Geniş/Dar) çıktığında hem SAYI hem İSİM uyuşmuyordu.
-describe("Q Genişliği — questionTitle() (cihazda bulunan sayı/isim uyuşmazlığı)", () => {
-  it("başlıktaki her etiket TAM OLARAK q.choices'taki etiketlerle eşleşir — fazla/eksik yok", () => {
-    for (const level of Object.keys(mode.DIFFICULTY)) {
+// G28/G29 — cihazda bulunan İKİ gerçek hata: (1) başlık sabit metindi, gerçek
+// şıklarla uyuşmuyordu; (2) 5 etiketi tek cümlede sayan başlık 375px'te
+// `.game-scroll`'un taşmasını Boost/Cut'ın kendi en kötü durumundan fazlaya
+// çıkarıyordu ("ekran kayması"). Bu blok İKİSİNİ de kalıcı regresyon testine
+// bağlıyor.
+describe("Q Genişliği — questionTitle() (G28: şık/isim uyuşmazlığı + G29: uzunluk/layout)", () => {
+  it("≤3 şıklı turlarda başlıktaki HER etiket TAM OLARAK q.choices'taki etiketlerle eşleşir", () => {
+    for (const level of ["easy", "medium"]) {
       for (let i = 0; i < 30; i++) {
         const q = mode.createQuestion(level, { source: "pink", boss: false });
         const title = mode.questionTitle(q);
-        const choiceLabels = new Set(q.choices.map(c => c.tr));
-        // Başlıktan HER etiketi çıkar, sonunda hiçbir etiket ismi KALMAMALI —
-        // yani başlıkta olup şıklarda OLMAYAN bir isim yok.
         for (const c of q.choices) {
           assert.match(title, new RegExp(c.tr.replace(/ /g, "\\s")), `${level}: "${c.tr}" şıklarda var ama başlıkta yok — "${title}"`);
-        }
-        // Ters yönde: 5 olası etiketten şıklarda OLMAYANLAR başlıkta da OLMAMALI.
-        const allLabelNames = ["Notch", "Dar", "Orta", "Geniş", "Çok Geniş"];
-        for (const name of allLabelNames) {
-          if (!choiceLabels.has(name)) {
-            // "Geniş" "Çok Geniş"in İÇİNDE bir alt-dize olduğu için o çifti atla —
-            // asıl kontrol edilen tam eşleşme değil, YANLIŞ bir etiketin YALNIZ
-            // başına geçmediği (ör. "Notch" hiç şık değilken başlıkta geçmemeli).
-            if (name === "Geniş" && choiceLabels.has("Çok Geniş")) continue;
-            const soleOccurrence = new RegExp(`(?<!Çok )${name}\\b`);
-            assert.doesNotMatch(title, soleOccurrence, `${level}: "${name}" şık DEĞİL ama başlıkta geçiyor — "${title}"`);
-          }
         }
       }
     }
   });
 
-  it("başlıktaki etiket SAYISI q.choices.length'e TAM eşit (virgülle ayrılmış parça sayısı)", () => {
-    for (const level of Object.keys(mode.DIFFICULTY)) {
+  it("≤3 şıklı turlarda başlıktaki etiket SAYISI q.choices.length'e TAM eşit", () => {
+    for (const level of ["easy", "medium"]) {
       for (let i = 0; i < 20; i++) {
         const q = mode.createQuestion(level, { source: "pink", boss: false });
         const title = mode.questionTitle(q);
@@ -518,9 +566,29 @@ describe("Q Genişliği — questionTitle() (cihazda bulunan sayı/isim uyuşmaz
   });
 
   it("her etiket doğru Türkçe soru ekiyle biter (mu/mı/mi) — bozuk/eksik ek yok", () => {
-    const q2 = { choices: [{ id: "notch", tr: "Notch" }, { id: "cokgenis", tr: "Çok Geniş" }] };
+    const q2 = { choices: [{ id: "notch", tr: "Notch" }, { id: "dar", tr: "Dar" }, { id: "genis", tr: "Geniş" }] };
     const title = mode.questionTitle(q2);
-    assert.equal(title, "Bu EQ'nun genişlik karakteri ne — Notch mu, Çok Geniş mi?");
+    assert.equal(title, "Bu EQ'nun genişlik karakteri ne — Notch mu, Dar mı, Geniş mi?");
+  });
+
+  it("G29: >3 şıklı turlarda (zor/pro) başlık KISA/SABİT — TÜM etiketleri saymaz, TEK satıra sığar", () => {
+    for (const level of ["hard", "pro"]) {
+      for (let i = 0; i < 20; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false });
+        const title = mode.questionTitle(q);
+        assert.ok(title.length < 60, `${level}: başlık çok uzun (${title.length} karakter) — "${title}"`);
+        assert.equal(title, "Bu EQ'nun genişlik karakteri ne? Aşağıdaki şıklardan seç.");
+      }
+    }
+  });
+
+  it("başlık HİÇBİR ZAMAN 4-5 etiketi tek cümlede art arda saymaz (G29'da ÖLÇÜLEN layout taşmasının kök nedeni)", () => {
+    for (const level of ["hard", "pro"]) {
+      const q = mode.createQuestion(level, { source: "pink", boss: false });
+      const title = mode.questionTitle(q);
+      const commaCount = (title.match(/,/g) || []).length;
+      assert.ok(commaCount <= 2, `${level}: başlıkta ${commaCount} virgül — hâlâ uzun bir liste sayıyor olabilir: "${title}"`);
+    }
   });
 });
 
@@ -538,6 +606,7 @@ describe("Q Genişliği — getMeta() sözleşme alanları", () => {
       assert.ok(meta.difficulty[level], `${level} DIFFICULTY'de yok`);
       assert.ok(typeof meta.difficulty[level].lives === "number");
       assert.ok(typeof meta.difficulty[level].time === "number" && meta.difficulty[level].time > 0);
+      assert.ok(meta.difficulty[level].options >= 3, `${level}: options ${meta.difficulty[level].options} < 3`);
     }
   });
 

@@ -12,9 +12,17 @@
 // "ne kadar" ekseninde bir zorluk kararı (Frekans Bulma'nın BOOST_ONLY_
 // DIFFICULTIES'iyle AYNI kategori — tier'a bağlı nitel bir kural).
 //
-// Soru SADE (sadece 2-5 etiket şıkkı), geri bildirim ZENGİN: Q'nun SAYISAL
-// karşılığı + frekans + yön + mix anlamı cevap sonrası açıklanıyor — kullanıcının
-// kulağı zamanla "Notch = ~Q8-16" gibi kalibre olsun diye.
+// FELSEFE: modun öğrettiği asıl mix kararı "cerrahi mi müzikal mi EQ" — Notch
+// (rezonans avı) / Dar (hedefli düzeltme) / Geniş (ton şekillendirme). Bu ÜÇÜ
+// çekirdek kategori, HER ZAMAN havuzda (kolay dahil — ASLA 2'ye inmez, bkz.
+// G29 notu). Orta/Çok Geniş birer NÜANS, zorlukla SONRADAN eklenir (bkz.
+// poolForSize/INTRODUCTION_ORDER) — önce 3 çekirdek karar ustalaşılır, sonra
+// ince ayrım öğretilir.
+//
+// Soru SADE (3-5 etiket şıkkı, hiçbir zaman daha az), geri bildirim ZENGİN:
+// Q'nun SAYISAL karşılığı + frekans + yön + mix anlamı cevap sonrası
+// açıklanıyor — kullanıcının kulağı zamanla "Notch = ~Q8-16" gibi kalibre
+// olsun diye.
 //
 // Mod sözleşmesi diğer dördüyle AYNI (getMeta/createQuestion/applyProcessing/
 // evaluateAnswer/calculateXP/getFeedbackData) + aynı-isimli render yardımcıları.
@@ -68,6 +76,29 @@ export function labelById(id) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// HAVUZ (pool) BÜYÜMESİ — modun FELSEFESİ burada kodlanıyor: "cerrahi mi
+// müzikal mi EQ" kararı ÜÇ çekirdek kategoriyle öğretilir — Notch (rezonans
+// avı) / Dar (hedefli) / Geniş (ton şekillendirme). Bu üçü HER ZAMAN havuzda
+// (kolay dahil, ASLA 2'ye düşmez — G29'da bulunan gerçek hata: eskiden kolayda
+// havuz "en uzak iki uç" mantığıyla 2'ye iniyordu, açıklama da buna
+// uydurulmuştu; bu TERSİNE ÇEVRİLDİ). Orta/Çok Geniş birer NÜANS — zorlukla
+// SONRADAN eklenirler (Orta: zor'da, Çok Geniş: pro'da), Q ekseninde bitişik
+// olmasalar bile (Orta, Dar/Geniş ARASINA girer) TANITILMA sırası buna göre.
+// Bu, `LABELS`'in Q'ya göre sıralı (dar→geniş) dizisinden BİLEREK AYRI bir
+// kavram — biri "bu Q hangi etikete düşer" (labelIndexForQ), diğeri "bu turda
+// HANGİ etiketler oyunda" (poolForSize).
+const INTRODUCTION_ORDER = ["notch", "dar", "genis", "orta", "cokgenis"];
+
+// SAF FONKSİYON. n=3 → {Notch,Dar,Geniş} (çekirdek), n=4 → +Orta, n=5 → +Çok
+// Geniş. Dönen dizi LABELS'in KENDİ (dar→geniş) sırasında — pickTrueQ'nun
+// komşuluk kontrolü buna bağlı.
+export function poolForSize(n) {
+  const size = Math.max(3, Math.min(LABELS.length, n));
+  const ids = new Set(INTRODUCTION_ORDER.slice(0, size));
+  return LABELS.filter(l => ids.has(l.id));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // İZOLASYON + GAIN — Q dışındaki her şey sabit tutulur ki öğrenme sinyali saf
 // kalsın. Frekans SADECE zorluk ISOLATE_UNTIL_POSITION'ı GEÇİNCE serbest kalır.
 export const Q_FIXED_FREQ = 1000; // Hz — nötr bir referans (1 kHz)
@@ -81,15 +112,26 @@ const FILTER_Q_MIN_SAFE = 0.1; // BiquadFilterNode.Q'nun pratik alt sınırı
 // STATİK DIFFICULTY — diğer dört modla AYNI ikili rol: (a) settings.
 // difficultyPosition verilmezse fallback, (b) "Sabit" modun tier-adı çapası,
 // (c) proplus için tek kaynak (eğri proplus'a hiç uygulanmıyor, Z5 kararı).
-// options: kaç etiket şık olarak gösteriliyor (2..5). edgeMargin: true Q'nun
-// KENDİ etiketinin en yakın komşu-sınırına ne kadar YAKLAŞABİLECEĞİ (log2(Q)
-// biriminde) — küçük=zor (sınıra daha yakın, ayırt etmesi zor).
+// `options` alan adı BİLEREK korundu (rename EDİLMEDİ) — app.js:renderLevelSheet
+// TÜM modların DIFFICULTY[level]'ından `.options`'ı GENERİK okuyup "Şık sayısı"
+// diye gösteriyor (bkz. app.js ~2751); adı değiştirmek o paneli SESSİZCE "—"
+// gösterir hale getirirdi — anlamı ARTIK "havuzdaki/gösterilen etiket sayısı".
+//
+// G29'da TERSİNE ÇEVRİLEN gerçek hata: kolayda havuz "en uzak iki uç" mantığıyla
+// 2'ye düşüyordu (Notch/Dar/Geniş çekirdek üçlüsünden BİRİNİ atlayarak) — soru
+// metni de buna uydurulmuştu. Artık `options` (=havuz boyutu) ASLA 3'ün altına
+// inmiyor — kolay/orta HER ZAMAN {Notch,Dar,Geniş} çekirdek üçlüsü (bkz.
+// poolForSize/INTRODUCTION_ORDER), zorlaştıkça hem bu üçlü İÇİNDE kademeler
+// yakınlaşıyor (edgeMargin küçülüyor) HEM DE zor'da Orta, pro'da Çok Geniş
+// EKLENEREK havuz 4'e, 5'e büyüyor — spec'in "yakınlaşır VEYA 4-5'e çıkar"
+// isteğinin İKİSİ de, aşamalı (önce 3 çekirdek ustalaşılır, sonra nüans
+// eklenir) — kolayla pro arasında pedagojik bir sıra izliyor.
 //
 // KULAKLA DOĞRULANMADI — diğer dört modun AYNI dürüstlük notu.
 export const DIFFICULTY = {
-  easy: { label: "Kolay", xp: 14, options: 2, time: 14, lives: MAX_LIVES, edgeMargin: 0.55 },
-  medium: { label: "Orta", xp: 22, options: 3, time: 12, lives: MAX_LIVES, edgeMargin: 0.35 },
-  hard: { label: "Zor", xp: 32, options: 4, time: 10, lives: MAX_LIVES, edgeMargin: 0.20 },
+  easy: { label: "Kolay", xp: 14, options: 3, time: 14, lives: MAX_LIVES, edgeMargin: 0.55 },
+  medium: { label: "Orta", xp: 22, options: 3, time: 12, lives: MAX_LIVES, edgeMargin: 0.32 },
+  hard: { label: "Zor", xp: 32, options: 4, time: 10, lives: MAX_LIVES, edgeMargin: 0.18 },
   pro: { label: "Pro", xp: 46, options: 5, time: 8, lives: MAX_LIVES, edgeMargin: 0.08 },
   proplus: { label: "Pro Plus (Çok Bantlı)", xp: 46, options: 5, time: 8, lives: MAX_LIVES, edgeMargin: 0.08 }
 };
@@ -98,18 +140,16 @@ export const DIFFICULTY = {
 // ZORLUK EĞRİSİ — Boost/Cut'ın (G25) BAŞTAN-doğru-kalibrasyon yöntemiyle bağlanan
 // 3. mod (dB Seviyesi/Boost-Cut'tan sonra). AT_1'ler statik easy değerleriyle
 // birebir aynı. AT_CAP'lar ikili aramayla, representativeLevelForTier'ın HİÇBİR
-// temsilci seviyesinde eski statik tablodan kolay çıkmayacak şekilde çözüldü
-// (options: ikili arama >=6.7 gerektirdi — Math.round'un kaba/tamsayı yuvarlaması
-// yüzünden hard'ın [12] TAM 4'e ulaşması için 5.15 gibi "ince" bir AT_CAP yetmedi,
-// bkz. commit mesajı).
+// temsilci seviyesinde eski statik tablodan kolay çıkmayacak şekilde ÖNCEDEN
+// (G29'da yeni statik tabloyla BİRLİKTE) yeniden çözüldü.
 export const Q_CURVE_CONFIG = {
   LEVEL_CAP: 20,
 
-  OPTIONS_AT_1: 2,
-  OPTIONS_AT_CAP: 6.7,
+  OPTIONS_AT_1: 3,
+  OPTIONS_AT_CAP: 6.0,
 
   EDGE_MARGIN_AT_1: 0.55,
-  EDGE_MARGIN_AT_CAP: 0.065,
+  EDGE_MARGIN_AT_CAP: 0.07,
   EDGE_MARGIN_FLOOR: 0.05,
   EDGE_MARGIN_REDUCTION_PER_STEP: 0.002,
 
@@ -137,49 +177,36 @@ export function paramsForDifficultyPosition(position, config = Q_CURVE_CONFIG) {
 
   return {
     position: safePos,
-    options: Math.max(2, Math.min(LABELS.length, Math.round(optionsCurve))),
+    options: Math.max(3, Math.min(LABELS.length, Math.round(optionsCurve))),
     edgeMargin: applyPostCapFloor(edgeMarginCurve, safePos, config.LEVEL_CAP, config.EDGE_MARGIN_FLOOR, config.EDGE_MARGIN_REDUCTION_PER_STEP),
     timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP),
     isolate: safePos <= ISOLATE_UNTIL_POSITION
   };
 }
 
-// SAF FONKSİYON. correctIndex'e göre count-1 çeldirici index seçer — tercih
-// edilen index-mesafesi (preferredDistance) BÜYÜKSE (kolay) UÇLARDAN, KÜÇÜKSE
-// (zor) KOMŞU etiketlerden seçilir (spec: "kolay: Notch vs Geniş = uçlar,
-// bariz; zor: Notch vs Dar = komşu, ayırt zor" — birebir bu davranış).
-export function pickDistractorIndices(correctIndex, count, preferredDistance) {
-  const others = LABELS.map((_, i) => i).filter(i => i !== correctIndex);
-  const sorted = others
-    .map(i => ({ i, d: Math.abs(i - correctIndex) }))
-    .sort((a, b) => Math.abs(a.d - preferredDistance) - Math.abs(b.d - preferredDistance) || a.i - b.i);
-  return sorted.slice(0, Math.max(0, count - 1)).map(x => x.i);
-}
-
-// options (2-5 arası) → preferredDistance (LABELS.length - options + 1) —
-// options=2'de 4 (en uzak iki uç), options=5'te 1 (hepsi zaten gösteriliyor,
-// mesafe kararı anlamsızlaşır). Kapalı-form türetildi, ayrı bir eğri
-// parametresi GEREKMEDİ.
-function preferredDistanceForOptions(options) {
-  return Math.max(1, LABELS.length - options + 1);
-}
-
-// SAF FONKSİYON. correctIndex'in KENDİ aralığı içinde, komşu çeldiricilerden
-// birine (varsa) doğru sınıra edgeMargin kadar YAKLAŞAN bir Q üretir — komşu
-// çeldirici YOKSA (kolay, uzak uçlar seçildiğinde) aralığın TAM ORTASINA
-// (belirsizlik sıfır) yerleştirir. Hangi Q ÜRETİLİRSE üretilsin, HER ZAMAN
-// KENDİ etiketinin sınırları İÇİNDE kalır (labelIndexForQ ile ÇAKIŞMASIZ) —
-// FLOOR (edgeMargin'in asla sıfırlanmaması) bunu HİÇBİR zaman ihlal etmez,
-// sadece "ne kadar sınıra yakın" ayarlar.
-export function pickTrueQ(correctIndex, edgeMargin, distractorIndices, rng = Math.random) {
+// SAF FONKSİYON. correctIndex'in KENDİ aralığı içinde, POOL'daki komşu
+// etiketlerden birine (varsa) doğru sınıra edgeMargin kadar YAKLAŞAN bir Q
+// üretir — komşu YOKSA (o kenarda havuzda hiç etiket yoksa, ör. kolayda
+// "dar"ın Q-uzayındaki komşusu "orta" havuzda değilse) o kenar aralığın TAM
+// ORTASI gibi davranır (o yönde belirsizlik yok, çünkü konfüze edilecek bir
+// şık zaten yok). Komşuluk LABELS'in Q-SIRALI dizisine göre kontrol edilir —
+// pool'da olup olmama ile (INTRODUCTION_ORDER'a göre), ikisi FARKLI kavramlar
+// (ör. kolayda "dar" ile "geniş" pool'da birlikte var ama Q-uzayında bitişik
+// DEĞİLLER — aralarında "orta" boşluğu var, o yüzden birbirlerine yakın
+// pozisyonlanmaları GEREKMEZ). Hangi Q üretilirse üretilsin, HER ZAMAN KENDİ
+// etiketinin sınırları İÇİNDE kalır (labelIndexForQ ile ÇAKIŞMASIZ) — FLOOR
+// (edgeMargin'in asla sıfırlanmaması) bunu HİÇBİR zaman ihlal etmez, sadece
+// "ne kadar sınıra yakın" ayarlar.
+export function pickTrueQ(correctIndex, edgeMargin, pool, rng = Math.random) {
   const label = LABELS[correctIndex];
   const lo = Math.log2(label.qMin);
   const hi = Math.log2(label.qMax);
   const eps = Math.min(0.01, (hi - lo) * 0.05);
   const safeMargin = Math.min(edgeMargin, (hi - lo) / 2 - eps);
 
-  const hasNarrowerNeighbor = distractorIndices.includes(correctIndex - 1);
-  const hasWiderNeighbor = distractorIndices.includes(correctIndex + 1);
+  const poolIds = new Set(pool.map(l => l.id));
+  const hasNarrowerNeighbor = correctIndex > 0 && poolIds.has(LABELS[correctIndex - 1].id);
+  const hasWiderNeighbor = correctIndex < LABELS.length - 1 && poolIds.has(LABELS[correctIndex + 1].id);
 
   let logQ;
   if (hasNarrowerNeighbor && hasWiderNeighbor) {
@@ -195,13 +222,14 @@ export function pickTrueQ(correctIndex, edgeMargin, distractorIndices, rng = Mat
   return Math.max(FILTER_Q_MIN_SAFE, Math.pow(2, logQ));
 }
 
-// SAF FONKSİYON.
-export function generateChoices(correctIndex, options) {
-  const preferredDistance = preferredDistanceForOptions(options);
-  const distractorIndices = pickDistractorIndices(correctIndex, options, preferredDistance);
-  const all = [correctIndex, ...distractorIndices];
-  const choices = all.map(i => ({ id: LABELS[i].id, tr: LABELS[i].tr, correct: i === correctIndex }));
-  return { choices: shuffle(choices), distractorIndices };
+// SAF FONKSİYON. Şıklar HER ZAMAN pool'un TAMAMI (çeldirici SEÇİMİ artık yok —
+// hangi etiketlerin "oyunda" olduğuna havuz büyümesi [poolForSize] karar
+// veriyor, generateChoices sadece onları {id,tr,correct} şıklarına çevirip
+// karıştırıyor).
+export function generateChoices(correctIndex, pool) {
+  const correctId = LABELS[correctIndex].id;
+  const choices = pool.map(l => ({ id: l.id, tr: l.tr, correct: l.id === correctId }));
+  return shuffle(choices);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -239,9 +267,15 @@ export function createQuestion(level, settings = {}) {
   const timeSec = curve ? curve.timeSec : diff.time;
   const isolate = curve ? curve.isolate : true; // statik/proplus fallback: HER ZAMAN izole (en güvenli/temiz sinyal)
 
-  const correctIndex = Math.floor(Math.random() * LABELS.length);
-  const { choices, distractorIndices } = generateChoices(correctIndex, options);
-  const q = pickTrueQ(correctIndex, edgeMargin, distractorIndices);
+  // Doğru cevap HER ZAMAN o turun havuzundan seçilir (options=havuz boyutu,
+  // bkz. poolForSize) — kolayda bu havuz HER ZAMAN {Notch,Dar,Geniş} çekirdek
+  // üçlüsü, correctIndex ASLA Orta/Çok Geniş olamaz o zorlukta (bkz. dosya
+  // başı G29 notu).
+  const pool = poolForSize(options);
+  const correctLabel = pool[Math.floor(Math.random() * pool.length)];
+  const correctIndex = LABELS.indexOf(correctLabel);
+  const choices = generateChoices(correctIndex, pool);
+  const q = pickTrueQ(correctIndex, edgeMargin, pool);
 
   const direction = Math.random() < 0.5 ? 1 : -1;
   const gainDb = Q_GAIN_DB * direction;
@@ -269,16 +303,32 @@ export function createQuestion(level, settings = {}) {
 // mı; Geniş/Çok Geniş→"i" (düz-ince, "Geniş"in son ünlüsü)→mi.
 const QUESTION_PARTICLE = { notch: "mu", dar: "mı", orta: "mı", genis: "mi", cokgenis: "mi" };
 
+// Başlıkta etiketleri SAYMANIN üst sınırı — G28'de bulunan gerçek hata
+// (sabit metin gerçek q.choices'la uyuşmuyordu) düzeltilirken, G29'da
+// cihazda bulunan İKİNCİ bir gerçek hata ortaya çıktı: 5 etiketi TEK cümlede
+// sayan başlık 3 satıra sarıyor, bu da (375px'te ÖLÇÜLDÜ) `.game-scroll`'un
+// taşma miktarını Boost/Cut'ın KENDİ en kötü durumundan (6 şık/tek satır
+// başlık, 47px taşma) BELİRGİN fazlaya (63px) çıkarıyordu — kullanıcının
+// "ekran yukarı kayıyor" tarifiyle örtüşen, ÖLÇÜLEBİLİR bir fark. Kök neden
+// tek: BAŞLIK boyu, diğer hiçbir modun ASLA yapmadığı şekilde değişken sayıda
+// etiketi TEK cümlede art arda diziyor. Çözüm: sadece havuz KÜÇÜKKEN (≤3,
+// modun çekirdek/kolay-orta katmanı) etiketleri say — o zaman zaten tek
+// satıra sığıyor VE "cerrahi mi müzikal mi" öğretisiyle en çok bu katmanda
+// karşılaşılıyor. Havuz büyüdüğünde (zor/pro, 4-5) kısa/sabit bir cümleye
+// düş — bu seviyedeki oyuncu etiketleri ZATEN biliyor, tekrar saymak sadece
+// yer kaplıyor.
+const TITLE_ENUMERATION_LIMIT = 3;
+
 // SAF FONKSİYON. Başlık HER ZAMAN o SORUNUN gerçek q.choices'ını sayar/adlandırır
-// — Boost/Cut'ın (G25) katman-bazlı mode.questionTitle(q) deseniyle AYNI, app.js
-// bunu hardcoded bir metin yerine ÇAĞIRIR (bkz. app.js questionTitle ternary).
-// Canlı cihazda bulunan gerçek hata: eskiden burası HER ZAMAN sabit "Notch mu,
-// Dar mı, Geniş mi?" metniydi — kolayda 2 şık (ör. Çok Geniş/Dar) çıktığında
-// metin 3 SEÇENEK saydırıyordu VE isimler o turun GERÇEK şıklarıyla hiç
-// eşleşmeyebiliyordu (Notch hiç şık değilken bile metinde geçiyordu). Etiketler
-// GÖSTERİM sırasında (renderAnswerChoices) shuffle'lanır ama başlıkta doğal
-// okunuş için LABELS'in KENDİ (dar→geniş) sırasıyla listelenir.
+// (≤3 şıkta) — Boost/Cut'ın (G25) katman-bazlı mode.questionTitle(q) deseniyle
+// AYNI, app.js bunu hardcoded bir metin yerine ÇAĞIRIR (bkz. app.js
+// questionTitle ternary). Etiketler GÖSTERİM sırasında (renderAnswerChoices)
+// shuffle'lanır ama başlıkta doğal okunuş için LABELS'in KENDİ (dar→geniş)
+// sırasıyla listelenir.
 export function questionTitle(q) {
+  if (q.choices.length > TITLE_ENUMERATION_LIMIT) {
+    return "Bu EQ'nun genişlik karakteri ne? Aşağıdaki şıklardan seç.";
+  }
   const idsInQuestion = new Set(q.choices.map(c => c.id));
   const ordered = LABELS.filter(l => idsInQuestion.has(l.id));
   const parts = ordered.map(l => `${l.tr} ${QUESTION_PARTICLE[l.id]}`);
@@ -286,7 +336,7 @@ export function questionTitle(q) {
 }
 
 export function modeDescription() {
-  return "A/B ile karşılaştır, EQ'nun GENİŞLİK karakterini (Notch/Dar/Orta/Geniş) şıklardan seç.";
+  return "A/B ile karşılaştır, EQ'nun cerrahi mi müzikal mi olduğuna (Notch/Dar/Geniş) karar ver.";
 }
 
 export function correctLabel(question) {
