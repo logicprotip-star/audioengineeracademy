@@ -7,6 +7,97 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `f2e8642` — G26: **Mod 5 "Q Genişliği" — EQ genişlik karakteri tanıma,
+merkezi eğriye SIFIRDAN bağlı.** 5. oynanabilir mod — Boost/Cut'ın peaking-EQ
+motorunu kullanır ama sorulan eksen FARKLI: orada boost/cut yönü+miktarı+
+frekans soruluyordu, burada **Q (genişlik)** — kullanıcı sayısal bir değer
+değil, MİX DİLİNDE bir ETİKET seçiyor (Notch/Dar/Orta/Geniş/Çok Geniş).
+SoundGym'de Q/bandwidth ölçen bir oyun YOK — bu ÖZGÜN.
+
+**Mod mantığı:** 5 genişlik etiketi, Q ekseninde ARDIŞIK/BİTİŞİK aralıklar
+(notch:[7,16], dar:[3,7), orta:[1.3,3), geniş:[0.5,1.3), çok geniş:[0.2,0.5))
+— her Q TAM BİR etikete düşer, boşluk/çakışma yok. Soru SADE (sadece 2-5
+etiket şıkkı, sayısal Q değeri şıklarda YOK — spec'in açık isteği), geri
+bildirim ZENGİN: Q'nun SAYISAL karşılığı + frekans + yön (boost/cut) + mix
+anlamı ("Notch = cerrahi, rezonans avı"/"Çok Geniş = müzikal ton eğimi")
+cevap sonrası TEK yerde açıklanıyor — kullanıcının kulağı zamanla "Notch =
+~Q8-16" gibi kalibre olsun diye.
+
+**İZOLASYON İLKESİ (öğrenme sinyali temiz kalsın):** gain HER ZAMAN sabit
+büyüklükte (`Q_GAIN_DB=6`) — hiçbir zorlukta değişmez, genişlik algısını
+gölgelemesin. Frekans kolay/orta'da SABİT (`Q_FIXED_FREQ=1000` Hz, kullanıcı
+SAF Q'yu duysun), `ISOLATE_UNTIL_POSITION`'ı (representativeLevelForTier
+("medium")=8) GEÇİNCE (hard/pro) tüm spektruma (FA_MIN–FA_MAX) yayılır —
+Frekans Bulma'nın BOOST_ONLY_DIFFICULTIES'iyle AYNI kategori bir "hangi tür"
+kararı (tier'a bağlı nitel eşik), "ne kadar" değil.
+
+**Zorlukla kademe yakınlaşması (spec: "kolay: Notch vs Geniş = uçlar, bariz;
+zor: Notch vs Dar = komşu, ayırt zor" — birebir uygulandı):** `options`
+(2→5) artan şık sayısı + `pickDistractorIndices`'in `preferredDistance`
+(kapalı-form türetildi: `LABELS.length - options + 1`, ayrı bir eğri
+parametresi GEREKMEDİ) — 2 şıklı kolayda EN UZAK iki uç seçilir, 5 şıklı
+pro'da zaten tüm etiketler gösterilir ama true Q, `edgeMargin`'in (eğriyle
+küçülen) izin verdiği kadar en yakın komşu etiketin sınırına YAKLAŞTIRILIR
+(`pickTrueQ`) — true Q, HER ZAMAN (FLOOR garantili) KENDİ etiketinin
+sınırları İÇİNDE kalır, sınıflandırma asla belirsizleşmez, sadece
+PERSEPTİF olarak zorlaşır.
+
+**Merkezi zorluk eğrisine bağlanma — Boost/Cut'ın (G25) BAŞTAN-doğru-
+kalibrasyon yöntemiyle bağlanan 3. mod:** `Q_CURVE_CONFIG`'in AT_CAP'leri
+ikili aramayla, hiçbir temsilci seviyede eski statiği aşmayacak şekilde
+ÖNCEDEN çözüldü. `options`'ın kaba/tamsayı yuvarlaması yüzünden ince bir
+AT_CAP (5.15) hard'ın (12) TAM 4'e ulaşması için YETMEDİ — ikili arama
+gerçek ihtiyacı (≥6.62) ortaya çıkardı, 6.7 seçildi (dB Seviyesi/Boost-
+Cut'ta da görülen AYNI "kaba yuvarlama payı" deseni):
+
+| parametre | easy(4) eski→yeni | medium(8) eski→yeni | hard(12) eski→yeni | pro(20) eski→yeni |
+|---|---|---|---|---|
+| options | 2→**2** | 3→**3** | 4→**4** | 5→**5** |
+| edgeMargin | 0.55→**0.393** | 0.35→**0.250** | 0.20→**0.160** | 0.08→**0.065** |
+
+**app.js kablolaması:** `registerMode(qGenisligi)` + 4 dal (isChoiceFormat/
+questionTitle/setFeedback/pushHistory/.ans click) + yeni `submitQWidthGuess()`
++ yeni `qGuessLabelId` overlay state. `mode.recordZone` HİÇ ÇAĞRILMIYOR — dB
+Seviyesi'nin AYNI kararı: frekans bu modda kullanıcıya hiç açıklanmıyor/
+guess ettirilmiyor, "hangi bölgede zayıfsın" ölçümü burada anlamsız.
+
+**Görsel geri bildirim:** Boost/Cut'ın computeEqCurveDb/drawBellCurve
+TEKNİĞİYLE BİREBİR AYNI (gerçek BiquadFilterNode+getFrequencyResponse) ama
+DEĞİŞEN eksen frekans/gain DEĞİL, Q — dar (yüksek Q) sivri-dik bir tepe,
+geniş (düşük Q) yayvan bir tümsek üretir. Kullanıcının "guess eğrisi" seçtiği
+etiketin `qCenter`'ıyla (kendi aralığının geometrik ortalaması) çizilir,
+freq/gain HER ZAMAN true değerlerle aynı (kullanıcı onları guess etmedi).
+
+`mode-catalog.js`: `q-genisligi` artık `playable:true` — `unlockLevel:3`/
+`tier:"free"` (ÖNCEDEN kayıtlı değerler) BİLEREK değiştirilmedi.
+
+Doğrulama: 61 yeni test (labelIndexForQ'nun sınırsız/çakışmasız sınıflandırması
++ pickDistractorIndices'in uzak↔yakın seçimi + generateChoices'ın sayısal
+değer SIZDIRMADIĞI + pickTrueQ'nun HER ZAMAN kendi etiketinde kaldığı [2000
+örnek] + izole-Q davranışı [statik+eğri, her iki yönde] + evaluateAnswer +
+calculateXP + öğretici metin [Q+frekans+yön+mix, 5 etiket×2 durum] +
+applyProcessing'in peaking Q doğruluğu + curve pürüzsüzlüğü/tabanı/tolerans +
+Sabit-mod "kolaylaşma yok" invaryantı + dört modla çapraz eğri-yönü
+karşılaştırması) + mevcut 373 test DEĞİŞMEDEN geçti — **434/434**. Test
+yazarken bulunan bir kendi-hatam (case-insensitive `/NaN/i` regex'i "rezoNANsı"
+gibi meşru Türkçe kelimelere yanlış pozitif veriyordu) fark edilip case-
+sensitive'e çevrildi — kod hatası değil, test kalitesi notu.
+
+Tarayıcıda canlı (Geliştirici: tam erişim ile): mod menüden açılıyor; Kolay/
+Sabit'te 2 şık HER ZAMAN en uzak iki uç (Notch/Çok Geniş gibi), frekans HER
+ZAMAN 1.00 kHz (izolasyon canlı doğrulandı, "737 Hz'de..." gibi bir sızma
+YOK); Pro/Sabit'te 5 şık (TÜM etiketler), frekans SERBEST (335 Hz/3.27 kHz/
+924 Hz gibi gerçek çeşitlilik gözlemlendi); doğru cevapta zengin geri bildirim
+("Doğru! Bu bir Notch'tı (Q: 15.3) — 335 Hz'de boost. cerrahi bir müdahale...
+(+52 XP)") ve yanlışta ("Yanlış — sen Notch dedin. Bu bir Dar'tı (Q: 3.1) —
+3.27 kHz'de boost...") ikisi de Q+frekans+yön+mix anlamını İÇERDİ; görsel
+KESİN doğrulandı — Notch (Q:15.3) dar-sivri tek bir keskin tepe, Çok Geniş
+(Q:0.2) geniş-yayvan yumuşak bir tümsek, ikisi arasındaki KONTRAST canlı
+ekran görüntüsüyle KANITLANDI; Boost/Cut'ta (mod geçişi sonrası) regresyon
+yok, sıfır konsol hatası. `renderLevelSheet`'in hâlâ tek dil konuştuğu
+ÖNCEDEN bilinen kısıt bu modda da geçerli (SIRADAKİ madde 3, yeni regresyon
+değil).
+
 Commit `cf0cae3` — G25: **Mod 4 "Boost mu Cut mu" — üç katmanlı EQ tanıma,
 merkezi eğriye SIFIRDAN bağlı.** 4. oynanabilir mod — Kesim Noktası/dB
 Seviyesi ŞABLONU izlendi (aynı mod sözleşmesi/render yardımcıları), ama
@@ -1582,49 +1673,49 @@ hazır, sadece onay bekliyor.
 ## SIRADAKİ
 
 **Zorluk sisteminin merkezi bağlanması (Seçenek C) + Mod 3 "dB Seviyesi" +
-Mod 4 "Boost mu Cut mu" TAMAMLANDI.** ARTIK DÖRT oynanabilir mod var
-(Frekans Bulma, Kesim Noktası, dB Seviyesi, Boost mu Cut mu), dördü de AYNI
-merkezi eğriden besleniyor (`continuousLevel`/`representativeLevelForTier`+
-`sessionRampOffset`, mod-agnostik `logLerp`/`applyPostCapFloor`), hem
-Otomatik hem Sabit modda, pro her dört modda da eğrinin GERÇEK tavanı,
-hiçbir tier eski statikten kolay değil. **Tek sonraki adım netleşmedi** —
-kalan işler ürün kararı gerektiriyor, kod tarafında engelleyici yok:
+Mod 4 "Boost mu Cut mu" + Mod 5 "Q Genişliği" TAMAMLANDI.** ARTIK BEŞ
+oynanabilir mod var (Frekans Bulma, Kesim Noktası, dB Seviyesi, Boost mu Cut
+mu, Q Genişliği), beşi de AYNI merkezi eğriden besleniyor (`continuousLevel`/
+`representativeLevelForTier`+`sessionRampOffset`, mod-agnostik `logLerp`/
+`applyPostCapFloor`), hem Otomatik hem Sabit modda, pro her beş modda da
+eğrinin GERÇEK tavanı, hiçbir tier eski statikten kolay değil. **Tek sonraki
+adım netleşmedi** — kalan işler ürün kararı gerektiriyor, kod tarafında
+engelleyici yok:
 
-1. **KULAKLA doğrulama — hâlâ yapılmadı (DÖRT modun da).** Kalibrasyon
+1. **KULAKLA doğrulama — hâlâ yapılmadı (BEŞ modun da).** Kalibrasyon
    MATEMATİKSEL şartı sağlıyor (ikili aramayla ölçüldü, testle garanti
    altında) ama ALGISAL/HİSSİYAT açısından doğru olduğu anlamına gelmiyor —
    özellikle "easy"nin de bir miktar zorlaşmış olması (Kesim Noktası/Frekans
    Bulma'da ADIM 3'ten, dB Seviyesi'nde baştan) yeni oyuncular için fark
    edilir bir sertlik artışı olabilir. Gerçek kullanıcı testinden geçmedi.
 2. **Round-timer eğriye bağlanacak mı?** `paramsForDifficultyPosition().
-   timeSec` DÖRT modda da hesaplanıyor ama `currentDifficultyConfig().time`
+   timeSec` BEŞ modda da hesaplanıyor ama `currentDifficultyConfig().time`
    (statik) hâlâ kullanılıyor. Bağlanırsa G21'in hizalı geçiş süresiyle
    etkileşimi (boss'ta çifte kısalma riski) ayrıca değerlendirilmeli.
 3. **`renderLevelSheet`** (Seviye bilgi sayfası) hâlâ TEK bir dil (gainDb/Q,
    Frekans Bulma'nınki) konuşuyor — Kesim Noktası/dB Seviyesi/Boost mu Cut
-   mu aktifken bu metin semantik olarak yanlış (G25'te canlı doğrulandı:
-   "Bant genişliği"/"Değişim miktarı" gösteriyor, Boost/Cut'ın kendi
-   gainDb/freqStepOct/gainStepDb dilini konuşmuyor). `mode`'a göre hangi
-   eğri/hangi dilin gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi,
-   bu turların bir regresyonu değil ama artık DÖRT modda da geçerli bilinen
-   bir eksik.
+   mu/Q Genişliği aktifken bu metin semantik olarak yanlış (G25/G26'da canlı
+   doğrulandı: "Bant genişliği"/"Değişim miktarı" gösteriyor, o modların
+   KENDİ dilini konuşmuyor). `mode`'a göre hangi eğri/hangi dilin
+   gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi, bu turların bir
+   regresyonu değil ama artık BEŞ modda da geçerli bilinen bir eksik.
 4. **Statik DIFFICULTY tabloları hâlâ duruyor mu, kaldırılacak mı?** Bilerek
    kaldırılmadı (Sabit modun tier-isim çapası + proplus + geriye dönük test
-   uyumluluğu için gerekli, dB Seviyesi/Boost mu Cut mu'da da AYNI karar) —
-   kalıcı olarak mı kalacak, yoksa TAMAMEN eğriye mi devredilecek? Şimdilik
-   ikili sistem (statik+eğri, opt-in) kalıcı bir mimari — bu artık DÖRT
-   moddan geçen, tekrarlanan bir desen, bilinçli bir seçim olarak teyit
-   edilmeli.
+   uyumluluğu için gerekli, dB Seviyesi/Boost mu Cut mu/Q Genişliği'nde de
+   AYNI karar) — kalıcı olarak mı kalacak, yoksa TAMAMEN eğriye mi
+   devredilecek? Şimdilik ikili sistem (statik+eğri, opt-in) kalıcı bir
+   mimari — bu artık BEŞ moddan geçen, tekrarlanan bir desen, bilinçli bir
+   seçim olarak teyit edilmeli.
 5. **`db-seviyesi` unlockLevel:6/tier:"pro"**, **`boost-mu-cut-mu`
-   unlockLevel:4/tier:"free"** — ikisi de kayıtlı ama ürün kararı olarak
-   DOKUNULMADI (BEKLEYEN KARARLAR **B**'nin bir parçası: academyLevel yeni
-   bir mod kaydolunca otomatik yükseliyor, 4. modun kaydı bunu YİNE
-   somutlaştırdı — artık dört modun üçü zaten oynanabilirken dördüncünün
-   +1 katkısı önceki kilitleri de etkileyebilir, kullanıcıya sorulmalı).
-   **G23 ile TEST ENGELİ kalktı** (geliştirici modu artık seviye kilidini de
-   atlıyor) — ama bu SADECE test/geliştirme kolaylığı, kalıcı ürün kararının
-   (gerçek kullanıcılar için unlockLevel ne olmalı) YERİNE geçmiyor, madde
-   hâlâ açık.
+   unlockLevel:4/tier:"free"**, **`q-genisligi` unlockLevel:3/tier:"free"**
+   — üçü de kayıtlı ama ürün kararı olarak DOKUNULMADI (BEKLEYEN KARARLAR
+   **B**'nin bir parçası: academyLevel yeni bir mod kaydolunca otomatik
+   yükseliyor, 5. modun kaydı bunu YİNE somutlaştırdı — artık beş modun
+   dördü zaten oynanabilirken beşincinin +1 katkısı önceki kilitleri de
+   etkileyebilir, kullanıcıya sorulmalı). **G23 ile TEST ENGELİ kalktı**
+   (geliştirici modu artık seviye kilidini de atlıyor) — ama bu SADECE
+   test/geliştirme kolaylığı, kalıcı ürün kararının (gerçek kullanıcılar
+   için unlockLevel ne olmalı) YERİNE geçmiyor, madde hâlâ açık.
 6. **`teachingText`'in "yön doğru, miktar yanlış" metni** hafif tekrarlı
    okunabiliyor (bkz. BİTTİ'deki not) — küçük bir metin cilası, engelleyici
    değil.
@@ -1634,19 +1725,24 @@ kalan işler ürün kararı gerektiriyor, kod tarafında engelleyici yok:
    kısmen jitter/floor hatalarıyla açıklandı (bkz. BİTTİ) ama kısmen de
    GERÇEK bir tasarım özelliği: taze/düşük seviyeli bir oyuncuda seans
    rampasının mutlak genliği küçük (bkz. commit mesajı: position 1→2 arası
-   sadece ~%11 değişim). Bu, DÖRT modun HEPSİNİ etkileyen paylaşılan bir
-   sabit — G24/G25 kapsamında BİLEREK değiştirilmedi (dB'ye/Boost-Cut'a özgü
-   olmayan bir değişiklik, diğer üç modu da etkiler). Genlik artırılmalı mı
-   (daha dramatik seans-içi salınım) yoksa mevcut "ince/gerçekçi" genlik mi
-   tercih edilsin — ürün kararı, kulakla + kullanıcı geri bildirimiyle
+   sadece ~%11 değişim). Bu, BEŞ modun HEPSİNİ etkileyen paylaşılan bir
+   sabit — G24/G25/G26 kapsamında BİLEREK değiştirilmedi (tek bir moda özgü
+   olmayan bir değişiklik, diğer dört modu da etkiler). Genlik artırılmalı
+   mı (daha dramatik seans-içi salınım) yoksa mevcut "ince/gerçekçi" genlik
+   mi tercih edilsin — ürün kararı, kulakla + kullanıcı geri bildirimiyle
    birlikte değerlendirilmeli.
-8. **Boost mu Cut mu'nun üç katmanlı rampası Kesim Noktası'nın G21'deki
-   SERT TEST kapsamından (600+ soruluk tam-matris canlı stres testi) henüz
-   geçmedi** — sadece G25'in 66 birim testi + canlı elle doğrulama (üç
-   katmanın her biri, boss dahil, Pro tier). Ayrı bir tur gerekiyorsa madde
-   burada tutuluyor.
+8. **Boost mu Cut mu'nun üç katmanlı rampası, Q Genişliği'nin izole/serbest-
+   frekans geçişi Kesim Noktası'nın G21'deki SERT TEST kapsamından (600+
+   soruluk tam-matris canlı stres testi) henüz geçmedi** — sadece G25/G26'nın
+   birim testleri (66+61) + canlı elle doğrulama. Ayrı bir tur gerekiyorsa
+   madde burada tutuluyor.
+9. **Q Genişliği'nin etiket sınırları (notch:[7,16]/dar:[3,7)/orta:[1.3,3)/
+   geniş:[0.5,1.3)/çok geniş:[0.2,0.5)) ve `Q_GAIN_DB=6`/`Q_FIXED_FREQ=1000`
+   sabitleri KULAKLA DOĞRULANMADI** — spec'in "Notch ~8-12/Dar ~3-5/Geniş
+   ~0.5-1" aralıklarına makul bir başlangıç noktası, kesin nihai sayı iddia
+   edilmiyor (diğer dört modun `*_CURVE_CONFIG`'iyle AYNI dürüstlük notu).
 
-Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi DÖRT modun `*_CURVE_CONFIG`'i)
+Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi BEŞ modun `*_CURVE_CONFIG`'i)
 hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test edilmeden/
 dinlenmeden seçilmedi.
 
