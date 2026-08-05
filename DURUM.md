@@ -7,6 +7,106 @@ Son güncelleme: 05.08.2026
 
 ## BİTTİ
 
+Commit `464ce8e` — G30: **Mod 6 "Kompresör" — Motor 2'nin İLK modu (3 ses,
+hangisi farklı), ŞABLON.** İlk beş mod Motor 1'di ("değeri bul" — tek bir
+sayısal/etiket değeri tahmin ediliyordu); bu, Motor 2'nin ("hangisi farklı"
+— A/B/C üç ses, ikisi aynı biri farklı, %33 şans) İLK oynanabilir modu.
+Gelecekteki Motor 2 modları (reverb, tonal denge) için mimari şablon niyetiyle
+yazıldı, ama AYNI merkezi zorluk eğrisi + geri bildirim akışı + mod sözleşmesi
+altyapısını yeni bir "müşteri" olarak kullanıyor.
+
+**Mod mantığı:** kaynağa `DynamicsCompressorNode` ile üç varyant uygulanıyor
+— attack/release SABİT kısa (SoundGym Dr. Compressor deseni), sadece ratio
+zorlukla değişiyor. İkisi `COMP_BASE_RATIO` (3.5), biri (`oddIndex`, rastgele
+konumda) `pickGap`'in ürettiği gap kadar uzakta (`pickOddRatio`, RATIO_MIN–
+RATIO_MAX=[1,20] dışına asla taşmıyor, kırpma her zaman DAHA KOLAY yöne
+düşüyor — Boost mu Cut mu'nun G25'teki AYNI ilkesi). Mevcut TEK A/B butonu
+`cycleKompresorPreview`'la A→B→C→A üç yönlü döngüye genişletildi —
+`audio-engine.js`'in dry/wet crossfade çekirdeği (`setProcessed`) HİÇ
+değiştirilmedi, bunun yerine post-answer karşılaştırma butonlarıyla (Senin
+cevabın/Doğru cevap/Temiz) AYNI teknik (geçici `buildQuestionChain` kopyası,
+`activeQuestion` mutasyona uğramadan) yeniden kullanıldı.
+
+**Merkezi zorluk eğrisine bağlanma — BAŞTAN doğru kalibre edilen mod:**
+`COMP_CURVE_CONFIG`'in `GAP_AT_CAP`'i ikili aramayla, hiçbir temsilci
+seviyede eski statiği aşmayacak şekilde ÖNCEDEN çözüldü (dB Seviyesi/Boost-
+Cut/Q Genişliği'nin AYNI "önce bağla sonra düzelt" döngüsünden kaçınma
+dersi burada da uygulandı):
+
+| tier | repr.sv | gap | timeSec |
+|---|---|---|---|
+| easy | 4 | 3.82 | 14.61 |
+| medium | 8 | 2.35 | 12.94 |
+| hard | 12 | 1.45 | 11.47 |
+| pro | 20 | 0.55 | 9.00 |
+
+`GAP_FLOOR=0.4` — LEVEL_CAP'in ötesinde (seans rampası/boss) bile asla
+altına inmiyor (node ile doğrudan hesaplanıp ölçüldü: level 25→0.50,
+30→0.45, 40→0.40, 60→0.40 — tabana kilitleniyor, tahmin değil).
+`pickGap`'te jitter (±%6) SONRASI `Math.max(GAP_FLOOR, ...)` — floor'un
+jitter'la delinmesi dB Seviyesi'nde G24'te YAŞANAN bir hataydı, burada
+baştan önlendi.
+
+**Cevap sonrası öğretim:** `teachingText` — farklı olanın harfi + ratio
+değeri + Türkçe mix anlamı ("Ağır kompresyon dinamiği daraltır — ses mixte
+oturur..." / "Az kompresyon daha dinamik ama kontrolsüz..."), TEK yerde
+şablon (dB Seviyesi/Boost-Cut'ın AYNI felsefesi). Görsel: `drawEnvelope` —
+ratio'dan türetilen sentetik bir dinamik-zarf eğrisi (gerçek `audioCtx`
+GEREKMİYOR, önceki beş modun HEPSİNİN aksine — `BiquadFilterNode.
+getFrequencyResponse()`'a değil salt ratio sayısına bağlı, bu altı mod
+arasında mimari bir ilk), amber=seçim/yeşil=doğru, soru sırasında BİLEREK
+gizli (`roundActive` kontrolü — kulakla bulma ilkesi).
+
+**Canlı tarayıcı testinde bulunup AYNI turda düzeltilen gerçek bir hata:**
+`app.js:1108-1132`'deki mod-değiştirme bloğu (bir karttan diğerine geçince
+önceki modun başlığını/şıklarını/`#freqInfo`'sunu sıfırlayan, G-öncesi
+kurulu bir mekanizma) A/B toggle'ın bu turda EKLENEN `.three-way` CSS
+class'ını sıfırlamıyordu — Kompresör'den başka bir moda (ör. Frekans Bulma)
+geçilince "Oyunu Başlat"a basılana kadar ekranda YANLIŞLIKLA "A/B/C Test" +
+C pill'i görünüyordu (canlı ekran görüntüsüyle YAKALANDI, tahmin değil).
+`updateAbToggleUI()` çağrısı o bloğa eklenerek düzeltildi — sonrasında
+canlı yeniden test edildi, sızıntı kalmadı.
+
+**Mode contract:** `getMeta`/`createQuestion` (saf)/`applyProcessing`/
+`evaluateAnswer` (saf)/`calculateXP`/`getFeedbackData` + `registerMode` +
+`mode-catalog.js`'de ÖNCEDEN kayıtlı `kompresor` girdisi (`unlockLevel:12`,
+`tier:"pro"`) artık `playable:true` (diğer alanlara dokunulmadı — ürün
+kararı değil). Zorunlu re-export seti (`FA_MIN`/`FA_MAX`/... — app.js'in
+`drawVisualizer`'ının HANGİ mod aktif olursa olsun okuduğu, Kompresör'ün
+frekans ekseni kavramı OLMAMASINA rağmen) korundu.
+
+Doğrulama (canlı tarayıcıda, Geliştirici: tam erişim ile):
+1. Mod menüden açılıyor, "Kompresör" kartı kilitsiz/oynanabilir (Motor 2
+   grubunda, "Hangisi Farklı"/Reverb/Distortion'ın AKSİNE kilit rozeti yok).
+2. "Oyunu Başlat" → başlık "Üç ses (A/B/C) — hangisi FARKLI sıkıştırılmış?",
+   A/B/C Test üç yönlü toggle çalışıyor (A→B→C→A döngü, spektrum etiketi
+   "A/B/C DİNLENİYOR" doğru güncelleniyor), üçü de AYNI kaynak (Pink Noise)
+   — sadece kompresyon farklı, izolasyon ilkesi kodda garanti (`pickOddRatio`
+   sadece `ratio`'yu değiştiriyor, source/freq/gain'e dokunmuyor).
+3. Odd-one-out rastgele konumda doğru üretiliyor — canlı iki turda C
+   (ratio 1.0:1) ve B (ratio 6.0:1) farklı çıktı, ikisinde de doğru
+   işaretlendi (yeşil border).
+4. Zorlukla fark küçülüyor (yukarıdaki tablo, node ile doğrudan hesaplandı),
+   FLOOR (0.4) altına asla inmiyor (level 40+'ta ölçüldü).
+5. Cevap sonrası: doğru turda "Doğru! C farklıydı (ratio 1.0:1) — hafif
+   kompresyon — dinamik geniş kalır..." (+30 XP), yanlış turda "Yanlış —
+   sen A dedin. B farklıydı (ratio 6.0:1) — belirgin kompresyon..." — ikisi
+   de ratio+mix anlamını içeriyor; görsel iki renkli zarf (amber/yeşil)
+   doğru turda tek renk (seçim=doğru çakışıyor), yanlış turda iki AYRI
+   renkli eğri olarak doğrulandı (ekran görüntüsüyle KANITLANDI).
+6. Merkezi X/Atla akışı (G27) HİÇBİR ek kablolama gerekmeden otomatik geldi
+   — X'e basınca feedback kapanıp yeni tur başladı, canlı doğrulandı.
+7. `npm test`: 46 yeni Kompresör testi (3 ses üretimi, oddIndex işaretleme,
+   gap daralması, floor garantisi, evaluateAnswer) + mevcut 442 test
+   DEĞİŞMEDEN geçti — **488/488**.
+8. 5 mod regresyon (bu tur `app.js`/`index.html`/`styles.css` PAYLAŞILAN
+   dosyaları değiştirdiği için özellikle önemliydi): Frekans Bulma'da tam
+   bir tur (doğru cevap, spektrum overlay, karşılaştırma butonları, X)
+   sıfır hatayla çalıştı; Q Genişliği menüden açılıp round başlatıldı,
+   4 şıklı grid doğru render edildi; her iki modda da A/B toggle DOĞRU
+   şekilde ikili kaldı (yukarıdaki bug'ın düzeltmesi bu ikisinde de
+   doğrulandı); konsol hatası TÜM oturum boyunca SIFIR.
+
 Commit `bd47c8b` — G29: **Q Genişliği — derinlemesine denetim ve FELSEFE düzeltmesi
 (yüzeysel yama YOK).** G28'in font-küçültme yaması gerçek sorunu çözmemişti;
 bu tur modu BAŞTAN SONA denetleyip TERSİNE ÇEVİRDİ.
@@ -1886,16 +1986,21 @@ hazır, sadece onay bekliyor.
 ## SIRADAKİ
 
 **Zorluk sisteminin merkezi bağlanması (Seçenek C) + Mod 3 "dB Seviyesi" +
-Mod 4 "Boost mu Cut mu" + Mod 5 "Q Genişliği" TAMAMLANDI.** ARTIK BEŞ
-oynanabilir mod var (Frekans Bulma, Kesim Noktası, dB Seviyesi, Boost mu Cut
-mu, Q Genişliği), beşi de AYNI merkezi eğriden besleniyor (`continuousLevel`/
+Mod 4 "Boost mu Cut mu" + Mod 5 "Q Genişliği" + Mod 6 "Kompresör" (Motor
+2'nin İLK modu) TAMAMLANDI.** ARTIK ALTI oynanabilir mod var (Frekans
+Bulma, Kesim Noktası, dB Seviyesi, Boost mu Cut mu, Q Genişliği, Kompresör),
+altısı da AYNI merkezi eğriden besleniyor (`continuousLevel`/
 `representativeLevelForTier`+`sessionRampOffset`, mod-agnostik `logLerp`/
-`applyPostCapFloor`), hem Otomatik hem Sabit modda, pro her beş modda da
-eğrinin GERÇEK tavanı, hiçbir tier eski statikten kolay değil. **Tek sonraki
-adım netleşmedi** — kalan işler ürün kararı gerektiriyor, kod tarafında
+`applyPostCapFloor`), hem Otomatik hem Sabit modda, pro her altı modda da
+eğrinin GERÇEK tavanı, hiçbir tier eski statikten kolay değil. Kompresör
+AYRICA Motor 2'nin ("hangisi farklı") ilk şablonu — gelecekteki reverb/
+tonal denge modları bunu izleyecek (bkz. BİTTİ). **Tek sonraki adım
+netleşmedi** — kalan işler ürün kararı gerektiriyor, kod tarafında
 engelleyici yok:
 
-1. **KULAKLA doğrulama — hâlâ yapılmadı (BEŞ modun da).** Kalibrasyon
+1. **KULAKLA doğrulama — hâlâ yapılmadı (ALTI modun da, Kompresör'ün
+   `COMP_CURVE_CONFIG`/`GAP_FLOOR`/attack-release sabitleri DAHİL).**
+   Kalibrasyon
    MATEMATİKSEL şartı sağlıyor (ikili aramayla ölçüldü, testle garanti
    altında) ama ALGISAL/HİSSİYAT açısından doğru olduğu anlamına gelmiyor —
    özellikle "easy"nin de bir miktar zorlaşmış olması (Kesim Noktası/Frekans
@@ -1907,28 +2012,32 @@ engelleyici yok:
    etkileşimi (boss'ta çifte kısalma riski) ayrıca değerlendirilmeli.
 3. **`renderLevelSheet`** (Seviye bilgi sayfası) hâlâ TEK bir dil (gainDb/Q,
    Frekans Bulma'nınki) konuşuyor — Kesim Noktası/dB Seviyesi/Boost mu Cut
-   mu/Q Genişliği aktifken bu metin semantik olarak yanlış (G25/G26'da canlı
-   doğrulandı: "Bant genişliği"/"Değişim miktarı" gösteriyor, o modların
-   KENDİ dilini konuşmuyor). `mode`'a göre hangi eğri/hangi dilin
-   gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi, bu turların bir
-   regresyonu değil ama artık BEŞ modda da geçerli bilinen bir eksik.
+   mu/Q Genişliği/Kompresör aktifken bu metin semantik olarak yanlış (G25/
+   G26'da canlı doğrulandı: "Bant genişliği"/"Değişim miktarı" gösteriyor,
+   o modların KENDİ dilini konuşmuyor; Kompresör'ün `options` alanı "Şık
+   sayısı" olarak DOĞRU okunuyor ama "ratio farkı" gibi kendi dilini hiç
+   konuşmuyor, G30'da BİLEREK dokunulmadı). `mode`'a göre hangi eğri/hangi
+   dilin gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi, bu
+   turların bir regresyonu değil ama artık ALTI modda da geçerli bilinen
+   bir eksik.
 4. **Statik DIFFICULTY tabloları hâlâ duruyor mu, kaldırılacak mı?** Bilerek
    kaldırılmadı (Sabit modun tier-isim çapası + proplus + geriye dönük test
-   uyumluluğu için gerekli, dB Seviyesi/Boost mu Cut mu/Q Genişliği'nde de
-   AYNI karar) — kalıcı olarak mı kalacak, yoksa TAMAMEN eğriye mi
-   devredilecek? Şimdilik ikili sistem (statik+eğri, opt-in) kalıcı bir
-   mimari — bu artık BEŞ moddan geçen, tekrarlanan bir desen, bilinçli bir
-   seçim olarak teyit edilmeli.
+   uyumluluğu için gerekli, dB Seviyesi/Boost mu Cut mu/Q Genişliği/
+   Kompresör'de de AYNI karar) — kalıcı olarak mı kalacak, yoksa TAMAMEN
+   eğriye mi devredilecek? Şimdilik ikili sistem (statik+eğri, opt-in)
+   kalıcı bir mimari — bu artık ALTI moddan geçen, tekrarlanan bir desen,
+   bilinçli bir seçim olarak teyit edilmeli.
 5. **`db-seviyesi` unlockLevel:6/tier:"pro"**, **`boost-mu-cut-mu`
-   unlockLevel:4/tier:"free"**, **`q-genisligi` unlockLevel:3/tier:"free"**
-   — üçü de kayıtlı ama ürün kararı olarak DOKUNULMADI (BEKLEYEN KARARLAR
-   **B**'nin bir parçası: academyLevel yeni bir mod kaydolunca otomatik
-   yükseliyor, 5. modun kaydı bunu YİNE somutlaştırdı — artık beş modun
-   dördü zaten oynanabilirken beşincinin +1 katkısı önceki kilitleri de
-   etkileyebilir, kullanıcıya sorulmalı). **G23 ile TEST ENGELİ kalktı**
-   (geliştirici modu artık seviye kilidini de atlıyor) — ama bu SADECE
-   test/geliştirme kolaylığı, kalıcı ürün kararının (gerçek kullanıcılar
-   için unlockLevel ne olmalı) YERİNE geçmiyor, madde hâlâ açık.
+   unlockLevel:4/tier:"free"**, **`q-genisligi` unlockLevel:3/tier:"free"**,
+   **`kompresor` unlockLevel:12/tier:"pro"** — dördü de kayıtlı ama ürün
+   kararı olarak DOKUNULMADI (BEKLEYEN KARARLAR **B**'nin bir parçası:
+   academyLevel yeni bir mod kaydolunca otomatik yükseliyor, her yeni mod
+   kaydı bunu YİNE somutlaştırıyor — artık altı modun beşi zaten
+   oynanabilirken altıncının +1 katkısı önceki kilitleri de etkileyebilir,
+   kullanıcıya sorulmalı). **G23 ile TEST ENGELİ kalktı** (geliştirici modu
+   artık seviye kilidini de atlıyor) — ama bu SADECE test/geliştirme
+   kolaylığı, kalıcı ürün kararının (gerçek kullanıcılar için unlockLevel
+   ne olmalı) YERİNE geçmiyor, madde hâlâ açık.
 6. **`teachingText`'in "yön doğru, miktar yanlış" metni** hafif tekrarlı
    okunabiliyor (bkz. BİTTİ'deki not) — küçük bir metin cilası, engelleyici
    değil.
@@ -1945,15 +2054,27 @@ engelleyici yok:
    mi tercih edilsin — ürün kararı, kulakla + kullanıcı geri bildirimiyle
    birlikte değerlendirilmeli.
 8. **Boost mu Cut mu'nun üç katmanlı rampası, Q Genişliği'nin izole/serbest-
-   frekans geçişi Kesim Noktası'nın G21'deki SERT TEST kapsamından (600+
-   soruluk tam-matris canlı stres testi) henüz geçmedi** — sadece G25/G26'nın
-   birim testleri (66+61) + canlı elle doğrulama. Ayrı bir tur gerekiyorsa
-   madde burada tutuluyor.
+   frekans geçişi, Kompresör'ün A/B/C üç-yönlü önizlemesi Kesim Noktası'nın
+   G21'deki SERT TEST kapsamından (600+ soruluk tam-matris canlı stres
+   testi) henüz geçmedi** — sadece G25/G26/G30'un birim testleri
+   (66+61+46) + canlı elle doğrulama. Ayrı bir tur gerekiyorsa madde burada
+   tutuluyor.
 9. **Q Genişliği'nin etiket sınırları (notch:[7,16]/dar:[3,7)/orta:[1.3,3)/
    geniş:[0.5,1.3)/çok geniş:[0.2,0.5)) ve `Q_GAIN_DB=6`/`Q_FIXED_FREQ=1000`
    sabitleri KULAKLA DOĞRULANMADI** — spec'in "Notch ~8-12/Dar ~3-5/Geniş
    ~0.5-1" aralıklarına makul bir başlangıç noktası, kesin nihai sayı iddia
    edilmiyor (diğer dört modun `*_CURVE_CONFIG`'iyle AYNI dürüstlük notu).
+10. **Kompresör'ün `COMP_THRESHOLD_DB=-20`/`COMP_KNEE_DB=6`/
+    `COMP_ATTACK_SEC=0.003`/`COMP_RELEASE_SEC=0.15`/`COMP_BASE_RATIO=3.5`
+    sabitleri KULAKLA DOĞRULANMADI** — SoundGym Dr. Compressor deseninden
+    (kısa attack/release, sadece ratio değişkeni) makul bir başlangıç
+    noktası, kesin nihai sayı iddia edilmiyor. Ayrıca `audio-engine.js`'in
+    HER modda zaten aktif olan master-bus compressor'ıyla (threshold=-16,
+    ratio=2.2, `buildQuestionChain`'de sabit) ETKİLEŞİMİ kulakla
+    doğrulanmadı — iki kompresör zincirleniyor (Kompresör'ün kendi
+    gameplay compressor'ı → master-bus'ın her zaman-açık compressor'ı),
+    teorik olarak sorun değil (farklı amaçlar) ama işitsel olarak fark
+    edilir bir "çifte sıkışma" hissi yaratıp yaratmadığı test edilmedi.
 
 Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi BEŞ modun `*_CURVE_CONFIG`'i)
 hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test edilmeden/
