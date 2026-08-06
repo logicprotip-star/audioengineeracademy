@@ -1121,9 +1121,19 @@ function enterMode(entry, realMode) {
 
 // G37: kulaklık uyarı sheet'i — Dizayn/prototype.html'in #hpSheet/askHeadphones/
 // hpConfirm ÜÇLÜSÜNÜN AYNI deseni (bkz. o dosyadaki notlar). Sadece
-// mode.getMeta().kulaklikGerekli===true olan modlarda, prefs.hpWarning açıkken VE o
-// mod için "bir daha gösterme" işaretlenmemişken araya giriyor — üç modu da (bayrak/
-// genel toggle/mod-özel skip) TEK bir kontrol noktasında birleştiriyor.
+// mode.getMeta().kulaklikGerekli===true olan modlarda, o mod için "bir daha gösterme"
+// işaretlenmemişken araya giriyor.
+//
+// G39 DÜZELTMESİ: prefs.hpWarning (Ayarlar'daki genel toggle) ARTIK bu sheet'i
+// KONTROL ETMİYOR — SADECE Ana Menü'deki statik .mobile-warn banner'ını
+// gösterip/gizliyor (bkz. updateSettingsUI). Kulaklık gerektiren bir moda girildiğinde
+// sheet toggle'ın durumundan BAĞIMSIZ olarak HER ZAMAN çıkar; kullanıcı sadece
+// "bir daha gösterme" ile SUSTURABİLİR (bkz. hpSkippedThisSession altı).
+//
+// "bir daha gösterme" artık OTURUMLUK — prefs.hpSkip (localStorage, kalıcı) DEĞİL,
+// modül-seviyesi bir Set (bellek). Sayfa/uygulama yeniden yüklenince JS modülü sıfırdan
+// çalışır, Set boşalır, uyarı GERİ GELİR — task'ın istediği tam olarak bu.
+const hpSkippedThisSession = new Set();
 let pendingHpEntry = null, pendingHpRealMode = null;
 // Metin BİLEREK genel/basit tutuldu (spec: "mod bazlı metin ya da genel yeterli") —
 // prototipin "stereo bilgisi duyulmaz" ifadesi Reverb için YANLIŞ olurdu (reverb mono-
@@ -1230,10 +1240,11 @@ function renderModeGrid() {
           // meta.kulaklikGerekli her modun KENDİ getMeta()'sından (mode-catalog.js'in
           // alanı sadece referans, diğer mod alanları gibi — bkz. o dosyanın başındaki
           // yorum) — Reverb HARİÇ altı mod bunu false döndürüyor, sheet ONLARDA hiç
-          // açılmıyor.
+          // açılmıyor. G39: prefs.hpWarning ARTIK burada KONTROL EDİLMİYOR (genel toggle
+          // sheet'i etkilemiyor, bkz. hpSkippedThisSession dosya başı notu).
           const meta = realMode.getMeta();
-          const skipped = !!(prefs.hpSkip && prefs.hpSkip[entry.id]);
-          if (meta.kulaklikGerekli && prefs.hpWarning && !skipped) {
+          const skipped = hpSkippedThisSession.has(entry.id);
+          if (meta.kulaklikGerekli && !skipped) {
             openHeadphoneSheet(entry, realMode);
             return;
           }
@@ -2589,11 +2600,16 @@ function drawVisualizer() {
     return;
   }
 
-  const data = new Uint8Array(audioEngine.analyser.frequencyBinCount);
-  audioEngine.analyser.getByteFrequencyData(data);
+  // G39: dB Seviyesi kendi dikey bar görselini kullanıyor, arka spektrum onda
+  // ANLAMSIZ ve çakışıyordu — mode.SHOW_SPECTRUM===false ise atlanır (bkz. o
+  // dosyadaki not). Export etmeyen modlarda varsayılan true, davranış AYNI.
+  if (mode.SHOW_SPECTRUM !== false) {
+    const data = new Uint8Array(audioEngine.analyser.frequencyBinCount);
+    audioEngine.analyser.getByteFrequencyData(data);
 
-  const plotBottom = h - mode.AXIS_H;
-  drawSpectrumBars(data, w, plotBottom);
+    const plotBottom = h - mode.AXIS_H;
+    drawSpectrumBars(data, w, plotBottom);
+  }
 
   mode.drawOverlay(ctx2d, els.canvas, w, h, overlayState);
 }
@@ -3069,10 +3085,10 @@ if (els.hpSheetCancel) els.hpSheetCancel.addEventListener("click", closeHeadphon
 if (els.hpSheetOverlay) els.hpSheetOverlay.addEventListener("click", closeHeadphoneSheet);
 if (els.hpSheetConfirm) els.hpSheetConfirm.addEventListener("click", () => {
   if (!pendingHpEntry || !pendingHpRealMode) { closeHeadphoneSheet(); return; }
+  // G39: OTURUMLUK — localStorage'a (prefs) DEĞİL, bellekteki hpSkippedThisSession'a
+  // yazılıyor; sayfa/uygulama yeniden yüklenince sıfırlanır, uyarı geri gelir.
   if (els.hpSheetAgain && els.hpSheetAgain.classList.contains("on")) {
-    if (!prefs.hpSkip) prefs.hpSkip = {};
-    prefs.hpSkip[pendingHpEntry.id] = true;
-    storage.savePrefs(prefs);
+    hpSkippedThisSession.add(pendingHpEntry.id);
   }
   const entry = pendingHpEntry, realMode = pendingHpRealMode;
   closeHeadphoneSheet();

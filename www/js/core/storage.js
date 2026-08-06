@@ -183,16 +183,18 @@ export function clearDaily() {
 
 // Genel Ayarlar sheet'indeki basit tercihler. Bildirimler'in gerçek bir bildirim
 // planlama altyapısı henüz yok (sadece tercih saklanır); Kulaklık uyarısı ise
-// gerçekten .mobile-warn banner'ının görünürlüğünü VE (G37'den beri) mod-özel
-// kulaklık uyarı sheet'inin gösterilip gösterilmeyeceğini kontrol eder — hpWarning
-// kapalıyken NE menü banner'ı NE DE mod-özel sheet çıkar (genel/tek kapatma).
-// hpSkip: { [modeId]: true } — kullanıcının "bu modda bir daha gösterme" dediği
-// modlar, mod-BAZLI kalıcı (hpWarning'in AKSİNE genel değil — bkz. app.js
-// openHeadphoneSheet). Z5: difficultyMode — "auto" (VARSAYILAN, Z1+Z3'ten türetilir,
-// kullanıcı müdahale etmez) | "fixed" (kullanıcının difficultySelect'ten kendi
-// seçtiği zorluk geçerli).
+// SADECE .mobile-warn banner'ının (Ana Menü'deki statik not) görünürlüğünü
+// kontrol eder. G39 DÜZELTMESİ: G37'de mod-özel kulaklık uyarı sheet'i de bu
+// alana bağlanmıştı ("hpWarning kapalıyken sheet de çıkmaz") — kullanıcı bunun
+// YANLIŞ olduğuna karar verdi (sheet, toggle'dan BAĞIMSIZ her zaman çıkmalı) —
+// bkz. app.js'teki mod kartı click handler'ı. "Bir daha gösterme" ARTIK bu
+// objede DEĞİL (kalıcıydı, oturumluk olması istendi) — bkz. app.js
+// hpSkippedThisSession (bellek, sayfa yenilenince sıfırlanır). Z5:
+// difficultyMode — "auto" (VARSAYILAN, Z1+Z3'ten türetilir, kullanıcı müdahale
+// etmez) | "fixed" (kullanıcının difficultySelect'ten kendi seçtiği zorluk
+// geçerli).
 export function freshPrefs() {
-  return { notifications: true, hpWarning: true, hpSkip: {}, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full", difficultyMode: "auto", feedbackScreen: true };
+  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full", difficultyMode: "auto", feedbackScreen: true };
 }
 
 export function loadPrefs() {

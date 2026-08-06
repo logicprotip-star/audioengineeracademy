@@ -28,7 +28,12 @@ zaten çalışıyormuş, ÖZET'te hâlâ "Yok" yazıyordu) düzeltildi. Detay: D
 sayıları yeniden hesaplandı). **G38 eki:** dB Seviyesi'nin görseli prototipteki dikey
 bar'lara çevrildi (RESKIN RAPORU madde 4c + "JS/DOM" listesi güncellendi) — bu ÖZET-sayılan
 ana tabloda ayrı bir satırı olmayan, sadece RESKIN RAPORU'nun prose bölümünde izlenen bir
-öğe olduğu için ÖZET toplamları DEĞİŞMEDİ. Detay: DURUM.md BİTTİ.
+öğe olduğu için ÖZET toplamları DEĞİŞMEDİ. **G39 eki:** İki düzeltme — kulaklık sheet'i
+genel toggle'dan (`prefs.hpWarning`) BAĞIMSIZ hale getirildi (G37'de yanlışlıkla
+birleşmişti), "bir daha gösterme" kalıcıdan oturumluğa çevrildi; dB Seviyesi'nde arka
+FFT spektrumu kaldırıldı (`SHOW_SPECTRUM=false`, sadece dikey barlar kalıyor). EKRAN 1'in
+sheet satırı güncellendi, ÖZET toplamları DEĞİŞMEDİ (durum kategorisi aynı kaldı, sadece
+notu güncellendi). Detay: DURUM.md BİTTİ.
 
 ## EKRAN 1 — ANA MENÜ
 
@@ -45,7 +50,7 @@ ana tabloda ayrı bir satırı olmayan, sadece RESKIN RAPORU'nun prose bölümü
 | Mod kartı: "Sv N" seviye çip'i | ✓ | ✓ | **Tam (G36)** | Prototipte kilit ikonuyla AYNI slotta (birbirini dışlıyorlardı); kodda `.mode-top-right`te Pro rozetinden AYRI bir çip olarak, SADECE oynanabilir kartlarda (`progress.modeLevel`, oyun-içi `#levelChip`'in AYNI kaynağı) — Pro+Sv aynı kartta yan yana durabiliyor |
 | Mod kartı: "İLERİ" rozeti (adv) | ✓ | ✗ | **Yok** | `ADV_SVG` tasarımda var, kodda karşılığı bulunamadı |
 | Mod kartı: kulaklık ikonu (needsHp) | ✓ | ✗ | **Yok** | HÂLÂ açık — kart üzerinde kulaklık ikonu yok, `kulaklikGerekli` (G37'den beri GERÇEKTEN okunuyor) hâlâ kartın KENDİSİNDE görsel bir karşılığa bağlı değil, SADECE tıklanınca açılan sheet'e bağlı (bkz. alt satır) |
-| Mod kartına tıklayınca kulaklık uyarı sheet'i | ✓ | ✓ | **Tam (G37)** | `hpSheet` (🎧 ikon+başlık+açıklama+2 buton+"bir daha gösterme") + mod-özel bayrak (`getMeta().kulaklikGerekli`, SADECE Reverb'de true) + genel toggle (`prefs.hpWarning`) + mod-BAZLI kalıcı skip (`prefs.hpSkip[modeId]`) — DÖRDÜ birlikte doğru çalışıyor (bkz. DURUM.md BİTTİ). Prototipin `askHeadphones()`/`hpConfirm()` deseniyle BİREBİR aynı akış |
+| Mod kartına tıklayınca kulaklık uyarı sheet'i | ✓ | ✓ | **Tam (G39)** | `hpSheet` (🎧 ikon+başlık+açıklama+2 buton+"bir daha gösterme") + mod-özel bayrak (`getMeta().kulaklikGerekli`, SADECE Reverb'de true) — sheet ARTIK genel toggle'dan (`prefs.hpWarning`) BAĞIMSIZ (G39 düzeltmesi: G37'de ikisi yanlışlıkla birleşmişti); "bir daha gösterme" ARTIK oturumluk (bellek, `hpSkippedThisSession`), kalıcı DEĞİL (bkz. DURUM.md BİTTİ) |
 | Sekme çubuğu (Antrenman/İlerleme/Araçlar) | ✓ | ✓ | Tam | — |
 
 ## EKRAN 2 — OYUN (Motor 1: "Frekans Bulma" ve türevleri)

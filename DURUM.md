@@ -1,13 +1,60 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G38)
+Son güncelleme: 06.08.2026 (G39)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G38, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **dB Seviyesi
+Bu commit (G39, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Kulaklık sheet'i
++ dB spektrumu: üç düzeltme.** G37/G38'de kurulan iki mekanizmadaki (kulaklık uyarısı,
+dB görseli) davranış sorunları giderildi.
+
+**1. Kulaklık sheet'i artık genel toggle'dan BAĞIMSIZ:** G37'de `prefs.hpWarning`
+(Ayarlar'daki "Kulaklık uyarısı" anahtarı) hem Ana Menü'deki statik `.mobile-warn`
+banner'ını HEM DE mod-özel `hpSheet`'i birlikte kontrol ediyordu — kullanıcı bunun
+YANLIŞ olduğuna karar verdi: toggle KAPALIYKEN bile kulaklık gerektiren bir moda
+girilince sheet çıkmalıydı (toggle sadece banner'ı kapatmalı). `app.js`'teki mod
+kartı click handler'ından `&& prefs.hpWarning` şartı kaldırıldı — artık SADECE
+`meta.kulaklikGerekli && !skipped` kontrol ediliyor. `applyPrefs()`/`.hp-warn-off`
+(banner görünürlüğü) DOKUNULMADI, toggle'ın KENDİ işlevi (ses değil, banner)
+korundu — Ayarlar sheet'indeki açıklama metni de ("Ana menü notu + kulaklık
+gerektiren egzersizlerde açılan uyarıyı göster" → "Ana menüde kulaklık hatırlatma
+notunu göster") bu gerçeğe geri çekildi.
+
+**2. "Bir daha gösterme" artık OTURUMLUK:** G37'de `prefs.hpSkip[modeId]` olarak
+localStorage'a (kalıcı) yazılıyordu — kullanıcı bunun kalıcı DEĞİL, oturumluk
+olmasını istedi (aynı oturumda tekrar çıkmasın, sayfa/uygulama yeniden yüklenince
+sıfırlansın). `app.js`'e modül-seviyesi bir `hpSkippedThisSession` (`Set`, bellek)
+eklendi, `prefs.hpSkip` TAMAMEN kaldırıldı (`storage.js`'in `freshPrefs()`'inden
+de silindi — artık hiçbir yerde okunmuyor/yazılmıyor).
+
+**3. dB Seviyesi'nde arka spektrum kaldırıldı:** G38'in dikey bar görseli
+(`drawDbBars`) arka planda hâlâ eski FFT spektrum çubuklarıyla (`drawSpectrumBars`)
+ÇAKIŞIYORDU — dB modu bir frekans dağılımını değil TEK bir seviye farkını
+sorguladığı için spektrum orada anlamsızdı. `db-seviyesi.js`'e `THREE_WAY`'in
+(kompresor.js/reverb.js) AYNI deseninde mode-agnostik bir bayrak eklendi:
+`export const SHOW_SPECTRUM = false`. `app.js`'in `drawVisualizer`'ı artık
+`mode.SHOW_SPECTRUM !== false` kontrolüyle spektrum çizimini atlıyor — export
+ETMEYEN diğer altı mod (Frekans Bulma/Kesim Noktası/Boost-Cut/Q/Kompresör/Reverb)
+varsayılan `true` ile ETKİLENMEDİ.
+
+**Doğrulama (canlı, tarayıcıda):** `localStorage`'da `hpWarning:false` ayarlanıp
+sayfa yenilendi → Reverb'e girişte sheet YİNE DE çıktı (toggle'dan bağımsız,
+doğrulandı). "Bir daha gösterme" işaretlenip onaylandı → AYNI oturumda Reverb'e
+tekrar girişte sheet ATLANDI (skip çalıştı) → sert yenileme (cmd+shift+r) sonrası
+Reverb'e girişte sheet GERİ GELDİ (oturumluk doğrulandı, `hpSkippedThisSession`
+Set'i sıfırlanmıştı). Ayarlar sheet'inde toggle açılıp kapatıldı, `document.body`
+`hp-warn-off` sınıfı ve `prefs.hpWarning` DOĞRU senkronize oldu (banner masaüstü
+Chrome'da `@media (hover:none)` kısıtı yüzünden zaten hiç görünmüyor — bu ÖNCEDEN
+de böyleydi, bu turun konusu değil). dB Seviyesi'ne girildi → arka planda spektrum
+çubukları YOK, sadece iki dikey bar + eksen çizgileri. Kesim Noktası'na geçildi →
+spektrum çubukları NORMAL çalışıyor (regresyon yok). `npm test`: 561/561.
+
+---
+
+Önceki commit (G38, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **dB Seviyesi
 görseli: yatay gauge → prototipteki DİKEY BAR'lara çevrildi.** `db-seviyesi.js`'in
 `drawDbGauge`'ı (tek yatay çizgi + iki hareketli işaretçi) tamamen kaldırıldı,
 yerine `Dizayn /prototype.html`'in `#vizDb`'sinden (satır 572-588) birebir alınan

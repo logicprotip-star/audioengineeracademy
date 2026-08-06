@@ -29,6 +29,14 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 
 export const MODE_ID = "db-seviyesi";
 
+// G39: bu mod artık kendi dikey bar görselini (drawDbBars) çiziyor — arkadaki
+// FFT spektrum çubukları (app.js drawVisualizer) bu modda ANLAMSIZ (mod bir
+// frekans dağılımını değil, TEK bir seviye/gain farkını sorguluyor) ve iki
+// görsel aynı canvas'ta çakışıyordu. THREE_WAY'in (kompresor.js/reverb.js)
+// AYNI deseni: mode-agnostik bir bayrak, app.js `mode.SHOW_SPECTRUM !== false`
+// ile okuyor — export ETMEYEN modlarda varsayılan true (davranış değişmiyor).
+export const SHOW_SPECTRUM = false;
+
 // MAX_LIVES: diğer iki modla AYNI sabit (can sayısı zorluğa göre değişmez).
 export const MAX_LIVES = 5;
 
