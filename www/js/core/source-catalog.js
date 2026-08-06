@@ -74,6 +74,49 @@ export function findSource(id) {
   return null;
 }
 
+// G51 — Motor 3 (Frekans Çakışması): İKİ kaynağın AYNI ANDA çalıp birbirini
+// maskelediği ÇİFTLER — SOURCE_GROUPS'un tek-kaynak modeliyle KARIŞTIRILMAZ
+// (o listeye HİÇBİR YENİ alan/girdi eklenmedi, bu TAMAMEN AYRI/EK bir liste).
+// sourceA/sourceB: SOURCE_GROUPS id'leri (findSource ile çözülür) — kaynağın
+// kendisi TEKRAR TANIMLANMAZ, mevcut kataloğa işaret eder. region: [min,max]
+// Hz — bu çiftin GERÇEKÇİ çakışma aralığı (createQuestion çakışma merkezini
+// bu aralıktan seçer, dışına ASLA çıkmaz).
+//
+// task'ın kendi kararı: "Şimdilik temel bir çift (kick+bas) yeterli, mekanik
+// otursun. Kaynak kütüphanesi SONRA genişletilecek." — bu yüzden BİLEREK TEK
+// hazır çift var. SONRAKİ turlar için aday çiftler (gerçek mixte çakışan,
+// KULAKLA/ÜRÜN DOĞRULANMADI, sadece not düşülüyor):
+//   - vokal + gitar  (~400 Hz – 3 kHz, "gövde çatışması")
+//   - snare + gitar  (~1 – 5 kHz, "atak ve sertlik")
+// İkisi de source-catalog'da HENÜZ bir "vocal+gitar" sample çifti olarak
+// yeterince ayrışık örneklenmedi (mevcut vocal.m4a/guitar.m4a tek bir
+// performans/frazdır, çakışmayı GÜVENİLİR şekilde göstermeyebilir) — bu
+// yüzden SADECE not olarak bırakıldı, kod HENÜZ eklenmedi.
+export const SOURCE_PAIRS = [
+  {
+    id: "kick-bas", labelA: "Kick", labelB: "Bas", sourceA: "kick", sourceB: "bass",
+    region: [50, 160], desc: "Kick ve bas — sub/bas bölgesinde en sık çakışma"
+  }
+];
+
+// "Kendi dosyalarım" — İKİ AYRI upload yuvası (task'ın açık isteği: "iki
+// kaynak çakışma iki kaynak arası, ikisini de kendi yüklesin"). sourceA/
+// sourceB BİLEREK SOURCE_GROUPS'ta YOK — bunlar findSource() ile ÇÖZÜLMEZ,
+// app.js/audio-engine.js bu İKİ sabit id'yi (upload-a/upload-b) özel olarak
+// tanıyıp KENDİ iki ayrı uploadManager örneğine yönlendirir (bkz. app.js
+// "Frekans Çakışması — çift upload" bölümü). region: null — kullanıcı kendi
+// dosyasını yüklediği için çakışma aralığı ÖNCEDEN bilinemez, createQuestion
+// bu durumda FA_MIN–FA_MAX'ın tamamını havuz olarak kullanır.
+export const OWN_SOURCE_PAIR = {
+  id: "own", labelA: "Kendi A", labelB: "Kendi B", sourceA: "upload-a", sourceB: "upload-b",
+  region: null, desc: "İki kendi dosyanı ayrı ayrı yükle · her biri 100 MB'a kadar"
+};
+
+export function findSourcePair(id) {
+  if (id === OWN_SOURCE_PAIR.id) return OWN_SOURCE_PAIR;
+  return SOURCE_PAIRS.find(p => p.id === id) || SOURCE_PAIRS[0];
+}
+
 // Mod bazlı kaynak uyumluluğu — TEK merkezi filtre. Bir mod kendi getMeta()'sında
 // uyumluKaynaklar'ı bu fonksiyonla üretir; app.js kaynak sheet'ini/"Karıştır"
 // havuzunu HER ZAMAN o listeyle sınırlar (bkz. app.js populateSourceSelect/

@@ -39,6 +39,16 @@ export function createAudioEngine() {
   // stopAudio). Kaynak upload DEĞİLSE null'a çekilir; böylece stopAudio() gömülü/
   // sentetik kaynaklarda hiçbir şey yapmaz (davranışları BOZULMAZ).
   let activeUploadManager = null;
+  // G51 — Motor 3 (Frekans Çakışması): buildDualSourceChain'in kullandığı İKİ
+  // (opsiyonel) uploadManager referansı — activeUploadManager'ın (TEKİL,
+  // diğer sekiz modun kullandığı) AYNI amaçla ama ÇOĞUL hali. Diğer sekiz
+  // modda HER ZAMAN boş dizi kalır (stopAudio()'daki ek döngü hiçbir şey
+  // yapmaz) — TEK davranış değişikliği bu dizinin BOŞ OLMAMASI durumunda.
+  let activeUploadManagers = [];
+  // Dual-source zincirinin filtre/gain referansları — dryGain/wetGain'in AYNI
+  // "bir sonraki buildDualSourceChain'e kadar geçerli" deseni (bkz. setDualCut/
+  // setDualSolo).
+  let dualFilterA = null, dualFilterB = null, dualGainA = null, dualGainB = null;
 
   function unlockAudio() {
     // Mobil (özellikle iOS) için: ilk kullanıcı dokunuşunda context'i aç,
@@ -144,6 +154,11 @@ export function createAudioEngine() {
     // (duvar saati) süreyi offset'e ekler; kullanıcı cevap verip geri bildirimde
     // kaldığı süre kadar şarkı "ileri sarılmış" gibi görünürdü (bkz. DURUM.md G12).
     if (activeUploadManager) activeUploadManager.pausePlayback();
+    // G51: dual-source (Motor 3) İKİ uploadManager'ı olabilir — diğer sekiz
+    // modda bu dizi HER ZAMAN boş, döngü hiçbir şey yapmaz (davranış BİREBİR
+    // aynı kalır).
+    activeUploadManagers.forEach(m => { if (m) m.pausePlayback(); });
+    dualFilterA = null; dualFilterB = null; dualGainA = null; dualGainB = null;
     const now = audioCtx.currentTime;
     currentNodes.forEach(node => {
       try {
@@ -383,6 +398,124 @@ export function createAudioEngine() {
     wetGain.gain.linearRampToValueAtTime(w, now + CROSSFADE_SEC);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // G51 — Motor 3 (Frekans Çakışması): buildQuestionChain'in TEK-kaynak varsayımı
+  // (bkz. o fonksiyonun dosya başı notu) İKİ kaynağın AYNI ANDA çalması gereken
+  // bu modu KARŞILAYAMAZ. Bu bölüm TAMAMEN AYRI/EK bir yol — buildQuestionChain'e
+  // TEK SATIR dokunulmadı, diğer sekiz modun ses zinciri BİREBİR aynı kalıyor.
+  //
+  // sourcesSpec: { a: {sourceType, uploadManager}, b: {sourceType, uploadManager} }
+  // — sourceType HER ZAMAN SOURCE_GROUPS'un/buildNoiseSource'un/buildSynthSource'un
+  // ANLADIĞI bir id ("upload" DAHİL) — Motor 3'ün "upload-a"/"upload-b" gibi
+  // sanal çift-id'lerini ÇÖZMEK (hangi uploadManager'a karşılık geldiğini
+  // bulmak) app.js'in işi, bu fonksiyon SADECE hazır bir {sourceType,
+  // uploadManager} çifti bekler (diğer sekiz modun buildQuestionChain'i NASIL
+  // çağırdığıyla AYNI sorumluluk sınırı).
+  //
+  // applyProcessing(question, {audioCtx}) → { filterA, filterB } — HER İKİSİ
+  // DE KOŞULSUZ kurulur (buildQuestionChain'in "filtreler her zaman kuruluyor"
+  // ilkesinin AYNISI), gain=0 ile başlar ("önce" — maskeleme HÂLÂ orada).
+  // setDualCut() SADECE doğru kaynağın filtresini negatif gaine çeker ("sonra").
+  async function buildDualSourceChain(question, sourcesSpec, applyProcessing) {
+    stopAudio();
+    activeUploadManagers = [sourcesSpec.a.uploadManager, sourcesSpec.b.uploadManager].filter(Boolean);
+
+    if (muteGain) {
+      const now = audioCtx.currentTime;
+      muteGain.gain.cancelScheduledValues(now);
+      muteGain.gain.setValueAtTime(1, now);
+    }
+
+    const out = audioCtx.createGain();
+    out.gain.value = 0.0001;
+    out.gain.exponentialRampToValueAtTime(0.8, audioCtx.currentTime + 0.05);
+
+    const compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -16;
+    compressor.knee.value = 22;
+    compressor.ratio.value = 2.2;
+
+    const { filterA, filterB } = applyProcessing(question, { audioCtx });
+    const gainA = audioCtx.createGain(); gainA.gain.value = 1;
+    const gainB = audioCtx.createGain(); gainB.gain.value = 1;
+    dualGainA = gainA; dualGainB = gainB;
+    dualFilterA = filterA; dualFilterB = filterB;
+
+    currentNodes.push(out, compressor, gainA, gainB, filterA, filterB);
+
+    // buildQuestionChain'in TEK-kaynak dalının (upload/noise/sample/synth)
+    // AYNI mantığı — SADECE hedef gain/filter node'u parametre olarak alıyor,
+    // İKİ kez (A ve B için) çağrılıyor.
+    const connectSource = async (spec, gainNode, filterNode) => {
+      if (spec.sourceType === "upload" && spec.uploadManager && spec.uploadManager.hasBuffer) {
+        const node = spec.uploadManager.getSourceNode();
+        if (node) { node.connect(gainNode); currentNodes.push(node); }
+      } else if (spec.sourceType === "pink" || spec.sourceType === "white") {
+        const [noise] = buildNoiseSource(spec.sourceType);
+        noise.connect(gainNode);
+        currentNodes.push(noise);
+      } else if (findSource(spec.sourceType)?.kind === "sample") {
+        const samplePath = findSource(spec.sourceType).samplePath;
+        try {
+          const [sample] = await buildSampleSource(samplePath);
+          if (currentNodes.includes(out)) {
+            sample.connect(gainNode);
+            currentNodes.push(sample);
+          } else {
+            sample.stop();
+          }
+        } catch (err) {
+          console.error(err);
+          const [noise] = buildNoiseSource("pink");
+          noise.connect(gainNode);
+          currentNodes.push(noise);
+        }
+      } else {
+        const { nodes, outputs } = buildSynthSource(spec.sourceType);
+        outputs.forEach(o => o.connect(gainNode));
+        currentNodes.push(...nodes);
+      }
+      gainNode.connect(filterNode);
+      filterNode.connect(compressor);
+    };
+
+    await Promise.all([connectSource(sourcesSpec.a, gainA, filterA), connectSource(sourcesSpec.b, gainB, filterB)]);
+
+    // buildQuestionChain'deki AYNI güvenlik: await sırasında (örnek-dosya
+    // dalı) başka bir tur stopAudio() çağırmış olabilir — bu zincirin
+    // GÜNCEL olduğunu currentNodes referansı üzerinden doğrula.
+    if (!currentNodes.includes(out)) return;
+
+    compressor.connect(out);
+    out.connect(muteGain);
+  }
+
+  // AŞAMA 3'ün "önce/sonra" karşılaştırması — dryGain/wetGain crossfade'inin
+  // AYNI ruhu ama İKİ AYRI filtre üzerinde: doğru kaynağın filtresi 0→
+  // gainDb'ye, DİĞERİ HER ZAMAN 0'a ramplanır (setTargetAtTime, tıklama
+  // riski yok — STOP_RAMP_TIME_CONSTANT'la AYNI yumuşaklık mertebesi).
+  function setDualCut(sourceKey, gainDb) {
+    if (!audioCtx) return;
+    const target = sourceKey === "a" ? dualFilterA : dualFilterB;
+    const other = sourceKey === "a" ? dualFilterB : dualFilterA;
+    const now = audioCtx.currentTime;
+    if (target) { target.gain.cancelScheduledValues(now); target.gain.setTargetAtTime(gainDb, now, 0.05); }
+    if (other) { other.gain.cancelScheduledValues(now); other.gain.setTargetAtTime(0, now, 0.05); }
+  }
+
+  // AŞAMA 1/2'nin dinleme kontrolü ("Kick"/"Bas"/"İkisi birlikte") — muteGain'in
+  // AYNI kısa crossfade'i (CROSSFADE_SEC), kaynak/filtre grafiği HİÇ bozulmadan.
+  function setDualSolo(which) {
+    if (!audioCtx || !dualGainA || !dualGainB) return;
+    const now = audioCtx.currentTime;
+    const [a, b] = which === "a" ? [1, 0.0001] : which === "b" ? [0.0001, 1] : [1, 1];
+    [[dualGainA, a], [dualGainB, b]].forEach(([g, v]) => {
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(g.gain.value, now);
+      g.gain.linearRampToValueAtTime(v, now + CROSSFADE_SEC);
+    });
+  }
+
   return {
     unlockAudio,
     initAudio,
@@ -393,6 +526,9 @@ export function createAudioEngine() {
     stopAudio,
     buildQuestionChain,
     setProcessed,
+    buildDualSourceChain,
+    setDualCut,
+    setDualSolo,
     set onReady(fn) { onReady = fn; },
     get audioCtx() { return audioCtx; },
     get analyser() { return analyser; },

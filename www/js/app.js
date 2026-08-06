@@ -12,7 +12,7 @@ import { toast, spawnXp, burst, shake } from "./core/fx.js";
 import { formatHz, turkishLocative } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
 import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
-import { SOURCE_GROUPS, findSource } from "./core/source-catalog.js";
+import { SOURCE_GROUPS, findSource, findSourcePair } from "./core/source-catalog.js";
 import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
 import { getWeakZone } from "./core/personalization.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
@@ -23,6 +23,7 @@ import * as qGenisligi from "./modes/q-genisligi.js";
 import * as kompresor from "./modes/kompresor.js";
 import * as reverb from "./modes/reverb.js";
 import * as tonalDenge from "./modes/tonal-denge.js";
+import * as frekansCakismasi from "./modes/frekans-cakismasi.js";
 
 registerMode(frekansBulma);
 registerMode(kesimNoktasi);
@@ -32,6 +33,7 @@ registerMode(qGenisligi);
 registerMode(kompresor);
 registerMode(reverb);
 registerMode(tonalDenge);
+registerMode(frekansCakismasi);
 // Motor 2'nin ("A/B/C odd-one-out") HANGİ mod id'lerini kapsadığını TEK yerde
 // tutar — yeni bir Motor 2 modu (ör. Distortion) eklenince SADECE bu listeye
 // eklenir, aşağıdaki TÜM çağıranlar (toggle/döngü/submit/önizleme/overlay)
@@ -186,11 +188,25 @@ const els = {
   gameActionbar: document.getElementById("gameActionbar"),
   gameScreen: document.getElementById("screen-game"),
   sourceChipLabel: document.getElementById("sourceChipLabel"),
+  sourceChipWrap: document.getElementById("sourceChipWrap"),
 
   // odak aralığı
   focusSelect: document.getElementById("focusSelect"),
   focusChipWrap: document.getElementById("focusChipWrap"),
   focusChipLabel: document.getElementById("focusChipLabel"),
+
+  // G51 — Motor 3 (Frekans Çakışması): kaynak ÇİFTİ seçici + çift-upload + öncesi/sonrası
+  cakismaPairSelect: document.getElementById("cakismaPairSelect"),
+  cakismaPairChipWrap: document.getElementById("cakismaPairChipWrap"),
+  cakismaPairChipLabel: document.getElementById("cakismaPairChipLabel"),
+  uploadRowSingle: document.getElementById("uploadRowSingle"),
+  cakismaUploadRowA: document.getElementById("cakismaUploadRowA"),
+  cakismaUploadRowB: document.getElementById("cakismaUploadRowB"),
+  cakismaFileInputA: document.getElementById("cakismaFileInputA"),
+  cakismaFileInputB: document.getElementById("cakismaFileInputB"),
+  cakismaCompare: document.getElementById("cakismaCompare"),
+  cakismaBefore: document.getElementById("cakismaBefore"),
+  cakismaAfter: document.getElementById("cakismaAfter"),
 
   // soru / spektrum
   questionTitle: document.getElementById("questionTitle"),
@@ -473,6 +489,14 @@ function scrollFeedbackIntoView() {
 
 const audioEngine = createAudioEngine();
 const uploadManager = createUploadManager(() => audioEngine.audioCtx);
+// G51 — Motor 3 (Frekans Çakışması): "kendi dosyalarım" çifti İKİ AYRI dosya
+// gerektirir (task: "iki kaynak çakışma iki kaynak arası, ikisini de kendi
+// yüklesin") — createUploadManager BİR FABRİKA (modül-seviyesi paylaşılan
+// durum YOK, bkz. core/upload.js), bu yüzden SADECE İKİNCİ bir örnek yaratmak
+// yeterli, core/upload.js'e TEK SATIR dokunulmadı. Diğer sekiz mod (ve
+// cakisma'nın kendi "kick-bas" hazır çifti) uploadManagerA/B'yi HİÇ görmez.
+const uploadManagerA = createUploadManager(() => audioEngine.audioCtx);
+const uploadManagerB = createUploadManager(() => audioEngine.audioCtx);
 audioEngine.onReady = () => drawVisualizer();
 
 // G47: Sınav sistemi (core/exam-system.js) — TEK örnek, round-flow.js/audio-engine.js
@@ -613,6 +637,11 @@ let threeWayPlayLetter = "A";
 // CANLI güncellenir (bkz. "Tonal Denge — canlı EQ kaydırıcıları" bölümü);
 // submitTonalDengeGuess'te DONDURULUR (cevap-sonrası görsel bunu okur).
 let tonalDengeCorrections = {};
+
+// G51 — Motor 3 (Frekans Çakışması) AŞAMA 1'in (Teşhis) cevap-sonrası görseli
+// için — diğer modların guess değişkenleriyle AYNI desen. Her yeni turda
+// (renderQuestion) null'a döner, submitCakismaGuess'te DONDURULUR.
+let cakismaGuess = null;
 
 // İlerleme sekmesindeki "toplam antrenman süresi" istatistiği: her tur startRound()'da
 // başlar, cevap/timeout ile biter — soru ekranda GERÇEKTEN açık kaldığı süreyi toplar.
@@ -801,7 +830,7 @@ function timerOff() {
 // ("cutoff") ise TERSİ: dalgaya tıklama affordance'ı yok, "Cevap biçimi" ayarından
 // BAĞIMSIZ olarak her zaman şıklı (bkz. kesim-noktasi.js dosya başı not).
 function isChoiceFormat() {
-  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth" || activeQuestion.mode === "tonal-denge" || isThreeWayQuestion(activeQuestion))) return true;
+  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth" || activeQuestion.mode === "tonal-denge" || activeQuestion.mode === "cakisma" || isThreeWayQuestion(activeQuestion))) return true;
   return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
     && activeQuestion && activeQuestion.mode !== "proplus");
 }
@@ -816,6 +845,28 @@ function syncAnswerFormatVisibility() {
   const hide = !!mode.getMeta().choiceOnly;
   if (els.answerFormatChipWrap) els.answerFormatChipWrap.classList.toggle("hidden", hide);
   if (els.answerFormatSettingsRow) els.answerFormatSettingsRow.classList.toggle("hidden", hide);
+}
+
+// G51 — Motor 3 (Frekans Çakışması): diğer sekiz modun TEK-kaynak "Kaynak"
+// chip'i/upload satırı burada ANLAMSIZ (bir ÇİFT kullanılıyor, bkz.
+// frekans-cakismasi.js dosya başı notu) — bu fonksiyon o chip'i gizleyip
+// YERİNE kaynak-çifti chip'ini + (sadece "own" çifti seçiliyse) İKİ AYRI
+// upload satırını gösterir. Diğer sekiz modda `isCakisma` hep false, TÜM
+// dallar ÖNCEKİ davranışla BİREBİR aynı kalır (sourceChipWrap/uploadRowSingle
+// hep görünür, cakisma-özel satırlar hep gizli).
+function currentCakismaPairId() {
+  return els.cakismaPairSelect ? els.cakismaPairSelect.value : "kick-bas";
+}
+function syncCakismaVisibility() {
+  const isCakisma = mode.MODE_ID === "frekans-cakismasi";
+  if (els.sourceChipWrap) els.sourceChipWrap.classList.toggle("hidden", isCakisma);
+  if (els.cakismaPairChipWrap) els.cakismaPairChipWrap.classList.toggle("hidden", !isCakisma);
+  if (els.abToggle) els.abToggle.classList.toggle("hidden", isCakisma);
+  const isOwnPair = isCakisma && currentCakismaPairId() === "own";
+  if (els.uploadRowSingle) els.uploadRowSingle.classList.toggle("hidden", isOwnPair);
+  if (els.cakismaUploadRowA) els.cakismaUploadRowA.classList.toggle("hidden", !isOwnPair);
+  if (els.cakismaUploadRowB) els.cakismaUploadRowB.classList.toggle("hidden", !isOwnPair);
+  if (els.cakismaCompare) els.cakismaCompare.classList.add("hidden"); // yeni moda/round'a girerken her zaman kapalı başlar
 }
 
 // Aktif sorunun .ans grid'ini görünür/gizli tutar — hem yeni soru render'ında hem
@@ -1200,6 +1251,7 @@ function enterMode(entry, realMode) {
     mode = realMode;
     populateSourceSelect(); // yeni modun kaynak uyumluluğuna göre kaynak listesini süz
     syncAnswerFormatVisibility();
+    syncCakismaVisibility();
     // G46: Tonal Denge'nin altı kaydırıcıya kadar çıkabilen kart listesi spektrumun
     // altında yer sıkışıklığına yol açıyordu — mode.COMPACT_ANALYZER (SHOW_SPECTRUM'un
     // AYNI mode-agnostik bayrak deseni, bkz. db-seviyesi.js) true dönen bir mod için
@@ -1871,9 +1923,15 @@ function renderQuestion() {
     : q.mode === "kompresor" ? "Üç ses (A/B/C) — hangisi FARKLI sıkıştırılmış?"
     : q.mode === "reverb" ? "Üç ses (A/B/C) — hangisi FARKLI yankılanıyor?"
     : q.mode === "tonal-denge" ? `${q.bandCount} bant — kaydırıcılarla sesi nötüre getir.`
+    : q.mode === "cakisma" ? mode.questionTitle(q)
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
 
   els.questionMeta.textContent = mode.modeDescription(q);
+  // G51: yeni bir cakisma sorusu render edilirken önceki sorunun öncesi/sonrası
+  // karşılaştırma butonları KAPALI başlamalı (bkz. syncCakismaVisibility notu —
+  // burada AYRICA çağrılıyor çünkü renderQuestion() her round'da tetiklenir,
+  // enterMode() SADECE mod DEĞİŞİNCE).
+  if (els.cakismaCompare) els.cakismaCompare.classList.add("hidden");
   els.streakText.textContent = q.boss ? "Boss round aktif" : (stats.combo > 1 ? `${stats.combo}x combo aktif` : "Yeni challenge");
   // prototype.html'de sayaç her zaman "Soru N/10" — ama tasarımda "Serbest (sonsuz)"
   // diye bir kavram hiç yok, oradaki "10" sabit varsayılan seans uzunluğu. Bizde bu
@@ -1904,6 +1962,7 @@ function renderQuestion() {
   threeWayGuessLetter = null;
   threeWayPlayLetter = "A";
   tonalDengeCorrections = {};
+  cakismaGuess = null;
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
   revealAnimator.reset();
   setAnalyzerPhase("ask");
@@ -1931,6 +1990,7 @@ function renderQuestion() {
     : q.mode === "kompresor" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI olanı seç."
     : q.mode === "reverb" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI yankılanan sesi seç."
     : q.mode === "tonal-denge" ? "Dinle, kaydırıcılarla düzelt, sesi nötr/dengeli hale getirmeye çalış — sonra onayla."
+    : q.mode === "cakisma" ? mode.modeDescription(q)
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
 }
@@ -2557,6 +2617,99 @@ function submitTonalDengeGuess() {
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
+// G51 — Motor 3 (Frekans Çakışması). answer AŞAMAYA göre değişir (bkz. mode
+// dosyasının evaluateAnswer notu): AŞAMA 1 → { center }, AŞAMA 2 → { source },
+// AŞAMA 3 → { cutDb }. Diğer altı "generic" submit fonksiyonuyla (submitLevelGuess
+// vb.) AYNI iskelet — TEK fark: mode.recordZone SADECE AŞAMA 1'de çağrılır
+// (çakışma FREKANSI sadece o aşamada soruluyor, Boost/Cut'ın "sadece Katman
+// 3'te" kararının AYNISI) VE AŞAMA 3'ten sonra öncesi/sonrası karşılaştırma
+// butonları açılır (bkz. cakismaBefore/After click handler'ları).
+function submitCakismaGuess(answer) {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "cakisma") return;
+  if (!answer) return;
+  roundActive = false;
+  roundFlow.clearTimer();
+  setActionbarTucked(true);
+
+  const q = activeQuestion;
+  const result = mode.evaluateAnswer(q, answer);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = "";
+  if (q.stage === 1 && answer.center != null) cakismaGuess = { center: answer.center };
+  if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, answer);
+
+  stats.rounds++;
+  let gained = 0;
+
+  if (result.correct) {
+    stats.correct++;
+    stats.combo++;
+    stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
+    gained = mode.calculateXP(q, result, q.hintUsed, q.difficulty, {
+      combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
+    });
+    diffState().xp += gained;
+    modeState().xp += gained;
+    diffState().score += gained * Math.max(1, stats.combo);
+    diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
+    if (q.difficulty === "pro") stats.proCorrect++;
+    if (q.boss) stats.bossWins++;
+    session.correct++; session.xp += gained;
+
+    const feedback = mode.getFeedbackData(q, answer, { gained });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    if (q.stage === 1) mode.recordZone(zoneStats, q.trueCenter, true, result.dOct);
+    audioEngine.sfxDing();
+    spawnXp(`+${gained} XP`, els.canvas);
+    burst(els.canvas);
+    challengeTick(true, gained);
+  } else {
+    stats.wrong++;
+    stats.combo = 0;
+    diffState().score = Math.max(0, diffState().score - 20);
+    session.wrong++;
+
+    const feedback = mode.getFeedbackData(q, answer, { gained: 0 });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    if (q.stage === 1) mode.recordZone(zoneStats, q.trueCenter, false, result.dOct);
+    audioEngine.sfxBuzz();
+    shake(els.canvas);
+    loseLife("Iskaladın.", { silent: true });
+    challengeTick(false, 0);
+  }
+
+  if (q.stage === 1) storage.saveZoneStats(zoneStats);
+
+  // AŞAMA 3 (Çöz) — task'ın "Sonuç dinlenir (öncesi/sonrası)" isteği: ses
+  // DURDURULMAZ (audioEngine.stopAudio() diğer sekiz modun aksine burada
+  // BİLEREK çağrılmıyor), İKİ kaynak çalmaya DEVAM eder — kullanıcı "Önce"/
+  // "Sonra" ile DOĞRU çözümü (kullanıcının kendi cevabı YANLIŞ olsa bile)
+  // dinleyebilsin diye butonlar HER ZAMAN gösterilir. "Sonra"nın varsayılan
+  // AÇIK başlaması (bkz. index.html #cakismaAfter'ın "on" class'ı) maskenin
+  // GERÇEKTEN açıldığını hemen duyurur.
+  if (q.stage === 3) {
+    if (els.cakismaCompare) els.cakismaCompare.classList.remove("hidden");
+    if (els.cakismaBefore) els.cakismaBefore.classList.remove("on");
+    if (els.cakismaAfter) els.cakismaAfter.classList.add("on");
+    audioEngine.setDualCut(q.correctSource, -Math.abs(q.correctCutDb));
+  } else {
+    audioEngine.stopAudio();
+  }
+
+  pushHistory(result.correct);
+  updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
+  notifyNewAchievements();
+  updateUI();
+  persistStats();
+  persistDaily();
+  const gameOver = finalizeIfGameOver();
+  // G51: sınav sistemi — diğer sekiz modla AYNI kablolama.
+  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+}
+
 function submitProPlusGuess() {
   if (!roundActive || !activeQuestion || activeQuestion.mode !== "proplus") return;
   roundActive = false;
@@ -2642,12 +2795,32 @@ function submitProPlusGuess() {
 // Turun sesini SIFIRDAN kurar — sadece round başlangıcında (ve F2'nin karşılaştırma
 // önizleme butonlarında) çağrılmalı. A/B toggle'ı ARTIK bunu çağırmıyor (bkz. toggleAB) —
 // kaynak/filtre grafiği bir kez kurulup tur boyunca bozulmuyor.
+// G51 — Motor 3 (Frekans Çakışması): question.pair'in sourceA/sourceB'sini
+// audio-engine.js:buildDualSourceChain'in beklediği {sourceType, uploadManager}
+// çiftine çözer. "upload-a"/"upload-b" (bkz. source-catalog.js:OWN_SOURCE_PAIR)
+// SOURCE_GROUPS'ta YOK — bunlar BURADA, tek yerde, app.js'in KENDİ iki
+// uploadManager'ına eşlenir (audio-engine.js bu iki sanal id'yi HİÇ bilmez).
+function cakismaSourcesSpec(pair) {
+  const resolve = (sourceId, uploadMgr) =>
+    (sourceId === "upload-a" || sourceId === "upload-b")
+      ? { sourceType: "upload", uploadManager: uploadMgr }
+      : { sourceType: sourceId, uploadManager: null };
+  return { a: resolve(pair.sourceA, uploadManagerA), b: resolve(pair.sourceB, uploadManagerB) };
+}
+
 function playQuestion(processed = true) {
   if (!audioEngine.audioReady || !activeQuestion) return;
   if (audioEngine.audioCtx && audioEngine.audioCtx.state === "suspended") {
     try { audioEngine.audioCtx.resume(); } catch (e) {}
   }
   currentPlayMode = processed ? "filtered" : "clean";
+  // G51: Motor 3 — TEK-kaynak buildQuestionChain'in YERİNE buildDualSourceChain
+  // (bkz. audio-engine.js). Diğer sekiz modda activeQuestion.mode hiçbir zaman
+  // "cakisma" olmadığı için bu dal ÇALIŞMAZ, ÖNCEKİ davranış BİREBİR aynı kalır.
+  if (activeQuestion.mode === "cakisma") {
+    audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing);
+    return;
+  }
   audioEngine.buildQuestionChain(activeQuestion, processed, activeQuestion.source, uploadManager, mode.applyProcessing);
   updateAbToggleUI();
 }
@@ -2824,6 +2997,12 @@ function startRound() {
     setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
     return;
   }
+  // G51: Motor 3 (Frekans Çakışması) — "own" (kendi dosyalarım) çifti İKİ AYRI
+  // dosya gerektirir, üstteki guard'ın AYNI mantığı ama İKİ uploadManager için.
+  if (mode.MODE_ID === "frekans-cakismasi" && currentCakismaPairId() === "own" && (!uploadManagerA.hasBuffer || !uploadManagerB.hasBuffer)) {
+    setFeedback("Önce iki kaynağı da yükle", "Kendi dosyalarım seçiliyse A ve B için ayrı ayrı bir ses dosyası seçmelisin.");
+    return;
+  }
 
   cancelCmpPreviewPause();
   autoStopped = false;
@@ -2854,6 +3033,10 @@ function startRound() {
   const boss = examActive ? false : mode.isBossRound(stats.rounds);
   activeQuestion = mode.createQuestion(examTier, {
     source: pickRoundSource(),
+    // G51: Motor 3 (Frekans Çakışması) — SADECE o modun createQuestion'ı okur
+    // (settings.pairId), diğer sekiz mod bu alanı hiç bilmediği için YOK SAYAR
+    // (aynı sessionQuestionIndex/examBandBoost deseni).
+    pairId: currentCakismaPairId(),
     boss,
     // G50: zon-tabanlı telafide (yeterli veri varsa, remedialTier dolu) kullanıcının
     // kendi odak seçimi YERİNE zayıf bölgenin [a,b]'si kullanılır — telafi HER
@@ -2883,8 +3066,12 @@ function startRound() {
   });
   roundsInThisPlaySession++;
   // Karıştır açıkken çalan kaynak sourceSelect'ten farklı olabilir — chip her zaman
-  // o turda GERÇEKTEN çalan kaynağın adını göstersin.
-  if (els.sourceChipLabel) els.sourceChipLabel.textContent = labelSource(activeQuestion.source);
+  // o turda GERÇEKTEN çalan kaynağın adını göstersin. Frekans Çakışması'nda
+  // (G51) bu chip zaten gizli (bkz. syncCakismaVisibility) VE activeQuestion'ın
+  // "source" alanı hiç yok (pair var) — labelSource(undefined) çağırmamak için
+  // BİLEREK atlanıyor.
+  if (els.sourceChipLabel && activeQuestion.mode !== "cakisma") els.sourceChipLabel.textContent = labelSource(activeQuestion.source);
+  if (els.cakismaPairChipLabel && activeQuestion.mode === "cakisma") els.cakismaPairChipLabel.textContent = `${activeQuestion.pair.labelA} + ${activeQuestion.pair.labelB}`;
   renderQuestion();
   playQuestion(true);
   // G32: Motor 2 modlarında (Kompresör, G35'ten beri Reverb) A/B/C
@@ -2951,6 +3138,12 @@ function setAutoPlay(on) {
     if (els.sourceSelect.value === "upload") {
       uploadManager.startFromZero();
     }
+    // G51: Motor 3 (Frekans Çakışması) — "kendi dosyalarım" çiftinin İKİ
+    // uploadManager'ı, üstteki AYNI "yeni oturum/Tekrar Oyna" mantığıyla.
+    if (mode.MODE_ID === "frekans-cakismasi" && currentCakismaPairId() === "own") {
+      uploadManagerA.startFromZero();
+      uploadManagerB.startFromZero();
+    }
     startRound();
   } else {
     roundFlow.clearTimer();
@@ -3014,7 +3207,8 @@ function drawVisualizer() {
     boostCutGuess, // bkz. Boost/Cut'ın drawOverlay'i — diğer modlar okumuyor
     qGuessLabelId, // bkz. Q Genişliği'nin drawOverlay'i — diğer modlar okumuyor
     guessLetter: threeWayGuessLetter, // bkz. Motor 2 modlarının (Kompresör/Reverb) drawOverlay'i — diğer modlar okumuyor
-    tonalCorrections: tonalDengeCorrections // bkz. Tonal Denge'nin (G45) drawOverlay'i — diğer modlar okumuyor
+    tonalCorrections: tonalDengeCorrections, // bkz. Tonal Denge'nin (G45) drawOverlay'i — diğer modlar okumuyor
+    cakismaGuess // bkz. Frekans Çakışması'nın (G51) drawOverlay'i — diğer modlar okumuyor
   };
 
   if (!visualizerOn || !audioEngine.audioReady) {
@@ -3179,6 +3373,17 @@ if (els.answers) els.answers.addEventListener("click", e => {
     try { submitQWidthGuess(labelId); } catch (err) { console.error(err); }
     return;
   }
+  // G51 — Motor 3 (Frekans Çakışması) — şıkların taşıdığı veri AŞAMAYA göre
+  // değişir (bkz. frekans-cakismasi.js renderAnswerChoices): AŞAMA 1 sadece
+  // data-center, AŞAMA 2 sadece data-source, AŞAMA 3 sadece data-cut.
+  if (activeQuestion && activeQuestion.mode === "cakisma") {
+    const stage = activeQuestion.stage;
+    const answer = stage === 1 ? { center: Number(btn.dataset.center) }
+      : stage === 2 ? { source: btn.dataset.source }
+      : { cutDb: Number(btn.dataset.cut) };
+    try { submitCakismaGuess(answer); } catch (err) { console.error(err); }
+    return;
+  }
   // Motor 2 modları (Kompresör/Reverb) — şıklar SADECE harf taşır (bkz.
   // data-letter, kompresor.js/reverb.js renderAnswerChoices — AYNI şablon).
   if (isThreeWayQuestion(activeQuestion)) {
@@ -3273,6 +3478,63 @@ els.audioFileInput.addEventListener("change", async (e) => {
     console.error("[upload] loadUploadedAudio dışında beklenmeyen hata:", err && err.name, err && err.message, err);
     setFeedback("Yükleme hatası", "Bu ses dosyası açılamadı. Farklı bir mp3/wav dene.");
   }
+});
+
+// G51 — Motor 3 (Frekans Çakışması): "kendi dosyalarım" çiftinin İKİ AYRI
+// yükleme yolu — audioFileInput'un YUKARIDAKİ handler'ıyla AYNI doğrulama/hata
+// deseni, SADECE hedef uploadManager (A/B) ve geri bildirim metni farklı. Her
+// ikisi de KENDİ 100 MB sınırını KENDİ dosyasına uygular (core/upload.js:
+// MAX_AUDIO_FILE_MB, validateAudioFile her çağrıda BAĞIMSIZ çalışır) — TOPLAM
+// bir sınır YOK, task'ın "her biri 100 MB" isteği.
+function wireCakismaUpload(inputEl, uploadMgr, slotLabel) {
+  if (!inputEl) return;
+  inputEl.accept = audioAcceptAttr();
+  inputEl.addEventListener("change", async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const validation = validateAudioFile(file);
+    if (!validation.ok) {
+      setFeedback(validation.title, validation.detail);
+      e.target.value = "";
+      return;
+    }
+    try {
+      await audioEngine.initAudio();
+      const res = await uploadMgr.loadFile(file);
+      if (!res.ok) {
+        setFeedback(res.title, res.detail);
+        return;
+      }
+      setFeedback(`Kaynak ${slotLabel} yüklendi`, `${file.name} başarıyla yüklendi. "Oyunu Başlat" ile çalmaya başlar.`);
+    } catch (err) {
+      console.error(`[cakisma-upload-${slotLabel}] beklenmeyen hata:`, err && err.name, err && err.message, err);
+      setFeedback("Yükleme hatası", "Bu ses dosyası açılamadı. Farklı bir mp3/wav dene.");
+    }
+  });
+}
+wireCakismaUpload(els.cakismaFileInputA, uploadManagerA, "A");
+wireCakismaUpload(els.cakismaFileInputB, uploadManagerB, "B");
+
+// Kaynak çifti değişince (Kick+Bas ↔ Kendi dosyalarım) upload satırlarının
+// görünürlüğü YENİDEN hesaplanır — initSettingsSheet'in GENERİK sheet-seçim
+// mekanizması bu select'in "change" event'ini zaten dispatch ediyor (diğer
+// tüm data-sheet-select'lerle AYNI), buraya SADECE görünürlük senkronu ekleniyor.
+if (els.cakismaPairSelect) els.cakismaPairSelect.addEventListener("change", () => syncCakismaVisibility());
+
+// AŞAMA 3 (Çöz) sonrası öncesi/sonrası — audio-engine.js:setDualCut'ı SADECE
+// doğru kaynağın filtresine (question.correctSource) uygular, grafiği YENİDEN
+// KURMADAN (bkz. submitCakismaGuess notu).
+if (els.cakismaBefore) els.cakismaBefore.addEventListener("click", () => {
+  if (!activeQuestion || activeQuestion.mode !== "cakisma") return;
+  audioEngine.setDualCut(activeQuestion.correctSource, 0);
+  els.cakismaBefore.classList.add("on");
+  if (els.cakismaAfter) els.cakismaAfter.classList.remove("on");
+});
+if (els.cakismaAfter) els.cakismaAfter.addEventListener("click", () => {
+  if (!activeQuestion || activeQuestion.mode !== "cakisma") return;
+  audioEngine.setDualCut(activeQuestion.correctSource, -Math.abs(activeQuestion.correctCutDb));
+  els.cakismaAfter.classList.add("on");
+  if (els.cakismaBefore) els.cakismaBefore.classList.remove("on");
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3628,6 +3890,7 @@ els.resetStatsBtn.addEventListener("click", () => {
   threeWayGuessLetter = null;
   threeWayPlayLetter = "A";
   tonalDengeCorrections = {};
+  cakismaGuess = null;
   syncLives();
   roundFlow.clearTimer();
   audioEngine.stopAudio();

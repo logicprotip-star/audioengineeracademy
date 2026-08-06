@@ -35,7 +35,9 @@ export const MODE_CATALOG = [
   { id: "distortion", ad: "Distortion", aciklama: "Hangisi daha doygun?", motor: 2, kulaklikGerekli: false, unlockLevel: 16, playable: false, tier: "pro" },
 
   // ---- Motor 3 · İki kaynaklı ----
-  { id: "frekans-cakismasi", ad: "Frekans Çakışması", aciklama: "Kick ve bas nerede çakışıyor?", motor: 3, kulaklikGerekli: false, unlockLevel: 20, playable: false, tier: "pro" }
+  // G51: TEMEL AT — kulaklikGerekli true'ya çevrildi (bkz. modes/frekans-
+  // cakismasi.js getMeta notu: sub/bas bölgesi kulaklıkta daha net ayrışır).
+  { id: "frekans-cakismasi", ad: "Frekans Çakışması", aciklama: "Kick ve bas nerede çakışıyor?", motor: 3, kulaklikGerekli: true, unlockLevel: 20, playable: true, tier: "pro" }
 ];
 
 // Motor numarasına göre görsel kimlik — mevcut renk paletinden (styles.css :root).

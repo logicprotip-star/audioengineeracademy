@@ -89,6 +89,25 @@ kartları) DEĞİL, kendi canlı-EQ kaydırıcı mekaniğiyle (task kararı, bkz
 — sınav sırasında bant sayısı DAİMA 6'ya (BAND_SET_6) zorlanıyor, normal
 parkurdaki kademeli 4→5→6 ramp'inden BAĞIMSIZ. Detay: DURUM.md G50 BİTTİ.
 
+**G51 eki:** Motor 3 "Frekans Çakışması" TEMELİ atıldı — EKRAN 4 artık "Yok"
+DEĞİL, ama prototipin tasarladığı biçimle BİREBİR de değil (Tonal Denge'nin
+G45'te three-way-cards'tan AYRIŞMASIYLA AYNI kategori: kod VAR ama prototipten
+YAPISAL OLARAK FARKLI bir çözüm). Prototipin "aşama seçimi, kaynak çifti, iki
+kaynaklı spektrum, dokunmalı/kart/şıklı 3 farklı aşama arayüzü" tarifi TEK bir
+round içinde üç adımlık bir akış çağrıştırıyordu; kod bunun yerine
+`boost-mu-cut-mu.js:layerForIndex` emsaliyle AYNI "bir soru = bir aşama,
+hangi aşama session-index eşiğine göre açılır" modelini seçti (bkz. DURUM.md
+G51 BİTTİ, "MİMARİ KARAR" bölümü — bu bir mühendislik kararı olarak
+belgelendi, prototipin kendi "Aşamalar seviyeye göre açılır" notuyla ÇELİŞMİYOR
+aslında, task metninin "3 AŞAMA" ifadesiyle ilk bakışta çelişiyormuş gibi
+görünüyordu). Kaynak çifti seçimi VAR (kick+bas + "Kendi dosyalarım" ikili
+upload) ama prototipin muhtemel gruplu kaynak sheet'i yerine EKRAN 2'nin AYNI
+`data-sheet-select` genel mekanizmasını kullanan tek bir chip. Aşağıdaki
+tablonun tek satırı bu yüzden "Yok"tan "Kısmi"ye geçti — AYRI, satır-satır bir
+karşılaştırma tablosu YAZILMADI (Tonal Denge/G45 emsaliyle AYNI gerekçe:
+prototip statik bir demo, gerçek çakışma-tespiti/dual-audio mekaniği
+prototipte hiç simüle edilmiyor, satır bazlı eşleme anlamlı olmazdı).
+
 ## EKRAN 1 — ANA MENÜ
 
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |
@@ -196,7 +215,7 @@ parkurdaki kademeli 4→5→6 ramp'inden BAĞIMSIZ. Detay: DURUM.md G50 BİTTİ.
 
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |
 |---|---|---|---|---|
-| Ekranın tamamı (aşama seçimi, kaynak çifti, iki kaynaklı spektrum, dokunmalı/kart/şıklı 3 farklı aşama arayüzü) | ✓ | ✗ | **Yok** | Hiçbir karşılığı bulunamadı — menüde kilitli kart olarak duruyor, arkasında kod yok |
+| Ekranın tamamı (aşama seçimi, kaynak çifti, iki kaynaklı spektrum, dokunmalı/kart/şıklı 3 farklı aşama arayüzü) | ✓ | ✓ | **Kısmi (G51)** | Mod artık oynanabilir (menüde kilitli değil) ama prototipin "tek round'da 3 aşama" tasarımı DEĞİL — `stageForIndex` ile session-index eşiğine göre AÇILAN, bir turda tek aşamalı bir model seçildi (bkz. TASARIM.md G51 eki + DURUM.md G51 BİTTİ "MİMARİ KARAR"). Kaynak çifti seçimi/iki kaynaklı ses/spektrum üst üste çakışma görseli VAR, ama prototipin muhtemel kart/dokunmalı sunumu yerine EKRAN 2'nin PAYLAŞILAN `.ans` şıklı deseni kullanılıyor |
 
 ## EKRAN 5 — SEANS SONU
 
@@ -329,12 +348,16 @@ sadece Durum değişti; sayım `awk` ile Durum sütunu [5. alan] tek tek sınıf
 DOĞRULANDI, tahmin değil)
 
 - **Tam olanlar: 84** (değişmedi — G41'in tek satırı Yok'tan Kısmi'ye geçti, Tam'a değil)
-- **Kısmi olanlar: 24** ("Kısmi" ailesi — "Farklı model" [3, Motor 2] + "Farklı biçim,
-  daha zengin içerik" [1] dahil; G41'de +1: Motor 2'nin "Seçenek kartları" satırı
-  Yok'tan Kısmi'ye geçti — büyük kartlar+waveform+durum metni yapıldı, durum metni
-  BİLİNÇLİ olarak 2 değere indirildiği için Tam değil, bkz. DURUM.md G41)
-- **Hiç olmayanlar ("Yok"): 19** (-1 — Motor 2'nin "Seçenek kartları" satırı Kısmi'ye
-  geçti; mod kartındaki kulaklık İKONU [needsHp göstergesi] hâlâ Yok, ayrı satır)
+- **Kısmi olanlar: 25** (+1, G51: EKRAN 4'ün tek satırı ["Ekranın tamamı"] Yok'tan
+  Kısmi'ye geçti — Motor 3 artık oynanabilir ama prototipin tek-round-3-aşama
+  tasarımıyla BİREBİR değil, bkz. G51 eki; "Kısmi" ailesi — "Farklı model" [3, Motor 2]
+  + "Farklı biçim, daha zengin içerik" [1] dahil; G41'de +1: Motor 2'nin "Seçenek
+  kartları" satırı Yok'tan Kısmi'ye geçti — büyük kartlar+waveform+durum metni
+  yapıldı, durum metni BİLİNÇLİ olarak 2 değere indirildiği için Tam değil, bkz.
+  DURUM.md G41)
+- **Hiç olmayanlar ("Yok"): 18** (-1, G51: Motor 3'ün tek satırı Kısmi'ye geçti;
+  önceki -1 Motor 2'nin "Seçenek kartları" satırıydı; mod kartındaki kulaklık
+  İKONU [needsHp göstergesi] hâlâ Yok, ayrı satır)
 - **N/A: 4** (değişmedi)
 - **Kodda olup tasarımda olmayanlar ("Ters fark"): 10** (değişmedi)
 
@@ -342,7 +365,10 @@ DOĞRULANDI, tahmin değil)
 1. ~~Motor 2 ekranı (tüm ekran)~~ → **KISMEN AÇILDI**: Kompresör+Reverb artık oynanabilir,
    ama prototipin kart+waveform+2-adımlı-onay tasarımı DEĞİL — bkz. EKRAN 3. "Hangisi Farklı"
    (temel mod) ve Distortion hâlâ tam olarak Yok.
-2. Motor 3 ekranı (Frekans Çakışması, 3 aşama) — tüm ekran, HÂLÂ Yok
+2. ~~Motor 3 ekranı (Frekans Çakışması, 3 aşama) — tüm ekran, HÂLÂ Yok~~ →
+   **G51'de TEMELİ ATILDI**: mod artık oynanabilir, ama prototipin tek-round-
+   3-aşama tasarımı yerine session-index'e göre açılan tek-aşamalı bir model
+   seçildi — bkz. EKRAN 4 ve G51 eki.
 3. Seans Sonu ekranının prototipteki ZENGİN hali (sonuç halkası, bölge haritası, öneri
    kartı) — HÂLÂ Yok (G2'de "tam ekran" olması sağlandı ama içerik sade kaldı)
 4. Motor 2'nin görev kartı + büyük seçenek kartları (waveform+durum metni) — YENİ ortaya

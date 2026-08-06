@@ -1,19 +1,160 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G50)
+Son güncelleme: 06.08.2026 (G51)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G50, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **SINAV SİSTEMİ
-7 MODA YAYILDI (Kompresör pilottu) — artık 8/8 oynanabilir modda parkur/kombo/
-sınav/telafi/"BÖLÜM GEÇTİN" çalışıyor.** Frekans Bulma, Kesim Noktası, dB
-Seviyesi, Boost mu Cut mu, Q Genişliği, Reverb, Tonal Denge — her biri
-`EXAM_ENABLED=true`/`EXAM_DIFFICULTY="pro"` iki satırla mirası aldı (Kompresör'ün
-G47'de kurduğu ŞABLONUN AYNEN doğrulanması — "her mod SADECE bu iki satırı
-eklesin, app.js'e yeniden dokunmaya gerek yok" vaadi TUTTU).
+Bu commit (G51, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **MOD 9
+"FREKANS ÇAKIŞMASI" (MOTOR 3) — TEMEL AT: iki kaynaklı maskeleme teşhis+çöz
+modu, 8. oynanabilir mod olarak menüye eklendi.** Motor 1 (değeri bul) ve
+Motor 2 (hangisi farklı) değil — İKİ kaynağın AYNI ANDA çaldığı, bir frekans
+bölgesinde ÇAKIŞTIĞI YENİ bir motor. SoundGym'de/rakiplerde karşılığı
+bulunamadı (araştırıldı) — projenin en özgün modu.
+
+**MİMARİ KARAR — "3 aşama" AYNI turda değil, seviyeye göre AÇILAN AYRI
+tur'lar:** Task metni "AŞAMA 1/2/3" ifadesiyle tek bir round içinde üç adımlık
+bir akış çağrıştırıyordu, ama prototype.html'in kendi tasarım notu AÇIKÇA
+"Aşamalar seviyeye göre açılır" diyor (level-gated, tek turda tek aşama).
+Bu ÇELİŞKİ, kod tabanının KENDİ kanıtlanmış emsaliyle (`boost-mu-cut-mu.js:
+layerForIndex` — "bir soru = bir katman, hangi katman sessionQuestionIndex
+eşiğine göre seçilir") çözüldü: `stageForIndex(sessionQuestionIndex)` — Soru
+1-3 → Aşama 1 (TEŞHİS: çakışma hangi bölgede?), Soru 4-9 → Aşama 2 (KARAR:
+hangi kaynaktan kesmeli?), Soru 10+ → Aşama 3 (ÇÖZ: ne kadar kesmeli? +
+öncesi/sonrası dinle). BİLİNÇLİ bir mühendislik kararı olarak koda yorumla
+belgelendi (ürün kararı DEĞİL — task'ın kendi "TEMEL AT" çerçevesi ve minimum-
+risk state-machine hedefiyle gerekçelendirildi), kullanıcıya AYRICA
+sorulmadı.
+
+**KAYNAKLAR — `core/source-catalog.js`'e YENİ, AYRI bir `SOURCE_PAIRS`
+listesi (mevcut `SOURCE_GROUPS`'a HİÇ dokunulmadı):** şimdilik TEK çift
+(kick+bas, 50-160Hz sub/bas bölgesi) — vokal+gitar/gitar+snare gibi diğer
+çiftler task'ın kendi "şimdilik temel" talimatıyla SONRAYA bırakıldı
+(KULAKLA/ÜRÜN DOĞRULANMADI, ileride genişleyecek). `OWN_SOURCE_PAIR` (id:
+"own") kullanıcının KENDİ iki dosyasını (`upload-a`/`upload-b` sentinel ID,
+`findSource()`'tan BAĞIMSIZ, app.js/audio-engine.js'te özel çözümlenir)
+AYRI AYRI yüklemesini temsil eder — HER dosya için 100 MB sınır (TOPLAM
+değil, HER BİRİ), index.html'deki gerçek buton metniyle canlı doğrulandı
+("Kaynak A/B yükle (her biri 100 MB'a kadar)").
+
+**İKİ KAYNAKLI SES MİMARİSİ — `audio-engine.js`'e SADECE EKLEME, tek
+kaynaklı 8 modun hiçbir kod yoluna dokunulmadı:** `buildDualSourceChain()`
+mevcut `buildQuestionChain`'in kaynak-tipine-göre-bağlanma mantığını (upload/
+pink/white/sample/synth) İKİ KEZ çalıştırır, iki bağımsız gain→filtre
+zinciri kurar, ikisi de PAYLAŞILAN `compressor`→`out`→`muteGain`'e akar.
+`setDualCut(sourceKey, gainDb)` — Motor 1'in dry/wet crossfade zihniyetinin
+(`setProcessed`) AYNI kalıbı: SEÇİLEN kaynağın filtresini hedef dB'ye,
+DİĞERİNİ 0'a `setTargetAtTime` ile yumuşak kaydırır (öncesi/sonrası
+düğmelerinin arkasındaki mekanizma). `createUploadManager()`'ın (upload.js)
+STATELESS FACTORY olduğu keşfedildi — bu sayede `uploadManagerA`/
+`uploadManagerB` diye İKİNCİ bir bağımsız yükleme örneği, upload.js'e HİÇ
+dokunmadan app.js'te iki satırla açıldı. `setDualSolo()` de yazıldı (A/B/
+İkisi-birden crossfade) ama HİÇBİR UI kontrolüne bağlanmadı — bilinçli
+kapsam sadeleştirmesi, kullanılmayan ama çalışan bir yetenek olarak
+belgelendi.
+
+**KADEMELİ ZORLUK — `CAKISMA_CURVE_CONFIG` + merkezi `logLerp`/
+`applyPostCapFloor`, diğer modlarla AYNI "baştan doğru kalibrasyon" yöntemi:**
+Aşama 1'de zorlukla ÇAKIŞMA BÖLGESİ daralır (regionWidthOct), Aşama 3'te
+KESİM HASSASİYETİ artar (cutStepDb küçülür). İlk taslak sabitleri
+"kolaylaşma yok" invaryantını (curve(tier'in temsili seviyesi) ≤ statik
+DIFFICULTY[tier]) hard kademesinde İHLAL ETTİ — node script'iyle binary-
+search yapılıp düzeltildi (regionWidthOct AT_CAP 0.4→0.38/FLOOR 0.32→0.3,
+cutStepDb AT_CAP 0.8→0.72/FLOOR 0.65→0.55, timeSec AT_CAP 9→7.5/FLOOR 7→6),
+final değerler testle doğrulandı.
+
+**SINAV SİSTEMİ MİRAS ALINDI (G47-G50'nin AYNI merkezi altyapısı, TEK SATIR
+bile değişmedi):** `EXAM_ENABLED=true`, `EXAM_DIFFICULTY="pro"`,
+`EXAM_WEAK_AREA="zone"` (çakışma frekans-tabanlı olduğu için zon-tabanlı
+telafi, G50'nin `getWeakArea` dispatcher'ı SADECE bu üç satırı okuyarak
+otomatik doğru dala düştü).
+
+**MOD SÖZLEŞMESİ:** `getMeta` (5 tier + EXAM_*+ kaynak çiftleri),
+`createQuestion`/`evaluateAnswer` SAF kaldı (stage-branched ama ses/DOM
+bağımsız), `applyProcessing` (`{filterA, filterB}` döner), `calculateXP`,
+`getFeedbackData` — mevcut 8 modla BİREBİR aynı desen.
+
+**app.js kablolaması — generic dispatch desenleri (`q.mode==="cakisma"`)
+TÜM mevcut dallara EKLENDİ, hiçbiri DEĞİŞTİRİLMEDİ:** `isChoiceFormat()`,
+`renderQuestion()`, `.ans` click-delegasyonu, `drawVisualizer()`'ın mode-
+agnostik `overlayState` torbası (`cakismaGuess` alanı, "diğer modlar
+okumuyor" kuralı korunarak). Yeni `submitCakismaGuess()` — 6 generic submit
+fonksiyonunun (G50) AYNI iskeleti, stage-3'te `audioEngine.setDualCut(...)`
+ile `stopAudio()` YERİNE geçen özel dal + `#cakismaCompare` önce/sonra
+satırı aktivasyonu.
+
+**Doğrulama (canlı, tarayıcıda):**
+- Mod menüde görünüyor ve oynanabilir — `mode-catalog.js`'te
+  `kulaklikGerekli:true`/`playable:true`'ya çevrildi (sub/bas bölgesi
+  kulaklıkta daha net ayrışıyor gerekçesiyle — KULAKLA doğrulanmadı, makul
+  varsayım).
+- 3 aşama sırayla çalışıyor: Aşama 1 (bölge şıkları), Aşama 2 (hangi
+  kaynaktan-kes), Aşama 3 ("50 Hz'de Kick'dan ne kadar kesmeli?" gibi sayısal
+  yakınlık sorusu, ör. gerçek feedback: "Kick'dan 5.1 dB kesilmesi
+  gerekiyordu, sen 7.3 dB dedin — yakınlık %75") — EKRANDAN canlı doğrulandı.
+- Çözünce maskeleme açılıyor mu: Aşama 3 cevaplandıktan sonra `#cakismaCompare`
+  (Önce/Sonra) satırı görünür oluyor, `setDualCut` ile filtre gerçekten
+  hareket ediyor — buton tıklamaları `.on` class'ını doğru şekilde
+  değiştirdiği JS'ten doğrulandı.
+- Kademeli zorluk: birim testlerle ("kolaylaşma yok" invaryantı) + canlı
+  oturumda Aşama 1/3 soru zorluğunun seviyeyle inceldiği gözlemlendi.
+- Upload iki AYRI yol: "Kendi dosyalarım" çift seçilince `#cakismaUploadRowA`/
+  `#cakismaUploadRowB` (her biri "100 MB'a kadar" etiketiyle) göründü,
+  gerçek dosyalar (kick.m4a/bass.m4a, Chrome uzantısı file-input aracıyla)
+  YÜKLENDİ, ikisi de yüklenmeden round başlatılmaya çalışılınca doğru uyarı
+  çıktı ("Kendi dosyalarım seçiliyse A ve B için ayrı ayrı bir ses dosyası
+  seçmelisin"), ikisi de yüklenince round BAŞARIYLA başladı ve soru "80
+  Hz'de Kendi A'dan ne kadar kesmeli?" biçiminde kaynak etiketleriyle
+  (Kendi A/Kendi B) doğru render edildi — TAM uçtan uca canlı doğrulandı.
+- Öğretim + görsel: cevap sonrası mix-dili öğretim metni + iki kaynağın
+  spektrumunun üst üste, çakışma bölgesi vurgulu (BiquadFilterNode.
+  getFrequencyResponse tabanlı GERÇEK eğri, boost-mu-cut-mu.js'in AYNI
+  tekniği) çizildiği kod incelemesiyle + ekran görüntüsüyle doğrulandı.
+  **Bilinen kozmetik sorun (düzeltilmedi):** `drawAxis` `!q` guard'ından
+  ÖNCE çağrıldığı için oyun başlamadan da eksen çiziliyor ve en soldaki "80"
+  etiketi kenara kırpılıp sadece "0" görünüyor — işlevi ETKİLEMİYOR.
+- Sınav sistemi: kombo-6 → "Sınav hakkı kazandın!" teklif sheet'i doğru
+  metinle EKRANDAN canlı doğrulandı. Mekanik olarak AYNI şeyi test eden
+  telafi akışı (parkur <6 doğru → "Telafi 1/5" → 5 soru → geç/kal → yeni
+  parkur "Soru 1/10") UÇTAN UCA İKİ KEZ canlı doğrulandı — `examSystem.
+  label()`'ın faz geçişlerini ("Soru N/10"/"Telafi N/5") doğru okuduğu
+  KANITLANDI. **Dürüstlük notu:** tam SINAV akışı (kabul→4 soru→geç/kal)
+  bu oturumda uçtan uca TAMAMLANAMADI — bu modun Aşama 2/3 puanlaması
+  ikili doğru/yanlış değil SAYISAL YAKINLIK yüzdesi olduğu için, önceden
+  belirlenmiş `Math.random` ile "her zaman doğru tıkla" yöntemi (G47-G50'de
+  kullanılan) burada işlemedi; kombo-tetikli teklif sheet'i + AYNI merkezi
+  kod yolunu kullanan telafi akışının uçtan uca çalışması BİRLİKTE güçlü
+  bir kanıt sayılıyor, ama "BÖLÜM GEÇTİN" ekranı bu modda GÖRÜLMEDİ
+  (7 diğer modda G50'de zaten görülmüştü, exam-system.js'e bu turda TEK
+  SATIR dokunulmadı).
+- Regresyon: Frekans Bulma'da (paylaşılan `playQuestion`/`startRound`/
+  `renderQuestion`/`stopAudio`/`.ans` click-delegasyonu — bu turda dokunulan
+  TÜM ortak fonksiyonlar) bir round baştan sona sorunsuz oynandı, konsol
+  hatası SIFIR. Kompresör'e (Pro kilit, satın alma gerektirdiği için AYRICA
+  kilit açılmadı) doğrudan girilemedi — bu tek regresyon maddesi TAMAMLANAMADI,
+  kod incelemesiyle (dokunulan dallar TÜMÜ `mode.MODE_ID==="frekans-cakismasi"`
+  veya `q.mode==="cakisma"` koşuluyla gated) makul güvence sağlandı.
+- `npm test`: **738/738** (707'den +31 — YENİ `test/frekans-cakismasi.test.mjs`:
+  SOURCE_PAIRS/OWN_SOURCE_PAIR/findSourcePair, stageForIndex ramp, choice
+  üretimi [benzersizlik + fallback], createQuestion/evaluateAnswer/calculateXP
+  sözleşmesi, "kolaylaşma yok" invaryantı, EXAM_* bayrakları).
+
+**KORUNANLAR (task'ın açık isteği):** 8 mevcut mod, exam-system.js,
+three-way-cards.js, reskin, ses/zorluk HİÇ değişmedi — canlı + testle
+doğrulandı. Motor 3 kendi izole kod yollarında (`cakisma` string dispatch'i,
+`buildDualSourceChain`/`setDualCut`, ayrı `uploadManagerA/B`) yaşıyor.
+
+**BİLİNEN SINIRLAMALAR/SONRAKİ TUR İÇİN:** (1) `setDualSolo` (A/B/İkisi-
+birden dinleme) yazıldı ama HİÇBİR UI'ya bağlanmadı. (2) Sadece TEK kaynak
+çifti (kick+bas) yerleşik — vokal+gitar/gitar+snare gibi diğerleri task'ın
+kendi "şimdilik temel" kararıyla ertelendi. (3) `drawAxis` kozmetik kırpma
+sorunu (yukarıda). (4) Aşama seçimi rastgele DEĞİL, `stageForIndex`
+session-index eşiğiyle SIRALI açılıyor — bu MİMARİ KARAR bölümünde
+gerekçelendirildi, kullanıcı onayı istenmedi (TEMEL AT çerçevesi).
+
+---
 
 **ZAYIF BÖLGE dispatcher'ı — `getWeakArea(stats, modeId)` (app.js, yeni):**
 task'ın istediği moda-göre-dallanma. `mode.EXAM_WEAK_AREA==="zone"` (Frekans
