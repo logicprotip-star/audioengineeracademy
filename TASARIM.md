@@ -43,7 +43,14 @@ kartlar (`core/three-way-cards.js`, prototipin `.opt`/`.wave` yapısı) + o an �
 amber vurgusu geldi; ÇALIŞAN MEKANİK (otomatik döngü, anında seç, odd-one-out)
 DOKUNULMADI. EKRAN 3'ün "Seçenek kartları" satırı Yok'tan Kısmi'ye geçti (durum metni
 BİLİNÇLİ 2 değere indirildi), ÖZET sayıları yeniden hesaplandı (Yok 20→19, Kısmi
-23→24). Detay: DURUM.md BİTTİ.
+23→24). Detay: DURUM.md BİTTİ. **G42 eki:** Mod bazlı kaynak uyumluluğu eklendi —
+Reverb'de kick/snare/hihat/tom (tek-vuruş), Kompresör'de pembe/beyaz gürültü
+(transient'sız) kaynak sheet'inde artık GÖRÜNMÜYOR (`core/source-catalog.js
+compatibleSourceIds`, bkz. DURUM.md BİTTİ). Bu, prototipte hiç karşılığı olmayan
+saf bir davranış/oynanabilirlik düzeltmesi — EKRAN 2'nin "Kaynak seçici chip"/"Kaynak
+sheet'i" satırlarının tasarım-karşılaştırma durumunu (zaten "Kısmi"/"Kısmi-Yok",
+kataloğun kendisi tasarımdan farklı olduğu için) DEĞİŞTİRMİYOR, ÖZET sayıları aynı
+kaldı — bu yüzden ayrı bir tablo satırı yok, sadece bu prose notu.
 
 ## EKRAN 1 — ANA MENÜ
 

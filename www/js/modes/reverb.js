@@ -31,7 +31,7 @@
 // tek-kutuplu lowpass (parlaklık) + pre-delay boşluğu. Gerçek bir akustik
 // mekan ölçümü DEĞİL, algoritmik bir yaklaşıklık.
 
-import { SOURCE_GROUPS } from "../core/source-catalog.js";
+import { compatibleSourceIds } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
@@ -227,7 +227,11 @@ export function getMeta() {
     // okunmadığı için etkisizdi, G37'de gerçek bir uyarı sheet'i buna bağlandığı için
     // DOĞRU değere düzeltildi (mode-catalog.js'teki reverb girdisi zaten true'ydu).
     kulaklikGerekli: true,
-    uyumluKaynaklar: SOURCE_GROUPS.flatMap(g => g.sources.map(s => s.id)),
+    // Tek-vuruş kaynaklar (kick/snare/hihat/tom) dışlanır — döngüde bile tek bir
+    // darbe olarak kalıyor, reverb kuyruğunu (decay) net göstermiyor. Sürekli/
+    // döngülü kaynaklar (davul döngüsü, enstrüman, sentetik, gürültü, upload)
+    // kuyruğu duyulabilir kılıyor (bkz. source-catalog.js oneShot notu).
+    uyumluKaynaklar: compatibleSourceIds({ excludeOneShot: true }),
     // NOT (Kompresör'le AYNI karar): mode-catalog.js'te tier:"pro" — ama bu
     // alan GERÇEK kilitlemede KULLANILMIYOR (asıl kaynak mode-catalog.js'in
     // `tier` alanı), mevcut altı modun HEPSİYLE tutarlı kalmak için true.

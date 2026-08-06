@@ -32,7 +32,7 @@
 // SADECE ŞIKLI (choiceOnly:true) — diğer üç yeni modla AYNI karar.
 
 import { shuffle, formatHz, logFreq } from "../core/utils.js";
-import { SOURCE_GROUPS } from "../core/source-catalog.js";
+import { compatibleSourceIds } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor, representativeLevelForTier } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
@@ -242,7 +242,9 @@ export function getMeta() {
     id: MODE_ID,
     motor: 1,
     kulaklikGerekli: false,
-    uyumluKaynaklar: SOURCE_GROUPS.flatMap(g => g.sources.map(s => s.id)),
+    // Kaynak kısıtlaması YOK — Q genişliği her kaynakta duyulur, compatibleSourceIds()
+    // parametresiz tüm SOURCE_GROUPS'u döner (bkz. Kesim Noktası'ndaki AYNI karar).
+    uyumluKaynaklar: compatibleSourceIds(),
     ucretsiz: true,
     videoUrl: "",
     difficulty: DIFFICULTY,

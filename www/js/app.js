@@ -311,12 +311,32 @@ const els = {
 // sheet'i tek kaynaktan (source-catalog.js) beslenir, HTML'de ayrıca elle tutulmaz.
 // Boş gruplar (sources:[]) hiç render edilmez — bugün için hepsi dolu ama yeni
 // bir motor/grup boş eklenirse yine otomatik gizlenir.
+//
+// AKTİF MODUN kaynak uyumluluğu (getMeta().uyumluKaynaklar, bkz. source-catalog.js
+// compatibleSourceIds) listeyi süzer — bir modda anlamsız bir kaynak (Reverb'de
+// kick gibi tek-vuruşlar, Kompresör'de pembe/beyaz gürültü gibi transient'sız
+// kaynaklar) seçim listesinde hiç GÖRÜNMEZ, dolayısıyla seçilemez de. enterMode()
+// mod değiştiğinde bu fonksiyonu YENİDEN çağırır.
 function populateSourceSelect() {
   if (!els.sourceSelect) return;
+  const compatible = new Set(mode.getMeta().uyumluKaynaklar);
+  const previousValue = els.sourceSelect.value;
   els.sourceSelect.innerHTML = SOURCE_GROUPS
+    .map(g => ({ label: g.label, sources: g.sources.filter(s => compatible.has(s.id)) }))
     .filter(g => g.sources.length > 0)
     .map(g => `<optgroup label="${g.label}">${g.sources.map(s => `<option value="${s.id}">${s.label}</option>`).join("")}</optgroup>`)
     .join("");
+  // Önceki seçim yeni modda da uyumluysa korunur; değilse (ör. Reverb'den
+  // Kompresör'e geçilirken seçili kaynak gürültüydü) listedeki İLK uyumlu kaynağa
+  // düşülür — kullanıcı hiç var olmayan bir <option>'da "takılı" kalmaz. "change"
+  // event'i elle tetiklenir ki Ayarlar sheet'indeki satır metni (updateRowText)
+  // senkron kalsın.
+  if (compatible.has(previousValue)) {
+    els.sourceSelect.value = previousValue;
+  } else if (els.sourceSelect.options.length > 0) {
+    els.sourceSelect.selectedIndex = 0;
+    els.sourceSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  }
 }
 populateSourceSelect();
 
@@ -1114,6 +1134,7 @@ function enterMode(entry, realMode) {
     roundActive = false;
     autoStopped = true;
     mode = realMode;
+    populateSourceSelect(); // yeni modun kaynak uyumluluğuna göre kaynak listesini süz
     syncAnswerFormatVisibility();
     els.questionTitle.textContent = 'Başlamak için "Oyunu Başlat"a dokun.';
     els.questionMeta.textContent = "";
@@ -2489,11 +2510,14 @@ function startRound() {
 }
 
 // Kaynak seçimi: "Karıştır" açıksa her tur rastgele bir üretici kaynak seçilir
-// (yüklenen dosya hariç); kapalıyken kaynak seçicideki değer kullanılır.
+// (yüklenen dosya hariç); kapalıyken kaynak seçicideki değer kullanılır. Havuz
+// AKTİF MODUN uyumlu kaynaklarıyla sınırlı — aksi halde "Karıştır" kaynak
+// sheet'inde hiç görünmeyen (o modda anlamsız) bir kaynağı sessizce çalabilirdi.
 function pickRoundSource() {
   const sel = els.sourceSelect.value;
   if (mixSources && sel !== "upload") {
-    const pool = SOURCE_GROUPS.flatMap(g => g.sources).filter(s => s.kind !== "upload").map(s => s.id);
+    const compatible = new Set(mode.getMeta().uyumluKaynaklar);
+    const pool = SOURCE_GROUPS.flatMap(g => g.sources).filter(s => s.kind !== "upload" && compatible.has(s.id)).map(s => s.id);
     return pool[Math.floor(Math.random() * pool.length)];
   }
   return sel;

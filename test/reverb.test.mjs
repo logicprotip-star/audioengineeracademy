@@ -558,7 +558,7 @@ describe("Reverb — getMeta() sözleşme alanları", () => {
     assert.equal(meta.id, "reverb");
     assert.equal(meta.motor, 2, "Motor 2'nin ikinci modu olmalıydı");
     assert.equal(typeof meta.kulaklikGerekli, "boolean");
-    assert.ok(Array.isArray(meta.uyumluKaynaklar) && meta.uyumluKaynaklar.length > 5, "kaynak kısıtlaması olmamalıydı — tüm gruplar");
+    assert.ok(Array.isArray(meta.uyumluKaynaklar) && meta.uyumluKaynaklar.length > 5, "kaynak listesi çoğunlukla açık kalmalıydı — sadece tek-vuruşlar dışlanır");
     assert.equal(typeof meta.ucretsiz, "boolean");
     assert.equal(typeof meta.videoUrl, "string");
     assert.equal(meta.choiceOnly, true);
@@ -574,6 +574,20 @@ describe("Reverb — getMeta() sözleşme alanları", () => {
     const meta = mode.getMeta();
     assert.equal(meta.ad, undefined);
     assert.equal(meta.aciklama, undefined);
+  });
+
+  it("tek-vuruş kaynaklar (kick/snare/hihat/tom) dışlanır — reverb kuyruğunu göstermez", () => {
+    const meta = mode.getMeta();
+    for (const oneShotId of ["kick", "snare", "hihat", "tom"]) {
+      assert.ok(!meta.uyumluKaynaklar.includes(oneShotId), `${oneShotId} listede olmamalıydı`);
+    }
+  });
+
+  it("sürekli/döngülü kaynaklar (davul döngüsü, enstrüman, sentetik, gürültü, upload) kalır", () => {
+    const meta = mode.getMeta();
+    for (const id of ["groove", "bass", "bass_alt", "guitar", "vocal", "pink", "white", "saw", "square", "triangle", "upload"]) {
+      assert.ok(meta.uyumluKaynaklar.includes(id), `${id} listede olmalıydı`);
+    }
   });
 });
 

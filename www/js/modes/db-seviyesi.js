@@ -16,7 +16,7 @@
 // "dalgaya tıklayarak" işaretlemenin doğal bir karşılığı yok.
 
 import { shuffle } from "../core/utils.js";
-import { SOURCE_GROUPS } from "../core/source-catalog.js";
+import { compatibleSourceIds } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
@@ -228,9 +228,9 @@ export function getMeta() {
     id: MODE_ID,
     motor: 1,
     kulaklikGerekli: false,
-    // Kaynak kısıtlaması YOK — Kesim Noktası'ndaki AYNI karar: tüm SOURCE_GROUPS'tan
-    // üretilir (gain her kaynakta duyulur), elle liste tutulmaz.
-    uyumluKaynaklar: SOURCE_GROUPS.flatMap(g => g.sources.map(s => s.id)),
+    // Kaynak kısıtlaması YOK — Kesim Noktası'ndaki AYNI karar: gain her kaynakta
+    // duyulur, compatibleSourceIds() parametresiz tüm SOURCE_GROUPS'u döner.
+    uyumluKaynaklar: compatibleSourceIds(),
     ucretsiz: true,
     videoUrl: "",
     difficulty: DIFFICULTY,

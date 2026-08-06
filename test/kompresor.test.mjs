@@ -507,7 +507,7 @@ describe("Kompresör — getMeta() sözleşme alanları", () => {
     assert.equal(meta.id, "kompresor");
     assert.equal(meta.motor, 2, "Motor 2'nin ilk modu olmalıydı");
     assert.equal(typeof meta.kulaklikGerekli, "boolean");
-    assert.ok(Array.isArray(meta.uyumluKaynaklar) && meta.uyumluKaynaklar.length > 5, "kaynak kısıtlaması olmamalıydı");
+    assert.ok(Array.isArray(meta.uyumluKaynaklar) && meta.uyumluKaynaklar.length > 5, "kaynak listesi çoğunlukla açık kalmalıydı — sadece gürültü dışlanır");
     assert.equal(typeof meta.ucretsiz, "boolean");
     assert.equal(typeof meta.videoUrl, "string");
     assert.equal(meta.choiceOnly, true);
@@ -523,6 +523,19 @@ describe("Kompresör — getMeta() sözleşme alanları", () => {
     const meta = mode.getMeta();
     assert.equal(meta.ad, undefined);
     assert.equal(meta.aciklama, undefined);
+  });
+
+  it("pembe/beyaz gürültü dışlanır — transient yok, kompresyon duyulmaz", () => {
+    const meta = mode.getMeta();
+    assert.ok(!meta.uyumluKaynaklar.includes("pink"), "pink listede olmamalıydı");
+    assert.ok(!meta.uyumluKaynaklar.includes("white"), "white listede olmamalıydı");
+  });
+
+  it("transient içeren kaynaklar (davul/enstrüman/synth/upload) kalır", () => {
+    const meta = mode.getMeta();
+    for (const id of ["kick", "snare", "hihat", "tom", "groove", "bass", "guitar", "vocal", "saw", "square", "triangle", "upload"]) {
+      assert.ok(meta.uyumluKaynaklar.includes(id), `${id} listede olmalıydı`);
+    }
   });
 });
 

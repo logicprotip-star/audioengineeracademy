@@ -18,12 +18,23 @@
 //              sessizce pink noise'a düşer (bkz. buildQuestionChain'deki try/catch),
 //              uygulama çökmez.
 //   "upload" — kullanıcının kendi yüklediği dosya (uploadManager, değişmedi).
+// Kaynak uyumluluk bayrakları — bir modun getMeta().uyumluKaynaklar'ı
+// compatibleSourceIds() ile bu bayraklara göre üretilir (bkz. dosya sonu).
+// Yeni bir bayrak eklemek yeni bir mod kısıtlaması tanımlamak için yeterli,
+// app.js veya mod dosyaları değişmez:
+//   oneShot      — tek darbe/vuruş, döngüde bile "sürekli çalan" bir ses
+//                  hissi vermez (kick/snare/hihat/tom): reverb kuyruğu
+//                  göstermek için sürekli/perküsif-ama-döngülü bir kaynak
+//                  gerekir (bkz. Reverb getMeta — excludeOneShot).
+//   noTransient  — ani bir başlangıç/atağı yok (pink/white noise):
+//                  kompresyonun duyulabilmesi için transient (atak) gerekir
+//                  (bkz. Kompresör getMeta — requireTransient).
 export const SOURCE_GROUPS = [
   {
     id: "synthetic", label: "SENTETİK",
     sources: [
-      { id: "pink", label: "Pink Noise", kind: "noise", desc: "En nötr referans, bant farkları en net duyulur" },
-      { id: "white", label: "White Noise", kind: "noise", desc: "Daha sert, tüm frekanslarda eşit enerji" },
+      { id: "pink", label: "Pink Noise", kind: "noise", desc: "En nötr referans, bant farkları en net duyulur", noTransient: true },
+      { id: "white", label: "White Noise", kind: "noise", desc: "Daha sert, tüm frekanslarda eşit enerji", noTransient: true },
       { id: "saw", label: "Saw", kind: "synth", desc: "Zengin harmonik, sürekli pad/bas karakteri" },
       { id: "square", label: "Square", kind: "synth", desc: "İçi boş, tek sayılı harmonikler ağırlıklı" },
       { id: "triangle", label: "Triangle", kind: "synth", desc: "Yumuşak, az harmonikli" }
@@ -32,10 +43,10 @@ export const SOURCE_GROUPS = [
   {
     id: "drums", label: "DAVUL",
     sources: [
-      { id: "kick", label: "Kick", kind: "sample", samplePath: "audio/kick.m4a", desc: "Kick davul — SUB/BAS bölgesi" },
-      { id: "snare", label: "Snare", kind: "sample", samplePath: "audio/snare.m4a", desc: "Snare — orta/üst bölge gövde + tel" },
-      { id: "hihat", label: "Hi-Hat", kind: "sample", samplePath: "audio/hihat.m4a", desc: "Hi-hat — tiz bölge" },
-      { id: "tom", label: "Tom", kind: "sample", samplePath: "audio/tom.m4a", desc: "Tom — alt-orta rezonans" },
+      { id: "kick", label: "Kick", kind: "sample", samplePath: "audio/kick.m4a", desc: "Kick davul — SUB/BAS bölgesi", oneShot: true },
+      { id: "snare", label: "Snare", kind: "sample", samplePath: "audio/snare.m4a", desc: "Snare — orta/üst bölge gövde + tel", oneShot: true },
+      { id: "hihat", label: "Hi-Hat", kind: "sample", samplePath: "audio/hihat.m4a", desc: "Hi-hat — tiz bölge", oneShot: true },
+      { id: "tom", label: "Tom", kind: "sample", samplePath: "audio/tom.m4a", desc: "Tom — alt-orta rezonans", oneShot: true },
       { id: "groove", label: "Davul Döngüsü", kind: "sample", samplePath: "audio/groove_090.m4a", desc: "90 BPM davul döngüsü — mix bağlamı" }
     ]
   },
@@ -62,4 +73,20 @@ export function findSource(id) {
     if (s) return s;
   }
   return null;
+}
+
+// Mod bazlı kaynak uyumluluğu — TEK merkezi filtre. Bir mod kendi getMeta()'sında
+// uyumluKaynaklar'ı bu fonksiyonla üretir; app.js kaynak sheet'ini/"Karıştır"
+// havuzunu HER ZAMAN o listeyle sınırlar (bkz. app.js populateSourceSelect/
+// pickRoundSource). Parametre vermeyen bir mod (varsayılan) tüm kaynakları alır —
+// bugünkü beş mod (Frekans Bulma HARİÇ, o kendi elle-yazılmış listesini kullanıyor;
+// Kesim Noktası/dB/Boost-Cut/Q) hâlâ bunu yapıyor. Gelecekte yeni bir bayrak (ör.
+// "excludeMono"/"requireStereo") eklemek SADECE burada yeni bir filtre satırı +
+// yukarıdaki kaynak nesnelerine yeni bir alan eklemek demek — app.js'e dokunmadan
+// yeni bir modun kendi kısıtlamasını tanımlaması yeter.
+export function compatibleSourceIds({ excludeOneShot = false, requireTransient = false } = {}) {
+  return SOURCE_GROUPS.flatMap(g => g.sources)
+    .filter(s => !(excludeOneShot && s.oneShot))
+    .filter(s => !(requireTransient && s.noTransient))
+    .map(s => s.id);
 }

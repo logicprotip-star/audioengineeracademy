@@ -1,13 +1,78 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G41)
+Son güncelleme: 06.08.2026 (G42)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G41, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Motor 2 (Kompresör/
+Bu commit (G42, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Mod bazlı kaynak
+uyumluluğu: Reverb/Kompresör'de uygun olmayan kaynaklar kaynak seçim listesinden
+çıkarıldı.** Sorun: her modun `getMeta()`'sında ZATEN bir `uyumluKaynaklar` alanı vardı
+(G-serisinin önceki turlarından, `mode-contract.test.mjs`'in de doğruladığı bir sözleşme
+alanı) ama HİÇBİR YERDE gerçekten filtrelemek için okunmuyordu — yedi modun altısı bunu
+`SOURCE_GROUPS.flatMap(...)` ile TÜM kaynakların düz listesine sabitliyordu (Frekans
+Bulma hariç, o zaten kendi elle-yazılmış kısıtlı listesini kullanıyordu). Sonuç: Reverb'de
+kick (tek vuruş, döngüde bile reverb kuyruğunu göstermiyor) ve Kompresör'de pembe/beyaz
+gürültü (transient'sız, kompresyonun atak-bastırması duyulmuyor) seçilebiliyordu —
+oynanamaz/anlamsız kombinasyonlar.
+
+**Merkezi mekanizma — `core/source-catalog.js`:** Her kaynak nesnesine iki opsiyonel
+uyumluluk bayrağı eklendi: `oneShot: true` (kick/snare/hihat/tom — tek darbe, döngüde
+"sürekli çalan" bir ses hissi vermiyor) ve `noTransient: true` (pink/white — ani bir
+atak yok). Yeni `compatibleSourceIds({ excludeOneShot, requireTransient })` fonksiyonu
+bu bayraklara göre SOURCE_GROUPS'u süzüp bir id listesi döndürüyor; parametresiz
+çağrıldığında (varsayılan) TÜM kaynakları döner. Yedi mod dosyası (Frekans Bulma HARİÇ,
+o kendi özel listesini koruyor — dokunulmadı) artık `SOURCE_GROUPS.flatMap(...)` yerine
+bu TEK fonksiyonu çağırıyor: Reverb `compatibleSourceIds({ excludeOneShot: true })`,
+Kompresör `compatibleSourceIds({ requireTransient: true })`, diğer dört mod (Kesim
+Noktası/dB Seviyesi/Boost-Cut/Q Genişliği) parametresiz (kısıtlama YOK, task kararı —
+frekans/EQ/seviye her kaynakta duyulur). Yeni bir mod (Stereo Genişlik/Pan Konumu gibi)
+kendi kısıtlamasını tanımlamak isterse SADECE bu fonksiyona yeni bir bayrak/parametre
+eklemesi yeterli — app.js'e dokunmadan.
+
+**app.js — kaynak listesi ARTIK aktif moda göre süzülüyor:** `populateSourceSelect()`
+(önceden sabit, sayfa yüklenirken bir kez çalışan bir fonksiyondu) artık
+`mode.getMeta().uyumluKaynaklar`'ı okuyup `<optgroup>`/`<option>` listesini buna göre
+üretiyor VE `enterMode()`'un mod-değişimi dalına eklendi — her mod kartına tıklanışta
+YENİDEN çalışıyor. Önceki seçim yeni modda da uyumluysa korunuyor; değilse (ör.
+Reverb'den Kompresör'e geçilirken seçili kaynak "Pink Noise"sa) listedeki İLK uyumlu
+kaynağa düşülüyor ve bir `change` event'i elle tetikleniyor ki Ayarlar sheet'indeki satır
+metni (`updateRowText`, mevcut mekanizma) senkron kalsın — kullanıcı asla artık var
+olmayan bir `<option>`'da "takılı" kalmıyor. "Karıştır" (rastgele kaynak) özelliğinin
+havuzunu üreten `pickRoundSource()` de AYNI `uyumluKaynaklar` listesiyle sınırlandı —
+aksi halde Karıştır, kaynak sheet'inde hiç görünmeyen bir kaynağı sessizce çalabilirdi.
+
+**Motor 2 tutarlılık notu (task'ın istediği "kesişim" kontrolü):** A/B/C'nin üçü de
+`pickRoundSource()`'un TEK seferde seçtiği kaynaktan geliyor (mevcut, değişmeyen akış,
+bkz. `startRound()`) — kaynak seçimi zaten üç varyant arasında ortak, kaynak hiçbir
+zaman "hangisi farklı" ipucunu vermiyor. Bu turda değişen SADECE hangi kaynakların
+havuzda/listede yer aldığı, üç-yönlü karşılaştırmanın kendisi dokunulmadı.
+
+**KORUNANLAR (task'ın açık isteği):** Ses motoru (`audio-engine.js`), zorluk eğrisi,
+oyun mantığı, geri bildirim, Motor 2 kartları (G41 reskin) HİÇ değişmedi — sadece kaynak
+FİLTRELEME eklendi. Frekans Bulma'nın kendi elle-yazılmış `uyumluKaynaklar` listesi
+(`["pink","white","saw","square","triangle","upload"]`, drums/enstrüman hariç — G-serisi
+öncesi bir ürün kararı) da BİLEREK dokunulmadı, bu turun kapsamı dışında.
+
+**Doğrulama (canlı, tarayıcıda, `devFlags.simulatePro` ile seviye kilidi aşılarak):**
+Reverb'e girildi — Kaynak sheet'inin DAVUL grubunda SADECE "Davul Döngüsü" göründü
+(kick/snare/hi-hat/tom yok), `#sourceSelect.options` 11 kaynak döndü (pink/white/saw/
+square/triangle/groove/bass/bass_alt/guitar/vocal/upload). Kompresör'e geçildi —
+`#sourceSelect.options` 13 kaynak döndü (pink/white YOK, kick/snare/hihat/tom/groove/
+bass/bass_alt/guitar/vocal/saw/square/triangle/upload VAR); önceki seçim ("Pink Noise",
+Reverb'de aktifken seçiliydi) Kompresör'de uyumsuz olduğu için OTOMATİK "Saw"a düştü,
+Ayarlar satırının metni de senkron güncellendi. Kompresör'de bir round başlatıldı — A/B/C
+kartları (G41 UI) normal çalıştı, konsol hatası yok. Kesim Noktası'na geçildi — TÜM 15
+seçenek (14 katalog + Dosya Seç) göründü, kısıtlama yok (regresyon yok). Frekans Bulma'nın
+kendi listesi (6 kaynak) sayfa yüklenişinde DEĞİŞMEDİ. `npm test`: 574/574 (561 +13 yeni —
+`test/source-catalog.test.mjs` mekanizmanın kendisini, `reverb.test.mjs`/
+`kompresor.test.mjs`'e eklenen testler ilgili modun dışlama/koruma listesini doğruluyor).
+
+---
+
+Önceki commit (G41, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Motor 2 (Kompresör/
 Reverb) cevap kartları reskin: büyük A/B/C kartlar + çalan kart vurgusu.** Motor 1'in
 küçük `.ans` grid'i yerine `Dizayn /prototype.html`'in `.opt`/`.opt-key`/`.wave`
 yapısına yakınsayan büyük kartlar geldi — ÇALIŞAN MEKANİK (otomatik döngü, anında seç,
