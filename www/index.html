@@ -74,6 +74,28 @@
         </div>
         <div id="modeGrid"></div>
       </div>
+
+      <!-- G37: kulaklık uyarı sheet'i — Dizayn/prototype.html #hpSheet'ten taşındı.
+           SADECE mode.getMeta().kulaklikGerekli===true olan bir karta (şu an sadece
+           Reverb) tıklanınca, prefs.hpWarning açıkken VE o mod için "bir daha
+           gösterme" işaretlenmemişken açılır (bkz. app.js openHeadphoneSheet). -->
+      <div class="sheet-overlay" id="hpSheetOverlay"></div>
+      <div class="bottom-sheet" id="hpSheet">
+        <div class="sheet-handle"></div>
+        <div style="display:flex;justify-content:center;margin:2px 0 4px">
+          <div style="width:64px;height:64px;border-radius:20px;background:rgba(255,176,32,.14);border:1px solid rgba(255,176,32,.3);display:flex;align-items:center;justify-content:center;font-size:28px">🎧</div>
+        </div>
+        <h3 style="margin:14px 0 0;font-size:20px;font-weight:800;line-height:1.3;text-align:center">Bu egzersiz kulaklık gerektirir</h3>
+        <p id="hpSheetDesc" style="margin:8px 6px 0;font-size:15px;line-height:1.5;color:var(--tx-2);text-align:center"></p>
+        <div style="margin-top:16px;display:flex;flex-direction:column;gap:9px">
+          <button class="btn primary" id="hpSheetConfirm" type="button">Kulaklığım takılı, başla</button>
+          <button class="btn" id="hpSheetCancel" type="button">Geri dön</button>
+        </div>
+        <button class="cbrow" id="hpSheetAgain" type="button">
+          <span class="cb">✓</span>
+          <span>Bu modda bir daha gösterme</span>
+        </button>
+      </div>
     </section>
 
     <!-- ================= EKRAN: OYUN (Motor 1) ================= -->
@@ -712,7 +734,7 @@
           <button type="button" class="sw" id="notifSwitch" aria-label="Bildirimler"><i></i></button>
         </div>
         <div class="item">
-          <div style="padding-right:12px"><h5>Kulaklık uyarısı</h5><p>Ana menüde kulaklık hatırlatma notunu göster</p></div>
+          <div style="padding-right:12px"><h5>Kulaklık uyarısı</h5><p>Ana menü notu + kulaklık gerektiren egzersizlerde açılan uyarıyı göster</p></div>
           <button type="button" class="sw" id="hpWarnSwitch" aria-label="Kulaklık uyarısı"><i></i></button>
         </div>
         <div class="item">

@@ -7,7 +7,66 @@ Son güncelleme: 06.08.2026
 
 ## BİTTİ
 
-Bu commit (G36, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Ana menü reskin:
+Bu commit (G37, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Kulaklık uyarısı
+mekanizması: mod başına bayrak + prototipteki sheet'e bağlandı.** TASARIM.md'nin RESKIN
+RAPORU'nun örnek (d)'sindeki "hâlâ AÇIK" maddesi kapatıldı. `kulaklikGerekli` alanı
+mode-catalog.js'te (ve her modun KENDİ getMeta()'sında) ÖNCEDEN tanımlıydı ama G37'ye
+kadar HİÇBİR YERDE okunmuyordu — bu turda gerçek bir uyarı akışına bağlandı.
+
+**1. Mod başına bayrak — düzeltilen İKİ tutarsızlık:** Mekanizmayı kurarken KENDİ
+alanlarının birbiriyle çelişkili olduğu ortaya çıktı — `frekans-bulma.js`'in getMeta()'sı
+`true` diyordu (task'ın istediği `false`'un TERSİ — frekans/EQ algısı hoparlörde de net,
+stereo/derinlik gerektirmiyor); `reverb.js`'in getMeta()'sı `false` diyordu (G35'te
+Kompresör şablonundan kopyalanırken düzeltilmemiş kalmış — mode-catalog.js'teki reverb
+girdisi ZATEN `true`'ydu, iki dosya birbiriyle ÇELİŞİYORDU). İkisi de DOĞRU değere
+çekildi: Frekans Bulma `false`, Reverb `true`. Diğer beş mod (Kesim Noktası/dB/Boost-Cut/
+Q/Kompresör) zaten doğru `false`'du — HİÇBİRİNE dokunulmadı. `kulaklikGerekli` HİÇBİR
+YERDE okunmadığı için bu iki hata ÖNCEDEN etkisizdi (görünmüyordu) — G37'nin gerçek bir
+akışa bağlaması sayesinde YAKALANDI.
+
+**2. Sheet — `Dizayn /prototype.html`'in `#hpSheet`/`askHeadphones`/`hpConfirm`
+üçlüsünün AYNI deseni:** 🎧 ikon + "Bu egzersiz kulaklık gerektirir" + açıklama + iki
+buton ("Kulaklığım takılı, başla"/"Geri dön") + "Bu modda bir daha gösterme" onay kutusu
+(`.cbrow`/`.cb`, prototipten birebir taşınan CSS). Mevcut `.sheet-overlay`/`.bottom-sheet`
+altyapısı (lvlSheet'in AYNI deseni) yeniden kullanıldı — yeni bir sheet sistemi İCAT
+EDİLMEDİ. Metin BİLEREK genel/basit tutuldu (spec: "mod bazlı metin ya da genel yeterli")
+— prototipin "stereo bilgisi duyulmaz" ifadesi Reverb için YANLIŞ olurdu (reverb mono-
+uyumlu bir efekt) — bunun yerine "derinlik/mekân hissi" dili kullanıldı. Gelecekteki bir
+mod (`kulaklikMetni` alanını getMeta()'sına eklerse) kendi metnini geçersiz kılabilir —
+mekanizma HAZIR, kod değişikliği GEREKMEZ.
+
+**3. Tetikleme mantığı (TEK kontrol noktası, `renderModeGrid`'in click handler'ında):**
+`meta.kulaklikGerekli && prefs.hpWarning && !prefs.hpSkip[entry.id]` — üçü de true/false
+olmalı ki sheet AÇILSIN. Mod-özel "bir daha gösterme" (`prefs.hpSkip[modeId]`, YENİ bir
+alan — `storage.freshPrefs()`'e eklendi) SADECE onay anında (checkbox'a tıklamanın
+KENDİSİ değil, `hpConfirm`'ün prototipteki AYNI deseni) kaydediliyor — kullanıcı
+işaretleyip "Geri dön" derse HİÇBİR kalıcı değişiklik olmuyor (canlı doğrulandı). Genel
+`prefs.hpWarning` toggle'ı (ÖNCEDEN sadece Ana Menü'nün statik `.mobile-warn` metnini
+kontrol ediyordu) artık AYNI ANDA bu sheet'i de kapatıyor — açıklama metni buna göre
+güncellendi ("Ana menü notu + kulaklık gerektiren egzersizlerde açılan uyarıyı göster").
+Mode-özel skip'in AKSİNE genel toggle her zaman ÖNCELİKLİ — kapalıyken hiçbir mod için
+sheet açılmaz (canlı doğrulandı: skip haritası boşken bile toggle kapalıyken Reverb'e
+girmek sheet'i AÇMADI).
+
+**Mimari not (kod tekrarını önleme):** mod-kartı tıklama akışının "gerçekten oyuna gir"
+kısmı (`enterMode(entry, realMode)`) ayrı bir fonksiyona çıkarıldı — hem doğrudan
+tıklamanın hem de sheet onayının (`hpSheetConfirm`) PAYLAŞTIĞI TEK kod yolu, davranış
+DEĞİŞMEDİ (aynen prototipin `hpConfirm()`'ünün `applyMode`+`go()`'yu çağırmasıyla AYNI
+desen).
+
+Doğrulama: `npm test` **561/561** DEĞİŞMEDEN geçti. Canlı tarayıcıda: Frekans Bulma'ya
+girince sheet ÇIKMADI (doğrudan oyuna girdi); Reverb'e girince sheet ÇIKTI (🎧 ikonu +
+doğru metin); "Geri dön" sheet'i kapatıp menüde bıraktı (mod GİRİLMEDİ); Reverb'e tekrar
+girip "Bu modda bir daha gösterme" işaretlenip "Kulaklığım takılı, başla"ya basıldı —
+oyuna girdi VE `localStorage`'da `prefs.hpSkip` `{"reverb":true}` olarak DOĞRULANDI
+(mod-BAZLI, genel değil); menüye dönüp Reverb'e TEKRAR girince sheet ARTIK ÇIKMADI (skip
+kalıcı çalışıyor); Ayarlar'dan "Kulaklık uyarısı" toggle'ı KAPATILIP skip haritası
+TEMİZLENDİKTEN SONRA bile Reverb'e girmek sheet'i AÇMADI (genel toggle her zaman
+önceliklidir); toggle geri AÇILIP Kompresör'e (Motor 2, ama `kulaklikGerekli:false`)
+girildi — sheet YİNE ÇIKMADI (Motor 2 grubunun TAMAMI değil, SADECE bayrağı true olan
+modlar tetikliyor). Sıfır konsol hatası tüm oturum boyunca.
+
+Commit (G36, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Ana menü reskin:
 prototipe yakınsa (seviye rozeti + kart seviye çip'leri + öneri kartı iki buton + renk
 düzeltmesi).** TASARIM.md'nin bir önceki
 turda ürettiği RESKIN RAPORU'nun önerdiği "1. adım"ın (merkezi görsel katman, sıfır

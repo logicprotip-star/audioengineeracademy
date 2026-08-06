@@ -268,7 +268,12 @@ export function getMeta() {
   return {
     id: MODE_ID,
     motor: 1,
-    kulaklikGerekli: true,
+    // G37: false — bu mod tek bir frekansın artırılıp artırılmadığını (mono/EQ
+    // algısı) sorguluyor, stereo/derinlik algısına bağlı değil, hoparlörde de net
+    // duyulur. ÖNCEDEN true'ydu ama kulaklikGerekli HİÇBİR YERDE okunmuyordu (G37'ye
+    // kadar) — o zaman etkisizdi, artık gerçek bir uyarı sheet'ini tetiklediği için
+    // DOĞRU değere düzeltildi (bkz. DURUM.md G37, mode-catalog.js'in AYNI düzeltmesi).
+    kulaklikGerekli: false,
     uyumluKaynaklar: ["pink", "white", "saw", "square", "triangle", "upload"],
     ucretsiz: true,
     videoUrl: "",

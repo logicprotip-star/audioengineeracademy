@@ -11,7 +11,7 @@
 // açıkça işaretlenir; paywall metni ve kart rozetleri bu alanı okur.
 export const MODE_CATALOG = [
   // ---- Motor 1 · Değeri bul ----
-  { id: "frekans-bulma", ad: "Frekans Bulma", aciklama: "Hangi frekans artırıldı?", motor: 1, kulaklikGerekli: true, unlockLevel: 1, playable: true, tier: "free" },
+  { id: "frekans-bulma", ad: "Frekans Bulma", aciklama: "Hangi frekans artırıldı?", motor: 1, kulaklikGerekli: false, unlockLevel: 1, playable: true, tier: "free" },
   { id: "kesim-noktasi", ad: "Kesim Noktası", aciklama: "Filtrenin kesim frekansı", motor: 1, kulaklikGerekli: false, unlockLevel: 2, playable: true, tier: "free" },
   { id: "q-genisligi", ad: "Q Genişliği", aciklama: "Bandın darlığını tahmin et", motor: 1, kulaklikGerekli: false, unlockLevel: 3, playable: true, tier: "free" },
   { id: "boost-mu-cut-mu", ad: "Boost mu Cut mu", aciklama: "Artırım mı, azaltım mı?", motor: 1, kulaklikGerekli: false, unlockLevel: 4, playable: true, tier: "free" },

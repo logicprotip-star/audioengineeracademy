@@ -509,6 +509,19 @@
     .sheet-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
     .sheet-header h3{margin:0;font-size:19px;font-weight:700;color:var(--tx)}
     .sheet-cancel{background:none;border:0;color:var(--am);font-size:15px;font-weight:600;padding:6px}
+    /* G37: "bir daha gösterme" onay kutusu — Dizayn/prototype.html .cbrow/.cb'den
+       birebir taşındı (kulaklık uyarı sheet'i). */
+    .cbrow{
+      display:flex;align-items:center;gap:11px;width:100%;margin-top:16px;padding:12px 4px;
+      background:none;border:none;text-align:left;font-size:14px;font-weight:600;color:var(--tx-3);
+    }
+    .cbrow .cb{
+      flex:none;width:24px;height:24px;border-radius:8px;display:flex;align-items:center;
+      justify-content:center;font-size:15px;font-weight:800;color:transparent;
+      border:1.5px solid rgba(255,255,255,.22);
+    }
+    .cbrow.on .cb{color:#04231B;background:var(--gr);border-color:var(--gr)}
+    .cbrow.on{color:var(--tx-2)}
     .sheet-options{display:flex;flex-direction:column;gap:8px}
     .sheet-option{
       display:flex;justify-content:space-between;align-items:center;min-height:54px;padding:0 16px;

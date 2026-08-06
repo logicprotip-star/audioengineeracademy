@@ -221,6 +221,13 @@ const els = {
   lvlSheetTitle: document.getElementById("lvlSheetTitle"),
   lvlSheetClose: document.getElementById("lvlSheetClose"),
   lvlSheetBody: document.getElementById("lvlSheetBody"),
+  // G37: kulaklık uyarı sheet'i (Dizayn/prototype.html #hpSheet'ten)
+  hpSheetOverlay: document.getElementById("hpSheetOverlay"),
+  hpSheet: document.getElementById("hpSheet"),
+  hpSheetDesc: document.getElementById("hpSheetDesc"),
+  hpSheetConfirm: document.getElementById("hpSheetConfirm"),
+  hpSheetCancel: document.getElementById("hpSheetCancel"),
+  hpSheetAgain: document.getElementById("hpSheetAgain"),
   quitGameBtn: document.getElementById("quitGameBtn"),
   autoDiffAsk: document.getElementById("autoDiffAsk"),
   autoDiffSwitchBtn: document.getElementById("autoDiffSwitchBtn"),
@@ -1080,6 +1087,67 @@ function goBackFromSubpage(fallback = "menu") {
   goBack(fallback);
 }
 
+// G37: mod kartına tıklanınca GERÇEKTEN oyuna girme adımı — önceden renderModeGrid'in
+// click handler'ı İÇİNE gömülüydü, kulaklık uyarı sheet'i (bkz. openHeadphoneSheet)
+// "Kulaklığım takılı, başla" onayından SONRA da AYNI adımı çalıştırması gerektiği için
+// (prototipin hpConfirm()'ünün AYNI deseni) dışarı çıkarıldı — davranış DEĞİŞMEDİ,
+// sadece iki çağıran (doğrudan tıklama / sheet onayı) PAYLAŞIYOR.
+function enterMode(entry, realMode) {
+  // #gameTitle statik HTML'de "Frekans Bulma" — tek mod varken hiç güncellenmesi
+  // gerekmiyordu, artık her kart tıklamasında (moda özgü "eski başlık asılı kalır"
+  // riskini önden kapatmak için mod DEĞİŞMESE bile) doğru isimle senkronlanıyor.
+  if (els.gameTitle) els.gameTitle.textContent = entry.ad;
+  if (mode !== realMode) {
+    // Farklı bir moda geçiliyor — önceki modun round'u/sesi/ekran metni yeni moda
+    // SIZMASIN diye temiz bir sayfayla başlanır (aksi halde "Oyunu Başlat"a
+    // basılana kadar eski modun BAŞLIĞI/şıkları ekranda asılı kalırdı — bu, tek
+    // mod varken hiç mümkün olmayan bir geçişti).
+    audioEngine.stopAudio();
+    roundFlow.stopAll();
+    activeQuestion = null;
+    roundActive = false;
+    autoStopped = true;
+    mode = realMode;
+    syncAnswerFormatVisibility();
+    els.questionTitle.textContent = 'Başlamak için "Oyunu Başlat"a dokun.';
+    els.questionMeta.textContent = "";
+    if (els.freqInfo) els.freqInfo.classList.add("hidden");
+    if (els.answers) { els.answers.innerHTML = ""; els.answers.classList.add("hidden"); }
+    updateStartBtnLabel();
+    updateAbToggleUI();
+  }
+  goScreen("game");
+}
+
+// G37: kulaklık uyarı sheet'i — Dizayn/prototype.html'in #hpSheet/askHeadphones/
+// hpConfirm ÜÇLÜSÜNÜN AYNI deseni (bkz. o dosyadaki notlar). Sadece
+// mode.getMeta().kulaklikGerekli===true olan modlarda, prefs.hpWarning açıkken VE o
+// mod için "bir daha gösterme" işaretlenmemişken araya giriyor — üç modu da (bayrak/
+// genel toggle/mod-özel skip) TEK bir kontrol noktasında birleştiriyor.
+let pendingHpEntry = null, pendingHpRealMode = null;
+// Metin BİLEREK genel/basit tutuldu (spec: "mod bazlı metin ya da genel yeterli") —
+// prototipin "stereo bilgisi duyulmaz" ifadesi Reverb için YANLIŞ olurdu (reverb mono-
+// uyumlu bir efekt, stereo değil). Gelecekteki bir mod (Stereo Genişlik/Pan Konumu gibi
+// GERÇEKTEN kanal-ayrımına dayanan) kendi getMeta()'sına bir `kulaklikMetni` alanı
+// eklerse BURADAKİ genel metnin YERİNE geçer — mekanizma zaten hazır, yeni bir kod
+// değişikliği GEREKMEZ.
+const DEFAULT_HP_TEXT = "İnce farkları (derinlik, mekân hissi) doğru duymak için kulaklık kullan — telefon hoparlöründe bu detaylar kolayca kaybolur.";
+function openHeadphoneSheet(entry, realMode) {
+  pendingHpEntry = entry;
+  pendingHpRealMode = realMode;
+  const meta = realMode.getMeta();
+  if (els.hpSheetDesc) els.hpSheetDesc.textContent = meta.kulaklikMetni || DEFAULT_HP_TEXT;
+  if (els.hpSheetAgain) els.hpSheetAgain.classList.remove("on");
+  if (els.hpSheetOverlay) els.hpSheetOverlay.classList.add("open");
+  if (els.hpSheet) els.hpSheet.classList.add("open");
+}
+function closeHeadphoneSheet() {
+  if (els.hpSheetOverlay) els.hpSheetOverlay.classList.remove("open");
+  if (els.hpSheet) els.hpSheet.classList.remove("open");
+  pendingHpEntry = null;
+  pendingHpRealMode = null;
+}
+
 // Şimdilik tek mod var; kayıt defterinden beslenir, elle yazılmaz (bkz. core/registry.js).
 // Menü ızgarası: core/mode-catalog.js'teki TÜM egzersiz listesinden (14 kayıt)
 // besleniyor, motorlara göre gruplanıyor. Sadece registry.js'te GERÇEKTEN kayıtlı
@@ -1158,31 +1226,18 @@ function renderModeGrid() {
       `;
       card.addEventListener("click", () => {
         if (playable) {
-          // #gameTitle statik HTML'de "Frekans Bulma" — tek mod varken hiç
-          // güncellenmesi gerekmiyordu, artık her kart tıklamasında (moda özgü
-          // "eski başlık asılı kalır" riskini önden kapatmak için mod DEĞİŞMESE
-          // bile) doğru isimle senkronlanıyor.
-          if (els.gameTitle) els.gameTitle.textContent = entry.ad;
-          if (mode !== realMode) {
-            // Farklı bir moda geçiliyor — önceki modun round'u/sesi/ekran metni
-            // yeni moda SIZMASIN diye temiz bir sayfayla başlanır (aksi halde
-            // "Oyunu Başlat"a basılana kadar eski modun BAŞLIĞI/şıkları ekranda
-            // asılı kalırdı — bu, tek mod varken hiç mümkün olmayan bir geçişti).
-            audioEngine.stopAudio();
-            roundFlow.stopAll();
-            activeQuestion = null;
-            roundActive = false;
-            autoStopped = true;
-            mode = realMode;
-            syncAnswerFormatVisibility();
-            els.questionTitle.textContent = 'Başlamak için "Oyunu Başlat"a dokun.';
-            els.questionMeta.textContent = "";
-            if (els.freqInfo) els.freqInfo.classList.add("hidden");
-            if (els.answers) { els.answers.innerHTML = ""; els.answers.classList.add("hidden"); }
-            updateStartBtnLabel();
-            updateAbToggleUI();
+          // G37: mod-özel kulaklık uyarısı — bkz. openHeadphoneSheet dosya başı notu.
+          // meta.kulaklikGerekli her modun KENDİ getMeta()'sından (mode-catalog.js'in
+          // alanı sadece referans, diğer mod alanları gibi — bkz. o dosyanın başındaki
+          // yorum) — Reverb HARİÇ altı mod bunu false döndürüyor, sheet ONLARDA hiç
+          // açılmıyor.
+          const meta = realMode.getMeta();
+          const skipped = !!(prefs.hpSkip && prefs.hpSkip[entry.id]);
+          if (meta.kulaklikGerekli && prefs.hpWarning && !skipped) {
+            openHeadphoneSheet(entry, realMode);
+            return;
           }
-          goScreen("game");
+          enterMode(entry, realMode);
           return;
         }
         if (realMode && !meetsLevel) { toast("Seviye yetersiz", `Bu egzersiz Seviye ${entry.unlockLevel}'de açılır.`); return; }
@@ -3002,6 +3057,27 @@ function closeLevelSheet() {
 if (els.levelChip) els.levelChip.addEventListener("click", openLevelSheet);
 if (els.lvlSheetClose) els.lvlSheetClose.addEventListener("click", closeLevelSheet);
 if (els.lvlSheetOverlay) els.lvlSheetOverlay.addEventListener("click", closeLevelSheet);
+
+// G37: kulaklık uyarı sheet'i — "Bir daha gösterme" kutusunun durumu, prototipin
+// hpConfirm()'üyle AYNI şekilde SADECE onay (Kulaklığım takılı, başla) anında okunuyor,
+// checkbox'a tıklamanın kendisi HİÇBİR ŞEY kaydetmiyor — kullanıcı işaretleyip sonra
+// "Geri dön" derse hiçbir kalıcı değişiklik olmaz (prototipteki AYNI davranış).
+if (els.hpSheetAgain) els.hpSheetAgain.addEventListener("click", () => {
+  els.hpSheetAgain.classList.toggle("on");
+});
+if (els.hpSheetCancel) els.hpSheetCancel.addEventListener("click", closeHeadphoneSheet);
+if (els.hpSheetOverlay) els.hpSheetOverlay.addEventListener("click", closeHeadphoneSheet);
+if (els.hpSheetConfirm) els.hpSheetConfirm.addEventListener("click", () => {
+  if (!pendingHpEntry || !pendingHpRealMode) { closeHeadphoneSheet(); return; }
+  if (els.hpSheetAgain && els.hpSheetAgain.classList.contains("on")) {
+    if (!prefs.hpSkip) prefs.hpSkip = {};
+    prefs.hpSkip[pendingHpEntry.id] = true;
+    storage.savePrefs(prefs);
+  }
+  const entry = pendingHpEntry, realMode = pendingHpRealMode;
+  closeHeadphoneSheet();
+  enterMode(entry, realMode);
+});
 
 // "Oyundan çık" (prototype.html: gameSettingsSheet içindeki kırmızı buton, go('s-menu')).
 // backBtn ile aynı güvenli çıkış deseni: round aktifse önce duraklat, sonra menüye dön —

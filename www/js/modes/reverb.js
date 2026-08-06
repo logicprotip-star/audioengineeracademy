@@ -219,7 +219,13 @@ export function getMeta() {
   return {
     id: MODE_ID,
     motor: 2,
-    kulaklikGerekli: false,
+    // G37: true — reverb kuyruğunun ince decay/pre-delay farkları (özellikle AYNI-tip
+    // turlarda, bkz. G35) telefon hoparlöründe kolayca kaybolur; kulaklık derinlik/
+    // mekan hissini net verir. G35'te bu alan YANLIŞLIKLA false bırakılmıştı (Kompresör
+    // şablonundan kopyalanırken düzeltilmemiş) — kulaklikGerekli o zaman HİÇBİR YERDE
+    // okunmadığı için etkisizdi, G37'de gerçek bir uyarı sheet'i buna bağlandığı için
+    // DOĞRU değere düzeltildi (mode-catalog.js'teki reverb girdisi zaten true'ydu).
+    kulaklikGerekli: true,
     uyumluKaynaklar: SOURCE_GROUPS.flatMap(g => g.sources.map(s => s.id)),
     // NOT (Kompresör'le AYNI karar): mode-catalog.js'te tier:"pro" — ama bu
     // alan GERÇEK kilitlemede KULLANILMIYOR (asıl kaynak mode-catalog.js'in

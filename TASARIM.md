@@ -37,8 +37,8 @@ zaten çalışıyormuş, ÖZET'te hâlâ "Yok" yazıyordu) düzeltildi. Detay: D
 | Mod kartı: kilit ikonu (seviye) | ✓ | ✓ | Tam | — |
 | Mod kartı: "Sv N" seviye çip'i | ✓ | ✓ | **Tam (G36)** | Prototipte kilit ikonuyla AYNI slotta (birbirini dışlıyorlardı); kodda `.mode-top-right`te Pro rozetinden AYRI bir çip olarak, SADECE oynanabilir kartlarda (`progress.modeLevel`, oyun-içi `#levelChip`'in AYNI kaynağı) — Pro+Sv aynı kartta yan yana durabiliyor |
 | Mod kartı: "İLERİ" rozeti (adv) | ✓ | ✗ | **Yok** | `ADV_SVG` tasarımda var, kodda karşılığı bulunamadı |
-| Mod kartı: kulaklık ikonu (needsHp) | ✓ | ✗ | **Yok** | Kart üzerinde kulaklık ikonu bulunamadı — sadece meta alanı (`kulaklikGerekli`) var, görsel karşılığı yok |
-| Mod kartına tıklayınca kulaklık uyarı sheet'i | ✓ | ✗ | **Yok** | `hpSheet`/`askHeadphones()` karşılığı bulunamadı; tıklayınca doğrudan oyuna giriyor ya da (kilitliyse) "Yakında" toast'ı |
+| Mod kartı: kulaklık ikonu (needsHp) | ✓ | ✗ | **Yok** | HÂLÂ açık — kart üzerinde kulaklık ikonu yok, `kulaklikGerekli` (G37'den beri GERÇEKTEN okunuyor) hâlâ kartın KENDİSİNDE görsel bir karşılığa bağlı değil, SADECE tıklanınca açılan sheet'e bağlı (bkz. alt satır) |
+| Mod kartına tıklayınca kulaklık uyarı sheet'i | ✓ | ✓ | **Tam (G37)** | `hpSheet` (🎧 ikon+başlık+açıklama+2 buton+"bir daha gösterme") + mod-özel bayrak (`getMeta().kulaklikGerekli`, SADECE Reverb'de true) + genel toggle (`prefs.hpWarning`) + mod-BAZLI kalıcı skip (`prefs.hpSkip[modeId]`) — DÖRDÜ birlikte doğru çalışıyor (bkz. DURUM.md BİTTİ). Prototipin `askHeadphones()`/`hpConfirm()` deseniyle BİREBİR aynı akış |
 | Sekme çubuğu (Antrenman/İlerleme/Araçlar) | ✓ | ✓ | Tam | — |
 
 ## EKRAN 2 — OYUN (Motor 1: "Frekans Bulma" ve türevleri)
@@ -201,7 +201,7 @@ zaten çalışıyormuş, ÖZET'te hâlâ "Yok" yazıyordu) düzeltildi. Detay: D
 
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |
 |---|---|---|---|---|
-| Kulaklık uyarısı sheet'i (mod özel, "bu modda bir daha gösterme") | ✓ | ✗ | **Yok** | Karşılığı bulunamadı (yukarıda da not edildi) |
+| Kulaklık uyarısı sheet'i (mod özel, "bu modda bir daha gösterme") | ✓ | ✓ | **Tam (G37)** | bkz. EKRAN 1 tablosu + DURUM.md BİTTİ |
 | Seviye bilgisi sheet'i (`lvlSheet`) | ✓ | ✓ | Tam (uyarlanmış) | `Z6` — bkz. EKRAN 2 satırı yukarıda |
 | Motor 3 aşama sheet'i | ✓ | ✗ | N/A | Motor 3 kodda yok |
 | Kaynak çifti sheet'i (Motor 3) | ✓ | ✗ | N/A | Motor 3 kodda yok |
@@ -242,18 +242,20 @@ zaten çalışıyormuş, ÖZET'te hâlâ "Yok" yazıyordu) düzeltildi. Detay: D
 
 ---
 
-## ÖZET (06.08.2026 itibarıyla güncellendi — G36 dahil)
+## ÖZET (06.08.2026 itibarıyla güncellendi — G37 dahil)
 
 **Toplam öğe sayısı (bu tabloda listelenen ayrı satırlar): 141** (108 → 140 → 141, G36'da
-mod kartı "Sv N" çip'i için +1 yeni satır; sayım `awk` ile Durum sütunu [5. alan] tek tek
-sınıflandırılarak DOĞRULANDI, tahmin değil)
+mod kartı "Sv N" çip'i için +1 yeni satır; G37'de yeni satır eklenmedi, sadece 2 satırın
+Durumu değişti; sayım `awk` ile Durum sütunu [5. alan] tek tek sınıflandırılarak
+DOĞRULANDI, tahmin değil)
 
-- **Tam olanlar: 80** ("Tam" ailesi — G36'da +3: Ana Menü seviye rozeti, mod kartı "Sv N"
-  çip'i, "Bugünün Önerisi" kartının artık Tam sayılması [odak-hedefleme notu STALE
-  çıktı, bkz. o satır])
+- **Tam olanlar: 82** ("Tam" ailesi — G37'de +2: mod kartına tıklayınca kulaklık uyarı
+  sheet'i, DİĞER SHEET'LER'deki kulaklık uyarısı sheet'i satırı; ikisi de `hpSheet`
+  mekanizmasının parçası, bkz. DURUM.md G37)
 - **Kısmi olanlar: 25** ("Kısmi" ailesi — "Farklı model" [3, Motor 2] + "Farklı biçim,
-  daha zengin içerik" [1] dahil)
-- **Hiç olmayanlar ("Yok"): 22** (-1 — Ana Menü'nün seviye kartı satırı Yok'tan Tam'a geçti)
+  daha zengin içerik" [1] dahil, değişmedi)
+- **Hiç olmayanlar ("Yok"): 20** (-2 — kulaklık uyarı sheet'iyle ilgili iki satır Yok'tan
+  Tam'a geçti; mod kartındaki kulaklık İKONU [needsHp göstergesi] hâlâ Yok, o ayrı satır)
 - **N/A: 4** (değişmedi)
 - **Kodda olup tasarımda olmayanlar ("Ters fark"): 10** (değişmedi)
 
@@ -272,8 +274,13 @@ sınıflandırılarak DOĞRULANDI, tahmin değil)
    (`5c608f4`) beri **Tam** olarak kaydediyordu; G36 sırasında kod okumasıyla (daily-tip
    butonunun `mode.FOCUS_RANGES` kullandığı) YENİDEN doğrulandı. Bu ÖZET listesi
    güncellenmeden kalmış bir çelişkiydi, düzeltildi.
-6. Mod özel kulaklık uyarısı sheet'i (`hpSheet`) — HÂLÂ Yok, `kulaklikGerekli` meta alanı
-   hâlâ hiçbir görsel karşılığa bağlı değil (bkz. RESKIN RAPORU, örnek d)
+6. ~~Mod özel kulaklık uyarısı sheet'i (`hpSheet`) — Yok, `kulaklikGerekli` meta alanı
+   hiçbir görsel karşılığa bağlı değil~~ → **G37'de YAPILDI**: `kulaklikGerekli:true` olan
+   modlara (şu an sadece Reverb) girişte prototipteki sheet açılıyor, "Kulaklığım takılı,
+   başla" / "Geri dön" + "Bu modda bir daha gösterme" (mod-özel kalıcı) çalışıyor; genel
+   ayarlar anahtarı (`prefs.hpWarning`) üst kesici olarak duruyor. Mod kartı üzerindeki
+   kulaklık İKONU (bkz. RESKIN RAPORU örnek d'nin ikinci yarısı) hâlâ eklenmedi, o kısım
+   açık kaldı.
 7. ~~Menüdeki seviye/XP kartı (`.lvl-badge`) — Yok~~ → **G36'da YAPILDI** (bkz. DURUM.md
    BİTTİ, RESKIN RAPORU örnek b)
 
@@ -405,12 +412,17 @@ dB farkına göre) + "Fark: +6 dB" metni. Kodda dB Seviyesi'nin KENDİ farklı g
 biçimi hiç uygulanmadı. İkisi de FONKSİYONEL olarak aynı bilgiyi taşıyor, ama GÖRSEL
 biçim tamamen farklı.
 
-**(d) Kulaklık uyarısı ekranı:**
-Prototipte tam, hazır bir sheet (`#hpSheet`) VAR — ikon+başlık+açıklama+2 buton+"bir
-daha gösterme" checkbox. Kodda `kulaklikGerekli` meta alanı TANIMLI ama HİÇBİR YERDE
-okunmuyor/kullanılmıyor — ne bir ikon, ne bir uyarı sheet'i var. Menüdeki genel/statik
-"🎧 En iyi sonuç için kulaklık kullan" metni (tüm modlarda aynı, koşulsuz) bunun YERİNE
-GEÇMİYOR — mod-özel/koşullu uyarı hâlâ tamamen eksik.
+**(d) Kulaklık uyarısı ekranı — G37'de YAPILDI:**
+Prototipteki `#hpSheet` (ikon+başlık+açıklama+2 buton+"bir daha gösterme" checkbox)
+BİREBİR taşındı, `kulaklikGerekli` artık GERÇEKTEN okunuyor (`renderModeGrid`'in click
+handler'ında). Menüdeki genel/statik "🎧 En iyi sonuç için kulaklık kullan" metnini
+kontrol eden AYNI toggle (`prefs.hpWarning`) artık BU sheet'i de kapsıyor — iki mekanizma
+BİRLEŞTİ, ayrı bir tercih EKLENMEDİ. Kurulurken İKİ mod dosyasında (`frekans-bulma.js`
+true→false, `reverb.js` false→true) gerçek bir tutarsızlık bulunup düzeltildi (bkz.
+DURUM.md BİTTİ) — `kulaklikGerekli` ÖNCEDEN hiç okunmadığı için bu hatalar etkisizdi.
+**Hâlâ AÇIK olan tek parça:** kartın ÜZERİNDE (menü ızgarasında) bir kulaklık İKONU yok —
+sadece TIKLAYINCA açılan sheet var, prototipteki `HP_SVG` kart rozeti koda geçirilmedi
+(küçük, bağımsız bir ek iş, bu turun kapsamı dışında bırakıldı).
 
 **(e) Renkler prototipe yakınsasın — G36'da YAPILDI:**
 Büyük ölçüde ZATEN yakınsanmıştı (bkz. madde 3) — `:root` token'ları birebir aynı. Tek
@@ -432,8 +444,9 @@ bileşen" sorunu — renklerin kendisi zaten doğruydu.
      değişiklik).
 
 **2. Sonra mod-özel/ekran-özel eksikler (izole, tek tek):**
-   - Kulaklık uyarı sheet'i (izole yeni bileşen, mevcut akışa TEK bir kontrol noktası
-     eklenir) — HÂLÂ AÇIK
+   - ~~Kulaklık uyarı sheet'i (izole yeni bileşen, mevcut akışa TEK bir kontrol noktası
+     eklenir)~~ **G37'de YAPILDI** (bkz. DURUM.md BİTTİ) — kart üzerindeki kulaklık İKONU
+     hâlâ AÇIK (küçük, bağımsız)
    - dB Seviyesi'nin bar-karşılaştırması (mevcut gauge'un YANINA/YERİNE, mod dosyasına
      dokunmadan sadece render katmanında) — HÂLÂ AÇIK
    - Kalibrasyon/İlerleme/Araçlar'daki küçük eksik butonlar/göstergeler — HÂLÂ AÇIK
