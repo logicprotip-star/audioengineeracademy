@@ -1,190 +1,229 @@
-// "Tonal Denge" — Motor 2'nin ÜÇÜNCÜ modu (Kompresör/Reverb şablonundan
-// TÜRETİLDİ, bkz. kompresor.js dosya başındaki "MOTOR 2 ŞABLONU" notu).
-// AYNI oyun tipi: 3 ses (A/B/C), AYNI kaynak, İKİSİ NÖTR (dengeli), biri
-// DENGESİZ (spektral tilt uygulanmış) — kullanıcı dengesiz olanı üç şıktan
-// (%33 şans) bulur.
+// "Tonal Denge" — G45: TrainYourEars tarzı CANLI EQ DÜZELTME modu. Motor 2'de
+// duruyor (menüde "Hangisi farklı" grubunun altında, G44'ten miras) ama ARTIK bir
+// "hangisi farklı" (odd-one-out) oyunu DEĞİL — three-way-cards.js'i HİÇ KULLANMIYOR,
+// Kompresör/Reverb'in A/B/C şablonundan TAMAMEN AYRIŞTI (task'ın açık kararı).
+// G44'ün odd-one-out kodu (variants/oddIndex/choices/shape/imbalanceScore, three-way
+// render delegasyonu) BURADAN TAMAMEN KALDIRILDI — ölü kod bırakılmadı.
 //
-// KOMPRESÖR/REVERB'DEN FARKLI, TONAL DENGE'YE ÖZGÜ BİR KATMAN: "aynı" ikili
-// Kompresör'de COMP_BASE_K=0.5 (hafif kompresyonlu), Reverb'de her zaman BİR
-// reverb tipi uygulanmış — burada ise "aynı" ikili TAMAMEN NÖTR (k=0, hiçbir
-// filtre etkisi yok). Gerçek mixte bozuk tonal denge İSTİSNA, dengeli mix
-// KURALDIR — bu yüzden referans iki ses "temiz", tek ses "bozuk" (task'ın
-// açık kararı). Bu, oddK'nin bir BAZ değerden İKİ yöne uzaklaşması yerine
-// (Kompresör'ün pickOddK'sı) DOĞRUDAN kGap kadar (0'dan) uzaklaşması demek —
-// clamp'e hiç gerek yok, negatif/pozitif taşma riski YOK (aşağıdaki
-// pickKGap'in [FLOOR,1] clamp'i sadece jitter'ın 1'i AŞMASINA karşı savunma).
+// ═══════════════════════════════════════════════════════════════════════════
+// MEKANİK
+// ═══════════════════════════════════════════════════════════════════════════
+// Ses çalar (groove/upload — dolu mix bağlamı, bkz. getMeta). Uygulama GİZLİ bir
+// tonal bozukluk uygular: N bandın (4/5/6, SEANS İÇİ soru sırasına göre artar —
+// bkz. bandCountForSessionIndex) bir KISMINA ya da TÜMÜNE EQ kayması (peaking/shelf
+// gain, bkz. bandsForQuestion). Kullanıcı HER bant için bir kaydırıcıyı CANLI
+// oynatarak sesi nötüre (düz/dengeli) geri getirmeye çalışır — kaydırdıkça ses
+// GERÇEK ZAMANLI değişir. Bu, audio-engine.js'in filtre zincirini YENİDEN
+// KURMADAN çalışır: applyProcessing SADECE round başında BİR KEZ çağrılır (üç-yönlü
+// modların aksine burada bir A/B/C önizleme döngüsü YOK), N BiquadFilterNode kurar
+// ve referanslarını modül-seviyesi bir değişkende (liveBandNodes) SAKLAR — app.js
+// kaydırıcı her hareket ettiğinde setLiveBandGain() ile O DÜĞÜMÜN gain'ini DOĞRUDAN
+// (grafiği bozmadan, tıklama riski olmadan, setTargetAtTime ile yumuşak) günceller.
 //
-// KOMPRESÖR ŞABLONUNDAN MİRAS ALINANLAR:
-//   1. TEK ALGISAL EKSEN — düşük/orta/tiz kazançların HEPSİ k'den TÜRER
-//      (buildVariant), "imbalanceScore" (en büyük mutlak sapma, dB) TEK bir
-//      "ne kadar dengesiz" ekseni (Kompresör'ün gainReductionDb'siyle AYNI rol).
-//   2. previewLetter — applyProcessing HANGİ harfin parametrelerini
-//      okuyacağını previewLetter'dan öğrenir.
-//   3. Öğretim şablonları TEK yerde (SHAPE_INFO).
-//   4. Merkezi zorluk eğrisi (TONAL_CURVE_CONFIG + logLerp + applyPostCapFloor,
-//      "kolaylaşma yok" invaryantı, node ile doğrulandı — bkz. TONAL_CURVE_CONFIG
-//      üstündeki not) — AYNI kalıp.
+// Puanlama: her bantta KALAN sapma (bugDb + kullanıcının düzeltmesi) HESAPLANIR —
+// mükemmel düzeltme residual=0 demektir. Ortalama sapma → yakınlık skoru (0-100).
+// evaluateAnswer SAF kalır (audioCtx'e hiç dokunmaz, sadece question.bands +
+// kullanıcının {bandId: correctionDb} haritasını karşılaştırır).
 //
-// REVERB'DEN MİRAS ALINAN KADEMELİ KATMAN: kolay/orta/zor AYNI "şekil ailesi"
-// içinde (tilt) miktar farkı; PRO (ve proplus)'ta %50 ihtimalle YA çok ince
-// bir tilt YA DA "şekil değişimi" — iki-bölgeli karmaşık bozukluk (smile/
-// frown, bkz. TONAL_COMPLEX_SHAPE_POSITION_THRESHOLD) — Reverb'in TİP
-// değişiminin (Room/Hall/Plate) AYNI "öğretmen yöntemi" felsefesi, burada
-// "şekil" (tilt/smile/frown) ekseninde.
+// ═══════════════════════════════════════════════════════════════════════════
+// KOMPRESÖR/REVERB'DEN MİRAS ALINANLAR (Motor 2 şablonunun HÂLÂ geçerli kısmı)
+// ═══════════════════════════════════════════════════════════════════════════
+//   - Merkezi zorluk eğrisi (TONAL_CURVE_CONFIG + logLerp + applyPostCapFloor,
+//     "kolaylaşma yok" invaryantı, node ile doğrudan hesaplandı).
+//   - Öğretim şablonları TEK yerde (BAND_MIX_WORDS).
+//   - previewLetter YOK artık (tek "canlı" ses var, A/B/C varyant kavramı yok) —
+//     applyProcessing HER ZAMAN question.bands'i okur, previewLetter parametresi
+//     G30'dan beri ilk kez bu modda YOK.
 //
-// TILT UYGULAMASI: low-shelf (250 Hz) + high-shelf (4000 Hz) BİRLİKTE, ZIT
-// yönde hareket eder (gerçek bir "mastering tilt EQ"nun AYNI tekniği — TEK
-// bant değil, GENİŞ bir eğim). smile/frown'da ARAYA bir orta-bant peaking
-// (1000 Hz) eklenir (bkz. buildVariant) — bas+tiz aynı yöne, orta ZIT yöne.
+// three-way-cards.js'in ARTIK kullanılmadığı, THREE_WAY_MODE_IDS'ten çıkarıldığı
+// (bkz. app.js) — Kompresör/Reverb DOKUNULMADAN kendi A/B/C akışlarını sürdürüyor,
+// bu SADECE Tonal Denge'nin ayrışması.
 //
-// KAYNAK: tilt SADECE dolu spektrumda (çok sayıda eş zamanlı frekans
-// bileşeni) duyulur — tek nota bir bas/gitar/vokal ya da tek bir davul
-// vuruşu tonal dengeyi GÖSTERMEZ (görece "boş" bir spektrumda "eğim" diye bir
-// şey algılanamaz). Kataloğumuzda BUNU karşılayan TEK örnek "groove" (90 BPM
-// davul döngüsü — kick+snare+hihat AYNI ANDA, gerçek bir "mix bağlamı").
-// Diğer tüm örnekler (bas/gitar/vokal TEK nota/tek fraz, kick/snare/hihat/tom
-// TEK vuruş, sentetik/gürültü TEST tonu) BİLİNÇLİ dışlandı — bkz. getMeta.
-// KULAKLA DOĞRULANMADI — diğer yedi modun AYNI dürüstlük notu.
+// KAYNAK (G44'ten DEĞİŞMEDİ): tilt/EQ düzeltmesi SADECE dolu spektrumda anlamlı —
+// SADECE "groove" (davul döngüsü, gerçek mix bağlamı) + "upload" (kullanıcının
+// kendi dosyası, içeriği bilinmediği için varsayılan AÇIK).
+//
+// KULAKLA DOĞRULANMADI — diğer sekiz modun AYNI dürüstlük notu: sayılar makul bir
+// BAŞLANGIÇ noktası, kesin nihai değer iddia edilmiyor.
 
 import { compatibleSourceIds } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
-import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState } from "../core/three-way-cards.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
-// HER moddan mode-agnostik olarak okur — diğer yedi modla AYNI re-export deseni.
-// Tonal Denge'nin AKSİNE Kompresör/Reverb'in tersine burada frekans ekseni
-// GERÇEKTEN kullanılıyor (bkz. drawOverlay) — tilt bir frekans-yanıtı eğrisi.
+// HER moddan mode-agnostik olarak okur — diğer sekiz modla AYNI re-export deseni.
 export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound };
 
 export const MODE_ID = "tonal-denge";
 export const MAX_LIVES = 5;
-// Motor 2'nin ("A/B/C odd-one-out") HANGİ modları kapsadığını app.js TEK
-// yerde (THREE_WAY_MODE_IDS) tutuyor — bu bayrak SADECE dokümantasyon/
-// kendi-kendini-açıklama amaçlı, app.js kendi listesini kullanıyor.
-export const THREE_WAY = true;
+// G44'ün THREE_WAY=true export'u BİLEREK KALDIRILDI — bu mod artık three-way
+// DEĞİL, app.js THREE_WAY_MODE_IDS listesinden de çıkarıldı (bkz. o dosya).
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TİLT PARAMETRELERİ — k ∈ [0,1] "dengesizlik miktarı" (Kompresör'ün k'sının
-// AYNI rolü, ama BAZ=0 — bkz. dosya başı not). SHAPE_IDS dört "aile":
-//   tilt-bass    — bas↑ tiz↓ (low-shelf +, high-shelf -)
-//   tilt-treble  — tiz↑ bas↓ (low-shelf -, high-shelf +)
-//   smile        — bas+tiz↑ orta↓ (iki bölgeli, PRO katmanı)
-//   frown        — bas+tiz↓ orta↑ ("ters smile", PRO katmanı)
-// KULAKLA DOĞRULANMADI — diğer yedi modun AYNI dürüstlük notu.
+// BANT TANIMLARI — frekans-bulma.js'in FA_ZONES'undaki (SUB/BAS/ALT-ORTA/ORTA/
+// ÜST-ORTA/TİZ) AYNI 6 bölgeden TÜRETİLİR (tek kaynak — sınırlar orada değişirse
+// burada da otomatik güncellenir). FA_ZONES kendisi bir MERKEZ frekans TUTMUYOR
+// (sadece [a,b) aralığı) — centerFreq burada geometrik ortadan (log ölçekte
+// algısal olarak doğru merkez, standart EQ pratiği) TÜRETİLİR.
 // ═══════════════════════════════════════════════════════════════════════════
-export const SHAPE_IDS = ["tilt-bass", "tilt-treble", "smile", "frown"];
-export const TILT_MAX_DB = 10; // k=1'de her bandın (low/mid/high) ULAŞABİLECEĞİ azami kazanç/kesinti
-export const SHELF_LOW_FREQ = 250; // Hz — bas/orta sınırı (low-shelf)
-export const SHELF_HIGH_FREQ = 4000; // Hz — orta/tiz sınırı (high-shelf)
-export const MID_PEAK_FREQ = 1000; // Hz — smile/frown'un orta-bant peaking'i
-export const MID_PEAK_Q = 0.7; // geniş bir tümsek/çukur (dar bir tek-bant EQ DEĞİL)
+const ZONE_META = [
+  { id: "sub", label: "SUB" },
+  { id: "bas", label: "BAS" },
+  { id: "alt-orta", label: "ALT-ORTA" },
+  { id: "orta", label: "ORTA" },
+  { id: "ust-orta", label: "ÜST-ORTA" },
+  { id: "tiz", label: "TİZ" }
+];
+export const BAND_DEFS = FA_ZONES.map((zone, i) => ({
+  id: ZONE_META[i].id,
+  label: ZONE_META[i].label,
+  freq: Math.round(Math.sqrt(zone.a * zone.b) * 100) / 100
+}));
+const BAND_DEFS_BY_ID = Object.fromEntries(BAND_DEFS.map(b => [b.id, b]));
+const BAND_ORDER = BAND_DEFS.map(b => b.id); // düşükten yükseğe, KANONİK sıra
 
-// SAF FONKSİYON. shape="flat" (k=0 ya da hiç fark etmez) TÜM kazançları 0
-// döndürür — "nötr/dengeli" referans ikili BUNU kullanır. imbalanceScore =
-// en büyük mutlak banda-kazancı (Kompresör'ün gainReductionDb'sinin AYNI
-// rolü) — HER şekil ailesinde bantlar EŞİT büyüklükte hareket ettiği için
-// (bkz. aşağıdaki dallar) bu skor şekilden BAĞIMSIZ, TEK bir "ne kadar
-// dengesiz" ekseni.
-export function buildVariant(letter, shape, k) {
-  let lowGainDb = 0, midGainDb = 0, highGainDb = 0;
-  if (shape === "tilt-bass") {
-    lowGainDb = k * TILT_MAX_DB;
-    highGainDb = -k * TILT_MAX_DB;
-  } else if (shape === "tilt-treble") {
-    lowGainDb = -k * TILT_MAX_DB;
-    highGainDb = k * TILT_MAX_DB;
-  } else if (shape === "smile") {
-    lowGainDb = k * TILT_MAX_DB;
-    highGainDb = k * TILT_MAX_DB;
-    midGainDb = -k * TILT_MAX_DB;
-  } else if (shape === "frown") {
-    lowGainDb = -k * TILT_MAX_DB;
-    highGainDb = -k * TILT_MAX_DB;
-    midGainDb = k * TILT_MAX_DB;
-  }
-  const imbalanceScore = Math.max(Math.abs(lowGainDb), Math.abs(midGainDb), Math.abs(highGainDb));
-  return { letter, shape, k, lowGainDb, midGainDb, highGainDb, imbalanceScore };
+// 4 bant = task'ın kendi örneği ("bas/alt-orta/üst-orta/tiz gibi") — SUB ve ORTA
+// dışarıda. 5 bant = ORTA geri eklenir (mix netliği için en kritik bölgelerden).
+// 6 bant = SUB de eklenir, TAM liste. Kademeli EKLEME (çıkarma değil) — task'ın
+// "bant sayısı arttıkça zorlaşır" isteğiyle örtüşür: her yeni bant ekstra bir
+// kaydırıcı + ekstra bir "bunu da nötr tut" sorumluluğu demek.
+export const BAND_SET_4 = ["bas", "alt-orta", "ust-orta", "tiz"];
+export const BAND_SET_5 = ["bas", "alt-orta", "orta", "ust-orta", "tiz"];
+export const BAND_SET_6 = ["sub", "bas", "alt-orta", "orta", "ust-orta", "tiz"];
+
+// SAF FONKSİYON.
+export function bandIdsForCount(count) {
+  if (count <= 4) return BAND_SET_4;
+  if (count === 5) return BAND_SET_5;
+  return BAND_SET_6;
+}
+
+// SAF FONKSİYON. task'ın kararı: Soru 1-4 (index 0-3) → 4 bant, Soru 5-8 (index
+// 4-7) → 5 bant, Soru 9+ (index 8+) → 6 bant — "10 Soruluk Bölüm"ün DIŞINDA
+// (Serbest/sonsuz modda) da index 8'den sonra 6 bantta SABİT kalır, yeni bir üst
+// sınır İCAT EDİLMEDİ (task SADECE soru 9-10'u belirtti, 11+ için doğal uzantı).
+export function bandCountForSessionIndex(sessionQuestionIndex) {
+  const idx = Math.max(0, Math.floor(sessionQuestionIndex || 0));
+  if (idx < 4) return 4;
+  if (idx < 8) return 5;
+  return 6;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STATİK DIFFICULTY — diğer yedi modla AYNI ikili rol: (a) settings.
+// KAYDIRICI ARALIĞI — task'ın kendi önerisi (±12dB), orta nokta 0 = nötr.
+// ═══════════════════════════════════════════════════════════════════════════
+export const SLIDER_MIN_DB = -12;
+export const SLIDER_MAX_DB = 12;
+export const SLIDER_STEP_DB = 0.5;
+const BAND_PEAK_Q = 1.0; // orta bantlar (peaking) için sabit Q — geniş bir "bölge" eğrisi, cerrahi dar bant DEĞİL
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATİK DIFFICULTY — diğer sekiz modla AYNI ikili rol: (a) settings.
 // difficultyPosition verilmezse fallback, (b) "Sabit" modun tier-adı çapası,
-// (c) proplus için tek kaynak. `options` HER ZAMAN 3 (A/B/C).
-// kGap: dengesiz olanın k'sinin 0'dan (NÖTR baz) ne kadar UZAKTA olacağı —
-// küçük=zor (tilt neredeyse fark edilmez). Kolay = EKSTREM (k'ye yakın 1,
-// bariz eğim), zorlukla ince nüansa iniyor (öğretmen yöntemi, Kompresör/
-// Reverb'in AYNI dersi).
+// (c) proplus için tek kaynak. `options` alanı bu modda SEMANTİK OLARAK
+// ANLAMSIZ (renderLevelSheet'in TÜM modlarda GENERİK okuduğu bir "şık sayısı"
+// alanı — burada şık YOK, kaydırıcı var; bkz. DURUM.md'nin ÖNCEDEN kaydedilmiş
+// "renderLevelSheet TEK bir dil konuşuyor" notu, bu mod da AYNI bilinen boşluğu
+// miras alıyor) — SADECE "undefined" yazmasın diye nominal bir değer.
 //
-// KULAKLA DOĞRULANMADI — diğer yedi modun AYNI dürüstlük notu.
+// disturbDb: gizli bozukluğun büyüklüğü — küçük=zor (ince, fark edilmesi güç).
+// time: diğer modlardan BİLEREK daha UZUN — bu görev TEK bir tıklama değil, N
+// kaydırıcıyı dinleye dinleye ayarlamak; tek-cevaplı modların süresiyle
+// KIYASLANAMAZ (task'ın "canlı EQ" isteği doğal olarak daha yavaş bir etkileşim).
+//
+// KULAKLA DOĞRULANMADI — diğer sekiz modun AYNI dürüstlük notu.
 export const DIFFICULTY = {
-  easy: { label: "Kolay", xp: 16, options: 3, time: 18, lives: MAX_LIVES, kGap: 0.95 },
-  medium: { label: "Orta", xp: 24, options: 3, time: 15, lives: MAX_LIVES, kGap: 0.55 },
-  hard: { label: "Zor", xp: 34, options: 3, time: 13, lives: MAX_LIVES, kGap: 0.28 },
-  pro: { label: "Pro", xp: 50, options: 3, time: 10, lives: MAX_LIVES, kGap: 0.12 },
-  proplus: { label: "Pro Plus (Çok Bantlı)", xp: 50, options: 3, time: 10, lives: MAX_LIVES, kGap: 0.12 }
+  easy: { label: "Kolay", xp: 18, options: 5, time: 26, lives: MAX_LIVES, disturbDb: 9 },
+  medium: { label: "Orta", xp: 28, options: 5, time: 22, lives: MAX_LIVES, disturbDb: 5 },
+  hard: { label: "Zor", xp: 40, options: 5, time: 18, lives: MAX_LIVES, disturbDb: 2.8 },
+  pro: { label: "Pro", xp: 58, options: 5, time: 15, lives: MAX_LIVES, disturbDb: 1.3 },
+  proplus: { label: "Pro Plus (Çok Bantlı)", xp: 58, options: 5, time: 15, lives: MAX_LIVES, disturbDb: 1.3 }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ZORLUK EĞRİSİ — Kompresör/Reverb'in BAŞTAN-doğru-kalibrasyon yöntemiyle
-// bağlı. AT_1 statik easy değeriyle birebir aynı. AT_CAP + FLOOR node ile
-// DOĞRUDAN hesaplanıp İKİ koşulu birlikte sağlayacak şekilde ÖNCEDEN çözüldü:
-//   (1) representativeLevelForTier'ın HİÇBİR temsilci seviyesinde eski
-//       statik tablodan kolay çıkmıyor ("kolaylaşma yok" — bkz. test):
-//       kGap → easy(4)=0.6658≤0.95, medium(8)=0.4145≤0.55, hard(12)=0.2580≤0.28,
-//       pro(20)=0.1000≤0.12; timeSec → easy(4)=16.272≤18, medium(8)=14.224≤15,
-//       hard(12)=12.433≤13, pro(20)=9.500≤10 (hepsi rahat bir marjla).
-//   (2) K_GAP_FLOOR'da (0.085) bile imbalanceScore = 0.085*10 = 0.85dB —
-//       sıfıra/algılanamaz bir farka ASLA inmiyor (kulağın ayırt edebileceği
-//       varsayılan bir alt sınır — KULAKLA DOĞRULANMADI).
+// ZORLUK EĞRİSİ — Kompresör/Reverb/dB Seviyesi'nin BAŞTAN-doğru-kalibrasyon
+// yöntemiyle bağlı. AT_1'ler statik easy değerleriyle birebir aynı. AT_CAP/FLOOR
+// node ile DOĞRUDAN hesaplanıp "kolaylaşma yok" invaryantını sağlayacak şekilde
+// ÖNCEDEN çözüldü: disturbDb → easy(4)=6.257≤9, medium(8)=3.853≤5, hard(12)=
+// 2.373≤2.8, pro(20)=0.900≤1.3; timeSec → easy(4)=23.3≤26, medium(8)=20.1≤22,
+// hard(12)=17.4≤18, pro(20)=13.0≤15 (hepsi rahat bir marjla, testle doğrulandı).
 export const TONAL_CURVE_CONFIG = {
   LEVEL_CAP: 20,
 
-  K_GAP_AT_1: 0.95,
-  K_GAP_AT_CAP: 0.10,
-  K_GAP_FLOOR: 0.085,
-  K_GAP_REDUCTION_PER_STEP: 0.001,
+  DISTURB_DB_AT_1: 9,
+  DISTURB_DB_AT_CAP: 0.9,
+  DISTURB_DB_FLOOR: 0.8,
+  DISTURB_DB_REDUCTION_PER_STEP: 0.02,
 
-  TIME_SEC_AT_1: 18,
-  TIME_SEC_AT_CAP: 9.5,
-  TIME_SEC_FLOOR: 6.5,
-  TIME_SEC_REDUCTION_PER_STEP: 0.15
+  TIME_SEC_AT_1: 26,
+  TIME_SEC_AT_CAP: 13,
+  TIME_SEC_FLOOR: 10,
+  TIME_SEC_REDUCTION_PER_STEP: 0.3
 };
 
-// position >= bu eşikte odd varyant %50 ihtimalle "şekil" değiştirir (tilt
-// YERİNE smile/frown) — Reverb'in TYPE_SWAP_POSITION_THRESHOLD'unun (18)
-// AYNI değeri/AYNI ayrım mantığı: representativeLevelForTier("pro")=
-// LEVEL_CAP=20 bunun BELİRGİN üstünde, ("hard")=12 BELİRGİN altında.
-export const TONAL_COMPLEX_SHAPE_POSITION_THRESHOLD = 18;
-
-// SAF FONKSİYON. position: zorlukKonumu — diğer yedi modun
+// SAF FONKSİYON. position: zorlukKonumu — diğer sekiz modun
 // paramsForDifficultyPosition'ıyla AYNI mod-agnostik girdi.
 export function paramsForDifficultyPosition(position, config = TONAL_CURVE_CONFIG) {
   const safePos = Math.max(1, position);
   const cappedPos = Math.min(safePos, config.LEVEL_CAP);
   const t = config.LEVEL_CAP > 1 ? (cappedPos - 1) / (config.LEVEL_CAP - 1) : 1;
 
-  const kGapCurve = logLerp(config.K_GAP_AT_1, config.K_GAP_AT_CAP, t);
+  const disturbCurve = logLerp(config.DISTURB_DB_AT_1, config.DISTURB_DB_AT_CAP, t);
   const timeCurve = logLerp(config.TIME_SEC_AT_1, config.TIME_SEC_AT_CAP, t);
 
   return {
     position: safePos,
-    kGap: applyPostCapFloor(kGapCurve, safePos, config.LEVEL_CAP, config.K_GAP_FLOOR, config.K_GAP_REDUCTION_PER_STEP),
+    disturbDb: applyPostCapFloor(disturbCurve, safePos, config.LEVEL_CAP, config.DISTURB_DB_FLOOR, config.DISTURB_DB_REDUCTION_PER_STEP),
     timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP)
   };
 }
 
-// SAF FONKSİYON. Kompresör'ün pickKGap'iyle AYNI desen (±%6 dar jitter +
-// jitter SONRASI FLOOR garantisi) + ÜST clamp (1) — burada BAZ=0 olduğu için
-// (Kompresör'ün BAZ=0.5 + iki-yönlü clamp'inin AKSİNE) SADECE üst sınır
-// riski var: K_GAP_AT_1=0.95 * 1.06 jitter ÜST ucu ~1.007, [0,1] dışına
-// taşabilir — bu satır olmadan k=1'i aşan bir kazanç (TILT_MAX_DB'nin
-// ÜSTÜNE çıkan bir dB) üretilebilirdi.
-export function pickKGap(baseKGap, rng = Math.random) {
-  const jitter = 0.94 + rng() * 0.12; // 0.94x – 1.06x
-  const jittered = baseKGap * jitter;
-  return Math.min(1, Math.max(TONAL_CURVE_CONFIG.K_GAP_FLOOR, jittered));
+// SAF FONKSİYON. Kompresör/Reverb/dB Seviyesi'nin pickX fonksiyonlarıyla AYNI
+// desen (dar jitter + jitter SONRASI FLOOR garantisi) — ±%10 (diğerlerinin ±%6'
+// sından biraz DAHA GENİŞ: burada TEK bir sayı değil HER bant AYRI AYRI
+// jitter'lanacak, çok dar bir jitter tüm bozuk bantları neredeyse AYNI
+// büyüklükte üretirdi, gerçekçi olmazdı).
+export function pickDisturbanceDb(baseDb, rng = Math.random) {
+  const jitter = 0.9 + rng() * 0.2; // 0.9x – 1.1x
+  const jittered = baseDb * jitter;
+  return Math.max(TONAL_CURVE_CONFIG.DISTURB_DB_FLOOR, jittered);
+}
+
+// SAF FONKSİYON. rng enjekte edilebilir Fisher-Yates — core/utils.js'in
+// shuffle()'ı BİLEREK kullanılmadı (Math.random'a sabit, deterministik testle
+// doğrulanamaz) — Kompresör'ün pickOddK'sının AYNI "rng parametresi" felsefesi.
+function shuffleWithRng(arr, rng) {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+// SAF FONKSİYON. bandIds'in EN AZ BİRİNE, EN ÇOK TÜMÜNE bozukluk uygular (task:
+// "bir kısmına ya da tümüne") — hangi bantların bozulacağı VE büyüklükleri/
+// yönleri (±) rastgele. Bozulmayan bantlar bugDb=0 (kullanıcı onları OLDUĞU
+// GİBİ, dokunmadan bırakmalı — sıfır zaten kaydırıcının başlangıç konumu).
+// filterType KANONİK sırayla (BAND_ORDER) belirlenir: en düşük frekanslı bant
+// low-shelf, en yüksek high-shelf, aradakiler peaking — standart parametrik EQ
+// tasarımı (Boost/Cut'ın TEK bandının aksine burada GERÇEK bir "bant zinciri").
+export function bandsForQuestion(bandIds, baseDisturbDb, rng = Math.random) {
+  const sortedIds = BAND_ORDER.filter(id => bandIds.includes(id));
+  const disturbCount = 1 + Math.floor(rng() * sortedIds.length);
+  const disturbedSet = new Set(shuffleWithRng(sortedIds, rng).slice(0, disturbCount));
+
+  return sortedIds.map((id, i) => {
+    const def = BAND_DEFS_BY_ID[id];
+    const filterType = i === 0 ? "lowshelf" : i === sortedIds.length - 1 ? "highshelf" : "peaking";
+    let bugDb = 0;
+    if (disturbedSet.has(id)) {
+      const sign = rng() < 0.5 ? 1 : -1;
+      bugDb = Math.round(sign * pickDisturbanceDb(baseDisturbDb, rng) * 100) / 100;
+    }
+    return { id, label: def.label, freq: def.freq, filterType, bugDb };
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -195,37 +234,28 @@ export function getMeta() {
   return {
     id: MODE_ID,
     motor: 2,
-    // task kararı: ince tonal fark (özellikle "zor"/"pro" katmanında bas/tiz
-    // hangisi ağır belirsizleşiyor) telefon hoparlöründe kolayca kaybolur —
-    // kulaklık ayrımı netleştirir (Reverb'in AYNI gerekçesi).
+    // İnce EQ farkları (özellikle "zor"/"pro" katmanında, disturbDb~1-3dB)
+    // telefon hoparlöründe kolayca kaybolur — kulaklık ayrımı netleştirir
+    // (task'ın açık kararı, Reverb'in G37'den beri AYNI gerekçesi).
     kulaklikGerekli: true,
-    // Tilt SADECE dolu spektrumda duyulur (bkz. dosya başı not) — kataloğumuzda
-    // bunu karşılayan TEK örnek "groove" (kick+snare+hihat aynı anda, gerçek
-    // bir mix bağlamı); tek-vuruş (kick/snare/hihat/tom) ve izole tek-nota/
-    // tek-fraz kaynaklar (bas/gitar/vokal) ile sentetik/gürültü (test tonu,
-    // "mix" değil) BİLİNÇLİ dışlandı. Kullanıcının kendi dosyası (upload)
-    // içeriği bilinmediği için varsayılan olarak açık kalıyor (diğer Motor 2
-    // modlarıyla AYNI karar, bkz. reverb.js G43 notu).
+    // G44'ten DEĞİŞMEDİ — EQ düzeltmesi SADECE dolu spektrumda (çok sayıda eş
+    // zamanlı frekans bileşeni) anlamlı, tek-vuruş/tek-nota kaynaklar tonal
+    // denge göstermez (bkz. dosya başı "KAYNAK" notu).
     uyumluKaynaklar: compatibleSourceIds({ only: ["groove", "upload"] }),
-    // NOT (Kompresör/Reverb'le AYNI karar): mode-catalog.js'te tier:"pro" —
-    // ama bu alan GERÇEK kilitlemede KULLANILMIYOR (asıl kaynak
-    // mode-catalog.js'in `tier` alanı), mevcut yedi modun HEPSİYLE tutarlı
-    // kalmak için true.
     ucretsiz: true,
     videoUrl: "",
     difficulty: DIFFICULTY,
+    // SADECE ŞIKLI/kaydırıcılı — dalgaya tıklamanın doğal bir karşılığı yok
+    // (diğer Motor 2 modlarıyla/Kesim Noktası'yla AYNI karar).
     choiceOnly: true
   };
 }
 
 // SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz. settings: { source, boss,
-// difficultyPosition — verilirse kGap/timeSec EĞRİDEN gelir, verilmezse
-// (mevcut testler, doğrudan çağrılar, proplus) statik DIFFICULTY[level]
-// davranışı korunur }. Varsayılan kaynak "groove" (Kompresör/Reverb'in "pink"
-// varsayılanının AKSİNE) — BİLİNÇLİ fark: pink/white bu modun uyumluKaynaklar
-// listesinde HİÇ yok (tek-vuruş/tek-nota kısıtlamasından FARKLI bir gerekçeyle,
-// bkz. dosya başı "KAYNAK" notu), "pink" varsayılanı burada anlamsız/yanıltıcı
-// olurdu — "groove" listenin GERÇEK bir üyesi, tutarlı bir varsayılan.
+// sessionQuestionIndex — bant sayısı ramp'i BUNA bağlı (bkz.
+// bandCountForSessionIndex), verilmezse 0 (4 bant); difficultyPosition —
+// verilirse disturbDb/timeSec EĞRİDEN gelir, verilmezse (mevcut testler,
+// doğrudan çağrılar, proplus) statik DIFFICULTY[level] davranışı korunur }.
 export function createQuestion(level, settings = {}) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const boss = !!settings.boss;
@@ -235,97 +265,106 @@ export function createQuestion(level, settings = {}) {
     ? paramsForDifficultyPosition(settings.difficultyPosition)
     : null;
 
-  const baseKGap = curve ? curve.kGap : diff.kGap;
+  const baseDisturbDb = curve ? curve.disturbDb : diff.disturbDb;
   const timeSec = curve ? curve.timeSec : diff.time;
 
-  // PRO/PRO PLUS (Sabit) YA DA eğri-konumu eşiği aştıysa (Otomatik) → %50
-  // ihtimalle "şekil değişimi" katmanı (Reverb'in TİP değişimi katmanının
-  // AYNI öğretmen-yöntemi felsefesi, burada "VEYA" — task'ın istediği gibi
-  // rastgele ince-tilt/karmaşık-şekil arası).
-  const isComplexShapeTier = level === "pro" || level === "proplus" || !!(curve && curve.position >= TONAL_COMPLEX_SHAPE_POSITION_THRESHOLD);
-
-  const oddIndex = Math.floor(Math.random() * 3);
-  const kGap = pickKGap(baseKGap);
-  const useComplexShape = isComplexShapeTier && Math.random() < 0.5;
-  const oddShape = useComplexShape
-    ? (Math.random() < 0.5 ? "smile" : "frown")
-    : (Math.random() < 0.5 ? "tilt-bass" : "tilt-treble");
-
-  const letters = ["A", "B", "C"];
-  const variants = letters.map((letter, i) =>
-    i === oddIndex ? buildVariant(letter, oddShape, kGap) : buildVariant(letter, "flat", 0)
-  );
-  const choices = letters.map((letter, i) => ({ id: letter, tr: letter, correct: i === oddIndex }));
+  const sessionQuestionIndex = Number.isFinite(settings.sessionQuestionIndex) ? settings.sessionQuestionIndex : 0;
+  const bandCount = bandCountForSessionIndex(sessionQuestionIndex);
+  const bandIds = bandIdsForCount(bandCount);
+  const bands = bandsForQuestion(bandIds, baseDisturbDb);
 
   return {
     mode: "tonal-denge",
     difficulty: level,
     source,
-    variants,
-    oddIndex,
-    complexShapeTier: isComplexShapeTier,
-    kGap,
+    bandCount,
+    bands,
     hintUsed: false,
     boss,
-    timeSec,
-    choices
+    timeSec
   };
 }
 
 export function modeDescription() {
-  return "A/B/C ile üçünü de dinle, tonal dengesi BOZUK olanı (bas/tiz eğimi kaymış) şıklardan seç.";
+  return "Her bant için kaydırıcıyı ayarla — sesi dinleye dinleye nötr/dengeli hale getirmeye çalış, sonra onayla.";
 }
 
 export function correctLabel(question) {
-  const odd = question.variants[question.oddIndex];
-  return `${odd.letter} (${SHAPE_INFO[odd.shape].label}, ${odd.imbalanceScore.toFixed(1)}dB)`;
+  const disturbedCount = question.bands.filter(b => b.bugDb !== 0).length;
+  return `${question.bandCount} bant, ${disturbedCount} bozuk`;
 }
 
-// Soruda uygulanan tilt'i audioCtx üzerinde kurar. question.previewLetter
-// VERİLİRSE (app.js'in 3-yönlü abToggle'ının o an dinletmek istediği harf) O
-// harfin TÜM parametreleri (low/mid/high kazançları) question.variants'tan
-// okunur; verilmezse variants[0] (harf A) çalar — Kompresör/Reverb'in BİREBİR
-// AYNI previewLetter deseni.
-//
-// ÜÇ BiquadFilterNode SERİ bağlanır (audio-engine.js'in genel "sourceMix→
-// filters[0]→filters[1]→...→localWetGain" seri-bağlama sözleşmesi
-// DEĞİŞTİRİLMEDEN): low-shelf → mid-peaking → high-shelf. "flat" varyantta
-// (nötr referans) üçünün de gain'i 0 — filtreler KURULUR ama SESSİZCE
-// etkisiz kalır (Kompresör'ün "limiter'da bile mikro-dinamik var" dürüstlük
-// dersiyle AYNI çizgide: hiçbir zorlukta/varyantta "filtre yok" durumuna
-// düşülmez, her zaman AYNI üç node'lu zincir kurulur — sadece parametreleri
-// nötr).
+// Soruda uygulanan GİZLİ bozukluğu audioCtx üzerinde kurar — question.bands
+// KADAR BiquadFilterNode SERİ bağlanır (audio-engine.js'in genel filters-seri-
+// bağlama sözleşmesi DEĞİŞTİRİLMEDEN). Her düğüm BAŞLANGIÇTA sadece bugDb'yi
+// taşır (kullanıcı düzeltmesi henüz 0) — canlı düğüm referansları liveBandNodes'a
+// KAYDEDİLİR (bkz. dosya başı notu + setLiveBandGain) ki app.js kaydırıcı
+// hareket ettikçe GRAFİĞİ YENİDEN KURMADAN bu düğümlerin gain'ini güncelleyebilsin.
+// ÖNEMLİ: previewLetter YOK — Kompresör/Reverb'in aksine burada tek bir "canlı"
+// ses var, A/B/C değişkeni yok, applyProcessing HER ZAMAN question.bands'i okur.
+let liveBandNodes = null;
 export function applyProcessing(question, { audioCtx }) {
-  const letter = question.previewLetter || question.variants[0].letter;
-  const variant = question.variants.find(v => v.letter === letter) || question.variants[0];
-
-  const low = audioCtx.createBiquadFilter();
-  low.type = "lowshelf";
-  low.frequency.value = SHELF_LOW_FREQ;
-  low.gain.value = variant.lowGainDb;
-
-  const mid = audioCtx.createBiquadFilter();
-  mid.type = "peaking";
-  mid.frequency.value = MID_PEAK_FREQ;
-  mid.Q.value = MID_PEAK_Q;
-  mid.gain.value = variant.midGainDb;
-
-  const high = audioCtx.createBiquadFilter();
-  high.type = "highshelf";
-  high.frequency.value = SHELF_HIGH_FREQ;
-  high.gain.value = variant.highGainDb;
-
-  return { filters: [low, mid, high] };
+  const nodes = {};
+  const filters = question.bands.map(band => {
+    const f = audioCtx.createBiquadFilter();
+    f.type = band.filterType;
+    f.frequency.value = band.freq;
+    if (band.filterType === "peaking") f.Q.value = BAND_PEAK_Q;
+    f.gain.value = band.bugDb;
+    nodes[band.id] = f;
+    return f;
+  });
+  liveBandNodes = nodes;
+  return { filters };
 }
 
-// SAF FONKSİYON. answer: harf ("A"/"B"/"C") ya da {id}.
+// app.js kaydırıcı HER hareket ettiğinde çağırır — GRAFİĞİ YENİDEN KURMADAN, o
+// bandın CANLI düğümünün gain'ini (bugDb + kullanıcının o andaki correctionDb'si
+// TOPLAMI, netGainDb olarak DIŞARIDAN hesaplanıp verilir — bu fonksiyon "bug"
+// kavramını hiç bilmez, SADECE mekanik) YUMUŞAK bir rampayla (audio-engine.js'in
+// STOP_RAMP_TIME_CONSTANT'ıyla AYNI felsefede kısa bir zaman sabiti — tıklama
+// riski YOK) günceller. Round'un applyProcessing'i HENÜZ çağrılmadıysa (liveBandNodes
+// null/eski turdan) ya da o bandın düğümü yoksa SESSİZCE hiçbir şey yapmaz.
+const LIVE_RAMP_TIME_CONSTANT = 0.02;
+export function setLiveBandGain(audioCtx, bandId, netGainDb) {
+  const node = liveBandNodes && liveBandNodes[bandId];
+  if (!node || !audioCtx) return;
+  const now = audioCtx.currentTime;
+  node.gain.cancelScheduledValues(now);
+  node.gain.setTargetAtTime(netGainDb, now, LIVE_RAMP_TIME_CONSTANT);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DEĞERLENDİRME — SAF FONKSİYON, audioCtx'e HİÇ dokunmaz. answer: kullanıcının
+// {bandId: correctionDb} haritası (eksik/olmayan bant id'si → correction=0
+// varsayılır, yani "dokunulmadı" — bkz. dosya başı not). Her bantta residualDb
+// = bugDb + correction (MÜKEMMEL düzeltme residual=0 demek). avgDeviation =
+// TÜM bantların |residual|'ının ORTALAMASI — TEK bir "ne kadar nötre yakın"
+// ekseni (Kompresör'ün gainReductionDb'sinin AYNI rolü). proximityScore (0-100)
+// kullanıcıya gösterilecek, XP'yi ÖLÇEKLEYECEK yakınlık skoru.
+// ═══════════════════════════════════════════════════════════════════════════
+export const NEUTRAL_TOLERANCE_DB = 1.5; // ortalama sapma bunun altındaysa "doğru" sayılır — KULAKLA DOĞRULANMADI
+const PROXIMITY_MAX_DEVIATION_DB = 12; // avgDeviation bu değerde/üstündeyse proximityScore=0 (slider'ın uç-uca aralığı)
+
 export function evaluateAnswer(question, answer) {
-  const guessLetter = answer && typeof answer === "object" ? answer.id : answer;
-  const correctLetter = question.variants[question.oddIndex].letter;
-  const correct = guessLetter === correctLetter;
-  return { mode: "tonal-denge", correct, guessLetter, correctLetter };
+  const corrections = answer || {};
+  const deviations = question.bands.map(b => {
+    const correction = Number(corrections[b.id]) || 0;
+    const residualDb = Math.round((b.bugDb + correction) * 100) / 100;
+    return { id: b.id, correction, residualDb, deviation: Math.abs(residualDb) };
+  });
+  const avgDeviation = deviations.reduce((sum, d) => sum + d.deviation, 0) / deviations.length;
+  const proximityScore = Math.max(0, Math.min(100, Math.round(100 * (1 - avgDeviation / PROXIMITY_MAX_DEVIATION_DB))));
+  const correct = avgDeviation <= NEUTRAL_TOLERANCE_DB;
+  return { mode: "tonal-denge", correct, avgDeviation, proximityScore, deviations };
 }
 
+// XP GRADED — task'ın "puanlama: yakınlık skoru" isteği: diğer sekiz modun
+// binary (doğru=tam XP/yanlış=0) davranışının AKSİNE, "doğru" (tolerans içinde)
+// sayılan bir cevapta bile XP proximityScore'a göre ÖLÇEKLENİR (proximityBoost) —
+// tam nötre (skor 100) daha yakın bir düzeltme daha çok XP kazandırır. Taban
+// %55 (result.correct zaten en az bir dereceye kadar başarı demek, tam sıfıra
+// İNMEMELİ).
 export function calculateXP(question, result, hintUsed, level, context = {}) {
   if (!result || !result.correct) return 0;
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
@@ -338,57 +377,60 @@ export function calculateXP(question, result, hintUsed, level, context = {}) {
   const hintPenalty = hintUsed ? 0.5 : 1;
   const bossBoost = question.boss ? 1.65 : 1;
   const timeBoost = timeLeft > roundDuration * 0.55 ? 1.2 : 1;
+  const proximityBoost = Math.max(0.55, (result.proximityScore || 0) / 100);
 
-  const raw = Math.round(diff.xp * comboBoost * hintPenalty * bossBoost * timeBoost * xpMultiplier);
+  const raw = Math.round(diff.xp * comboBoost * hintPenalty * bossBoost * timeBoost * proximityBoost * xpMultiplier);
   return Math.max(0, raw);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ÖĞRETİCİ METİN — soru SADE, geri bildirim ZENGİN: hangi mix bozuktu + nasıl
-// (yön/şekil + gerçek dB'ler) + mix anlamı TEK yerde, HER zaman gösterilir.
-// MOTOR 2 ŞABLONU: şekil tablosu (SHAPE_INFO) TEK yerde — Kompresör'ün
-// COMPRESSION_TIERS'ıyla/Reverb'in REVERB_TYPES'ıyla AYNI desen.
+// ÖĞRETİCİ METİN — soru SADE (sadece kaydırıcılar), geri bildirim ZENGİN: HER
+// bant için ne kadar/hangi yönde saptığı + mix anlamı TEK yerde (BAND_MIX_WORDS).
+// task'ın örnek formatıyla BİREBİR: "SUB'ı +5dB fazla bıraktın, mix hâlâ
+// bas-ağır. TİZ'i iyi düzelttin."
 // ═══════════════════════════════════════════════════════════════════════════
-
-const SHAPE_INFO = {
-  "tilt-bass": {
-    label: "bas-ağır eğim",
-    mixMeaning: "mix boğuk/çamurlu duyulur, tizler geride kalır"
-  },
-  "tilt-treble": {
-    label: "tiz-ağır eğim",
-    mixMeaning: "mix sert/ince duyulur, bas zayıf/cılız kalır"
-  },
-  smile: {
-    label: "smile eğrisi (bas ve tiz şişkin, orta çukur)",
-    mixMeaning: "kulağa 'havalı' gelir ama mixte orta kaybolur, karar bulanıklaşır"
-  },
-  frown: {
-    label: "ters smile / çukur eğrisi (orta şişkin, bas ve tiz zayıf)",
-    mixMeaning: "mix donuk/telefon hoparlörü gibi duyulur, öne çıkmaz"
-  }
+const BAND_MIX_WORDS = {
+  sub: { over: "gümbürtülü/boğuk", under: "ince/güçsüz" },
+  bas: { over: "ağır/kalın", under: "zayıf/soğuk" },
+  "alt-orta": { over: "çamurlu/kalın", under: "ince/boş" },
+  orta: { over: "kutu/telefon sesi gibi", under: "içi boş/uzak" },
+  "ust-orta": { over: "sert/yorucu", under: "donuk/kapalı" },
+  tiz: { over: "tiz/cırtlak", under: "parlaklıksız/kapalı" }
 };
 
-function fmtDb(db) {
-  return `${db >= 0 ? "+" : ""}${db.toFixed(1)}dB`;
+// Türkçe belirtme durumu (accusative) eki bant etiketine göre DEĞİŞİR (ünlü
+// uyumu: SUB'u/BAS'ı/ALT-ORTA'yı/ORTA'yı/ÜST-ORTA'yı/TİZ'i) — generic bir
+// "'i" eki YANLIŞ çıkardı (ör. "BAS'i" değil "BAS'ı"), bu yüzden TEK yerde
+// elle doğru çekimlendi.
+const BAND_ACCUSATIVE = {
+  sub: "SUB'u", bas: "BAS'ı", "alt-orta": "ALT-ORTA'yı",
+  orta: "ORTA'yı", "ust-orta": "ÜST-ORTA'yı", tiz: "TİZ'i"
+};
+
+function fmtSigned(db) {
+  const rounded = Math.round(db * 10) / 10;
+  return `${rounded >= 0 ? "+" : ""}${rounded.toFixed(1)}`;
 }
 
-// SAF FONKSİYON. "aynı" ikili HER ZAMAN flat (k=0) olduğu için Kompresör/
-// Reverb'in "ikisi de aynı kademede mi" nüans dalına GEREK YOK (o dal, İKİ
-// varyantın da nötr-olmayan bir baz paylaşmasından doğuyordu) — burada
-// karşılaştırma HER ZAMAN "flat vs dengesiz", tek bir dil yeterli.
 export function teachingText(question, answer) {
   const result = evaluateAnswer(question, answer);
-  const odd = question.variants[question.oddIndex];
-  const info = SHAPE_INFO[odd.shape];
-  const isComplex = odd.shape === "smile" || odd.shape === "frown";
+  const ordered = [...result.deviations].sort((a, b) => b.deviation - a.deviation);
 
-  const base = isComplex
-    ? `${odd.letter} dengesizdi — ${info.label} (bas ${fmtDb(odd.lowGainDb)}, orta ${fmtDb(odd.midGainDb)}, tiz ${fmtDb(odd.highGainDb)}) — ${info.mixMeaning}.`
-    : `${odd.letter} dengesizdi — ${info.label} (düşük bölge ${fmtDb(odd.lowGainDb)}, tiz ${fmtDb(odd.highGainDb)}) — ${info.mixMeaning}. Dengeli mixte bas ve tiz orantılı, gerçek mixte referans şarkıyla tonal dengeyi böyle karşılaştırırsın.`;
+  const bandLines = ordered.map(d => {
+    const label = BAND_ACCUSATIVE[d.id] || BAND_DEFS_BY_ID[d.id].label;
+    if (d.deviation <= NEUTRAL_TOLERANCE_DB) return `${label} iyi düzelttin.`;
+    const overshoot = d.residualDb > 0;
+    const verb = overshoot ? "fazla bıraktın" : "eksik bıraktın";
+    const words = BAND_MIX_WORDS[d.id] || { over: "dengesiz", under: "dengesiz" };
+    const mixWord = overshoot ? words.over : words.under;
+    return `${label} ${fmtSigned(d.residualDb)}dB ${verb} — mix hâlâ ${mixWord}.`;
+  });
 
-  if (result.correct) return `Doğru! ${base}`;
-  return `Yanlış — sen ${result.guessLetter} dedin. ${base}`;
+  const header = result.correct
+    ? `Doğru! Yakınlık %${result.proximityScore} (ortalama sapma ${result.avgDeviation.toFixed(1)}dB) — nötüre çok yakınsın.`
+    : `Henüz nötr değil — yakınlık %${result.proximityScore} (ortalama sapma ${result.avgDeviation.toFixed(1)}dB).`;
+
+  return `${header} ${bandLines.join(" ")}`;
 }
 
 export function getFeedbackData(question, answer, context = {}) {
@@ -397,23 +439,22 @@ export function getFeedbackData(question, answer, context = {}) {
   const text = teachingText(question, answer);
 
   if (result.correct) {
-    return { result, title: "Doğru!", detail: `${text} (+${gained} XP)`, showResult: true, panel: null };
+    return { result, title: "Nötüre yakın!", detail: `${text} (+${gained} XP)`, showResult: true, panel: null };
   }
-  return { result, title: "Yanlış ses", detail: text, showResult: true, panel: null };
+  return { result, title: `Yakınlık %${result.proximityScore}`, detail: text, showResult: true, panel: null };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SÖZLEŞMENİN DIŞINDA: bu moda özgü render/UI yardımcıları.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// İpucu — HANGİ harf olduğunu ASLA vermez, sadece ŞEKLİ söyler (Kompresör'ün/
-// Reverb'in AYNI kısmi-yardım ilkesi).
+// İpucu — HANGİ yönde/ne kadar olduğunu ASLA vermez, SADECE en büyük sapmanın
+// HANGİ bantta olduğunu söyler (Kompresör'ün/Reverb'in AYNI kısmi-yardım
+// ilkesi — cevabın bir BOYUTUNU verir, tamamını değil).
 export function getHintText(question) {
-  const odd = question.variants[question.oddIndex];
-  if (odd.shape === "tilt-bass") return "Farklı olan BAS ağır (tiz zayıf kalıyor)";
-  if (odd.shape === "tilt-treble") return "Farklı olan TİZ ağır (bas zayıf kalıyor)";
-  if (odd.shape === "smile") return "Farklı olanda ORTA çukur (bas ve tiz şişkin)";
-  return "Farklı olanda ORTA şişkin (bas ve tiz zayıf)"; // frown
+  const worst = [...question.bands].sort((a, b) => Math.abs(b.bugDb) - Math.abs(a.bugDb))[0];
+  if (!worst) return "Bu turda bozukluk yok gibi görünüyor.";
+  return `En büyük sapma ${worst.label} bölgesinde`;
 }
 
 export function renderHintMask(hintMaskLayerEl) {
@@ -423,53 +464,85 @@ export function clearHintMask(hintMaskLayerEl) {
   if (hintMaskLayerEl) hintMaskLayerEl.innerHTML = "";
 }
 
-// Dinleme kontrolü #freqGuessArea'da DEĞİL — Kompresör/Reverb'in AYNI deseni,
-// app.js'in mevcut A/B butonu (#abToggle) bu mod aktifken 3-yönlü döngüye
-// genişletiliyor.
+// Dinleme kontrolü #freqGuessArea'da DEĞİL — diğer choiceOnly modlarla AYNI
+// desen, gizli kalır (kaydırıcılar #answers'a render edilir, bkz.
+// renderAnswerChoices).
 export function renderGuessAreaControls(freqGuessAreaEl) {
   if (!freqGuessAreaEl) return;
   freqGuessAreaEl.textContent = "";
   freqGuessAreaEl.classList.add("hidden");
 }
 
-// G41'in ortak modülü — büyük kart görseli (harf+isim+waveform+durum).
-// Kompresör/Reverb'le PAYLAŞILAN, gerçek bir mod-özel fark YOK (bkz. o
-// dosyanın dosya başı notu: "Üçüncü bir Motor 2 modu SADECE bu modülü import
-// edip re-export etmesi yeter" — tam olarak bu).
-export const renderAnswerChoices = renderThreeWayCards;
-export const markAnswerChoices = markThreeWayCards;
-export const updateAnswerPlayState = updateThreeWayCardsPlayState;
+// N kaydırıcı (question.bands kadar) + "Cevabı Onayla" butonu. Slider'ların
+// CANLI (input event) ve submit'in (click) GERÇEK kablolanması app.js'te (bu
+// dosya audioCtx/audioEngine'e ERİŞEMEZ, sadece markup üretir) — bkz. app.js
+// "Tonal Denge — canlı EQ kaydırıcıları" bölümü. data-band-id her iki tarafta
+// da (burada + app.js'in delegasyonunda) EŞLEŞTİRME anahtarı.
+export function renderAnswerChoices(answersEl, q) {
+  if (!answersEl) return;
+  if (!q.bands) { answersEl.innerHTML = ""; answersEl.classList.add("hidden"); return; }
+  answersEl.classList.remove("hidden");
+  answersEl.className = "answers answers-tonal";
+  const sliders = q.bands.map(b => `
+    <div class="tonal-band" data-band-id="${b.id}">
+      <div class="tonal-band-head">
+        <span class="tonal-band-label">${b.label}</span>
+        <span class="tonal-band-value" data-role="value">0.0 dB</span>
+      </div>
+      <input type="range" class="tonal-slider" data-band-id="${b.id}"
+        min="${SLIDER_MIN_DB}" max="${SLIDER_MAX_DB}" step="${SLIDER_STEP_DB}" value="0"
+        aria-label="${b.label} düzeltme">
+    </div>`).join("");
+  answersEl.innerHTML = `
+    <div class="tonal-bands">${sliders}</div>
+    <button type="button" class="btn primary tonal-submit">Cevabı Onayla</button>
+  `;
+}
+
+// Cevap verildikten sonra kaydırıcıları/butonu kilitler, her bandın KALAN
+// sapmasını (residualDb) satırın yanına yazar + doğru/yanlış renk sınıfı ekler
+// (CSS: .tonal-band.right/.wrong — styles.css'teki .ans.right/.wrong'un AYNI
+// renk dilini kullanır).
+export function markAnswerChoices(answersEl, q, answer) {
+  if (!answersEl) return;
+  const result = evaluateAnswer(q, answer || {});
+  answersEl.querySelectorAll(".tonal-slider").forEach(input => { input.disabled = true; });
+  const submitBtn = answersEl.querySelector(".tonal-submit");
+  if (submitBtn) submitBtn.disabled = true;
+  result.deviations.forEach(d => {
+    const row = answersEl.querySelector(`.tonal-band[data-band-id="${d.id}"]`);
+    if (!row) return;
+    row.classList.add(d.deviation <= NEUTRAL_TOLERANCE_DB ? "right" : "wrong");
+    const valueEl = row.querySelector('[data-role="value"]');
+    if (valueEl) valueEl.textContent = `kalan: ${fmtSigned(d.residualDb)}dB`;
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
-// GÖRSEL — Kompresör'ün (zaman-genlik zarfı) / Reverb'in (kuyruk zarfı)
-// AKSİNE burada GERÇEK bir frekans-yanıtı eğrisi çiziliyor (Boost/Cut'ın
-// computeEqCurveDb'siyle AYNI teknik: GERÇEK BiquadFilterNode +
-// getFrequencyResponse, elle yaklaşıklık DEĞİL) — çünkü "tilt" ZATEN bir
-// frekans ekseni kavramı (Kompresör'ün zaman ekseni/Reverb'in decay
-// ekseninin AKSİNE). Üç filtrenin (low/mid/high) etkisi KASKAT birleştirilir:
-// cascaded filtrelerin genlikleri ÇARPILIR → dB'leri TOPLANIR (20*log10
-// çarpımsal → toplamsal dönüşüm, standart DSP). RENK: senin cevabın KIRMIZI,
-// doğru YEŞİL (G34 standardı, core/feedback-colors.js'ten import).
+// GÖRSEL — Boost/Cut'ın computeEqCurveDb tekniğiyle AYNI (GERÇEK
+// BiquadFilterNode.getFrequencyResponse, elle yaklaşıklık DEĞİL), G44'ün tilt
+// eğrisinden MİRAS — ama HEDEF artık düz bir çizgi (task: "hedef düz çizgi"),
+// KULLANICI eğrisi kalan sapmayı (residual = bugDb+correction) gösterir.
+// RENK: task'ın açık isteği — kullanıcının EQ'su KIRMIZI (GUESS_COLOR),
+// hedef YEŞİL (CORRECT_COLOR) — G34 standardının AYNI renk dilinde, ama
+// rolleri G44'ten (kırmızı=senin SEÇİMİN, yeşil=doğru CEVAP) DEĞİL, burada
+// "kırmızı=SENİN SONUCUN, yeşil=HEDEF" olarak okunmalı — task'ın kendi
+// tanımı bu.
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CURVE_POINTS = 160;
-const CURVE_STAGES = [
-  { type: "lowshelf", frequency: SHELF_LOW_FREQ, field: "lowGainDb" },
-  { type: "peaking", frequency: MID_PEAK_FREQ, q: MID_PEAK_Q, field: "midGainDb" },
-  { type: "highshelf", frequency: SHELF_HIGH_FREQ, field: "highGainDb" }
-];
-
-function computeTiltCurveDb(audioCtx, variant, w) {
+function computeResidualCurveDb(audioCtx, question, corrections, w) {
   if (!audioCtx) return null;
   const freqs = new Float32Array(CURVE_POINTS);
   for (let i = 0; i < CURVE_POINTS; i++) freqs[i] = faXToF((i / (CURVE_POINTS - 1)) * w, w);
   const totalDb = new Float32Array(CURVE_POINTS);
-  CURVE_STAGES.forEach(stage => {
+  question.bands.forEach(band => {
+    const correction = Number(corrections[band.id]) || 0;
     const filter = audioCtx.createBiquadFilter();
-    filter.type = stage.type;
-    filter.frequency.value = stage.frequency;
-    if (stage.q) filter.Q.value = stage.q;
-    filter.gain.value = variant[stage.field];
+    filter.type = band.filterType;
+    filter.frequency.value = band.freq;
+    if (band.filterType === "peaking") filter.Q.value = BAND_PEAK_Q;
+    filter.gain.value = band.bugDb + correction;
     const mag = new Float32Array(CURVE_POINTS);
     const phase = new Float32Array(CURVE_POINTS);
     filter.getFrequencyResponse(freqs, mag, phase);
@@ -494,73 +567,78 @@ function drawAxis(ctx2d, w, h) {
   ctx2d.textAlign = "left";
 }
 
-// Boost/Cut'ın drawBellCurve'üyle AYNI ±maxAbsDb/merkez-çizgi eşlemesi —
-// MAX_ABS_DB=14, TILT_MAX_DB=10'un ÜSTÜNDE bir headroom (kaskat filtrelerin
-// belirli frekanslarda üst üste binip 10dB'yi hafifçe aşabileceği ihtimaline
-// karşı, çizgi tepeden KIRPILMASIN diye).
-const MAX_ABS_DB = 14;
-function drawTiltCurve(ctx2d, w, h, db, color, alpha) {
-  const plotBottom = h - AXIS_H;
-  const curveTop = CURVE_TOP, curveBottom = plotBottom - 6;
+const MAX_ABS_DB = 14; // TILT/residual max ~12dB (SLIDER_MAX_DB) — headroom kaskat filtrelerin üst üste binmesi için
+function bandDbToY(db, curveTop, curveBottom) {
   const midY = curveTop + (curveBottom - curveTop) * 0.5;
   const bandH = (curveBottom - curveTop) * 0.42;
-  const yAt = i => {
-    const d = Math.max(-MAX_ABS_DB, Math.min(MAX_ABS_DB, db[i]));
-    return midY - (d / MAX_ABS_DB) * bandH;
-  };
+  const d = Math.max(-MAX_ABS_DB, Math.min(MAX_ABS_DB, db));
+  return midY - (d / MAX_ABS_DB) * bandH;
+}
+
+function drawFlatTargetLine(ctx2d, w, h, color) {
+  const plotBottom = h - AXIS_H;
+  const y = bandDbToY(0, CURVE_TOP, plotBottom - 6);
+  ctx2d.save();
+  ctx2d.strokeStyle = color;
+  ctx2d.lineWidth = 3;
+  ctx2d.globalAlpha = 0.85;
+  ctx2d.beginPath();
+  ctx2d.moveTo(0, y);
+  ctx2d.lineTo(w, y);
+  ctx2d.stroke();
+  ctx2d.restore();
+}
+
+function drawResidualCurve(ctx2d, w, h, db, color) {
+  const plotBottom = h - AXIS_H;
+  const curveTop = CURVE_TOP, curveBottom = plotBottom - 6;
   ctx2d.save();
   ctx2d.beginPath();
   for (let i = 0; i < CURVE_POINTS; i++) {
     const x = (i / (CURVE_POINTS - 1)) * w;
-    if (i === 0) ctx2d.moveTo(x, yAt(i)); else ctx2d.lineTo(x, yAt(i));
+    const y = bandDbToY(db[i], curveTop, curveBottom);
+    if (i === 0) ctx2d.moveTo(x, y); else ctx2d.lineTo(x, y);
   }
   ctx2d.strokeStyle = color;
   ctx2d.lineWidth = 3;
-  ctx2d.globalAlpha = alpha;
+  ctx2d.globalAlpha = 0.9;
   ctx2d.lineJoin = "round";
   ctx2d.stroke();
   ctx2d.restore();
 }
 
-function drawCurveLegend(ctx2d, showGuess) {
+function drawLegend(ctx2d) {
   const y = 22;
   let x = 10;
   ctx2d.font = "700 12px Inter, sans-serif";
   ctx2d.textAlign = "left";
-  if (showGuess) {
-    ctx2d.fillStyle = GUESS_COLOR;
-    ctx2d.fillText("●", x, y);
-    x += 12;
-    ctx2d.fillStyle = "#C7CEDD";
-    ctx2d.fillText("Senin cevabın", x, y);
-    x += ctx2d.measureText("Senin cevabın").width + 16;
-  }
+  ctx2d.fillStyle = GUESS_COLOR;
+  ctx2d.fillText("●", x, y);
+  x += 12;
+  ctx2d.fillStyle = "#C7CEDD";
+  ctx2d.fillText("Senin sonucun", x, y);
+  x += ctx2d.measureText("Senin sonucun").width + 16;
   ctx2d.fillStyle = CORRECT_COLOR;
   ctx2d.fillText("●", x, y);
   x += 12;
   ctx2d.fillStyle = "#C7CEDD";
-  ctx2d.fillText("Doğru", x, y);
+  ctx2d.fillText("Hedef (nötr)", x, y);
 }
 
-// Soru sırasında (roundActive) eğri BİLEREK gizli — kulakla bulma ilkesi.
-// Eksen HER ZAMAN çizilir (Boost/Cut'ın AYNI deseni — spektrum çubuklarının
-// altında/arkasında tutarlı bir frekans ekseni). state: { audioCtx,
-// activeQuestion, roundActive, guessLetter } — guessLetter Kompresör/
-// Reverb'le PAYLAŞILAN, app.js'in submitThreeWayGuess'te sakladığı harf.
+// Soru sırasında (roundActive) eğri BİLEREK gizli — kulakla bulma ilkesi
+// (diğer sekiz modun AYNI invaryantı: kaydırıcı DEĞERLERİ zaten görünür ama
+// "sonuç ne kadar doğru" görsel olarak SIZDIRILMAZ, kullanıcı KULAĞIYLA karar
+// vermeli). state: { audioCtx, activeQuestion, roundActive, tonalCorrections } —
+// tonalCorrections app.js'in kaydırıcı input'larından canlı topladığı
+// {bandId: correctionDb} haritası (submitTonalDengeGuess'te DONDURULUR, yeni
+// soruda {}'ya döner).
 export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
   drawAxis(ctx2d, w, h);
-  const { audioCtx, activeQuestion: q, roundActive, guessLetter } = state;
+  const { audioCtx, activeQuestion: q, roundActive, tonalCorrections } = state;
   if (!q || roundActive) return;
 
-  const correctVariant = q.variants[q.oddIndex];
-  const guessVariant = guessLetter ? q.variants.find(v => v.letter === guessLetter) : null;
-
-  const correctDb = computeTiltCurveDb(audioCtx, correctVariant, w);
-  const guessDb = guessVariant ? computeTiltCurveDb(audioCtx, guessVariant, w) : null;
-  if (!correctDb && !guessDb) return;
-
-  if (guessDb) drawTiltCurve(ctx2d, w, h, guessDb, GUESS_COLOR, 0.85);
-  if (correctDb) drawTiltCurve(ctx2d, w, h, correctDb, CORRECT_COLOR, 0.85);
-
-  drawCurveLegend(ctx2d, !!guessDb);
+  drawFlatTargetLine(ctx2d, w, h, CORRECT_COLOR);
+  const residualDb = computeResidualCurveDb(audioCtx, q, tonalCorrections || {}, w);
+  if (residualDb) drawResidualCurve(ctx2d, w, h, residualDb, GUESS_COLOR);
+  drawLegend(ctx2d);
 }

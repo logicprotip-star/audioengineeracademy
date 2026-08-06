@@ -435,6 +435,27 @@
     .ans-m2.right .ans-m2-key{background:var(--gr);color:#04231B}
     .ans-m2.wrong .ans-m2-key{background:var(--rd);color:#2A0710}
 
+    /* ---- Tonal Denge (G45) — canlı EQ kaydırıcıları. .answers/.ans'ın grid
+       düzeninden BAĞIMSIZ (bkz. .answers-tonal) — bu bir "şık seç" ekranı
+       DEĞİL, N kaydırıcı + tek bir onay butonu. app.js modes/tonal-denge.js'in
+       renderAnswerChoices'ının ürettiği markup'ı burada stilize eder. */
+    .answers.answers-tonal{display:flex;flex-direction:column;gap:14px}
+    .tonal-bands{display:flex;flex-direction:column;gap:12px}
+    .tonal-band{padding:12px 14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.04);transition:border-color .2s,background .2s}
+    .tonal-band-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+    .tonal-band-label{font-size:14px;font-weight:700;letter-spacing:.02em;color:var(--tx-2)}
+    .tonal-band-value{font-size:13px;font-weight:700;color:var(--bl);font-variant-numeric:tabular-nums}
+    .tonal-slider{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:99px;background:rgba(255,255,255,.12);outline:none;margin:0}
+    .tonal-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:var(--bl);border:3px solid #0A0E1A;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
+    .tonal-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--bl);border:3px solid #0A0E1A;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
+    .tonal-slider:disabled{opacity:.5}
+    .tonal-band.right{border-color:rgba(43,217,168,.5);background:rgba(43,217,168,.1)}
+    .tonal-band.right .tonal-band-value{color:var(--gr)}
+    .tonal-band.wrong{border-color:rgba(255,77,109,.5);background:rgba(255,77,109,.1)}
+    .tonal-band.wrong .tonal-band-value{color:var(--rd)}
+    .tonal-submit{width:100%}
+    .tonal-submit:disabled{opacity:.4}
+
     /* ---- süre çubuğu ---- */
     .timer-row{display:flex;align-items:center;gap:11px}
     .bar{height:8px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden;flex:1}

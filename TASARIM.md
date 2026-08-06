@@ -58,6 +58,14 @@ taşınıp REPURPOSE edildi (bkz. DURUM.md G44 — task'ın kendi ürün kararı
 `core/three-way-cards.js` DEĞİŞİKLİK YAPMADAN import edildi (G41'in öngördüğü
 genelleşme üçüncü modda DOĞRULANDI) — EKRAN 3'ün tablosu bu yüzden değişmedi
 (satır başlığı HARİÇ, bkz. yukarıdaki EKRAN 3 girişi), ÖZET sayıları aynı kaldı.
+**G45 eki:** Tonal Denge G44'te kurulan A/B/C (three-way) mekaniğinden TAMAMEN
+AYRIŞTIRILDI — artık canlı EQ kaydırıcılı bir mod (task'ın kararı, bkz. DURUM.md
+G45 BİTTİ). `core/three-way-cards.js` importu KALDIRILDI, `app.js`'in
+`THREE_WAY_MODE_IDS` listesinden çıkarıldı (Kompresör/Reverb DOKUNULMADI).
+EKRAN 3'ün tablosu ARTIK SADECE Kompresör/Reverb'i kapsıyor (yukarıdaki EKRAN 3
+girişindeki G45 notuna bkz.) — ÖZET sayıları DEĞİŞMEDİ (bu satırlar zaten
+Kompresör/Reverb'in KENDİ mekaniğini anlatıyordu, Tonal Denge'nin çıkışı onları
+etkilemedi).
 
 ## EKRAN 1 — ANA MENÜ
 
@@ -126,22 +134,27 @@ genelleşme üçüncü modda DOĞRULANDI) — EKRAN 3'ün tablosu bu yüzden de�
 | Boss round rozeti/mekaniği | ✗ | ✓ | **Ters fark** | Tasarımda hiç yok — kod-only özellik (bossChip, boss XP çarpanı, bossWins başarımı) |
 | Combo/seri XP çarpanı | ✗ | ✓ | **Ters fark** | Tasarımda combo kavramı görsel olarak var (seri sayacı) ama XP çarpanına bağlı değil; kodda `stats.combo` XP hesaplamasını doğrudan etkiliyor |
 
-## EKRAN 3 — MOTOR 2 "Hangisi Farklı" (Kompresör/Reverb/Tonal Denge OYNANABİLİR, Hangisi Farklı/Distortion HÂLÂ kilitli)
+## EKRAN 3 — MOTOR 2 "Hangisi Farklı" (Kompresör/Reverb OYNANABİLİR, Hangisi Farklı/Distortion HÂLÂ kilitli)
 
 > **06.08 güncellemesi:** İlk envanterin yazıldığı tarihte Motor 2'nin TAMAMI kilitliydi.
 > G30 (Kompresör) ve G35 (Reverb) ile Motor 2'nin İKİ modu artık gerçekten oynanabiliyor —
 > ama prototipin `s-game2` ekranından (büyük seçenek kartları + waveform + "Sırayla Çal" +
 > 2 adımlı seç→onayla akışı) YAPISAL OLARAK FARKLI bir çözümle: mevcut Motor 1 altyapısının
 > (`.ans` grid, merkezi geri bildirim, A/B toggle) 3 şıklı bir varyantı olarak inşa edildi.
-> **G44 eki:** Tonal Denge (spektral tilt, A/B/C) üçüncü Motor 2 modu olarak eklendi —
-> `core/three-way-cards.js`'i DEĞİŞİKLİK YAPMADAN import etti (G41'in öngördüğü
-> genelleşme doğrulandı), bu ekranın satırlarının HİÇBİRİ değişmedi (üçüncü mod da
-> AYNI yapısal farklarla/AYNI ortak bileşenle çalışıyor). Tek fark: Kompresör'ün
-> zaman-genlik zarfı/Reverb'in kuyruk zarfının AKSİNE Tonal Denge GERÇEK bir
-> frekans-yanıtı eğrisi çiziyor (Boost/Cut'ın tekniğiyle AYNI) — bu, EKRAN 2'nin
-> "Geri bildirim kartı" satırındaki genel açıklamanın kapsamında (mod-özel görsel
-> zaten oradan biliniyordu), ayrı bir satır gerektirmedi. Detay: DURUM.md G44 BİTTİ.
+> **G44 eki (ARTIK GEÇERSİZ, bkz. G45):** Tonal Denge G44'te bu ekranın üçüncü modu
+> (A/B/C, spektral tilt) olarak eklenmişti. **G45'te TAMAMEN çıkarıldı** — bkz. altta.
 > "Hangisi Farklı" (motor2'nin genel/temel modu) ve Distortion hâlâ kodda yok.
+>
+> **G45 eki:** Tonal Denge bu ekrandan (three-way/A-B-C) TAMAMEN AYRIŞTI — artık
+> `core/three-way-cards.js` KULLANMIYOR, canlı EQ kaydırıcılı (N slider + "Cevabı
+> Onayla") YENİ bir mekaniğe dönüştü (task'ın kararı). Menüde HÂLÂ "Hangisi farklı"
+> grubunun altında duruyor (mode-catalog.js motor:2 alanı DEĞİŞMEDİ — kart gruplaması
+> sadece görsel/kategori, mekanik artık farklı) ama AŞAĞIDAKİ tablonun HİÇBİR satırı
+> Tonal Denge'yi kapsamıyor (SADECE Kompresör/Reverb). Tonal Denge'nin kendi arayüzünün
+> (kaydırıcılar, canlı ses, "Cevabı Onayla") `Dizayn/prototype.html`'de HİÇBİR karşılığı
+> YOK — EKRAN 4 (Motor 3)'ün "hiçbir karşılığı bulunamadı" durumunun TERSİ (orada kod
+> yok, burada YENİ bir kod var ama prototipte hiç KARŞILIĞI yok) — bu yüzden ayrı bir
+> karşılaştırma tablosu YAZILMADI, sadece bu prose notu. Detay: DURUM.md G45 BİTTİ.
 
 | Öğe | Tasarımda | Kodda | Durum | Not |
 |---|---|---|---|---|

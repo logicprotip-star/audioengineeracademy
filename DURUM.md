@@ -1,13 +1,127 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G44)
+Son güncelleme: 06.08.2026 (G45)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G44, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Mod 8 "Tonal
+Bu commit (G45, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Tonal Denge
+TrainYourEars mekaniğine dönüştürüldü: odd-one-out (A/B/C, "hangisi farklı")
+TAMAMEN kaldırıldı, yerine CANLI EQ DÜZELTME (N kaydırıcı, gerçek zamanlı ses)
+geldi.** G44'ün odd-one-out kodu (variants/oddIndex/choices/shape/imbalanceScore,
+three-way-cards.js delegasyonu) modes/tonal-denge.js'ten TAMAMEN silindi — dosya
+SIFIRDAN yazıldı, ölü kod bırakılmadı. 638 test (640'tan — G44'ün 67 odd-one-out
+testi silindi, yerine 65 yeni test geldi, net -2).
+
+**YENİ MEKANİK:** Ses (groove/upload) çalar. Uygulama GİZLİ bir tonal bozukluk
+uygular — 4/5/6 bandın (bkz. aşağıdaki ramp) BİR KISMINA ya da TÜMÜNE (en az 1,
+rastgele) peaking/shelf EQ kayması. Kullanıcı HER bant için bir kaydırıcıyı
+(±12dB, orta=0=nötr) CANLI oynatarak sesi nötüre geri getirmeye çalışır — ses
+GERÇEK ZAMANLI değişir, "Cevabı Onayla"ya basınca değerlendirilir. Puanlama:
+her bantta KALAN sapma (bugDb+correction, mükemmelde 0) → yakınlık skoru
+(0-100, `evaluateAnswer`'da SAF hesaplanır).
+
+**CANLI SES MİMARİSİ (task'ın "kritik" dediği kısım) — audio-engine.js'e
+DOKUNMADAN çözüldü:** `applyProcessing` round başında BİR KEZ çağrılır (Motor
+2'nin A/B/C önizleme döngüsünün AKSİNE previewLetter YOK, tek "canlı" ses var),
+question.bands KADAR BiquadFilterNode kurar ve referanslarını modül-seviyesi
+`liveBandNodes`'a SAKLAR. Yeni export `setLiveBandGain(audioCtx, bandId,
+netGainDb)` — app.js kaydırıcı HER hareket ettiğinde bunu çağırır, GRAFİĞİ
+YENİDEN KURMADAN o bandın düğümünün gain'ini `setTargetAtTime` ile YUMUŞAK
+günceller (tıklama YOK, ses kesintisiz — task'ın açık şartı). Bu, projede
+canlı/aralıksız parametre güncellemesinin İLK örneği — önceki sekiz modun
+HEPSİ her etkileşimde `buildQuestionChain`'i YENİDEN çağırıyordu (Kompresör/
+Reverb'in A/B/C önizlemesi dahil, bkz. o dosyaların "previewLetter" notu).
+
+**BANT RAMP'İ (seans içi, task'ın kararı):** `bandCountForSessionIndex` —
+Soru 1-4 (index 0-3) → 4 bant (bas/alt-orta/üst-orta/tiz, task'ın kendi örneği),
+Soru 5-8 → 5 bant (+orta), Soru 9+ → 6 bant (+sub, TAM 6 bölge) — SINIRSIZ
+üstte 6'da SABİT kalır (task sadece 9-10'u belirtti, 11+ için doğal uzantı,
+yeni bir üst sınır İCAT EDİLMEDİ). Bant tanımları (`BAND_DEFS`) frekans-
+bulma.js'in FA_ZONES'undaki AYNI 6 bölgeden (SUB/BAS/ALT-ORTA/ORTA/ÜST-ORTA/
+TİZ) TÜRETİLİR (tek kaynak) — merkez frekans (BiquadFilterNode.frequency için)
+geometrik ortadan (`sqrt(a*b)`) hesaplanır, FA_ZONES kendisi bunu tutmuyordu.
+filterType KANONİK sırayla: en düşük frekans lowshelf, en yüksek highshelf,
+aradakiler peaking (standart parametrik EQ tasarımı).
+
+**KADEMELİ ZORLUK (merkezi eğri, Kompresör/Reverb/dB Seviyesi'nin AYNI BAŞTAN-
+doğru-kalibrasyon yöntemi):** `TONAL_CURVE_CONFIG` (DISTURB_DB_AT_1=9 →
+AT_CAP=0.9, FLOOR=0.8) — kolay=büyük/bariz bozukluk, pro=ince (~0.9-1.3dB).
+"Kolaylaşma yok" invaryantı node ile DOĞRUDAN hesaplandı: disturbDb →
+easy(4)=6.26≤9, medium(8)=3.85≤5, hard(12)=2.37≤2.8, pro(20)=0.90≤1.3;
+timeSec → easy(4)=23.3≤26 … pro(20)=13.0≤15 (rahat marjlarla, testle
+doğrulandı). Süreler diğer sekiz moddan BİLİNÇLİ daha UZUN (26/22/18/15sn) —
+bu görev tek tıklama değil, N kaydırıcıyı dinleye dinleye ayarlamak.
+
+**ÖĞRETİM + GÖRSEL (task'ın örnek formatıyla BİREBİR, canlı oyunda
+DOĞRULANDI):** `teachingText` her bant için Türkçe DOĞRU çekimle (BAS'ı/
+ALT-ORTA'yı/ORTA'yı/ÜST-ORTA'yı/TİZ'i/SUB'u — ünlü uyumu elle çözüldü, generic
+bir ek YANLIŞ çıkardı) + işaretli dB + mix dili raporlar ("ORTA'yı -9.3dB
+eksik bıraktın — mix hâlâ içi boş/uzak... ÜST-ORTA'yı iyi düzelttin").
+`drawOverlay` GERÇEK BiquadFilterNode.getFrequencyResponse ile (Boost/Cut'ın
+AYNI tekniği) İKİ eğri çizer: KIRMIZI (GUESS_COLOR) = kullanıcının kalan
+sapma eğrisi, YEŞİL (CORRECT_COLOR) düz çizgi = hedef (nötr) — task'ın açık
+renk kararı. Round sırasında (roundActive) BİLEREK gizli (kulakla bulma
+ilkesi, diğer sekiz modun AYNI invaryantı).
+
+**KAYNAK (G44'ten DEĞİŞMEDİ, task'ın açık isteği):** `uyumluKaynaklar:
+compatibleSourceIds({ only: ["groove", "upload"] })` — dolu-mix-bağlamı şartı
+aynen korundu. `kulaklikGerekli: true` de korundu.
+
+**MOTOR AYRIŞMASI (task'ın çekirdek kararı):** `app.js`'in `THREE_WAY_MODE_IDS`
+listesinden "tonal-denge" ÇIKARILDI (Kompresör/Reverb AYNEN kalıyor,
+DOKUNULMADI) — `isThreeWayModule("tonal-denge")` artık false, bu OTOMATİK
+olarak A/B/C döngüsünü/previewLetter/three-way-cards render'ını devre dışı
+bırakıyor (G33/G35'in "genelleştirme" yatırımı burada TERSİNE de işledi:
+listeden ÇIKARMAK kadar basit oldu). `isChoiceFormat()`'e "tonal-denge" EL
+İLE eklendi (three-way olmadığı için oraya artık kendiliğinden düşmüyordu).
+YENİ bir submit akışı (`submitTonalDengeGuess`, submitThreeWayGuess'in
+YAPISAL PARALELİ) + YENİ bir event bloğu (kaydırıcı "input" CANLI güncelleme +
+"Cevabı Onayla" "click" — `.ans` click-delegasyonundan BİLEREK AYRI, submit
+butonu `.ans` class'ı TAŞIMIYOR, iki mekanizma hiç karışmıyor).
+
+**A/B Test butonu — BEDAVA bir yeniden-kullanım:** Motor 1'in dry/wet
+crossfade'i (`setProcessed`) hiç değiştirilmeden Tonal Denge'de "A=temiz
+orijinal groove, B=senin canlı düzeltmen" karşılaştırması olarak ÇALIŞIYOR —
+ayrı bir kod satırı YAZILMADI, `isThreeWayModule` false döndüğü için
+`toggleAB()` zaten doğru (Motor 1) dalına düşüyor.
+
+**CSS:** `.answers-tonal`/`.tonal-bands`/`.tonal-band`/`.tonal-slider`/
+`.tonal-submit` (styles.css) — İLK gerçek `<input type="range">` bu projede,
+webkit/moz thumb stilleri elle yazıldı. `.tonal-band.right/.wrong` renkleri
+`.ans.right/.wrong`'un AYNI kırmızı/yeşil dilini kullanıyor.
+
+**Doğrulama (canlı, tarayıcıda, `devFlags.simulatePro` ile):** Tonal Denge'ye
+girildi — kulaklık sheet'i çıktı (kulaklikGerekli doğrulandı). Round başında
+4 kaydırıcı (BAS/ALT-ORTA/ÜST-ORTA/TİZ) + "Cevabı Onayla" render edildi,
+kaynak "Davul Döngüsü". Bir kaydırıcı DOM'dan sürüklendi (`input` event) —
+değer anında "+6.0 dB" gösterdi, konsol hatası YOK (canlı `setLiveBandGain`
+çağrısı doğrulandı). 27 tur otomatik oynatıldı — Soru 5'ten (index 4) itibaren
+5 bant (ORTA eklendi), Boss round'a doğru geçti, tamamı boyunca konsol hatası
+SIFIR. Bir round'da YANLIŞ bırakılıp (6sn'lik daha uzun feedback penceresi
+kullanılarak) EKRAN GÖRÜNTÜSÜYLE doğrulandı: kırmızı dalgalı "kalan sapma"
+eğrisi + düz yeşil hedef çizgisi görüldü, 4 slider satırı KIRMIZI kenarla
+("kalan: +8.7dB" vb.), 1 slider (dokunulmamış, zaten bozuk değildi) YEŞİL
+kenarla ("kalan: +0.0dB") işaretlendi, feedback kartında "Yakınlık %42" +
+tam öğretici metin (her bant için ayrı cümle, doğru Türkçe çekim) göründü.
+Kompresör'e geçildi — 3 büyük A/B/C kartı (`.ans-m2`) NORMAL render edildi,
+0 `.tonal-slider`, bir cevap verildi ("B farklıydı, ratio 13.1:1...") —
+odd-one-out akışı TAMAMEN bozulmadan çalışıyor. `npm test`: 638/638 (573
+sekiz-mod + 65 yeni Tonal Denge testi — bandCountForSessionIndex/
+bandIdsForCount ramp, bandsForQuestion [kapsama+kanonik filterType+rng
+determinizmi], pickDisturbanceDb FLOOR, evaluateAnswer [mükemmel/dokunulmamış/
+kısmi/proximityScore sınırları], calculateXP [GRADED], teachingText/
+getFeedbackData [Türkçe çekim + mix dili], getHintText [harf/değer sızdırmaz],
+applyProcessing+setLiveBandGain [N doğru node + canlı güncelleme, sahte
+audioCtx], merkezi eğri + "kolaylaşma yok" invaryantı, getMeta, "artık
+three-way DEĞİL" doğrulaması + Kompresör/Reverb'in three-way-cards.js'ten HÂLÂ
+miras aldığının AYRICA testle kanıtlanması).
+
+---
+
+Önceki commit (G44, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Mod 8 "Tonal
 Denge": Motor 2'nin ÜÇÜNCÜ modu (A/B/C odd-one-out, spektral tilt-tabanlı) —
 Kompresör (G30)/Reverb (G35)'in ŞABLONUNDAN türetildi, oynanabilir, menüde,
 573 test → 640 test (+67).**

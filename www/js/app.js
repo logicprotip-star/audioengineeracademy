@@ -37,7 +37,10 @@ registerMode(tonalDenge);
 // hardcoded), G35'te Reverb eklenince bu liste + iki yardımcı fonksiyon
 // (isThreeWayModule/isThreeWayQuestion) çıkarıldı — G33'ün "MOTOR 2 ŞABLONU"
 // notunun öngördüğü ikinci-modda-genelleştirme adımı budur.
-const THREE_WAY_MODE_IDS = ["kompresor", "reverb", "tonal-denge"];
+// G45: "tonal-denge" BURADAN ÇIKARILDI — artık bir odd-one-out (A/B/C) modu
+// DEĞİL, canlı EQ-düzeltme (kaydırıcı) moduna dönüştü (bkz. modes/tonal-denge.js
+// dosya başı). Kompresör/Reverb bu listede AYNEN kalmaya devam ediyor.
+const THREE_WAY_MODE_IDS = ["kompresor", "reverb"];
 function isThreeWayModule(m) { return !!m && THREE_WAY_MODE_IDS.includes(m.MODE_ID); }
 function isThreeWayQuestion(q) { return !!q && THREE_WAY_MODE_IDS.includes(q.mode); }
 // Artık birden fazla oynanabilir mod var — `mode` menüden hangi karta basıldığına
@@ -585,6 +588,14 @@ let threeWayGuessLetter = null;
 // applyProcessing'in notu), bu ikisi HER ZAMAN senkron kalmalı.
 let threeWayPlayLetter = "A";
 
+// G45: Tonal Denge'nin CANLI EQ kaydırıcı durumu — {bandId: correctionDb}.
+// dbGuess/boostCutGuess gibi bu modun KENDİ değişkeni (three-way'in paylaşılan
+// threeWayGuessLetter'ından FARKLI — Tonal Denge artık three-way DEĞİL). Her
+// yeni turda (renderQuestion) {}'ya döner; kaydırıcı input event'lerinde
+// CANLI güncellenir (bkz. "Tonal Denge — canlı EQ kaydırıcıları" bölümü);
+// submitTonalDengeGuess'te DONDURULUR (cevap-sonrası görsel bunu okur).
+let tonalDengeCorrections = {};
+
 // İlerleme sekmesindeki "toplam antrenman süresi" istatistiği: her tur startRound()'da
 // başlar, cevap/timeout ile biter — soru ekranda GERÇEKTEN açık kaldığı süreyi toplar.
 let roundStartedAt = null;
@@ -739,7 +750,7 @@ function timerOff() {
 // ("cutoff") ise TERSİ: dalgaya tıklama affordance'ı yok, "Cevap biçimi" ayarından
 // BAĞIMSIZ olarak her zaman şıklı (bkz. kesim-noktasi.js dosya başı not).
 function isChoiceFormat() {
-  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth" || isThreeWayQuestion(activeQuestion))) return true;
+  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth" || activeQuestion.mode === "tonal-denge" || isThreeWayQuestion(activeQuestion))) return true;
   return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
     && activeQuestion && activeQuestion.mode !== "proplus");
 }
@@ -1647,7 +1658,7 @@ function renderQuestion() {
     : q.mode === "qwidth" ? mode.questionTitle(q)
     : q.mode === "kompresor" ? "Üç ses (A/B/C) — hangisi FARKLI sıkıştırılmış?"
     : q.mode === "reverb" ? "Üç ses (A/B/C) — hangisi FARKLI yankılanıyor?"
-    : q.mode === "tonal-denge" ? "Üç ses (A/B/C) — hangisinin tonal dengesi BOZUK?"
+    : q.mode === "tonal-denge" ? `${q.bandCount} bant — kaydırıcılarla sesi nötüre getir.`
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
 
   els.questionMeta.textContent = mode.modeDescription(q);
@@ -1670,6 +1681,7 @@ function renderQuestion() {
   qGuessLabelId = null;
   threeWayGuessLetter = null;
   threeWayPlayLetter = "A";
+  tonalDengeCorrections = {};
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
   revealAnimator.reset();
   setAnalyzerPhase("ask");
@@ -1696,7 +1708,7 @@ function renderQuestion() {
     : q.mode === "qwidth" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan genişlik karakterini seç."
     : q.mode === "kompresor" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI olanı seç."
     : q.mode === "reverb" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI yankılanan sesi seç."
-    : q.mode === "tonal-denge" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan dengesiz olanı seç."
+    : q.mode === "tonal-denge" ? "Dinle, kaydırıcılarla düzelt, sesi nötr/dengeli hale getirmeye çalış — sonra onayla."
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
 }
@@ -2222,6 +2234,75 @@ function submitThreeWayGuess(letter) {
   if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
+// Tonal Denge (G45) — submitThreeWayGuess'in YAPISAL PARALELİ (AYNI genel
+// akış: sonuç hesapla → XP/can/combo → feedback → geçiş) ama answer bir HARF
+// DEĞİL, kaydırıcılardan toplanan {bandId: correctionDb} haritası
+// (tonalDengeCorrections, bkz. tanımındaki not). "Cevabı Onayla" butonuna
+// basınca çağrılır (bkz. "Tonal Denge — canlı EQ kaydırıcıları" bölümü).
+function submitTonalDengeGuess() {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "tonal-denge") return;
+  roundActive = false;
+  roundFlow.clearTimer();
+  setActionbarTucked(true);
+
+  const q = activeQuestion;
+  const answer = { ...tonalDengeCorrections };
+  const result = mode.evaluateAnswer(q, answer);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = "";
+  mode.markAnswerChoices(els.answers, q, answer);
+
+  stats.rounds++;
+  let gained = 0;
+
+  if (result.correct) {
+    stats.correct++;
+    stats.combo++;
+    stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
+    gained = mode.calculateXP(q, result, q.hintUsed, q.difficulty, {
+      combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
+    });
+    diffState().xp += gained;
+    modeState().xp += gained;
+    diffState().score += gained * Math.max(1, stats.combo);
+    diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
+    if (q.difficulty === "pro") stats.proCorrect++;
+    if (q.boss) stats.bossWins++;
+    session.correct++; session.xp += gained;
+
+    const feedback = mode.getFeedbackData(q, answer, { gained });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    audioEngine.sfxDing();
+    spawnXp(`+${gained} XP`, els.canvas);
+    burst(els.canvas);
+    challengeTick(true, gained);
+  } else {
+    stats.wrong++;
+    stats.combo = 0;
+    diffState().score = Math.max(0, diffState().score - 20);
+    session.wrong++;
+
+    const feedback = mode.getFeedbackData(q, answer, { gained: 0 });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    audioEngine.sfxBuzz();
+    shake(els.canvas);
+    loseLife("Sesi nötüre getiremedin.", { silent: true });
+    challengeTick(false, 0);
+  }
+
+  audioEngine.stopAudio();
+  pushHistory(result.correct);
+  updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
+  notifyNewAchievements();
+  updateUI();
+  persistStats();
+  persistDaily();
+  // Diğer sekiz modla AYNI hizalı geçiş formülü (bkz. G21).
+  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+}
+
 function submitProPlusGuess() {
   if (!roundActive || !activeQuestion || activeQuestion.mode !== "proplus") return;
   roundActive = false;
@@ -2628,7 +2709,8 @@ function drawVisualizer() {
     dbGuess, // bkz. dB Seviyesi'nin drawOverlay'i — diğer modlar okumuyor
     boostCutGuess, // bkz. Boost/Cut'ın drawOverlay'i — diğer modlar okumuyor
     qGuessLabelId, // bkz. Q Genişliği'nin drawOverlay'i — diğer modlar okumuyor
-    guessLetter: threeWayGuessLetter // bkz. Motor 2 modlarının (Kompresör/Reverb) drawOverlay'i — diğer modlar okumuyor
+    guessLetter: threeWayGuessLetter, // bkz. Motor 2 modlarının (Kompresör/Reverb) drawOverlay'i — diğer modlar okumuyor
+    tonalCorrections: tonalDengeCorrections // bkz. Tonal Denge'nin (G45) drawOverlay'i — diğer modlar okumuyor
   };
 
   if (!visualizerOn || !audioEngine.audioReady) {
@@ -2805,6 +2887,42 @@ if (els.answers) els.answers.addEventListener("click", e => {
   // F2: bkz. yukarıdaki pointerdown handler'daki not — submitFrequencyGuess kendi
   // scheduleNext(duration)'ını çağırıyor, ikinci ensureAutoNext() burada yok.
   try { submitFrequencyGuess(hz); } catch (err) { console.error(err); }
+});
+
+// Tonal Denge (G45) — CANLI EQ kaydırıcıları. .ans'lı butonların TEK-tıkla-
+// cevapla deseninin AKSİNE burada kullanıcı N kaydırıcıyı istediği kadar
+// oynatıp EN SONUNDA "Cevabı Onayla"ya basar — bu yüzden İKİ AYRI event türü
+// gerekiyor: "input" (kaydırıcı her hareket ettiğinde, CANLI ses + değer
+// güncellemesi, submit YOK) ve "click" (SADECE "Cevabı Onayla" butonunda,
+// submit VAR). Yukarıdaki .ans click-delegasyonundan BİLEREK AYRI tutuldu —
+// submit butonu .ans class'ı TAŞIMIYOR (bkz. tonal-denge.js
+// renderAnswerChoices), o yüzden yukarıdaki blok bunu hiç görmüyor, iki
+// mekanizma birbirine karışmıyor.
+if (els.answers) els.answers.addEventListener("input", e => {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "tonal-denge") return;
+  const slider = e.target.closest(".tonal-slider");
+  if (!slider) return;
+  const bandId = slider.dataset.bandId;
+  const correctionDb = Number(slider.value);
+  tonalDengeCorrections[bandId] = correctionDb;
+
+  const row = slider.closest(".tonal-band");
+  const valueEl = row && row.querySelector('[data-role="value"]');
+  if (valueEl) valueEl.textContent = `${correctionDb >= 0 ? "+" : ""}${correctionDb.toFixed(1)} dB`;
+
+  // GRAFİĞİ YENİDEN KURMADAN — sadece bu bandın CANLI düğümünün gain'ini
+  // (bugDb + correctionDb TOPLAMI) günceller (bkz. tonal-denge.js
+  // setLiveBandGain dosya başı notu: tıklama riski yok, ses kesintisiz).
+  const band = activeQuestion.bands.find(b => b.id === bandId);
+  if (band && audioEngine.audioCtx) {
+    mode.setLiveBandGain(audioEngine.audioCtx, bandId, band.bugDb + correctionDb);
+  }
+});
+
+if (els.answers) els.answers.addEventListener("click", e => {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "tonal-denge") return;
+  if (!e.target.closest(".tonal-submit")) return;
+  try { submitTonalDengeGuess(); } catch (err) { console.error(err); }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -3205,6 +3323,7 @@ els.resetStatsBtn.addEventListener("click", () => {
   qGuessLabelId = null;
   threeWayGuessLetter = null;
   threeWayPlayLetter = "A";
+  tonalDengeCorrections = {};
   syncLives();
   roundFlow.clearTimer();
   audioEngine.stopAudio();
