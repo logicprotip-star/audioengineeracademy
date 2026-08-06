@@ -50,6 +50,27 @@ function zoneKey(zone) {
   return zone.t.split(" (")[0];
 }
 
+// G50 — SINAV SİSTEMİNİN 7 moda yayılması: exam-system.js'in getWeakTier()'ıyla
+// AYNI ROL ama ZORLUK KADEMESİ yerine FREKANS BÖLGESİ ekseninde — frekans-tabanlı
+// modların (Frekans Bulma/Kesim Noktası/Boost-Cut/Q Genişliği) telafi'si HANGİ
+// bölgede yoğunlaşacağını belirler. pickPersonalizedZone()'un AKSİNE (ağırlıklı
+// RASTGELE seçim, normal soru üretimi için) burada DETERMİNİSTİK en zayıf bölge
+// döner — getWeakTier'ın "en düşük doğrulukla kademe" kararının BİREBİR AYNISI,
+// telafi rastgele değil GERÇEKTEN en zayıf noktayı hedeflemeli. SAF fonksiyon,
+// zones parametre olarak alınır (FA_ZONES'u DOĞRUDAN import ETMEZ — dosya başı
+// nottaki mode-agnostic ilke). Dönen: { zone, weakness } ya da hiçbir bölge
+// MIN_SAMPLES'a ulaşmamışsa null (yeni kullanıcı — çağıran taraf bu durumda
+// bölge daraltmadan/tüm spektrumda telafi yapmalı).
+export function getWeakZone(zoneStats, zones, config = PERSONALIZATION_CONFIG) {
+  let weakest = null;
+  for (const zone of zones || []) {
+    const w = zoneWeakness((zoneStats || {})[zoneKey(zone)], config);
+    if (w === null) continue;
+    if (!weakest || w > weakest.weakness) weakest = { zone, weakness: w };
+  }
+  return weakest;
+}
+
 // SAF FONKSİYON. zones: [{a,b,t}] (FA_ZONES benzeri, çağıran taraftan). range: [min,max]
 // — odak aralığı (M1-4) uygulanmışsa SADECE bu aralıkla KESİŞEN bölgeler arasından
 // seçilir (aralık dışı bölge hiç gelmez — "odak aralığı içinde çalışsın" kararı).

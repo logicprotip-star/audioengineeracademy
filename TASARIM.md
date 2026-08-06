@@ -78,6 +78,17 @@ Sonu ekranının `leveledUp` rozetine DOKUNMADI, onunla YARIŞMIYOR (ikisi FARKL
 anları temsil ediyor: Seans Sonu XP eşiği aşıldığında, sınav kutlaması bir
 YETERLİLİK SINAVI geçildiğinde). Detay: DURUM.md G47 BİTTİ.
 
+**G50 eki:** Sınav sistemi Kompresör pilotundan diğer yedi moda yayıldı —
+Frekans Bulma/Kesim Noktası/dB Seviyesi/Boost mu Cut mu/Q Genişliği/Reverb/Tonal
+Denge artık AYNI parkur/kombo/sınav/telafi/"BÖLÜM GEÇTİN!" akışını çalıştırıyor
+(8/8 mod). Prototipte bu G47'deki gibi HİÇ karşılığı olmadığı için AYRI bir
+karşılaştırma tablosu YAZILMADI — G47'nin notu (prototip statik bir demo,
+XP/seviye/sınav kavramı prototipte YOK) TÜM sekiz mod için AYNEN geçerli. Tek
+görsel farklılık Tonal Denge'nin sınavı: odd-one-out (Kompresör/Reverb'in A/B/C
+kartları) DEĞİL, kendi canlı-EQ kaydırıcı mekaniğiyle (task kararı, bkz. G45)
+— sınav sırasında bant sayısı DAİMA 6'ya (BAND_SET_6) zorlanıyor, normal
+parkurdaki kademeli 4→5→6 ramp'inden BAĞIMSIZ. Detay: DURUM.md G50 BİTTİ.
+
 ## EKRAN 1 — ANA MENÜ
 
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |

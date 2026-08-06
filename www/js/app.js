@@ -14,6 +14,7 @@ import { registerMode, getMode, listModes } from "./core/registry.js";
 import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import { SOURCE_GROUPS, findSource } from "./core/source-catalog.js";
 import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
+import { getWeakZone } from "./core/personalization.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
@@ -1317,6 +1318,29 @@ function appendExamNote(note) {
   els.feedbackDetail.textContent = `${els.feedbackDetail.textContent} ${note}`;
 }
 
+// G50 — SINAV SİSTEMİNİN 7 moda yayılması: telafinin HANGİ eksende kişisel-
+// leştirileceğini seçen dispatcher (task'ın kendi ismi/imzası). mode.
+// EXAM_WEAK_AREA==="zone" (Frekans Bulma/Kesim Noktası/Boost-Cut/Q Genişliği)
+// iken zayıf FREKANS BÖLGESİ (personalization.js:getWeakZone, PAYLAŞILAN
+// zoneStats + modun kendi FA_ZONES'u üzerinden) — aksi halde (undefined: dB
+// Seviyesi/Kompresör/Reverb/Tonal Denge, "bu modun bölge kavramı yok") ESKİ
+// zayıf ZORLUK KADEMESİ (exam-system.js:getWeakTier, tierStats üzerinden,
+// G47'den beri DEĞİŞMEDİ). Dönen `value` examSystem.startRemedial()'a AYNEN
+// geçirilir — exam-system.js bunun bir tier string'i mi yoksa bir zone
+// nesnesi mi olduğunu HİÇ bilmez/sormaz (opaque taşır, bkz. o dosyanın "mode-
+// agnostic kalsın" notu); YORUMLAMA (difficulty override mü, focusRange
+// daraltması mı) TAMAMEN app.js:startRound()'un işi (bkz. o fonksiyondaki not).
+function getWeakArea(stats, modeId) {
+  if (mode.EXAM_WEAK_AREA === "zone") {
+    const weak = mode.FA_ZONES ? getWeakZone(zoneStats, mode.FA_ZONES) : null;
+    return { type: "zone", value: weak ? weak.zone : null, label: weak ? weak.zone.t : null };
+  }
+  const es = examStatsFor(modeId);
+  const weak = getWeakTier(es.tierStats);
+  const tier = (weak && weak.tier) || "medium";
+  return { type: "tier", value: tier, label: mode.DIFFICULTY[tier]?.label || tier };
+}
+
 // submitThreeWayGuess'in (Kompresör/Reverb PAYLAŞTIĞI) SONUNDA, SADECE
 // mode.EXAM_ENABLED true iken çağrılır. Dönen boolean: true ise çağıran taraf
 // normal scheduleNext(...)'ü ATLAMALI (bu fonksiyon sheet açıp akışı KENDİSİ
@@ -1343,14 +1367,18 @@ function handleExamOutcome(q, result) {
     // G48 DÜZELTMESİ: telafi artık BURADA (parkur TOPLAM<6, ne kombo ne
     // toplam yolu tetiklendi) başlıyor — ÖNCEDEN (G47) burada doğrudan
     // "parkur-failed" (telafi YOK) vardı, hata BUYDU.
+    // G50: tier YERİNE getWeakArea() — moda göre zon ya da kademe döner (bkz.
+    // o fonksiyonun notu). value null olabilir (zone tipinde, yeterli veri
+    // yoksa) — startRemedial(null) GÜVENLİ (startRound() bunu "daraltma yok"
+    // olarak yorumlar, bkz. o fonksiyon), tier tipinde ASLA null değil
+    // ("medium" fallback'i getWeakArea İÇİNDE zaten uygulanıyor).
     case "remedial-start": {
-      const weak = getWeakTier(es.tierStats);
-      // Yeterli veri yoksa (yeni kullanıcı/henüz hiç yanlış yapmamış) makul
-      // bir orta nokta — "medium" (KULAKLA/PLAYTEST DOĞRULANMADI, task'ın
-      // "zayıf bölge yoksa da telafi çalışsın" isteğinin doğal varsayılanı).
-      const tier = (weak && weak.tier) || "medium";
-      examSystem.startRemedial(tier);
-      appendExamNote(`${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — ${mode.DIFFICULTY[tier]?.label || tier} kademesinde ${EXAM_CONFIG.REMEDIAL_LENGTH} telafi sorusu geliyor.`);
+      const area = getWeakArea(stats, modeId);
+      examSystem.startRemedial(area.value);
+      const desc = area.type === "zone"
+        ? (area.label ? `${area.label} bölgesinde` : "genel spektrumda")
+        : `${area.label} kademesinde`;
+      appendExamNote(`${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — ${desc} ${EXAM_CONFIG.REMEDIAL_LENGTH} telafi sorusu geliyor.`);
       return false;
     }
     case "exam-passed": {
@@ -2015,7 +2043,12 @@ function submitFrequencyGuess(guessHz) {
   // 1.5sn'de okunamıyordu. G13: geri bildirim ekranı kapalıyken kart hiç gösterilmediği
   // için bu süreye gerek yok — QUICK_ADVANCE_MS sadece ding/buzz'ın duyulmasına yetecek
   // kadar kısa bir bekleme.
-  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+  const gameOver = finalizeIfGameOver();
+  // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması (bkz. o
+  // fonksiyondaki not) — SADECE mode.EXAM_ENABLED true iken (G50'den beri
+  // Frekans Bulma) çağrılır.
+  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
 // Kesim Noktası ("cutoff") için submitFrequencyGuess'in YAPISAL PARALELİ — bilerek
@@ -2109,7 +2142,10 @@ function submitCutoffGuess(answer) {
   // geçerli — kart yoksa/istenmiyorsa hızlı geç. Her zaman "Atla ▶" (els.
   // nextBtn → goToNextRound()) İLE ya da G27'den beri #feedbackBox'ın KENDİ
   // X'iyle (bkz. #feedbackClose, merkezi delegasyon) ANINDA atlanabilir.
-  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+  const gameOver = finalizeIfGameOver();
+  // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
+  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
 // dB Seviyesi ("dblevel") için submitCutoffGuess'in YAPISAL PARALELİ — aynı ŞABLON
@@ -2188,7 +2224,10 @@ function submitLevelGuess(value) {
   // görsel dB göstergesi okunacak içerik taşıyor, eskisi gibi hep 700ms kullanmak
   // kullanıcı metni okumadan geçirirdi. G27'den beri #feedbackBox'ın KENDİ X'i
   // (#feedbackClose) de var — merkezi delegasyon, bu mod hiçbir şey eklemedi.
-  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+  const gameOver = finalizeIfGameOver();
+  // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
+  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
 // Boost/Cut ("boostcut") için submitLevelGuess'in YAPISAL PARALELİ — aynı ŞABLON
@@ -2272,7 +2311,10 @@ function submitBoostCutGuess(answer) {
   // Diğer üç modla AYNI hizalı geçiş formülü (bkz. G21). G27: "en sonda merkezi
   // eklenecek" notu artık gerçekleşti — #feedbackBox'ın KENDİ X'i (#feedbackClose)
   // bu mod hiçbir şey eklemeden otomatik geldi.
-  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+  const gameOver = finalizeIfGameOver();
+  // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
+  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
 // Q Genişliği ("qwidth") için submitBoostCutGuess'in YAPISAL PARALELİ — aynı
@@ -2346,7 +2388,10 @@ function submitQWidthGuess(labelId) {
   persistDaily();
   // Diğer dört modla AYNI hizalı geçiş formülü (bkz. G21). #feedbackBox'ın
   // KENDİ X'i (#feedbackClose, G27) de merkezi delegasyondan otomatik geldi.
-  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+  const gameOver = finalizeIfGameOver();
+  // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
+  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
 // Motor 2'nin (A/B/C odd-one-out) HER modu için ORTAK submit fonksiyonu —
@@ -2503,7 +2548,13 @@ function submitTonalDengeGuess() {
   persistStats();
   persistDaily();
   // Diğer sekiz modla AYNI hizalı geçiş formülü (bkz. G21).
-  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+  const gameOver = finalizeIfGameOver();
+  // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması. Bu mod
+  // odd-one-out DEĞİL (bkz. dosya başı not) ama handleExamOutcome q/result
+  // şeklinden BAĞIMSIZ (sadece result.correct + q.difficulty okur) — three-way
+  // olmayan diğer beş submit fonksiyonuyla AYNI şekilde generic çalışır.
+  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
 function submitProPlusGuess() {
@@ -2789,18 +2840,39 @@ function startRound() {
   // `mode.EXAM_ENABLED` undefined → examActive HER ZAMAN false, bu blok
   // ÖNCEKİ davranışla BİREBİR aynı kalır (hiç çalışmaz).
   const examActive = !!mode.EXAM_ENABLED && examSystem.phase !== "parkur";
-  const examTier = mode.EXAM_ENABLED ? examSystem.questionTier(els.difficultySelect.value, mode.EXAM_DIFFICULTY) : els.difficultySelect.value;
+  // G50: zon-tabanlı telafi (Frekans Bulma/Kesim Noktası/Boost-Cut/Q Genişliği,
+  // bkz. getWeakArea) fazında examSystem.remedialTier bir ZORLUK adı DEĞİL bir
+  // ZONE nesnesi taşır — questionTier()'a (difficulty bekler) DOĞRUDAN
+  // geçirilirse mode.DIFFICULTY[level] undefined'a düşerdi. Bunun yerine
+  // zorluk "medium"da SABİTLENİR (telafi burada ZORLUKLA değil BÖLGEYLE
+  // ilgili — sınavın "zorlaştırılmış" ekseni telafide devrede DEĞİL, sadece
+  // gerçek sınavda) ve zone [a,b]'si aşağıda focusRange'e taşınır.
+  const zoneRemedial = mode.EXAM_ENABLED && mode.EXAM_WEAK_AREA === "zone" && examSystem.phase === "remedial";
+  const examTier = mode.EXAM_ENABLED
+    ? (zoneRemedial ? "medium" : examSystem.questionTier(els.difficultySelect.value, mode.EXAM_DIFFICULTY))
+    : els.difficultySelect.value;
   const boss = examActive ? false : mode.isBossRound(stats.rounds);
   activeQuestion = mode.createQuestion(examTier, {
     source: pickRoundSource(),
     boss,
-    focusRange: currentFocusRange(),
+    // G50: zon-tabanlı telafide (yeterli veri varsa, remedialTier dolu) kullanıcının
+    // kendi odak seçimi YERİNE zayıf bölgenin [a,b]'si kullanılır — telafi HER
+    // ZAMAN o bölgede yoğunlaşsın diye kullanıcının o anki focusRange seçimi
+    // BİLEREK GEÇERSİZ kılınır (bkz. getWeakArea). Veri yoksa (remedialTier null,
+    // yeni kullanıcı) normal currentFocusRange()'a düşer — daraltma YOK, tüm
+    // spektrumda/kullanıcının seçtiği aralıkta telafi (güvenli varsayılan).
+    focusRange: (zoneRemedial && examSystem.remedialTier) ? [examSystem.remedialTier.a, examSystem.remedialTier.b] : currentFocusRange(),
     zoneStats, // Z4: zayıf bölgelere ağırlıklı test frekansı — proplus/çeldiriciler etkilenmez
     // G18: bu OYUN OTURUMUNDAKİ (bkz. roundsInThisPlaySession tanımındaki not) 0-tabanlı
     // soru sırası. Kesim Noktası bunu tip-gizleme rampası için okuyor (bkz.
     // kesim-noktasi.js TYPE_REVEAL_QUESTION_COUNT); diğer modlar görmezden gelir
     // (frekans-bulma.js createQuestion bu alanı hiç okumuyor).
     sessionQuestionIndex: roundsInThisPlaySession,
+    // G50: Tonal Denge'nin "sınav zorlaştırılmış (daha fazla bant)" isteği —
+    // SADECE gerçek sınav fazında true (telafi DEĞİL — telafi zorluk değil
+    // bölge/kademe ekseninde, daha kolay bir pratik olmalı). Diğer yedi mod bu
+    // alanı hiç okumadığı için ETKİLENMEZ (bkz. tonal-denge.js createQuestion notu).
+    examBandBoost: mode.EXAM_ENABLED && examSystem.phase === "exam",
     // ADIM 1+2 (zorluk sisteminin merkezi bağlanması, bkz. currentDifficultyPosition
     // altındaki not): HER İKİ mod da (Kesim Noktası + Frekans Bulma) kendi
     // paramsForDifficultyPosition'ı üzerinden bunu okuyor — proplus (undefined

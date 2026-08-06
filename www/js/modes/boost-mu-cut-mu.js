@@ -31,6 +31,17 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 export const MODE_ID = "boost-mu-cut-mu";
 export const MAX_LIVES = 5;
 
+// G50: Sınav sistemi — frekans-bulma.js'in AYNI notu. EXAM_WEAK_AREA="zone":
+// recordZone SADECE Katman 3'te çağrılır (bkz. app.js submitBoostCutGuess
+// notu) ama telafi'nin okuduğu zoneStats PAYLAŞILAN/çapraz-mod bir sinyal
+// (Frekans Bulma/Kesim Noktası'nın da beslediği) — bu modun kendi Katman 3
+// verisi HİÇ yoksa bile telafi diğer modlardan gelen zayıf bölge sinyaline
+// göre daraltılabilir, ya da veri hiç yoksa (getWeakZone null) app.js normal
+// (daraltılmamış) aralığa düşer.
+export const EXAM_ENABLED = true;
+export const EXAM_DIFFICULTY = "pro";
+export const EXAM_WEAK_AREA = "zone";
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SEANS İÇİ ÜÇ KATMAN — Kesim Noktası'nın tip-gizleme rampasının GENİŞLETİLMİŞ
 // hali: tek bir eşik yerine İKİ eşik, her katmanda bir bilinmeyen daha eklenir.

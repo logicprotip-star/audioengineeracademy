@@ -29,6 +29,15 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 
 export const MODE_ID = "db-seviyesi";
 
+// G50: Sınav sistemi — Kompresör pilotunun AYNI EXAM_ENABLED/EXAM_DIFFICULTY
+// deseni. EXAM_WEAK_AREA BİLEREK export EDİLMEDİ (undefined) — bu modun
+// "hangi bölgede zayıfsın" kavramı yok (recordZone hiç çağrılmıyor, seviye
+// değişimi tüm spektrumu eşit etkiliyor, bkz. app.js submitLevelGuess notu),
+// Kompresör'ün ZATEN kurulu olan zayıf-KADEME telafisi (getWeakTier/
+// tierStats) BİREBİR aynen miras alınıyor.
+export const EXAM_ENABLED = true;
+export const EXAM_DIFFICULTY = "pro";
+
 // G39: bu mod artık kendi dikey bar görselini (drawDbBars) çiziyor — arkadaki
 // FFT spektrum çubukları (app.js drawVisualizer) bu modda ANLAMSIZ (mod bir
 // frekans dağılımını değil, TEK bir seviye/gain farkını sorguluyor) ve iki

@@ -1,13 +1,98 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G49)
+Son güncelleme: 06.08.2026 (G50)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G49, tek commit — kod+DURUM.md birlikte) — **ZORLUK RAMPASINI SINAV-
+Bu commit (G50, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **SINAV SİSTEMİ
+7 MODA YAYILDI (Kompresör pilottu) — artık 8/8 oynanabilir modda parkur/kombo/
+sınav/telafi/"BÖLÜM GEÇTİN" çalışıyor.** Frekans Bulma, Kesim Noktası, dB
+Seviyesi, Boost mu Cut mu, Q Genişliği, Reverb, Tonal Denge — her biri
+`EXAM_ENABLED=true`/`EXAM_DIFFICULTY="pro"` iki satırla mirası aldı (Kompresör'ün
+G47'de kurduğu ŞABLONUN AYNEN doğrulanması — "her mod SADECE bu iki satırı
+eklesin, app.js'e yeniden dokunmaya gerek yok" vaadi TUTTU).
+
+**ZAYIF BÖLGE dispatcher'ı — `getWeakArea(stats, modeId)` (app.js, yeni):**
+task'ın istediği moda-göre-dallanma. `mode.EXAM_WEAK_AREA==="zone"` (Frekans
+Bulma/Kesim Noktası/Boost-Cut/Q Genişliği — dördü de yeni export) iken
+`personalization.js:getWeakZone()` (YENİ SAF fonksiyon, `getWeakTier`'ın AYNI
+ROLÜ frekans bölgesi ekseninde — DETERMİNİSTİK en zayıf bölge, `pickPersonalizedZone`'un
+ağırlıklı RASTGELE seçiminden BİLEREK AYRIŞIR) PAYLAŞILAN `zoneStats` + modun
+kendi `FA_ZONES`'undan en zayıf bölgeyi bulur; `EXAM_WEAK_AREA` export ETMEYEN
+dört mod (dB Seviyesi/Kompresör/Reverb/Tonal Denge — "bölge" kavramı yok) ESKİ
+`getWeakTier`/tierStats yoluna (G47'den beri DEĞİŞMEDİ) düşer.
+
+**Zon-tabanlı telafi MEKANİZMASI (`app.js:startRound()`):** exam-system.js'in
+`remedialTier`'ı (opak, mode-agnostic) zon-tabanlı modlarda bir ZORLUK adı
+DEĞİL bir ZONE nesnesi taşır — `questionTier()`'a (difficulty bekler) DOĞRUDAN
+geçirilseydi `mode.DIFFICULTY[level]` undefined'a düşerdi. Bunun yerine
+`zoneRemedial` bayrağıyla ayrıştırıldı: zorluk `"medium"`de SABİTLENİR (telafi
+BÖLGEYLE ilgili, ZORLUKLA değil), `remedialTier.a/.b` `focusRange`'e taşınır —
+kullanıcının kendi odak seçimi telafi SÜRESİNCE BİLEREK geçersiz kılınır
+(sonraki normal parkurda otomatik geri döner, KALICI bir ayar değişikliği
+DEĞİL). **exam-system.js'e TEK SATIR bile dokunulmadı** (task'ın "mod-agnostic
+kalsın" şartı harfiyen karşılandı) — tüm yorumlama app.js'in sorumluluğunda.
+
+**Tonal Denge — kendi TrainYourEars mekaniğiyle sınav (odd-one-out DEĞİL):**
+task'ın "canlı EQ, zorlaştırılmış — daha fazla bant/ince bozukluk" isteği İKİ
+AYRI eksende karşılandı: (1) "ince bozukluk" `EXAM_DIFFICULTY="pro"`
+(disturbDb=1.3, mevcut statik tablo) üzerinden OTOMATİK geldi, ekstra kod
+gerekmedi; (2) "daha fazla bant" AYRI bir eksen olduğu için (session-index
+ramp'ine bağlı, tier'a değil) YENİ bir mode-specific settings alanı —
+`examBandBoost` — SADECE `mode.EXAM_ENABLED && examSystem.phase==="exam"`
+iken `true` geçiliyor, `tonal-denge.js:createQuestion()` bunu görünce
+`sessionQuestionIndex` ramp'ini YOK SAYIP DOĞRUDAN 6 bandı (BAND_SET_6) zorluyor
+— diğer yedi mod bu alanı hiç okumadığı için ETKİLENMEDİ. `submitTonalDengeGuess`
+(odd-one-out olmayan TEK exam-enabled mod) kendi `handleExamOutcome` çağrısını
+diğer beş "generic" submit fonksiyonuyla AYNI şablonla aldı.
+
+**6 generic submit fonksiyonuna `handleExamOutcome` kablolandı** (`submitFrequencyGuess`,
+`submitCutoffGuess`, `submitLevelGuess`, `submitBoostCutGuess`, `submitQWidthGuess`,
+`submitTonalDengeGuess`) — `submitThreeWayGuess`'in (Kompresör/Reverb) G47'den
+beri kurulu deseni BİREBİR kopyalandı: `finalizeIfGameOver()` SONRASI
+`!gameOver && mode.EXAM_ENABLED && handleExamOutcome(q, result)`. `submitProPlusGuess`
+BİLİNÇLİ OLARAK dokunulmadı (proplus zaten Otomatik'te seçilmiyor, `tierForLevel`in
+merdiveninin dışında — Z5 kararıyla AYNI çizgide, G49'un `examCappedLevel`
+notundaki "proplus dışarıda" ilkesiyle tutarlı).
+
+**Doğrulama (canlı, tarayıcıda, `Math.random=()=>0` deterministik testle):**
+- **8/8 modda parkur/kombo/sınav/kutlama:** Frekans Bulma'da TAM round-trip —
+  6 peş peşe doğru → "Sınav hakkı kazandın!" (kombo), reddedilip devam edilip
+  6/10 toplamla → "exam-start" (TOPLAM), o sınav bilerek kaybedilip → basit
+  parkur reset, YENİ parkurda tekrar kombo-6 → sınav → 3/4 doğru → "BÖLÜM
+  GEÇTİN! Seviye 2'ye yükseldin!" EKRAN GÖRÜNTÜSÜYLE doğrulandı. Kesim
+  Noktası/Boost mu Cut mu/Q Genişliği/dB Seviyesi/Reverb'de parkur girişi +
+  bir cevap + "Soru N/10" etiketi + SIFIR konsol hatası (smoke test).
+- **Telafi ekseni doğru mu:** Frekans Bulma'da 4/10 doğru (ne kombo ne toplam)
+  → "Telafi 1/5" — şıklar EKRAN GÖRÜNTÜSÜYLE 20-70Hz aralığına (SUB bölgesi)
+  YOĞUNLAŞMIŞ görüldü (focusRange daraltması ÇALIŞIYOR) — 3/5 geçildi → YENİ
+  parkur ("devam"). dB Seviyesi/Kompresör/Reverb/Tonal Denge'nin tier-tabanlı
+  telafisi G47/G48'den beri DEĞİŞMEDİ (regresyon YOK, kod dalı dokunulmadı).
+- **Tonal Denge TrainYourEars mekaniğiyle mi:** EKRAN GÖRÜNTÜSÜYLE doğrulandı —
+  sınav sorusu "6 bant — kaydırıcılarla sesi nötüre getir" metniyle geldi (6
+  slider, `examBandBoost` DOĞRU ZORLADI), odd-one-out A/B/C kartı YOK, 3/4
+  doğruyla (yakınlık skoruna göre GRADED XP) → "BÖLÜM GEÇTİN! Seviye 2'ye
+  yükseldin!" EKRAN GÖRÜNTÜSÜYLE doğrulandı.
+- Tüm oturum boyunca (8 mod, ~40+ tur) konsol hatası SIFIR.
+- `npm test`: **707/707** (680'den +27 — YENİ `test/exam-coverage.test.mjs`:
+  8 modun TAMAMINDA EXAM_ENABLED/EXAM_DIFFICULTY/EXAM_WEAK_AREA doğru mu [regresyon
+  çiti, DOM/ses gerektirmediği için sadece export'ları doğruluyor]; `personalization.test.mjs`'e
+  `getWeakZone()` için 5 yeni test [yetersiz veri→null, tek-bölge, en-zayıf-seçimi,
+  DETERMİNİSTİK (rng yok), boş zones]; `tonal-denge.test.mjs`'e `examBandBoost`
+  için 4 yeni test [ramp'ten bağımsız 6 bant, false/undefined'da regresyon yok]).
+
+**KORUNANLAR (task'ın açık isteği):** 8 modun oyun mantığı/ses/zorluk/reskin HİÇ
+değişmedi — canlı doğrulandı. exam-system.js'e TEK SATIR dokunulmadı (mode-
+agnostic kaldı, `startRemedial()`'ın opak parametre kabul etme tasarımı bu
+sayede zon-tabanlı telafiyi HİÇ bilmeden destekledi — G47'nin "gelecekte başka
+eksenler gerekebilir" öngörüsü doğrulandı).
+
+---
+
+Önceki commit (G49, tek commit — kod+DURUM.md birlikte) — **ZORLUK RAMPASINI SINAV-
 CAP'İNE BAĞLA: sınavı geçemeyen kullanıcıda "Seviye N" donuyordu ama gerçek
 zorluk (kGap/gainDb/Q) ham XP'yle artmaya devam ediyordu — ÇELİŞKİ giderildi.**
 

@@ -44,6 +44,17 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 export const MODE_ID = "q-genisligi";
 export const MAX_LIVES = 5;
 
+// G50: Sınav sistemi — frekans-bulma.js'in AYNI notu. EXAM_WEAK_AREA="zone":
+// bu mod recordZone'u HİÇ ÇAĞIRMIYOR (frekans kullanıcıya hiç açıklanmıyor,
+// bkz. app.js submitQWidthGuess notu) — ama telafi'nin okuduğu zoneStats
+// PAYLAŞILAN/çapraz-mod bir sinyal (Frekans Bulma/Kesim Noktası'nın beslediği,
+// "genel olarak hangi bölgede zayıfsın"), Q Genişliği'nin KENDİ verisi
+// olmasa da bu sinyalden faydalanabilir; veri hiç yoksa (getWeakZone null)
+// app.js normal (daraltılmamış) aralığa düşer.
+export const EXAM_ENABLED = true;
+export const EXAM_DIFFICULTY = "pro";
+export const EXAM_WEAK_AREA = "zone";
+
 // ═══════════════════════════════════════════════════════════════════════════
 // GENİŞLİK ETİKETLERİ — TEK doğruluk kaynağı. Sınırlar Q ekseninde (büyük=dar/
 // cerrahi, küçük=geniş/müzikal) ARDIŞIK ve BİTİŞİK aralıklar — her Q değeri TAM

@@ -16,6 +16,18 @@ import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 
 export const MODE_ID = "frekans-bulma";
 
+// G50: Sınav sistemi (core/exam-system.js) — Kompresör pilotundaki (bkz. o
+// dosyanın notu) AYNI mode-agnostik EXAM_ENABLED/EXAM_DIFFICULTY bayrak deseni.
+// EXAM_WEAK_AREA="zone": bu mod FREKANS-tabanlı (recordZone her turda gerçek
+// zoneStats verisi üretir) — app.js'in getWeakArea() dispatcher'ı bu bayrağı
+// görünce telafiyi ZORLUK KADEMESİ değil zayıf FREKANS BÖLGESİ üzerinden
+// kurar (personalization.js:getWeakZone + focusRange daraltması, bkz. app.js
+// startRound() notu). Değeri okumayan (undefined) modlar ESKİ tier-tabanlı
+// davranışı korur.
+export const EXAM_ENABLED = true;
+export const EXAM_DIFFICULTY = "pro";
+export const EXAM_WEAK_AREA = "zone";
+
 // hintBandOct: ipucu maskesinde doğru bandın etrafında AÇIK bırakılan tam genişlik
 // (oktav). Kolayda geniş (bulması kolay), zorda dar (yine de zorlayıcı).
 //

@@ -70,6 +70,19 @@ export const MAX_LIVES = 5;
 // ETKİLENMEDİ.
 export const COMPACT_ANALYZER = true;
 
+// G50: Sınav sistemi — Kompresör pilotunun AYNI EXAM_ENABLED/EXAM_DIFFICULTY
+// deseni. EXAM_WEAK_AREA export EDİLMEDİ — bu mod dB Seviyesi/Kompresör/
+// Reverb'le AYNI zayıf-KADEME telafisini kullanır (task kararı: "dB/Reverb/
+// Tonal Denge → zayıf ZORLUK KADEMESİ"). Bu mod odd-one-out DEĞİL (bkz. dosya
+// başı not) — submitTonalDengeGuess kendi handleExamOutcome çağrısını
+// SahibiDİR (bkz. app.js). EXAM_DIFFICULTY="pro" disturbDb'yi (ince bozukluk)
+// zaten zorlaştırır; "daha fazla bant" AYRI bir eksen olduğu için app.js
+// SADECE bu modun okuduğu settings.examBandBoost bayrağıyla (bkz. createQuestion
+// altındaki not) sınav sorularını HER ZAMAN 6 banda (BAND_SET_6) sabitler —
+// diğer yedi mod bu bayrağı hiç okumadığı için ETKİLENMEZ.
+export const EXAM_ENABLED = true;
+export const EXAM_DIFFICULTY = "pro";
+
 // ═══════════════════════════════════════════════════════════════════════════
 // BANT TANIMLARI — frekans-bulma.js'in FA_ZONES'undaki (SUB/BAS/ALT-ORTA/ORTA/
 // ÜST-ORTA/TİZ) AYNI 6 bölgeden TÜRETİLİR (tek kaynak — sınırlar orada değişirse
@@ -265,7 +278,11 @@ export function getMeta() {
 // sessionQuestionIndex — bant sayısı ramp'i BUNA bağlı (bkz.
 // bandCountForSessionIndex), verilmezse 0 (4 bant); difficultyPosition —
 // verilirse disturbDb/timeSec EĞRİDEN gelir, verilmezse (mevcut testler,
-// doğrudan çağrılar, proplus) statik DIFFICULTY[level] davranışı korunur }.
+// doğrudan çağrılar, proplus) statik DIFFICULTY[level] davranışı korunur;
+// examBandBoost — G50: SADECE sınav sistemi tarafından geçirilir (bkz. dosya
+// başı EXAM_ENABLED notu), true olunca sessionQuestionIndex'i YOK SAYIP
+// DOĞRUDAN 6 bandı (BAND_SET_6) zorlar — "sınav zorlaştırılmış" isteğinin
+// bant-sayısı ekseni, diğer yedi mod bu alanı hiç okumadığı için etkilenmez }.
 export function createQuestion(level, settings = {}) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const boss = !!settings.boss;
@@ -279,7 +296,7 @@ export function createQuestion(level, settings = {}) {
   const timeSec = curve ? curve.timeSec : diff.time;
 
   const sessionQuestionIndex = Number.isFinite(settings.sessionQuestionIndex) ? settings.sessionQuestionIndex : 0;
-  const bandCount = bandCountForSessionIndex(sessionQuestionIndex);
+  const bandCount = settings.examBandBoost ? 6 : bandCountForSessionIndex(sessionQuestionIndex);
   const bandIds = bandIdsForCount(bandCount);
   const bands = bandsForQuestion(bandIds, baseDisturbDb);
 

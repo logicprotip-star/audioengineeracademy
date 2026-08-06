@@ -32,6 +32,12 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 
 export const MODE_ID = "kesim-noktasi";
 
+// G50: Sınav sistemi — frekans-bulma.js'in AYNI notu (EXAM_WEAK_AREA="zone":
+// bu mod da recordZone çağırır, telafi zayıf FREKANS BÖLGESİ üzerinden kurulur).
+export const EXAM_ENABLED = true;
+export const EXAM_DIFFICULTY = "pro";
+export const EXAM_WEAK_AREA = "zone";
+
 // MAX_LIVES: Frekans Bulma ile AYNI sabit (bkz. o dosyanın notu — can sayısı
 // zorluğa göre değişmez).
 export const MAX_LIVES = 5;

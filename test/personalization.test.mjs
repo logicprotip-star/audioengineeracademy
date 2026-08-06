@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { zoneWeakness, zoneWeight, pickPersonalizedZone, personalizedRange, PERSONALIZATION_CONFIG } from "../www/js/core/personalization.js";
+import { zoneWeakness, zoneWeight, pickPersonalizedZone, personalizedRange, getWeakZone, PERSONALIZATION_CONFIG } from "../www/js/core/personalization.js";
 import { createQuestion, FA_ZONES, FA_MIN, FA_MAX, faZoneOf } from "../www/js/modes/frekans-bulma.js";
 
 function mulberry32(seed) {
@@ -111,6 +111,51 @@ describe("pickPersonalizedZone() / personalizedRange()", () => {
       const key = z.t.split(" (")[0];
       if (key !== "SUB") assert.ok(counts[key] > 0, `${key} hiç gelmedi — kullanıcı sadece zayıf bölgeyle boğuluyor`);
     });
+  });
+});
+
+// G50: SINAV SİSTEMİNİN 7 moda yayılması — frekans-tabanlı modların (Frekans
+// Bulma/Kesim Noktası/Boost-Cut/Q Genişliği) telafisi için exam-system.js:
+// getWeakTier'ın AYNI ROL, FREKANS BÖLGESİ ekseninde. pickPersonalizedZone'un
+// AKSİNE RASTGELE DEĞİL, DETERMİNİSTİK en zayıf bölgeyi döner.
+describe("getWeakZone() — G50: sınav telafisi için DETERMİNİSTİK en zayıf bölge", () => {
+  it("hiçbir bölge MIN_SAMPLES'a ulaşmamışsa (yeni kullanıcı) null döner", () => {
+    assert.equal(getWeakZone({}, FA_ZONES), null);
+    assert.equal(getWeakZone(null, FA_ZONES), null);
+    const sparse = { SUB: { n: 1, ok: 0, sumDOct: 1, dOctCount: 1 } }; // MIN_SAMPLES=3'ün altında
+    assert.equal(getWeakZone(sparse, FA_ZONES), null);
+  });
+
+  it("TEK bir bölge yeterli veri taşıyorsa (diğerleri hâlâ null) O bölgeyi döner", () => {
+    const zoneStats = { BAS: { n: 5, ok: 1, sumDOct: 4, dOctCount: 4 } };
+    const weak = getWeakZone(zoneStats, FA_ZONES);
+    assert.ok(weak, "yeterli veri olan tek bölge bile dönmeli");
+    assert.equal(weak.zone.t.split(" (")[0], "BAS");
+  });
+
+  it("EN DÜŞÜK doğruluk/EN BÜYÜK sapmaya sahip bölgeyi döner (getWeakTier'ın AYNI mantığı, RASTGELE değil)", () => {
+    const zoneStats = {};
+    FA_ZONES.forEach(z => {
+      const key = z.t.split(" (")[0];
+      zoneStats[key] = key === "TİZ / HAVA"
+        ? { n: 10, ok: 1, sumDOct: 9, dOctCount: 9 }  // en zayıf
+        : { n: 10, ok: 9, sumDOct: 0.2, dOctCount: 1 }; // güçlü
+    });
+    const weak = getWeakZone(zoneStats, FA_ZONES);
+    assert.equal(weak.zone.t.split(" (")[0], "TİZ / HAVA");
+    assert.ok(weak.weakness > 0.5, `weakness beklenenden düşük: ${weak.weakness}`);
+  });
+
+  it("DETERMİNİSTİK — rng YOK, aynı girdiyle HER ZAMAN aynı sonuç (pickPersonalizedZone'un rastgeleliğinden AYRIŞIR)", () => {
+    const zoneStats = { BAS: { n: 5, ok: 0, sumDOct: 5, dOctCount: 5 }, ORTA: { n: 5, ok: 4, sumDOct: 0.5, dOctCount: 1 } };
+    const results = new Set();
+    for (let i = 0; i < 20; i++) results.add(getWeakZone(zoneStats, FA_ZONES).zone.t);
+    assert.equal(results.size, 1, "aynı girdiyle FARKLI sonuçlar çıktı — deterministik olmalıydı");
+  });
+
+  it("zones boş dizi/undefined ise çökmez, null döner", () => {
+    assert.equal(getWeakZone({ SUB: { n: 10, ok: 0, sumDOct: 5, dOctCount: 5 } }, []), null);
+    assert.equal(getWeakZone({ SUB: { n: 10, ok: 0, sumDOct: 5, dOctCount: 5 } }, undefined), null);
   });
 });
 

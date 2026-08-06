@@ -43,6 +43,14 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 
 export const MODE_ID = "reverb";
 export const MAX_LIVES = 5;
+
+// G50: Sınav sistemi — Kompresör pilotunun AYNI EXAM_ENABLED/EXAM_DIFFICULTY
+// deseni (Reverb submitThreeWayGuess'i Kompresör'le PAYLAŞTIĞI için app.js
+// tarafında EK bir kablolama GEREKMEDİ — mode.EXAM_ENABLED kontrolü zaten
+// generic). EXAM_WEAK_AREA export EDİLMEDİ — Kompresör'ün AYNI zayıf-KADEME
+// telafisi (frekans bölgesi kavramı yok, bkz. o dosyanın notu).
+export const EXAM_ENABLED = true;
+export const EXAM_DIFFICULTY = "pro";
 // Motor 2'nin ("A/B/C odd-one-out") HANGİ modları kapsadığını app.js TEK
 // yerde (THREE_WAY_MODE_IDS) tutuyor — bu bayrak SADECE dokümantasyon/
 // kendi-kendini-açıklama amaçlı, app.js kendi listesini kullanıyor (bkz. o

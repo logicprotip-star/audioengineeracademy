@@ -420,6 +420,36 @@ describe("Tonal Denge — createQuestion(settings.difficultyPosition) entegrasyo
   });
 });
 
+// G50: SINAV SİSTEMİNİN 7 moda yayılması — Tonal Denge odd-one-out DEĞİL, kendi
+// TrainYourEars mekaniğiyle sınava giriyor (task: "canlı EQ, zorlaştırılmış —
+// daha fazla bant/ince bozukluk"). "İnce bozukluk" EXAM_DIFFICULTY="pro"
+// (mevcut DIFFICULTY.pro.disturbDb) ÜZERİNDEN otomatik gelir — "daha fazla
+// bant" AYRI bir eksen (sessionQuestionIndex ramp'i, YUKARIDAKİ describe)
+// olduğu için app.js SADECE settings.examBandBoost bayrağıyla besler.
+describe("Tonal Denge — G50: EXAM_ENABLED/EXAM_DIFFICULTY + examBandBoost (sınav = 6 bant, session ramp'inden BAĞIMSIZ)", () => {
+  it("EXAM_ENABLED=true, EXAM_DIFFICULTY='pro' export edilir (app.js:getWeakArea/startRound bunu okur)", () => {
+    assert.equal(mode.EXAM_ENABLED, true);
+    assert.equal(mode.EXAM_DIFFICULTY, "pro");
+  });
+
+  it("EXAM_WEAK_AREA export EDİLMEZ — bu mod dB Seviyesi/Kompresör/Reverb'le AYNI zayıf-KADEME telafisini kullanır", () => {
+    assert.equal(mode.EXAM_WEAK_AREA, undefined);
+  });
+
+  it("examBandBoost=true iken sessionQuestionIndex NE OLURSA OLSUN 6 bant üretir (erken seans/idx=0 dahil)", () => {
+    for (const idx of [0, 1, 3, 5]) {
+      const q = mode.createQuestion("pro", { source: "groove", sessionQuestionIndex: idx, examBandBoost: true });
+      assert.equal(q.bandCount, 6, `idx=${idx}`);
+      assert.equal(q.bands.length, 6);
+    }
+  });
+
+  it("examBandBoost=false/verilmezse ESKİ ramp davranışı BİREBİR korunur (regresyon yok)", () => {
+    assert.equal(mode.createQuestion("pro", { source: "groove", sessionQuestionIndex: 0 }).bandCount, 4);
+    assert.equal(mode.createQuestion("pro", { source: "groove", sessionQuestionIndex: 0, examBandBoost: false }).bandCount, 4);
+  });
+});
+
 describe("Tonal Denge — Sabit mod eğriye bağlı ('kolaylaşma yok' invaryantı)", () => {
   const TIERS = ["easy", "medium", "hard", "pro"];
 
