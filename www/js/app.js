@@ -75,9 +75,10 @@ const els = {
   dailyTipText: document.getElementById("dailyTipText"),
   dailyTipStartBtn: document.getElementById("dailyTipStartBtn"),
   dailyTipSkipBtn: document.getElementById("dailyTipSkipBtn"),
-  // G36: Ana Menü seviye rozeti (Dizayn/prototype.html .lvl-badge'den) — İlerleme
-  // sekmesindeki levelValue/xpBar/progressText ile AYNI veriyi (updateUI() içinde AYNI
-  // xp = progress.xpProgress(diffState().xp) hesabından) gösterir, ayrı bir kaynak DEĞİL.
+  // G36: Ana Menü seviye rozeti (Dizayn/prototype.html .lvl-badge'den) — G40'tan beri
+  // İlerleme sekmesindeki AYNI desenli rozetle (progLevelValue/progXpBar/
+  // progNextLevelText) AYNI veriyi (updateUI() içinde AYNI xp = progress.xpProgress
+  // (diffState().xp) hesabından) gösterir, ayrı bir kaynak DEĞİL.
   menuLevelValue: document.getElementById("menuLevelValue"),
   menuXpText: document.getElementById("menuXpText"),
   menuXpBar: document.getElementById("menuXpBar"),
@@ -240,13 +241,14 @@ const els = {
   audioFileInput: document.getElementById("audioFileInput"),
   resetStatsBtn: document.getElementById("resetStatsBtn"),
 
-  // ilerleme ekranı
-  comboValue: document.getElementById("comboValue"),
-  xpValue: document.getElementById("xpValue"),
-  levelValue: document.getElementById("levelValue"),
+  // ilerleme ekranı — G40: SV rozeti tek-kart (Ana Menü'nün .lvl-badge'iyle AYNI
+  // desen, prog* önekiyle ayrı id'ler — bkz. index.html notu). comboValue/xpValue/
+  // levelValue/xpBar/progressText (eski 4'lü ızgara + ayrı bar bloğu) KALDIRILDI.
+  progLevelValue: document.getElementById("progLevelValue"),
+  progXpText: document.getElementById("progXpText"),
+  progXpBar: document.getElementById("progXpBar"),
+  progNextLevelText: document.getElementById("progNextLevelText"),
   accuracyValue: document.getElementById("accuracyValue"),
-  xpBar: document.getElementById("xpBar"),
-  progressText: document.getElementById("progressText"),
   roundsValue: document.getElementById("roundsValue"),
   correctValue: document.getElementById("correctValue"),
   wrongValue: document.getElementById("wrongValue"),
@@ -1264,12 +1266,15 @@ function updateUI() {
   const xp = progress.xpProgress(diffState().xp);
   const percent = Math.max(0, Math.min(100, (xp.current / xp.required) * 100));
 
-  els.levelValue.textContent = xp.level;
-  els.xpValue.textContent = diffState().xp;
-  els.comboValue.textContent = `${stats.combo}x`;
   els.accuracyValue.textContent = `%${progress.accuracy(stats)}`;
-  els.progressText.textContent = `${xp.current} / ${xp.required} XP`;
-  els.xpBar.style.width = `${percent}%`;
+
+  // G40: İlerleme'nin SV rozeti — Ana Menü'nün G36'daki .lvl-badge'iyle BİREBİR AYNI
+  // hesabı (xp/percent, yukarıda) okur, ayrı bir sorgu/kaynak YOK — ikisi HER ZAMAN
+  // senkron. G36'nın "menü kartı İlerleme'yle senkron" notunun AYNISI, ters yönden.
+  if (els.progLevelValue) els.progLevelValue.textContent = xp.level;
+  if (els.progXpText) els.progXpText.textContent = `${xp.current}/${xp.required} XP`;
+  if (els.progXpBar) els.progXpBar.style.width = `${percent}%`;
+  if (els.progNextLevelText) els.progNextLevelText.innerHTML = `Sonraki seviyeye <b style="color:var(--am)">${xp.required - xp.current} XP</b>`;
 
   // G36: Ana Menü seviye rozeti — İlerleme'nin YUKARIDAKİ hesabıyla (xp/percent) BİREBİR
   // aynı veriyi kullanır, ayrı bir sorgu/kaynak YOK — bu yüzden ikisi HER ZAMAN senkron.

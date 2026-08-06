@@ -297,24 +297,31 @@
           <button class="gear" id="progressSettingsBtn" aria-label="Ayarlar"><i></i></button>
         </div>
 
-        <div class="prog-grid">
-          <div class="stat-big"><b id="levelValue">1</b><span>Seviye</span></div>
-          <div class="stat-big"><b id="xpValue">0</b><span>XP</span></div>
-          <div class="stat-big"><b id="comboValue">0x</b><span>Seri</span></div>
-          <div class="stat-big"><b id="accuracyValue">%0</b><span>Doğruluk</span></div>
-        </div>
-
-        <div class="block" style="margin-top:14px">
-          <div class="progress-label" style="display:flex;justify-content:space-between;font-size:13px;color:var(--tx-3)">
-            <span>Bir sonraki seviye</span>
-            <span id="progressText">0 / 120 XP</span>
+        <!-- G40: prototipteki .lvl/.lvl-badge tek-kart deseni — Ana Menü'nün G36'da
+             taşıdığı AYNI HTML/CSS (bkz. #screen-menu .card.lvl), sadece id'ler
+             prog* önekiyle ayrı (aynı sayfada iki #levelValue OLAMAZ). Veri KAYNAĞI
+             app.js updateUI()'daki AYNI xp/percent hesabı — Ana Menü'yle her zaman
+             senkron (menü ile birebir aynı desen, bkz. o dosyadaki not). -->
+        <div class="card lvl" style="margin-top:0">
+          <div class="lvl-badge"><small>SV</small><b id="progLevelValue">1</b></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+              <div style="font-size:16px;font-weight:700;white-space:nowrap">Kalibre Kulak</div>
+              <div class="num" style="font-size:14px;font-weight:600;color:var(--tx-3)" id="progXpText">0/120 XP</div>
+            </div>
+            <div class="bar" style="margin-top:9px"><i id="progXpBar" style="width:0%"></i></div>
+            <div style="margin-top:8px;font-size:14px;color:var(--tx-3)" id="progNextLevelText">Sonraki seviyeye <b style="color:var(--am)">120 XP</b></div>
           </div>
-          <div class="bar" style="margin-top:9px"><i id="xpBar" style="width:0%"></i></div>
         </div>
 
-        <div class="prog-grid" style="margin-top:10px;grid-template-columns:1fr 1fr">
-          <div class="stat-big"><b id="totalPracticeValue">0d</b><span style="font-size:14px">Antrenman</span></div>
-          <div class="stat-big"><b id="totalRoundsValue">0</b><span style="font-size:14px">Soru</span></div>
+        <!-- G40: prototipteki 3'lü stat satırı (.row + 3x .stat-big, Antrenman/Soru/
+             İsabet) — id'ler DEĞİŞMEDİ (totalPracticeValue/totalRoundsValue/
+             accuracyValue zaten vardı, sadece tek satıra taşındı; "Seri" çıkarıldı,
+             prototipte de yok). -->
+        <div class="row" style="margin-top:14px">
+          <div class="stat-big"><b id="totalPracticeValue">0d</b><span>Antrenman</span></div>
+          <div class="stat-big"><b id="totalRoundsValue">0</b><span>Soru</span></div>
+          <div class="stat-big"><b id="accuracyValue">%0</b><span>İsabet</span></div>
         </div>
 
         <div class="h2">📅 Günlük Görevler</div>

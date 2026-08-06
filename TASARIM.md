@@ -33,7 +33,11 @@ genel toggle'dan (`prefs.hpWarning`) BAĞIMSIZ hale getirildi (G37'de yanlışl�
 birleşmişti), "bir daha gösterme" kalıcıdan oturumluğa çevrildi; dB Seviyesi'nde arka
 FFT spektrumu kaldırıldı (`SHOW_SPECTRUM=false`, sadece dikey barlar kalıyor). EKRAN 1'in
 sheet satırı güncellendi, ÖZET toplamları DEĞİŞMEDİ (durum kategorisi aynı kaldı, sadece
-notu güncellendi). Detay: DURUM.md BİTTİ.
+notu güncellendi). **G40 eki:** İlerleme sekmesi reskin edildi — SV rozeti Ana Menü'nün
+G36'daki `.lvl-badge` tek-kart deseninin BİREBİR AYNISINA çevrildi, Antrenman/Soru/İsabet
+tek satıra taşındı ("Seri" çıkarıldı). "Şu An Neredesin"/"en zayıf bölge"/"Son 30 gün"
+DOKUNULMADI (zaten gerçek veriyle Tam'dı). EKRAN 7'nin iki satırı Kısmi'den Tam'a geçti,
+ÖZET sayıları yeniden hesaplandı (Tam 82→84, Kısmi 25→23). Detay: DURUM.md BİTTİ.
 
 ## EKRAN 1 — ANA MENÜ
 
@@ -163,8 +167,8 @@ notu güncellendi). Detay: DURUM.md BİTTİ.
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |
 |---|---|---|---|---|
 | Üst bar + ayarlar dişlisi | ✓ | ✓ | Tam | — |
-| Seviye kartı (SV rozeti, XP bar) | ✓ | ✓ | Kısmi | Kodda ayrı bir "seviye kartı" yok — 4'lü stat-big ızgarasında (Seviye/XP/Seri/Doğruluk) sunuluyor, görsel biçim farklı |
-| Antrenman/Soru/İsabet stat satırı | ✓ | ✓ | Kısmi | Kodda "İsabet" bu satırda değil, ayrı 4'lü ızgarada; "Antrenman"+"Soru" 2'li ayrı satırda — içerik aynı, düzen farklı |
+| Seviye kartı (SV rozeti, XP bar) | ✓ | ✓ | **Tam (G40)** | G40: eski 4'lü ızgara (Seviye/XP/Seri/Doğruluk) + ayrı XP-bar bloğu kaldırıldı, Ana Menü'nün `.lvl-badge` deseninin (G36) BİREBİR AYNISI ("SV N" + "Kalibre Kulak" + XP barı + "Sonraki seviyeye X XP") geldi — AYNI veri kaynağı (`updateUI()`'daki `xp` hesabı), iki rozet HER ZAMAN senkron |
+| Antrenman/Soru/İsabet stat satırı | ✓ | ✓ | **Tam (G40)** | G40: üçü de TEK satıra taşındı (`.row` + 3× `.stat-big`, prototipin AYNI deseni); "Seri" (combo) çıkarıldı — prototipte de yok |
 | "Şu An Neredesin" kartı | ✓ | ✓ | Tam | — |
 | Frekans bölgesi (açılır/kapanır panel, bölge barları) | ✓ | ✓ | Tam | Kodda ek olarak "temizle" linki var (tasarımda yok — ters fark, küçük) |
 | Son 30 gün grafiği | ✓ | ✓ | Tam | Kodda veri yoksa boş-durum mesajı da var (tasarımda hep sahte veriyle dolu) |
@@ -254,18 +258,18 @@ notu güncellendi). Detay: DURUM.md BİTTİ.
 
 ---
 
-## ÖZET (06.08.2026 itibarıyla güncellendi — G37 dahil)
+## ÖZET (06.08.2026 itibarıyla güncellendi — G40 dahil)
 
 **Toplam öğe sayısı (bu tabloda listelenen ayrı satırlar): 141** (108 → 140 → 141, G36'da
-mod kartı "Sv N" çip'i için +1 yeni satır; G37'de yeni satır eklenmedi, sadece 2 satırın
-Durumu değişti; sayım `awk` ile Durum sütunu [5. alan] tek tek sınıflandırılarak
+mod kartı "Sv N" çip'i için +1 yeni satır; G37/G39/G40'ta yeni satır eklenmedi, sadece
+Durum değişti; sayım `awk` ile Durum sütunu [5. alan] tek tek sınıflandırılarak
 DOĞRULANDI, tahmin değil)
 
-- **Tam olanlar: 82** ("Tam" ailesi — G37'de +2: mod kartına tıklayınca kulaklık uyarı
-  sheet'i, DİĞER SHEET'LER'deki kulaklık uyarısı sheet'i satırı; ikisi de `hpSheet`
-  mekanizmasının parçası, bkz. DURUM.md G37)
-- **Kısmi olanlar: 25** ("Kısmi" ailesi — "Farklı model" [3, Motor 2] + "Farklı biçim,
-  daha zengin içerik" [1] dahil, değişmedi)
+- **Tam olanlar: 84** ("Tam" ailesi — G40'ta +2: İlerleme'nin SV rozeti tek-kartı,
+  Antrenman/Soru/İsabet stat satırı; ikisi de Ana Menü'yle AYNI veri kaynağından
+  besleniyor, bkz. DURUM.md G40)
+- **Kısmi olanlar: 23** ("Kısmi" ailesi — "Farklı model" [3, Motor 2] + "Farklı biçim,
+  daha zengin içerik" [1] dahil; G40'ta -2, İlerleme'nin iki satırı Tam'a geçti)
 - **Hiç olmayanlar ("Yok"): 20** (-2 — kulaklık uyarı sheet'iyle ilgili iki satır Yok'tan
   Tam'a geçti; mod kartındaki kulaklık İKONU [needsHp göstergesi] hâlâ Yok, o ayrı satır)
 - **N/A: 4** (değişmedi)

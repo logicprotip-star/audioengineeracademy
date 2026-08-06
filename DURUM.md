@@ -1,13 +1,57 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G39)
+Son güncelleme: 06.08.2026 (G40)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G39, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Kulaklık sheet'i
+Bu commit (G40, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **İlerleme sekmesi
+reskin: SV rozeti tek-kart + 3'lü stat satırı.** Önceki turda (araştırma-only, kod
+yazılmadı) tespit edilen "veri zaten var, sadece düzen farklı" bulgusuna dayanarak
+İlerleme'nin görsel düzeni prototipe yakınsatıldı — mod mantığı/hesap/veri
+DOKUNULMADI.
+
+**1. SV rozeti tek-kart:** Eski 4'lü ızgara (Seviye/XP/Seri/Doğruluk) + ayrı XP-bar
+bloğu kaldırıldı, yerine Ana Menü'nün G36'da kurduğu `.card.lvl`/`.lvl-badge`
+deseninin BİREBİR AYNISI geldi (`index.html`, id'ler `prog*` önekiyle ayrı —
+`progLevelValue`/`progXpText`/`progXpBar`/`progNextLevelText` — aynı sayfada iki
+`#levelValue` olamayacağı için). Veri KAYNAĞI değişmedi: `app.js updateUI()`'daki
+AYNI `xp = progress.xpProgress(diffState().xp)` hesabından okunuyor — Ana Menü'nün
+rozetiyle (`menuLevelValue` vb.) HER ZAMAN senkron, iki ayrı hesaplama YOK.
+
+**2. 3'lü stat satırı:** "Seri" (combo) çıkarıldı (prototipte de yok), "İsabet"
+"Antrenman"+"Soru" ile AYNI satıra taşındı — prototipin `.row` + 3× `.stat-big`
+deseni birebir kopyalandı. `totalPracticeValue`/`totalRoundsValue`/`accuracyValue`
+id'leri DEĞİŞMEDİ (zaten doğru hesaplanıyordu, sadece HTML'de tek satıra taşındı) —
+bu üç değerin JS tarafı hiç dokunulmadı.
+
+**Temizlik:** artık hiçbir yerde kullanılmayan `levelValue`/`xpValue`/`comboValue`/
+`xpBar`/`progressText` DOM id'leri ve `.prog-grid` CSS kuralı (son kullanan yer bu
+ekrandı) kaldırıldı — CLAUDE.md'nin "kesin kullanılmıyorsa sil" kuralı gereği,
+geriye dönük uyumluluk kırıntısı bırakılmadı.
+
+**DOKUNULMAYANLAR (task'ın açık isteği):** "Şu An Neredesin" (`renderWhereNow`),
+"Frekans bölgesi — en zayıf" (`renderZonePanel`), "Son 30 Gün" grafiği
+(`renderAccuracyChart`) — üçü de zaten TAM ve gerçek veriden besleniyordu (bkz.
+önceki turun araştırma raporu), hiçbir satırına dokunulmadı. Rozetler ızgarası (9
+rozet) da bu turda DEĞİŞMEDİ — ayrı bir ürün kararı olarak G36'nın notunda
+işaretli kaldı. Günlük Görevler/Canlı İstatistikler/Son Turlar/"İstatistikleri
+Sıfırla" panelleri (tasarımda karşılığı olmayan kod-only ekler) KALDI.
+
+**Doğrulama (canlı, tarayıcıda):** İlerleme sekmesine girildi — SV rozeti tek
+kart olarak "SV 4 / Kalibre Kulak / 6/330 XP / Sonraki seviyeye 324 XP" gösterdi,
+Ana Menü'nün rozetiyle (AYNI ekranda, aynı anda kontrol edildi) BİREBİR aynı
+değerler. 3 stat ("3s 44d Antrenman" / "1358 Soru" / "%2 İsabet") tek satırda.
+Aşağı kaydırıldı: "Şu An Neredesin" ("Tiz bölgesinde iyisin (%50), bas bölgesinde
+zorlanıyorsun (%50)"), "Frekans bölgesi" ("en zayıf: bas · %50"), "Son 30 Gün"
+(veri henüz yetersiz olduğu için boş-durum mesajı) — üçü de DEĞİŞMEDİ, gerçek
+veriyle çalışıyor. Konsol hatası yok. `npm test`: 561/561.
+
+---
+
+Önceki commit (G39, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Kulaklık sheet'i
 + dB spektrumu: üç düzeltme.** G37/G38'de kurulan iki mekanizmadaki (kulaklık uyarısı,
 dB görseli) davranış sorunları giderildi.
 
