@@ -1,13 +1,71 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G45)
+Son güncelleme: 06.08.2026 (G46)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G45, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Tonal Denge
+Bu commit (G46, tek commit — kod+DURUM.md birlikte) — **Tonal Denge'de spektrum
+görseli küçültüldü, kaydırıcılara yer açıldı.** G45'te eklenen altı-banda kadar
+çıkabilen kaydırıcı listesi, 280px'lik (diğer sekiz modla PAYLAŞILAN) tam
+boy spektrumun ALTINDA kalıyordu — 6 bant + "Cevabı Onayla"ya ulaşmak için
+fazladan kaydırma gerekiyordu.
+
+**Mekanizma — SHOW_SPECTRUM'un (G39, db-seviyesi.js) AYNI mode-agnostik bayrak
+deseni:** `tonal-denge.js`'e `export const COMPACT_ANALYZER = true;` eklendi.
+`app.js`'in `enterMode()`'u mod değişince `#analyzer`'a `mode.COMPACT_ANALYZER`
+bayrağına göre bir modifier class (`analyzer-compact`) ekliyor/çıkarıyor —
+`goScreen("game")`'in çağıracağı `resizeCanvas()`'tan ÖNCE uygulanıyor, canvas'ın
+GERÇEK (CSS'ten okunan) boyutu ilk çizimden itibaren doğru. `styles.css`:
+`#analyzer.analyzer-compact #visualizer{height:140px}` — TEK değişen şey
+yükseklik (280px→140px), `#visualizer`'ın stil/renk/eksen kuralları HİÇ
+değişmedi (aynı kural seti, aynı çizim kodu — `drawSpectrumBars`/
+`drawVisualizer` bu yeni boyutu `resizeCanvas`'ın `getBoundingClientRect`
+okumasından OTOMATİK alıyor, app.js'e AYRICA dokunulmadı). Export ETMEYEN
+diğer sekiz mod varsayılan false/undefined ile ETKİLENMEDİ (canlı doğrulandı,
+bkz. aşağıda).
+
+**Tonal Denge'nin KENDİ eğri çizimi ayrıca düzeltildi:** `drawFlatTargetLine`/
+`drawResidualCurve` ÖNCEDEN paylaşılan `CURVE_TOP` sabitini (88px — Frekans
+Bulma'dan, spektrum çubuklarının TAVANI olarak `app.js:drawSpectrumBars`'ta
+HÂLÂ kullanılıyor, DOKUNULMADI) kullanıyordu — 140px'lik canvas'ta bu neredeyse
+HİÇ yer bırakmazdı eğriye (88 + AXIS_H[50] + 6 ≈ canvas'ın tamamı, eğri
+~2px'e sıkışırdı). Yeni bir yerel sabit (`OVERLAY_TOP_MARGIN=20`) eklendi —
+SADECE bu modun kendi kırmızı/yeşil eğrisi için, paylaşılan `CURVE_TOP`'a
+(spektrum çubuklarının tavanı, diğer sekiz modun da okuduğu) HİÇ dokunulmadan.
+
+**Kaydırıcı kartları da hafifçe kompaktlaştırıldı** (task'ın izin verdiği
+ikincil iyileştirme): `.tonal-bands` gap 12px→8px, `.tonal-band` padding
+12px→9px (dikey), `.tonal-band-head` margin-bottom 9px→6px — dokunma hedefi
+boyutu (kaydırıcı thumb'ı) DEĞİŞMEDİ.
+
+**Doğrulama (canlı, tarayıcıda):** Tonal Denge'ye girildi — canvas yüksekliği
+`getBoundingClientRect()` ile TAM 140px ölçüldü (önceden 280px), `#analyzer`
+`analyzer-compact` class'ını TAŞIYOR. 4 bantlık round'da (Soru 1-4) spektrum +
+4 kaydırıcı + "Cevabı Onayla" TEK ekranda (kaydırmadan) sığdı — EKRAN
+GÖRÜNTÜSÜYLE doğrulandı. "Atla" ile Soru 9'a (6 bant) ilerlendi — 6 kaydırıcı +
+buton YİNE tek ekranda (sadece spektrumun üst kenarı hafif kırpıldı, TÜM
+kaydırıcılar + onay butonu GÖRÜNÜR kaldı) — EKRAN GÖRÜNTÜSÜYLE doğrulandı,
+öncekine göre BÜYÜK iyileşme (önceden 6. banda ulaşmak için tam bir ekran
+kaydırması gerekiyordu). Bir bant sürüklenip onaylandı — kırmızı "kalan sapma"
+eğrisi + yeşil düz hedef çizgisi 140px'lik canvas'ta NET/okunur çizildi
+(OVERLAY_TOP_MARGIN düzeltmesi doğrulandı), slider satırları doğru kırmızı/
+yeşil kenarla işaretlendi, "Yakınlık %46" + tam öğretici metin göründü —
+mekanik (canlı EQ, bant sayısı ramp'i, yakınlık skoru) TAMAMEN korundu.
+Spektrum stili İNCELENDİ — AYNI mavi gradyan çubuklar, AYNI eksen (100Hz–
+12.8kHz), SADECE daha kısa — hâlâ gerçek bozukluğu göstermeyen dekoratif bir
+görsel (kulak eğitimi ilkesi bozulmadı). Frekans Bulma/Kompresör/Reverb/dB
+Seviyesi'ne TEK TEK girilip canvas yüksekliği JS'ten ölçüldü — DÖRDÜ de TAM
+280px, `analyzer-compact` class'ı YOK (regresyon yok, `COMPACT_ANALYZER`
+export etmeyen modlar etkilenmedi). Konsol hatası YOK. `npm test`: 638/638
+(kod değişikliği SADECE görsel/CSS/DOM-boyut, hiçbir SAF fonksiyon/test
+etkilenmedi — yeni test eklenmedi, mevcut 638 aynen geçti).
+
+---
+
+Önceki commit (G45, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Tonal Denge
 TrainYourEars mekaniğine dönüştürüldü: odd-one-out (A/B/C, "hangisi farklı")
 TAMAMEN kaldırıldı, yerine CANLI EQ DÜZELTME (N kaydırıcı, gerçek zamanlı ses)
 geldi.** G44'ün odd-one-out kodu (variants/oddIndex/choices/shape/imbalanceScore,

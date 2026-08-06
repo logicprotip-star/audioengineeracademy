@@ -1149,6 +1149,14 @@ function enterMode(entry, realMode) {
     mode = realMode;
     populateSourceSelect(); // yeni modun kaynak uyumluluğuna göre kaynak listesini süz
     syncAnswerFormatVisibility();
+    // G46: Tonal Denge'nin altı kaydırıcıya kadar çıkabilen kart listesi spektrumun
+    // altında yer sıkışıklığına yol açıyordu — mode.COMPACT_ANALYZER (SHOW_SPECTRUM'un
+    // AYNI mode-agnostik bayrak deseni, bkz. db-seviyesi.js) true dönen bir mod için
+    // #analyzer'a bir modifier class eklenir (styles.css #visualizer yüksekliğini
+    // küçültür). class değişikliği goScreen("game")'in çağıracağı resizeCanvas()'tan
+    // ÖNCE uygulanıyor — canvas'ın GERÇEK (CSS'ten okunan) boyutu ilk çizimden
+    // itibaren doğru.
+    if (els.analyzer) els.analyzer.classList.toggle("analyzer-compact", !!mode.COMPACT_ANALYZER);
     els.questionTitle.textContent = 'Başlamak için "Oyunu Başlat"a dokun.';
     els.questionMeta.textContent = "";
     if (els.freqInfo) els.freqInfo.classList.add("hidden");

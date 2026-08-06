@@ -60,6 +60,16 @@ export const MAX_LIVES = 5;
 // G44'ün THREE_WAY=true export'u BİLEREK KALDIRILDI — bu mod artık three-way
 // DEĞİL, app.js THREE_WAY_MODE_IDS listesinden de çıkarıldı (bkz. o dosya).
 
+// G46: SHOW_SPECTRUM'un (db-seviyesi.js) AYNI mode-agnostik bayrak deseni —
+// app.js `mode.COMPACT_ANALYZER` okuyup #analyzer'a bir modifier class ekliyor
+// (styles.css: #visualizer'ın yüksekliğini küçültüyor). Gerekçe: altı bandlık
+// (SUB→TİZ) kaydırıcı listesi normal (280px) spektrumun ALTINDA kalıp fazladan
+// kaydırma gerektiriyordu — spektrum GÖRSEL/dekoratif olarak KALIYOR (gerçek
+// bozukluğu göstermiyor, sadece "ses akıyor" hissi veriyor), sadece daha az yer
+// kaplıyor. Export ETMEYEN diğer sekiz mod varsayılan false/undefined ile
+// ETKİLENMEDİ.
+export const COMPACT_ANALYZER = true;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // BANT TANIMLARI — frekans-bulma.js'in FA_ZONES'undaki (SUB/BAS/ALT-ORTA/ORTA/
 // ÜST-ORTA/TİZ) AYNI 6 bölgeden TÜRETİLİR (tek kaynak — sınırlar orada değişirse
@@ -568,6 +578,13 @@ function drawAxis(ctx2d, w, h) {
 }
 
 const MAX_ABS_DB = 14; // TILT/residual max ~12dB (SLIDER_MAX_DB) — headroom kaskat filtrelerin üst üste binmesi için
+// G46: paylaşılan CURVE_TOP (88px — frekans-bulma.js, spektrum çubuklarının
+// TAVANI olarak app.js:drawSpectrumBars'ta HÂLÂ kullanılıyor, DOKUNULMADI)
+// COMPACT_ANALYZER'ın küçülttüğü (140px) canvas'ta EĞRİYE neredeyse hiç yer
+// bırakmazdı (88 + AXIS_H[50] + 6 ≈ canvas'ın tamamı). Bu eğri SADECE bu
+// modun KENDİ overlay'i — spektrum çubuklarının paylaşılan tavanından
+// BAĞIMSIZ, kendi küçük/sabit bir üst boşluk kullanır.
+const OVERLAY_TOP_MARGIN = 20;
 function bandDbToY(db, curveTop, curveBottom) {
   const midY = curveTop + (curveBottom - curveTop) * 0.5;
   const bandH = (curveBottom - curveTop) * 0.42;
@@ -577,7 +594,7 @@ function bandDbToY(db, curveTop, curveBottom) {
 
 function drawFlatTargetLine(ctx2d, w, h, color) {
   const plotBottom = h - AXIS_H;
-  const y = bandDbToY(0, CURVE_TOP, plotBottom - 6);
+  const y = bandDbToY(0, OVERLAY_TOP_MARGIN, plotBottom - 6);
   ctx2d.save();
   ctx2d.strokeStyle = color;
   ctx2d.lineWidth = 3;
@@ -591,7 +608,7 @@ function drawFlatTargetLine(ctx2d, w, h, color) {
 
 function drawResidualCurve(ctx2d, w, h, db, color) {
   const plotBottom = h - AXIS_H;
-  const curveTop = CURVE_TOP, curveBottom = plotBottom - 6;
+  const curveTop = OVERLAY_TOP_MARGIN, curveBottom = plotBottom - 6;
   ctx2d.save();
   ctx2d.beginPath();
   for (let i = 0; i < CURVE_POINTS; i++) {

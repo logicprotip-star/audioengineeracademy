@@ -371,6 +371,14 @@
        touch-action'dan ETKİLENMEZ, sadece tarayıcının PARALEL varsayılan jestleri
        engellenir. */
     #visualizer{width:100%;height:280px;display:block;touch-action:none}
+    /* G46: Tonal Denge — altı kaydırıcıya kadar çıkabilen bant listesi spektrumun
+       ALTINDA kalıyordu, ulaşmak için fazladan kaydırma gerekiyordu. #analyzer'a
+       app.js'in mode.COMPACT_ANALYZER bayrağına göre eklediği bir modifier class
+       (bkz. enterMode) — SADECE #visualizer'ın yüksekliğini küçültür, stil/renk/
+       eksen HİÇ değişmez (aynı #visualizer kuralları, aynı çizim kodu — sadece CSS
+       piksel boyutu farklı, drawVisualizer/drawSpectrumBars bunu resizeCanvas
+       üzerinden otomatik okur). */
+    #analyzer.analyzer-compact #visualizer{height:140px}
     .hint-mask{position:absolute;inset:0;pointer-events:none;overflow:hidden}
     .hint-mask-seg{position:absolute;top:0;bottom:0;background:rgba(8,11,20,.74);opacity:0;transition:opacity .28s ease}
     .hint-mask-seg.show{opacity:1}
@@ -440,9 +448,9 @@
        DEĞİL, N kaydırıcı + tek bir onay butonu. app.js modes/tonal-denge.js'in
        renderAnswerChoices'ının ürettiği markup'ı burada stilize eder. */
     .answers.answers-tonal{display:flex;flex-direction:column;gap:14px}
-    .tonal-bands{display:flex;flex-direction:column;gap:12px}
-    .tonal-band{padding:12px 14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.04);transition:border-color .2s,background .2s}
-    .tonal-band-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+    .tonal-bands{display:flex;flex-direction:column;gap:8px}
+    .tonal-band{padding:9px 14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.04);transition:border-color .2s,background .2s}
+    .tonal-band-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
     .tonal-band-label{font-size:14px;font-weight:700;letter-spacing:.02em;color:var(--tx-2)}
     .tonal-band-value{font-size:13px;font-weight:700;color:var(--bl);font-variant-numeric:tabular-nums}
     .tonal-slider{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:99px;background:rgba(255,255,255,.12);outline:none;margin:0}
