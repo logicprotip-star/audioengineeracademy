@@ -50,7 +50,14 @@ compatibleSourceIds`, bkz. DURUM.md BİTTİ). Bu, prototipte hiç karşılığı
 saf bir davranış/oynanabilirlik düzeltmesi — EKRAN 2'nin "Kaynak seçici chip"/"Kaynak
 sheet'i" satırlarının tasarım-karşılaştırma durumunu (zaten "Kısmi"/"Kısmi-Yok",
 kataloğun kendisi tasarımdan farklı olduğu için) DEĞİŞTİRMİYOR, ÖZET sayıları aynı
-kaldı — bu yüzden ayrı bir tablo satırı yok, sadece bu prose notu.
+kaldı — bu yüzden ayrı bir tablo satırı yok, sadece bu prose notu. **G44 eki:**
+Motor 2'nin ÜÇÜNCÜ modu Tonal Denge (spektral tilt, A/B/C) eklendi —
+`mode-catalog.js`'teki "tonal-denge" placeholder'ı (ÖNCEDEN Motor 1'de, "Hangi
+bölge fazla?" farklı bir konsept olarak, HİÇ kod karşılığı yokken) Motor 2'ye
+taşınıp REPURPOSE edildi (bkz. DURUM.md G44 — task'ın kendi ürün kararı).
+`core/three-way-cards.js` DEĞİŞİKLİK YAPMADAN import edildi (G41'in öngördüğü
+genelleşme üçüncü modda DOĞRULANDI) — EKRAN 3'ün tablosu bu yüzden değişmedi
+(satır başlığı HARİÇ, bkz. yukarıdaki EKRAN 3 girişi), ÖZET sayıları aynı kaldı.
 
 ## EKRAN 1 — ANA MENÜ
 
@@ -119,13 +126,21 @@ kaldı — bu yüzden ayrı bir tablo satırı yok, sadece bu prose notu.
 | Boss round rozeti/mekaniği | ✗ | ✓ | **Ters fark** | Tasarımda hiç yok — kod-only özellik (bossChip, boss XP çarpanı, bossWins başarımı) |
 | Combo/seri XP çarpanı | ✗ | ✓ | **Ters fark** | Tasarımda combo kavramı görsel olarak var (seri sayacı) ama XP çarpanına bağlı değil; kodda `stats.combo` XP hesaplamasını doğrudan etkiliyor |
 
-## EKRAN 3 — MOTOR 2 "Hangisi Farklı" (Kompresör/Reverb OYNANABİLİR, Hangisi Farklı/Distortion HÂLÂ kilitli)
+## EKRAN 3 — MOTOR 2 "Hangisi Farklı" (Kompresör/Reverb/Tonal Denge OYNANABİLİR, Hangisi Farklı/Distortion HÂLÂ kilitli)
 
 > **06.08 güncellemesi:** İlk envanterin yazıldığı tarihte Motor 2'nin TAMAMI kilitliydi.
 > G30 (Kompresör) ve G35 (Reverb) ile Motor 2'nin İKİ modu artık gerçekten oynanabiliyor —
 > ama prototipin `s-game2` ekranından (büyük seçenek kartları + waveform + "Sırayla Çal" +
 > 2 adımlı seç→onayla akışı) YAPISAL OLARAK FARKLI bir çözümle: mevcut Motor 1 altyapısının
 > (`.ans` grid, merkezi geri bildirim, A/B toggle) 3 şıklı bir varyantı olarak inşa edildi.
+> **G44 eki:** Tonal Denge (spektral tilt, A/B/C) üçüncü Motor 2 modu olarak eklendi —
+> `core/three-way-cards.js`'i DEĞİŞİKLİK YAPMADAN import etti (G41'in öngördüğü
+> genelleşme doğrulandı), bu ekranın satırlarının HİÇBİRİ değişmedi (üçüncü mod da
+> AYNI yapısal farklarla/AYNI ortak bileşenle çalışıyor). Tek fark: Kompresör'ün
+> zaman-genlik zarfı/Reverb'in kuyruk zarfının AKSİNE Tonal Denge GERÇEK bir
+> frekans-yanıtı eğrisi çiziyor (Boost/Cut'ın tekniğiyle AYNI) — bu, EKRAN 2'nin
+> "Geri bildirim kartı" satırındaki genel açıklamanın kapsamında (mod-özel görsel
+> zaten oradan biliniyordu), ayrı bir satır gerektirmedi. Detay: DURUM.md G44 BİTTİ.
 > "Hangisi Farklı" (motor2'nin genel/temel modu) ve Distortion hâlâ kodda yok.
 
 | Öğe | Tasarımda | Kodda | Durum | Not |

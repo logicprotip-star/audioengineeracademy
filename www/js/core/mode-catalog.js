@@ -19,12 +19,19 @@ export const MODE_CATALOG = [
   { id: "db-seviyesi", ad: "dB Seviyesi", aciklama: "Kaç dB değişti?", motor: 1, kulaklikGerekli: false, unlockLevel: 6, playable: true, tier: "pro" },
   { id: "stereo-genislik", ad: "Stereo Genişlik", aciklama: "Ses ne kadar geniş?", motor: 1, kulaklikGerekli: true, unlockLevel: 7, playable: false, tier: "pro" },
   { id: "pan-konumu", ad: "Pan Konumu", aciklama: "Ses nereden geliyor?", motor: 1, kulaklikGerekli: true, unlockLevel: 8, playable: false, tier: "pro" },
-  { id: "tonal-denge", ad: "Tonal Denge", aciklama: "Hangi bölge fazla?", motor: 1, kulaklikGerekli: false, unlockLevel: 9, playable: false, tier: "pro" },
 
   // ---- Motor 2 · Hangisi farklı ----
   { id: "hangisi-farkli", ad: "Hangisi Farklı", aciklama: "Üç sesten farklı olanı bul", motor: 2, kulaklikGerekli: false, unlockLevel: 10, playable: false, tier: "pro" },
   { id: "kompresor", ad: "Kompresör", aciklama: "Hangisi daha sıkıştırılmış?", motor: 2, kulaklikGerekli: false, unlockLevel: 12, playable: true, tier: "pro" },
   { id: "reverb", ad: "Reverb", aciklama: "Hangisinin reverb'i farklı?", motor: 2, kulaklikGerekli: true, unlockLevel: 14, playable: true, tier: "pro" },
+  // G44: "tonal-denge" BURAYA taşındı (ÖNCEDEN Motor 1'de, "Hangi bölge fazla?"
+  // farklı bir tek-değer konsepti olarak, HİÇ kod karşılığı olmadan, unlockLevel:9,
+  // playable:false duruyordu) — task'ın kendisi bu ismi Motor 2'nin ÜÇÜNCÜ modu
+  // (A/B/C odd-one-out, tilt-tabanlı) olarak tanımladı, o yüzden placeholder'ı
+  // REPURPOSE ettik (silinip yeniden eklenmedi — id'nin GERÇEK bir kod karşılığı
+  // artık var, bkz. modes/tonal-denge.js). unlockLevel Reverb(14)-Distortion(16)
+  // arasına (15) yerleşti.
+  { id: "tonal-denge", ad: "Tonal Denge", aciklama: "Hangisinin tonal dengesi bozuk?", motor: 2, kulaklikGerekli: true, unlockLevel: 15, playable: true, tier: "pro" },
   { id: "distortion", ad: "Distortion", aciklama: "Hangisi daha doygun?", motor: 2, kulaklikGerekli: false, unlockLevel: 16, playable: false, tier: "pro" },
 
   // ---- Motor 3 · İki kaynaklı ----

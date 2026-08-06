@@ -20,6 +20,7 @@ import * as boostMuCutMu from "./modes/boost-mu-cut-mu.js";
 import * as qGenisligi from "./modes/q-genisligi.js";
 import * as kompresor from "./modes/kompresor.js";
 import * as reverb from "./modes/reverb.js";
+import * as tonalDenge from "./modes/tonal-denge.js";
 
 registerMode(frekansBulma);
 registerMode(kesimNoktasi);
@@ -28,6 +29,7 @@ registerMode(boostMuCutMu);
 registerMode(qGenisligi);
 registerMode(kompresor);
 registerMode(reverb);
+registerMode(tonalDenge);
 // Motor 2'nin ("A/B/C odd-one-out") HANGİ mod id'lerini kapsadığını TEK yerde
 // tutar — yeni bir Motor 2 modu (ör. Distortion) eklenince SADECE bu listeye
 // eklenir, aşağıdaki TÜM çağıranlar (toggle/döngü/submit/önizleme/overlay)
@@ -35,7 +37,7 @@ registerMode(reverb);
 // hardcoded), G35'te Reverb eklenince bu liste + iki yardımcı fonksiyon
 // (isThreeWayModule/isThreeWayQuestion) çıkarıldı — G33'ün "MOTOR 2 ŞABLONU"
 // notunun öngördüğü ikinci-modda-genelleştirme adımı budur.
-const THREE_WAY_MODE_IDS = ["kompresor", "reverb"];
+const THREE_WAY_MODE_IDS = ["kompresor", "reverb", "tonal-denge"];
 function isThreeWayModule(m) { return !!m && THREE_WAY_MODE_IDS.includes(m.MODE_ID); }
 function isThreeWayQuestion(q) { return !!q && THREE_WAY_MODE_IDS.includes(q.mode); }
 // Artık birden fazla oynanabilir mod var — `mode` menüden hangi karta basıldığına
@@ -1561,6 +1563,8 @@ function pushHistory(correct) {
     ? `Kompresör · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : activeQuestion.mode === "reverb"
     ? `Reverb · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+    : activeQuestion.mode === "tonal-denge"
+    ? `Tonal Denge · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`;
   history.unshift({
     icon: correct ? "✅" : "❌",
@@ -1643,6 +1647,7 @@ function renderQuestion() {
     : q.mode === "qwidth" ? mode.questionTitle(q)
     : q.mode === "kompresor" ? "Üç ses (A/B/C) — hangisi FARKLI sıkıştırılmış?"
     : q.mode === "reverb" ? "Üç ses (A/B/C) — hangisi FARKLI yankılanıyor?"
+    : q.mode === "tonal-denge" ? "Üç ses (A/B/C) — hangisinin tonal dengesi BOZUK?"
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
 
   els.questionMeta.textContent = mode.modeDescription(q);
@@ -1691,6 +1696,7 @@ function renderQuestion() {
     : q.mode === "qwidth" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan genişlik karakterini seç."
     : q.mode === "kompresor" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI olanı seç."
     : q.mode === "reverb" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI yankılanan sesi seç."
+    : q.mode === "tonal-denge" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan dengesiz olanı seç."
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
 }

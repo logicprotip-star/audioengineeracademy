@@ -1,13 +1,136 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G43)
+Son güncelleme: 06.08.2026 (G44)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G43, tek commit — kod+DURUM.md birlikte) — **Reverb kaynak filtresi ELLE
+Bu commit (G44, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Mod 8 "Tonal
+Denge": Motor 2'nin ÜÇÜNCÜ modu (A/B/C odd-one-out, spektral tilt-tabanlı) —
+Kompresör (G30)/Reverb (G35)'in ŞABLONUNDAN türetildi, oynanabilir, menüde,
+573 test → 640 test (+67).**
+
+**KATALOG YERİ — ÜRÜN KARARI (task'ın kendisi verdi, elle uydurulmadı):**
+`mode-catalog.js`'te "tonal-denge" id'si ÖNCEDEN Motor 1'de duruyordu ("Hangi
+bölge fazla?", unlockLevel:9, playable:false, HİÇ kod karşılığı yoktu — sadece
+bir isim/placeholder). Task bu ismi AÇIKÇA Motor 2'nin üçüncü modu olarak
+tanımladı (A/B/C odd-one-out, tilt-tabanlı) — placeholder REPURPOSE edildi
+(silinip yeniden eklenmedi, id korundu): motor 1→2, unlockLevel 9→15 (Reverb
+14 ile Distortion 16 arasına), aciklama "Hangi bölge fazla?"→"Hangisinin tonal
+dengesi bozuk?", kulaklikGerekli false→true. Motor 1'in "Hangi bölge fazla?"
+konsepti (tek-değer tahmini, farklı bir oyun tipi) artık kodda YOK — bu BİLİNÇLİ
+bir kapsam kararı, task'ın kendi tanımıyla ÇAKIŞTIĞI için tutulamazdı.
+
+**MOD FELSEFESİ — Kompresör/Reverb'den FARKLI bir "aynı" tanımı:** Kompresör'de
+"aynı" ikili COMP_BASE_K=0.5 (hafif kompresyonlu), Reverb'de her zaman BİR
+reverb tipi uygulanmış — Tonal Denge'de ise "aynı" ikili TAMAMEN NÖTR (k=0,
+flat, hiçbir filtre etkisi). Gerekçe: gerçek mixte dengeli tonal denge KURAL,
+bozukluk İSTİSNA — task'ın "İkisi DENGELİ (nötr), biri DENGESİZ" kararı. Bu,
+oddK'nin bir bazdan İKİ yöne uzaklaşması (Kompresör'ün pickOddK'sı) yerine
+DOĞRUDAN kGap kadar (0'dan) uzaklaşması demek — `pickKGap`'e SADECE bir ÜST
+clamp (Math.min(1,...)) eklendi (Kompresör'ün alt+üst simetrik clamp'inin
+AKSİNE, taban zaten 0 olduğu için alt taşma riski yok).
+
+**TİLT UYGULAMASI (tek algısal eksen, task'ın "Kompresör dersi" talebi):**
+`core/audio-engine.js`'in genel filters-seri-bağlama sözleşmesi DEĞİŞTİRİLMEDEN
+ÜÇ `BiquadFilterNode` (low-shelf 250Hz + peaking 1000Hz + high-shelf 4000Hz)
+seri bağlanıyor. Dört "şekil": `tilt-bass`/`tilt-treble` (low-shelf+high-shelf
+ZIT yönde, orta=0 — geniş bir eğim, TEK bant DEĞİL) ve PRO katmanının
+`smile`/`frown` (bas+tiz AYNI yöne, orta ZIT yöne — "iki bölgeli karmaşık
+bozukluk", task'ın açık isteği). `imbalanceScore` (en büyük mutlak banda-
+kazancı, dB) HER şekilde AYNI k'de BİREBİR eşit — Kompresör'ün
+gainReductionDb'sinin AYNI rolü, şekilden bağımsız TEK bir "ne kadar dengesiz"
+ekseni (testle doğrulandı).
+
+**KADEMELİ ZORLUK (Reverb'in TİP-değişimi katmanının AYNI öğretmen-yöntemi):**
+`TONAL_CURVE_CONFIG` (K_GAP_AT_1=0.95 → K_GAP_AT_CAP=0.10, FLOOR=0.085) —
+easy/medium/hard'da SADECE tilt-bass/tilt-treble (miktar farkı), PRO/PRO
+PLUS'ta (ya da Otomatik'te position>=18, Reverb'in AYNI eşiği) %50 ihtimalle
+YA çok ince bir tilt YA DA smile/frown (task'ın "VEYA" isteği — rastgele,
+deterministik değil). "Kolaylaşma yok" invaryantı node ile DOĞRUDAN
+hesaplandı: kGap → easy(4)=0.666≤0.95, medium(8)=0.415≤0.55, hard(12)=0.258≤0.28,
+pro(20)=0.100≤0.12; timeSec → easy(4)=16.27≤18 … pro(20)=9.50≤10 (hepsi
+rahat marjla, testle doğrulandı).
+
+**KAYNAK — TEK gerçek "dolu bağlam" örneği (task'ın en katı kısıtlaması):**
+Tilt SADECE dolu spektrumda (çok sayıda eş zamanlı frekans bileşeni) duyulur.
+Kataloğun 14 örneği tek tek elendi: kick/snare/hihat/tom TEK vuruş, bas/gitar
+TEK nota, vokal TEK fraz, sentetik/gürültü TEST tonu — HİÇBİRİ "mix bağlamı"
+değil. SADECE "groove" (90 BPM davul döngüsü, kick+snare+hihat AYNI ANDA)
+gerçek bir dolu-mix örneği. `uyumluKaynaklar: compatibleSourceIds({ only:
+["groove", "upload"] })` — G43'ün `only` mekanizması BİRE BİR yeniden kullanıldı
+(üçüncü kullanıcı, mekanizmanın genelleşebilirliğini doğruladı). Varsayılan
+kaynak da "pink" DEĞİL "groove" (Kompresör/Reverb'in "pink" varsayılanından
+BİLİNÇLİ sapma — pink zaten bu modun listesinde YOK, "pink" fallback'i burada
+anlamsız/yanıltıcı olurdu).
+
+**GÖRSEL — Kompresör'ün (zaman-genlik zarfı)/Reverb'in (kuyruk zarfı) AKSİNE
+GERÇEK bir frekans-yanıtı eğrisi:** Boost/Cut'ın `computeEqCurveDb` tekniğiyle
+AYNI (GERÇEK `BiquadFilterNode.getFrequencyResponse`, elle yaklaşıklık DEĞİL) —
+üç filtrenin dB'leri TOPLANIYOR (kaskat filtrelerin genlikleri ÇARPILIR →
+dB'leri toplanır, standart DSP). Kırmızı=senin cevabın, yeşil=doğru (G34
+standardı). Frekans ekseni bu kez GERÇEKTEN kullanıldı (Kompresör/Reverb'in
+SADECE re-export ettiği FA_MIN/FA_MAX/faXToF/faFToX burada drawAxis'te
+fiilen çiziyor).
+
+**ÖĞRETİCİ METİN (task'ın örnek formatıyla BİREBİR):** "B dengesizdi — bas-ağır
+eğim (düşük bölge +9.3dB, tiz -9.3dB) — mix boğuk/çamurlu duyulur, tizler
+geride kalır. Dengeli mixte bas ve tiz orantılı, gerçek mixte referans
+şarkıyla tonal dengeyi böyle karşılaştırırsın." (canlı, gerçek oyunda
+doğrulandı — bkz. aşağıdaki doğrulama). PRO/smile: "C dengesizdi — smile
+eğrisi (bas ve tiz şişkin, orta çukur) (bas +Xdb, orta -Xdb, tiz +Xdb) —
+kulağa 'havalı' gelir ama mixte orta kaybolur, karar bulanıklaşır."
+
+**app.js kablolaması (Motor 2'nin GENEL mekanizması + ÜÇ mod-özel metin dalı):**
+`registerMode(tonalDenge)` + `THREE_WAY_MODE_IDS`'e eklendi — A/B/C toggle,
+otomatik döngü, previewLetter, submitThreeWayGuess, feedback kartı, kulaklık
+sheet'i (`meta.kulaklikGerekli`) TAMAMEN generik, HİÇBİR ek kablolama
+gerekmedi (G33/G35'in "genelleştirme" yatırımı üçüncü modda karşılığını
+verdi — task'ın da doğruladığı gibi). SADECE üç yerde mod-özel görüntü metni
+(`pushHistory` açıklaması, `questionTitle`, `setFeedback` açıklaması —
+Kompresör/Reverb'in de AYNI üç yerde kendi dalları var) yeni bir
+`q.mode === "tonal-denge"` dalı gerektirdi — bunun DIŞINDA app.js'e dokunulmadı.
+
+**KORUNANLAR (task'ın açık isteği):** 7 mevcut mod, `three-way-cards.js`
+(değişmeden import edildi — G41'in "üçüncü bir Motor 2 modu SADECE bu modülü
+import edip re-export etmesi yeter" öngörüsü DOĞRULANDI), reskin (G36-G41),
+ses/zorluk/geri bildirim akışı HİÇ değişmedi.
+
+**Doğrulama (canlı, tarayıcıda, `devFlags.simulatePro` ile seviye kilidi
+aşılarak):** Menüde "Tonal Denge" Reverb ile Distortion ARASINDA, "Sv 1"/"Pro"
+rozetleriyle doğru yerde göründü. Tıklanınca kulaklık uyarı sheet'i çıktı
+(kulaklikGerekli:true doğrulandı) — "Kulaklığım takılı, başla" ile geçildi.
+Oyun ekranında kaynak "Davul Döngüsü" (varsayılan), Kaynak sheet'inde SADECE
+DAVUL grubunda "Davul Döngüsü" + KENDİ DOSYAM grubunda "Dosya seç" göründü
+(başka HİÇBİR grup/kaynak yok — `only:["groove","upload"]` doğrulandı).
+19 tur otomatik oynatıldı (DOM üzerinden gerçek tıklamalarla) — A/B/C büyük
+kartlar (G41 UI) normal çalıştı, otomatik döngü/amber vurgu senkron, Boss
+round'a (Soru 5) doğru geçti. Öğretici metin GERÇEK oyun çıktısında doğrulandı
+(örnek: "Yanlış — sen A dedin. C dengesizdi — tiz-ağır eğim (düşük bölge
+-8.9dB, tiz +8.9dB) — mix sert/ince duyulur, bas zayıf/cılız kalır. Dengeli
+mixte bas ve tiz orantılı..."), doğru cevapta XP verildi ("+22 XP"). Cevap
+sonrası görsel EKRAN GÖRÜNTÜSÜYLE doğrulandı: yeşil "Doğru" eğrisi net bir
+tiz-ağır tilt şekli (düşükten yükseğe yükselen çizgi) çizdi, üstte "● Doğru"
+lejantı, frekans ekseni (100–12.8k) doğru. Kompresör'e ve Reverb'e geçilip
+kaynak listeleri kontrol edildi — İKİSİ de DEĞİŞMEDİ (Kompresör 13 kaynak,
+pink/white hariç hepsi; Reverb TAM `snare,groove,guitar,vocal,upload` — G43'ün
+listesi bozulmadı). Konsol hatası YOK (19 tur boyunca, `onlyErrors` filtresiyle
+iki kez kontrol edildi). `npm test`: 640/640 (573 +67 yeni —
+`test/tonal-denge.test.mjs`: createQuestion sözleşmesi, "aynı" ikilinin HER
+ZAMAN flat olduğu, buildVariant'ın dört şekli + tek-eksen imbalanceScore,
+pickKGap'in FLOOR+ÜST clamp'i, PRO katmanının %50 smile/frown istatistiği
+(1000 örnek), evaluateAnswer/calculateXP, teachingText/getFeedbackData (gerçek
+dB'ler+mix dili), getHintText (harf sızdırmıyor), applyProcessing (previewLetter
+→ 3 doğru BiquadFilterNode), paramsForDifficultyPosition, "kolaylaşma yok"
+invaryantı, getMeta (kaynak listesi TAM groove+upload), three-way-cards.js'ten
+GERÇEK delegasyon (referans eşitliği) — diğer 573 test (7 mod + mekanizmalar)
+DOKUNULMADAN geçti, regresyon yok.
+
+---
+
+Önceki commit (G43, tek commit — kod+DURUM.md birlikte) — **Reverb kaynak filtresi ELLE
 düzeltildi: G42'nin "tek-vuruş dışla" otomatik kuralı yanlış sonuç veriyordu, yerine
 kullanıcının gerçek mix deneyimine dayanan AÇIK bir izin listesi geldi.** Sorun: G42'nin
 `excludeOneShot` heuristiği "tek darbe = reverb kuyruğunu göstermez" varsayımıyla kick/
