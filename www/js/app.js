@@ -5,6 +5,7 @@
 import { createAudioEngine } from "./core/audio-engine.js";
 import { createUploadManager, validateAudioFile, audioAcceptAttr } from "./core/upload.js";
 import { createRoundFlow } from "./core/round-flow.js";
+import { createExamSystem, getWeakTier, recordTierResult, EXAM_CONFIG } from "./core/exam-system.js";
 import * as storage from "./core/storage.js";
 import * as progress from "./core/progress.js";
 import { toast, spawnXp, burst, shake } from "./core/fx.js";
@@ -227,6 +228,16 @@ const els = {
   lvlSheetTitle: document.getElementById("lvlSheetTitle"),
   lvlSheetClose: document.getElementById("lvlSheetClose"),
   lvlSheetBody: document.getElementById("lvlSheetBody"),
+  // G47: sınav sistemi sheet'leri (hpSheet'in AYNI bottom-sheet deseni)
+  examOfferOverlay: document.getElementById("examOfferOverlay"),
+  examOfferSheet: document.getElementById("examOfferSheet"),
+  examOfferDesc: document.getElementById("examOfferDesc"),
+  examOfferAccept: document.getElementById("examOfferAccept"),
+  examOfferDecline: document.getElementById("examOfferDecline"),
+  examPassOverlay: document.getElementById("examPassOverlay"),
+  examPassSheet: document.getElementById("examPassSheet"),
+  examPassDesc: document.getElementById("examPassDesc"),
+  examPassContinue: document.getElementById("examPassContinue"),
   // G37: kulaklık uyarı sheet'i (Dizayn/prototype.html #hpSheet'ten)
   hpSheetOverlay: document.getElementById("hpSheetOverlay"),
   hpSheet: document.getElementById("hpSheet"),
@@ -462,6 +473,12 @@ function scrollFeedbackIntoView() {
 const audioEngine = createAudioEngine();
 const uploadManager = createUploadManager(() => audioEngine.audioCtx);
 audioEngine.onReady = () => drawVisualizer();
+
+// G47: Sınav sistemi (core/exam-system.js) — TEK örnek, round-flow.js/audio-engine.js
+// ile AYNI "bir kez yarat, elde tut" deseni. mode.EXAM_ENABLED export ETMEYEN
+// modlarda (bugün Kompresör HARİÇ hepsi) examSystem.phase HER ZAMAN "parkur" kalır
+// ve HİÇBİR app.js dalı onu okumaz — var olması bile o modları ETKİLEMEZ.
+const examSystem = createExamSystem();
 
 const revealAnimator = mode.createRevealAnimator({
   sfxDing: audioEngine.sfxDing,
@@ -711,6 +728,19 @@ function modeState() {
 
 function currentDifficultyConfig() {
   return mode.DIFFICULTY[els.difficultySelect.value];
+}
+
+// G47: SADECE mode.EXAM_ENABLED olan modlar için ÇAĞRILIR (bkz. çağıranlar) —
+// stats.examState[modeId]'i lazy kurar. examLevel'in İLK değeri progress.
+// modeLevel()'ın O ANKİ (henüz examState yokken hesaplanan, yani SAF XP'den
+// gelen) sonucu — kullanıcı zaten bir seviyedeyse sınav sistemi onu SIFIRA
+// ÇEKMEZ, olduğu yerden devam eder (bkz. progress.js modeLevel notu).
+function examStatsFor(modeId) {
+  if (!stats.examState) stats.examState = {};
+  if (!stats.examState[modeId]) {
+    stats.examState[modeId] = { examLevel: progress.modeLevel(stats, modeId), tierStats: {} };
+  }
+  return stats.examState[modeId];
 }
 
 // ADIM 1 (zorluk sisteminin merkezi bağlanması — bkz. core/difficulty-curve.js
@@ -1157,6 +1187,11 @@ function enterMode(entry, realMode) {
     // ÖNCE uygulanıyor — canvas'ın GERÇEK (CSS'ten okunan) boyutu ilk çizimden
     // itibaren doğru.
     if (els.analyzer) els.analyzer.classList.toggle("analyzer-compact", !!mode.COMPACT_ANALYZER);
+    // G47: farklı bir moda geçince sınav sistemi de sıfırlanır (bir modun yarım
+    // parkuru başka bir moda SIZMAZ) — examSystem.setMode kendi içinde SADECE
+    // modId GERÇEKTEN değiştiyse resetler (bkz. core/exam-system.js), aynı moda
+    // geri dönmek (menüden çıkıp aynı karta basmak) yarım parkuru KORUR.
+    examSystem.setMode(realMode.MODE_ID);
     els.questionTitle.textContent = 'Başlamak için "Oyunu Başlat"a dokun.';
     els.questionMeta.textContent = "";
     if (els.freqInfo) els.freqInfo.classList.add("hidden");
@@ -1204,6 +1239,117 @@ function closeHeadphoneSheet() {
   if (els.hpSheet) els.hpSheet.classList.remove("open");
   pendingHpEntry = null;
   pendingHpRealMode = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// G47 — Sınav sistemi: mode.EXAM_ENABLED olan modlarda (bugün SADECE Kompresör,
+// bkz. kompresor.js) submitThreeWayGuess'in çağırdığı orkestrasyon + iki sheet
+// (erken sınav teklifi, "BÖLÜM GEÇTİN" kutlaması — hpSheet'in AYNI .open class
+// deseni). Mekanik core/exam-system.js'te; burası SADECE o modülün event'lerine
+// göre DOM/ses tepkisi üretir.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function openExamOfferSheet(remaining) {
+  if (els.examOfferDesc) {
+    els.examOfferDesc.textContent = `Yanıtlanacak ${remaining} sorunuz daha var ve sınav daha zor. Sınava geçmeye emin misiniz?`;
+  }
+  if (els.examOfferOverlay) els.examOfferOverlay.classList.add("open");
+  if (els.examOfferSheet) els.examOfferSheet.classList.add("open");
+}
+function closeExamOfferSheet() {
+  if (els.examOfferOverlay) els.examOfferOverlay.classList.remove("open");
+  if (els.examOfferSheet) els.examOfferSheet.classList.remove("open");
+}
+if (els.examOfferAccept) els.examOfferAccept.addEventListener("click", () => {
+  examSystem.acceptEarlyExam();
+  closeExamOfferSheet();
+  goToNextRound();
+});
+if (els.examOfferDecline) els.examOfferDecline.addEventListener("click", () => {
+  examSystem.declineEarlyExam();
+  closeExamOfferSheet();
+  goToNextRound();
+});
+
+function openExamPassSheet(newLevel) {
+  if (els.examPassDesc) {
+    els.examPassDesc.textContent = `Sınavı geçtin — Seviye ${newLevel}'e yükseldin! Yeni bir 10 soruluk parkur başlıyor.`;
+  }
+  if (els.examPassOverlay) els.examPassOverlay.classList.add("open");
+  if (els.examPassSheet) els.examPassSheet.classList.add("open");
+}
+function closeExamPassSheet() {
+  if (els.examPassOverlay) els.examPassOverlay.classList.remove("open");
+  if (els.examPassSheet) els.examPassSheet.classList.remove("open");
+}
+if (els.examPassContinue) els.examPassContinue.addEventListener("click", () => {
+  examSystem.acknowledgePassed();
+  closeExamPassSheet();
+  goToNextRound();
+});
+
+// Cevap sonrası feedback kartının metnine (setFeedback ZATEN çağrılmış) sınav-
+// ilgili bir NOT ekler — ayrı bir toast/ikinci kart AÇMAK yerine (task'ın "sessiz
+// XP artışı" eleştirdiği aynı sessizlik hissini geri getirmemek için) mevcut
+// karta EKLENİR, kullanıcı zaten okuduğu tek yüzeyden devam eder.
+function appendExamNote(note) {
+  if (!note || !els.feedbackDetail) return;
+  els.feedbackDetail.textContent = `${els.feedbackDetail.textContent} ${note}`;
+}
+
+// submitThreeWayGuess'in (Kompresör/Reverb PAYLAŞTIĞI) SONUNDA, SADECE
+// mode.EXAM_ENABLED true iken çağrılır. Dönen boolean: true ise çağıran taraf
+// normal scheduleNext(...)'ü ATLAMALI (bu fonksiyon sheet açıp akışı KENDİSİ
+// yönetiyor demektir) — false ise normal akış (scheduleNext) DEVAM ETMELİ.
+function handleExamOutcome(q, result) {
+  const modeId = mode.getMeta().id;
+  const es = examStatsFor(modeId);
+  // tierStats SADECE normal parkur cevaplarından beslenir — sınav/telafi
+  // sonuçları BİLEREK dışarıda (zaten "zorlaştırılmış" bir örneklem, zayıf-
+  // kademe tespitini ÇARPITIRDI, bkz. core/exam-system.js dosya başı notu).
+  if (examSystem.phase === "parkur") {
+    es.tierStats = recordTierResult(es.tierStats, q.difficulty, result.correct);
+  }
+
+  const outcome = examSystem.recordAnswer(result.correct, q.difficulty);
+
+  switch (outcome.event) {
+    case "exam-offer":
+      openExamOfferSheet(outcome.remaining);
+      return true; // scheduleNext YOK — kullanıcı sheet'te karar verene kadar bekler
+    case "exam-start":
+      appendExamNote(`Sınav başlıyor — ${EXAM_CONFIG.EXAM_LENGTH} soru, zorlaştırılmış.`);
+      return false;
+    case "parkur-failed":
+      appendExamNote(`${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — parkur baştan başlıyor.`);
+      return false;
+    case "exam-passed": {
+      es.examLevel = (es.examLevel || 1) + 1;
+      persistStats();
+      updateUI();
+      // "Belirgin, ödül hissi" (task) — doğru cevaptaki AYNI flörtür fx'leri
+      // (ding+burst), sıradan bir doğru cevaptan AYRIŞSIN diye kutlama sheet'iyle
+      // BİRLİKTE.
+      audioEngine.sfxDing();
+      burst(els.canvas);
+      openExamPassSheet(es.examLevel);
+      return true; // scheduleNext YOK — kullanıcı kutlamayı "Devam Et" ile kapatana kadar bekler
+    }
+    case "exam-failed":
+    case "remedial-exam-failed": {
+      const weak = getWeakTier(es.tierStats);
+      // Yeterli veri yoksa (yeni kullanıcı) makul bir orta nokta — "medium"
+      // (KULAKLA/PLAYTEST DOĞRULANMADI, task'ın "zayıf bölge yoksa da telafi
+      // çalışsın" isteğinin doğal bir varsayılanı).
+      const tier = (weak && weak.tier) || "medium";
+      if (outcome.event === "remedial-exam-failed") examSystem.retryRemedial(tier);
+      else examSystem.startRemedial(tier);
+      appendExamNote(`Sınavı geçemedin — ${mode.DIFFICULTY[tier]?.label || tier} kademesinde ${EXAM_CONFIG.REMEDIAL_LENGTH} telafi sorusu geliyor.`);
+      return false;
+    }
+    default:
+      return false;
+  }
 }
 
 // Şimdilik tek mod var; kayıt defterinden beslenir, elle yazılmaz (bkz. core/registry.js).
@@ -1675,7 +1821,17 @@ function renderQuestion() {
   // diye bir kavram hiç yok, oradaki "10" sabit varsayılan seans uzunluğu. Bizde bu
   // ayrım gerçek (challenge.active), bu yüzden "/10" SADECE 10 Soruluk Bölüm'de
   // gösteriliyor — Serbest'te sonsuz bir "/10" yanıltıcı olurdu.
-  els.roundChip.textContent = challenge.active
+  //
+  // G47: mode.EXAM_ENABLED olan bir modda (bugün SADECE Kompresör) bu ayrım
+  // GEÇERSİZ — kullanıcının onayladığı görev kararı gereği sınav sistemi HER
+  // oyun uzunluğunda (Serbest DAHİL) arka planda 10'ar sorudan parkur sayar,
+  // bu yüzden challenge.active'DEN BAĞIMSIZ HER ZAMAN examSystem.label()
+  // kullanılır ("Soru N/10" / "Sınav N/4" / "Telafi N/5" — bkz. core/
+  // exam-system.js). Export etmeyen diğer yedi modda mode.EXAM_ENABLED
+  // undefined → bu dal hiç çalışmaz, ÖNCEKİ davranış BİREBİR aynı kalır.
+  els.roundChip.textContent = mode.EXAM_ENABLED
+    ? examSystem.label()
+    : challenge.active
     ? `Soru ${challenge.done + 1}/${challenge.total}`
     : `Soru ${stats.rounds + 1}`;
   els.scoreChip.textContent = `Skor ${diffState().score}`;
@@ -2237,9 +2393,18 @@ function submitThreeWayGuess(letter) {
   updateUI();
   persistStats();
   persistDaily();
+  // Canlar burada bittiyse (Pro/simüle Pro'da HİÇ tetiklenmez, bkz. loseLife notu)
+  // seans-sonu ekranı ÖNCELİKLİ — sınav sheet'leri bir game-over ekranının
+  // ÜSTÜNE açılmamalı, o yüzden gameOver ÖNCE kontrol edilir.
+  const gameOver = finalizeIfGameOver();
+  // G47: sınav sistemi — SADECE mode.EXAM_ENABLED true iken (bugün Kompresör)
+  // çağrılır, Reverb (AYNI fonksiyonu paylaşıyor) tamamen ETKİLENMEDEN eski
+  // yoldan devam eder. handleExamOutcome true dönerse (sheet açıldı, akış
+  // KENDİSİ yönetiyor demek) normal scheduleNext ATLANIR.
+  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
   // Diğer beş modla AYNI hizalı geçiş formülü (bkz. G21). #feedbackBox'ın
   // KENDİ X'i (#feedbackClose, G27) de merkezi delegasyondan otomatik geldi.
-  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+  if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
 // Tonal Denge (G45) — submitThreeWayGuess'in YAPISAL PARALELİ (AYNI genel
@@ -2476,7 +2641,14 @@ function stopAbLoop() {
 function ensureAutoNext(durationMs) {
   if (autoStopped) return;
   if (currentLives <= 0) return;
-  if (challenge.active && challenge.done >= challenge.total) {
+  // G47: mode.EXAM_ENABLED bir modda (bugün Kompresör) "10 Soruluk Bölüm"ün
+  // KENDİ "10 soru bitti → seansı kapat" mantığı DEVRE DIŞI — parkur/sınav/telafi
+  // akışı 10'un ÖTESİNE geçebiliyor (erken sınav + telafi turları), bunu
+  // challenge.done>=10'da kesmek sınavı YARIDA keserdi. challenge.active/
+  // xpMult()'un +%50 bonusu HÂLÂ çalışıyor (kullanıcı "10 Soruluk Bölüm"ü
+  // seçtiyse), SADECE otomatik bitirme bastırıldı. Diğer yedi modda
+  // mode.EXAM_ENABLED undefined → bu koşul ÖNCEKİ davranışla BİREBİR aynı.
+  if (challenge.active && !mode.EXAM_ENABLED && challenge.done >= challenge.total) {
     finishChallenge();
     return;
   }
@@ -2568,8 +2740,18 @@ function startRound() {
   roundStartedAt = Date.now();
   applyAutoDifficulty(); // Z5: Otomatik modda els.difficultySelect.value burada güncellenir
 
-  const boss = mode.isBossRound(stats.rounds);
-  activeQuestion = mode.createQuestion(els.difficultySelect.value, {
+  // G47: sınav sistemi — SADECE mode.EXAM_ENABLED olan modlarda (bugün sadece
+  // Kompresör) examSystem'in FAZI parkur DIŞINDAYSA (sınav/telafi/tekrar-sınav)
+  // kullanıcının kendi zorluk seçimi/eğrisi YERİNE modun EXAM_DIFFICULTY'si
+  // (statik, "zorlaştırılmış") kullanılır — boss round VE Otomatik/Sabit eğrisi
+  // bu fazlarda BİLEREK devre dışı (task: "o modun ZORLAŞTIRILMIŞ soruları",
+  // ekstra bir boss-zorluğu çakışması istenmedi). Diğer yedi mod için
+  // `mode.EXAM_ENABLED` undefined → examActive HER ZAMAN false, bu blok
+  // ÖNCEKİ davranışla BİREBİR aynı kalır (hiç çalışmaz).
+  const examActive = !!mode.EXAM_ENABLED && examSystem.phase !== "parkur";
+  const examTier = mode.EXAM_ENABLED ? examSystem.questionTier(els.difficultySelect.value, mode.EXAM_DIFFICULTY) : els.difficultySelect.value;
+  const boss = examActive ? false : mode.isBossRound(stats.rounds);
+  activeQuestion = mode.createQuestion(examTier, {
     source: pickRoundSource(),
     boss,
     focusRange: currentFocusRange(),
@@ -2583,7 +2765,9 @@ function startRound() {
     // altındaki not): HER İKİ mod da (Kesim Noktası + Frekans Bulma) kendi
     // paramsForDifficultyPosition'ı üzerinden bunu okuyor — proplus (undefined
     // döndüğünde) HARİÇ, o zaman ilgili mod eski statik DIFFICULTY[level] yoluna düşer.
-    difficultyPosition: currentDifficultyPosition(boss)
+    // examActive'te de BİLEREK undefined — sınav/telafi eğriyi DEĞİL modun statik
+    // DIFFICULTY[examTier]'ını kullanır (bkz. examTier notu).
+    difficultyPosition: examActive ? undefined : currentDifficultyPosition(boss)
   });
   roundsInThisPlaySession++;
   // Karıştır açıkken çalan kaynak sourceSelect'ten farklı olabilir — chip her zaman

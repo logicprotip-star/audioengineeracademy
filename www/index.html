@@ -287,6 +287,40 @@
         </div>
         <div id="lvlSheetBody"></div>
       </div>
+
+      <!-- G47: sınav sistemi — erken sınav teklifi (kombo 6, hpSheet'in AYNI
+           bottom-sheet deseni). app.js openExamOfferSheet açar, examOfferAccept/
+           examOfferDecline butonları examSystem.acceptEarlyExam()/declineEarlyExam()
+           çağırır (bkz. app.js "Sınav sistemi" bölümü). -->
+      <div class="sheet-overlay" id="examOfferOverlay"></div>
+      <div class="bottom-sheet" id="examOfferSheet">
+        <div class="sheet-handle"></div>
+        <div style="display:flex;justify-content:center;margin:2px 0 4px">
+          <div style="width:64px;height:64px;border-radius:20px;background:rgba(255,176,32,.14);border:1px solid rgba(255,176,32,.3);display:flex;align-items:center;justify-content:center;font-size:28px">🏆</div>
+        </div>
+        <h3 style="margin:14px 0 0;font-size:20px;font-weight:800;line-height:1.3;text-align:center">Sınav hakkı kazandın!</h3>
+        <p id="examOfferDesc" style="margin:8px 6px 0;font-size:15px;line-height:1.5;color:var(--tx-2);text-align:center"></p>
+        <div style="margin-top:16px;display:flex;flex-direction:column;gap:9px">
+          <button class="btn primary" id="examOfferAccept" type="button">Sınava geç</button>
+          <button class="btn" id="examOfferDecline" type="button">Parkura devam et</button>
+        </div>
+      </div>
+
+      <!-- G47: sınav sistemi — "BÖLÜM GEÇTİN" kutlaması. app.js openExamPassSheet
+           açar, examPassContinue examSystem.acknowledgePassed()'ı çağırıp yeni
+           parkuru başlatır. -->
+      <div class="sheet-overlay" id="examPassOverlay"></div>
+      <div class="bottom-sheet" id="examPassSheet">
+        <div class="sheet-handle"></div>
+        <div style="display:flex;justify-content:center;margin:2px 0 4px">
+          <div style="width:72px;height:72px;border-radius:22px;background:rgba(43,217,168,.14);border:1px solid rgba(43,217,168,.35);display:flex;align-items:center;justify-content:center;font-size:32px">🎉</div>
+        </div>
+        <h3 style="margin:14px 0 0;font-size:22px;font-weight:800;line-height:1.3;text-align:center;color:var(--gr)">BÖLÜM GEÇTİN!</h3>
+        <p id="examPassDesc" style="margin:8px 6px 0;font-size:15px;line-height:1.5;color:var(--tx-2);text-align:center"></p>
+        <div style="margin-top:16px">
+          <button class="btn primary" id="examPassContinue" type="button" style="width:100%">Devam Et</button>
+        </div>
+      </div>
     </section>
 
     <!-- ================= EKRAN: İLERLEME ================= -->

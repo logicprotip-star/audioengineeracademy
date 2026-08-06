@@ -97,6 +97,16 @@ export const MAX_LIVES = 5;
 // kendi-kendini-açıklama amaçlı (G35'te Reverb bunu MİRAS ALDI).
 export const THREE_WAY = true;
 
+// G47: Sınav sistemi (core/exam-system.js) PİLOT modu — SHOW_SPECTRUM/
+// COMPACT_ANALYZER'ın AYNI mode-agnostik bayrak deseni: app.js
+// `mode.EXAM_ENABLED` okuyup parkur/sınav/telafi akışını devreye sokuyor,
+// `mode.EXAM_DIFFICULTY` sınav sorularının HANGİ statik DIFFICULTY[level]
+// zorluğunda üretileceğini belirliyor ("zorlaştırılmış" — task'ın kararı).
+// Export ETMEYEN diğer yedi mod bu turda HİÇ etkilenmiyor (varsayılan
+// undefined/false, app.js'in exam dalları hiç çalışmıyor).
+export const EXAM_ENABLED = true;
+export const EXAM_DIFFICULTY = "pro";
+
 // ═══════════════════════════════════════════════════════════════════════════
 // KOMPRESYON YOĞUNLUĞU (k) — RATIO + THRESHOLD'un TEK bir algısal eksene
 // (k ∈ [0,1], "ne kadar sıkışmış") bağlı BİRLİKTE hareket etmesini sağlayan

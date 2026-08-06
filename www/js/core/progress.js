@@ -46,8 +46,24 @@ function totalXp(stats) {
 export function modeXp(stats, modeId) {
   return (stats.perMode && stats.perMode[modeId] && stats.perMode[modeId].xp) || 0;
 }
+// G47: Sınav sistemi (core/exam-system.js) entegrasyonu — "paralel sistem kurma"
+// YASAĞINA uyularak, XP/seviye hesabının KENDİSİ (levelFromXp/modeXp) HİÇ
+// değişmedi, SADECE tek bir guard'lı üst sınır eklendi. stats.examState[modeId]
+// SADECE mode.EXAM_ENABLED===true olan modlar için (app.js:examStatsFor) lazy
+// dolduruluyor — sınav DESTEKLEMEYEN yedi mod için bu alan HİÇ var olmuyor, bu
+// yüzden onların modeLevel()'ı ÖNCEKİ gibi SAF XP'den hesaplanmaya devam ediyor
+// (davranış BİREBİR aynı, testle doğrulandı). Sınav destekleyen bir modda ise
+// GERÇEK/ham XP seviyesi (rawLevel) her zaman hesaplanmaya DEVAM eder (XP
+// "sessizce" birikmeye devam ediyor — task'ın "paralel sistem kurma" isteği) ama
+// GÖSTERİLEN/KULLANILAN seviye examLevel'i AŞAMAZ — examLevel SADECE bir sınav
+// geçildiğinde artar (bkz. core/exam-system.js). Bu, "sessiz XP artışını sınav
+// olayına çevir" isteğini XP MEKANİĞİNİ DEĞİŞTİRMEDEN (aynı levelFromXp eğrisi,
+// aynı xpNeeded merdiveni) sağlıyor.
 export function modeLevel(stats, modeId) {
-  return levelFromXp(modeXp(stats, modeId));
+  const rawLevel = levelFromXp(modeXp(stats, modeId));
+  const exam = stats.examState && stats.examState[modeId];
+  if (!exam || typeof exam.examLevel !== "number") return rawLevel;
+  return Math.min(rawLevel, exam.examLevel);
 }
 
 // AKADEMİ (genel) seviyesi — KARAR (Z3): mod seviyelerinin TOPLAMI (her modLevel()

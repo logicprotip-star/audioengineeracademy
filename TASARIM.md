@@ -67,6 +67,17 @@ girişindeki G45 notuna bkz.) — ÖZET sayıları DEĞİŞMEDİ (bu satırlar z
 Kompresör/Reverb'in KENDİ mekaniğini anlatıyordu, Tonal Denge'nin çıkışı onları
 etkilemedi).
 
+**G47 eki:** Sınav sistemi (merkezi altyapı, Kompresör pilotu) eklendi —
+`Dizayn/prototype.html`'de bir "sınav/parkur/bölüm geçme" kavramı HİÇ YOK
+(prototip statik bir tıklanabilir demodur, XP/seviye sistemi zaten prototipte
+gerçek bir mekanik değil) — bu yüzden AYRI bir karşılaştırma tablosu
+YAZILMADI, EKRAN 5 (Seans Sonu)'ndeki "Seviye atladın" kartıyla kavramsal bir
+AKRABALIĞI var (ikisi de "seviye atlama" anını kutluyor) ama sınav sisteminin
+kendi kutlama sheet'i ("BÖLÜM GEÇTİN!") AYRI, YENİ bir bileşen — mevcut Seans
+Sonu ekranının `leveledUp` rozetine DOKUNMADI, onunla YARIŞMIYOR (ikisi FARKLI
+anları temsil ediyor: Seans Sonu XP eşiği aşıldığında, sınav kutlaması bir
+YETERLİLİK SINAVI geçildiğinde). Detay: DURUM.md G47 BİTTİ.
+
 ## EKRAN 1 — ANA MENÜ
 
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |

@@ -38,6 +38,50 @@ describe("modeXp() / modeLevel()", () => {
   });
 });
 
+// G47: Sınav sistemi entegrasyonu — "paralel sistem kurma" YASAĞINA uyularak
+// modeLevel()'a eklenen TEK guard'lı dal. bkz. core/exam-system.js.
+describe("modeLevel() — G47 sınav sistemi examState guard'ı", () => {
+  it("stats.examState HİÇ yoksa (sınav desteklemeyen yedi mod) davranış BİREBİR eskisi gibi — SAF XP'den hesaplanır", () => {
+    const stats = { perMode: { "frekans-bulma": { xp: 5000 } } };
+    assert.equal(modeLevel(stats, "frekans-bulma"), levelFromXp(5000));
+  });
+
+  it("stats.examState VAR ama BU MOD için YOK — yine SAF XP'den hesaplanır (sınav sistemi bu moda HİÇ dokunmamış demektir)", () => {
+    const stats = {
+      perMode: { "frekans-bulma": { xp: 5000 } },
+      examState: { kompresor: { examLevel: 1, tierStats: {} } }
+    };
+    assert.equal(modeLevel(stats, "frekans-bulma"), levelFromXp(5000));
+  });
+
+  it("examLevel HAM (XP'den hesaplanan) seviyenin ALTINDAYSA — GÖSTERİLEN seviye examLevel'e SINIRLANIR (sınav henüz geçilmedi)", () => {
+    const rawLevel = levelFromXp(5000);
+    const stats = {
+      perMode: { kompresor: { xp: 5000 } },
+      examState: { kompresor: { examLevel: 1, tierStats: {} } }
+    };
+    assert.ok(rawLevel > 1, "test önkoşulu: 5000 XP seviye 1'den yüksek olmalı");
+    assert.equal(modeLevel(stats, "kompresor"), 1, "examLevel=1 iken GÖSTERİLEN seviye 1'i AŞMAMALI");
+  });
+
+  it("examLevel HAM seviyenin ÜSTÜNDE OLAMAZ — Math.min ile XP'nin gerçekten hak ettiğinin ÖTESİNE asla geçilmez", () => {
+    const stats = {
+      perMode: { kompresor: { xp: 0 } }, // rawLevel = levelFromXp(0) = 1
+      examState: { kompresor: { examLevel: 99, tierStats: {} } } // sınav sistemi bir şekilde 99'a çıkmış olsun
+    };
+    assert.equal(modeLevel(stats, "kompresor"), 1, "examLevel XP'nin hak ettiğinden FAZLA seviye VEREMEZ");
+  });
+
+  it("examLevel === rawLevel iken (sınav az önce geçildi, tam senkron) GÖSTERİLEN seviye ikisiyle de eşleşir", () => {
+    const rawLevel = levelFromXp(1200);
+    const stats = {
+      perMode: { kompresor: { xp: 1200 } },
+      examState: { kompresor: { examLevel: rawLevel, tierStats: {} } }
+    };
+    assert.equal(modeLevel(stats, "kompresor"), rawLevel);
+  });
+});
+
 describe("academyLevel()", () => {
   it("tek mod varken academyLevel === o modun kendi seviyesi (geriye dönük tutarlı)", () => {
     const stats = statsWithPerMode({ "frekans-bulma": { xp: 730 } });

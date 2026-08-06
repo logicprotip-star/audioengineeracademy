@@ -1,13 +1,146 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G46)
+Son güncelleme: 06.08.2026 (G47)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G46, tek commit — kod+DURUM.md birlikte) — **Tonal Denge'de spektrum
+Bu commit (G47, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **SINAV SİSTEMİ
+TEMELİ: merkezi altyapı (core/exam-system.js) + Kompresör pilotu.** Seviye
+atlamayı "sessiz XP artışı"ndan "bölüm geçme / yeterlilik sınavı" olayına
+çeviren yeni bir katman — mevcut soru üretimini/XP-seviye sistemini ÇAĞIRIR,
+DEĞİŞTİRMEZ. 673 test (638'den, +35 yeni).
+
+**ÖNEMLİ — BELGE UYUŞMAZLIĞI (görev başında tespit edildi, kullanıcıya
+soruldu):** Görev "DURUM.md/TASARIM.md'de 'SINAV SİSTEMİ' bölümü var, mekanik
+orada tam yazılı" diyordu — bu bölüm ARANDI, repo genelinde ("sınav"/"exam")
+HİÇBİR YERDE BULUNAMADI. `AskUserQuestion` ile üç açık nokta netleştirildi:
+(1) belge eksikliği onaylandı, görev mesajındaki mekanik açıklaması TEK
+doğruluk kaynağı olarak kullanıldı; (2) "10 soruluk parkur" mevcut "10
+Soruluk Bölüm" (challenge) altyapısına BAĞLANSIN AMA Serbest modda da arka
+planda çalışsın (kullanıcının kendi kararı, aşağıda uygulandı); (3)
+Kompresör'ün frekans-bölgesi kavramı OLMADIĞI için (personalization.js'in
+zoneStats'ı frekans-bölgesi bazlı) telafi parkuru "zayıf ZORLUK KADEMESİ"
+(easy/medium/hard/pro doğruluk oranı) üzerinden çalışsın — kullanıcı bu
+öneriyi onayladı.
+
+**MERKEZİ ALTYAPI — `core/exam-system.js` (YENİ dosya):** round-flow.js'in AYNI
+"factory + ses/DOM'a hiç dokunmama" felsefesi — `createExamSystem()` bir
+örnek yaratır (app.js `const examSystem = createExamSystem();`), TÜM parkur/
+kombo/sınav/telafi durumunu BELLEKTE tutar (roundsInThisPlaySession'ın AYNI
+kararı — sayfa yenilenince yarım parkur kaybolur, KABUL EDİLEBİLİR). SAF
+fonksiyonlar da var: `getWeakTier`/`recordTierResult` (zayıf-kademe tespiti,
+personalization.js'in zoneWeakness'ının AYNI rolü, kademe ekseninde).
+`EXAM_CONFIG`: PARKUR_LENGTH=10, COMBO_THRESHOLD=6, TOTAL_THRESHOLD=6,
+EXAM_LENGTH=4 (task'ın "örn 3-5" aralığından), EXAM_PASS_COUNT=3 (4'te 3,
+"çoğunu"), REMEDIAL_LENGTH=5 (task'ın kendi sayısı) — KULAKLA/PLAYTEST
+DOĞRULANMADI, makul bir başlangıç.
+
+**comboInParkur GLOBAL stats.combo'yu KULLANMAZ (bilinçli):** stats.combo TÜM
+modlar/oturumlar arasında paylaşılan bir sayaç — onu kullanmak başka bir
+modda kurulmuş bir seriyi Kompresör'ün parkuruna SIZDIRIRDI. exam-system
+KENDİ, mod+parkur'a sıkı sıkıya bağlı sayacını tutuyor.
+
+**MOD SÖZLEŞMESİ EKİ (miras alınabilir hale getirme):** Kompresör'e İKİ yeni
+export: `EXAM_ENABLED=true`, `EXAM_DIFFICULTY="pro"` — SHOW_SPECTRUM/
+COMPACT_ANALYZER'ın AYNI mode-agnostik bayrak deseni. Gelecekte başka bir mod
+aynı sistemi almak isterse SADECE bu iki satırı eklemesi yeterli, app.js'e
+YENİDEN dokunmaya GEREK yok (tüm app.js dalları `mode.EXAM_ENABLED` kontrolüyle
+generic).
+
+**progress.js — "PARALEL SİSTEM KURMA" yasağına uyulan TEK guard'lı dal:**
+`modeLevel()` artık `stats.examState[modeId].examLevel` VARSA (SADECE exam-
+enabled modlarda dolduruluyor) GÖSTERİLEN seviyeyi `Math.min(rawLevel,
+examLevel)` ile SINIRLIYOR — XP/levelFromXp/xpNeeded'ın KENDİSİ HİÇ değişmedi
+(XP sessizce birikmeye DEVAM ediyor), SADECE gösterilen/kullanılan seviye artık
+"sınav geçince açılan" bir kapı. Sınav destemeyen yedi modda `stats.examState[id]`
+HİÇ var olmadığı için `modeLevel()` AYNEN eskisi gibi SAF XP'den hesaplanır
+(testle doğrulandı — bkz. test/progress.test.mjs "G47 sınav sistemi examState
+guard'ı"). **FARKINDA OLUNAN yan etki:** Kompresör'ün examLevel-sınırlı
+modeLevel'i `academyLevel`'a (TÜM modların modeLevel TOPLAMI, menüdeki
+"Seviye N'de açılır" kilitlerinin kaynağı) da yansıyor — Kompresör'ün XP'si
+sınav GEÇMEDEN gerçek katkısını academyLevel'a VERMEZ. Bu, "seviye artık
+gerçekten kazanılmalı" felsefesiyle TUTARLI bir emergent sonuç olarak
+KABUL EDİLDİ, ayrıca gizlenmedi/engellenmedi.
+
+**storage.js:** `freshStats()`'e yeni `examState: {}` alanı + `loadStats()`'a
+göç satırı (`if (!s.examState) s.examState = {};`) — perMode/perDiff'in
+ŞEKLİNE hiç dokunulmadı, TAMAMEN yeni/ayrı bir ad alanı.
+
+**app.js kablolaması (mode.EXAM_ENABLED'a GÖRE dallanan, generic):**
+- `startRound()`: examSystem fazı parkur DIŞINDAYSA (sınav/telafi/tekrar-
+  sınav) `mode.createQuestion`'a kullanıcının seçtiği zorluk YERİNE
+  `examSystem.questionTier(...)` geçer; boss round VE Otomatik/Sabit eğrisi
+  (`difficultyPosition`) o fazlarda BİLEREK devre dışı (task: "zorlaştırılmış
+  normal sorular", statik DIFFICULTY[tier]).
+- `renderQuestion()`: `els.roundChip` metni `mode.EXAM_ENABLED` iken HER ZAMAN
+  (Serbest DAHİL, kullanıcının 2. karar onayı) `examSystem.label()`'dan gelir
+  ("Soru N/10" / "Sınav N/4" / "Telafi N/5" / "Tekrar Sınav N/4").
+- `submitThreeWayGuess()` (Kompresör/Reverb PAYLAŞIYOR): SADECE
+  `mode.EXAM_ENABLED` iken `handleExamOutcome(q, result)` çağrılır — tierStats
+  kaydı (SADECE "parkur" fazında, sınav/telafi sonuçları zayıf-kademe
+  tespitini ÇARPITMASIN diye), `examSystem.recordAnswer(...)`, olay
+  bazlı dallanma (offer sheet / pass sheet / feedback'e not ekleme). Reverb
+  (AYNI fonksiyonu paylaşıyor) `mode.EXAM_ENABLED` undefined olduğu için bu
+  BLOK TAMAMEN atlanıyor — davranışı BİREBİR eskisi gibi kalıyor.
+- `ensureAutoNext()`: "10 Soruluk Bölüm"ün KENDİ "10 soru bitti → seansı
+  kapat" mantığı `mode.EXAM_ENABLED` modlarda BASTIRILDI (parkur/sınav/telafi
+  10'un ÖTESİNE geçebiliyor, challenge.done>=10'da kesmek sınavı YARIDA
+  keserdi) — `challenge.active`'in +%50 XP bonusu (xpMult) HÂLÂ çalışıyor,
+  SADECE otomatik bitirme bastırıldı.
+- İKİ yeni bottom-sheet (hpSheet'in AYNI `.open` class deseni, index.html):
+  `examOfferSheet` (erken sınav teklifi, task'ın BİREBİR metniyle: "Yanıtlanacak
+  N sorunuz daha var ve sınav daha zor...") + `examPassSheet` ("BÖLÜM GEÇTİN!"
+  kutlaması, ding+burst fx'leriyle "ödül hissi").
+
+**Doğrulama (canlı, tarayıcıda, `devFlags.simulatePro` + `Math.random=()=>0`
+ile deterministik "A her zaman doğru" testi):** Kompresör'e girildi, 5 doğru
+cevap → "Soru 6/10". 6. doğru cevap → erken sınav teklif sheet'i EKRAN
+GÖRÜNTÜSÜYLE doğrulandı: "Yanıtlanacak 4 sorunuz daha var ve sınav daha zor.
+Sınava geçmeye emin misiniz?" (task'ın BİREBİR örneği). "Sınava geç" → "Sınav
+1/4" → 4/4 doğru → "BÖLÜM GEÇTİN!" sheet'i EKRAN GÖRÜNTÜSÜYLE doğrulandı:
+"Sınavı geçtin — Seviye 2'e yükseldin!". `#levelChip` "Seviye 2" gösterdi
+(examLevel cap DOĞRU çalıştı — bir ARA çalışma sırasında tarayıcının ESKİ
+progress.js'i CACHE'lediği fark edildi, sabit disk cache no-store fetch +
+hard reload ile doğrulanıp DÜZELTİLDİ, kod HİÇ değişmedi, sadece test
+metodolojisi). "Devam Et" → yeni parkur "Soru 1/10"den başladı. İKİNCİ bir
+parkurda 6 doğru → sınava kabul → BU SEFER 4 YANLIŞ cevap → "Telafi 1/5"e
+GEÇTİĞİ doğrulandı (feedback notu: "Sınavı geçemedin — Kolay kademesinde 5
+telafi sorusu geliyor"). 5 telafi sorusu doğru cevaplandı → "Tekrar Sınav
+1/4"e geçti. 4/4 doğru → tekrar "BÖLÜM GEÇTİN!" (Seviye 3), examLevel=3
+localStorage'a DOĞRU persist edildi. Reverb'e geçildi — `roundChip` "Soru
+33" (GENERİK, /10 YOK — mode.EXAM_ENABLED olmadığı için doğru), 3 büyük
+A/B/C kartı (`.ans-m2`) NORMAL render edildi, bir cevap verildi ("A
+farklıydı, Room, decay 0.9s"), exam-offer sheet HİÇ AÇILMADI. Frekans
+Bulma'ya geçildi — `roundChip` "Soru 34" (yine generik), normal çalıştı.
+Konsol hatası SIFIR (~35 otomatik tur boyunca). `npm test`: 673/673 (573
+sekiz-mod + 65 Tonal Denge + 35 yeni G47 testi: test/exam-system.test.mjs
+[parkur/kombo/toplam/sınır/sınav-geç-kal/telafi-döngüsü/questionTier/
+setMode-izolasyonu/getWeakTier-recordTierResult, 30 test] +
+test/progress.test.mjs'e eklenen modeLevel() examState guard testleri [5]).
+
+**KORUNANLAR (task'ın açık isteği):** 8 modun oyun mantığı/ses/zorluk/geri
+bildirim/reskin DOKUNULMADI. Kompresör DIŞINDAKİ yedi mod bu turda TAMAMEN
+etkilenmedi (canlı doğrulandı). XP/seviye MEKANİĞİ (progress.js'in KENDİSİ)
+değişmedi, sadece TEK bir guard'lı üst sınır eklendi.
+
+**BİLİNEN SINIRLAMALAR/SONRAKİ TUR İÇİN:** (1) Sınav soruları şimdilik
+"o modun zorlaştırılmış NORMAL soruları" — task'ın kendi kararıyla "yeni
+görev tipleri (sıralama/eşleştirme) SONRA eklenecek". (2) Otomatik zorluk
+modundaki `els.difficultySelect` görünen değeri sınav/telafi sırasında
+GÜNCELLENMİYOR (gerçek soru zorluğu `examSystem.questionTier()`'dan geliyor,
+ekrandaki "Zorluk" chip'i kullanıcının ÖNCEKİ seçimini göstermeye devam
+ediyor) — kozmetik bir tutarsızlık, işlevi ETKİLEMİYOR. (3) "Sonraki (N) ▶"
+oto-geçiş butonunun etiketi hâlâ generik "Sonraki" (examSystem.label()
+KULLANMIYOR) — SADECE `els.roundChip` güncellendi. (4) Diğer yedi mod HENÜZ
+miras almadı — task'ın "sonra her mod aynı sistemi miras alsın" isteği bu
+turun KAPSAMI DIŞINDA (pilot: SADECE Kompresör).
+
+---
+
+Önceki commit (G46, tek commit — kod+DURUM.md birlikte) — **Tonal Denge'de spektrum
 görseli küçültüldü, kaydırıcılara yer açıldı.** G45'te eklenen altı-banda kadar
 çıkabilen kaydırıcı listesi, 280px'lik (diğer sekiz modla PAYLAŞILAN) tam
 boy spektrumun ALTINDA kalıyordu — 6 bant + "Cevabı Onayla"ya ulaşmak için

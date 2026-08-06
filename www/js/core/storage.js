@@ -71,6 +71,13 @@ export function freshStats(difficultyLives, hintsPerGame, modeIds = []) {
     history: [],
     perDiff,
     perMode,
+    // G47: Sınav sistemi (core/exam-system.js) — mod başına { examLevel, tierStats }.
+    // perMode/perDiff'ten AYRI, YENİ bir ad alanı (o ikisinin ŞEKLİNE hiç dokunulmadı,
+    // "paralel sistem kurma" YASAĞI progress.js'in modeLevel()'ına eklenen tek bir
+    // guard'lı dala uyularak karşılandı — bkz. o dosyadaki not). SADECE
+    // mode.EXAM_ENABLED===true olan modlar için lazy doldurulur (app.js:examStatsFor);
+    // sınav DESTEKLEMEYEN modlarda bu alan HİÇBİR ZAMAN yazılmaz, boş kalır.
+    examState: {},
     lives: TOTAL_LIVES
   };
 }
@@ -94,6 +101,9 @@ export function loadStats(difficultyLives, hintsPerGame, modeIds = [], legacyMod
       if (typeof d.score === "number" && d.score < 0) d.score = 0;
       if (typeof d.bestScore === "number" && d.bestScore < 0) d.bestScore = 0;
     });
+    // G47: sınav sistemi göçü — eski kayıtlarda bu alan hiç yoktu, boş nesneye düşer
+    // (hiçbir mod için sınav ilerlemesi VARSAYILMAZ, app.js ilk dokunuşta lazy kurar).
+    if (!s.examState) s.examState = {};
     const isFirstPerModeMigration = !s.perMode;
     if (!s.perMode) s.perMode = {};
     modeIds.forEach(id => {
