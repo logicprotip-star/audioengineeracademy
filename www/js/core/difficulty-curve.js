@@ -99,6 +99,24 @@ export function continuousLevel(xpProg) {
   return Math.max(1, xpProg.level + frac);
 }
 
+// G49 — SINAV SİSTEMİ ile continuousLevel() ARASINDAKİ ÇELİŞKİNİN düzeltmesi:
+// continuousLevel() HAM XP'den gelir, sınav-cap'inden (progress.modeLevel'in
+// Math.min(rawLevel, examLevel)'ı) HABERSİZDİR — bu yüzden sınavı geçemeyen bir
+// kullanıcıda "Seviye N" DONARKEN currentDifficultyPosition()'ın taban terimi
+// (dolayısıyla gerçek kGap/gainDb/Q) XP arttıkça artmaya DEVAM ediyordu (bkz.
+// DURUM.md G49 teşhisi). BİLEREK examLevel'i (progress.modeLevel()'ın SONUCUNU
+// DEĞİL — o zaten rawLevel ile min'lenmiş bir TAM SAYI, burada kullanılırsa
+// continuousRawLevel'in KESİRLİ kısmı sınava HİÇ ulaşılmamışken bile HER ZAMAN
+// tam sayıya yuvarlanırdı) DOĞRUDAN parametre olarak alır — çağıran taraf
+// (app.js) stats.examState[modeId].examLevel'i KENDİSİ okuyup geçirir. examLevel
+// sayı DEĞİLSE (sınav sistemi yok/henüz hiç dallanmadı) sınırsız — AYNEN
+// continuousRawLevel döner, mevcut yedi mod (ve exam-enabled bir modun İLK
+// turu, examState henüz kurulmadan önce) davranışı BİREBİR korunur.
+export function examCappedLevel(continuousRawLevel, examLevel) {
+  if (typeof examLevel !== "number" || !Number.isFinite(examLevel)) return continuousRawLevel;
+  return Math.min(continuousRawLevel, examLevel);
+}
+
 // Seans içi zorluk rampasının şekli — ısınma (negatif ofset, seans/döngünün
 // başı) → zorlaşma (pozitif ofset, döngünün sonuna doğru) → boss (en yüksek,
 // {boss:true} geldiğinde döngüdeki konumdan BAĞIMSIZ olarak). CYCLE_LENGTH=5,

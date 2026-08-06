@@ -4,7 +4,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   difficultyParams, tierForLevel, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG,
-  logLerp, applyPostCapFloor, continuousLevel, sessionRampOffset, SESSION_RAMP_CONFIG, representativeLevelForTier
+  logLerp, applyPostCapFloor, continuousLevel, sessionRampOffset, SESSION_RAMP_CONFIG, representativeLevelForTier,
+  examCappedLevel
 } from "../www/js/core/difficulty-curve.js";
 
 describe("difficultyParams()", () => {
@@ -178,6 +179,43 @@ describe("continuousLevel() — XP ilerlemesinden KESİRLİ seviye", () => {
   it("xpProg yoksa/required<=0 ise çökmez, mantıklı bir seviyeye düşer", () => {
     assert.equal(continuousLevel(null), 1);
     assert.equal(continuousLevel({ level: 3, current: 0, required: 0 }), 3);
+  });
+});
+
+// G49: SINAV SİSTEMİ ile continuousLevel() ARASINDAKİ ÇELİŞKİNİN düzeltmesi —
+// "seviye sabit kalınca gerçek zorluk da sabit kalsın" kuralının SAF fonksiyon
+// katmanı. bkz. app.js:currentDifficultyPosition() (çağıran taraf) + DURUM.md.
+describe("examCappedLevel() — G49: sınav-cap'i sürekli eğriye bağlama", () => {
+  it("examLevel sayı DEĞİLSE (sınav sistemi yok/henüz kurulmadı) ham değeri AYNEN döner", () => {
+    assert.equal(examCappedLevel(7.4, undefined), 7.4);
+    assert.equal(examCappedLevel(7.4, null), 7.4);
+    assert.equal(examCappedLevel(7.4, NaN), 7.4);
+    assert.equal(examCappedLevel(7.4, Infinity), 7.4);
+  });
+
+  it("ham sürekli seviye examLevel'İN ALTINDAYSA (sınav henüz sınırlamıyor) AYNEN döner — KESİRLİ kısım KORUNUR", () => {
+    assert.equal(examCappedLevel(2.7, 5), 2.7, "sınıra henüz ulaşılmadıysa yuvarlanmamalı");
+  });
+
+  it("ham sürekli seviye examLevel'E TAM EŞİTSE examLevel'i döner", () => {
+    assert.equal(examCappedLevel(5, 5), 5);
+  });
+
+  it("ham sürekli seviye examLevel'İ AŞARSA (sınav geçilmeden XP birikmeye devam etmiş) DÜZ examLevel'de KIRPILIR — ARTMAZ", () => {
+    assert.equal(examCappedLevel(5.9, 5), 5, "5'i geçmemeli");
+    assert.equal(examCappedLevel(19.99, 5), 5, "ne kadar ham XP birikirse biriksin sınır AŞILMAZ");
+  });
+
+  it("examLevel ARTINCA (sınav geçildi) AYNI ham değer artık daha yükseğe kadar SERBEST — 'bir üst kademeye çıkar'", () => {
+    const raw = 5.9;
+    assert.equal(examCappedLevel(raw, 5), 5, "eski examLevel'de kırpılıyordu");
+    assert.equal(examCappedLevel(raw, 6), 5.9, "yeni examLevel'de ARTIK kırpılmıyor, ham değer serbest");
+  });
+
+  it("examLevel=1 (henüz hiç sınav geçilmemiş) iken ham değer ne olursa olsun 1'de SABİT kalır", () => {
+    assert.equal(examCappedLevel(1, 1), 1);
+    assert.equal(examCappedLevel(8.3, 1), 1);
+    assert.equal(examCappedLevel(19.99, 1), 1);
   });
 });
 

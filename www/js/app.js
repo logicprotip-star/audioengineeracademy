@@ -13,7 +13,7 @@ import { formatHz, turkishLocative } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
 import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import { SOURCE_GROUPS, findSource } from "./core/source-catalog.js";
-import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier } from "./core/difficulty-curve.js";
+import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
@@ -762,13 +762,33 @@ function examStatsFor(modeId) {
 // eski statik DIFFICULTY[level] yoluna düşer) — Z5 kararıyla aynı çizgide
 // (proplus Otomatik'te zaten hiç seçilmiyor, Sabit'te elle seçilirse de eğri
 // değil kendi statik satırı kullanılır) — bu HER İKİ mod için de geçerli.
+// G49: Otomatik-mod taban terimi artık examLevel'e de bağlı — bkz.
+// difficulty-curve.js:examCappedLevel() dosya başı notu (ÇELİŞKİ teşhisi:
+// modeLevel()/tierForLevel() ÜZERİNDEN kademe adı DONUYORDU ama bu fonksiyonun
+// ham-XP tabanı sınırsız artmaya devam ediyordu — sınavı geçemeyen kullanıcıda
+// "Seviye N" sabitken gerçek kGap/gainDb/Q artmaya devam ediyordu). SADECE
+// mode.EXAM_ENABLED modlarda (ve o modda examState kurulduktan SONRA) etkili —
+// diğer yedi mod examLevel=undefined ile examCappedLevel'den DEĞİŞMEDEN geçer.
 function currentDifficultyPosition(boss) {
   const tier = els.difficultySelect ? els.difficultySelect.value : "medium";
   if (tier === "proplus") return undefined;
   const baseline = diffModeAuto
-    ? continuousLevel(progress.xpProgress(progress.modeXp(stats, mode.getMeta().id)))
+    ? examCappedLevel(
+        continuousLevel(progress.xpProgress(progress.modeXp(stats, mode.getMeta().id))),
+        currentModeExamLevel()
+      )
     : representativeLevelForTier(tier);
   return baseline + sessionRampOffset(roundsInThisPlaySession, { boss });
+}
+
+// examStatsFor()'un AYNI okuma deseni ama YAZMIYOR (lazy-init YOK) — sınav
+// sistemi bu moda HİÇ dokunmadıysa (mode.EXAM_ENABLED false, ya da bu oturumda
+// henüz ilk cevap verilmediği için stats.examState[modeId] henüz kurulmadıysa)
+// undefined döner, examCappedLevel() bunu "sınırsız" olarak yorumlar.
+function currentModeExamLevel() {
+  if (!mode.EXAM_ENABLED) return undefined;
+  const es = stats.examState && stats.examState[mode.getMeta().id];
+  return es && typeof es.examLevel === "number" ? es.examLevel : undefined;
 }
 
 function timerOff() {

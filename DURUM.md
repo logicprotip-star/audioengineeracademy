@@ -1,13 +1,91 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G48)
+Son güncelleme: 06.08.2026 (G49)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G48, tek commit — kod+DURUM.md birlikte) — **SINAV SİSTEMİ DÜZELTMESİ:
+Bu commit (G49, tek commit — kod+DURUM.md birlikte) — **ZORLUK RAMPASINI SINAV-
+CAP'İNE BAĞLA: sınavı geçemeyen kullanıcıda "Seviye N" donuyordu ama gerçek
+zorluk (kGap/gainDb/Q) ham XP'yle artmaya devam ediyordu — ÇELİŞKİ giderildi.**
+
+**Önceki turda (kontrol görevi) tespit edilen çelişki:** Otomatik zorluk İKİ
+KATMANLIYDI — (1) `applyAutoDifficulty()`'nin tier seçimi `progress.modeLevel()`
+(sınav-cap'li, `Math.min(rawLevel, examLevel)`) üzerinden DOĞRU donuyordu, ama
+(2) `currentDifficultyPosition()`'ın Otomatik-mod TABAN terimi (`continuousLevel
+(progress.xpProgress(progress.modeXp(...)))`) HAM/uncapped XP'den geliyordu —
+sınav sistemi'nin `examLevel` cap'inden TAMAMEN habersizdi. Sonuç: kullanıcı
+sınavı geçemeyip parkurda doğru cevaplamaya devam ettikçe raw XP (her doğru
+cevapta koşulsuz birikiyor, `modeState().xp += gained`) artıyor, dolayısıyla
+`continuousLevel()`'ın döndürdüğü kesirli konum `LEVEL_CAP`'e (20) kadar
+TIRMANMAYA devam ediyordu — Kompresör'ün `paramsForDifficultyPosition()`'ı bu
+konumu SADECE mutlak eğri tavanına göre kırpıyordu (`examLevel`'i hiç bilmiyor),
+yani ekranda "Seviye 3" donarken arka planda `kGap` (ayırt edilebilirlik)
+sürekli küçülüp (zorlaşıp) gidiyordu — "seviye atlayamıyor ama sorular
+zorlaşıyor" mantıksızlığı.
+
+**Düzeltme — `core/difficulty-curve.js`'e YENİ SAF fonksiyon `examCappedLevel
+(continuousRawLevel, examLevel)`:** `Math.min(continuousRawLevel, examLevel)`
+(examLevel sayı değilse — sınav sistemi yok/henüz hiç dallanmadı — AYNEN
+`continuousRawLevel` döner, sınırsız). BİLEREK `progress.modeLevel()`'ın
+SONUCUNU DEĞİL, `examLevel`'in KENDİSİNİ parametre olarak alır — `modeLevel()`
+zaten `rawLevel` ile min'lenmiş bir TAM SAYI; onu burada kullanmak
+`continuousRawLevel`'in KESİRLİ kısmını sınava HİÇ ulaşılmamışken bile HER
+ZAMAN tam sayıya yuvarlardı (matematiksel olarak doğrulandı, ilk taslakta
+YAKALANDI — bkz. fonksiyonun dosya başı yorumu). Matematik: `rawLevel <
+examLevel` iken `continuousRawLevel < examLevel` OTOMATİK sağlanır (min hiç
+devreye girmez, kesirli ilerleme AYNEN görünür); `rawLevel >= examLevel`
+olduğu andan itibaren `Math.min` düz `examLevel`'de KIRPAR — ne kadar fazla XP
+birikirse biriksin taban ARTMAZ.
+
+**`app.js:currentDifficultyPosition()` — çağıran taraf:** Otomatik-mod dalı
+artık `examCappedLevel(continuousLevel(...), currentModeExamLevel())` (yeni
+küçük yardımcı `currentModeExamLevel()`: `mode.EXAM_ENABLED` değilse ya da
+`stats.examState[modeId]` bu oturumda henüz kurulmadıysa `undefined` — yani
+sınırsız, mevcut yedi mod ve exam-enabled bir modun İLK turu davranışı BİREBİR
+KORUNUR). Sabit-mod dalı (`representativeLevelForTier(tier)`) HİÇ dokunulmadı
+— zaten XP'ye bakmıyordu. `examActive` (sınav/telafi anları) dalı da HİÇ
+dokunulmadı — `difficultyPosition: undefined` geçmeye devam ediyor, o anlar
+zaten statik `DIFFICULTY[examTier]`'ı kullanıyordu (G48'den beri sabit).
+
+**Doğrulama (SAYISAL, gerçek/servis edilmiş modüller tarayıcıda dinamik
+`import()` ile çağrılarak — bkz. DOĞRULAMA maddeleri, hiçbir sayı uydurulmadı):**
+- **Zorluk sabit kalıyor mu:** Sentetik "yüksek ham XP, examLevel=3'te sıkışmış"
+  senaryosu — `rawContinuous≈21.3` (LEVEL_CAP'i çoktan aşmış) iken ESKİ
+  davranış `kGap≈0.0567` (neredeyse taban/en zor) verirdi; YENİ davranışta
+  `examCappedLevel` konumu TAM `3.000`'e kırpıyor → `kGap≈0.3627`. Daha da
+  FAZLA XP eklenince (+5000, kullanıcı parkurda doğru cevaba devam etmiş gibi)
+  hem konum HEM `kGap` **BİREBİR AYNI** kaldı (`===` ile doğrulandı) — sabit,
+  artmıyor.
+- **Sınav geçilince bir üst kademeye çıkıyor mu:** AYNI ham konum (`21.3`),
+  examLevel 3→4 olunca konum 3→4'e çıktı, `kGap` 0.3627→0.3256'ya DÜŞTÜ (daha
+  küçük kGap = daha zor, yani zorluk GERÇEKTEN bir kademe arttı).
+- **Sınav/telafi etkilenmedi mi (canlı, `Math.random=()=>0` deterministik
+  testle, Kompresör):** Kombo 6 peş peşe → "Sınav hakkı kazandın!" sheet'i
+  EKRAN GÖRÜNTÜSÜYLE AYNEN önceki gibi çıktı, "Sınava geç" → 4/4 doğru →
+  "BÖLÜM GEÇTİN! Sınavı geçtin — Seviye 4'e yükseldin!" kutlaması EKRAN
+  GÖRÜNTÜSÜYLE doğrulandı — tam round-trip boyunca konsol hatası SIFIR.
+- **Sabit zorluk modu etkilenmedi mi:** "Zorluk" sheet'inden "Zor" elle
+  seçildi (diffModeAuto=false'a geçti), yeni bir round "Soru 1/10" ile
+  sorunsuz başladı, konsol hatası SIFIR.
+- `npm test`: **680/680** (674'ten +6 — `difficulty-curve.test.mjs`'e
+  `examCappedLevel()` için 6 yeni test: examLevel sayı değilken sınırsız,
+  ham değer cap'in altındayken KESİRLİ kısmın korunduğu, tam sınırda, cap'i
+  aşınca düz kırpıldığı, cap artınca AYNI ham değerin serbest kaldığı,
+  examLevel=1 iken her koşulda 1'de sabitlendiği).
+
+**KORUNANLAR (task'ın açık isteği):** Sınav sistemi (parkur/kombo/sınav/telafi/
+kutlama), 8 modun oyun mantığı/ses HİÇ değişmedi — canlı doğrulandı. Değişiklik
+TEK bir fonksiyonun TEK bir dalına (Otomatik-mod baseline) sıkı sıkıya
+sınırlı — paylaşılan `currentDifficultyPosition()` mod-agnostik olduğu için bu
+düzeltme gelecekte sınav sistemini miras alan HER mod için otomatik geçerli
+(Kompresör dışında bugün başka exam-enabled mod yok).
+
+---
+
+Önceki commit (G48, tek commit — kod+DURUM.md birlikte) — **SINAV SİSTEMİ DÜZELTMESİ:
 telafi artık PARKUR başarısızlığına bağlı + "10/5" etiket tutarsızlığı giderildi.**
 G47'de kurulan merkezi altyapıdaki BİR MİMARİ HATA düzeltildi: telafi (5 soruluk
 zayıf-kademe pratiği) yanlışlıkla "sınavda kalınca" tetikleniyordu — DOĞRUSU,
