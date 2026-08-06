@@ -36,6 +36,39 @@ describe("source-catalog.js — SOURCE_PAIRS / OWN_SOURCE_PAIR / findSourcePair 
     assert.equal(pair.sourceB, "bass");
   });
 
+  // G52: kütüphane task'ın kendi verdiği üç hazır setle genişledi — yeni ses
+  // dosyası GEREKMEDİ, source-catalog.js'in mevcut vocal/guitar/snare
+  // girdilerine işaret ediyorlar.
+  it("vokal-gitar çifti mevcut, ORTA bölgede (task: ~2kHz orta)", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "vokal-gitar");
+    assert.ok(pair);
+    assert.equal(pair.sourceA, "vocal");
+    assert.equal(pair.sourceB, "guitar");
+    assert.deepEqual(pair.region, [500, 2000]);
+  });
+
+  it("snare-gitar çifti mevcut, task'ın verdiği ~200Hz-2kHz aralığında", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "snare-gitar");
+    assert.ok(pair);
+    assert.equal(pair.sourceA, "snare");
+    assert.equal(pair.sourceB, "guitar");
+    assert.deepEqual(pair.region, [200, 2000]);
+  });
+
+  it("üç hazır çiftin sourceA/sourceB'si source-catalog.js'in KENDİ SOURCE_GROUPS'unda gerçekten var (kod incelemesiyle: kick/bass/vocal/guitar/snare)", () => {
+    const knownSourceIds = ["kick", "bass", "vocal", "guitar", "snare"];
+    SOURCE_PAIRS.forEach(p => {
+      assert.ok(knownSourceIds.includes(p.sourceA), `${p.id}.sourceA=${p.sourceA} bilinmiyor`);
+      assert.ok(knownSourceIds.includes(p.sourceB), `${p.id}.sourceB=${p.sourceB} bilinmiyor`);
+    });
+  });
+
+  it("findSourcePair ile id'sinden her üç hazır çift de doğru çözülür", () => {
+    assert.equal(findSourcePair("kick-bas").id, "kick-bas");
+    assert.equal(findSourcePair("vokal-gitar").id, "vokal-gitar");
+    assert.equal(findSourcePair("snare-gitar").id, "snare-gitar");
+  });
+
   it("OWN_SOURCE_PAIR sanal upload-a/upload-b id'leri taşır, region null (aralık ÖNCEDEN bilinemez)", () => {
     assert.equal(OWN_SOURCE_PAIR.sourceA, "upload-a");
     assert.equal(OWN_SOURCE_PAIR.sourceB, "upload-b");
@@ -109,6 +142,26 @@ describe("createQuestion() — genel sözleşme (SAF, ses/DOM'a dokunmaz)", () =
     assert.ok(Array.isArray(q.choices) && q.choices.length === mode.DIFFICULTY.medium.options);
     assert.ok(q.timeSec > 0);
     assert.equal(q.hintUsed, false);
+  });
+
+  // G52: yeni vokal-gitar/snare-gitar çiftleri de trueCenter'ı KENDİ
+  // region'larına doğru üretiyor mu — pro tier (en dar regionWidthOct, en çok
+  // şık) STRES testi, kick-bas'ın dar 50-160 aralığı için zaten yapılan
+  // benzersizlik doğrulamasının AYNISI, DAHA GENİŞ iki region için de.
+  it("vokal-gitar çiftinde trueCenter [500,2000] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir", () => {
+    for (let seed = 0; seed < 50; seed++) {
+      const q = mode.createQuestion("pro", { pairId: "vokal-gitar", sessionQuestionIndex: 0, rng: mulberry32(seed) });
+      assert.ok(q.trueCenter >= 500 && q.trueCenter <= 2000, `seed=${seed} trueCenter=${q.trueCenter}`);
+      assert.equal(new Set(q.choices.map(c => c.center)).size, q.choices.length, `seed=${seed}`);
+    }
+  });
+
+  it("snare-gitar çiftinde trueCenter [200,2000] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir", () => {
+    for (let seed = 0; seed < 50; seed++) {
+      const q = mode.createQuestion("pro", { pairId: "snare-gitar", sessionQuestionIndex: 0, rng: mulberry32(seed) });
+      assert.ok(q.trueCenter >= 200 && q.trueCenter <= 2000, `seed=${seed} trueCenter=${q.trueCenter}`);
+      assert.equal(new Set(q.choices.map(c => c.center)).size, q.choices.length, `seed=${seed}`);
+    }
   });
 
   it("settings.pairId='own' iken pair OWN_SOURCE_PAIR'e çözülür, region FA_MIN–400 havuzuna düşer", () => {

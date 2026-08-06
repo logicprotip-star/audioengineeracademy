@@ -168,6 +168,8 @@
             <label class="hidden">Kaynak çifti</label>
             <select id="cakismaPairSelect" class="hidden">
               <option value="kick-bas">Kick + Bas</option>
+              <option value="vokal-gitar">Vokal + Gitar</option>
+              <option value="snare-gitar">Snare + Gitar</option>
               <option value="own">Kendi dosyalarım</option>
             </select>
             <button class="srctag setting-row" data-sheet-select="cakismaPairSelect" data-sheet-title="Kaynak çifti">
@@ -292,9 +294,27 @@
               <span class="settings-row-value"><span class="setting-row-value-text"></span><span class="chev">&#8250;</span></span>
             </button>
           </div>
+          <!-- G52 DÜZELTMESİ — cihazda "dosya seç" hiç açılmıyordu: KÖK SEBEP,
+               `<input type="file">`'ın bu bottom-sheet'in (`.bottom-sheet{transform:
+               translateY(...)}`, her zaman AKTİF bir transform — kapalıyken de
+               100%, açıkken de 0) İÇİNDE olması. WebKit/iOS'un uzun süredir bilinen
+               hatası: transform UYGULANMIŞ (identity translateY(0) dahil, sadece
+               `none` DEĞİLSE) HERHANGİ bir atadan altındaki native dosya inputu
+               dokunmayla native seçiciyi AÇMIYOR — masaüstü Chrome'da bu hata hiç
+               yok, önceki tüm canlı doğrulamalar SADECE masaüstü tarayıcı
+               otomasyonuyla yapıldığı için (bkz. DURUM.md G51) bu hiç yakalanmadı.
+               ÇÖZÜM: gerçek `<input type="file">` DOM'da bu sheet'in dışına
+               (belgenin sonuna, `<body>`'nin doğrudan çocuğu, transformsuz)
+               taşındı — burada SADECE görünür bir proxy `<button>` kalıyor,
+               `data-file-target` ile hedef input id'sini taşıyor, app.js'te TEK
+               bir generic listener (senkron `.click()`) tüm proxy butonları
+               kapsıyor. Seçilen dosya adı artık native inputun kendi satır-içi
+               gösteriminin YERİNE `.upload-filename` span'ıyla JS'ten yazılıyor
+               (change handler'ları güncellendi). -->
           <div class="upload-row" id="uploadRowSingle">
             <label>Ses dosyası yükle</label>
-            <input type="file" id="audioFileInput" accept="audio/*" />
+            <button type="button" class="btn upload-trigger-btn" data-file-target="audioFileInput">Dosya Seç</button>
+            <span class="upload-filename" id="audioFileInputName"></span>
           </div>
           <!-- G51: Motor 3 (Frekans Çakışması) — İKİ AYRI upload yuvası (task'ın
                açık isteği: çakışma iki kaynak arası, ikisi de kendi yüklensin).
@@ -306,11 +326,13 @@
                HER BİRİ 100 MB. -->
           <div class="upload-row hidden" id="cakismaUploadRowA">
             <label>Kaynak A yükle (her biri 100 MB'a kadar)</label>
-            <input type="file" id="cakismaFileInputA" accept="audio/*" />
+            <button type="button" class="btn upload-trigger-btn" data-file-target="cakismaFileInputA">Dosya Seç</button>
+            <span class="upload-filename" id="cakismaFileInputAName"></span>
           </div>
           <div class="upload-row hidden" id="cakismaUploadRowB">
             <label>Kaynak B yükle (her biri 100 MB'a kadar)</label>
-            <input type="file" id="cakismaFileInputB" accept="audio/*" />
+            <button type="button" class="btn upload-trigger-btn" data-file-target="cakismaFileInputB">Dosya Seç</button>
+            <span class="upload-filename" id="cakismaFileInputBName"></span>
           </div>
           <button class="btn danger" id="quitGameBtn" style="width:100%;margin-top:4px">Oyundan çık</button>
         </div>
@@ -907,6 +929,16 @@
     </div>
     <div class="sheet-options" id="sheetOptions"></div>
   </div>
+
+  <!-- G52: yukarıdaki upload-row'lardaki proxy butonların hedeflediği GERÇEK
+       `<input type="file">` elemanları — BİLEREK `<body>`'nin DOĞRUDAN çocuğu
+       (hiçbir `.bottom-sheet`/`transform` atası YOK), bkz. yukarıdaki G52
+       DÜZELTMESİ notu. `.file-input-native` (styles.css) görsel olarak
+       gizler ama `display:none` KULLANMAZ (bazı WebKit sürümlerinde
+       display:none input'a `.click()` çağrısı çalışmayabiliyor). -->
+  <input type="file" id="audioFileInput" accept="audio/*" class="file-input-native" />
+  <input type="file" id="cakismaFileInputA" accept="audio/*" class="file-input-native" />
+  <input type="file" id="cakismaFileInputB" accept="audio/*" class="file-input-native" />
 
   <script type="module" src="js/app.js"></script>
 </body>

@@ -639,6 +639,15 @@
     }
     .upload-row input[type="file"]::file-selector-button:active,
     .upload-row input[type="file"]::-webkit-file-upload-button:active{background:rgba(255,255,255,.16)}
+    /* G52: proxy dosya-seçici butonu (bkz. index.html'deki G52 DÜZELTMESİ notu) —
+       .upload-row'un içindeki .btn zaten width:100% geliyor, burada sadece üst
+       boşluk ekleniyor; seçilen dosya adı ayrı bir satırda. */
+    .upload-row .upload-trigger-btn{min-height:44px;font-size:14px}
+    .upload-row .upload-filename{display:block;margin-top:8px;color:var(--tx-3);font-size:12px;word-break:break-all}
+    /* Gerçek `<input type="file">` artık DOM'da bu sheet'in DIŞINDA (index.html
+       sonunda, `<body>`'nin doğrudan çocuğu) — burada SADECE görsel olarak
+       gizleniyor, `display:none` KULLANILMIYOR (.click() güvenilirliği için). */
+    .file-input-native{position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
 
     select{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 

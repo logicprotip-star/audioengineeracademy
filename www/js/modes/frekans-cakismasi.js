@@ -576,6 +576,26 @@ function drawRegionCurve(ctx2d, w, h, db, color, alpha) {
   ctx2d.restore();
 }
 
+// G52: çakışma VURGUSU artık üçüncü bir dolgu-eğrisi DEĞİL (iki kaynağın
+// dolgu renkleriyle aynı alanı paylaşınca amber/mor'u BASTIRIYORDU, "net
+// ayrışsın" isteğiyle çelişiyordu) — bunun yerine centerFreq±widthOct/2
+// aralığını kaplayan DİKEY bir vurgu şeridi + üst kenarda parlak bir çizgi.
+// İki kaynağın eğrileri bunun ÜSTÜNE çizildiği için (bkz. drawOverlay sırası)
+// amber/mor HER ZAMAN görünür kalıyor, kırmızı şerit sadece "burada" diyor.
+function drawCollisionBand(ctx2d, w, h, centerFreq, widthOct, color, alpha) {
+  const plotBottom = h - AXIS_H;
+  const top = CURVE_TOP;
+  const xLo = faFToX(centerFreq / Math.pow(2, widthOct / 2), w);
+  const xHi = faFToX(centerFreq * Math.pow(2, widthOct / 2), w);
+  ctx2d.save();
+  ctx2d.fillStyle = color;
+  ctx2d.globalAlpha = alpha;
+  ctx2d.fillRect(xLo, top, Math.max(2, xHi - xLo), plotBottom - top);
+  ctx2d.globalAlpha = Math.min(1, alpha + 0.4);
+  ctx2d.fillRect(xLo, top, Math.max(2, xHi - xLo), 3);
+  ctx2d.restore();
+}
+
 function drawAxis(ctx2d, w, h) {
   const plotBottom = h - AXIS_H;
   const ticks = [40, 80, 160, 320, 640, 1280];
@@ -592,6 +612,27 @@ function drawAxis(ctx2d, w, h) {
   ctx2d.textAlign = "left";
 }
 
+// G52 — İKİ KAYNAK FARKLI RENKTE, ÇAKIŞAN BÖLGE VURGULU (task kararı, önceki
+// tek-eğrilik görsel bunu karşılamıyordu — iki kaynak AYRIŞMIYORDU). Gerçek
+// ses içeriğinin FFT'si DEĞİL (diğer sekiz modun "dekoratif ama filtre-
+// matematiği gerçek" ilkesiyle AYNI çizgide, bkz. dosya başı computeRegionCurveDb
+// notu) — her kaynağın trueCenter'ın HAFİFÇE altına/üstüne kaydırılmış GENİŞ
+// bir "varlık eğrisi" çizilir, ikisi de tam trueCenter'da örtüşecek şekilde
+// (mekanik zaten "ikisi BURADA çakışıyor" diyor). Renkler: Kaynak A = amber
+// (--am, uygulamanın ana vurgu rengi), Kaynak B = mor (--pu, Motor 3'ün KENDİ
+// marka rengi — MOTOR_INFO[3] ve kaynak-çifti chip'iyle AYNI, bkz. index.html
+// #cakismaPairChipLabel) — ikisi net ayrışıyor, mavi YOK (task: "iZotope
+// mavisine yaklaşma"). Asıl (dar, regionWidthOct'a göre zorlukla daralan)
+// ÖLÇÜM eğrisi bunların ÜSTÜNE canlı kırmızı (COLLISION_COLOR) ile "vurgu"
+// olarak çizilir — GUESS_COLOR'dan (kullanıcının stage-1 seçimi, AYNI kırmızı
+// aile ama farklı ton) BİLEREK ayrı bir kırmızı tonu (feedback-colors.js'in
+// GUESS_COLOR'ıyla KARIŞTIRILMASIN diye, ikisi aynı anda görünebiliyor).
+const SOURCE_CURVE_WIDTH_OCT = 1.1;
+const SOURCE_CURVE_OFFSET_OCT = 0.55;
+const SOURCE_A_COLOR = "#FFC246"; // --am
+const SOURCE_B_COLOR = "#A855F7"; // --pu
+const COLLISION_COLOR = "#FF3D6B"; // --rd'ye yakın ama GUESS_COLOR'dan (#FF4D6D) ayrı bir ton
+
 // state: { audioCtx, activeQuestion, roundActive, cakismaGuess } — cakismaGuess
 // SADECE bu modun okuduğu alan (app.js overlayState'ine eklenir, diğer sekiz
 // mod görmezden gelir — diğer modların KENDİ guess alanlarıyla AYNI desen).
@@ -600,11 +641,22 @@ export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
   const { audioCtx, activeQuestion: q, roundActive, cakismaGuess } = state;
   if (!q) return;
 
-  // Soru sırasında (roundActive) SADECE gerçek çakışma bölgesi (kırmızı) —
-  // kulakla bulma ilkesi, cevap SIZDIRILMAZ; cevap sonrası kullanıcının
-  // seçtiği bölge/kaynak/kesim de (mavi) üst üste çizilir.
-  const trueDb = computeRegionCurveDb(audioCtx, q.trueCenter, q.regionWidthOct, w);
-  if (trueDb) drawRegionCurve(ctx2d, w, h, trueDb, "#FF7A9B", roundActive ? 0.35 : 0.55);
+  // Çizim SIRASI ÖNEMLİ: önce çakışma şeridi (arka plan), SONRA iki kaynağın
+  // eğrileri ÜSTÜNE — amber/mor HER ZAMAN üstte/görünür kalır, kırmızı şerit
+  // sadece "bölge burada" diyen bir arka plan vurgusu (task'ın "çakışan bölge
+  // vurgulu" isteği). Soru sırasında (roundActive) da görünür kalır — hangi
+  // kaynaktan/ne kadar kesileceği SIZDIRILMIYOR, sadece "burada üst üste
+  // biniyorlar" vurgusu, kulakla bulma ilkesini bozmuyor.
+  drawCollisionBand(ctx2d, w, h, q.trueCenter, q.regionWidthOct, COLLISION_COLOR, roundActive ? 0.22 : 0.32);
+
+  // İki kaynağın KENDİ (dekoratif) eğrileri — HER ZAMAN çizilir (roundActive
+  // dahil), çünkü hangi İKİ kaynağın çaldığı zaten baştan bilinen bir bilgi
+  // (kulakla bulma ilkesini bozmuyor — SIZDIRILAN şey çakışmanın TAM merkezi
+  // DEĞİL, sadece "bunlar iki kaynak" gösterimi).
+  const aDb = computeRegionCurveDb(audioCtx, q.trueCenter / Math.pow(2, SOURCE_CURVE_OFFSET_OCT), SOURCE_CURVE_WIDTH_OCT, w);
+  if (aDb) drawRegionCurve(ctx2d, w, h, aDb, SOURCE_A_COLOR, 0.45);
+  const bDb = computeRegionCurveDb(audioCtx, q.trueCenter * Math.pow(2, SOURCE_CURVE_OFFSET_OCT), SOURCE_CURVE_WIDTH_OCT, w);
+  if (bDb) drawRegionCurve(ctx2d, w, h, bDb, SOURCE_B_COLOR, 0.45);
 
   if (!roundActive && cakismaGuess && q.stage === 1 && Number.isFinite(cakismaGuess.center)) {
     const guessDb = computeRegionCurveDb(audioCtx, cakismaGuess.center, q.regionWidthOct, w);
@@ -612,11 +664,15 @@ export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
   }
 
   ctx2d.font = "700 12px Inter, sans-serif";
-  ctx2d.fillStyle = "#FF9FB2";
   ctx2d.textAlign = "left";
-  ctx2d.fillText("● Çakışma bölgesi", 10, 22);
+  ctx2d.fillStyle = SOURCE_A_COLOR;
+  ctx2d.fillText(`● ${q.pair.labelA}`, 10, 22);
+  ctx2d.fillStyle = SOURCE_B_COLOR;
+  ctx2d.fillText(`● ${q.pair.labelB}`, 10 + ctx2d.measureText(`● ${q.pair.labelA}`).width + 14, 22);
+  ctx2d.fillStyle = COLLISION_COLOR;
+  ctx2d.fillText("● Çakışma bölgesi", 10, 42);
   if (!roundActive && cakismaGuess && q.stage === 1) {
     ctx2d.fillStyle = GUESS_COLOR;
-    ctx2d.fillText("● Senin seçimin", 150, 22);
+    ctx2d.fillText("● Senin seçimin", 10 + ctx2d.measureText("● Çakışma bölgesi").width + 14, 42);
   }
 }

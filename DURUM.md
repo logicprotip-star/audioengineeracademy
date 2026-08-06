@@ -1,13 +1,108 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G51)
+Son güncelleme: 06.08.2026 (G52)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G51, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **MOD 9
+Bu commit (G52, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Frekans
+Çakışması (Motor 3): cihazda AÇILMAYAN upload düzeltildi + 2 yeni kaynak çifti
++ spektrum renkleri ayrıştırıldı.** G51'de "TEMEL AT" olarak kurulan Motor 3'ün
+kullanıcı tarafından cihazda bulunan üç eksiği kapatıldı.
+
+**1) UPLOAD KÖK SEBEP BULUNDU VE DÜZELTİLDİ — WebKit/iOS'un `<input type="file">`
++ transform hatası:** `.bottom-sheet` (oyun ayarları sheet'i, kaynak dosyası
+yükleme satırlarının bulunduğu yer) HER ZAMAN aktif bir `transform` taşıyor
+(`transform:translateY(100%)` kapalıyken, `translateY(0)` açıkken — `none`
+DEĞİL, HİÇBİR zaman). WebKit/iOS'un uzun süredir bilinen bir hatası: bir
+`<input type="file">`'ın ATALARINDAN HERHANGİ biri transform taşıyorsa (identity
+`translateY(0)` DAHİL) dokunma native dosya seçiciyi AÇMIYOR. Masaüstü
+Chrome'da bu hata hiç yok — G51'in TÜM canlı doğrulamaları SADECE masaüstü
+tarayıcı otomasyonuyla yapıldığı için (bkz. DURUM.md G51) bu hiç yakalanmadı;
+kullanıcı gerçek cihazda test edince ortaya çıktı. **Düzeltme:** gerçek
+`<input type="file">` elemanları (audioFileInput + cakismaFileInputA/B — TEK
+upload'ı da kapsıyor, AYNI hata ona da bulaşıyordu) DOM'da bu sheet'in
+DIŞINA, `<body>`'nin doğrudan çocuğu olarak (index.html sonuna) taşındı —
+`.file-input-native` (styles.css) ile görsel olarak gizli (`display:none`
+DEĞİL, bazı WebKit sürümlerinde bu `.click()` güvenilirliğini bozabiliyor;
+`position:fixed;opacity:0` kullanıldı). Eski konumlarında SADECE görünür bir
+proxy `<button class="upload-trigger-btn" data-file-target="...">` kaldı —
+tıklanınca SENKRON (await/setTimeout YOK, "kullanıcı jesti" zincirini kesmesin
+diye) hedef inputun `.click()`'ini çağırıyor (app.js'te TEK generic listener,
+tüm proxy butonları kapsıyor). Seçilen dosya adı artık native inputun kendi
+satır-içi gösteriminin YERİNE yeni bir `.upload-filename` span'ıyla JS'ten
+yazılıyor (`#audioFileInputName`/`#cakismaFileInputAName`/`...BName`).
+**Doğrulanan:** relocated üç input'un da ATA ZİNCİRİNDE transform YOK (JS'ten
+`getComputedStyle` ile tek tek kontrol edildi); proxy buton tıklaması hedef
+inputun `.click()`'ini GERÇEKTEN tetikliyor (event listener'la doğrulandı);
+gerçek bir dosya (kick.m4a, `fetch()`+`DataTransfer` ile input'a atanıp
+`change` event'i tetiklenerek) uçtan uca yüklendi — `uploadManager.loadFile`
+çalıştı, "kick.m4a başarıyla yüklendi" geri bildirimi + dosya adı satırı
+EKRAN GÖRÜNTÜSÜYLE doğrulandı. **Dürüstlük notu:** bu son adım (gerçek native
+seçicinin CİHAZDA açılması) masaüstü tarayıcı ortamından DOĞRULANAMAZ — kök
+sebep (transform ataları) giderildi ve ilgili WebKit hatası iyi belgeli/
+bilinen bir hata olduğu için yüksek güvenle düzeltildiği düşünülüyor, ama
+NİHAİ doğrulama kullanıcının cihazda tekrar denemesini gerektiriyor.
+
+**2) İKİ YENİ HAZIR KAYNAK ÇİFTİ — `source-catalog.js:SOURCE_PAIRS`
+genişletildi:** task'ın verdiği üç hazır setten eksik olan ikisi eklendi:
+vokal+gitar (`region:[500,2000]`, ORTA bölge — task: "~2kHz orta",
+frekans-bulma.js'in FA_ZONES ORTA sınırlarıyla hizalı) ve snare+gitar
+(`region:[200,2000]`, task'ın kendi verdiği "~200Hz-2kHz" aralığı BİREBİR).
+Yeni ses dosyası GEREKMEDİ — `vocal.m4a`/`acoustic_guitar.m4a`/`snare.m4a`
+zaten `SOURCE_GROUPS`'ta vardı (G51'den önce bile), G52 SADECE bunları
+Motor 3'ün çift-listesine YENİ eşleme olarak ekledi. `createQuestion()`
+zaten `findSourcePair(settings.pairId)` ile TAMAMEN generic çalıştığı için
+(G51'de kick-bas için kurulan mimari) mod dosyasında SIFIR ek kod gerekti —
+sadece `index.html`'in `#cakismaPairSelect`'ine iki yeni `<option>` eklendi.
+Canlı doğrulandı: pair seçici artık 4 seçenek gösteriyor (Kick+Bas/Vokal+
+Gitar/Snare+Gitar/Kendi dosyalarım), Vokal+Gitar seçilip round başlatılınca
+soru doğru şekilde "Vokal ve Gitar hangi frekansta çakışıyor?" ve trueCenter
+gerçekten 500-2000 Hz aralığında üretildi (ekran görüntüsü: 68 Hz DEĞİL,
+1.76 kHz'lik bir çakışma sorusu).
+
+**3) SPEKTRUM RENKLERİ AYRIŞTIRILDI — task'ın "iki kaynak FARKLI renkte,
+çakışan bölge VURGULU" kararı uygulandı:** G51'in görseli aslında iki AYRI
+kaynak spektrumu ÇİZMİYORDU — sadece TEK bir "çakışma bölgesi" eğrisi vardı
+(DURUM.md G51'in "iki kaynağın spektrumu üst üste" ifadesi yanıltıcıydı,
+gerçek kod tek eğriliydi). Şimdi: her kaynağın trueCenter'ın hafifçe altına/
+üstüne (0.55 oktav) kaydırılmış, dar (1.1 oktav) bir "varlık eğrisi" —
+Kaynak A = amber (`--am`, uygulamanın ana vurgusu), Kaynak B = mor (`--pu`,
+Motor 3'ün KENDİ marka rengi — MOTOR_INFO[3] ve kaynak-çifti chip'iyle AYNI)
+— mavi YOK (task: "iZotope mavisine yaklaşma"). Çakışma bölgesi artık ÜÇÜNCÜ
+bir dolgu-eğrisi DEĞİL (ilk taslak böyleydi — iki kaynağın rengini ÜSTÜNE
+düşüp BASTIRIYORDU, "net ayrışsın" isteğiyle çelişiyordu) — DİKEY bir vurgu
+şeridi (`drawCollisionBand`, centerFreq±widthOct/2 aralığını kaplayan
+yarı-saydam kırmızı dikdörtgen + parlak üst kenar çizgisi), kaynakların
+eğrilerinin ARKASINA çizilir, böylece amber/mor HER ZAMAN üstte/görünür
+kalır. Legend iki satıra çıktı: "● [LabelA] ● [LabelB]" + "● Çakışma bölgesi"
+(+ cevap sonrası "● Senin seçimin", GUESS_COLOR — COLLISION_COLOR'dan
+BİLEREK farklı bir kırmızı tonu, ikisi aynı anda görünebildiği için
+karıştırılmasın diye). EKRAN GÖRÜNTÜSÜYLE doğrulandı — Vokal+Gitar gibi geniş
+region'lu çiftlerde amber/mor/kırmızı NET ayrışıyor (bkz. ekran görüntüsü:
+sol tepe amber "Vokal", sağ tepe mor "Gitar", ortada parlak kırmızı şerit).
+**Bilinen sınırlama (yeni tespit edildi, düzeltilmedi):** kick-bas çiftinin
+region'ı ([50,160] Hz) frekans-bulma.js'in PAYLAŞILAN ekseninin kendi
+FA_MIN'inin (80 Hz) ALTINA sarkıyor — bu G51'den beri var olan, bu turda
+farkedilen bir sınır sorunu (80 Hz altı x-koordinatları ekranın SOLUNA taşıp
+kırpılıyor, kick-bas'ta iki kaynağın görsel ayrışması diğer çiftler kadar net
+değil). FA_MIN'i değiştirmek PAYLAŞILAN bir sabit (frekans-bulma.js, diğer
+sekiz modun ekseni) olduğu için KAPSAM DIŞI bırakıldı — DOKUNULMAZ listesine
+giriyor.
+
+**KORUMA:** Motor 3'ün 3-aşama mekaniği, sınav mirası, 8 mevcut mod HİÇ
+değişmedi — regresyon kontrolü Frekans Bulma'da canlı yapıldı (bir round
+sorunsuz oynandı, konsol hatası SIFIR). `npm test`: **744/744** (738'den +6 —
+yeni `test/frekans-cakismasi.test.mjs` testleri: vokal-gitar/snare-gitar
+çiftlerinin varlığı+region'ları+source-catalog tutarlılığı, findSourcePair
+üç hazır çiftin hepsini çözüyor mu, pro tier'de 50 seed'lik benzersizlik
+stres testi HER İKİ yeni çift için).
+
+---
+
+Önceki commit (G51, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **MOD 9
 "FREKANS ÇAKIŞMASI" (MOTOR 3) — TEMEL AT: iki kaynaklı maskeleme teşhis+çöz
 modu, 8. oynanabilir mod olarak menüye eklendi.** Motor 1 (değeri bul) ve
 Motor 2 (hangisi farklı) değil — İKİ kaynağın AYNI ANDA çaldığı, bir frekans

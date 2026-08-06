@@ -108,6 +108,20 @@ karşılaştırma tablosu YAZILMADI (Tonal Denge/G45 emsaliyle AYNI gerekçe:
 prototip statik bir demo, gerçek çakışma-tespiti/dual-audio mekaniği
 prototipte hiç simüle edilmiyor, satır bazlı eşleme anlamlı olmazdı).
 
+**G52 eki:** G51'in cihazda ortaya çıkan üç eksiği kapatıldı — durum
+sınıflandırması DEĞİŞMEDİ (hâlâ "Kısmi", EKRAN 4 satırı), sadece Motor 3'ün
+KENDİSİ olgunlaştı: (1) upload'ın cihazda hiç açılmaması bir WebKit/iOS
+`<input type="file">` + CSS `transform` hatasıydı (bkz. DURUM.md G52 BİTTİ) —
+prototipte bu tür bir cihaz-spesifik kısıtlama HİÇ yok, dolayısıyla bunun
+tasarım-karşılaştırma tablosuyla ilgisi yok, sadece bir bug fix. (2) kaynak
+çifti kütüphanesi task'ın verdiği üçe (kick+bas/vokal+gitar/snare+gitar)
+tamamlandı — prototipin "kaynak çifti" seçimi kavramı zaten G51'de "Kısmi"
+olarak işaretlenmişti, bu genişleme durumu DEĞİŞTİRMEDİ (hâlâ tek bir generic
+chip, prototipin muhtemel gruplu sheet'i DEĞİL). (3) spektrum görseli artık
+GERÇEKTEN iki-renkli (amber/mor) + kırmızı vurgu şeridi — G51'in DURUM.md
+notu "iki kaynağın spektrumu üst üste" diye yazmıştı ama kod TEK eğriliydi,
+bu STALE/yanlış bir iddiaydı, G52'de HEM kod HEM iddia gerçeğe uyduruldu.
+
 ## EKRAN 1 — ANA MENÜ
 
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |

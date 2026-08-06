@@ -82,20 +82,27 @@ export function findSource(id) {
 // Hz — bu çiftin GERÇEKÇİ çakışma aralığı (createQuestion çakışma merkezini
 // bu aralıktan seçer, dışına ASLA çıkmaz).
 //
-// task'ın kendi kararı: "Şimdilik temel bir çift (kick+bas) yeterli, mekanik
-// otursun. Kaynak kütüphanesi SONRA genişletilecek." — bu yüzden BİLEREK TEK
-// hazır çift var. SONRAKİ turlar için aday çiftler (gerçek mixte çakışan,
-// KULAKLA/ÜRÜN DOĞRULANMADI, sadece not düşülüyor):
-//   - vokal + gitar  (~400 Hz – 3 kHz, "gövde çatışması")
-//   - snare + gitar  (~1 – 5 kHz, "atak ve sertlik")
-// İkisi de source-catalog'da HENÜZ bir "vocal+gitar" sample çifti olarak
-// yeterince ayrışık örneklenmedi (mevcut vocal.m4a/guitar.m4a tek bir
-// performans/frazdır, çakışmayı GÜVENİLİR şekilde göstermeyebilir) — bu
-// yüzden SADECE not olarak bırakıldı, kod HENÜZ eklenmedi.
+// task'ın G51'deki kendi kararı: "Şimdilik temel bir çift (kick+bas) yeterli,
+// mekanik otursun." — G52'de kütüphane task'ın kendi verdiği üç hazır set
+// listesiyle genişletildi: kick+bas (SUB/BAS), vokal+gitar (ORTA — "gövde
+// çatışması"), snare+gitar (ALT-ORTA'dan ORTA'ya — "atak ve sertlik"). Region
+// sınırları task'ın bu turda verdiği yaklaşık aralıklarla + frekans-bulma.js
+// FA_ZONES sınırlarıyla hizalandı (KULAKLA/PLAYTEST DOĞRULANMADI, makul bir
+// başlangıç — diğer tüm sayısal sabitlerle AYNI dürüstlük notu). Yeni ses
+// dosyası GEREKMEDİ — vocal.m4a/acoustic_guitar.m4a/snare.m4a zaten
+// SOURCE_GROUPS'ta vardı (bkz. yukarı), burada SADECE çift olarak eşleniyor.
 export const SOURCE_PAIRS = [
   {
     id: "kick-bas", labelA: "Kick", labelB: "Bas", sourceA: "kick", sourceB: "bass",
     region: [50, 160], desc: "Kick ve bas — sub/bas bölgesinde en sık çakışma"
+  },
+  {
+    id: "vokal-gitar", labelA: "Vokal", labelB: "Gitar", sourceA: "vocal", sourceB: "guitar",
+    region: [500, 2000], desc: "Vokal ve gitar — orta bölgede gövde çatışması"
+  },
+  {
+    id: "snare-gitar", labelA: "Snare", labelB: "Gitar", sourceA: "snare", sourceB: "guitar",
+    region: [200, 2000], desc: "Snare ve gitar — atak ve sertlik bölgesinde çakışma"
   }
 ];
 

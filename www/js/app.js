@@ -3444,6 +3444,20 @@ if (els.answers) els.answers.addEventListener("click", e => {
 if (els.audioFileInput) els.audioFileInput.accept = audioAcceptAttr();
 if (els.toolsFileInput) els.toolsFileInput.accept = audioAcceptAttr();
 
+// G52: proxy dosya-seçici butonları — gerçek `<input type="file">` artık
+// `.bottom-sheet`'in (her zaman aktif bir `transform`, WebKit/iOS'ta native
+// seçicinin AÇILMASINI engelliyor, bkz. index.html'deki G52 DÜZELTMESİ notu)
+// DIŞINDA yaşıyor. Butonun kendisi SENKRON `.click()` çağırıyor — dokunma
+// jestinin (user activation) aynı çağrı yığınında kalması için `await`/
+// `setTimeout` YOK, aksi halde iOS bu tetiklemeyi "kullanıcı jesti" saymayabilir.
+document.querySelectorAll(".upload-trigger-btn").forEach(btn => {
+  const targetId = btn.dataset.fileTarget;
+  btn.addEventListener("click", () => {
+    const input = document.getElementById(targetId);
+    if (input) input.click();
+  });
+});
+
 els.audioFileInput.addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -3473,6 +3487,8 @@ els.audioFileInput.addEventListener("change", async (e) => {
       if (rowText) rowText.textContent = els.sourceSelect.options[els.sourceSelect.selectedIndex].text;
     }
 
+    const nameEl = document.getElementById("audioFileInputName");
+    if (nameEl) nameEl.textContent = file.name;
     setFeedback("Ses yüklendi", `${file.name} başarıyla yüklendi. "Oyunu Başlat" ile çalmaya başlar.`);
   } catch (err) {
     console.error("[upload] loadUploadedAudio dışında beklenmeyen hata:", err && err.name, err && err.message, err);
@@ -3505,6 +3521,8 @@ function wireCakismaUpload(inputEl, uploadMgr, slotLabel) {
         setFeedback(res.title, res.detail);
         return;
       }
+      const nameEl = document.getElementById(`${inputEl.id}Name`);
+      if (nameEl) nameEl.textContent = file.name;
       setFeedback(`Kaynak ${slotLabel} yüklendi`, `${file.name} başarıyla yüklendi. "Oyunu Başlat" ile çalmaya başlar.`);
     } catch (err) {
       console.error(`[cakisma-upload-${slotLabel}] beklenmeyen hata:`, err && err.name, err && err.message, err);
