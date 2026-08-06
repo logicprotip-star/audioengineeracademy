@@ -558,7 +558,7 @@ describe("Reverb — getMeta() sözleşme alanları", () => {
     assert.equal(meta.id, "reverb");
     assert.equal(meta.motor, 2, "Motor 2'nin ikinci modu olmalıydı");
     assert.equal(typeof meta.kulaklikGerekli, "boolean");
-    assert.ok(Array.isArray(meta.uyumluKaynaklar) && meta.uyumluKaynaklar.length > 5, "kaynak listesi çoğunlukla açık kalmalıydı — sadece tek-vuruşlar dışlanır");
+    assert.ok(Array.isArray(meta.uyumluKaynaklar) && meta.uyumluKaynaklar.length >= 4, "oynanabilirlik için en az birkaç kaynak kalmalıydı");
     assert.equal(typeof meta.ucretsiz, "boolean");
     assert.equal(typeof meta.videoUrl, "string");
     assert.equal(meta.choiceOnly, true);
@@ -576,17 +576,22 @@ describe("Reverb — getMeta() sözleşme alanları", () => {
     assert.equal(meta.aciklama, undefined);
   });
 
-  it("tek-vuruş kaynaklar (kick/snare/hihat/tom) dışlanır — reverb kuyruğunu göstermez", () => {
+  it("G43: ELLE seçilmiş açık liste — SADECE gitar/vokal/snare/davul döngüsü/upload kalır", () => {
     const meta = mode.getMeta();
-    for (const oneShotId of ["kick", "snare", "hihat", "tom"]) {
-      assert.ok(!meta.uyumluKaynaklar.includes(oneShotId), `${oneShotId} listede olmamalıydı`);
+    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["groove", "guitar", "snare", "upload", "vocal"]);
+  });
+
+  it("gerçek mixte reverb VERİLEN kaynaklar (gitar/vokal/snare/davul döngüsü + upload) kalır", () => {
+    const meta = mode.getMeta();
+    for (const id of ["guitar", "vocal", "snare", "groove", "upload"]) {
+      assert.ok(meta.uyumluKaynaklar.includes(id), `${id} listede olmalıydı`);
     }
   });
 
-  it("sürekli/döngülü kaynaklar (davul döngüsü, enstrüman, sentetik, gürültü, upload) kalır", () => {
+  it("gerçek mixte reverb VERİLMEYEN kaynaklar (kick/hihat/tom/sentetik/gürültü/bas) dışlanır", () => {
     const meta = mode.getMeta();
-    for (const id of ["groove", "bass", "bass_alt", "guitar", "vocal", "pink", "white", "saw", "square", "triangle", "upload"]) {
-      assert.ok(meta.uyumluKaynaklar.includes(id), `${id} listede olmalıydı`);
+    for (const id of ["kick", "hihat", "tom", "saw", "square", "triangle", "pink", "white", "bass", "bass_alt"]) {
+      assert.ok(!meta.uyumluKaynaklar.includes(id), `${id} listede olmamalıydı`);
     }
   });
 });

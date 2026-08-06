@@ -16,14 +16,6 @@ describe("source-catalog — compatibleSourceIds()", () => {
     assert.deepEqual([...ids].sort(), [...ALL_IDS].sort());
   });
 
-  it("excludeOneShot: tek-vuruş (oneShot:true) kaynakları çıkarır, diğerlerini korur", () => {
-    const ids = compatibleSourceIds({ excludeOneShot: true });
-    const oneShotIds = SOURCE_GROUPS.flatMap(g => g.sources).filter(s => s.oneShot).map(s => s.id);
-    assert.ok(oneShotIds.length > 0, "en az bir oneShot kaynak olmalıydı (test önkoşulu)");
-    for (const id of oneShotIds) assert.ok(!ids.includes(id), `${id} dışlanmalıydı`);
-    for (const id of ALL_IDS.filter(i => !oneShotIds.includes(i))) assert.ok(ids.includes(id), `${id} korunmalıydı`);
-  });
-
   it("requireTransient: transient'sız (noTransient:true) kaynakları çıkarır, diğerlerini korur", () => {
     const ids = compatibleSourceIds({ requireTransient: true });
     const noTransientIds = SOURCE_GROUPS.flatMap(g => g.sources).filter(s => s.noTransient).map(s => s.id);
@@ -32,35 +24,28 @@ describe("source-catalog — compatibleSourceIds()", () => {
     for (const id of ALL_IDS.filter(i => !noTransientIds.includes(i))) assert.ok(ids.includes(id), `${id} korunmalıydı`);
   });
 
-  it("excludeOneShot + requireTransient BİRLİKTE verilirse ikisinin KESİŞİMİ (her iki filtreyi de geçenler) döner", () => {
-    const ids = compatibleSourceIds({ excludeOneShot: true, requireTransient: true });
-    const oneShot = compatibleSourceIds({ excludeOneShot: true });
-    const transient = compatibleSourceIds({ requireTransient: true });
-    for (const id of ids) {
-      assert.ok(oneShot.includes(id) && transient.includes(id), `${id} her iki filtreyi de geçmeliydi`);
-    }
+  it("only: SADECE verilen id'leri döner, diğer tüm kaynakları/filtreleri yok sayar", () => {
+    const ids = compatibleSourceIds({ only: ["vocal", "guitar"] });
+    assert.deepEqual([...ids].sort(), ["guitar", "vocal"]);
   });
 
-  it("her modda oynanabilirlik için mantıklı bir minimum kalır (>=5 kaynak, herhangi bir filtre kombinasyonunda)", () => {
-    for (const opts of [{}, { excludeOneShot: true }, { requireTransient: true }, { excludeOneShot: true, requireTransient: true }]) {
-      assert.ok(compatibleSourceIds(opts).length >= 5, `${JSON.stringify(opts)}: çok az kaynak kaldı`);
+  it("only + requireTransient BİRLİKTE verilirse SADECE only listesi geçerli olur (requireTransient yok sayılır)", () => {
+    // "only" ELLE seçilmiş kesin bir karar — bir otomatik bayrakla (requireTransient)
+    // birlikte verilse bile üzerine yazılmaz, çünkü ikisinin BİRLEŞTİRİLMESİ (kesişim)
+    // elle seçilmiş listeyi bayrağın tesadüfen dışladığı bir kaynak yüzünden daraltabilir
+    // — "only" her zaman SON SÖZ.
+    const ids = compatibleSourceIds({ only: ["pink", "vocal"], requireTransient: true });
+    assert.deepEqual([...ids].sort(), ["pink", "vocal"]);
+  });
+
+  it("her modda oynanabilirlik için mantıklı bir minimum kalır (>=4 kaynak, mevcut filtre kombinasyonlarında)", () => {
+    for (const opts of [{}, { requireTransient: true }, { only: ["guitar", "vocal", "snare", "groove", "upload"] }]) {
+      assert.ok(compatibleSourceIds(opts).length >= 4, `${JSON.stringify(opts)}: çok az kaynak kaldı`);
     }
   });
 });
 
-describe("source-catalog — kaynak uyumluluk bayrakları (oneShot/noTransient) doğru kaynaklara etiketli", () => {
-  it("kick/snare/hihat/tom oneShot:true — tek darbe, döngüde bile reverb kuyruğunu göstermez", () => {
-    for (const id of ["kick", "snare", "hihat", "tom"]) {
-      assert.equal(findSource(id).oneShot, true, `${id} oneShot olmalıydı`);
-    }
-  });
-
-  it("davul döngüsü/enstrüman/sentetik/gürültü/upload oneShot DEĞİL", () => {
-    for (const id of ["groove", "bass", "bass_alt", "guitar", "vocal", "pink", "white", "saw", "square", "triangle", "upload"]) {
-      assert.ok(!findSource(id).oneShot, `${id} oneShot OLMAMALIYDI`);
-    }
-  });
-
+describe("source-catalog — noTransient bayrağı doğru kaynaklara etiketli", () => {
   it("pink/white noTransient:true — ani atak yok, kompresyon duyulmaz", () => {
     for (const id of ["pink", "white"]) {
       assert.equal(findSource(id).noTransient, true, `${id} noTransient olmalıydı`);

@@ -19,16 +19,15 @@
 //              uygulama çökmez.
 //   "upload" — kullanıcının kendi yüklediği dosya (uploadManager, değişmedi).
 // Kaynak uyumluluk bayrakları — bir modun getMeta().uyumluKaynaklar'ı
-// compatibleSourceIds() ile bu bayraklara göre üretilir (bkz. dosya sonu).
+// compatibleSourceIds() ile bu bayraklara/listeye göre üretilir (bkz. dosya sonu).
 // Yeni bir bayrak eklemek yeni bir mod kısıtlaması tanımlamak için yeterli,
 // app.js veya mod dosyaları değişmez:
-//   oneShot      — tek darbe/vuruş, döngüde bile "sürekli çalan" bir ses
-//                  hissi vermez (kick/snare/hihat/tom): reverb kuyruğu
-//                  göstermek için sürekli/perküsif-ama-döngülü bir kaynak
-//                  gerekir (bkz. Reverb getMeta — excludeOneShot).
 //   noTransient  — ani bir başlangıç/atağı yok (pink/white noise):
 //                  kompresyonun duyulabilmesi için transient (atak) gerekir
 //                  (bkz. Kompresör getMeta — requireTransient).
+// Bir mod otomatik bir bayrak yerine ELLE seçilmiş bir liste istiyorsa (bkz.
+// Reverb getMeta — compatibleSourceIds({ only: [...] })) kaynak nesnelerine
+// yeni bir alan eklemeye GEREK yok, id'ler doğrudan mod dosyasında yazılır.
 export const SOURCE_GROUPS = [
   {
     id: "synthetic", label: "SENTETİK",
@@ -43,10 +42,10 @@ export const SOURCE_GROUPS = [
   {
     id: "drums", label: "DAVUL",
     sources: [
-      { id: "kick", label: "Kick", kind: "sample", samplePath: "audio/kick.m4a", desc: "Kick davul — SUB/BAS bölgesi", oneShot: true },
-      { id: "snare", label: "Snare", kind: "sample", samplePath: "audio/snare.m4a", desc: "Snare — orta/üst bölge gövde + tel", oneShot: true },
-      { id: "hihat", label: "Hi-Hat", kind: "sample", samplePath: "audio/hihat.m4a", desc: "Hi-hat — tiz bölge", oneShot: true },
-      { id: "tom", label: "Tom", kind: "sample", samplePath: "audio/tom.m4a", desc: "Tom — alt-orta rezonans", oneShot: true },
+      { id: "kick", label: "Kick", kind: "sample", samplePath: "audio/kick.m4a", desc: "Kick davul — SUB/BAS bölgesi" },
+      { id: "snare", label: "Snare", kind: "sample", samplePath: "audio/snare.m4a", desc: "Snare — orta/üst bölge gövde + tel" },
+      { id: "hihat", label: "Hi-Hat", kind: "sample", samplePath: "audio/hihat.m4a", desc: "Hi-hat — tiz bölge" },
+      { id: "tom", label: "Tom", kind: "sample", samplePath: "audio/tom.m4a", desc: "Tom — alt-orta rezonans" },
       { id: "groove", label: "Davul Döngüsü", kind: "sample", samplePath: "audio/groove_090.m4a", desc: "90 BPM davul döngüsü — mix bağlamı" }
     ]
   },
@@ -79,14 +78,25 @@ export function findSource(id) {
 // uyumluKaynaklar'ı bu fonksiyonla üretir; app.js kaynak sheet'ini/"Karıştır"
 // havuzunu HER ZAMAN o listeyle sınırlar (bkz. app.js populateSourceSelect/
 // pickRoundSource). Parametre vermeyen bir mod (varsayılan) tüm kaynakları alır —
-// bugünkü beş mod (Frekans Bulma HARİÇ, o kendi elle-yazılmış listesini kullanıyor;
-// Kesim Noktası/dB/Boost-Cut/Q) hâlâ bunu yapıyor. Gelecekte yeni bir bayrak (ör.
-// "excludeMono"/"requireStereo") eklemek SADECE burada yeni bir filtre satırı +
-// yukarıdaki kaynak nesnelerine yeni bir alan eklemek demek — app.js'e dokunmadan
-// yeni bir modun kendi kısıtlamasını tanımlaması yeter.
-export function compatibleSourceIds({ excludeOneShot = false, requireTransient = false } = {}) {
+// bugünkü dört mod (Frekans Bulma HARİÇ, o kendi elle-yazılmış listesini kullanıyor;
+// Kesim Noktası/dB/Boost-Cut/Q) hâlâ bunu yapıyor.
+//
+// İki filtre türü desteklenir:
+//   requireTransient — otomatik/kaynak-bayrağı bazlı (bkz. yukarıdaki noTransient
+//                       notu, Kompresör kullanıyor). Gelecekte yeni bir bayrak
+//                       (ör. "excludeMono"/"requireStereo") eklemek SADECE burada
+//                       yeni bir filtre satırı + kaynak nesnelerine yeni bir alan
+//                       eklemek demek.
+//   only              — ELLE seçilmiş açık bir id listesi (bkz. Reverb getMeta).
+//                       Bir mixin kararı ("bu kaynağa gerçek stüdyoda reverb
+//                       verilir/verilmez") bir bayrakla GENELLENEMEYECEK kadar
+//                       öznel/duruma özgüyse (G42'nin excludeOneShot'ı Reverb'de
+//                       snare'i YANLIŞLIKLA dışlamıştı — "tek vuruş" heuristiği
+//                       ile "reverb alır" gerçek dünya kararı ÖRTÜŞMÜYORDU) SADECE
+//                       o id'ler döner, diğer TÜM filtreler/kaynaklar yok sayılır.
+export function compatibleSourceIds({ requireTransient = false, only = null } = {}) {
+  if (only) return [...only];
   return SOURCE_GROUPS.flatMap(g => g.sources)
-    .filter(s => !(excludeOneShot && s.oneShot))
     .filter(s => !(requireTransient && s.noTransient))
     .map(s => s.id);
 }

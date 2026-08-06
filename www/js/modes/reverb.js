@@ -227,11 +227,17 @@ export function getMeta() {
     // okunmadığı için etkisizdi, G37'de gerçek bir uyarı sheet'i buna bağlandığı için
     // DOĞRU değere düzeltildi (mode-catalog.js'teki reverb girdisi zaten true'ydu).
     kulaklikGerekli: true,
-    // Tek-vuruş kaynaklar (kick/snare/hihat/tom) dışlanır — döngüde bile tek bir
-    // darbe olarak kalıyor, reverb kuyruğunu (decay) net göstermiyor. Sürekli/
-    // döngülü kaynaklar (davul döngüsü, enstrüman, sentetik, gürültü, upload)
-    // kuyruğu duyulabilir kılıyor (bkz. source-catalog.js oneShot notu).
-    uyumluKaynaklar: compatibleSourceIds({ excludeOneShot: true }),
+    // G43: ELLE seçilmiş açık liste (mixte GERÇEKTEN reverb verilen kaynaklar) —
+    // G42'nin "tek-vuruş dışla" otomatik kuralının YERİNE geçti, çünkü o kural
+    // snare'i de dışlıyordu (snare, gerçek mixte NEREDEYSE HER ZAMAN reverb alan
+    // bir kaynak — "tek vuruş" heuristiği burada yanlış öngörüyordu). Kalan dört
+    // kaynak (+upload) gerçek mix pratiğinde reverb'in duyulabilir/anlamlı olduğu
+    // kaynaklar: gitar (oda/plate ambiyansı), vokal (klasik reverb kaynağı), snare
+    // (kısa room/plate — vuruş sonrası kuyruk NET duyulur), davul döngüsü (bağlam
+    // içinde mekan hissi). Bas (mud riski), kick/hi-hat/tom (tek vuruşun geri kalanı
+    // çok kısa/net değil bu üçünde), sentetik/gürültü (mixte hiç reverb verilmeyen
+    // test tonları) BİLEREK dışarıda — kullanıcı ürün kararı, bkz. DURUM.md G43.
+    uyumluKaynaklar: compatibleSourceIds({ only: ["guitar", "vocal", "snare", "groove", "upload"] }),
     // NOT (Kompresör'le AYNI karar): mode-catalog.js'te tier:"pro" — ama bu
     // alan GERÇEK kilitlemede KULLANILMIYOR (asıl kaynak mode-catalog.js'in
     // `tier` alanı), mevcut altı modun HEPSİYLE tutarlı kalmak için true.

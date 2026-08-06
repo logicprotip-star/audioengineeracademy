@@ -1,13 +1,55 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G42)
+Son güncelleme: 06.08.2026 (G43)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G42, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Mod bazlı kaynak
+Bu commit (G43, tek commit — kod+DURUM.md birlikte) — **Reverb kaynak filtresi ELLE
+düzeltildi: G42'nin "tek-vuruş dışla" otomatik kuralı yanlış sonuç veriyordu, yerine
+kullanıcının gerçek mix deneyimine dayanan AÇIK bir izin listesi geldi.** Sorun: G42'nin
+`excludeOneShot` heuristiği "tek darbe = reverb kuyruğunu göstermez" varsayımıyla kick/
+snare/hihat/tom'un HEPSİNİ dışlıyordu — ama snare, gerçek mixte NEREDEYSE HER ZAMAN
+reverb alan bir kaynak (kısa room/plate, vuruş sonrası kuyruk net duyulur); heuristik bu
+durumda YANLIŞ öngörüyordu. Kullanıcı (14 yıl mix deneyimi) kesin bir ayrım verdi:
+KALACAK {gitar, vokal, snare, davul döngüsü, +upload}, ÇIKACAK {kick, hi-hat, tom,
+sentetik (saw/square/triangle)} — bas ve gürültü (pink/white) de listede YOKTU, o yüzden
+zımnen dışlandı (bas mud riski, gürültü/synth gerçek mixte hiç reverb almayan test
+tonları — bkz. reverb.js getMeta yorumu).
+
+**Mekanizma — `core/source-catalog.js`:** `compatibleSourceIds()`'a yeni bir `only`
+parametresi eklendi — bir id listesi verilirse SADECE o id'ler döner, diğer TÜM
+bayraklar/kaynaklar (requireTransient DAHİL, birlikte verilse bile) yok sayılır — "only"
+her zaman SON SÖZ, çünkü ELLE seçilmiş bir karar bir otomatik bayrağın kesişimiyle
+daraltılmamalı. G42'nin `oneShot` bayrağı ve `excludeOneShot` parametresi TAMAMEN
+kaldırıldı (kick/snare/hihat/tom nesnelerinden `oneShot: true` silindi) — Reverb tek
+kullanıcısıydı ve artık `only` kullanıyor, ölü kod bırakılmadı (CLAUDE.md: "kesin
+kullanılmıyorsa sil"). Kompresör'ün `noTransient`/`requireTransient` mekanizması
+DOKUNULMADI — pink/white gürültü hâlâ dışlanıyor, DOĞRU çalışıyordu.
+
+**reverb.js:** `uyumluKaynaklar: compatibleSourceIds({ only: ["guitar", "vocal",
+"snare", "groove", "upload"] })` — 11 kaynaktan (G42) 5 kaynağa indi, ama BİLİNÇLİ bir
+daralma (otomatik heuristiğin ürettiği YANLIŞ 11 değil, elle doğrulanmış DOĞRU 5).
+
+**Doğrulama (canlı, tarayıcıda):** Reverb'e girildi — `#sourceSelect.options` TAM OLARAK
+`snare,groove,guitar,vocal,upload` (5 kaynak, sırasız eşleşme deepEqual'la testte de
+doğrulandı). Kaynak sheet'i açıldı — SENTETİK grubu TAMAMEN kayboldu (hiç synth/gürültü
+kalmadı), DAVUL grubunda SADECE Snare + Davul Döngüsü (kick/hi-hat/tom yok), ENSTRÜMAN
+grubunda SADECE Akustik Gitar + Vokal (Bas C2/E2 yok). Snare seçiliyken bir round
+başlatıldı — A/B/C kartları (G41 UI) normal çalıştı, konsol hatası yok. Kompresör'e
+geçildi — `#sourceSelect.options` DEĞİŞMEDİ (13 kaynak, pink/white hâlâ tek dışlanan,
+kick/hihat/tom/bas/synth hâlâ VAR — G42'deki DOĞRU filtre bozulmadı). Kesim Noktası'na
+geçildi — tüm 15 kaynak (regresyon yok). Frekans Bulma'nın kendi listesi (6 kaynak)
+DEĞİŞMEDİ. `npm test`: 573/573 (574'ten 573'e — G42'nin `excludeOneShot`/`oneShot`
+testleri kaldırıldı [4], `only` mekanizması + Reverb'in yeni kesin listesi için yeni
+testler eklendi [5], net -1; `test/source-catalog.test.mjs` ve `test/reverb.test.mjs`
+güncellendi, `test/kompresor.test.mjs` DOKUNULMADI).
+
+---
+
+Önceki commit (G42, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Mod bazlı kaynak
 uyumluluğu: Reverb/Kompresör'de uygun olmayan kaynaklar kaynak seçim listesinden
 çıkarıldı.** Sorun: her modun `getMeta()`'sında ZATEN bir `uyumluKaynaklar` alanı vardı
 (G-serisinin önceki turlarından, `mode-contract.test.mjs`'in de doğruladığı bir sözleşme
