@@ -476,55 +476,104 @@ function drawAxis(ctx2d, w, h) {
   ctx2d.textAlign = "left";
 }
 
-// Cevap sonrası dB göstergesi — basit bir yatay ölçek (Kesim Noktası'nın filtre
-// eğrisinin dB karşılığı, ama TEK bir değer olduğu için eğri değil çizgi/nokta
-// yeterli, bkz. task kararı "basit tut"). -DB_RANGE..+DB_RANGE aralığı SABİT bir
-// görsel ölçek (gerçek değerler DIFFICULTY_easy*jitter üst sınırının [~3.6] rahatça
-// içinde kalır, ölçek taşmaz).
+// G38: prototipteki #vizDb'ye (Dizayn/prototype.html) çevrilen İKİ DİKEY BAR görseli
+// ("A · Referans" / "B · İşlenmiş"). -DB_RANGE..+DB_RANGE, eski yatay göstergeyle AYNI
+// SABİT görsel ölçek (gerçek değerler bu aralıkta rahatça kalır, ölçek taşmaz).
 const DB_RANGE = 5;
 
-function dbToX(db, w) {
-  const t = (Math.max(-DB_RANGE, Math.min(DB_RANGE, db)) + DB_RANGE) / (2 * DB_RANGE);
-  return t * w;
+// SORU SIRASINDA (roundActive) her iki bar da REF_FRAC'te NÖTR duruyor — B barın
+// yüksekliği gerçek dbDelta'ya göre değişseydi, mod'un directionRevealed mekaniğini
+// (3. sorudan sonra yön BİLEREK gizlenir, bkz. dosya başı + createQuestion) görsel
+// olarak deşifre ederdi. Kullanıcı ONAYIYLA netleşen karar: bar SADECE cevap
+// SONRASI gerçek değerleri gösterir, soru sırasında ipucu vermez.
+const REF_FRAC = 0.55;
+const MAX_SWING_FRAC = 0.38;
+const BAR_MIN_FRAC = 0.12;
+const BAR_MAX_FRAC = 0.95;
+const BAR_TOP_MARGIN = 34;
+const BAR_LABEL_GAP = 8;
+const BAR_LABEL_H = 20;
+
+const REF_PALETTE = { container: "rgba(255,255,255,.05)", gradTop: "#9AA3B8", gradBottom: "#5A6377" };
+const PROC_PALETTE = { container: "rgba(108,140,255,.1)", gradTop: "#8FA6FF", gradBottom: "#4E6BE0" };
+const PROC_ANSWERED_PALETTE = { ...PROC_PALETTE, outline: CORRECT_COLOR };
+
+function dbToBarFrac(db) {
+  const clamped = Math.max(-DB_RANGE, Math.min(DB_RANGE, db));
+  const frac = REF_FRAC + (clamped / DB_RANGE) * MAX_SWING_FRAC;
+  return Math.max(BAR_MIN_FRAC, Math.min(BAR_MAX_FRAC, frac));
 }
 
-function drawDbGauge(ctx2d, w, h, question, guessValue) {
-  const plotBottom = h - AXIS_H;
-  const y = CURVE_TOP + (plotBottom - CURVE_TOP) * 0.55;
+function roundedRectPath(ctx2d, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx2d.beginPath();
+  ctx2d.moveTo(x + rr, y);
+  ctx2d.lineTo(x + w - rr, y);
+  ctx2d.arcTo(x + w, y, x + w, y + rr, rr);
+  ctx2d.lineTo(x + w, y + h - rr);
+  ctx2d.arcTo(x + w, y + h, x + w - rr, y + h, rr);
+  ctx2d.lineTo(x + rr, y + h);
+  ctx2d.arcTo(x, y + h, x, y + h - rr, rr);
+  ctx2d.lineTo(x, y + rr);
+  ctx2d.arcTo(x, y, x + rr, y, rr);
+  ctx2d.closePath();
+}
 
-  // Ölçek çizgisi + 0 dB ortası + uç etiketleri
-  ctx2d.strokeStyle = "rgba(255,255,255,.18)";
-  ctx2d.lineWidth = 2;
-  ctx2d.beginPath(); ctx2d.moveTo(0, y); ctx2d.lineTo(w, y); ctx2d.stroke();
-  const zeroX = dbToX(0, w);
-  ctx2d.strokeStyle = "rgba(255,255,255,.35)";
-  ctx2d.beginPath(); ctx2d.moveTo(zeroX, y - 10); ctx2d.lineTo(zeroX, y + 10); ctx2d.stroke();
-  ctx2d.font = "600 12px Inter, sans-serif";
-  ctx2d.fillStyle = "#8C95AB";
-  ctx2d.textAlign = "center";
-  ctx2d.fillText("0 dB", zeroX, y + 26);
-  ctx2d.fillText(`-${DB_RANGE}`, dbToX(-DB_RANGE, w) + 14, y + 5);
-  ctx2d.fillText(`+${DB_RANGE}`, dbToX(DB_RANGE, w) - 14, y + 5);
-
-  function marker(value, color, labelY) {
-    const x = dbToX(value, w);
-    ctx2d.strokeStyle = color;
-    ctx2d.lineWidth = 3;
-    ctx2d.beginPath(); ctx2d.moveTo(x, y - 18); ctx2d.lineTo(x, y + 18); ctx2d.stroke();
-    ctx2d.beginPath(); ctx2d.arc(x, y, 5, 0, Math.PI * 2); ctx2d.fillStyle = color; ctx2d.fill();
-    ctx2d.font = "800 15px 'JetBrains Mono', monospace";
-    ctx2d.fillStyle = color;
-    ctx2d.fillText(formatDb(value), x, labelY);
+function drawBarBox(ctx2d, x, boxTop, boxW, boxH, fillFrac, palette) {
+  ctx2d.fillStyle = palette.container;
+  roundedRectPath(ctx2d, x, boxTop, boxW, boxH, 12);
+  ctx2d.fill();
+  ctx2d.save();
+  roundedRectPath(ctx2d, x, boxTop, boxW, boxH, 12);
+  ctx2d.clip();
+  const fillH = Math.max(2, boxH * fillFrac);
+  const fillY = boxTop + boxH - fillH;
+  const grad = ctx2d.createLinearGradient(0, fillY, 0, boxTop + boxH);
+  grad.addColorStop(0, palette.gradTop);
+  grad.addColorStop(1, palette.gradBottom);
+  ctx2d.fillStyle = grad;
+  ctx2d.fillRect(x, fillY, boxW, fillH);
+  ctx2d.restore();
+  if (palette.outline) {
+    ctx2d.strokeStyle = palette.outline;
+    ctx2d.lineWidth = 2;
+    roundedRectPath(ctx2d, x + 1, boxTop + 1, boxW - 2, boxH - 2, 11);
+    ctx2d.stroke();
   }
+}
 
-  const showGuess = guessValue != null;
-  if (showGuess) marker(guessValue, GUESS_COLOR, y - 28);
-  marker(question.dbDelta, CORRECT_COLOR, showGuess && Math.abs(dbToX(guessValue, w) - dbToX(question.dbDelta, w)) < 60 ? y + 40 : y - 28);
+// opts.answered=false → iki bar da REF_FRAC (nötr, soru sırasında). answered=true →
+// A sabit referansta, B gerçek dbDelta'da (yeşil kontur = "doğru"); guessFrac verilmişse
+// B'nin üstünde kesikli kırmızı çizgi + sayı ("senin cevabın") eklenir.
+function drawDbBars(ctx2d, w, h, opts) {
+  const plotBottom = h - AXIS_H;
+  const boxTop = BAR_TOP_MARGIN;
+  const boxH = Math.max(60, plotBottom - BAR_TOP_MARGIN - BAR_LABEL_GAP - BAR_LABEL_H);
+  const gap = Math.min(28, w * 0.07);
+  const boxW = Math.min(120, Math.max(50, (w - gap - 40) / 2));
+  const totalW = boxW * 2 + gap;
+  const startX = (w - totalW) / 2;
+  const aX = startX;
+  const bX = startX + boxW + gap;
 
-  // Lejant
+  drawBarBox(ctx2d, aX, boxTop, boxW, boxH, opts.refFrac, REF_PALETTE);
+  drawBarBox(ctx2d, bX, boxTop, boxW, boxH, opts.procFrac, opts.answered ? PROC_ANSWERED_PALETTE : PROC_PALETTE);
+
+  const labelY = boxTop + boxH + BAR_LABEL_GAP + 14;
+  ctx2d.font = "700 13px Inter, sans-serif";
+  ctx2d.textAlign = "center";
+  ctx2d.fillStyle = "#8C95AB";
+  ctx2d.fillText("A · Referans", aX + boxW / 2, labelY);
+  ctx2d.fillStyle = "#AFC0FF";
+  ctx2d.fillText("B · İşlenmiş", bX + boxW / 2, labelY);
   ctx2d.textAlign = "left";
+
+  if (!opts.answered) return;
+
+  // Lejant (kırmızı=senin cevabın, yeşil=doğru) — G34'ten beri AYNI renkler/desen.
   let lx = 10;
-  const ly = 22;
+  const ly = 16;
+  const showGuess = opts.guessFrac != null;
   ctx2d.font = "700 12px Inter, sans-serif";
   if (showGuess) {
     ctx2d.fillStyle = GUESS_COLOR; ctx2d.fillText("●", lx, ly); lx += 12;
@@ -533,16 +582,46 @@ function drawDbGauge(ctx2d, w, h, question, guessValue) {
   }
   ctx2d.fillStyle = CORRECT_COLOR; ctx2d.fillText("●", lx, ly); lx += 12;
   ctx2d.fillStyle = "#C7CEDD"; ctx2d.fillText("Doğru", lx, ly);
+
+  const trueY = boxTop + boxH - boxH * opts.procFrac;
+  ctx2d.textAlign = "center";
+  ctx2d.font = "800 13px 'JetBrains Mono', monospace";
+  ctx2d.fillStyle = CORRECT_COLOR;
+  ctx2d.fillText(formatDb(opts.trueValue), bX + boxW / 2, Math.max(trueY - 8, boxTop - 6));
+
+  if (showGuess) {
+    const guessY = boxTop + boxH - boxH * opts.guessFrac;
+    ctx2d.save();
+    ctx2d.setLineDash([4, 3]);
+    ctx2d.strokeStyle = GUESS_COLOR;
+    ctx2d.lineWidth = 2;
+    ctx2d.beginPath(); ctx2d.moveTo(bX - 6, guessY); ctx2d.lineTo(bX + boxW + 6, guessY); ctx2d.stroke();
+    ctx2d.restore();
+    const closeToTrue = Math.abs(guessY - trueY) < 22;
+    ctx2d.font = "800 12px 'JetBrains Mono', monospace";
+    ctx2d.fillStyle = GUESS_COLOR;
+    ctx2d.fillText(formatDb(opts.guessValue), bX + boxW / 2, closeToTrue ? guessY + 26 : guessY - 8);
+  }
+  ctx2d.textAlign = "left";
 }
 
-// Soru sırasında (roundActive) gösterge BİLEREK gizli — kullanıcı farkı KULAĞIYLA
-// bulmalı (diğer iki modla AYNI ilke). Sadece cevap verildikten SONRA hem kullanıcının
-// seçtiği hem doğru değer çizilir. state: { activeQuestion, roundActive, dbGuess } —
-// dbGuess app.js'te submitLevelGuess'in kaydettiği KULLANICI cevabı, yeni soru
-// başında null'a döner.
+// state: { activeQuestion, roundActive, dbGuess } — dbGuess app.js'te
+// submitLevelGuess'in kaydettiği KULLANICI cevabı, yeni soru başında null'a döner.
 export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
   drawAxis(ctx2d, w, h);
   const { activeQuestion: q, roundActive, dbGuess } = state;
-  if (!q || roundActive) return;
-  drawDbGauge(ctx2d, w, h, q, dbGuess != null ? dbGuess : null);
+  if (!q) return;
+  if (roundActive) {
+    drawDbBars(ctx2d, w, h, { refFrac: REF_FRAC, procFrac: REF_FRAC, answered: false });
+    return;
+  }
+  const guessValue = dbGuess != null ? dbGuess : null;
+  drawDbBars(ctx2d, w, h, {
+    refFrac: REF_FRAC,
+    procFrac: dbToBarFrac(q.dbDelta),
+    guessFrac: guessValue != null ? dbToBarFrac(guessValue) : null,
+    trueValue: q.dbDelta,
+    guessValue,
+    answered: true
+  });
 }

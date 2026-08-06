@@ -23,6 +23,13 @@ katman) kısmen uygulandı — Ana Menü seviye rozeti, mod kartı "Sv N" çip'i
 sayıları güncellendi, ayrıca EKRAN 1/2'de STALE çıkan iki not (odak-aralığı hedefleme
 zaten çalışıyormuş, ÖZET'te hâlâ "Yok" yazıyordu) düzeltildi. Detay: DURUM.md BİTTİ.
 
+**G37 eki:** Kulaklık uyarısı sheet'i (`hpSheet`) prototipten taşındı, mod başına
+`kulaklikGerekli` bayrağı gerçek bir akışa bağlandı (EKRAN 1 satırları güncellendi, ÖZET
+sayıları yeniden hesaplandı). **G38 eki:** dB Seviyesi'nin görseli prototipteki dikey
+bar'lara çevrildi (RESKIN RAPORU madde 4c + "JS/DOM" listesi güncellendi) — bu ÖZET-sayılan
+ana tabloda ayrı bir satırı olmayan, sadece RESKIN RAPORU'nun prose bölümünde izlenen bir
+öğe olduğu için ÖZET toplamları DEĞİŞMEDİ. Detay: DURUM.md BİTTİ.
+
 ## EKRAN 1 — ANA MENÜ
 
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |
@@ -310,7 +317,7 @@ DOĞRULANDI, tahmin değil)
 | Ekran | Sapma türü | Büyüklük |
 |---|---|---|
 | Ana Menü | Düzen (seviye kartı yok, mod kartı rozetleri eksik) — renk/tipografi TUTARLI | Küçük-orta |
-| Motor 1 oyun ekranı (Frekans Bulma + 6 şıklı mod) | Büyük ölçüde TUTARLI — kart/buton/chip stilleri prototiple aynı dilde. En büyük sapma: alt panel (dB/Stereo/Pan bar-grafikleri) hiç yok, her mod kendi ÖZEL canvas görselini icat etmiş | Orta (görsel dil aynı, bileşen seti farklı) |
+| Motor 1 oyun ekranı (Frekans Bulma + 6 şıklı mod) | Büyük ölçüde TUTARLI — kart/buton/chip stilleri prototiple aynı dilde. dB Seviyesi'nin bar-grafiği G38'de canvas'a taşındı (bkz. RESKIN RAPORU madde 4c); Stereo/Pan modları hâlâ kodda yok, bar-grafikleri de yok | Orta (görsel dil aynı, bileşen seti farklı) |
 | **Motor 2 (Kompresör/Reverb)** | **En büyük sapma** — görev kartı yok, seçenek kartları (waveform+durum metni) yok, kart-tıkla=çal+seç modeli yok, 2 adımlı onay yok. Motor 1'in küçük `.ans` butonlarına indirgenmiş | Büyük |
 | Seans Sonu | Prototipteki zengin ekran (sonuç halkası, bölge haritası, öneri kartı) yerine sade bir "Oyun Bitti" kartı | Büyük (içerik eksik, ama var olan kısım renk/tipografi olarak tutarlı) |
 | Kalibrasyon | Adım sayacı bar yerine nokta; "Cihaz seviyesi" kartı yerine kendi slider'ı — küçük düzen farkları | Küçük |
@@ -339,10 +346,10 @@ font kayması ÇOK NADİR (tek somut örnek: `.mode-chip-pro` `#f2c94c` kullanı
   ama "gerçek işlev" tarafı JS gerektirir — buton GÖRÜNÜMÜ kolay, DAVRANIŞI ayrı bir iş)
 
 **JS/DOM değişikliği gerektirenler (orta-zor):**
-- dB Seviyesi'ne prototipteki "A·Referans / B·İşlenmiş" bar karşılaştırmasını eklemek —
-  MEVCUT `drawDbGauge`'u (canvas, yatay ölçek+nokta) DEĞİŞTİRMEK değil, YANINA/YERİNE yeni
-  bir DOM tabanlı iki-bar bileşeni kurmak demek (`getFeedbackData`'nın döndürdüğü veriyle
-  beslenebilir — mod dosyasına dokunmadan, sadece app.js'in render tarafında)
+- ~~dB Seviyesi'ne prototipteki "A·Referans / B·İşlenmiş" bar karşılaştırmasını eklemek~~
+  → **G38'de YAPILDI** — tahmin edilenin AKSİNE yeni bir DOM bileşeni değil, mevcut
+  paylaşılan-canvas mimarisiyle tutarlı kalmak için `db-seviyesi.js`'in KENDİ
+  `drawOverlay`'i içinde canvas'a çizilen bir bar-görseli oldu (bkz. DURUM.md G38)
 - Kulaklık uyarı sheet'i (`hpSheet`) — YENİ bir sheet (HTML+CSS kolay, prototipte hazır
   markup var) + tıklama akışına bir ARA ADIM eklemek (`renderModeGrid`'in kart click
   handler'ına, `kulaklikGerekli && !skip` kontrolü) — orta zorlukta, ama İZOLE bir değişiklik
@@ -405,12 +412,15 @@ altta). G36: Ana Menü'ye `.lvl-badge` (İlerleme'yle AYNI `progress.xpProgress`
 her mod kartına ayrı bir "Sv N" çip'i (`progress.modeLevel`, mod-bazlı) eklendi — ikisi
 BİRLİKTE prototipteki "seviye her yerde görünsün" niyetini karşılıyor.
 
-**(c) dB "Seviye Karşılaştırması" barları:**
-Prototipte `#vizDb` olarak VAR — iki dikey bar ("A·Referans"/"B·İşlenmiş", yükseklikleri
-dB farkına göre) + "Fark: +6 dB" metni. Kodda dB Seviyesi'nin KENDİ farklı görseli var
-(`drawDbGauge`: yatay -5..+5 dB ölçek, nokta işaretçili canvas) — prototipteki bar
-biçimi hiç uygulanmadı. İkisi de FONKSİYONEL olarak aynı bilgiyi taşıyor, ama GÖRSEL
-biçim tamamen farklı.
+**(c) dB "Seviye Karşılaştırması" barları — G38'de YAPILDI:**
+Prototipteki `#vizDb` (iki dikey bar, "A·Referans"/"B·İşlenmiş", aynı gradyan renkler)
+`drawDbBars` olarak canvas'a taşındı, eski `drawDbGauge` (yatay -5..+5 dB ölçek, nokta
+işaretçi) tamamen kaldırıldı. BİR fark BİLEREK korundu: prototipte barlar SORU
+SIRASINDA da gerçek farkı gösteriyor, ama kodda dB Seviyesi'nin `directionRevealed`
+zorluk mekaniği (3. sorudan sonra yön BİLEREK gizlenir) buna izin vermiyor — kullanıcı
+onayıyla (bkz. DURUM.md G38) bar SORU SIRASINDA nötr (A=B), SADECE cevap sonrası gerçek
+değerleri + kırmızı/yeşil (senin cevabın/doğru) işaretini gösteriyor. Prototip birebir
+DEĞİL ama niyeti (görsel dil + öğretici cevap-sonrası karşılaştırma) taşıyor.
 
 **(d) Kulaklık uyarısı ekranı — G37'de YAPILDI:**
 Prototipteki `#hpSheet` (ikon+başlık+açıklama+2 buton+"bir daha gösterme" checkbox)
@@ -447,8 +457,10 @@ bileşen" sorunu — renklerin kendisi zaten doğruydu.
    - ~~Kulaklık uyarı sheet'i (izole yeni bileşen, mevcut akışa TEK bir kontrol noktası
      eklenir)~~ **G37'de YAPILDI** (bkz. DURUM.md BİTTİ) — kart üzerindeki kulaklık İKONU
      hâlâ AÇIK (küçük, bağımsız)
-   - dB Seviyesi'nin bar-karşılaştırması (mevcut gauge'un YANINA/YERİNE, mod dosyasına
-     dokunmadan sadece render katmanında) — HÂLÂ AÇIK
+   - ~~dB Seviyesi'nin bar-karşılaştırması (mevcut gauge'un YANINA/YERİNE, mod dosyasına
+     dokunmadan sadece render katmanında)~~ **G38'de YAPILDI** (bkz. DURUM.md BİTTİ) —
+     mod dosyasının sadece `drawOverlay`'i değişti, `createQuestion`/`evaluateAnswer`
+     dokunulmadı
    - Kalibrasyon/İlerleme/Araçlar'daki küçük eksik butonlar/göstergeler — HÂLÂ AÇIK
 
 **3. En son Motor 2'nin YENİDEN TASARIMI (en yüksek risk, en büyük iş):**

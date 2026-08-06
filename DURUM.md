@@ -1,13 +1,62 @@
 # DURUM
 
-Son güncelleme: 06.08.2026
+Son güncelleme: 06.08.2026 (G38)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G37, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Kulaklık uyarısı
+Bu commit (G38, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **dB Seviyesi
+görseli: yatay gauge → prototipteki DİKEY BAR'lara çevrildi.** `db-seviyesi.js`'in
+`drawDbGauge`'ı (tek yatay çizgi + iki hareketli işaretçi) tamamen kaldırıldı,
+yerine `Dizayn /prototype.html`'in `#vizDb`'sinden (satır 572-588) birebir alınan
+"A · Referans" / "B · İşlenmiş" iki dikey bar geldi (`drawDbBars`, aynı gradyan
+renkleri: A gri `#9AA3B8→#5A6377`, B mavi `#8FA6FF→#4E6BE0`).
+
+**Kullanıcıyla netleştirilen kritik çakışma:** Task'ın ilk hâli "İşlenmiş bar
+uygulanan dB değişimine göre daha dolu/boş olsun" diyordu — ama bu, SORU
+SIRASINDA gösterilirse modun kendi `directionRevealed` mekaniğini (3. sorudan
+sonra yön BİLEREK gizlenir, çeldiricilerin işareti bile karıştırılır, bkz.
+dosya başı yorum + `createQuestion`) görsel olarak deşifre ederdi —
+"kulakla bulma" ilkesini kırardı. `AskUserQuestion` ile soruldu, kullanıcı ÜÇÜNCÜ
+(özel) seçeneği verdi: **bar SORU SIRASINDA tamamen NÖTR** (A=B=aynı sabit
+yükseklik, `REF_FRAC=0.55`, hiçbir ipucu yok), **CEVAP SONRASI gerçek değerleri**
+gösteriyor (A sabit referans, B = gerçek `dbDelta`, ölçek `DB_RANGE=5` — eski
+gauge'la AYNI sabit görsel aralık). Bu, hem prototipin görsel dilini taşıdı hem
+zorluk mekaniğini KORUDU.
+
+**Cevap sonrası (korunan red/green mekanik, bar'a uyarlandı):** B barın yeşil
+konturu = "doğru" (gerçek `dbDelta` zaten barın kendi yüksekliği); varsa
+kullanıcının tahmini kırmızı kesikli çizgi + sayı olarak B barın üstüne
+biniyor; üstte AYNI G34 lejantı ("● Senin cevabın" kırmızı / "● Doğru" yeşil).
+Cevap şıklarının (`.ans` butonları) kendi doğru/yanlış/seçili renklendirmesi
+HİÇ DOKUNULMADI (ayrı bir DOM mekanizması, bar görseli sadece canvas'ta).
+
+**Mimari not:** Uygulamanın TÜM modları TEK paylaşılan canvas'a (`#visualizer`)
+`mode.drawOverlay` ile çiziyor (bkz. app.js `drawVisualizer`); prototipteki
+`#vizDb` DOM/CSS yapısı BİREBİR kopyalanmadı (yeni DOM elemanı eklemek diğer
+6 modun paylaşılan-canvas mimarisinden sapardı) — aynı görsel dil canvas'ta
+(`roundedRectPath`/`createLinearGradient`) yeniden üretildi.
+
+**Doğrulama (canlı, tarayıcıda):** dB Seviyesi'ne girildi, round başlatıldı →
+iki bar eşit yükseklikte NÖTR görüldü (ekran görüntüsüyle doğrulandı, ilk
+denemede tarayıcı HTTP önbelleği eski `drawDbGauge`'ı göstermeye devam etti,
+sert yenileme [cmd+shift+r] sonrası yeni kod devreye girdi — KOD hatası
+değildi). Cevap verildi (yanlış, +3.25 dedi/+1.50 idi) → B barı yeşil konturla
+gerçek değeri (+1.50 dB), kırmızı kesikli çizgiyle tahmini (+3.25 dB) gösterdi,
+lejant doğru renklerde. Yeni soruya otomatik geçişte bar NÖTR'e sıfırlandı
+(önceki cevabın sızıntısı yok). "Kısıldı" yönlü bir soruda da (negatif
+`dbDelta`) B barı referanstan DAHA KISA çizildi (mantık iki yönde de
+doğrulandı). Frekans Bulma moduna geçiş regresyon kontrolü yapıldı, konsol
+hatası yok. `npm test`: 561/561 geçti (createQuestion/evaluateAnswer/
+generateChoices SAF fonksiyonlarına dokunulmadı, sadece `drawOverlay`
+değişti — zaten test edilmiyordu, bkz. CLAUDE.md "ses/DOM davranışı kaynak
+koddan doğrulanamaz").
+
+---
+
+Önceki commit (G37, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Kulaklık uyarısı
 mekanizması: mod başına bayrak + prototipteki sheet'e bağlandı.** TASARIM.md'nin RESKIN
 RAPORU'nun örnek (d)'sindeki "hâlâ AÇIK" maddesi kapatıldı. `kulaklikGerekli` alanı
 mode-catalog.js'te (ve her modun KENDİ getMeta()'sında) ÖNCEDEN tanımlıydı ama G37'ye
