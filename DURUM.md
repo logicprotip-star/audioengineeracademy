@@ -1,13 +1,68 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G40)
+Son güncelleme: 06.08.2026 (G41)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G40, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **İlerleme sekmesi
+Bu commit (G41, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Motor 2 (Kompresör/
+Reverb) cevap kartları reskin: büyük A/B/C kartlar + çalan kart vurgusu.** Motor 1'in
+küçük `.ans` grid'i yerine `Dizayn /prototype.html`'in `.opt`/`.opt-key`/`.wave`
+yapısına yakınsayan büyük kartlar geldi — ÇALIŞAN MEKANİK (otomatik döngü, anında seç,
+odd-one-out, X/Atla, kesik ses düzeltmesi) HİÇ DEĞİŞMEDİ, sadece görsel katman.
+
+**Yeni ortak modül — `core/three-way-cards.js`:** `renderThreeWayCards`/
+`markThreeWayCards`/`updateThreeWayCardsPlayState` — Kompresör'ün ve Reverb'in
+`renderAnswerChoices`/`markAnswerChoices`'ı artık bu üç fonksiyona delege ediyor
+(mod sözleşmesi hâlâ karşılanıyor, gövde ORTAK). Gerekçe: q.choices/q.variants şekli
+ikisinde de BİREBİR aynı, gerçek bir mod-özel fark yok — G35'in `submitThreeWayGuess`'i
+app.js'te genelleştirme kararının AYNI felsefesi, G34'ün `feedback-colors.js`
+extraction'ıyla AYNI desen. Üçüncü bir Motor 2 modu (Distortion/Tonal Denge) sadece bu
+modülü import edip re-export etmesi yeter.
+
+**Kart yapısı:** her kart harf (`.ans-m2-key`, dairesel rozet) + isim ("Birinci ses"/
+"İkinci ses"/"Üçüncü ses") + SABİT süsleme waveform'u (harfe göre deterministik, ses
+analizi DEĞİL — prototipin kendi `WAVES` sabit dizisiyle AYNI felsefe) + durum metni
+(`.ans-m2-state`). Durum metni task'ın istediği gibi SADECE iki değer alıyor
+("Henüz dinlenmedi" / "Çalınıyor") — prototipteki "Çalındı"/"Elendi" ek durumları
+BİLEREK atlandı (bizim basit otomatik-döngü mekaniğimize uyarlandı, ekstra "geçmiş"
+takibi gerekmiyor).
+
+**Çalan kart vurgusu:** amber kenar+glow (`box-shadow`) + amber gradyan anahtar +
+amber waveform — kırmızı/yeşil (yanlış/doğru, G34) renkleriyle ÇAKIŞMASIN diye BİLEREK
+farklı bir renk (marka rengi `--am`, prototipin mor `--pu`'sundan da farklı, çünkü
+uygulamanın KENDİ renk dilinde mor kullanılmıyor). `app.js`'in `updateAbToggleUI()`'si
+— zaten HER `threeWayPlayLetter` değişiminde (round başlangıcı, otomatik döngünün her
+tık'ı, manuel A/B/C basışı) çağrılan TEK merkezi nokta — artık
+`mode.updateAnswerPlayState(els.answers, threeWayPlayLetter)`'ı da çağırıyor; ayrı bir
+çağrı noktası eklemeye GEREK kalmadı.
+
+**Mekanik korundu (task'ın "sessizce değiştirme" uyarısı):** `.ans`/`data-letter`
+class'ları/attribute'ları AYNEN kaldı — app.js'in click-delegasyonu
+(`e.target.closest(".ans")`) ve `submitThreeWayGuess` HİÇ değişmedi, "anında seç"
+(tıkla=cevapla, prototipin 2-adımlı "seç+onayla" modeli DEĞİL) davranışı dokunulmadan
+korundu. `THREE_WAY_MODE_IDS`/`isThreeWayModule`/`isThreeWayQuestion`/
+`cycleThreeWayPreview`/`previewLetter` mekanizmalarının HİÇBİRİNE dokunulmadı — sadece
+`.answers`/`.ans` container'ına YENİ bir modifier class (`answers-m2`/`ans-m2`) eklendi.
+
+**Doğrulama (canlı, tarayıcıda):** Kompresör'e girildi, round başlatıldı — üç kart alt
+alta (A "Birinci ses"/B "İkinci ses"/C "Üçüncü ses"), her birinde waveform + durum
+metni doğrulandı. O an çalan kart (C) amber kenar+glow+anahtar+dolgu ile DİĞER İKİSİNDEN
+(gri, "Henüz dinlenmedi") AÇIKÇA ayırt edilir bulundu; alt "Döngü" A/B/C pill'iyle
+BİREBİR senkron. 2 saniye beklenip tekrar kontrol edildi — vurgu C'den A'ya taşındı
+(otomatik döngü çalışıyor). B kartına tıklandı — cevap ANINDA gönderildi (onay adımı
+YOK), feedback kartı doğru açıldı ("Yanlış — sen B dedin, C farklıydı"), B kırmızı
+("wrong"), C yeşil ("right") oldu, durum metinleri temizlendi. "Durdur"a basıldı — döngü
+durdu, buton "🔁Tekrar Çal"a döndü (G31'in kesik-ses düzeltmesi bozulmadı). Reverb'de
+AYNI davranış (paylaşılan modül) doğrulandı. Motor 1'den Kesim Noktası'na geçildi —
+küçük 4'lü `.ans` grid'i TAMAMEN değişmeden çalışıyor (regresyon yok). Konsol hatası
+YOK boyunca. `npm test`: 561/561.
+
+---
+
+Önceki commit (G40, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **İlerleme sekmesi
 reskin: SV rozeti tek-kart + 3'lü stat satırı.** Önceki turda (araştırma-only, kod
 yazılmadı) tespit edilen "veri zaten var, sadece düzen farklı" bulgusuna dayanarak
 İlerleme'nin görsel düzeni prototipe yakınsatıldı — mod mantığı/hesap/veri

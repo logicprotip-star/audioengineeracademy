@@ -35,6 +35,7 @@ import { SOURCE_GROUPS } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
+import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState } from "../core/three-way-cards.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
 // HER moddan mode-agnostik olarak okur — diğer altı modla AYNI re-export deseni.
@@ -452,27 +453,12 @@ export function renderGuessAreaControls(freqGuessAreaEl) {
   freqGuessAreaEl.classList.add("hidden");
 }
 
-export function renderAnswerChoices(answersEl, q) {
-  if (!answersEl) return;
-  if (!q.choices) { answersEl.innerHTML = ""; answersEl.classList.add("hidden"); return; }
-  answersEl.className = "answers";
-  answersEl.innerHTML = q.choices.map(c =>
-    `<button type="button" class="ans" data-letter="${c.id}"><b>${c.tr}</b></button>`
-  ).join("");
-}
-
-export function markAnswerChoices(answersEl, q, picked) {
-  if (!answersEl || !q.choices) return;
-  const pickedLetter = picked && typeof picked === "object" ? picked.id : picked;
-  const correctLetter = q.variants[q.oddIndex].letter;
-  Array.from(answersEl.querySelectorAll(".ans")).forEach(btn => {
-    btn.classList.remove("pick");
-    btn.disabled = true;
-    const letter = btn.dataset.letter;
-    if (letter === correctLetter) btn.classList.add("right");
-    else if (letter === pickedLetter) btn.classList.add("wrong");
-  });
-}
+// G41: büyük kart görseli (harf+isim+waveform+durum) — core/three-way-cards.js'e
+// delege edilir (Kompresör'le PAYLAŞILAN, gerçek bir mod-özel fark YOK). Mod
+// sözleşmesi bu isimlerle export edilmesini istiyor, gövde ORTAK modülde.
+export const renderAnswerChoices = renderThreeWayCards;
+export const markAnswerChoices = markThreeWayCards;
+export const updateAnswerPlayState = updateThreeWayCardsPlayState;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GÖRSEL — diğer modların frekans-yanıtı eğrisinin AKSİNE reverb'in frekans

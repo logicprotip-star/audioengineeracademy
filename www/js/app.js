@@ -998,6 +998,10 @@ function updateAbToggleUI() {
   if (isThreeWay) {
     els.abToggle.dataset.ab = threeWayPlayLetter;
     if (els.analyzerLabel) els.analyzerLabel.textContent = `SPEKTRUM · ${threeWayPlayLetter} DİNLENİYOR`;
+    // G41: o an çalan büyük kartı vurgular (bkz. core/three-way-cards.js) — bu
+    // fonksiyon HER threeWayPlayLetter değişiminde çağrıldığı için (round başlangıcı +
+    // döngü + manuel A/B/C) ayrı bir çağrı noktası eklemeye GEREK yok.
+    if (mode.updateAnswerPlayState) mode.updateAnswerPlayState(els.answers, threeWayPlayLetter);
     return;
   }
   const ab = currentPlayMode === "clean" ? "A" : "B";

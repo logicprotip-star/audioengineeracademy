@@ -37,7 +37,13 @@ notu güncellendi). **G40 eki:** İlerleme sekmesi reskin edildi — SV rozeti A
 G36'daki `.lvl-badge` tek-kart deseninin BİREBİR AYNISINA çevrildi, Antrenman/Soru/İsabet
 tek satıra taşındı ("Seri" çıkarıldı). "Şu An Neredesin"/"en zayıf bölge"/"Son 30 gün"
 DOKUNULMADI (zaten gerçek veriyle Tam'dı). EKRAN 7'nin iki satırı Kısmi'den Tam'a geçti,
-ÖZET sayıları yeniden hesaplandı (Tam 82→84, Kısmi 25→23). Detay: DURUM.md BİTTİ.
+ÖZET sayıları yeniden hesaplandı (Tam 82→84, Kısmi 25→23). **G41 eki:** Motor 2
+(Kompresör/Reverb) cevap kartları reskin edildi — küçük `.ans` grid'i kalktı, büyük A/B/C
+kartlar (`core/three-way-cards.js`, prototipin `.opt`/`.wave` yapısı) + o an çalan kartın
+amber vurgusu geldi; ÇALIŞAN MEKANİK (otomatik döngü, anında seç, odd-one-out)
+DOKUNULMADI. EKRAN 3'ün "Seçenek kartları" satırı Yok'tan Kısmi'ye geçti (durum metni
+BİLİNÇLİ 2 değere indirildi), ÖZET sayıları yeniden hesaplandı (Yok 20→19, Kısmi
+23→24). Detay: DURUM.md BİTTİ.
 
 ## EKRAN 1 — ANA MENÜ
 
@@ -120,7 +126,7 @@ DOKUNULMADI (zaten gerçek veriyle Tam'dı). EKRAN 7'nin iki satırı Kısmi'den
 | Ekranın var olması (Kompresör/Reverb oynanabilir) | ✓ | ✓ | **Tam (farklı tasarımla)** | G30/G35 — aşağıdaki satırlar prototipin KENDİ bileşen setiyle birebir örtüşmediğini gösteriyor |
 | Görev kartı (mor "GÖREV" kickeri + büyük başlık + alt açıklama, `.task` bileşeni) | ✓ | ✗ | **Yok** | Kodda tek satırlık genel soru başlığı (`questionTitle`, Motor 1'in TÜM modlarıyla PAYLAŞILAN aynı `#questionTitle`/`#questionMeta` alanı) var — Motor 2'ye özel, ayrı bir "görev kartı" bileşeni yok |
 | "3 ses" rozeti (mor, stats satırında) | ✓ | ✗ | **Yok** | Kodda stats satırı Motor 1'le AYNI 4 chip (Seri/İpucu/İsabet/Seviye) — Motor 2'ye özel bir "kaç ses" göstergesi yok |
-| Seçenek kartları (büyük, harf rozeti + isim + waveform çubukları + durum metni "Çalınıyor/Çalındı/Elendi") | ✓ | ✗ | **Yok** | Kodda küçük 3-sütun `.ans` grid — SADECE tek karakter harf (`<b>A</b>`), waveform/durum metni/isim YOK. Motor 1'in TÜM diğer şıklı modlarıyla (dB/Boost-Cut/Q/Kesim Noktası) birebir AYNI görsel bileşen — Motor 2'ye özel bir kart tasarımı hiç yapılmadı |
+| Seçenek kartları (büyük, harf rozeti + isim + waveform çubukları + durum metni "Çalınıyor/Çalındı/Elendi") | ✓ | ✓ | **Kısmi (G41)** | G41: `.ans` küçük gridi kalktı, `core/three-way-cards.js` ile büyük ALT ALTA kartlar geldi (harf rozeti + "Birinci/İkinci/Üçüncü ses" + SABİT süsleme waveform'u + durum metni) — prototipin `.opt`/`.opt-key`/`.wave` yapısına yakınsadı. Kısmi kalan TEK fark: durum metni BİLİNÇLİ olarak 2 değere indirildi ("Henüz dinlenmedi"/"Çalınıyor") — "Çalındı"/"Elendi" (geçmiş takibi) bizim daha basit otomatik-döngü mekaniğimize UYARLANMADI, task'ın açık kararı |
 | Karta dokununca HEM çal HEM seç (`playCard`, tek etkileşim) | ✓ | ✗ | **Farklı model** | Kodda dinleme (`#abToggle`'ın 3-yönlü döngüsü) ile CEVAP VERME (`.ans` tıklaması) TAMAMEN AYRI iki kontrol — kullanıcı önce dinler (otomatik döngü ya da elle A/B/C butonuna basarak), sonra AYRI bir yerden (alt gridten) harfe basıp cevaplar |
 | "Sırayla Çal" butonu (elle tetiklenen sıralı oynatma) | ✓ | ✗ | **Farklı model** | Kodda G32 ile YENİ soruda döngü OTOMATİK başlıyor (kullanıcı hiç dokunmadan A→B→C ilerliyor) — prototipteki gibi elle basılan ayrı bir "Sırayla Çal" butonu yok, ama işlevsel olarak amaç (üçünü de dinletmek) farklı bir yoldan karşılanıyor |
 | "Cevabı onayla" (2 adımlı: seç → ayrı onay butonu) | ✓ | ✗ | **Farklı model** | Kodda TEK adım — `.ans` tıklaması ANINDA cevabı gönderiyor (`submitThreeWayGuess`), ayrı bir onay adımı YOK. Bu, Motor 1'in TÜM modlarıyla AYNI (kasıtlı) davranış — Motor 2'ye özgü bir sapma değil, projenin genel "tıkla=cevapla" felsefesi |
@@ -258,20 +264,20 @@ DOKUNULMADI (zaten gerçek veriyle Tam'dı). EKRAN 7'nin iki satırı Kısmi'den
 
 ---
 
-## ÖZET (06.08.2026 itibarıyla güncellendi — G40 dahil)
+## ÖZET (06.08.2026 itibarıyla güncellendi — G41 dahil)
 
 **Toplam öğe sayısı (bu tabloda listelenen ayrı satırlar): 141** (108 → 140 → 141, G36'da
-mod kartı "Sv N" çip'i için +1 yeni satır; G37/G39/G40'ta yeni satır eklenmedi, sadece
-Durum değişti; sayım `awk` ile Durum sütunu [5. alan] tek tek sınıflandırılarak
+mod kartı "Sv N" çip'i için +1 yeni satır; G37/G39/G40/G41'de yeni satır eklenmedi,
+sadece Durum değişti; sayım `awk` ile Durum sütunu [5. alan] tek tek sınıflandırılarak
 DOĞRULANDI, tahmin değil)
 
-- **Tam olanlar: 84** ("Tam" ailesi — G40'ta +2: İlerleme'nin SV rozeti tek-kartı,
-  Antrenman/Soru/İsabet stat satırı; ikisi de Ana Menü'yle AYNI veri kaynağından
-  besleniyor, bkz. DURUM.md G40)
-- **Kısmi olanlar: 23** ("Kısmi" ailesi — "Farklı model" [3, Motor 2] + "Farklı biçim,
-  daha zengin içerik" [1] dahil; G40'ta -2, İlerleme'nin iki satırı Tam'a geçti)
-- **Hiç olmayanlar ("Yok"): 20** (-2 — kulaklık uyarı sheet'iyle ilgili iki satır Yok'tan
-  Tam'a geçti; mod kartındaki kulaklık İKONU [needsHp göstergesi] hâlâ Yok, o ayrı satır)
+- **Tam olanlar: 84** (değişmedi — G41'in tek satırı Yok'tan Kısmi'ye geçti, Tam'a değil)
+- **Kısmi olanlar: 24** ("Kısmi" ailesi — "Farklı model" [3, Motor 2] + "Farklı biçim,
+  daha zengin içerik" [1] dahil; G41'de +1: Motor 2'nin "Seçenek kartları" satırı
+  Yok'tan Kısmi'ye geçti — büyük kartlar+waveform+durum metni yapıldı, durum metni
+  BİLİNÇLİ olarak 2 değere indirildiği için Tam değil, bkz. DURUM.md G41)
+- **Hiç olmayanlar ("Yok"): 19** (-1 — Motor 2'nin "Seçenek kartları" satırı Kısmi'ye
+  geçti; mod kartındaki kulaklık İKONU [needsHp göstergesi] hâlâ Yok, ayrı satır)
 - **N/A: 4** (değişmedi)
 - **Kodda olup tasarımda olmayanlar ("Ters fark"): 10** (değişmedi)
 
@@ -403,13 +409,18 @@ etkiler, mod dosyalarına (`modes/*.js`) hiç dokunmadan.
 
 > **G36 güncellemesi (06.08.2026):** (b) ve (e) bu turda YAPILDI (bkz. DURUM.md BİTTİ) —
 > notları aşağıda "G36'da yapıldı" olarak işaretlendi, orijinal analiz metni (neyin
-> eksik olduğunun kanıtı) tarihsel referans için KORUNDU. (a)/(c)/(d) hâlâ AÇIK.
+> eksik olduğunun kanıtı) tarihsel referans için KORUNDU. (c)/(d) hâlâ AÇIK, (a) G41'de
+> YAPILDI.
 
-**(a) Motor 2 kart görseli prototipteki gibi ama 3 şık:**
-Şu an YOK — `.ans` grid kullanıyor (bkz. EKRAN 3 tablosu, "Seçenek kartları" satırı).
-Prototipteki `.opt` kartı zaten 2 VEYA 3 şıkkı destekleyecek şekilde yazılmış
-(`d.n === 2 ? ['A','B'] : ['A','B','C']`) — 3 şıklı bir versiyonu doğrudan referans
-alınabilir, tasarımda EK bir uyarlama gerekmez, sadece koda geçirilmesi gerekir.
+**(a) Motor 2 kart görseli prototipteki gibi ama 3 şık — G41'de YAPILDI:**
+`core/three-way-cards.js` (Kompresör/Reverb'in PAYLAŞTIĞı) prototipin `.opt`/`.opt-key`/
+`.wave` yapısını 3 şıklı (`A/B/C`) hâliyle kodladı — harf rozeti + isim + waveform +
+durum metni, alt alta büyük kartlar. EKLENEN bir görsel: o an çalan kartın amber
+kenar+glow vurgusu (prototipte `.opt.playing`, mor — bizde marka rengiyle amber, kırmızı/
+yeşil doğru/yanlış renkleriyle çakışmasın diye). Etkileşim modeli DEĞİŞMEDİ — "karta
+dokununca hem çal hem seç" (satır 124, "Farklı model") hâlâ farklı: bizim kartlarımız
+SADECE cevap veriyor (anında), dinleme AYRI (otomatik döngü/A-B-C butonu) — bu KASITLI,
+task'ın "çalışan mekaniği koru" talimatının gereği.
 
 **(b) Her modda seviye göstergesi — G36'da YAPILDI:**
 Oyun ekranındaki küçük "Seviye N" chip'i (`#levelChip`) zaten TÜM 7 modda çalışıyordu
@@ -473,10 +484,13 @@ bileşen" sorunu — renklerin kendisi zaten doğruydu.
    - Kalibrasyon/İlerleme/Araçlar'daki küçük eksik butonlar/göstergeler — HÂLÂ AÇIK
 
 **3. En son Motor 2'nin YENİDEN TASARIMI (en yüksek risk, en büyük iş):**
-   - `.opt` kart bileşeni + "tıkla=çal" / "tıkla=cevapla" ayrışması + onay adımı — bu,
-     G35'te YENİ kurulan `THREE_WAY_MODE_IDS`/`submitThreeWayGuess` altyapısını
-     DEĞİŞTİRMEK anlamına geliyor, bu yüzden EN SONA bırakılmalı: hem Kompresör hem
-     Reverb'i AYNI ANDA etkiler, dikkatli regresyon testi gerektirir.
+   - `.opt` kart bileşeni — G41'de GÖRSEL kısmı yapıldı (bkz. madde 4a). GERİYE KALAN,
+     hâlâ AÇIK olan tek parça: "tıkla=çal" / "tıkla=cevapla" ayrışması + 2-adımlı onay
+     adımı (prototipin `playCard`/"Cevabı onayla" modeli). Bu, G35'te kurulan
+     `THREE_WAY_MODE_IDS`/`submitThreeWayGuess`'in "anında seç" davranışını DEĞİŞTİRMEK
+     anlamına geliyor — G41'in görevi AÇIKÇA bunu YAPMAMAYI istedi (mekanik çakışırsa
+     dur/sor talimatı), bu yüzden hâlâ EN SONA bırakılmalı: hem Kompresör hem Reverb'i
+     AYNI ANDA etkiler, dikkatli regresyon testi + ayrı bir ürün kararı gerektirir.
    - Seans Sonu'nun zengin hali — veri hazır (`zoneStats`/`progress.js`), ama yeni bir
      tam-ekran layout'un baştan kurulması gerekiyor; bu da bağımsız/büyük bir iş.
 
