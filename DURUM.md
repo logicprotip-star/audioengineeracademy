@@ -1,13 +1,124 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G47)
+Son güncelleme: 06.08.2026 (G48)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G47, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **SINAV SİSTEMİ
+Bu commit (G48, tek commit — kod+DURUM.md birlikte) — **SINAV SİSTEMİ DÜZELTMESİ:
+telafi artık PARKUR başarısızlığına bağlı + "10/5" etiket tutarsızlığı giderildi.**
+G47'de kurulan merkezi altyapıdaki BİR MİMARİ HATA düzeltildi: telafi (5 soruluk
+zayıf-kademe pratiği) yanlışlıkla "sınavda kalınca" tetikleniyordu — DOĞRUSU,
+task'ın bu turda netleştirdiği gibi, telafi PARKURUN SONUNDA 6 doğru
+YAPILAMAYINCA (ne kombo ne toplam eşiği tutturulduğunda) gelmeli; sınavda kalmak
+artık basit tutuldu (telafi YOK, doğrudan parkur baştan).
+
+**`core/exam-system.js` — state machine YENİDEN YAPILANDIRILDI (TAM dosya
+yeniden yazıldı, `getWeakTier`/`recordTierResult`/`EXAM_CONFIG` şekli KORUNDU):**
+- `"remedial-exam"` fazı (telafi SONRASI tekrar sınav) TAMAMEN KALDIRILDI —
+  G47'de telafi bir kez geçilince YİNE 4 soruluk bir "tekrar sınav"a giriyordu,
+  bu YANLIŞ yorumdu ve task'ın bu turda AÇIKÇA reddettiği bir akıştı.
+- Parkur sonu dalı: `parkurCorrect < TOTAL_THRESHOLD` (6) İSE artık DOĞRUDAN
+  `resetParkur()` ÇAĞIRMIYOR — `{ event: "remedial-start" }` döndürüyor, faz
+  BİLEREK `"parkur"` kalıyor (app.js'in senkron `startRemedial(tier)` çağrısına
+  kadar). Kombo yoluyla (6 peş peşe → `exam-offer`) ayrışması KORUNDU — bu dal
+  hiç değişmedi.
+- Sınavda kalma (`phase==="exam"` ve `examCorrect < EXAM_PASS_COUNT`) artık
+  BASİT: `resetParkur()` + `{ event: "exam-failed" }` — telafiye HİÇ dallanmıyor
+  (task: "sınavda kalınca telafi DEĞİL, parkur baştan").
+  Doğrusu: task'ın "sınav ya da parkur baştan" ifadesindeki "sınav" seçeneği
+  UYGULANMADI (kullanıcı onayı gerektirir, task metninde net değildi) — SADECE
+  "parkur baştan" yolu kodlandı, en basit/güvenli yorum.
+- Telafi artık KENDİ eşiğine sahip: yeni `REMEDIAL_PASS_COUNT=3` (5'te 3, %60 —
+  sınavın %75'inden (4'te 3) bilinçli olarak daha yumuşak, telafi "zorlaştırılmış
+  sınav" değil "pratik" olduğu için). `remedialCorrect` yeni bir state değişkeni
+  ile izleniyor. Telafi bitince (`remedialIndex>=REMEDIAL_LENGTH`) HER İKİ
+  durumda da (geçti/geçemedi) `resetParkur()` çağrılıyor — SONUÇ ikisinde de
+  "yeni parkur", SADECE dönen olay (`"remedial-passed"`/`"remedial-failed"`) ve
+  dolayısıyla kullanıcıya gösterilen mesaj farklı (task: "Telafi GEÇİLİRSE →
+  devam, GEÇİLEMEZSE → baştan başlar" — "devam" ve "baştan" ikisi de aynı fresh-
+  parkur mekanizmasıyla karşılanıyor, kullanıcı diliyle ayrışıyor).
+- `retryRemedial()` fonksiyonu KALDIRILDI (artık ihtiyaç yok — telafi SONRASI
+  tekrar sınav döngüsü yok).
+
+**`app.js` — `handleExamOutcome()` switch'i yeni olay adlarına göre YENİDEN
+YAZILDI:** `"remedial-start"` case'i (YENİ) `getWeakTier(es.tierStats)` ile
+zayıf kademeyi bulup `examSystem.startRemedial(tier)`'ı SENKRON çağırıyor (aynı
+turda "Telafi 1/5" render edilsin diye) + feedback'e not ekliyor
+("N doğru yapılamadı — [kademe] kademesinde 5 telafi sorusu geliyor").
+`"exam-failed"`, `"remedial-passed"`, `"remedial-failed"` case'leri artık
+BAĞIMSIZ, her biri kendi Türkçe notunu ekleyip `false` dönüyor (normal
+`scheduleNext()` akışı devam etsin diye — sheet açmıyorlar, sadece parkur
+sıfırdan devam ediyor). `"exam-offer"`/`"exam-start"`/`"exam-passed"`
+case'lerine (kombo teklifi, kutlama sheet'i, seviye atlama) DOKUNULMADI.
+
+**"10/5" ETİKET TUTARSIZLIĞI — teşhis: GERÇEK bir çifte-sayaç hatası DEĞİLDİ.**
+`ensureAutoNext(durationMs, label)`'daki `"(N)"` her zaman round-flow.js'nin
+SANİYE geri sayımıydı (`"Sonraki (5)"` = 5 saniye sonra otomatik geçiş) — ama
+buton PREFİX'i sabit `"Sonraki"` idi, HİÇBİR ZAMAN `examSystem.label()`
+okumuyordu (G47'nin kendi "BİLİNEN SINIRLAMA" notu #3'te bu ZATEN tespit
+edilmişti). `els.roundChip` ("Soru N/10") ile yan yana görününce "iki farklı
+sayaç" izlenimi veriyordu. **Düzeltme:** `ensureAutoNext()`'i saran app.js
+fonksiyonu artık `mode.EXAM_ENABLED` iken buton etiketinin PREFİX'i için de
+`examSystem.label()` kullanıyor — sonuç: `"Soru 7/10 (5) ▶"` / `"Sınav 2/4 (5)
+▶"` / `"Telafi 3/5 (5) ▶"`, roundChip ile HER ZAMAN tutarlı. Sınav
+desteklemeyen yedi modda davranış AYNEN eskisi (`"Sonraki (5) ▶"`).
+
+**Doğrulama (canlı, tarayıcıda, `Math.random=()=>0` ile deterministik "A her
+zaman doğru" testi, Kompresör):**
+- **KOMBO (KORUNDU):** 6 peş peşe doğru → "exam-offer" sheet'i EKRAN
+  GÖRÜNTÜSÜYLE doğrulandı: "Sınav hakkı kazandın! Yanıtlanacak 4 sorunuz daha
+  var ve sınav daha zor. Sınava geçmeye emin misiniz?" (remaining=4, task'ın
+  kendi örneğiyle BİREBİR). "Parkura devam et" → pozisyon/combo KORUNDU, 7.
+  soruya devam etti — regresyon YOK.
+  Not: task bu turda metni "...ister misiniz?" diye paraphrase etti, koddaki
+  gerçek metin ("...emin misiniz?") G47'den beri DEĞİŞMEDİ — task'ın KORUMA
+  talimatı ("Bu KORUNMALI, çalışıyorsa bozma") gereği BİLEREK dokunulmadı.
+- **TOPLAM:** Kombo bilerek reddedilip parkur 9/10 doğruyla bitirildi → parkur
+  sonunda `"exam-start"` ile DOĞRUDAN sınava geçti (`"Sınav 1/4"` EKRAN
+  GÖRÜNTÜSÜYLE doğrulandı) — telafiye UĞRAMADI, TOPLAM eşiği doğru çalışıyor.
+- **Sınavda kalma → basit parkur baştan:** Bu sınav bilerek 4 yanlışla
+  kaybedildi → hiçbir sheet açılmadan doğrudan `"Soru 1/10"`ya döndü (feedback
+  notu: "Sınavı geçemedin — parkur baştan başlıyor") — telafiye UĞRAMADI, kod
+  incelemesiyle DOĞRULANDI.
+- **6 doğru OLMAYINCA → telafi (asıl düzeltme):** İki AYRI parkurda test
+  edildi — (1) 4/10 doğru (kombo hiç 6'ya ulaşmadan), (2) 5/10 doğru (yine
+  kombo hiç ulaşmadan) — İKİSİNDE de parkur sonunda `"Telafi 1/5"` EKRAN
+  GÖRÜNTÜSÜYLE doğrulandı (ARTIK baştan atmıyor).
+- **Telafi geçilince/geçilemeyince:** 0/5 (telafi kaybedildi) → `"Soru 1/10"`ya
+  DÖNDÜ (baştan). Ayrı bir turda TAM 3/5 (REMEDIAL_PASS_COUNT sınırında,
+  geçti) → YİNE `"Soru 1/10"`ya döndü (devam) — HER İKİ sonuç da fresh-parkur,
+  SADECE mesaj farklı, kod incelemesiyle DOĞRULANDI.
+- **10/5 tutarsızlığı:** roundChip HER ZAMAN `examSystem.label()`'dan geliyor,
+  değişmedi; canlı testte tüm fazlarda ("Soru N/10"/"Sınav N/4"/"Telafi N/5")
+  chip TUTARLI görüldü.
+- **Sınav + kutlama (regresyon kontrolü):** Kombo ile ikinci kez sınava
+  girildi, 3/4 doğruyla (EXAM_PASS_COUNT sınırında) geçildi → "BÖLÜM GEÇTİN!"
+  sheet'i EKRAN GÖRÜNTÜSÜYLE doğrulandı: "Sınavı geçtin — Seviye 3'e
+  yükseldin! Yeni bir 10 soruluk parkur başlıyor." `#levelChip` "Seviye 3"
+  gösterdi — kutlama/seviye atlama TAMAMEN KORUNDU.
+- Konsol hatası SIFIR (~50+ otomatik tur boyunca). `npm test`: **674/674**
+  (673'ten +1 — `test/exam-system.test.mjs`'in "TELAFİ" bloğu YENİ semantiğe
+  göre YENİDEN yazıldı: `"remedial-exam"` fazı/`retryRemedial`/
+  `"remedial-exam-failed"` testleri KALDIRILDI, `"remedial-start"`/
+  `"remedial-passed"`/`"remedial-failed"` + REMEDIAL_PASS_COUNT sınır testleri
+  EKLENDİ; "TOPLAM" ve "SINAV: geçme/kalma" bloklarındaki `"parkur-failed"`/
+  `"failed"` fazı beklentileri yeni event/faz adlarına güncellendi).
+
+**KORUNANLAR (task'ın açık isteği):** Kombo uyarısı, sınav, kutlama, seviye
+atlama, 8 modun oyun mantığı/ses/zorluk HİÇ değişmedi — canlı doğrulandı.
+
+**BİLİNEN SINIRLAMA (G47'den devralınan, bu turda İLGİLİ OLMAYAN):** Sınav
+sorularının hâlâ "o modun zorlaştırılmış NORMAL soruları" olması, otomatik
+zorluk chip'inin sınav/telafi sırasında görsel olarak güncellenmemesi, diğer
+yedi modun sistemi HENÜZ miras almaması — bu turun kapsamı DIŞINDA, G47'nin
+notu geçerliliğini koruyor.
+
+---
+
+Önceki commit (G47, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **SINAV SİSTEMİ
 TEMELİ: merkezi altyapı (core/exam-system.js) + Kompresör pilotu.** Seviye
 atlamayı "sessiz XP artışı"ndan "bölüm geçme / yeterlilik sınavı" olayına
 çeviren yeni bir katman — mevcut soru üretimini/XP-seviye sistemini ÇAĞIRIR,
@@ -132,9 +243,10 @@ görev tipleri (sıralama/eşleştirme) SONRA eklenecek". (2) Otomatik zorluk
 modundaki `els.difficultySelect` görünen değeri sınav/telafi sırasında
 GÜNCELLENMİYOR (gerçek soru zorluğu `examSystem.questionTier()`'dan geliyor,
 ekrandaki "Zorluk" chip'i kullanıcının ÖNCEKİ seçimini göstermeye devam
-ediyor) — kozmetik bir tutarsızlık, işlevi ETKİLEMİYOR. (3) "Sonraki (N) ▶"
+ediyor) — kozmetik bir tutarsızlık, işlevi ETKİLEMİYOR. (3) ~~"Sonraki (N) ▶"
 oto-geçiş butonunun etiketi hâlâ generik "Sonraki" (examSystem.label()
-KULLANMIYOR) — SADECE `els.roundChip` güncellendi. (4) Diğer yedi mod HENÜZ
+KULLANMIYOR) — SADECE `els.roundChip` güncellendi.~~ — **G48'de düzeltildi**
+("10/5 tutarsızlığı", bkz. yukarıdaki G48 BİTTİ girdisi). (4) Diğer yedi mod HENÜZ
 miras almadı — task'ın "sonra her mod aynı sistemi miras alsın" isteği bu
 turun KAPSAMI DIŞINDA (pilot: SADECE Kompresör).
 

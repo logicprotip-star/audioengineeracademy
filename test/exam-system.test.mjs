@@ -128,19 +128,18 @@ describe("createExamSystem() — TOPLAM: parkur sonunda >=6 doğru → sınav; <
     assert.equal(es.phase, "exam");
   });
 
-  it("10 sorunun 5'i doğru (<6) → parkur BAŞTAN başlar, sınav YOK", () => {
+  it("10 sorunun 5'i doğru (<6) → 'remedial-start' üretir (G48: BAŞTAN atmaz, telafiye geçer — faz app.js'in startRemedial() çağrısına kadar 'parkur' kalır)", () => {
     const es = createExamSystem();
     es.setMode("kompresor");
-    const pattern = [true, false, true, false, true, false, true, false, false, false];
+    const pattern = [true, false, true, false, true, false, true, false, true, false];
     let last;
     pattern.forEach(c => { last = es.recordAnswer(c, "medium"); });
-    assert.equal(last.event, "parkur-failed");
-    assert.equal(es.phase, "parkur");
-    assert.equal(es.position, 0, "resetParkur pozisyonu sıfırlamalı");
-    assert.equal(es.parkurCorrect, 0);
+    assert.equal(last.event, "remedial-start");
+    assert.equal(es.phase, "parkur", "resetParkur BURADA çağrılmaz — startRemedial() çağrılana kadar parkur durumu KORUNUR");
+    assert.equal(es.parkurCorrect, 5);
   });
 
-  it("TAM eşikte (6/10) sınav açılır, eşiğin BİR ALTINDA (5/10) açılmaz — sınır testi (desen ARALIKLI, kombo 6'ya HİÇ ULAŞMASIN diye — TOPLAM yolu izole test edilir)", () => {
+  it("TAM eşikte (6/10) sınav açılır, eşiğin BİR ALTINDA (5/10) 'remedial-start' üretir — sınır testi (desen ARALIKLI, kombo 6'ya HİÇ ULAŞMASIN diye — TOPLAM yolu izole test edilir)", () => {
     const esPass = createExamSystem();
     esPass.setMode("kompresor");
     // en uzun peş peşe seri burada 2 — SADECE toplam eşiği (6) test ediliyor, kombo yolu DEVREYE GİRMİYOR.
@@ -149,7 +148,9 @@ describe("createExamSystem() — TOPLAM: parkur sonunda >=6 doğru → sınav; <
 
     const esFail = createExamSystem();
     esFail.setMode("kompresor");
-    [true, true, false, true, true, false, false, false, false, false].forEach(c => esFail.recordAnswer(c, "medium"));
+    let lastFail;
+    [true, true, false, true, true, false, false, false, false, false].forEach(c => { lastFail = esFail.recordAnswer(c, "medium"); });
+    assert.equal(lastFail.event, "remedial-start");
     assert.equal(esFail.phase, "parkur");
   });
 });
@@ -172,7 +173,7 @@ describe("createExamSystem() — SINAV: geçme/kalma", () => {
     assert.equal(es.phase, "passed");
   });
 
-  it(`${EXAM_CONFIG.EXAM_PASS_COUNT - 1}/${EXAM_CONFIG.EXAM_LENGTH} doğru (bir eksik) → 'exam-failed'`, () => {
+  it(`${EXAM_CONFIG.EXAM_PASS_COUNT - 1}/${EXAM_CONFIG.EXAM_LENGTH} doğru (bir eksik) → 'exam-failed', parkur DOĞRUDAN sıfırlanır (G48: basit tutuldu — telafi YOK, tekrar sınav YOK)`, () => {
     const es = createExamSystem();
     es.setMode("kompresor");
     toExam(es);
@@ -181,7 +182,8 @@ describe("createExamSystem() — SINAV: geçme/kalma", () => {
       last = es.recordAnswer(i < EXAM_CONFIG.EXAM_PASS_COUNT - 1, "pro");
     }
     assert.equal(last.event, "exam-failed");
-    assert.equal(es.phase, "failed");
+    assert.equal(es.phase, "parkur", "G48: exam-failed sonrası resetParkur() ile doğrudan parkur başlar — 'failed' fazı yok");
+    assert.equal(es.position, 0);
   });
 
   it("acknowledgePassed() parkuru SIFIRDAN başlatır (yeni bir 10 soruluk koşu)", () => {
@@ -197,49 +199,57 @@ describe("createExamSystem() — SINAV: geçme/kalma", () => {
   });
 });
 
-describe("createExamSystem() — TELAFİ: 5 soru + tekrar sınav", () => {
-  it(`startRemedial() faz='remedial', REMEDIAL_LENGTH (${EXAM_CONFIG.REMEDIAL_LENGTH}) sonunda 'remedial-exam-start'`, () => {
+// G48: telafi artık PARKUR başarısızlığına bağlı (bkz. yukarıdaki "TOPLAM" bloğu —
+// "remedial-start" olayı) ve KENDİ pass/fail eşiğine sahip — sınav sistemine
+// GERİ dönmez (eski "remedial-exam" fazı tamamen kaldırıldı). Telafi ister
+// geçilsin ister geçilmesin, sonucunda parkur SIFIRDAN başlar (resetParkur).
+describe("createExamSystem() — TELAFİ: G48 — PARKUR başarısızlığına bağlı, KENDİ eşiği var, sınava DÖNMEZ", () => {
+  it(`startRemedial() faz='remedial' yapar, etiket='Telafi 1/${EXAM_CONFIG.REMEDIAL_LENGTH}'`, () => {
     const es = createExamSystem();
     es.setMode("kompresor");
     es.startRemedial("medium");
     assert.equal(es.phase, "remedial");
     assert.equal(es.remedialTier, "medium");
     assert.equal(es.label(), `Telafi 1/${EXAM_CONFIG.REMEDIAL_LENGTH}`);
-
-    let last;
-    for (let i = 0; i < EXAM_CONFIG.REMEDIAL_LENGTH; i++) last = es.recordAnswer(true, "medium");
-    assert.equal(last.event, "remedial-exam-start");
-    assert.equal(es.phase, "remedial-exam");
-    assert.equal(es.label(), `Tekrar Sınav 1/${EXAM_CONFIG.EXAM_LENGTH}`);
   });
 
-  it("telafi SONRASI tekrar sınav geçilirse 'exam-passed' üretir (normal sınavla AYNI eşik)", () => {
+  it(`${EXAM_CONFIG.REMEDIAL_PASS_COUNT}/${EXAM_CONFIG.REMEDIAL_LENGTH} doğru → 'remedial-passed', parkur SIFIRLANIR (devam — yeni parkur)`, () => {
     const es = createExamSystem();
     es.setMode("kompresor");
     es.startRemedial("hard");
-    for (let i = 0; i < EXAM_CONFIG.REMEDIAL_LENGTH; i++) es.recordAnswer(true, "hard");
     let last;
-    for (let i = 0; i < EXAM_CONFIG.EXAM_LENGTH; i++) last = es.recordAnswer(i < EXAM_CONFIG.EXAM_PASS_COUNT, "pro");
-    assert.equal(last.event, "exam-passed");
+    for (let i = 0; i < EXAM_CONFIG.REMEDIAL_LENGTH; i++) {
+      last = es.recordAnswer(i < EXAM_CONFIG.REMEDIAL_PASS_COUNT, "hard");
+    }
+    assert.equal(last.event, "remedial-passed");
+    assert.equal(es.phase, "parkur");
+    assert.equal(es.position, 0, "telafi SONRASI (geçse de) parkur sıfırdan başlar");
+    assert.equal(es.label(), "Soru 1/10");
   });
 
-  it("telafi SONRASI tekrar sınav YİNE kaybedilirse 'remedial-exam-failed' üretir (basit 'exam-failed' DEĞİL — çağıran taraf ayırt edebilmeli)", () => {
+  it(`${EXAM_CONFIG.REMEDIAL_PASS_COUNT - 1}/${EXAM_CONFIG.REMEDIAL_LENGTH} doğru (bir eksik) → 'remedial-failed', parkur YİNE SIFIRLANIR (baştan — telafi de kaybedilirse aynı sonuç, farklı mesaj)`, () => {
     const es = createExamSystem();
     es.setMode("kompresor");
     es.startRemedial("hard");
-    for (let i = 0; i < EXAM_CONFIG.REMEDIAL_LENGTH; i++) es.recordAnswer(true, "hard");
     let last;
-    for (let i = 0; i < EXAM_CONFIG.EXAM_LENGTH; i++) last = es.recordAnswer(false, "pro");
-    assert.equal(last.event, "remedial-exam-failed");
+    for (let i = 0; i < EXAM_CONFIG.REMEDIAL_LENGTH; i++) {
+      last = es.recordAnswer(i < EXAM_CONFIG.REMEDIAL_PASS_COUNT - 1, "hard");
+    }
+    assert.equal(last.event, "remedial-failed");
+    assert.equal(es.phase, "parkur");
+    assert.equal(es.position, 0);
   });
 
-  it("retryRemedial() YENİ bir telafi turu başlatır (döngü devam edebilir)", () => {
+  it("telafi sırasında questionTier() remedialTier'ı döner, EXAM_DIFFICULTY veya kullanıcı seçimi DEĞİL", () => {
     const es = createExamSystem();
     es.setMode("kompresor");
-    es.retryRemedial("easy");
-    assert.equal(es.phase, "remedial");
-    assert.equal(es.remedialTier, "easy");
-    assert.equal(es.remedialIndex, 0);
+    es.startRemedial("easy");
+    assert.equal(es.questionTier("hard", "pro"), "easy");
+  });
+
+  it("retryRemedial artık yok — API'de retryRemedial fonksiyonu BULUNMAMALI (G48: telafi sonrası tekrar sınav akışı kaldırıldı)", () => {
+    const es = createExamSystem();
+    assert.equal(es.retryRemedial, undefined);
   });
 });
 
@@ -250,7 +260,7 @@ describe("createExamSystem() — questionTier() (createQuestion'a HANGİ zorluğ
     assert.equal(es.questionTier("hard", "pro"), "hard");
   });
 
-  it("faz='exam'/'remedial-exam' iken EXAM_DIFFICULTY döner (kullanıcı seçimi YOK SAYILIR)", () => {
+  it("faz='exam' iken EXAM_DIFFICULTY döner (kullanıcı seçimi YOK SAYILIR)", () => {
     const es = createExamSystem();
     es.setMode("kompresor");
     playCorrect(es, 6);

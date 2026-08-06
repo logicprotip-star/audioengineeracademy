@@ -1320,9 +1320,19 @@ function handleExamOutcome(q, result) {
     case "exam-start":
       appendExamNote(`Sınav başlıyor — ${EXAM_CONFIG.EXAM_LENGTH} soru, zorlaştırılmış.`);
       return false;
-    case "parkur-failed":
-      appendExamNote(`${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — parkur baştan başlıyor.`);
+    // G48 DÜZELTMESİ: telafi artık BURADA (parkur TOPLAM<6, ne kombo ne
+    // toplam yolu tetiklendi) başlıyor — ÖNCEDEN (G47) burada doğrudan
+    // "parkur-failed" (telafi YOK) vardı, hata BUYDU.
+    case "remedial-start": {
+      const weak = getWeakTier(es.tierStats);
+      // Yeterli veri yoksa (yeni kullanıcı/henüz hiç yanlış yapmamış) makul
+      // bir orta nokta — "medium" (KULAKLA/PLAYTEST DOĞRULANMADI, task'ın
+      // "zayıf bölge yoksa da telafi çalışsın" isteğinin doğal varsayılanı).
+      const tier = (weak && weak.tier) || "medium";
+      examSystem.startRemedial(tier);
+      appendExamNote(`${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — ${mode.DIFFICULTY[tier]?.label || tier} kademesinde ${EXAM_CONFIG.REMEDIAL_LENGTH} telafi sorusu geliyor.`);
       return false;
+    }
     case "exam-passed": {
       es.examLevel = (es.examLevel || 1) + 1;
       persistStats();
@@ -1335,18 +1345,18 @@ function handleExamOutcome(q, result) {
       openExamPassSheet(es.examLevel);
       return true; // scheduleNext YOK — kullanıcı kutlamayı "Devam Et" ile kapatana kadar bekler
     }
+    // G48: sınavda kalmak artık BASİT (task: "sınav tekrar ya da parkur
+    // baştan") — telafi YOK, doğrudan parkur baştan (core/exam-system.js
+    // resetParkur'u ZATEN çağırdı).
     case "exam-failed":
-    case "remedial-exam-failed": {
-      const weak = getWeakTier(es.tierStats);
-      // Yeterli veri yoksa (yeni kullanıcı) makul bir orta nokta — "medium"
-      // (KULAKLA/PLAYTEST DOĞRULANMADI, task'ın "zayıf bölge yoksa da telafi
-      // çalışsın" isteğinin doğal bir varsayılanı).
-      const tier = (weak && weak.tier) || "medium";
-      if (outcome.event === "remedial-exam-failed") examSystem.retryRemedial(tier);
-      else examSystem.startRemedial(tier);
-      appendExamNote(`Sınavı geçemedin — ${mode.DIFFICULTY[tier]?.label || tier} kademesinde ${EXAM_CONFIG.REMEDIAL_LENGTH} telafi sorusu geliyor.`);
+      appendExamNote("Sınavı geçemedin — parkur baştan başlıyor.");
       return false;
-    }
+    case "remedial-passed":
+      appendExamNote("Telafiyi geçtin — parkura devam.");
+      return false;
+    case "remedial-failed":
+      appendExamNote("Telafiyi geçemedin — parkur baştan başlıyor.");
+      return false;
     default:
       return false;
   }
@@ -2654,7 +2664,17 @@ function ensureAutoNext(durationMs) {
   }
   autoPlaying = true;
   updateStartBtnLabel();
-  const label = challenge.active ? `Soru ${challenge.done + 1}/10` : "Sonraki";
+  // G48: "10/5 tutarsızlığı" düzeltmesi — bu buton önceden "Sonraki"
+  // (jenerik) diyordu, üstteki els.roundChip ise (G47'den beri)
+  // examSystem.label()'dan "Soru N/10"/"Sınav N/4"/"Telafi N/5" okuyordu.
+  // "Sonraki (5) ▶" görüldüğünde ("(5)" aslında SANİYE geri sayımı, soru
+  // sayacı DEĞİL) üstteki "Soru 6/10" ile YAN YANA iki farklı "5"/"10"
+  // görünüp ÇAKIŞIYORMUŞ gibi okunuyordu. Artık mode.EXAM_ENABLED bir modda
+  // (bugün Kompresör) bu buton da AYNI examSystem.label()'ı önek olarak
+  // kullanıyor — "Soru 7/10 (5) ▶" gibi, İKİ sayı da NE anlama geldiği
+  // açık. Diğer yedi modda mode.EXAM_ENABLED undefined → ÖNCEKİ davranış
+  // (challenge.active ? "Soru N/10" : "Sonraki") BİREBİR aynı kalır.
+  const label = mode.EXAM_ENABLED ? examSystem.label() : challenge.active ? `Soru ${challenge.done + 1}/10` : "Sonraki";
   roundFlow.ensureAutoNext(durationMs, label);
 }
 

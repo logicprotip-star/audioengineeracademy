@@ -1,4 +1,4 @@
-// G47 — SINAV SİSTEMİ: merkezi altyapı. Seviye atlamayı "sessiz XP artışı"ndan
+// G47/G48 — SINAV SİSTEMİ: merkezi altyapı. Seviye atlamayı "sessiz XP artışı"ndan
 // "bölüm geçme / yeterlilik sınavı" olayına çeviren katman — mevcut soru
 // üretimini (mode.createQuestion) ÇAĞIRIR, DEĞİŞTİRMEZ; mevcut XP/seviye
 // hesabını (progress.js) ÇAĞIRIR, PARALEL BİR SİSTEM KURMAZ (bkz. progress.js
@@ -8,23 +8,42 @@
 // üretir, bu dosya HİÇBİR yerde `document`/`Audio` görmez.
 //
 // ═══════════════════════════════════════════════════════════════════════════
+// G48 DÜZELTMESİ — kullanıcının kendi tespit ettiği İKİ gerçek hata giderildi:
+//   1. TELAFİ YANLIŞ YERE BAĞLIYDI: G47'de telafi "sınavda kalınca" (exam-
+//      failed) tetikleniyordu; task'ın DOĞRU akışı telafinin PARKUR
+//      başarısızlığına (10 soru sonunda <6 doğru, kombo da 6'ya hiç
+//      ulaşmadıysa) bağlanmasıydı. DÜZELTİLDİ: parkur <6 doğruyla biterse
+//      artık DOĞRUDAN parkur baştan atmıyor, "remedial-start" olayı üretip
+//      telafiyi BAŞLATIYOR. Sınavda kalmak (exam-failed) artık BASİT: telafi
+//      YOK, doğrudan parkur baştan (task: "basit tut").
+//   2. "remedial-exam" (telafi SONRASI tekrar sınav) fazı TAMAMEN KALDIRILDI —
+//      artık telafinin KENDİSİ bir REMEDIAL_PASS_COUNT eşiğiyle geçilir/
+//      geçilemez (task: "Telafi GEÇİLİRSE → devam, GEÇİLEMEZSE → baştan
+//      başlar" — ayrı bir "tekrar sınav" adımından HİÇ bahsetmiyor).
+// ═══════════════════════════════════════════════════════════════════════════
+//
 // MEKANİK (task'ın kendi tanımı — DURUM.md/TASARIM.md'de "SINAV SİSTEMİ"
-// başlıklı bir bölüm ARANDI, BULUNAMADI; bu dosya SADECE görev mesajındaki
-// mekanik açıklamasından türetildi — bkz. DURUM.md G47 BİTTİ, "belge eksik"
-// notu):
+// başlıklı bir bölüm G47'de ARANDI, BULUNAMADI; bu dosya SADECE görev
+// mesajlarındaki mekanik açıklamalarından türetildi — bkz. DURUM.md G47/G48
+// BİTTİ):
 //   1. 10 SORULUK PARKUR — her doğru/yanlış cevap parkur pozisyonunu ilerletir.
 //   2. SINAV HAKKI iki yoldan biriyle açılır:
 //      a) KOMBO: parkur İÇİNDE 6 soruya PEŞ PEŞE doğru (comboInParkur) →
 //         parkur bitmeden ERKEN açılır — ["exam-offer" olayı, kullanıcı onaylamalı].
-//      b) TOPLAM: parkur SONUNDA (10. soru) toplam >=6 doğru (kombo kırılmış
-//         olsa bile) → sınav OTOMATİK açılır.
-//   3. Parkur sonunda toplam <6 doğru → parkur BAŞTAN başlar (sınav YOK).
+//      b) TOPLAM: peş peşe olmadıysa (kombo kırıldı), parkur SONUNDA (10.
+//         soru) toplam >=6 doğru → sınav OTOMATİK açılır.
+//   3. Parkur sonunda toplam <6 doğru (ne kombo ne toplam yolu) → zayıf
+//      KADEMEDE (bkz. getWeakTier) REMEDIAL_LENGTH soruluk bir TELAFİ
+//      parkuru başlar.
+//      - Telafi GEÇİLİRSE (REMEDIAL_PASS_COUNT+ doğru) → parkur BAŞTAN
+//        (yeni/normal bir 10 soruluk koşu, "devam").
+//      - Telafi GEÇİLEMEZSE → parkur YİNE BAŞTAN (aynı sonuç, farklı olay —
+//        app.js farklı bir geri bildirim METNİ gösterebilsin diye ayrı
+//        event, mekanik SONUÇ ikisinde de AYNI: taze bir parkur).
 //   4. SINAV: EXAM_LENGTH soru, mod.EXAM_DIFFICULTY zorluğunda (zorlaştırılmış) —
-//      EXAM_PASS_COUNT+ doğru → GEÇTİ (seviye atlar). Az doğru → KALDI.
-//   5. KALINCA: kullanıcının zayıf KADEMESİNDE (bkz. getWeakTier — Kompresör'ün
-//      frekans-bölgesi kavramı YOK, bu yüzden "zayıf bölge" burada "zayıf
-//      ZORLUK KADEMESİ" olarak yorumlandı, task onayı alındı) REMEDIAL_LENGTH
-//      soruluk bir telafi parkuru → SONRA sınav TEKRAR (remedial-exam).
+//      EXAM_PASS_COUNT+ doğru → GEÇTİ (seviye atlar, "BÖLÜM GEÇTİN"). Az
+//      doğru → KALDI — BASİT tutuldu (task): telafi YOK, doğrudan parkur
+//      baştan.
 //
 // comboInParkur GLOBAL stats.combo'yu KULLANMAZ (BİLİNÇLİ karar) — stats.combo
 // TÜM modlar/oturumlar arasında PAYLAŞILAN, hiçbir mod/parkur sınırında
@@ -36,11 +55,18 @@
 
 export const EXAM_CONFIG = {
   PARKUR_LENGTH: 10,
-  COMBO_THRESHOLD: 6,   // parkur İÇİNDE peş peşe doğru → erken sınav teklifi
-  TOTAL_THRESHOLD: 6,   // parkur SONUNDA toplam doğru → sınav (kombo kırılmışsa bile)
-  EXAM_LENGTH: 4,       // sınav soru sayısı — task'ın "örn 3-5" aralığından seçildi
-  EXAM_PASS_COUNT: 3,   // sınavı geçmek için gereken doğru sayısı (4'te 3 = %75, "çoğunu")
-  REMEDIAL_LENGTH: 5,   // telafi parkuru soru sayısı — task'ın kendi sayısı
+  COMBO_THRESHOLD: 6,     // parkur İÇİNDE peş peşe doğru → erken sınav teklifi
+  TOTAL_THRESHOLD: 6,     // parkur SONUNDA toplam doğru → sınav (kombo kırılmışsa bile)
+  EXAM_LENGTH: 4,         // sınav soru sayısı — task'ın "örn 3-5" aralığından seçildi
+  EXAM_PASS_COUNT: 3,     // sınavı geçmek için gereken doğru sayısı (4'te 3 = %75, "çoğunu")
+  REMEDIAL_LENGTH: 5,     // telafi parkuru soru sayısı — task'ın kendi sayısı
+  // G48: task "Telafi GEÇİLİRSE/GEÇİLEMEZSE" diyor ama kesin bir eşik
+  // VERMİYOR — sınavın (EXAM_PASS_COUNT/EXAM_LENGTH=%75) AKSİNE telafi
+  // "zorlaştırılmış" DEĞİL, kullanıcının KENDİ zayıf kademesinde bir pratik
+  // turu — bu yüzden daha YUMUŞAK bir çoğunluk eşiği (5'te 3 = %60) seçildi.
+  // KULAKLA/PLAYTEST DOĞRULANMADI, makul bir başlangıç (diğer tüm sayılarla
+  // AYNI dürüstlük notu).
+  REMEDIAL_PASS_COUNT: 3,
   // Zayıf kademe aramasında denenecek sıra — "proplus" BİLEREK dışarıda (o,
   // difficulty merdiveninin bir noktası değil, ayrı/özel bir mod — bkz.
   // difficulty-curve.js tierForLevel dosya başı notu, Z5 kararı).
@@ -50,10 +76,6 @@ export const EXAM_CONFIG = {
   // erken karar vermemek).
   MIN_TIER_SAMPLES: 3
 };
-
-// KULAKLA/PLAYTEST DOĞRULANMADI — diğer sekiz modun/merkezi eğrinin AYNI
-// dürüstlük notu: bu sayılar (6/6/4/3/5) task'ın verdiği aralık/örneklerden
-// seçilmiş makul bir BAŞLANGIÇ, kesin nihai denge iddia edilmiyor.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SAF FONKSİYONLAR — tierStats kayıt/sorgu (kişiselleştirme, personalization.js'in
@@ -103,11 +125,12 @@ export function getWeakTier(tierStats, config = EXAM_CONFIG) {
 
 export function createExamSystem(config = EXAM_CONFIG) {
   let modeId = null;
-  // "parkur"          — normal 10 soruluk koşu
-  // "exam-offer"      — kombo 6'ya ulaştı, kullanıcı erken sınava geçsin mi diye SORULUYOR
-  // "exam"            — sınav soruları cevaplanıyor
-  // "remedial"        — telafi soruları cevaplanıyor (kademe = remedialTier)
-  // "remedial-exam"   — telafi SONRASI tekrar sınav
+  // "parkur"     — normal 10 soruluk koşu
+  // "exam-offer" — kombo 6'ya ulaştı, kullanıcı erken sınava geçsin mi diye SORULUYOR
+  // "exam"       — sınav soruları cevaplanıyor
+  // "remedial"   — telafi soruları cevaplanıyor (kademe = remedialTier) — G48:
+  //                SADECE parkur TOPLAM<6 olduğunda buraya girilir, "sınavda
+  //                kalınca" DEĞİL (bkz. dosya başı G48 notu).
   let phase = "parkur";
   let position = 0;         // parkur içinde cevaplanan soru sayısı [0, PARKUR_LENGTH]
   let parkurCorrect = 0;    // parkur içinde TOPLAM doğru (kombo kırılsa da SIFIRLANMAZ)
@@ -116,6 +139,7 @@ export function createExamSystem(config = EXAM_CONFIG) {
   let examIndex = 0;
   let examCorrect = 0;
   let remedialIndex = 0;
+  let remedialCorrect = 0;
   let remedialTier = null;
 
   function resetParkur() {
@@ -127,6 +151,7 @@ export function createExamSystem(config = EXAM_CONFIG) {
     examIndex = 0;
     examCorrect = 0;
     remedialIndex = 0;
+    remedialCorrect = 0;
     remedialTier = null;
   }
 
@@ -146,17 +171,23 @@ export function createExamSystem(config = EXAM_CONFIG) {
   // (ör. "pro") — normal parkur sorularında HİÇ devreye girmez, kullanıcının
   // kendi Otomatik/Sabit seçimi AYNEN çalışmaya devam eder.
   function questionTier(userSelectedTier, examDifficulty) {
-    if (phase === "exam" || phase === "remedial-exam") return examDifficulty;
+    if (phase === "exam") return examDifficulty;
     if (phase === "remedial") return remedialTier || userSelectedTier;
     return userSelectedTier;
   }
 
   // app.js'in "Soru N/10" göstergesinin (els.roundChip) YERİNE geçecek metin —
   // exam-enabled bir modda oyun uzunluğu (Serbest/10 Soruluk Bölüm) FARK ETMEKSİZİN
-  // HER ZAMAN bu kullanılır (bkz. app.js renderQuestion).
+  // HER ZAMAN bu kullanılır (bkz. app.js renderQuestion). G48: app.js'in oto-
+  // geçiş butonunun ÖNEKİ de (ensureAutoNext) artık AYNI etiketi kullanıyor —
+  // "10/5 tutarsızlığı" (üstte "Soru 6/10", buton "Sonraki (5)") bu YÜZDEN
+  // oluşuyordu: buton hiç bu etiketi OKUMUYORDU, jenerik "Sonraki" + saniye
+  // geri sayımı gösteriyordu (o "(5)" bir soru sayacı DEĞİL, saniye geri
+  // sayımıydı — ama İKİSİ birden ekranda "5" ve "10" görününce ÇAKIŞIYORMUŞ
+  // gibi okunuyordu). Artık HER İKİ yüzey de (üst chip + alt buton öneki) BU
+  // fonksiyondan besleniyor, tutarlı.
   function label() {
     if (phase === "exam") return `Sınav ${examIndex + 1}/${config.EXAM_LENGTH}`;
-    if (phase === "remedial-exam") return `Tekrar Sınav ${examIndex + 1}/${config.EXAM_LENGTH}`;
     if (phase === "remedial") return `Telafi ${remedialIndex + 1}/${config.REMEDIAL_LENGTH}`;
     return `Soru ${position + 1}/${config.PARKUR_LENGTH}`;
   }
@@ -164,13 +195,20 @@ export function createExamSystem(config = EXAM_CONFIG) {
   // Bir cevap verildikten SONRA (mode.evaluateAnswer sonucu belli olunca) ÇAĞRILIR.
   // Dönen `event` alanı app.js'in bir SONRAKİ adımda ne göstereceğini/yapacağını
   // belirler:
-  //   "continue"              — hiçbir özel olay yok, normal akışa devam
-  //   "exam-offer"             — erken sınav teklifi göster (remaining: kaç soru kaldı)
-  //   "exam-start"             — parkur TOPLAM eşiğiyle sınav otomatik başladı
-  //   "parkur-failed"          — 6 doğru yapılamadı, parkur baştan başladı (resetParkur ZATEN çağrıldı)
-  //   "exam-passed"            — sınav geçildi (examLevel'i artırmak/kutlama app.js'in işi)
-  //   "exam-failed"            — sınav kaybedildi, telafi BAŞLATILMALI (app.js startRemedial çağırmalı)
-  //   "remedial-exam-failed"   — telafi SONRASI sınav YİNE kaybedildi (yeni bir telafi turu başlatılabilir)
+  //   "continue"         — hiçbir özel olay yok, normal akışa devam
+  //   "exam-offer"        — erken sınav teklifi göster (remaining: kaç soru kaldı)
+  //   "exam-start"        — parkur TOPLAM eşiğiyle sınav otomatik başladı
+  //   "remedial-start"     — parkur <6 doğruyla bitti (kombo da hiç 6'ya ulaşmadı) —
+  //                          app.js getWeakTier() ile bulduğu kademeyi vererek
+  //                          startRemedial(tier) ÇAĞIRMALI (bkz. o fonksiyon)
+  //   "exam-passed"        — sınav geçildi (examLevel'i artırmak/kutlama app.js'in işi)
+  //   "exam-failed"        — sınav kaybedildi — G48: BASİT, telafi YOK, parkur
+  //                          BAŞTAN (resetParkur ZATEN çağrıldı)
+  //   "remedial-passed"    — telafi geçildi — parkur BAŞTAN (yeni/normal koşu,
+  //                          "devam" — resetParkur ZATEN çağrıldı)
+  //   "remedial-failed"    — telafi geçilemedi — parkur YİNE BAŞTAN (resetParkur
+  //                          ZATEN çağrıldı; SONUÇ remedial-passed'la AYNI, SADECE
+  //                          app.js'in göstereceği METİN farklı olsun diye ayrı olay)
   function recordAnswer(correct, tier) {
     if (phase === "parkur") {
       position++;
@@ -188,13 +226,19 @@ export function createExamSystem(config = EXAM_CONFIG) {
           examCorrect = 0;
           return { event: "exam-start" };
         }
-        resetParkur();
-        return { event: "parkur-failed" };
+        // G48 DÜZELTMESİ: ÖNCEDEN burada resetParkur() + "parkur-failed" vardı
+        // (telafi YOKTU). Artık telafi TAM OLARAK burada başlıyor — parkur
+        // fazı BİLEREK "parkur" olarak BIRAKILIYOR (henüz remedialTier YOK),
+        // app.js "remedial-start" olayını alınca getWeakTier()'i hesaplayıp
+        // startRemedial(tier) ÇAĞIRARAK fazı "remedial"e GEÇİRİYOR (bkz. o
+        // fonksiyon) — aynı senkron çağrı zincirinde, kullanıcı arada hiçbir
+        // soru GÖRMÜYOR.
+        return { event: "remedial-start" };
       }
       return { event: "continue" };
     }
 
-    if (phase === "exam" || phase === "remedial-exam") {
+    if (phase === "exam") {
       examIndex++;
       if (correct) examCorrect++;
       if (examIndex >= config.EXAM_LENGTH) {
@@ -203,20 +247,20 @@ export function createExamSystem(config = EXAM_CONFIG) {
           phase = "passed";
           return { event: "exam-passed" };
         }
-        const wasRemedialExam = phase === "remedial-exam";
-        phase = "failed";
-        return { event: wasRemedialExam ? "remedial-exam-failed" : "exam-failed" };
+        // G48: BASİT tutuldu — telafi YOK, doğrudan parkur baştan.
+        resetParkur();
+        return { event: "exam-failed" };
       }
       return { event: "continue" };
     }
 
     if (phase === "remedial") {
       remedialIndex++;
+      if (correct) remedialCorrect++;
       if (remedialIndex >= config.REMEDIAL_LENGTH) {
-        phase = "remedial-exam";
-        examIndex = 0;
-        examCorrect = 0;
-        return { event: "remedial-exam-start" };
+        const passed = remedialCorrect >= config.REMEDIAL_PASS_COUNT;
+        resetParkur(); // İKİ durumda da (geçti/geçemedi) SONUÇ aynı: taze bir parkur
+        return { event: passed ? "remedial-passed" : "remedial-failed" };
       }
       return { event: "continue" };
     }
@@ -239,27 +283,19 @@ export function createExamSystem(config = EXAM_CONFIG) {
     phase = "parkur";
   }
 
-  // "exam-failed" olayından sonra app.js'in getWeakTier() ile bulduğu kademeyi
-  // vererek çağırması gereken fonksiyon — telafi parkurunu başlatır.
+  // "remedial-start" olayından sonra app.js'in getWeakTier() ile bulduğu
+  // kademeyi vererek çağırması gereken fonksiyon — telafi parkurunu başlatır.
   function startRemedial(tier) {
     remedialTier = tier;
     phase = "remedial";
     remedialIndex = 0;
+    remedialCorrect = 0;
   }
 
   // "exam-passed" olayından sonra app.js kutlamayı gösterip (ve examLevel'i
   // artırıp) BUNU çağırır — parkur sıfırdan başlar (yeni bir 10 soruluk koşu).
   function acknowledgePassed() {
     resetParkur();
-  }
-
-  // "remedial-exam-failed" sonrası — task'ın belirtmediği bir uç durum: aynı
-  // döngü (telafi → tekrar sınav) YENİDEN başlar. tierStats HER cevapla
-  // güncellendiği için (bkz. app.js) zayıf kademe kendiliğinden GÜNCEL kalır,
-  // aynı kademe TEKRAR seçilebilir ya da kullanıcı o kademede pratik yaptıkça
-  // başka bir kademe daha zayıf hâle gelip YERİNİ alabilir.
-  function retryRemedial(tier) {
-    startRemedial(tier);
   }
 
   return {
@@ -271,7 +307,6 @@ export function createExamSystem(config = EXAM_CONFIG) {
     acceptEarlyExam,
     declineEarlyExam,
     startRemedial,
-    retryRemedial,
     acknowledgePassed,
     get modeId() { return modeId; },
     get phase() { return phase; },
@@ -281,6 +316,7 @@ export function createExamSystem(config = EXAM_CONFIG) {
     get examIndex() { return examIndex; },
     get examCorrect() { return examCorrect; },
     get remedialIndex() { return remedialIndex; },
+    get remedialCorrect() { return remedialCorrect; },
     get remedialTier() { return remedialTier; }
   };
 }
