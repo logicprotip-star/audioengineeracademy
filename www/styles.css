@@ -214,8 +214,16 @@
       color:var(--am);background:rgba(255,176,32,.14);white-space:nowrap;
     }
     /* Pro rozeti: motor renginden bağımsız, sabit — seviye kilidiyle (mode-lock-row)
-       karışmaması için ayrı renk/konum (kart üstü vs. kart altı). */
-    .mode-chip-pro{color:#f2c94c;background:rgba(242,201,76,.16)}
+       karışmaması için ayrı renk/konum (kart üstü vs. kart altı). G36: rengi #f2c94c'ten
+       var(--am)'a çekildi — Dizayn/prototype.html'in paletiyle (ve bu chip'in kendisinin
+       kullandığı .mode-chip'in TEMEL rengiyle) birebir hizalansın diye, kopyala-yapıştır
+       kalıntısı bir sapmaydı. */
+    .mode-chip-pro{color:var(--am);background:rgba(255,176,32,.16)}
+    /* G36: mod kartı seviye rozeti ("Sv N") — Pro rozetinden AYRI/nötr bir renk, ikisi
+       aynı kartta (Pro + seviyesi oynanmış) yan yana durabilsin diye .mode-top'un sağ
+       tarafı bir flex satırına sarıldı (bkz. index.html/app.js renderModeGrid notu). */
+    .mode-chip-level{color:var(--tx-2);background:rgba(255,255,255,.08)}
+    .mode-top-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
     .mode-card h4{margin:0;font-size:15px;font-weight:700;line-height:1.25}
     .mode-card p{margin:0;font-size:14px;line-height:1.4;color:var(--tx-3)}
     .mode-mini{margin-top:auto;height:5px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
@@ -714,6 +722,18 @@
     .cal-step-dot{width:7px;height:7px;border-radius:99px;background:rgba(255,255,255,.16);transition:background .18s ease,transform .18s ease}
     .cal-step-dot.done{background:rgba(255,176,32,.55)}
     .cal-step-dot.active{background:var(--am);transform:scale(1.4)}
+
+    /* ---- seviye rozeti (ana menü) — G36, Dizayn/prototype.html .lvl/.lvl-badge'den
+       taşındı. XP/seviye verisi zaten var (progress.xpProgress, İlerleme sekmesiyle AYNI
+       hesap — bkz. app.js updateUI notu), burada SADECE görsel bir kart eklendi. */
+    .lvl{display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:14px}
+    .lvl-badge{
+      width:58px;height:58px;flex:none;border-radius:16px;color:#1A1206;
+      background:linear-gradient(150deg,var(--am),var(--am-2));
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+    }
+    .lvl-badge small{font-size:13px;font-weight:800;letter-spacing:.1em;opacity:.78}
+    .lvl-badge b{font-size:22px;line-height:1;font-weight:800}
 
     /* ---- bugünün önerisi (ana menü) ---- */
     .sug{position:relative;padding:16px;border-radius:22px;margin-bottom:18px;

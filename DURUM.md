@@ -1,11 +1,62 @@
 # DURUM
 
-Son güncelleme: 05.08.2026
+Son güncelleme: 06.08.2026
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
+
+Bu commit (G36, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Ana menü reskin:
+prototipe yakınsa (seviye rozeti + kart seviye çip'leri + öneri kartı iki buton + renk
+düzeltmesi).** TASARIM.md'nin bir önceki
+turda ürettiği RESKIN RAPORU'nun önerdiği "1. adım"ın (merkezi görsel katman, sıfır
+fonksiyonel risk) İLK somut uygulaması — SADECE görsel, mevcut veriyi göstermek, ses/
+zorluk/mod dosyalarına DOKUNULMADI.
+
+**1. Seviye rozeti (Ana Menü):** `Dizayn /prototype.html`'in `.lvl`/`.lvl-badge`
+yapısı taşındı — altın rozet ("SV N") + "Kalibre Kulak" başlığı + XP ilerleme barı +
+"Sonraki seviyeye X XP". Veri KAYNAĞI YENİ değil — İlerleme sekmesindeki `levelValue`/
+`xpBar`/`progressText`'in kullandığı AYNI hesap (`progress.xpProgress(diffState().xp)`,
+`updateUI()` içinde TEK bir yerden hem İlerleme'ye hem Menü'ye yazılıyor) — bu, iki
+ekranın SAYISAL olarak asla birbirinden sapamayacağını garanti ediyor (canlı doğrulandı:
+ikisi de "Seviye 3, 141/260 XP" gösterdi).
+
+**2. Mod kartı seviye çip'i ("Sv N"):** Her oynanabilir kartın `.mode-top`'unda, Pro
+rozetinden AYRI (yeni `.mode-chip-level`, nötr gri — Pro'nun amberiyle KARIŞMASIN diye)
+bir çip — `progress.modeLevel(stats, entry.id)`, oyun-içi `#levelChip`'in AYNI kaynağı.
+Prototipte kilit ikonuyla AYNI slotta (birbirini dışlıyorlardı); koda geçirirken
+`.mode-top-right` adında yeni bir flex-wrap sarmalayıcı eklendi ki Pro+Sv AYNI kartta
+yan yana durabilsin (dB Seviyesi'nde canlı doğrulandı). **BİLİNÇLİ karar:** çip SADECE
+`playable` kartlarda gösteriliyor — kilitli bir modun "seviyesi"ni göstermek kafa
+karıştırırdı, prototip de zaten kilitliyken çip yerine kilit ikonu gösteriyordu (AYNI
+mantık, koda uyarlandı).
+
+**3. "Bugünün Önerisi" kartı — iki buton:** Prototipteki `.row` (flex, `.btn.green`
+flex:1 + `.btn.ghost` flex:none) deseni BİREBİR taşındı — "Seti başlat" (birincil) +
+"Şimdi değil" (ikincil, X ile AYNI `daily.tipDismissed=true` kapatma mantığı — prototipte
+de ikisi aynı davranış). **Ürün kararı (kullanıcıya soruldu, cevap alındı):** prototipteki
+statik "· 8 soru" sayısı EKLENMEDİ — gerçek kodda "Seti başlat"a basınca girilen mod
+Serbest (sınırsız) kalıyor, sınırlı bir "set" kavramı yok; sayı göstermek tutulmayan bir
+söz verirdi (CLAUDE.md "Sayı uydurma"). Kullanıcı, sayı göstermeden sadece "Seti başlat"
+yazılmasını (davranış AYNI kalsın) seçti. **Doğrulama sırasında bulunan gerçek bir
+düzeltme:** kartın "Başla" butonu zaten (önceki bir M1-4 turunda) odak aralığını en
+zayıf bölgeye kilitliyordu (`mode.FOCUS_RANGES`/`focusIdForZone`) — TASARIM.md'nin bu
+satırdaki eski notu ("odak-aralığı özelliği kodda yok") STALE'di, bu turda kod
+okumasıyla YAKALANIP düzeltildi (TASARIM.md'de ayrıca işaretlendi).
+
+**4. Renk düzeltmesi:** `.mode-chip-pro`'nun `#f2c94c`'ı `var(--am)` (`#FFC246`) — TÜM
+Pro rozetlerinin artık `.mode-chip`'in TEMEL amberiyle birebir aynı olduğu canlı
+doğrulandı (Stereo Genişlik/Pan Konumu/dB Seviyesi/vb. hepsi aynı ton).
+
+Doğrulama: `npm test` **561/561** DEĞİŞMEDEN geçti (görsel-only değişiklik, hiçbir test
+etkilenmedi). Canlı tarayıcıda: seviye rozeti doğru veriyle render oluyor + İlerleme'yle
+BİREBİR aynı sayılar; her oynanabilir kartta "Sv N" çip'i doğru (Frekans Bulma/Kesim
+Noktası "Sv 1", Q/Boost-Cut "Sv 2", dB Seviyesi "Pro"+"Sv 1" YAN YANA); kilitli kartlarda
+(Hız Modu/Stereo Genişlik/Pan Konumu) çip YOK, sadece kilit satırı; öneri kartı iki
+butonlu, "Şimdi değil" X ile AYNI şekilde kartı kapatıyor; bir moda (Frekans Bulma)
+girilip tam bir round oynandı — fonksiyon (ses/soru üretimi/puanlama) DEĞİŞMEDEN
+çalıştı; sıfır konsol hatası tüm oturum boyunca.
 
 Commit `e28be55` — G35: **Mod 7 "Reverb" — Motor 2'nin İKİNCİ modu (Kompresör
 şablonundan türetildi).** (Not: commit mesajında yanlışlıkla "Mod 8"

@@ -74,6 +74,14 @@ const els = {
   dailyTipClose: document.getElementById("dailyTipClose"),
   dailyTipText: document.getElementById("dailyTipText"),
   dailyTipStartBtn: document.getElementById("dailyTipStartBtn"),
+  dailyTipSkipBtn: document.getElementById("dailyTipSkipBtn"),
+  // G36: Ana Menü seviye rozeti (Dizayn/prototype.html .lvl-badge'den) — İlerleme
+  // sekmesindeki levelValue/xpBar/progressText ile AYNI veriyi (updateUI() içinde AYNI
+  // xp = progress.xpProgress(diffState().xp) hesabından) gösterir, ayrı bir kaynak DEĞİL.
+  menuLevelValue: document.getElementById("menuLevelValue"),
+  menuXpText: document.getElementById("menuXpText"),
+  menuXpBar: document.getElementById("menuXpBar"),
+  menuNextLevelText: document.getElementById("menuNextLevelText"),
 
   // genel ayarlar (dişli) + yardım/bilgi ekranları
   menuSettingsBtn: document.getElementById("menuSettingsBtn"),
@@ -1127,13 +1135,21 @@ function renderModeGrid() {
       // (tier==="pro") ile seviye kilidi (unlockLevel) AYRI iki gösterge — biri
       // kart üstünde, diğeri alt satırda; ikisi de gerektiğinde birlikte görünür.
       const proBadge = entry.tier === "pro" ? `<div class="mode-chip mode-chip-pro">Pro</div>` : "";
+      // G36: Dizayn/prototype.html'in mod kartı "Sv N" çip'i (prototipte kilit
+      // ikonuyla AYNI slotta, birbirini dışlıyorlardı) — burada Pro rozetinden AYRI
+      // bir görsel (karışmasınlar diye, bkz. .mode-chip-level notu), SADECE oynanabilir
+      // kartlarda (kilitli bir modun "seviyesi" göstermek kafa karıştırırdı — prototip
+      // de zaten kilitliyken chip yerine kilit ikonu gösteriyor, AYNI mantık). Veri
+      // progress.modeLevel (Z3/Z6'dan beri var, oyun içi #levelChip'in AYNI kaynağı) —
+      // hiç oynanmamış bir mod bile levelFromXp'nin tabanı (1) gereği "Sv 1" gösterir.
+      const levelBadge = playable ? `<div class="mode-chip mode-chip-level">Sv ${progress.modeLevel(stats, entry.id)}</div>` : "";
       const lockRow = playable
         ? `<div class="mode-mini"><i style="width:0%"></i></div>`
         : `<div class="mode-lock-row">🔒 Seviye ${turkishLocative(entry.unlockLevel)} açılır</div>`;
       card.innerHTML = `
         <div class="mode-top">
           <div class="mode-glyph" style="background:${info.bg}"><i style="height:12px;background:${info.color}"></i><i style="height:22px;background:${info.color}"></i><i style="height:16px;background:${info.color}"></i></div>
-          ${proBadge}
+          <div class="mode-top-right">${proBadge}${levelBadge}</div>
         </div>
         <span class="mode-engine" style="color:${info.color}">${info.label}</span>
         <h4>${entry.ad}</h4>
@@ -1188,6 +1204,13 @@ function updateUI() {
   els.accuracyValue.textContent = `%${progress.accuracy(stats)}`;
   els.progressText.textContent = `${xp.current} / ${xp.required} XP`;
   els.xpBar.style.width = `${percent}%`;
+
+  // G36: Ana Menü seviye rozeti — İlerleme'nin YUKARIDAKİ hesabıyla (xp/percent) BİREBİR
+  // aynı veriyi kullanır, ayrı bir sorgu/kaynak YOK — bu yüzden ikisi HER ZAMAN senkron.
+  if (els.menuLevelValue) els.menuLevelValue.textContent = xp.level;
+  if (els.menuXpText) els.menuXpText.textContent = `${xp.current}/${xp.required} XP`;
+  if (els.menuXpBar) els.menuXpBar.style.width = `${percent}%`;
+  if (els.menuNextLevelText) els.menuNextLevelText.innerHTML = `Sonraki seviyeye <b style="color:var(--am)">${xp.required - xp.current} XP</b>`;
 
   if (els.seriChip) els.seriChip.textContent = 'Seri ' + stats.rounds;
   // Z3/Z6: bu MOD seviyesi — diffState()'in yukarıdaki (perDiff, zorluk-bazlı) xp'sinden
@@ -3177,6 +3200,14 @@ document.querySelectorAll('.tab').forEach(btn => {
 });
 
 if (els.dailyTipClose) els.dailyTipClose.addEventListener("click", () => {
+  daily.tipDismissed = true;
+  persistDaily();
+  renderDailyTip();
+});
+// G36: "Şimdi değil" — Dizayn/prototype.html'in ikinci butonu, X ile TAMAMEN AYNI
+// kapatma davranışı (prototipte de ikisi aynı işi yapıyor, bkz. TASARIM.md RESKIN
+// RAPORU madde 4/b notu).
+if (els.dailyTipSkipBtn) els.dailyTipSkipBtn.addEventListener("click", () => {
   daily.tipDismissed = true;
   persistDaily();
   renderDailyTip();

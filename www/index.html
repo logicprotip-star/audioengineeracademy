@@ -43,6 +43,18 @@
           🎧 En iyi sonuç için kulaklık kullan. · 📱 <b>iPhone'da ses gelmiyorsa:</b> sessiz anahtarını kapat.
         </div>
 
+        <div class="card lvl">
+          <div class="lvl-badge"><small>SV</small><b id="menuLevelValue">1</b></div>
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+              <div style="font-size:16px;font-weight:700;white-space:nowrap">Kalibre Kulak</div>
+              <div class="num" style="font-size:14px;font-weight:600;color:var(--tx-3)" id="menuXpText">0/120 XP</div>
+            </div>
+            <div class="bar" style="margin-top:9px"><i id="menuXpBar" style="width:0%"></i></div>
+            <div style="margin-top:8px;font-size:14px;color:var(--tx-3)" id="menuNextLevelText">Sonraki seviyeye <b style="color:var(--am)">120 XP</b></div>
+          </div>
+        </div>
+
         <div class="card sug hidden" id="dailyTipCard">
           <button class="x" id="dailyTipClose" aria-label="Kapat">&times;</button>
           <div style="display:flex;align-items:center;gap:8px;padding-right:38px">
@@ -50,7 +62,10 @@
             <span class="kicker" style="color:var(--gr)">BUGÜNÜN ÖNERİSİ</span>
           </div>
           <p id="dailyTipText" style="margin:10px 0 0;font-size:15px;line-height:1.5;color:var(--tx-2)"></p>
-          <button class="btn green" id="dailyTipStartBtn" style="margin-top:14px">Başla</button>
+          <div class="row" style="margin-top:14px">
+            <button class="btn green" id="dailyTipStartBtn">Seti başlat</button>
+            <button class="btn ghost" id="dailyTipSkipBtn" style="flex:none;width:auto">Şimdi değil</button>
+          </div>
         </div>
 
         <div class="section-head">
