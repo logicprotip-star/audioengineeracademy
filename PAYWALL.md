@@ -35,6 +35,22 @@ buraya, genel proje durumu DURUM.md'ye yazılır.
 | Distortion | 🔒 Pro gerekli | `checkModeAccess` → reason:"pro" |
 | Frekans Çakışması | 🟡 Günde 1 | `paywall.DAILY_TASTE_MODE_ID` |
 
+**G62 DÜZELTMESİ — seviye kilidi SADECE Pro'da uygulanır:** `mode-catalog.js`'in
+her girdisinde bir `unlockLevel` de var (Kompresör: 12, dB Seviyesi: 6, vb.) —
+bu G61'de mod erişiminden AYRI bir eksen olarak bırakılmıştı ama cihaz testinde
+gerçek bir bug çıkardı: ücretsiz kullanıcı Kompresör'e (tier="free",
+unlockLevel=12) "Seviye yetersiz" diyerek TAKILIYORDU, oysa Kompresör onun için
+zaten TAM AÇIKTI. Kök sebep: seviye/sınav sistemi ZATEN Pro özelliği (bkz.
+"Sınav + seviye atlama" aşağıda) — free'de seviye hiç İLERLEMEDİĞİ için bir
+seviye eşiğine takılmak anlamsızdı. `core/paywall.js:meetsLevelRequirement
+(isPro, academyLevel, unlockLevel)` artık `isPro=false` iken HER ZAMAN `true`
+döner (eşik hiç okunmaz) — seviye kilidi SADECE Pro kullanıcı için (gerçek
+IAP ya da geliştirici simülasyonu) academyLevel/unlockLevel'a bakar. İkinci bir
+düzeltme: kilitli-Pro modlara (dB/Reverb/Tonal/Distortion) basınca ÖNCEDEN
+(seviye kilidi her zaman devrede olduğu için) yanlışlıkla "Seviye yetersiz"
+mesajı çıkıyordu — seviye kilidi artık free'de hiç devreye girmediği için
+`checkModeAccess`'in "Pro gerekli" mesajı doğru şekilde öne çıkıyor.
+
 **Günde 1 tadımlık (Frekans Çakışması) — mekanik:**
 - `stats.dailyTasteLastPlayedAt` (epoch ms, `null`=hiç oynanmadı) storage'da.
 - `paywall.canPlayDailyTaste(lastPlayedAt, now)`: YEREL takvim günü (UTC değil

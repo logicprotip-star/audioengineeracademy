@@ -9,6 +9,19 @@
 // app.js'te (gerçek IAP sonraki parça); burada sadece "isPro true/false iken
 // ne olmalı" sorusunun cevabı var. Kaynak: PAYWALL.md.
 
+// ---- Seviye kilidi (G62 düzeltmesi) ----
+
+// Seviye/sınav kilidi SADECE Pro'da anlamlı — free'de sınav hiç devreye
+// GİRMİYOR (bkz. isExamLocked), dolayısıyla seviye de hiç İLERLEMİYOR.
+// Ücretsiz kullanıcının hiç ulaşamayacağı bir seviye eşiğine takılması
+// ANLAMSIZDI (cihaz testinde bulundu — Kompresör unlockLevel:12 ama tier
+// "free", ücretsiz kullanıcı "Seviye yetersiz" diyordu). isPro=false ise
+// kilit HER ZAMAN açık (true) — academyLevel/unlockLevel'a hiç bakılmaz.
+export function meetsLevelRequirement(isPro, academyLevel, unlockLevel) {
+  if (!isPro) return true;
+  return academyLevel >= unlockLevel;
+}
+
 // ---- Mod erişimi ----
 
 // Ücretsizde TAM AÇIK 5 mod (task'ın kendi listesi) — mode-catalog.js'in

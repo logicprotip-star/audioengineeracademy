@@ -1,13 +1,67 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G61)
+Son güncelleme: 08.08.2026 (G62)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G61, tek commit) — **Paywall Parça 1: Ücretsiz/Pro KISITLAMA
+Bu commit (G62, tek commit) — **Paywall Parça 1 düzeltmesi: ücretsizde seviye
+sınırı KALKTI + kilitli modlar doğru mesaj veriyor.** Cihaz testinde G61'in
+gerçek bir mantık hatası bulundu: ücretsiz kullanıcı Kompresör'e (G61'de
+tier "pro"dan "free"ye çevrilmişti ama `unlockLevel:12` KALMIŞTI) "Seviye
+yetersiz" diyerek takılıyordu — Kompresör onun için zaten TAM AÇIK 5 moddan
+biriydi. Kök sebep: `renderModeGrid()`'in `meetsLevel` (seviye kilidi) ile
+`access` (Pro/günlük-tadımlık kilidi) AYRI iki eksendi, ama meetsLevel ÖNCE
+kontrol ediliyordu — level'e takılan bir mod, Pro-kilitli de olsa "Seviye
+yetersiz" mesajını GÖSTERİYOR, `access`'in doğru "Pro gerekli" mesajına HİÇ
+ULAŞAMIYORDU (dB Seviyesi/Reverb/Tonal Denge/Distortion'ın hepsinde AYNI bug).
+
+**KÖK NEDEN — kullanıcının kendi teşhisi, kod incelemesiyle doğrulandı:**
+Seviye/sınav sistemi ZATEN Pro özelliği (G61: `examGateActive()` free'de HER
+ZAMAN false, dolayısıyla `stats.examState` free kullanıcı için hiç kurulmuyor,
+seviye hiç ilerlemiyor) — ücretsiz kullanıcının hiç ulaşamayacağı bir seviye
+eşiğine takılması yapısal olarak anlamsızdı.
+
+**DÜZELTME — YENİ saf fonksiyon `core/paywall.js:meetsLevelRequirement(isPro,
+academyLevel, unlockLevel)`:** `isPro=false` iken HER ZAMAN `true` döner
+(academyLevel/unlockLevel'a HİÇ bakılmaz) — seviye kilidi artık SADECE
+Pro'da (gerçek IAP ya da geliştirici simülasyonu) gerçek karşılaştırmayı
+yapıyor. `app.js:renderModeGrid`'deki eski inline `devFlags.simulatePro ||
+academyLevel>=unlockLevel` formülü `devFlags.simulatePro ||
+paywall.meetsLevelRequirement(isUserPro(), academyLevel, unlockLevel)`
+oldu (matematiksel olarak eşdeğer bir üçüncü OR terimi eklemek yerine SAF
+fonksiyona taşındı — hem G62'nin kendi mantığı test edilebilir hem app.js'in
+DOM-bağımlılığı yüzünden test edilemeyen kısmı MİNİMİZE edildi). Seviye kilidi
+free'de her zaman açık olduğu için `playable` artık free kullanıcıda TÜM
+kayıtlı (registry'de var olan) modlar için `true` — bu da G61'in ZATEN var
+olan `access` (Pro/günlük-tadımlık) kontrolünü DOĞAL olarak TEK erişim ekseni
+hâline getiriyor, dB/Reverb/Tonal/Distortion artık doğru "Pro gerekli"
+mesajını (seviye mesajı DEĞİL) gösteriyor — İKİNCİ bir kod değişikliği
+GEREKMEDİ, tek satırlık kök-neden düzeltmesinin doğal sonucu.
+
+**Doğrulama:**
+- `npm test`: **859/859** (857 → +2 YENİ test, `meetsLevelRequirement`'ın
+  hem free hem Pro dalı: free'de academyLevel çok düşük/unlockLevel çok
+  yüksek olsa BİLE `true`, Pro'da eşiğin TAM altında `false` — Kompresör'ün
+  gerçek vakası [academyLevel:1, unlockLevel:12] birebir test edildi).
+- Kod incelemesiyle doğrulandı: `grep "unlockLevel\|meetsLevel"` ile
+  `renderModeGrid()`'in TEK çağrı noktası olduğu YENİDEN teyit edildi (başka
+  hiçbir yerde bağımsız bir seviye kontrolü yok).
+- **Dürüstlük notu — CANLI/cihaz doğrulaması YİNE YAPILAMADI** (tarayıcı
+  eklentisi bu oturumda da bağlı değildi) — kullanıcının cihazda bulduğu bug
+  kod incelemesiyle DOĞRULANDI ve düzeltildi, ama düzeltmenin cihazda
+  gerçekten çalıştığı bu oturumdan görülemedi. Kullanıcının kendi cihaz
+  testi bir sonraki turda BEKLENIYOR.
+
+**KORUMA:** Pro'daki seviye/sınav sistemi (`examSystem`, `academyLevel`
+formülü) TEK SATIR değişmedi — sadece free'de NE ZAMAN devreye girdiği
+düzeltildi. 10 mod/ses/zorluk dokunulmadı.
+
+---
+
+Önceki commit (G61, tek commit) — **Paywall Parça 1: Ücretsiz/Pro KISITLAMA
 MANTIĞI kuruldu** (satın alma/ekran/reklam YOK — task'ın kendi kapsam
 sınırı, bkz. YENİ `PAYWALL.md`). Görev "PAYWALL.md (repoda)" diyordu ama
 dosya repoda hiç yoktu (`find`+`git log --all` ile doğrulandı) — kurallar

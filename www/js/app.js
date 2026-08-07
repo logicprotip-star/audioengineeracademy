@@ -1579,7 +1579,19 @@ function renderModeGrid() {
       // değil DOĞRUDAN buraya bağlandı — gerçek Pro kullanıcıların seviye kilidini
       // atlaması İSTENMEDİ (o AYRI bir eksen, bkz. BEKLEYEN KARARLAR B), sadece
       // geliştirici anahtarı açıkken TÜM modlar test edilebilsin diye.
-      const meetsLevel = devFlags.simulatePro || progress.academyLevel(stats, playableModeIds()) >= entry.unlockLevel;
+      //
+      // G62 (PAYWALL.md düzeltmesi) — paywall.meetsLevelRequirement() eklendi:
+      // seviye/sınav sistemi ZATEN Pro özelliği (`examGateActive()`'in kendi
+      // tanımı — free'de sınav hiç devreye girmiyor, dolayısıyla seviye de
+      // İLERLEMİYOR). Ücretsiz
+      // kullanıcının hiç ulaşamayacağı bir seviye eşiğine takılması ANLAMSIZDI —
+      // cihaz testinde Kompresör (unlockLevel:12, ama tier artık "free") tam
+      // bunun kurbanı oldu: free kullanıcı "Seviye yetersiz" diyordu, oysa
+      // Kompresör onun İÇİN zaten TAM AÇIK 5 moddan biriydi (bkz. paywall.
+      // FREE_MODE_IDS). Seviye kilidi artık SADECE Pro'da (gerçek IAP ya da
+      // simülasyon) anlamlı — free'de HİÇ uygulanmıyor, aşağıdaki `access`
+      // (Pro/günlük-tadımlık) kontrolü TEK erişim ekseni oluyor.
+      const meetsLevel = devFlags.simulatePro || paywall.meetsLevelRequirement(isUserPro(), progress.academyLevel(stats, playableModeIds()), entry.unlockLevel);
       const playable = !!realMode && meetsLevel;
       // G61 (PAYWALL.md): seviye kilidiyle (meetsLevel) AYRI bir ikinci eksen —
       // Pro/günde-1-tadımlık erişimi. isUserPro() devFlags.simulatePro'yu ZATEN
