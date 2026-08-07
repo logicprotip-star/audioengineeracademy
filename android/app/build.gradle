@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.eqeartrainer.prox"
+    namespace = "com.logicprotrick.audioengineeracademy"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.eqeartrainer.prox"
+        applicationId "com.logicprotrick.audioengineeracademy"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

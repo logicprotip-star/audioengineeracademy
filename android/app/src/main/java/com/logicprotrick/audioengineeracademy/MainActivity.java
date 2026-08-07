@@ -1,4 +1,4 @@
-package com.eqeartrainer.prox;
+package com.logicprotrick.audioengineeracademy;
 
 import com.getcapacitor.BridgeActivity;
 

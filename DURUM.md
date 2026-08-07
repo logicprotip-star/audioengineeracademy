@@ -1,13 +1,74 @@
 # DURUM
 
-Son güncelleme: 07.08.2026 (G59)
+Son güncelleme: 08.08.2026 (G60)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G59, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **MOD 10
+Bu commit (G60, tek commit) — **Bundle ID / paket adı iki platformda TEK ve
+DOĞRU yapıldı: `com.logicprotrick.audioengineeracademy`.** Önceki durum
+(bir önceki sohbetin "Sektör Kıyaslı Durum Analizi" raporunda YAYINA ENGEL
+madde #2 olarak bulunmuştu): iOS `com.logicprotrick.eqeartrainer`, Android
+(`capacitor.config.json`+`android/app/build.gradle`) `com.eqeartrainer.prox`
+— iki platform FARKLI kimlikle mağazaya gidecekti. Henüz hiçbir mağazada
+yayınlanmadığı için (proje 12 günlük, `git log` ile doğrulandı) bu değişiklik
+güvenliydi — task'ın kendi notu.
+
+**Değiştirilen yerler (hepsi `grep` ile TEK TEK bulundu, tahminle değil):**
+`capacitor.config.json` (appId+appName), `android/app/build.gradle`
+(namespace+applicationId), Android Java paket klasörü (`git mv
+.../com/eqeartrainer/prox/MainActivity.java` → `.../com/logicprotrick/
+audioengineeracademy/MainActivity.java`, `package` bildirimi güncellendi),
+`android/app/src/main/res/values/strings.xml` (app_name/title_activity_main/
+package_name/custom_url_scheme), `ios/App/App.xcodeproj/project.pbxproj`
+(iki `PRODUCT_BUNDLE_IDENTIFIER` satırı, Debug+Release), `ios/App/App/
+Info.plist` (`CFBundleDisplayName`), `CLAUDE.md` (Bundle ID satırı).
+Uygulama görünen adı her iki platformda da **"Audio Engineer Academy"**
+(önceden "AE Academy").
+
+**DOĞRULAMA — sadece grep değil, GERÇEK derleme yapıldı (task'ın istediği
+"npx cap sync sonrası derlenebilmeli" iddiası koddan değil, bina edilerek
+kanıtlandı):**
+- `grep -rl "eqeartrainer"` (DerivedData/build/node_modules hariç) → **SIFIR
+  sonuç**, tüm repo genelinde.
+- `grep -rl "AE Academy"` → **SIFIR sonuç**.
+- `npx cap sync` temiz koştu, `ios/App/App/capacitor.config.json` ve
+  `android/app/src/main/assets/capacitor.config.json` (git'e takipli
+  DEĞİLLER, sync'te otomatik üretiliyorlar) yeni ID'yi doğru yansıttı.
+- **iOS: `xcodebuild -scheme App -sdk iphonesimulator build` → BUILD
+  SUCCEEDED.** Üretilen `.app`'in kendi `Info.plist`'i `plutil` ile okundu:
+  `CFBundleIdentifier=com.logicprotrick.audioengineeracademy`,
+  `CFBundleDisplayName=Audio Engineer Academy` — GERÇEK derleme çıktısından
+  doğrulandı, statik dosya okumasından değil.
+- **Android: `./gradlew assembleDebug` → BUILD SUCCESSFUL** (bu makinede
+  `JAVA_HOME` sistemde tanımlı değildi, Android Studio'nun gömülü JBR'ı
+  [`/Applications/Android Studio.app/Contents/jbr`] kullanıldı — bir sonraki
+  oturumda `JAVA_HOME` hâlâ boşsa aynı yolu kullan). Üretilen `app-debug.apk`
+  `aapt2 dump badging` ile okundu: `package name='com.logicprotrick.
+  audioengineeracademy'`, `application-label='Audio Engineer Academy'` —
+  yine GERÇEK APK çıktısından, tahmin değil.
+- `npm test`: **829/829**, değişmedi (mantığa dokunulmadı, kilit altındaki
+  koruma sağlandı).
+
+**Yan bulgu (istenmedi ama `npx cap sync`'in doğal sonucu, saklanmadı):**
+`android/app/capacitor.build.gradle` ve `android/capacitor.settings.gradle`
+`@capawesome/capacitor-file-picker` eklentisini ÖNCEDEN Android native
+projesine hiç kaydetmemiş görünüyordu (muhtemelen bu bağımlılık
+`package.json`'a eklendikten sonra Android tarafında hiç `cap sync`
+çalıştırılmamıştı) — bu turun `cap sync` çağrısı bunu doğru şekilde
+kaydetti. Dosya yükleme özelliği Android'de bu commit'ten ÖNCE muhtemelen
+hiç native plugin'e bağlı değildi; bu bir yan-etki düzeltmesi, ayrı bir
+görev olarak İSTENMEMİŞTİ ama "build çalışır kalmalı" şartının doğal
+sonucu olduğu için commit'e dahil edildi, gizlenmedi.
+
+**KORUMA:** Mod mantığı/ses/DOM/test hiçbiri değişmedi — sadece kimlik
+(bundle ID + görünen ad) ve `cap sync`'in kendi ürettiği plugin kaydı.
+
+---
+
+Önceki commit (G59, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **MOD 10
 "DISTORTION" (Motor 2, dördüncü A/B/C modu) — TAM MOD kuruldu, 10.
 oynanabilir mod.** Kompresör'ün (G30/G33) kanıtlanmış three-way/odd-one-out
 şablonunun "ikizi" (task'ın kendi tabiri) — three-way-cards.js + core/

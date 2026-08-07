@@ -7,7 +7,8 @@ Bu dosya, bu repo üzerinde çalışan Claude Code için yönergedir.
 **Audio Engineer Academy** — Türkçe kulak eğitimi uygulaması. Web Audio API tabanlı,
 Capacitor ile iOS/Android'e paketleniyor.
 
-- Bundle ID: `com.logicprotrick.eqeartrainer`
+- Bundle ID: `com.logicprotrick.audioengineeracademy` (iOS ve Android'de AYNI — G60 öncesi
+  iki platform farklı ID kullanıyordu, bkz. DURUM.md)
 - Tasarım referansı: `Dizayn/prototype.html` (git'te takipli — UI değişikliklerinde buna bak)
 - Backend yok, tüm veri `localStorage`'da
 - Ürün modeli: ücretsiz + Pro (tek seferlik ₺199), 14 mod hedefi

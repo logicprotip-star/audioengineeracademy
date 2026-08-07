@@ -1,6 +1,6 @@
 {
-  "appId": "com.eqeartrainer.prox",
-  "appName": "AE Academy",
+  "appId": "com.logicprotrick.audioengineeracademy",
+  "appName": "Audio Engineer Academy",
   "webDir": "www",
   "plugins": {
     "SplashScreen": {
