@@ -22,7 +22,12 @@ export const MODE_CATALOG = [
 
   // ---- Motor 2 · Hangisi farklı ----
   { id: "hangisi-farkli", ad: "Hangisi Farklı", aciklama: "Üç sesten farklı olanı bul", motor: 2, kulaklikGerekli: false, unlockLevel: 10, playable: false, tier: "pro" },
-  { id: "kompresor", ad: "Kompresör", aciklama: "Hangisi daha sıkıştırılmış?", motor: 2, kulaklikGerekli: false, unlockLevel: 12, playable: true, tier: "pro" },
+  // G61 (PAYWALL.md): Kompresör ücretsizde TAM AÇIK 5 moddan biri — tier
+  // "pro"dan "free"ye çevrildi (task'ın kendi listesi, gerçek erişim kararı
+  // core/paywall.js:FREE_MODE_IDS'ten okunuyor, bu alan SADECE kart rozeti
+  // için — ikisi burada BİLEREK senkron tutuldu, aksi hâlde kart "Pro"
+  // rozetiyle görünüp aslında ücretsiz olurdu, yanıltıcı olurdu).
+  { id: "kompresor", ad: "Kompresör", aciklama: "Hangisi daha sıkıştırılmış?", motor: 2, kulaklikGerekli: false, unlockLevel: 12, playable: true, tier: "free" },
   { id: "reverb", ad: "Reverb", aciklama: "Hangisinin reverb'i farklı?", motor: 2, kulaklikGerekli: true, unlockLevel: 14, playable: true, tier: "pro" },
   // G44: "tonal-denge" BURAYA taşındı (ÖNCEDEN Motor 1'de, "Hangi bölge fazla?"
   // farklı bir tek-değer konsepti olarak, HİÇ kod karşılığı olmadan, unlockLevel:9,
@@ -39,7 +44,11 @@ export const MODE_CATALOG = [
   // ---- Motor 3 · İki kaynaklı ----
   // G51: TEMEL AT — kulaklikGerekli true'ya çevrildi (bkz. modes/frekans-
   // cakismasi.js getMeta notu: sub/bas bölgesi kulaklıkta daha net ayrışır).
-  { id: "frekans-cakismasi", ad: "Frekans Çakışması", aciklama: "Kick ve bas nerede çakışıyor?", motor: 3, kulaklikGerekli: true, unlockLevel: 20, playable: true, tier: "pro" }
+  // G61 (PAYWALL.md): "günde 1 tadımlık" — tier hâlâ "pro" (kart rozeti,
+  // tamamen ücretsiz DEĞİL çünkü sınırlı) ama gerçek erişim tier'den değil
+  // core/paywall.js:isDailyTasteMode+checkModeAccess'ten okunuyor — ücretsizde
+  // günde 1 kez oynanabilir, sonra kilitlenir (bkz. o dosyadaki dürüstlük notu).
+  { id: "frekans-cakismasi", ad: "Frekans Çakışması", aciklama: "Kick ve bas nerede çakışıyor?", motor: 3, kulaklikGerekli: true, unlockLevel: 20, playable: true, tier: "pro", dailyTaste: true }
 ];
 
 // Motor numarasına göre görsel kimlik — mevcut renk paletinden (styles.css :root).

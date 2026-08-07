@@ -1,0 +1,175 @@
+// Paywall Parça 1 — kısıtlama MANTIĞI testleri. Satın alma/ekran/reklam YOK
+// (bkz. paywall.js dosya başı notu) — burada sadece "isPro true/false iken ne
+// olmalı" saf fonksiyonları doğrulanıyor. Tümü Date.now()/localStorage'dan
+// BAĞIMSIZ (zaman parametre olarak geçiliyor) — CLAUDE.md'nin saflık şartı.
+
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import * as paywall from "../www/js/core/paywall.js";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+const MIN_MS = 60 * 1000;
+
+describe("paywall: mod erişimi", () => {
+  it("ücretsizde 5 mod TAM AÇIK (tier'den bağımsız, task'ın kendi listesi)", () => {
+    const free = ["frekans-bulma", "kesim-noktasi", "q-genisligi", "boost-mu-cut-mu", "kompresor"];
+    assert.deepEqual([...paywall.FREE_MODE_IDS].sort(), free.sort());
+    free.forEach(id => {
+      const r = paywall.checkModeAccess(id, { isPro: false, now: 1000 });
+      assert.equal(r.allowed, true, `${id} ücretsizde açık olmalı`);
+      assert.equal(r.reason, null);
+    });
+  });
+
+  it("ücretsizde 4 mod KİLİTLİ (dB Seviyesi/Reverb/Tonal Denge/Distortion) — reason='pro'", () => {
+    ["db-seviyesi", "reverb", "tonal-denge", "distortion"].forEach(id => {
+      const r = paywall.checkModeAccess(id, { isPro: false, now: 1000 });
+      assert.equal(r.allowed, false, `${id} ücretsizde kilitli olmalı`);
+      assert.equal(r.reason, "pro");
+    });
+  });
+
+  it("Pro'da HER mod (dailyTaste dahil, hiç oynanmamış bile olsa) açık", () => {
+    ["db-seviyesi", "reverb", "tonal-denge", "distortion", "frekans-cakismasi", "kompresor"].forEach(id => {
+      const r = paywall.checkModeAccess(id, { isPro: true, now: 1000 });
+      assert.equal(r.allowed, true, `${id} Pro'da açık olmalı`);
+    });
+  });
+
+  it("Frekans Çakışması: ücretsizde HİÇ oynanmamışsa açık (günün ilk tadımı)", () => {
+    const r = paywall.checkModeAccess("frekans-cakismasi", { isPro: false, dailyTasteLastPlayedAt: null, now: 1000 });
+    assert.equal(r.allowed, true);
+  });
+
+  it("Frekans Çakışması: aynı takvim günü içinde İKİNCİ deneme kilitli — reason='daily-used'", () => {
+    const morning = new Date(2026, 7, 8, 9, 0, 0).getTime();
+    const evening = new Date(2026, 7, 8, 23, 0, 0).getTime();
+    const r = paywall.checkModeAccess("frekans-cakismasi", { isPro: false, dailyTasteLastPlayedAt: morning, now: evening });
+    assert.equal(r.allowed, false);
+    assert.equal(r.reason, "daily-used");
+  });
+
+  it("Frekans Çakışması: ERTESİ GÜN tekrar açık", () => {
+    const day1 = new Date(2026, 7, 8, 23, 59, 0).getTime();
+    const day2 = new Date(2026, 7, 9, 0, 1, 0).getTime();
+    const r = paywall.checkModeAccess("frekans-cakismasi", { isPro: false, dailyTasteLastPlayedAt: day1, now: day2 });
+    assert.equal(r.allowed, true);
+  });
+
+  it("Frekans Çakışması: SAAT GERİYE ALINIRSA istismar engellenir (hâlâ kilitli sayılır)", () => {
+    const playedAt = new Date(2026, 7, 8, 12, 0, 0).getTime();
+    const rolledBackTo = new Date(2026, 7, 7, 12, 0, 0).getTime(); // bir gün geri
+    assert.equal(paywall.canPlayDailyTaste(playedAt, rolledBackTo), false);
+    const r = paywall.checkModeAccess("frekans-cakismasi", { isPro: false, dailyTasteLastPlayedAt: playedAt, now: rolledBackTo });
+    assert.equal(r.allowed, false);
+    assert.equal(r.reason, "daily-used");
+  });
+
+  it("Frekans Çakışması: saat AYNI ANA denk gelirse (now===lastPlayedAt) hâlâ kilitli", () => {
+    const t = 5_000_000;
+    assert.equal(paywall.canPlayDailyTaste(t, t), false);
+  });
+});
+
+describe("paywall: oturum soru limiti", () => {
+  it("ücretsizde 5. soru posedildikten sonra limit dolar", () => {
+    assert.equal(paywall.isFreeSessionLimitReached(4, false), false);
+    assert.equal(paywall.isFreeSessionLimitReached(5, false), true);
+    assert.equal(paywall.isFreeSessionLimitReached(9, false), true);
+  });
+
+  it("Pro'da limit HİÇBİR ZAMAN dolmaz", () => {
+    assert.equal(paywall.isFreeSessionLimitReached(5, true), false);
+    assert.equal(paywall.isFreeSessionLimitReached(500, true), false);
+  });
+});
+
+describe("paywall: can dolumu (gerçek zaman tabanlı, 30 dakikada 1)", () => {
+  it("tam doluyken (5/5) dolum tetiklenmez, lastRefillAt korunur", () => {
+    const r = paywall.applyLivesRefill(5, 1000, 999999, { totalLives: 5 });
+    assert.equal(r.lives, 5);
+    assert.equal(r.lastRefillAt, 1000);
+  });
+
+  it("29 dakika geçince HENÜZ dolum yok", () => {
+    const start = 0;
+    const now = 29 * MIN_MS;
+    const r = paywall.applyLivesRefill(3, start, now, { totalLives: 5, intervalMs: 30 * MIN_MS });
+    assert.equal(r.lives, 3);
+    assert.equal(r.lastRefillAt, start);
+  });
+
+  it("TAM 30 dakika geçince 1 can dolar, referans zamanı 30dk ilerler (drift yok)", () => {
+    const start = 0;
+    const now = 30 * MIN_MS;
+    const r = paywall.applyLivesRefill(3, start, now, { totalLives: 5, intervalMs: 30 * MIN_MS });
+    assert.equal(r.lives, 4);
+    assert.equal(r.lastRefillAt, 30 * MIN_MS);
+  });
+
+  it("95 dakika geçince (3 tam aralık) 3 can birden dolar, tavana çarpmaz", () => {
+    const start = 0;
+    const now = 95 * MIN_MS;
+    const r = paywall.applyLivesRefill(1, start, now, { totalLives: 5, intervalMs: 30 * MIN_MS });
+    assert.equal(r.lives, 4); // 1 + 3
+    assert.equal(r.lastRefillAt, 90 * MIN_MS); // 3*30dk ilerledi, kalan 5dk bir sonraki tur için korunuyor
+  });
+
+  it("dolum TOTAL_LIVES tavanını asla aşmaz (uzun süre kapalı kalınca bile)", () => {
+    const start = 0;
+    const now = 10 * DAY_MS;
+    const r = paywall.applyLivesRefill(1, start, now, { totalLives: 5, intervalMs: 30 * MIN_MS });
+    assert.equal(r.lives, 5);
+    assert.equal(r.lastRefillAt, now); // tavana ulaşınca referans "şimdi"ye sabitlenir
+  });
+
+  it("SAAT GERİYE ALINIRSA (now <= lastRefillAt) dolum YOK, referans korunur — istismar koruması", () => {
+    const lastRefillAt = 10 * HOUR_MS;
+    const rolledBackNow = 5 * HOUR_MS;
+    const r = paywall.applyLivesRefill(2, lastRefillAt, rolledBackNow, { totalLives: 5, intervalMs: 30 * MIN_MS });
+    assert.equal(r.lives, 2);
+    assert.equal(r.lastRefillAt, lastRefillAt);
+  });
+
+  it("onLifeLost: tam doluyken can kaybedilince referans 'now'a çekilir", () => {
+    const now = 12345;
+    assert.equal(paywall.onLifeLost(5, 4, 1000, now, 5), now);
+  });
+
+  it("onLifeLost: zaten dolu DEĞİLKEN (ör. 3→2) referans DEĞİŞMEZ — sayaç kaldığı yerden devam eder", () => {
+    assert.equal(paywall.onLifeLost(3, 2, 1000, 99999, 5), 1000);
+  });
+
+  it("onLifeLost: can artışında (dolum) referansa dokunulmaz", () => {
+    assert.equal(paywall.onLifeLost(3, 4, 1000, 99999, 5), 1000);
+  });
+});
+
+describe("paywall: diğer kilitler — hepsi ücretsizde kilitli, Pro'da açık", () => {
+  const locks = [
+    "isUploadLocked",
+    "isFixedDifficultyLocked",
+    "isFocusRangeLocked",
+    "isWeakZoneReportLocked",
+    "isZoneHistoryBlurred",
+    "isExamLocked",
+    "isFreePlayModeLocked",
+    "isToolsContentLocked"
+  ];
+  locks.forEach(fnName => {
+    it(`${fnName}: ücretsizde true, Pro'da false`, () => {
+      assert.equal(paywall[fnName](false), true);
+      assert.equal(paywall[fnName](true), false);
+    });
+  });
+});
+
+describe("paywall: kilit mesajları", () => {
+  it("her LOCK_MESSAGES girdisi bir title+detail içerir (boş string yok)", () => {
+    Object.entries(paywall.LOCK_MESSAGES).forEach(([key, msg]) => {
+      assert.ok(msg.title && msg.title.length > 0, `${key}.title boş olmamalı`);
+      assert.ok(msg.detail && msg.detail.length > 0, `${key}.detail boş olmamalı`);
+    });
+  });
+});

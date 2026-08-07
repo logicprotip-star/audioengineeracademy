@@ -1,13 +1,107 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G60)
+Son güncelleme: 08.08.2026 (G61)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G60, tek commit) — **Bundle ID / paket adı iki platformda TEK ve
+Bu commit (G61, tek commit) — **Paywall Parça 1: Ücretsiz/Pro KISITLAMA
+MANTIĞI kuruldu** (satın alma/ekran/reklam YOK — task'ın kendi kapsam
+sınırı, bkz. YENİ `PAYWALL.md`). Görev "PAYWALL.md (repoda)" diyordu ama
+dosya repoda hiç yoktu (`find`+`git log --all` ile doğrulandı) — kurallar
+DOĞRUDAN görev talimatından alındı, PAYWALL.md bu turda İLK KEZ yazıldı
+(kalıcı referans, DURUM.md'nin paywall karşılığı).
+
+**YENİ SAF MODÜL — `www/js/core/paywall.js`:** Tüm kısıtlama mantığı TEK
+dosyada, hiçbiri `Date.now()`/`localStorage`'ı KENDİSİ okumuyor (zaman/durum
+PARAMETRE) — CLAUDE.md'nin createQuestion/evaluateAnswer için istediği
+saflık şartı bu turda TÜM bir modüle uygulandı. `test/paywall.test.mjs`
+(YENİ, 28 test) her fonksiyonu izole doğruluyor — bu arada bir gerçek bug
+YAKALADI: `applyLivesRefill`'in ilk taslağı `!lastRefillAt` (falsy) kontrolü
+kullanıyordu, `lastRefillAt=0` (epoch başlangıcı, testin kendi senaryosu)
+"hiç referans yok" sayılıp dolumu hep 0'a düşürüyordu — `== null` kontrolüne
+çevrilerek düzeltildi, testler bunu YAKALADIĞI İÇİN commit'e hiç girmedi.
+
+**MOD ERİŞİMİ:** `mode-catalog.js`'in `tier` alanı SADECE kart rozeti,
+gerçek karar `paywall.FREE_MODE_IDS`'ten (5: Frekans Bulma/Kesim Noktası/
+Q Genişliği/Boost mu Cut mu/**Kompresör** — sonuncusu tier'i "pro"dan
+"free"ye çevrildi, ikisi elle senkron tutuldu). 4 mod (dB Seviyesi/Reverb/
+Tonal Denge/Distortion) `reason:"pro"` ile kilitli. Frekans Çakışması
+"günde 1 tadımlık" — `stats.dailyTasteLastPlayedAt` + YEREL takvim günü
+karşılaştırması (UTC DEĞİL) + **saat-geriye-alma istismarı** açıkça
+engellendi (`now<lastPlayedAt` → hâlâ kilitli, testle kilitlendi). İşaretleme
+ANI mod kartına dokunulduğunda DEĞİL gerçek round BAŞLADIĞINDA (yanlış
+tıklama günün hakkını çalmasın); "Tekrar Oyna" mod kartına hiç uğramadığı
+için AYRI bir savunmacı kontrol de eklendi (`startBtn`'in fresh-start dalı).
+
+**OTURUM LİMİTLERİ:** 5 soru/oturum — `finalizeIfGameOver()` artık `currentLives
+<=0` (can bitti) İLE `roundsInThisPlaySession>=5` (free) AYNI çıkış noktasından
+geçiyor, `showSessionEnd` üçüncü bir `"freeLimit"` kind'i kazandı (kendi
+kicker/renk/lead metniyle, "normal"/"lost"un DEĞİŞTİRİLMEDEN yanına). Can
+dolumu GERÇEK zaman-tabanlı oldu (`stats.livesLastRefillAt` + `paywall.
+applyLivesRefill`, 30 dakikada 1, DRIFT YOK — referans noktası TAM tüketilen
+süre kadar ilerliyor) — `storage.js`'teki eski "geçici köprü" (`lives<=0 →
+TOTAL_LIVES` anlık sıfırlama, task'ın kendi tabiri) KALDIRILDI, iki yerde
+("Canların bitti" kartları) artık UYDURULMAYAN, GERÇEK "N dakikada 1 can
+dolacak" metni var. Kontrol noktaları: açılış, `visibilitychange` (ön plana
+dönüş), `startFreshAttempt`. Sınav sistemi (`core/exam-system.js`) HİÇ
+DEĞİŞMEDİ (task: "Pro'da çalışan, DOKUNULMAZ") — sadece app.js'in onu ne
+zaman devreye aldığı TEK bir `examGateActive()` fonksiyonundan geçiyor,
+eski ~15 dağınık `mode.EXAM_ENABLED` okuması BUNA yönlendirildi (8'i
+identik `examHandled` satırıydı, `replace_all` ile TEK Edit'te değişti).
+Mod-bazlı XP/Sv rozeti (task: "KISITLANMAYAN") BUNDAN ETKİLENMEDİ — kod
+incelemesiyle doğrulandı, `progress.modeLevel`/`ACHIEVEMENTS` hiçbir yerde
+`isUserPro()`'ya bakmıyor.
+
+**DİĞER KİLİTLER:** Kendi dosya yükleme (Oyun Ayarları + Motor 3 slotları +
+Ses Kaynağı sheet'inin "Dosya seç" satırı — İKİ AYRI kod yolu, ikisi de
+kapatıldı), Sabit zorluk seçimi (üç UI noktası + downgrade sonrası state
+düzeltmesi için YENİ `enforceFreeRestrictions()` — split-brain'i önlüyor:
+Pro'yken kaydedilmiş "Sabit" tercihi free'ye düşünce UI'da DEĞİL gerçek
+STATE'te de düzeltiliyor), Bölge seçerek çalışma (UI engeli + `currentFocusRange()`
+okuma-anında savunmacı geri düşüş), Zayıf bölge raporu (İlerleme'nin "Şu An
+Neredesin" + "en zayıf: X" özeti TAM kilitli — bir CÜMLE bulanıklaştırılamaz),
+6 bölge geçmiş analizi (task'ın kendi kelimesi "bulanık önizleme" — `blur(5px)`,
+TAM gizleme DEĞİL, veri orada olduğu görülür), Araçlar sekmesi (Analiz/
+Referans ZATEN kilitliydi önceki turdan, upload kartı bu turda eklendi).
+
+**TEST EDİLEBİLİRLİK:** `devFlags.simulatePro` (Geliştirici modu) →
+`isUserPro()` — açıkken TÜM kısıtlar (mod erişimi/sınav/sabit zorluk/bölge/
+upload/zayıf bölge raporu/Araçlar) kalkıyor, kapalıyken GERÇEK kısıtlarıyla
+çalışıyor. `syncDevUI()` (anahtar her değiştiğinde) hem `renderModeGrid()`i
+hem `enforceFreeRestrictions()`'ı tetikliyor — geçiş ANINDA tutarlı.
+
+**Doğrulama:**
+- `npm test`: **857/857** (829 → +28 YENİ `test/paywall.test.mjs`, hiçbir
+  eski test bozulmadı).
+- `node --check www/js/app.js`: sözdizimi hatası yok (bu boyuttaki bir
+  değişiklikten sonra minimum garanti).
+- Kod incelemesiyle TEK TEK doğrulandı: 5 mod ücretsiz/4 mod pro-kilitli/
+  Çakışma günde-1 listesi `MODE_CATALOG`+`paywall.FREE_MODE_IDS`'ten
+  BİREBİR eşleşiyor; `finalizeIfGameOver`'ın YENİ dalı `roundsInThisPlaySession`
+  ile AYNI (ÖNCEDEN sadece can için var olan) sayaç mekanizmasını kullanıyor;
+  `examGateActive()`'in TÜM eski çağrı noktalarını değiştirdiği `grep
+  "mode\.EXAM_ENABLED"` ile YENİDEN doğrulandı (kalan TEK operasyonel
+  satır — `currentModeExamLevel()`'daki `if (!mode.EXAM_ENABLED) return
+  undefined` — BİLEREK dokunulmadı, free'de zaten examState hiç kurulmadığı
+  için doğal olarak zararsız).
+- **Dürüstlük notu — CANLI/DOM doğrulaması YAPILAMADI:** bu oturumda tarayıcı
+  eklentisi bağlı değildi (önceki turlarda da aynı kısıt kaydedildi) — mod
+  kartlarının GERÇEKTEN kilitli görünüp toast'ın GERÇEKTEN çıktığı, can
+  kalplerinin 30dk sonra GERÇEKTEN dolduğu, bulanıklaştırmanın GERÇEKTEN
+  göründüğü gözle DOĞRULANMADI. Kod incelemesi + 28 birim testi + sözdizimi
+  kontrolü kadarı garanti — canlı cihaz/tarayıcı turu AÇIK KALDI.
+
+**KORUMA:** 10 modun oyun mantığı/ses/zorluk EĞRİSİ/reskin HİÇ değişmedi —
+sadece ERİŞİM kısıtı eklendi (task'ın kendi sınırı). Sınav SİSTEMİNİN
+kendisi (`core/exam-system.js`) TEK SATIR değişmedi, sadece app.js'ten
+NE ZAMAN çağrıldığı kısıldı.
+
+---
+
+Önceki commit (G60, tek commit) — **Bundle ID / paket adı iki platformda TEK ve
 DOĞRU yapıldı: `com.logicprotrick.audioengineeracademy`.** Önceki durum
 (bir önceki sohbetin "Sektör Kıyaslı Durum Analizi" raporunda YAYINA ENGEL
 madde #2 olarak bulunmuştu): iOS `com.logicprotrick.eqeartrainer`, Android

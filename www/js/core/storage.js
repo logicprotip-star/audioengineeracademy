@@ -78,7 +78,19 @@ export function freshStats(difficultyLives, hintsPerGame, modeIds = []) {
     // mode.EXAM_ENABLED===true olan modlar için lazy doldurulur (app.js:examStatsFor);
     // sınav DESTEKLEMEYEN modlarda bu alan HİÇBİR ZAMAN yazılmaz, boş kalır.
     examState: {},
-    lives: TOTAL_LIVES
+    lives: TOTAL_LIVES,
+    // G61 (PAYWALL.md): "30 dakikada 1 can" — task'ın kendi tabiriyle
+    // "mevcut geçici köprü" (aşağıdaki loadStats notuna bkz.) artık GERÇEK
+    // zaman-tabanlı dolumla değişti (core/paywall.js:applyLivesRefill,
+    // app.js'ten çağrılıyor). Bu alan o hesaplamanın referans noktası —
+    // Date.now() BURADA (freshStats saf KALSIN diye değil, sadece "taze bir
+    // kayıt AN itibarıyla başlar" anlamı taşıdığı için, freshDiffState/
+    // freshModeState gibi diğer "fresh*" fonksiyonlardan FARKLI olarak zaten
+    // zaman bağımlı bir alan taşıyor).
+    livesLastRefillAt: Date.now(),
+    // Frekans Çakışması'nın "günde 1 tadımlık" kilidi için son oynama zamanı —
+    // core/paywall.js:canPlayDailyTaste. null = hiç oynanmadı (her zaman açık).
+    dailyTasteLastPlayedAt: null
   };
 }
 
@@ -114,19 +126,20 @@ export function loadStats(difficultyLives, hintsPerGame, modeIds = [], legacyMod
       s.perMode[legacyModeId].xp = totalLegacyXp;
     }
     if (typeof s.hintsRemaining !== "number") s.hintsRemaining = hintsPerGame;
-    // Eski kayıtlarda (bu değişiklikten önce) top-level "lives" hiç yoktu — temiz
-    // localStorage'da olduğu gibi TOTAL_LIVES'a çekilir. Eski perDiff[key].lives
-    // artık okunmuyor (yoksayılır, silinmez).
-    //
-    // BİLİNÇLİ ÖDÜN: burada ayrıca <=0 da TOTAL_LIVES'a çekiliyor — bu, "otomatik
-    // dolum YOK" kuralını SEANS İÇİNDE hâlâ tam koruyor (loseLife() burayı hiç
-    // çağırmıyor, o yüzden bir turda canı biten kullanıcı o seansta dürüstçe
-    // "Oyun Bitti" görür) ama UYGULAMA YENİDEN AÇILDIĞINDA 0 canı sıfırlıyor.
-    // Sebep: bu alan yeni (önceki turda eklendi) ve şu an gerçek dolum özelliği
-    // yok — kalıcı 0, kullanıcıyı kalıcı ve geri dönüşsüz şekilde kilitler.
-    // Kalıcı-0-yasak istenirse: bu satır kaldırılıp gerçek bir dolum özelliği
-    // eklenmeli (bkz. DURUM.md "Fiyat ve can ekonomisi").
-    if (typeof s.lives !== "number" || s.lives <= 0) s.lives = TOTAL_LIVES;
+    // Eski kayıtlarda (bu değişiklikten önce) top-level "lives" hiç yoktu —
+    // SADECE bozuk/eksik veri için TOTAL_LIVES'a çekilir (veri BOZUKLUĞU
+    // koruması, "otomatik dolum" DEĞİL). Eski perDiff[key].lives artık
+    // okunmuyor (yoksayılır, silinmez).
+    if (typeof s.lives !== "number") s.lives = TOTAL_LIVES;
+    // G61 (PAYWALL.md): ÖNCEDEN burada `s.lives<=0 → TOTAL_LIVES` GEÇİCİ bir
+    // köprü vardı (uygulama yeniden açılınca 0 canı sessizce dolduruyordu,
+    // "gerçek dolum özelliği yok" ödünüyle) — bu köprü artık KALDIRILDI.
+    // 0 (ya da eksik) can artık burada SIFIRLANMIYOR; gerçek zaman-tabanlı
+    // dolum (core/paywall.js:applyLivesRefill, 30 dakikada 1) app.js'te
+    // livesLastRefillAt'a göre hesaplanıyor — SADECE gerçekten 30+ dakika
+    // geçmişse can dolar, anında değil.
+    if (typeof s.livesLastRefillAt !== "number") s.livesLastRefillAt = Date.now();
+    if (typeof s.dailyTasteLastPlayedAt !== "number") s.dailyTasteLastPlayedAt = null;
     return s;
   } catch {
     return freshStats(difficultyLives, hintsPerGame, modeIds);

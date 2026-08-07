@@ -8,6 +8,7 @@ import { createRoundFlow } from "./core/round-flow.js";
 import { createExamSystem, getWeakTier, recordTierResult, EXAM_CONFIG } from "./core/exam-system.js";
 import * as storage from "./core/storage.js";
 import * as progress from "./core/progress.js";
+import * as paywall from "./core/paywall.js";
 import { toast, spawnXp, burst, shake } from "./core/fx.js";
 import { formatHz, turkishLocative } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
@@ -713,6 +714,19 @@ function isUserPro() {
   return realPro || devFlags.simulatePro;
 }
 
+// G61 (PAYWALL.md): "Sınav + seviye atlama YOK (ücretsizde)" — sınav SİSTEMİNİN
+// kendisi (core/exam-system.js) HİÇ değiştirilmedi (task: "sınav Pro'da çalışan,
+// DOKUNULMAZ"), sadece app.js'in onu NE ZAMAN devreye aldığı bu TEK noktadan
+// kısıldı. `mode.EXAM_ENABLED`'ı DOĞRUDAN okuyan ~15 karar noktası (examHandled/
+// examActive/examTier/roundChip label/vb.) artık BUNUN ÜZERİNDEN okuyor — free
+// kullanıcıda examGateActive() HER ZAMAN false, dolayısıyla stats.examState o
+// modId için hiç kurulmaz/yazılmaz (mode-level XP/Sv rozeti ETKİLENMEZ — task'ın
+// "KISITLANMAYAN: XP/streak/rozet" maddesiyle ÇAKIŞMAZ, sadece exam-TETİKLİ tier
+// ilerlemesi durur).
+function examGateActive() {
+  return !!mode.EXAM_ENABLED && isUserPro();
+}
+
 // "Karıştır": açıkken her tur rastgele bir kaynak seçilir (yüklenen dosya hariç);
 // kapalıyken kaynak seçicideki değer kullanılır. Oturum içi, kalıcı değil.
 let mixSources = false;
@@ -911,15 +925,24 @@ function renderHearts() {
 }
 
 // Canlar GLOBAL ve TEK bir havuz (stats.lives) — zorluktan, seanstan bağımsız.
-// Otomatik dolum YOK: 0'a inince bir sonraki tur/seans/zorluk değişikliği/uygulama
-// yeniden açılışı hiçbiri canı geri getirmez (ayrı bir "dolum" özelliği bekliyor).
-// Bu yüzden eski resetLives() (canı zorluğun MAX'ına doldururdu) kaldırıldı —
-// hiçbir çağıran artık canı "doldurma" davranışı istemiyor.
+// G61 (PAYWALL.md): "Can 5, 30 dakikada 1 dolar" — GERÇEK zaman tabanlı dolum
+// artık VAR (core/paywall.js:applyLivesRefill, referans noktası stats.
+// livesLastRefillAt). Eski resetLives() (canı zorluğun MAX'ına doldururdu) hâlâ
+// yok — dolum SADECE bu tek mekanizmadan, anlık/elle değil.
 
-// currentLives'ı kalıcı depodan (stats.lives) okur ve kalpleri çizer. Zorluk
-// değişikliğinde de çağrılabilir ama artık canı DEĞİŞTİRMEZ (global olduğu için).
+// currentLives'ı kalıcı depodan (stats.lives) okur ve kalpleri çizer. ÖNCE
+// applyLivesRefill'i uygular (geçen GERÇEK süreye göre can dolmuş olabilir) —
+// bu yüzden syncLives() artık canı DEĞİŞTİREBİLİR (eski yorumun aksine),
+// SADECE artış yönünde (loseLife dışında hiçbir yerde azalma yok).
 function syncLives() {
   if (typeof stats.lives !== "number") stats.lives = storage.TOTAL_LIVES;
+  if (typeof stats.livesLastRefillAt !== "number") stats.livesLastRefillAt = Date.now();
+  const refilled = paywall.applyLivesRefill(stats.lives, stats.livesLastRefillAt, Date.now(), { totalLives: storage.TOTAL_LIVES });
+  if (refilled.lives !== stats.lives || refilled.lastRefillAt !== stats.livesLastRefillAt) {
+    stats.lives = refilled.lives;
+    stats.livesLastRefillAt = refilled.lastRefillAt;
+    persistStats();
+  }
   currentLives = stats.lives;
   renderHearts();
 }
@@ -935,8 +958,14 @@ function loseLife(reasonText, { silent = false } = {}) {
   // Pro'da doğal olarak hiç tetiklenmez — onları tek tek değiştirmek yerine kökten
   // (can hiç bitmiyor) çözüldü.
   if (isUserPro()) return;
+  const prevLives = currentLives;
   currentLives = Math.max(0, currentLives - 1);
   stats.lives = currentLives;
+  // G61 (PAYWALL.md): dolum sayacı (30dk) TAM doluluktan düşüldüğü ANDA
+  // başlasın diye referans noktası burada güncellenir — bkz. paywall.
+  // onLifeLost'un kendi notu (zaten dolu DEĞİLKEN kaybedilen bir can sayacı
+  // SIFIRLAMAZ, kaldığı yerden devam eder).
+  stats.livesLastRefillAt = paywall.onLifeLost(prevLives, currentLives, stats.livesLastRefillAt, Date.now(), storage.TOTAL_LIVES);
   renderHearts();
   if (currentLives <= 0) {
     if (!silent) setFeedback("Oyun bitti", `${reasonText} Canların tükendi.`, true, true);
@@ -946,8 +975,17 @@ function loseLife(reasonText, { silent = false } = {}) {
   }
 }
 
+// G61 (PAYWALL.md): "5 soru/oturum (sonra dur)" — currentLives<=0 (canlar
+// bitti) ile AYNI ÇIKIŞ NOKTASI, farklı bir SEBEP. roundsInThisPlaySession
+// (bkz. tanımındaki not) her YENİ soru KURULDUĞUNDA +1 olur — 5. soru zaten
+// posedildikten SONRA true'ya döner, bir 6. soru HİÇ kurulmaz.
+function freeSessionLimitReached() {
+  return paywall.isFreeSessionLimitReached(roundsInThisPlaySession, isUserPro());
+}
 function finalizeIfGameOver() {
-  if (currentLives > 0) return false;
+  const livesOut = currentLives <= 0;
+  const sessionLimitOut = !livesOut && freeSessionLimitReached();
+  if (!livesOut && !sessionLimitOut) return false;
   autoPlaying = false;
   autoStopped = true;
   roundFlow.clearAutoAdvance();
@@ -959,11 +997,13 @@ function finalizeIfGameOver() {
   uploadManager.pausePlayback();
   activeQuestion = null;
   updateStartBtnLabel();
-  // "Canların bitti" varyasyonu SADECE ücretsiz sürümde gösterilir (kullanıcı kararı) —
-  // Pro'da (gerçek ya da simüle) loseLife() zaten currentLives'ı hiç 0'a düşürmüyor
-  // (bkz. loseLife tanımı) — bu satır o yüzden Pro'da pratikte hiç tetiklenmez, ama
-  // yine de isUserPro() üzerinden doğru cevaba bakıyor (savunmacı, tek kaynak).
-  if (!isUserPro()) showSessionEnd("lost");
+  // "Canların bitti"/"Ücretsiz oturum bitti" varyasyonları SADECE ücretsiz
+  // sürümde gösterilir — Pro'da (gerçek ya da simüle) loseLife() currentLives'ı
+  // hiç 0'a düşürmez VE freeSessionLimitReached() isUserPro() içinden HER ZAMAN
+  // false döner (bkz. tanımları), bu satır o yüzden Pro'da pratikte hiç
+  // tetiklenmez, ama yine de isUserPro() üzerinden doğru cevaba bakıyor
+  // (savunmacı, tek kaynak).
+  if (!isUserPro()) showSessionEnd(livesOut ? "lost" : "freeLimit");
   return true;
 }
 
@@ -978,26 +1018,35 @@ function zoneInsightSentence(enough) {
   return `${strong.label} bölgesinde iyisin (%${strong.pct}), ${weak.label.toLowerCase()} bölgesinde zorlanıyorsun (%${weak.pct}).`;
 }
 
-// kind: "lost" (canlar bitti) | "normal" (10 Soruluk Bölüm tamamlandı).
+// kind: "lost" (canlar bitti) | "normal" (10 Soruluk Bölüm tamamlandı) |
+// "freeLimit" (G61/PAYWALL.md: ücretsiz 5 soru/oturum sınırına ulaşıldı).
 // Tasarımdaki (Dizayn/prototype.html #s-result) alanların TAMAMI gerçek oyun
 // state'inden okunur — karşılığı olmayanlar (bkz. rapor: "önceki seansa göre +N
 // puan" ve "odak setini aç" önerisi) BİLEREK atlandı, uydurulmadı.
 function showSessionEnd(kind) {
   sessionEndVisible = true;
   const lost = kind === "lost";
+  const freeLimit = kind === "freeLimit";
+  // "lost"/"freeLimit" İKİSİ de bir 10-soruluk bölümün TAMAMLANMASI değil, bu
+  // OTURUMDA gerçekten ne olduysa (session.correct+wrong) onu gösterir —
+  // SADECE "normal" (10 Soruluk Bölüm bitti) challenge.total/correct'e bakar.
+  const endedEarly = lost || freeLimit;
   const xp = progress.xpProgress(diffState().xp);
   const nowLevel = xp.level;
+  // XP/seviye ücretsizde de KISITLANMAYAN (task'ın kendi listesi) — "freeLimit"te
+  // de gerçekten seviye atlandıysa gösterilir, SADECE "lost" (canlar bitti,
+  // olumsuz kapanış) bunu bastırır — ÖNCEKİ davranış.
   const leveledUp = !lost && sessionStartLevel !== null && nowLevel > sessionStartLevel;
 
-  els.resKicker.textContent = lost ? "CANLARIN BİTTİ" : "SEANS TAMAMLANDI";
-  els.resKicker.style.color = lost ? "var(--rd)" : "var(--gr)";
+  els.resKicker.textContent = lost ? "CANLARIN BİTTİ" : freeLimit ? "ÜCRETSİZ OTURUM BİTTİ" : "SEANS TAMAMLANDI";
+  els.resKicker.style.color = lost ? "var(--rd)" : freeLimit ? "var(--am)" : "var(--gr)";
 
-  const total = lost ? (session.correct + session.wrong) : challenge.total;
-  const correctCount = lost ? session.correct : challenge.correct;
+  const total = endedEarly ? (session.correct + session.wrong) : challenge.total;
+  const correctCount = endedEarly ? session.correct : challenge.correct;
   const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0;
   els.resPct.textContent = `%${pct}`;
   els.resScore.textContent = `${correctCount} / ${total} doğru`;
-  const ringColor = lost ? "var(--rd)" : "var(--gr)";
+  const ringColor = lost ? "var(--rd)" : freeLimit ? "var(--am)" : "var(--gr)";
   els.resRing.style.background = `conic-gradient(${ringColor} 0turn ${(pct / 100).toFixed(3)}turn, rgba(255,255,255,.08) ${(pct / 100).toFixed(3)}turn 1turn)`;
 
   const zoneEnough = zoneScores().filter(s => s.n >= 2);
@@ -1007,14 +1056,24 @@ function showSessionEnd(kind) {
   const activeModeCatalogEntry = MODE_CATALOG.find(e => e.id === mode.getMeta().id);
   els.resHead.textContent = lost
     ? "Canların bitti, seans burada kapandı"
+    : freeLimit
+    ? "Ücretsiz oturumun bitti"
     : (weakest ? `${weakest.label} bölgede ilerleme var` : `${activeModeCatalogEntry ? activeModeCatalogEntry.ad : "Bu"} seansını bitirdin`);
 
   // Tasarımdaki "Son seansına göre +N puan" karşılaştırması VERİ KAYNAĞI YOK —
   // önceki seansın skor anlık görüntüsü hiçbir yerde tutulmuyor. Uydurmak yerine
-  // sadece "lost" durumunda gerçek veriye dayanan bir cümle gösteriliyor, "normal"
-  // durumda bu satır boş/gizli kalıyor.
+  // sadece "lost"/"freeLimit"te gerçek veriye dayanan bir cümle gösteriliyor,
+  // "normal" durumda bu satır boş/gizli kalıyor.
   if (lost) {
-    els.resLead.textContent = `${total} soruda bitti. Canların tükendi — can dolum özelliği henüz eklenmedi.`;
+    // G61: "can dolum özelliği henüz eklenmedi" metni ARTIK YANLIŞ (PAYWALL.md
+    // ile gerçek zaman-tabanlı dolum geldi, bkz. paywall.applyLivesRefill) —
+    // kalan süre stats.livesLastRefillAt'tan HESAPLANIYOR, uydurulmuyor.
+    const msLeft = Math.max(0, (stats.livesLastRefillAt || Date.now()) + paywall.LIVES_REFILL_INTERVAL_MS - Date.now());
+    const minsLeft = Math.max(1, Math.ceil(msLeft / 60000));
+    els.resLead.textContent = `${total} soruda bitti. Canların tükendi — ${minsLeft} dakikada 1 can dolacak.`;
+    els.resLead.classList.remove("hidden");
+  } else if (freeLimit) {
+    els.resLead.textContent = `${paywall.LOCK_MESSAGES.sessionLimit.detail}`;
     els.resLead.classList.remove("hidden");
   } else {
     els.resLead.textContent = "";
@@ -1522,9 +1581,17 @@ function renderModeGrid() {
       // geliştirici anahtarı açıkken TÜM modlar test edilebilsin diye.
       const meetsLevel = devFlags.simulatePro || progress.academyLevel(stats, playableModeIds()) >= entry.unlockLevel;
       const playable = !!realMode && meetsLevel;
+      // G61 (PAYWALL.md): seviye kilidiyle (meetsLevel) AYRI bir ikinci eksen —
+      // Pro/günde-1-tadımlık erişimi. isUserPro() devFlags.simulatePro'yu ZATEN
+      // içeriyor (bkz. o fonksiyonun tanımı) — geliştirici anahtarı açıkken
+      // meetsLevel VE access.allowed AYNI ANDA true olur, kapalıyken ikisi de
+      // gerçek kısıtlarıyla çalışır (task'ın istediği "ikisi de test edilebilsin").
+      const access = playable
+        ? paywall.checkModeAccess(entry.id, { isPro: isUserPro(), dailyTasteLastPlayedAt: stats.dailyTasteLastPlayedAt, now: Date.now() })
+        : { allowed: true, reason: null };
       const card = document.createElement("button");
       card.type = "button";
-      card.className = `mode-card${playable ? "" : " locked"}`;
+      card.className = `mode-card${(playable && access.allowed) ? "" : " locked"}`;
       // "Motor N" rozeti kaldırıldı — kullanıcıya anlamsız iç mimari terimi, aynı
       // bilgi zaten grup başlığında ve renk kodunda var (bkz. madde 4). Pro rozeti
       // (tier==="pro") ile seviye kilidi (unlockLevel) AYRI iki gösterge — biri
@@ -1537,10 +1604,15 @@ function renderModeGrid() {
       // de zaten kilitliyken chip yerine kilit ikonu gösteriyor, AYNI mantık). Veri
       // progress.modeLevel (Z3/Z6'dan beri var, oyun içi #levelChip'in AYNI kaynağı) —
       // hiç oynanmamış bir mod bile levelFromXp'nin tabanı (1) gereği "Sv 1" gösterir.
-      const levelBadge = playable ? `<div class="mode-chip mode-chip-level">Sv ${progress.modeLevel(stats, entry.id)}</div>` : "";
-      const lockRow = playable
-        ? `<div class="mode-mini"><i style="width:0%"></i></div>`
-        : `<div class="mode-lock-row">🔒 Seviye ${turkishLocative(entry.unlockLevel)} açılır</div>`;
+      const levelBadge = (playable && access.allowed) ? `<div class="mode-chip mode-chip-level">Sv ${progress.modeLevel(stats, entry.id)}</div>` : "";
+      // G61: seviye kilidiyle AYNI görsel dil (.mode-lock-row, "sadece erişim
+      // kısıtı eklenir" — yeni bir bileşen icat edilmedi) ama farklı metin: Pro
+      // gerektiren mod ile o gün zaten oynanmış günlük-tadımlık mod AYRI cümle.
+      const lockRow = !playable
+        ? `<div class="mode-lock-row">🔒 Seviye ${turkishLocative(entry.unlockLevel)} açılır</div>`
+        : !access.allowed
+        ? `<div class="mode-lock-row">🔒 ${access.reason === "daily-used" ? "Bugün oynadın · yarın tekrar" : "Pro gerekli"}</div>`
+        : `<div class="mode-mini"><i style="width:0%"></i></div>`;
       card.innerHTML = `
         <div class="mode-top">
           <div class="mode-glyph" style="background:${info.bg}"><i style="height:12px;background:${info.color}"></i><i style="height:22px;background:${info.color}"></i><i style="height:16px;background:${info.color}"></i></div>
@@ -1553,6 +1625,14 @@ function renderModeGrid() {
       `;
       card.addEventListener("click", () => {
         if (playable) {
+          // G61 (PAYWALL.md): seviye kilidi AÇIK ama Pro/günlük-tadımlık erişimi
+          // KAPALIYSA — "kilitli özelliğe basınca BASİT mesaj" (task), güzel
+          // paywall ekranı SONRAKİ parça, burada SADECE toast.
+          if (!access.allowed) {
+            const msg = access.reason === "daily-used" ? paywall.LOCK_MESSAGES["daily-used"] : paywall.LOCK_MESSAGES.pro;
+            toast(msg.title, msg.detail);
+            return;
+          }
           // G37: mod-özel kulaklık uyarısı — bkz. openHeadphoneSheet dosya başı notu.
           // meta.kulaklikGerekli her modun KENDİ getMeta()'sından (mode-catalog.js'in
           // alanı sadece referans, diğer mod alanları gibi — bkz. o dosyanın başındaki
@@ -1704,15 +1784,39 @@ function renderZonePanel() {
         <span class="num" style="width:42px;flex:none;text-align:right;font-size:14px;font-weight:700;color:${hasData ? color : "var(--tx-3)"}">${hasData ? "%" + s.pct : "—"}</span>
       </div>`;
     }).join("");
+    // G61 (PAYWALL.md): "6 bölge geçmiş analizi: bulanık önizleme" — task'ın
+    // kendi kelimesi "bulanık" (blur), tam gizleme DEĞİL — panel yine
+    // açılabilir/veri orada OLDUĞU görülür, sadece rakamlar okunamaz. Yeni bir
+    // CSS bileşeni/ekran İCAT EDİLMEDİ, tek satır inline filter (reskin'e
+    // dokunmadan, sadece bu ERİŞİM kısıtı için).
+    const blurred = paywall.isZoneHistoryBlurred(isUserPro());
+    els.zoneList.style.filter = blurred ? "blur(5px)" : "";
+    els.zoneList.style.pointerEvents = blurred ? "none" : "";
   }
   const enough = scores.filter(s => s.n >= 2);
   const weakest = enough.length ? enough.slice().sort((a, b) => a.pct - b.pct)[0] : null;
-  if (els.zoneSub) els.zoneSub.textContent = weakest ? `en zayıf: ${weakest.label.toLowerCase()} · %${weakest.pct}` : "henüz yeterli veri yok";
+  // G61: "zayıf bölge raporu: kilitli" — zoneSub da (toggle'ın hemen altındaki
+  // "en zayıf: X · %Y" özeti) panel hiç AÇILMADAN aynı bilgiyi ifşa ediyordu,
+  // bu yüzden bulanıklaştırma YETMEZ, TAM kilitlenir (whereNowText'le AYNI karar).
+  if (els.zoneSub) {
+    els.zoneSub.textContent = paywall.isWeakZoneReportLocked(isUserPro())
+      ? "Pro'da açılır"
+      : weakest ? `en zayıf: ${weakest.label.toLowerCase()} · %${weakest.pct}` : "henüz yeterli veri yok";
+  }
   return { scores, enough };
 }
 
 function renderWhereNow(zoneResult) {
   if (!els.whereNowText) return;
+  // G61 (PAYWALL.md): "Zayıf bölge raporu: kilitli" — task'ın "KISITLANMAYAN"
+  // listesindeki "oturum skoru/kişisel rekor" gibi GENEL istatistiklerden FARKLI
+  // olarak bu, kişiselleştirilmiş bir ÖNERİ/teşhis metni — bilerek TAM kilitli
+  // (bulanık DEĞİL, çünkü bir CÜMLE bulanıklaştırılamaz, sadece görüntü verisi
+  // bulanıklaşabilir — bkz. renderZonePanel'in AYRI "bulanık" kararı).
+  if (paywall.isWeakZoneReportLocked(isUserPro())) {
+    els.whereNowText.textContent = paywall.LOCK_MESSAGES.weakZoneReport.detail;
+    return;
+  }
   const enough = zoneResult.enough;
   if (enough.length < 2) {
     els.whereNowText.textContent = "Birkaç tur daha oynayınca burada kişisel bir özet göreceksin.";
@@ -1966,7 +2070,7 @@ function renderQuestion() {
   // kullanılır ("Soru N/10" / "Sınav N/4" / "Telafi N/5" — bkz. core/
   // exam-system.js). Export etmeyen diğer yedi modda mode.EXAM_ENABLED
   // undefined → bu dal hiç çalışmaz, ÖNCEKİ davranış BİREBİR aynı kalır.
-  els.roundChip.textContent = mode.EXAM_ENABLED
+  els.roundChip.textContent = examGateActive()
     ? examSystem.label()
     : challenge.active
     ? `Soru ${challenge.done + 1}/${challenge.total}`
@@ -2129,7 +2233,7 @@ function submitFrequencyGuess(guessHz) {
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması (bkz. o
   // fonksiyondaki not) — SADECE mode.EXAM_ENABLED true iken (G50'den beri
   // Frekans Bulma) çağrılır.
-  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2226,7 +2330,7 @@ function submitCutoffGuess(answer) {
   // X'iyle (bkz. #feedbackClose, merkezi delegasyon) ANINDA atlanabilir.
   const gameOver = finalizeIfGameOver();
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
-  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2308,7 +2412,7 @@ function submitLevelGuess(value) {
   // (#feedbackClose) de var — merkezi delegasyon, bu mod hiçbir şey eklemedi.
   const gameOver = finalizeIfGameOver();
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
-  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2395,7 +2499,7 @@ function submitBoostCutGuess(answer) {
   // bu mod hiçbir şey eklemeden otomatik geldi.
   const gameOver = finalizeIfGameOver();
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
-  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2472,7 +2576,7 @@ function submitQWidthGuess(labelId) {
   // KENDİ X'i (#feedbackClose, G27) de merkezi delegasyondan otomatik geldi.
   const gameOver = finalizeIfGameOver();
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
-  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2558,7 +2662,7 @@ function submitThreeWayGuess(letter) {
   // çağrılır, Reverb (AYNI fonksiyonu paylaşıyor) tamamen ETKİLENMEDEN eski
   // yoldan devam eder. handleExamOutcome true dönerse (sheet açıldı, akış
   // KENDİSİ yönetiyor demek) normal scheduleNext ATLANIR.
-  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
   // Diğer beş modla AYNI hizalı geçiş formülü (bkz. G21). #feedbackBox'ın
   // KENDİ X'i (#feedbackClose, G27) de merkezi delegasyondan otomatik geldi.
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
@@ -2635,7 +2739,7 @@ function submitTonalDengeGuess() {
   // odd-one-out DEĞİL (bkz. dosya başı not) ama handleExamOutcome q/result
   // şeklinden BAĞIMSIZ (sadece result.correct + q.difficulty okur) — three-way
   // olmayan diğer beş submit fonksiyonuyla AYNI şekilde generic çalışır.
-  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2728,7 +2832,7 @@ function submitCakismaGuess(answer) {
   persistDaily();
   const gameOver = finalizeIfGameOver();
   // G51: sınav sistemi — diğer sekiz modla AYNI kablolama.
-  const examHandled = !gameOver && !!mode.EXAM_ENABLED && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2941,7 +3045,7 @@ function ensureAutoNext(durationMs) {
   // xpMult()'un +%50 bonusu HÂLÂ çalışıyor (kullanıcı "10 Soruluk Bölüm"ü
   // seçtiyse), SADECE otomatik bitirme bastırıldı. Diğer yedi modda
   // mode.EXAM_ENABLED undefined → bu koşul ÖNCEKİ davranışla BİREBİR aynı.
-  if (challenge.active && !mode.EXAM_ENABLED && challenge.done >= challenge.total) {
+  if (challenge.active && !examGateActive() && challenge.done >= challenge.total) {
     finishChallenge();
     return;
   }
@@ -2957,7 +3061,7 @@ function ensureAutoNext(durationMs) {
   // kullanıyor — "Soru 7/10 (5) ▶" gibi, İKİ sayı da NE anlama geldiği
   // açık. Diğer yedi modda mode.EXAM_ENABLED undefined → ÖNCEKİ davranış
   // (challenge.active ? "Soru N/10" : "Sonraki") BİREBİR aynı kalır.
-  const label = mode.EXAM_ENABLED ? examSystem.label() : challenge.active ? `Soru ${challenge.done + 1}/10` : "Sonraki";
+  const label = examGateActive() ? examSystem.label() : challenge.active ? `Soru ${challenge.done + 1}/10` : "Sonraki";
   roundFlow.ensureAutoNext(durationMs, label);
 }
 
@@ -3057,7 +3161,7 @@ function startRound() {
   // ekstra bir boss-zorluğu çakışması istenmedi). Diğer yedi mod için
   // `mode.EXAM_ENABLED` undefined → examActive HER ZAMAN false, bu blok
   // ÖNCEKİ davranışla BİREBİR aynı kalır (hiç çalışmaz).
-  const examActive = !!mode.EXAM_ENABLED && examSystem.phase !== "parkur";
+  const examActive = examGateActive() && examSystem.phase !== "parkur";
   // G50: zon-tabanlı telafi (Frekans Bulma/Kesim Noktası/Boost-Cut/Q Genişliği,
   // bkz. getWeakArea) fazında examSystem.remedialTier bir ZORLUK adı DEĞİL bir
   // ZONE nesnesi taşır — questionTier()'a (difficulty bekler) DOĞRUDAN
@@ -3065,8 +3169,8 @@ function startRound() {
   // zorluk "medium"da SABİTLENİR (telafi burada ZORLUKLA değil BÖLGEYLE
   // ilgili — sınavın "zorlaştırılmış" ekseni telafide devrede DEĞİL, sadece
   // gerçek sınavda) ve zone [a,b]'si aşağıda focusRange'e taşınır.
-  const zoneRemedial = mode.EXAM_ENABLED && mode.EXAM_WEAK_AREA === "zone" && examSystem.phase === "remedial";
-  const examTier = mode.EXAM_ENABLED
+  const zoneRemedial = examGateActive() && mode.EXAM_WEAK_AREA === "zone" && examSystem.phase === "remedial";
+  const examTier = examGateActive()
     ? (zoneRemedial ? "medium" : examSystem.questionTier(els.difficultySelect.value, mode.EXAM_DIFFICULTY))
     : els.difficultySelect.value;
   const boss = examActive ? false : mode.isBossRound(stats.rounds);
@@ -3094,7 +3198,7 @@ function startRound() {
     // SADECE gerçek sınav fazında true (telafi DEĞİL — telafi zorluk değil
     // bölge/kademe ekseninde, daha kolay bir pratik olmalı). Diğer yedi mod bu
     // alanı hiç okumadığı için ETKİLENMEZ (bkz. tonal-denge.js createQuestion notu).
-    examBandBoost: mode.EXAM_ENABLED && examSystem.phase === "exam",
+    examBandBoost: examGateActive() && examSystem.phase === "exam",
     // ADIM 1+2 (zorluk sisteminin merkezi bağlanması, bkz. currentDifficultyPosition
     // altındaki not): HER İKİ mod da (Kesim Noktası + Frekans Bulma) kendi
     // paramsForDifficultyPosition'ı üzerinden bunu okuyor — proplus (undefined
@@ -3145,6 +3249,13 @@ function pickRoundSource() {
 // createQuestion bunu "tüm spektrum" olarak yorumlar (bkz. frekans-bulma.js).
 function currentFocusRange() {
   if (!mode.FOCUS_RANGES || !els.focusSelect) return undefined;
+  // G61 (PAYWALL.md): "bölge seçerek çalışma: kilitli (otomatik zorluk çalışır)".
+  // SAVUNMACI okuma-anı kontrolü — .setting-row gate'i (bkz. yukarısı) free
+  // kullanıcının SEÇİMİ değiştirmesini zaten engelliyor, ama Pro'dan free'ye
+  // İNEN bir kullanıcının prefs'te KALMIŞ eski seçimi (ör. "Bas") burada
+  // yoksayılır, tam spektruma düşülür — UI select'in DEĞERİNE dokunmadan
+  // (sadece burada, gerçek kullanılan aralık için).
+  if (paywall.isFocusRangeLocked(isUserPro())) return undefined;
   const focus = mode.FOCUS_RANGES[els.focusSelect.value];
   return focus ? focus.range : undefined;
 }
@@ -3685,6 +3796,13 @@ wireCakismaUpload(els.cakismaFileInputB, uploadManagerB, "B");
 document.querySelectorAll(".upload-trigger-btn").forEach(btn => {
   const targetId = btn.dataset.fileTarget;
   btn.addEventListener("click", async () => {
+    // G61 (PAYWALL.md): "Kendi dosya yükleme: kilitli" — Oyun Ayarları'nın tekli
+    // upload satırı VE Motor 3'ün iki upload yuvası AYNI TEK yolu (bu forEach)
+    // paylaşıyor, tek noktadan kapatılıyor.
+    if (paywall.isUploadLocked(isUserPro())) {
+      toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail);
+      return;
+    }
     console.log(`[filepicker-diag] 0) buton tıklandı: data-file-target="${targetId}"`);
     const picked = await pickNativeAudioFile();
     if (picked === undefined) {
@@ -3731,9 +3849,27 @@ els.startBtn.addEventListener("click", async () => {
   if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
 
   if (!activeQuestion) {
+    // G61 (PAYWALL.md): SAVUNMACI ikinci kontrol — mod-kartı tıklaması (bkz.
+    // renderModeGrid) çakışma'nın günlük hakkını ÖNDEN engelliyor ama "Tekrar
+    // Oyna"/"10 soru daha" (startFreshAttempt) mod-kartına HİÇ uğramadan
+    // doğrudan buraya (goScreen("game")+setAutoPlay) düşüyor — aynı moddayken
+    // günün hakkı bu SIRADA tükenmiş olabilir (ör. Pro simülasyonu kapatılıp
+    // aynı oturumda tekrar denendi). Tek doğruluk kaynağı YİNE paywall.js.
+    if (!isUserPro() && paywall.isDailyTasteMode(mode.getMeta().id) && !paywall.canPlayDailyTaste(stats.dailyTasteLastPlayedAt, Date.now())) {
+      const msg = paywall.LOCK_MESSAGES["daily-used"];
+      toast(msg.title, msg.detail);
+      return;
+    }
     // Gerçek bir fresh-start (bkz. roundsInThisPlaySession tanımındaki not) —
     // Tekrar Çal (autoStopped dalı, aşağıda) BUNU sıfırlamaz, sadece burası.
     roundsInThisPlaySession = 0;
+    // G61: günlük tadımlık BURADA (gerçek round başlarken), mod kartına
+    // dokunulduğu anda DEĞİL işaretleniyor — yanlışlıkla karta basıp geri
+    // çıkan bir kullanıcı günün hakkını KAYBETMESİN diye.
+    if (!isUserPro() && paywall.isDailyTasteMode(mode.getMeta().id)) {
+      stats.dailyTasteLastPlayedAt = Date.now();
+      persistStats();
+    }
     if (isChallenge()) startChallenge();
     setAutoPlay(true);
     return;
@@ -4019,10 +4155,14 @@ if (els.quitGameBtn) els.quitGameBtn.addEventListener("click", () => {
 //   metin değişmiyor — davranış hep aynı olduğu için etiket de hep aynı).
 // - "Tekrar oyna": seans hangi moddaysa (serbest/bölüm) O modda yeniden başlar.
 // - "Menüye dön": ana menüye çıkar.
-// Üçü de: OTOMATİK CAN DOLUMU YOK — can hâlâ 0 ise dürüstçe "can dolum özelliği
-// henüz eklenmedi" mesajıyla kalır, sessizce yeni tur başlatmaz.
+// G61 (PAYWALL.md): "can dolum özelliği henüz eklenmedi" ARTIK YANLIŞ — gerçek
+// zaman-tabanlı dolum var (30 dakikada 1). syncLives() burada TEKRAR çağrılıyor
+// çünkü kullanıcı Seans Sonu ekranında dakikalarca oturmuş OLABİLİR — canlar
+// menüde/oyun ekranında hiç render edilmeden arka planda dolmuş olabilir, bu
+// çağrı olmadan currentLives BAYAT kalırdı.
 function startFreshAttempt({ forceChallenge }) {
   hideSessionEnd();
+  syncLives();
   if (currentLives <= 0) {
     resetSession();
     // Önceki turun kalıntı UI'ı (soru başlığı + sonuç kartı) startRound()
@@ -4032,7 +4172,9 @@ function startFreshAttempt({ forceChallenge }) {
     if (els.freqInfo) els.freqInfo.classList.add("hidden");
     if (els.questionTitle) els.questionTitle.textContent = "Canların bitti";
     if (els.questionMeta) els.questionMeta.textContent = "";
-    setFeedback("Canların bitti", "Şu an devam edemezsin — can dolum özelliği henüz eklenmedi.");
+    const msLeft = Math.max(0, (stats.livesLastRefillAt || Date.now()) + paywall.LIVES_REFILL_INTERVAL_MS - Date.now());
+    const minsLeft = Math.max(1, Math.ceil(msLeft / 60000));
+    setFeedback("Canların bitti", `Şu an devam edemezsin — ${minsLeft} dakikada 1 can dolacak.`);
     goScreen("game");
     return;
   }
@@ -4172,6 +4314,10 @@ document.addEventListener("visibilitychange", () => {
   } else if (audioEngine.audioCtx && audioEngine.audioCtx.state === "suspended") {
     try { audioEngine.audioCtx.resume(); } catch (e) {}
   }
+  // G61 (PAYWALL.md): "30 dakikada 1 can" — ön plana HER dönüşte yeniden
+  // hesaplanır (arka planda geçirilen GERÇEK süre burada devreye girer, bu
+  // olayın KENDİSİ zaten "kullanıcı uzun süre uzaklaştı mı" sinyali).
+  if (!document.hidden) syncLives();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -4337,6 +4483,17 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
       const checkStyle = isUnloadedUpload ? ' style="opacity:1"' : '';
       row.innerHTML = `<span>${opt.text}</span><span class="check"${checkStyle}>${isUnloadedUpload ? '›' : '✓'}</span>`;
       row.addEventListener('click', async () => {
+        // G61 (PAYWALL.md): "Kendi dosya yükleme: kilitli" — Ses Kaynağı
+        // sheet'indeki "Dosya seç" satırı, .upload-trigger-btn'in AYRI (bu
+        // dosyanın en başındaki not, bkz. isUnloadedUpload) kod yolu — DAHA
+        // ÖNCE yüklenmiş bir dosya varsa (uploadManager.hasBuffer=true) bile
+        // free kullanıcı onu seçemez, indirgeme (downgrade) sonrası kalıntı
+        // bir seçim olası (bkz. enforceFreeRestrictions'ın AYNI motivasyonu).
+        if (select.id === 'sourceSelect' && opt.value === 'upload' && paywall.isUploadLocked(isUserPro())) {
+          closeSheet();
+          toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail);
+          return;
+        }
         if (isUnloadedUpload) {
           closeSheet();
           // G53: AYNI native-önce/web-fallback deseni (bkz. .upload-trigger-btn
@@ -4362,6 +4519,19 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
     if (!select) return;
     updateRowText(select);
     row.addEventListener('click', () => {
+      // G61 (PAYWALL.md): "Sabit zorluk seçimi + bölge seçerek çalışma: kilitli
+      // (otomatik zorluk çalışır)" — Z7'nin auto-mode özel dalından ÖNCE kontrol
+      // edilir (free'de zaten HER ZAMAN auto'da kalınacağı için o dal hiç
+      // tetiklenmemeli, kafa karıştıran "Sabit'e geçmek ister misin?" sorusu
+      // YERİNE net "Pro gerekli" mesajı gösterilir).
+      if (select.id === 'difficultySelect' && !isUserPro()) {
+        toast(paywall.LOCK_MESSAGES.difficulty.title, paywall.LOCK_MESSAGES.difficulty.detail);
+        return;
+      }
+      if (select.id === 'focusSelect' && !isUserPro()) {
+        toast(paywall.LOCK_MESSAGES.focusRange.title, paywall.LOCK_MESSAGES.focusRange.detail);
+        return;
+      }
       // Z7: Otomatik zorluk modundayken "Zorluk" satırına dokunmak seçim listesini
       // AÇMAZ — kullanıcı zaten müdahale etmiyor demektir (Z5 kararı); bunun yerine
       // "Sabit'e geçmek ister misin?" sorusu gösterilir (prototype.html: gameDiffTap/
@@ -4383,6 +4553,9 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
   // Z7: autoDiffAsk'ın iki butonu.
   if (els.autoDiffSwitchBtn) els.autoDiffSwitchBtn.addEventListener('click', () => {
     if (els.autoDiffAsk) els.autoDiffAsk.classList.add('hidden');
+    // G61: bu buton normalde artık AÇILMAZ bile (yukarıdaki .setting-row gate'i
+    // free'de autoDiffAsk'ı hiç göstermiyor) — savunmacı ikinci kontrol.
+    if (!isUserPro()) { toast(paywall.LOCK_MESSAGES.difficulty.title, paywall.LOCK_MESSAGES.difficulty.detail); return; }
     diffModeAuto = false;
     prefs.difficultyMode = "fixed";
     storage.savePrefs(prefs);
@@ -4458,6 +4631,32 @@ if (els.mainSettingsSheet) {
 let diffModeAuto = prefs.difficultyMode !== "fixed";
 let diffSublistOpen = false;
 
+// G61 (PAYWALL.md): "Sabit zorluk seçimi + bölge seçerek çalışma: kilitli
+// (otomatik zorluk çalışır)" — yukarıdaki UI gate'leri (diffFixedBtn/
+// autoDiffSwitchBtn/.setting-row) kullanıcının YENİ bir kısıtlı seçim
+// YAPMASINI engelliyor, ama Pro'yken kaydedilmiş bir tercih (prefs.
+// difficultyMode="fixed" ya da prefs.focusRange="bass" gibi) sonradan Pro
+// düşerse STATE'te KALIR — split-brain'i (UI kilitli görünür ama gerçek
+// state hâlâ eski Pro tercihini taşır) önlemek için bu, isUserPro() DEĞİŞEBİLECEK
+// her noktada (devProSwitch/devModeOffBtn, bkz. syncDevUI) + açılışta çağrılır,
+// state'i GERÇEKTEN düzeltir (sadece görünümü değil).
+function enforceFreeRestrictions() {
+  if (isUserPro()) return;
+  if (!diffModeAuto) {
+    diffModeAuto = true;
+    prefs.difficultyMode = "auto";
+    storage.savePrefs(prefs);
+    applyAutoDifficulty();
+    syncDiffSheetUI();
+  }
+  if (els.focusSelect && els.focusSelect.value !== "full") {
+    els.focusSelect.value = "full";
+    prefs.focusRange = "full";
+    storage.savePrefs(prefs);
+    els.focusSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+}
+
 // Z5 KARAR: Otomatik modda Z1'in TAM sürekli (logaritmik) eğrisi (difficultyParams'ın
 // ondalık gain/Q değerleri) createQuestion/evaluateAnswer'a DOĞRUDAN enjekte
 // EDİLMEDİ — bu, evaluateAnswer'ın sabit 0.5 oktav tolerans sınırını ve DIFFICULTY
@@ -4514,6 +4713,9 @@ if (els.diffAutoBtn) els.diffAutoBtn.addEventListener("click", () => {
   syncDiffSheetUI();
 });
 if (els.diffFixedBtn) els.diffFixedBtn.addEventListener("click", () => {
+  // G61 (PAYWALL.md): "Sabit zorluk seçimi kilitli" — Genel Ayarlar'daki
+  // Otomatik/Sabit anahtarının Sabit ucu.
+  if (!isUserPro()) { toast(paywall.LOCK_MESSAGES.difficulty.title, paywall.LOCK_MESSAGES.difficulty.detail); return; }
   diffModeAuto = false;
   diffSublistOpen = true;
   prefs.difficultyMode = "fixed";
@@ -4605,6 +4807,7 @@ function syncDevUI() {
   if (els.devGroup) els.devGroup.classList.toggle("hidden", !devFlags.unlocked);
   if (els.devProSwitch) els.devProSwitch.classList.toggle("on", devFlags.simulatePro);
   applyProLockVisibility();
+  enforceFreeRestrictions(); // G61: isUserPro() burada değişmiş OLABİLİR, state'i senkronla
   syncAccountLine();
   renderModeGrid();
 }
@@ -5014,6 +5217,14 @@ function processToolsUploadFile(file) {
 }
 if (els.toolsUploadBtn && els.toolsFileInput) {
   els.toolsUploadBtn.addEventListener("click", async () => {
+    // G61 (PAYWALL.md): "Araçlar sekmesi içeriği: kilitli" — bu buton
+    // Analiz/Referans filtrelerini besleyen TEK yükleme kartı, ikisi de
+    // zaten Pro kilidi arkasında (bkz. applyProLockVisibility) — kartın
+    // KENDİSİ o kilitlerin ÜSTÜNDE durduğu için ayrıca burada da kapatılır.
+    if (paywall.isToolsContentLocked(isUserPro())) {
+      toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail);
+      return;
+    }
     const picked = await pickNativeAudioFile();
     if (picked === undefined) els.toolsFileInput.click();
     else if (picked) processToolsUploadFile(picked);
@@ -5042,3 +5253,4 @@ function applyProLockVisibility() {
   btn.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("paywall"); });
 });
 applyProLockVisibility();
+enforceFreeRestrictions(); // G61: temiz açılışta da (Pro'dan düşmüş eski bir localStorage kaydı olabilir)
