@@ -1,13 +1,77 @@
 # DURUM
 
-Son güncelleme: 07.08.2026 (G56)
+Son güncelleme: 07.08.2026 (G57)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G56, tek commit — kod+DURUM.md birlikte) — **Frekans Çakışması'nın
+Bu commit (G57, tek commit — kod+DURUM.md birlikte) — **Frekans Çakışması'nda
+YANLIŞ cevapta da öğretim: üç aşamanın HER BİRİNDE artık "neden yanlış +
+neden doğrusu doğru" açıklaması var (task: "SoundGym 'yanlış' der geçer —
+bizim ayrıştırıcımız hatadan öğretmek").**
+
+**PAYLAŞILAN DEKORATİF MODEL — görsel ile öğretim metni ARTIK AYNI zihinsel
+haritayı okuyor:** G52'nin `drawOverlay`'inde iki kaynağın "varlık eğrisi"
+için kullanılan `SOURCE_CURVE_WIDTH_OCT`/`SOURCE_CURVE_OFFSET_OCT` sabitleri
+dosyanın BAŞINA taşındı, YENİ iki saf fonksiyon eklendi: `sourcePeakFreq
+(trueCenter, which)` (A/B'nin dekoratif tepe frekansı) ve `dominantSourceAt
+(freq, trueCenter)` (verilen bir frekansta hangi kaynağın tepesine DAHA
+YAKIN — "orada hangisi güçlü/zayıf" sorusunun cevabı). Gerçek ses FFT'si
+DEĞİL (dosya başı computeRegionCurveDb notuyla AYNI "dekoratif ama tutarlı"
+ilke) — ama artık AŞAMA 1'in yanlış-cevap öğretimi, `drawOverlay`'in
+GÖSTERDİĞİ AYNI amber/mor tepe modeline dayanıyor, birbirinden SAPMIYOR.
+
+**ÜÇ AŞAMANIN YANLIŞ-CEVAP DALLARI (`teachingText`, DOĞRU cevap dalları
+HİÇ değişmedi):**
+- **AŞAMA 1 (teşhis):** "Yanlış — senin seçtiğin [X]Hz'de [orada baskın olan
+  kaynak] var ama [diğeri] zayıf, orada çakışma olmaz. Asıl çakışma [Y]Hz'de
+  — ikisi de orada güçlü, mix bulanıklaşıyor." — `[X]` kullanıcının SEÇTİĞİ
+  frekans, hangi kaynağın "orada var/zayıf" olduğu `dominantSourceAt` ile
+  KİŞİSELLEŞTİRİLİYOR (task'ın kendi örnek formatıyla BİREBİR).
+- **AŞAMA 2 (karar):** "Yanlış — [seçtiği kaynak]'dan kesmek çakışmayı
+  çözmez, çünkü asıl maskeleyen kaynak [doğru kaynak], [seçtiği] değil.
+  [Doğru kaynak]'dan kesmeliydin — [korunması gereken] o bölgede daha
+  belirleyici/önemli, yerini korumalı."
+- **AŞAMA 3 (çöz):** ÜÇ alt-senaryo — AZ kestiyse ("...az kestin, maske
+  hâlâ duruyor, [A] ve [B] tam ayrışmadı"), ÇOK kestiyse ("...çok kestin,
+  [kaynak] gereksiz zayıfladı, mixte kayboldu"), DOĞRUYA ÇOK YAKINSA
+  (`maskOpenedPct>=75`, task'ın "uygun ince geri bildirim" isteği — kaba
+  az/çok mesajı YERİNE) "...çok yakındın (yakınlık %N), biraz daha [az/çok]
+  kesmen yeterliydi" gibi nazik bir ton.
+
+**Doğrulama (canlı, tarayıcıda, üç aşamada da yanlış cevap verilerek):**
+- AŞAMA 1: *"Yanlış — senin seçtiğin 50 Hz'de Kick var ama Bas zayıf, orada
+  çakışma olmaz. Asıl çakışma 60 Hz'de — ikisi de orada güçlü, mix
+  bulanıklaşıyor."* EKRAN GÖRÜNTÜSÜYLE/canlı doğrulandı.
+- AŞAMA 2: *"Yanlış — Bas'dan kesmek çakışmayı çözmez, çünkü asıl maskeleyen
+  kaynak kick, bas değil. Kick'dan kesmeliydin — Bas o bölgede daha
+  belirleyici/önemli, yerini korumalı."* canlı doğrulandı.
+- AŞAMA 3 (üç alt-senaryo): "çok kestin...gereksiz zayıfladı, mixte
+  kayboldu" VE "çok yakındın (yakınlık %75), biraz daha az kesmen
+  yeterliydi" ikisi de canlı doğrulandı.
+- DOĞRU cevap metinleri (task'ın "Doğru cevap açıklaması KORUNSUN" şartı)
+  regresyon testleriyle + canlı ("Doğru! Kick ve Bas 73 Hz'de çakışıyor...")
+  doğrulandı — HİÇ değişmedi.
+- Konsol hatası SIFIR.
+- YENİ testler — `test/frekans-cakismasi.test.mjs`'e üç describe: (1)
+  `sourcePeakFreq`/`dominantSourceAt` saf fonksiyon testleri, (2)
+  `teachingText()` — her aşamanın hem DOĞRU (regresyon, "Doğru!" ile
+  başlıyor mu) hem YANLIŞ (kullanıcının seçtiği değeri/doğru değeri
+  içeriyor mu, az/çok/yakın dallanıyor mu) dallarını doğrudan test ediyor,
+  (3) `getFeedbackData()` — yanlış cevapta `title="Iskaladın"`, `detail`
+  `teachingText`'in yanlış dalıyla BİREBİR aynı, `result.correct=false`.
+- `npm test`: **765/765** (753'ten +12).
+
+**KORUMA:** `evaluateAnswer`/`calculateXP`/`createQuestion` SAF kaldı, TEK
+SATIR değişmedi — SADECE `teachingText` (ve onu ÇAĞIRAN `getFeedbackData`,
+kendisi hâlâ SAF) metin üretimi zenginleşti. Mekanik (teşhis/kaynak/kesme),
+sınav sistemi, 8 mevcut mod HİÇ değişmedi.
+
+---
+
+Önceki commit (G56, tek commit — kod+DURUM.md birlikte) — **Frekans Çakışması'nın
 "kendi dosyalarım" upload'ı iki GENEL yükleme yuvasına ("Ses 1"/"Ses 2")
 dönüştürüldü + butonlar ana ekrana taşınıp Frekans Bulma'nın keşfedilebilirlik
 deseniyle hizalandı + üçüncü bir teşhis katmanı eklendi.**

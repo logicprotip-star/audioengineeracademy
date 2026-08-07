@@ -188,6 +188,33 @@ export function pickCenterFreq(regionMin, regionMax, rng = Math.random) {
   return Math.exp(a + rng() * (b - a));
 }
 
+// G57 — G52'nin drawOverlay'inde İKİ kaynağın dekoratif "varlık eğrisi"
+// (trueCenter'ın hafifçe altına/üstüne kaydırılmış tepe noktaları) için
+// kullanılan sabitler YUKARI taşındı — artık SADECE görsel değil, YANLIŞ
+// cevap öğretimi de (teachingText, aşağıda) "kullanıcının seçtiği frekansta
+// hangi kaynak baskın/zayıf" sorusunu AYNI dekoratif modelden cevaplıyor
+// (gerçek ses FFT'si DEĞİL — dosya başı computeRegionCurveDb notuyla AYNI
+// "dekoratif ama tutarlı" ilke, görsel ile öğretim metni ARTIK AYNI zihinsel
+// modeli paylaşıyor, birbirinden SAPMIYOR).
+export const SOURCE_CURVE_WIDTH_OCT = 1.1;
+export const SOURCE_CURVE_OFFSET_OCT = 0.55;
+
+// SAF FONKSİYON: kaynak A/B'nin dekoratif "tepe" frekansı — trueCenter'ın
+// altına (A) ya da üstüne (B) SOURCE_CURVE_OFFSET_OCT kadar kaydırılmış.
+export function sourcePeakFreq(trueCenter, which) {
+  return which === "a" ? trueCenter / Math.pow(2, SOURCE_CURVE_OFFSET_OCT) : trueCenter * Math.pow(2, SOURCE_CURVE_OFFSET_OCT);
+}
+
+// SAF FONKSİYON: verilen bir frekansta (ör. kullanıcının AŞAMA 1 tahmini)
+// hangi kaynağın (a/b) dekoratif tepesine DAHA YAKIN olduğu — "orada hangisi
+// güçlü/var, hangisi zayıf" öğretim anlatısının temeli (bkz. teachingText
+// AŞAMA 1 yanlış-cevap dalı).
+export function dominantSourceAt(freq, trueCenter) {
+  const distA = Math.abs(Math.log2(freq / sourcePeakFreq(trueCenter, "a")));
+  const distB = Math.abs(Math.log2(freq / sourcePeakFreq(trueCenter, "b")));
+  return distA <= distB ? "a" : "b";
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // AŞAMA 1 ŞIKLARI — çakışma merkezini içeren N aday merkez (biri doğru,
 // diğerleri oktav biriminde uzaklaşan çeldiriciler) — Kesim Noktası'nın
@@ -410,6 +437,13 @@ export function calculateXP(question, result, hintUsed, level, context = {}) {
 // ÖĞRETİCİ METİN — task'ın kendi örnek formatı: "kick ve bas 80Hz'de
 // çakışıyordu. Bası 80Hz'den kestin, kick'e yer açıldı — artık ikisi de net.
 // Gerçek mixte kick'e sub'ı bırak, bası biraz yukarıdan tut."
+//
+// G57 — YANLIŞ cevapta da AYNI derinlikte öğretim (task: "SoundGym 'yanlış'
+// der geçer — bizim ayrıştırıcımız hatadan öğretmek"). Doğru cevap dalları
+// (yukarıdaki task metninin kendisi) HİÇ değişmedi — SADECE yanlış dallar
+// kullanıcının SEÇTİĞİ değere göre KİŞİSELLEŞTİRİLMİŞ, "neden yanlış + neden
+// doğrusu doğru" açıklamasına genişletildi. getFeedbackData/evaluateAnswer
+// SAF kaldı — bu fonksiyon SADECE metin üretir, mekanik/puanlama DOKUNULMADI.
 // ═══════════════════════════════════════════════════════════════════════════
 export function teachingText(question, answer) {
   const result = evaluateAnswer(question, answer);
@@ -419,20 +453,44 @@ export function teachingText(question, answer) {
 
   if (question.stage === 1) {
     if (result.correct) return `Doğru! ${question.pair.labelA} ve ${question.pair.labelB} ${centerLabel}'de çakışıyor — ikisi de aynı bölgede güçlü, mix orada bulanıklaşıyor.`;
-    return `Çakışma aslında ${centerLabel}'deydi, sen farklı bir bölge işaretledin. İkisini birlikte dinlerken hangi bölgede ayırt edemediğine odaklan.`;
+    // Kullanıcının seçtiği frekansta (dekoratif "varlık eğrisi" modeline göre,
+    // bkz. dosya başı sourcePeakFreq/dominantSourceAt) HANGİ kaynağın baskın
+    // olduğu — "orada X var ama Y zayıf, çakışma olmaz" anlatısının temeli.
+    if (Number.isFinite(result.guessCenter) && result.guessCenter > 0) {
+      const guessLabel = formatHz(result.guessCenter);
+      const dominant = dominantSourceAt(result.guessCenter, question.trueCenter);
+      const strongLabel = dominant === "a" ? question.pair.labelA : question.pair.labelB;
+      const weakLabel = dominant === "a" ? question.pair.labelB : question.pair.labelA;
+      return `Yanlış — senin seçtiğin ${guessLabel}'de ${strongLabel} var ama ${weakLabel} zayıf, orada çakışma olmaz. Asıl çakışma ${centerLabel}'de — ikisi de orada güçlü, mix bulanıklaşıyor.`;
+    }
+    return `Yanlış — çakışma aslında ${centerLabel}'deydi. İkisini birlikte dinlerken hangi bölgede ayırt edemediğine odaklan.`;
   }
 
   if (question.stage === 2) {
     if (result.correct) return `Doğru! ${cutLabel}'dan kesmek mix'i açar — ${keepLabel} o bölgede daha belirleyici, yerini korumalı.`;
     const guessLabel = result.guessSource === "a" ? question.pair.labelA : question.pair.labelB;
-    return `Aslında ${cutLabel}'dan kesilmeliydi, sen ${guessLabel}'ı seçtin — ${guessLabel}'dan kesmek ${keepLabel}'i zayıflatır, çakışma çözülmez.`;
+    return `Yanlış — ${guessLabel}'dan kesmek çakışmayı çözmez, çünkü asıl maskeleyen kaynak ${cutLabel.toLowerCase()}, ${guessLabel.toLowerCase()} değil. ${cutLabel}'dan kesmeliydin — ${keepLabel} o bölgede daha belirleyici/önemli, yerini korumalı.`;
   }
 
   // AŞAMA 3
   if (result.correct) {
     return `${question.pair.labelA} ve ${question.pair.labelB} ${centerLabel}'de çakışıyordu. ${cutLabel}'ı ${centerLabel}'den ${Math.abs(question.correctCutDb).toFixed(1)} dB kestin, ${keepLabel}'e yer açıldı — artık ikisi de net. Gerçek mixte ${keepLabel.toLowerCase()}e o bölgeyi bırak, ${cutLabel.toLowerCase()}ı biraz yukarıdan tut.`;
   }
-  return `${cutLabel}'dan ${Math.abs(question.correctCutDb).toFixed(1)} dB kesilmesi gerekiyordu, sen ${Math.abs(result.guessCutDb).toFixed(1)} dB dedin — yakınlık %${result.maskOpenedPct}, maske tam açılmadı.`;
+  // Yön (az mı çok mu kesildi) + yakınlığa göre ince/kaba geri bildirim —
+  // task'ın üç alt-senaryosu (az kestin / çok kestin / yakın ama tam değil).
+  const correctAbs = Math.abs(question.correctCutDb);
+  const guessAbs = Math.abs(result.guessCutDb);
+  const underCut = guessAbs < correctAbs;
+  const base = `${cutLabel}'dan ${correctAbs.toFixed(1)} dB kesilmesi gerekiyordu, sen ${guessAbs.toFixed(1)} dB dedin`;
+  if (result.maskOpenedPct >= 75) {
+    // Doğruya YAKIN ama tam değil — task'ın "uygun ince geri bildirim" isteği,
+    // kaba az/çok mesajı yerine yakınlığı ÖNE çıkaran daha nazik bir ton.
+    return `${base} — çok yakındın (yakınlık %${result.maskOpenedPct}), ${underCut ? "biraz daha kesmen" : "biraz daha az kesmen"} yeterliydi.`;
+  }
+  if (underCut) {
+    return `${base} — az kestin, maske hâlâ duruyor, ${question.pair.labelA} ve ${question.pair.labelB} tam ayrışmadı. Yakınlık %${result.maskOpenedPct}.`;
+  }
+  return `${base} — çok kestin, ${cutLabel} gereksiz zayıfladı, mixte kayboldu. Yakınlık %${result.maskOpenedPct}.`;
 }
 
 export function getFeedbackData(question, answer, context = {}) {
@@ -627,8 +685,8 @@ function drawAxis(ctx2d, w, h) {
 // olarak çizilir — GUESS_COLOR'dan (kullanıcının stage-1 seçimi, AYNI kırmızı
 // aile ama farklı ton) BİLEREK ayrı bir kırmızı tonu (feedback-colors.js'in
 // GUESS_COLOR'ıyla KARIŞTIRILMASIN diye, ikisi aynı anda görünebiliyor).
-const SOURCE_CURVE_WIDTH_OCT = 1.1;
-const SOURCE_CURVE_OFFSET_OCT = 0.55;
+// SOURCE_CURVE_WIDTH_OCT/OFFSET_OCT G57'de dosya başına taşındı (bkz.
+// pickCenterFreq'in altı) — artık teachingText de AYNI sabitleri okuyor.
 const SOURCE_A_COLOR = "#FFC246"; // --am
 const SOURCE_B_COLOR = "#A855F7"; // --pu
 const COLLISION_COLOR = "#FF3D6B"; // --rd'ye yakın ama GUESS_COLOR'dan (#FF4D6D) ayrı bir ton
@@ -653,9 +711,9 @@ export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
   // dahil), çünkü hangi İKİ kaynağın çaldığı zaten baştan bilinen bir bilgi
   // (kulakla bulma ilkesini bozmuyor — SIZDIRILAN şey çakışmanın TAM merkezi
   // DEĞİL, sadece "bunlar iki kaynak" gösterimi).
-  const aDb = computeRegionCurveDb(audioCtx, q.trueCenter / Math.pow(2, SOURCE_CURVE_OFFSET_OCT), SOURCE_CURVE_WIDTH_OCT, w);
+  const aDb = computeRegionCurveDb(audioCtx, sourcePeakFreq(q.trueCenter, "a"), SOURCE_CURVE_WIDTH_OCT, w);
   if (aDb) drawRegionCurve(ctx2d, w, h, aDb, SOURCE_A_COLOR, 0.45);
-  const bDb = computeRegionCurveDb(audioCtx, q.trueCenter * Math.pow(2, SOURCE_CURVE_OFFSET_OCT), SOURCE_CURVE_WIDTH_OCT, w);
+  const bDb = computeRegionCurveDb(audioCtx, sourcePeakFreq(q.trueCenter, "b"), SOURCE_CURVE_WIDTH_OCT, w);
   if (bDb) drawRegionCurve(ctx2d, w, h, bDb, SOURCE_B_COLOR, 0.45);
 
   if (!roundActive && cakismaGuess && q.stage === 1 && Number.isFinite(cakismaGuess.center)) {

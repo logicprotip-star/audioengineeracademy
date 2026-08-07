@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import * as mode from "../www/js/modes/frekans-cakismasi.js";
 import { SOURCE_PAIRS, OWN_SOURCE_PAIR, findSourcePair } from "../www/js/core/source-catalog.js";
 import { representativeLevelForTier } from "../www/js/core/difficulty-curve.js";
+import { formatHz } from "../www/js/core/utils.js";
 
 function mulberry32(seed) {
   return function () {
@@ -319,6 +320,118 @@ describe("getMeta() sözleşme alanları", () => {
     assert.ok(Array.isArray(meta.pairs) && meta.pairs.length >= 2, "en az bir hazır çift + own");
     assert.ok(meta.pairs.some(p => p.id === "own"));
     assert.equal(meta.choiceOnly, true);
+  });
+});
+
+describe("sourcePeakFreq() / dominantSourceAt() — G57'nin dekoratif 'hangi kaynak orada güçlü' modeli", () => {
+  it("sourcePeakFreq: A trueCenter'ın ALTINDA, B trueCenter'ın ÜSTÜNDE", () => {
+    const trueCenter = 1000;
+    assert.ok(mode.sourcePeakFreq(trueCenter, "a") < trueCenter);
+    assert.ok(mode.sourcePeakFreq(trueCenter, "b") > trueCenter);
+  });
+  it("dominantSourceAt: A'nın kendi tepe noktasında A baskın, B'nin tepe noktasında B baskın", () => {
+    const trueCenter = 1000;
+    assert.equal(mode.dominantSourceAt(mode.sourcePeakFreq(trueCenter, "a"), trueCenter), "a");
+    assert.equal(mode.dominantSourceAt(mode.sourcePeakFreq(trueCenter, "b"), trueCenter), "b");
+  });
+});
+
+describe("teachingText() — YANLIŞ cevapta öğretici açıklama (G57: 'SoundGym yanlış der geçer, biz öğretiriz')", () => {
+  it("AŞAMA 1 doğru cevap metni KORUNDU (regresyon) — 'Doğru!' ile başlar, iki kaynağı ve merkezi adlandırır", () => {
+    const q = mode.createQuestion("medium", { sessionQuestionIndex: 0, rng: mulberry32(7) });
+    const text = mode.teachingText(q, { center: Math.round(q.trueCenter) });
+    assert.match(text, /^Doğru!/);
+    assert.ok(text.includes(q.pair.labelA) && text.includes(q.pair.labelB));
+  });
+
+  it("AŞAMA 1 yanlış cevap: 'Yanlış' ile başlar, KULLANICININ seçtiği frekansı + doğru frekansı + hangi kaynağın orada güçlü/zayıf olduğunu adlandırır", () => {
+    const q = mode.createQuestion("medium", { sessionQuestionIndex: 0, rng: mulberry32(7) });
+    const guessAtA = mode.sourcePeakFreq(q.trueCenter, "a");
+    const textA = mode.teachingText(q, { center: guessAtA });
+    assert.match(textA, /^Yanlış/);
+    assert.ok(textA.includes(q.pair.labelA), "A'nın tepesinde tahmin edilince A 'güçlü' olarak adlandırılmalı");
+    assert.ok(textA.includes(q.pair.labelB), "diğer kaynak (B) 'zayıf' olarak adlandırılmalı");
+    assert.ok(textA.includes(formatHz(q.trueCenter)), "doğru frekans metinde geçmeli");
+
+    const guessAtB = mode.sourcePeakFreq(q.trueCenter, "b");
+    const textB = mode.teachingText(q, { center: guessAtB });
+    assert.match(textB, /^Yanlış/);
+    assert.notEqual(textA, textB, "kullanıcının FARKLI seçimleri farklı (kişiselleşmiş) metin üretmeli");
+  });
+
+  it("AŞAMA 2 doğru cevap metni KORUNDU (regresyon) — 'Doğru!' ile başlar", () => {
+    const q = mode.createQuestion("medium", { sessionQuestionIndex: mode.STAGE1_QUESTION_COUNT, rng: mulberry32(9) });
+    const text = mode.teachingText(q, { source: q.correctSource });
+    assert.match(text, /^Doğru!/);
+  });
+
+  it("AŞAMA 2 yanlış cevap: 'Yanlış' ile başlar, kullanıcının SEÇTİĞİ (yanlış) kaynağı VE doğru kaynağı adlandırır", () => {
+    const q = mode.createQuestion("medium", { sessionQuestionIndex: mode.STAGE1_QUESTION_COUNT, rng: mulberry32(9) });
+    const wrongSource = q.correctSource === "a" ? "b" : "a";
+    const wrongLabel = wrongSource === "a" ? q.pair.labelA : q.pair.labelB;
+    const correctLabelText = q.correctSource === "a" ? q.pair.labelA : q.pair.labelB;
+    const text = mode.teachingText(q, { source: wrongSource });
+    assert.match(text, /^Yanlış/);
+    assert.ok(text.includes(wrongLabel), "kullanıcının seçtiği (yanlış) kaynak metinde geçmeli");
+    assert.ok(text.includes(correctLabelText), "doğru kaynak da metinde geçmeli");
+  });
+
+  it("AŞAMA 3 doğru cevap metni KORUNDU (regresyon) — task'ın kendi örnek formatı ('...yer açıldı...')", () => {
+    const q = mode.createQuestion("medium", { sessionQuestionIndex: mode.STAGE2_QUESTION_COUNT, rng: mulberry32(11) });
+    const correctCutDbNeg = -Math.round(q.correctCutDb * 10) / 10;
+    const text = mode.teachingText(q, { cutDb: correctCutDbNeg });
+    assert.ok(text.includes("yer açıldı"));
+  });
+
+  it("AŞAMA 3 yanlış cevap — AZ kestiyse 'az kestin' + ayrışmadı anlatısı", () => {
+    const q = mode.createQuestion("medium", { sessionQuestionIndex: mode.STAGE2_QUESTION_COUNT, rng: mulberry32(11) });
+    const correctCutDbNeg = -Math.round(q.correctCutDb * 10) / 10;
+    const underCutDb = correctCutDbNeg + q.cutStepDb * 2.5; // sıfıra daha yakın = daha AZ kesim (büyüklük küçük)
+    const text = mode.teachingText(q, { cutDb: underCutDb });
+    assert.ok(text.includes("az kestin"), text);
+    assert.ok(text.includes("maske hâlâ duruyor"), text);
+  });
+
+  it("AŞAMA 3 yanlış cevap — ÇOK kestiyse 'çok kestin' + zayıflama anlatısı", () => {
+    const q = mode.createQuestion("medium", { sessionQuestionIndex: mode.STAGE2_QUESTION_COUNT, rng: mulberry32(11) });
+    const correctCutDbNeg = -Math.round(q.correctCutDb * 10) / 10;
+    const overCutDb = correctCutDbNeg - q.cutStepDb * 2.5; // daha negatif = daha BÜYÜK büyüklük = daha ÇOK kesim
+    const text = mode.teachingText(q, { cutDb: overCutDb });
+    assert.ok(text.includes("çok kestin"), text);
+    assert.ok(text.includes("gereksiz zayıfladı"), text);
+  });
+
+  it("AŞAMA 3 yanlış ama DOĞRUYA ÇOK YAKIN (maskOpenedPct>=75) — ince/nazik bir ton, kaba az/çok DEĞİL", () => {
+    const q = mode.createQuestion("medium", { sessionQuestionIndex: mode.STAGE2_QUESTION_COUNT, rng: mulberry32(11) });
+    const correctCutDbNeg = -Math.round(q.correctCutDb * 10) / 10;
+    const closeCutDb = correctCutDbNeg + q.cutStepDb * 0.9; // stepsAway=1 → maskOpenedPct=75
+    const result = mode.evaluateAnswer(q, { cutDb: closeCutDb });
+    assert.ok(result.maskOpenedPct >= 75, `test önkoşulu: maskOpenedPct>=75 olmalıydı, ${result.maskOpenedPct} geldi`);
+    const text = mode.teachingText(q, { cutDb: closeCutDb });
+    assert.ok(text.includes("çok yakındın"), text);
+  });
+
+  it("üç aşamada da yanlış cevap metni DOĞRU cevap metninden FARKLI (gerçekten dallanıyor)", () => {
+    const q1 = mode.createQuestion("medium", { sessionQuestionIndex: 0, rng: mulberry32(3) });
+    assert.notEqual(
+      mode.teachingText(q1, { center: Math.round(q1.trueCenter) }),
+      mode.teachingText(q1, { center: Math.round(mode.sourcePeakFreq(q1.trueCenter, "a")) })
+    );
+    const q2 = mode.createQuestion("medium", { sessionQuestionIndex: mode.STAGE1_QUESTION_COUNT, rng: mulberry32(5) });
+    const wrongSource2 = q2.correctSource === "a" ? "b" : "a";
+    assert.notEqual(mode.teachingText(q2, { source: q2.correctSource }), mode.teachingText(q2, { source: wrongSource2 }));
+  });
+});
+
+describe("getFeedbackData() — yanlış cevapta da title/detail dolu, showResult=true (getFeedbackData SAF kaldı)", () => {
+  it("yanlış cevapta title='Iskaladın', detail teachingText'in YANLIŞ dalıyla AYNI metni taşır", () => {
+    const q = mode.createQuestion("medium", { sessionQuestionIndex: 0, rng: mulberry32(7) });
+    const answer = { center: Math.round(mode.sourcePeakFreq(q.trueCenter, "a")) };
+    const fb = mode.getFeedbackData(q, answer, { gained: 0 });
+    assert.equal(fb.title, "Iskaladın");
+    assert.equal(fb.detail, mode.teachingText(q, answer));
+    assert.equal(fb.showResult, true);
+    assert.equal(fb.result.correct, false);
   });
 });
 
