@@ -1,13 +1,90 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G62)
+Son güncelleme: 08.08.2026 (G63)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G62, tek commit) — **Paywall Parça 1 düzeltmesi: ücretsizde seviye
+Bu commit (G63, tek commit) — **Paywall Parça 2: kilit tetiklenince artık
+gerçek bir PAYWALL EKRANI açılıyor (toast DEĞİL).** Satın alma (IAP) ve
+reklam HÂLÂ yok — "Pro Al"/"Reklam İzle" butonları task'ın kendi tarifiyle
+SİMÜLASYON (sırasıyla `devFlags.simulatePro=true` ve +1 can). Detaylar
+`PAYWALL.md`'nin "Kapsam — Parça 2" ve "Paywall ekranı — 6 tetikleme noktası"
+bölümlerinde.
+
+**MEVCUT "SATIN ALMA" EKRANI (EKRAN 10) YENİDEN KULLANILDI, İKİNCİ bir ekran
+İCAT EDİLMEDİ:** `app.js:openPaywallReason(reasonKey)` — `core/paywall.js`'e
+eklenen `PAYWALL_REASONS` (6 anahtar: `sessionLimit`/`livesOut`/`modeLocked`/
+`upload`/`dailyUsed`/`zoneHistory`, her biri kicker/title/detail/buttons) ile
+AYNI DOM'u iki moda göre yeniden düzenliyor: GENEL navigasyon (Ayarlar →
+"Pro'ya geç", Araçlar kilit örtüleri — `resetPaywallToGeneric()`, bağlamsal
+bant gizli/"Geri yükle" görünür) ve BAĞLAMSAL (6 tetikleme — bant görünür/
+"Geri yükle" gizli/"Reklam İzle" SADECE `livesOut`'ta). Pro kartının madde
+listesi artık `core/paywall.js:PRO_BENEFITS`'ten (6 madde, task'ın kendi
+listesi) JS'te üretiliyor — HTML'de sabit bir kopya YOK (`payProModes` id'si
+kaldırıldı, `payProBenefits` container'ı geldi). Fiyat ₺199→**₺399**
+(task'ın kendi rakamı) `core/paywall.js:PRO_PRICE`'a taşındı, app.js'teki
+lokal kopya SİLİNDİ (tek kaynak).
+
+**6 TETİKLEME NOKTASI — hepsi ESKİ (Parça 1) toast/session-end çağrısının
+YERİNE geçti, ama o eski davranış SİLİNMEDİ, İLK OTURUM FALLBACK'İ oldu:**
+1. 5. soru bitince, 2. Canlar bitince — `finalizeIfGameOver()`'ın iki dalı,
+   artık `openPaywallReason("sessionLimit"/"livesOut")`. Ayrıca `startRound`/
+   `startBtn`/`goToNextRound`'un ÜÇÜNÜN de tekrarlayan "hâlâ 0 can mı" girişi
+   TEK bir YENİ `blockIfLivesOut()` fonksiyonuna toplandı (kullanıcı paywall'ı
+   kapatıp reklam/Pro almadan tekrar denerse burası tetiklenir).
+3. Kilitli moda basınca (dB/Reverb/Tonal/Distortion), 5. Frekans Çakışması
+   günde-1 bitince — `renderModeGrid`'in kart click'i, `access.reason`'a göre
+   `"modeLocked"`/`"dailyUsed"`.
+4. Yükle butonuna basınca — `.upload-trigger-btn` (Oyun Ayarları+Motor 3),
+   Ses Kaynağı sheet'inin "Dosya seç" satırı, `toolsUploadBtn` — ÜÇÜ de.
+6. İlerleme'de bulanık grafiğe basınca — `zoneList`'in `pointer-events:none`'ı
+   KALDIRILDI (artık tıklanabilir, imleç `pointer`), TEK SEFERLİK bir click
+   dinleyicisi eklendi (`innerHTML` her `renderZonePanel()`'de değişse de
+   `zoneList`'in KENDİSİNE bağlı dinleyici hayatta kalır, child'a değil).
+
+**"İLK OTURUMDA PAYWALL YOK" — task'ın kendi kuralı, YENİ saf fonksiyon
+`paywall.isFirstSession(totalRoundsEver)`:** `app.js`'te script başlarken
+BİR KEZ `stats.rounds` okunup `const paywallSuppressedFirstSession`e
+donduruluyor — bu runtime'ın TAMAMI boyunca sabit (kullanıcı bu ziyarette
+kaç tur oynarsa oynasın "ilk oturum" durumu bozulmuyor, SADECE uygulama
+yeniden açılınca `stats.rounds>0` olduğu için paywall aktif olur).
+`openPaywallReason()` bu bayrağı KENDİSİ kontrol ediyor, `false` dönerse
+ÇAĞIRAN taraf G61'in eski davranışına düşüyor — kısıtlamanın KENDİSİ
+(5 soru/can/kilit) yine de geçerli kalıyor, SADECE paywall ekranı o ilk
+ziyarette hiç açılmıyor.
+
+**Doğrulama:**
+- `npm test`: **865/865** (859 → +6 YENİ: `isFirstSession`'ın iki dalı,
+  `PAYWALL_REASONS`'ın 6 anahtarının HEPSİNİN kicker/title/detail/buttons
+  içerdiği + SADECE `livesOut`'un "livesOut" buton setini kullandığı,
+  `PRO_BENEFITS`'in 6 madde olduğu, `PRO_PRICE`'ın ₺399 olduğu).
+- Kod incelemesiyle TEK TEK doğrulandı: 6 tetikleme noktasının HEPSİ
+  `openPaywallReason()` çağırıyor + `false` dönünce doğru eski davranışa
+  düşüyor (`grep` ile her çağrı sitesi tekrar okundu); `resetPaywallToGeneric()`
+  GENEL navigasyonun (`goProBtn`, `analyzeLock`/`filtersLock`) ÜÇÜNDE de
+  ÖNCE çağrıldığı doğrulandı (bağlamsal durumun genel yola SIZMAMASI için).
+- **Dürüstlük notu — CANLI/cihaz doğrulaması YİNE YAPILAMADI** (tarayıcı
+  eklentisi bu oturumda da bağlı değildi). Paywall EKRANININ gerçekten
+  DOĞRU bağlamla açıldığı, "Pro Al"a basınca kilitlerin GERÇEKTEN kalktığı,
+  "Reklam İzle"nin GERÇEKTEN can dolduğu, ilk oturumda GERÇEKTEN hiç
+  açılmadığı gözle DOĞRULANMADI — kod incelemesi + 6 yeni birim testi +
+  sözdizimi kontrolü kadarı garanti. app.js hiç unit test edilemiyor
+  (CLAUDE.md'nin kendi kısıtı, DOM bağımlılığı) — bu yüzden `openPaywallReason`/
+  `blockIfLivesOut`/`resetPaywallToGeneric` gibi DOM'a dokunan fonksiyonların
+  KENDİSİ test edilemedi, SADECE besledikleri saf veri (`PAYWALL_REASONS`/
+  `isFirstSession`/`PRO_BENEFITS`/`PRO_PRICE`) test edildi. Kullanıcının
+  cihaz testi bir sonraki turda BEKLENİYOR.
+
+**KORUMA:** Parça 1'in kısıtlama MANTIĞI (5 soru/can dolumu/mod erişimi/
+sınav kilidi/seviye kilidi) TEK SATIR değişmedi — SADECE kilit tetiklendiğinde
+GÖSTERİLEN şey (toast → paywall ekranı) değişti. 10 mod/ses/zorluk dokunulmadı.
+
+---
+
+Önceki commit (G62, tek commit) — **Paywall Parça 1 düzeltmesi: ücretsizde seviye
 sınırı KALKTI + kilitli modlar doğru mesaj veriyor.** Cihaz testinde G61'in
 gerçek bir mantık hatası bulundu: ücretsiz kullanıcı Kompresör'e (G61'de
 tier "pro"dan "free"ye çevrilmişti ama `unlockLevel:12` KALMIŞTI) "Seviye

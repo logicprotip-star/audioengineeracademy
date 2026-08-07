@@ -6,19 +6,27 @@ kontrol edildi). Kurallar doğrudan görev talimatından alındı, uydurulmadı.
 Bu dosya artık DURUM.md'nin paywall'a özel karşılığı — ücretsiz/Pro kararları
 buraya, genel proje durumu DURUM.md'ye yazılır.
 
-## Kapsam — Parça 1 (BU TUR): sadece kısıtlama MANTIĞI
+## Kapsam — Parça 1 (kısıtlama MANTIĞI): TAMAMLANDI, G61/G62
 
 - Satın alma (IAP) YOK — `isUserPro()` hâlâ `realPro=false || devFlags.
-  simulatePro` (bkz. app.js). Gerçek satın alma AYRI bir parça.
-- Güzel bir paywall EKRANI YOK — kilitli bir özelliğe basınca sadece basit
-  bir `toast(title, detail)` (bkz. `core/paywall.js:LOCK_MESSAGES`). Mevcut
-  "Satın Alma" ekranı (EKRAN 10, `goScreen("paywall")`) zaten vardı, bu turda
-  DEĞİŞTİRİLMEDİ.
-- Reklam YOK.
+  simulatePro` (bkz. app.js). Gerçek satın alma AYRI bir parça (Parça 3).
 - Tek doğruluk kaynağı: `www/js/core/paywall.js` — SAF fonksiyonlar, ses/DOM
   bağımsız, hepsi `test/paywall.test.mjs`'te test edilir. `mode-catalog.js`'in
   `tier` alanı SADECE kart rozeti (görsel) için — gerçek erişim kararı HER
   ZAMAN `paywall.js`'ten okunur, ikisi elle senkron tutulur.
+
+## Kapsam — Parça 2 (PAYWALL EKRANI): TAMAMLANDI, G63
+
+- Kilit tetiklenince toast YERİNE `screen-paywall` (mevcut "Satın Alma"
+  ekranı, EKRAN 10) DOĞRUDAN açılır — `app.js:openPaywallReason(reasonKey)`.
+- Aynı ekran İKİ modda çalışır: GENEL (Ayarlar → "Pro'ya geç", Araçlar kilit
+  örtüleri — bağlamsal bant gizli, "Geri yükle" görünür) ve BAĞLAMSAL (6
+  kilit tetiklemesi — bağlamsal bant görünür, "Geri yükle" gizli, "Reklam
+  İzle" SADECE can-bitti'de). İki AYRI ekran YOK, `resetPaywallToGeneric()`/
+  `openPaywallReason()` AYNI DOM'u yeniden düzenliyor.
+- "Pro Al" ve "Reklam İzle" SİMÜLASYON — gerçek IAP/reklam SONRAKİ parçalar
+  (Parça 3/4). "Pro Al" `devFlags.simulatePro=true` yapar (task'ın kendi
+  tarifi); "Reklam İzle" +1 can ekler.
 
 ## Mod erişimi
 
@@ -111,6 +119,33 @@ mesajı çıkıyordu — seviye kilidi artık free'de hiç devreye girmediği i�
 | 6 bölge geçmiş analizi: bulanık önizleme | "Frekans bölgesi" panelinin bar grafiği (`zoneList`) `blur(5px)` — veri VAR olduğu görülür, okunamaz — `paywall.isZoneHistoryBlurred` |
 | Araçlar sekmesi içeriği: kilitli | Analiz/Referans filtreleri ZATEN Pro-kilitliydi (`applyProLockVisibility`, önceki tur) — bu turda upload kartı da eklendi (`toolsUploadBtn`) — `paywall.isToolsContentLocked` |
 
+## Paywall ekranı — 6 tetikleme noktası (G63)
+
+`core/paywall.js:PAYWALL_REASONS` — her biri `kicker`/`title`/`detail`
+(bağlamsal bant) + `buttons` ("pro" ya da "livesOut") taşır, TEK kaynak:
+
+| # | Tetikleme | reasonKey | buttons | Uygulama noktası |
+|---|---|---|---|---|
+| 1 | 5. soru bitince | `sessionLimit` | pro | `finalizeIfGameOver()` |
+| 2 | Canlar bitince | `livesOut` | livesOut | `finalizeIfGameOver()` + `blockIfLivesOut()` (startRound/startBtn/goToNextRound'un ortak girişi) |
+| 3 | Kilitli moda basınca (dB/Reverb/Tonal/Distortion) | `modeLocked` | pro | `renderModeGrid` kart click |
+| 4 | Yükle butonuna basınca | `upload` | pro | `.upload-trigger-btn`, Ses Kaynağı sheet'inin "Dosya seç" satırı, `toolsUploadBtn` |
+| 5 | Frekans Çakışması günde-1 bitince | `dailyUsed` | pro | `renderModeGrid` kart click + `startBtn`'in savunmacı ikinci kontrolü |
+| 6 | İlerleme'de bulanık grafiğe basınca | `zoneHistory` | pro | `els.zoneList` click (tek seferlik dinleyici) |
+
+Diğer (6 tetiklemeye DAHİL değil, task'ın listesinde yok) — Analiz/Referans
+filtreleri kilit örtüleri ve Ayarlar → "Pro'ya geç" GENEL modda
+(`resetPaywallToGeneric()`) paywall'a gider, bağlamsal bant YOK.
+
+**"İlk oturumda paywall yok":** `paywall.isFirstSession(totalRoundsEver)` —
+`app.js`'te BİR KEZ, script başlarken `stats.rounds` okunarak hesaplanan
+`const paywallSuppressedFirstSession` (runtime'ın TAMAMI boyunca sabit).
+`stats.rounds===0` ise (kullanıcı bu kuruluma kadar HİÇ tur oynamamış) TÜM
+6 tetiklemede `openPaywallReason()` `false` döner — çağıran taraf G61'in
+ESKİ davranışına (toast ya da sade "lost"/"freeLimit" seans-sonu ekranı)
+düşer, kısıtlamanın KENDİSİ (5 soru/can/kilit) GEÇERLİ kalır, sadece PAYWALL
+EKRANI o ilk ziyarette hiç açılmaz.
+
 ## Kısıtlanmayan (her ikisi de aynı)
 
 A/B bypass, ses kalibrasyonu, oturum skoru, kişisel rekor, XP/seviye/streak/
@@ -127,15 +162,21 @@ GERÇEK ücretsiz kısıtlarıyla çalışır. `syncDevUI()` (anahtar her
 değiştiğinde çağrılır) hem `renderModeGrid()`i hem `enforceFreeRestrictions()`
 'ı tetikler — geçiş ANINDA state tutarlı kalır (split-brain yok).
 
+G63'ten beri paywall ekranındaki "Pro Al" butonu da AYNI mekanizmayı (gizli
+geliştirici menüsünü GEREKTİRMEDEN) tetikliyor — kilitli bir moda basıp
+"Pro Al"a basmak, uygulamanın GERÇEK kullanıcı akışıyla Pro'yu test etmenin
+bir YOLU artık (Ayarlar'a gitmeye gerek yok).
+
 ## Sonraki parçalar (BU TURUN KAPSAMI DIŞI)
 
-- **Parça 2:** Gerçek IAP (`isUserPro()`'nun `realPro` dalı), güzel paywall
-  ekranı/upsell akışları, "Satın al" butonunun gerçek işlevi.
-- **Parça 3:** Reklam.
-- Paywall EKRANININ (`index.html` EKRAN 10) statik metni bu turda
-  GÜNCELLENMEDİ — "Seans başına 5 soru" (`index.html:717`) zaten YENİ
-  kuralla örtüşüyor (tesadüfen doğru). Ekran şu an sadece "5 can" diyor,
-  "30 dakikada dolar" ifadesi YOK — TASARIM.md'nin prototip referansında
-  vardı ama G2'de bilerek kullanılmamıştı (o zaman gerçek dolum yoktu);
-  artık gerçek dolum VAR, bu metin eklenebilir ama bu turun kapsamı dışında
-  bırakıldı (ekran/kopya değişikliği = sonraki parça).
+- **Parça 3:** Gerçek IAP — `isUserPro()`'nun `realPro` dalı, "Pro Al"
+  butonunun `devFlags.simulatePro=true` SİMÜLASYONU yerini gerçek satın
+  almaya bırakır, mağaza fiyatı `paywall.PRO_PRICE`'ın (₺399, gösterim
+  metni) yerini alır.
+- **Parça 4:** Gerçek ödüllü reklam — "Reklam İzle" butonunun +1 can
+  SİMÜLASYONU yerini gerçek reklam SDK'sı alır.
+- **Görsel cila:** paywall ekranı G63'te "temiz bir temel" olarak kuruldu
+  (task'ın kendi tarifi) — buton/kart aralıkları, `.actionbar`'ın 3 satıra
+  (Reklam İzle+Pro Al+alt satır) çıktığı `livesOut` durumundaki `.scroll`
+  alt boşluğu (`calc(150px+...)`, GENERİK bir değer, paywall'a özel
+  ayarlanmadı) kullanıcının cihazda göreceği/ayarlayacağı noktalar.

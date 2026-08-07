@@ -169,11 +169,16 @@ const els = {
 
   paywallCloseBtn: document.getElementById("paywallCloseBtn"),
   payFreeModes: document.getElementById("payFreeModes"),
-  payProModes: document.getElementById("payProModes"),
+  payProBenefits: document.getElementById("payProBenefits"),
   proPrice: document.getElementById("proPrice"),
   buyProBtn: document.getElementById("buyProBtn"),
+  watchAdBtn: document.getElementById("watchAdBtn"),
   restorePurchaseBtn: document.getElementById("restorePurchaseBtn"),
   payFreeContinueBtn: document.getElementById("payFreeContinueBtn"),
+  paywallReasonBanner: document.getElementById("paywallReasonBanner"),
+  paywallReasonKicker: document.getElementById("paywallReasonKicker"),
+  paywallReasonTitle: document.getElementById("paywallReasonTitle"),
+  paywallReasonDetail: document.getElementById("paywallReasonDetail"),
 
   // oyun başlığı / durum
   bossChip: document.getElementById("bossChip"),
@@ -548,6 +553,13 @@ let zoneStats = storage.loadZoneStats();
 let prefs = storage.loadPrefs();
 let dailyAcc = storage.loadDailyAcc();
 let devFlags = storage.loadDevFlags();
+// G63 (PAYWALL.md Parça 2): "İlk oturumda paywall yok" — stats.rounds'ın BU
+// runtime BAŞLARKENKİ (henüz hiçbir tur bu çalıştırmada sayılmadan) değeri
+// "hiç oynamamış" mı sorusuna cevap veriyor. BİLEREK const — bu runtime'ın
+// TAMAMI boyunca sabit kalır, kullanıcı bu ziyarette 5-6 tur oynayıp
+// stats.rounds arttırsa bile "ilk oturum" durumu İÇİNDE kalınır; sadece
+// uygulama YENİDEN açılınca (stats.rounds artık >0) paywall aktif olur.
+const paywallSuppressedFirstSession = paywall.isFirstSession(stats.rounds);
 
 let activeQuestion = null;
 let roundActive = false;
@@ -975,6 +987,17 @@ function loseLife(reasonText, { silent = false } = {}) {
   }
 }
 
+// G63 (PAYWALL.md Parça 2): startRound()/startBtn/goToNextRound'un ÜÇÜNÜN de
+// (bkz. çağıranlar) girişinde AYNI "hâlâ 0 can mı" kontrolü vardı — kullanıcı
+// paywall'ı kapatıp (reklam izlemeden/Pro almadan) tekrar denerse burası
+// tetiklenir. Tek noktadan: paywall'ı YENİDEN aç (ilk oturumda değilsek),
+// olmazsa ESKİ sade "lost" ekranına düş.
+function blockIfLivesOut() {
+  if (currentLives > 0) return false;
+  if (!isUserPro() && !openPaywallReason("livesOut")) showSessionEnd("lost");
+  return true;
+}
+
 // G61 (PAYWALL.md): "5 soru/oturum (sonra dur)" — currentLives<=0 (canlar
 // bitti) ile AYNI ÇIKIŞ NOKTASI, farklı bir SEBEP. roundsInThisPlaySession
 // (bkz. tanımındaki not) her YENİ soru KURULDUĞUNDA +1 olur — 5. soru zaten
@@ -997,13 +1020,21 @@ function finalizeIfGameOver() {
   uploadManager.pausePlayback();
   activeQuestion = null;
   updateStartBtnLabel();
-  // "Canların bitti"/"Ücretsiz oturum bitti" varyasyonları SADECE ücretsiz
-  // sürümde gösterilir — Pro'da (gerçek ya da simüle) loseLife() currentLives'ı
-  // hiç 0'a düşürmez VE freeSessionLimitReached() isUserPro() içinden HER ZAMAN
-  // false döner (bkz. tanımları), bu satır o yüzden Pro'da pratikte hiç
+  // G63 (PAYWALL.md Parça 2): tetikleme #1 (5. soru bitince) ve #2 (canlar
+  // bitince) — ARTIK toast/sade session-end DEĞİL, paywall ekranı DOĞRUDAN
+  // açılır. openPaywallReason() "ilk oturumda paywall yok" kuralını KENDİSİ
+  // uyguluyor (false dönerse ilk oturumdayız demektir) — o durumda G61'in
+  // ESKİ (Parça 1) davranışına, sade "lost"/"freeLimit" seans-sonu ekranına
+  // DÜŞÜLÜR (oturum yine de bir şekilde kapanmalı, sadece Pro pitch'i
+  // GÖRMEDEN). Pro'da (gerçek ya da simüle) loseLife() currentLives'ı hiç
+  // 0'a düşürmez VE freeSessionLimitReached() isUserPro() içinden HER ZAMAN
+  // false döner (bkz. tanımları), bu blok o yüzden Pro'da pratikte hiç
   // tetiklenmez, ama yine de isUserPro() üzerinden doğru cevaba bakıyor
   // (savunmacı, tek kaynak).
-  if (!isUserPro()) showSessionEnd(livesOut ? "lost" : "freeLimit");
+  if (!isUserPro()) {
+    const reasonKey = livesOut ? "livesOut" : "sessionLimit";
+    if (!openPaywallReason(reasonKey)) showSessionEnd(livesOut ? "lost" : "freeLimit");
+  }
   return true;
 }
 
@@ -1637,12 +1668,16 @@ function renderModeGrid() {
       `;
       card.addEventListener("click", () => {
         if (playable) {
-          // G61 (PAYWALL.md): seviye kilidi AÇIK ama Pro/günlük-tadımlık erişimi
-          // KAPALIYSA — "kilitli özelliğe basınca BASİT mesaj" (task), güzel
-          // paywall ekranı SONRAKİ parça, burada SADECE toast.
+          // G63 (PAYWALL.md Parça 2): tetikleme #3 (kilitli mod: dB/Reverb/
+          // Tonal/Distortion) ve #5 (Frekans Çakışması günde-1 bitti) —
+          // ARTIK toast DEĞİL, paywall ekranı DOĞRUDAN açılır. İlk oturumda
+          // (openPaywallReason false döner) G61'in ESKİ toast'ına düşülür.
           if (!access.allowed) {
-            const msg = access.reason === "daily-used" ? paywall.LOCK_MESSAGES["daily-used"] : paywall.LOCK_MESSAGES.pro;
-            toast(msg.title, msg.detail);
+            const reasonKey = access.reason === "daily-used" ? "dailyUsed" : "modeLocked";
+            if (!openPaywallReason(reasonKey)) {
+              const msg = access.reason === "daily-used" ? paywall.LOCK_MESSAGES["daily-used"] : paywall.LOCK_MESSAGES.pro;
+              toast(msg.title, msg.detail);
+            }
             return;
           }
           // G37: mod-özel kulaklık uyarısı — bkz. openHeadphoneSheet dosya başı notu.
@@ -1801,9 +1836,12 @@ function renderZonePanel() {
     // açılabilir/veri orada OLDUĞU görülür, sadece rakamlar okunamaz. Yeni bir
     // CSS bileşeni/ekran İCAT EDİLMEDİ, tek satır inline filter (reskin'e
     // dokunmadan, sadece bu ERİŞİM kısıtı için).
+    // G63 (Parça 2, tetikleme #6): pointer-events ARTIK "none" DEĞİL —
+    // bulanık grafiğe basınca paywall açılsın diye tıklanabilir bırakılıyor
+    // (bkz. aşağıdaki tek seferlik click listener'ı), imleç de bunu ifade eder.
     const blurred = paywall.isZoneHistoryBlurred(isUserPro());
     els.zoneList.style.filter = blurred ? "blur(5px)" : "";
-    els.zoneList.style.pointerEvents = blurred ? "none" : "";
+    els.zoneList.style.cursor = blurred ? "pointer" : "";
   }
   const enough = scores.filter(s => s.n >= 2);
   const weakest = enough.length ? enough.slice().sort((a, b) => a.pct - b.pct)[0] : null;
@@ -3147,7 +3185,7 @@ function startTimerForCurrentQuestion() {
 
 function startRound() {
   if (sessionEndVisible) return; // seans sonu ekranı açıkken hiçbir tetikleyici yeni tur başlatamaz
-  if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
+  if (blockIfLivesOut()) return;
   if (els.sourceSelect.value === "upload" && !uploadManager.hasBuffer) {
     setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
     return;
@@ -3808,11 +3846,11 @@ wireCakismaUpload(els.cakismaFileInputB, uploadManagerB, "B");
 document.querySelectorAll(".upload-trigger-btn").forEach(btn => {
   const targetId = btn.dataset.fileTarget;
   btn.addEventListener("click", async () => {
-    // G61 (PAYWALL.md): "Kendi dosya yükleme: kilitli" — Oyun Ayarları'nın tekli
-    // upload satırı VE Motor 3'ün iki upload yuvası AYNI TEK yolu (bu forEach)
-    // paylaşıyor, tek noktadan kapatılıyor.
+    // G63 (PAYWALL.md Parça 2, tetikleme #4): "Kendi dosya yükleme: kilitli" —
+    // Oyun Ayarları'nın tekli upload satırı VE Motor 3'ün iki upload yuvası
+    // AYNI TEK yolu (bu forEach) paylaşıyor, tek noktadan paywall'a açılıyor.
     if (paywall.isUploadLocked(isUserPro())) {
-      toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail);
+      if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail);
       return;
     }
     console.log(`[filepicker-diag] 0) buton tıklandı: data-file-target="${targetId}"`);
@@ -3858,7 +3896,7 @@ if (els.cakismaAfter) els.cakismaAfter.addEventListener("click", () => {
 // startBtn duruma göre 3 iş yapar: Oyunu Başlat / Tekrar Çal / Durdur (bkz. updateStartBtnLabel)
 els.startBtn.addEventListener("click", async () => {
   await audioEngine.initAudio();
-  if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
+  if (blockIfLivesOut()) return;
 
   if (!activeQuestion) {
     // G61 (PAYWALL.md): SAVUNMACI ikinci kontrol — mod-kartı tıklaması (bkz.
@@ -3868,8 +3906,10 @@ els.startBtn.addEventListener("click", async () => {
     // günün hakkı bu SIRADA tükenmiş olabilir (ör. Pro simülasyonu kapatılıp
     // aynı oturumda tekrar denendi). Tek doğruluk kaynağı YİNE paywall.js.
     if (!isUserPro() && paywall.isDailyTasteMode(mode.getMeta().id) && !paywall.canPlayDailyTaste(stats.dailyTasteLastPlayedAt, Date.now())) {
-      const msg = paywall.LOCK_MESSAGES["daily-used"];
-      toast(msg.title, msg.detail);
+      if (!openPaywallReason("dailyUsed")) {
+        const msg = paywall.LOCK_MESSAGES["daily-used"];
+        toast(msg.title, msg.detail);
+      }
       return;
     }
     // Gerçek bir fresh-start (bkz. roundsInThisPlaySession tanımındaki not) —
@@ -3914,7 +3954,7 @@ els.startBtn.addEventListener("click", async () => {
 // yanlışlıkla ikinci bir otomatik-geçiş kurabilirdi.
 async function goToNextRound() {
   await audioEngine.initAudio();
-  if (currentLives <= 0) { if (!isUserPro()) showSessionEnd("lost"); return; }
+  if (blockIfLivesOut()) return;
   clearTimeout(cmpPreviewStopTimer);
   cmpPreviewStopTimer = null;
   cmpPreviewRemainingMs = null;
@@ -4268,6 +4308,17 @@ function bindCollapsiblePanel(toggleBtn, wrapEl, caretEl) {
 bindCollapsiblePanel(els.zonePanelToggle, els.zoneWrap, els.zoneCaret);
 bindCollapsiblePanel(els.modeLevelsToggle, els.modeLevelsWrap, els.modeLevelsCaret);
 
+// G63 (PAYWALL.md Parça 2, tetikleme #6): "İlerleme'de bulanık grafiğe
+// basınca → paywall". TEK SEFERLİK dinleyici — renderZonePanel() her
+// çağrıldığında els.zoneList.innerHTML'i değiştiriyor (bkz. o fonksiyon)
+// ama bu, KENDİSİNE (child'larına değil) bağlı bir dinleyiciyi SİLMEZ, o
+// yüzden burada bir kez bağlanması yeterli. İlk oturumda (openPaywallReason
+// false döner) hiçbir şey olmaz — blur zaten sadece görsel bir teaser,
+// tıklamanın "boşa gitmesi" güvenli bir varsayılan.
+if (els.zoneList) els.zoneList.addEventListener("click", () => {
+  if (paywall.isZoneHistoryBlurred(isUserPro())) openPaywallReason("zoneHistory");
+});
+
 els.difficultySelect.addEventListener("change", () => {
   // zorluk değişti → o zorluğun kendi puanı/level'i yüklensin. Canlar GLOBAL
   // olduğu için zorluk değişince değişmez, sadece ekranı güncel tutmak için
@@ -4503,7 +4554,7 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
         // bir seçim olası (bkz. enforceFreeRestrictions'ın AYNI motivasyonu).
         if (select.id === 'sourceSelect' && opt.value === 'upload' && paywall.isUploadLocked(isUserPro())) {
           closeSheet();
-          toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail);
+          if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail);
           return;
         }
         if (isUnloadedUpload) {
@@ -4595,7 +4646,8 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
 // oynanabilir olduğu ayrı bir şey (registry.listModes()) — bu sayı ürün/paywall
 // vaadi, kodlanma durumundan bağımsız.
 const FREE_MODE_COUNT = MODE_CATALOG.filter(e => e.tier === "free").length;
-const PRO_PRICE = "₺199";
+// G63: fiyat artık core/paywall.js:PRO_PRICE'tan (tek kaynak, PAYWALL.md) —
+// lokal bir kopya TUTULMUYOR, iki yerin senkron kalması riskiyle uğraşılmıyor.
 
 function openMainSettingsSheet() {
   if (!els.mainSettingsOverlay) return;
@@ -4794,6 +4846,51 @@ if (els.langSeg) {
 }
 
 // ---- HESAP / DESTEK / HAKKINDA satırları ----
+// G63: Pro kartının madde listesi core/paywall.js:PRO_BENEFITS'ten üretilir —
+// HTML'de sabit bir kopya TUTULMUYOR (tek kaynak, PAYWALL.md).
+function renderProBenefits() {
+  if (!els.payProBenefits) return;
+  els.payProBenefits.innerHTML = paywall.PRO_BENEFITS.map(b => `<div class="li"><i></i><span>${b}</span></div>`).join("");
+}
+
+// G63 (PAYWALL.md Parça 2): paywall EKRANI tek bir DOM — bu fonksiyon onu
+// GENEL navigasyona (Ayarlar → "Pro'ya geç", Araçlar'ın kilit örtüleri) göre
+// sıfırlar: bağlamsal bant gizli, "Reklam İzle" gizli, "Geri yükle" görünür,
+// alt buton "Ücretsiz devam" — bir önceki openPaywallReason() çağrısından
+// kalan bağlamsal durum bu genel yola SIZMASIN diye HER genel giriş noktası
+// bunu ÖNCE çağırır.
+function resetPaywallToGeneric() {
+  if (els.paywallReasonBanner) els.paywallReasonBanner.classList.add("hidden");
+  if (els.watchAdBtn) els.watchAdBtn.classList.add("hidden");
+  if (els.restorePurchaseBtn) els.restorePurchaseBtn.classList.remove("hidden");
+  if (els.payFreeContinueBtn) els.payFreeContinueBtn.textContent = "Ücretsiz devam";
+}
+
+// G63: 6 kilit tetikleme noktasının (PAYWALL.md) TEK ortak giriş kapısı —
+// core/paywall.js:PAYWALL_REASONS'tan bağlamsal bandı + buton setini kurup
+// paywall ekranını DOĞRUDAN açar (toast YOK). "İlk oturumda paywall yok"
+// kuralı BURADA uygulanıyor (task'ın kendi kuralı) — false dönerse çağıran
+// taraf ESKİ (Parça 1) davranışına (toast/session-end ekranı) düşmeli, bu
+// yüzden dönen boolean ÖNEMLİ, göz ardı edilemez.
+function openPaywallReason(reasonKey) {
+  if (paywallSuppressedFirstSession) return false;
+  const cfg = paywall.PAYWALL_REASONS[reasonKey];
+  if (!cfg) return false;
+  if (els.paywallReasonKicker) els.paywallReasonKicker.textContent = cfg.kicker;
+  if (els.paywallReasonTitle) els.paywallReasonTitle.textContent = cfg.title;
+  if (els.paywallReasonDetail) els.paywallReasonDetail.textContent = cfg.detail;
+  if (els.paywallReasonBanner) els.paywallReasonBanner.classList.remove("hidden");
+  const isLivesOut = cfg.buttons === "livesOut";
+  if (els.watchAdBtn) els.watchAdBtn.classList.toggle("hidden", !isLivesOut);
+  // Bağlamsal (bir kilitten gelen) ekranda "Geri yükle" gürültü — o an satın
+  // almayı GERİ YÜKLEMEK değil, YENİ bir kilidi AŞMAK istiyor (task: "sade,
+  // abartısız").
+  if (els.restorePurchaseBtn) els.restorePurchaseBtn.classList.add("hidden");
+  if (els.payFreeContinueBtn) els.payFreeContinueBtn.textContent = isLivesOut ? "Şimdi değil" : "Kapat";
+  goScreen("paywall");
+  return true;
+}
+
 function syncAccountLine() {
   // Pro vaadi TÜM katalog (14) içindir — kaçının şu an kodlandığı/oynanabilir
   // olduğu (listModes()) ayrı bir şey, paywall metnine karışmaz.
@@ -4804,9 +4901,9 @@ function syncAccountLine() {
       : `Ücretsiz — ${FREE_MODE_COUNT} mod, seans başına 5 soru`;
   }
   if (els.payFreeModes) els.payFreeModes.textContent = `${FREE_MODE_COUNT} egzersiz modu`;
-  if (els.payProModes) els.payProModes.textContent = `${total} egzersiz modunun tamamı`;
-  if (els.proPrice) els.proPrice.textContent = PRO_PRICE;
-  if (els.buyProBtn) els.buyProBtn.textContent = `Satın al · ${PRO_PRICE}`;
+  if (els.proPrice) els.proPrice.textContent = paywall.PRO_PRICE;
+  if (els.buyProBtn) els.buyProBtn.textContent = `Pro Al · ${paywall.PRO_PRICE}`;
+  renderProBenefits();
 }
 syncAccountLine();
 
@@ -4884,7 +4981,7 @@ if (els.calibRow) els.calibRow.addEventListener("click", () => goToSettingsSubpa
 if (els.feedbackRow) els.feedbackRow.addEventListener("click", () => goToSettingsSubpage("feedback"));
 if (els.faqRow) els.faqRow.addEventListener("click", () => goToSettingsSubpage("faq"));
 if (els.contactRow) els.contactRow.addEventListener("click", () => goToSettingsSubpage("contact"));
-if (els.goProBtn) els.goProBtn.addEventListener("click", () => goToSettingsSubpage("paywall"));
+if (els.goProBtn) els.goProBtn.addEventListener("click", () => { resetPaywallToGeneric(); goToSettingsSubpage("paywall"); });
 if (els.restoreRow) els.restoreRow.addEventListener("click", () => {
   toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
 });
@@ -5171,13 +5268,40 @@ if (els.feedbackSendBtn) els.feedbackSendBtn.addEventListener("click", () => {
   goBackFromSubpage();
 });
 
-// ---- Satın alma (gerçek IAP kapsam dışı — dürüst placeholder'lar) ----
+// ---- Satın alma (gerçek IAP Parça 3 — "Pro Al" şimdilik SİMÜLASYON) ----
 syncAccountLine();
+// G63 (PAYWALL.md Parça 2): "Pro Al" → devFlags.simulatePro=true (task'ın
+// kendi tarifi, harfiyen) — GERÇEK bir satın alma DEĞİL, sadece isUserPro()'nun
+// okuduğu simülasyon bayrağını (bkz. isUserPro tanımı) AÇIYOR. devFlags.unlocked
+// (gizli geliştirici menüsünün GÖRÜNÜRLÜĞÜ) BİLEREK dokunulmuyor — isUserPro()
+// SADECE simulatePro'ya bakıyor, menünün görünür olması GEREKMİYOR. syncDevUI()
+// zaten var olan TEK yeniden-senkron noktasını (renderModeGrid/
+// enforceFreeRestrictions/applyProLockVisibility/syncAccountLine) tetikliyor —
+// Pro'nun etkisi UYGULAMANIN HER YERİNDE anında görünür.
 if (els.buyProBtn) els.buyProBtn.addEventListener("click", () => {
-  toast("Yakında", "Satın alma bu sürümde henüz açık değil.");
+  devFlags.simulatePro = true;
+  storage.saveDevFlags(devFlags);
+  syncDevUI();
+  toast("🎉 Pro açıldı (simülasyon)", "10 mod, sınırsız oynama, sınav, kendi mix, Araçlar — hepsi açık.");
+  goBackFromSubpage();
 });
 if (els.restorePurchaseBtn) els.restorePurchaseBtn.addEventListener("click", () => {
   toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
+});
+// G63: "Reklam İzle" → SADECE "livesOut" tetiklemesinde görünür (bkz.
+// openPaywallReason). Gerçek ödüllü reklam Parça 4 — burada +1 can (TOTAL_
+// LIVES'ı aşmaz), paywall.onLifeLost'un TERSİ bir "can kazanıldı" olayı: tam
+// dolarsa dolum referansı da "şimdi"ye çekilir (applyLivesRefill'in kendi
+// "tam doluyken referans sabit" kuralıyla TUTARLI kalsın diye).
+if (els.watchAdBtn) els.watchAdBtn.addEventListener("click", () => {
+  const now = Date.now();
+  if (typeof stats.lives !== "number") stats.lives = 0;
+  stats.lives = Math.min(storage.TOTAL_LIVES, stats.lives + 1);
+  if (stats.lives >= storage.TOTAL_LIVES) stats.livesLastRefillAt = now;
+  persistStats();
+  syncLives();
+  toast("🎬 Reklam izlendi (simülasyon)", "+1 can");
+  goBackFromSubpage();
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5234,7 +5358,7 @@ if (els.toolsUploadBtn && els.toolsFileInput) {
     // zaten Pro kilidi arkasında (bkz. applyProLockVisibility) — kartın
     // KENDİSİ o kilitlerin ÜSTÜNDE durduğu için ayrıca burada da kapatılır.
     if (paywall.isToolsContentLocked(isUserPro())) {
-      toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail);
+      if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail);
       return;
     }
     const picked = await pickNativeAudioFile();
@@ -5262,7 +5386,7 @@ function applyProLockVisibility() {
 }
 [els.analyzeLock, els.filtersLock].forEach(btn => {
   if (!btn) return;
-  btn.addEventListener("click", () => { closeMainSettingsSheet(); goScreen("paywall"); });
+  btn.addEventListener("click", () => { closeMainSettingsSheet(); resetPaywallToGeneric(); goScreen("paywall"); });
 });
 applyProLockVisibility();
 enforceFreeRestrictions(); // G61: temiz açılışta da (Pro'dan düşmüş eski bir localStorage kaydı olabilir)

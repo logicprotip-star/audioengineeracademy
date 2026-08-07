@@ -188,3 +188,43 @@ describe("paywall: kilit mesajları", () => {
     });
   });
 });
+
+describe("paywall: ilk oturumda paywall yok (Parça 2)", () => {
+  it("stats.rounds=0 (hiç oynanmamış) → ilk oturum, paywall bastırılmalı", () => {
+    assert.equal(paywall.isFirstSession(0), true);
+  });
+
+  it("stats.rounds>0 (daha önce oynanmış) → ilk oturum DEĞİL", () => {
+    assert.equal(paywall.isFirstSession(1), false);
+    assert.equal(paywall.isFirstSession(500), false);
+  });
+});
+
+describe("paywall: paywall ekranı içeriği (Parça 2)", () => {
+  it("6 tetikleme noktasının HEPSİ PAYWALL_REASONS'ta tanımlı, hepsi kicker/title/detail/buttons içerir", () => {
+    const expectedKeys = ["sessionLimit", "livesOut", "modeLocked", "upload", "dailyUsed", "zoneHistory"];
+    assert.deepEqual(Object.keys(paywall.PAYWALL_REASONS).sort(), expectedKeys.sort());
+    Object.entries(paywall.PAYWALL_REASONS).forEach(([key, r]) => {
+      assert.ok(r.kicker && r.kicker.length > 0, `${key}.kicker boş olmamalı`);
+      assert.ok(r.title && r.title.length > 0, `${key}.title boş olmamalı`);
+      assert.ok(r.detail && r.detail.length > 0, `${key}.detail boş olmamalı`);
+      assert.ok(r.buttons === "pro" || r.buttons === "livesOut", `${key}.buttons geçersiz: ${r.buttons}`);
+    });
+  });
+
+  it("SADECE livesOut 'livesOut' buton setini kullanır (reklam SADECE can bitince anlamlı)", () => {
+    assert.equal(paywall.PAYWALL_REASONS.livesOut.buttons, "livesOut");
+    ["sessionLimit", "modeLocked", "upload", "dailyUsed", "zoneHistory"].forEach(key => {
+      assert.equal(paywall.PAYWALL_REASONS[key].buttons, "pro", `${key} 'pro' buton setini kullanmalı`);
+    });
+  });
+
+  it("PRO_BENEFITS task'ın 6 maddesinin hepsini içerir, boş değil", () => {
+    assert.equal(paywall.PRO_BENEFITS.length, 6);
+    paywall.PRO_BENEFITS.forEach(b => assert.ok(b && b.length > 0));
+  });
+
+  it("PRO_PRICE ₺399", () => {
+    assert.equal(paywall.PRO_PRICE, "₺399");
+  });
+});

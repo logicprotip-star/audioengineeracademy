@@ -152,3 +152,78 @@ export const LOCK_MESSAGES = Object.freeze({
   tools: { title: "Pro gerekli", detail: "Araçlar sekmesinin içeriği Pro'da açılır." },
   sessionLimit: { title: "Ücretsiz oturum bitti", detail: "Ücretsizde oturum başına 5 soru. Daha fazlası için Pro gerekli." }
 });
+
+// ==========================================================================
+// PARÇA 2 — Paywall EKRANI (satın alma/reklam hâlâ SİMÜLASYON, bkz. app.js)
+// ==========================================================================
+
+// "İlk oturumda paywall yok" (PAYWALL.md) — kullanıcı önce uygulamanın işe
+// yaradığını görsün. totalRoundsEver: stats.rounds'ın bu RUNTIME BAŞLARKENKİ
+// (henüz hiçbir tur bu çalıştırmada sayılmadan) değeri — 0 ise kullanıcı
+// GERÇEKTEN hiç tur oynamamış demektir (temiz kurulum ya da menüde gezinip
+// hiç oynamadan kapatılmış önceki ziyaretler — İKİSİ de "ilk oturum" sayılır,
+// kasıtlı: "en az bir tam deneyim" garantisi, "en az bir process başlatma"
+// değil).
+export function isFirstSession(totalRoundsEver) {
+  return totalRoundsEver === 0;
+}
+
+// Tek seferlik fiyat — GERÇEK IAP fiyatlandırması Parça 3, bu sadece
+// gösterilen metin (mağaza fiyatı GERÇEK satın alma bağlanınca oradan gelir).
+export const PRO_PRICE = "₺399";
+
+// Pro'nun sunduğu — paywall ekranının Pro kartı BU listeden üretilir (tek
+// kaynak, task'ın kendi maddeleri, abartısız/sade).
+export const PRO_BENEFITS = Object.freeze([
+  "10 modun tamamı",
+  "Sınırsız oynama",
+  "Sınav + seviye atlama",
+  "Kendi mix'ini yükleme",
+  "Araçlar: analiz + referans filtreleri",
+  "Reklamsız"
+]);
+
+// 6 tetikleme noktası (PAYWALL.md) — her biri kicker/title/detail (paywall
+// ekranının üstündeki "neden buradasın" bandı) + hangi buton setinin
+// gösterileceği (`buttons`): "pro" = Pro Al + Kapat, "livesOut" = Reklam
+// İzle + Pro Al + Şimdi değil (task'ın kendi ayrımı — SADECE can bitince
+// reklam seçeneği anlamlı, diğer 5 tetiklemede bir reklam izlemek sorunu
+// çözmez).
+export const PAYWALL_REASONS = Object.freeze({
+  sessionLimit: {
+    kicker: "OTURUM SINIRI",
+    title: "Ücretsiz oturumun bitti",
+    detail: "Ücretsizde oturum başına 5 soru. Sınırsız oynamak için Pro'ya geç.",
+    buttons: "pro"
+  },
+  livesOut: {
+    kicker: "CANLARIN BİTTİ",
+    title: "Devam etmek için bir yol seç",
+    detail: "Bir can izleyeceğin reklamla hemen dolar, ya da Pro'yla can sınırı tamamen kalkar.",
+    buttons: "livesOut"
+  },
+  modeLocked: {
+    kicker: "PRO MOD",
+    title: "Bu mod Pro'da açılır",
+    detail: "dB Seviyesi, Reverb, Tonal Denge ve Distortion — dördü de Pro'nun bir parçası.",
+    buttons: "pro"
+  },
+  upload: {
+    kicker: "PRO ÖZELLİĞİ",
+    title: "Kendi dosyanı yükle",
+    detail: "Kendi mix'ini/referansını yükleyip onunla çalışmak Pro'da açılır.",
+    buttons: "pro"
+  },
+  dailyUsed: {
+    kicker: "GÜNLÜK HAK",
+    title: "Bugün Frekans Çakışması'nı oynadın",
+    detail: "Ücretsizde günde 1 kez — yarın tekrar gel, ya da Pro'yla sınırsız oyna.",
+    buttons: "pro"
+  },
+  zoneHistory: {
+    kicker: "PRO RAPORU",
+    title: "Zayıf bölge geçmişini gör",
+    detail: "6 bölgenin detaylı isabet analizi ve zayıf bölge raporu Pro'da açılır.",
+    buttons: "pro"
+  }
+});

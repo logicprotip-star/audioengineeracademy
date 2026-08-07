@@ -694,7 +694,12 @@
       </div>
     </section>
 
-    <!-- ================= EKRAN: SATIN ALMA ================= -->
+    <!-- ================= EKRAN: SATIN ALMA / PAYWALL ================= -->
+    <!-- G63 (PAYWALL.md Parça 2): Ayarlar → "Pro'ya geç" ve Araçlar kilit örtülerinden
+         AYNI ekran GENEL (banner gizli) açılıyor; 6 kilit tetikleme noktasından
+         (bkz. app.js openPaywallReason) BAĞLAMSAL (banner görünür, "Reklam İzle"
+         SADECE can-bitti'de) açılıyor — resetPaywallToGeneric()/openPaywallReason()
+         AYNI DOM'u iki moda göre yeniden düzenliyor, iki AYRI ekran YOK. -->
     <section class="screen" id="screen-paywall">
       <div class="scroll" style="padding-top:10px">
         <div style="display:flex;justify-content:flex-end">
@@ -706,6 +711,15 @@
           <p class="lead" style="margin:10px 0 0">Ücretsiz sürümle çalışmaya devam edebilirsin. Acele etmene gerek yok.</p>
         </div>
 
+        <!-- Bağlamsal bant — SADECE bir kilit tetiklediğinde görünür (genel navigasyonda
+             gizli). İçerik core/paywall.js:PAYWALL_REASONS'tan, app.js:openPaywallReason()
+             dolduruyor. -->
+        <div id="paywallReasonBanner" class="hidden" style="margin:16px 2px 0;padding:14px 16px;border-radius:16px;background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.28)">
+          <div style="font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--am)" id="paywallReasonKicker"></div>
+          <div style="margin-top:6px;font-size:16px;font-weight:700" id="paywallReasonTitle"></div>
+          <div style="margin-top:4px;font-size:14px;line-height:1.45;color:var(--tx-2)" id="paywallReasonDetail"></div>
+        </div>
+
         <div style="display:flex;flex-direction:column;gap:12px;margin-top:18px">
           <div class="plan">
             <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
@@ -715,7 +729,7 @@
             <div style="display:flex;flex-direction:column;gap:9px;margin-top:12px">
               <div class="li"><i></i><span id="payFreeModes">— egzersiz modu</span></div>
               <div class="li"><i></i><span>Seans başına 5 soru</span></div>
-              <div class="li"><i></i><span>5 can</span></div>
+              <div class="li"><i></i><span>5 can · 30 dakikada 1 dolar</span></div>
               <div class="li"><i></i><span>Araçlar sekmesi kapalı</span></div>
             </div>
           </div>
@@ -723,22 +737,21 @@
           <div class="plan pro">
             <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
               <div style="font-size:16px;font-weight:700;color:var(--am)">Pro</div>
-              <div class="num" style="font-size:16px;font-weight:800" id="proPrice">₺199</div>
+              <div class="num" style="font-size:16px;font-weight:800" id="proPrice">₺399</div>
             </div>
             <div style="margin-top:4px;font-size:14px;font-weight:600;color:var(--tx-3)">Tek seferlik — abonelik değil</div>
-            <div style="display:flex;flex-direction:column;gap:9px;margin-top:12px">
-              <div class="li"><i></i><span id="payProModes">— egzersiz modunun tamamı</span></div>
-              <div class="li"><i></i><span>Seans başına 10 soru</span></div>
-              <div class="li"><i></i><span>Can sınırı yok</span></div>
-              <div class="li"><i></i><span>Araçlar: analiz + referans filtreleri</span></div>
-              <div class="li"><i></i><span>Detaylı ilerleme raporu</span></div>
-            </div>
+            <!-- Madde listesi JS'ten dolduruluyor (core/paywall.js:PRO_BENEFITS, tek
+                 kaynak) — burada sabit bir şık listesi TUTULMUYOR, HTML'de içerik
+                 tekrarlanıp iki yerin senkron kalması riskiyle uğraşılmıyor. -->
+            <div style="display:flex;flex-direction:column;gap:9px;margin-top:12px" id="payProBenefits"></div>
           </div>
         </div>
       </div>
 
       <div class="actionbar">
-        <button class="btn primary" id="buyProBtn">Satın al</button>
+        <!-- SADECE "livesOut" tetiklemesinde görünür (app.js:openPaywallReason). -->
+        <button class="btn hidden" id="watchAdBtn" style="border-color:rgba(108,140,255,.4);color:#AFC0FF">📺 Reklam izle · can doldur</button>
+        <button class="btn primary" id="buyProBtn" style="margin-top:9px">Pro Al</button>
         <div class="row" style="margin-top:9px">
           <button class="btn" id="restorePurchaseBtn">Geri yükle</button>
           <button class="btn" style="border-color:transparent;background:none;color:var(--tx-3)" id="payFreeContinueBtn">Ücretsiz devam</button>
