@@ -1,13 +1,94 @@
 # DURUM
 
-Son güncelleme: 06.08.2026 (G52)
+Son güncelleme: 07.08.2026 (G53)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G52, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Frekans
+Bu commit (G53, tek commit — kod+DURUM.md birlikte) — **Dosya yükleme cihazda
+HÂLÂ açılmıyordu (G52'nin transform düzeltmesi yetmedi) — KÖK ÇÖZÜM: web
+`<input type="file">` tamamen terk edildi, Capacitor'ın NATIVE dosya seçici
+plugin'ine (`@capawesome/capacitor-file-picker`) geçildi.**
+
+**ÖNCE KONTROL (task'ın istediği):** Repo'da (DURUM.md, koddaki "cihazda
+doğrulandı" notları) upload'ın gerçek cihazda ÇALIŞTIĞI tek bir yer
+BULUNAMADI — tüm "cihazda doğrulandı" kayıtları SES OYNATMA hatalarıyla
+ilgiliydi (HTTP 0, kesik çalma), dosya SEÇİCİNİN kendisiyle ilgili hiçbir
+olumlu kayıt yok. Yani kopyalanacak çalışan bir yol YOKTU — task'ın kendi
+"yoksa native'e geç" dalına gidildi.
+
+**KÖK ÇÖZÜM — native plugin:** `@capawesome/capacitor-file-picker@8.0.4`
+(`@capacitor/core@8.4.2` ile uyumlu) kuruldu, `npx cap sync ios` ile iOS
+projesine (Package.swift, CocoaPods) eklendi — artık 4 Capacitor plugin'i var
+(volume-buttons/preferences/splash-screen/**file-picker**). `FilePicker.
+pickFiles()` `UIDocumentPickerViewController` kullanıyor — plugin'in kendi
+README'si: **"iOS'ta hiçbir gizlilik açıklaması (Info.plist izni)
+GEREKMEZ"** (SADECE `pickImages`/`pickMedia`/`pickVideos` — foto galerisi
+seçicileri — izin ister, biz onları KULLANMIYORUZ). Bu yüzden Info.plist'e
+HİÇBİR ekleme yapılmadı — plugin'in kendi Swift kaynağı (`FilePicker.swift`)
+`UIDocumentPicker` kullandığı kod incelemesiyle DOĞRULANDI.
+
+**app.js kablolaması — projenin KENDİ yerleşik "global window.Capacitor.
+Plugins.*" deseni izlendi (bundler YOK, storage.js:getPreferencesPlugin/
+app.js:getVolumeButtonsPlugin'in AYNI deseni — hiçbir ES-module `import`
+eklenmedi):**
+- `getFilePickerPlugin()` — `window.Capacitor.Plugins.FilePicker`'ı okur,
+  yoksa `null`.
+- `pickNativeAudioFile()` — plugin varsa `pickFiles({limit:1})` çağırır,
+  sonucu (web'de `.blob`, iOS/Android'de `.path` + plugin'in KENDİ önerdiği
+  `fetch(Capacitor.convertFileSrc(path))` deseni) upload.js'in beklediği
+  gerçek bir `File` nesnesine köprüler ve döner. **`undefined`** dönerse
+  (plugin bu ortamda YOK — masaüstü/web geliştirme) çağıran taraf G52'nin
+  relocated (transform'suz) `<input type="file">`'ına DÜŞER — web fallback
+  HİÇ SİLİNMEDİ, sadece artık İKİNCİL yol.
+- `processSingleUploadFile`/`processCakismaUploadFile`/`processToolsUploadFile`
+  — eski `change` listener'larının GÖVDESİ bu üç fonksiyona ÇIKARILDI (saf
+  "bir File al, doğrula/yükle/geri-bildirim ver" mantığı) — hem native hem
+  web-fallback yolu AYNI fonksiyonları çağırıyor, tek doğrulama/hata kod
+  yolu, davranış İKİ platformda BİREBİR aynı.
+- `.upload-trigger-btn` tıklaması artık ÖNCE `pickNativeAudioFile()` dener,
+  `undefined` dönerse eski `.click()` proxy'sine düşer. `sourceSelect`
+  sheet'inin "Dosya seç" satırı ve Araçlar sekmesinin (`toolsUploadBtn`,
+  sadece ad/boyut gösteren statik örnek — gerçek ses zincirine bağlı değil)
+  yükleme butonu da AYNI deseni aldı (kullanıcının "hiçbir yerde açılmıyor"
+  raporu geniş yorumlandı, tutarlılık için).
+
+**Doğrulama (bu ortamda, masaüstü tarayıcı — `window.Capacitor` doğal olarak
+YOK):**
+- Fallback dalı: `pickNativeAudioFile()` gerçekten `undefined` döndü,
+  proxy buton doğru şekilde relocated input'u `.click()`'ledi, gerçek dosya
+  (kick.m4a, `fetch`+`DataTransfer`) uçtan uca yüklendi — G52'nin davranışı
+  BİREBİR korundu.
+- Native dal (KÖPRÜ MANTIĞI): `window.Capacitor.Plugins.FilePicker.
+  pickFiles` SAHTE bir plugin ile İKİ AYRI senaryoda taklit edildi — (1)
+  `.blob` alanlı sonuç (web-tipi), (2) `.path` alanlı sonuç (iOS/Android-tipi,
+  `convertFileSrc`+`fetch` zinciri) — İKİSİ de doğru şekilde `File`
+  nesnesine dönüşüp `processCakismaUploadFile`'a ulaştı, "bass.m4a/vocal.m4a
+  başarıyla yüklendi" geri bildirimi + dosya adı satırı DOĞRU render edildi.
+  **Dürüstlük notu:** bu SADECE JS köprü mantığının (blob/path→File
+  dönüşümü, doğrulama, uploadManager.loadFile) doğruluğunu kanıtlıyor —
+  `UIDocumentPickerViewController`'ın GERÇEKTEN CİHAZDA açılıp açılmadığı bu
+  ortamdan doğrulanamaz (native Swift kod, masaüstü tarayıcıda hiç çalışmaz).
+  Plugin resmi olarak Capacitor 8 ile uyumlu ve iOS için CocoaPods/SPM
+  entegrasyonu `npx cap sync ios` ile başarıyla kuruldu — nihai onay
+  kullanıcının cihazda denemesini gerektiriyor.
+- Regresyon: Frekans Bulma'da bir round sorunsuz oynandı, konsol hatası
+  SIFIR. Motor 3'ün 3-aşama mekaniği/sınav mirası/diğer 7 mod HİÇ
+  değişmedi (bu tur SADECE dosya SEÇME yöntemini değiştirdi, ses işleme
+  zincirine — `uploadManager.loadFile`/`decodeAudioData` — tek satır
+  dokunulmadı).
+- `npm test`: **744/744** (değişmedi — bu tur SADECE DOM/plugin kablolaması,
+  hiçbir saf fonksiyon etkilenmedi, yeni test gerekmedi).
+
+**KORUMA:** Motor 3 mekaniği, 8 mevcut mod, ses işleme zinciri HİÇ
+değişmedi. `package.json`'a TEK yeni bağımlılık eklendi
+(`@capawesome/capacitor-file-picker`), `node_modules`'te 1 paket kuruldu.
+
+---
+
+Önceki commit (G52, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Frekans
 Çakışması (Motor 3): cihazda AÇILMAYAN upload düzeltildi + 2 yeni kaynak çifti
 + spektrum renkleri ayrıştırıldı.** G51'de "TEMEL AT" olarak kurulan Motor 3'ün
 kullanıcı tarafından cihazda bulunan üç eksiği kapatıldı.

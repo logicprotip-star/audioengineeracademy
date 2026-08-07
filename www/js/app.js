@@ -3444,31 +3444,83 @@ if (els.answers) els.answers.addEventListener("click", e => {
 if (els.audioFileInput) els.audioFileInput.accept = audioAcceptAttr();
 if (els.toolsFileInput) els.toolsFileInput.accept = audioAcceptAttr();
 
-// G52: proxy dosya-seçici butonları — gerçek `<input type="file">` artık
-// `.bottom-sheet`'in (her zaman aktif bir `transform`, WebKit/iOS'ta native
-// seçicinin AÇILMASINI engelliyor, bkz. index.html'deki G52 DÜZELTMESİ notu)
-// DIŞINDA yaşıyor. Butonun kendisi SENKRON `.click()` çağırıyor — dokunma
-// jestinin (user activation) aynı çağrı yığınında kalması için `await`/
-// `setTimeout` YOK, aksi halde iOS bu tetiklemeyi "kullanıcı jesti" saymayabilir.
-document.querySelectorAll(".upload-trigger-btn").forEach(btn => {
-  const targetId = btn.dataset.fileTarget;
-  btn.addEventListener("click", () => {
-    const input = document.getElementById(targetId);
-    if (input) input.click();
-  });
-});
+// G53 — KÖK ÇÖZÜM: G52'nin "transform ataları" düzeltmesi cihazda YETMEDİ
+// (kullanıcı raporu) — web `<input type="file">` iOS WKWebView/Capacitor'da
+// güvenilir DEĞİL (transform hariç başka WebKit/Capacitor tuhaflıkları da
+// var, kesin teşhis edilemedi). KÖK ÇÖZÜM: Capacitor'ın NATIVE dosya seçici
+// plugin'i (@capawesome/capacitor-file-picker, `FilePicker.pickFiles()`,
+// UIDocumentPickerViewController kullanır — iOS'ta izin GEREKTİRMEZ, bkz.
+// plugin README "Do I need any runtime permissions?"). Native shell'de
+// (gerçek iOS/Android build) Capacitor bu plugin'i `window.Capacitor.
+// Plugins.FilePicker`'a otomatik kaydeder — projenin KENDİ yerleşik deseni
+// (bkz. storage.js:getPreferencesPlugin, app.js:getVolumeButtonsPlugin) HİÇ
+// bundler/ES-import kullanmıyor, global `window.Capacitor.Plugins.*`'tan
+// okuyor, burada da AYNI desen izlendi. Masaüstü/tarayıcı geliştirme
+// ortamında (bu proje bundler'sız, `python3 -m http.server` ile servis
+// ediliyor) `window.Capacitor` YOK — o zaman G52'nin transform-dışı,
+// relocated `<input type="file">` + proxy-buton yolu FALLBACK olarak AYNEN
+// KORUNDU (aşağıdaki `change` listener'ları hâlâ bağlı, hiç silinmedi).
+function getFilePickerPlugin() {
+  return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FilePicker) || null;
+}
 
-els.audioFileInput.addEventListener("change", async (e) => {
-  const file = e.target.files?.[0];
+// Native picker'dan dönen PickedFile'ı (blob/path) upload.js'in beklediği
+// gerçek bir `File` nesnesine köprüler — böylece validateAudioFile/
+// uploadManager.loadFile (İKİSİ de sadece .name/.size/.arrayBuffer()
+// bekliyor) TEK SATIR bile değişmeden AYNEN çalışmaya devam ediyor (web
+// fallback'iyle TAM AYNI işleme fonksiyonlarını paylaşıyorlar, bkz. altta).
+// Dönüş: File nesnesi (başarılı) | null (kullanıcı iptal etti ya da hata —
+// hata zaten loglandı/feedback gösterildi, çağıran tarafın AYRICA bir şey
+// YAPMASINA gerek yok) | undefined (native plugin bu ortamda YOK — çağıran
+// taraf web fallback'ine düşmeli).
+async function pickNativeAudioFile() {
+  const plugin = getFilePickerPlugin();
+  if (!plugin) return undefined;
+  try {
+    const result = await plugin.pickFiles({ limit: 1 });
+    const picked = result && result.files && result.files[0];
+    if (!picked) return null; // kullanıcı iptal etti — sessizce çık, hata DEĞİL
+    let blob;
+    if (picked.blob) {
+      blob = picked.blob; // web implementasyonu (plugin kendi içinde input kullanıyor)
+    } else if (picked.path && window.Capacitor && window.Capacitor.convertFileSrc) {
+      // iOS/Android: path var, blob yok — plugin'in KENDİ önerdiği fetch+
+      // convertFileSrc deseni (bkz. plugin README "Upload a picked file").
+      const resp = await fetch(window.Capacitor.convertFileSrc(picked.path));
+      blob = await resp.blob();
+    } else {
+      throw new Error("dosya verisine (blob/path) erişilemedi");
+    }
+    console.log("[filepicker] dosya seçildi:", picked.name, "| tip:", picked.mimeType || "(boş)", "|", Math.round((picked.size || blob.size) / 1024), "KB");
+    return new File([blob], picked.name || "ses-dosyasi", { type: picked.mimeType || blob.type || "" });
+  } catch (err) {
+    // Kullanıcının seçiciyi iptal etmesi bazı platformlarda reject olarak
+    // gelir (ör. "cancel" içeren bir mesajla) — bu bir HATA değil, sessizce
+    // çık. Gerçek hatalarda kullanıcıya bilgi ver.
+    if (err && /cancel/i.test(err.message || err.errorMessage || "")) return null;
+    console.error("[filepicker] pickFiles hatası:", err && err.message, err);
+    setFeedback("Yükleme hatası", "Dosya seçilemedi. Tekrar dener misin?");
+    return null;
+  }
+}
+
+// accept özniteliği validateAudioFile'ın kabul ettiği listeyle AYNI kaynaktan (bkz. E1) —
+// native dosya seçicinin WAV gibi formatları elemesini önlemek için MIME joker + WAV
+// MIME varyantları + uzantı listesi birleşimi kullanılıyor. SADECE web fallback
+// input'ları için anlamlı (native FilePicker kendi UTI/tip filtresini kullanır,
+// buraya types VERİLMEDİ — task'ın "audio/*" kadar geniş serbestliği korunsun diye).
+if (els.audioFileInput) els.audioFileInput.accept = audioAcceptAttr();
+if (els.toolsFileInput) els.toolsFileInput.accept = audioAcceptAttr();
+
+// Tek upload'ın (Tonal Denge dahil TÜM tek-kaynak modlar) GERÇEK işleme
+// mantığı — hem native picker hem web fallback'in `change` listener'ı BU
+// fonksiyonu çağırır, iki yol da TEK bir doğrulama/yükleme/geri-bildirim
+// kod yoluna çıkar.
+async function processSingleUploadFile(file) {
   if (!file) return;
-  // E1 teşhis logu: seçim native picker'dan GERÇEKTEN geçti mi, hangi ad/MIME/boyutla?
-  // Bu log hiç görünmüyorsa dosya JS'e hiç ulaşmadan native seçicide elenmiş demektir
-  // (accept/UTI sorunu); görünüp de sonrası başarısız oluyorsa sorun doğrulama/oynatmadadır.
-  console.log("[upload] dosya seçildi:", file.name, "| tip:", file.type || "(boş)", "|", Math.round(file.size / 1024), "KB");
   const validation = validateAudioFile(file);
   if (!validation.ok) {
     setFeedback(validation.title, validation.detail);
-    e.target.value = ""; // aynı (geçersiz) dosya tekrar seçilirse change event'i yine tetiklensin
     return;
   }
   try {
@@ -3478,7 +3530,6 @@ els.audioFileInput.addEventListener("change", async (e) => {
       setFeedback(res.title, res.detail);
       return;
     }
-
     // Kaynağı otomatik "Yüklenen Ses Dosyası"na geçir (oyunu otomatik başlatmadan).
     if (els.sourceSelect.value !== "upload") {
       els.sourceSelect.value = "upload";
@@ -3486,7 +3537,6 @@ els.audioFileInput.addEventListener("change", async (e) => {
       const rowText = document.querySelector('.setting-row[data-sheet-select="sourceSelect"] .setting-row-value-text');
       if (rowText) rowText.textContent = els.sourceSelect.options[els.sourceSelect.selectedIndex].text;
     }
-
     const nameEl = document.getElementById("audioFileInputName");
     if (nameEl) nameEl.textContent = file.name;
     setFeedback("Ses yüklendi", `${file.name} başarıyla yüklendi. "Oyunu Başlat" ile çalmaya başlar.`);
@@ -3494,44 +3544,76 @@ els.audioFileInput.addEventListener("change", async (e) => {
     console.error("[upload] loadUploadedAudio dışında beklenmeyen hata:", err && err.name, err && err.message, err);
     setFeedback("Yükleme hatası", "Bu ses dosyası açılamadı. Farklı bir mp3/wav dene.");
   }
+}
+els.audioFileInput.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = ""; // aynı (geçersiz) dosya tekrar seçilirse change event'i yine tetiklensin
+  processSingleUploadFile(file);
 });
 
 // G51 — Motor 3 (Frekans Çakışması): "kendi dosyalarım" çiftinin İKİ AYRI
-// yükleme yolu — audioFileInput'un YUKARIDAKİ handler'ıyla AYNI doğrulama/hata
-// deseni, SADECE hedef uploadManager (A/B) ve geri bildirim metni farklı. Her
-// ikisi de KENDİ 100 MB sınırını KENDİ dosyasına uygular (core/upload.js:
+// yükleme yolu — processSingleUploadFile'ın AYNI doğrulama/hata deseni,
+// SADECE hedef uploadManager (A/B) ve geri bildirim metni farklı. Her ikisi
+// de KENDİ 100 MB sınırını KENDİ dosyasına uygular (core/upload.js:
 // MAX_AUDIO_FILE_MB, validateAudioFile her çağrıda BAĞIMSIZ çalışır) — TOPLAM
-// bir sınır YOK, task'ın "her biri 100 MB" isteği.
+// bir sınır YOK, task'ın "her biri 100 MB" isteği. G53: native/web'in İKİSİ
+// de bu fonksiyonu çağırır (bkz. processSingleUploadFile notu).
+async function processCakismaUploadFile(file, uploadMgr, inputId, slotLabel) {
+  if (!file) return;
+  const validation = validateAudioFile(file);
+  if (!validation.ok) {
+    setFeedback(validation.title, validation.detail);
+    return;
+  }
+  try {
+    await audioEngine.initAudio();
+    const res = await uploadMgr.loadFile(file);
+    if (!res.ok) {
+      setFeedback(res.title, res.detail);
+      return;
+    }
+    const nameEl = document.getElementById(`${inputId}Name`);
+    if (nameEl) nameEl.textContent = file.name;
+    setFeedback(`Kaynak ${slotLabel} yüklendi`, `${file.name} başarıyla yüklendi. "Oyunu Başlat" ile çalmaya başlar.`);
+  } catch (err) {
+    console.error(`[cakisma-upload-${slotLabel}] beklenmeyen hata:`, err && err.name, err && err.message, err);
+    setFeedback("Yükleme hatası", "Bu ses dosyası açılamadı. Farklı bir mp3/wav dene.");
+  }
+}
 function wireCakismaUpload(inputEl, uploadMgr, slotLabel) {
   if (!inputEl) return;
   inputEl.accept = audioAcceptAttr();
-  inputEl.addEventListener("change", async (e) => {
+  inputEl.addEventListener("change", (e) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const validation = validateAudioFile(file);
-    if (!validation.ok) {
-      setFeedback(validation.title, validation.detail);
-      e.target.value = "";
-      return;
-    }
-    try {
-      await audioEngine.initAudio();
-      const res = await uploadMgr.loadFile(file);
-      if (!res.ok) {
-        setFeedback(res.title, res.detail);
-        return;
-      }
-      const nameEl = document.getElementById(`${inputEl.id}Name`);
-      if (nameEl) nameEl.textContent = file.name;
-      setFeedback(`Kaynak ${slotLabel} yüklendi`, `${file.name} başarıyla yüklendi. "Oyunu Başlat" ile çalmaya başlar.`);
-    } catch (err) {
-      console.error(`[cakisma-upload-${slotLabel}] beklenmeyen hata:`, err && err.name, err && err.message, err);
-      setFeedback("Yükleme hatası", "Bu ses dosyası açılamadı. Farklı bir mp3/wav dene.");
-    }
+    e.target.value = "";
+    processCakismaUploadFile(file, uploadMgr, inputEl.id, slotLabel);
   });
 }
 wireCakismaUpload(els.cakismaFileInputA, uploadManagerA, "A");
 wireCakismaUpload(els.cakismaFileInputB, uploadManagerB, "B");
+
+// G53: proxy dosya-seçici butonları — ÖNCE native FilePicker dener (gerçek
+// iOS/Android build), plugin bu ortamda YOKSA (masaüstü/web geliştirme)
+// G52'nin relocated (transform'suz) `<input type="file">`'ına SENKRON
+// `.click()` ile düşer — `await pickNativeAudioFile()` İÇİNDE plugin yoksa
+// HİÇBİR native köprü/await zinciri kurulmadan hemen `undefined` döndüğü
+// için (senkron erken çıkış), fallback dalındaki `.click()` HÂLÂ orijinal
+// kullanıcı jestine yeterince yakın kalıyor (aynı olay-handler'ın devamı).
+document.querySelectorAll(".upload-trigger-btn").forEach(btn => {
+  const targetId = btn.dataset.fileTarget;
+  btn.addEventListener("click", async () => {
+    const picked = await pickNativeAudioFile();
+    if (picked === undefined) {
+      const input = document.getElementById(targetId);
+      if (input) input.click();
+      return;
+    }
+    if (!picked) return; // iptal/hata — pickNativeAudioFile zaten loglayıp gerekirse feedback gösterdi
+    if (targetId === "audioFileInput") processSingleUploadFile(picked);
+    else if (targetId === "cakismaFileInputA") processCakismaUploadFile(picked, uploadManagerA, "cakismaFileInputA", "A");
+    else if (targetId === "cakismaFileInputB") processCakismaUploadFile(picked, uploadManagerB, "cakismaFileInputB", "B");
+  });
+});
 
 // Kaynak çifti değişince (Kick+Bas ↔ Kendi dosyalarım) upload satırlarının
 // görünürlüğü YENİDEN hesaplanır — initSettingsSheet'in GENERİK sheet-seçim
@@ -4150,10 +4232,14 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => {
       const isUnloadedUpload = select.id === 'sourceSelect' && opt.value === 'upload' && !uploadManager.hasBuffer;
       const checkStyle = isUnloadedUpload ? ' style="opacity:1"' : '';
       row.innerHTML = `<span>${opt.text}</span><span class="check"${checkStyle}>${isUnloadedUpload ? '›' : '✓'}</span>`;
-      row.addEventListener('click', () => {
+      row.addEventListener('click', async () => {
         if (isUnloadedUpload) {
           closeSheet();
-          els.audioFileInput.click();
+          // G53: AYNI native-önce/web-fallback deseni (bkz. .upload-trigger-btn
+          // wiring'i) — bu satır ARTIK doğrudan input'a değil, o ortak yola gidiyor.
+          const picked = await pickNativeAudioFile();
+          if (picked === undefined) els.audioFileInput.click();
+          else if (picked) processSingleUploadFile(picked);
           return;
         }
         select.value = opt.value;
@@ -4790,13 +4876,25 @@ function renderFilterChips() {
 }
 renderFilterChips();
 
+// G53: Araçlar sekmesi (statik örnek analiz — gerçek ses zincirine BAĞLI
+// DEĞİL, sadece ad/boyut gösterimi) AYNI native-önce/web-fallback desenini
+// alıyor — tutarlılık için, kullanıcının "hiçbir yerde açılmıyor" raporu
+// bunu da kapsayabilir.
+function processToolsUploadFile(file) {
+  if (!file) return;
+  if (els.toolsFileName) els.toolsFileName.textContent = file.name;
+  if (els.toolsFileMeta) els.toolsFileMeta.textContent = `${Math.max(1, Math.round(file.size / 1024))} KB`;
+}
 if (els.toolsUploadBtn && els.toolsFileInput) {
-  els.toolsUploadBtn.addEventListener("click", () => els.toolsFileInput.click());
+  els.toolsUploadBtn.addEventListener("click", async () => {
+    const picked = await pickNativeAudioFile();
+    if (picked === undefined) els.toolsFileInput.click();
+    else if (picked) processToolsUploadFile(picked);
+  });
   els.toolsFileInput.addEventListener("change", () => {
     const file = els.toolsFileInput.files && els.toolsFileInput.files[0];
-    if (!file) return;
-    if (els.toolsFileName) els.toolsFileName.textContent = file.name;
-    if (els.toolsFileMeta) els.toolsFileMeta.textContent = `${Math.max(1, Math.round(file.size / 1024))} KB`;
+    els.toolsFileInput.value = "";
+    processToolsUploadFile(file);
   });
 }
 
