@@ -127,6 +127,7 @@ const els = {
   devGroup: document.getElementById("devGroup"),
   devProSwitch: document.getElementById("devProSwitch"),
   devModeOffBtn: document.getElementById("devModeOffBtn"),
+  filePickerTestBtn: document.getElementById("filePickerTestBtn"),
   restoreRow: document.getElementById("restoreRow"),
   feedbackRow: document.getElementById("feedbackRow"),
   faqRow: document.getElementById("faqRow"),
@@ -3460,8 +3461,39 @@ if (els.toolsFileInput) els.toolsFileInput.accept = audioAcceptAttr();
 // ediliyor) `window.Capacitor` YOK — o zaman G52'nin transform-dışı,
 // relocated `<input type="file">` + proxy-buton yolu FALLBACK olarak AYNEN
 // KORUNDU (aşağıdaki `change` listener'ları hâlâ bağlı, hiç silinmedi).
+// G55 — DERİN TEŞHİS: G53'ün native plugin'i cihazda YİNE açılmadı (kullanıcı
+// raporu, G52'nin web-input düzeltmesi de tutmamıştı). Kök sebep zinciri
+// DÖRT ayrı halkadan oluşuyor ve HANGİSİNİN kırık olduğu bu ortamdan (masaüstü,
+// window.Capacitor doğal olarak yok) AYIRT EDİLEMEZ — bu yüzden HER halka
+// kendi net, tek başına anlaşılır console.log/console.error satırına VE
+// (kullanıcı Xcode/Safari Inspector'a bakmasa bile GÖREBİLSİN diye) bir
+// toast()'a bağlandı:
+//   1) window.Capacitor tanımlı mı — DEĞİLSE bu bir native build/WebView
+//      köprüsü sorunu (Capacitor'ın KENDİSİ hiç yüklenmemiş).
+//   2) window.Capacitor.Plugins.FilePicker tanımlı mı — DEĞİLSE plugin native
+//      tarafta (Package.swift/CapApp-SPM/Xcode paket çözümü) KAYITLI DEĞİL.
+//      EN OLASI kök sebep budur (bkz. DURUM.md G55 BİTTİ "XCODE TARAFI" notu) —
+//      npx cap sync ios SADECE Package.swift'i günceller, Xcode'un YENİ yerel
+//      paketi GERÇEKTEN derlemesi için ya otomatik yeniden-çözümlemesi ya da
+//      "File > Packages > Reset Package Caches" + temiz build GEREKİR.
+//   3) pickFiles() çağrısı yapılıyor mu, hangi anda — çağrıdan HEMEN ÖNCE ayrı
+//      bir log (önceki sürümde YOKTU — "buton mu ölü, çağrı mı hiç olmuyor"
+//      ayrımı bu satır olmadan YAPILAMAZDI).
+//   4) pickFiles() dönüyor mu (sonuç/iptal) yoksa reddediyor mu (hata) — ikisi
+//      AYRI loglanıyor.
 function getFilePickerPlugin() {
-  return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FilePicker) || null;
+  if (!window.Capacitor) {
+    console.warn("[filepicker-diag] 1) window.Capacitor TANIMSIZ — Capacitor native köprüsü bu WebView'de hiç yüklenmemiş (masaüstü tarayıcıdaysan bu NORMAL, web fallback'e düşülecek).");
+    return null;
+  }
+  const plugin = window.Capacitor.Plugins && window.Capacitor.Plugins.FilePicker;
+  if (!plugin) {
+    console.error("[filepicker-diag] 2) window.Capacitor VAR ama window.Capacitor.Plugins.FilePicker TANIMSIZ — plugin native tarafta KAYITLI DEĞİL. Xcode'da 'CapApp-SPM' paketinin yeniden çözümlendiğinden (File > Packages > Reset Package Caches) ve temiz build alındığından emin ol.");
+    toast("Dosya seçici bulunamadı", "FilePicker plugin'i native tarafta yüklenmemiş görünüyor — Xcode'da paketleri yeniden çözümleyip temiz build almak gerekebilir.");
+    return null;
+  }
+  console.log("[filepicker-diag] 1-2) window.Capacitor VE Plugins.FilePicker TANIMLI — plugin doğru kayıtlı.");
+  return plugin;
 }
 
 // Native picker'dan dönen PickedFile'ı (blob/path) upload.js'in beklediği
@@ -3476,10 +3508,15 @@ function getFilePickerPlugin() {
 async function pickNativeAudioFile() {
   const plugin = getFilePickerPlugin();
   if (!plugin) return undefined;
+  console.log("[filepicker-diag] 3) pickFiles() ÇAĞRILIYOR — buton→fonksiyon zinciri buraya kadar SAĞLAM, şimdi native picker açılmalı.");
   try {
     const result = await plugin.pickFiles({ limit: 1 });
+    console.log("[filepicker-diag] 4) pickFiles() DÖNDÜ (reddetmedi) — ham sonuç:", JSON.stringify(result));
     const picked = result && result.files && result.files[0];
-    if (!picked) return null; // kullanıcı iptal etti — sessizce çık, hata DEĞİL
+    if (!picked) {
+      console.log("[filepicker-diag] Dosya seçilmedi (kullanıcı iptal etti ya da picker boş sonuç döndürdü) — hata DEĞİL.");
+      return null;
+    }
     let blob;
     if (picked.blob) {
       blob = picked.blob; // web implementasyonu (plugin kendi içinde input kullanıyor)
@@ -3497,9 +3534,12 @@ async function pickNativeAudioFile() {
     // Kullanıcının seçiciyi iptal etmesi bazı platformlarda reject olarak
     // gelir (ör. "cancel" içeren bir mesajla) — bu bir HATA değil, sessizce
     // çık. Gerçek hatalarda kullanıcıya bilgi ver.
-    if (err && /cancel/i.test(err.message || err.errorMessage || "")) return null;
-    console.error("[filepicker] pickFiles hatası:", err && err.message, err);
-    setFeedback("Yükleme hatası", "Dosya seçilemedi. Tekrar dener misin?");
+    if (err && /cancel/i.test(err.message || err.errorMessage || "")) {
+      console.log("[filepicker-diag] pickFiles() reddetti ama mesaj 'cancel' içeriyor — kullanıcı iptali, hata DEĞİL.");
+      return null;
+    }
+    console.error("[filepicker-diag] 4) pickFiles() REDDETTİ (native tarafta hata) —", err && err.name, err && err.message, err);
+    toast("Yükleme hatası", `Dosya seçilemedi: ${(err && err.message) || "bilinmeyen hata"}`);
     return null;
   }
 }
@@ -4535,6 +4575,29 @@ if (els.devModeOffBtn) els.devModeOffBtn.addEventListener("click", () => {
   storage.saveDevFlags(devFlags);
   syncDevUI();
   toast("Geliştirici modu kapatıldı", "");
+});
+// G55 — en basit, izole dosya seçici testi: Motor 3/tekli-upload'ın hiçbirine
+// dokunmadan, TEK butonla pickNativeAudioFile()'ın TÜM zincirini (Capacitor
+// var mı → plugin kayıtlı mı → pickFiles() çağrıldı mı → sonuç/hata) dener ve
+// SONUCU (hangisinde durduysa) hem console'a hem toast'a yazar — kullanıcı
+// Xcode/Safari Inspector'a bakmadan da "buton ölü mü / plugin eksik mi /
+// picker açılıp iptal mi edildi / gerçek bir hata mı" ayrımını görebilsin diye.
+if (els.filePickerTestBtn) els.filePickerTestBtn.addEventListener("click", async () => {
+  console.log("[filepicker-diag] === TEST BAŞLADI ===");
+  toast("Test başladı", "Konsolu izliyorsan [filepicker-diag] etiketli satırlara bak.");
+  const hadCapacitor = !!window.Capacitor;
+  const hadPlugin = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FilePicker);
+  const file = await pickNativeAudioFile();
+  console.log("[filepicker-diag] === TEST BİTTİ ===", { hadCapacitor, hadPlugin, sonuc: file === undefined ? "plugin yok (web fallback gerekir)" : file === null ? "iptal/hata (yukarıdaki loga bak)" : `dosya alındı: ${file.name}` });
+  if (!hadCapacitor) {
+    toast("Sonuç: Capacitor YOK", "window.Capacitor tanımsız — bu masaüstü/web ortamıysa NORMAL, cihazdaysa native köprü hiç yüklenmemiş demektir.");
+  } else if (!hadPlugin) {
+    toast("Sonuç: Plugin KAYITLI DEĞİL", "window.Capacitor var ama FilePicker plugin'i yok — Xcode'da paketleri yeniden çözümleyip temiz build gerekiyor.");
+  } else if (file) {
+    toast("Sonuç: BAŞARILI ✓", `Seçici açıldı ve "${file.name}" seçildi — zincir tam çalışıyor.`);
+  } else {
+    toast("Sonuç: Plugin kayıtlı, ama dosya gelmedi", "Seçici muhtemelen AÇILDI ve iptal edildi (bu iyi bir işaret) — ya da native tarafta bir hata oldu, yukarıdaki toast'a/konsola bak.");
+  }
 });
 syncDevUI();
 

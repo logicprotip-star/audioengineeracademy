@@ -1,13 +1,120 @@
 # DURUM
 
-Son güncelleme: 07.08.2026 (G54)
+Son güncelleme: 07.08.2026 (G55)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G54, tek commit — kod+DURUM.md birlikte) — **9 modun kaynak
+Bu commit (G55, tek commit — kod+DURUM.md birlikte) — **Dosya seçici cihazda
+HÂLÂ açılmıyordu (G53'ün native plugin'i de yetmedi) — DERİN TEŞHİS: koddaki
+HER halka (Package.swift kaydı, jsName eşleşmesi, deployment target, buton
+kablolaması) TEK TEK doğrulandı ve HEPSİ DOĞRU çıktı; kalan tek olası kök
+sebep Xcode'un YEREL paket önbelleğinin `npx cap sync`'in güncellediği
+Package.swift'i henüz GÖRMEMİŞ olması — bunu kesin olarak ayırt etmek için
+cihazda çalışan bir teşhis aracı eklendi.**
+
+**BU ORTAMDAN (masaüstü, gerçek iOS cihaz/Xcode yok) YAPILABİLECEK TÜM
+statik denetimler tek tek yapıldı, HEPSİ TEMİZ çıktı — yani sorun koddan
+DEĞİL, muhtemelen Xcode'un paket çözümleme durumundan kaynaklanıyor:**
+1. **Proje SPM kullanıyor, CocoaPods DEĞİL** (`ios/App` altında Podfile YOK,
+   sadece `App.xcodeproj` + otomatik oluşan `project.xcworkspace`) — "pod
+   install unutulmuş" teorisi ELENDİ, bu bir SPM projesi.
+2. **`App.xcodeproj` → `CapApp-SPM` bağlantısı DOĞRU:** `project.pbxproj`'da
+   `XCLocalSwiftPackageReference "CapApp-SPM"` + `XCSwiftPackageProductDependency`
+   satırları mevcut, App target Frameworks'e `CapApp-SPM` ürününü doğru
+   ekliyor.
+3. **`CapApp-SPM/Package.swift` → `CapawesomeCapacitorFilePicker` bağlantısı
+   DOĞRU** (G53'te `npx cap sync ios` tarafından zaten eklenmişti, bu turda
+   TEKRAR doğrulandı): hem `dependencies` hem `CapApp-SPM` target'ının kendi
+   `dependencies` dizisinde `.product(name: "CapawesomeCapacitorFilePicker", ...)`
+   var — yani App → CapApp-SPM → FilePicker zinciri paket TANIMLARI seviyesinde
+   TAM.
+4. **Plugin'in Swift kaynağı `jsName = "FilePicker"` ile KAYIT OLUYOR**
+   (`FilePickerPlugin.swift`, `@objc(FilePickerPlugin)` + `CAPBridgedPlugin`
+   protokolü — MODERN otomatik-keşif mekanizması, AppDelegate.swift'te
+   MANUEL bir kayıt GEREKMİYOR ve YOK/gerekmiyor da zaten) —
+   `window.Capacitor.Plugins.FilePicker` adı BİREBİR eşleşiyor, yazım hatası
+   YOK.
+5. **iOS deployment target uyumlu:** App target `IPHONEOS_DEPLOYMENT_TARGET
+   = 15.0`, CapApp-SPM `platforms: [.iOS(.v15)]` — versiyon çakışması YOK
+   (olsaydı build HATASI verirdi, "temiz rebuild başarılı" raporuyla zaten
+   çelişirdi).
+6. `Package.resolved` incelendi — SADECE `capacitor-swift-pm` (uzak paket)
+   pinlenmiş, dört yerel paket (volume-buttons/preferences/splash-screen/
+   file-picker) `path:` tabanlı OLDUĞU için pinlenmeye zaten İHTİYAÇ
+   DUYMUYOR — burada STALE bir kayıt bulunamadı.
+
+**SONUÇ:** Kod/konfigürasyon tarafında bulunabilecek HİÇBİR hata YOK — bu,
+Xcode'un LOKAL SPM paket grafiğinin (Package.swift metninin `npx cap sync`
+ile değişmesine rağmen) DerivedData/proje önbelleğinde ESKİ (file-picker'sız)
+haliyle KALMIŞ olabileceği ihtimalini güçlendiriyor — bu, yerel (path-based)
+Swift Package'larla BİLİNEN bir Xcode davranışıdır: uzak paketlerin aksine
+Xcode yerel bir paketin Package.swift'i DEĞİŞTİĞİNDE grafiği HER ZAMAN
+otomatik yeniden ÇÖZMEYEBİLİR.
+
+**XCODE TARAFINDA KULLANICININ YAPMASI GEREKEN ADIMLAR (bu, koddan
+DÜZELTİLEMEYEN tek kalan adım):**
+1. Xcode'da projeyi aç: `ios/App/App.xcodeproj` (bu projede AYRI bir
+   `.xcworkspace` YOK — CocoaPods değil, SPM).
+2. Menüden **File → Packages → Reset Package Caches**.
+3. Menüden **File → Packages → Resolve Package Versions**.
+4. Sol panelde (Project Navigator üstünde) "Package Dependencies" bölümüne
+   bak — **CapawesomeCapacitorFilePicker** listede GÖRÜNÜYOR MU? Görünmüyorsa
+   kök sebep KESİNLEŞMİŞ demektir (paket hiç çözülmemiş).
+5. **Product → Clean Build Folder** (⇧⌘K).
+6. Cihazdan uygulamayı sil (zaten yapılmış), tekrar **Build & Run**.
+
+**YENİ TEŞHİS ARACI — cihazda debugger olmadan da görülebilsin diye
+(Ayarlar → Sürüm numarasına 7 kez dokun → GELİŞTİRİCİ → "Dosya Seçici
+Testi"):** `pickNativeAudioFile()`'ın zinciri artık DÖRT ayrı halkanın
+HER birinde `console.log`/`console.warn`/`console.error` ("[filepicker-diag]"
+etiketiyle) VE (Safari Web Inspector'a hiç bağlanmadan da görülebilsin diye)
+`toast()` üretiyor:
+1. `window.Capacitor` tanımsız mı — Capacitor köprüsü hiç yüklenmemiş.
+2. `window.Capacitor.Plugins.FilePicker` tanımsız mı — **EN OLASI kök sebep**,
+   yukarıdaki Xcode adımlarını işaret ediyor.
+3. `pickFiles()` çağrılıyor mu — çağrıdan HEMEN ÖNCE ayrı bir log (G53'te
+   YOKTU, "buton mu ölü, çağrı mı hiç olmuyor" ayrımı bu satır olmadan
+   YAPILAMAZDI).
+4. `pickFiles()` dönüyor mu (sonuç/iptal) yoksa reddediyor mu (native hata,
+   mesajı toast'a da yazılıyor).
+Test butonu bu dört senaryoyu (Capacitor yok / plugin yok / başarılı /
+iptal-veya-hata) AYRI AYRI özetleyen bir SONUÇ toast'ı da gösteriyor —
+gerçek yükleme akışlarından (Motor 3, tekli upload) TAMAMEN İZOLE, task'ın
+"basitleştir" isteği.
+
+**Doğrulama (bu ortamda — masaüstü, `window.Capacitor` doğal olarak yok):**
+- Fallback senaryosu (gerçek durum bu ortamda): test butonu → "1) window.
+  Capacitor TANIMSIZ" logu + "Sonuç: Capacitor YOK" toast'ı DOĞRU üretildi.
+- SAHTE `window.Capacitor = {Plugins:{}}` (Capacitor var, plugin YOK —
+  G55'in hedeflediği asıl cihaz senaryosu) ile test edildi: "2) ... TANIMSIZ
+  — plugin native tarafta KAYITLI DEĞİL" logu + "Sonuç: Plugin KAYITLI
+  DEĞİL" toast'ı, Xcode adımlarını işaret eden metinle DOĞRU üretildi.
+- SAHTE plugin (`pickFiles` gerçek bir blob döndüren) ile test edildi:
+  "3) pickFiles() ÇAĞRILIYOR" → "4) pickFiles() DÖNDÜ" logları + "Sonuç:
+  BAŞARILI ✓" toast'ı DOĞRU üretildi.
+- Motor 3'ün çift-upload proxy butonları (cakismaFileInputA/B) ve tekli
+  upload'ın fallback zinciri (G52/G53) REGRESYONSUZ çalışmaya devam ediyor
+  — canlı test edildi. Motor 3'ün 3-aşama mekaniği bozulmadı.
+- Konsol hatası SIFIR. `npm test`: **753/753** (değişmedi — bu tur SADECE
+  DOM/plugin/teşhis kablolaması, hiçbir saf fonksiyon etkilenmedi).
+
+**Dürüstlük notu:** kod/konfigürasyon tarafında YAPILABİLECEK HER şey
+doğrulandı ve düzeltildi (aslında düzeltilecek bir HATA bulunamadı — hepsi
+zaten doğruydu) — ama native picker'ın cihazda GERÇEKTEN açılıp açılmadığı
+BU OTURUMDA YİNE doğrulanamaz. Yeni teşhis aracı, kullanıcının BİR SONRAKİ
+cihaz denemesinde kök sebebi KESİN olarak (dört olasılıktan hangisi
+olduğunu) görmesini sağlıyor — bu, "muhtemelen X" yerine "KESİNLİKLE X"
+diyebilmek için GEREKLİ bir sonraki adım.
+
+**KORUMA:** Motor 3 mekaniği, diğer modlar, ses işleme HİÇ değişmedi —
+sadece teşhis/log derinliği + izole bir test butonu eklendi.
+
+---
+
+Önceki commit (G54, tek commit — kod+DURUM.md birlikte) — **9 modun kaynak
 listesi tek tek denetlendi — Frekans Bulma'da kayıp enstrümanlar (davul +
 enstrüman grupları) bulundu ve geri getirildi, diğer 8 mod DOĞRU çıktı.**
 
