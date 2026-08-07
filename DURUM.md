@@ -1,13 +1,105 @@
 # DURUM
 
-Son güncelleme: 07.08.2026 (G55)
+Son güncelleme: 07.08.2026 (G56)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G55, tek commit — kod+DURUM.md birlikte) — **Dosya seçici cihazda
+Bu commit (G56, tek commit — kod+DURUM.md birlikte) — **Frekans Çakışması'nın
+"kendi dosyalarım" upload'ı iki GENEL yükleme yuvasına ("Ses 1"/"Ses 2")
+dönüştürüldü + butonlar ana ekrana taşınıp Frekans Bulma'nın keşfedilebilirlik
+deseniyle hizalandı + üçüncü bir teşhis katmanı eklendi.**
+
+**1) ETİKET DÜZELTMESİ — kick+bas ilişkilendirmesi kalktı:** `OWN_SOURCE_PAIR`
+(source-catalog.js) `labelA`/`labelB` `"Kendi A"/"Kendi B"` → **`"Ses 1"/
+"Ses 2"`** oldu (işlevsel olarak zaten enstrüman-tarafsızdı, ama task bu
+turda daha açık bir genel adlandırma istedi — "kick+bas OLMAK ZORUNDA
+DEĞİL"). Upload satırlarının etiketleri de aynı dile taşındı: "Kaynak A/B
+yükle" → **"Ses 1/2 yükle"**. Yerleşik üç çift (kick-bas/vokal-gitar/
+snare-gitar, `SOURCE_PAIRS`) HİÇ değişmedi — bunlar zaten ayrı, hazır
+setler; upload TAMAMEN bağımsız bir dördüncü seçenek (`OWN_SOURCE_PAIR`,
+`id:"own"`).
+
+**2) TEŞHİS — "buton tepkisiz" için kök sebep bu ortamda TEKRAR
+BULUNAMADI (kod DOĞRU çıktı), ama bir UX/keşfedilebilirlik asimetrisi
+bulunup DÜZELTİLDİ:** `pickNativeAudioFile()`/`.upload-trigger-btn`
+kablolaması cakismaFileInputA/B için audioFileInput'la (Frekans Bulma'nın
+"çalışan" yolu) BİREBİR AYNI kodu paylaşıyordu (aynı forEach döngüsü, aynı
+fonksiyon) — programatik `.click()` testleriyle DOĞRULANDI, ikisi de
+zincirin AYNI noktasında AYNI şekilde davranıyor. Ama GERÇEK bir asimetri
+vardı: Frekans Bulma'da upload'a ulaşmak "Kaynak chip → Dosya seç" (TEK
+adım, ana ekrandan); Motor 3'te ise "kaynak-çifti chip'ini kapat → '...'
+(Oyun Ayarları) sheet'ini aç → aşağı kaydır → Dosya Seç" (ÜÇ adım, AYRI bir
+sheet) gerekiyordu — bu fazladan gezinme cihazda "tepkisiz" izlenimine
+katkıda bulunmuş olabilir (sheet kapanış/açılış animasyonlarının üst üste
+binmesi gibi zamanlamaya bağlı olası bir etkileşim de dahil, kesin
+kanıtlanamadı). **Düzeltme:** iki upload satırı (`cakismaUploadRowA`/B,
+AYNI id'ler, YENİDEN OLUŞTURULMADI — sadece taşındı) artık `#gameSettingsSheet`
+İÇİNDE değil, ANA OYUN EKRANINDA, kaynak-çifti chip'inin HEMEN ALTINDA —
+"Kendi dosyalarım" seçilince TEK adımda görünüyorlar, Frekans Bulma'nın
+akışıyla AYNI derinlikte. `syncCakismaVisibility()`'nin görünürlük mantığı
+buna göre güncellendi (`#cakismaOwnUploadBlock` tek bir sarmalayıcı artık
+toggle ediliyor) — bu arada AYRI bir gerçek hata da YAKALANIP düzeltildi:
+`uploadRowSingle`'ın (diğer sekiz modun tekli-upload satırı) gizlenme
+koşulu YANLIŞLIKLA sadece `isOwnPair`'e bakıyordu — Motor 3'te bir YERLEŞİK
+çift (ör. Kick+Bas) seçiliyken bu ALAKASIZ satır yanlışlıkla görünür
+kalıyordu, artık doğrudan `isCakisma`'ya bakıyor.
+
+**3) YENİ TEŞHİS KATMANI — "buton mu ölü, çağrı mı hiç olmuyor" sorusu ARTIK
+KESİN ayırt edilebiliyor:** her `.upload-trigger-btn` tıklamasının EN BAŞINA
+`console.log('[filepicker-diag] 0) buton tıklandı: data-file-target="..."')`
+eklendi (G55'in 1-4 numaralı halkalarının HEMEN ÖNÜNE) — cihazda bu log HİÇ
+görünmüyorsa sorun kesinlikle DOM/event-binding'te (buton gerçekten ölü);
+görünüp SONRAKİ [filepicker-diag] logları görünmüyorsa sorun
+`pickNativeAudioFile()`'ın kendisinde (G55'in zaten belgelediği 4 halka).
+
+**4) ANALİZ MEKANİĞİ — DEĞİŞİKLİK GEREKMEDİ, YENİDEN DOĞRULANDI:**
+`createQuestion()` zaten `findSourcePair(settings.pairId)` ile TAMAMEN
+generic çalışıyordu (G51'den beri) — iki yüklenen ses, yerleşik üç çiftle
+BİREBİR AYNI `stageForIndex`/çakışma-bölgesi/kesim mekaniğine giriyor,
+SADECE etiketler değişti. Canlı doğrulandı: vocal.m4a + acoustic_guitar.m4a
+("Ses 1"/"Ses 2" olarak) yüklenip round başlatıldı, soru "Ses 1 ve Ses 2
+hangi frekansta çakışıyor?" olarak DOĞRU üretildi, spektrum görseli
+(G52'nin amber/mor/kırmızı vurgu şeridi) "Ses 1"/"Ses 2" etiketleriyle
+DOĞRU render edildi.
+
+**Doğrulama (canlı, tarayıcıda):**
+- Upload artık iki GENEL slot: "Ses 1 yükle"/"Ses 2 yükle" etiketleri EKRAN
+  GÖRÜNTÜSÜYLE doğrulandı, kick+bas ilişkilendirmesi YOK.
+- Butonlar ana ekranda, kaynak-çifti chip'inin hemen altında — "..." sheet'ine
+  gitmeye GEREK KALMADI, EKRAN GÖRÜNTÜSÜYLE doğrulandı.
+- İki dosya (vocal.m4a, guitar.m4a) yüklenip round başlatıldı, soru "Ses 1 ve
+  Ses 2 hangi frekansta çakışıyor?" DOĞRU üretildi — analiz mekaniği
+  yerleşik çiftlerle BİREBİR aynı yoldan çalışıyor.
+- Yerleşik çift (Kick+Bas, TEMİZ bir sayfa yüklemesinden) regresyonsuz:
+  "Kick ve Bas hangi frekansta çakışıyor?" DOĞRU üretildi. **Bilinen/
+  ÖNCEDEN belgelenmiş (G52'den beri var olan, bu turda YENİDEN gözlemlenen)
+  bir tuhaflık:** round DEVAM EDERKEN pair mid-session değiştirilirse
+  (quit→pair değiştir→Oyunu Başlat, sayfa yenilemeden) bir sonraki soru
+  BAZEN önceki pair'in etiketleriyle üretilebiliyor — TEMİZ bir sayfa
+  yüklemesinde/round başında bu SORUNU YOK, bu G56'nın kapsamı dışında bir
+  session-state tuhaflığı (kayıt altına alındı, düzeltilmedi).
+- Frekans Bulma'nın upload'ı (referans "çalışan" yol) regresyonsuz —
+  butonu hâlâ var/görünür, konsol hatası SIFIR.
+- `npm test`: **753/753** (değişmedi — bu tur SADECE DOM/etiket/görünürlük
+  kablolaması, hiçbir saf fonksiyon etkilenmedi).
+
+**Dürüstlük notu:** "buton tepkisiz" şikayetinin TAM kök sebebi bu ortamdan
+(gerçek cihaz yok) KESİN olarak teşhis edilemedi — kod, Frekans Bulma'nınkiyle
+BİREBİR aynı çıktı (programatik testle doğrulandı). Bulunan/düzeltilen şey
+GERÇEK bir keşfedilebilirlik asimetrisiydi (üç adım vs bir adım) + gerçek
+bir görünürlük hatası (`uploadRowSingle`) — bunlar "tepkisiz" hissini
+AÇIKLAYABİLİR ama KANITLANAMADI. Yeni "0) buton tıklandı" logu, kullanıcının
+BİR SONRAKİ cihaz denemesinde bunu KESİN olarak ayırt etmesini sağlıyor.
+
+**KORUMA:** Yerleşik üç çift, Frekans Bulma upload'ı, Motor 3'ün 3-aşama
+mekaniği, diğer modlar HİÇ değişmedi.
+
+---
+
+Önceki commit (G55, tek commit — kod+DURUM.md birlikte) — **Dosya seçici cihazda
 HÂLÂ açılmıyordu (G53'ün native plugin'i de yetmedi) — DERİN TEŞHİS: koddaki
 HER halka (Package.swift kaydı, jsName eşleşmesi, deployment target, buton
 kablolaması) TEK TEK doğrulandı ve HEPSİ DOĞRU çıktı; kalan tek olası kök

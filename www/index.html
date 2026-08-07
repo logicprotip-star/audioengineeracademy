@@ -178,6 +178,28 @@
           </div>
         </div>
 
+        <!-- G56: "Kendi dosyalarım" seçilince İKİ GENEL yükleme yuvası ("Ses 1"/
+             "Ses 2" — HERHANGİ iki kaynak, kick+bas OLMAK ZORUNDA DEĞİL, bkz.
+             DURUM.md G56 BİTTİ) DOĞRUDAN burada, kaynak-çifti chip'inin hemen
+             altında görünür — "..." (Oyun Ayarları) sheet'ine gitmeye GEREK
+             YOK, Frekans Bulma'nın "Kaynak chip → Dosya seç" tek-adım akışıyla
+             AYNI keşfedilebilirlik. G51'den taşındı, YENİDEN OLUŞTURULMADI —
+             AYNI id'ler (cakismaUploadRowA/B, cakismaFileInputA/B trigger
+             butonları) korundu, app.js'in querySelectorAll(".upload-trigger-btn")
+             ve syncCakismaVisibility() kablolaması TEK SATIR değişmeden çalışır. -->
+        <div class="row hidden" id="cakismaOwnUploadBlock" style="gap:8px;flex-direction:column">
+          <div class="upload-row" id="cakismaUploadRowA">
+            <label>Ses 1 yükle (her biri 100 MB'a kadar)</label>
+            <button type="button" class="btn upload-trigger-btn" data-file-target="cakismaFileInputA">Dosya Seç</button>
+            <span class="upload-filename" id="cakismaFileInputAName"></span>
+          </div>
+          <div class="upload-row" id="cakismaUploadRowB">
+            <label>Ses 2 yükle (her biri 100 MB'a kadar)</label>
+            <button type="button" class="btn upload-trigger-btn" data-file-target="cakismaFileInputB">Dosya Seç</button>
+            <span class="upload-filename" id="cakismaFileInputBName"></span>
+          </div>
+        </div>
+
         <div class="qline" id="questionTitle">Başlamak için "Oyunu Başlat"a dokun.</div>
         <div class="qline-sub hidden" id="questionMeta"></div>
 
@@ -316,24 +338,15 @@
             <button type="button" class="btn upload-trigger-btn" data-file-target="audioFileInput">Dosya Seç</button>
             <span class="upload-filename" id="audioFileInputName"></span>
           </div>
-          <!-- G51: Motor 3 (Frekans Çakışması) — İKİ AYRI upload yuvası (task'ın
-               açık isteği: çakışma iki kaynak arası, ikisi de kendi yüklensin).
-               #uploadRowSingle'ın YERİNE değil, ONUNLA BİRLİKTE var — app.js
-               "own" çifti seçilince tekli satırı gizler, ikili satırları
-               gösterir (bkz. syncCakismaUploadVisibility). Her ikisi de AYNI
-               100 MB sınırını (core/upload.js:MAX_AUDIO_FILE_MB) KENDİ
-               uploadManager'ları üzerinden ayrı ayrı uygular — TOPLAM değil,
-               HER BİRİ 100 MB. -->
-          <div class="upload-row hidden" id="cakismaUploadRowA">
-            <label>Kaynak A yükle (her biri 100 MB'a kadar)</label>
-            <button type="button" class="btn upload-trigger-btn" data-file-target="cakismaFileInputA">Dosya Seç</button>
-            <span class="upload-filename" id="cakismaFileInputAName"></span>
-          </div>
-          <div class="upload-row hidden" id="cakismaUploadRowB">
-            <label>Kaynak B yükle (her biri 100 MB'a kadar)</label>
-            <button type="button" class="btn upload-trigger-btn" data-file-target="cakismaFileInputB">Dosya Seç</button>
-            <span class="upload-filename" id="cakismaFileInputBName"></span>
-          </div>
+          <!-- G56: Motor 3'ün İKİ AYRI upload yuvası ARTIK BURADA DEĞİL — ana
+               oyun ekranına, kaynak-çifti chip'inin hemen altına TAŞINDI
+               (bkz. #cakismaOwnUploadBlock, cakismaPairChipWrap'in altında).
+               Gerekçe: bu "..." (Oyun Ayarları) sheet'ine ulaşmak İÇİN
+               kullanıcının ÖNCE kaynak-çifti sheet'ini kapatıp SONRA dots
+               ikonuna basıp SONRA aşağı kaydırması gerekiyordu — Frekans
+               Bulma'nın "Kaynak → Dosya seç" tek-adım akışına göre GEREKSİZ
+               derin bir gezinme, "buton tepkisiz" izlenimine yol açabilirdi
+               (bkz. DURUM.md G56 BİTTİ). -->
           <button class="btn danger" id="quitGameBtn" style="width:100%;margin-top:4px">Oyundan çık</button>
         </div>
       </div>

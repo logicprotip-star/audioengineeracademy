@@ -201,6 +201,7 @@ const els = {
   cakismaPairChipWrap: document.getElementById("cakismaPairChipWrap"),
   cakismaPairChipLabel: document.getElementById("cakismaPairChipLabel"),
   uploadRowSingle: document.getElementById("uploadRowSingle"),
+  cakismaOwnUploadBlock: document.getElementById("cakismaOwnUploadBlock"),
   cakismaUploadRowA: document.getElementById("cakismaUploadRowA"),
   cakismaUploadRowB: document.getElementById("cakismaUploadRowB"),
   cakismaFileInputA: document.getElementById("cakismaFileInputA"),
@@ -864,9 +865,17 @@ function syncCakismaVisibility() {
   if (els.cakismaPairChipWrap) els.cakismaPairChipWrap.classList.toggle("hidden", !isCakisma);
   if (els.abToggle) els.abToggle.classList.toggle("hidden", isCakisma);
   const isOwnPair = isCakisma && currentCakismaPairId() === "own";
-  if (els.uploadRowSingle) els.uploadRowSingle.classList.toggle("hidden", isOwnPair);
-  if (els.cakismaUploadRowA) els.cakismaUploadRowA.classList.toggle("hidden", !isOwnPair);
-  if (els.cakismaUploadRowB) els.cakismaUploadRowB.classList.toggle("hidden", !isOwnPair);
+  // G56 düzeltmesi: uploadRowSingle (diğer sekiz modun TEK-kaynak yükleme
+  // satırı, Oyun Ayarları sheet'inde) Motor 3'te (pair="own" OLSUN OLMASIN)
+  // HİÇ anlamlı değil — ESKİ kod SADECE isOwnPair'e bakıyordu, yani Motor
+  // 3'te BİR YERLEŞİK çift (ör. Kick+Bas) seçiliyken bu satır YANLIŞLIKLA
+  // görünür kalıyordu. Artık isCakisma'nın KENDİSİNE bakıyor.
+  if (els.uploadRowSingle) els.uploadRowSingle.classList.toggle("hidden", isCakisma);
+  // G56: İKİ GENEL yükleme yuvası artık AYRI satırlar değil, TEK bir blok
+  // (#cakismaOwnUploadBlock, ana oyun ekranında — kaynak-çifti chip'inin
+  // hemen altında, "..." Oyun Ayarları'na gitmeye GEREK YOK). cakismaUploadRowA/B
+  // KENDİLERİ artık her zaman görünür (blok içinde), sadece BLOK toggle edilir.
+  if (els.cakismaOwnUploadBlock) els.cakismaOwnUploadBlock.classList.toggle("hidden", !isOwnPair);
   if (els.cakismaCompare) els.cakismaCompare.classList.add("hidden"); // yeni moda/round'a girerken her zaman kapalı başlar
 }
 
@@ -3639,9 +3648,15 @@ wireCakismaUpload(els.cakismaFileInputB, uploadManagerB, "B");
 // HİÇBİR native köprü/await zinciri kurulmadan hemen `undefined` döndüğü
 // için (senkron erken çıkış), fallback dalındaki `.click()` HÂLÂ orijinal
 // kullanıcı jestine yeterince yakın kalıyor (aynı olay-handler'ın devamı).
+// G56: her butonun İLK satırı KENDİ hedefini logluyor — bu, task'ın "buton mu
+// ölü" sorusuna KESİN cevap verir: cihazda bir Frekans Çakışması upload
+// butonuna basılınca bu log HİÇ görünmüyorsa sorun DOM/event-binding'te
+// (buton ölü); görünüyorsa sorun pickNativeAudioFile()'ın kendi zincirinde
+// (bkz. G55'in [filepicker-diag] logları) — ikisi ARTIK ayırt edilebiliyor.
 document.querySelectorAll(".upload-trigger-btn").forEach(btn => {
   const targetId = btn.dataset.fileTarget;
   btn.addEventListener("click", async () => {
+    console.log(`[filepicker-diag] 0) buton tıklandı: data-file-target="${targetId}"`);
     const picked = await pickNativeAudioFile();
     if (picked === undefined) {
       const input = document.getElementById(targetId);

@@ -106,8 +106,11 @@ export const SOURCE_PAIRS = [
   }
 ];
 
-// "Kendi dosyalarım" — İKİ AYRI upload yuvası (task'ın açık isteği: "iki
-// kaynak çakışma iki kaynak arası, ikisini de kendi yüklesin"). sourceA/
+// "Kendi dosyalarım" — İKİ GENEL yükleme yuvası (G56 düzeltmesi: task'ın
+// açık isteği — "kick+bas OLMAK ZORUNDA DEĞİL, kullanıcının kendi mix'indeki
+// çakışan HERHANGİ iki kaynak". labelA/labelB BİLEREK enstrüman-tarafsız
+// ("Ses 1"/"Ses 2", ÖNCEDEN "Kendi A"/"Kendi B"'ydi — işlevsel olarak zaten
+// nötrdü ama task bu turda daha da genel bir adlandırma istedi). sourceA/
 // sourceB BİLEREK SOURCE_GROUPS'ta YOK — bunlar findSource() ile ÇÖZÜLMEZ,
 // app.js/audio-engine.js bu İKİ sabit id'yi (upload-a/upload-b) özel olarak
 // tanıyıp KENDİ iki ayrı uploadManager örneğine yönlendirir (bkz. app.js
@@ -115,8 +118,8 @@ export const SOURCE_PAIRS = [
 // dosyasını yüklediği için çakışma aralığı ÖNCEDEN bilinemez, createQuestion
 // bu durumda FA_MIN–FA_MAX'ın tamamını havuz olarak kullanır.
 export const OWN_SOURCE_PAIR = {
-  id: "own", labelA: "Kendi A", labelB: "Kendi B", sourceA: "upload-a", sourceB: "upload-b",
-  region: null, desc: "İki kendi dosyanı ayrı ayrı yükle · her biri 100 MB'a kadar"
+  id: "own", labelA: "Ses 1", labelB: "Ses 2", sourceA: "upload-a", sourceB: "upload-b",
+  region: null, desc: "İki kendi sesini ayrı ayrı yükle · her biri 100 MB'a kadar"
 };
 
 export function findSourcePair(id) {
