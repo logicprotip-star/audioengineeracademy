@@ -4086,28 +4086,50 @@ Commit `ac505c3` — G2: seans sonu ekranı (TASARIM.md EKRAN 5, madde 9 kapand�
 
 ## AÇIK İŞLER
 
+**(Kaynak koda karşı doğrulandı, G59 sonrası.)** Aşağıdaki maddeler tek tek mevcut
+kaynak koddan (`grep`/`git log`/dosya okuma ile) yeniden kontrol edildi;
+sadece BAŞLIKTAKİ mod sayıları değil, madde İÇERİĞİ de doğru mu diye
+bakıldı. Beş madde bu turda stale çıktı (kod çoktan değişmiş ama not hiç
+güncellenmemiş) — aşağıda işaretlendi.
+
 ### Bug'lar
 
 **1. ~~Geri bildirim kartı ilk saniyelerde alt bar'ın altında~~ — D1'de düzeltildi, `a1c837a`**
 Üç kez ölçüm-tabanlı çözüm denenmiş, tutmamıştı. D1'de mimari değişti: padding
-yerine CSS `--actionbar-h` değişkeninden margin-bottom — ölçüme hiç bağlı değil,
-ilk boyamadan itibaren doğru. Aynı turda şıklı cevap modundaki 4-6 şıklık
-grid'in altbar arkasında kalması da (aynı kökten) düzeltildi. Simülatör/cihazda
-gerçek render henüz KONTROL EDİLMEDİ — sadece masaüstü Chrome'da gerçek DOM
+yerine CSS `--actionbar-h` değişkeninden margin-bottom (`styles.css:51`) —
+ölçüme hiç bağlı değil, ilk boyamadan itibaren doğru; kod hâlâ bu şekilde
+(doğrulandı). Aynı turda şıklı cevap modundaki 4-6 şıklık grid'in altbar
+arkasında kalması da (aynı kökten) düzeltildi. Simülatör/cihazda gerçek
+render henüz KONTROL EDİLMEDİ — sadece masaüstü Chrome'da gerçek DOM
 ölçümüyle doğrulandı (bkz. commit mesajı).
 
-**2. Pause sonrası ilk play'de duraksama**
-Durdurup tekrar başlatınca ses takılarak giriyor, sonra düzeliyor. Muhtemel sebep:
-pause sırasında buffer boşalıyor, `play()` yeterli veri hazır olmadan başlıyor.
-Bakılacak: `canplay` / `waiting` event'leri, `preload` ayarı, pause yerine gain node
-üzerinden sessize alma.
-**Kabul kriteri:** 10 ardışık pause→play denemesinde `waiting` event'i 0 kez tetiklenmeli
+**2. Pause sonrası ilk play'de duraksama — TEŞHİS ARTIK GEÇERSİZ, YENİDEN test edilmeli**
+Orijinal not "canplay/waiting event'leri, preload ayarı" bakılmasını
+öneriyordu — bu, o zamanki HTMLAudioElement tabanlı çalma yoluna aitti.
+Kod incelemesiyle doğrulandı: bu event isimleri (`canplay`/`waiting`)
+kod tabanında ARTIK HİÇ GEÇMİYOR — G8/G12 (`upload.js`) ile mimari kökten
+değişti, upload artık `AudioBufferSourceNode`+elle offset takibiyle çalışıyor
+(pause/resume kavramı yok, `node.start(0, offset)` ile TAZE node kuruluyor,
+bkz. CLAUDE.md "Ses motoru notları"). G12 aynı dosyada AYRI bir pause-kaynaklı
+hatayı ("cevapta kaldığı süre kadar şarkı ileri sarılmış gibi başlıyordu")
+zaten kapatmış görünüyor (`upload.js:35-43` yorumu). Orijinal "takılma" şikâyeti
+bu mimari değişiklikle kendiliğinden çözülmüş OLABİLİR ama bu, ses duyulmadan
+kod okumakla kanıtlanamaz (CLAUDE.md: "ses davranışı kaynak koddan
+doğrulanamaz") — **madde kapatılmadı, gerçek cihazda kulakla YENİDEN test
+edilmeli.**
+**Kabul kriteri:** 10 ardışık pause→play denemesinde duyulur bir "takılma" yok
 
-**3. Oyun 0 canla başlıyor**
-İlk açılışta zorluk doğru (orta) ama can sayısı sıfır. Başlangıç can değerinin
-nerede atandığı kontrol edilecek — state başlatılırken varsayılan atlanıyor ya da
-UI render'ı state'ten önce çalışıyor olabilir.
-**Kabul kriteri:** temiz `localStorage` ile açılışta can = tanımlı başlangıç değeri
+**3. Oyun 0 canla başlıyor — muhtemelen ÇOKTAN düzelmiş, canlı doğrulanamadı**
+`storage.js:129`: `loadStats()` artık `s.lives`'ı `<1` ise (0 dahil, ya da hiç
+yoksa) `TOTAL_LIVES`'a (5) çekiyor — yorum satırı bunu AÇIKÇA bu bug'ın
+kapatılması olarak tarif ediyor ("temiz localStorage'da olduğu gibi
+TOTAL_LIVES'a çekilir"). `app.js:540/567`: `stats` bu fonksiyondan SENKRON
+yükleniyor, `currentLives = stats.lives` hemen ardından okunuyor — state
+katmanında "0 can" üretecek bir yol kalmamış görünüyor. Bu oturumda tarayıcı
+eklentisi bağlı olmadığı için canlı DOM doğrulaması YAPILAMADI — kod-seviyesi
+bulgu güçlü ama "temiz localStorage'da can göstergesi gerçekten 5 ile açılıyor"
+iddiası henüz gözle görülmedi.
+**Kabul kriteri:** temiz `localStorage` ile açılışta can = tanımlı başlangıç değeri (canlı doğrulanmalı)
 
 **4. ~~`loseLife()` zengin geri bildirimi eziyor~~ — F1'de düzeltildi, `a377d80`**
 Yanlış cevapta artık TEK kartta hem "Kalan can: N" hem doğru frekans/bölge bilgisi
@@ -4116,14 +4138,13 @@ görünür kalması) doğru cevap tarafındaki DUPLIKE kart bug'ı da düzeldi.
 
 ### Eksik özellikler
 
-**10. ~~Gerçek ses dosyaları (DAVUL/ENSTRÜMAN) katalogda tanımlı ama dosyaların kendisi yok~~ — dosyalar mevcut, git'e eklenmedi**
+**10. ~~Gerçek ses dosyaları (DAVUL/ENSTRÜMAN) katalogda tanımlı ama dosyaların kendisi yok~~ — TAMAMEN KAPANDI**
 G4 ile `source-catalog.js`'e 9 `kind:"sample"` girdisi eklendi, G5 ile
-uzantı `.m4a`'ya çevrildi, G6 ile yükleme yolu HTMLAudioElement'e taşındı.
-9 gerçek m4a dosyası artık `www/audio/` altında VAR (kullanıcı elle koydu,
-tarayıcıda kick/hihat doğrulandı — konsolda hata yok, spektrum doğru) ama
-henüz git'e commit'lenmedi (`git status` → untracked). **Kalan tek adım:**
-`git add www/audio/*.m4a` + commit — ürün kararı değil, sadece unutulmamalı.
-iOS cihazda gerçek doğrulama (HTTP 0'ın kalkması) kullanıcıda.
+uzantı `.m4a`'ya çevrildi, G6 ile yükleme yolu değişti. **Bu turda `git
+ls-files www/audio/` ile doğrulandı: 9 m4a dosyası artık TAKİPLİ** (en son
+`1c86464` / G51'de commit'lenmiş) — önceki notun "henüz git'e commit'lenmedi"
+iddiası STALE, kalan tek adım da kapanmış. iOS cihazda gerçek doğrulama
+(HTTP 0'ın kalkması) hâlâ kullanıcıda.
 
 **5. ~~A/B Test gerçek bypass değil~~ — bir kullanıcı raporuyla birlikte düzeltildi, bkz. BİTTİ**
 Kullanıcı (14 yıllık müzik prodüktörü) A/B döngüsünde pitch kayması bildirdi
@@ -4134,28 +4155,38 @@ uploadedMediaSource'u (MediaElementAudioSourceNode) disconnect/reconnect ettiği
 kod incelemesiyle doğrulandı; bu WebKit'te JS'ten hiç gözlemlenemeyen bir motor
 davranışı olabilir. Kullanıcı onayıyla asıl mimari eksiklik (bu madde) çözüldü:
 artık paralel kuru/işlenmiş yol + gain crossfade (`audioEngine.setProcessed`) var,
-`buildQuestionChain` A/B toggle'ında BİR DAHA hiç çağrılmıyor. Enstrümante edilmiş
-canlı testte (AudioNode.prototype.connect/disconnect sayaçları) tur içi A/B
-döngüsünde MediaElementAudioSourceNode üzerinde SIFIR connect/disconnect ölçüldü
-(önce her toggle bunu 1 kez tetikliyordu).
+`buildQuestionChain` A/B toggle'ında BİR DAHA hiç çağrılmıyor.
 
-**6. Kalibrasyon — sarı seviye çizgisi dokunmatik olmalı**
-Ekrandaki seviye göstergesi parmakla sürüklenerek ayarlanabilsin.
+**6. ~~Kalibrasyon — sarı seviye çizgisi dokunmatik olmalı~~ — ÇOKTAN kodlanmış, STALE madde**
+`app.js:4789-4801`: `calLevelTrack` üzerinde `pointerdown`/`pointermove`/
+`pointerup`/`pointercancel` ile sürükleme kodlanmış (Pointer Events, mouse+touch
++kalemi TEK API'de birleştirir). `git log -S"calLevelTrack"` bu kodun proje
+tarihindeki EN İLK commit'ten (`f0e144a`) beri var olduğunu gösteriyor — yani
+bu madde muhtemelen dosyaya hiç güncel kalmadan miras kalmış. Gerçek dokunmatik
+cihazda son doğrulama bu oturumdan yapılamadı (tarayıcı eklentisi bağlı değildi)
+ama kod açıkça touch-uyumlu bir API kullanıyor.
 
-**7. ~~Odak aralığı özelliği kodda yok~~ — M1-4'te eklendi, `5c608f4`**
-Seans sonu ekranındaki öneri kartı (`resSug`) HÂLÂ eklenmedi — bu M1
-turunun kapsamı dışında (G2/seans-sonu ekranına dokunmuyordu), artık
-engel ortadan kalktığı için ayrı bir işte eklenebilir.
+**7. ~~Odak aralığı özelliği kodda yok~~ — M1-4'te eklendi, `5c608f4`; "öneri kartı" notu da G58 ile KAPANDI**
+Önceki not "seans sonu ekranındaki öneri kartı (resSug) HÂLÂ eklenmedi"
+diyordu — `resSug` id'si kod tabanında artık hiç yok. Bunun yerine G58
+(`250c622`) ana menüye `dailyTipCard`/`dailyTipStartBtn` ekledi: en zayıf
+bölgeyi `zoneScores()`'tan okuyup tek cümlelik öneri gösteriyor, "Başla"
+butonu GERÇEK `challenge.total` sorudan oluşan bir set başlatıyor
+(`app.js:1726-1738`, `renderDailyTip`). Konum "seans sonu" değil "ana menü"
+ama işlevsel istek (zayıf bölgeye odaklı öneri + gerçek başlat butonu)
+karşılanmış görünüyor — madde kapatıldı.
 
 **8. İlerleme sekmesi prototiple örtüşmüyor**
-Bölümler var, düzen farklı. `Dizayn/prototype.html` referans.
+Bölümler var, düzen farklı. `Dizayn/prototype.html` referans. Bu turda
+yeniden gözden geçirilmedi (kapsam dışı bırakıldı) — hâlâ açık kabul ediliyor.
 
 **12. "Geri bildirim ekranı" ayarı Pro Plus zorluğunda etkisiz**
-G13 ile eklenen `prefs.feedbackScreen` toggle'ı SADECE `submitFrequencyGuess`'te
-(normal frekans sorusu) uygulandı — `submitProPlusGuess` bilerek dokunulmadı,
-çünkü `revealAnimator`'ın bant-bant açılma animasyonu G13'ün hızlı-ilerleme
-süresiyle (`QUICK_ADVANCE_MS`) çakışma riski taşıyordu, zamanı yoktu.
-Kullanıcı Pro Plus'ta ayarı kapatırsa panel yine de açılır.
+Kod okunarak DOĞRULANDI, hâlâ true: `submitProPlusGuess` (`app.js:2735`)
+`mode.showProPlusInfoPanel`'i KOŞULSUZ çağırıyor ve `scheduleNext(result.correct
+? 4000 : 6000)`'ı (`app.js:2810`) `prefs.feedbackScreen` kontrolü OLMADAN
+çalıştırıyor — diğer tüm submit fonksiyonlarındaki `prefs.feedbackScreen ?
+(...) : QUICK_ADVANCE_MS` deseni burada YOK. Kullanıcı Pro Plus'ta ayarı
+kapatırsa panel yine de açılır.
 **Kabul kriteri:** Pro Plus'ta cevap verilince, ayar kapalıyken de panel
 açılmadan hızlı ilerleniyor, `revealAnimator` animasyonu düzgün tamamlanıyor
 (yarıda kesilmiyor).
@@ -4164,24 +4195,22 @@ açılmadan hızlı ilerleniyor, `revealAnimator` animasyonu düzgün tamamlanı
 Kök sebep (`loopAwarePreviewMs`'in geçiş beklemesini kaynağın TAM DÖNGÜ
 uzunluğuna yuvarlaması) çözüldü — fonksiyon tamamen kaldırıldı, geçiş
 beklemesi artık kaynak uzunluğundan bağımsız sabit `CMP_PREVIEW_RESUME_MS`
-(3000ms). Önizleme sesi kesilmiyor, sadece geçiş zamanlayıcısı bu sabit
-süre sonunda yeniden kuruluyor; X butonu da geri geldi (basan hemen
-ilerler). Doğrulama sırasında bulunan ve aynı commit'te düzeltilen ikinci
-bir hata (`cmpPreviewRemainingMs` null olduğunda geçişin HİÇ yeniden
-kurulmaması, turun kalıcı askıda kalması) için bkz. BİTTİ.
+(3000ms). Bu mekanizma artık Kompresör'e özgü değil — G35'ten beri
+`three-way-cards.js` üzerinden Reverb/Distortion'ın önizlemesi de AYNI yolu
+kullanıyor (paylaşılan altyapı, ayrı ayrı yeniden yazılmadı).
 
 **11. AÇIK ÖZELLİK — Odaklı pratik modu**
 Kullanıcı raporu (G9 teşhisi, kod değişikliği YAPILMADI — bkz. BİTTİ):
 Odak aralığı (Bas/Orta/Tiz) şu an SADECE soru üretim havuzunu daraltıyor
 (`createQuestion`'a `focusRange` olarak geçiyor) — spektrum ekseni
 (`drawFreqAxis`/`faXToF`/`faFToX`/`drawSpectrumBars`) tasarım gereği sabit
-80 Hz–17 kHz'e (`FA_MIN`/`FA_MAX`) kenetli, M1-4'ten (`5c608f4`) beri hiç
-değişmedi — bu, G7/G8'deki AudioBufferSourceNode geçişinden ETKİLENMEDİ
-(git log ile doğrulandı, analyser bağlantısı da hiç kopmadı).
+`mode.FA_MIN`/`mode.FA_MAX`'a kenetli, bu turda `grep` ile YENİDEN doğrulandı
+(`app.js:3299-3300`), hâlâ hiç değişmemiş.
 İstenen: kullanıcı zayıf bölgesini (bas/orta/tiz) seçip odaklı çalışırken
 spektrum GÖRSEL olarak da o bölgeye daralsın — hem kulak hem göz o dar
-bölgeye odaklansın. Kullanım senaryosu: günün önerisi (8 soru) bitince
-kullanıcı zayıf bölgesini seçip tekrar tekrar çalışır.
+bölgeye odaklansın. Kullanım senaryosu artık G58'in gerçek `dailyTipCard`
+seti (bkz. madde 7) bitince kullanıcının zayıf bölgesini seçip tekrar
+tekrar çalışması.
 Gerekli iş: `drawFreqAxis`/`faXToF`/`faFToX`/`drawSpectrumBars` + ipucu/A-B
 işaretleyicileri gibi `FA_MIN`/`FA_MAX` okuyan çizim fonksiyonlarının
 tamamının dinamik bir aralık alacak şekilde refactor edilmesi (tıklama→Hz
@@ -4190,64 +4219,86 @@ dışında bırakıldı (kullanıcı kararı).
 
 ### Yayın öncesi
 
-**9. Logo / uygulama ikonu yapılmadı**
-Capacitor `resources/icon.png` + `resources/splash.png`, `@capacitor/assets` ile üretilir.
-Store yüklemesinden önce gerekli, şimdi öncelikli değil.
+**9. ~~Logo / uygulama ikonu yapılmadı~~ — STALE, zaten yapılmış**
+`resources/icon.png` (1254×1254) ve `resources/splash.png` (2732×2732)
+gerçek, tasarlanmış bir marka logosu içeriyor (kulaklık+spektrum çubukları+
+dalga formu, "Audio Engineer Academy" yazısıyla — bu turda görsel olarak
+açılıp doğrulandı) — placeholder DEĞİL. `git log` bu dosyaların projenin EN
+İLK commit'lerinden (`9230d8e`) beri var olduğunu gösteriyor; `android/app/
+src/main/res/drawable-*/splash.png` altında platforma özel boyutlar da
+ÜRETİLMİŞ. Madde muhtemelen dosyaya hiç güncel kalmadan miras kalmış,
+kapatıldı.
 
 ## BEKLEYEN KARARLAR
 
-**A. Kart metni tek kaynağa inecek mi?**
-Şu an Frekans Bulma'nın metni `getMeta()`'dan, diğer 13'ü `MODE_CATALOG`'tan geliyor.
-İkinci mod yazılmadan karar verilmeli, yoksa drift eder.
-Öneri: katalog tek görüntü kaynağı, `getMeta()` sadece oyun mantığı meta'sı.
+**(Kaynak koda karşı doğrulandı, G59 sonrası.)** Karar **A** bu turda kod incelemesiyle
+zaten KODLANMIŞ bulundu (aşağıda) — DURUM.md hiç güncellenmemiş. Diğer
+maddeler tek tek yeniden `grep`'lendi; hâlâ hepsi gerçek, açık kararlar.
+
+**A. ~~Kart metni tek kaynağa inecek mi?~~ — ÇOKTAN kodlanmış, STALE madde**
+`app.js:renderModeGrid` (satır 1507) kendi yorumunda AÇIKÇA söylüyor:
+"Kart başlığı/açıklaması YALNIZCA katalogdan okunur — getMeta() artık bunları
+döndürmüyor". `frekans-bulma.js:278-280`'in kendi yorumu da aynı kararı
+doğruluyor: `getMeta()` artık SADECE oyun-mantığı meta'sını (id/motor/
+kulaklikGerekli/vb.) döndürüyor, ad/aciklama YOK. Öneri zaten uygulanmış —
+katalog tek görüntü kaynağı. Bu madde kapatıldı.
 
 **B. Kilit tipleri**
 Üç ayrı durum tek state'e sıkışmış: (1) henüz kodlanmadı, (2) seviye yetersiz,
 (3) Pro gerektiriyor. Kart "Seviye 5'te açılır" derken tıklayınca "Yakında" toast'ı
-çıkıyor — çelişkili vaat.
-14 modun kaçı Pro, kaçı seviyeyle açılıyor? Mevcut `unlockLevel` değerleri
-kullanıcı tarafından belirlenmedi.
+çıkıyor — çelişkili vaat. **Hâlâ açık, kod değişmedi** (bu turda `renderModeGrid`
+yeniden okunarak doğrulandı).
+Katalog artık (G59 sonrası) **14 giriş** — `mode-catalog.js`'ten sayıldı:
+**5'i `tier:"free"`** (Frekans Bulma/Kesim Noktası/Q Genişliği/Boost mu Cut
+mu/Hız Modu — sonuncusu henüz `playable:false`), **9'u `tier:"pro"`** (dB
+Seviyesi/Stereo Genişlik/Pan Konumu/Hangisi Farklı/Kompresör/Reverb/Tonal
+Denge/Distortion/Frekans Çakışması — dördü henüz `playable:false`).
+Mevcut `unlockLevel` değerleri kullanıcı tarafından hâlâ belirlenmedi.
 **Kısmen ilerledi (Z3):** "seviye" kilidi HANGİ seviye sayısına bakacak sorusu
 karara bağlandı (akademi/toplam seviyesi — `progress.academyLevel()`) ve KODLANDI
 (`app.js` renderModeGrid, `meetsLevel` kontrolü). Ama bu, üç durumun (kodlanmadı/
-seviye-yetersiz/Pro) UI'da AYRIŞTIRILMASI sorununu ÇÖZMEDİ — hâlâ "Yakında" toast'ı
-hem "henüz kodlanmadı" hem "seviyen yetmiyor" için aynı görünüyor. Bu madde AÇIK
-kalıyor.
-**G17 ile SOMUTLAŞTI:** Z3'ün "hiç oynanmamış bir mod bile academyLevel'e +1
-katkı yapar" ödünü (bkz. o maddenin BİTTİ'deki notu, "2. mod eklendiğinde
-yeniden değerlendirilmeli" diye önceden kayıtlıydı) artık teorik değil — Kesim
-Noktası (`unlockLevel:2`) kayıtlı olduğu İÇİN academyLevel otomatik 2'ye çıkıyor
-ve kendi kilidini kendi açıyor (canlı doğrulandı). Karar gerekiyor: bu "yeni bir
-mod eklenince önceki kilitler ücretsiz açılıyor" davranışı kabul mü, yoksa
-academyLevel formülü (ya da unlockLevel değerleri) yeniden mi tasarlanmalı?
+seviye-yetersiz/Pro) UI'da AYRIŞTIRILMASI sorununu ÇÖZMEDİ. Bu madde AÇIK kalıyor.
+**G17 ile SOMUTLAŞMIŞTI, artık ON kat daha somut:** "yeni bir mod eklenince
+academyLevel otomatik yükselip önceki kilitleri de açabiliyor" ödünü — G59
+itibarıyla ON oynanabilir mod var, altısı zaten `tier:"pro"` zincirinde
+(unlockLevel 6→12→14→15→16→20) — her yeni mod kaydı bu zinciri YİNE
+etkileyebilir. Karar hâlâ verilmedi: davranış kabul mü, yoksa academyLevel
+formülü (ya da unlockLevel değerleri) yeniden mi tasarlanmalı?
 
 **C. Rozet sayısı ve seti**
-Kod 9 rozet tanımlıyor (G1 denetimiyle 9'u da artık gerçekten tetiklenebiliyor),
-TASARIM.md'de tasarımda 6 rozet olduğu ve isimlerin örtüşmediği kayıtlı. Hangi
-setin kalacağı (6, 9, yoksa birleşim mi) ürün kararı — kodlanmadı.
+`progress.js:82-90`'da bu turda sayıldı: kod hâlâ TAM 9 rozet tanımlıyor
+(first_blood/combo_5/combo_10/round_25/round_100/accuracy_70/level_5/
+pro_clear/boss_win), değişmemiş. TASARIM.md'de tasarımda 6 rozet olduğu ve
+isimlerin örtüşmediği kayıtlı (bu turda TASARIM.md yeniden okunmadı, kod
+tarafı doğrulandı). Hangi setin kalacağı (6, 9, yoksa birleşim mi) ürün
+kararı — kodlanmadı.
 
 **D. Can dolumu**
-`www/js/core/storage.js:91` — uygulama yeniden açıldığında can 0 ise otomatik
-`TOTAL_LIVES`'a (5) çekiliyor (bilinçli ödün, seans içinde dolum YOK). Gerçek bir
-"30 dakikada dolum" mekanizması hâlâ kodda yok; prototype.html'nin seans sonu
-ekranındaki "Canlar 30 dakikada dolar" metni bu yüzden G2'de kullanılmadı, yerine
-dürüst "can dolum özelliği henüz eklenmedi" metni yazıldı. Gerçek dolum özelliği
-ayrı bir iş.
+`www/js/core/storage.js:129` (satır numarası kaydırıldı, önceki not `:91`
+diyordu — güncellendi) — uygulama yeniden açıldığında can 0 ise otomatik
+`TOTAL_LIVES`'a (5) çekiliyor (bilinçli ödün, seans içinde dolum YOK, bkz.
+AÇIK İŞLER madde 3). Gerçek bir "30 dakikada dolum" mekanizması hâlâ kodda
+yok (`grep` ile yeniden doğrulandı — kod tabanında dakika-bazlı bir dolum
+zamanlayıcısı yok). Gerçek dolum özelliği ayrı bir iş.
 
 **E. ~~Seviye → hassasiyet formülü (lvlSheet için gerekli)~~ — Z1/Z6 ile çözüldü**
 `core/difficulty-curve.js: difficultyParams(level)` artık SÜREKLİ (logaritmik)
 bir formülle her seviye için gainDb/Q/tolerans/süre üretiyor; `lvlSheet` (Z6)
-bunu GERÇEKTEN okuyor. Bkz. DURUM.md "ZORLUK MİMARİSİ — OTOMATİK VERİLEN
-KARARLAR" — buradaki sayısal değerler (GAIN_DB_AT_LEVEL_1/CAP, Q_AT_LEVEL_1/CAP
-vb.) OTOMATİK/varsayılan seçildi, kulakla doğrulanmadı; sabah gözden geçirilmeli.
+bunu GERÇEKTEN okuyor (`app.js:renderLevelSheet`, bu turda da doğrulandı —
+bkz. SIRADAKİ madde 3, ama o maddenin açık kaldığı nokta FARKLI: dilin TEK bir
+mod diline kilitli olması, formülün kendisi değil). Buradaki sayısal değerler
+(GAIN_DB_AT_LEVEL_1/CAP, Q_AT_LEVEL_1/CAP vb.) OTOMATİK/varsayılan seçildi,
+kulakla hâlâ doğrulanmadı (bkz. SIRADAKİ madde 1).
 
 **F. "Tekrar Çal" butonu kapsamı**
 Sentetik kaynaklarda (gürültü/synth) anlamsız — sürekli sinyaller, "başı" yok.
-Sadece "upload" kaynağında anlamlı (ve onun için zaten `uploadManager.
-startFromZero` var, şu an sadece tur/seans başında çağrılıyor). Karar gereken:
-sadece upload kaynağında görünen küçük bir "baştan çal" ikonu mı eklensin, yoksa
-madde tamamen atlansın mı? Ayrı bir buton eklemek actionbar'ın layout'unu
-değiştirir.
+**Hâlâ açık — karıştırılabilir bir kod parçası bulundu, netleştirildi:** `app.js:1108`'de
+`els.startBtn`'in "🔄 Tekrar Çal" etiketi VAR ama bu, `autoStopped` durumundan
+DEVAM ETME (pause/resume) anlamına geliyor (`app.js:3742-3755`) — pozisyonu
+BAŞA sarmıyor, decision F'nin istediği "upload kaynağında baştan çal ikonu"
+DEĞİL. `uploadManager.startFromZero` hâlâ sadece tur/seans başında çağrılıyor
+(`app.js:3178-3184`). Karar gereken: sadece upload kaynağında görünen küçük
+bir "baştan çal" ikonu mı eklensin, yoksa madde tamamen atlansın mı?
 
 **G. ~~Otomatik zorluk modu~~ — Z5/Z7 ile çözüldü**
 "Otomatik" artık gerçek: `applyAutoDifficulty()` (app.js) her round başında
@@ -4255,173 +4306,144 @@ Z1+Z3'ten türetilen zorluğu uyguluyor, `autoDiffAsk` (Z7) prototipteki gibi
 DOKUNMA-tetiklemeli. KAPSAM SINIRI (bkz. Z5 commit mesajı): Z1'in TAM sürekli
 eğrisi değil, `tierForLevel()` köprüsüyle en yakın isimli kademe (easy/medium/
 hard/pro) kullanılıyor — evaluateAnswer'ın sabit tolerans sınırını parametrik
-hale getirmek AYRI bir iş (aşağıda not edildi).
+hale getirmek AYRI bir iş.
 
 **H. Dar odak aralığında Pro Plus bant sayısı**
 M1-4 ile gelen odak aralığı (Bas/Orta ~2.3 oktav) Pro Plus'ın istediği 4 ayrık
-bandı (gereken ~2.7 oktav) her zaman sığdıramıyor — ölçülen 500 denemede hep
-2-3 bant üretiliyor (bkz. `test/frekans-bulma.test.mjs`). Kod güvenli tarafta
-duruyor (asla range dışına taşmıyor, asla çakışan bant üretmiyor) ama bu bir
-ürün kararı gerektiriyor: Pro Plus dar odakta kısıtlansın mı (o kombinasyon
-seçilemesin), yoksa az bantla mı devam etsin?
+bandı (gereken ~2.7 oktav) her zaman sığdıramıyor. `test/frekans-bulma.test.mjs:
+218-227` bu turda yeniden okundu: testin kendisi `bands.length <= 4` (asla 4'ten
+fazla değil) garantisini 20 tekrarla doğruluyor, kod hâlâ güvenli tarafta (asla
+range dışına taşmıyor, asla çakışan bant üretmiyor). "500 denemede hep 2-3 bant"
+rakamı önceki bir oturumun canlı ölçümüydü, bu turda yeniden ölçülmedi — ama
+mekanizma değişmemiş, karar hâlâ açık: Pro Plus dar odakta kısıtlansın mı (o
+kombinasyon seçilemesin), yoksa az bantla mı devam etsin?
 
 **I. İsimlendirme tutarsızlıkları (D6 denetimi — düzeltilmedi, sadece raporlandı)**
-1. Zorluk `proplus` değeri iki yerde iki farklı isimle: Oyun Ayarları sheet'inde
-   "Pro Plus (Çok Bantlı)", Genel Ayarlar'ın Zorluk alt-listesinde (`data-diff=
-   "proplus"`) "Sınırsız" / "Sınırını kendin ara". Aynı seçenek, iki ayrı kavram.
+Beşi de bu turda `grep` ile TEK TEK yeniden doğrulandı, hepsi hâlâ true:
+1. Zorluk `proplus` değeri iki yerde iki farklı isimle: `index.html:272`
+   "Pro Plus (Çok Bantlı)", `index.html:885` (`data-diff="proplus"`)
+   "Sınırsız" / "Sınırını kendin ara". Aynı seçenek, iki ayrı kavram.
 2. Can bitişi iki farklı başlıkla art arda gösteriliyor: `loseLife()` içindeki
-   feedback+toast "Oyun bitti" diyor, hemen ardından açılan seans-sonu tam ekranı
-   "CANLARIN BİTTİ" diyor.
-3. Desteklenen ses formatları tutarsız anlatılıyor: `validateAudioFile`'ın kendi
-   hata mesajı 7 formatı doğru listeliyor (wav/mp3/m4a/aac/aiff/flac/ogg), ama
-   "Ses oynatılamadı"/"Yükleme hatası" mesajları sadece "mp3/wav" öneriyor.
-4. Paywall'daki "Seans başına 5 soru" (Ücretsiz) / "Seans başına 10 soru" (Pro)
-   iddiası kodda YOK — `10 Soruluk Bölüm` Pro'ya bağlı değil, herkes seçebiliyor;
-   ücretsiz kullanıcıyı 5 soruyla sınırlayan bir mekanizma da yok. İsimlendirme
-   değil ama satın alma sayfası var olmayan bir kısıtlamayı vaat ediyor.
-5. "Ses dosyası yükle" (Oyun Ayarları) / "Dosya yükle" (Araçlar) — aynı eylem
-   için iki farklı buton metni.
+   feedback+toast (`app.js:942-943`) "Oyun bitti" diyor, hemen ardından açılan
+   seans-sonu tam ekranı (`app.js:992`) "CANLARIN BİTTİ" diyor.
+3. Desteklenen ses formatları tutarsız anlatılıyor: `validateAudioFile`'ın
+   (`upload.js:75`) kendi hata mesajı `ALLOWED_AUDIO_EXTENSIONS`'tan 7 formatı
+   doğru listeliyor (wav/mp3/m4a/aac/aiff/flac/ogg), ama `app.js:3036/3623/3658`
+   "Ses oynatılamadı"/"Yükleme hatası" mesajları sadece "mp3/wav" öneriyor,
+   `upload.js:139`'daki AYRI bir mesaj ise "mp3/wav/m4a" diyor — üç farklı liste.
+4. Paywall'daki `index.html:717/731` "Seans başına 5 soru" (Ücretsiz) /
+   "Seans başına 10 soru" (Pro) iddiası kodda YOK — `grep` ile doğrulandı,
+   `roundsInThisPlaySession`/`isUserPro()` etrafında böyle bir sayaç/limit yok;
+   `10 Soruluk Bölüm` (challenge) Pro'ya bağlı değil, herkes seçebiliyor.
+5. "Ses dosyası yükle" (`index.html:337`, Oyun Ayarları) / "Dosya yükle"
+   (`index.html:523`, `toolsUploadBtn`, Araçlar) — aynı eylem için iki farklı
+   buton metni.
 Hangisinin düzeltileceği/nasıl birleştirileceği ürün kararı — kod tarafında
 hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Zorluk sisteminin merkezi bağlanması (Seçenek C) + Mod 3 "dB Seviyesi" +
-Mod 4 "Boost mu Cut mu" + Mod 5 "Q Genişliği" + Mod 6 "Kompresör" + Mod 7
-"Reverb" (Motor 2'nin İKİ modu) TAMAMLANDI.** ARTIK YEDİ oynanabilir mod var
-(Frekans Bulma, Kesim Noktası, dB Seviyesi, Boost mu Cut mu, Q Genişliği,
-Kompresör, Reverb), yedisi de AYNI merkezi eğriden besleniyor
-(`continuousLevel`/`representativeLevelForTier`+`sessionRampOffset`,
-mod-agnostik `logLerp`/`applyPostCapFloor`), hem Otomatik hem Sabit modda,
-pro her yedi modda da eğrinin GERÇEK tavanı, hiçbir tier eski statikten
-kolay değil. G35'te Motor 2'nin app.js kablolaması GERÇEKTEN genelleşti
-(`THREE_WAY_MODE_IDS`, bkz. BİTTİ) — gelecekteki bir 3. Motor 2 modu
-(Distortion/Tonal Denge) SADECE o listeye eklenmeli, submit/preview/toggle
-mekanizmalarını YENİDEN YAZMAMALI. **Tek sonraki adım netleşmedi** — kalan
-işler ürün kararı gerektiriyor, kod tarafında engelleyici yok:
+**(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma
+(unlockLevel:1, free), Kesim Noktası (2, free), Q Genişliği (3, free), Boost
+mu Cut mu (4, free), dB Seviyesi (6, pro), Kompresör (12, pro), Reverb (14,
+pro), Tonal Denge (15, pro), Distortion (16, pro), Frekans Çakışması (20,
+pro) — `mode-catalog.js`'ten doğrulandı. Kalan 4 katalog girdisi (Hız Modu/
+Stereo Genişlik/Pan Konumu/Hangisi Farklı) hâlâ `playable:false`.
 
-1. **KULAKLA doğrulama — hâlâ yapılmadı (YEDİ modun da, Kompresör'ün
-   `COMP_CURVE_CONFIG`/`GAP_FLOOR`/attack-release + Reverb'in
-   `REVERB_CURVE_CONFIG`/`REVERB_TYPES`/IR-sentezleme sabitleri DAHİL).**
-   Kalibrasyon
-   MATEMATİKSEL şartı sağlıyor (ikili aramayla ölçüldü, testle garanti
-   altında) ama ALGISAL/HİSSİYAT açısından doğru olduğu anlamına gelmiyor —
-   özellikle "easy"nin de bir miktar zorlaşmış olması (Kesim Noktası/Frekans
-   Bulma'da ADIM 3'ten, dB Seviyesi'nde baştan) yeni oyuncular için fark
-   edilir bir sertlik artışı olabilir. Gerçek kullanıcı testinden geçmedi.
+**Mimari durumu:** Motor 1'in altı modu (Frekans Bulma/Kesim Noktası/Q
+Genişliği/Boost mu Cut mu/dB Seviyesi + Kompresör'ün kendi zorluk ekseni)
+AYNI merkezi eğriden besleniyor (`continuousLevel`/
+`representativeLevelForTier`+`sessionRampOffset`, mod-agnostik `logLerp`/
+`applyPostCapFloor`, tüm 10 mod `paramsForDifficultyPosition` çağırıyor —
+`grep` ile doğrulandı). Motor 2'nin **mekanizması** (toggle/preview/submit/
+`drawOverlay` dispatch'i) `THREE_WAY_MODE_IDS = ["kompresor", "reverb",
+"distortion"]` ile genelleşti (`app.js:50`) — Tonal Denge BİLEREK bu listede
+DEĞİL, kendi ayrı A/B/C mekanizmasını kullanıyor (`tonal-denge.js`'in kendi
+dosya başı notu: "three-way-cards.js'in ARTIK kullanılmadığı"). **Tek
+sonraki adım netleşmedi** — kalan işler ürün kararı gerektiriyor, kod
+tarafında engelleyici yok:
+
+1. **KULAKLA doğrulama — hâlâ hiçbir moddan tam geçmedi (ON modun TAMAMI,
+   ilgili tüm `*_CURVE_CONFIG` sabitleri dahil).** Kod içinde doğrulanan
+   sabitler: `COMP_CURVE_CONFIG` (Kompresör), `REVERB_CURVE_CONFIG`
+   (Reverb), `TONAL_CURVE_CONFIG` (Tonal Denge), `DISTORTION_CURVE_CONFIG`+
+   `DRIVE_RANGES`+`DIST_BASE_K` (Distortion), `CAKISMA_CURVE_CONFIG`
+   (Frekans Çakışması), + Q Genişliği'nin etiket sınırları/`Q_GAIN_DB`/
+   `Q_FIXED_FREQ`. Kalibrasyon MATEMATİKSEL şartı sağlıyor (ikili aramayla
+   ölçüldü, testle garanti altında) ama ALGISAL/HİSSİYAT açısından doğru
+   olduğu anlamına gelmiyor. Gerçek kullanıcı testinden hiçbiri geçmedi.
 2. **Round-timer eğriye bağlanacak mı?** `paramsForDifficultyPosition().
-   timeSec` BEŞ modda da hesaplanıyor ama `currentDifficultyConfig().time`
-   (statik) hâlâ kullanılıyor. Bağlanırsa G21'in hizalı geçiş süresiyle
-   etkileşimi (boss'ta çifte kısalma riski) ayrıca değerlendirilmeli.
-3. **`renderLevelSheet`** (Seviye bilgi sayfası) hâlâ TEK bir dil (gainDb/Q,
-   Frekans Bulma'nınki) konuşuyor — Kesim Noktası/dB Seviyesi/Boost mu Cut
-   mu/Q Genişliği/Kompresör aktifken bu metin semantik olarak yanlış (G25/
-   G26'da canlı doğrulandı: "Bant genişliği"/"Değişim miktarı" gösteriyor,
-   o modların KENDİ dilini konuşmuyor; Kompresör'ün `options` alanı "Şık
-   sayısı" olarak DOĞRU okunuyor ama "ratio farkı" gibi kendi dilini hiç
-   konuşmuyor, G30'da BİLEREK dokunulmadı). `mode`'a göre hangi eğri/hangi
-   dilin gösterileceği genelleştirilmeli — bu ÖNCEDEN de böyleydi, bu
-   turların bir regresyonu değil ama artık ALTI modda da geçerli bilinen
-   bir eksik.
-4. **Statik DIFFICULTY tabloları hâlâ duruyor mu, kaldırılacak mı?** Bilerek
-   kaldırılmadı (Sabit modun tier-isim çapası + proplus + geriye dönük test
-   uyumluluğu için gerekli, dB Seviyesi/Boost mu Cut mu/Q Genişliği/
-   Kompresör'de de AYNI karar) — kalıcı olarak mı kalacak, yoksa TAMAMEN
-   eğriye mi devredilecek? Şimdilik ikili sistem (statik+eğri, opt-in)
-   kalıcı bir mimari — bu artık ALTI moddan geçen, tekrarlanan bir desen,
-   bilinçli bir seçim olarak teyit edilmeli.
-5. **`db-seviyesi` unlockLevel:6/tier:"pro"**, **`boost-mu-cut-mu`
-   unlockLevel:4/tier:"free"**, **`q-genisligi` unlockLevel:3/tier:"free"**,
-   **`kompresor` unlockLevel:12/tier:"pro"** — dördü de kayıtlı ama ürün
-   kararı olarak DOKUNULMADI (BEKLEYEN KARARLAR **B**'nin bir parçası:
-   academyLevel yeni bir mod kaydolunca otomatik yükseliyor, her yeni mod
-   kaydı bunu YİNE somutlaştırıyor — artık altı modun beşi zaten
-   oynanabilirken altıncının +1 katkısı önceki kilitleri de etkileyebilir,
-   kullanıcıya sorulmalı). **G23 ile TEST ENGELİ kalktı** (geliştirici modu
-   artık seviye kilidini de atlıyor) — ama bu SADECE test/geliştirme
-   kolaylığı, kalıcı ürün kararının (gerçek kullanıcılar için unlockLevel
-   ne olmalı) YERİNE geçmiyor, madde hâlâ açık.
-6. **`teachingText`'in "yön doğru, miktar yanlış" metni** hafif tekrarlı
-   okunabiliyor (bkz. BİTTİ'deki not) — küçük bir metin cilası, engelleyici
-   değil.
-7. **ÜRÜN SORUSU (G24'te ortaya çıktı): seans rampasının genliği (`SESSION_
-   RAMP_CONFIG`: MIN_OFFSET=-1.5/MAX_OFFSET=+1.0/BOSS_OFFSET=+2.0) yeterince
-   BÜYÜK mü?** dB Seviyesi'nde kullanıcı raporu ("zorluk hiç değişmiyor")
-   kısmen jitter/floor hatalarıyla açıklandı (bkz. BİTTİ) ama kısmen de
-   GERÇEK bir tasarım özelliği: taze/düşük seviyeli bir oyuncuda seans
-   rampasının mutlak genliği küçük (bkz. commit mesajı: position 1→2 arası
-   sadece ~%11 değişim). Bu, BEŞ modun HEPSİNİ etkileyen paylaşılan bir
-   sabit — G24/G25/G26 kapsamında BİLEREK değiştirilmedi (tek bir moda özgü
-   olmayan bir değişiklik, diğer dört modu da etkiler). Genlik artırılmalı
-   mı (daha dramatik seans-içi salınım) yoksa mevcut "ince/gerçekçi" genlik
+   timeSec` ON modun HEPSİNDE hesaplanıyor ama `app.js:3026`'daki
+   `currentDifficultyConfig().time` (statik) hâlâ kullanılıyor. Bağlanırsa
+   G21'in hizalı geçiş süresiyle etkileşimi (boss'ta çifte kısalma riski)
+   ayrıca değerlendirilmeli.
+3. **`renderLevelSheet`** (`app.js:3929`, Seviye bilgi sayfası) hâlâ TEK bir
+   dil (gainDb/Q, Frekans Bulma'nınki) konuşuyor — kod okunarak doğrulandı,
+   "Bant genişliği"/"Değişim miktarı" metinleri SABİT, `mode`'a göre
+   değişmiyor. Diğer 9 modun (Kompresör'ün "Şık sayısı" satırı hariç)
+   kendi dilini (ratio farkı/reverb tipi/distortion türü/tonal tilt/kick-bas
+   çakışması vb.) hiç konuşmadığı bir durum — genelleştirilmedi.
+4. **Statik `DIFFICULTY` tabloları hâlâ duruyor mu, kaldırılacak mı?** ON
+   mod dosyasının HEPSİ hâlâ kendi statik `DIFFICULTY` export'unu tutuyor
+   (`grep` ile doğrulandı) — Sabit modun tier-isim çapası + proplus + geriye
+   dönük test uyumluluğu için BİLEREK kaldırılmadı. Kalıcı olarak mı
+   kalacak, yoksa TAMAMEN eğriye mi devredilecek? İkili sistem (statik+eğri,
+   opt-in) artık ON moddan geçen, tekrarlanan bir desen — bilinçli bir
+   seçim olarak teyit edilmeli.
+5. **unlockLevel/tier zinciri ürün kararı olarak hâlâ DOKUNULMADI**
+   (BEKLEYEN KARARLAR **B**): dB Seviyesi(6)→Kompresör(12)→Reverb(14)→
+   Tonal Denge(15)→Distortion(16)→Frekans Çakışması(20), hepsi tier:"pro".
+   academyLevel yeni bir mod kaydolunca otomatik yükseliyor — artık ON
+   modun altısı zaten oynanabilirken her yeni mod kaydı önceki kilitleri de
+   etkileyebilir, kullanıcıya sorulmalı. G23'ün geliştirici-modu atlaması
+   SADECE test kolaylığı, kalıcı ürün kararının yerine geçmiyor.
+6. **ÜRÜN SORUSU (G24): seans rampasının genliği (`SESSION_RAMP_CONFIG`:
+   MIN_OFFSET=-1.5/MAX_OFFSET=+1.0/BOSS_OFFSET=+2.0) yeterince BÜYÜK mü?**
+   Taze/düşük seviyeli bir oyuncuda rampanın mutlak genliği küçük (bkz. G24
+   commit mesajı: position 1→2 arası ~%11 değişim) — bu, artık ON modun
+   HEPSİNİ etkileyen paylaşılan bir sabit, hiçbir turda BİLEREK
+   değiştirilmedi. Genlik artırılmalı mı yoksa mevcut "ince/gerçekçi" genlik
    mi tercih edilsin — ürün kararı, kulakla + kullanıcı geri bildirimiyle
    birlikte değerlendirilmeli.
-8. **Boost mu Cut mu'nun üç katmanlı rampası, Q Genişliği'nin izole/serbest-
-   frekans geçişi, Kompresör'ün A/B/C üç-yönlü önizlemesi Kesim Noktası'nın
-   G21'deki SERT TEST kapsamından (600+ soruluk tam-matris canlı stres
-   testi) henüz geçmedi** — sadece G25/G26/G30'un birim testleri
-   (66+61+46) + canlı elle doğrulama. Ayrı bir tur gerekiyorsa madde burada
-   tutuluyor.
-9. **Q Genişliği'nin etiket sınırları (notch:[7,16]/dar:[3,7)/orta:[1.3,3)/
-   geniş:[0.5,1.3)/çok geniş:[0.2,0.5)) ve `Q_GAIN_DB=6`/`Q_FIXED_FREQ=1000`
-   sabitleri KULAKLA DOĞRULANMADI** — spec'in "Notch ~8-12/Dar ~3-5/Geniş
-   ~0.5-1" aralıklarına makul bir başlangıç noktası, kesin nihai sayı iddia
-   edilmiyor (diğer dört modun `*_CURVE_CONFIG`'iyle AYNI dürüstlük notu).
-10. **Kompresör'ün `COMP_RATIO_MIN/MAX_PRACTICAL` (1.3-14)/
-    `COMP_THRESHOLD_HIGH/LOW_DB` (-8/-34)/`COMP_REF_LEVEL_DB` (-6)/
-    `COMP_BASE_K` (0.5)/`COMP_KNEE_DB`/`COMP_ATTACK_SEC`/`COMP_RELEASE_SEC`
-    sabitleri KULAKLA DOĞRULANMADI** (G33'te BAŞTAN tasarlandı — bkz. BİTTİ)
-    — SoundGym Dr. Compressor deseninden (kısa attack/release, ratio+
-    threshold birlikte) + statik kompresör transfer eğrisi yaklaşıklığından
-    (`gainReductionDb`) makul bir başlangıç noktası, kesin nihai sayı iddia
-    edilmiyor. `COMP_REF_LEVEL_DB` ÖZELLİKLE bir tasarım sabiti — GERÇEK bir
-    sinyal ölçümü DEĞİL, ratio+threshold'u tek bir dB farkına indirgemek
-    için seçilen nominal bir değer. Ayrıca `audio-engine.js`'in HER modda
-    zaten aktif olan master-bus compressor'ıyla (threshold=-16, ratio=2.2,
-    `buildQuestionChain`'de sabit) ETKİLEŞİMİ kulakla doğrulanmadı — iki
-    kompresör zincirleniyor (Kompresör'ün kendi gameplay compressor'ı →
-    master-bus'ın her zaman-açık compressor'ı), teorik olarak sorun değil
-    (farklı amaçlar) ama işitsel olarak fark edilir bir "çifte sıkışma"
-    hissi yaratıp yaratmadığı test edilmedi.
-11. **G33'ün `audio-engine.js:stopAudio()` zaman-sabiti düzeltmesi (0.03→
-    0.012) KULAKLA/CİHAZDA DOĞRULANMADI** — kök sebep matematiksel olarak
-    kanıtlandı (Web Audio API semantiği, node ile hesaplandı) ama bu ortamda
-    ses duyulamadığı için "tıklama artık yok" iddiası test EDİLMEDİ, sadece
-    "tıklama riski azaldı" iddiası kod-seviyesinde doğrulandı. Gerçek
-    cihazda A/B/C döngüsü dinlenerek kontrol edilmeli.
-12. **app.js'in `activeQuestion.mode === "kompresor"` dallarının (toggleAB/
-    updateAbToggleUI/startRound'daki startAbLoop çağrısı) genelleştirilmesi
-    BİLEREK yapılmadı** — G33'ün "MOTOR 2 ŞABLONU" notu bunu Motor 2'nin
-    2. modu (Reverb/Distortion) geldiğinde ele alınacak bir sonraki adım
-    olarak işaretliyor (bkz. dosya başı yorum) — şimdilik SADECE
-    previewLetter mekanizması (parametre-agnostik) genelleştirildi,
-    app.js'in mod-kontrol noktaları hâlâ hardcoded "kompresor" string'i.
+7. **Kesim Noktası'nın G21'deki SERT TEST kapsamı (600+ soruluk tam-matris
+   canlı stres testi) diğer DOKUZ moddan hiçbirinde tekrarlanmadı** —
+   hepsi kendi birim testleri + tek turluk canlı elle doğrulamadan geçti,
+   ayrı bir tur gerekiyorsa madde burada tutuluyor.
+8. **`app.js`'in Motor 2 metin dalları hâlâ mod-başına hardcoded** —
+   mekanizma (madde başındaki `THREE_WAY_MODE_IDS`) genelleşti ama
+   `pushHistory` (`app.js:1847-1863`) ve soru başlığı/`questionDesc`
+   (`app.js:1943`/`2011`) HÂLÂ `activeQuestion.mode === "kompresor"/
+   "reverb"/"distortion"/"tonal-denge"` gibi ayrı dallarla yazılıyor (G33'ün
+   "MOTOR 2 ŞABLONU" notunun bıraktığı iş) — her yeni Motor 2/3 modunda bu
+   dallar tekrar tekrar kopyalanıyor, henüz `mode.questionTitle`/`mode.
+   historyLabel` gibi bir sözleşmeye taşınmadı.
+9. **G58'in `DISCONNECT_DELAY_MS=100` düzeltmesi (`audio-engine.js:36`,
+   Kompresör'ün kesik-ses kök sebebi) KULAKLA/CİHAZDA DOĞRULANMADI** — kök
+   sebep Web Audio API semantiğiyle kod-seviyesinde kanıtlandı ama bu
+   ortamda ses duyulamadığı için "artık hiç tıklama yok" iddiası test
+   EDİLMEDİ. Gerçek cihazda Kompresör/Reverb/Distortion'ın A/B/C döngüsü
+   dinlenerek kontrol edilmeli.
+10. **`teachingText`'in "yön doğru, miktar yanlış" metni** hafif tekrarlı
+    okunabiliyor — küçük bir metin cilası, engelleyici değil.
 
-Ayrıca Z1-Z7'nin sayısal değerleri (ve şimdi BEŞ modun `*_CURVE_CONFIG`'i)
-hâlâ KULAKLA dinlenip ayarlanmayı bekliyor — hiçbiri test edilmeden/
-dinlenmeden seçilmedi.
+Kesim Noktası'nın kendisi G17-G21 ile TAMAMLANDI ve SERT TEST GEÇTİ. dB
+Seviyesi G22 ile aynı derinlikte kuruldu ama madde 7'deki SERT TEST
+kapsamından henüz geçmedi. Karşılaştırma-önizleme butonları (Senin cevabın/
+Doğru cevap/Temiz) Kesim Noktası'nda BİLEREK hâlâ yok — istenirse ayrı bir
+iş, şu an engelleyici değil.
 
-Kesim Noktası'nın kendisi G17-G21 ile TAMAMLANDI ve SERT TEST GEÇTİ (HPF/LPF
-+ şıklı + tip gizleme rampası + iki renkli filtre eğrisi + öğretici Türkçe
-metin + Frekans Bulma'yla hizalı geçiş süresi). dB Seviyesi de G22 ile aynı
-derinlikte kuruldu (görsel gösterge + öğretici metin + yön-gizleme rampası +
-hizalı geçiş, bkz. BİTTİ) ama Kesim Noktası'nın G21'deki SERT TEST taramasının
-(600+ soruluk tam-matris canlı stres testi) AYNI kapsamlısından henüz
-geçmedi — sadece bu turun 51 birim testi + canlı elle doğrulamadan. Karşılaştırma-
-önizleme butonları (Senin cevabın/Doğru cevap/Temiz) Kesim Noktası'nda BİLEREK
-hâlâ yok — istenirse ayrı bir iş, şu an engelleyici değil.
+Diğer bekleyen (öncelik sırası, gerçek cihaz/dokunmatik gerektirdiği için bu
+ortamdan doğrulanamıyor):
+- **F4** (çift-dokunma/pinch zoom kapatma) — gerçek dokunmatik jest
+  gerektiriyor, mouse-tabanlı otomasyonla HİÇ üretilemedi.
+- **A/B pitch fix** (`8f66de1`) — gerçek cihazda kulakla pitch'in artık
+  sabit kaldığı doğrulanmalı.
+- **F2**'nin karşılaştırma-önizlemesi duraklat/devam davranışı — masaüstünde
+  sağlamlaştırıldı, hâlâ cihaz doğrulaması bekliyor.
 
-Diğer bekleyen (öncelik sırası):
-- **F4** (çift-dokunma/pinch zoom kapatma, önceki tur) — gerçek dokunmatik
-  jest gerektiriyor, mouse-tabanlı otomasyonla HİÇ üretilemedi.
-- **A/B pitch fix** (önceki tur, `8f66de1`) — gerçek cihazda kulakla pitch'in
-  artık sabit kaldığı doğrulanmalı, bu ortamda ses duyulamıyor.
-- **F2**'nin karşılaştırma-önizlemesi duraklat/devam davranışı — G15 ile
-  masaüstünde sağlamlaştırıldı (madde 13 kapandı), hâlâ cihaz doğrulaması
-  bekliyor. (**E1** G10 ile KAPANDI.)
-
-Kod tarafında bekleyen karar yok; E/F/G/H/I (BEKLEYEN KARARLAR) kullanıcıya
-sorulmayı bekliyor ama hiçbiri şu an engelleyici değil.
+Kod tarafında bekleyen karar yok; A/B/C/D/F/H/I (BEKLEYEN KARARLAR — E ve G
+Z1/Z6/Z5/Z7 ile çözüldü) kullanıcıya sorulmayı bekliyor ama hiçbiri şu an
+engelleyici değil.
 
 ## ÜRÜN NOTLARI (önceki sohbetlerden)
 
