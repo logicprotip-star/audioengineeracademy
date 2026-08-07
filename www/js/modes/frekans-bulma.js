@@ -13,6 +13,7 @@
 import { logFreq, shuffle, formatHz, hexToRgba } from "../core/utils.js";
 import { personalizedRange } from "../core/personalization.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
+import { compatibleSourceIds } from "../core/source-catalog.js";
 
 export const MODE_ID = "frekans-bulma";
 
@@ -286,7 +287,16 @@ export function getMeta() {
     // kadar) — o zaman etkisizdi, artık gerçek bir uyarı sheet'ini tetiklediği için
     // DOĞRU değere düzeltildi (bkz. DURUM.md G37, mode-catalog.js'in AYNI düzeltmesi).
     kulaklikGerekli: false,
-    uyumluKaynaklar: ["pink", "white", "saw", "square", "triangle", "upload"],
+    // G54 DÜZELTMESİ — bu satır G42'den (compatibleSourceIds() eklendiği tur)
+    // BERİ ELLE yazılmış, ESKİ (source-catalog.js'e davul/enstrüman eklenmeden
+    // ÖNCEKİ) bir listeydi — G42'nin kendi commit mesajı "yedi mod dosyası
+    // (Frekans Bulma HARİÇ)" diye bunu AÇIKÇA belgelemişti (bilinçli bir
+    // erteleme, hiçbir zaman geri dönülüp tamamlanmadı). Sonuç: kick/snare/
+    // hihat/tom/bass/bass_alt/guitar/vocal kaynak listesinde HİÇ görünmüyordu
+    // — cihazda kullanıcı raporuyla YAKALANDI. Diğer dört "frekans-genel" mod
+    // (Kesim Noktası/dB/Boost-Cut/Q) zaten compatibleSourceIds()'e geçmişti,
+    // bu mod da AYNI çağrıya (parametresiz — TÜM kaynaklar) taşındı.
+    uyumluKaynaklar: compatibleSourceIds(),
     ucretsiz: true,
     videoUrl: "",
     difficulty: DIFFICULTY

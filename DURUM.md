@@ -1,13 +1,80 @@
 # DURUM
 
-Son güncelleme: 07.08.2026 (G53)
+Son güncelleme: 07.08.2026 (G54)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G53, tek commit — kod+DURUM.md birlikte) — **Dosya yükleme cihazda
+Bu commit (G54, tek commit — kod+DURUM.md birlikte) — **9 modun kaynak
+listesi tek tek denetlendi — Frekans Bulma'da kayıp enstrümanlar (davul +
+enstrüman grupları) bulundu ve geri getirildi, diğer 8 mod DOĞRU çıktı.**
+
+**KÖK SEBEP — G50/G51/G52'de DEĞİL, G42'den (06.08.2026, bu tur ÖNCESİ) beri
+var olan eski bir teknik borç:** `source-catalog.js`'e davul/enstrüman
+örnekleri G4'te eklendiğinde ve merkezi `compatibleSourceIds()` filtresi
+G42'de kurulduğunda, dört "frekans-genel" mod (Kesim Noktası/dB Seviyesi/
+Boost mu Cut mu/Q Genişliği) bu yeni mekanizmaya taşındı — ama Frekans
+Bulma'nın `getMeta()`'sı G42'nin KENDİ commit mesajında "yedi mod dosyası
+(**Frekans Bulma hariç**)" diye AÇIKÇA belgelenen bir istisnayla ESKİ, elle
+yazılmış bir diziyi (`["pink","white","saw","square","triangle","upload"]`)
+KORUDU — bu dizi `compatibleSourceIds()`'ten ÖNCEKİ, davul/enstrüman
+kataloğa eklenmeden ÖNCEKİ bir kalıntıydı, hiçbir zaman geri dönülüp
+tamamlanmadı. Sonuç: kick/snare/hihat/tom/groove/bass/bass_alt/guitar/vocal
+Frekans Bulma'nın Kaynak sheet'inde HİÇ görünmüyordu — cihazda kullanıcı
+raporuyla YAKALANDI (`git log -S` ile doğrulandı: satır `4f6879a`'da —
+projenin çok erken bir turunda — tanımlanmış, G42 SIRASINDA bilinçli olarak
+dokunulmamış).
+
+**9 MODUN TEK TEK DENETİM SONUCU:**
+| Mod | Beklenen | Durum |
+|---|---|---|
+| Frekans Bulma | TÜM kaynaklar | **BOZUKTU → DÜZELTİLDİ** |
+| Kesim Noktası | TÜM kaynaklar | Doğruydu (G42'den beri `compatibleSourceIds()`) |
+| dB Seviyesi | TÜM kaynaklar | Doğruydu |
+| Boost mu Cut mu | TÜM kaynaklar | Doğruydu |
+| Q Genişliği | TÜM kaynaklar | Doğruydu |
+| Kompresör | transient'sız (pink/white) hariç TÜMÜ | Doğruydu (G42'nin `requireTransient`) |
+| Reverb | SADECE gitar/vokal/snare/groove/upload | Doğruydu (G43'ün `only` düzeltmesi) |
+| Tonal Denge | SADECE groove/upload | Doğruydu (G45'in kendi kararı) |
+| Frekans Çakışması | çift-tabanlı (uyumluKaynaklar boş, SOURCE_PAIRS 3 çift) | Doğruydu (G51/G52) |
+
+**DÜZELTME — `frekans-bulma.js`:** `import { compatibleSourceIds } from
+"../core/source-catalog.js";` eklendi, `getMeta().uyumluKaynaklar` artık
+diğer dört frekans-genel modla BİREBİR AYNI çağrıyı (`compatibleSourceIds()`,
+parametresiz — TÜM kaynaklar) kullanıyor. `source-catalog.js`'in KENDİSİNE
+(SOURCE_GROUPS/SOURCE_PAIRS/compatibleSourceIds) TEK SATIR dokunulmadı —
+sorun HER ZAMAN Frekans Bulma'nın KENDİ eski satırındaydı, merkezi
+mekanizmada değil.
+
+**Doğrulama:**
+- Canlı, tarayıcıda (hard reload ile modül önbelleği bypass edilerek):
+  Frekans Bulma'nın Kaynak sheet'i artık SENTETİK + **DAVUL** (Kick/Snare/
+  Hi-Hat/Tom/Davul Döngüsü) + **ENSTRÜMAN** (Bas C2/Bas E2/Akustik Gitar/
+  Vokal) + KENDİ DOSYAM dört grubunu EKRAN GÖRÜNTÜSÜYLE gösteriyor —
+  önceden SADECE SENTETİK+KENDİ DOSYAM vardı. Reverb'in kısıtlı listesi
+  (`["guitar","vocal","snare","groove","upload"]`) DEĞİŞMEDEN doğrulandı.
+  Konsol hatası SIFIR.
+- YENİ regresyon çiti — `test/source-catalog.test.mjs`'e "G54 — 9 modun
+  kaynak listesi doğru mu" describe'u: her modun `getMeta().uyumluKaynaklar`'ı
+  DOĞRUDAN beklenen kümeyle karşılaştırılıyor (Frekans Bulma/Kesim/dB/Boost-
+  Cut/Q → TÜM kaynaklar birebir liste; Kompresör → pink/white hariç;
+  Reverb/Tonal Denge → tam eşitlik; Frekans Çakışması → boş + SOURCE_PAIRS
+  3 çift) — böylece gelecekte HERHANGİ bir mod sessizce eski/eksik bir
+  listeye düşerse test KIRILIR (bu turdaki hatanın YAKALANAMAMASININ asıl
+  sebebi, `compatibleSourceIds()`'in KENDİSİNİN test edilip ÇAĞIRAN
+  tarafın/her modun HİÇ test edilmemesiydi).
+- `npm test`: **753/753** (744'ten +9 — yukarıdaki yeni describe).
+
+**KORUMA:** Mod mantığı/ses/zorluk/sınav HİÇ değişmedi — SADECE
+`frekans-bulma.js`'in `getMeta().uyumluKaynaklar` satırı düzeltildi.
+Reverb/Kompresör/Tonal Denge/Frekans Çakışması'nın KASITLI kısıtları
+DOKUNULMADAN korundu (yukarıdaki tabloda TEK TEK doğrulandı).
+
+---
+
+Önceki commit (G53, tek commit — kod+DURUM.md birlikte) — **Dosya yükleme cihazda
 HÂLÂ açılmıyordu (G52'nin transform düzeltmesi yetmedi) — KÖK ÇÖZÜM: web
 `<input type="file">` tamamen terk edildi, Capacitor'ın NATIVE dosya seçici
 plugin'ine (`@capawesome/capacitor-file-picker`) geçildi.**
