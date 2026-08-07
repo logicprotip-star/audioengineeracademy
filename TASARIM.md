@@ -206,7 +206,7 @@ tablolarının HİÇBİRİNİ etkilemiyor. Ana menünün "Bugünün Önerisi" ka
 | Boss round rozeti/mekaniği | ✗ | ✓ | **Ters fark** | Tasarımda hiç yok — kod-only özellik (bossChip, boss XP çarpanı, bossWins başarımı) |
 | Combo/seri XP çarpanı | ✗ | ✓ | **Ters fark** | Tasarımda combo kavramı görsel olarak var (seri sayacı) ama XP çarpanına bağlı değil; kodda `stats.combo` XP hesaplamasını doğrudan etkiliyor |
 
-## EKRAN 3 — MOTOR 2 "Hangisi Farklı" (Kompresör/Reverb OYNANABİLİR, Hangisi Farklı/Distortion HÂLÂ kilitli)
+## EKRAN 3 — MOTOR 2 "Hangisi Farklı" (Kompresör/Reverb/Distortion OYNANABİLİR, "Hangisi Farklı" temel modu HÂLÂ kilitli)
 
 > **06.08 güncellemesi:** İlk envanterin yazıldığı tarihte Motor 2'nin TAMAMI kilitliydi.
 > G30 (Kompresör) ve G35 (Reverb) ile Motor 2'nin İKİ modu artık gerçekten oynanabiliyor —
@@ -215,7 +215,17 @@ tablolarının HİÇBİRİNİ etkilemiyor. Ana menünün "Bugünün Önerisi" ka
 > (`.ans` grid, merkezi geri bildirim, A/B toggle) 3 şıklı bir varyantı olarak inşa edildi.
 > **G44 eki (ARTIK GEÇERSİZ, bkz. G45):** Tonal Denge G44'te bu ekranın üçüncü modu
 > (A/B/C, spektral tilt) olarak eklenmişti. **G45'te TAMAMEN çıkarıldı** — bkz. altta.
-> "Hangisi Farklı" (motor2'nin genel/temel modu) ve Distortion hâlâ kodda yok.
+> **G59 eki:** Distortion (07.08.2026) — Kompresör'ün (G30/G33) three-way şablonunun
+> DÖRDÜNCÜ modu, `core/three-way-cards.js`'i TEK SATIR değişmeden miras aldı — bu
+> yüzden AŞAĞIDAKİ tablonun HİÇBİR satırı DEĞİŞMEDİ, sadece "hangi modları kapsıyor"
+> genişledi (satırların tümü Kompresör/Reverb/Distortion'ın ÜÇÜ için de AYNEN geçerli,
+> mekanik/UI paylaşımı BİREBİR). Tek gerçek fark: Distortion'ın kendi eğrisi
+> (WaveShaperNode transfer eğrisi — clip sert köşeli, tube/tape yumuşak/yuvarlak)
+> Kompresör'ün sentetik dinamik-zarf çizimiyle AYNI legend/renk dilini (kırmızı=
+> senin, yeşil=doğru) kullanıyor ama GERÇEK bir eğri çiziyor (ekstra yaklaşıklığa
+> gerek yok — applyProcessing'in kurduğu node'la AYNI fonksiyon). "Hangisi Farklı"
+> (motor2'nin genel/temel odd-one-out modu, distortion'dan AYRI bir kavram — bkz.
+> mode-catalog.js `id:"hangisi-farkli"`) hâlâ kodda yok.
 >
 > **G45 eki:** Tonal Denge bu ekrandan (three-way/A-B-C) TAMAMEN AYRIŞTI — artık
 > `core/three-way-cards.js` KULLANMIYOR, canlı EQ kaydırıcılı (N slider + "Cevabı

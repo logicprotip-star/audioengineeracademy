@@ -17,6 +17,7 @@ import * as qGenisligi from "../www/js/modes/q-genisligi.js";
 import * as kompresor from "../www/js/modes/kompresor.js";
 import * as reverb from "../www/js/modes/reverb.js";
 import * as tonalDenge from "../www/js/modes/tonal-denge.js";
+import * as distortion from "../www/js/modes/distortion.js";
 
 // ZONE_MODES: recordZone'un GERÇEK veri ürettiği/frekansın kullanıcıya
 // açıklandığı dört mod (task: "Frekans Bulma, Kesim, Boost/Cut, Q") — telafi
@@ -28,14 +29,16 @@ const ZONE_MODES = [
   ["q-genisligi", qGenisligi]
 ];
 
-// TIER_MODES: "bölge" kavramı olmayan dört mod (task: "dB/Reverb/Tonal Denge"
-// + Kompresör'ün ZATEN kurulu pilotu) — telafi zayıf ZORLUK KADEMESİ üzerinden
-// (G47'den beri değişmeyen mekanizma).
+// TIER_MODES: "bölge" kavramı olmayan modlar (task: "dB/Reverb/Tonal Denge"
+// + Kompresör'ün ZATEN kurulu pilotu; G59'da Distortion — "zayıf ZORLUK
+// KADEMESİ, frekans-tabanlı değil" — task'ın kendi kararıyla EKLENDİ) — telafi
+// zayıf ZORLUK KADEMESİ üzerinden (G47'den beri değişmeyen mekanizma).
 const TIER_MODES = [
   ["db-seviyesi", dbSeviyesi],
   ["kompresor", kompresor],
   ["reverb", reverb],
-  ["tonal-denge", tonalDenge]
+  ["tonal-denge", tonalDenge],
+  ["distortion", distortion]
 ];
 
 describe("G50 — 8 modun TAMAMINDA EXAM_ENABLED açık (sınav sistemi 7 moda yayıldı)", () => {

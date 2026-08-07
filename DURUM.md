@@ -1,13 +1,121 @@
 # DURUM
 
-Son güncelleme: 07.08.2026 (G58)
+Son güncelleme: 07.08.2026 (G59)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G58, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Küçük bug
+Bu commit (G59, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **MOD 10
+"DISTORTION" (Motor 2, dördüncü A/B/C modu) — TAM MOD kuruldu, 10.
+oynanabilir mod.** Kompresör'ün (G30/G33) kanıtlanmış three-way/odd-one-out
+şablonunun "ikizi" (task'ın kendi tabiri) — three-way-cards.js + core/
+exam-system.js TEK SATIR değişmeden miras alındı.
+
+**MEKANİK — Kompresör'ün "tek algısal eksen" dersinin AYNISI, YENİ bir
+ikinci eksen (tür) üstüne eklendi:** üç ses (A/B/C), AYNI kaynak, AYNI
+distortion TÜRÜ (clip/soft/tube/tape — bkz. altta), ikisi AYNI yoğunlukta
+(k=DIST_BASE_K=0.5), biri (oddIndex) farklı yoğunlukta. **Tür zorluk
+kademesini SEÇER** (`DISTORTION_TYPES`: easy→clip, medium→soft, hard→tube,
+pro/proplus→tape — task'ın kendi eşlemesi), **yoğunluk (k) SORUNUN
+KENDİSİNDEKİ ayırt edilebilirliği kontrol eder** (Kompresör'ün kGap'ıyla
+BİREBİR aynı matematik — bkz. altta) — iki eksen ayrı roller üstleniyor, bir
+SORU İÇİNDE A/B/C'nin ÜÇÜ DE her zaman AYNI türü kullanır (tek algısal eksen
+BOZULMASIN diye).
+
+**WAVESHAPER EĞRİLERİ — SAF, gerçek Float32Array üreten fonksiyonlar (`www/
+js/modes/distortion.js:buildDistortionCurve`):**
+- **clip** — sert clamp (`x*drive` → [-1,1]), YÜKSEK drive'da neredeyse tüm
+  eğri ±1'e yapışır (sert köşeli).
+- **soft** — `tanh(x*drive)`, simetrik yumuşak kırpma.
+- **tube** — ASİMETRİK `tanh` (pozitif/negatif yarım-dalga FARKLI drive,
+  0.72× katsayı) — gerçek tüp doygunluğunun karakteristik imzası.
+- **tape** — neredeyse DOĞRUSAL, sadece tepe noktalarına yakın küçük bir
+  kübik terim (`x - sign(x)*drive*0.15*|x|³`) — task: "inanılmaz ince".
+Dört türün DRIVE aralıkları (`DRIVE_RANGES`) KASITLI ÖRTÜŞMÜYOR — clip'in EN
+DÜŞÜK drive'ı (2.2) bile tape'in EN YÜKSEK drive'ından (0.9) büyük, "kolay
+ekstrem/pro ince" hiyerarşisi SADECE kGap'e değil aralık seçimine de dayanıyor
+(testle doğrulandı).
+
+**ZORLUK EĞRİSİ — Kompresör'ün ZATEN kalibre edilmiş `COMP_CURVE_CONFIG`'i
+BİREBİR aynı sayılarla taşındı:** kGap [0,1] k-uzayında BOYUTSUZ bir metrik
+— hangi türe (drive aralığına) çevrileceğinden BAĞIMSIZ olduğu için
+Kompresör'ün "kolaylaşma yok" kalibrasyonu MATEMATİKSEL OLARAK aynen geçerli
+kalıyor (node script ile YENİDEN doğrulandı: easy/medium/hard/pro'nun
+`representativeLevelForTier`'i eski statik kGap'ten HİÇBİRİNDE büyük değil).
+Yeni bir sayı İCAT EDİLMEDİ, mevcut bir kalibrasyon YENİDEN KULLANILDI.
+
+**ÖĞRETİM — task'ın kendi örnek formatı ("B farklıydı — tube saturation.
+Sıcak, yumuşak...") BİREBİR:** `DISTORTION_TYPE_INFO` dört türün adı+
+karakteri+mix anlamını TEK yerde tutuyor (SoundGym Tips'inden "dolgunluk/
+davul kuyruğu/düşük frekans kirlenmesi" ipuçları `tape`'in mixNote'una
+işlendi). `intensityWord(k)` (hafif/orta/belirgin/ağır) + tür bilgisi
+BİRLEŞTİRİLİYOR — Kompresör'ün COMPRESSION_TIERS'ından FARKLI olarak "aynı
+kademe/farklı kademe" ayrımına GEREK YOK (tür SORUNUN TAMAMINDA zaten sabit).
+
+**GÖRSEL — Kompresör'ün SENTETİK zarfının AKSİNE burada GERÇEK bir şey
+çiziliyor:** `drawOverlay` WaveShaperNode'un KENDİ transfer eğrisini (giriş
+x∈[-1,1]→çıkış y∈[-1,1], `applyProcessing`'in kurduğu node'la BİREBİR aynı
+`buildDistortionCurve` çağrısı) çiziyor — clip GERÇEKTEN sert köşeli
+görünüyor, tube/tape GERÇEKTEN yumuşak/yuvarlak, çünkü İKİSİ DE aynı
+fonksiyondan geliyor (ekstra bir yaklaşıklığa gerek yok). Kırmızı=senin
+cevabın, yeşil=doğru (GUESS_COLOR/CORRECT_COLOR, diğer Motor 2 modlarıyla
+AYNI paylaşılan renkler).
+
+**KAYNAK: task'ın "davul/groove ideal" bulgusu bir ÖNERİ, KISITLAMA
+değil** — `compatibleSourceIds()` (TAM liste, Kompresör'ün transient
+şartından FARKLI olarak distortion transient GEREKTİRMEZ, Reverb'in `only`
+kısıtından da FARKLI). `kulaklikGerekli:false` (task: "muhtemelen false —
+hoparlörde de duyulur").
+
+**SINAV: EXAM_WEAK_AREA export EDİLMEDİ** — Kompresör/Reverb/Tonal Denge'nin
+AYNI tier-tabanlı (frekans DEĞİL) telafi yoluna otomatik düşüyor (task'ın
+kendi kararı: "zayıf ZORLUK KADEMESİ, frekans-tabanlı değil").
+
+**app.js kablolaması — Motor 2 şablonunun VAAT ETTİĞİ kadar minimal:**
+import+registerMode, `THREE_WAY_MODE_IDS`'e "distortion" eklendi (bu TEK
+satır `isChoiceFormat`/`.ans` click-delegasyonu/`submitThreeWayGuess`/
+`drawOverlay` dispatch'inin TAMAMINI otomatik kapsıyor — G33'ün "ikinci
+modda genelleştir" sözü Reverb'de TUTMUŞTU, üçüncü modda da AYNEN tuttu),
++ ÜÇ hardcoded metin dalı (soru başlığı/round-start açıklaması/pushHistory
+özeti — Kompresör/Reverb'in AYNI DESENİ, bu ikisi `mode.questionTitle`
+export ETMEDİĞİ için app.js'te sabit metin tutuluyor).
+
+**Doğrulama (canlı, tarayıcıda):**
+- Mod menüde "Distortion" kartı olarak görünüyor, oynanabilir (mode-catalog.js
+  `playable:true`). three-way-cards.js'in BÜYÜK A/B/C kartları (harf+isim+
+  waveform+"Çalınıyor" durumu) EKRAN GÖRÜNTÜSÜYLE Kompresör'le BİREBİR AYNI
+  görünüyor — gerçek miras (test'te de referans eşitliğiyle doğrulandı).
+- 3 ses A/B/C oto-döngüsüyle çalıyor, cevap sonrası doğru/yanlış kartlar
+  doğru renkleniyor (`.right`/`.wrong`).
+- Kademeli TÜR: Kolay tier'de canlı "hafif clipping" geri bildirimi, Pro
+  tier'e (Sabit moda geçip "Pro" seçilerek) geçince canlı "belirgin **tape
+  saturation**" geri bildirimi DOĞRU üretildi — task'ın kendi örneğiyle
+  BİREBİR ("B farklıydı — belirgin tape saturation... çok ince, neredeyse
+  fark edilmez...").
+- Görsel: cevap sonrası EKRAN GÖRÜNTÜSÜYLE doğrulandı — kırmızı/yeşil transfer
+  eğrisi kolay (clip) turda SERT KÖŞELİ, net görünüyor.
+- Sınav sistemi: blind-click testi sırasında GERÇEKTEN "Telafi 1/5"e düştü
+  (parkur toplam <6 doğru), telafi kaybedilince "Soru 1/10"a DOĞRU sıfırlandı
+  — mekanizma TAM çalışıyor, canlı kanıtlandı (sadece EXAM_* export testiyle
+  değil).
+- Regresyon: Kompresör canlı test edildi (round baştan sona, konsol hatası
+  SIFIR) — THREE_WAY_MODE_IDS'e üçüncü id eklenmesi mevcut iki modu
+  etkilemedi.
+- `npm test`: **829/829** (771'den +58 — YENİ `test/distortion.test.mjs`
+  [56 test: sözleşme/tür-zorluk eşlemesi/WaveShaper eğri şekilleri/k-uzayı
+  matematiği/"kolaylaşma yok"/öğretim/applyProcessing/getMeta/EXAM_*/miras],
+  `test/exam-coverage.test.mjs`'e Distortion eklendi [+2]).
+
+**KORUMA:** 9 mevcut mod, three-way-cards.js, exam-system.js, reskin, ses/
+zorluk HİÇ değişmedi — Distortion kendi izole kod yollarında (`q.mode ===
+"distortion"` string dispatch'i) yaşıyor, Kompresör/Reverb'in davranışına
+TEK SATIR dokunmadı.
+
+---
+
+Önceki commit (G58, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Küçük bug
 temizliği, dört izole düzeltme: Kompresör A şıkkı renk teşhisi (kod DOĞRU
 çıktı, ilgili bir yarış-durumu kapatıldı), Öneri kartı gerçek 10-soruluk sete
 bağlandı, Q Genişliği'nin (ve paylaşılan 6 başka modun) cevap-sonrası ~42-127px

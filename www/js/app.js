@@ -24,6 +24,7 @@ import * as kompresor from "./modes/kompresor.js";
 import * as reverb from "./modes/reverb.js";
 import * as tonalDenge from "./modes/tonal-denge.js";
 import * as frekansCakismasi from "./modes/frekans-cakismasi.js";
+import * as distortion from "./modes/distortion.js";
 
 registerMode(frekansBulma);
 registerMode(kesimNoktasi);
@@ -34,6 +35,7 @@ registerMode(kompresor);
 registerMode(reverb);
 registerMode(tonalDenge);
 registerMode(frekansCakismasi);
+registerMode(distortion);
 // Motor 2'nin ("A/B/C odd-one-out") HANGİ mod id'lerini kapsadığını TEK yerde
 // tutar — yeni bir Motor 2 modu (ör. Distortion) eklenince SADECE bu listeye
 // eklenir, aşağıdaki TÜM çağıranlar (toggle/döngü/submit/önizleme/overlay)
@@ -44,7 +46,8 @@ registerMode(frekansCakismasi);
 // G45: "tonal-denge" BURADAN ÇIKARILDI — artık bir odd-one-out (A/B/C) modu
 // DEĞİL, canlı EQ-düzeltme (kaydırıcı) moduna dönüştü (bkz. modes/tonal-denge.js
 // dosya başı). Kompresör/Reverb bu listede AYNEN kalmaya devam ediyor.
-const THREE_WAY_MODE_IDS = ["kompresor", "reverb"];
+// G59: "distortion" eklendi — Motor 2'nin dördüncü modu, AYNI şablon.
+const THREE_WAY_MODE_IDS = ["kompresor", "reverb", "distortion"];
 function isThreeWayModule(m) { return !!m && THREE_WAY_MODE_IDS.includes(m.MODE_ID); }
 function isThreeWayQuestion(q) { return !!q && THREE_WAY_MODE_IDS.includes(q.mode); }
 // Artık birden fazla oynanabilir mod var — `mode` menüden hangi karta basıldığına
@@ -1853,6 +1856,8 @@ function pushHistory(correct) {
     ? `Kompresör · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : activeQuestion.mode === "reverb"
     ? `Reverb · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+    : activeQuestion.mode === "distortion"
+    ? `Distortion · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : activeQuestion.mode === "tonal-denge"
     ? `Tonal Denge · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`;
@@ -1937,6 +1942,7 @@ function renderQuestion() {
     : q.mode === "qwidth" ? mode.questionTitle(q)
     : q.mode === "kompresor" ? "Üç ses (A/B/C) — hangisi FARKLI sıkıştırılmış?"
     : q.mode === "reverb" ? "Üç ses (A/B/C) — hangisi FARKLI yankılanıyor?"
+    : q.mode === "distortion" ? "Üç ses (A/B/C) — hangisinin distortion'ı FARKLI?"
     : q.mode === "tonal-denge" ? `${q.bandCount} bant — kaydırıcılarla sesi nötüre getir.`
     : q.mode === "cakisma" ? mode.questionTitle(q)
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
@@ -2004,6 +2010,7 @@ function renderQuestion() {
     : q.mode === "qwidth" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan genişlik karakterini seç."
     : q.mode === "kompresor" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI olanı seç."
     : q.mode === "reverb" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI yankılanan sesi seç."
+    : q.mode === "distortion" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan distortion'ı FARKLI olanı seç."
     : q.mode === "tonal-denge" ? "Dinle, kaydırıcılarla düzelt, sesi nötr/dengeli hale getirmeye çalış — sonra onayla."
     : q.mode === "cakisma" ? mode.modeDescription(q)
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."

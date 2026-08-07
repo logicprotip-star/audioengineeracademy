@@ -32,7 +32,9 @@ export const MODE_CATALOG = [
   // artık var, bkz. modes/tonal-denge.js). unlockLevel Reverb(14)-Distortion(16)
   // arasına (15) yerleşti.
   { id: "tonal-denge", ad: "Tonal Denge", aciklama: "Hangisinin tonal dengesi bozuk?", motor: 2, kulaklikGerekli: true, unlockLevel: 15, playable: true, tier: "pro" },
-  { id: "distortion", ad: "Distortion", aciklama: "Hangisi daha doygun?", motor: 2, kulaklikGerekli: false, unlockLevel: 16, playable: false, tier: "pro" },
+  // G59: Motor 2'nin dördüncü modu — Kompresör'ün (G30/G33) three-way/odd-
+  // one-out şablonunun "ikizi" (task'ın kendi tabiri). playable:true.
+  { id: "distortion", ad: "Distortion", aciklama: "Hangisi daha doygun?", motor: 2, kulaklikGerekli: false, unlockLevel: 16, playable: true, tier: "pro" },
 
   // ---- Motor 3 · İki kaynaklı ----
   // G51: TEMEL AT — kulaklikGerekli true'ya çevrildi (bkz. modes/frekans-
