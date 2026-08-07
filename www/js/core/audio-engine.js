@@ -20,6 +20,20 @@ const MUTE_RAMP_SEC = 0.05; // ~50ms — Durdur/Tekrar Çal arasındaki geçiş
 // (now+0.08) DEĞİŞMEDİ — hiçbir modun round geçiş SÜRESİ etkilenmiyor,
 // sadece söndürme EĞRİSİ daha SIKI.
 const STOP_RAMP_TIME_CONSTANT = 0.012;
+// G58 — G33'ün "tam kulak doğrulaması açık" notuna göre kod tarafı yeniden
+// denetlendi: KÖK SEBEP G33'te tam çözülmemiş — zaman sabiti SIKILAŞTIRILMIŞTI
+// ama stopAudio() aynı forEach adımında node.gain'e ramp-down PROGRAMLADIKTAN
+// HEMEN SONRA node.disconnect()'i SENKRON (aynı JS tick'inde, now'da) çağırıyordu.
+// Web Audio'da disconnect() ANINDA etkilidir — programlanan gain eğrisi
+// (setTargetAtTime) sesin ÇIKIŞ noktasına artık hiç ULAŞAMIYOR, yani ramp
+// FİİLEN DUYULMUYORDU, ne kadar sıkı programlanırsa programlansın (0.03 ya da
+// 0.012 fark etmezdi — ikisi de "duyulmayan" bir eğriydi). Bu, ÖZELLİKLE
+// Kompresör'ün A/B/C döngüsünün her ~2sn'de bir buildQuestionChain→stopAudio
+// çağırdığı yerde SIK tekrarlanan bir sert kesme demekti. Düzeltme: disconnect()
+// artık ANINDA değil, ramp'in GERÇEKTEN duyulabilir olması için yeterli bir
+// gecikmeyle (.stop()'un kendi now+0.08 zamanlamasından SONRA) planlanıyor —
+// ses artık GERÇEKTEN söner, SONRA bağlantı kesilir.
+const DISCONNECT_DELAY_MS = 100;
 
 export function createAudioEngine() {
   let audioCtx = null;
@@ -172,10 +186,19 @@ export function createAudioEngine() {
         // sadece node.disconnect() ile filtre zincirinden ayrılır (element çalmaya devam eder).
         if (node.stop) node.stop(now + 0.08);
       } catch {}
-      try {
-        if (node.disconnect) node.disconnect();
-      } catch {}
     });
+    // G58: disconnect() artık BU forEach içinde SENKRON çağrılmıyor — SENKRON
+    // çağrı, yukarıda programlanan gain ramp'ini (ve .stop()'un now+0.08
+    // zamanlamasını) FİİLEN duyulmaz kılıyordu (bkz. dosya başı
+    // DISCONNECT_DELAY_MS notu). Aynı node referans listesi (closure ile)
+    // ramp+stop GERÇEKTEN bittikten SONRA temizleniyor — sessizliğe erişildiği
+    // İÇİN artık işitilir bir kesme YOK, sadece gecikmeli bir temizlik.
+    const nodesToDisconnect = currentNodes;
+    setTimeout(() => {
+      nodesToDisconnect.forEach(node => {
+        try { if (node.disconnect) node.disconnect(); } catch {}
+      });
+    }, DISCONNECT_DELAY_MS);
     currentNodes = [];
     dryGain = null;
     wetGain = null;

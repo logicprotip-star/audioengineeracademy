@@ -471,8 +471,27 @@
     .timer-text{font-size:14px;font-weight:700;color:var(--am);flex:none}
 
     /* ---- geri bildirim kartı ---- */
-    .fb{position:relative;padding:14px 16px;border-radius:20px;background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);display:none}
-    .fb.show-result{display:block}
+    /* G58 DÜZELTMESİ — Q Genişliği (ve #feedbackBox kullanan diğer modlar) cevap
+       sonrası ~42-55px yukarı kayıyordu. Kök sebep: bu kart ÖNCEDEN display:none
+       ile SIFIR yükseklik kaplıyordu, cevap verilince display:block olup GERÇEK
+       içerik yüksekliği (~100px) EKLENİYORDU — .game-scroll'un toplam içerik
+       yüksekliği aniden viewport'u AŞIYOR, scrollFeedbackIntoView() (app.js) onu
+       alta kaydırıyordu. O scroll'un KENDİSİ BİLEREK ANİ/senkron (bkz. app.js'in
+       KENDİ notu: iOS'ta ANİMASYONLU yapılırsa 1-2 saniyeye yayılan bir önceki
+       hata için düzeltilmişti) — o yüzden scroll'u YAVAŞLATMAK yerine kayma
+       İHTİYACININ KÖKÜNÜ (yükseklik SIFIRDAN institüşen atlaması) kestik: kart
+       artık display DEĞİL visibility ile gizleniyor + min-height ile kendi
+       alanını PEŞİNEN ayırıyor — cevap öncesi de SONRASI kadar yer kaplıyor
+       (görünmez, sadece invisible ama LAYOUT'TA VAR), yani cevap verilince
+       toplam yükseklik ANİDEN artmıyor, scroll'a GEREK KALMIYOR. min-height
+       Q Genişliği'nin gerçek ölçülen kart yüksekliğine (~100px) yakın seçildi —
+       çok daha uzun geri bildirim metni taşıyan modlarda (ör. Frekans Bulma'nın
+       AYRI #freqInfo paneli — bu kartı hiç KULLANMIYOR, kapsam dışı) küçük bir
+       kalıntı kayma olabilir, ama YAYGIN durumda kayma SIFIRLANIYOR (canlı
+       doğrulandı, bkz. DURUM.md G58 BİTTİ). Reskin'e (renk/tipografi/boyut)
+       DOKUNULMADI — SADECE gizleme mekanizması display→visibility oldu. */
+    .fb{position:relative;padding:14px 16px;border-radius:20px;background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);visibility:hidden;min-height:100px}
+    .fb.show-result{visibility:visible}
     .fb-head{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:700;color:#8FF3D8;padding-right:32px}
     .fb-dot{width:20px;height:20px;flex:none;border-radius:99px;background:var(--gr)}
     .fb p{margin:8px 0 0;font-size:14px;line-height:1.5;color:var(--tx-2)}

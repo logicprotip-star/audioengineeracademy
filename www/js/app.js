@@ -1731,6 +1731,11 @@ function renderDailyTip() {
   if (!enough.length) { els.dailyTipCard.classList.add("hidden"); return; }
   const weakest = enough.slice().sort((a, b) => a.pct - b.pct)[0];
   if (els.dailyTipText) els.dailyTipText.textContent = `${weakest.label} bölgede isabetin %${weakest.pct}. Bugün oraya odaklanmayı dene.`;
+  // G58: buton artık GERÇEKTEN challenge.total kadar soruda duruyor (bkz.
+  // dailyTipStartBtn click handler) — etiket challenge.total'dan OKUNUYOR
+  // (sabit "10" yazıp unutmak yerine tek doğruluk kaynağından), böylece sayı
+  // asla koddaki gerçek davranıştan SAPAMAZ.
+  if (els.dailyTipStartBtn) els.dailyTipStartBtn.textContent = `Seti başlat · ${challenge.total} soru`;
   els.dailyTipCard.classList.remove("hidden");
 }
 
@@ -2859,7 +2864,24 @@ function playQuestion(processed = true) {
 // GÖVDESİ zaten tamamen mode-agnostikti (SADECE değişken isimleri Kompresör'e
 // özeldi) — genelleştirildi, isThreeWayModule listesindeki HER mod bunu
 // PAYLAŞIYOR.
+// G58 — teşhis: "A şıkkı renklenmiyor" raporu — canlı testte (masaüstü tarayıcı,
+// A doğruyken/yanlışken ayrı ayrı) markThreeWayCards'ın letter===correctLetter/
+// pickedLetter mantığı DOĞRU çalıştığı doğrulandı (regresyon YOK, kod incelemesi +
+// canlı test). Ama BURADA gerçek/kapatılmamış bir koşul EKSİKLİĞİ bulundu:
+// abLoopTimer'ın 2sn'lik setInterval'i cevap ANINDA stopAbLoop()'la temizleniyor
+// (bkz. setActionbarTucked), AMA JS'in tek-thread'li event loop'unda interval'in
+// callback'i (toggleAB→cycleThreeWayPreview) TAM O ANDA (kullanıcının cevap
+// click'iyle AYNI mikro-pencerede) ZATEN kuyruğa alınmış olabilir — clearInterval
+// GELECEKTEKİ tetiklenmeleri durdurur, kuyrukta BEKLEYEN bir çağrıyı GERİ ÇEKMEZ.
+// markThreeWayCards() ZATEN her butonu disabled=true yapıyor ve
+// updateThreeWayCardsPlayState() disabled butonları atlıyor (bkz. o dosyanın
+// notu) — yani DOM sınıfları için koruma VARDI, ama cycleThreeWayPreview kendisi
+// hiçbir roundActive kontrolü YAPMADAN buildQuestionChain'i (SES çalmaya
+// başlayan asıl işlem) yine de çalıştırabiliyordu — cevap sonrası KISA bir an
+// için istenmeyen bir ses/kaynak değişimi (task'ın 4. maddesindeki "kaynak
+// değişimi... anları" ile AYNI aile). Savunma amaçlı, en baştaki koşulla kapatıldı.
 function cycleThreeWayPreview() {
+  if (!roundActive) return;
   const q = activeQuestion;
   const idx = q.variants.findIndex(v => v.letter === threeWayPlayLetter);
   const next = q.variants[(idx + 1) % q.variants.length];
@@ -4189,7 +4211,26 @@ if (els.dailyTipSkipBtn) els.dailyTipSkipBtn.addEventListener("click", () => {
 // ekranına geçer. mode.focusIdForZone yoksa (odak özelliği olmayan bir mod) veya
 // yeterli veri yoksa (renderDailyTip zaten kartı gizler ama buton yine de tıklanabilir
 // kalabilir) sadece ekran değiştirir — eskisi gibi tüm spektrumda başlar.
-if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => {
+// G58 DÜZELTMESİ: ÖNCEDEN sadece goScreen("game") çağrılıyordu — playModeSelect
+// kullanıcının SON seçtiği neyse OYNANIYORDU (genelde "Serbest/sonsuz"), ama
+// buton hep sabit "Seti başlat" yazıyordu, bir soru SAYISI VAAT ETMİYORDU
+// (bu yüzden yalan/eksik değildi, ama "kaç soru" belirsizdi). Artık
+// startFreshAttempt({forceChallenge:true}) çağrılıyor — "Tekrar oyna"nın
+// (bkz. els.resCta) AYNI mekanizması: playModeSelect'in KALICI tercihine
+// DOKUNMADAN (o select'in value'su DEĞİŞMİYOR, sadece bu TEK deneme için
+// challenge.active zorlanıyor) +%50 XP bonusu + "10 Soruluk Bölüm başladı"
+// bildirimini aktif eder — buton artık GERÇEKTEN vaat ettiği kadar (challenge.
+// total=10) bir seti başlatıyor.
+// DÜRÜSTLÜK NOTU (sınav sistemine DOKUNULMADI): G50'den beri TÜM 9 mod
+// EXAM_ENABLED — bu yüzden 10. soruda challenge'ın KENDİ "otomatik bitir"
+// mantığı (ensureAutoNext'teki !mode.EXAM_ENABLED koşulu, G47'den beri
+// BİLEREK böyle) devreye GİRMEZ, examSystem'in KENDİ 10 soruluk parkuru
+// (PARKUR_LENGTH=10) devralır — pozisyon 10'a ulaşınca sınav teklifi/toplam
+// sınav/telafiye GEÇER (session'ı SESSİZCE YARIDA KESMEZ). "10 soru" vaadi bu
+// yüzden LİTERAL bir "menüye dön" değil, examSystem'in KENDİ gerçek/dürüst
+// "Soru N/10" parkuruna GİRMEK anlamına geliyor — sınav akışını YARIDA
+// KESMEMEK için BİLİNÇLİ bir tercih (task: "sınav... DOKUNULMAZ").
+if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async () => {
   if (mode.FOCUS_RANGES && mode.focusIdForZone && els.focusSelect) {
     const enough = zoneScores().filter(s => s.n >= 2);
     if (enough.length) {
@@ -4201,7 +4242,8 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", () => {
       }
     }
   }
-  goScreen("game");
+  await audioEngine.initAudio();
+  startFreshAttempt({ forceChallenge: true });
 });
 
 // Ayarlar bottom sheet: select'leri gizleyip yerine tıklanabilir satır koyduk,

@@ -122,6 +122,23 @@ GERÇEKTEN iki-renkli (amber/mor) + kırmızı vurgu şeridi — G51'in DURUM.md
 notu "iki kaynağın spektrumu üst üste" diye yazmıştı ama kod TEK eğriliydi,
 bu STALE/yanlış bir iddiaydı, G52'de HEM kod HEM iddia gerçeğe uyduruldu.
 
+**G58 eki:** Bu tur bir "küçük bug temizliği" (4 izole düzeltme) — hiçbiri
+prototiple karşılaştırma tablosunu DEĞİŞTİRMEDİ (durum sınıflandırmaları
+AYNI), ama BİRİ (`.fb`/geri bildirim kartı) reskin'e komşu bir CSS
+mekanizması değişikliği içerdiği için burada belgeleniyor: `#feedbackBox`
+ÖNCEDEN `display:none↔block` ile gösterilip gizleniyordu (SIFIR→gerçek
+yükseklik ANİ sıçraması, cevap sonrası ~42-127px sayfa kayması — bkz.
+DURUM.md G58 BİTTİ madde 3), artık `visibility:hidden↔visible` +
+`min-height:100px` ile — kartın GÖRSEL tasarımı (renk/tipografi/köşe
+yuvarlaklığı/padding) TEK PİKSEL değişmedi, SADECE gizleme mekanizması.
+Motor 2'nin (Kompresör/Reverb) A/B/C kart renklendirmesi (`three-way-
+cards.js`) VE Kompresör'ün ses zincirinin (`audio-engine.js:stopAudio`)
+kesik-ses düzeltmesi TAMAMEN görsel/işitsel rötuş — prototiple karşılaştırma
+tablolarının HİÇBİRİNİ etkilemiyor. Ana menünün "Bugünün Önerisi" kartı
+(EKRAN 1 dışında, ayrı bir bileşen — bu dosyanın tablo satırlarında YOK) artık
+"Seti başlat · 10 soru" yazıyor ve gerçekten 10-soruluk parkuru başlatıyor
+(bkz. DURUM.md G58 BİTTİ madde 2).
+
 ## EKRAN 1 — ANA MENÜ
 
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |

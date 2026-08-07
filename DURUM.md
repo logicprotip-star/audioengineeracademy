@@ -1,13 +1,128 @@
 # DURUM
 
-Son güncelleme: 07.08.2026 (G57)
+Son güncelleme: 07.08.2026 (G58)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G57, tek commit — kod+DURUM.md birlikte) — **Frekans Çakışması'nda
+Bu commit (G58, tek commit — kod+DURUM.md+TASARIM.md birlikte) — **Küçük bug
+temizliği, dört izole düzeltme: Kompresör A şıkkı renk teşhisi (kod DOĞRU
+çıktı, ilgili bir yarış-durumu kapatıldı), Öneri kartı gerçek 10-soruluk sete
+bağlandı, Q Genişliği'nin (ve paylaşılan 6 başka modun) cevap-sonrası ~42-127px
+kayması giderildi, Kompresör'ün kesik sesinin GERÇEK kök sebebi bulundu ve
+düzeltildi.**
+
+**1) KOMPRESÖR A ŞIKKI RENK — kod incelemesi + canlı test SONUCU: mantık
+DOĞRU, ama gerçek bir yarış-durumu (race condition) bulunup KAPATILDI.**
+`three-way-cards.js:markThreeWayCards`'ın `letter===correctLetter/
+pickedLetter` mantığı harfe göre AYRIM YAPMIYOR — canlı tarayıcıda A doğruyken
+VE A yanlışken AYRI AYRI test edildi, İKİSİNDE de doğru renklendi (regresyon
+YOK). YENİ `test/three-way-cards.test.mjs` (6 test, sahte-DOM ile — jsdom YOK
+bu projede, tonal-denge.test.mjs'in AYNI deseni) bunu KİLİTLİYOR: A/B/C'nin
+HER BİRİ hem "doğru" hem "yanlış" rolünde ayrı ayrı doğrulandı. **Bulunan
+GERÇEK (ama nadir) yarış:** Kompresör'ün otomatik A/B/C döngüsü (`abLoopTimer`,
+2sn'lik `setInterval`) cevap anında `stopAbLoop()`la temizleniyordu (zaten
+vardı) ama JS'in tek-thread'li event loop'unda interval'in callback'i
+(`cycleThreeWayPreview`) kullanıcının cevap click'iyle AYNI mikro-pencerede
+ZATEN kuyruğa alınmış olabilir — `clearInterval` GELECEKTEKİ tetiklenmeleri
+durdurur, kuyrukta BEKLEYEN bir çağrıyı GERİ ÇEKMEZ. `markThreeWayCards`'ın
+kendisi `disabled` butonları `updateThreeWayCardsPlayState`'te zaten
+ATLATIYORDU (DOM sınıfları için koruma vardı) ama `cycleThreeWayPreview`'ın
+KENDİSİ `roundActive` kontrolü YAPMADAN `buildQuestionChain`'i (SES çalmaya
+başlayan asıl işlem) yine de tetikleyebiliyordu. Savunma amaçlı `if
+(!roundActive) return;` eklendi. **Dürüstlük notu:** bu turda A'nın
+RENKLENMEDİĞİ bir durum CANLI OLARAK YAKALANAMADI — kapatılan şey, koda göre
+teorik olarak mümkün olan ama bu ortamda tetiklenemeyen bir pencere.
+
+**2) ÖNERİ KARTI → GERÇEK 10-SORULUK SET:** Ana menüdeki "Bugünün Önerisi"
+kartının "Başla" butonu ÖNCEDEN sadece `goScreen("game")` çağırıyordu —
+`playModeSelect`'in kullanıcının SON seçtiği değeriyle (genelde "Serbest/
+sonsuz") oynanıyordu, buton ise sabit "Seti başlat" yazıyordu (yanlış bir
+vaat DEĞİLDİ ama belirsizdi). Artık "Tekrar oyna"nın (`els.resCta`) AYNI
+mekanizmasını (`startFreshAttempt({forceChallenge:true})`) çağırıyor —
+`playModeSelect`'in KALICI tercihine DOKUNMADAN (select'in value'su
+DEĞİŞMİYOR, SADECE bu tek deneme için `challenge.active` zorlanıyor) +%50 XP
+bonusunu aktif ediyor. Buton etiketi artık `challenge.total`'dan OKUNUYOR
+("Seti başlat · 10 soru" — sabit yazıp unutmak yerine tek doğruluk
+kaynağından). **Dürüstlük notu — sınav sistemine DOKUNULMADI:** G50'den beri
+TÜM 9 mod EXAM_ENABLED olduğu için `challenge`'ın KENDİ "10. soruda otomatik
+bitir" mantığı (`ensureAutoNext`'teki `!mode.EXAM_ENABLED` koşulu, G47'den
+beri BİLEREK böyle) hiçbir modda ARTIK tetiklenmiyor — 10. soruda examSystem'in
+KENDİ parkuru (zaten `PARKUR_LENGTH=10`) devralıp sınav teklifi/toplam
+sınav/telafiye GEÇİYOR, session'ı SESSİZCE YARIDA KESMİYOR. "10 soru" vaadi bu
+yüzden LİTERAL bir "menüye dön" değil, examSystem'in KENDİ gerçek "Soru N/10"
+parkuruna GİRMEK anlamına geliyor — BİLİNÇLİ bir tercih (sınav akışını YARIDA
+KESMEMEK için, task: "sınav... DOKUNULMAZ"). Canlı doğrulandı: buton "Seti
+başlat · 10 soru" yazıyor, tıklanınca oyun ekranına geçip "Soru N/10" parkuru
+BAŞLIYOR. **app.js DOM'a bağlı olduğu için (bu projede app.js HİÇ unit test
+edilmiyor, CLAUDE.md: "ses ve DOM davranışı kaynak koddan doğrulanamaz")
+node:test testi EKLENEMEDİ** — sadece canlı tarayıcıda doğrulandı, dürüstçe
+belirtiliyor.
+
+**3) Q GENİŞLİĞİ 42px KAYMA — KÖK SEBEP BULUNDU VE DÜZELTİLDİ (paylaşılan
+altyapı, Q Genişliği'ne ÖZGÜ değilmiş):** Ölçüldü: `#gameScroll`'un (oyun
+ekranının kaydırılabilir alanı) `scrollTop`'u cevap ANINDA 0'dan 54.5px'e
+sıçrıyordu (Q Genişliği'nde) — Kesim/dB/Boost-Cut'ta da (38-80px) AYNI kök
+sebep, SADECE farklı miktarda. **Kök sebep:** `#feedbackBox` (`.fb`) ÖNCEDEN
+`display:none` ile SIFIR yükseklik kaplıyordu, cevap verilince `display:block`
+olup GERÇEK içerik yüksekliği (~100px) EKLENİYORDU — `.game-scroll`'un toplam
+içerik yüksekliği ANİDEN viewport'u aşıyor, `scrollFeedbackIntoView()`
+(app.js, G-öncesi bir turda iOS momentum-scroll sorunu için BİLEREK SENKRON/
+ANİ yapılmıştı, bu davranışa DOKUNULMADI) onu alta kaydırıyordu. **Düzeltme:**
+`.fb` artık `display` DEĞİL `visibility` ile gizleniyor + `min-height:100px`
+ile kendi alanını PEŞİNEN ayırıyor — cevap öncesi de sonrası kadar yer
+kaplıyor (görünmez ama LAYOUT'TA VAR), yani cevap verilince toplam yükseklik
+ANİDEN artmıyor. Reskin'e (renk/tipografi/boyut) DOKUNULMADI — SADECE gizleme
+mekanizması. **Canlı doğrulandı (masaüstü tarayıcı, TEMİZ sayfa
+yüklemesinden):** Q Genişliği'nde kayma **54.5px → 0px**, Boost mu Cut mu'da
+**54.5px → 0px**, Kesim Noktası'nda **38px → 2px**, dB Seviyesi'nde **80px →
+2px** (round-start'ın KENDİ ÖNCEDEN VAR OLAN `scrollFeedbackIntoView()`
+çağrısı — bkz. app.js "4-6 şık iki satıra taşıyor" notu — artık DOĞRU/nihai
+pozisyona İLK seferde kaydırıyor, cevap sonrası AYNI pozisyonda kalınıyor).
+**Kapsam dışı bırakılan, İLGİLİ ama AYRI bir bulgu:** Frekans Bulma HÂLÂ
+244.5px kayıyor — bu mod `.fb` KULLANMIYOR, kendi AYRI/daha zengin
+`#freqInfo` panelini kullanıyor (`mode.showFreqInfoPanel`, SADECE Frekans
+Bulma'da var) — task Q Genişliği'ni hedeflediği için bu AYRI mekanizmaya
+dokunulmadı, ama gelecekte benzer bir "kayma" şikayeti gelirse kök sebep
+BURADA belgelendi.
+
+**4) KOMPRESÖR KESİK SES — TAM kök sebep bulundu (G33 SADECE YARISINI
+çözmüştü):** G33, `stopAudio()`'nun gain söndürme zaman sabitini (0.03→0.012)
+sıkılaştırmıştı — ama kod incelemesiyle bulundu: AYNI `forEach` adımında,
+gain'e söndürme RAMP'i PROGRAMLANDIKTAN HEMEN SONRA `node.disconnect()`
+SENKRON (aynı JS tick'inde, `now`'da) çağrılıyordu. Web Audio'da
+`disconnect()` ANINDA etkilidir — programlanan gain eğrisi sesin çıkış
+noktasına ARTIK HİÇ ULAŞAMIYORDU, yani ramp FİİLEN DUYULMUYORDU (zaman
+sabiti 0.03 ya da 0.012 FARK ETMEZDİ — ikisi de "duyulmayan" bir eğriydi,
+G33'ün "sıkılaştırma" fixi bu yüzden SADECE kısmi bir iyileşmeydi). Bu,
+ÖZELLİKLE Kompresör'ün A/B/C döngüsünün her ~2sn'de bir
+`buildQuestionChain`→`stopAudio` çağırdığı yerde SIK tekrarlanan bir sert
+kesme demekti. **Düzeltme:** `disconnect()` artık SENKRON değil,
+`DISCONNECT_DELAY_MS=100` (ramp'in + `.stop()`'un `now+0.08` zamanlamasının
+GERÇEKTEN bitmesinden SONRA) gecikmeyle (`setTimeout`) planlanıyor — ses
+ÖNCE gerçekten söner, SONRA bağlantı kesiliyor. Diğer sekiz modun ses zinciri
+(fonksiyon imzası/çağrı sırası) DEĞİŞMEDİ, SADECE temizlik zamanlaması.
+**Dürüstlük notu:** kulakla NİHAİ doğrulama (gerçek cihazda "artık hiç
+tıklama yok" onayı) bu ortamdan YAPILAMAZ (CLAUDE.md) — ama bu, G33'ün
+NEDEN "tam çözmediği"ni AÇIKLAYAN, kod-seviyesinde KANITLANMIŞ bir kök
+sebep ve düzeltme.
+
+**Doğrulama:**
+- 9 mod regresyon: Frekans Bulma/Kesim Noktası/dB Seviyesi/Boost mu Cut
+  mu/Q Genişliği/Kompresör canlı test edildi (round baştan sona, konsol
+  hatası SIFIR). Motor 2/3'ün paylaşılan altyapısı (three-way-cards.js,
+  audio-engine.js) DEĞİŞTİĞİ için Reverb/Tonal Denge/Frekans Çakışması'nın
+  KENDİ mekaniğine TEK SATIR dokunulmadığı kod incelemesiyle doğrulandı.
+- `npm test`: **771/771** (765'ten +6 — YENİ `test/three-way-cards.test.mjs`).
+
+**KORUMA:** 9 modun oyun mantığı/ses/zorluk/sınav/reskin (renk/tipografi/
+boyut) HİÇ değişmedi — SADECE bu dört düzeltme, hepsi izole.
+
+---
+
+Önceki commit (G57, tek commit — kod+DURUM.md birlikte) — **Frekans Çakışması'nda
 YANLIŞ cevapta da öğretim: üç aşamanın HER BİRİNDE artık "neden yanlış +
 neden doğrusu doğru" açıklaması var (task: "SoundGym 'yanlış' der geçer —
 bizim ayrıştırıcımız hatadan öğretmek").**
