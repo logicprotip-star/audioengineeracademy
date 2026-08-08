@@ -81,6 +81,7 @@ const els = {
   modeGrid: document.getElementById("modeGrid"),
   modeCount: document.getElementById("modeCount"),
   gameTitle: document.getElementById("gameTitle"),
+  gameInfoBtn: document.getElementById("gameInfoBtn"),
   answerFormatChipWrap: document.getElementById("answerFormatChipWrap"),
   answerFormatSettingsRow: document.getElementById("answerFormatSettingsRow"),
   backBtn: document.getElementById("backBtn"),
@@ -4256,6 +4257,12 @@ function closeGuideSheet() {
   if (els.guideSheet) els.guideSheet.classList.remove("open");
 }
 if (els.menuInfoBtn) els.menuInfoBtn.addEventListener("click", () => openGuideSheet(null));
+// G70: mod İÇİ (oyun ekranı) "i" — mod kartındaki .mode-info-btn'in AYNI
+// openGuideSheet(modeId) çağrısı, YENİ bir içerik/sheet İCAT edilmedi.
+// mode.getMeta().id TIKLAMA ANINDA okunuyor (statik yakalanmadı) — kullanıcı
+// oyun ekranındayken HANGİ mod aktifse (enterMode() zaten `mode`'u güncelledi)
+// o modun bilgisini açar.
+if (els.gameInfoBtn) els.gameInfoBtn.addEventListener("click", () => openGuideSheet(mode.getMeta().id));
 if (els.guideSheetClose) els.guideSheetClose.addEventListener("click", closeGuideSheet);
 if (els.guideSheetOverlay) els.guideSheetOverlay.addEventListener("click", closeGuideSheet);
 

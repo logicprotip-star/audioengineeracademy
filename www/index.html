@@ -121,7 +121,18 @@
         <div class="ghead-row">
           <button class="back" id="backBtn" aria-label="Menüye dön">&#8249;</button>
           <div class="ghead-titles">
-            <div class="game-title" id="gameTitle">Frekans Bulma</div>
+            <div class="game-title-row">
+              <div class="game-title" id="gameTitle">Frekans Bulma</div>
+              <!-- G70: mod İÇİ (oyun ekranı) "i" — spotlight 2 oyundan sonra
+                   solunca kullanıcının oynarken çıkmadan bilgiye TEK erişimi
+                   buydu, eksikti. Mod kartındakiyle AYNI openGuideSheet(modeId)
+                   içeriği (bkz. app.js) — YENİ metin YOK. #gameTitle'ın
+                   KARDEŞİ (İÇİNDE DEĞİL) — enterMode() her mod değişiminde
+                   #gameTitle.textContent'i YENİDEN yazıyor, içine konsaydı
+                   HER mod değişiminde silinirdi. .mode-info-btn'in AYNI küçük
+                   (22px) amber rozeti — yeni bir görsel dil İCAT edilmedi. -->
+              <button type="button" class="mode-info-btn" id="gameInfoBtn" aria-label="Mod bilgisi">i</button>
+            </div>
             <div class="game-sub num">
               <span id="roundChip">Soru 0</span>
               <span id="streakText" class="hidden">Hazır</span>

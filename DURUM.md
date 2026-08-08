@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G69)
+Son güncelleme: 08.08.2026 (G70)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,60 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G69, tek commit) — **Spotlight'a eksik kontroller eklendi + mod
+Bu commit (G70, tek commit) — **Mod içine (oyun ekranına) küçük "i" eklendi
+— oynarken bilgiye erişim.** Boşluk: "i" sistemi ana ekranda (`#menuInfoBtn`,
+genel) ve mod kartında (`.mode-info-btn`, moda girmeDEN) vardı, ama mod
+İÇİNDE (oyun ekranı) hiç yoktu — spotlight turu ilk 2 round'dan sonra
+soluyor, kullanıcı sonra takılırsa çıkıp ana menüye dönmeden bilgiye
+ulaşamıyordu.
+
+**Eklenen:** oyun ekranı başlığının (`#gameTitle`) YANINA, `#gameInfoBtn`
+adında `.mode-info-btn`'in (mod kartındaki AYNI 22px amber rozet — yeni bir
+görsel dil İCAT edilmedi) küçük bir kopyası eklendi. `#gameTitle`'ın İÇİNE
+DEĞİL, bir `.game-title-row` sarmalayıcıyla KARDEŞİ olarak — çünkü
+`enterMode()` her mod değişiminde `els.gameTitle.textContent = entry.ad`
+ile başlığı YENİDEN YAZIYOR (`app.js:1359`); rozet başlığın İÇİNDE olsaydı
+her mod değişiminde SİLİNİRDİ. Tıklanınca `openGuideSheet(mode.getMeta().id)`
+çağrılıyor — mod kartındaki `.mode-info-btn`'in ÇAĞIRDIĞI AYNI fonksiyon,
+AYNI `guideSheet`, AYNI `MODE_GUIDE_TEXTS`/`MODE_OPTIONS_TEXTS` içeriği —
+YENİ metin YAZILMADI, sadece bir ÜÇÜNCÜ giriş noktası eklendi. `mode`
+değişkeni TIKLAMA ANINDA okunuyor (statik yakalanmadı), oyun ekranındayken
+o an hangi mod aktifse onun bilgisini açar.
+
+**Küçük/sessiz kalması için:** rozet `#gameTitle`'ın YANINDA (üst köşe,
+başlık hizası) — `.hearts`/`#bossChip`/`#gameSettingsBtn` (dots) gibi
+`.ghead-row`'un sağ tarafını KALABALIKLAŞTIRMADI, mevcut 44px `.gear`/`.dots`
+boyutundan DAHA KÜÇÜK (22px, mode kartlarındaki rozetle AYNI ölçek) —
+"dikkat sesten kaymasın" isteğiyle TUTARLI. `.game-title` en uzun mod adında
+(Frekans Çakışması) dar ekranda rozetle yan yana sığmazsa `min-width:0` +
+ellipsis ile kırpılır, rozet ASLA itilmez (`flex:none`, mode-card rozetiyle
+AYNI G67 kuralı).
+
+**Doğrulama:**
+- `npm test`: **1013/1013** (G69'daki sayıdan DEĞİŞMEDİ — bu tur SADECE
+  DOM kablolaması, guide-texts.js'e yeni saf fonksiyon/veri eklenmedi,
+  CLAUDE.md'nin "DOM'a bağlı app.js unit test EDİLEMİYOR" kısıtına
+  UYULARAK yeni bir test dosyası AÇILMADI — mevcut testlerin HİÇBİRİ
+  bozulmadı).
+- Kod incelemesiyle doğrulanan (DOM/canlı test YAPILAMADI, bkz. aşağı):
+  `#gameInfoBtn` `#gameTitle`'ın KARDEŞİ (İÇİNDE değil) — `enterMode()`'un
+  `textContent` ataması rozeti SİLMEZ; `els.gameInfoBtn` click handler'ı
+  `openGuideSheet(mode.getMeta().id)`'i mod kartındaki `.mode-info-btn`
+  handler'ıyla (`renderModeGrid`) BİREBİR AYNI imzayla çağırıyor — içerik
+  KAYNAĞI TEK (guide-texts.js), tekrar yazılmadı.
+- **Dürüstlük notu — CANLI/cihaz doğrulaması YİNE YAPILAMADI** (tarayıcı
+  eklentisi bu oturumda da bağlı değildi): rozetin GERÇEKTEN küçük/sessiz
+  göründüğü, en uzun mod adıyla (Frekans Çakışması) dar ekranda TAŞMADIĞI,
+  tıklanınca sheet'in AÇILDIĞI gözle DOĞRULANMADI — AÇIK İŞLER madde 14'e
+  eklendi (aşağıya bkz.).
+
+**KORUMA:** 10 mod/ses/sınav/spotlight/paywall/mevcut "i" sistemi TEK SATIR
+değişmedi — SADECE oyun ekranına köşe "i" eklendi, mevcut `openGuideSheet`
+ÇAĞRILDI (yeni içerik/sheet İCAT edilmedi).
+
+---
+
+Önceki commit (G69, tek commit) — **Spotlight'a eksik kontroller eklendi + mod
 "i"sine oyun seçenekleri eklendi.** G68'in spotlight turu SADECE dinle→seç→
 onayla akışını gösteriyordu, modun GERÇEKTEN sahip olduğu kontrolleri (döngü/
 A-B karşılaştırma/durdur/atla) atlıyordu; mod "i" metni de o modun oyun
@@ -5024,10 +5077,10 @@ tamamının dinamik bir aralık alacak şekilde refactor edilmesi (tıklama→Hz
 haritalamasını da etkiliyor, riskli) — ayrı bir iş, bu turun kapsamı
 dışında bırakıldı (kullanıcı kararı).
 
-**14. G67/G68/G69 "i" bilgi/rehber sistemi + SPOTLIGHT turu — CANLI/cihaz
+**14. G67/G68/G69/G70 "i" bilgi/rehber sistemi + SPOTLIGHT turu — CANLI/cihaz
 doğrulaması hiç yapılmadı**
 Kod incelemesi + 1013 test geçti ama tarayıcıda GERÇEKTEN denenmedi (bkz.
-G67/G68/G69 kayıtlarındaki dürüstlük notları). Gözle görülmesi gereken
+G67/G68/G69/G70 kayıtlarındaki dürüstlük notları). Gözle görülmesi gereken
 davranışlar:
 (1) ana ekran `#menuInfoBtn` ve mod kartlarındaki `.mode-info-btn`
 tıklanınca `#guideSheet` doğru içerikle açılıp `×`/overlay ile kapanıyor mu,
@@ -5053,8 +5106,13 @@ başlattığı/durdurduğu VE turun bunu ANINDA algılayıp bir sonraki adıma
 geçtiği; diğer 6 modda tek dokunuşun "A/B Test"i doğru değiştirdiği,
 (8) **[G69]** 4 adımlık turun (listen→abControl→select→confirm) GERÇEKTEN
 "uzun" hissettirmediği, SON adımın "Atla"/"Durdur" hatırlatma metninin
-okunabilir olduğu.
-**Kabul kriteri:** yukarıdaki 8 davranışın HEPSİ gerçek cihaz/tarayıcıda
+okunabilir olduğu,
+(9) **[G70]** oyun ekranında `#gameInfoBtn` GERÇEKTEN küçük/sessiz duruyor
+mu (başlığın yanında, `.hearts`/`#bossChip`/dots'u İTMİYOR mu), en uzun mod
+adında (Frekans Çakışması) dar ekranda başlık/rozet TAŞMADAN yan yana
+sığıyor mu, tıklanınca `#guideSheet` mod kartındakiyle AYNI içerikle
+açılıyor mu, mod değişince (enterMode) rozet SİLİNMEDEN kalıyor mu.
+**Kabul kriteri:** yukarıdaki 9 davranışın HEPSİ gerçek cihaz/tarayıcıda
 elle denenip doğrulandı, taslak metinler (`MODE_GUIDE_TEXTS`,
 `MODE_OPTIONS_TEXTS`, `SPOTLIGHT_STEPS`) kullanıcı tarafından gözden
 geçirilip gerekiyorsa `guide-texts.js`'te düzeltildi.
@@ -5185,11 +5243,12 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G69 itibarıyla):** AÇIK İŞLER madde 14 — G67/G68/G69'un
-"i" bilgi/rehber sistemini (kalıcı "i" ikonu + SPOTLIGHT rehber turu +
-oyun seçenekleri) gerçek tarayıcı/cihazda elle deneyip taslak metinleri
-gözden geçirmek. Aşağıdaki liste (G59 itibarıyla güncellendi) bu adımdan
-BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini kapsıyor.
+**Tek sonraki adım (G70 itibarıyla):** AÇIK İŞLER madde 14 — G67/G68/G69/G70'in
+"i" bilgi/rehber sistemini (kalıcı "i" ikonu — ana ekran + mod kartı + mod
+İÇİ + SPOTLIGHT rehber turu + oyun seçenekleri) gerçek tarayıcı/cihazda elle
+deneyip taslak metinleri gözden geçirmek. Aşağıdaki liste (G59 itibarıyla
+güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini
+kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma
 (unlockLevel:1, free), Kesim Noktası (2, free), Q Genişliği (3, free), Boost

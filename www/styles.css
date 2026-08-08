@@ -280,7 +280,12 @@
     .mode-info-btn:active{background:rgba(255,176,32,.26)}
     .gear i{width:16px;height:16px;border-radius:99px;border:3px solid var(--tx-2)}
     .ghead-titles{flex:1;min-width:0}
-    .game-title{font-size:16px;font-weight:700}
+    /* G70: mod içi "i" — başlığın YANINDA, küçük/sessiz (bkz. index.html'in
+       #gameInfoBtn notu). min-width:0 + ellipsis: en uzun mod adı
+       ("Frekans Çakışması") + rozet dar ekranda YAN YANA sığmazsa başlık
+       kırpılır, rozet asla İTİLMEZ (flex:none). */
+    .game-title-row{display:flex;align-items:center;gap:6px;min-width:0}
+    .game-title{font-size:16px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .game-sub{font-size:14px;color:#9AA3B8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
     .hearts{display:flex;align-items:center;gap:6px;padding:9px 7px;border-radius:11px;
