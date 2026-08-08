@@ -1,13 +1,82 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G63)
+Son güncelleme: 08.08.2026 (G64)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G63, tek commit) — **Paywall Parça 2: kilit tetiklenince artık
+Bu commit (G64, tek commit) — **`renderLevelSheet` tek-dil bug'ı düzeltildi:
+her mod artık Seviye bilgi sayfasında KENDİ terminolojisini konuşuyor**
+(SIRADAKİ'de uzun süredir kayıtlı bilinen bir eksikti — "9 modun 9'u da
+'Bant genişliği/Değişim miktarı' — Frekans Bulma'nın dili — konuşuyordu").
+
+**KÖK SEBEP:** `renderLevelSheet` `core/difficulty-curve.js:difficultyParams
+(level)`'i (JENERİK, SADECE gainDb/Q döndüren, aslen Frekans Bulma için
+yazılmış bir fonksiyon) TÜM 10 modda ÇAĞIRIYORDU — Kompresör'ün ratio'yla,
+Kesim Noktası'nın kesim marjıyla hiç ilgisi olmayan bir "Bant genişliği"
+sayısı gösteriyordu.
+
+**DÜZELTME — YENİ dosya `core/level-sheet-terms.js` (TEK YER, ÇEVİRİYE ZEMİN,
+i18n DEĞİL — task'ın kendi ayrımı):** `LEVEL_SHEET_TERMS` sözlüğü 10 mod id'si
+→ `{sensitivityLabel, amountLabel, formatSensitivity(p), formatAmount(p)}`.
+`renderLevelSheet` artık jenerik `difficultyParams()` YERİNE AKTİF modun
+KENDİ `paramsForDifficultyPosition(level)`'ını çağırıyor — 10 mod da bu
+fonksiyonu AYNI imzayla (level girdisi) dışa aktarıyor (koddaki kendi
+yorumları: "diğer modların paramsForDifficultyPosition'ıyla AYNI mod-agnostik
+girdi"), SADECE döndürdükleri alanlar mod-spesifik (gainDb/q, marginOct,
+edgeMargin, dbDelta/step, kGap, disturbDb, regionWidthOct/cutStepDb) — bu
+YENİ dosya o alanları DOĞRU etikete/birime çeviriyor.
+
+**Terminoloji (task'ın kendi listesiyle birebir):**
+Frekans Bulma "Bant genişliği/Frekans artışı" (dB) · Kesim Noktası "Kesim
+frekansı marjı" (oktav) · Q Genişliği "Q ayrımı" (edgeMargin, ham sayı) ·
+Boost/Cut "Boost/Cut miktarı/Şıklar arası aralık" (dB) · dB Seviyesi
+"Seviye farkı/Şıklar arası aralık" (dB) · Kompresör "Ratio ayrımı" (%) ·
+Reverb "Reverb ayrımı" (%) · Tonal Denge "Tonal sapma" (dB) · Frekans
+Çakışması "Çakışma bölgesi genişliği/Kesim adımı" (oktav+dB) · Distortion
+"Doygunluk ayrımı" (%).
+
+**BİLİNÇLİ KARAR — Kompresör/Reverb/Distortion'ın kGap'i FİZİKSEL birime
+(dB/saniye) ÇEVRİLMEDİ:** üçünün GERÇEK farkı (`gainReductionDb`/`decayAtK`/
+`driveAtK`) HER TURDA rastgele seçilen bir TÜRE bağlı (Reverb'in Room/Hall/
+Plate'i, Distortion'ın clip/soft/tube/tape'i) ve bu türlerin aralıkları
+BİRBİRİNDEN ÇOK farklı (ör. Reverb decay: Room 0.3-0.9sn, Hall 1.6-3.2sn) —
+seviye sayfası için "temsili" bir tür SEÇMEK (ör. hep Hall'ı varsayıp saniye
+göstermek) bazı turlarda yanlış/yanıltıcı bir sayı gösterirdi. kGap [0,1]
+uzayında yüzde olarak gösteriliyor — TÜRDEN bağımsız, dürüst gerçek zorluk
+sinyali. Kompresör'ün özelinde `gainReductionDb` gibi tür-bağımsız bir yol
+VARDI ama üçü TUTARLI kalsın diye (task: "kısa kalsın") aynı % yaklaşımı
+üçünde de kullanıldı.
+
+**Doğrulama:**
+- `npm test`: **882/882** (865 → +17 YENİ `test/level-sheet-terms.test.mjs`
+  — MOCK DEĞİL, 10 modun HER BİRİNİN GERÇEK `paramsForDifficultyPosition`'ı
+  seviye 1/10/20'de çağrılıp çökmediği/NaN üretmediği + doğru birim
+  (oktav/dB/%) içerdiği doğrulandı; ayrıca "hiçbir mod (Frekans Bulma hariç)
+  jenerik 'Bant genişliği' etiketini TAŞIMIYOR" testiyle asıl bug'ın
+  kilitlendiği).
+- Node'da CANLI önizleme (bu turda, rapor için): Kompresör Sv1→Sv20 "Ratio
+  ayrımı: %45→%6", Kesim Noktası "Kesim frekansı marjı: 1.6 oktav→1/5
+  oktav", Frekans Bulma "Bant genişliği: 1.5 oktav→1/4 oktav" — HEPSİ
+  seviyeyle birlikte DOĞRU yönde (zorlaşarak) küçülüyor, sayılar tutarlı.
+- **Dürüstlük notu — CANLI/cihaz UI doğrulaması YAPILAMADI** (tarayıcı
+  eklentisi bu oturumda da bağlı değildi) — Seviye bilgi sayfasının GERÇEKTEN
+  doğru göründüğü (kart düzeni, satır aralığı, uzun etiketlerin taşıp
+  taşmadığı — ör. "Çakışma bölgesi genişliği" diğerlerinden daha uzun bir
+  etiket) gözle DOĞRULANMADI. Kod incelemesi + 17 birim testi + Node'daki
+  canlı hesap önizlemesi kadarı garanti.
+
+**KORUMA:** Mod mantığı/ses/zorluk EĞRİSİ/sınav/paywall TEK SATIR değişmedi —
+her mod hâlâ KENDİ `paramsForDifficultyPosition`'ını (zaten vardı, `mode
+mantığı` parçası) kullanıyor, SADECE bu turda renderLevelSheet'in hangi
+fonksiyonu çağırdığı ve sonucu nasıl ETİKETLEDİĞİ değişti — sayıların
+KENDİSİ (kGap/gainDb/marginOct/vb.) hiçbir mod dosyasında dokunulmadı.
+
+---
+
+Önceki commit (G63, tek commit) — **Paywall Parça 2: kilit tetiklenince artık
 gerçek bir PAYWALL EKRANI açılıyor (toast DEĞİL).** Satın alma (IAP) ve
 reklam HÂLÂ yok — "Pro Al"/"Reklam İzle" butonları task'ın kendi tarifiyle
 SİMÜLASYON (sırasıyla `devFlags.simulatePro=true` ve +1 can). Detaylar

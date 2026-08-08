@@ -14,7 +14,8 @@ import { formatHz, turkishLocative } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
 import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import { SOURCE_GROUPS, findSource, findSourcePair } from "./core/source-catalog.js";
-import { tierForLevel, difficultyParams, qToOctaveBandwidth, formatOctaveBandwidth, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
+import { tierForLevel, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
+import { levelSheetTermsFor } from "./core/level-sheet-terms.js";
 import { getWeakZone } from "./core/personalization.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
@@ -4114,33 +4115,49 @@ els.gameSettingsOverlay.addEventListener("click", closeGameSettingsSheet);
 // Z6: seviye bilgisi sheet'i — levelChip'e tıklanınca açılır, içeriği Z1
 // (difficulty-curve.js) + Z3'ten (progress.js) HER AÇILIŞTA taze hesaplanır
 // (statik/sabit metin YOK).
+// G64: mod-başına terminoloji core/level-sheet-terms.js'te (TEK yer, çeviriye
+// zemin — bkz. o dosyanın başlık notu). Değerler core/difficulty-curve.js'in
+// JENERİK difficultyParams()'ından DEĞİL, AKTİF modun KENDİ
+// paramsForDifficultyPosition(level)'ından okunuyor — 10 mod da bu fonksiyonu
+// AYNI imzayla (level girdisi) dışa aktarıyor (bkz. o fonksiyonların kendi
+// dosya başı notları, "diğer modların paramsForDifficultyPosition'ıyla AYNI
+// mod-agnostik girdi"), sadece DÖNDÜRDÜKLERİ alanlar mod-spesifik.
 function renderLevelSheet() {
   const modeId = mode.getMeta().id;
   const level = progress.modeLevel(stats, modeId);
   const xpProg = progress.xpProgress(progress.modeXp(stats, modeId));
   const tier = tierForLevel(level);
   const diff = mode.DIFFICULTY[tier];
-  const params = difficultyParams(level);
-  const bw = formatOctaveBandwidth(qToOctaveBandwidth(params.q));
-  const gainStr = `${params.gainDb.toFixed(1)} dB`;
+  const terms = levelSheetTermsFor(modeId);
+  const params = mode.paramsForDifficultyPosition(level);
+  const sensVal = terms.formatSensitivity(params);
+  const amountVal = terms.amountLabel ? terms.formatAmount(params) : null;
   const percent = Math.max(0, Math.min(100, (xpProg.current / xpProg.required) * 100));
+  // core/difficulty-curve.js:difficultyParams()'ın döndürdüğü "capped" alanı
+  // ARTIK burada YOK (mode.paramsForDifficultyPosition çıktısında hiçbir modda
+  // bu alan tanımlı değil) — ama ölçüt AYNI (10 modun HEPSİ LEVEL_CAP=20
+  // kullanıyor, `grep` ile doğrulandı), o yüzden burada DOĞRUDAN hesaplanıyor.
+  const capped = level >= DIFFICULTY_CONFIG.LEVEL_CAP;
 
   let nextLevelText;
-  if (params.capped) {
-    nextLevelText = `En üst hassasiyettesin (Seviye ${DIFFICULTY_CONFIG.LEVEL_CAP}). Bundan sonra bant/tolerans SABİT kalıyor — bunun yerine süre kısalıyor, değişim miktarı küçülmeye devam ediyor.`;
+  if (capped) {
+    nextLevelText = `En üst hassasiyettesin (Seviye ${DIFFICULTY_CONFIG.LEVEL_CAP}). Bundan sonra ${terms.sensitivityLabel.toLowerCase()} SABİT kalıyor — bunun yerine süre kısalıyor${terms.amountLabel ? `, ${terms.amountLabel.toLowerCase()} küçülmeye devam ediyor` : ""}.`;
   } else {
-    const nextParams = difficultyParams(level + 1);
-    const nextBw = formatOctaveBandwidth(qToOctaveBandwidth(nextParams.q));
-    nextLevelText = `Seviye ${level + 1}'te bant ${nextBw}'a daralacak ve değişim ${nextParams.gainDb.toFixed(1)} dB'ye düşecek.`;
+    const nextParams = mode.paramsForDifficultyPosition(level + 1);
+    const nextSensVal = terms.formatSensitivity(nextParams);
+    nextLevelText = `Seviye ${level + 1}'de ${terms.sensitivityLabel.toLowerCase()} ${nextSensVal} olacak${terms.amountLabel ? `, ${terms.amountLabel.toLowerCase()} ${terms.formatAmount(nextParams)} olacak` : ""}.`;
   }
 
   if (els.lvlSheetTitle) els.lvlSheetTitle.textContent = `Seviye ${level}`;
   if (!els.lvlSheetBody) return;
+  const amountRow = terms.amountLabel
+    ? `<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--tx-3)">${terms.amountLabel}</span><b>${amountVal}</b></div>`
+    : "";
   els.lvlSheetBody.innerHTML = `
-    <p style="margin:8px 2px 0;font-size:15px;line-height:1.5;color:var(--tx-2)">Bant ${bw} genişliğinde, değişim ${gainStr}. Şu anki hassasiyetin bu.</p>
+    <p style="margin:8px 2px 0;font-size:15px;line-height:1.5;color:var(--tx-2)">${terms.sensitivityLabel}: ${sensVal}${amountVal !== null ? ` · ${terms.amountLabel}: ${amountVal}` : ""}. Şu anki hassasiyetin bu.</p>
     <div class="card" style="margin-top:16px;padding:14px 16px">
-      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--tx-3)">Bant genişliği</span><b>${bw}</b></div>
-      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--tx-3)">Değişim miktarı</span><b>${gainStr}</b></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--tx-3)">${terms.sensitivityLabel}</span><b>${sensVal}</b></div>
+      ${amountRow}
       <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--tx-3)">Şık sayısı</span><b>${diff ? diff.options : "—"}</b></div>
     </div>
     <div style="margin-top:18px">
