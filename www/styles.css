@@ -608,6 +608,11 @@
     /* A/B uzun basma döngüsü aktifken (bkz. app.js startAbLoop/stopAbLoop) */
     .abbtn.loop{background:rgba(255,176,32,.14);border-color:rgba(255,176,32,.4)}
     .abbtn.loop .abtitle{color:var(--am)}
+    /* G71: "basılı tut: döngü" küçük ipucu — çok küçük/soluk, dikkat sesten
+       KAYMASIN diye. Döngü zaten aktifken (abTitle "Döngü" diyor) gizlenir —
+       tekrar SÖYLENMEZ. */
+    .abholdhint{font-size:9px;font-weight:600;letter-spacing:.02em;color:var(--tx-3);line-height:1}
+    .abbtn.loop .abholdhint{display:none}
 
     /* ---- ayarlar / değer seçici sheet ---- */
     .sheet-overlay{

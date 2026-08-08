@@ -99,20 +99,6 @@
           <span>Bu modda bir daha gösterme</span>
         </button>
       </div>
-
-      <!-- "i" bilgi/rehber sistemi (bkz. core/guide-texts.js) — TEK sheet, hem
-           ana ekranın genel bilgisi hem her mod kartının kendi bilgisi için
-           yeniden kullanılıyor (içerik app.js:openGuideSheet ile doldurulur).
-           lvlSheet'in AYNI bottom-sheet deseni. -->
-      <div class="sheet-overlay" id="guideSheetOverlay"></div>
-      <div class="bottom-sheet" id="guideSheet">
-        <div class="sheet-handle"></div>
-        <div class="sheet-header">
-          <h3 id="guideSheetTitle">Nasıl çalışır?</h3>
-          <button class="sheet-cancel" id="guideSheetClose" type="button">Kapat</button>
-        </div>
-        <div id="guideSheetBody"></div>
-      </div>
     </section>
 
     <!-- ================= EKRAN: OYUN (Motor 1) ================= -->
@@ -276,6 +262,15 @@
           <button class="btn abbtn" id="abToggle" data-ab="B">
             <span class="abtitle" id="abTitle">A/B Test</span>
             <span class="abpair"><span class="abside" data-side="A">A</span><span class="abside" data-side="B">B</span><span class="abside abside-c" data-side="C">C</span></span>
+            <!-- G71: "basılı tut" (520ms uzun basma → startAbLoop, bkz. app.js
+                 pointerdown/abPressTimer) kod olarak zaten VARDI ama kullanıcıya
+                 hiç anlatılmıyordu. Ayrı bir spotlight adımı DEĞİL — küçük/sessiz
+                 bir yazı. cakisma HARİÇ TÜM modlarda GERÇEKTEN çalışıyor (toggleAB
+                 hem A/B hem A/B/C dalını kapsıyor) — mod bazlı bir gösterme/gizleme
+                 GEREKMEDİ, buton zaten cakisma'da tamamen gizli
+                 (syncCakismaVisibility). Döngü aktifken (.loop class'ı) CSS ile
+                 gizlenir — abTitle zaten "Döngü" diyor, tekrar söylemeye gerek yok. -->
+            <span class="abholdhint">Basılı tut: döngü</span>
           </button>
           <button class="btn" id="hintBtn">İpucu Ver (3)</button>
         </div>
@@ -889,6 +884,29 @@
       <button class="tab" data-tab="progress">İlerleme</button>
       <button class="tab" data-tab="tools">Araçlar</button>
     </div>
+  </div>
+
+  <!-- "i" bilgi/rehber sistemi (bkz. core/guide-texts.js) — TEK sheet, hem
+       ana ekranın genel bilgisi hem her mod kartının hem oyun ekranı içindeki
+       "i"nin (G70) kendi bilgisi için yeniden kullanılıyor (içerik
+       app.js:openGuideSheet ile doldurulur). G71 DÜZELTMESİ: bu blok
+       ÖNCEDEN #screen-menu'nün İÇİNDEYDİ — `.screen{display:none}` SADECE
+       aktif ekranı gösterdiği için (bkz. goScreen), oyun ekranındaki
+       #gameInfoBtn'e basınca openGuideSheet() ÇALIŞIYORDU (.open class'ı
+       ekleniyordu) ama sheet #screen-menu'nün display:none ATASI YÜZÜNDEN
+       GÖRÜNMÜYORDU — "hiçbir şey olmuyor" hissi buradan geliyordu. mod
+       kartının "i"si ÇALIŞIYORDU çünkü o TIKLAMA zaten #screen-menu
+       AKTİFKEN oluyordu. Çözüm: mainSettingsSheet'in AYNI deseni — TÜM
+       ekranlardan erişilmesi gereken sheet'ler .app-shell KÖKÜNDE durur,
+       hiçbir .screen'e bağımlı DEĞİLDİR. -->
+  <div class="sheet-overlay" id="guideSheetOverlay"></div>
+  <div class="bottom-sheet" id="guideSheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <h3 id="guideSheetTitle">Nasıl çalışır?</h3>
+      <button class="sheet-cancel" id="guideSheetClose" type="button">Kapat</button>
+    </div>
+    <div id="guideSheetBody"></div>
   </div>
 
   <!-- ================= GENEL AYARLAR SHEET ================= -->

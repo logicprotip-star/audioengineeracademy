@@ -4226,6 +4226,15 @@ if (els.lvlSheetOverlay) els.lvlSheetOverlay.addEventListener("click", closeLeve
 // her mod kartının "i"si o modun MODE_GUIDE_TEXTS[modeId]'ini doldurur. modeId=null
 // ise genel rehber gösterilir.
 function openGuideSheet(modeId) {
+  // [guide-i-diag] G71: mod içi "i" cihazda tepkisiz görünüyordu (kök sebep:
+  // guideSheet DOM'da #screen-menu'nün İÇİNDEYDİ, .screen{display:none}
+  // yüzünden oyun ekranından AÇILAMIYORDU — aşağıya bkz. index.html'in
+  // taşınan blok notu). Bu log KALICI (filepicker-diag'ın AYNI deseni,
+  // bkz. app.js "[filepicker-diag]" satırları) — "i" tepkisiz görünürse
+  // ilk bakılacak yer: bu log hiç ÇIKMIYORSA sorun event-binding'te
+  // (buton DOM'da yok/listener bağlanmadı), ÇIKIYOR ama sheet GÖRÜNMÜYORSA
+  // sorun guideSheet'in DOM konumunda/CSS'inde.
+  console.log(`[guide-i-diag] openGuideSheet çağrıldı — modeId: ${modeId || "(null, genel rehber)"}, guideSheetBody bulundu: ${!!els.guideSheetBody}`);
   if (!els.guideSheetBody) return;
   if (modeId && MODE_GUIDE_TEXTS[modeId]) {
     const entry = MODE_CATALOG.find(e => e.id === modeId);
@@ -4262,7 +4271,17 @@ if (els.menuInfoBtn) els.menuInfoBtn.addEventListener("click", () => openGuideSh
 // mode.getMeta().id TIKLAMA ANINDA okunuyor (statik yakalanmadı) — kullanıcı
 // oyun ekranındayken HANGİ mod aktifse (enterMode() zaten `mode`'u güncelledi)
 // o modun bilgisini açar.
-if (els.gameInfoBtn) els.gameInfoBtn.addEventListener("click", () => openGuideSheet(mode.getMeta().id));
+if (els.gameInfoBtn) {
+  els.gameInfoBtn.addEventListener("click", () => {
+    console.log(`[guide-i-diag] #gameInfoBtn tıklandı — aktif mod: ${mode.getMeta().id}`);
+    openGuideSheet(mode.getMeta().id);
+  });
+} else {
+  // [guide-i-diag] Buton DOM'da HİÇ bulunamadıysa (id yanlış/element yok)
+  // bu satır uygulama açılışında BİR KEZ konsola düşer — sessiz başarısızlık
+  // yerine görünür bir sinyal.
+  console.warn("[guide-i-diag] #gameInfoBtn DOM'da bulunamadı — click dinleyicisi bağlanamadı.");
+}
 if (els.guideSheetClose) els.guideSheetClose.addEventListener("click", closeGuideSheet);
 if (els.guideSheetOverlay) els.guideSheetOverlay.addEventListener("click", closeGuideSheet);
 

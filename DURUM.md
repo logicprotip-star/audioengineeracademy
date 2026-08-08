@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G70)
+Son güncelleme: 08.08.2026 (G71)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,83 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G70, tek commit) — **Mod içine (oyun ekranına) küçük "i" eklendi
+Bu commit (G71, tek commit) — **Mod içi "i" cihazda AÇILMIYORDU — kök sebep
+bulundu/düzeltildi + "basılı tut" küçük açıklaması eklendi.**
+
+**1. MOD İÇİ "i" TEPKİSİZ — KÖK SEBEP:** G70'te `#gameInfoBtn`'in click
+handler'ı doğruydu (`openGuideSheet(mode.getMeta().id)` çağrılıyordu,
+event binding SAĞLAMdı) — ama `#guideSheetOverlay`/`#guideSheet`'in
+KENDİSİ (G67'den beri) YANLIŞLIKLA `#screen-menu`'nün İÇİNDEYDİ.
+`styles.css:.screen{display:none}` SADECE `.active` sınıflı ekranı
+gösteriyor (bkz. `goScreen()`) — oyun ekranındayken (`#screen-game` aktif)
+`#screen-menu` (ve TÜM alt ağacı, `guideSheet` dahil) `display:none`
+oluyordu. `openGuideSheet()` GERÇEKTEN çalışıyordu (`.open` class'ı
+ekleniyordu) ama sheet, `display:none` bir ATANIN altında olduğu için HİÇBİR
+ZAMAN görünür OLAMAZDI — CSS'te `display:none` bir atanın altındaki
+elementler `.open`/`display` kendi değerleri NE OLURSA OLSUN render
+edilmez. Mod KARTININ "i"si ÇALIŞIYORDU çünkü o tıklama ZATEN
+`#screen-menu` aktifken oluyordu (kart da `guideSheet` de AYNI aktif
+ekranın içindeydi) — kullanıcının "kart çalışıyor, oyun içi çalışmıyor"
+gözlemi BİREBİR bu asimetriyi işaret ediyordu.
+**Düzeltme:** `guideSheetOverlay`/`guideSheet` bloğu `#screen-menu`'nün
+içinden ÇIKARILDI, `.app-shell` KÖKÜNE (`#mainSettingsOverlay`/
+`#mainSettingsSheet`'in AYNI deseni — ekranlardan BAĞIMSIZ TÜM sheet'lerin
+zaten durduğu yer) taşındı. `position:fixed` olduğu için (bkz. `.sheet-
+overlay`/`.bottom-sheet` CSS) DOM'daki KONUMU görsel yerleşimini hiç
+etkilemiyor — sadece `.screen` bağımlılığı ortadan kalktı.
+**Teşhis logları eklendi** (task'ın isteği — `[filepicker-diag]`'ın AYNI
+KALICI deseni, `[guide-i-diag]` etiketiyle): `openGuideSheet()`'in
+başında modeId + `guideSheetBody` bulunup bulunmadığını loglayan bir satır;
+`#gameInfoBtn` click handler'ında tıklamayı VE aktif modu loglayan bir
+satır; buton DOM'da hiç YOKSA açılışta BİR KEZ `console.warn` — ileride
+BENZER bir "buton tepkisiz" şikâyetinde ilk bakılacak yer bu loglar olsun
+diye KALICI bırakıldı, debug sonrası silinmedi.
+
+**2. "BASILI TUT" KÜÇÜK AÇIKLAMA:** kodda GERÇEKTEN nerede olduğu tespit
+edildi — `#abToggle`'ın `pointerdown` dinleyicisi (`app.js`, 520ms eşik,
+`abPressTimer`) `startAbLoop()`'u tetikliyor; `toggleAB()` HEM three-way
+(A/B/C) HEM normal (A/B) dalını kapsıyor (`isThreeWayQuestion` dallanması)
+— yani basılı tut, cakisma HARİÇ **TÜM 9 modda** GERÇEKTEN çalışıyor (SADECE
+Kompresör/Reverb/Distortion'da DEĞİL — G69'un "abControl" spotlight
+metninde bu YANLIŞLIKLA sadece three-way'e özgü gibi anlatılmıştı, ama
+long-press mekanizmasının KENDİSİ mod-agnostik; G69'un metni bu turda
+DEĞİŞTİRİLMEDİ, KORUMA kapsamında bırakıldı — SADECE bu yeni statik ipucu
+eklendi). `#abToggle`'ın içine `<span class="abholdhint">Basılı tut: döngü</span>`
+eklendi — `font-size:9px`, soluk renk (`var(--tx-3)`), buton ZATEN cakisma'da
+tamamen gizli olduğu için (`syncCakismaVisibility`) AYRI bir mod kontrolü
+GEREKMEDİ. Döngü aktifken (`.loop` class'ı) CSS ile gizlenir — `abTitle`
+zaten "Döngü" yazıyor, aynı bilgi TEKRAR EDİLMEDİ. Ayrı bir spotlight adımı
+DEĞİL, sadece statik/küçük bir metin.
+
+**Doğrulama:**
+- `npm test`: **1013/1013** (G70'ten DEĞİŞMEDİ — bu tur DOM taşıma + statik
+  HTML/CSS + debug log, guide-texts.js'e yeni saf fonksiyon/veri eklenmedi).
+- `div` etiket dengesi (`<div` vs `</div>`) `index.html`'de python ile
+  sayılarak doğrulandı: 358/358, blok taşıması sırasında yanlışlıkla
+  bırakılmış/silinmiş bir etiket YOK.
+- Kod incelemesiyle doğrulanan: `#guideSheetOverlay`/`#guideSheet` artık
+  `grep`le TEK bir yerde (`.app-shell` kökünde, `mainSettingsOverlay`'in
+  hemen üstünde) — `#screen-menu` içinde İKİNCİ bir kopya KALMADI (id
+  çakışması riski de ortadan kalktı). `#gameInfoBtn`/`#abToggle` id'leri
+  index.html'de TEK.
+- **Dürüstlük notu — CANLI/cihaz doğrulaması YİNE YAPILAMADI** (tarayıcı
+  eklentisi bu oturumda da bağlı değildi): düzeltmenin cihazda GERÇEKTEN
+  sheet'i açtığı, `[guide-i-diag]` loglarının Safari/Xcode konsolunda
+  beklendiği gibi çıktığı, "Basılı tut" yazısının GERÇEKTEN okunabilir/
+  rahatsız etmeyen boyutta göründüğü gözle DOĞRULANMADI — kullanıcının BİR
+  SONRAKİ cihaz testinde asıl doğrulama bu olmalı (root-cause analizi kod
+  seviyesinde ÇOK güçlü — `.screen{display:none}` + DOM içi-içe yerleşim
+  gerçek/mekanik bir CSS/DOM kuralı, spekülasyon değil — ama "düzeldiği"
+  iddiası yine de cihazda TEYİT edilmeli).
+
+**KORUMA:** 10 mod/ses/sınav/paywall/spotlight/mevcut "i" içerikleri TEK
+SATIR değişmedi — `guideSheet`'in KONUMU taşındı (içeriği/davranışı değil),
+`#abToggle`'a statik bir `<span>` eklendi, `openGuideSheet`/`gameInfoBtn`
+handler'larına SADECE `console.log` satırları eklendi (davranış değişmedi).
+
+---
+
+Önceki commit (G70, tek commit) — **Mod içine (oyun ekranına) küçük "i" eklendi
 — oynarken bilgiye erişim.** Boşluk: "i" sistemi ana ekranda (`#menuInfoBtn`,
 genel) ve mod kartında (`.mode-info-btn`, moda girmeDEN) vardı, ama mod
 İÇİNDE (oyun ekranı) hiç yoktu — spotlight turu ilk 2 round'dan sonra
@@ -5077,11 +5153,11 @@ tamamının dinamik bir aralık alacak şekilde refactor edilmesi (tıklama→Hz
 haritalamasını da etkiliyor, riskli) — ayrı bir iş, bu turun kapsamı
 dışında bırakıldı (kullanıcı kararı).
 
-**14. G67/G68/G69/G70 "i" bilgi/rehber sistemi + SPOTLIGHT turu — CANLI/cihaz
+**14. G67/G68/G69/G70/G71 "i" bilgi/rehber sistemi + SPOTLIGHT turu — CANLI/cihaz
 doğrulaması hiç yapılmadı**
 Kod incelemesi + 1013 test geçti ama tarayıcıda GERÇEKTEN denenmedi (bkz.
-G67/G68/G69/G70 kayıtlarındaki dürüstlük notları). Gözle görülmesi gereken
-davranışlar:
+G67/G68/G69/G70/G71 kayıtlarındaki dürüstlük notları). Gözle görülmesi
+gereken davranışlar:
 (1) ana ekran `#menuInfoBtn` ve mod kartlarındaki `.mode-info-btn`
 tıklanınca `#guideSheet` doğru içerikle açılıp `×`/overlay ile kapanıyor mu,
 (2) sheet içeriği (özellikle GENERAL_GUIDE'ın 5 bölümü, G69'dan itibaren de
@@ -5107,12 +5183,20 @@ geçtiği; diğer 6 modda tek dokunuşun "A/B Test"i doğru değiştirdiği,
 (8) **[G69]** 4 adımlık turun (listen→abControl→select→confirm) GERÇEKTEN
 "uzun" hissettirmediği, SON adımın "Atla"/"Durdur" hatırlatma metninin
 okunabilir olduğu,
-(9) **[G70]** oyun ekranında `#gameInfoBtn` GERÇEKTEN küçük/sessiz duruyor
-mu (başlığın yanında, `.hearts`/`#bossChip`/dots'u İTMİYOR mu), en uzun mod
-adında (Frekans Çakışması) dar ekranda başlık/rozet TAŞMADAN yan yana
-sığıyor mu, tıklanınca `#guideSheet` mod kartındakiyle AYNI içerikle
-açılıyor mu, mod değişince (enterMode) rozet SİLİNMEDEN kalıyor mu.
-**Kabul kriteri:** yukarıdaki 9 davranışın HEPSİ gerçek cihaz/tarayıcıda
+(9) **[G70/G71]** oyun ekranında `#gameInfoBtn` GERÇEKTEN küçük/sessiz
+duruyor mu (başlığın yanında, `.hearts`/`#bossChip`/dots'u İTMİYOR mu), en
+uzun mod adında (Frekans Çakışması) dar ekranda başlık/rozet TAŞMADAN yan
+yana sığıyor mu, tıklanınca `#guideSheet` mod kartındakiyle AYNI içerikle
+GERÇEKTEN AÇILIYOR mu — G71'de kök sebep bulunup düzeltildi (`guideSheet`
+`#screen-menu`'nün içinden `.app-shell` köküne taşındı), bu turda YENİDEN
+cihazda TEST EDİLMELİ (bir önceki tur sadece kod incelemesiyle "düzeldi"
+diyordu, canlı TEYİT hâlâ yok), mod değişince (enterMode) rozet SİLİNMEDEN
+kalıyor mu,
+(10) **[G71]** `#abToggle`'daki "Basılı tut: döngü" yazısı cakisma HARİÇ
+9 modun HEPSİNDE görünüyor mu, döngü aktifken (kart "loop" durumuna
+geçince) GERÇEKTEN kayboluyor mu, `[guide-i-diag]` etiketli konsol logları
+Safari/Xcode konsolunda GERÇEKTEN beklenen sırada çıkıyor mu.
+**Kabul kriteri:** yukarıdaki 10 davranışın HEPSİ gerçek cihaz/tarayıcıda
 elle denenip doğrulandı, taslak metinler (`MODE_GUIDE_TEXTS`,
 `MODE_OPTIONS_TEXTS`, `SPOTLIGHT_STEPS`) kullanıcı tarafından gözden
 geçirilip gerekiyorsa `guide-texts.js`'te düzeltildi.
@@ -5243,11 +5327,14 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G70 itibarıyla):** AÇIK İŞLER madde 14 — G67/G68/G69/G70'in
-"i" bilgi/rehber sistemini (kalıcı "i" ikonu — ana ekran + mod kartı + mod
-İÇİ + SPOTLIGHT rehber turu + oyun seçenekleri) gerçek tarayıcı/cihazda elle
-deneyip taslak metinleri gözden geçirmek. Aşağıdaki liste (G59 itibarıyla
-güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini
+**Tek sonraki adım (G71 itibarıyla):** AÇIK İŞLER madde 14 — özellikle (9):
+G71'de kök sebebi bulunup düzeltilen mod içi "i" (`#gameInfoBtn`) cihazda
+GERÇEKTEN açılıyor mu diye YENİDEN test etmek (bir önceki kırık halin
+YERİNE geçti, ama canlı teyit hâlâ yok) — sonra G67/G68/G69/G70/G71'in
+TAMAMINI (kalıcı "i" ikonu + SPOTLIGHT rehber turu + oyun seçenekleri +
+"basılı tut" ipucu) gerçek tarayıcı/cihazda elle deneyip taslak metinleri
+gözden geçirmek. Aşağıdaki liste (G59 itibarıyla güncellendi) bu adımdan
+BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini
 kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma
