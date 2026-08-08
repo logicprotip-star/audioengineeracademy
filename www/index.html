@@ -220,16 +220,6 @@
         <div class="qline" id="questionTitle">Başlamak için "Oyunu Başlat"a dokun.</div>
         <div class="qline-sub hidden" id="questionMeta"></div>
 
-        <!-- "i" bilgi/rehber sistemi, GEÇİCİ kısım — bir modun İLK 2 round'unda
-             görünür, o modun ROUND_HINT_STEPS'ini tek satırda gösterir (bkz.
-             core/guide-texts.js + app.js:showRoundHintIfNeeded). Kalıcı "i"
-             ikonu (guideSheet) BUNDAN AYRI — hep durur, bu SADECE ilk-kullanım
-             çarkı, kendi "×" ile de kapatılabilir. -->
-        <div class="hidden" id="roundHintBanner">
-          <span id="roundHintText"></span>
-          <button type="button" id="roundHintClose" aria-label="İpucunu kapat">&times;</button>
-        </div>
-
         <div class="card analyzer" id="analyzer" data-phase="ask">
           <div class="analyzer-head">
             <span class="analyzer-label" id="analyzerLabel">SPEKTRUM · B İŞLENMİŞ</span>
@@ -423,6 +413,29 @@
         <p id="examPassDesc" style="margin:8px 6px 0;font-size:15px;line-height:1.5;color:var(--tx-2);text-align:center"></p>
         <div style="margin-top:16px">
           <button class="btn primary" id="examPassContinue" type="button" style="width:100%">Devam Et</button>
+        </div>
+      </div>
+
+      <!-- G68: "i" sisteminin GEÇİCİ parçası, basit ipucu bandından SPOTLIGHT
+           rehber turuna yükseltildi (bkz. core/guide-texts.js:SPOTLIGHT_STEPS
+           + app.js:startSpotlightTourIfNeeded). Bir modun İLK 2 round'unda
+           görünür (AYNI hintRoundsShown sayacı, G67'den), sonra otomatik
+           çıkmaz. Kalıcı "i" (guideSheet) BUNDAN TAMAMEN AYRI — hep durur.
+           #spotlightHole konumu/boyutu HER adımda app.js'ten JS ile
+           (getBoundingClientRect) canlı hesaplanır, burada sadece iskelet var.
+           TÜM overlay pointer-events:none (styles.css) — karartma/delik HİÇBİR
+           gerçek tıklamayı ENGELLEMEZ, sadece görsel; gerçek oyun elementi
+           deliğin altından NORMAL çalışmaya devam eder (KORUMA: mekanik
+           dokunulmadı). Sadece callout (metin+butonlar) tıklanabilir. -->
+      <div class="hidden" id="spotlightOverlay">
+        <div id="spotlightHole"></div>
+        <div id="spotlightCallout">
+          <div id="spotlightStepLabel">1/3</div>
+          <p id="spotlightText"></p>
+          <div id="spotlightActions">
+            <button type="button" id="spotlightSkip">Geç</button>
+            <button type="button" id="spotlightNext">İleri</button>
+          </div>
         </div>
       </div>
     </section>

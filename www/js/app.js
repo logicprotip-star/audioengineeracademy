@@ -16,7 +16,7 @@ import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import { SOURCE_GROUPS, findSource, findSourcePair } from "./core/source-catalog.js";
 import { tierForLevel, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
 import { levelSheetTermsFor } from "./core/level-sheet-terms.js";
-import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, shouldShowRoundHint, formatRoundHint } from "./core/guide-texts.js";
+import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
 import { getWeakZone } from "./core/personalization.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
@@ -106,9 +106,13 @@ const els = {
   guideSheetTitle: document.getElementById("guideSheetTitle"),
   guideSheetClose: document.getElementById("guideSheetClose"),
   guideSheetBody: document.getElementById("guideSheetBody"),
-  roundHintBanner: document.getElementById("roundHintBanner"),
-  roundHintText: document.getElementById("roundHintText"),
-  roundHintClose: document.getElementById("roundHintClose"),
+  spotlightOverlay: document.getElementById("spotlightOverlay"),
+  spotlightHole: document.getElementById("spotlightHole"),
+  spotlightCallout: document.getElementById("spotlightCallout"),
+  spotlightStepLabel: document.getElementById("spotlightStepLabel"),
+  spotlightText: document.getElementById("spotlightText"),
+  spotlightSkip: document.getElementById("spotlightSkip"),
+  spotlightNext: document.getElementById("spotlightNext"),
   menuSettingsBtn: document.getElementById("menuSettingsBtn"),
   progressSettingsBtn: document.getElementById("progressSettingsBtn"),
   toolsSettingsBtn: document.getElementById("toolsSettingsBtn"),
@@ -1381,10 +1385,11 @@ function enterMode(entry, realMode) {
     examSystem.setMode(realMode.MODE_ID);
     els.questionTitle.textContent = 'Başlamak için "Oyunu Başlat"a dokun.';
     els.questionMeta.textContent = "";
-    // Önceki modun round-içi ipucu bandı yeni moda SIZMASIN — showRoundHintIfNeeded
+    // Önceki modun spotlight turu yeni moda SIZMASIN — startSpotlightTourIfNeeded
     // zaten her startRound()'da yeniden değerlendirir, ama "Oyunu Başlat"a basılana
-    // kadarki idle görünümde eski modun bandı asılı kalmasın diye burada da kapatılır.
-    if (els.roundHintBanner) els.roundHintBanner.classList.add("hidden");
+    // kadarki idle görünümde eski modun karartması/deliği asılı kalmasın diye
+    // burada da kapatılır (tamamlanmamış sayılır, sayaç ETKİLENMEZ).
+    closeSpotlightTour(false);
     if (els.freqInfo) els.freqInfo.classList.add("hidden");
     if (els.answers) { els.answers.innerHTML = ""; els.answers.classList.add("hidden"); }
     updateStartBtnLabel();
@@ -3295,7 +3300,7 @@ function startRound() {
   if (els.sourceChipLabel && activeQuestion.mode !== "cakisma") els.sourceChipLabel.textContent = labelSource(activeQuestion.source);
   if (els.cakismaPairChipLabel && activeQuestion.mode === "cakisma") els.cakismaPairChipLabel.textContent = `${activeQuestion.pair.labelA} + ${activeQuestion.pair.labelB}`;
   renderQuestion();
-  showRoundHintIfNeeded();
+  startSpotlightTourIfNeeded();
   playQuestion(true);
   // G32: Motor 2 modlarında (Kompresör, G35'ten beri Reverb) A/B/C
   // karşılaştırması modun ÖZÜ (odd-one-out ancak üçünü de dinleyince
@@ -4245,28 +4250,143 @@ if (els.menuInfoBtn) els.menuInfoBtn.addEventListener("click", () => openGuideSh
 if (els.guideSheetClose) els.guideSheetClose.addEventListener("click", closeGuideSheet);
 if (els.guideSheetOverlay) els.guideSheetOverlay.addEventListener("click", closeGuideSheet);
 
-// "i" bilgi sistemi, GEÇİCİ round-içi ipucu bandı — bir modun İLK
-// HINT_ROUNDS_LIMIT round'unda görünür (bkz. core/guide-texts.js), sonra
-// otomatik açılmaz. startRound()'dan HER round'da çağrılır; kalıcı sayaç
-// (stats.perMode[modeId].hintRoundsShown) modeState() ile okunur/yazılır —
-// mekanik/ses/puanlamaya HİÇ dokunmaz, salt görsel bir bant.
-function showRoundHintIfNeeded() {
-  if (!els.roundHintBanner) return;
+// "i" bilgi sistemi, GEÇİCİ SPOTLIGHT rehber turu (G68 — basit ipucu
+// bandından YÜKSELTİLDİ, bkz. core/guide-texts.js:SPOTLIGHT_STEPS). Bir
+// modun İLK HINT_ROUNDS_LIMIT round'unda görünür, sonra otomatik açılmaz.
+// Kalıcı sayaç (stats.perMode[modeId].hintRoundsShown) G67'den DEĞİŞMEDİ —
+// AYNI alan, artık banner yerine turu tetikliyor.
+//
+// MİMARİ (KORUMA: mekanik/ses/puanlamaya HİÇ dokunmaz, salt görsel bir
+// katman): #spotlightOverlay'in TAMAMI pointer-events:none (styles.css) —
+// karartma/delik hiçbir gerçek tıklamayı ENGELLEMEZ, gerçek oyun elementi
+// deliğin altında NORMAL çalışmaya devam eder. Adım ilerlemesi İKİ yoldan:
+// (1) #spotlightNext ("İleri") — sıradaki adıma geçer; (2) o anki adımın
+// GERÇEK hedefiyle kullanıcı etkileşince (aşağıdaki document click
+// capture-listener, preventDefault/stopPropagation YOK — gerçek tıklama
+// NORMAL kendi handler'ına da ulaşır) — bu durumda sonraki adımın hedefi
+// AYNI elemente çözülüyorsa (çoğu modda "select"="confirm", choiceOnly
+// modların hepsinde TEK tıkla submit) tur doğrudan TAMAMLANMIŞ sayılır,
+// aynı kutuyu ikinci kez göstermez.
+let spotlightSteps = [];
+let spotlightIndex = 0;
+let spotlightModeId = null;
+let spotlightInteractionTarget = null;
+let spotlightResizeBound = false;
+
+// step.target ("listen"/"select"/"confirm") → GERÇEK DOM elementi. guide-
+// texts.js bu dosyaya hiç dokunmuyor (saf veri), çözüm burada — isChoiceFormat/
+// els zaten bu dosyanın kendi çalışma zamanı durumu.
+function resolveSpotlightTarget(targetKey, modeId) {
+  if (targetKey === "listen") return els.analyzer;
+  if (targetKey === "confirm" && modeId === "tonal-denge") {
+    return els.answers ? els.answers.querySelector(".tonal-submit") : null;
+  }
+  // "select" ve (tonal-denge DIŞINDAKİ) "confirm": choiceOnly modların
+  // HEPSİNDE (frekans-bulma HARİÇ) tek tıkla submit — seçmek zaten
+  // onaylamak demek, bkz. isChoiceFormat() notu. Aynı hedefe BİLEREK
+  // çözülüyor, ayrı bir "onayla" kontrolü İCAT edilmedi.
+  return isChoiceFormat() ? els.answers : els.analyzer;
+}
+
+function startSpotlightTourIfNeeded() {
+  if (!els.spotlightOverlay) return;
   const modeId = mode.getMeta().id;
-  const hintLine = formatRoundHint(modeId);
+  const steps = spotlightStepsFor(modeId);
   const ms = modeState();
-  if (hintLine && shouldShowRoundHint(ms.hintRoundsShown)) {
-    if (els.roundHintText) els.roundHintText.textContent = hintLine;
-    els.roundHintBanner.classList.remove("hidden");
-    ms.hintRoundsShown = (ms.hintRoundsShown || 0) + 1;
-    storage.saveStats(stats, history);
-  } else {
-    els.roundHintBanner.classList.add("hidden");
+  if (!steps || !shouldShowRoundHint(ms.hintRoundsShown)) {
+    closeSpotlightTour(false);
+    return;
+  }
+  spotlightSteps = steps;
+  spotlightModeId = modeId;
+  spotlightIndex = 0;
+  ms.hintRoundsShown = (ms.hintRoundsShown || 0) + 1;
+  storage.saveStats(stats, history);
+  renderSpotlightStep();
+}
+
+function renderSpotlightStep() {
+  const step = spotlightSteps[spotlightIndex];
+  if (!step) { closeSpotlightTour(true); return; }
+  const targetEl = resolveSpotlightTarget(step.target, spotlightModeId);
+  // Hedef şu an DOM'da yoksa (ör. beklenmedik bir UI durumu) o adımı ATLA —
+  // turu yarıda BOZUK göstermektense sessizce ilerlemek daha güvenli.
+  if (!targetEl) { spotlightIndex++; renderSpotlightStep(); return; }
+  spotlightInteractionTarget = targetEl;
+  els.spotlightOverlay.classList.remove("hidden");
+  // ÖNCE metni/etiketleri yaz, SONRA konumla — positionSpotlightCallout()
+  // callout'un offsetHeight/offsetWidth'ini okuyor, bu YENİ metnin
+  // boyutuyla ölçülmeli (önceki adımın stale boyutuyla DEĞİL).
+  if (els.spotlightText) els.spotlightText.textContent = step.text;
+  if (els.spotlightStepLabel) els.spotlightStepLabel.textContent = `${spotlightIndex + 1}/${spotlightSteps.length}`;
+  if (els.spotlightNext) els.spotlightNext.textContent = spotlightIndex === spotlightSteps.length - 1 ? "Anladım" : "İleri";
+  positionSpotlightHole(targetEl);
+  if (!spotlightResizeBound) {
+    spotlightResizeBound = true;
+    window.addEventListener("resize", () => {
+      if (!els.spotlightOverlay || els.spotlightOverlay.classList.contains("hidden")) return;
+      const el = resolveSpotlightTarget(spotlightSteps[spotlightIndex].target, spotlightModeId);
+      if (el) positionSpotlightHole(el);
+    });
   }
 }
-if (els.roundHintClose) els.roundHintClose.addEventListener("click", () => {
-  els.roundHintBanner.classList.add("hidden");
-});
+
+function positionSpotlightHole(targetEl) {
+  if (!els.spotlightHole) return;
+  const pad = 8;
+  const rect = targetEl.getBoundingClientRect();
+  els.spotlightHole.style.top = `${Math.max(0, rect.top - pad)}px`;
+  els.spotlightHole.style.left = `${Math.max(0, rect.left - pad)}px`;
+  els.spotlightHole.style.width = `${rect.width + pad * 2}px`;
+  els.spotlightHole.style.height = `${rect.height + pad * 2}px`;
+  positionSpotlightCallout(rect, pad);
+}
+
+function positionSpotlightCallout(rect, pad) {
+  if (!els.spotlightCallout) return;
+  const vh = window.innerHeight, vw = window.innerWidth;
+  const calloutH = els.spotlightCallout.offsetHeight || 110;
+  const calloutW = els.spotlightCallout.offsetWidth || 280;
+  const spaceBelow = vh - (rect.bottom + pad);
+  const top = spaceBelow > calloutH + 16
+    ? rect.bottom + pad + 12
+    : Math.max(12, rect.top - pad - calloutH - 12);
+  const left = Math.min(Math.max(12, rect.left), vw - calloutW - 12);
+  els.spotlightCallout.style.top = `${top}px`;
+  els.spotlightCallout.style.left = `${left}px`;
+}
+
+// GERÇEK oyun elementiyle etkileşim (dinlemek dışındaki adımlar — "select"/
+// "confirm") turu İLERLETİR, hiçbir zaman preventDefault/stopPropagation
+// ÇAĞIRMAZ (asıl click handler'lar NORMAL çalışmaya devam eder).
+document.addEventListener("click", e => {
+  if (!spotlightInteractionTarget) return;
+  if (!spotlightInteractionTarget.contains(e.target)) return;
+  const completedTarget = spotlightInteractionTarget;
+  const nextStep = spotlightSteps[spotlightIndex + 1];
+  const nextTarget = nextStep ? resolveSpotlightTarget(nextStep.target, spotlightModeId) : null;
+  // Sıradaki adım AYNI elemente çözülüyorsa (çoğu modda select===confirm),
+  // ikinci kez AYNI kutuyu göstermek yerine tur burada TAMAMLANMIŞ sayılır.
+  if (!nextStep || nextTarget === completedTarget) { closeSpotlightTour(true); return; }
+  spotlightIndex++;
+  renderSpotlightStep();
+}, true);
+
+function advanceSpotlightStep() {
+  spotlightIndex++;
+  if (spotlightIndex >= spotlightSteps.length) { closeSpotlightTour(true); return; }
+  renderSpotlightStep();
+}
+
+function closeSpotlightTour() {
+  if (els.spotlightOverlay) els.spotlightOverlay.classList.add("hidden");
+  spotlightInteractionTarget = null;
+  spotlightSteps = [];
+  spotlightIndex = 0;
+}
+
+if (els.spotlightNext) els.spotlightNext.addEventListener("click", advanceSpotlightStep);
+if (els.spotlightSkip) els.spotlightSkip.addEventListener("click", () => closeSpotlightTour(false));
 
 // G37: kulaklık uyarı sheet'i — "Bir daha gösterme" kutusunun durumu, prototipin
 // hpConfirm()'üyle AYNI şekilde SADECE onay (Kulaklığım takılı, başla) anında okunuyor,

@@ -6,10 +6,11 @@
 // İKİ AYRI mekanizma besleniyor:
 //  1. KALICI "i" ikonu (ana ekran + her mod kartı) — GENERAL_GUIDE +
 //     MODE_GUIDE_TEXTS. Tıkla-aç/tıkla-kapa, hiç solmaz.
-//  2. GEÇİCİ round-içi ipucu bandı — ROUND_HINT_STEPS. Bir modun İLK
-//     HINT_ROUNDS_LIMIT (2) round'unda görünür, sonra bir daha HİÇ
-//     otomatik açılmaz (kalıcı "i" hep durur, bu SADECE ilk-kullanım
-//     çarkı).
+//  2. GEÇİCİ SPOTLIGHT rehber turu — SPOTLIGHT_STEPS (G68'de basit ipucu
+//     bandından YÜKSELTİLDİ: artık ekranın etrafı kararıp adım adım
+//     öğeyi aydınlatan bir tur). Bir modun İLK HINT_ROUNDS_LIMIT (2)
+//     round'unda görünür, sonra bir daha HİÇ otomatik açılmaz (kalıcı "i"
+//     hep durur, bu SADECE ilk-kullanım çarkı). "Geç" ile her an atlanabilir.
 
 // ---- 1. Ana ekrandaki genel "i" — sistemi bir bütün olarak anlatır ----
 export const GENERAL_GUIDE = {
@@ -53,39 +54,89 @@ export const MODE_GUIDE_TEXTS = {
   distortion: "İki sesten hangisinin daha çok saturation/distortion taşıdığını bulursun. Saturation sıcaklık ve karakter katar (tube, tape), distortion sertlik. Türü ve miktarı duymak analog renk ile kontrolsüz bozulmayı ayırmaktır."
 };
 
-// ---- 3. Round-içi GEÇİCİ ipucu — ilk HINT_ROUNDS_LIMIT round'da görünür ----
-// Her mod için kısa bir "dinle → [mekaniğe özgü eylem] → onayla" dizisi.
-// app.js formatRoundHint() ile TEK satıra birleştirir ( → ile ayırıyor).
-export const ROUND_HINT_STEPS = {
-  "frekans-bulma": ["Sesi dinle", "Öne çıkan frekansı işaretle", "Cevabını onayla"],
-  "kesim-noktasi": ["Sesi dinle", "Kesim noktasını bul", "Cevabını onayla"],
-  "q-genisligi": ["Sesi dinle", "Bandın genişliğini tahmin et", "Cevabını onayla"],
-  "boost-mu-cut-mu": ["Sesi dinle", "Boost mu cut mu, karar ver", "Cevabını onayla"],
-  "db-seviyesi": ["Sesi dinle", "Seviye farkını tahmin et", "Cevabını onayla"],
-  kompresor: ["A/B/C'yi dinle", "Farklı olanı seç", "Cevabını onayla"],
-  reverb: ["A/B/C'yi dinle", "Farklı olanı seç", "Cevabını onayla"],
-  "tonal-denge": ["Sesi dinle", "Kaydırıcılarla dengele", "Cevabını onayla"],
-  "frekans-cakismasi": ["İki sesi dinle", "Çakışmayı bul ve kes", "Cevabını onayla"],
-  distortion: ["A/B/C'yi dinle", "Farklı olanı seç", "Cevabını onayla"]
+// ---- 3. SPOTLIGHT rehber turu — ilk HINT_ROUNDS_LIMIT round'da görünür ----
+// Her adım {target, text}: target SEMBOLİK bir anahtar ("listen"/"select"/
+// "confirm"), GERÇEK DOM elementine app.js:resolveSpotlightTarget() çevirir
+// (bu dosya DOM'a hiç dokunmaz, level-sheet-terms.js'in AYNI "saf veri" ilkesi
+// — bkz. CLAUDE.md). "select" ile "confirm" ÇOĞU modda AYNI hedefe çözülür
+// (choiceOnly modların hepsinde tek tıkla submit — seçmek zaten onaylamak
+// demek, bkz. isChoiceFormat notu app.js'te) — bu BİLİNÇLİ bir tekrar, ayrı
+// bir "onayla" kontrolü İCAT edilmedi. Tonal Denge tek istisna: gerçek ayrı
+// bir ".tonal-submit" butonu var, "confirm" ONA çözülüyor.
+//
+// Frekans Çakışması'nda SADECE 2 adım var (dinle+seç) — task'ın kendi notu
+// "aşamalara göre devam": mod zaten çok-aşamalı (stage 1/2/3), her aşamanın
+// KENDİ soru başlığı/talimatı (bkz. frekans-cakismasi.js:getInstructionText)
+// ekranda ZATEN gösteriliyor — spotlight bunu TEKRARLAMIYOR, sadece İLK
+// "dinle → seç" adımını öğretiyor.
+export const SPOTLIGHT_STEPS = {
+  "frekans-bulma": [
+    { target: "listen", text: "Önce sesi dinle." },
+    { target: "select", text: "Öne çıkan frekansı işaretle." },
+    { target: "confirm", text: "Dokunman cevabını hemen onaylar." }
+  ],
+  "kesim-noktasi": [
+    { target: "listen", text: "Önce sesi dinle." },
+    { target: "select", text: "Kesim noktasını seç." },
+    { target: "confirm", text: "Seçimin cevabını hemen onaylar." }
+  ],
+  "q-genisligi": [
+    { target: "listen", text: "Önce sesi dinle." },
+    { target: "select", text: "Bandın genişliğini seç." },
+    { target: "confirm", text: "Seçimin cevabını hemen onaylar." }
+  ],
+  "boost-mu-cut-mu": [
+    { target: "listen", text: "Önce sesi dinle." },
+    { target: "select", text: "Boost mu cut mu, karar ver." },
+    { target: "confirm", text: "Seçimin cevabını hemen onaylar." }
+  ],
+  "db-seviyesi": [
+    { target: "listen", text: "Önce sesi dinle." },
+    { target: "select", text: "Seviye farkını seç." },
+    { target: "confirm", text: "Seçimin cevabını hemen onaylar." }
+  ],
+  kompresor: [
+    { target: "listen", text: "Üç sesi (A/B/C) dinle." },
+    { target: "select", text: "Farklı olan kartı seç." },
+    { target: "confirm", text: "Kartı seçmen cevabını onaylar." }
+  ],
+  reverb: [
+    { target: "listen", text: "Üç sesi (A/B/C) dinle." },
+    { target: "select", text: "Farklı olan kartı seç." },
+    { target: "confirm", text: "Kartı seçmen cevabını onaylar." }
+  ],
+  distortion: [
+    { target: "listen", text: "Üç sesi (A/B/C) dinle." },
+    { target: "select", text: "Farklı olan kartı seç." },
+    { target: "confirm", text: "Kartı seçmen cevabını onaylar." }
+  ],
+  "tonal-denge": [
+    { target: "listen", text: "Bozuk sesi dinle." },
+    { target: "select", text: "Kaydırıcılarla nötüre getir." },
+    { target: "confirm", text: "Cevabı Onayla'ya dokun." }
+  ],
+  "frekans-cakismasi": [
+    { target: "listen", text: "Çakışan iki sesi birlikte dinle." },
+    { target: "select", text: "Nerede çakıştıklarını şıklardan bul." }
+  ]
 };
 
-// Kaç round boyunca ipucu bandı otomatik gösterilir — task'ın kendi sayısı
+// Kaç round boyunca spotlight turu otomatik gösterilir — task'ın kendi sayısı
 // ("ilk 2 kez"). Bu SAYIYI TEK yerden okumak için export edildi (app.js
 // bunu sihirli sayı olarak KENDİSİ tekrarlamıyor).
 export const HINT_ROUNDS_LIMIT = 2;
 
-// SAF FONKSİYON — hintRoundsShown: o modda BUGÜNE kadar ipucu GÖSTERİLMİŞ
+// SAF FONKSİYON — hintRoundsShown: o modda BUGÜNE kadar tur GÖSTERİLMİŞ
 // round sayısı (persisted, storage.js:freshModeState). true dönerse BU
-// round'da ipucu gösterilmeli.
+// round'da spotlight turu gösterilmeli.
 export function shouldShowRoundHint(hintRoundsShown) {
   return (hintRoundsShown || 0) < HINT_ROUNDS_LIMIT;
 }
 
-// SAF FONKSİYON — modId için ROUND_HINT_STEPS'i TEK okunabilir satıra
-// birleştirir ("Sesi dinle → Farklı olanı seç → Cevabını onayla"). Kayıtlı
-// olmayan bir modId için null döner (çağıran taraf bandı hiç göstermez).
-export function formatRoundHint(modeId) {
-  const steps = ROUND_HINT_STEPS[modeId];
-  if (!steps || !steps.length) return null;
-  return steps.join(" → ");
+// SAF FONKSİYON — modId için SPOTLIGHT_STEPS dizisini döndürür (kayıtlı
+// değilse null — çağıran taraf turu hiç başlatmaz). app.js bu diziyi
+// GERÇEK DOM elementlerine kendi resolveSpotlightTarget()'ıyla çözer.
+export function spotlightStepsFor(modeId) {
+  const steps = SPOTLIGHT_STEPS[modeId];
+  return steps && steps.length ? steps : null;
 }

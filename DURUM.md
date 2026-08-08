@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G67)
+Son güncelleme: 08.08.2026 (G68)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,121 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G67, tek commit) — **"i" bilgi/rehber sistemi: KALICI "i" ikonu
+Bu commit (G68, tek commit) — **İpuçları SPOTLIGHT rehberli tura yükseltildi:
+karartma + adım adım yönlendirme.** G67'nin basit ipucu bandı ("Sesi dinle →
+Farklı olanı seç → Cevabını onayla" TEK satır metin) YETERSİZDİ — task'ın
+kendi kararıyla tam bir spotlight/coach-mark deneyimine dönüştürüldü.
+
+**SPOTLIGHT MEKANİĞİ:** `#spotlightOverlay` (fixed, tüm ekran) + `#spotlightHole`
+(klasik CSS spotlight hilesi: `box-shadow:0 0 0 9999px rgba(6,8,14,.72)` —
+elementin ETRAFINI karartır, elementin kendisi hiç boyanmaz, SVG mask'e gerek
+yok) + `#spotlightCallout` (yönlendirme metni + "Geç"/"İleri" butonları,
+hedefin altına/üstüne otomatik konumlanır — `getBoundingClientRect()` ile HER
+adımda canlı hesaplanır, `resize`'da yeniden konumlanır). **TÜM overlay
+`pointer-events:none`** (SADECE callout `auto`) — karartma/delik HİÇBİR
+gerçek tıklamayı ENGELLEMEZ, hedef elementin altındaki GERÇEK oyun kontrolü
+NORMAL çalışmaya devam eder (KORUMA: mekanik tek satır değişmedi).
+
+**ADIM İLERLEMESİ İKİ YOLDAN:** (1) `#spotlightNext` ("İleri"/son adımda
+"Anladım") — manuel sıradaki adım; (2) o anki adımın GERÇEK hedefiyle
+kullanıcı etkileşince — `document`'a capture-phase'te eklenen bir click
+dinleyicisi (`preventDefault`/`stopPropagation` YOK, asıl handler'lar HİÇ
+etkilenmez) `spotlightInteractionTarget.contains(e.target)` kontrolüyle
+algılıyor. Sıradaki adımın hedefi AYNI elemente çözülüyorsa (10 moddan
+9'unda — choiceOnly modların HEPSİNDE tek tıkla submit, "seçmek" zaten
+"onaylamak" demek — bkz. aşağıdaki `resolveSpotlightTarget` notu) tur
+DOĞRUDAN tamamlanmış sayılır, aynı kutuyu ikinci kez göstermez.
+
+**HER MODUN KENDİ ADIMLARI** (`core/guide-texts.js:SPOTLIGHT_STEPS`, YENİ —
+G67'nin `ROUND_HINT_STEPS`'inin YERİNE geçti, `formatRoundHint` kaldırıldı):
+her adım `{target, text}` — `target` SEMBOLİK bir anahtar
+("listen"/"select"/"confirm"), guide-texts.js bu dosya DOM'a hiç dokunmadan
+(level-sheet-terms.js'in AYNI "saf veri" ilkesi) sadece BU anahtarları taşır;
+GERÇEK DOM elementine çözümü `app.js:resolveSpotlightTarget(key, modeId)`
+yapıyor:
+- `"listen"` → HER modda `#analyzer` (spektrum kartı, ortak/paylaşılan
+  görselleştirme — CLAUDE.md'nin "tek paylaşılan analyser" notuyla tutarlı).
+- `"select"`/`"confirm"` (tonal-denge HARİÇ) → `isChoiceFormat() ? #answers :
+  #analyzer` — choiceOnly 9 modun hepsi `#answers`'a, SADECE Frekans
+  Bulma'nın dokunmalı formatı `#analyzer`'a (kanvas dokunuşu zaten cevabı
+  submit ediyor) çözülür. `"select"` ile `"confirm"` BİLEREK AYNI hedefe
+  çözülüyor — ayrı bir "onayla" kontrolü İCAT edilmedi, seçim zaten onay.
+- `"confirm"` + `tonal-denge` → TEK istisna: gerçek ayrı bir buton var
+  (`#answers .tonal-submit`), ona çözülür.
+
+**Motor 1 (Frekans Bulma/Kesim Noktası/dB Seviyesi/Boost-Cut/Q Genişliği) —
+3 adım:** listen "Önce sesi dinle." → select (mod-özel: "Öne çıkan frekansı
+işaretle."/"Kesim noktasını seç."/"Seviye farkını seç."/"Boost mu cut mu,
+karar ver."/"Bandın genişliğini seç.") → confirm ("...cevabını hemen
+onaylar.").
+**Motor 2 (Kompresör/Reverb/Distortion) — 3 adım:** listen "Üç sesi (A/B/C)
+dinle." → select "Farklı olan kartı seç." → confirm "Kartı seçmen cevabını
+onaylar."
+**Tonal Denge — 3 adım, GERÇEKTEN ayrı hedefli:** listen "Bozuk sesi dinle."
+→ select "Kaydırıcılarla nötüre getir." (`#answers`, sliderlar) → confirm
+"Cevabı Onayla'ya dokun." (`.tonal-submit`, AYRI bir buton).
+**Frekans Çakışması — BİLİNÇLİ olarak SADECE 2 adım:** listen "Çakışan iki
+sesi birlikte dinle." → select "Nerede çakıştıklarını şıklardan bul." — mod
+zaten çok-aşamalı (stage 1/2/3), her aşamanın KENDİ soru başlığı/talimatı
+(`frekans-cakismasi.js:getInstructionText`) ZATEN ekranda gösteriliyor,
+spotlight bunu TEKRARLAMADI — task'ın kendi notu ("aşamalara göre devam").
+
+**NE ZAMAN/NE KADAR — G67'den DEĞİŞMEDİ:** AYNI `stats.perMode[modeId].
+hintRoundsShown` sayacı, AYNI `HINT_ROUNDS_LIMIT`=2, AYNI `shouldShowRoundHint()`.
+`startRound()`'daki çağrı `showRoundHintIfNeeded()` → `startSpotlightTourIfNeeded()`
+olarak yeniden adlandırıldı, davranışı AYNI konumda (`renderQuestion()`'dan
+hemen sonra) çalışıyor. "Geç" (`#spotlightSkip`) turu HER an kapatır, sayaç
+GERİ ALINMAZ (zaten "gösterildi" sayılır — G67'nin "×" davranışıyla AYNI
+karar). Mod değiştirilince (`enterMode`) önceki modun turu `closeSpotlightTour(false)`
+ile kapanır — yeni moda SIZMAZ. Kalıcı "i" ikonu (`guideSheet`) BUNDAN
+TAMAMEN BAĞIMSIZ — hiç dokunulmadı, hep durur.
+
+**YENİ test:** `test/guide-texts.test.mjs` YENİDEN YAZILDI —
+`ROUND_HINT_STEPS`/`formatRoundHint` testleri SPOTLIGHT_STEPS/spotlightStepsFor
+testleriyle DEĞİŞTİRİLDİ: 9 modun 3 adımlı (listen ile başlar, confirm ile
+biter) + Frekans Çakışması'nın 2 adımlı olduğu, HER adımın geçerli
+target+text taşıdığı, Tonal Denge'nin select/confirm metinlerinin GERÇEKTEN
+farklı olduğu (kaydırıcı/onayla kelimeleri) GERÇEK 10 playable mod
+listesiyle (mock değil) doğrulanıyor. `shouldShowRoundHint` testleri G67'den
+DEĞİŞMEDİ (aynı sınır-değer testleri). `test/storage.test.mjs`'in
+`hintRoundsShown` migration testlerine dokunulmadı (alan/anlam AYNI, sadece
+onu tüketen UI değişti).
+
+**Doğrulama:**
+- `npm test`: **982/982** (980 → +2: `guide-texts.test.mjs`'in yeniden
+  yazımı net +2 assertion getirdi — 3-adım/2-adım şekil kontrolleri eklendi,
+  eski `formatRoundHint` testleri kaldırıldı).
+- Kod incelemesiyle doğrulanan (DOM/canlı test YAPILAMADI, bkz. aşağı):
+  `els.spotlight*` HEPSİ `index.html`'deki gerçek id'lerle eşleşiyor;
+  `resolveSpotlightTarget` 10 modun HEPSİNDE `isChoiceFormat()`/
+  `THREE_WAY_MODE_IDS` ile AYNI mantığı kullanıyor (yeni bir format-tespiti
+  İCAT etmedi, var olanı ÇAĞIRDI); `positionSpotlightHole`/
+  `positionSpotlightCallout` metni/etiketleri YAZDIKTAN SONRA ölçüyor (bir
+  düzeltme turu: ilk yazımda callout konumu ESKİ adımın boyutuyla
+  ölçülüyordu, `offsetHeight` okumasından ÖNCE metin ataması gereken sıraya
+  çekildi); document click-capture dinleyicisi `preventDefault`/
+  `stopPropagation` HİÇ ÇAĞIRMIYOR (asıl handler'lar etkilenmiyor);
+  `#spotlightOverlay` `z-index:75` — tabbar'ın (59/60) üstünde, sheet
+  overlay'lerin (90/91) ALTINDA, sınav sheet'leriyle çakışırsa onlar üstte
+  kalır.
+- **Dürüstlük notu — CANLI/cihaz doğrulaması YİNE YAPILAMADI** (tarayıcı
+  eklentisi bu oturumda da bağlı değildi): karartma/delik efektinin
+  GERÇEKTEN doğru öğeye oturduğu, callout'un ekran kenarında taşmadığı,
+  adım geçişlerinin (hem "İleri" hem GERÇEK tıklamayla) GERÇEKTEN akıcı
+  çalıştığı, 10 modun HER BİRİNİN doğru elementi aydınlattığı gözle
+  DOĞRULANMADI. Bu, G67'nin AÇIK İŞLER madde 14'ünün kapsamını GENİŞLETİYOR
+  (aşağıya bkz.) — kod incelemesi + 982 test + satır-satır kablolama
+  kontrolü kadarı garanti.
+
+**KORUMA:** 10 mod/ses/zorluk/sınav/paywall/"i" bilgi sistemi (guideSheet,
+GENERAL_GUIDE, MODE_GUIDE_TEXTS) TEK SATIR değişmedi — SADECE GEÇİCİ ipucu
+katmanının GÖRSEL MEKANİĞİ (banner → spotlight) değişti. `createQuestion`/
+`evaluateAnswer`/`applyProcessing`/zorluk eğrileri/paywall/`openGuideSheet`
+hiçbiri dokunulmadı.
+
+---
+
+Önceki commit (G67, tek commit) — **"i" bilgi/rehber sistemi: KALICI "i" ikonu
 (ana ekran + her mod kartı) + GEÇİCİ ilk-2-oyun ipuçları.** Kullanıcı
 seviye/sınav sistemini bilmiyordu, keşfedilmeden kalıyordu — ayrı bir yardım
 menüsü İSTENMEDİ, akış içinde iki katman kuruldu:
@@ -4806,18 +4920,32 @@ tamamının dinamik bir aralık alacak şekilde refactor edilmesi (tıklama→Hz
 haritalamasını da etkiliyor, riskli) — ayrı bir iş, bu turun kapsamı
 dışında bırakıldı (kullanıcı kararı).
 
-**14. G67 "i" bilgi/rehber sistemi — CANLI/cihaz doğrulaması hiç yapılmadı**
-Kod incelemesi + 980 test geçti ama tarayıcıda GERÇEKTEN denenmedi (bkz. G67
-kaydındaki dürüstlük notu). Üç ayrı davranış hâlâ gözle görülmeli:
+**14. G67/G68 "i" bilgi/rehber sistemi + SPOTLIGHT turu — CANLI/cihaz
+doğrulaması hiç yapılmadı**
+Kod incelemesi + 982 test geçti ama tarayıcıda GERÇEKTEN denenmedi (bkz.
+G67/G68 kayıtlarındaki dürüstlük notları). Gözle görülmesi gereken
+davranışlar:
 (1) ana ekran `#menuInfoBtn` ve mod kartlarındaki `.mode-info-btn`
 tıklanınca `#guideSheet` doğru içerikle açılıp `×`/overlay ile kapanıyor mu,
-(2) bir modu ilk kez oynarken `#roundHintBanner` GERÇEKTEN görünüyor mu, 2.
-round'dan sonra bir daha çıkmıyor mu (localStorage'da `hintRoundsShown`
-gerçekten artıyor mu), (3) sheet içeriği (özellikle GENERAL_GUIDE'ın 5
-bölümü) küçük ekranda taşmadan/kesilmeden okunuyor mu.
-**Kabul kriteri:** yukarıdaki 3 davranışın HEPSİ gerçek cihaz/tarayıcıda
-elle denenip doğrulandı, taslak metinler kullanıcı tarafından gözden
-geçirilip gerekiyorsa `guide-texts.js`'te düzeltildi.
+(2) sheet içeriği (özellikle GENERAL_GUIDE'ın 5 bölümü) küçük ekranda
+taşmadan/kesilmeden okunuyor mu,
+(3) **[G68]** bir modu ilk kez oynarken SPOTLIGHT turu GERÇEKTEN çıkıyor mu
+(ekranın etrafı kararıp doğru öğe aydınlanıyor mu, `#spotlightHole`
+GERÇEKTEN hedef elementin üzerine oturuyor mu — 10 modun HEPSİNDE ayrı ayrı,
+`resolveSpotlightTarget`'ın `isChoiceFormat()`/tonal-submit/analyzer
+çözümlemesi doğru mu),
+(4) **[G68]** adım geçişi hem "İleri" hem GERÇEK tıklamayla (dinle→seç→onayla
+akışı, hedefin ALTINDAKİ gerçek buton/kart/kaydırıcı NORMAL tıklanabiliyor
+mu — karartma hiçbir tıklamayı ENGELLEMİYOR mu) çalışıyor mu,
+(5) 2. round'dan sonra tur bir daha çıkmıyor mu (localStorage'da
+`hintRoundsShown` gerçekten artıyor mu), "Geç" çalışıyor mu, kalıcı "i"
+bundan bağımsız hep duruyor mu,
+(6) **[G68]** callout (yönlendirme kutusu) ekran kenarında/küçük ekranda
+taşmadan konumlanıyor mu.
+**Kabul kriteri:** yukarıdaki 6 davranışın HEPSİ gerçek cihaz/tarayıcıda
+elle denenip doğrulandı, taslak metinler (hem `MODE_GUIDE_TEXTS` hem
+`SPOTLIGHT_STEPS`) kullanıcı tarafından gözden geçirilip gerekiyorsa
+`guide-texts.js`'te düzeltildi.
 
 ### Yayın öncesi
 
@@ -4945,8 +5073,8 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G67 itibarıyla):** AÇIK İŞLER madde 14 — G67'nin "i"
-bilgi/rehber sistemini (kalıcı "i" ikonu + ilk-2-oyun ipuçları) gerçek
+**Tek sonraki adım (G68 itibarıyla):** AÇIK İŞLER madde 14 — G67/G68'in "i"
+bilgi/rehber sistemini (kalıcı "i" ikonu + SPOTLIGHT rehber turu) gerçek
 tarayıcı/cihazda elle deneyip taslak metinleri gözden geçirmek. Aşağıdaki
 liste (G59 itibarıyla güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük
 zorluk-mimarisi işlerini kapsıyor.

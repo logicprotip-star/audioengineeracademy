@@ -358,18 +358,36 @@
     }
     .qline-sub{margin:-2px 2px 0;font-size:13px;line-height:1.5;color:var(--tx-3)}
 
-    /* "i" bilgi sistemi, GEÇİCİ round-içi ipucu bandı — bir modun İLK 2
-       round'unda görünür, sonra solar/kaybolur (bkz. core/guide-texts.js +
-       app.js:showRoundHintIfNeeded). Kalıcı "i" ikonundan (.info-btn) AYRI. */
-    #roundHintBanner{
-      margin:10px 2px 14px;padding:11px 13px;border-radius:14px;
-      background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.28);
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
+    /* "i" bilgi sistemi, GEÇİCİ SPOTLIGHT rehber turu (G68, basit ipucu
+       bandından YÜKSELTİLDİ) — bir modun İLK 2 round'unda görünür, sonra
+       otomatik çıkmaz (bkz. core/guide-texts.js + app.js:
+       startSpotlightTourIfNeeded). Kalıcı "i" ikonundan (.info-btn) TAMAMEN
+       AYRI. #spotlightOverlay'in TAMAMI pointer-events:none — karartma/delik
+       HİÇBİR gerçek tıklamayı engellemez (KORUMA: mekanik dokunulmadı),
+       sadece #spotlightCallout (metin+butonlar) tıklanabilir. */
+    #spotlightOverlay{position:fixed;inset:0;z-index:75;pointer-events:none}
+    /* Delik efekti: KLASİK CSS spotlight hilesi — devasa box-shadow spread'i
+       (9999px) elementin ETRAFINI karartır, elementin KENDİSİ (arka planı
+       şeffaf) hiç boyanmaz — SVG mask'e gerek yok, hafif ve GPU-dostu. */
+    #spotlightHole{
+      position:fixed;border-radius:16px;box-shadow:0 0 0 9999px rgba(6,8,14,.72);
+      pointer-events:none;
+      transition:top .28s cubic-bezier(.4,0,.2,1),left .28s cubic-bezier(.4,0,.2,1),
+        width .28s cubic-bezier(.4,0,.2,1),height .28s cubic-bezier(.4,0,.2,1);
     }
-    #roundHintBanner span#roundHintText{font-size:14px;line-height:1.5;color:var(--tx-2)}
-    #roundHintBanner button#roundHintClose{
-      flex:none;font-size:18px;line-height:1;color:var(--tx-3);background:none;border:none;padding:4px;
+    #spotlightCallout{
+      position:fixed;max-width:min(300px, calc(100vw - 24px));padding:14px 16px;
+      border-radius:16px;background:#10141F;border:1px solid rgba(255,176,32,.35);
+      box-shadow:0 10px 30px rgba(0,0,0,.45);pointer-events:auto;
+      transition:top .28s cubic-bezier(.4,0,.2,1),left .28s cubic-bezier(.4,0,.2,1);
     }
+    #spotlightStepLabel{font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--am)}
+    #spotlightText{margin:6px 0 0;font-size:15px;line-height:1.45;color:var(--tx)}
+    #spotlightActions{display:flex;justify-content:flex-end;align-items:center;gap:14px;margin-top:12px}
+    #spotlightActions button{font-size:14px;font-weight:700;border-radius:11px;border:none;padding:8px 14px}
+    #spotlightSkip{background:none;color:var(--tx-3);padding:8px 4px}
+    #spotlightNext{background:var(--am);color:#1A1206}
+    #spotlightNext:active{background:var(--am-2, var(--am))}
 
     /* ---- spektrum paneli (3 aşamalı: ask / hint / done) ---- */
     .analyzer{padding:12px 13px 10px}
