@@ -5,7 +5,7 @@
 //
 // İKİ AYRI mekanizma besleniyor:
 //  1. KALICI "i" ikonu (ana ekran + her mod kartı) — GENERAL_GUIDE +
-//     MODE_GUIDE_TEXTS. Tıkla-aç/tıkla-kapa, hiç solmaz.
+//     MODE_GUIDE_TEXTS + MODE_OPTIONS_TEXTS. Tıkla-aç/tıkla-kapa, hiç solmaz.
 //  2. GEÇİCİ SPOTLIGHT rehber turu — SPOTLIGHT_STEPS (G68'de basit ipucu
 //     bandından YÜKSELTİLDİ: artık ekranın etrafı kararıp adım adım
 //     öğeyi aydınlatan bir tur). Bir modun İLK HINT_ROUNDS_LIMIT (2)
@@ -54,15 +54,65 @@ export const MODE_GUIDE_TEXTS = {
   distortion: "İki sesten hangisinin daha çok saturation/distortion taşıdığını bulursun. Saturation sıcaklık ve karakter katar (tube, tape), distortion sertlik. Türü ve miktarı duymak analog renk ile kontrolsüz bozulmayı ayırmaktır."
 };
 
+// ---- 2b. Mod başına "i" — OYUN SEÇENEKLERİ (G69) ----
+// MODE_GUIDE_TEXTS'in ALTINA eklenir (ne öğretir metnine DOKUNULMADI, app.js
+// bunu AYRI bir bölüm olarak render ediyor). Her satır KODDA GERÇEKTEN VAR
+// olan seçeneklere göre yazıldı — uydurma YOK, kaynak kontrolü aşağıda:
+//  - Kaynak/upload: TÜM modlarda `getMeta().uyumluKaynaklar` "upload" içerir
+//    (compatibleSourceIds() varsayılanı hariç TUTMUYOR — bkz. source-catalog.js),
+//    TEK istisna Frekans Çakışması (kendi ayrı kaynak-ÇİFTİ + "own" iki-dosya
+//    upload'ı var, uyumluKaynaklar BİLEREK boş, bkz. frekans-cakismasi.js).
+//  - "Karıştır" (mixToggle): pickRoundSource() (app.js) SADECE tek-kaynak
+//    `sourceSelect`'i okur — Frekans Çakışması bunu HİÇ kullanmaz (kendi
+//    cakismaPairSelect'i var), bu yüzden cakisma metninde YOK. Tonal Denge'nin
+//    kaynak havuzu (`only:["groove","upload"]`) "Karıştır" açıkken upload HARİÇ
+//    tutulduğundan (bkz. pickRoundSource: `s.kind !== "upload"`) TEK aday
+//    ("groove") kalır — fiilen etkisiz, bu yüzden Tonal Denge metninde de YOK.
+//  - Dokunmalı/Şıklı format seçimi: SADECE Frekans Bulma'da GERÇEK bir seçim
+//    (isChoiceFormat() diğer 9 modu HER ZAMAN şıklıya zorluyor, chip'in
+//    kendisi app.js:syncAnswerFormatVisibility ile o 9 modda GİZLENİYOR).
+//  - Odak aralığı (Bas/Orta/Tiz/Tüm spektrum): SADECE Frekans Bulma'da
+//    (`mode.FOCUS_RANGES` sadece frekans-bulma.js'te tanımlı).
+//  - "A/B Test" (dry/işlenmiş karşılaştırma): cakisma HARİÇ diğer 9 modda
+//    `#abToggle` görünür (bkz. syncCakismaVisibility) — three-way üç modda
+//    (Kompresör/Reverb/Distortion) AYNI buton A/B/C döngüye dönüşür.
+//  - Frekans Çakışması'nın "Önce/Sonra" karşılaştırması SADECE stage 3'te
+//    doğru cevap sonrası açılır (`#cakismaCompare`) — mevcut, ayrıca yazıldı.
+export const MODE_OPTIONS_TEXTS = {
+  "frekans-bulma": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Dokunmalı/Şıklı cevap biçimini seçebilen TEK mod budur. Odak aralığıyla (Bas/Orta/Tiz) belirli bir bölgeye odaklanabilirsin. Bilemezsen 'Atla'ya dokun.",
+  "kesim-noktasi": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le kesim öncesi/sonrası sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
+  "q-genisligi": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
+  "boost-mu-cut-mu": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
+  "db-seviyesi": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
+  kompresor: "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun.",
+  reverb: "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun.",
+  distortion: "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun.",
+  "tonal-denge": "Kaynağı 'Davul Döngüsü' ya da kendi yüklediğin mix arasında seçebilirsin. 'A/B Test'le düzeltmeden önceki/sonraki sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
+  "frekans-cakismasi": "Kaynak çiftini (Kick+Bas/Vokal+Gitar/Snare+Gitar) seçebilir, ya da kendi iki sesini yükleyebilirsin. Kestikten sonra 'Önce/Sonra' ile maskeyi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun."
+};
+
 // ---- 3. SPOTLIGHT rehber turu — ilk HINT_ROUNDS_LIMIT round'da görünür ----
-// Her adım {target, text}: target SEMBOLİK bir anahtar ("listen"/"select"/
-// "confirm"), GERÇEK DOM elementine app.js:resolveSpotlightTarget() çevirir
-// (bu dosya DOM'a hiç dokunmaz, level-sheet-terms.js'in AYNI "saf veri" ilkesi
-// — bkz. CLAUDE.md). "select" ile "confirm" ÇOĞU modda AYNI hedefe çözülür
-// (choiceOnly modların hepsinde tek tıkla submit — seçmek zaten onaylamak
-// demek, bkz. isChoiceFormat notu app.js'te) — bu BİLİNÇLİ bir tekrar, ayrı
-// bir "onayla" kontrolü İCAT edilmedi. Tonal Denge tek istisna: gerçek ayrı
-// bir ".tonal-submit" butonu var, "confirm" ONA çözülüyor.
+// Her adım {target, text}: target SEMBOLİK bir anahtar ("listen"/"abControl"/
+// "select"/"confirm"), GERÇEK DOM elementine app.js:resolveSpotlightTarget()
+// çevirir (bu dosya DOM'a hiç dokunmaz, level-sheet-terms.js'in AYNI "saf
+// veri" ilkesi — bkz. CLAUDE.md). "select" ile "confirm" ÇOĞU modda AYNI
+// hedefe çözülür (choiceOnly modların hepsinde tek tıkla submit — seçmek
+// zaten onaylamak demek, bkz. isChoiceFormat notu app.js'te) — bu BİLİNÇLİ
+// bir tekrar, ayrı bir "onayla" kontrolü İCAT edilmedi. Tonal Denge tek
+// istisna: gerçek ayrı bir ".tonal-submit" butonu var, "confirm" ONA çözülüyor.
+//
+// G69: "abControl" adımı EKLENDİ — #abToggle'ın KENDİSİ modun tipine göre İKİ
+// FARKLI GERÇEK kontrole karşılık gelir (bkz. app.js:updateAbToggleUI):
+// three-way 3 modda (Kompresör/Reverb/Distortion) A/B/C DÖNGÜ (uzun bas
+// başlatır, tekrar dokun durdurur); diğer 6 modda (Frekans Çakışması HARİÇ)
+// dry/işlenmiş A/B KARŞILAŞTIRMA (tek dokunuş). Frekans Çakışması'nda
+// #abToggle GİZLİ (bkz. syncCakismaVisibility) — bu yüzden o modun dizisinde
+// "abControl" adımı YOK, uydurulmadı.
+//
+// "Durdur"/"Atla" (startBtn/nextBtn) İKİ AYRI kendi kutusu almıyor — HER
+// modda ZATEN aynı, kendini açıklayan (buton metni "Atla ▶"/"Durdur")
+// evrensel kontroller — "spotlight çok uzamasın" dengesi için SON adımın
+// (confirm/select) metnine kısa bir hatırlatma olarak katlandı.
 //
 // Frekans Çakışması'nda SADECE 2 adım var (dinle+seç) — task'ın kendi notu
 // "aşamalara göre devam": mod zaten çok-aşamalı (stage 1/2/3), her aşamanın
@@ -72,52 +122,61 @@ export const MODE_GUIDE_TEXTS = {
 export const SPOTLIGHT_STEPS = {
   "frekans-bulma": [
     { target: "listen", text: "Önce sesi dinle." },
+    { target: "abControl", text: "'A/B Test'e dokun: temiz ile işlenmiş sesi karşılaştır." },
     { target: "select", text: "Öne çıkan frekansı işaretle." },
-    { target: "confirm", text: "Dokunman cevabını hemen onaylar." }
+    { target: "confirm", text: "Dokunman cevabını hemen onaylar. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ],
   "kesim-noktasi": [
     { target: "listen", text: "Önce sesi dinle." },
+    { target: "abControl", text: "'A/B Test'e dokun: kesim öncesi/sonrası sesi karşılaştır." },
     { target: "select", text: "Kesim noktasını seç." },
-    { target: "confirm", text: "Seçimin cevabını hemen onaylar." }
+    { target: "confirm", text: "Seçimin cevabını hemen onaylar. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ],
   "q-genisligi": [
     { target: "listen", text: "Önce sesi dinle." },
+    { target: "abControl", text: "'A/B Test'e dokun: temiz ile işlenmiş sesi karşılaştır." },
     { target: "select", text: "Bandın genişliğini seç." },
-    { target: "confirm", text: "Seçimin cevabını hemen onaylar." }
+    { target: "confirm", text: "Seçimin cevabını hemen onaylar. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ],
   "boost-mu-cut-mu": [
     { target: "listen", text: "Önce sesi dinle." },
+    { target: "abControl", text: "'A/B Test'e dokun: temiz ile işlenmiş sesi karşılaştır." },
     { target: "select", text: "Boost mu cut mu, karar ver." },
-    { target: "confirm", text: "Seçimin cevabını hemen onaylar." }
+    { target: "confirm", text: "Seçimin cevabını hemen onaylar. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ],
   "db-seviyesi": [
     { target: "listen", text: "Önce sesi dinle." },
+    { target: "abControl", text: "'A/B Test'e dokun: temiz ile işlenmiş sesi karşılaştır." },
     { target: "select", text: "Seviye farkını seç." },
-    { target: "confirm", text: "Seçimin cevabını hemen onaylar." }
+    { target: "confirm", text: "Seçimin cevabını hemen onaylar. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ],
   kompresor: [
     { target: "listen", text: "Üç sesi (A/B/C) dinle." },
+    { target: "abControl", text: "Karta uzun bas: A/B/C arasında otomatik döngü başlar, tekrar dokun durur." },
     { target: "select", text: "Farklı olan kartı seç." },
-    { target: "confirm", text: "Kartı seçmen cevabını onaylar." }
+    { target: "confirm", text: "Kartı seçmen cevabını onaylar. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ],
   reverb: [
     { target: "listen", text: "Üç sesi (A/B/C) dinle." },
+    { target: "abControl", text: "Karta uzun bas: A/B/C arasında otomatik döngü başlar, tekrar dokun durur." },
     { target: "select", text: "Farklı olan kartı seç." },
-    { target: "confirm", text: "Kartı seçmen cevabını onaylar." }
+    { target: "confirm", text: "Kartı seçmen cevabını onaylar. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ],
   distortion: [
     { target: "listen", text: "Üç sesi (A/B/C) dinle." },
+    { target: "abControl", text: "Karta uzun bas: A/B/C arasında otomatik döngü başlar, tekrar dokun durur." },
     { target: "select", text: "Farklı olan kartı seç." },
-    { target: "confirm", text: "Kartı seçmen cevabını onaylar." }
+    { target: "confirm", text: "Kartı seçmen cevabını onaylar. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ],
   "tonal-denge": [
     { target: "listen", text: "Bozuk sesi dinle." },
+    { target: "abControl", text: "'A/B Test'e dokun: düzeltmeden önceki/sonraki sesi karşılaştır." },
     { target: "select", text: "Kaydırıcılarla nötüre getir." },
-    { target: "confirm", text: "Cevabı Onayla'ya dokun." }
+    { target: "confirm", text: "Cevabı Onayla'ya dokun. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ],
   "frekans-cakismasi": [
     { target: "listen", text: "Çakışan iki sesi birlikte dinle." },
-    { target: "select", text: "Nerede çakıştıklarını şıklardan bul." }
+    { target: "select", text: "Nerede çakıştıklarını şıklardan bul. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ]
 };
 

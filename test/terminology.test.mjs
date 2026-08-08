@@ -13,7 +13,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { MODE_CATALOG } from "../www/js/core/mode-catalog.js";
 import { LEVEL_SHEET_TERMS } from "../www/js/core/level-sheet-terms.js";
-import { GENERAL_GUIDE, MODE_GUIDE_TEXTS } from "../www/js/core/guide-texts.js";
+import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS } from "../www/js/core/guide-texts.js";
 
 const YASAKLI_ÇEVİRİLER = [
   { pattern: /yankı/i, term: "reverb" },
@@ -109,5 +109,19 @@ describe("terminoloji: guide-texts.js (G67 'i' bilgi sistemi) global terimi YANL
   it("Boost mu Cut mu mod bilgisi KENDİ modunun adıyla (Boost/Cut) TUTARLI", () => {
     assert.match(MODE_GUIDE_TEXTS["boost-mu-cut-mu"], /boost/i);
     assert.match(MODE_GUIDE_TEXTS["boost-mu-cut-mu"], /cut/i);
+  });
+});
+
+// G69: MODE_OPTIONS_TEXTS (mod "i"sinin ALTINDAKİ oyun seçenekleri bölümü)
+// AYNI kilit — çoğu satır UI navigasyon kelimesi (Kaynak/Karıştır/Atla/A-B
+// Test) olsa da, gelecekteki bir düzenlemenin yasaklı bir çeviri sokmasına
+// karşı mode-catalog.js/level-sheet-terms.js/MODE_GUIDE_TEXTS ile AYNI ölçüt.
+describe("terminoloji: guide-texts.js MODE_OPTIONS_TEXTS (G69 oyun seçenekleri) global terimi YANLIŞ çevirmiyor", () => {
+  Object.entries(MODE_OPTIONS_TEXTS).forEach(([modeId, text]) => {
+    it(`${modeId}: oyun seçenekleri metni yasaklı bir çeviri İÇERMEZ`, () => {
+      YASAKLI_ÇEVİRİLER.forEach(({ pattern, term }) => {
+        assert.doesNotMatch(text, pattern, `${modeId} oyun seçenekleri metni "${term}"nin yanlış çevirisini içeriyor`);
+      });
+    });
   });
 });

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G68)
+Son güncelleme: 08.08.2026 (G69)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,111 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G68, tek commit) — **İpuçları SPOTLIGHT rehberli tura yükseltildi:
+Bu commit (G69, tek commit) — **Spotlight'a eksik kontroller eklendi + mod
+"i"sine oyun seçenekleri eklendi.** G68'in spotlight turu SADECE dinle→seç→
+onayla akışını gösteriyordu, modun GERÇEKTEN sahip olduğu kontrolleri (döngü/
+A-B karşılaştırma/durdur/atla) atlıyordu; mod "i" metni de o modun oyun
+seçeneklerini (upload/format/karıştırma) hiç anlatmıyordu. Task'ın kendi
+kritik notu ("GERÇEK öğeleri kullan, uydurma") uyarınca ÖNCE kod tek tek
+okundu (app.js: `updateAbToggleUI`/`syncCakismaVisibility`/`pickRoundSource`/
+`syncAnswerFormatVisibility`; her modun `getMeta().uyumluKaynaklar`/
+`choiceOnly`/`FOCUS_RANGES`) — aşağıdaki HER iddia KODDAN doğrulandı.
+
+**1. SPOTLIGHT — "abControl" adımı eklendi (G68'in 3 adımı → 4):**
+`#abToggle` TEK bir buton ama modun tipine göre İKİ FARKLI GERÇEK kontrole
+karşılık geliyor (`updateAbToggleUI` — three-way'de "A/B/C Test", değilse
+"A/B Test"):
+- **Kompresör/Reverb/Distortion (3 mod):** A/B/C DÖNGÜ — karta uzun basmak
+  (520ms eşik) otomatik döngüyü başlatır, tekrar dokunmak durdurur
+  (`startAbLoop`/`stopAbLoop`, `abPressTimer`). abControl metni: "Karta uzun
+  bas: A/B/C arasında otomatik döngü başlar, tekrar dokun durur."
+- **Diğer 6 mod (Frekans Bulma/Kesim Noktası/Q Genişliği/Boost-Cut/dB
+  Seviyesi/Tonal Denge):** dry/işlenmiş A/B KARŞILAŞTIRMA — tek dokunuş.
+  abControl metni: "'A/B Test'e dokun: temiz ile işlenmiş sesi karşılaştır."
+  (Kesim Noktası/Tonal Denge'de mod-özel kelimelerle: "kesim öncesi/sonrası",
+  "düzeltmeden önceki/sonraki".)
+- **Frekans Çakışması:** `#abToggle` `syncCakismaVisibility`'de BİLEREK
+  GİZLİ — bu modun dizisinde "abControl" adımı YOK (uydurulmadı), 2 adımlık
+  (dinle+seç) yapısı G68'den DEĞİŞMEDİ.
+"Durdur" (`startBtn`) ve "Atla" (`nextBtn`) — İKİSİ de HER modda evrensel
+VE zaten kendini açıklayan butonlar (buton metninin kendisi "Atla ▶"/
+"Durdur") — ayrı bir spotlight kutusu AÇILMADI ("spotlight çok uzamasın"
+dengesi), bunun yerine turun SON adımının metnine kısa bir hatırlatma
+olarak katlandı: "...Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin."
+Sonuç: 9 mod 3→4 adıma çıktı (+1, SADECE mod-ayırt edici döngü/A-B için),
+Frekans Çakışması 2 adımda sabit kaldı — "çok uzamasın" dengesi böyle
+sağlandı (durdur/atla METİNSEL hatırlatma, döngü/A-B ise GERÇEK vurgulanmış
+kutu).
+
+**2. MOD "i" — `MODE_OPTIONS_TEXTS` (YENİ) eklendi, `MODE_GUIDE_TEXTS`'in
+ALTINA render ediliyor:** her modun "ne öğretir" metni TEK SATIR değişmedi,
+altına amber başlıklı ayrı bir "OYUN SEÇENEKLERİ" bloğu eklendi
+(`app.js:openGuideSheet`, GENERAL_GUIDE'ın kendi bölüm-başlığı deseniyle
+TUTARLI). Kod incelemesiyle doğrulanan gerçek seçenekler:
+- **Kendi ses yükleme:** cakisma HARİÇ 9 modun `uyumluKaynaklar`'ının
+  HEPSİNDE "upload" var (`compatibleSourceIds()` onu hiç DIŞLAMIYOR) — Kaynak
+  sheet'inden "Dosya seç" ile tek dosya. Frekans Çakışması'nın KENDİ AYRI
+  mekanizması var: kaynak-çifti "own" seçilince İKİ AYRI dosya (Ses 1/Ses 2).
+- **Dokunmalı/Şıklı format seçimi:** SADECE Frekans Bulma'da GERÇEK bir
+  seçim — `isChoiceFormat()` diğer 9 modu HER ZAMAN şıklıya zorluyor, chip'in
+  kendisi `syncAnswerFormatVisibility` ile o 9 modda GİZLENİYOR. Diğer
+  modların metninde bu seçenekten BAHSEDİLMEDİ (yok olan bir şey uydurulmadı).
+- **Odak aralığı (Bas/Orta/Tiz/Tüm spektrum):** SADECE Frekans Bulma'da
+  (`mode.FOCUS_RANGES` sadece `frekans-bulma.js`'te tanımlı) — diğer 9 modun
+  metninde YOK.
+- **Karıştır (rastgele kaynak):** `pickRoundSource()`'un okuduğu 8 modun
+  metninde VAR. Frekans Çakışması'nda BAHSEDİLMEDİ (`pickRoundSource`
+  hiç çağrılmıyor, kendi `cakismaPairSelect`'i var). Tonal Denge'de de
+  BAHSEDİLMEDİ — `only:["groove","upload"]` havuzunda Karıştır açıkken
+  upload HARİÇ tutulduğundan (`s.kind !== "upload"`) TEK aday ("groove")
+  kalıyor, fiilen etkisiz bir kontrol olduğu için yazılmadı.
+- **A/B/döngü kısa hatırlatma:** spotlight'ın abControl metniyle TUTARLI
+  cümleler (Kaynak çiftini/upload'ı anlatan cümlenin yanına eklendi).
+- **Frekans Çakışması'nın kendi "Önce/Sonra" karşılaştırması** (`#cakismaCompare`,
+  stage 3'te doğru cevap sonrası açılır — `#abToggle` YERİNE geçen mod-özel
+  kontrol) metne eklendi.
+- **Atla:** her 10 modun metninde "Bilemezsen 'Atla'ya dokun." ile kapanıyor.
+
+**YENİ test:** `test/guide-texts.test.mjs`'e `MODE_OPTIONS_TEXTS` bölümü
+eklendi — 10 mod tam eşleşme, Frekans Bulma'nın TEK format/odak-aralığı
+sözü eden mod olduğu, Karıştır'ın SADECE anlamlı olduğu 8 modda geçtiği
+(cakisma+tonal-denge'de YOK), cakisma'nın Önce/Sonra'dan bahsettiği, cakisma
+HARİÇ 9 modun yükleme seçeneğinden bahsettiği — HEPSİ GERÇEK kod
+davranışıyla (mock değil) çapraz doğrulandı. SPOTLIGHT_STEPS testleri 4-adım
+şekline güncellendi + three-way/A-B metin ayrımı + son-adım durdur/atla
+hatırlatması kilitlendi. `test/terminology.test.mjs`'e `MODE_OPTIONS_TEXTS`
+için AYNI 6 yasaklı-çeviri kilidi eklendi (DİL PRENSİBİ tutarlılığı).
+
+**Doğrulama:**
+- `npm test`: **1013/1013** (982 → +31: `guide-texts.test.mjs`'e
+  MODE_OPTIONS_TEXTS bölümü + SPOTLIGHT_STEPS'in genişletilmiş
+  kontrolleri, `terminology.test.mjs`'e MODE_OPTIONS_TEXTS kilidi).
+- Kod incelemesiyle doğrulanan (DOM/canlı test YAPILAMADI, bkz. aşağı):
+  `resolveSpotlightTarget`'ın yeni "abControl" dalı `els.abToggle`'a
+  çözülüyor, cakisma'nın dizisinde bu adım hiç YOK (resolver'a hiç gelmiyor);
+  `openGuideSheet` `MODE_OPTIONS_TEXTS[modeId]` varsa amber başlıklı bloğu
+  EKLİYOR, yoksa (olmayan bir modId) hiçbir şey render ETMİYOR; SPOTLIGHT_STEPS
+  dizilerindeki HER "abControl"/"select"/"confirm" metni yukarıdaki kod
+  bulgularıyla BİREBİR örtüşüyor (uydurma kontrol YOK — her iddia için
+  ilgili app.js/mode dosyası satırı bu kayıtta referanslı).
+- **Dürüstlük notu — CANLI/cihaz doğrulaması YİNE YAPILAMADI** (tarayıcı
+  eklentisi bu oturumda da bağlı değildi): abControl adımının GERÇEKTEN
+  `#abToggle`'ın üzerine oturduğu, three-way modlarda uzun-basmanın
+  GERÇEKTEN döngüyü tetiklediği ANINDA tur adımını da ilerlettiği, "OYUN
+  SEÇENEKLERİ" bloğunun guideSheet'te taşmadan okunduğu, 4 adımlık turun
+  GERÇEKTEN "uzun" hissettirmediği gözle DOĞRULANMADI — bu G67'nin AÇIK
+  İŞLER madde 14'ünün kapsamına GİRİYOR (aşağıya bkz., yeni maddeler
+  eklendi), ayrı bir madde AÇILMADI.
+
+**KORUMA:** 10 mod/ses/sınav/paywall/ana akış TEK SATIR değişmedi — SADECE
+spotlight adımları (yeni "abControl") + mod "i" metni (yeni
+`MODE_OPTIONS_TEXTS` bloğu) zenginleşti. `createQuestion`/`evaluateAnswer`/
+`applyProcessing`/`updateAbToggleUI`/`pickRoundSource`/`syncCakismaVisibility`
+hiçbiri dokunulmadı — SADECE OKUNDU (bu turun GERÇEK veri kaynağı olarak).
+
+---
+
+Önceki commit (G68, tek commit) — **İpuçları SPOTLIGHT rehberli tura yükseltildi:
 karartma + adım adım yönlendirme.** G67'nin basit ipucu bandı ("Sesi dinle →
 Farklı olanı seç → Cevabını onayla" TEK satır metin) YETERSİZDİ — task'ın
 kendi kararıyla tam bir spotlight/coach-mark deneyimine dönüştürüldü.
@@ -4920,15 +5024,16 @@ tamamının dinamik bir aralık alacak şekilde refactor edilmesi (tıklama→Hz
 haritalamasını da etkiliyor, riskli) — ayrı bir iş, bu turun kapsamı
 dışında bırakıldı (kullanıcı kararı).
 
-**14. G67/G68 "i" bilgi/rehber sistemi + SPOTLIGHT turu — CANLI/cihaz
+**14. G67/G68/G69 "i" bilgi/rehber sistemi + SPOTLIGHT turu — CANLI/cihaz
 doğrulaması hiç yapılmadı**
-Kod incelemesi + 982 test geçti ama tarayıcıda GERÇEKTEN denenmedi (bkz.
-G67/G68 kayıtlarındaki dürüstlük notları). Gözle görülmesi gereken
+Kod incelemesi + 1013 test geçti ama tarayıcıda GERÇEKTEN denenmedi (bkz.
+G67/G68/G69 kayıtlarındaki dürüstlük notları). Gözle görülmesi gereken
 davranışlar:
 (1) ana ekran `#menuInfoBtn` ve mod kartlarındaki `.mode-info-btn`
 tıklanınca `#guideSheet` doğru içerikle açılıp `×`/overlay ile kapanıyor mu,
-(2) sheet içeriği (özellikle GENERAL_GUIDE'ın 5 bölümü) küçük ekranda
-taşmadan/kesilmeden okunuyor mu,
+(2) sheet içeriği (özellikle GENERAL_GUIDE'ın 5 bölümü, G69'dan itibaren de
+her modun "OYUN SEÇENEKLERİ" bloğu) küçük ekranda taşmadan/kesilmeden
+okunuyor mu,
 (3) **[G68]** bir modu ilk kez oynarken SPOTLIGHT turu GERÇEKTEN çıkıyor mu
 (ekranın etrafı kararıp doğru öğe aydınlanıyor mu, `#spotlightHole`
 GERÇEKTEN hedef elementin üzerine oturuyor mu — 10 modun HEPSİNDE ayrı ayrı,
@@ -4941,11 +5046,18 @@ mu — karartma hiçbir tıklamayı ENGELLEMİYOR mu) çalışıyor mu,
 `hintRoundsShown` gerçekten artıyor mu), "Geç" çalışıyor mu, kalıcı "i"
 bundan bağımsız hep duruyor mu,
 (6) **[G68]** callout (yönlendirme kutusu) ekran kenarında/küçük ekranda
-taşmadan konumlanıyor mu.
-**Kabul kriteri:** yukarıdaki 6 davranışın HEPSİ gerçek cihaz/tarayıcıda
-elle denenip doğrulandı, taslak metinler (hem `MODE_GUIDE_TEXTS` hem
-`SPOTLIGHT_STEPS`) kullanıcı tarafından gözden geçirilip gerekiyorsa
-`guide-texts.js`'te düzeltildi.
+taşmadan konumlanıyor mu,
+(7) **[G69]** "abControl" adımı `#abToggle`'ın ÜZERİNE GERÇEKTEN oturuyor
+mu — Kompresör/Reverb/Distortion'da karta UZUN BASMANIN o ANDA döngüyü
+başlattığı/durdurduğu VE turun bunu ANINDA algılayıp bir sonraki adıma
+geçtiği; diğer 6 modda tek dokunuşun "A/B Test"i doğru değiştirdiği,
+(8) **[G69]** 4 adımlık turun (listen→abControl→select→confirm) GERÇEKTEN
+"uzun" hissettirmediği, SON adımın "Atla"/"Durdur" hatırlatma metninin
+okunabilir olduğu.
+**Kabul kriteri:** yukarıdaki 8 davranışın HEPSİ gerçek cihaz/tarayıcıda
+elle denenip doğrulandı, taslak metinler (`MODE_GUIDE_TEXTS`,
+`MODE_OPTIONS_TEXTS`, `SPOTLIGHT_STEPS`) kullanıcı tarafından gözden
+geçirilip gerekiyorsa `guide-texts.js`'te düzeltildi.
 
 ### Yayın öncesi
 
@@ -5073,11 +5185,11 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G68 itibarıyla):** AÇIK İŞLER madde 14 — G67/G68'in "i"
-bilgi/rehber sistemini (kalıcı "i" ikonu + SPOTLIGHT rehber turu) gerçek
-tarayıcı/cihazda elle deneyip taslak metinleri gözden geçirmek. Aşağıdaki
-liste (G59 itibarıyla güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük
-zorluk-mimarisi işlerini kapsıyor.
+**Tek sonraki adım (G69 itibarıyla):** AÇIK İŞLER madde 14 — G67/G68/G69'un
+"i" bilgi/rehber sistemini (kalıcı "i" ikonu + SPOTLIGHT rehber turu +
+oyun seçenekleri) gerçek tarayıcı/cihazda elle deneyip taslak metinleri
+gözden geçirmek. Aşağıdaki liste (G59 itibarıyla güncellendi) bu adımdan
+BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma
 (unlockLevel:1, free), Kesim Noktası (2, free), Q Genişliği (3, free), Boost

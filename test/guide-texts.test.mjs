@@ -1,13 +1,16 @@
-// "i" bilgi/rehber sistemi (G67) + SPOTLIGHT rehber turu (G68). guide-texts.js'in
-// dosya başı iddiasını doğrular: 10 oynanabilir modun HEPSİ hem MODE_GUIDE_TEXTS
-// hem SPOTLIGHT_STEPS'te var, GENERAL_GUIDE 5 bölümü taşıyor, ve
-// shouldShowRoundHint/spotlightStepsFor saf fonksiyonları doğru davranıyor.
+// "i" bilgi/rehber sistemi (G67) + SPOTLIGHT rehber turu (G68) + eksik
+// kontroller/oyun seçenekleri (G69). guide-texts.js'in dosya başı iddiasını
+// doğrular: 10 oynanabilir modun HEPSİ hem MODE_GUIDE_TEXTS hem
+// MODE_OPTIONS_TEXTS hem SPOTLIGHT_STEPS'te var, GENERAL_GUIDE 5 bölümü
+// taşıyor, ve shouldShowRoundHint/spotlightStepsFor saf fonksiyonları doğru
+// davranıyor.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   GENERAL_GUIDE,
   MODE_GUIDE_TEXTS,
+  MODE_OPTIONS_TEXTS,
   SPOTLIGHT_STEPS,
   HINT_ROUNDS_LIMIT,
   shouldShowRoundHint,
@@ -20,12 +23,18 @@ import { MODE_CATALOG } from "../www/js/core/mode-catalog.js";
 // ölçüt, terminology.test.mjs'nin de zaten güvendiği katalog).
 const PLAYABLE_MODE_IDS = MODE_CATALOG.filter(e => e.playable).map(e => e.id);
 
-// Frekans Çakışması BİLİNÇLİ olarak sadece 2 adımlı (dinle+seç) — mod zaten
+// G69: app.js'in KENDİ THREE_WAY_MODE_IDS listesiyle AYNI (kopyası — app.js
+// DOM'a bağlı olduğu için buradan import EDİLEMİYOR, bkz. CLAUDE.md testler
+// notu; üç isim de mode-catalog.js'ten GERÇEK id'ler).
+const THREE_WAY_MODE_IDS = new Set(["kompresor", "reverb", "distortion"]);
+
+// Frekans Çakışması BİLİNÇLİ olarak sadece 2 adımlı (dinle+seç, "abControl"
+// YOK — #abToggle o modda GİZLİ, bkz. syncCakismaVisibility) — mod zaten
 // çok-aşamalı, kendi soru başlığı/talimatı aşamaları ZATEN anlatıyor (bkz.
-// guide-texts.js:SPOTLIGHT_STEPS dosya başı notu). Diğer 9 mod 3 adımlı
-// (dinle → seç → onayla).
+// guide-texts.js:SPOTLIGHT_STEPS dosya başı notu). Diğer 9 mod 4 adımlı
+// (dinle → abControl → seç → onayla, G69'da abControl eklendi).
 const TWO_STEP_MODES = new Set(["frekans-cakismasi"]);
-const VALID_TARGETS = new Set(["listen", "select", "confirm"]);
+const VALID_TARGETS = new Set(["listen", "abControl", "select", "confirm"]);
 
 describe("guide-texts: MODE_GUIDE_TEXTS 10 oynanabilir modun HEPSİNİ içerir", () => {
   it("anahtar kümesi playable mod id'leriyle BİREBİR eşleşir (fazla/eksik yok)", () => {
@@ -46,7 +55,7 @@ describe("guide-texts: SPOTLIGHT_STEPS 10 oynanabilir modun HEPSİNİ içerir", 
   });
 
   PLAYABLE_MODE_IDS.forEach(id => {
-    const expectedLen = TWO_STEP_MODES.has(id) ? 2 : 3;
+    const expectedLen = TWO_STEP_MODES.has(id) ? 2 : 4;
     it(`${id}: tam olarak ${expectedLen} adımlık bir dizi, her adım geçerli target+text taşır`, () => {
       const steps = SPOTLIGHT_STEPS[id];
       assert.ok(Array.isArray(steps));
@@ -59,15 +68,16 @@ describe("guide-texts: SPOTLIGHT_STEPS 10 oynanabilir modun HEPSİNİ içerir", 
     });
   });
 
-  it("3 adımlı modların HEPSİ 'listen' ile başlar, 'confirm' ile biter (dinle → seç → onayla akışı)", () => {
+  it("4 adımlı modların HEPSİ 'listen' ile başlar, 'confirm' ile biter (dinle → abControl → seç → onayla akışı)", () => {
     PLAYABLE_MODE_IDS.filter(id => !TWO_STEP_MODES.has(id)).forEach(id => {
       const steps = SPOTLIGHT_STEPS[id];
       assert.equal(steps[0].target, "listen", `${id} ilk adım "listen" değil`);
       assert.equal(steps[steps.length - 1].target, "confirm", `${id} son adım "confirm" değil`);
+      assert.equal(steps[1].target, "abControl", `${id} ikinci adım "abControl" değil`);
     });
   });
 
-  it("Frekans Çakışması SADECE dinle+seç (2 adım) — mod zaten çok-aşamalı, ayrı 'confirm' İCAT edilmedi", () => {
+  it("Frekans Çakışması SADECE dinle+seç (2 adım) — #abToggle o modda GİZLİ, 'abControl' uydurulmadı", () => {
     const steps = SPOTLIGHT_STEPS["frekans-cakismasi"];
     assert.deepEqual(steps.map(s => s.target), ["listen", "select"]);
   });
@@ -76,6 +86,80 @@ describe("guide-texts: SPOTLIGHT_STEPS 10 oynanabilir modun HEPSİNİ içerir", 
     const steps = SPOTLIGHT_STEPS["tonal-denge"];
     assert.match(steps.find(s => s.target === "select").text, /kaydırıcı/i);
     assert.match(steps.find(s => s.target === "confirm").text, /onayla/i);
+  });
+
+  it("three-way 3 modda (Kompresör/Reverb/Distortion) abControl metni DÖNGÜ'yü anlatır ('uzun bas')", () => {
+    [...THREE_WAY_MODE_IDS].forEach(id => {
+      const abStep = SPOTLIGHT_STEPS[id].find(s => s.target === "abControl");
+      assert.match(abStep.text, /uzun bas/i, `${id} abControl metni döngüyü anlatmıyor`);
+    });
+  });
+
+  it("three-way OLMAYAN (cakisma HARİÇ) 6 modda abControl metni A/B KARŞILAŞTIRMA'yı anlatır ('A/B Test')", () => {
+    PLAYABLE_MODE_IDS.filter(id => !TWO_STEP_MODES.has(id) && !THREE_WAY_MODE_IDS.has(id)).forEach(id => {
+      const abStep = SPOTLIGHT_STEPS[id].find(s => s.target === "abControl");
+      assert.match(abStep.text, /A\/B Test/, `${id} abControl metni A/B karşılaştırmayı anlatmıyor`);
+    });
+  });
+
+  it("SON adımın metni 'Atla' VE 'Durdur'u hatırlatır (durdur/atla evrensel kontroller, kendi kutusu yok)", () => {
+    PLAYABLE_MODE_IDS.forEach(id => {
+      const steps = SPOTLIGHT_STEPS[id];
+      const lastText = steps[steps.length - 1].text;
+      assert.match(lastText, /Atla/, `${id} son adımda 'Atla' hatırlatması yok`);
+      assert.match(lastText, /Durdur/, `${id} son adımda 'Durdur' hatırlatması yok`);
+    });
+  });
+});
+
+describe("guide-texts: MODE_OPTIONS_TEXTS 10 oynanabilir modun HEPSİNİ içerir (G69)", () => {
+  it("anahtar kümesi playable mod id'leriyle BİREBİR eşleşir (fazla/eksik yok)", () => {
+    assert.deepEqual(Object.keys(MODE_OPTIONS_TEXTS).sort(), [...PLAYABLE_MODE_IDS].sort());
+  });
+
+  PLAYABLE_MODE_IDS.forEach(id => {
+    it(`${id}: metin boş DEĞİL bir string`, () => {
+      assert.equal(typeof MODE_OPTIONS_TEXTS[id], "string");
+      assert.ok(MODE_OPTIONS_TEXTS[id].length > 20, `${id} seçenek metni çok kısa/boş görünüyor`);
+    });
+  });
+
+  it("SADECE Frekans Bulma 'Dokunmalı/Şıklı' format seçiminden bahseder (isChoiceFormat() diğer 9 modu HER ZAMAN şıklıya zorluyor)", () => {
+    assert.match(MODE_OPTIONS_TEXTS["frekans-bulma"], /Dokunmalı.*Şıklı|Şıklı.*Dokunmalı/i);
+    PLAYABLE_MODE_IDS.filter(id => id !== "frekans-bulma").forEach(id => {
+      assert.doesNotMatch(MODE_OPTIONS_TEXTS[id], /Dokunmalı/i, `${id} format seçimi olmadığı halde bahsediyor`);
+    });
+  });
+
+  it("SADECE Frekans Bulma 'Odak aralığı'ndan bahseder (mode.FOCUS_RANGES sadece frekans-bulma.js'te tanımlı)", () => {
+    assert.match(MODE_OPTIONS_TEXTS["frekans-bulma"], /[Oo]dak aralığı/);
+    PLAYABLE_MODE_IDS.filter(id => id !== "frekans-bulma").forEach(id => {
+      assert.doesNotMatch(MODE_OPTIONS_TEXTS[id], /[Oo]dak aralığı/, `${id} odak aralığı olmadığı halde bahsediyor`);
+    });
+  });
+
+  it("Frekans Çakışması 'Karıştır'dan BAHSETMEZ (pickRoundSource() kaynak-çifti akışında hiç kullanılmıyor)", () => {
+    assert.doesNotMatch(MODE_OPTIONS_TEXTS["frekans-cakismasi"], /Karıştır/);
+  });
+
+  it("Tonal Denge 'Karıştır'dan BAHSETMEZ (only:[groove,upload] havuzunda upload hariç TEK aday kalır, fiilen etkisiz)", () => {
+    assert.doesNotMatch(MODE_OPTIONS_TEXTS["tonal-denge"], /Karıştır/);
+  });
+
+  it("Karıştır'ın GERÇEKTEN anlamlı olduğu 8 modun (cakisma+tonal-denge HARİÇ) HEPSİ 'Karıştır'dan bahseder", () => {
+    PLAYABLE_MODE_IDS.filter(id => id !== "frekans-cakismasi" && id !== "tonal-denge").forEach(id => {
+      assert.match(MODE_OPTIONS_TEXTS[id], /Karıştır/, `${id} Karıştır'dan bahsetmiyor`);
+    });
+  });
+
+  it("Frekans Çakışması kendi 'Önce/Sonra' karşılaştırmasından bahseder (cakismaBefore/After — abToggle'ın YERİNE geçen mod-özel kontrol)", () => {
+    assert.match(MODE_OPTIONS_TEXTS["frekans-cakismasi"], /Önce.*Sonra|Sonra.*Önce/);
+  });
+
+  it("cakisma HARİÇ 9 modun HEPSİ kendi dosya yükleme seçeneğinden bahseder (uyumluKaynaklar HEPSİNDE 'upload' içerir)", () => {
+    PLAYABLE_MODE_IDS.filter(id => id !== "frekans-cakismasi").forEach(id => {
+      assert.match(MODE_OPTIONS_TEXTS[id], /yükle/i, `${id} yükleme seçeneğinden bahsetmiyor`);
+    });
   });
 });
 

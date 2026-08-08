@@ -16,7 +16,7 @@ import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import { SOURCE_GROUPS, findSource, findSourcePair } from "./core/source-catalog.js";
 import { tierForLevel, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
 import { levelSheetTermsFor } from "./core/level-sheet-terms.js";
-import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
+import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
 import { getWeakZone } from "./core/personalization.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
@@ -4229,7 +4229,16 @@ function openGuideSheet(modeId) {
   if (modeId && MODE_GUIDE_TEXTS[modeId]) {
     const entry = MODE_CATALOG.find(e => e.id === modeId);
     if (els.guideSheetTitle) els.guideSheetTitle.textContent = entry ? entry.ad : "Bu mod";
-    els.guideSheetBody.innerHTML = `<p style="margin:8px 2px 0;font-size:15px;line-height:1.55;color:var(--tx-2)">${MODE_GUIDE_TEXTS[modeId]}</p>`;
+    // G69: MODE_GUIDE_TEXTS'in (ne öğretir) ALTINA MODE_OPTIONS_TEXTS (oyun
+    // seçenekleri) — GENERAL_GUIDE'ın kendi bölüm-başlığı deseniyle (amber
+    // etiket + paragraf) TUTARLI, ayrı bir bileşen İCAT edilmedi.
+    const optionsBlock = MODE_OPTIONS_TEXTS[modeId]
+      ? `<div style="margin-top:16px" class="mode-guide-options">
+          <div style="font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--am)">OYUN SEÇENEKLERİ</div>
+          <p style="margin:8px 0 0;font-size:14px;line-height:1.5;color:var(--tx-3)">${MODE_OPTIONS_TEXTS[modeId]}</p>
+        </div>`
+      : "";
+    els.guideSheetBody.innerHTML = `<p style="margin:8px 2px 0;font-size:15px;line-height:1.55;color:var(--tx-2)">${MODE_GUIDE_TEXTS[modeId]}</p>${optionsBlock}`;
   } else {
     if (els.guideSheetTitle) els.guideSheetTitle.textContent = GENERAL_GUIDE.title;
     els.guideSheetBody.innerHTML = GENERAL_GUIDE.sections.map(s => `
@@ -4273,11 +4282,16 @@ let spotlightModeId = null;
 let spotlightInteractionTarget = null;
 let spotlightResizeBound = false;
 
-// step.target ("listen"/"select"/"confirm") → GERÇEK DOM elementi. guide-
-// texts.js bu dosyaya hiç dokunmuyor (saf veri), çözüm burada — isChoiceFormat/
-// els zaten bu dosyanın kendi çalışma zamanı durumu.
+// step.target ("listen"/"abControl"/"select"/"confirm") → GERÇEK DOM
+// elementi. guide-texts.js bu dosyaya hiç dokunmuyor (saf veri), çözüm
+// burada — isChoiceFormat/els zaten bu dosyanın kendi çalışma zamanı durumu.
 function resolveSpotlightTarget(targetKey, modeId) {
   if (targetKey === "listen") return els.analyzer;
+  // G69: "abControl" — #abToggle'ın KENDİSİ (updateAbToggleUI'ın AYNI mantığı):
+  // three-way 3 modda A/B/C döngü, diğerlerinde dry/işlenmiş A/B karşılaştırma.
+  // Frekans Çakışması'nda #abToggle GİZLİ (syncCakismaVisibility) — o modun
+  // SPOTLIGHT_STEPS dizisinde zaten "abControl" adımı YOK, buraya hiç gelmez.
+  if (targetKey === "abControl") return els.abToggle;
   if (targetKey === "confirm" && modeId === "tonal-denge") {
     return els.answers ? els.answers.querySelector(".tonal-submit") : null;
   }
