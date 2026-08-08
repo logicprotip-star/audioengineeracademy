@@ -97,10 +97,15 @@ mesajı çıkıyordu — seviye kilidi artık free'de hiç devreye girmediği i�
   ile ön plana dönüş, `startFreshAttempt`).
   Eski geçici köprü (`storage.js`'te `lives<=0 → TOTAL_LIVES` anlık sıfırlama)
   KALDIRILDI.
-- **Serbest/süresiz oynama YOK:** Ayrı bir UI kısıtı EKLENMEDİ (Oyun Türü
-  seçici hâlâ görünür/seçilebilir, task: "ekran değil sadece kural") — 5
-  soru sınırı hangi seçenek seçilirse seçilsin HER ZAMAN uygulanır, bu yüzden
-  "Serbest (sonsuz)" seçili olsa bile ücretsizde pratikte asla 5'i geçmez.
+- **Serbest/süresiz oynama YOK:** 5 soru sınırı hangi seçenek seçilirse
+  seçilsin HER ZAMAN uygulanır (bu ANLAMDA G61'den beri zaten doğruydu). AMA
+  G61'de "Serbest (sonsuz)" Oyun Türü sheet'inde SEÇİLEBİLİR bırakılmıştı
+  ("ekran değil sadece kural" kararı) — cihaz testinde bunun kafa
+  karıştırdığı bulundu ("seçtim ama çalışmıyor"). **G65 DÜZELTMESİ:** Oyun
+  Türü sheet'indeki "Serbest" satırı artık ücretsizde KİLİTLİ görünür (Pro
+  rozeti + 🔒, `paywall.isFreePlayModeLocked`), basınca `openPaywallReason
+  ("freePlayMode")` paywall'ı açar. `enforceFreeRestrictions()` (downgrade
+  senaryosu) seçim hâlâ "free"deyse "10 Soruluk Bölüm"e zorlar.
 - **Sınav + seviye atlama YOK:** `examGateActive()` (`app.js`) =
   `mode.EXAM_ENABLED && isUserPro()` — sınav SİSTEMİNİN kendisi
   (`core/exam-system.js`) DEĞİŞMEDİ, sadece app.js'in onu ne zaman devreye
@@ -119,7 +124,7 @@ mesajı çıkıyordu — seviye kilidi artık free'de hiç devreye girmediği i�
 | 6 bölge geçmiş analizi: bulanık önizleme | "Frekans bölgesi" panelinin bar grafiği (`zoneList`) `blur(5px)` — veri VAR olduğu görülür, okunamaz — `paywall.isZoneHistoryBlurred` |
 | Araçlar sekmesi içeriği: kilitli | Analiz/Referans filtreleri ZATEN Pro-kilitliydi (`applyProLockVisibility`, önceki tur) — bu turda upload kartı da eklendi (`toolsUploadBtn`) — `paywall.isToolsContentLocked` |
 
-## Paywall ekranı — 6 tetikleme noktası (G63)
+## Paywall ekranı — 7 tetikleme noktası (G63 + G65)
 
 `core/paywall.js:PAYWALL_REASONS` — her biri `kicker`/`title`/`detail`
 (bağlamsal bant) + `buttons` ("pro" ya da "livesOut") taşır, TEK kaynak:
@@ -132,8 +137,9 @@ mesajı çıkıyordu — seviye kilidi artık free'de hiç devreye girmediği i�
 | 4 | Yükle butonuna basınca | `upload` | pro | `.upload-trigger-btn`, Ses Kaynağı sheet'inin "Dosya seç" satırı, `toolsUploadBtn` |
 | 5 | Frekans Çakışması günde-1 bitince | `dailyUsed` | pro | `renderModeGrid` kart click + `startBtn`'in savunmacı ikinci kontrolü |
 | 6 | İlerleme'de bulanık grafiğe basınca | `zoneHistory` | pro | `els.zoneList` click (tek seferlik dinleyici) |
+| 7 | Oyun Türü sheet'inde "Serbest (sonsuz)"a basınca (G65) | `freePlayMode` | pro | Oyun Ayarları sheet'inin genel `openSheet()` satır click'i (`isLockedFreePlay`) |
 
-Diğer (6 tetiklemeye DAHİL değil, task'ın listesinde yok) — Analiz/Referans
+Diğer (7 tetiklemeye DAHİL değil, task'ın listesinde yok) — Analiz/Referans
 filtreleri kilit örtüleri ve Ayarlar → "Pro'ya geç" GENEL modda
 (`resetPaywallToGeneric()`) paywall'a gider, bağlamsal bant YOK.
 
@@ -141,7 +147,7 @@ filtreleri kilit örtüleri ve Ayarlar → "Pro'ya geç" GENEL modda
 `app.js`'te BİR KEZ, script başlarken `stats.rounds` okunarak hesaplanan
 `const paywallSuppressedFirstSession` (runtime'ın TAMAMI boyunca sabit).
 `stats.rounds===0` ise (kullanıcı bu kuruluma kadar HİÇ tur oynamamış) TÜM
-6 tetiklemede `openPaywallReason()` `false` döner — çağıran taraf G61'in
+7 tetiklemede `openPaywallReason()` `false` döner — çağıran taraf G61'in
 ESKİ davranışına (toast ya da sade "lost"/"freeLimit" seans-sonu ekranı)
 düşer, kısıtlamanın KENDİSİ (5 soru/can/kilit) GEÇERLİ kalır, sadece PAYWALL
 EKRANI o ilk ziyarette hiç açılmaz.

@@ -150,7 +150,8 @@ export const LOCK_MESSAGES = Object.freeze({
   focusRange: { title: "Pro gerekli", detail: "Bölge seçerek çalışmak Pro'da açılır." },
   weakZoneReport: { title: "Pro gerekli", detail: "Zayıf bölge raporu Pro'da açılır." },
   tools: { title: "Pro gerekli", detail: "Araçlar sekmesinin içeriği Pro'da açılır." },
-  sessionLimit: { title: "Ücretsiz oturum bitti", detail: "Ücretsizde oturum başına 5 soru. Daha fazlası için Pro gerekli." }
+  sessionLimit: { title: "Ücretsiz oturum bitti", detail: "Ücretsizde oturum başına 5 soru. Daha fazlası için Pro gerekli." },
+  freePlayMode: { title: "Pro gerekli", detail: "Serbest (sonsuz) mod Pro'da açılır — ücretsizde oturum başına 5 soru." }
 });
 
 // ==========================================================================
@@ -224,6 +225,17 @@ export const PAYWALL_REASONS = Object.freeze({
     kicker: "PRO RAPORU",
     title: "Zayıf bölge geçmişini gör",
     detail: "6 bölgenin detaylı isabet analizi ve zayıf bölge raporu Pro'da açılır.",
+    buttons: "pro"
+  },
+  // G65: "Serbest/süresiz oynama YOK" (bkz. isFreePlayModeLocked, G61'de
+  // TANIMLANMIŞ ama HİÇ BAĞLANMAMIŞTI — cihaz testinde kafa karıştırdığı
+  // bulundu: "Serbest" ücretsizde SEÇİLEBİLİYORDU ama 5-soru sınırı yüzünden
+  // 5'te duruyordu, "seçtim ama çalışmıyor" izlenimi veriyordu). Artık Oyun
+  // Türü sheet'inde bu seçenek KİLİTLİ görünür, tıklanınca bu bant açılır.
+  freePlayMode: {
+    kicker: "SINIRSIZ OYNAMA",
+    title: "Serbest (sonsuz) mod Pro'da açılır",
+    detail: "Ücretsizde oturum başına 5 soru — sınırsız akış için Pro gerekli.",
     buttons: "pro"
   }
 });

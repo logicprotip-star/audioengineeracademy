@@ -4560,8 +4560,17 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
       // işaretlenemez — tıklanınca native dosya seçiciyi açar (prototype.html'de
       // bu satır ✓ yerine › ile ayrılmıştı, aynı ayrım burada davranışa taşındı).
       const isUnloadedUpload = select.id === 'sourceSelect' && opt.value === 'upload' && !uploadManager.hasBuffer;
-      const checkStyle = isUnloadedUpload ? ' style="opacity:1"' : '';
-      row.innerHTML = `<span>${opt.text}</span><span class="check"${checkStyle}>${isUnloadedUpload ? '›' : '✓'}</span>`;
+      // G65 (PAYWALL.md): "Serbest (sonsuz)" ücretsizde SEÇİLEBİLİYORDU ama
+      // 5-soru sınırı yüzünden pratikte 5'te duruyordu — "seçtim ama
+      // çalışmıyor" karışıklığı (cihaz testinde bulundu). isUnloadedUpload'un
+      // AYNI görsel deseni: onay yerine kilit + Pro rozeti.
+      const isLockedFreePlay = select.id === 'playModeSelect' && opt.value === 'free' && paywall.isFreePlayModeLocked(isUserPro());
+      const checkStyle = (isUnloadedUpload || isLockedFreePlay) ? ' style="opacity:1"' : '';
+      // .sheet-option 2 flex çocuğu (text/check) VARSAYIYOR (space-between,
+      // bkz. CSS) — Pro rozeti üçüncü bir top-level çocuk OLMASIN diye metnin
+      // İÇİNE, kendi mini-flex kutusuna sarılıyor.
+      const proBadgeHtml = isLockedFreePlay ? '<span class="mode-chip mode-chip-pro" style="margin-left:8px">Pro</span>' : '';
+      row.innerHTML = `<span style="display:flex;align-items:center">${opt.text}${proBadgeHtml}</span><span class="check"${checkStyle}>${isUnloadedUpload ? '›' : isLockedFreePlay ? '🔒' : '✓'}</span>`;
       row.addEventListener('click', async () => {
         // G61 (PAYWALL.md): "Kendi dosya yükleme: kilitli" — Ses Kaynağı
         // sheet'indeki "Dosya seç" satırı, .upload-trigger-btn'in AYRI (bu
@@ -4572,6 +4581,11 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
         if (select.id === 'sourceSelect' && opt.value === 'upload' && paywall.isUploadLocked(isUserPro())) {
           closeSheet();
           if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail);
+          return;
+        }
+        if (isLockedFreePlay) {
+          closeSheet();
+          if (!openPaywallReason("freePlayMode")) toast(paywall.LOCK_MESSAGES.freePlayMode.title, paywall.LOCK_MESSAGES.freePlayMode.detail);
           return;
         }
         if (isUnloadedUpload) {
@@ -4735,6 +4749,17 @@ function enforceFreeRestrictions() {
     prefs.focusRange = "full";
     storage.savePrefs(prefs);
     els.focusSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  // G65: playModeSelect kalıcı bir prefs alanına YAZILMIYOR (HTML'deki
+  // <option selected> her sayfa açılışında "free"e döner) — o yüzden
+  // downgrade riski difficulty/focusRange kadar büyük DEĞİL, ama Pro'dan
+  // düşen bir kullanıcı bu OTURUM içinde "Serbest" seçili KALABİLİR (artık
+  // sheet'te yeniden SEÇİLEMEZ ama halihazırda seçiliyse dokunulmamış olur).
+  // "Kilitli göster" niyetiyle TUTARLI kalsın diye burada da 10 Soruluk
+  // Bölüm'e zorlanıyor.
+  if (els.playModeSelect && els.playModeSelect.value === "free") {
+    els.playModeSelect.value = "challenge";
+    els.playModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
   }
 }
 

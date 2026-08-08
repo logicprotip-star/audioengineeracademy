@@ -201,8 +201,9 @@ describe("paywall: ilk oturumda paywall yok (Parça 2)", () => {
 });
 
 describe("paywall: paywall ekranı içeriği (Parça 2)", () => {
-  it("6 tetikleme noktasının HEPSİ PAYWALL_REASONS'ta tanımlı, hepsi kicker/title/detail/buttons içerir", () => {
-    const expectedKeys = ["sessionLimit", "livesOut", "modeLocked", "upload", "dailyUsed", "zoneHistory"];
+  it("7 tetikleme noktasının HEPSİ PAYWALL_REASONS'ta tanımlı, hepsi kicker/title/detail/buttons içerir", () => {
+    // G65: freePlayMode eklendi ("Serbest" oyun türü ücretsizde kilitli).
+    const expectedKeys = ["sessionLimit", "livesOut", "modeLocked", "upload", "dailyUsed", "zoneHistory", "freePlayMode"];
     assert.deepEqual(Object.keys(paywall.PAYWALL_REASONS).sort(), expectedKeys.sort());
     Object.entries(paywall.PAYWALL_REASONS).forEach(([key, r]) => {
       assert.ok(r.kicker && r.kicker.length > 0, `${key}.kicker boş olmamalı`);
@@ -214,7 +215,7 @@ describe("paywall: paywall ekranı içeriği (Parça 2)", () => {
 
   it("SADECE livesOut 'livesOut' buton setini kullanır (reklam SADECE can bitince anlamlı)", () => {
     assert.equal(paywall.PAYWALL_REASONS.livesOut.buttons, "livesOut");
-    ["sessionLimit", "modeLocked", "upload", "dailyUsed", "zoneHistory"].forEach(key => {
+    ["sessionLimit", "modeLocked", "upload", "dailyUsed", "zoneHistory", "freePlayMode"].forEach(key => {
       assert.equal(paywall.PAYWALL_REASONS[key].buttons, "pro", `${key} 'pro' buton setini kullanmalı`);
     });
   });

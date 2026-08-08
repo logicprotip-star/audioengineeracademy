@@ -1,13 +1,58 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G64)
+Son güncelleme: 08.08.2026 (G65)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
 ## BİTTİ
 
-Bu commit (G64, tek commit) — **`renderLevelSheet` tek-dil bug'ı düzeltildi:
+Bu commit (G65, tek commit) — **"Serbest" (sonsuz) Oyun Türü ücretsizde
+KİLİTLİ görünüyor (Pro rozeti + 🔒), basınca paywall açılıyor.** Cihaz
+testinde bulunan kafa karışıklığı: G61'de "Serbest" ücretsizde SEÇİLEBİLİR
+bırakılmıştı ("ekran değil sadece kural" kararı, bkz. PAYWALL.md) — kullanıcı
+seçebiliyordu ama 5-soru sınırı yüzünden pratikte 5'te duruyordu, "seçtim
+ama çalışmıyor" izlenimi veriyordu.
+
+**BULUNAN ÖNCEDEN-HAZIR PARÇA:** `core/paywall.js:isFreePlayModeLocked(isPro)`
+G61'de ZATEN tanımlanmıştı ama HİÇ ÇAĞRILMAMIŞTI (`grep` ile doğrulandı, tek
+kullanım yeri kendi tanımı + test dosyasıydı) — bu tur o boşluğu dolduruyor.
+
+**DÜZELTME:** Oyun Ayarları'nın genel `openSheet()` satır-render mekanizması
+(sourceSelect'in "Dosya seç" kilidiyle AYNI desen, G61) `playModeSelect`'in
+"free" seçeneğine ÖZEL bir dal kazandı: `isLockedFreePlay` true iken satır
+onay yerine 🔒 + "Pro" rozeti (`.mode-chip.mode-chip-pro`, mod kartlarıyla
+AYNI bileşen) gösteriyor, tıklanınca `openPaywallReason("freePlayMode")`
+(YENİ 7. `PAYWALL_REASONS` girdisi) paywall'ı açıyor. `enforceFreeRestrictions()`
+(G61'den beri var olan downgrade-tutarlılık fonksiyonu) artık `playModeSelect`
+hâlâ "free"deyse "10 Soruluk Bölüm"e de zorluyor — `playModeSelect` kalıcı
+bir `prefs` alanına YAZILMADIĞI için (HTML'nin kendi `<option selected>`'ı
+her sayfa açılışında "free"e döner) bu, YENİ bir kullanıcının İLK ekranında
+bile kilitli bir seçeneğin "şu an seçili" görünmesini önlüyor.
+
+**Doğrulama:**
+- `npm test`: **882/882** (değişmedi — bu tur net YENİ test eklemedi, mevcut
+  `paywall.test.mjs`'in "7 tetikleme noktası" testleri GÜNCELLENDİ [6→7
+  anahtar] ve `isFreePlayModeLocked` zaten G61'den beri test ediliyordu,
+  DOM'a dokunan kısım ise proje kısıtı gereği [CLAUDE.md] hiç unit test
+  edilemiyor).
+- Kod incelemesiyle doğrulandı: `PAYWALL_REASONS.freePlayMode` + `LOCK_MESSAGES.
+  freePlayMode` ikisi de tanımlı (ilk-oturum toast fallback'i de doğru
+  mesajı gösterir, "modeLocked"un YANLIŞ/alakasız dB-Reverb-Tonal-Distortion
+  metnini ÖDÜNÇ ALMADI — bu turda fark edilip AYRI bir reasonKey açıldı).
+- **Dürüstlük notu — CANLI/cihaz doğrulaması YİNE YAPILAMADI** (tarayıcı
+  eklentisi bu oturumda da bağlı değildi) — kilit rozetinin/🔒'nün GERÇEKTEN
+  doğru göründüğü, tıklayınca paywall'ın GERÇEKTEN açıldığı, Pro'da satırın
+  GERÇEKTEN normal (kilitsiz) çalıştığı gözle DOĞRULANMADI. Kod incelemesi
+  kadarı garanti.
+
+**KORUMA:** Paywall mantığı/ekranı (G63'ten beri çalışan `openPaywallReason`/
+`resetPaywallToGeneric` mekanizması) TEK SATIR değişmedi — SADECE YENİ bir
+`reasonKey` ve bir sheet-satırı kilidi eklendi. 10 mod/ses dokunulmadı.
+
+---
+
+Önceki commit (G64, tek commit) — **`renderLevelSheet` tek-dil bug'ı düzeltildi:
 her mod artık Seviye bilgi sayfasında KENDİ terminolojisini konuşuyor**
 (SIRADAKİ'de uzun süredir kayıtlı bilinen bir eksikti — "9 modun 9'u da
 'Bant genişliği/Değişim miktarı' — Frekans Bulma'nın dili — konuşuyordu").
