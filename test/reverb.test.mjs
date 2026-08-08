@@ -342,6 +342,56 @@ describe("Reverb — öğretici metin (teachingText/getFeedbackData) — tip + p
     }
   });
 
+  // G66 (terminoloji denetimi): "reverb" GLOBAL mix terimi — "yankı" gibi
+  // tam Türkçe çeviriye ASLA düşmemeli (bkz. DURUM.md G66).
+  it("hiçbir metin (teachingText/getHintText/modeDescription, HER İKİ dal + gerçek createQuestion) 'yankı' İÇERMEZ — 'reverb' kullanır", () => {
+    // TİP-farkı dalı
+    const typeDiffQ = { oddIndex: 1, variants: [
+      { letter: "A", type: "room", decaySec: 0.5, amountScore: 0.2 },
+      { letter: "B", type: "plate", decaySec: 1.4, amountScore: 0.9 },
+      { letter: "C", type: "room", decaySec: 0.5, amountScore: 0.2 }
+    ] };
+    const typeDiffText = mode.teachingText(typeDiffQ, "B");
+    assert.doesNotMatch(typeDiffText, /yankı/i, `teachingText (tip farkı): "${typeDiffText}"`);
+    assert.match(typeDiffText, /reverb/i);
+
+    // AYNI-tip, miktar-farkı dalı (ÖNCEDEN "ince/hafif yankı" vb. kullanıyordu)
+    const amountDiffQ = { oddIndex: 1, variants: [
+      { letter: "A", type: "room", decaySec: 0.5, amountScore: 0.3 },
+      { letter: "B", type: "room", decaySec: 2.5, amountScore: 1.8 },
+      { letter: "C", type: "room", decaySec: 0.5, amountScore: 0.3 }
+    ] };
+    const amountDiffText = mode.teachingText(amountDiffQ, "B");
+    assert.doesNotMatch(amountDiffText, /yankı/i, `teachingText (miktar farkı): "${amountDiffText}"`);
+    assert.match(amountDiffText, /reverb/i);
+
+    // getHintText — TİP farkı + miktar farkı (iki yön)
+    const typeHint = mode.getHintText({ oddIndex: 0, variants: [{ letter: "A", type: "hall" }, { letter: "B", type: "room" }, { letter: "C", type: "room" }] });
+    assert.doesNotMatch(typeHint, /yankı/i, `getHintText (tip): "${typeHint}"`);
+    const moreHint = mode.getHintText({ oddIndex: 0, variants: [{ letter: "A", type: "room", amountScore: 2 }, { letter: "B", type: "room", amountScore: 0.3 }, { letter: "C", type: "room", amountScore: 0.3 }] });
+    const lessHint = mode.getHintText({ oddIndex: 0, variants: [{ letter: "A", type: "room", amountScore: 0.1 }, { letter: "B", type: "room", amountScore: 1 }, { letter: "C", type: "room", amountScore: 1 }] });
+    [moreHint, lessHint].forEach(t => {
+      assert.doesNotMatch(t, /yankı/i, `getHintText: "${t}"`);
+      assert.match(t, /reverb/i);
+    });
+
+    // modeDescription
+    const desc = mode.modeDescription();
+    assert.doesNotMatch(desc, /yankı/i, `modeDescription: "${desc}"`);
+    assert.match(desc, /reverb/i);
+
+    // Gerçek createQuestion çıktılarıyla uçtan uca (mock DEĞİL) — her kademe × 15 tekrar
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      for (let i = 0; i < 15; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false });
+        for (const guess of ["A", "B", "C"]) {
+          const text = mode.teachingText(q, guess);
+          assert.doesNotMatch(text, /yankı/i, `${level} guess=${guess}: "${text}"`);
+        }
+      }
+    }
+  });
+
   it("getFeedbackData showResult HER ZAMAN true, panel HER ZAMAN null", () => {
     const q = mode.createQuestion("medium", { source: "pink", boss: false });
     const correctLetter = q.choices.find(c => c.correct).id;

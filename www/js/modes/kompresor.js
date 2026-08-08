@@ -314,7 +314,7 @@ export function createQuestion(level, settings = {}) {
 }
 
 export function modeDescription() {
-  return "A/B/C ile üçünü de dinle, FARKLI sıkıştırılmış olanı (dinamiği ne kadar daraltılmış) şıklardan seç.";
+  return "A/B/C ile üçünü de dinle, FARKLI kompresyonlu olanı (dinamiği ne kadar daraltılmış) şıklardan seç.";
 }
 
 export function correctLabel(question) {
@@ -411,9 +411,9 @@ export function teachingText(question, answer) {
     const heavier = odd.gainReductionDb > same.gainReductionDb;
     const yonMetni = heavier ? "daha ağır" : "daha hafif";
     const mixMetni = heavier ? "mixte daha geride/oturmuş durur" : "biraz daha dinamik/canlı kalır";
-    base = `İkisi de ${sameTier.word} sıkıştırılmıştı, ${odd.letter} ${yonMetni} — ${mixMetni}.`;
+    base = `İkisi de ${sameTier.word} durumundaydı, ${odd.letter} ${yonMetni} — ${mixMetni}.`;
   } else {
-    base = `${odd.letter} farklıydı (ratio ${odd.ratio.toFixed(1)}:1, eşik ${odd.threshold.toFixed(0)} dB) — ${compressionWord(odd.gainReductionDb)}.`;
+    base = `${odd.letter} farklıydı (ratio ${odd.ratio.toFixed(1)}:1, threshold ${odd.threshold.toFixed(0)} dB) — ${compressionWord(odd.gainReductionDb)}.`;
   }
 
   if (result.correct) return `Doğru! ${base}`;
@@ -440,7 +440,7 @@ export function getFeedbackData(question, answer, context = {}) {
 export function getHintText(question) {
   const odd = question.variants[question.oddIndex];
   const same = question.variants.find((v, i) => i !== question.oddIndex);
-  return odd.gainReductionDb > same.gainReductionDb ? "Farklı olan DAHA ÇOK sıkıştırılmış" : "Farklı olan DAHA AZ sıkıştırılmış";
+  return odd.gainReductionDb > same.gainReductionDb ? "Farklı olan DAHA ÇOK kompresyonlu" : "Farklı olan DAHA AZ kompresyonlu";
 }
 
 export function renderHintMask(hintMaskLayerEl) {

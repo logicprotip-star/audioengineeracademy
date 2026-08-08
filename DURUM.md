@@ -1,13 +1,109 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G65)
+Son güncelleme: 08.08.2026 (G66)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
 
+## DİL PRENSİBİ (kullanıcı kararı, G66'da netleşti — ayrı bir dosya YOK, burada kayıtlı)
+
+GLOBAL mix terimleri İngilizce KALIR (çevrilmez), tanımlayıcı kelimeler
+Türkçe. Örnek: "Reverb nasıl yankı değilse, saturation da doygunluk değil."
+Global sayılan terimler (örnek liste, tüketici değil): ratio, Q, gain,
+threshold, attack, release, reverb, saturation, distortion, dB, Hz, kHz,
+LUFS, EQ, compressor, boost, cut, pan, stereo, mono, peak, transient,
+sidechain, delay.
+
 ## BİTTİ
 
-Bu commit (G65, tek commit) — **"Serbest" (sonsuz) Oyun Türü ücretsizde
+Bu commit (G66, tek commit) — **Terminoloji düzeltmesi: önceki turun
+denetim raporunda bulunan global-terim yanlış çevirileri düzeltildi.**
+Denetim SADECE rapor üretmişti (bir önceki tur, kod değiştirmedi) — bu tur
+o raporun onaylanan maddelerini uyguluyor.
+
+**DÜZELTİLEN 6 KONUM/GRUP (task'ın kendi numaralandırması):**
+1. **Reverb "yankı" → "reverb"** — 5 GERÇEK konum (task "6" demişti, ama
+   `reverb.js:9/106/108/142`'deki 4 yorum SATIRI kullanıcıya hiç
+   görünmüyor, KORUMA kapsamı dışı bırakıldı — bkz. "sayı uydurma" ilkesi,
+   gerçek sayı koddan sayıldı): `app.js` soru başlığı ("hangisinin reverb'i
+   FARKLI?"), `app.js` round-start açıklaması, `reverb.js:modeDescription()`,
+   `REVERB_AMOUNT_TIERS` (4 kademe kelimesi TEK grup), `reverb.js:
+   getHintText()`.
+2. **Kompresör "sıkıştırılmış" → "kompresyon"** — 5 konum: `mode-catalog.js`
+   kart açıklaması, `app.js` soru başlığı, `kompresor.js:modeDescription()`,
+   `teachingText()`'in AYNI-kademe dalı, `getHintText()`. Kodda ZATEN var
+   olan "kompresyon" (COMPRESSION_TIERS, task'ın önerdiği alternatif)
+   TUTARLI hale getirildi — yeni bir kelime İCAT edilmedi.
+3. **Kompresör "eşik" → "threshold"** — `teachingText()`'in FARKLI-kademe
+   dalı, tek konum.
+4. **Distortion "doygun(luk)" → "saturation"** — `mode-catalog.js` kart
+   açıklaması, `level-sheet-terms.js` etiketi, Araçlar sekmesi "Teyp/Radyo"
+   referans filtresi metni. Asıl öğretim metni (`teachingText`,
+   `DISTORTION_TYPE_INFO`) zaten "Tube (Valf) **Saturation**"/"Tape
+   **Saturation**" diyordu — hiç dokunulmadı, doğruydu.
+5. **Boost mu Cut mu kart açıklaması** — "Artırım mı, azaltım mı?" → "Boost
+   mu, cut mu?" (modun KENDİ oyun-içi soru metniyle BİREBİR aynı cümle —
+   yeni bir ifade İCAT edilmedi, var olanı ödünç alındı).
+6. **İki `modeDescription()` parantez-sırası** — Reverb'inki maddede-1
+   fixiyle zaten çözüldü (parantez TAMAMEN kalktı, "reverb" birincil oldu).
+   Distortion'ınki AYRI: "(bozulma karakteri farklı)" parantezi kaldırıldı,
+   `app.js:2168`'in ZATEN doğru olan "distortion'ı FARKLI olanı seç"
+   cümlesiyle TUTARLI hale getirildi.
+
+**DENETİMDE KAÇAN, BU TURDA BULUNAN 7. KONUM (dürüstlük notu — task "5
+konum" demişti Kompresör için, uygulama sırasında 6.'sı bulundu):**
+Araçlar sekmesinin "Bluetooth hoparlör" referans filtresi ("Dar bant,
+sıkıştırılmış.") ÖNCEKİ turun denetiminde KAÇMIŞTI (aynı `TOOL_FILTERS`
+dizisindeki "Teyp/Radyo" satırının "doygunluk"u bulunmuştu ama bu satırın
+"sıkıştırılmış"ı atlanmıştı) — bu tur "kompresyonlu"ya çevrildi, RAPORA
+buradan not düşülüyor (sayı uydurmamak için).
+
+**DOKUNULMAYAN (denetimde "sorun değil" çıkanlar — TEK TEK yeniden
+doğrulandı, Node'un UTF-8-farkında araması ile — bkz. Doğrulama):**
+"isabet oranı" (accuracy rate, ratio değil), "kazanç"/"atak"/"tepe" (kod
+yorumları, kullanıcı görmüyor), "gecikme" (JS zamanlama, Delay efekti bu
+uygulamada hiç yok), `upload.js`'in "sıkıştırılmış"ı (dosya/codec
+sıkıştırması, doğru bağlam), Pan/Stereo/Mono/EQ (zaten İngilizce).
+
+**YENİ test dosyası `test/terminology.test.mjs` + 3 mod dosyasının
+KENDİ test dosyalarına eklenen regresyon kilitleri:**
+`mode-catalog.js`'in 14 kart açıklamasının HİÇBİRİ 6 yasaklı çeviriyi
+(yankı/doygun/sıkıştır/eşik/artırım/azaltım) İÇERMİYOR, `level-sheet-
+terms.js`'in 10 etiketi de aynı şekilde — GERÇEK veriyle (mock değil)
+doğrulanıyor. `kompresor.test.mjs`/`reverb.test.mjs`'e HER İKİ dal (tip-
+farkı/kademe-farkı ile aynı-tip/miktar-farkı) + `getHintText` + `modeDescription`
++ gerçek `createQuestion` çıktılarıyla (5-10 kademe × 15 tekrar) uçtan uca
+regresyon testi eklendi. `distortion.test.mjs`'e `modeDescription` kilidi
+eklendi (teachingText zaten "doygun" aramıyordu, mevcut testler yeterliydi).
+
+**Doğrulama:**
+- `npm test`: **916/916** (882 → +34: kompresor +1, reverb +1, distortion
+  +1 [çoklu assertion içeren tek `it()` blokları], `terminology.test.mjs`
+  +31 [14+4 katalog, 10+3 level-sheet]).
+- Node'un KENDİ UTF-8-farkında string arama scriptiyle (bash `grep`'in
+  Türkçe "ş" karakterinde locale kaynaklı YANLIŞ NEGATİF verdiği bu turda
+  BULUNDU ve düzeltildi — dürüstlük notu, ilk doğrulama denemesi güvenilmez
+  çıktı verdi) TÜM 6 dosya TEK TEK tarandı: kalan HER "yankı"/"doygun"/
+  "sıkıştır"/"eşik" örneği SADECE `//` yorum satırlarında — kullanıcıya
+  görünen TEK bir örnek kalmadı.
+- Öğretim metinlerinin ANLAMI korundu — sadece isim/terim değişti, cümle
+  yapısı/mantığı (hangi dalın ne zaman tetiklendiği, hangi sayının
+  gösterildiği) TEK SATIR değişmedi (testler bunu zaten doğruluyor: aynı
+  regex'ler `/İkisi de/`, `/sen A dedin/`, decay/ratio/threshold sayı
+  değerleri hâlâ eskisi gibi eşleşiyor).
+- **Dürüstlük notu — CANLI/cihaz doğrulaması YİNE YAPILAMADI** (tarayıcı
+  eklentisi bu oturumda da bağlı değildi) — yeni metinlerin cihazda GERÇEKTEN
+  doğru göründüğü (satır taşması, Türkçe iyelik eki "reverb'i"nin doğru
+  render edildiği vb.) gözle DOĞRULANMADI. Kod incelemesi + 34 yeni test +
+  Node tabanlı tam-dosya taraması kadarı garanti.
+
+**KORUMA:** Mekanik/ses/zorluk/sınav/paywall TEK SATIR değişmedi — SADECE
+kullanıcıya görünen metin. `evaluateAnswer`/`createQuestion`/zorluk
+eğrileri/COMPRESSION_TIERS'ın `max` sınırları vb. hiçbiri dokunulmadı.
+
+---
+
+Önceki commit (G65, tek commit) — **"Serbest" (sonsuz) Oyun Türü ücretsizde
 KİLİTLİ görünüyor (Pro rozeti + 🔒), basınca paywall açılıyor.** Cihaz
 testinde bulunan kafa karışıklığı: G61'de "Serbest" ücretsizde SEÇİLEBİLİR
 bırakılmıştı ("ekran değil sadece kural" kararı, bkz. PAYWALL.md) — kullanıcı

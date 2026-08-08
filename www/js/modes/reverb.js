@@ -313,7 +313,7 @@ export function createQuestion(level, settings = {}) {
 }
 
 export function modeDescription() {
-  return "A/B/C ile üçünü de dinle, FARKLI yankılanan (reverb) sesi şıklardan seç.";
+  return "A/B/C ile üçünü de dinle, reverb'i FARKLI olan sesi şıklardan seç.";
 }
 
 export function correctLabel(question) {
@@ -393,10 +393,10 @@ export function calculateXP(question, result, hintUsed, level, context = {}) {
 // COMPRESSION_TIERS'ıyla AYNI desen) — AYNI-tip (miktar farkı) turlarında
 // "ikisi de aynı kademede mi" ayrımı için.
 const REVERB_AMOUNT_TIERS = [
-  { max: 0.4, word: "ince/hafif yankı", detail: "ses öne yakın kalır, mekan hissi belli belirsiz" },
-  { max: 1.0, word: "orta yankı", detail: "dengeli bir mekan hissi, ne çok kuru ne çok ıslak" },
-  { max: 2.0, word: "belirgin/geniş yankı", detail: "ses geriye/derine çekilir, mekan net hissedilir" },
-  { max: Infinity, word: "çok uzun/derin yankı", detail: "ses neredeyse mekanın içinde kayboluyor, kuyruk uzun sürüyor" }
+  { max: 0.4, word: "ince/hafif reverb", detail: "ses öne yakın kalır, mekan hissi belli belirsiz" },
+  { max: 1.0, word: "orta reverb", detail: "dengeli bir mekan hissi, ne çok kuru ne çok ıslak" },
+  { max: 2.0, word: "belirgin/geniş reverb", detail: "ses geriye/derine çekilir, mekan net hissedilir" },
+  { max: Infinity, word: "çok uzun/derin reverb", detail: "ses neredeyse mekanın içinde kayboluyor, kuyruk uzun sürüyor" }
 ];
 
 function amountTier(score) {
@@ -452,7 +452,7 @@ export function getHintText(question) {
   const odd = question.variants[question.oddIndex];
   const same = question.variants.find((v, i) => i !== question.oddIndex);
   if (odd.type !== same.type) return `Farklı olan BAŞKA bir tip reverb (${REVERB_TYPES[same.type].label} değil)`;
-  return odd.amountScore > same.amountScore ? "Farklı olan DAHA UZUN/derin yankılı" : "Farklı olan DAHA KISA/yakın yankılı";
+  return odd.amountScore > same.amountScore ? "Farklı olan DAHA UZUN/derin reverb'li" : "Farklı olan DAHA KISA/yakın reverb'li";
 }
 
 export function renderHintMask(hintMaskLayerEl) {

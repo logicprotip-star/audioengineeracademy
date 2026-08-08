@@ -335,6 +335,59 @@ describe("Kompresör — öğretici metin (teachingText/getFeedbackData) — mix
     }
   });
 
+  // G66 (terminoloji denetimi): "compressor"/"ratio"/"threshold" GLOBAL mix
+  // terimleri — "sıkıştırılmış"/"eşik" gibi tam Türkçe çevirilere ASLA
+  // düşmemeli (bkz. DURUM.md G66). "kompresyon" (İngilizce'ye yakın ödünç
+  // kelime, task'ın kendi kararı) KABUL edilir.
+  it("hiçbir metin (teachingText/getHintText/modeDescription, HER İKİ dal + gerçek createQuestion) 'sıkıştır'/'eşik' İÇERMEZ — 'kompresyon'/'threshold' kullanır", () => {
+    // FARKLI-kademe dalı (threshold'un teachingText'te göründüğü tek dal)
+    const diffTierQ = { oddIndex: 1, variants: [
+      { letter: "A", ratio: 7.65, threshold: -21, gainReductionDb: 13.0 },
+      { letter: "B", ratio: 12.5, threshold: -29, gainReductionDb: 22.0 },
+      { letter: "C", ratio: 7.65, threshold: -21, gainReductionDb: 13.0 }
+    ] };
+    const diffTierText = mode.teachingText(diffTierQ, "B");
+    assert.doesNotMatch(diffTierText, /sıkıştır/i, `teachingText (farklı kademe): "${diffTierText}"`);
+    assert.doesNotMatch(diffTierText, /\beşik\b/i, `teachingText (farklı kademe): "${diffTierText}"`);
+    assert.match(diffTierText, /kompresyon/i);
+    assert.match(diffTierText, /threshold/i);
+
+    // AYNI-kademe dalı ("İkisi de X durumundaydı" — ÖNCEDEN "sıkıştırılmıştı")
+    const sameTierQ = { oddIndex: 1, variants: [
+      { letter: "A", ratio: 3, threshold: -12, gainReductionDb: 5.0 },
+      { letter: "B", ratio: 3.5, threshold: -13, gainReductionDb: 7.0 },
+      { letter: "C", ratio: 3, threshold: -12, gainReductionDb: 5.0 }
+    ] };
+    const sameTierText = mode.teachingText(sameTierQ, "B");
+    assert.doesNotMatch(sameTierText, /sıkıştır/i, `teachingText (aynı kademe): "${sameTierText}"`);
+    assert.match(sameTierText, /kompresyon/i);
+
+    // getHintText — iki yön de
+    const moreHint = mode.getHintText({ oddIndex: 0, variants: [{ letter: "A", gainReductionDb: 20 }, { letter: "B", gainReductionDb: 5 }, { letter: "C", gainReductionDb: 5 }] });
+    const lessHint = mode.getHintText({ oddIndex: 0, variants: [{ letter: "A", gainReductionDb: 3 }, { letter: "B", gainReductionDb: 15 }, { letter: "C", gainReductionDb: 15 }] });
+    [moreHint, lessHint].forEach(t => {
+      assert.doesNotMatch(t, /sıkıştır/i, `getHintText: "${t}"`);
+      assert.match(t, /kompresyon/i);
+    });
+
+    // modeDescription
+    const desc = mode.modeDescription();
+    assert.doesNotMatch(desc, /sıkıştır/i, `modeDescription: "${desc}"`);
+    assert.match(desc, /kompresyon/i);
+
+    // Gerçek createQuestion çıktılarıyla uçtan uca (mock DEĞİL) — 5 kademe × 15 tekrar
+    for (const level of Object.keys(mode.DIFFICULTY)) {
+      for (let i = 0; i < 15; i++) {
+        const q = mode.createQuestion(level, { source: "pink", boss: false });
+        for (const guess of ["A", "B", "C"]) {
+          const text = mode.teachingText(q, guess);
+          assert.doesNotMatch(text, /sıkıştır/i, `${level} guess=${guess}: "${text}"`);
+          assert.doesNotMatch(text, /\beşik\b/i, `${level} guess=${guess}: "${text}"`);
+        }
+      }
+    }
+  });
+
   it("getFeedbackData showResult HER ZAMAN true, panel HER ZAMAN null", () => {
     const q = mode.createQuestion("medium", { source: "pink", boss: false });
     const correctLetter = q.choices.find(c => c.correct).id;

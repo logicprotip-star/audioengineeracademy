@@ -310,7 +310,7 @@ export function createQuestion(level, settings = {}) {
 }
 
 export function modeDescription() {
-  return "A/B/C ile üçünü de dinle, FARKLI distortion'lı (bozulma karakteri farklı) olanı şıklardan seç.";
+  return "A/B/C ile üçünü de dinle, distortion'ı FARKLI olanı şıklardan seç.";
 }
 
 export function correctLabel(question) {

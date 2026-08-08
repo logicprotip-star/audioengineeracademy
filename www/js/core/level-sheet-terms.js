@@ -91,7 +91,7 @@ export const LEVEL_SHEET_TERMS = {
     formatAmount: p => formatDb(p.cutStepDb)
   },
   distortion: {
-    sensitivityLabel: "Doygunluk ayrımı",
+    sensitivityLabel: "Saturation ayrımı",
     amountLabel: null,
     formatSensitivity: p => formatPercent(p.kGap),
     formatAmount: () => null

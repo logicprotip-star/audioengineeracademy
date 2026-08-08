@@ -14,7 +14,7 @@ export const MODE_CATALOG = [
   { id: "frekans-bulma", ad: "Frekans Bulma", aciklama: "Hangi frekans artırıldı?", motor: 1, kulaklikGerekli: false, unlockLevel: 1, playable: true, tier: "free" },
   { id: "kesim-noktasi", ad: "Kesim Noktası", aciklama: "Filtrenin kesim frekansı", motor: 1, kulaklikGerekli: false, unlockLevel: 2, playable: true, tier: "free" },
   { id: "q-genisligi", ad: "Q Genişliği", aciklama: "Bandın darlığını tahmin et", motor: 1, kulaklikGerekli: false, unlockLevel: 3, playable: true, tier: "free" },
-  { id: "boost-mu-cut-mu", ad: "Boost mu Cut mu", aciklama: "Artırım mı, azaltım mı?", motor: 1, kulaklikGerekli: false, unlockLevel: 4, playable: true, tier: "free" },
+  { id: "boost-mu-cut-mu", ad: "Boost mu Cut mu", aciklama: "Boost mu, cut mu?", motor: 1, kulaklikGerekli: false, unlockLevel: 4, playable: true, tier: "free" },
   { id: "hiz-modu", ad: "Hız Modu", aciklama: "60 saniyede kaç tane?", motor: 1, kulaklikGerekli: false, unlockLevel: 5, playable: false, tier: "free" },
   { id: "db-seviyesi", ad: "dB Seviyesi", aciklama: "Kaç dB değişti?", motor: 1, kulaklikGerekli: false, unlockLevel: 6, playable: true, tier: "pro" },
   { id: "stereo-genislik", ad: "Stereo Genişlik", aciklama: "Ses ne kadar geniş?", motor: 1, kulaklikGerekli: true, unlockLevel: 7, playable: false, tier: "pro" },
@@ -27,7 +27,7 @@ export const MODE_CATALOG = [
   // core/paywall.js:FREE_MODE_IDS'ten okunuyor, bu alan SADECE kart rozeti
   // için — ikisi burada BİLEREK senkron tutuldu, aksi hâlde kart "Pro"
   // rozetiyle görünüp aslında ücretsiz olurdu, yanıltıcı olurdu).
-  { id: "kompresor", ad: "Kompresör", aciklama: "Hangisi daha sıkıştırılmış?", motor: 2, kulaklikGerekli: false, unlockLevel: 12, playable: true, tier: "free" },
+  { id: "kompresor", ad: "Kompresör", aciklama: "Hangisi daha kompresyonlu?", motor: 2, kulaklikGerekli: false, unlockLevel: 12, playable: true, tier: "free" },
   { id: "reverb", ad: "Reverb", aciklama: "Hangisinin reverb'i farklı?", motor: 2, kulaklikGerekli: true, unlockLevel: 14, playable: true, tier: "pro" },
   // G44: "tonal-denge" BURAYA taşındı (ÖNCEDEN Motor 1'de, "Hangi bölge fazla?"
   // farklı bir tek-değer konsepti olarak, HİÇ kod karşılığı olmadan, unlockLevel:9,
@@ -39,7 +39,7 @@ export const MODE_CATALOG = [
   { id: "tonal-denge", ad: "Tonal Denge", aciklama: "Hangisinin tonal dengesi bozuk?", motor: 2, kulaklikGerekli: true, unlockLevel: 15, playable: true, tier: "pro" },
   // G59: Motor 2'nin dördüncü modu — Kompresör'ün (G30/G33) three-way/odd-
   // one-out şablonunun "ikizi" (task'ın kendi tabiri). playable:true.
-  { id: "distortion", ad: "Distortion", aciklama: "Hangisi daha doygun?", motor: 2, kulaklikGerekli: false, unlockLevel: 16, playable: true, tier: "pro" },
+  { id: "distortion", ad: "Distortion", aciklama: "Hangisinin saturation'ı daha fazla?", motor: 2, kulaklikGerekli: false, unlockLevel: 16, playable: true, tier: "pro" },
 
   // ---- Motor 3 · İki kaynaklı ----
   // G51: TEMEL AT — kulaklikGerekli true'ya çevrildi (bkz. modes/frekans-

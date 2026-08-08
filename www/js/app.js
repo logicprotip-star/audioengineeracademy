@@ -2095,8 +2095,8 @@ function renderQuestion() {
         : "Açıldı mı kısıldı mı, ne kadar?")
     : q.mode === "boostcut" ? mode.questionTitle(q)
     : q.mode === "qwidth" ? mode.questionTitle(q)
-    : q.mode === "kompresor" ? "Üç ses (A/B/C) — hangisi FARKLI sıkıştırılmış?"
-    : q.mode === "reverb" ? "Üç ses (A/B/C) — hangisi FARKLI yankılanıyor?"
+    : q.mode === "kompresor" ? "Üç ses (A/B/C) — hangisinin kompresyonu FARKLI?"
+    : q.mode === "reverb" ? "Üç ses (A/B/C) — hangisinin reverb'i FARKLI?"
     : q.mode === "distortion" ? "Üç ses (A/B/C) — hangisinin distortion'ı FARKLI?"
     : q.mode === "tonal-denge" ? `${q.bandCount} bant — kaydırıcılarla sesi nötüre getir.`
     : q.mode === "cakisma" ? mode.questionTitle(q)
@@ -2164,7 +2164,7 @@ function renderQuestion() {
     : q.mode === "boostcut" ? mode.modeDescription(q)
     : q.mode === "qwidth" ? "A/B ile karşılaştır, sonra aşağıdaki şıklardan genişlik karakterini seç."
     : q.mode === "kompresor" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI olanı seç."
-    : q.mode === "reverb" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan FARKLI yankılanan sesi seç."
+    : q.mode === "reverb" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan reverb'i FARKLI olanı seç."
     : q.mode === "distortion" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan distortion'ı FARKLI olanı seç."
     : q.mode === "tonal-denge" ? "Dinle, kaydırıcılarla düzelt, sesi nötr/dengeli hale getirmeye çalış — sonra onayla."
     : q.mode === "cakisma" ? mode.modeDescription(q)
@@ -5357,9 +5357,9 @@ const TOOL_FILTERS = [
   ["Araba", "Bas vurgulu, orta bölgede çukur.", "Bas fazla mı, vokal kayboluyor mu?"],
   ["Kulüp / PA", "Aşırı bas, uzun kuyruk.", "Alt bölge dağılıyor mu, kick belirgin mi?"],
   ["Laptop", "Bas zayıf, orta ağırlıklı.", "Bas hiç duyulmuyorsa gövde yeterli mi?"],
-  ["Teyp / Radyo", "Dar bant, hafif doygunluk.", "Şarkı dar bantta da anlaşılıyor mu?"],
+  ["Teyp / Radyo", "Dar bant, hafif saturation.", "Şarkı dar bantta da anlaşılıyor mu?"],
   ["Ucuz kulaklık", "Bas ve tiz vurgulu.", "Tizler cırlıyor mu, S sesleri batıyor mu?"],
-  ["Bluetooth hoparlör", "Dar bant, sıkıştırılmış.", "Dinamik kalıyor mu, itiliyor mu?"],
+  ["Bluetooth hoparlör", "Dar bant, kompresyonlu.", "Dinamik kalıyor mu, itiliyor mu?"],
   ["Mono", "Kanallar toplanmış.", "Faz kaybı var mı, enstrüman kayboluyor mu?"]
 ];
 

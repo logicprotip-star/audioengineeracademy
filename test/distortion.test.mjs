@@ -346,6 +346,18 @@ describe("Distortion — öğretici metin (teachingText/getFeedbackData) — tü
     }
   });
 
+  // G66 (terminoloji denetimi): "saturation" GLOBAL mix terimi —
+  // "doygun(luk)" gibi tam Türkçe çeviriye ASLA düşmemeli (bkz. DURUM.md
+  // G66). teachingText/DISTORTION_TYPE_INFO zaten "Tube (Valf) Saturation"/
+  // "Tape Saturation" ile doğruydu (yukarıdaki testler bunu zaten kapsıyor,
+  // "doygun" hiç aramıyordu) — burada SADECE bu turda düzeltilen
+  // modeDescription() kilitleniyor.
+  it("modeDescription 'doygun' İÇERMEZ", () => {
+    const desc = mode.modeDescription();
+    assert.doesNotMatch(desc, /doygun/i, `modeDescription: "${desc}"`);
+    assert.match(desc, /distortion/i);
+  });
+
   it("getFeedbackData showResult HER ZAMAN true, panel HER ZAMAN null", () => {
     const q = mode.createQuestion("medium", { source: "pink", boss: false });
     const correctLetter = q.choices.find(c => c.correct).id;
