@@ -41,8 +41,12 @@ export function freshDiffState() {
 // medium/...) anahtarlanıyor; birden fazla mod aynı zorluk adlarını kullanırsa
 // (ör. iki modun da "easy" zorluğu varsa) perDiff'te XP'leri KARIŞIRDI — bu yüzden
 // mod seviyesi perDiff'ten DEĞİL, kendi ad alanı olan perMode'dan hesaplanır.
+// hintRoundsShown: "i" bilgi sistemi (core/guide-texts.js) için — o modda
+// round-içi ipucu bandının BUGÜNE kadar gösterildiği round sayısı. İlk
+// HINT_ROUNDS_LIMIT (2) round'dan sonra bir daha otomatik açılmaz. xp'den
+// AYRI, kalıcı bir sayaç — kalıcı "i" ikonuna hiç dokunmaz (o her zaman açılır).
 export function freshModeState() {
-  return { xp: 0 };
+  return { xp: 0, hintRoundsShown: 0 };
 }
 
 // difficultyLives: { [difficultyKey]: defaultLives } — moddan gelir. Değerler artık
@@ -120,6 +124,10 @@ export function loadStats(difficultyLives, hintsPerGame, modeIds = [], legacyMod
     if (!s.perMode) s.perMode = {};
     modeIds.forEach(id => {
       if (!s.perMode[id]) s.perMode[id] = freshModeState();
+      // Eski kayıtlarda (bu alan eklenmeden önce) hintRoundsShown hiç yoktu —
+      // eksikse 0'a çekilir (ipucu bandı ilk kez oynanıyormuş gibi görünür,
+      // zararsız — en fazla 2 round fazladan ipucu gösterir).
+      if (typeof s.perMode[id].hintRoundsShown !== "number") s.perMode[id].hintRoundsShown = 0;
     });
     if (isFirstPerModeMigration && legacyModeId && s.perMode[legacyModeId]) {
       const totalLegacyXp = Object.values(s.perDiff || {}).reduce((sum, d) => sum + ((d && d.xp) || 0), 0);

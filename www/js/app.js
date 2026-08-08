@@ -16,6 +16,7 @@ import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
 import { SOURCE_GROUPS, findSource, findSourcePair } from "./core/source-catalog.js";
 import { tierForLevel, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
 import { levelSheetTermsFor } from "./core/level-sheet-terms.js";
+import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, shouldShowRoundHint, formatRoundHint } from "./core/guide-texts.js";
 import { getWeakZone } from "./core/personalization.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
@@ -99,6 +100,15 @@ const els = {
   menuNextLevelText: document.getElementById("menuNextLevelText"),
 
   // genel ayarlar (dişli) + yardım/bilgi ekranları
+  menuInfoBtn: document.getElementById("menuInfoBtn"),
+  guideSheetOverlay: document.getElementById("guideSheetOverlay"),
+  guideSheet: document.getElementById("guideSheet"),
+  guideSheetTitle: document.getElementById("guideSheetTitle"),
+  guideSheetClose: document.getElementById("guideSheetClose"),
+  guideSheetBody: document.getElementById("guideSheetBody"),
+  roundHintBanner: document.getElementById("roundHintBanner"),
+  roundHintText: document.getElementById("roundHintText"),
+  roundHintClose: document.getElementById("roundHintClose"),
   menuSettingsBtn: document.getElementById("menuSettingsBtn"),
   progressSettingsBtn: document.getElementById("progressSettingsBtn"),
   toolsSettingsBtn: document.getElementById("toolsSettingsBtn"),
@@ -1371,6 +1381,10 @@ function enterMode(entry, realMode) {
     examSystem.setMode(realMode.MODE_ID);
     els.questionTitle.textContent = 'Başlamak için "Oyunu Başlat"a dokun.';
     els.questionMeta.textContent = "";
+    // Önceki modun round-içi ipucu bandı yeni moda SIZMASIN — showRoundHintIfNeeded
+    // zaten her startRound()'da yeniden değerlendirir, ama "Oyunu Başlat"a basılana
+    // kadarki idle görünümde eski modun bandı asılı kalmasın diye burada da kapatılır.
+    if (els.roundHintBanner) els.roundHintBanner.classList.add("hidden");
     if (els.freqInfo) els.freqInfo.classList.add("hidden");
     if (els.answers) { els.answers.innerHTML = ""; els.answers.classList.add("hidden"); }
     updateStartBtnLabel();
@@ -1649,6 +1663,11 @@ function renderModeGrid() {
       // progress.modeLevel (Z3/Z6'dan beri var, oyun içi #levelChip'in AYNI kaynağı) —
       // hiç oynanmamış bir mod bile levelFromXp'nin tabanı (1) gereği "Sv 1" gösterir.
       const levelBadge = (playable && access.allowed) ? `<div class="mode-chip mode-chip-level">Sv ${progress.modeLevel(stats, entry.id)}</div>` : "";
+      // "i" bilgi rozeti (bkz. core/guide-texts.js) — SADECE gerçek metni olan
+      // (yani kodlanmış, oynanabilir) 10 mod için, henüz kodlanmamış 4 katalog
+      // girdisinde (hiz-modu, stereo-genislik, pan-konumu, hangisi-farkli) YOK,
+      // çünkü onlar için içerik hiç yazılmadı.
+      const infoBadge = MODE_GUIDE_TEXTS[entry.id] ? `<button type="button" class="mode-info-btn" data-guide-mode="${entry.id}" aria-label="${entry.ad} bilgisi">i</button>` : "";
       // G61: seviye kilidiyle AYNI görsel dil (.mode-lock-row, "sadece erişim
       // kısıtı eklenir" — yeni bir bileşen icat edilmedi) ama farklı metin: Pro
       // gerektiren mod ile o gün zaten oynanmış günlük-tadımlık mod AYRI cümle.
@@ -1660,13 +1679,22 @@ function renderModeGrid() {
       card.innerHTML = `
         <div class="mode-top">
           <div class="mode-glyph" style="background:${info.bg}"><i style="height:12px;background:${info.color}"></i><i style="height:22px;background:${info.color}"></i><i style="height:16px;background:${info.color}"></i></div>
-          <div class="mode-top-right">${proBadge}${levelBadge}</div>
+          <div class="mode-top-right">${infoBadge}${proBadge}${levelBadge}</div>
         </div>
         <span class="mode-engine" style="color:${info.color}">${info.label}</span>
         <h4>${entry.ad}</h4>
         <p>${entry.aciklama}</p>
         ${lockRow}
       `;
+      // "i" rozeti kartın KENDİ tıklamasından BAĞIMSIZ — kilitli bir kartta bile
+      // (mod bilgisi kilitliyken de merak edilebilir) çalışmalı, bu yüzden
+      // card.addEventListener("click", ...) aşağıdaki asıl navigasyon handler'ından
+      // ÖNCE stopPropagation ile ayrılıyor.
+      const infoBtn = card.querySelector(".mode-info-btn");
+      if (infoBtn) infoBtn.addEventListener("click", e => {
+        e.stopPropagation();
+        openGuideSheet(entry.id);
+      });
       card.addEventListener("click", () => {
         if (playable) {
           // G63 (PAYWALL.md Parça 2): tetikleme #3 (kilitli mod: dB/Reverb/
@@ -3267,6 +3295,7 @@ function startRound() {
   if (els.sourceChipLabel && activeQuestion.mode !== "cakisma") els.sourceChipLabel.textContent = labelSource(activeQuestion.source);
   if (els.cakismaPairChipLabel && activeQuestion.mode === "cakisma") els.cakismaPairChipLabel.textContent = `${activeQuestion.pair.labelA} + ${activeQuestion.pair.labelB}`;
   renderQuestion();
+  showRoundHintIfNeeded();
   playQuestion(true);
   // G32: Motor 2 modlarında (Kompresör, G35'ten beri Reverb) A/B/C
   // karşılaştırması modun ÖZÜ (odd-one-out ancak üçünü de dinleyince
@@ -4185,6 +4214,59 @@ function closeLevelSheet() {
 if (els.levelChip) els.levelChip.addEventListener("click", openLevelSheet);
 if (els.lvlSheetClose) els.lvlSheetClose.addEventListener("click", closeLevelSheet);
 if (els.lvlSheetOverlay) els.lvlSheetOverlay.addEventListener("click", closeLevelSheet);
+
+// "i" bilgi/rehber sistemi (bkz. core/guide-texts.js) — KALICI, tıkla-aç/tıkla-kapa.
+// TEK sheet (guideSheet), lvlSheet'in AYNI deseni: ana ekranın "i"si GENERAL_GUIDE'ı,
+// her mod kartının "i"si o modun MODE_GUIDE_TEXTS[modeId]'ini doldurur. modeId=null
+// ise genel rehber gösterilir.
+function openGuideSheet(modeId) {
+  if (!els.guideSheetBody) return;
+  if (modeId && MODE_GUIDE_TEXTS[modeId]) {
+    const entry = MODE_CATALOG.find(e => e.id === modeId);
+    if (els.guideSheetTitle) els.guideSheetTitle.textContent = entry ? entry.ad : "Bu mod";
+    els.guideSheetBody.innerHTML = `<p style="margin:8px 2px 0;font-size:15px;line-height:1.55;color:var(--tx-2)">${MODE_GUIDE_TEXTS[modeId]}</p>`;
+  } else {
+    if (els.guideSheetTitle) els.guideSheetTitle.textContent = GENERAL_GUIDE.title;
+    els.guideSheetBody.innerHTML = GENERAL_GUIDE.sections.map(s => `
+      <div style="margin-top:16px" class="general-guide-section">
+        <div style="font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--am)">${s.heading.toUpperCase()}</div>
+        <p style="margin:8px 0 0;font-size:15px;line-height:1.55;color:var(--tx-2)">${s.body}</p>
+      </div>
+    `).join("");
+  }
+  if (els.guideSheetOverlay) els.guideSheetOverlay.classList.add("open");
+  if (els.guideSheet) els.guideSheet.classList.add("open");
+}
+function closeGuideSheet() {
+  if (els.guideSheetOverlay) els.guideSheetOverlay.classList.remove("open");
+  if (els.guideSheet) els.guideSheet.classList.remove("open");
+}
+if (els.menuInfoBtn) els.menuInfoBtn.addEventListener("click", () => openGuideSheet(null));
+if (els.guideSheetClose) els.guideSheetClose.addEventListener("click", closeGuideSheet);
+if (els.guideSheetOverlay) els.guideSheetOverlay.addEventListener("click", closeGuideSheet);
+
+// "i" bilgi sistemi, GEÇİCİ round-içi ipucu bandı — bir modun İLK
+// HINT_ROUNDS_LIMIT round'unda görünür (bkz. core/guide-texts.js), sonra
+// otomatik açılmaz. startRound()'dan HER round'da çağrılır; kalıcı sayaç
+// (stats.perMode[modeId].hintRoundsShown) modeState() ile okunur/yazılır —
+// mekanik/ses/puanlamaya HİÇ dokunmaz, salt görsel bir bant.
+function showRoundHintIfNeeded() {
+  if (!els.roundHintBanner) return;
+  const modeId = mode.getMeta().id;
+  const hintLine = formatRoundHint(modeId);
+  const ms = modeState();
+  if (hintLine && shouldShowRoundHint(ms.hintRoundsShown)) {
+    if (els.roundHintText) els.roundHintText.textContent = hintLine;
+    els.roundHintBanner.classList.remove("hidden");
+    ms.hintRoundsShown = (ms.hintRoundsShown || 0) + 1;
+    storage.saveStats(stats, history);
+  } else {
+    els.roundHintBanner.classList.add("hidden");
+  }
+}
+if (els.roundHintClose) els.roundHintClose.addEventListener("click", () => {
+  els.roundHintBanner.classList.add("hidden");
+});
 
 // G37: kulaklık uyarı sheet'i — "Bir daha gösterme" kutusunun durumu, prototipin
 // hpConfirm()'üyle AYNI şekilde SADECE onay (Kulaklığım takılı, başla) anında okunuyor,

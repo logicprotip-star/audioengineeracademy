@@ -259,14 +259,25 @@
     /* ---- oyun ekranı: başlık ---- */
     .ghead{flex:none;padding:10px 16px 0}
     .ghead-row{display:flex;align-items:center;gap:9px}
-    .back,.dots,.gear{
+    .back,.dots,.gear,.info-btn{
       width:44px;height:44px;flex:none;border-radius:14px;border:1px solid var(--line);
       background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;
     }
     .back{font-size:22px;line-height:1}
-    .back:active,.dots:active,.gear:active{background:rgba(255,255,255,.14)}
+    .back:active,.dots:active,.gear:active,.info-btn:active{background:rgba(255,255,255,.14)}
     .dots{gap:3.5px}
     .dots i{width:4px;height:4px;border-radius:99px;background:var(--tx-2)}
+    /* "i" bilgi ikonu — KALICI, solmaz (bkz. core/guide-texts.js). gear/dots'un
+       AYNI 44x44 taban stili, sadece glyph farklı: amber, italik serif "i". */
+    .info-btn{font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:700;font-size:19px;color:var(--am)}
+    /* mod kartı üstündeki minik "i" rozeti — .mode-chip-level'in AYNI boyut
+       dilinde ama yuvarlak, tek karakterlik (bkz. app.js renderModeGrid). */
+    .mode-info-btn{
+      width:22px;height:22px;flex:none;border-radius:99px;border:1px solid rgba(255,176,32,.3);
+      background:rgba(255,176,32,.14);color:var(--am);font-family:Georgia,"Times New Roman",serif;
+      font-style:italic;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;
+    }
+    .mode-info-btn:active{background:rgba(255,176,32,.26)}
     .gear i{width:16px;height:16px;border-radius:99px;border:3px solid var(--tx-2)}
     .ghead-titles{flex:1;min-width:0}
     .game-title{font-size:16px;font-weight:700}
@@ -346,6 +357,19 @@
       border:1px solid rgba(255,255,255,.09);font-size:16px;font-weight:700;line-height:1.3;color:var(--tx);
     }
     .qline-sub{margin:-2px 2px 0;font-size:13px;line-height:1.5;color:var(--tx-3)}
+
+    /* "i" bilgi sistemi, GEÇİCİ round-içi ipucu bandı — bir modun İLK 2
+       round'unda görünür, sonra solar/kaybolur (bkz. core/guide-texts.js +
+       app.js:showRoundHintIfNeeded). Kalıcı "i" ikonundan (.info-btn) AYRI. */
+    #roundHintBanner{
+      margin:10px 2px 14px;padding:11px 13px;border-radius:14px;
+      background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.28);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+    }
+    #roundHintBanner span#roundHintText{font-size:14px;line-height:1.5;color:var(--tx-2)}
+    #roundHintBanner button#roundHintClose{
+      flex:none;font-size:18px;line-height:1;color:var(--tx-3);background:none;border:none;padding:4px;
+    }
 
     /* ---- spektrum paneli (3 aşamalı: ask / hint / done) ---- */
     .analyzer{padding:12px 13px 10px}

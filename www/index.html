@@ -37,7 +37,10 @@
       <div class="scroll">
         <div class="menu-topbar">
           <div class="brand">Audio Engineer <span class="accent">Academy</span></div>
-          <button class="gear" id="menuSettingsBtn" aria-label="Ayarlar"><i></i></button>
+          <div class="ghead-row" style="gap:9px">
+            <button class="info-btn" id="menuInfoBtn" aria-label="Nasıl çalışır?" type="button">i</button>
+            <button class="gear" id="menuSettingsBtn" aria-label="Ayarlar"><i></i></button>
+          </div>
         </div>
         <div class="sub mobile-warn" style="font-size:13px;color:var(--am);margin-bottom:14px">
           🎧 En iyi sonuç için kulaklık kullan. · 📱 <b>iPhone'da ses gelmiyorsa:</b> sessiz anahtarını kapat.
@@ -95,6 +98,20 @@
           <span class="cb">✓</span>
           <span>Bu modda bir daha gösterme</span>
         </button>
+      </div>
+
+      <!-- "i" bilgi/rehber sistemi (bkz. core/guide-texts.js) — TEK sheet, hem
+           ana ekranın genel bilgisi hem her mod kartının kendi bilgisi için
+           yeniden kullanılıyor (içerik app.js:openGuideSheet ile doldurulur).
+           lvlSheet'in AYNI bottom-sheet deseni. -->
+      <div class="sheet-overlay" id="guideSheetOverlay"></div>
+      <div class="bottom-sheet" id="guideSheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <h3 id="guideSheetTitle">Nasıl çalışır?</h3>
+          <button class="sheet-cancel" id="guideSheetClose" type="button">Kapat</button>
+        </div>
+        <div id="guideSheetBody"></div>
       </div>
     </section>
 
@@ -202,6 +219,16 @@
 
         <div class="qline" id="questionTitle">Başlamak için "Oyunu Başlat"a dokun.</div>
         <div class="qline-sub hidden" id="questionMeta"></div>
+
+        <!-- "i" bilgi/rehber sistemi, GEÇİCİ kısım — bir modun İLK 2 round'unda
+             görünür, o modun ROUND_HINT_STEPS'ini tek satırda gösterir (bkz.
+             core/guide-texts.js + app.js:showRoundHintIfNeeded). Kalıcı "i"
+             ikonu (guideSheet) BUNDAN AYRI — hep durur, bu SADECE ilk-kullanım
+             çarkı, kendi "×" ile de kapatılabilir. -->
+        <div class="hidden" id="roundHintBanner">
+          <span id="roundHintText"></span>
+          <button type="button" id="roundHintClose" aria-label="İpucunu kapat">&times;</button>
+        </div>
 
         <div class="card analyzer" id="analyzer" data-phase="ask">
           <div class="analyzer-head">

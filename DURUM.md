@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G66)
+Son güncelleme: 08.08.2026 (G67)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,100 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G66, tek commit) — **Terminoloji düzeltmesi: önceki turun
+Bu commit (G67, tek commit) — **"i" bilgi/rehber sistemi: KALICI "i" ikonu
+(ana ekran + her mod kartı) + GEÇİCİ ilk-2-oyun ipuçları.** Kullanıcı
+seviye/sınav sistemini bilmiyordu, keşfedilmeden kalıyordu — ayrı bir yardım
+menüsü İSTENMEDİ, akış içinde iki katman kuruldu:
+
+**1. KALICI "i" ikonu (tıkla-aç/tıkla-kapa, hiç solmaz):**
+- Ana ekran üst çubuğunda `#menuInfoBtn` → `GENERAL_GUIDE`'ı (5 bölüm: Nasıl
+  çalışır / Seviye ve zorluk / Sınav ve bölüm geçme / Ücretsiz ve Pro / Can)
+  gösterir.
+- 10 oynanabilir mod kartının HER BİRİNDE (`.mode-top-right` içinde, Pro/Sv
+  rozetlerinin yanında) `.mode-info-btn` → o modun `MODE_GUIDE_TEXTS[id]`
+  metnini gösterir. Henüz kodlanmamış 4 katalog girdisinde (hiz-modu,
+  stereo-genislik, pan-konumu, hangisi-farkli) rozet YOK (gerçek içerik
+  olmadığı için).
+- İkisi de AYNI tek `#guideSheet` bottom-sheet'i yeniden kullanıyor
+  (`lvlSheet`'in BİREBİR aynı deseni) — `app.js:openGuideSheet(modeId)`,
+  `modeId=null` ise genel rehber.
+- Mod kartındaki "i" rozeti kartın kendi navigasyon click'inden
+  `e.stopPropagation()` ile ayrıldı — kilitli bir kartta bile bilgiye
+  bakılabilir, paywall/kilit akışını TETİKLEMEZ.
+
+**2. GEÇİCİ round-içi ipucu bandı (ilk `HINT_ROUNDS_LIMIT`=2 round, sonra
+otomatik açılmaz — ama kalıcı "i" hep durur):**
+- Oyun ekranında `#questionTitle`/`#questionMeta`'nın altına, `#analyzer`'ın
+  üstüne `#roundHintBanner` eklendi. `startRound()`'un HER çağrısında
+  `showRoundHintIfNeeded()` tetiklenir: o modun `ROUND_HINT_STEPS`'ini
+  (`formatRoundHint`, " → " ile birleştirilmiş tek satır, ör. "Sesi dinle →
+  Öne çıkan frekansı işaretle → Cevabını onayla") gösterir, kalıcı sayacı
+  (`stats.perMode[modeId].hintRoundsShown`) artırır.
+- Sayaç `HINT_ROUNDS_LIMIT`'e ulaşınca (2) bant BİR DAHA otomatik açılmaz —
+  ama kullanıcı kendi `×` ile de erken kapatabilir (kapatma da "gösterilmiş"
+  sayılır, sayaç geri alınmaz).
+- Mod değiştirilince (`enterMode`) önceki modun bandı hemen gizlenir — yeni
+  moda SIZMAZ, "Oyunu Başlat"a basılana kadarki idle görünüm temiz kalır.
+
+**Merkezi metin dosyası:** `www/js/core/guide-texts.js` (YENİ) —
+`level-sheet-terms.js`'in AYNI mantığı: `GENERAL_GUIDE`, `MODE_GUIDE_TEXTS`
+(10 mod), `ROUND_HINT_STEPS` (10 mod), `HINT_ROUNDS_LIMIT`,
+`shouldShowRoundHint()`/`formatRoundHint()` (saf fonksiyonlar). TÜM metin
+içeriği (`GENERAL_GUIDE` + `MODE_GUIDE_TEXTS`) kullanıcının kendi verdiği
+TASLAK metin — kelimesi kelimesine aktarıldı, cihazda görülüp
+düzeltilecek. `ROUND_HINT_STEPS`'in adım kelimeleri (task'ın örnek fiilleri
+"Sesi dinle"/"Farklı olanı seç"/"Cevabını onayla"dan esinlenerek, ama
+modun kendi mekaniğine göre) BENİM taslağım — bunlar da nihai DEĞİL.
+
+**Kalıcılık:** `storage.js:freshModeState()` artık `{xp, hintRoundsShown}`
+döndürüyor (önceden sadece `{xp}`). `loadStats()`'a bu alan hiç OLMAYAN eski
+kayıtlar için (G67 öncesi) 0'a göç eden bir satır eklendi — `xp`'ye
+DOKUNULMADI, sadece eksik alan tamamlandı.
+
+**YENİ test dosyası `test/guide-texts.test.mjs`:** `MODE_GUIDE_TEXTS`/
+`ROUND_HINT_STEPS`'in playable 10 mod id'siyle BİREBİR eşleştiği (fazla/eksik
+yok), `GENERAL_GUIDE`'ın tam 5 bölüm taşıdığı, `shouldShowRoundHint`'in
+sınır değerlerde (0/1/2/5/undefined) doğru davrandığı, `formatRoundHint`'in
+gerçek bir satır ürettiği/kayıtsız modId'de null döndüğü — GERÇEK
+`MODE_CATALOG`'dan okunan playable listesiyle karşılaştırılarak (mock değil).
+`test/storage.test.mjs`'e `hintRoundsShown` migration testleri eklendi (eski
+kayıt → 0'a göç, mevcut değer varsa ÜZERİNE YAZILMAZ). `test/terminology.
+test.mjs`'e guide-texts.js için de AYNI 6 yasaklı-çeviri kilidi eklendi
+(mode-catalog.js/level-sheet-terms.js ile AYNI desen) — DİL PRENSİBİ (yukarı
+bkz.) burada da korunuyor: metinlerde "reverb"/"saturation"/"kompresyon"/
+"boost"/"cut" İngilizce kaldı, "yankı"/"doygun"/"sıkıştır"/"eşik"/"artırım"/
+"azaltım" hiç geçmiyor.
+
+**Doğrulama:**
+- `npm test`: **980/980** (961 → +19: `guide-texts.test.mjs` yeni dosya
+  [~14 assertion], `storage.test.mjs` +3 [hintRoundsShown migration],
+  `terminology.test.mjs` +~12 [guide-texts.js kilidi]; 961 rakamı bu turun
+  BAŞINDAKİ mevcut sayı, önceki G66 kaydındaki 916'dan sonraki turlarda
+  ayrıca büyümüştü — sayı BURADA koddan ölçüldü, uydurulmadı).
+- Kod incelemesiyle doğrulanan (DOM/canlı test bu oturumda YAPILAMADI, bkz.
+  aşağıdaki dürüstlük notu): `els.menuInfoBtn`/`els.guideSheet*`/
+  `els.roundHintBanner`/`els.roundHintText`/`els.roundHintClose` HEPSİ
+  `index.html`'deki gerçek id'lerle eşleşiyor; `openGuideSheet`/
+  `closeGuideSheet`/`showRoundHintIfNeeded` doğru event'lere bağlı;
+  `renderModeGrid()`'deki `.mode-info-btn` SADECE `MODE_GUIDE_TEXTS[entry.id]`
+  varken render ediliyor (10/14 kart); `card.querySelector(".mode-info-btn")`
+  click'i `e.stopPropagation()` ile kartın kendi navigasyon handler'ından
+  ayrıştırılmış; `startRound()`'daki `showRoundHintIfNeeded()` çağrısı
+  `renderQuestion()`'dan hemen sonra, `playQuestion(true)`'dan önce.
+- **Dürüstlük notu — CANLI/cihaz doğrulaması YAPILAMADI** (tarayıcı eklentisi
+  bu oturumda bağlı değildi): "i" ikonlarının GERÇEKTEN açılıp kapandığı,
+  ipucu bandının GERÇEKTEN ilk 2 round'da görünüp sonra kaybolduğu, sheet
+  içeriğinin cihazda okunabilir/taşmasız göründüğü gözle DOĞRULANMADI. Kod
+  incelemesi + 980 test + yukarıdaki satır-satır kablolama kontrolü kadarı
+  garanti — bir sonraki oturumda tarayıcıda GERÇEKTEN denenmeli.
+
+**KORUMA:** 10 mod/ses/zorluk/sınav/paywall TEK SATIR değişmedi — SADECE
+"i" bilgi + geçici ipucu katmanı eklendi. `createQuestion`/`evaluateAnswer`/
+`applyProcessing`/zorluk eğrileri/paywall mantığı hiçbiri dokunulmadı.
+
+---
+
+Önceki commit (G66, tek commit) — **Terminoloji düzeltmesi: önceki turun
 denetim raporunda bulunan global-terim yanlış çevirileri düzeltildi.**
 Denetim SADECE rapor üretmişti (bir önceki tur, kod değiştirmedi) — bu tur
 o raporun onaylanan maddelerini uyguluyor.
@@ -4713,6 +4806,19 @@ tamamının dinamik bir aralık alacak şekilde refactor edilmesi (tıklama→Hz
 haritalamasını da etkiliyor, riskli) — ayrı bir iş, bu turun kapsamı
 dışında bırakıldı (kullanıcı kararı).
 
+**14. G67 "i" bilgi/rehber sistemi — CANLI/cihaz doğrulaması hiç yapılmadı**
+Kod incelemesi + 980 test geçti ama tarayıcıda GERÇEKTEN denenmedi (bkz. G67
+kaydındaki dürüstlük notu). Üç ayrı davranış hâlâ gözle görülmeli:
+(1) ana ekran `#menuInfoBtn` ve mod kartlarındaki `.mode-info-btn`
+tıklanınca `#guideSheet` doğru içerikle açılıp `×`/overlay ile kapanıyor mu,
+(2) bir modu ilk kez oynarken `#roundHintBanner` GERÇEKTEN görünüyor mu, 2.
+round'dan sonra bir daha çıkmıyor mu (localStorage'da `hintRoundsShown`
+gerçekten artıyor mu), (3) sheet içeriği (özellikle GENERAL_GUIDE'ın 5
+bölümü) küçük ekranda taşmadan/kesilmeden okunuyor mu.
+**Kabul kriteri:** yukarıdaki 3 davranışın HEPSİ gerçek cihaz/tarayıcıda
+elle denenip doğrulandı, taslak metinler kullanıcı tarafından gözden
+geçirilip gerekiyorsa `guide-texts.js`'te düzeltildi.
+
 ### Yayın öncesi
 
 **9. ~~Logo / uygulama ikonu yapılmadı~~ — STALE, zaten yapılmış**
@@ -4838,6 +4944,12 @@ Hangisinin düzeltileceği/nasıl birleştirileceği ürün kararı — kod tara
 hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
+
+**Tek sonraki adım (G67 itibarıyla):** AÇIK İŞLER madde 14 — G67'nin "i"
+bilgi/rehber sistemini (kalıcı "i" ikonu + ilk-2-oyun ipuçları) gerçek
+tarayıcı/cihazda elle deneyip taslak metinleri gözden geçirmek. Aşağıdaki
+liste (G59 itibarıyla güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük
+zorluk-mimarisi işlerini kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma
 (unlockLevel:1, free), Kesim Noktası (2, free), Q Genişliği (3, free), Boost

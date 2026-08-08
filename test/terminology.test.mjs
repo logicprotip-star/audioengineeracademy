@@ -13,6 +13,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { MODE_CATALOG } from "../www/js/core/mode-catalog.js";
 import { LEVEL_SHEET_TERMS } from "../www/js/core/level-sheet-terms.js";
+import { GENERAL_GUIDE, MODE_GUIDE_TEXTS } from "../www/js/core/guide-texts.js";
 
 const YASAKLI_ÇEVİRİLER = [
   { pattern: /yankı/i, term: "reverb" },
@@ -73,5 +74,40 @@ describe("terminoloji: level-sheet-terms.js Seviye bilgi sayfası etiketleri glo
 
   it("Distortion 'Saturation ayrımı' İngilizce (Doygunluk ayrımı DEĞİL)", () => {
     assert.match(LEVEL_SHEET_TERMS.distortion.sensitivityLabel, /saturation/i);
+  });
+});
+
+describe("terminoloji: guide-texts.js (G67 'i' bilgi sistemi) global terimi YANLIŞ çevirmiyor", () => {
+  Object.entries(MODE_GUIDE_TEXTS).forEach(([modeId, text]) => {
+    it(`${modeId}: mod bilgisi metni yasaklı bir çeviri İÇERMEZ`, () => {
+      YASAKLI_ÇEVİRİLER.forEach(({ pattern, term }) => {
+        assert.doesNotMatch(text, pattern, `${modeId} bilgi metni "${term}"nin yanlış çevirisini içeriyor`);
+      });
+    });
+  });
+
+  GENERAL_GUIDE.sections.forEach((s, i) => {
+    it(`GENERAL_GUIDE bölüm ${i} ("${s.heading}") yasaklı bir çeviri İÇERMEZ`, () => {
+      YASAKLI_ÇEVİRİLER.forEach(({ pattern, term }) => {
+        assert.doesNotMatch(s.body, pattern, `GENERAL_GUIDE "${s.heading}" bölümü "${term}"nin yanlış çevirisini içeriyor`);
+      });
+    });
+  });
+
+  it("Reverb mod bilgisi 'reverb' kelimesini İngilizce taşır", () => {
+    assert.match(MODE_GUIDE_TEXTS.reverb, /reverb/i);
+  });
+
+  it("Kompresör mod bilgisi 'kompresyon' kelimesini taşır (sıkıştırma DEĞİL)", () => {
+    assert.match(MODE_GUIDE_TEXTS.kompresor, /kompresyon/i);
+  });
+
+  it("Distortion mod bilgisi 'saturation' kelimesini İngilizce taşır (doygun DEĞİL)", () => {
+    assert.match(MODE_GUIDE_TEXTS.distortion, /saturation/i);
+  });
+
+  it("Boost mu Cut mu mod bilgisi KENDİ modunun adıyla (Boost/Cut) TUTARLI", () => {
+    assert.match(MODE_GUIDE_TEXTS["boost-mu-cut-mu"], /boost/i);
+    assert.match(MODE_GUIDE_TEXTS["boost-mu-cut-mu"], /cut/i);
   });
 });

@@ -111,6 +111,43 @@ describe("loadStats() — perMode migration (eski format → yeni)", () => {
   });
 });
 
+// G67: "i" bilgi/rehber sistemi — round-içi ipucu bandının kaç kez
+// gösterildiğini tutan perMode alanı (bkz. core/guide-texts.js:shouldShowRoundHint).
+describe("hintRoundsShown (G67) — 'i' bilgi sistemi ipucu sayacı", () => {
+  beforeEach(() => { installLocalStorageMock(); });
+
+  it("freshModeState() varsayılan olarak 0 döner", () => {
+    assert.equal(freshModeState().hintRoundsShown, 0);
+  });
+
+  it("bu alan hiç OLMAYAN eski bir perMode kaydı (G67 öncesi) yüklenince 0'a göç eder", () => {
+    const existing = {
+      perDiff: {},
+      perMode: { "frekans-bulma": { xp: 42 } }, // hintRoundsShown YOK — eski kayıt
+      lives: 3
+    };
+    installLocalStorageMock({ [STATS_KEY]: JSON.stringify(existing) });
+
+    const s = loadStats(DIFF_LIVES, 3, ["frekans-bulma"], "frekans-bulma");
+
+    assert.equal(s.perMode["frekans-bulma"].hintRoundsShown, 0);
+    assert.equal(s.perMode["frekans-bulma"].xp, 42); // xp bozulmadı
+  });
+
+  it("hintRoundsShown ZATEN bir değer taşıyorsa (kullanıcı ilerlemişse), göç ÜZERİNE YAZMAZ", () => {
+    const existing = {
+      perDiff: {},
+      perMode: { "frekans-bulma": { xp: 42, hintRoundsShown: 1 } },
+      lives: 3
+    };
+    installLocalStorageMock({ [STATS_KEY]: JSON.stringify(existing) });
+
+    const s = loadStats(DIFF_LIVES, 3, ["frekans-bulma"], "frekans-bulma");
+
+    assert.equal(s.perMode["frekans-bulma"].hintRoundsShown, 1);
+  });
+});
+
 const PREFS_KEY = "eqEarTrainerProXPrefs";
 
 describe("feedbackScreen tercihi (G13) — açık/kapalı iki durum", () => {
