@@ -1455,6 +1455,14 @@ function enterMode(entry, realMode) {
     if (els.answers) { els.answers.innerHTML = ""; els.answers.classList.add("hidden"); }
     updateStartBtnLabel();
     updateAbToggleUI();
+    // G80 DÜZELTMESİ (populateFocusSelect ile AYNI desen taranırken bulundu):
+    // #levelChipValue (üst bar seviye pentagonu) SADECE updateUI() içinde yazılıyor
+    // (satır ~1836, mode.getMeta().id okur) — updateUI() ise SADECE açılışta VE
+    // submit-sonrası noktalarda çağrılıyordu, enterMode()'da YOKTU. Sonuç: bir moddan
+    // diğerine geçilince pentagon YENİ modun değil ESKİ modun seviyesini göstermeye
+    // devam ediyordu (ilk soru cevaplanana kadar). updateUI() activeQuestion'a
+    // BAĞIMLI değil (yukarıda null'landı, güvenli) — burada çağrılması yeterli.
+    updateUI();
   }
   goScreen("game");
 }

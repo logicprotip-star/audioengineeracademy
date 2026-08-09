@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G79)
+Son güncelleme: 09.08.2026 (G80)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,108 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G79, tek commit) — **Oyun ekranı düzeni tasarıma göre YENİDEN
+Bu commit (G80, tek commit) — **G79'un 2 hatası kanıtlandı + AYNI desen
+(mod değişince güncellenmesi gereken ama enterMode()'da EKSİK olan
+fonksiyon) TÜM app.js'te tarandı**
+
+Görev, kod değiştirmeden ÖNCE doğrula sırasını izledi:
+
+**1) TDZ hatası (diffModeAuto) artık oluşmuyor — CANLI kanıtlandı.**
+Temiz bir sekmede (`http://localhost:8042`, sunucu önbelleği bypass
+edilmiş taze sekme) sayfa açılışından itibaren konsol dinlendi:
+**sıfır hata**, `diffModeAuto` referanslı hiçbir `ReferenceError` yok.
+
+**2) `populateFocusSelect()` artık `enterMode()`'da çağrılıyor —
+CANLI kanıtlandı.** 10 modun HEPSİ tek tek açılıp `#focusChipWrap`'in
+`hidden` durumu ölçüldü (bkz. aşağıdaki tablo) — SADECE Frekans Bulma'da
+görünür, diğer 9 modun HEPSİNDE gizli. Pro-kilitli 4 mod (dB Seviyesi/
+Kompresör/Reverb/Tonal Denge/Distortion) `devFlags.simulatePro=true`
+(localStorage `eqEarTrainerProXDev`) ile geçici açılarak test edildi,
+sonda temizlendi.
+
+**3) AYNI DESEN TARANDI — sistematik, ad-hoc DEĞİL:**
+- `populate*`/`sync*` adlı TÜM fonksiyonlar grep ile listelendi (10 adet:
+  `populateSourceSelect`, `populateFocusSelect`, `syncAnswerFormatVisibility`,
+  `syncCakismaVisibility`, `syncAnswerArea`, `syncLives`,
+  `syncAnswerFormatToggleUI`, `syncDiffSheetUI`, `syncAccountLine`,
+  `syncDevUI`) — her biri `mode.` (module-scope, DEĞİŞEBİLEN mod
+  referansı) okuyup okumadığına göre sınıflandırıldı.
+- Ayrıca bir AWK taramasıyla gövdesinde HEM `mode.` HEM
+  `classList.(toggle|add|remove)("hidden"` geçen TÜM fonksiyonlar
+  ayrıca bulundu (5 eşleşme: `populateFocusSelect`, `syncAnswerFormatVisibility`,
+  `syncCakismaVisibility` — üçü de zaten `enterMode()`'da; `showSessionEnd`
+  — seans-sonu ekranı, HER çağrıldığında güncel `mode`'u taze okur, "sadece
+  modül yüklenirken bir kez" deseni İLE İLGİSİZ, yanlış pozitif; `enterMode`'un
+  KENDİSİ, beklenen).
+- `app.js`'teki TÜM sıfır-girinti (top-level, sadece modül yüklenirken BİR
+  KEZ çalışan) çıplak fonksiyon çağrıları (27 satır) tek tek `mode.` bağımlılığı
+  için kontrol edildi — `renderAnalysis`/`renderHistory`/`renderAchievements`/
+  `renderDaily`/`updateTimerUI`/`renderExerciseGrid`/`renderComingGrid`/
+  `resizeCanvas`/`renderCalStep`/`updateCalibRowLabel`/`renderFaq`/
+  `renderToolBars`/`renderFilterChips`/`applyProLockVisibility` — mod-
+  BAĞIMSIZ (Ana Menü/İlerleme/Ayarlar/Kalibrasyon ekranları, sorun YOK).
+  `applyAutoDifficulty`/`enforceFreeRestrictions` — `mode.` okuyor AMA
+  `startRound()`'un KENDİSİ her turda YENİDEN çağırıyor (satır ~3415),
+  görünür etkileri (Otomatik zorluk çipi HER ZAMAN sabit "OTOMATİK" metni
+  gösteriyor, tier'i DEĞİL) mod değişiminde asla sızmıyor — sorun YOK.
+  `applyPrefs` — kalıcı TERCİHİ (localStorage) BİR KEZ geri yüklüyor, mod
+  değişiminde YENİDEN çalıştırılması YANLIŞ olurdu (kullanıcının odak
+  tercihini SIFIRLARDI) — sorun YOK, bilinçli tek-seferlik.
+  `syncAnswerFormatToggleUI` — `els.answerFormatSelect.value` (GLOBAL
+  tercih) okuyor, mod'a BAĞLI DEĞİL — sorun YOK.
+  `syncDiffSheetUI`/`syncAccountLine`/`syncDevUI` — Genel Ayarlar/hesap/dev
+  paneli, mod'dan TAMAMEN bağımsız — sorun YOK.
+
+**GERÇEK BULUNAN EKSİK ÇAĞRI (4.): `updateUI()`.** `#levelChipValue` (üst
+bar seviye pentagonu) SADECE `updateUI()` içinde yazılıyor
+(`progress.modeLevel(stats, mode.getMeta().id)`, satır ~1836) —
+`updateUI()` ise SADECE açılışta VE submit-sonrası noktalarda
+çağrılıyordu, `enterMode()`'da YOKTU. Sonuç: bir moddan diğerine
+geçilince pentagon YENİ modun DEĞİL, ESKİ modun seviyesini göstermeye
+devam ediyordu (ilk soru cevaplanana kadar) — `populateFocusSelect`
+hatasıyla BİREBİR AYNI kök desen (sadece görünürlük DEĞİL, bu sefer
+İÇERİK). `enterMode()`'un `if (mode !== realMode)` dalına, `updateAbToggleUI()`
+satırından SONRA `updateUI();` eklendi. `updateUI()` `activeQuestion`'a
+bağımlı DEĞİL (yukarıda zaten null'landı, güvenli) — çağrılması yeterli.
+
+**CANLI KANITLANDI (enjekte edilmiş XP ile):** localStorage'da
+`kesim-noktasi` moduna 5000 XP enjekte edilip sayfa yenilendi. Frekans
+Bulma'ya (0 XP) girildi → pentagon **"1"**. Menüye dönüp Kesim
+Noktası'na girildi (HİÇBİR soru cevaplanmadan, SADECE `enterMode()`'un
+idle durumu) → pentagon ANINDA **"11"**. Düzeltme ÇALIŞIYOR. Test
+verisi sonra temizlendi (`kesim-noktasi.xp=0`, dev-simulate kaldırıldı).
+
+**Testler:** DEĞİŞMEDİ (sadece DOM/JS-glue). `npm test`: **1043/1043**.
+
+**DOĞRULAMA — 10 modun çip görünürlüğü (temiz sekme, Pro-simüle,
+konsol HATASIZ):**
+
+| Mod | Odak çipi | Kaynak çipi | Çakışma-çift çipi | Cevap-biçimi toggle |
+|---|---|---|---|---|
+| Frekans Bulma | görünür | görünür | gizli | görünür |
+| Kesim Noktası | gizli | görünür | gizli | gizli |
+| Q Genişliği | gizli | görünür | gizli | gizli |
+| Boost mu Cut mu | gizli | görünür | gizli | gizli |
+| dB Seviyesi | gizli | görünür | gizli | gizli |
+| Kompresör | gizli | görünür | gizli | gizli |
+| Reverb | gizli | görünür | gizli | gizli |
+| Tonal Denge | gizli | görünür | gizli | gizli |
+| Distortion | gizli | görünür | gizli | gizli |
+| Frekans Çakışması | gizli | **gizli** | **görünür** | gizli |
+
+**Tarama özeti:** 10 `populate*`/`sync*` fonksiyonu + AWK'nin bulduğu 5
+mod+hidden eşleşmesi + 27 top-level-only çıplak çağrı = **~35 fonksiyon/
+çağrı noktası incelendi, 1 gerçek eksik çağrı bulundu** (`updateUI()`,
+yukarıda). **Konsol hata sayısı: 0** (açılıştan 10-mod taramasının
+sonuna kadar, `updateUI()` düzeltmesi dahil tüm oturum boyunca).
+
+**KORUMA:** `enterMode()`'un mevcut sırası/mantığı DEĞİŞMEDİ — SADECE
+`if (mode !== realMode)` dalının SONUNA tek satır (`updateUI();`)
+eklendi. G77-G79'un hiçbir DOM/CSS/id yapısına dokunulmadı.
+
+---
+
+Önceki commit (G79, tek commit) — **Oyun ekranı düzeni tasarıma göre YENİDEN
 kuruldu (G77/G78'in devamı, daha birebir uygulama)**
 
 Referans: `Tasarim-2026-08/Prototip.dc.html` (oyun ekranı, dokunmalı
@@ -6224,12 +6325,13 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G79 itibarıyla):** AÇIK İŞLER madde 14 — G67-G79'un
+**Tek sonraki adım (G80 itibarıyla):** AÇIK İŞLER madde 14 — G67-G80'in
 TAMAMI (kalıcı "i" + SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu +
 G74'ün yeni ana ekranı + G75'in 5 düzeltmesi + G76'nın kart yükseklik/SVG
 slice düzeltmesi + G77'nin yeni üst barı + G78'in soru alanı/alt bar
-düzeltmeleri + G79'un düzen yeniden kurulumu) GERÇEK CİHAZDA (bu turda da
-SADECE masaüstü Chrome'da doğrulandı, iOS WKWebView'de HENÜZ değil — font
+düzeltmeleri + G79'un düzen yeniden kurulumu + G80'in `updateUI()`
+düzeltmesi) GERÇEK CİHAZDA (bu turda da SADECE masaüstü Chrome'da
+doğrulandı, iOS WKWebView'de HENÜZ değil — font
 rendering/safe-area farkları VE özellikle şunlar Safari'de YENİDEN
 doğrulanmalı: G75 madde 4'ün grid-stretch savunması, G76'nın SVG
 `preserveAspectRatio="xMidYMid slice"` kırpma matematiği [kenar-güvenlik
