@@ -46,15 +46,44 @@
           🎧 En iyi sonuç için kulaklık kullan. · 📱 <b>iPhone'da ses gelmiyorsa:</b> sessiz anahtarını kapat.
         </div>
 
-        <div class="card lvl">
-          <div class="lvl-badge"><small>SV</small><b id="menuLevelValue">1</b></div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
-              <div style="font-size:16px;font-weight:700;white-space:nowrap">Kalibre Kulak</div>
-              <div class="num" style="font-size:14px;font-weight:600;color:var(--tx-3)" id="menuXpText">0/120 XP</div>
+        <!-- G74: kullanıcı kartı — Tasarim-2026-08/Ana Ekran.dc.html'den taşındı
+             (fırçalanmış metal zemin, altın pentagon "Sv" rozeti, XP çubuğu).
+             #menuLevelValue artık ESKİ diffState() tabanlı seviye DEĞİL,
+             academyLevel(stats, playableModeIds()) — pentagonun altındaki
+             "Akademi Seviyesi · tüm modların toplamı" alt yazısı ile TUTARLI
+             olması için (bkz. app.js updateUI notu + DURUM.md G74: bu, İlerleme
+             sekmesinin HENÜZ değişmeyen rozetinden BİLEREK FARKLI bir sayı
+             gösterecek — o ekran bu turun kapsamı dışı). #menuXpText/
+             #menuXpBar/#menuNextLevelText veri kaynağı DEĞİŞMEDİ (aynı
+             diffState() XP ilerlemesi — kartta İKİNCİ, ayrı bir metrik). -->
+        <div class="card user-card">
+          <div class="user-card-noise"></div>
+          <div class="user-card-row">
+            <div class="user-card-avatar">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="4" fill="#8b8f96"></circle><path d="M4 20c0-3.6 3.6-6 8-6s8 2.4 8 6" fill="#8b8f96"></path></svg>
             </div>
-            <div class="bar" style="margin-top:9px"><i id="menuXpBar" style="width:0%"></i></div>
-            <div style="margin-top:8px;font-size:14px;color:var(--tx-3)" id="menuNextLevelText">Sonraki seviyeye <b style="color:var(--am)">120 XP</b></div>
+            <div style="flex:1;min-width:0">
+              <div class="user-card-title" id="menuLevelTitle">Çırak Kulak</div>
+              <div class="user-card-sub">Akademi Seviyesi · tüm modların toplamı</div>
+            </div>
+            <div class="user-card-pentagon">
+              <svg width="52" height="52" viewBox="0 0 52 52">
+                <polygon points="26,3 48,19 40,46 12,46 4,19" fill="var(--gold-grad)" stroke="#fbe9a8" stroke-width="1.5"></polygon>
+                <polygon points="26,9 42.5,21 36.5,41 15.5,41 9.5,21" fill="#2a2013" stroke="#c79a33" stroke-width="1"></polygon>
+              </svg>
+              <div class="user-card-pentagon-label">
+                <div class="user-card-pentagon-sv">Sv</div>
+                <div class="user-card-pentagon-num" id="menuLevelValue">1</div>
+              </div>
+            </div>
+          </div>
+          <div class="user-card-xp">
+            <div class="user-card-xp-head">
+              <div class="user-card-xp-kicker">XP</div>
+              <div class="num user-card-xp-val" id="menuXpText">0/120 XP</div>
+            </div>
+            <div class="bar"><i id="menuXpBar" style="width:0%"></i></div>
+            <div class="user-card-xp-next" id="menuNextLevelText">Sonraki seviyeye <b style="color:var(--cyan)">120 XP</b></div>
           </div>
         </div>
 
@@ -73,9 +102,17 @@
 
         <div class="section-head">
           <div class="section-title">Egzersizler</div>
-          <div class="section-count" id="modeCount">— egzersiz · — oyun tipi</div>
+          <div class="section-count" id="modeCount">— mod</div>
         </div>
-        <div id="modeGrid"></div>
+        <div id="modeGrid" class="mode-grid"></div>
+
+        <!-- G74: "Yakında" — henüz kodlanmamış 4 katalog girdisi (bkz.
+             app.js:renderComingGrid). ÖNCEDEN #modeGrid'in İÇİNDE, motor
+             gruplarıyla karışık, kilitli kart olarak render ediliyordu — yeni
+             tasarım bunları AYRI bir bölüme taşıyor, kendi "kilitli mod
+             kartı" görseli yok, sade bir "yakında" satırı. -->
+        <div class="coming-head">Yakında</div>
+        <div id="comingGrid" class="mode-grid"></div>
       </div>
 
       <!-- G37: kulaklık uyarı sheet'i — Dizayn/prototype.html #hpSheet'ten taşındı.
@@ -878,11 +915,28 @@
 
   </div>
 
+  <!-- G74: tab bar ikonları eklendi (Tasarim-2026-08/Ana Ekran.dc.html) —
+       önceden sadece metin etiketi vardı. `.tabbar` ekranlar arası PAYLAŞILAN
+       tek bir DOM elemanı (screen-menu'nün İÇİNDE DEĞİL, .app-shell kökünde)
+       — bu değişiklik İlerleme/Araçlar ekranlarında da GÖRÜNÜR olacak, ama bu
+       turun kapsamı "sadece ana ekran" derken kastedilen o ekranların KENDİ
+       İÇERİĞİ (task madde 6 tab bar'ı AÇIKÇA istiyor). currentColor stroke —
+       aktif/pasif rengi zaten .tab/.tab.active'in KENDİ rengini miras alır,
+       ikon için AYRI bir renk kuralı YAZILMADI. -->
   <div class="tabbar" id="tabbar">
     <div class="tabs">
-      <button class="tab active" data-tab="train">Antrenman</button>
-      <button class="tab" data-tab="progress">İlerleme</button>
-      <button class="tab" data-tab="tools">Araçlar</button>
+      <button class="tab active" data-tab="train">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13a8 8 0 0 1 16 0"></path><rect x="3" y="13" width="4" height="7" rx="2"></rect><rect x="17" y="13" width="4" height="7" rx="2"></rect></svg>
+        <span>Antrenman</span>
+      </button>
+      <button class="tab" data-tab="progress">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"></path><path d="M5 20v-6l4-4 4 3 6-7"></path></svg>
+        <span>İlerleme</span>
+      </button>
+      <button class="tab" data-tab="tools">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"></path></svg>
+        <span>Araçlar</span>
+      </button>
     </div>
   </div>
 

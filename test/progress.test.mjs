@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { levelFromXp, modeXp, modeLevel, academyLevel } from "../www/js/core/progress.js";
+import { levelFromXp, modeXp, modeLevel, academyLevel, LEVEL_TITLES, levelTitle } from "../www/js/core/progress.js";
 
 function statsWithPerMode(perMode) {
   return { perMode };
@@ -114,5 +114,49 @@ describe("academyLevel()", () => {
     const academy = academyLevel(stats, ["frekans-bulma"]);
     assert.equal(lvl, academy);
     assert.ok(lvl >= 1);
+  });
+});
+
+// G74 — ana ekran kullanıcı kartının "seviye unvanı" (ör. "Kalibre Kulak").
+// LEVEL_TITLES/levelTitle() bu turda YENİ eklendi (kodda daha önce hiç
+// yoktu, bkz. DURUM.md G74 raporu) — TASLAK değerler, kesin/nihai DEĞİL.
+describe("LEVEL_TITLES / levelTitle() — G74 (YENİ, taslak)", () => {
+  it("eşikler KESİN OLARAK ARTAN sırada (her min bir öncekinden büyük)", () => {
+    for (let i = 1; i < LEVEL_TITLES.length; i++) {
+      assert.ok(LEVEL_TITLES[i].min > LEVEL_TITLES[i - 1].min, `${LEVEL_TITLES[i].title} eşiği bir öncekinden büyük değil`);
+    }
+  });
+
+  it("ilk kademe min:0 — academyLevel HİÇBİR ZAMAN undefined bırakmaz", () => {
+    assert.equal(LEVEL_TITLES[0].min, 0);
+  });
+
+  it("hiç oynanmamış bir kullanıcının gerçek academyLevel tabanı (10 oynanabilir mod × seviye 1 = 10) İLK kademeye düşer", () => {
+    const tenModeIds = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+    const stats = statsWithPerMode({});
+    const freshAcademyLevel = academyLevel(stats, tenModeIds);
+    assert.equal(freshAcademyLevel, 10);
+    assert.equal(levelTitle(freshAcademyLevel), LEVEL_TITLES[0].title);
+  });
+
+  it("tasarımın kendi örnek toplamı (4+3+3+2+2+2+1+1+1+2=21) 'Kalibre Kulak' unvanına denk gelir", () => {
+    assert.equal(levelTitle(21), "Kalibre Kulak");
+  });
+
+  it("eşiğin TAM ÜZERİNDEKİ değer bir sonraki kademeye geçer, bir ALTINDAKİ geçmez", () => {
+    const secondTier = LEVEL_TITLES[1];
+    assert.equal(levelTitle(secondTier.min), secondTier.title);
+    assert.equal(levelTitle(secondTier.min - 1), LEVEL_TITLES[0].title);
+  });
+
+  it("en yüksek kademenin ÇOK ÜSTÜNDEKİ bir seviye hâlâ SON kademeyi döner (asla undefined/hata YOK)", () => {
+    const lastTier = LEVEL_TITLES[LEVEL_TITLES.length - 1];
+    assert.equal(levelTitle(lastTier.min + 1000), lastTier.title);
+  });
+
+  it("0/undefined/negatif girişte çökmez, İLK kademeye düşer", () => {
+    assert.equal(levelTitle(0), LEVEL_TITLES[0].title);
+    assert.equal(levelTitle(undefined), LEVEL_TITLES[0].title);
+    assert.equal(levelTitle(-5), LEVEL_TITLES[0].title);
   });
 });

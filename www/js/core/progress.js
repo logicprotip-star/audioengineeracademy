@@ -79,6 +79,41 @@ export function academyLevel(stats, modeIds) {
   return (modeIds || []).reduce((sum, id) => sum + modeLevel(stats, id), 0);
 }
 
+// G74 — Ana ekranın yeni kullanıcı kartı bir "seviye unvanı" (ör. "Kalibre
+// Kulak") istiyor. Kodda BÖYLE bir tablo YOKTU (rapor edildi, bkz. DURUM.md
+// G74) — task'ın kendi isteğiyle burada OLUŞTURULDU. TASLAK/tahmini: kesin
+// isim/eşik DEĞİL, kullanıcı cihazda görüp düzeltecek (guide-texts.js'in
+// AYNI "taslak" ilkesi). Eşikler academyLevel'a göre — academyLevel HİÇ
+// oynanmamış bir kullanıcıda bile EN AZ playableModeIds().length kadardır
+// (her mod levelFromXp tabanı 1 sayılıyor, bkz. academyLevel notu) — bugün
+// 10 oynanabilir mod var, yani gerçek başlangıç noktası 10'dur, 1 DEĞİL;
+// ilk eşik bunu kapsayacak şekilde 10'dan başlıyor. Tasarım dosyasının
+// kendi örnek verisi (10 modun toplamı 4+3+3+2+2+2+1+1+1+2=21) "Kalibre
+// Kulak" unvanına denk gelmeli diye ikinci eşik bunu İÇİNE ALACAK şekilde
+// seçildi.
+export const LEVEL_TITLES = [
+  { min: 0, title: "Çırak Kulak" },
+  { min: 20, title: "Kalibre Kulak" },
+  { min: 35, title: "Keskin Kulak" },
+  { min: 55, title: "Uzman Kulak" },
+  { min: 80, title: "Usta Kulak" },
+  { min: 110, title: "Prodüksiyon Ustası" },
+  { min: 150, title: "Altın Kulak" }
+];
+
+// SAF FONKSİYON — academyLevel'a karşılık gelen unvanı döndürür (eşiği
+// AŞAN en yüksek kademe). LEVEL_TITLES boş/tanımsız bir seviyeyle
+// çağrılırsa (ör. henüz veri yokken) en düşük kademeye düşer, asla
+// undefined dönmez.
+export function levelTitle(academyLvl) {
+  const lvl = academyLvl || 0;
+  let current = LEVEL_TITLES[0].title;
+  for (const tier of LEVEL_TITLES) {
+    if (lvl >= tier.min) current = tier.title;
+  }
+  return current;
+}
+
 export const ACHIEVEMENTS = [
   { id: "first_blood", icon: "🎧", title: "İlk Kulak", desc: "İlk doğru cevabı ver.", check: s => s.correct >= 1 },
   { id: "combo_5", icon: "🔥", title: "Alev Zinciri", desc: "5 combo yap.", check: s => s.bestCombo >= 5 },

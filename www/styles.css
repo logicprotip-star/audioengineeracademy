@@ -170,6 +170,48 @@
     .num{font-variant-numeric:tabular-nums}
     .hidden{display:none!important}
 
+    /* ---- G74: ana ekran kullanıcı kartı — Tasarim-2026-08/Ana Ekran.dc.html'den
+       taşındı. "Fırçalanmış metal" zemin bu tek karta ÖZGÜ, tek-seferlik dekoratif
+       bir gradyan — mevcut :root paletinde (bg/kart/kenar/metin/vurgu) buna karşılık
+       gelen bir token YOK, task'ın açık isteğiyle (madde 1) LİTERAL renkler kullanıldı;
+       geri kalan HER ŞEY (altın pentagon → var(--gold-grad), XP çubuğu → mevcut .bar,
+       metin renkleri → var(--text/-2/-3)) MEVCUT token'lardan. .card'ın KENDİ arka
+       planını (var(--card-grad)) override ediyor, .card'ın border-radius/backdrop-
+       filter kurallarına dokunmuyor. */
+    .user-card{
+      padding:16px;position:relative;overflow:hidden;
+      background:linear-gradient(160deg, #6b6f75 0%, #43464b 18%, #2e3034 45%, #232427 70%, #3a3c40 100%);
+      border-color:rgba(255,255,255,.14);
+      box-shadow:0 12px 28px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.25);
+    }
+    .user-card-noise{
+      position:absolute;inset:0;pointer-events:none;
+      background:repeating-linear-gradient(90deg, rgba(255,255,255,.028) 0px, rgba(255,255,255,.028) 1px, transparent 1px, transparent 3px);
+    }
+    .user-card-row{position:relative;display:flex;align-items:center;gap:12px}
+    .user-card-avatar{
+      width:48px;height:48px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+      background:linear-gradient(180deg,#1b1c1f,#101113);border:1px solid rgba(255,255,255,.18);
+      box-shadow:inset 0 2px 4px rgba(0,0,0,.6);
+    }
+    .user-card-title{font-size:17px;font-weight:700;letter-spacing:-.2px;color:var(--text);text-shadow:0 1px 1px rgba(0,0,0,.5)}
+    .user-card-sub{font-size:12px;font-weight:500;color:#a9adb4;margin-top:2px}
+    .user-card-pentagon{position:relative;width:52px;height:52px;flex:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5))}
+    .user-card-pentagon-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:2px}
+    .user-card-pentagon-sv{font-size:9px;font-weight:700;color:var(--gold);letter-spacing:.5px;line-height:1}
+    .user-card-pentagon-num{font-size:16px;font-weight:800;color:#f6d878;line-height:1.1}
+    .user-card-xp{position:relative;margin-top:14px}
+    .user-card-xp-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+    .user-card-xp-kicker{font-size:11px;font-weight:600;color:#9ba0a8;letter-spacing:.4px;text-transform:uppercase}
+    .user-card-xp-val{font-size:12px;font-weight:600;color:var(--text-2)}
+    .user-card-xp-next{margin-top:8px;font-size:14px;color:var(--text-3)}
+    /* .bar/.bar > i PAYLAŞILAN bir sınıf (oyun ekranındaki süre çubuğu da
+       kullanıyor, amber — bkz. G73 istisnası) — burada SADECE bu kartın
+       İÇİNDEKİ çubuğa (ata seçiciyle) yeşil gradyan uygulanıyor, paylaşılan
+       kuralın KENDİSİNE dokunulmadı, oyun ekranı/İlerleme etkilenmez. */
+    .user-card-xp .bar{background:rgba(0,0,0,.55);box-shadow:inset 0 1px 2px rgba(0,0,0,.7)}
+    .user-card-xp .bar > i{background:linear-gradient(180deg,#5eea72,#2fbf46);box-shadow:0 0 8px rgba(74,222,128,.5)}
+
     /* ---- ekran yönlendirme (menü / oyun / ilerleme / araçlar) ---- */
     /* GERÇEK KÖK SEBEP: min-height:100dvh içeriğin viewport'tan TAŞMASINA izin
        veriyordu (.screen viewport'tan uzun olabiliyordu) — bu durumda .game-scroll'un
@@ -240,57 +282,87 @@
     .mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .mode-grid.single{grid-template-columns:1fr}
     @media (max-width:420px){.mode-grid{grid-template-columns:1fr}}
+
+    /* ---- G74: mod kartı — Tasarim-2026-08/Ana Ekran.dc.html'den taşındı.
+       ÖNCEKİ kart (motor rengi/glyph/engine etiketi/alt kilit satırı,
+       bkz. git geçmişi) TAMAMEN yerini bu yapıya bıraktı: üstte SVG görsel
+       alanı (core/mode-visuals.js), altta isim+Sv rozeti+açıklama+
+       (varsa) günlük-tadımlık etiketi+isabet çubuğu. .mode-chip/
+       .mode-chip-pro'ya DOKUNULMADI (Serbest-oyun kilidi gibi BAŞKA
+       yerlerde de kullanılıyor, bkz. app.js:4814) — sadece kart İÇİNDE
+       NASIL kullanıldığı değişti. */
     .mode-card{
-      display:flex;flex-direction:column;gap:8px;padding:15px 14px;border-radius:var(--r-panel);
-      background:rgba(255,255,255,.045);border:1px solid var(--border);
-      text-align:left;min-height:172px;
+      display:flex;flex-direction:column;background:var(--card-grad);
+      border:1px solid var(--border);border-radius:var(--r-card);overflow:hidden;
+      box-shadow:0 6px 16px rgba(0,0,0,.35);text-align:left;
     }
-    .mode-card:active{background:var(--card-2)}
-    .mode-card.locked{background:rgba(255,255,255,.025)}
-    .mode-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px}
-    /* G73: mod ikon zemini/çubukları artık --cyan tonunda (motor rengi app.js'ten
-       satır-içi style ile geldiğinde bu sadece fallback/varsayılan olarak görünür). */
-    .mode-glyph{
-      width:38px;height:38px;flex:none;border-radius:var(--r-btn);display:flex;align-items:flex-end;
-      justify-content:center;gap:2.5px;padding-bottom:9px;background:rgba(34,211,238,.13);
+    .mode-card:active{border-color:var(--border-strong)}
+    .mode-card.locked{opacity:.7}
+    .mode-card-viz{height:84px;background:var(--bg-panel);border-bottom:1px solid var(--border);position:relative}
+    .mode-card-viz svg{display:block}
+    /* "i" rozeti bu kartta SOL ÜSTTE, görsel alanın üstüne bindirilmiş —
+       .mode-info-btn'in KENDİSİ (bkz. aşağıdaki .ghead bölümü) DEĞİŞMEDİ,
+       burada SADECE konumu ata seçiciyle override ediliyor (oyun ekranındaki
+       #gameInfoBtn AYNI class'ı satır-içi kullanıyor, ona dokunulmasın diye
+       taban kural DEĞİL, bu iç-içe kural değiştirildi). */
+    .mode-card-viz .mode-info-btn{position:absolute;top:8px;left:8px;width:20px;height:20px;font-size:11px}
+    .mode-card-badge{
+      position:absolute;top:8px;right:8px;display:flex;align-items:center;gap:4px;
+      padding:3px 7px;border-radius:7px;background:rgba(20,16,6,.85);
+      border:1px solid rgba(232,196,106,.45);color:var(--gold);
+      font-size:9px;font-weight:800;letter-spacing:.4px;
     }
-    .mode-glyph i{width:3.5px;border-radius:2px;background:var(--cyan)}
-    .mode-engine{
-      display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:700;
-      letter-spacing:.05em;color:var(--cyan);
-    }
-    .mode-engine::before{content:"";width:5px;height:5px;border-radius:99px;background:currentColor}
+    .mode-card-body{padding:12px;display:flex;flex-direction:column;gap:6px;flex:1}
+    .mode-card-head{display:flex;align-items:center;justify-content:space-between;gap:6px}
+    .mode-card-name{font-size:13.5px;font-weight:700;letter-spacing:-.2px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* DÜZELTME: bu iki kural G74'ün ilk taslağında YANLIŞLIKLA silinmişti
+       (ana ekran mod kartı artık bunları KULLANMIYOR ama app.js:4814'teki
+       "Serbest oyun" Pro kilidi rozeti — Oyun Türü sheet'i, bu turun kapsamı
+       DIŞINDA — hâlâ bu class'ları basıyor) — burada GERİ EKLENDİ, G73'teki
+       DEĞERLERLE BİREBİR AYNI. */
     .mode-chip{
       font-size:14px;font-weight:700;letter-spacing:.02em;padding:5px 9px;border-radius:var(--r-chip);
       color:var(--gold);background:rgba(232,196,106,.16);white-space:nowrap;
     }
-    /* Pro rozeti: motor renginden bağımsız, sabit — seviye kilidiyle (mode-lock-row)
-       karışmaması için ayrı renk/konum (kart üstü vs. kart altı). G36: rengi #f2c94c'ten
-       var(--am)'a çekildi — Dizayn/prototype.html'in paletiyle (ve bu chip'in kendisinin
-       kullandığı .mode-chip'in TEMEL rengiyle) birebir hizalansın diye, kopyala-yapıştır
-       kalıntısı bir sapmaydı. G73: "Pro" rozeti artık --gold (premium/Pro göstergesi
-       için amber'dan daha anlamlı bir eşleşme — combo/boss/süre dışı, birincil vurguya
-       da değil, kendi statü rengine taşındı). */
     .mode-chip-pro{color:var(--gold);background:rgba(232,196,106,.16)}
-    /* G36: mod kartı seviye rozeti ("Sv N") — Pro rozetinden AYRI/nötr bir renk, ikisi
-       aynı kartta (Pro + seviyesi oynanmış) yan yana durabilsin diye .mode-top'un sağ
-       tarafı bir flex satırına sarıldı (bkz. index.html/app.js renderModeGrid notu). */
-    .mode-chip-level{color:var(--tx-2);background:rgba(255,255,255,.08)}
-    .mode-top-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-    .mode-card h4{margin:0;font-size:15px;font-weight:700;line-height:1.25}
-    .mode-card p{margin:0;font-size:14px;line-height:1.4;color:var(--tx-3)}
-    .mode-mini{margin-top:auto;height:5px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
-    .mode-mini > i{display:block;height:100%;border-radius:99px;background:var(--green-grad)}
-
-    /* ---- motor gruplama (14 mod ızgarası) ---- */
-    .motor-group{margin-top:20px}
-    .motor-group:first-child{margin-top:0}
-    .motor-group-head{
-      display:flex;align-items:center;gap:8px;margin:0 2px 10px;
-      font-size:14px;font-weight:700;letter-spacing:.05em;
+    .mode-chip-level{
+      flex-shrink:0;font-size:10px;font-weight:700;color:var(--gold);
+      background:rgba(232,196,106,.12);border:1px solid rgba(232,196,106,.3);
+      border-radius:6px;padding:2px 6px;line-height:1.3;
     }
-    .motor-group-head::before{content:"";width:6px;height:6px;border-radius:99px;background:currentColor;flex:none}
-    .mode-lock-row{margin-top:auto;display:flex;align-items:center;gap:5px;font-size:14px;font-weight:600;color:var(--tx-3)}
+    .mode-card-desc{font-size:11px;line-height:1.45;color:var(--text-3);flex:1}
+    /* Frekans Çakışması'nın "günde 1 ücretsiz" etiketi — tasarımın KENDİ
+       amber kullanımı (bir "sınırlı erişim" notu, combo/boss/süre'nin
+       birincil-vurgu istisnasından AYRI/yeni bir kategori — bkz. G73
+       raporu). Erişim GERÇEKTEN o gün kullanılmışsa app.js metni "Bugün
+       oynadın"a çevirir — AYNI etiket, farklı metin (bkz. renderModeGrid). */
+    .mode-card-daily{
+      align-self:flex-start;font-size:9.5px;font-weight:700;color:var(--amber);
+      background:rgba(240,180,66,.1);border:1px solid rgba(240,180,66,.3);
+      border-radius:6px;padding:2px 7px;
+    }
+    /* İsabet çubuğu — perMode isabet verisi KODDA YOK (bkz. DURUM.md G74
+       raporu), bu yüzden .mode-card-progress varsayılan `hidden` ile
+       render ediliyor (app.js DOM'u kurar ama veri gelene kadar HİÇBİR
+       yerde bu class'ı kaldırmıyor) — ileride gerçek veri eklenince
+       SADECE app.js'teki bir satır değişip bu çubuk açılacak, CSS/HTML
+       İSKELETİ ZATEN HAZIR. */
+    .mode-card-progress{height:4px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden;margin-top:4px}
+    .mode-card-progress > i{display:block;height:100%;border-radius:2px;background:var(--green-grad)}
+
+    /* ---- G74: "Yakında" bölümü — henüz kodlanmamış 4 mod, kilitli kart
+       görselinden AYRI/sade bir "taslak" kart (kesikli kenarlık). ---- */
+    .coming-head{font-size:13px;font-weight:700;letter-spacing:1px;color:var(--text-muted);text-transform:uppercase;margin-top:4px}
+    .coming-card{
+      border-radius:var(--r-card);background:linear-gradient(180deg,#141619,#101114);
+      border:1px dashed var(--border);padding:14px;display:flex;align-items:center;gap:11px;opacity:.55;
+    }
+    .coming-card-icon{
+      width:34px;height:34px;border-radius:var(--r-btn);flex:none;background:rgba(255,255,255,.05);
+      border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--text-muted);
+    }
+    .coming-card-name{font-size:12.5px;font-weight:700;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .coming-card-label{font-size:10px;font-weight:600;color:var(--text-muted);margin-top:2px}
 
     /* ---- sekme çubuğu (Antrenman / İlerleme / Araçlar) ---- */
     .tabbar{
@@ -303,10 +375,14 @@
       width:min(560px, 100%);margin:0 auto;display:flex;gap:6px;padding:8px;border-radius:var(--r-panel);
       background:rgba(255,255,255,.06);border:1px solid var(--border);backdrop-filter:blur(20px);
     }
-    /* G73: aktif sekme artık --cyan (birincil vurgu). */
+    /* G73: aktif sekme artık --cyan (birincil vurgu). G74: ikon eklendi
+       (bkz. index.html tabbar notu) — flex-direction:column'a çevrildi,
+       ikon+etiket dikey istiflendi (~22px ikon + 4px boşluk + ~15px metin
+       satırı ≈ 41px, 52px'lik yükseklikte rahat sığıyor). */
     .tab{
-      flex:1;height:46px;border:1px solid transparent;border-radius:var(--r-btn);background:none;
-      font-size:14px;font-weight:600;color:var(--text-3);display:flex;align-items:center;justify-content:center;
+      flex:1;height:52px;border:1px solid transparent;border-radius:var(--r-btn);background:none;
+      font-size:10.5px;font-weight:600;color:var(--text-3);display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:4px;
     }
     .tab.active{color:var(--cyan);background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.3);font-weight:700}
 
@@ -974,9 +1050,13 @@
     .lvl-badge b{font-size:22px;line-height:1;font-weight:800}
 
     /* ---- bugünün önerisi (ana menü) ---- */
+    /* G74: yeni yeşilin (--green, 74,222,128) tonuna çekildi — G73'te BİLEREK
+       dokunulmamış eski yeşil (43,217,168) tint'lerinden biriydi, bu turda
+       ana ekran kapsamında olduğu için Ana Ekran.dc.html'in KENDİ günün-
+       önerisi rengiyle hizalandı. */
     .sug{position:relative;padding:16px;border-radius:var(--r-panel);margin-bottom:18px;
-      background:linear-gradient(155deg,rgba(43,217,168,.16),rgba(43,217,168,.04));
-      border:1px solid rgba(43,217,168,.28)}
+      background:linear-gradient(180deg,rgba(74,222,128,.07),rgba(74,222,128,.02)), #131518;
+      border:1px solid rgba(74,222,128,.45)}
     .x{
       position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:var(--r-btn);
       border:1px solid var(--border-strong);background:rgba(255,255,255,.06);color:var(--tx-2);

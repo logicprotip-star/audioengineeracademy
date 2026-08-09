@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G73)
+Son güncelleme: 09.08.2026 (G74)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,138 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G73, tek commit) — **Görsel sistem kuruldu: yeni palet
+Bu commit (G74, tek commit) — **Yeni tasarımın ANA EKRANI uygulandı**
+(Tasarim-2026-08/Ana Ekran.dc.html) — oyun ekranı/İlerleme/Araçlar bu
+turda DEĞİŞMEDİ.
+
+**ÖNCE RAPORLANAN 2 SORU (task'ın kendi isteğiyle, uygulamadan ÖNCE):**
+1. **Seviye unvanı ("Kalibre Kulak" gibi) kodda var mıydı? HAYIR** —
+   `grep -rn "unvan\|levelTitle\|Kalibre Kulak"` sıfır sonuç verdi. Bu tur
+   `core/progress.js`'e `LEVEL_TITLES` (7 kademe) + `levelTitle(academyLevel)`
+   eklendi — TASLAK, kesin/nihai DEĞİL (guide-texts.js'in AYNI ilkesi).
+   İlk eşik 0 (academyLevel HİÇ undefined bırakmaz), ikinci eşik (20)
+   tasarımın kendi örnek toplamını (10 modun `ex.lv` toplamı: 4+3+3+2+2+2+
+   1+1+1+2=21) "Kalibre Kulak"a düşürecek şekilde seçildi.
+2. **Mod kartı isabet yüzdesi için perMode veri var mıydı? HAYIR** —
+   `storage.js:freshModeState()` sadece `{xp, hintRoundsShown}` döndürüyor,
+   `progress.js:accuracy()` SADECE genel/oturum-çapında (`stats.correct/
+   wrong`), mod-bazlı DEĞİL — bu, `progress.js`'in KENDİ satır 1940-1941
+   yorumunda zaten AÇIKÇA yazılıydı ("mod-bazlı isabet takibi Z3'ün
+   kapsamı dışında"). Task'ın kendi fallback talimatına uyuldu: `.mode-card-
+   progress` DOM'da VAR ama `hidden` class'ıyla render ediliyor — gerçek
+   veri gelince SADECE app.js'teki bir satır (hidden'ı kaldırıp width'i
+   dolduran) değişecek, iskelet ZATEN hazır.
+
+**UYGULANAN (task'ın 6 maddesi):**
+1. **Kullanıcı kartı** — fırçalanmış metal zemin (tek-seferlik literal
+   gradyan, mevcut palette karşılığı YOK, task'ın açık isteği), altın
+   pentagon (`var(--gold-grad)` — G73'ün paletinden, YENİ renk YAZILMADI),
+   unvan (`#menuLevelTitle`, YENİ), "Sv" sayısı artık `progress.academyLevel
+   (stats, playableModeIds())` — ESKİ `diffState().xp` tabanlı seviyeden
+   FARKLI bir sayı (bkz. aşağıdaki dürüstlük notu). XP çubuğu/etiketi/
+   "sonraki seviye" metni veri kaynağı DEĞİŞMEDİ (aynı diffState() xp/
+   percent) — kartta pentagon'dan AYRI ikinci bir metrik.
+2. **Günün Önerisi kartı** — `renderDailyTip()`'in KENDİ mantığı (zoneScores,
+   en zayıf bölge, `daily.tipDismissed`, `challenge.total` etiketi) TEK
+   SATIR değişmedi — sadece CSS (yeni yeşil tonu) + zayıf bölge adının
+   `var(--red)` ile vurgulanması (aynı `weakest.label/pct`, sadece
+   `textContent`→`innerHTML`, dışarıdan veri enjekte edilmiyor).
+3. **Egzersizler — 10 mod kartı** — `renderModeGrid()` ikiye ayrıldı:
+   `renderExerciseGrid()` (10 GERÇEK mod) + `renderComingGrid()` (4
+   "yakında"). YENİ `core/mode-visuals.js` — Ana Ekran.dc.html'in
+   `vizSvg(kind)` üretecinden (React.createElement) BİREBİR taşındı (aynı
+   path/renk/metin verileri, SAYI UYDURULMADI), çıktı biçimi React DEĞİL
+   düz SVG string. Her kartta: sol üstte `.mode-info-btn` (AYNI id/class/
+   click-handler, SADECE konumu `.mode-card-viz .mode-info-btn` ata
+   seçiciyle override edildi — oyun ekranındaki `#gameInfoBtn` AYNI class'ı
+   kullandığı için TABAN kural değiştirilmedi), sağ üstte durum rozeti
+   (aşağıya bkz.), isim+Sv+açıklama+isabet çubuğu (hidden, madde 2'ye bkz.).
+4. **Yakında bölümü** — `COMING_MODE_ORDER = ["stereo-genislik","pan-konumu",
+   "hiz-modu","hangisi-farkli"]` — task'ın KENDİ verdiği sıra (mode-
+   catalog.js'in dizi sırasından FARKLI, bilerek).
+5. **Ana ekran "i" butonu** — `#menuInfoBtn` zaten VARDI (G67'den), yerini
+   DEĞİŞTİRMEDİK (üst köşe, dişli ikonunun yanı — "yerini sen seç" kuralına
+   uyarak zaten-var-olan konum KORUNDU, madde 6'nın ("i" tasarımda YOK)
+   dediği "i" kart-üstü "i"lerle KARIŞTIRILMASIN — bu genel/kalıcı "i").
+6. **Tab bar** — ikon eklendi (önceden SADECE metin vardı). `.tabbar`
+   ekranlar arası PAYLAŞILAN tek DOM elemanı — bu değişiklik İlerleme/
+   Araçlar ekranlarında da GÖRÜNÜR (task madde 6 açıkça istedi, kapsam
+   dışı ekranların KENDİ İÇERİĞİNE dokunulmadı, sadece bu paylaşılan
+   chrome elemanına).
+
+**KİLİT DAĞILIMI — KOD ZATEN KAZANMIŞTI, DEĞİŞİKLİK GEREKMEDİ:**
+`mode-catalog.js`'in `tier` alanı kontrol edildi — free: frekans-bulma/
+kesim-noktasi/q-genisligi/boost-mu-cut-mu/kompresor (5), pro: db-seviyesi/
+reverb/tonal-denge/distortion (4), frekans-cakismasi: pro+dailyTaste — task'ın
+istediği dağılımla ZATEN BİREBİR AYNIYDI (G61'in kendi notu bunu doğruluyor).
+Tasarımın KENDİ örnek verisi (`ex.pro`) dB Seviyesi'ni YANLIŞLIKLA free
+gösteriyordu (statik mockup verisi) — kod hiç KULLANILMADI, HER ZAMAN gerçek
+`entry.tier`/`paywall.js` okunuyor. "Sv N'de açılır" rozeti KALDIRILDI
+(task'ın kararı) — ALTINDAKİ `meetsLevel`/`playable` mantığı KORUNDU (G62:
+ücretsizde zaten hiç tetiklenmiyor), sadece görsel rozeti render edilmiyor.
+Frekans Çakışması'nın "Bugün oynadın" durumu (eski `.mode-lock-row`'un
+taşıdığı bilgi) KAYBOLMADI — aynı "günde 1 ücretsiz" rozet slotunda, gerçek
+`access.reason==="daily-used"` durumuna göre dinamik metne taşındı.
+
+**YENİ testler:** `test/mode-visuals.test.mjs` (23 test — 10 modun HEPSİ için
+geçerli SVG üretildiği + benzersiz gradyan id'si + kayıtsız modId'de null),
+`test/progress.test.mjs`'e `LEVEL_TITLES`/`levelTitle()` testleri (7 test —
+artan sıra, taze-kullanıcı academyLevel=10'un ilk kademeye düştüğü, tasarımın
+kendi örnek toplamının "Kalibre Kulak"a denk geldiği, sınır değerler).
+
+**Doğrulama:**
+- `npm test`: **1042/1042** (1013 → +29).
+- **10 mod kartının HER BİRİNDE doğru rozet — CANLI TARAYICIDA doğrulandı
+  (bu tur, ayrık bir istisna olarak, tarayıcı eklentisi BAĞLIYDI):**
+  frekans-bulma (rozet yok), kesim-noktasi (yok), q-genisligi (yok),
+  boost-mu-cut-mu (yok), kompresor (yok — free, ekran görüntüsünde
+  DOĞRULANDI: PRO rozeti YOK), db-seviyesi (🔒 PRO, gold), reverb (🔒 PRO),
+  tonal-denge (🔒 PRO), distortion (🔒 PRO — "Yakında" rozeti ALMADI,
+  task'ın istediği gibi Egzersizler ızgarasında), frekans-cakismasi (🔒 PRO
+  + "günde 1 ücretsiz" amber rozeti — İKİSİ BİRDEN, ekran görüntüsünde
+  doğrulandı). "Yakında" bölümü tam task sırasıyla: Stereo Genişlik/Pan
+  Konumu/Hız Modu/Hangisi Farklı.
+- **Ana ekranda dikey kayma/taşma — GERÇEK `getBoundingClientRect()`/
+  `scrollHeight` ölçümleriyle, canlı tarayıcıda (bu tur `python3 -m
+  http.server` + Claude-in-Chrome ile bağlanıldı):**
+  - Yatay taşma: **0px** (`document.body.scrollWidth - clientWidth === 0`).
+  - `.scroll` en alta kaydırıldığında, son "Yakında" kartının alt kenarı
+    ile `#tabbar`'ın üst kenarı arasındaki boşluk: **55.77px** (negatif
+    DEĞİL — çakışma/kesilme YOK).
+  - Dar-ekran (`@media max-width:420px`, tek sütuna düşen) senaryosu: bu
+    ortamda `resize_window` gerçek `window.innerWidth`'i DEĞİŞTİRMEDİ
+    (denendi, 1728px'te sabit kaldı — dürüstlük notu) — bunun yerine
+    `.app-shell` GEÇİCİ olarak 375px'e sıkıştırılıp GERÇEK DOM ölçüldü
+    (media query hâlâ geniş-ekran 2-sütun kuralında kaldığı için bu,
+    GERÇEK telefondan DAHA KÖTÜMSER bir test — telefon 1 sütuna düşünce
+    kartlar daha da GENİŞLER). Sonuç: kart genişliği 165.5px, `cardOverflowsShell:
+    false`, `userCard.overflowsShell: false`, `bodyHorizontalOverflowPx: 0`.
+    Mod adı metni kendi kutusunu taşıyordu (`nameTextOverflowsOwnBox: true`)
+    — bu BEKLENEN/TASARLANMIŞ davranış (ellipsis kırpması, `overflow:hidden`
+    ile), kutunun KENDİSİ kartı taşırmıyor (`nameBoxOverflowsCard: false`).
+  - Ek doğrulama: sahte bölge verisiyle (`fa_zonestats`) "Bugünün Önerisi"
+    kartı da canlı render edildi, ekran görüntüsüyle onaylandı (yeşil kart,
+    zayıf bölge kırmızı vurgulu, "Seti başlat · 10 soru" butonu doğru
+    etiketle).
+
+**Dürüstlük notu — Akademi Seviyesi ile İlerleme'nin rozeti ARTIK FARKLI
+sayı gösteriyor (BİLİNÇLİ, task'ın kapsam sınırının doğal sonucu):**
+Ana ekranın YENİ "Sv" pentagonu `progress.academyLevel()` (10 modun
+`modeLevel()` toplamı, taze kullanıcıda 10) gösterirken, İlerleme
+sekmesinin KENDİ rozeti (`#progLevelValue`, bu turun kapsamı DIŞINDA)
+HÂLÂ eski `diffState().xp` tabanlı sayıyı gösteriyor (taze kullanıcıda 1).
+Bu iki ekran artık AYNI ANDA farklı "seviye" sayıları gösterebilir —
+İlerleme ekranı yeniden tasarlanınca uzlaştırılmalı, AÇIK İŞLER'e
+eklenmesi öneriliyor.
+
+**KORUMA:** paywall/erişim mantığı (`meetsLevel`/`playable`/`access`/
+`checkModeAccess`/`openPaywallReason`/`enterMode`/`openHeadphoneSheet`),
+sınav sistemi, ses/zorluk, spotlight, mevcut "i" içerikleri TEK SATIR
+değişmedi — SADECE ana ekranın HTML/CSS/JS'i (render şekli).
+
+---
+
+Önceki commit (G73, tek commit) — **Görsel sistem kuruldu: yeni palet
 `:root`'a CSS değişkeni olarak eklendi, mevcut sabit renkler bu
 değişkenlere çevrildi. Ekran düzeni/HTML/JS TEK SATIR değişmedi.**
 
@@ -5412,6 +5543,18 @@ elle denenip doğrulandı, taslak metinler (`MODE_GUIDE_TEXTS`,
 `MODE_OPTIONS_TEXTS`, `SPOTLIGHT_STEPS`) kullanıcı tarafından gözden
 geçirilip gerekiyorsa `guide-texts.js`'te düzeltildi.
 
+**15. G74 — Ana Menü'nün "Sv" rozeti ile İlerleme sekmesinin rozeti artık
+FARKLI sayı gösteriyor**
+Ana ekranın yeni kullanıcı kartı `progress.academyLevel()` (10 modun
+toplamı, taze kullanıcıda 10) gösteriyor, İlerleme sekmesinin KENDİ rozeti
+(`#progLevelValue`) hâlâ eski `diffState().xp` tabanlı sayıyı gösteriyor
+(taze kullanıcıda 1) — G74'ün kapsamı SADECE ana ekrandı, İlerleme'ye
+dokunulmadı. **Kabul kriteri:** İlerleme sekmesi yeniden tasarlanırken (ya
+da ayrı bir görevde) bu iki rozet AYNI academyLevel kaynağını okuyacak
+şekilde uzlaştırılmalı — ya İlerleme'nin rozeti de academyLevel'a
+taşınmalı, ya da ikisinin NEDEN farklı şeyler gösterdiği kullanıcıya
+açıkça anlatılmalı (ör. "bu mod seviyesi" vs "akademi seviyesi" etiketiyle).
+
 ### Yayın öncesi
 
 **9. ~~Logo / uygulama ikonu yapılmadı~~ — STALE, zaten yapılmış**
@@ -5538,14 +5681,15 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G71 itibarıyla):** AÇIK İŞLER madde 14 — özellikle (9):
-G71'de kök sebebi bulunup düzeltilen mod içi "i" (`#gameInfoBtn`) cihazda
-GERÇEKTEN açılıyor mu diye YENİDEN test etmek (bir önceki kırık halin
-YERİNE geçti, ama canlı teyit hâlâ yok) — sonra G67/G68/G69/G70/G71'in
-TAMAMINI (kalıcı "i" ikonu + SPOTLIGHT rehber turu + oyun seçenekleri +
-"basılı tut" ipucu) gerçek tarayıcı/cihazda elle deneyip taslak metinleri
-gözden geçirmek. Aşağıdaki liste (G59 itibarıyla güncellendi) bu adımdan
-BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini
+**Tek sonraki adım (G74 itibarıyla):** AÇIK İŞLER madde 15 — Ana Menü'nün
+yeni "Sv" rozeti (academyLevel) ile İlerleme sekmesinin rozeti
+(diffState().xp) arasındaki uzlaşmazlığı çözmek, İlerleme ekranı yeniden
+tasarlanırken. Bunun ardından madde 14 (G67-G74'ün TAMAMI: kalıcı "i" +
+SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu + G74'ün yeni ana ekranı)
+GERÇEK CİHAZDA (bu turda masaüstü Chrome'da doğrulandı, ama iOS WKWebView'de
+HENÜZ değil — font rendering/safe-area farkları olabilir) elle denenmeli.
+Aşağıdaki liste (G59 itibarıyla güncellendi) bu adımdan BAĞIMSIZ, daha
+eski/büyük zorluk-mimarisi işlerini
 kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma

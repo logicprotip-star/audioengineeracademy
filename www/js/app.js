@@ -10,9 +10,10 @@ import * as storage from "./core/storage.js";
 import * as progress from "./core/progress.js";
 import * as paywall from "./core/paywall.js";
 import { toast, spawnXp, burst, shake } from "./core/fx.js";
-import { formatHz, turkishLocative } from "./core/utils.js";
+import { formatHz } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
-import { MODE_CATALOG, MOTOR_INFO } from "./core/mode-catalog.js";
+import { MODE_CATALOG } from "./core/mode-catalog.js";
+import { modeVisualSvg } from "./core/mode-visuals.js";
 import { SOURCE_GROUPS, findSource, findSourcePair } from "./core/source-catalog.js";
 import { tierForLevel, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
 import { levelSheetTermsFor } from "./core/level-sheet-terms.js";
@@ -80,6 +81,7 @@ const els = {
   // ekran yönlendirme
   modeGrid: document.getElementById("modeGrid"),
   modeCount: document.getElementById("modeCount"),
+  comingGrid: document.getElementById("comingGrid"),
   gameTitle: document.getElementById("gameTitle"),
   gameInfoBtn: document.getElementById("gameInfoBtn"),
   answerFormatChipWrap: document.getElementById("answerFormatChipWrap"),
@@ -96,6 +98,7 @@ const els = {
   // progNextLevelText) AYNI veriyi (updateUI() içinde AYNI xp = progress.xpProgress
   // (diffState().xp) hesabından) gösterir, ayrı bir kaynak DEĞİL.
   menuLevelValue: document.getElementById("menuLevelValue"),
+  menuLevelTitle: document.getElementById("menuLevelTitle"),
   menuXpText: document.getElementById("menuXpText"),
   menuXpBar: document.getElementById("menuXpBar"),
   menuNextLevelText: document.getElementById("menuNextLevelText"),
@@ -1591,151 +1594,154 @@ function handleExamOutcome(q, result) {
 // besleniyor, motorlara göre gruplanıyor. Sadece registry.js'te GERÇEKTEN kayıtlı
 // olan mod (listModes()) tıklanabilir/oynanabilir; diğerleri kilitli kart olarak
 // görünür, tıklanınca "yakında" mesajı gösterir — oyun mantığı içermezler.
-function renderModeGrid() {
+// G74: ana ekran görsel sistemi — Tasarim-2026-08/Ana Ekran.dc.html. Motor
+// gruplaması KALDIRILDI (yeni tasarımda "Motor N" kavramı hiç yok, tek düz
+// 2 sütunlu ızgara) — renderModeGrid() ikiye ayrıldı: renderExerciseGrid()
+// (10 GERÇEK/oynanabilir mod, playable:true) ve renderComingGrid() (henüz
+// kodlanmamış 4 katalog girdisi, AYRI "Yakında" bölümü). Erişim/kilit
+// MANTIĞI (meetsLevel/playable/access, paywall.checkModeAccess,
+// openHeadphoneSheet, enterMode) TEK SATIR değişmedi — SADECE render edilen
+// HTML ve "Sv N'de açılır" rozetinin GÖRÜNÜRLÜĞÜ değişti (task'ın kendi
+// kararı: ücretsizde seviye kilidi zaten hiç tetiklenmiyor, G62).
+function renderExerciseGrid() {
   if (!els.modeGrid) return;
   const registeredModes = listModes();
-  const motorCount = new Set(MODE_CATALOG.map(e => e.motor)).size;
-  if (els.modeCount) els.modeCount.textContent = `${MODE_CATALOG.length} egzersiz · ${motorCount} oyun tipi`;
-
-  const byMotor = new Map();
-  MODE_CATALOG.forEach(entry => {
-    if (!byMotor.has(entry.motor)) byMotor.set(entry.motor, []);
-    byMotor.get(entry.motor).push(entry);
-  });
+  const exerciseEntries = MODE_CATALOG.filter(e => e.playable);
+  if (els.modeCount) els.modeCount.textContent = `${exerciseEntries.length} mod`;
 
   els.modeGrid.innerHTML = "";
-  [...byMotor.keys()].sort((a, b) => a - b).forEach(motorNum => {
-    const info = MOTOR_INFO[motorNum] || { label: "", color: "var(--tx)", bg: "rgba(255,255,255,.08)" };
-    const entries = byMotor.get(motorNum);
-    const group = document.createElement("div");
-    group.className = "motor-group";
-    // Başlıkta sadece oyun-tipi etiketi görünür — "Motor N" iç mimari jargonu,
-    // kullanıcıya anlamsız (bkz. 6-düzeltme maddesi 4). Gruplama/renk mantığı AYNI,
-    // sadece görünen metin değişti.
-    group.innerHTML = `<div class="motor-group-head" style="color:${info.color}">${info.label}</div><div class="mode-grid${entries.length === 1 ? " single" : ""}"></div>`;
-    const grid = group.querySelector(".mode-grid");
-    entries.forEach(entry => {
-      // Kart başlığı/açıklaması YALNIZCA katalogdan okunur — getMeta() artık bunları
-      // döndürmüyor (bkz. frekans-bulma.js). Tek kaynak: 14 kart da aynı uzunluk
-      // bandında, ızgara eşit duruyor. playable SADECE tıklama davranışı/kilit
-      // görünümü için registry.js'teki gerçek kayda bakılarak belirlenir.
-      const realMode = registeredModes.find(m => m.getMeta().id === entry.id);
-      // Z3 KARARI: "Seviye N'de açılır" kilidi AKADEMİ (toplam) seviyesine bakar,
-      // mod'un KENDİ seviyesine değil — unlockLevel'lar (1..20) henüz kodlanmamış
-      // 13 modu da kapsayan genel bir içerik yol haritasını temsil ediyor; o modların
-      // kendi XP kaynağı olmadığı için mod-bazlı seviyeye bakmak anlamsız olurdu.
-      // Bugün TEK oynanabilir mod (frekans-bulma, unlockLevel:1) academyLevel her
-      // zaman >=1 olduğu için bu kontrolden HER ZAMAN geçer — görünür bir değişiklik
-      // yok, ama ikinci mod kodlandığında doğru mekanizma hazır olacak.
-      // devFlags.simulatePro (Geliştirici: tam erişim) BİLEREK isUserPro() ÜZERİNDEN
-      // değil DOĞRUDAN buraya bağlandı — gerçek Pro kullanıcıların seviye kilidini
-      // atlaması İSTENMEDİ (o AYRI bir eksen, bkz. BEKLEYEN KARARLAR B), sadece
-      // geliştirici anahtarı açıkken TÜM modlar test edilebilsin diye.
-      //
-      // G62 (PAYWALL.md düzeltmesi) — paywall.meetsLevelRequirement() eklendi:
-      // seviye/sınav sistemi ZATEN Pro özelliği (`examGateActive()`'in kendi
-      // tanımı — free'de sınav hiç devreye girmiyor, dolayısıyla seviye de
-      // İLERLEMİYOR). Ücretsiz
-      // kullanıcının hiç ulaşamayacağı bir seviye eşiğine takılması ANLAMSIZDI —
-      // cihaz testinde Kompresör (unlockLevel:12, ama tier artık "free") tam
-      // bunun kurbanı oldu: free kullanıcı "Seviye yetersiz" diyordu, oysa
-      // Kompresör onun İÇİN zaten TAM AÇIK 5 moddan biriydi (bkz. paywall.
-      // FREE_MODE_IDS). Seviye kilidi artık SADECE Pro'da (gerçek IAP ya da
-      // simülasyon) anlamlı — free'de HİÇ uygulanmıyor, aşağıdaki `access`
-      // (Pro/günlük-tadımlık) kontrolü TEK erişim ekseni oluyor.
-      const meetsLevel = devFlags.simulatePro || paywall.meetsLevelRequirement(isUserPro(), progress.academyLevel(stats, playableModeIds()), entry.unlockLevel);
-      const playable = !!realMode && meetsLevel;
-      // G61 (PAYWALL.md): seviye kilidiyle (meetsLevel) AYRI bir ikinci eksen —
-      // Pro/günde-1-tadımlık erişimi. isUserPro() devFlags.simulatePro'yu ZATEN
-      // içeriyor (bkz. o fonksiyonun tanımı) — geliştirici anahtarı açıkken
-      // meetsLevel VE access.allowed AYNI ANDA true olur, kapalıyken ikisi de
-      // gerçek kısıtlarıyla çalışır (task'ın istediği "ikisi de test edilebilsin").
-      const access = playable
-        ? paywall.checkModeAccess(entry.id, { isPro: isUserPro(), dailyTasteLastPlayedAt: stats.dailyTasteLastPlayedAt, now: Date.now() })
-        : { allowed: true, reason: null };
-      const card = document.createElement("button");
-      card.type = "button";
-      card.className = `mode-card${(playable && access.allowed) ? "" : " locked"}`;
-      // "Motor N" rozeti kaldırıldı — kullanıcıya anlamsız iç mimari terimi, aynı
-      // bilgi zaten grup başlığında ve renk kodunda var (bkz. madde 4). Pro rozeti
-      // (tier==="pro") ile seviye kilidi (unlockLevel) AYRI iki gösterge — biri
-      // kart üstünde, diğeri alt satırda; ikisi de gerektiğinde birlikte görünür.
-      const proBadge = entry.tier === "pro" ? `<div class="mode-chip mode-chip-pro">Pro</div>` : "";
-      // G36: Dizayn/prototype.html'in mod kartı "Sv N" çip'i (prototipte kilit
-      // ikonuyla AYNI slotta, birbirini dışlıyorlardı) — burada Pro rozetinden AYRI
-      // bir görsel (karışmasınlar diye, bkz. .mode-chip-level notu), SADECE oynanabilir
-      // kartlarda (kilitli bir modun "seviyesi" göstermek kafa karıştırırdı — prototip
-      // de zaten kilitliyken chip yerine kilit ikonu gösteriyor, AYNI mantık). Veri
-      // progress.modeLevel (Z3/Z6'dan beri var, oyun içi #levelChip'in AYNI kaynağı) —
-      // hiç oynanmamış bir mod bile levelFromXp'nin tabanı (1) gereği "Sv 1" gösterir.
-      const levelBadge = (playable && access.allowed) ? `<div class="mode-chip mode-chip-level">Sv ${progress.modeLevel(stats, entry.id)}</div>` : "";
-      // "i" bilgi rozeti (bkz. core/guide-texts.js) — SADECE gerçek metni olan
-      // (yani kodlanmış, oynanabilir) 10 mod için, henüz kodlanmamış 4 katalog
-      // girdisinde (hiz-modu, stereo-genislik, pan-konumu, hangisi-farkli) YOK,
-      // çünkü onlar için içerik hiç yazılmadı.
-      const infoBadge = MODE_GUIDE_TEXTS[entry.id] ? `<button type="button" class="mode-info-btn" data-guide-mode="${entry.id}" aria-label="${entry.ad} bilgisi">i</button>` : "";
-      // G61: seviye kilidiyle AYNI görsel dil (.mode-lock-row, "sadece erişim
-      // kısıtı eklenir" — yeni bir bileşen icat edilmedi) ama farklı metin: Pro
-      // gerektiren mod ile o gün zaten oynanmış günlük-tadımlık mod AYRI cümle.
-      const lockRow = !playable
-        ? `<div class="mode-lock-row">🔒 Seviye ${turkishLocative(entry.unlockLevel)} açılır</div>`
-        : !access.allowed
-        ? `<div class="mode-lock-row">🔒 ${access.reason === "daily-used" ? "Bugün oynadın · yarın tekrar" : "Pro gerekli"}</div>`
-        : `<div class="mode-mini"><i style="width:0%"></i></div>`;
-      card.innerHTML = `
-        <div class="mode-top">
-          <div class="mode-glyph" style="background:${info.bg}"><i style="height:12px;background:${info.color}"></i><i style="height:22px;background:${info.color}"></i><i style="height:16px;background:${info.color}"></i></div>
-          <div class="mode-top-right">${infoBadge}${proBadge}${levelBadge}</div>
+  exerciseEntries.forEach(entry => {
+    const realMode = registeredModes.find(m => m.getMeta().id === entry.id);
+    // Z3/G62 KARARI — DEĞİŞMEDİ: bkz. önceki sürümün AYNI yorumu (git geçmişi) —
+    // "Sv N'de açılır" akademi-seviyesi kilidi ücretsizde hiç tetiklenmiyor
+    // (meetsLevelRequirement free'de her zaman true döner), Pro'da bile bu 10
+    // mod için pratikte neredeyse hiç ulaşılmayan bir kenar durum. Mantık
+    // KORUNDU, SADECE görsel rozeti (aşağıda) artık render EDİLMİYOR.
+    const meetsLevel = devFlags.simulatePro || paywall.meetsLevelRequirement(isUserPro(), progress.academyLevel(stats, playableModeIds()), entry.unlockLevel);
+    const playable = !!realMode && meetsLevel;
+    const access = playable
+      ? paywall.checkModeAccess(entry.id, { isPro: isUserPro(), dailyTasteLastPlayedAt: stats.dailyTasteLastPlayedAt, now: Date.now() })
+      : { allowed: true, reason: null };
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = `mode-card${(playable && access.allowed) ? "" : " locked"}`;
+    const viz = modeVisualSvg(entry.id) || "";
+    // "i" bilgi rozeti (bkz. core/guide-texts.js) — SADECE gerçek metni olan
+    // 10 mod için (hepsi burada zaten, MODE_GUIDE_TEXTS[entry.id] HER ZAMAN
+    // var — savunma amaçlı kontrol yine de KORUNDU).
+    const infoBadge = MODE_GUIDE_TEXTS[entry.id] ? `<button type="button" class="mode-info-btn" data-guide-mode="${entry.id}" aria-label="${entry.ad} bilgisi">i</button>` : "";
+    // Sağ-üst rozet — tasarımın KENDİ statik "PRO" etiketi: entry.tier'a göre
+    // (erişim durumundan BAĞIMSIZ, Pro kullanıcıda bile "bu içerik Pro" bilgisi
+    // kalır — mode-catalog.js'in tier'ı zaten core/paywall.js:FREE_MODE_IDS'le
+    // BİLEREK senkron tutuluyor, bkz. o dosyanın G61 notu — "kilit dağılımında
+    // kod kazanır" kuralı burada ZATEN sağlanmış durumda).
+    const proBadge = entry.tier === "pro"
+      ? `<div class="mode-card-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg><span>PRO</span></div>`
+      : "";
+    // Günlük-tadımlık etiketi (SADECE Frekans Çakışması, dailyTaste:true) —
+    // tasarımın statik "günde 1 ücretsiz" metnini TABAN alır, ama GERÇEK erişim
+    // durumu (access.reason==="daily-used") o gün zaten oynanmışsa metni
+    // "Bugün oynadın"a çevirir — aynı rozet slotu, dinamik metin (eski
+    // .mode-lock-row'un "Bugün oynadın" bilgisini KAYBETMEDEN, yeni tasarımın
+    // rozet diline taşınmış hali).
+    const dailyBadge = entry.dailyTaste
+      ? `<div class="mode-card-daily">${access.reason === "daily-used" ? "Bugün oynadın" : "günde 1 ücretsiz"}</div>`
+      : "";
+    // "Sv N" rozeti — progress.modeLevel (Z3/Z6'dan beri var, oyun içi
+    // #levelChip'in AYNI kaynağı), erişim durumundan BAĞIMSIZ HER ZAMAN
+    // gösterilir (tasarımın kendi statik davranışı, bkz. Ana Ekran.dc.html
+    // ex.lv — kilitli/kilitsiz ayrımı YOK).
+    const levelNum = progress.modeLevel(stats, entry.id);
+    card.innerHTML = `
+      <div class="mode-card-viz">${viz}${infoBadge}${proBadge}</div>
+      <div class="mode-card-body">
+        <div class="mode-card-head">
+          <div class="mode-card-name">${entry.ad}</div>
+          <div class="mode-chip-level">Sv ${levelNum}</div>
         </div>
-        <span class="mode-engine" style="color:${info.color}">${info.label}</span>
-        <h4>${entry.ad}</h4>
-        <p>${entry.aciklama}</p>
-        ${lockRow}
-      `;
-      // "i" rozeti kartın KENDİ tıklamasından BAĞIMSIZ — kilitli bir kartta bile
-      // (mod bilgisi kilitliyken de merak edilebilir) çalışmalı, bu yüzden
-      // card.addEventListener("click", ...) aşağıdaki asıl navigasyon handler'ından
-      // ÖNCE stopPropagation ile ayrılıyor.
-      const infoBtn = card.querySelector(".mode-info-btn");
-      if (infoBtn) infoBtn.addEventListener("click", e => {
-        e.stopPropagation();
-        openGuideSheet(entry.id);
-      });
-      card.addEventListener("click", () => {
-        if (playable) {
-          // G63 (PAYWALL.md Parça 2): tetikleme #3 (kilitli mod: dB/Reverb/
-          // Tonal/Distortion) ve #5 (Frekans Çakışması günde-1 bitti) —
-          // ARTIK toast DEĞİL, paywall ekranı DOĞRUDAN açılır. İlk oturumda
-          // (openPaywallReason false döner) G61'in ESKİ toast'ına düşülür.
-          if (!access.allowed) {
-            const reasonKey = access.reason === "daily-used" ? "dailyUsed" : "modeLocked";
-            if (!openPaywallReason(reasonKey)) {
-              const msg = access.reason === "daily-used" ? paywall.LOCK_MESSAGES["daily-used"] : paywall.LOCK_MESSAGES.pro;
-              toast(msg.title, msg.detail);
-            }
-            return;
+        <div class="mode-card-desc">${entry.aciklama}</div>
+        ${dailyBadge}
+        <div class="mode-card-progress hidden"><i style="width:0%"></i></div>
+      </div>
+    `;
+    // "i" rozeti kartın KENDİ tıklamasından BAĞIMSIZ — kilitli bir kartta bile
+    // (mod bilgisi kilitliyken de merak edilebilir) çalışmalı, bu yüzden
+    // card.addEventListener("click", ...) aşağıdaki asıl navigasyon handler'ından
+    // ÖNCE stopPropagation ile ayrılıyor.
+    const infoBtn = card.querySelector(".mode-info-btn");
+    if (infoBtn) infoBtn.addEventListener("click", e => {
+      e.stopPropagation();
+      openGuideSheet(entry.id);
+    });
+    card.addEventListener("click", () => {
+      if (playable) {
+        // G63 (PAYWALL.md Parça 2): tetikleme #3 (kilitli mod: dB/Reverb/
+        // Tonal/Distortion) ve #5 (Frekans Çakışması günde-1 bitti) —
+        // ARTIK toast DEĞİL, paywall ekranı DOĞRUDAN açılır. İlk oturumda
+        // (openPaywallReason false döner) G61'in ESKİ toast'ına düşülür.
+        if (!access.allowed) {
+          const reasonKey = access.reason === "daily-used" ? "dailyUsed" : "modeLocked";
+          if (!openPaywallReason(reasonKey)) {
+            const msg = access.reason === "daily-used" ? paywall.LOCK_MESSAGES["daily-used"] : paywall.LOCK_MESSAGES.pro;
+            toast(msg.title, msg.detail);
           }
-          // G37: mod-özel kulaklık uyarısı — bkz. openHeadphoneSheet dosya başı notu.
-          // meta.kulaklikGerekli her modun KENDİ getMeta()'sından (mode-catalog.js'in
-          // alanı sadece referans, diğer mod alanları gibi — bkz. o dosyanın başındaki
-          // yorum) — Reverb HARİÇ altı mod bunu false döndürüyor, sheet ONLARDA hiç
-          // açılmıyor. G39: prefs.hpWarning ARTIK burada KONTROL EDİLMİYOR (genel toggle
-          // sheet'i etkilemiyor, bkz. hpSkippedThisSession dosya başı notu).
-          const meta = realMode.getMeta();
-          const skipped = hpSkippedThisSession.has(entry.id);
-          if (meta.kulaklikGerekli && !skipped) {
-            openHeadphoneSheet(entry, realMode);
-            return;
-          }
-          enterMode(entry, realMode);
           return;
         }
-        if (realMode && !meetsLevel) { toast("Seviye yetersiz", `Bu egzersiz Seviye ${entry.unlockLevel}'de açılır.`); return; }
-        toast("Yakında", "Bu egzersiz yakında eklenecek.");
-      });
-      grid.appendChild(card);
+        // G37: mod-özel kulaklık uyarısı — bkz. openHeadphoneSheet dosya başı notu.
+        // meta.kulaklikGerekli her modun KENDİ getMeta()'sından (mode-catalog.js'in
+        // alanı sadece referans, diğer mod alanları gibi — bkz. o dosyanın başındaki
+        // yorum) — Reverb HARİÇ altı mod bunu false döndürüyor, sheet ONLARDA hiç
+        // açılmıyor. G39: prefs.hpWarning ARTIK burada KONTROL EDİLMİYOR (genel toggle
+        // sheet'i etkilemiyor, bkz. hpSkippedThisSession dosya başı notu).
+        const meta = realMode.getMeta();
+        const skipped = hpSkippedThisSession.has(entry.id);
+        if (meta.kulaklikGerekli && !skipped) {
+          openHeadphoneSheet(entry, realMode);
+          return;
+        }
+        enterMode(entry, realMode);
+        return;
+      }
+      if (realMode && !meetsLevel) { toast("Seviye yetersiz", `Bu egzersiz Seviye ${entry.unlockLevel}'de açılır.`); return; }
+      toast("Yakında", "Bu egzersiz yakında eklenecek.");
     });
-    els.modeGrid.appendChild(group);
+    els.modeGrid.appendChild(card);
+  });
+}
+
+// Task'ın kendi verdiği "Yakında" sırası (mode-catalog.js'in KENDİ dizi
+// sırasından — hiz-modu/stereo-genislik/pan-konumu/hangisi-farkli — FARKLI,
+// bilerek — task madde 4'ün açık isteği). cIcon path verileri Ana
+// Ekran.dc.html'den AYNEN taşındı.
+const COMING_MODE_ORDER = ["stereo-genislik", "pan-konumu", "hiz-modu", "hangisi-farkli"];
+const COMING_ICON_PATH = {
+  "hiz-modu": "M12 8v4l3 2M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z",
+  "stereo-genislik": "M7 12h10M4 8v8M20 8v8M9 5v14M15 5v14",
+  "pan-konumu": "M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9ZM12 12l4-5",
+  "hangisi-farkli": "M4 8h5v8H4zM10 6h5v12h-5zM16 9h4v6h-4z"
+};
+// Bu 4 kart HİÇ kodlanmadı (realMode yok) — eski tek-ızgara sürümündeki
+// "Yakında" toast'ı davranışı (tıklanınca bilgilendirme) KORUNDU, sadece
+// artık AYRI bir bölümde, tasarımın kesikli-kenarlıklı sade kartıyla.
+function renderComingGrid() {
+  if (!els.comingGrid) return;
+  els.comingGrid.innerHTML = "";
+  COMING_MODE_ORDER.forEach(id => {
+    const entry = MODE_CATALOG.find(e => e.id === id);
+    if (!entry) return;
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "coming-card";
+    const path = COMING_ICON_PATH[id] || "";
+    card.innerHTML = `
+      <div class="coming-card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"></path></svg></div>
+      <div style="flex:1;min-width:0">
+        <div class="coming-card-name">${entry.ad}</div>
+        <div class="coming-card-label">Yakında</div>
+      </div>
+    `;
+    card.addEventListener("click", () => toast("Yakında", "Bu egzersiz yakında eklenecek."));
+    els.comingGrid.appendChild(card);
   });
 }
 
@@ -1753,12 +1759,25 @@ function updateUI() {
   if (els.progXpBar) els.progXpBar.style.width = `${percent}%`;
   if (els.progNextLevelText) els.progNextLevelText.innerHTML = `Sonraki seviyeye <b style="color:var(--am)">${xp.required - xp.current} XP</b>`;
 
-  // G36: Ana Menü seviye rozeti — İlerleme'nin YUKARIDAKİ hesabıyla (xp/percent) BİREBİR
-  // aynı veriyi kullanır, ayrı bir sorgu/kaynak YOK — bu yüzden ikisi HER ZAMAN senkron.
-  if (els.menuLevelValue) els.menuLevelValue.textContent = xp.level;
+  // G74: Ana Menü'nün YENİ kullanıcı kartı "Akademi Seviyesi · tüm modların
+  // toplamı" diyor (Tasarim-2026-08/Ana Ekran.dc.html) — bu artık İlerleme'nin
+  // (yukarıdaki, DEĞİŞMEYEN) diffState()-tabanlı xp.level'ından FARKLI bir
+  // sayı: progress.academyLevel(stats, playableModeIds()), 10 modun KENDİ
+  // modeLevel()'lerinin TOPLAMI (bkz. progress.js:academyLevel notu — hiç
+  // oynanmamış bir mod bile levelFromXp tabanı 1 sayıldığı için taze bir
+  // kullanıcı bile academyLevel=10 ile başlar, xp.level=1 DEĞİL). DÜRÜSTLÜK
+  // NOTU (bkz. DURUM.md G74): bu, Ana Menü'nün "Sv" pentagonu ile İlerleme
+  // sekmesinin KENDİ rozetinin BİLEREK farklı sayı göstermesi demek — İlerleme
+  // bu turun kapsamı dışı, o ekran yeniden tasarlanınca uzlaştırılmalı.
+  // menuXpText/menuXpBar/menuNextLevelText veri kaynağı DEĞİŞMEDİ (aynı xp/
+  // percent) — kartta pentagon'dan AYRI, ikinci bir metrik (mevcut oyun
+  // ilerlemesi) olarak kalıyor.
+  const academyLvl = progress.academyLevel(stats, playableModeIds());
+  if (els.menuLevelValue) els.menuLevelValue.textContent = academyLvl;
+  if (els.menuLevelTitle) els.menuLevelTitle.textContent = progress.levelTitle(academyLvl);
   if (els.menuXpText) els.menuXpText.textContent = `${xp.current}/${xp.required} XP`;
   if (els.menuXpBar) els.menuXpBar.style.width = `${percent}%`;
-  if (els.menuNextLevelText) els.menuNextLevelText.innerHTML = `Sonraki seviyeye <b style="color:var(--am)">${xp.required - xp.current} XP</b>`;
+  if (els.menuNextLevelText) els.menuNextLevelText.innerHTML = `Sonraki seviyeye <b style="color:var(--cyan)">${xp.required - xp.current} XP</b>`;
 
   if (els.seriChip) els.seriChip.textContent = 'Seri ' + stats.rounds;
   // Z3/Z6: bu MOD seviyesi — diffState()'in yukarıdaki (perDiff, zorluk-bazlı) xp'sinden
@@ -1922,7 +1941,12 @@ function renderDailyTip() {
   const enough = zoneScores().filter(s => s.n >= 2);
   if (!enough.length) { els.dailyTipCard.classList.add("hidden"); return; }
   const weakest = enough.slice().sort((a, b) => a.pct - b.pct)[0];
-  if (els.dailyTipText) els.dailyTipText.textContent = `${weakest.label} bölgede isabetin %${weakest.pct}. Bugün oraya odaklanmayı dene.`;
+  // G74: metin İÇERİĞİ/verisi DEĞİŞMEDİ (aynı weakest.label/pct) — SADECE
+  // zayıf bölge adı tasarımın kendi vurgu rengiyle (--red) işaretlendi
+  // (Ana Ekran.dc.html'in "ÜST-ORTA" örneğiyle AYNI görsel dil). textContent
+  // yerine innerHTML kullanılıyor ama tek enjekte edilen değer BU fonksiyonun
+  // kendi hesapladığı weakest.label/pct — dışarıdan gelen serbest metin YOK.
+  if (els.dailyTipText) els.dailyTipText.innerHTML = `Zayıf bölgen <b style="color:var(--red)">${weakest.label}</b> — isabet %${weakest.pct}. Bugün oraya odaklanmayı dene.`;
   // G58: buton artık GERÇEKTEN challenge.total kadar soruda duruyor (bkz.
   // dailyTipStartBtn click handler) — etiket challenge.total'dan OKUNUYOR
   // (sabit "10" yazıp unutmak yerine tek doğruluk kaynağından), böylece sayı
@@ -4660,7 +4684,8 @@ updateUI();
 updateStartBtnLabel();
 updateHintChipLabel();
 updateAbToggleUI();
-renderModeGrid();
+renderExerciseGrid();
+renderComingGrid();
 goScreen("menu");
 resizeCanvas();
 
@@ -5202,7 +5227,7 @@ function syncDevUI() {
   applyProLockVisibility();
   enforceFreeRestrictions(); // G61: isUserPro() burada değişmiş OLABİLİR, state'i senkronla
   syncAccountLine();
-  renderModeGrid();
+  renderExerciseGrid();
 }
 let versionTapCount = 0;
 let versionTapTimer = null;
