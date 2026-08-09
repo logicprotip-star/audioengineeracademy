@@ -79,7 +79,7 @@
 // SADECE ŞIKLI (choiceOnly:true) — diğer dört yeni modla AYNI karar.
 
 import { compatibleSourceIds } from "../core/source-catalog.js";
-import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
+import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState } from "../core/three-way-cards.js";
@@ -88,7 +88,7 @@ import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState } 
 // HER moddan mode-agnostik olarak okur — diğer beş modla AYNI re-export deseni
 // (Kompresör'ün KENDİSİ frekansla İLGİLENMİYOR ama paylaşılan arka plan çizimi
 // bunları koşulsuz okuyor).
-export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound };
+export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground };
 
 export const MODE_ID = "kompresor";
 export const MAX_LIVES = 5;

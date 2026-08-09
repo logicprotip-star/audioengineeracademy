@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G82)
+Son güncelleme: 09.08.2026 (G83)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,108 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G82, tek commit) — **SEANS SONU EKRANI giydirildi —
+Bu commit (G83, tek commit) — **SPEKTRUM ANALİZÖRÜ giydirildi —
+Tasarim-2026-08/Prototip.dc.html `spectrum()`/`dualSpectrum()` birebir +
+soru sırasında kopya vermeyen NÖTR çizgi (G38 deseninin devamı)**
+
+Tasarım kaynağı: `Tasarim-2026-08/Prototip.dc.html` (satır ~1539-1632,
+`spectrum()` + `dualSpectrum()`) — AÇILIP okundu, öğe öğe eşlendi:
+
+| Tasarım öğesi | Karşılığı (bu turda uygulanan) |
+|---|---|
+| Çizgi grafik (çubuk DEĞİL), cyan `#22d3ee`, altında dikey gradyan dolgu | `frekans-bulma.js:drawSpectrumBackground()` — procedural eğri (tilt+wobble+jitter), `createLinearGradient` ile dolgu, `#22d3ee` stroke |
+| Boss turunda çizgi ve işaretler altın `#f6d878` | `opts.boss` true iken `accent = "#f6d878"` — hem stroke hem gradyan bu renge geçiyor. (Tasarımın LİTERAL kodu sadece tıklama işaretini altınlıyor, çizgiyi değil — kullanıcının yazılı maddesi "çizgi VE işaretler" dediği için bilinçli olarak GENİŞLETİLDİ, DURUM'a not düşülüyor) |
+| Dikey ızgara + etiketler: 50/100/500/1k/5k/10k | `FA_TICKS_ALL = [100,500,1000,5000,10000]` — "50" ÇIKARILDI, çünkü `FA_MIN=80` altında (uydurma yerine gerçek aralığa sadık kalındı) |
+| Yatay ızgara + etiketler: +12/0/-12 | Yeni: `drawSpectrumBackground()` içinde y-fraksiyonları .198/.444/.690 (tasarımın H=252 üzerindeki y=50/112/174 ORANI) |
+| İşaret çizgisi: üstte frekans baloncuğu, altta nokta | DOKUNULMADI — her modun KENDİ `drawOverlay()`'i zaten bunu çiziyordu (analitik BiquadFilter eğrileri/işaretler), bu turun kapsamı SADECE arka plan/ızgara |
+| İpucu → doğru cevap bandı aydınlık, gerisi karanlık + kesikli çerçeve | DOKUNULMADI — `#hintMaskLayer`/`renderHintMask()` ÖNCEDEN vardı, bu turun kapsamı dışı |
+| Alt kenar satırı "20 Hz · SPEKTRUM ANALİZÖRÜ · 20 kHz" | Yeni `.analyzer-foot` — ama GERÇEK `mode.FA_MIN`/`FA_MAX` (`formatHz()` ile), "20 Hz"/"20 kHz" yerine gerçek modun aralığı (çoğu modda 80 Hz / 17.0 kHz) — literal metin UYDURULMADI |
+
+**KRİTİK KISIT karşılandı — spektrum soru sırasında kopya vermiyor:**
+`drawSpectrumBackground(ctx2d, canvasEl, w, h, {revealed, boss, playing})`
+`revealed=false` (soru sırasında) iken çizgi TAMAMEN prosedürel — sabit
+tilt + iki sinüs wobble + (çalarken) jitter, ses verisinden/hedef
+frekanstan TAMAMEN BAĞIMSIZ. `revealed=true` olduğunda fonksiyon SADECE
+ızgarayı çizip ERKEN DÖNÜYOR — gerçek eğriyi her modun KENDİ `drawOverlay()`'i
+(analitik filtre eğrisi/gerçek fark) çiziyor. Desen G38'in `drawDbBars`'ıyla
+(`REF_FRAC` sabit pozisyon → cevap sonrası gerçek `dbDelta`) AYNI —
+doğrulandı, dosyada okundu.
+
+**Eskiden gerçek FFT barları vardı, bu bir GERİLEME DEĞİL DÜZELTMEYDİ:**
+`app.js`'in eski `drawSpectrumBars()`'ı `analyser.getByteFrequencyData()`'yı
+DOĞRUDAN, soru sırasında DA çiziyordu — tepe noktası hedef frekansı ELE
+VERİYORDU (task'ın tarif ettiği spoiler bug'ı, koda bakılarak DOĞRULANDI).
+Bu fonksiyon + `drawSpectrumBar()` + `SPEC_BAR_COUNT` SÖKÜLDÜ, yerine
+`mode.SHOW_SPECTRUM!==false` ise `mode.drawSpectrumBackground(...)` çağrısı
+kondu.
+
+**Merkezi paylaşım — 4 dosyanın kendi eksen kodu SİLİNDİ, 3 dosya YENİ eksen
+KAZANDI:** `kesim-noktasi.js`/`q-genisligi.js`/`boost-mu-cut-mu.js`/
+`tonal-denge.js` kendi `AXIS_TICKS`/`drawAxis()`'lerini (eski, FARKLI tick
+seti) SİLDİ, `frekans-bulma.js`'ten `drawSpectrumBackground` import+re-export
+ETTİ (mevcut `FA_MIN`/`FA_MAX`/`faXToF`/... paylaşım deseninin AYNISI).
+`kompresor.js`/`reverb.js`/`distortion.js`'in ÖNCEDEN hiç frekans ızgarası
+YOKTU — bu turda aynı fonksiyonu import ederek KAZANDILAR.
+
+**COMPACT_ANALYZER (Tonal Denge, 140px) güvenlik düzeltmesi — canlı hataya
+DÖNÜŞMEDEN önce yakalandı:** `CURVE_TOP` (88) sabit kullanılsaydı 140px
+yükseklikte (`plotBottom≈90`) NEGATİF/ters bir bant üretirdi — Tonal Denge'nin
+KENDİ `OVERLAY_TOP_MARGIN=20` önceliği örnek alınarak `curveTop =
+Math.min(CURVE_TOP, Math.max(20, plotBottom-60))` ile parametrik güvenli
+küçülme eklendi.
+
+**Frekans Çakışması — `SHOW_SPECTRUM=false` korundu, KENDİ `dualSpectrum()`
+görünümüne getirildi (paylaşılan fonksiyona BAĞLANMADI):**
+- `drawRegionCurve()`: eskiden SADECE kapalı-şekil translucent dolgu vardı;
+  `dualSpectrum()`'ın fill+stroke İKİ AŞAMALI tekniği eklendi (aynı `pts`
+  dizisi, önce dolgu, sonra `strokeStyle=color, lineWidth=2` açık-yol çizgi).
+- Renkler (`SOURCE_A_COLOR="#FFC246"` amber, `SOURCE_B_COLOR="#A855F7"` mor)
+  BİLEREK DEĞİŞTİRİLMEDİ — dosyanın kendi ÖNCEDEN belgelenmiş "mavi YOK"
+  kararı, tasarımın cyan/gold'undan ÖNCELİKLİ tutuldu (kullanıcının kendi
+  önceki kararına sadakat, tasarıma kör sadakat DEĞİL).
+- `drawAxis()`: kendi düşük-aralık tick seti (`[40,80,160,320,640,1280]`)
+  KORUNDU (paylaşılan 100/500/1k/5k/10k setinden FARKLI, çünkü içeriği daha
+  düşük frekans bandında); `dualSpectrum()`'ın etiketsiz yatay ızgarasına
+  denk üç YENİ çizgi eklendi (fraksiyon .204/.444/.685) — dB SAYI etiketi
+  EKLENMEDİ, çünkü tasarımın `dualSpectrum()`'ında da yok (uydurma yok).
+
+**db-seviyesi.js — DOKUNULMADI** (task'ın kendi istisnası): `SHOW_SPECTRUM=false`,
+kendi `drawDbBars()` görünümü aynen duruyor.
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ (sadece canvas/DOM
+kodu düzenlendi). `npm test`: **1043/1043** (her checkpoint'te tekrar
+doğrulandı).
+
+**DOĞRULAMA (canlı tarayıcı, taze tab/localStorage, konsol HATASIZ):**
+- **10 modun 10'u da doğrulandı** — Frekans Bulma/Kesim Noktası/Q Genişliği/
+  Boost mu Cut mu/Kompresör/Reverb/Distortion/Frekans Çakışması DOM taramasıyla
+  (footer görünürlüğü + gerçek Hz değerleri), db-seviyesi kendi barlarıyla
+  değişmeden, **Tonal Denge (140px COMPACT_ANALYZER) canlı oynanarak** —
+  ızgara+nötr çizgi (ask), gerçek "Senin sonucun"/"Hedef (nötr)" eğrisi
+  (revealed), BOSS turunda altın çizgi, footer "80 Hz · SPEKTRUM ANALİZÖRÜ ·
+  17.0 kHz" hepsi ekran görüntüsüyle doğrulandı. (Doğrulama sırasında BİR ARA
+  tarayıcı sekmesi `mode.drawSpectrumBackground is not a function` fırlattı —
+  teşhis edildi: eski sekmenin STALE modül-grafiği, sunucudan/`import()`'tan
+  doğrudan kontrol edilerek koddan KAYNAKLANMADIĞI kanıtlandı; TAZE sekmede
+  sıfır hatayla doğrulandı, kod defekti DEĞİLDİ.)
+- **Soru sırasında spektrum hedefi ele vermiyor, kanıtlandı:** Tonal Denge'de
+  aynı soruda AŞ aşamasında nötr dalgalı çizgi (BAS/ALT-ORTA/ÜST-ORTA/TİZ'in
+  gerçek gerekli düzeltmesiyle — +8.2/-9.7/+8.3/+0.0 dB — HİÇBİR görsel
+  ilişkisi yok, ekran görüntüsüyle karşılaştırıldı) → cevap sonrası TAMAMEN
+  FARKLI, gerçek kırmızı/yeşil eğri.
+  Aşamalar arası şekil belirgin şekilde bağımsız.
+- **Cevap sonrası gerçek eğri doğrulandı:** Tonal Denge'de "Senin sonucun"
+  (kırmızı) + "Hedef (nötr)" (yeşil düz çizgi) etiketli gerçek eğri, paylaşılan
+  ızgaranın üzerinde temiz çizildi (ekran görüntüsü alındı).
+- **Boss→altın geçişi doğrulandı:** Tonal Denge'nin boss turunda "BOSS"/"XP
+  1.65x" rozetleriyle EŞ ZAMANLI altın renkli spektrum çizgisi (ekran
+  görüntüsü alındı).
+- **Konsol hatası: 0** (stale-modül teşhisinden SONRAKİ temiz sekmede).
+  **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G82, tek commit) — **SEANS SONU EKRANI giydirildi —
 Tasarim-2026-08/Prototip.dc.html "SEANS SONU" bloğu (SS objesi) +
 Seans Özeti.dc.html birebir, üç durum (done/lives/free) + gerçek XP kırılımı +
 canlı can geri sayımı + rozet kartı**
@@ -6650,7 +6751,9 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G82 itibarıyla):** ÖNCELİKLE BEKLEYEN KARARLAR madde K
+**Tek sonraki adım (G83 itibarıyla):** G83 (Spektrum Analizörü giydirme)
+kod/test/canlı doğrulama açısından TAM kapandı, yeni açık iş bırakmadı.
+ÖNCELİKLE BEKLEYEN KARARLAR madde K
 (Pro'da "done" Seans Sonu durumu hiç tetiklenemiyor — kasıtlı mı, regresyon
 mu) kullanıcı kararı bekliyor; karar netleşmeden AÇIK İŞLER madde 20
 kapatılamaz/"done" canlı doğrulanamaz. Bunun dışında AÇIK İŞLER madde 14 —

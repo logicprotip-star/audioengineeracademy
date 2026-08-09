@@ -263,6 +263,9 @@ const els = {
   analyzerLabel: document.getElementById("analyzerLabel"),
   gainValue: document.getElementById("gainValue"),
   hintTag: document.getElementById("hintTag"),
+  analyzerFootMin: document.getElementById("analyzerFootMin"),
+  analyzerFootCaption: document.getElementById("analyzerFootCaption"),
+  analyzerFootMax: document.getElementById("analyzerFootMax"),
   hintMaskLayer: document.getElementById("hintMaskLayer"),
   canvas: document.getElementById("visualizer"),
   freqGuessArea: document.getElementById("freqGuessArea"),
@@ -464,6 +467,7 @@ function populateFocusSelect() {
   if (els.focusChipWrap) els.focusChipWrap.classList.remove("hidden");
 }
 populateFocusSelect();
+updateAnalyzerFoot();
 
 const ctx2d = els.canvas.getContext("2d");
 
@@ -1676,6 +1680,19 @@ function goBackFromSubpage(fallback = "menu") {
   goBack(fallback);
 }
 
+// G83: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün alt kenar satırı — sol/
+// sağ uçlar mode.FA_MIN/FA_MAX'tan GERÇEK okunuyor (tasarımın literal "20 Hz"/
+// "20 kHz"si DEĞİL, bizim soru havuzumuzun GERÇEK sınırı 80Hz-17kHz, uydurulmadı).
+// SHOW_SPECTRUM===false modlarda satırın KENDİSİ CSS ile gizli (bkz. enterMode/
+// styles.css .analyzer-no-foot) — bu fonksiyon o durumda erken çıkar, boş yazmaz.
+function updateAnalyzerFoot() {
+  if (!els.analyzerFootMin || !els.analyzerFootMax) return;
+  if (mode.SHOW_SPECTRUM === false) return;
+  els.analyzerFootMin.textContent = formatHz(mode.FA_MIN);
+  els.analyzerFootMax.textContent = formatHz(mode.FA_MAX);
+  if (els.analyzerFootCaption) els.analyzerFootCaption.textContent = "SPEKTRUM ANALİZÖRÜ";
+}
+
 // G37: mod kartına tıklanınca GERÇEKTEN oyuna girme adımı — önceden renderModeGrid'in
 // click handler'ı İÇİNE gömülüydü, kulaklık uyarı sheet'i (bkz. openHeadphoneSheet)
 // "Kulaklığım takılı, başla" onayından SONRA da AYNI adımı çalıştırması gerektiği için
@@ -1716,6 +1733,11 @@ function enterMode(entry, realMode) {
     // ÖNCE uygulanıyor — canvas'ın GERÇEK (CSS'ten okunan) boyutu ilk çizimden
     // itibaren doğru.
     if (els.analyzer) els.analyzer.classList.toggle("analyzer-compact", !!mode.COMPACT_ANALYZER);
+    // G83: alt kenar satırı (20Hz/caption/kHz) SADECE SHOW_SPECTRUM!==false
+    // modlarda anlamlı — dB Seviyesi/Frekans Çakışması kendi görsellerini
+    // kullanıyor (bkz. updateAnalyzerFoot).
+    if (els.analyzer) els.analyzer.classList.toggle("analyzer-no-foot", mode.SHOW_SPECTRUM === false);
+    updateAnalyzerFoot();
     // G47: farklı bir moda geçince sınav sistemi de sıfırlanır (bir modun yarım
     // parkuru başka bir moda SIZMAZ) — examSystem.setMode kendi içinde SADECE
     // modId GERÇEKTEN değiştiyse resetler (bkz. core/exam-system.js), aynı moda
@@ -3992,75 +4014,28 @@ function drawVisualizer() {
     return;
   }
 
-  // G39: dB Seviyesi kendi dikey bar görselini kullanıyor, arka spektrum onda
-  // ANLAMSIZ ve çakışıyordu — mode.SHOW_SPECTRUM===false ise atlanır (bkz. o
-  // dosyadaki not). Export etmeyen modlarda varsayılan true, davranış AYNI.
+  // G83: Tasarim-2026-08/Prototip.dc.html:spectrum() birebir — çubuk YERİNE
+  // çizgi grafik, cyan/boss'ta altın, soru sırasında NÖTR (gerçek FFT verisi
+  // ASLA çizilmez, bkz. drawSpectrumBackground'ın kendi notu). G39'un
+  // SHOW_SPECTRUM===false deseni AYNI kaldı (dB Seviyesi kendi bar görselini,
+  // Frekans Çakışması kendi ikili eğrisini kullanıyor, ikisine de dokunulmadı).
   if (mode.SHOW_SPECTRUM !== false) {
-    const data = new Uint8Array(audioEngine.analyser.frequencyBinCount);
-    audioEngine.analyser.getByteFrequencyData(data);
-
-    const plotBottom = h - mode.AXIS_H;
-    drawSpectrumBars(data, w, plotBottom);
+    mode.drawSpectrumBackground(ctx2d, els.canvas, w, h, {
+      revealed: !roundActive && !!activeQuestion,
+      boss: !!(activeQuestion && activeQuestion.boss),
+      playing: autoPlaying && roundActive
+    });
   }
 
   mode.drawOverlay(ctx2d, els.canvas, w, h, overlayState);
 }
 
-// Prototipteki spektrum paneliyle aynı dil: ~40 kalın, aralıklı, üstü yuvarlatılmış
-// çubuk (FFT bin'lerinin bitişik ince çizgileri değil). Çubuklar FA_MIN–FA_MAX
-// arasında LOGARİTMİK olarak yerleştirilir — bu, eksen etiketleriyle (drawFreqAxis)
-// ve tıklama→Hz dönüşümüyle (faXToF) AYNI ölçektir; aksi halde enerji sol uçta
-// sıkışır ve tıklanan yer ile ölçülen frekans uyuşmaz.
-const SPEC_BAR_COUNT = 40;
-// Çubuk:boşluk oranı prototipteki gibi ~3:1 (kalın, tıknaz çubuklar — ince dikey
-// çizgiler değil). Tepe yüksekliği CURVE_TOP..plotBottom bölgesinin %75'i kadar —
-// prototipteki panelle aynı oranda (üstte bir miktar nefes payı bırakır ama
-// çubukları alt yarıya sıkıştırmaz), yine de CURVE_TOP'un üstüne (etiket şeridine)
-// taşmaz.
-function drawSpectrumBars(data, w, plotBottom) {
-  const sampleRate = (audioEngine.audioCtx && audioEngine.audioCtx.sampleRate) || 44100;
-  const fftSize = (audioEngine.analyser && audioEngine.analyser.fftSize) || 2048;
-  const hzPerBin = sampleRate / fftSize;
-  const maxBin = data.length - 1;
-  const slotW = w / SPEC_BAR_COUNT;
-  const barW = Math.max(1, slotW * 0.75);
-  const barRegion = Math.max(20, plotBottom - mode.CURVE_TOP);
-  const maxBarH = barRegion * 0.75;
-
-  for (let b = 0; b < SPEC_BAR_COUNT; b++) {
-    // Bu çubuğun kapsadığı Hz aralığı — eksenle birebir aynı log ölçek (bkz. mode.faFToX),
-    // bu yüzden aralık sınırları w üzerinde her zaman eşit genişlikte düşer.
-    const f0 = mode.FA_MIN * Math.pow(mode.FA_MAX / mode.FA_MIN, b / SPEC_BAR_COUNT);
-    const f1 = mode.FA_MIN * Math.pow(mode.FA_MAX / mode.FA_MIN, (b + 1) / SPEC_BAR_COUNT);
-    const bin0 = Math.max(0, Math.floor(f0 / hzPerBin));
-    const bin1 = Math.max(bin0, Math.min(maxBin, Math.ceil(f1 / hzPerBin)));
-    let sum = 0;
-    for (let k = bin0; k <= bin1; k++) sum += data[k];
-    const avg = sum / (bin1 - bin0 + 1);
-
-    const barH = (avg / 255) * maxBarH;
-    if (barH < 1) continue;
-    const x = b * slotW + (slotW - barW) / 2;
-    drawSpectrumBar(x, plotBottom - barH, barW, barH);
-  }
-}
-
-function drawSpectrumBar(x, y, w, h) {
-  const r = Math.min(4, w / 2, h);
-  ctx2d.beginPath();
-  ctx2d.moveTo(x, y + h);
-  ctx2d.lineTo(x, y + r);
-  ctx2d.arcTo(x, y, x + r, y, r);
-  ctx2d.lineTo(x + w - r, y);
-  ctx2d.arcTo(x + w, y, x + w, y + r, r);
-  ctx2d.lineTo(x + w, y + h);
-  ctx2d.closePath();
-  const grad = ctx2d.createLinearGradient(0, y, 0, y + h);
-  grad.addColorStop(0, "rgba(108,140,255,.85)");
-  grad.addColorStop(1, "rgba(108,140,255,.15)");
-  ctx2d.fillStyle = grad;
-  ctx2d.fill();
-}
+// G83: eski çubuk-tabanlı spektrum çizici (drawSpectrumBars/drawSpectrumBar,
+// GERÇEK canlı FFT verisini doğrudan çiziyordu — soru sırasında tepe noktası
+// doğru cevabı ele veriyordu) kaldırıldı. Yerini mode.drawSpectrumBackground
+// (bkz. frekans-bulma.js, yukarıdaki drawVisualizer'daki çağrı) aldı — çizgi
+// grafik, soru sırasında NÖTR/sese kör, cevap sonrası modun KENDİ gerçek
+// eğrisine yer açıyor.
 
 // Canvas tıklama/hover — sadece tur aktifken (aktif mod her zaman dalga tabanlı).
 // Çizim koordinat uzayı CSS piksel cinsinden olduğu için (bkz. resizeCanvas), tıklama

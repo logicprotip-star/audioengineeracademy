@@ -24,11 +24,11 @@
 
 import { formatHz, shuffle, logFreq } from "../core/utils.js";
 import { compatibleSourceIds } from "../core/source-catalog.js";
-import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
+import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 
-export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound };
+export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground };
 
 export const MODE_ID = "kesim-noktasi";
 
@@ -602,24 +602,10 @@ export function markAnswerChoices(answersEl, q, picked) {
   });
 }
 
-// Paylaşılan frekans ekseni (gridline + tik etiketleri) — spektrum çubuklarının
-// altında/arkasında aynı ölçekte dursun diye (drawVisualizer her zaman
-// mode.drawOverlay çağırır, bkz. app.js).
-const AXIS_TICKS = [100, 200, 400, 800, 1600, 3200, 6400, 12800];
-function drawAxis(ctx2d, w, h) {
-  const plotBottom = h - AXIS_H;
-  ctx2d.font = "600 14px Inter, sans-serif";
-  ctx2d.textAlign = "center";
-  AXIS_TICKS.forEach(f => {
-    const x = faFToX(f, w);
-    ctx2d.strokeStyle = "rgba(255,255,255,.08)";
-    ctx2d.beginPath(); ctx2d.moveTo(x, 6); ctx2d.lineTo(x, plotBottom); ctx2d.stroke();
-    const label = f >= 1000 ? (f / 1000) + "k" : String(f);
-    ctx2d.fillStyle = "#8C95AB";
-    ctx2d.fillText(label, x, h - 12);
-  });
-  ctx2d.textAlign = "left";
-}
+// G83: eski YEREL eksen çizici (AXIS_TICKS/drawAxis) kaldırıldı — artık
+// frekans-bulma.js:drawSpectrumBackground'ın MERKEZİ eksenini kullanıyor
+// (bkz. app.js:drawVisualizer). Aynı işi yapan 4 neredeyse-özdeş kopyanın
+// (bu dosya + q-genisligi/boost-mu-cut-mu/tonal-denge) TEKİ kaldı.
 
 // Cevap sonrası filtre eğrisi — GERÇEK bir BiquadFilterNode kurup getFrequencyResponse()
 // okuyor (frekans-bulma.js:getEqCurveForQuestion ile AYNI teknik — ses motoruyla
@@ -699,7 +685,8 @@ function drawCurveLegend(ctx2d, w, showGuess) {
 // filterType} olarak kaydettiği KULLANICI cevabı (bkz. app.js dosyasındaki tanım notu),
 // yeni soru başında null'a döner.
 export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
-  drawAxis(ctx2d, w, h);
+  // G83: eksen artık app.js'ten MERKEZİ çiziliyor (bkz. frekans-bulma.js:
+  // drawSpectrumBackground) — burada TEKRAR çağrılırsa ızgara İKİ KEZ çizilirdi.
   const { audioCtx, activeQuestion: q, roundActive, cutoffGuess } = state;
   if (!q || roundActive) return;
 

@@ -32,14 +32,14 @@
 // mekan ölçümü DEĞİL, algoritmik bir yaklaşıklık.
 
 import { compatibleSourceIds } from "../core/source-catalog.js";
-import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
+import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState } from "../core/three-way-cards.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
 // HER moddan mode-agnostik olarak okur — diğer altı modla AYNI re-export deseni.
-export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound };
+export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground };
 
 export const MODE_ID = "reverb";
 export const MAX_LIVES = 5;

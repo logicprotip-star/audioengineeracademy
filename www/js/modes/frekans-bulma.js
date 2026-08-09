@@ -251,7 +251,13 @@ export function focusIdForZone(zoneKey) {
 
 export const faXToF = (x, w) => FA_MIN * Math.pow(FA_MAX / FA_MIN, x / w);
 export const faFToX = (f, w) => w * Math.log(f / FA_MIN) / Math.log(FA_MAX / FA_MIN);
-const FA_TICKS_ALL = [100, 200, 400, 800, 1600, 3200, 6400, 12800];
+// G83: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün dikey ızgara etiket seti
+// ['50','100','500','1k','5k','10k'] — "50" FA_MIN(80)'in ALTINDA kaldığı için
+// (gerçek soru havuzu 80Hz'in altına hiç inmiyor, o tik YANLIŞ bir konumda
+// dururdu) çıkarıldı, kalan 5 değer BİREBİR. pickFreqTicks() bu diziyi
+// olduğu gibi kullanmaya devam ediyor (dar panelde sıkışırsa iki değerden
+// birini atlıyor) — davranış TEK SATIR değişmedi, sadece SAYILAR tasarıma göre.
+const FA_TICKS_ALL = [100, 500, 1000, 5000, 10000];
 // app.js'in spektrum çubuklarını eksen şeridiyle hizalayabilmesi için dışa açık
 // (bkz. drawVisualizer: barlar AXIS_H kadar üstte durur, eksen etiketleri altta kalır).
 export const AXIS_H = 50;
@@ -898,6 +904,89 @@ function drawFreqAxis(ctx2d, canvasEl, w, h) {
   ctx2d.textAlign = "left";
 }
 
+// G83: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün ARKA PLANI — dikey
+// frekans ızgarası (yukarıdaki drawFreqAxis, DEĞİŞMEDİ) + YENİ yatay dB
+// ızgarası (+12/0/-12, tasarımın KENDİ y=50/112/174'ünün H=252'ye göre
+// ORANI, bizim CURVE_TOP..plotBottom-6 bandımıza taşındı) + soru sırasında
+// (revealed=false) NÖTR bir çizgi.
+//
+// KRİTİK KISIT (task): gerçek FFT verisi ASLA çizilmez soru sırasında — tepe
+// noktası doğru cevabı ele verirdi. db-seviyesi.js:drawDbBars'ın G38'de
+// kurduğu AYNI desen: "cevap ONAYLANMADAN önce nötr, SONRA gerçek". Burada
+// "gerçek" kısmı bu fonksiyonun İŞİ DEĞİL — her modun KENDİ drawOverlay'i
+// (frekans-bulma: drawEqResponseCurve, kesim-noktasi: drawFilterCurve, vb.,
+// hepsi zaten GERÇEK bir BiquadFilterNode/hesap kullanıyor, hiçbiri canlı FFT
+// okumuyor) `!roundActive` olduğunda KENDİ eğrisini bu ZATEN çizilmiş arka
+// planın ÜSTÜNE çiziyor — bu yüzden revealed=true'yken burada SADECE ızgara
+// çizilir, çizgi HİÇ çizilmez (mod kendi gerçek eğrisini üstüne koyacak).
+//
+// Nötr çizginin KENDİSİ tasarımdaki base/tilt/tex formülünün BİREBİR kopyası
+// DEĞİL (tasarım W=400/H=252/CURVE_TOP=0 varsayıyordu, bizim eksenimiz
+// AXIS_H/CURVE_TOP'a göre PARAMETRİK) — AYNI TEKNİK (sabit prosedürel doku +
+// çalarken hafif titreşim + boss'ta altın) bizim koordinat sistemimize
+// UYARLANDI. Hiçbir girdisi audioEngine.analyser'dan GELMİYOR — sabit `i`
+// indeksine ve (varsa) bir zaman damgasına bağlı, ses verisine KÖRDÜR.
+export function drawSpectrumBackground(ctx2d, canvasEl, w, h, opts = {}) {
+  const { revealed, boss, playing } = opts;
+  drawFreqAxis(ctx2d, canvasEl, w, h);
+
+  const plotBottom = h - AXIS_H;
+  const gridTop = 6;
+  ctx2d.font = `600 ${AXIS_FONT_PX - 1}px Inter, sans-serif`;
+  ctx2d.fillStyle = "#4a4f56";
+  ctx2d.strokeStyle = "rgba(255,255,255,.05)";
+  // Tasarımın y=50/112/174 (H=252 üzerinden ORANI: .198/.444/.690) — bizim
+  // gridTop..plotBottom bandımıza AYNI oranla taşındı.
+  [[0.198, "+12"], [0.444, "0"], [0.690, "-12"]].forEach(([frac, label]) => {
+    const y = gridTop + frac * (plotBottom - gridTop);
+    ctx2d.beginPath(); ctx2d.moveTo(0, y); ctx2d.lineTo(w, y); ctx2d.stroke();
+    ctx2d.fillText(label, 8, y - 4);
+  });
+
+  if (revealed) return;
+
+  const accent = boss ? "#f6d878" : "#22d3ee";
+  // G46'nın Tonal Denge'de bulduğu AYNI sorun: CURVE_TOP(88) COMPACT_ANALYZER'ın
+  // 140px yüksekliğinde (plotBottom≈90) NEGATİF bir bant üretirdi — burada da
+  // aynı güvenli-küçülme uygulanıyor (tonal-denge.js:OVERLAY_TOP_MARGIN'in
+  // AYNI ruhu, paylaşılan fonksiyon olduğu için parametrik hale getirildi).
+  const curveTop = Math.min(CURVE_TOP, Math.max(20, plotBottom - 60)), curveBottom = plotBottom - 6;
+  const midY = curveTop + (curveBottom - curveTop) * 0.58;
+  const bandH = (curveBottom - curveTop) * 0.30;
+  const t = playing ? performance.now() / 1000 : 0;
+  const N = 90;
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    const frac = i / N;
+    // Pembe/beyaz gürültünün doğal eğimi — bas tarafı (sol) yüksek, tiz
+    // tarafı (sağ) düşük. Sabit, ses verisinden BAĞIMSIZ.
+    const tilt = 0.5 - frac * 0.85;
+    const wobble = Math.sin(i * 0.42) * 0.09 + Math.sin(i * 0.17 + 1.4) * 0.06;
+    const jit = playing ? Math.sin(i * 1.6 + t * 1.6) * 0.045 + Math.sin(i * 0.55 - t * 0.9) * 0.05 : 0;
+    const y = midY - bandH * (tilt + wobble + jit);
+    pts.push([frac * w, y]);
+  }
+  const d = "M" + pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" L");
+
+  ctx2d.save();
+  const grad = ctx2d.createLinearGradient(0, curveTop, 0, plotBottom);
+  grad.addColorStop(0, boss ? "rgba(246,216,120,.28)" : "rgba(34,211,238,.32)");
+  grad.addColorStop(1, boss ? "rgba(246,216,120,0)" : "rgba(34,211,238,0)");
+  ctx2d.beginPath();
+  pts.forEach((p, i) => { if (i === 0) ctx2d.moveTo(p[0], p[1]); else ctx2d.lineTo(p[0], p[1]); });
+  ctx2d.lineTo(w, plotBottom); ctx2d.lineTo(0, plotBottom);
+  ctx2d.closePath();
+  ctx2d.fillStyle = grad;
+  ctx2d.fill();
+
+  ctx2d.beginPath();
+  pts.forEach((p, i) => { if (i === 0) ctx2d.moveTo(p[0], p[1]); else ctx2d.lineTo(p[0], p[1]); });
+  ctx2d.strokeStyle = accent;
+  ctx2d.lineWidth = 2;
+  ctx2d.stroke();
+  ctx2d.restore();
+}
+
 // Soruda uygulanan peaking filtre(ler)in gerçek frekans yanıtını (dB) hesaplar.
 // Pro Plus'ta bantlar seri bağlı olduğundan toplam yanıt dB'lerin TOPLAMIdır.
 function getEqCurveForQuestion(audioCtx, q, w) {
@@ -1000,7 +1089,9 @@ function drawClosenessBand(ctx2d, w, h, q, guessHz) {
 // state: { audioCtx, activeQuestion, roundActive, freqGuessHz, freqHoverHz, revealAnimator }
 export function drawOverlay(ctx2d, canvasEl, w, h, state) {
   const { audioCtx, activeQuestion: q, roundActive, freqGuessHz, freqHoverHz, revealAnimator } = state;
-  drawFreqAxis(ctx2d, canvasEl, w, h);
+  // G83: eksen artık app.js'in drawVisualizer'ından MERKEZİ olarak çiziliyor
+  // (bkz. drawSpectrumBackground, mode.SHOW_SPECTRUM!==false olan 8 modun
+  // HEPSİ için TEK yerden) — burada TEKRAR çağrılırsa ızgara İKİ KEZ çizilirdi.
   if (!q) return;
 
   const plotBottom = h - AXIS_H;

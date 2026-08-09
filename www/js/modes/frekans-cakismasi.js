@@ -623,23 +623,40 @@ function computeRegionCurveDb(audioCtx, centerFreq, widthOct, w) {
   return db;
 }
 
+// G83: Tasarim-2026-08/Prototip.dc.html:dualSpectrum() birebir — kick/bass
+// eğrileri hem ALTLARINDA yarı saydam bir dolgu HEM ÜSTLERİNDE 2px'lik dolu
+// bir çizgiyle çiziliyor (iki ayrı path: kapalı dolgu + açık çizgi). Bu
+// fonksiyon ÖNCEDEN sadece dolguyu çiziyordu (kenar tanımsızdı) — çizgi
+// katmanı G83'te eklendi. Renkler (amber/mor) BİLİNÇLİ DEĞİŞMEDİ — Kaynak
+// A/B'nin kendi marka renkleri (bkz. dosya başı SOURCE_A_COLOR/SOURCE_B_COLOR
+// notu, "mavi YOK" kararı) tasarımın cyan/gold'undan daha ÖNCELİKLİ, gerçek
+// bir ürün kararı zaten belgelenmiş.
 function drawRegionCurve(ctx2d, w, h, db, color, alpha) {
   const plotBottom = h - AXIS_H;
   const top = CURVE_TOP;
-  ctx2d.save();
-  ctx2d.beginPath();
+  const pts = [];
   for (let i = 0; i < CURVE_POINTS; i++) {
     const x = (i / (CURVE_POINTS - 1)) * w;
     const norm = Math.max(0, Math.min(1, db[i] / 10));
     const y = plotBottom - norm * (plotBottom - top);
-    if (i === 0) ctx2d.moveTo(x, y); else ctx2d.lineTo(x, y);
+    pts.push([x, y]);
   }
+  ctx2d.save();
+  ctx2d.beginPath();
+  pts.forEach((p, i) => { if (i === 0) ctx2d.moveTo(p[0], p[1]); else ctx2d.lineTo(p[0], p[1]); });
   ctx2d.lineTo(w, plotBottom);
   ctx2d.lineTo(0, plotBottom);
   ctx2d.closePath();
   ctx2d.fillStyle = color;
   ctx2d.globalAlpha = alpha;
   ctx2d.fill();
+
+  ctx2d.beginPath();
+  pts.forEach((p, i) => { if (i === 0) ctx2d.moveTo(p[0], p[1]); else ctx2d.lineTo(p[0], p[1]); });
+  ctx2d.strokeStyle = color;
+  ctx2d.lineWidth = 2;
+  ctx2d.globalAlpha = Math.min(1, alpha + 0.35);
+  ctx2d.stroke();
   ctx2d.restore();
 }
 
@@ -677,6 +694,15 @@ function drawAxis(ctx2d, w, h) {
     ctx2d.fillText(f >= 1000 ? (f / 1000) + "k" : String(f), x, h - 12);
   });
   ctx2d.textAlign = "left";
+  // G83: Tasarim-2026-08/Prototip.dc.html:dualSpectrum()'ün 3 ETİKETSİZ yatay
+  // ızgara çizgisi (y-oranları .204/.444/.685, H=216 üzerinden) — dualSpectrum
+  // spectrum()'ün AKSİNE dB etiketi TAŞIMIYOR (sadece dekoratif doku), o
+  // yüzden burada da etiket UYDURULMADI, sadece çizgiler eklendi.
+  ctx2d.strokeStyle = "rgba(255,255,255,.05)";
+  [0.204, 0.444, 0.685].forEach(frac => {
+    const y = 6 + frac * (plotBottom - 6);
+    ctx2d.beginPath(); ctx2d.moveTo(0, y); ctx2d.lineTo(w, y); ctx2d.stroke();
+  });
 }
 
 // G52 — İKİ KAYNAK FARKLI RENKTE, ÇAKIŞAN BÖLGE VURGULU (task kararı, önceki

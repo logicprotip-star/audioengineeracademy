@@ -20,13 +20,13 @@
 
 import { shuffle, formatHz, logFreq } from "../core/utils.js";
 import { compatibleSourceIds } from "../core/source-catalog.js";
-import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
+import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
 // HER moddan mode-agnostik olarak okur — diğer iki modla AYNI re-export deseni.
-export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound };
+export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground };
 
 export const MODE_ID = "boost-mu-cut-mu";
 export const MAX_LIVES = 5;
@@ -590,23 +590,9 @@ export function markAnswerChoices(answersEl, q, picked) {
   });
 }
 
-// Paylaşılan frekans ekseni — diğer iki modla AYNI (spektrum çubuklarının
-// altında/arkasında tutarlı bir eksen kalsın diye).
-const AXIS_TICKS = [100, 200, 400, 800, 1600, 3200, 6400, 12800];
-function drawAxis(ctx2d, w, h) {
-  const plotBottom = h - AXIS_H;
-  ctx2d.font = "600 14px Inter, sans-serif";
-  ctx2d.textAlign = "center";
-  AXIS_TICKS.forEach(f => {
-    const x = faFToX(f, w);
-    ctx2d.strokeStyle = "rgba(255,255,255,.08)";
-    ctx2d.beginPath(); ctx2d.moveTo(x, 6); ctx2d.lineTo(x, plotBottom); ctx2d.stroke();
-    const label = f >= 1000 ? (f / 1000) + "k" : String(f);
-    ctx2d.fillStyle = "#8C95AB";
-    ctx2d.fillText(label, x, h - 12);
-  });
-  ctx2d.textAlign = "left";
-}
+// G83: eski YEREL eksen çizici (AXIS_TICKS/drawAxis) kaldırıldı — artık
+// frekans-bulma.js:drawSpectrumBackground'ın MERKEZİ eksenini kullanıyor
+// (bkz. app.js:drawVisualizer).
 
 // Cevap sonrası bell-eğrisi — Frekans Bulma'nın getEqCurveForQuestion'ıyla AYNI
 // teknik (GERÇEK BiquadFilterNode + getFrequencyResponse, elle yaklaşıklık
@@ -683,7 +669,8 @@ function drawCurveLegend(ctx2d, w, showGuess) {
 // freq her zaman question.freq (kullanıcı guess ETMEDİ), Katman 3'te
 // kullanıcının guess ettiği freq.
 export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
-  drawAxis(ctx2d, w, h);
+  // G83: eksen artık app.js'ten MERKEZİ çiziliyor — burada TEKRAR çağrılırsa
+  // ızgara İKİ KEZ çizilirdi.
   const { audioCtx, activeQuestion: q, roundActive, boostCutGuess } = state;
   if (!q || roundActive) return;
 

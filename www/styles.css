@@ -693,10 +693,23 @@
        app.js'in mode.COMPACT_ANALYZER bayrağına göre eklediği bir modifier class
        (bkz. enterMode) — SADECE #visualizer'ın yüksekliğini küçültür, stil/renk/
        eksen HİÇ değişmez (aynı #visualizer kuralları, aynı çizim kodu — sadece CSS
-       piksel boyutu farklı, drawVisualizer/drawSpectrumBars bunu resizeCanvas
-       üzerinden otomatik okur). */
+       piksel boyutu farklı, drawVisualizer/mode.drawSpectrumBackground bunu
+       resizeCanvas üzerinden otomatik okur, bkz. G83). */
     #analyzer.analyzer-compact #visualizer{height:140px}
     .hint-mask{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+
+    /* G83: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün alt kenar satırı
+       ("20 Hz · SPEKTRUM ANALİZÖRÜ · 20 kHz") — canvas'ın DIŞINDA, kartın
+       kendi alt şeridi (app.js:updateAnalyzerFoot GERÇEK FA_MIN/FA_MAX
+       değerlerini yazıyor). SHOW_SPECTRUM===false modlarda (dB Seviyesi/
+       Frekans Çakışması) .analyzer-no-foot ile gizlenir — o ikisi KENDİ
+       görsellerini kullanıyor, bu satır anlamsız kalırdı. */
+    .analyzer-foot{
+      display:flex;justify-content:space-between;margin-top:9px;padding-top:9px;
+      border-top:1px solid var(--border);
+    }
+    .analyzer-foot span{font-size:10px;font-weight:600;color:#4a4f56;letter-spacing:.06em}
+    #analyzer.analyzer-no-foot .analyzer-foot{display:none}
     .hint-mask-seg{position:absolute;top:0;bottom:0;background:rgba(8,9,11,.74);opacity:0;transition:opacity .28s ease}
     .hint-mask-seg.show{opacity:1}
     [data-phase="ask"] .hint-mask,[data-phase="done"] .hint-mask{opacity:0;pointer-events:none}

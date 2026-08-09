@@ -334,6 +334,15 @@
         <div class="qline hidden" id="questionTitle"></div>
         <div class="qline-sub hidden" id="questionMeta"></div>
 
+        <!-- G83: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün analizör
+             kartı — alt kenar satırı "20 Hz · SPEKTRUM ANALİZÖRÜ · 20 kHz"
+             (bkz. o dosyanın satır ~649-653) YENİ eklendi. Kenar sayıları
+             tasarımın LİTERAL "20 Hz"/"20 kHz"si DEĞİL — gerçek soru havuzu
+             80Hz-17kHz (frekans-bulma.js:FA_MIN/FA_MAX), o yüzden JS'te
+             (bkz. app.js:updateAnalyzerFoot) GERÇEK değerlerle dolduruluyor,
+             uydurulmuyor. #analyzer-head (analyzerLabel/gainValue/hintTag) —
+             tasarımda YOK ama GERÇEK/çalışan bilgi taşıyor (A/B izleme
+             durumu, canlı kazanç, ipucu) — SÖKÜLMEDİ, olduğu gibi kaldı. -->
         <div class="card analyzer" id="analyzer" data-phase="ask">
           <div class="analyzer-head">
             <span class="analyzer-label" id="analyzerLabel">SPEKTRUM · B İŞLENMİŞ</span>
@@ -343,6 +352,11 @@
           <div class="canvas-stage">
             <canvas id="visualizer" width="1200" height="320"></canvas>
             <div class="hint-mask" id="hintMaskLayer"></div>
+          </div>
+          <div class="analyzer-foot" id="analyzerFoot">
+            <span id="analyzerFootMin">20 Hz</span>
+            <span id="analyzerFootCaption">SPEKTRUM ANALİZÖRÜ</span>
+            <span id="analyzerFootMax">20 kHz</span>
           </div>
         </div>
 
