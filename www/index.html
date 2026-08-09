@@ -971,66 +971,71 @@
     </section>
 
     <!-- ================= EKRAN: SATIN ALMA / PAYWALL ================= -->
-    <!-- G63 (PAYWALL.md Parça 2): Ayarlar → "Pro'ya geç" ve Araçlar kilit örtülerinden
-         AYNI ekran GENEL (banner gizli) açılıyor; 6 kilit tetikleme noktasından
-         (bkz. app.js openPaywallReason) BAĞLAMSAL (banner görünür, "Reklam İzle"
-         SADECE can-bitti'de) açılıyor — resetPaywallToGeneric()/openPaywallReason()
-         AYNI DOM'u iki moda göre yeniden düzenliyor, iki AYRI ekran YOK. -->
+    <!-- G89: Tasarim-2026-08/Prototip.dc.html "PAYWALL" bloğu (satır 1345-1412)
+         birebir — eski .plan/.li iki-kart karşılaştırması + ayrı kicker/banner
+         yapısı yerine tasarımın TEK "bağlam başlığı" + rozet + tek özellik
+         listesi + fiyat kartı düzeni geldi. "Bağlam ⟳"/varyant butonu
+         PROTOTİPE ÖZEL demo kontrolü — UYGULANMADI. payFreeContinueBtn
+         KALDIRILDI: paywallCloseBtn ile TAM AYNI davranışı (goBackFromSubpage())
+         çağırıyordu, tasarımda da ayrı bir "ücretsiz devam" butonu yok — X
+         kapatma zaten aynı işi görüyor. resetPaywallToGeneric()/
+         openPaywallReason() (bkz. app.js) AYNI DOM'u iki moda göre dolduruyor,
+         iki AYRI ekran YOK — davranış DEĞİŞMEDİ, sadece görünüm. -->
     <section class="screen" id="screen-paywall">
-      <div class="scroll" style="padding-top:10px">
-        <div style="display:flex;justify-content:flex-end">
-          <button class="back" id="paywallCloseBtn" aria-label="Kapat" style="font-size:20px">&times;</button>
-        </div>
-        <div style="padding:6px 2px 0">
-          <div class="kicker" style="color:var(--am)">TAM SÜRÜM</div>
-          <h1 style="margin:10px 0 0;font-size:22px;font-weight:800;line-height:1.28">Tam sürüm sadece sınırları kaldırır</h1>
-          <p class="lead" style="margin:10px 0 0">Ücretsiz sürümle çalışmaya devam edebilirsin. Acele etmene gerek yok.</p>
+      <div class="scroll pw-sheet">
+        <div class="pw-top-row">
+          <button class="pw-close" id="paywallCloseBtn" aria-label="Kapat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+          </button>
         </div>
 
-        <!-- Bağlamsal bant — SADECE bir kilit tetiklediğinde görünür (genel navigasyonda
-             gizli). İçerik core/paywall.js:PAYWALL_REASONS'tan, app.js:openPaywallReason()
-             dolduruyor. -->
-        <div id="paywallReasonBanner" class="hidden" style="margin:16px 2px 0;padding:14px 16px;border-radius:16px;background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.28)">
-          <div style="font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--am)" id="paywallReasonKicker"></div>
-          <div style="margin-top:6px;font-size:16px;font-weight:700" id="paywallReasonTitle"></div>
-          <div style="margin-top:4px;font-size:14px;line-height:1.45;color:var(--tx-2)" id="paywallReasonDetail"></div>
+        <div class="pw-context">
+          <div class="pw-context-title" id="paywallReasonTitle">Tam sürüm sadece sınırları kaldırır</div>
+          <div class="pw-context-sub" id="paywallReasonDetail">Ücretsiz sürümle çalışmaya devam edebilirsin. Acele etmene gerek yok.</div>
         </div>
 
-        <div style="display:flex;flex-direction:column;gap:12px;margin-top:18px">
-          <div class="plan">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
-              <div style="font-size:16px;font-weight:700">Ücretsiz</div>
-              <div style="font-size:14px;font-weight:600;color:var(--tx-3)">Şu anki planın</div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:9px;margin-top:12px">
-              <div class="li"><i></i><span id="payFreeModes">— egzersiz modu</span></div>
-              <div class="li"><i></i><span>Seans başına 5 soru</span></div>
-              <div class="li"><i></i><span>5 can · 30 dakikada 1 dolar</span></div>
-              <div class="li"><i></i><span>Araçlar sekmesi kapalı</span></div>
-            </div>
+        <!-- SADECE "livesOut" tetiklemesinde görünür — süre GERÇEK
+             stats.livesLastRefillAt/LIVES_REFILL_INTERVAL_MS'ten (bkz.
+             app.js startPaywallLivesTicker), uydurma sayı YOK. -->
+        <div id="paywallLivesStrip" class="pw-lives-strip hidden">
+          <svg width="15" height="15" viewBox="0 0 24 24" style="flex-shrink:0"><path d="M12 21C7 16.5 3 13 3 8.8 3 5.9 5.2 4 7.7 4 9.4 4 11 4.9 12 6.3 13 4.9 14.6 4 16.3 4 18.8 4 21 5.9 21 8.8 21 13 17 16.5 12 21Z" fill="#f87160" opacity="0.35"></path><path d="M4 4l16 16" stroke="#f87160" stroke-width="2" stroke-linecap="round"></path></svg>
+          <div>Canların bitti · sonraki can <span id="paywallLivesCountdown">--:--</span></div>
+        </div>
+
+        <div class="pw-badge-wrap" id="paywallBadgeWrap">
+          <div class="pw-badge">
+            <svg width="100%" height="100%" viewBox="0 0 52 52">
+              <polygon points="26,3 48,19 40,46 12,46 4,19" fill="var(--gold-grad)" stroke="#fbe9a8" stroke-width="1.2"></polygon>
+              <polygon points="26,9 42.5,21 36.5,41 15.5,41 9.5,21" fill="#2a2013" stroke="#c79a33" stroke-width="0.8"></polygon>
+            </svg>
+            <div class="pw-badge-pro-glyph">PRO</div>
           </div>
-
-          <div class="plan pro">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
-              <div style="font-size:16px;font-weight:700;color:var(--am)">Pro</div>
-              <div class="num" style="font-size:16px;font-weight:800" id="proPrice">₺399</div>
-            </div>
-            <div style="margin-top:4px;font-size:14px;font-weight:600;color:var(--tx-3)">Tek seferlik — abonelik değil</div>
-            <!-- Madde listesi JS'ten dolduruluyor (core/paywall.js:PRO_BENEFITS, tek
-                 kaynak) — burada sabit bir şık listesi TUTULMUYOR, HTML'de içerik
-                 tekrarlanıp iki yerin senkron kalması riskiyle uğraşılmıyor. -->
-            <div style="display:flex;flex-direction:column;gap:9px;margin-top:12px" id="payProBenefits"></div>
+          <div>
+            <div class="pw-badge-app">Audio Engineer Academy</div>
+            <div class="pw-badge-pro">PRO</div>
           </div>
         </div>
-      </div>
 
-      <div class="actionbar">
-        <!-- SADECE "livesOut" tetiklemesinde görünür (app.js:openPaywallReason). -->
-        <button class="btn hidden" id="watchAdBtn" style="border-color:rgba(108,140,255,.4);color:#AFC0FF">📺 Reklam izle · can doldur</button>
-        <button class="btn primary" id="buyProBtn" style="margin-top:9px">Pro Al</button>
-        <div class="row" style="margin-top:9px">
-          <button class="btn" id="restorePurchaseBtn">Geri yükle</button>
-          <button class="btn" style="border-color:transparent;background:none;color:var(--tx-3)" id="payFreeContinueBtn">Ücretsiz devam</button>
+        <!-- Madde listesi JS'ten dolduruluyor (core/paywall.js:PRO_BENEFITS, tek
+             kaynak) — burada sabit bir şık listesi TUTULMUYOR. -->
+        <div class="pw-features" id="payProBenefits"></div>
+
+        <div class="pw-price" id="paywallPriceCard">
+          <div class="pw-price-num" id="proPrice">₺399</div>
+          <div class="pw-price-sub">Tek seferlik · abonelik yok</div>
+        </div>
+
+        <div class="pw-spacer"></div>
+
+        <div class="pw-buttons">
+          <button class="pw-cta" id="buyProBtn">Pro'ya Geç</button>
+          <!-- SADECE "livesOut" tetiklemesinde görünür (app.js:openPaywallReason). -->
+          <button class="pw-ad-btn hidden" id="watchAdBtn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5-11-6.5Z"></path></svg>
+            veya reklam izle, canları doldur
+          </button>
+          <button class="pw-restore-btn" id="restorePurchaseBtn">Satın alımı geri yükle</button>
+          <div class="pw-legal">Ödeme App Store hesabınızdan tahsil edilir. Tek seferlik satın alma; otomatik yenileme yoktur.</div>
         </div>
       </div>
     </section>

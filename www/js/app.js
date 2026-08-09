@@ -195,18 +195,24 @@ const els = {
   legalTitle: document.getElementById("legalTitle"),
   legalKicker: document.getElementById("legalKicker"),
 
+  // G89: Paywall Prototip.dc.html'in PAYWALL bloğuna göre yeniden giydirildi
+  // (bkz. index.html + core/paywall.js'in AYNI G89 notu) — eski payFreeModes/
+  // paywallReasonBanner/paywallReasonKicker/payFreeContinueBtn (tasarımda YOK
+  // olan iki-kart karşılaştırması + ayrı kicker satırı + "ücretsiz devam"
+  // butonu, paywallCloseBtn'le AYNI goBackFromSubpage() davranışını
+  // tekrarlıyordu) KALDIRILDI.
   paywallCloseBtn: document.getElementById("paywallCloseBtn"),
-  payFreeModes: document.getElementById("payFreeModes"),
   payProBenefits: document.getElementById("payProBenefits"),
   proPrice: document.getElementById("proPrice"),
   buyProBtn: document.getElementById("buyProBtn"),
   watchAdBtn: document.getElementById("watchAdBtn"),
   restorePurchaseBtn: document.getElementById("restorePurchaseBtn"),
-  payFreeContinueBtn: document.getElementById("payFreeContinueBtn"),
-  paywallReasonBanner: document.getElementById("paywallReasonBanner"),
-  paywallReasonKicker: document.getElementById("paywallReasonKicker"),
   paywallReasonTitle: document.getElementById("paywallReasonTitle"),
   paywallReasonDetail: document.getElementById("paywallReasonDetail"),
+  paywallBadgeWrap: document.getElementById("paywallBadgeWrap"),
+  paywallLivesStrip: document.getElementById("paywallLivesStrip"),
+  paywallLivesCountdown: document.getElementById("paywallLivesCountdown"),
+  paywallPriceCard: document.getElementById("paywallPriceCard"),
 
   // oyun başlığı / durum
   bossChip: document.getElementById("bossChip"),
@@ -5864,11 +5870,15 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
 // "oyun ayarları" sheet'ine (gameSettingsSheet) dokunmaz.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Ücretsiz/Pro mod sayısı sihirli sayı DEĞİL — MODE_CATALOG'taki tier alanından
-// sayılır (bkz. core/mode-catalog.js üstündeki not). Kaç modun ŞU AN gerçekten
-// oynanabilir olduğu ayrı bir şey (registry.listModes()) — bu sayı ürün/paywall
-// vaadi, kodlanma durumundan bağımsız.
-const FREE_MODE_COUNT = MODE_CATALOG.filter(e => e.tier === "free").length;
+// G89 DÜZELTMESİ (canlı raporda bulundu — "6 egzersiz modu" yazıyor ama
+// gerçek ücretsiz mod sayısı 5): ÖNCEDEN MODE_CATALOG'un tier==="free"
+// filtresinden sayılıyordu — bu "hiz-modu"yu (tier:"free" AMA playable:false,
+// henüz kodlanmamış bir "yakında" girdisi) da SAYIYORDU, 6 çıkıyordu.
+// paywall.js:FREE_MODE_IDS zaten GERÇEK erişim kararının TEK kaynağı (bkz. o
+// dosyanın "kilit dağılımında kod kazanır" notu) — 5 gerçek/oynanabilir
+// ücretsiz modu tutuyor, burası da ARTIK ondan sayıyor, iki kaynak birbirinden
+// SAPAMAZ.
+const FREE_MODE_COUNT = paywall.FREE_MODE_IDS.length;
 // G63: fiyat artık core/paywall.js:PRO_PRICE'tan (tek kaynak, PAYWALL.md) —
 // lokal bir kopya TUTULMUYOR, iki yerin senkron kalması riskiyle uğraşılmıyor.
 
@@ -6087,26 +6097,72 @@ if (els.langSeg) {
 // ---- HESAP / DESTEK / HAKKINDA satırları ----
 // G63: Pro kartının madde listesi core/paywall.js:PRO_BENEFITS'ten üretilir —
 // HTML'de sabit bir kopya TUTULMUYOR (tek kaynak, PAYWALL.md).
+// G89: Prototip.dc.html'in tek yeşil-nokta+metin satırı (bkz. index.html
+// .pw-feature-row) — eski ".li" (küçük nokta ikonu) YERİNE 19px yeşil
+// yuvarlak + beyaz ✓ SVG.
 function renderProBenefits() {
   if (!els.payProBenefits) return;
-  els.payProBenefits.innerHTML = paywall.PRO_BENEFITS.map(b => `<div class="li"><i></i><span>${b}</span></div>`).join("");
+  els.payProBenefits.innerHTML = paywall.PRO_BENEFITS.map(b => `<div class="pw-feature-row">
+    <div class="pw-feature-check"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#06230e" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg></div>
+    <div class="pw-feature-text">${b}</div>
+  </div>`).join("");
+}
+
+// G89: Prototip.dc.html'in "Sabit zorluk Pro" haricindeki 6 gerçek tetikleme
+// noktası için pwBadgeSize/pwRowPad/pwPricePad değişkenlerinin AYNI
+// standart/can-bitti ikilisi — tek bir CSS sınıfıyla (.lives) uygulanıyor.
+function setPaywallLivesVariant(isLivesOut) {
+  if (els.paywallBadgeWrap) els.paywallBadgeWrap.classList.toggle("lives", isLivesOut);
+  if (els.payProBenefits) els.payProBenefits.classList.toggle("lives", isLivesOut);
+  if (els.paywallPriceCard) els.paywallPriceCard.classList.toggle("lives", isLivesOut);
 }
 
 // G63 (PAYWALL.md Parça 2): paywall EKRANI tek bir DOM — bu fonksiyon onu
-// GENEL navigasyona (Ayarlar → "Pro'ya geç", Araçlar'ın kilit örtüleri) göre
-// sıfırlar: bağlamsal bant gizli, "Reklam İzle" gizli, "Geri yükle" görünür,
-// alt buton "Ücretsiz devam" — bir önceki openPaywallReason() çağrısından
-// kalan bağlamsal durum bu genel yola SIZMASIN diye HER genel giriş noktası
-// bunu ÖNCE çağırır.
+// GENEL navigasyona (Ayarlar → "Pro'ya geç", Araçlar'ın kilit ekranı) göre
+// sıfırlar: bağlam başlığı genel metne döner, can şeridi/"Reklam İzle" gizli,
+// "Geri yükle" görünür — bir önceki openPaywallReason() çağrısından kalan
+// bağlamsal durum bu genel yola SIZMASIN diye HER genel giriş noktası bunu
+// ÖNCE çağırır.
 function resetPaywallToGeneric() {
-  if (els.paywallReasonBanner) els.paywallReasonBanner.classList.add("hidden");
+  if (els.paywallReasonTitle) els.paywallReasonTitle.textContent = "Tam sürüm sadece sınırları kaldırır";
+  if (els.paywallReasonDetail) els.paywallReasonDetail.textContent = "Ücretsiz sürümle çalışmaya devam edebilirsin. Acele etmene gerek yok.";
+  if (els.paywallLivesStrip) els.paywallLivesStrip.classList.add("hidden");
+  stopPaywallLivesTicker();
+  setPaywallLivesVariant(false);
   if (els.watchAdBtn) els.watchAdBtn.classList.add("hidden");
   if (els.restorePurchaseBtn) els.restorePurchaseBtn.classList.remove("hidden");
-  if (els.payFreeContinueBtn) els.payFreeContinueBtn.textContent = "Ücretsiz devam";
 }
 
-// G63: 6 kilit tetikleme noktasının (PAYWALL.md) TEK ortak giriş kapısı —
-// core/paywall.js:PAYWALL_REASONS'tan bağlamsal bandı + buton setini kurup
+// G89: can geri sayımı — startResWaitTicker()'ın (Seans Sonu ekranı) AYNI
+// deseni, GERÇEK stats.livesLastRefillAt/paywall.LIVES_REFILL_INTERVAL_MS'ten
+// (uydurma sayı YOK). Süre dolunca syncLives() BİR KEZ tetiklenip satır kapanır.
+let paywallLivesTimer = null;
+function stopPaywallLivesTicker() {
+  if (paywallLivesTimer) { clearInterval(paywallLivesTimer); paywallLivesTimer = null; }
+}
+function startPaywallLivesTicker() {
+  stopPaywallLivesTicker();
+  const tick = () => {
+    const msLeft = Math.max(0, (stats.livesLastRefillAt || Date.now()) + paywall.LIVES_REFILL_INTERVAL_MS - Date.now());
+    if (msLeft <= 0) {
+      syncLives();
+      if (currentLives > 0) {
+        stopPaywallLivesTicker();
+        if (els.paywallLivesStrip) els.paywallLivesStrip.classList.add("hidden");
+        return;
+      }
+    }
+    const totalSec = Math.ceil(msLeft / 1000);
+    const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
+    const ss = String(totalSec % 60).padStart(2, "0");
+    if (els.paywallLivesCountdown) els.paywallLivesCountdown.textContent = `${mm}:${ss}`;
+  };
+  tick();
+  paywallLivesTimer = setInterval(tick, 1000);
+}
+
+// G63: 7 kilit tetikleme noktasının (PAYWALL.md) TEK ortak giriş kapısı —
+// core/paywall.js:PAYWALL_REASONS'tan bağlam başlığını + buton setini kurup
 // paywall ekranını DOĞRUDAN açar (toast YOK). "İlk oturumda paywall yok"
 // kuralı BURADA uygulanıyor (task'ın kendi kuralı) — false dönerse çağıran
 // taraf ESKİ (Parça 1) davranışına (toast/session-end ekranı) düşmeli, bu
@@ -6115,17 +6171,17 @@ function openPaywallReason(reasonKey) {
   if (paywallSuppressedFirstSession) return false;
   const cfg = paywall.PAYWALL_REASONS[reasonKey];
   if (!cfg) return false;
-  if (els.paywallReasonKicker) els.paywallReasonKicker.textContent = cfg.kicker;
   if (els.paywallReasonTitle) els.paywallReasonTitle.textContent = cfg.title;
   if (els.paywallReasonDetail) els.paywallReasonDetail.textContent = cfg.detail;
-  if (els.paywallReasonBanner) els.paywallReasonBanner.classList.remove("hidden");
   const isLivesOut = cfg.buttons === "livesOut";
+  setPaywallLivesVariant(isLivesOut);
+  if (els.paywallLivesStrip) els.paywallLivesStrip.classList.toggle("hidden", !isLivesOut);
+  if (isLivesOut) startPaywallLivesTicker(); else stopPaywallLivesTicker();
   if (els.watchAdBtn) els.watchAdBtn.classList.toggle("hidden", !isLivesOut);
   // Bağlamsal (bir kilitten gelen) ekranda "Geri yükle" gürültü — o an satın
   // almayı GERİ YÜKLEMEK değil, YENİ bir kilidi AŞMAK istiyor (task: "sade,
   // abartısız").
   if (els.restorePurchaseBtn) els.restorePurchaseBtn.classList.add("hidden");
-  if (els.payFreeContinueBtn) els.payFreeContinueBtn.textContent = isLivesOut ? "Şimdi değil" : "Kapat";
   goScreen("paywall");
   return true;
 }
@@ -6139,9 +6195,7 @@ function syncAccountLine() {
       ? `Pro${devFlags.simulatePro ? " (simüle)" : ""} — ${total} mod, seans başına 10 soru, can sınırsız`
       : `Ücretsiz — ${FREE_MODE_COUNT} mod, seans başına 5 soru`;
   }
-  if (els.payFreeModes) els.payFreeModes.textContent = `${FREE_MODE_COUNT} egzersiz modu`;
   if (els.proPrice) els.proPrice.textContent = paywall.PRO_PRICE;
-  if (els.buyProBtn) els.buyProBtn.textContent = `Pro Al · ${paywall.PRO_PRICE}`;
   renderProBenefits();
 }
 syncAccountLine();
@@ -6236,8 +6290,14 @@ if (els.termsRow) els.termsRow.addEventListener("click", () => openLegal("terms"
 
 // Ayarlar sheet'inden açılan yardım ekranlarının geri okları/kapatma düğmeleri —
 // goBackFromSubpage() sheet'i tekrar açar (bkz. goToSettingsSubpage tanımı).
-[els.faqBackBtn, els.feedbackBackBtn, els.contactBackBtn, els.legalBackBtn, els.paywallCloseBtn, els.payFreeContinueBtn]
+[els.faqBackBtn, els.feedbackBackBtn, els.contactBackBtn, els.legalBackBtn]
   .forEach(btn => { if (btn) btn.addEventListener("click", () => goBackFromSubpage()); });
+// G89: paywallCloseBtn AYRI tutuluyor — kapanışta can-bitti sayacı da dursun
+// diye (arka planda sonsuza dek dönmesin).
+if (els.paywallCloseBtn) els.paywallCloseBtn.addEventListener("click", () => {
+  stopPaywallLivesTicker();
+  goBackFromSubpage();
+});
 
 // ---- Kalibrasyon ----
 // Referans ton audioEngine'in KENDİ audioCtx/analyser'ını kullanır — buildQuestionChain'in
@@ -6522,6 +6582,7 @@ if (els.buyProBtn) els.buyProBtn.addEventListener("click", () => {
   storage.saveDevFlags(devFlags);
   syncDevUI();
   toast("🎉 Pro açıldı (simülasyon)", "10 mod, sınırsız oynama, sınav, kendi mix, Araçlar — hepsi açık.");
+  stopPaywallLivesTicker();
   goBackFromSubpage();
 });
 if (els.restorePurchaseBtn) els.restorePurchaseBtn.addEventListener("click", () => {
@@ -6547,6 +6608,7 @@ function grantAdLife() {
 }
 if (els.watchAdBtn) els.watchAdBtn.addEventListener("click", () => {
   grantAdLife();
+  stopPaywallLivesTicker();
   goBackFromSubpage();
 });
 

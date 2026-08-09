@@ -220,8 +220,11 @@ describe("paywall: paywall ekranı içeriği (Parça 2)", () => {
     });
   });
 
-  it("PRO_BENEFITS task'ın 6 maddesinin hepsini içerir, boş değil", () => {
-    assert.equal(paywall.PRO_BENEFITS.length, 6);
+  // G89: Prototip.dc.html "PAYWALL" bloğunun 7 maddesiyle hizalandı — "Zayıf
+  // bölge raporu ve geçmiş grafiği" (isWeakZoneReportLocked/isZoneHistoryBlurred'in
+  // GERÇEK Pro ayrıcalığı) ÖNCEDEN listede eksikti, eklendi.
+  it("PRO_BENEFITS task'ın 7 maddesinin hepsini içerir, boş değil", () => {
+    assert.equal(paywall.PRO_BENEFITS.length, 7);
     paywall.PRO_BENEFITS.forEach(b => assert.ok(b && b.length > 0));
   });
 

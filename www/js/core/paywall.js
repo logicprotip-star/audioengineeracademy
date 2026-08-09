@@ -175,12 +175,19 @@ export const PRO_PRICE = "₺399";
 
 // Pro'nun sunduğu — paywall ekranının Pro kartı BU listeden üretilir (tek
 // kaynak, task'ın kendi maddeleri, abartısız/sade).
+// G89: Tasarim-2026-08/Prototip.dc.html "PAYWALL" bloğunun (satır 1384) 7
+// maddesiyle hizalandı — "Araçlar: analiz + referans filtreleri" G88'de
+// silinen sahte Analiz kartını anıyordu, ARTIK YANLIŞ (Araçlar'da analiz
+// yok); "Zayıf bölge raporu ve geçmiş grafiği" (paywall.js:isWeakZoneReportLocked/
+// isZoneHistoryBlurred'in GERÇEK Pro ayrıcalığı, İlerleme sekmesi) ÖNCEDEN
+// bu listede HİÇ yoktu — eksikti, eklendi.
 export const PRO_BENEFITS = Object.freeze([
   "10 modun tamamı",
-  "Sınırsız oynama",
-  "Sınav + seviye atlama",
-  "Kendi mix'ini yükleme",
-  "Araçlar: analiz + referans filtreleri",
+  "Sınırsız soru",
+  "Sınav ve seviye atlama",
+  "Kendi dosyanı yükleme",
+  "Araçlar sekmesi",
+  "Zayıf bölge raporu ve geçmiş grafiği",
   "Reklamsız"
 ]);
 

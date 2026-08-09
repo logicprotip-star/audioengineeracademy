@@ -1594,15 +1594,64 @@
     }
     .feedback-textarea::placeholder{color:var(--tx-3)}
 
-    /* ---- satın alma ---- */
-    /* G73: Pro plan kartı artık --gold (premium/statü rengi — Pro rozetiyle
-       (bkz. .mode-chip-pro) TUTARLI, birincil vurgudan (cyan) kasıtlı olarak
-       AYRI tutuldu). */
-    .plan{padding:16px;border-radius:var(--r-panel);border:1px solid var(--border-strong);background:rgba(255,255,255,.04)}
-    .plan.pro{border-color:rgba(232,196,106,.35);background:linear-gradient(160deg,rgba(232,196,106,.14),rgba(232,196,106,.04))}
-    .li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;color:var(--tx-2)}
-    .li i{width:6px;height:6px;border-radius:99px;background:var(--tx-3);margin-top:7px;flex:none}
-    .plan.pro .li i{background:var(--gold)}
+    /* ---- satın alma / Paywall ---- */
+    /* G89: Tasarim-2026-08/Prototip.dc.html "PAYWALL" bloğunun (satır 1345-1412)
+       literal ölçüleri — eski .plan/.plan.pro/.li iki-kart karşılaştırması
+       (task'ın kendi kararıyla, bkz. index.html'in G89 notu) tamamen bu
+       tek-sütun tasarıma taşındı. */
+    /* Tasarımın "alttan açılan sheet" görünümü (yuvarlak üst köşe + altın
+       radyal parıltı) — bu ekran hâlâ app'in mevcut tam-ekran goScreen()
+       değişim mimarisiyle açılıyor (gerçek bir backdrop+overlay sheet'e
+       ÇEVRİLMEDİ, o app-genelinde navigasyon mimarisini değiştiren AYRI bir
+       iş olurdu, bu turun "giydirme" kapsamının dışında — bkz. DURUM.md),
+       SADECE görsel sonucu (yuvarlak üst köşe/parıltı/gölge) uygulandı. */
+    #screen-paywall{
+      border-radius:22px 22px 0 0;
+      background:radial-gradient(ellipse 100% 40% at 50% 0%, rgba(217,168,60,.1) 0%, rgba(217,168,60,0) 60%), #131519;
+      border-top:1px solid rgba(232,196,106,.35);
+      box-shadow:0 -12px 40px rgba(0,0,0,.6);
+      overflow:hidden;
+    }
+    .pw-sheet{padding:14px 20px 30px 20px !important;display:flex;flex-direction:column;gap:10px}
+    .pw-top-row{flex-shrink:0;display:flex;align-items:center;justify-content:space-between}
+    .pw-close{width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#b8bdc4;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .pw-context{flex-shrink:0;text-align:center;padding:2px 4px}
+    .pw-context-title{font-size:19px;font-weight:800;letter-spacing:-.4px;color:#f2f3f5;text-wrap:pretty}
+    .pw-context-sub{font-size:12.5px;font-weight:500;color:#8f949b;margin-top:5px;text-wrap:pretty}
+
+    .pw-lives-strip{flex-shrink:0;display:flex;align-items:center;gap:10px;padding:10px 13px;border-radius:12px;background:rgba(248,113,96,.07);border:1px solid rgba(248,113,96,.3);font-size:12.5px;font-weight:600;color:#d9a08f}
+
+    .pw-badge-wrap{flex-shrink:0;display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px}
+    .pw-badge{position:relative;width:82px;height:82px;filter:drop-shadow(0 8px 22px rgba(217,168,60,.32))}
+    .pw-badge-pro-glyph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:4px;font-size:20px;font-weight:800;letter-spacing:.5px;color:#f6d878}
+    .pw-badge-app{font-size:11.5px;font-weight:600;letter-spacing:2px;color:#9ba0a8;text-transform:uppercase}
+    .pw-badge-pro{font-size:23px;font-weight:800;letter-spacing:-.6px;color:#f6d878;margin-top:2px}
+    /* Can-bitti varyantı (livesOut) — rozet küçülür (bkz. app.js openPaywallReason). */
+    .pw-badge-wrap.lives .pw-badge{width:62px;height:62px}
+    .pw-badge-wrap.lives .pw-badge-pro-glyph{font-size:15px}
+
+    .pw-features{flex-shrink:0;border-radius:16px;background:linear-gradient(180deg,#17191d,#121316);border:1px solid rgba(255,255,255,.07);overflow:hidden}
+    .pw-feature-row{display:flex;align-items:center;gap:11px;padding:9px 15px;border-bottom:1px solid rgba(255,255,255,.04)}
+    .pw-feature-row:last-child{border-bottom:none}
+    .pw-feature-check{width:19px;height:19px;border-radius:50%;flex-shrink:0;background:linear-gradient(180deg,#46d968,#27a63e);display:flex;align-items:center;justify-content:center}
+    .pw-feature-text{font-size:13px;font-weight:600;color:#eef0f2}
+    /* Can-bitti varyantı — satır dolgusu sıkışır. */
+    .pw-features.lives .pw-feature-row{padding:7px 15px}
+
+    .pw-price{flex-shrink:0;border-radius:16px;padding:14px 16px;background:linear-gradient(180deg,rgba(232,196,106,.08),rgba(232,196,106,.02)),#131518;border:1px solid rgba(232,196,106,.4);text-align:center}
+    .pw-price-num{font-size:30px;font-weight:800;letter-spacing:-.9px;color:#f2f3f5;font-variant-numeric:tabular-nums;line-height:1}
+    .pw-price-sub{font-size:12px;font-weight:600;color:#9ba0a8;margin-top:5px}
+    .pw-price.lives{padding:11px 16px}
+
+    .pw-spacer{flex:1;min-height:0}
+
+    .pw-buttons{flex-shrink:0;display:flex;flex-direction:column;gap:9px;align-items:center}
+    .pw-cta{width:100%;height:50px;border:none;border-radius:14px;background:linear-gradient(180deg,#46d968,#27a63e);color:#06230e;font-family:'Inter',sans-serif;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(46,191,70,.38),inset 0 1px 0 rgba(255,255,255,.3)}
+    .pw-cta:active{transform:scale(.98)}
+    .pw-ad-btn{width:100%;height:44px;border:1px solid rgba(255,255,255,.14);border-radius:13px;background:rgba(255,255,255,.05);color:#c9cdd3;font-family:'Inter',sans-serif;font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+    .pw-ad-btn:active{transform:scale(.98)}
+    .pw-restore-btn{border:none;background:none;color:#9ba0a8;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;padding:2px 8px}
+    .pw-legal{font-size:9.5px;line-height:1.5;color:#4a4f56;text-align:center;max-width:300px}
 
     /* ---- kalibrasyon: adım noktaları (seviye slider'ıyla karışmasın diye çubuk değil nokta dizisi) ---- */
     /* G73: aktif/geçilmiş adım noktaları artık --cyan. */

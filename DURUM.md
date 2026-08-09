@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G88)
+Son güncelleme: 10.08.2026 (G89)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,106 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G88, tek commit) — **ARAÇLAR SEKMESİ giydirildi — Prototip.dc.html
+Bu commit (G89, tek commit) — **PAYWALL giydirildi — Prototip.dc.html PAYWALL
+bloğu birebir, gerçek 6 tetikleme noktasının bağlam metni + gerçek can geri
+sayımı + PRO_BENEFITS/FREE_MODE_COUNT'taki iki gerçek hata düzeltildi**
+
+Kaynak: `Tasarim-2026-08/Prototip.dc.html` "<!-- PAYWALL -->" bloğu (satır
+1345-1412) — AÇILIP birebir uygulandı.
+
+**Kullanıcı kararı — "sınav" tetikleyicisi listeden çıkarıldı:** Task 6.
+madde olarak "sınav"ı sayıyordu ama kod incelemesinde `isExamLocked` hiçbir
+yerde çağrılmıyor, `examGateActive()` ücretsiz kullanıcıda sessizce `false`
+dönüyor — GERÇEK bir sınav-paywall tetikleyicisi YOK. Kullanıcıya soruldu;
+cevap PAYWALL.md §127-140'taki GERÇEK 6 tetikleyiciyi (sessionLimit/
+livesOut/modeLocked/upload/dailyUsed/zoneHistory) esas aldı, "sınav" ve
+"serbest oyun" (freePlayMode — 7. GERÇEK tetikleyici ama task'ın 6'lık
+listesinde yok) ayrı tutuldu — freePlayMode'un kendi kod yolu DOKUNULMADAN
+çalışmaya devam ediyor, sadece bu turun 6 bağlam-metni doğrulamasına dahil
+değil.
+
+Öğe haritası:
+
+| # | Madde | Uygulanan değişiklik |
+|---|---|---|
+| 1 | Üst satır | 32x32 X kapatma — prototipin "Bağlam ⟳"/varyant demo düğmeleri UYGULANMADI |
+| 2 | Bağlam başlığı | `openPaywallReason()`/`resetPaywallToGeneric()` artık `core/paywall.js:PAYWALL_REASONS[key].title/.detail`'i DOĞRUDAN yazıyor (tek kaynak, eski ayrı "kicker" satırı tasarımda yok, kaldırıldı) |
+| 3 | Can bitti şeridi | Sadece `livesOut`'ta görünür — süre `startResWaitTicker()`'ın (Seans Sonu) AYNI deseniyle GERÇEK `stats.livesLastRefillAt`/`paywall.LIVES_REFILL_INTERVAL_MS`'ten, canlı test edildi (1sn'de bir gerçekten azaldı) |
+| 4 | Pro rozeti | Pentagon + "PRO" — `livesOut`'ta `.lives` sınıfı rozeti/satır dolgularını/fiyat kartını küçültüyor |
+| 5 | Özellik listesi | `PRO_BENEFITS` 7 maddeye çıkarıldı (aşağıda) |
+| 6 | Fiyat kartı | ₺399 + "Tek seferlik · abonelik yok" — `paywall.PRO_PRICE` |
+| 7 | Alt butonlar | "Pro'ya Geç" (simulatePro), `livesOut`'ta ayrıca "veya reklam izle" (`grantAdLife`), "Satın alımı geri yükle" (bağlamsal modda gizli, PAYWALL.md'nin ÖNCEKİ kararıyla TUTARLI), yasal metin YENİ eklendi (tasarımda var, eski ekranda hiç yoktu) |
+| 8 | Yanlış metinler | "6 egzersiz modu"/"30 dakikada 1 dolar" düzeltildi (aşağıda) |
+| 9 | Simülasyon | IAP/reklam KODU DEĞİŞMEDİ — `buyProBtn`/`watchAdBtn` AYNI `devFlags.simulatePro`/`grantAdLife()` çağrılarını kullanıyor |
+
+**Madde 8'in iki gerçek hatası, kaynağında düzeltildi:**
+1. **"6 egzersiz modu" → 5:** `FREE_MODE_COUNT` ÖNCEDEN `MODE_CATALOG.filter
+   (tier==="free").length`'ten sayılıyordu — bu "hiz-modu"yu (tier:"free"
+   AMA `playable:false`, kodlanmamış bir "yakında" girdisi) da SAYIYORDU,
+   6 çıkıyordu. `paywall.FREE_MODE_IDS.length`'e (GERÇEK erişim kararının
+   TEK kaynağı, 5 gerçek/oynanabilir ücretsiz mod) taşındı — hem paywall
+   ekranını hem Ayarlar'ın "Sürüm" satırını AYNI ANDA düzeltti (iki yerin
+   TEK kaynağı).
+2. **"30 dakikada 1 dolar" → "1 can":** eski ekranın hardcode edilmiş
+   metniydi, yeni tasarımda zaten "sonraki can MM:SS" GERÇEK sayaçla
+   değiştiği için bu satırın KENDİSİ ortadan kalktı (eski iki-kart
+   karşılaştırması tamamen silindi).
+3. **PRO_BENEFITS eksikti:** "Zayıf bölge raporu ve geçmiş grafiği" (İlerleme
+   sekmesinin GERÇEK Pro ayrıcalığı — `isWeakZoneReportLocked`/
+   `isZoneHistoryBlurred`) ÖNCEDEN 6 maddelik listede HİÇ yoktu — eklendi,
+   liste artık tasarımın 7 maddesiyle BİREBİR (`test/paywall.test.mjs`'in
+   `PRO_BENEFITS.length` assertion'ı 6→7 güncellendi). "Araçlar: analiz +
+   referans filtreleri" de "Araçlar sekmesi"ne düzeltildi — G88'de silinen
+   sahte Analiz kartını anıyordu, artık YANLIŞ bir vaatti.
+
+**Mimari kapsam kararı:** Tasarımın "alttan açılan backdrop+sheet" sunumu
+(arkadaki ekranın karartılmış hâlde görünür kalması) UYGULANMADI — bu,
+app'in `goScreen()` tam-ekran değişim mimarisini "önceki ekranı canlı
+tutan bir overlay" kavramına çeviren AYRI, riskli bir iş olurdu. Bunun
+yerine SADECE görsel sonucu (yuvarlak üst köşe, altın radyal parıltı,
+gölge) `#screen-paywall`'a uygulandı — ekran hâlâ `goBackFromSubpage()`'in
+"nereden geldiyse oraya dön" mekanizmasıyla kapanıyor (davranış DEĞİŞMEDİ).
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ.
+`test/paywall.test.mjs`'teki `PRO_BENEFITS.length` assertion'ı 6→7
+güncellendi (gerçek 7 maddeye uysun diye). **`npm test`: 1043/1043.**
+
+**DOĞRULAMA (canlı tarayıcı, taze sekme, konsol HATASIZ):**
+- **Standart varyant** (Ayarlar → "Pro'ya geç"): genel başlık, can şeridi
+  YOK, standart rozet (82px), "Satın alımı geri yükle" GÖRÜNÜR, "reklam
+  izle" YOK — ekran görüntüsüyle doğrulandı.
+- **Can-bitti varyantı** (GERÇEK `blockIfLivesOut()` yoluyla — localStorage'da
+  `lives:0`/`livesLastRefillAt` GERÇEKÇİ bir değere ayarlanıp round
+  başlatılarak tetiklendi): "Devam etmek için bir yol seç" başlığı, kırmızı
+  can şeridi "sonraki can 15:31" → 3 saniye sonra "14:49" (CANLI, gerçekten
+  azalıyor), KÜÇÜLMÜŞ rozet (62px), "veya reklam izle" GÖRÜNÜR, "Satın
+  alımı geri yükle" GİZLİ — hepsi ekran görüntüsüyle doğrulandı. Reklam
+  izle butonuna basınca paywall kapandı, +1 can gerçekten eklendi (kalp
+  satırında görüldü).
+- **4 gerçek tetikleme noktası** canlı test edildi, her biri doğru bağlam
+  metni gösterdi: `modeLocked` ("Bu mod Pro'da açılır" — dB Seviyesi
+  kartına basılarak), `upload` ("Kendi dosyanı yükle" — Oyun Ayarları
+  sheet'inin "Dosya Seç" satırından), `zoneHistory` ("Zayıf bölge
+  geçmişini gör" — İlerleme'nin kilitli kartlarından). `sessionLimit`/
+  `dailyUsed` AYNI `openPaywallReason()` yolunu paylaştığı ve `paywall.js`
+  kaynağında metinleri doğrulandığı için ayrıca canlı tetiklenmedi
+  (raporda açıkça belirtiliyor — kanıtsız "test edildi" denmedi).
+- **Özellik listesi** 7 madde, koddaki gerçek Pro ayrıcalıklarıyla
+  (`PRO_BENEFITS`) birebir — ekran görüntüsüyle doğrulandı.
+- **Yanlış metinler düzeldi:** Ayarlar → "Sürüm" satırı "Ücretsiz — 5 mod,
+  seans başına 5 soru" gösterdi (ÖNCEDEN 6); paywall ekranında "30
+  dakikada 1 dolar" satırı zaten YOK (tasarımın gerçek can sayacıyla
+  değişti).
+- **Pro rejisyon taraması:** `devFlags.simulatePro` açılıp Ayarlar →
+  "Sürüm" satırı "Pro (simüle) — 14 mod..." gösterdi, hiçbir ekran
+  bozulmadı.
+- **Konsol hatası: 0** (tüm test turları boyunca — standart/can-bitti
+  varyantları, 4 tetikleme noktası, reklam izle akışı, Pro rejisyon
+  taraması). **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G88, tek commit) — **ARAÇLAR SEKMESİ giydirildi — Prototip.dc.html
 ARAÇLAR bloğu birebir, gerçek uploadManager'a bağlı dosya yükleme + önizleme
 çalma, sahte Analiz kartı kaldırıldı**
 
@@ -7209,14 +7308,18 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G88 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları) +
+**Tek sonraki adım (G89 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları) +
 G85 (Oyun Ekranı Düzeltmesi #1) + G86 (Oyun Ekranı — 12 madde) + G87 (İlerleme
-Sekmesi) + G88 (Araçlar Sekmesi) kod/test/canlı doğrulama açısından TAM
-kapandı, yeni açık iş bırakmadı — G86'nın TDZ/startBtn/freqGuessArea (3
-regresyon), G87'nin accChartFilterWrap/zoneList blur (2 regresyon) ve
-G88'in tanı sırasında yakalanan tarayıcı-önbellek yanıltmacası (kod hatası
-DEĞİL, bkz. BİTTİ) kendi canlı testlerinde bulunup AYNI oturumda
-düzeltildi/doğrulandı. ÖNCELİKLE BEKLEYEN KARARLAR madde K
+Sekmesi) + G88 (Araçlar Sekmesi) + G89 (Paywall) kod/test/canlı doğrulama
+açısından TAM kapandı, yeni açık iş bırakmadı — G86'nın TDZ/startBtn/
+freqGuessArea (3 regresyon), G87'nin accChartFilterWrap/zoneList blur (2
+regresyon) ve G88'in tanı sırasında yakalanan tarayıcı-önbellek yanıltmacası
+(kod hatası DEĞİL, bkz. BİTTİ) kendi canlı testlerinde bulunup AYNI oturumda
+düzeltildi/doğrulandı. G89'da kullanıcı kararıyla "sınav" paywall tetikleyicisi
+GERÇEK bir kod yolu olmadığı için 6'lık listeden çıkarıldı (bkz. G89 BİTTİ) —
+bu, ilerideki bir turda "sınav Pro'da açılır" mesajının GERÇEKTEN gösterilmesi
+istenirse ayrı bir ürün kararı/iş olarak ele alınabilir, bu tur onu YAPMADI
+(dokunulmadı). ÖNCELİKLE BEKLEYEN KARARLAR madde K
 (Pro'da "done" Seans Sonu durumu hiç tetiklenemiyor — kasıtlı mı, regresyon
 mu) kullanıcı kararı bekliyor; karar netleşmeden AÇIK İŞLER madde 20
 kapatılamaz/"done" canlı doğrulanamaz. Bunun dışında AÇIK İŞLER madde 14 —
