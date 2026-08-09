@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G72)
+Son güncelleme: 09.08.2026 (G73)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,165 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G72, tek commit) — **Fiyat kararı netleşti (₺399) — eski ₺199
+Bu commit (G73, tek commit) — **Görsel sistem kuruldu: yeni palet
+`:root`'a CSS değişkeni olarak eklendi, mevcut sabit renkler bu
+değişkenlere çevrildi. Ekran düzeni/HTML/JS TEK SATIR değişmedi.**
+
+**1. YENİ TOKEN'LAR (`www/styles.css:root`, task'ın kendi değerleri
+birebir):** Zemin (`--bg-page/--bg-app/--bg-panel`), Kart (`--card-grad`),
+Kenar (`--border/--border-strong`), Metin (`--text/--text-2/--text-3/
+--text-muted`), Vurgu (`--cyan/--amber/--gold/--gold-grad/--green/
+--green-grad/--red`), Köşe (`--r-panel:18px/--r-card:13px/--r-btn:11px/
+--r-chip:8px`).
+
+**2. ESKİ DEĞİŞKEN ADLARI YENİ PALETE ALIAS EDİLDİ** (task 2'nin "mevcut
+sabit renkleri bu değişkenlere çevir" isteği + minimum diff): `--am` →
+`var(--amber)`, `--gr` → `var(--green)`, `--rd` → `var(--red)`, `--tx`/
+`--tx-2`/`--tx-3` → `var(--text)`/`-2`/`-3`, `--line` → `var(--border-
+strong)`, `--bg` → `var(--bg-app)`, `--card` → `var(--card-grad)`,
+`--radius` → `var(--r-panel)`. Böylece dosyanın geri kalanındaki
+YÜZLERCE `var(--am)` vb. referansı tek tek değiştirmeye GEREK KALMADI —
+sadece anlamı/rengi güncellendi. `--bl` (mavi, kayan/kaydırıcı/gain
+değeri) ve `--pu` (mor, C-pill/Reverb-Frekans Çakışması ikinci kaynağı)
+BİLEREK DOKUNULMADI — task'ın verdiği palette bu ikisi için YENİ bir
+değer YOK, "birincil vurgu artık cyan" kuralı SADECE amber'ın rolünü
+tanımlıyor, mavi/moru cyan'a zorlamak anlamlarını (bilgi/veri okuması vs.
+ikinci kaynak ayrımı) BOZARDI.
+
+**3. AMBER'IN ROLÜ DEĞİŞTİ — task'ın kuralı BİREBİR uygulandı:** `grep`
+ile TÜM `var(--am)`/`var(--am-2)`/amber rgba kullanımları (26 kural)
+tek tek listelendi, HER BİRİ "combo/boss/süre mi?" sorusuyla sınıflandı:
+- **Amber KALDI (2 kural, task'ın istisnası):** `.stat .dot` (Seri/combo
+  göstergesi), `.bar > i` + `.timer-text` (round süre çubuğu).
+- **Cyan'a taşındı (asıl "birincil vurgu" — buton/marka/tab/checkbox/
+  seçili-şık/spotlight/A-B-döngü/ipucu etiketi/Karıştır-aç gibi 18
+  kural):** `.btn.primary`, `.brand .accent`, `.tab.active`, `.info-btn`/
+  `.mode-info-btn` ("i" ikonları), `.mixchip.on` (Karıştır), `#spotlight*`
+  (rehber turu), `.hinttag` (İPUCU etiketi), `.ans.pick` (seçili şık),
+  `.ans-m2-playing` (three-way "çalıyor" kartı), `.abbtn.loop` (A/B
+  döngü aktif), `.sheet-cancel`/`.sheet-option .check`/`.sheet-group
+  .chev` (sheet UI), `.seg button.on`, `.cal-step-dot.active`,
+  `.auto-diff-ask`, `.mode-glyph`/`.mode-engine` (mod kartı ikon rengi,
+  motor renginin CSS varsayılanı — app.js satır-içi style genelde EZER).
+- **Gold'a taşındı (6 kural, Pro/statü/ödül anlamı cyan'dan daha uygun
+  olduğu için — task'ın kuralı SADECE "amber artık combo/boss/süre
+  dışında KALMAYACAK" diyordu, YERİNE HANGİ rengin geçeceğini
+  belirtmiyordu; Pro/rozet/XP gibi "statü" öğelerini genel birincil
+  vurgudan (cyan, her yerde kullanılan CTA rengi) AYIRT ETMEK için gold
+  seçildi — task'ın verdiği palette zaten bunun için var):
+  `.mode-chip-pro` (Pro rozeti), `.achievement/.history .icon` (başarım
+  ikon zemini), `.plan.pro`/`.li i` (Pro satın alma kartı),
+  `.pro-lock-icon` (Araçlar kilit ikonu), `.lvl-badge` (ana menü seviye
+  rozeti, `--gold-grad`), `.floating-xp`/`.particle` (+XP/patlama
+  efekti).
+
+**4. DİĞER SABİT RENKLER TOKEN'LARA ÇEVRİLDİ:** `html,body{background:
+#04060C}` → `var(--bg-page)`; bottom-sheet + spotlightCallout'un
+`#10141F` zemin rengi (2 yer) → `var(--bg-panel)`; `#8C95AB`/`#9AA3B8`
+(analyzer-label/game-sub/tab/ans-m2-state, 4 yer) → `var(--text-3)`;
+`#7E8698` (.abside/.mixchip varsayılan rengi) → `var(--text-muted)`;
+tonal-slider thumb kenarlığının `#0A0E1A`'sı → `var(--bg-page)`;
+tekrarlanan `rgba(255,255,255,.07)`/`.09` kenar renkleri (satır-bazında,
+en yaygın olanlar) → `var(--border)`/`var(--border-strong)`.
+
+**5. KÖŞE DEĞERLERİ 4 KATMANLI SİSTEME TAŞINDI (rol-bazlı eşleme, en
+yakın piksel DEĞİL, kullanım amacına göre):** büyük panel/sheet/kart
+kapsayıcıları (`.card`, `.mode-card`, `.block`, `.stat-big`, `.fb`,
+`.ans`, `.ans-m2`, `.plan`, `.sug`, `.pro-lock-overlay`, bottom-sheet üst
+köşeleri, `.group > .list`, `.auto-diff-ask`, `.tabs`) → `--r-panel`
+(18px); orta ölçekli kart/satırlar (`.stat`, `.srctag`, `.mixchip`,
+`.qline`, `.sheet-option`, `.settings-group .setting-row`, `.tonal-band`,
+`#freqInfo`, `#spotlightHole/Callout`, `.daily-card`, `.achievement`,
+`.upload-row`, `.cmp`, `.fchip`, `.canvas-stage`, `.tapHint`, `.seg`) →
+`--r-card` (13px); butonlar (`.btn`, `.btn.primary`, `.back/.dots/.gear/
+.info-btn`, `#spotlightActions button`, `.seg button`, `.mode-glyph`,
+`.achievement .icon`, `.x`, `.sheet-header .back`) → `--r-btn` (11px);
+küçük rozet/chip'ler (`.mode-chip`, `.hinttag`, `.cbrow .cb`) →
+`--r-chip` (8px). 99px (tam pil/daire) ve 2-7px (mikro nokta/glyph
+çubuğu/thumb) değerlerine BİLEREK DOKUNULMADI — bunlar "panel/kart/
+buton/chip" kategorisine girmeyen dekoratif mikro-elemanlar (noktalar,
+ilerleme çubuğu pilleri, kaydırıcı topuzu), 4'lü sisteme zorlamak
+anlamsız/bozucu olurdu.
+
+**6. `--actionbar-h`'YE DOKUNULMADI (task'ın kendi kuralı):** değer
+(168px) VE onu tüketen `.game-scroll{margin-bottom:calc(var(--actionbar-h)
++ env(safe-area-inset-bottom))}` kuralı BAYT BİRE BİR AYNI — sadece
+açıklayıcı yorum satırına bir G73 notu eklendi. `.fb` (geri bildirim
+kartı, G58'in `min-height:100px`/`visibility:hidden` düzeltmesi) de AYNI
+şekilde SADECE renk değişti, mekanizmaya dokunulmadı.
+
+**Doğrulama:**
+- `npm test`: **1013/1013** (bu tur SADECE styles.css, hiçbir JS/HTML
+  dosyası değişmedi — `git diff --stat www/index.html www/js/app.js`
+  boş döndü, doğrulandı).
+- **`styles.css`'te kaç sabit hex kaldı:** `:root` bloğunun DIŞINDA
+  (yani gerçekten "hâlâ hardcoded" olan) **27 hex değeri** kaldı,
+  `grep -n` ile tek tek listelenip gerekçelendirildi:
+  - **5×** `#04231B` (yeşil zemin üstü koyu-yeşil metin — `.btn.green`,
+    `.ans-m2.right`, `.cbrow.on`, `.item.pick`) + benzer kontrast-mürekkep
+    renkleri (`#2A0710` kırmızı üstü, `#8FF3D8`/`#FFB3C2` yeşil/kırmızı
+    üstü açık metin, `#EAF0FF`/`#F5EAFF`/`#DCE4FF` mavi/mor üstü açık
+    metin) — task'ın verdiği palette bu "arka plan renginin ÜSTÜNDEKİ
+    okunabilir metin" rolü için TOKEN YOK; zorla cyan/gold/amber'a
+    çevirmek okunabilirliği BOZARDI. Mavi/mor ile eşleşenler zaten
+    madde 2'de BİLEREK dokunulmayan `--bl`/`--pu` ailesinin parçası.
+  - **6×** benim SEÇTİĞİM yeni gradyan/etkileşim-durumu tonları
+    (`#07242b`/`#0ea5b8` — cyan buton metni/gradyan ikinci durağı,
+    `#1ac2dc` — spotlight buton basılı hali, `#8FE9F7` — cyan-seçili şık
+    metni, `#5eead4` — kalibrasyon ölçer gradyanı, `#2b2308` — gold
+    rozet metni, `#c98a2e` — `--am-2`'nin yeni amber-koyu tonu):
+    task'ın verdiği palette bunlar için (cyan/gold gradyan ortağı, aktif/
+    basılı durum tonu, arka plan üstü kontrast metni) HAZIR bir değer
+    YOK — makul/tutarlı yeni tonlar seçildi, "sayı uydurma" ilkesi
+    gereği burada AÇIKÇA belirtiliyor: bunlar TASARIMCI ONAYI beklenen
+    taslak değerlerdir, kesin/nihai DEĞİLDİR.
+  - **2×** `#fff` (salt beyaz — `.floating-xp` metni, `.sw i` anahtar
+    topuzu) — dekoratif/utility beyaz, bir "marka rengi" değil, token
+    sistemine dahil edilmedi.
+  - **1×** `#f2c94c` — GERÇEK bir CSS değeri DEĞİL, bir yorum satırının
+    İÇİNDEKİ tarihsel metin (G36'nın "eskiden bu rengi kullanıyorduk"
+    notu) — `grep` bunu regex eşleşmesi olarak buluyor ama kodda
+    ÇALIŞMIYOR, rapora dürüstlük için dahil edildi.
+  - `:root` bloğunun İÇİNDEKİ hex'ler (yeni token tanımları, ~19 adet)
+    bu sayıma DAHİL EDİLMEDİ — onlar "hardcoded kalıntı" değil, TEK
+    doğruluk kaynağının KENDİSİ.
+- **`--actionbar-h` kaynaklı kayma — kod-seviyesinde KANITLANDI, canlı
+  YENİDEN ÖLÇÜLMEDİ (dürüstlük notu aşağıda):** `git diff www/styles.css`
+  satır satır tarandı — DEĞİŞEN her satırda SADECE renk (background/
+  color/border-color/box-shadow/text-shadow) veya border-radius değeri
+  farklı; padding/margin/width/height/min-height/position/top/left/
+  right/bottom/transform/gap/flex/display DEĞERLERİNİN HİÇBİRİ bu turda
+  değişmedi (otomatik `grep` taramasıyla doğrulandı — dimensional
+  özellik içeren HER satır çifti tek tek karşılaştırıldı, ikisi de AYNI
+  sayısal değeri taşıyor). border-radius zaten kutu boyutunu/konumunu
+  ETKİLEMEZ (sadece köşe yuvarlaklığı). Sonuç: **Ana ekran / oyun ekranı
+  / geri bildirim panelinde bu turdan kaynaklanan YENİ bir kayma
+  MATEMATİKSEL OLARAK MÜMKÜN DEĞİL** — `--actionbar-h:168px` ve onu
+  kullanan `.game-scroll` kuralı bayt-bir-bir aynı, G58'in canlı
+  doğrulanmış değerleri (Q Genişliği/Boost-Cut **0px**, Kesim Noktası/dB
+  Seviyesi **2px**, bkz. yukarıdaki G58 kaydı) hâlâ GEÇERLİ çünkü onları
+  üreten TEK SATIR kod bu turda dokunulmadı. **Ama bu turda tarayıcı
+  eklentisi bağlı değildi — yukarıdaki 0px/2px rakamları G58'in ESKİ
+  canlı ölçümü, bu turda TEKRAR ÖLÇÜLMEDİ** (kod-diff kanıtı güçlü ama
+  "hiçbir tarayıcı/font-rendering farkı yeni bir piksel kaymasına yol
+  açmadı" iddiası nihai olarak sadece canlı cihazda teyit edilebilir —
+  AÇIK İŞLER'e madde olarak eklenmeli mi, kullanıcı karar versin).
+
+**KURAL uyumu:** hiçbir element gizlenmedi/kaldırılmadı, hiçbir id/class
+değişmedi (`git diff www/index.html www/js/app.js` boş) — SADECE
+`www/styles.css` içindeki renk/köşe değerleri.
+
+**BİLGİ NOTU (kapsam dışı, rapora düşülüyor):** bu turun ORTASINDA repo
+kökünde `Tasarim-2026-08/` adlı, bu oturumda OLUŞTURULMAMIŞ (kullanıcı
+tarafından eklenmiş görünen) yeni bir tasarım-prototipi klasörü fark
+edildi (birden çok `.dc.html` ekran + `Prototip (tek dosya).html` +
+`support.js`/`ios-frame.jsx`). Bu görevin kapsamı task'ın verdiği KAPALI
+renk/köşe listesiyle sınırlıydı, bu klasöre HİÇ bakılmadı/kullanılmadı —
+sonraki bir turda "asıl kaynak bu mu" diye kullanıcıya sorulmalı.
+
+---
+
+Önceki commit (G72, tek commit) — **Fiyat kararı netleşti (₺399) — eski ₺199
 referansları belgelerde düzeltildi + tasarımcı özeti eklendi.**
 
 **1. OYUN-DINAMIGI.md (YENİ):** tasarımcıya verilecek, kod İÇERMEYEN, tek

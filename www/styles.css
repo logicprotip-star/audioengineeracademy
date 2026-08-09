@@ -20,22 +20,66 @@
        kart/chip/buton/sheet stilleri). Prototip 390px sabit "telefon"
        çerçevesiydi — burada aynı dil akışkan/responsive tek sütuna
        uygulanıyor (uygulama gerçek tarayıcı/WebView genişliğinde çalışıyor).
+
+       G73 GÖRSEL SİSTEM: paletin TEK doğruluk kaynağı aşağıdaki yeni
+       token'lar. Ekran düzeni/HTML yapısı/JS davranışı BU TURDA
+       DEĞİŞMEDİ — sadece renk/köşe değerleri merkezileşti. Eski
+       --am/--gr/--rd/--tx/--tx-2/--tx-3/--line/--bg/--card/--radius
+       değişken ADLARI KORUNDU (aşağıda yeni token'lara ALIAS edildi) ki
+       bu dosyanın geri kalanındaki YÜZLERCE var(--am) vb. referansı TEK
+       TEK değiştirmek GEREKMESİN — sadece anlamı/rengi güncellendi.
+       Birincil vurgu artık --cyan (eskiden --am/turuncu-amber idi);
+       --amber SADECE combo/boss/süre öğelerinde kalıyor (aşağıda ilgili
+       kural üstünde "G73" notu olan yerler bu kuralın uygulandığı yerler).
        ───────────────────────────────────────────────────────────────── */
     :root{
-      --bg:#080B14;
-      --card:rgba(255,255,255,.05);
+      /* ---- Zemin ---- */
+      --bg-page:#08090b;
+      --bg-app:#0c0d0f;
+      --bg-panel:#0a0c0e;
+      /* ---- Kart ---- */
+      --card-grad:linear-gradient(180deg, #17191d, #121316);
+      /* ---- Kenar ---- */
+      --border:rgba(255,255,255,0.07);
+      --border-strong:rgba(255,255,255,0.10);
+      /* ---- Metin ---- */
+      --text:#f2f3f5;
+      --text-2:#b8bdc4;
+      --text-3:#8f949b;
+      --text-muted:#6c7178;
+      /* ---- Vurgu ---- */
+      --cyan:#22d3ee;
+      --amber:#f0b442;
+      --gold:#e8c46a;
+      --gold-grad:linear-gradient(180deg,#f6d878,#d9a83c,#8f6a1c);
+      --green:#4ade80;
+      --green-grad:linear-gradient(180deg,#46d968,#27a63e);
+      --red:#f87160;
+      /* ---- Köşe ---- */
+      --r-panel:18px;
+      --r-card:13px;
+      --r-btn:11px;
+      --r-chip:8px;
+
+      /* ---- eski değişken ADLARI, YENİ palete alias ---- */
+      --bg:var(--bg-app);
+      --card:var(--card-grad);
       --card-2:rgba(255,255,255,.075);
-      --line:rgba(255,255,255,.10);
-      --tx:#F2F4F8;
-      --tx-2:#C7CEDD;
-      --tx-3:#98A1B5;
-      --am:#FFC246;
-      --am-2:#FF7A18;
-      --gr:#2BD9A8;
-      --rd:#FF4D6D;
+      --line:var(--border-strong);
+      --tx:var(--text);
+      --tx-2:var(--text-2);
+      --tx-3:var(--text-3);
+      --am:var(--amber);
+      /* --am-2: amber'ın TEK kalan kullanım yeri (süre çubuğu gradyanı,
+         bkz. .bar > i) için ikinci durak — yeni palette bir amber gradyan
+         eşleniği vermediği için AYNI amber tonunun (--amber) makul bir
+         koyu ucu seçildi (uydurulan tek değer bu, raporda belirtildi). */
+      --am-2:#c98a2e;
+      --gr:var(--green);
+      --rd:var(--red);
       --bl:#6C8CFF;
       --pu:#A855F7;
-      --radius:22px;
+      --radius:var(--r-panel);
       /* Varsayılan/JS-öncesi düşüş: index.html <head>'deki senkron script bunu
          gerçek window.innerHeight (px) ile ezer — bkz. .screen/.app-shell yorumu. */
       --app-vh:100dvh;
@@ -47,7 +91,9 @@
          Sabit bir SAYI — .game-scroll'un margin-bottom'u bunu KULLANIR, ölçmez; böylece
          boşluk ilk boyamadan önce bile doğrudur, ResizeObserver/JS senkronizasyonuna
          hiç ihtiyaç yoktur (bkz. .game-scroll ve app.js: eski syncGameScrollPadding
-         kaldırıldı — cihazda geçmeyen ölçüm-tabanlı yaklaşımın yerini bu aldı). */
+         kaldırıldı — cihazda geçmeyen ölçüm-tabanlı yaklaşımın yerini bu aldı).
+         G73: bu değere DOKUNULMADI (task'ın kendi kuralı) — alt bar örtme
+         düzeltmesi hâlâ buna bağlı. */
       --actionbar-h:168px;
     }
 
@@ -57,7 +103,7 @@
        user-scalable=no ile birlikte iki katmanlı koruma: bazı WKWebView
        sürümlerinde user-scalable=no tek başına çift-dokunma zoom'unu güvenilir
        engellemiyor. */
-    html,body{margin:0;min-height:100%;background:#04060C;touch-action:manipulation}
+    html,body{margin:0;min-height:100%;background:var(--bg-page);touch-action:manipulation}
     /* Metin seçimi kapalı — bu bir oyun arayüzü, uzun basış "Kopyala/Ara/Çevir"
        menüsünü açıp oyun ekranını kapatıyordu (bkz. 6-düzeltme maddesi 2).
        İSTİSNA: kullanıcının GERÇEKTEN kopyalaması/düzenlemesi gerekebilecek
@@ -85,7 +131,7 @@
       padding-left:env(safe-area-inset-left);
       padding-right:env(safe-area-inset-right);
       background:
-        radial-gradient(120% 46% at 16% -6%, rgba(255,176,32,.13), rgba(0,0,0,0) 66%),
+        radial-gradient(120% 46% at 16% -6%, rgba(34,211,238,.10), rgba(0,0,0,0) 66%),
         radial-gradient(92% 40% at 94% 0%, rgba(108,140,255,.13), rgba(0,0,0,0) 64%),
         var(--bg);
     }
@@ -115,7 +161,7 @@
 
     .card{
       background:var(--card);
-      border:1px solid rgba(255,255,255,.09);
+      border:1px solid var(--border);
       border-radius:var(--radius);
       backdrop-filter:blur(18px);
       -webkit-backdrop-filter:blur(18px);
@@ -163,14 +209,16 @@
     /* ---- buton dili ---- */
     .btn{
       display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
-      min-height:52px;padding:12px 16px;border-radius:16px;border:1px solid var(--line);
+      min-height:52px;padding:12px 16px;border-radius:var(--r-btn);border:1px solid var(--line);
       background:rgba(255,255,255,.06);font-size:15px;font-weight:700;line-height:1.25;
       text-align:center;color:var(--tx);transition:background .12s ease;
     }
     .btn:active{background:rgba(255,255,255,.14)}
+    /* G73: birincil buton artık --cyan (eskiden amber gradyan, --am/--am-2) —
+       "birincil vurgu artık --cyan" kuralı. */
     .btn.primary{
-      border:none;min-height:56px;border-radius:18px;font-size:16px;font-weight:800;
-      color:#1A1206;background:linear-gradient(100deg,var(--am),var(--am-2));
+      border:none;min-height:56px;border-radius:var(--r-btn);font-size:16px;font-weight:800;
+      color:#07242b;background:linear-gradient(100deg,var(--cyan),#0ea5b8);
     }
     .btn.primary:active{filter:brightness(1.08)}
     .btn.green{border:none;color:#04231B;background:var(--gr)}
@@ -183,7 +231,8 @@
     /* ---- menü ekranı ---- */
     .menu-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 2px 14px}
     .brand{font-size:19px;font-weight:800;letter-spacing:-.01em}
-    .brand .accent{color:var(--am)}
+    /* G73: marka vurgusu artık --cyan (birincil vurgu). */
+    .brand .accent{color:var(--cyan)}
     .section-head{display:flex;align-items:baseline;justify-content:space-between;margin:22px 2px 12px}
     .section-title{font-size:19px;font-weight:700}
     .section-count{font-size:14px;font-weight:600;color:var(--tx-3)}
@@ -192,33 +241,37 @@
     .mode-grid.single{grid-template-columns:1fr}
     @media (max-width:420px){.mode-grid{grid-template-columns:1fr}}
     .mode-card{
-      display:flex;flex-direction:column;gap:8px;padding:15px 14px;border-radius:20px;
-      background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);
+      display:flex;flex-direction:column;gap:8px;padding:15px 14px;border-radius:var(--r-panel);
+      background:rgba(255,255,255,.045);border:1px solid var(--border);
       text-align:left;min-height:172px;
     }
     .mode-card:active{background:var(--card-2)}
     .mode-card.locked{background:rgba(255,255,255,.025)}
     .mode-top{display:flex;align-items:flex-start;justify-content:space-between;gap:6px}
+    /* G73: mod ikon zemini/çubukları artık --cyan tonunda (motor rengi app.js'ten
+       satır-içi style ile geldiğinde bu sadece fallback/varsayılan olarak görünür). */
     .mode-glyph{
-      width:38px;height:38px;flex:none;border-radius:12px;display:flex;align-items:flex-end;
-      justify-content:center;gap:2.5px;padding-bottom:9px;background:rgba(255,176,32,.13);
+      width:38px;height:38px;flex:none;border-radius:var(--r-btn);display:flex;align-items:flex-end;
+      justify-content:center;gap:2.5px;padding-bottom:9px;background:rgba(34,211,238,.13);
     }
-    .mode-glyph i{width:3.5px;border-radius:2px;background:var(--am)}
+    .mode-glyph i{width:3.5px;border-radius:2px;background:var(--cyan)}
     .mode-engine{
       display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:700;
-      letter-spacing:.05em;color:var(--am);
+      letter-spacing:.05em;color:var(--cyan);
     }
     .mode-engine::before{content:"";width:5px;height:5px;border-radius:99px;background:currentColor}
     .mode-chip{
-      font-size:14px;font-weight:700;letter-spacing:.02em;padding:5px 9px;border-radius:9px;
-      color:var(--am);background:rgba(255,176,32,.14);white-space:nowrap;
+      font-size:14px;font-weight:700;letter-spacing:.02em;padding:5px 9px;border-radius:var(--r-chip);
+      color:var(--gold);background:rgba(232,196,106,.16);white-space:nowrap;
     }
     /* Pro rozeti: motor renginden bağımsız, sabit — seviye kilidiyle (mode-lock-row)
        karışmaması için ayrı renk/konum (kart üstü vs. kart altı). G36: rengi #f2c94c'ten
        var(--am)'a çekildi — Dizayn/prototype.html'in paletiyle (ve bu chip'in kendisinin
        kullandığı .mode-chip'in TEMEL rengiyle) birebir hizalansın diye, kopyala-yapıştır
-       kalıntısı bir sapmaydı. */
-    .mode-chip-pro{color:var(--am);background:rgba(255,176,32,.16)}
+       kalıntısı bir sapmaydı. G73: "Pro" rozeti artık --gold (premium/Pro göstergesi
+       için amber'dan daha anlamlı bir eşleşme — combo/boss/süre dışı, birincil vurguya
+       da değil, kendi statü rengine taşındı). */
+    .mode-chip-pro{color:var(--gold);background:rgba(232,196,106,.16)}
     /* G36: mod kartı seviye rozeti ("Sv N") — Pro rozetinden AYRI/nötr bir renk, ikisi
        aynı kartta (Pro + seviyesi oynanmış) yan yana durabilsin diye .mode-top'un sağ
        tarafı bir flex satırına sarıldı (bkz. index.html/app.js renderModeGrid notu). */
@@ -227,7 +280,7 @@
     .mode-card h4{margin:0;font-size:15px;font-weight:700;line-height:1.25}
     .mode-card p{margin:0;font-size:14px;line-height:1.4;color:var(--tx-3)}
     .mode-mini{margin-top:auto;height:5px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
-    .mode-mini > i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--gr),#16C79A)}
+    .mode-mini > i{display:block;height:100%;border-radius:99px;background:var(--green-grad)}
 
     /* ---- motor gruplama (14 mod ızgarası) ---- */
     .motor-group{margin-top:20px}
@@ -243,24 +296,25 @@
     .tabbar{
       position:fixed;left:0;right:0;bottom:0;z-index:59;
       padding:10px 16px calc(14px + env(safe-area-inset-bottom));
-      background:linear-gradient(180deg, rgba(8,11,20,0), rgba(8,11,20,.94) 34%);
+      background:linear-gradient(180deg, rgba(8,9,11,0), rgba(8,9,11,.94) 34%);
     }
     .tabbar.hide{display:none}
     .tabs{
-      width:min(560px, 100%);margin:0 auto;display:flex;gap:6px;padding:8px;border-radius:24px;
-      background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(20px);
+      width:min(560px, 100%);margin:0 auto;display:flex;gap:6px;padding:8px;border-radius:var(--r-panel);
+      background:rgba(255,255,255,.06);border:1px solid var(--border);backdrop-filter:blur(20px);
     }
+    /* G73: aktif sekme artık --cyan (birincil vurgu). */
     .tab{
-      flex:1;height:46px;border:1px solid transparent;border-radius:17px;background:none;
-      font-size:14px;font-weight:600;color:#8C95AB;display:flex;align-items:center;justify-content:center;
+      flex:1;height:46px;border:1px solid transparent;border-radius:var(--r-btn);background:none;
+      font-size:14px;font-weight:600;color:var(--text-3);display:flex;align-items:center;justify-content:center;
     }
-    .tab.active{color:var(--am);background:rgba(255,176,32,.16);border-color:rgba(255,176,32,.3);font-weight:700}
+    .tab.active{color:var(--cyan);background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.3);font-weight:700}
 
     /* ---- oyun ekranı: başlık ---- */
     .ghead{flex:none;padding:10px 16px 0}
     .ghead-row{display:flex;align-items:center;gap:9px}
     .back,.dots,.gear,.info-btn{
-      width:44px;height:44px;flex:none;border-radius:14px;border:1px solid var(--line);
+      width:44px;height:44px;flex:none;border-radius:var(--r-btn);border:1px solid var(--line);
       background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;
     }
     .back{font-size:22px;line-height:1}
@@ -268,16 +322,18 @@
     .dots{gap:3.5px}
     .dots i{width:4px;height:4px;border-radius:99px;background:var(--tx-2)}
     /* "i" bilgi ikonu — KALICI, solmaz (bkz. core/guide-texts.js). gear/dots'un
-       AYNI 44x44 taban stili, sadece glyph farklı: amber, italik serif "i". */
-    .info-btn{font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:700;font-size:19px;color:var(--am)}
+       AYNI 44x44 taban stili, sadece glyph farklı: G73'te --cyan'a taşındı
+       (birincil vurgu, italik serif "i" karakteri korunuyor). */
+    .info-btn{font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:700;font-size:19px;color:var(--cyan)}
     /* mod kartı üstündeki minik "i" rozeti — .mode-chip-level'in AYNI boyut
-       dilinde ama yuvarlak, tek karakterlik (bkz. app.js renderModeGrid). */
+       dilinde ama yuvarlak, tek karakterlik (bkz. app.js renderModeGrid).
+       G73: --cyan'a taşındı. */
     .mode-info-btn{
-      width:22px;height:22px;flex:none;border-radius:99px;border:1px solid rgba(255,176,32,.3);
-      background:rgba(255,176,32,.14);color:var(--am);font-family:Georgia,"Times New Roman",serif;
+      width:22px;height:22px;flex:none;border-radius:99px;border:1px solid rgba(34,211,238,.3);
+      background:rgba(34,211,238,.14);color:var(--cyan);font-family:Georgia,"Times New Roman",serif;
       font-style:italic;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;
     }
-    .mode-info-btn:active{background:rgba(255,176,32,.26)}
+    .mode-info-btn:active{background:rgba(34,211,238,.26)}
     .gear i{width:16px;height:16px;border-radius:99px;border:3px solid var(--tx-2)}
     .ghead-titles{flex:1;min-width:0}
     /* G70: mod içi "i" — başlığın YANINDA, küçük/sessiz (bkz. index.html'in
@@ -286,9 +342,9 @@
        kırpılır, rozet asla İTİLMEZ (flex:none). */
     .game-title-row{display:flex;align-items:center;gap:6px;min-width:0}
     .game-title{font-size:16px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .game-sub{font-size:14px;color:#9AA3B8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .game-sub{font-size:14px;color:var(--tx-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    .hearts{display:flex;align-items:center;gap:6px;padding:9px 7px;border-radius:11px;
+    .hearts{display:flex;align-items:center;gap:6px;padding:9px 7px;border-radius:var(--r-btn);
       background:rgba(255,77,109,.13);border:1px solid rgba(255,77,109,.26)}
     /* Dolu/boş can arasında BARİZ bir fark olsun — sadece opaklık farkı küçük
        noktalarda ayırt edilmiyordu, kaybedilen canlar artık İÇİ BOŞ (kontur). */
@@ -299,10 +355,12 @@
     .stats-row{display:flex;gap:8px;margin-top:12px}
     .stat{
       flex:1;min-height:42px;display:flex;align-items:center;justify-content:center;gap:7px;
-      border-radius:13px;background:var(--card);border:1px solid rgba(255,255,255,.08);
+      border-radius:var(--r-card);background:var(--card);border:1px solid var(--border);
       font-size:14px;font-weight:600;padding:6px;text-align:center;white-space:nowrap;
     }
-    .stat .dot{width:7px;height:7px;border-radius:99px;background:var(--am);flex:none}
+    /* G73 İSTİSNA — "Seri" (combo) göstergesi: kural gereği amber KALIYOR
+       (combo/boss/süre öğeleri istisnası). */
+    .stat .dot{width:7px;height:7px;border-radius:99px;background:var(--amber);flex:none}
     .stat.stat-acc{background:rgba(43,217,168,.12);border-color:rgba(43,217,168,.24);color:var(--gr);font-weight:700}
     .stat.stat-boss{background:rgba(255,77,109,.15);border-color:rgba(255,77,109,.3);color:#FFB3C2;font-weight:700}
 
@@ -342,24 +400,25 @@
        küçülmez) — ikisi birlikte gerekli. */
     .srctag{
       display:flex;align-items:center;gap:6px;width:100%;min-width:0;flex:1;min-height:44px;padding:8px 10px;
-      border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+      border-radius:var(--r-card);background:rgba(255,255,255,.06);border:1px solid var(--border-strong);
       font-size:14px;font-weight:600;color:var(--tx-3);text-align:left;
     }
     .srctag:active{background:rgba(255,255,255,.14)}
     .srctag b{min-width:0;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .srctag .chev{font-size:15px;margin-left:auto;flex:none;color:var(--tx-3)}
+    /* G73: "Karıştır" (kaynağı rastgele seçme) aç/kapa göstergesi artık --cyan. */
     .mixchip{
-      flex:none;min-height:44px;padding:8px 12px;border-radius:14px;display:flex;align-items:center;gap:8px;
+      flex:none;min-height:44px;padding:8px 12px;border-radius:var(--r-card);display:flex;align-items:center;gap:8px;
       font-size:14px;font-weight:700;white-space:nowrap;background:rgba(255,255,255,.04);
-      border:1px solid rgba(255,255,255,.1);color:#7E8698;
+      border:1px solid var(--border-strong);color:var(--text-muted);
     }
     .mixchip .led{width:8px;height:8px;border-radius:99px;background:rgba(255,255,255,.22);flex:none}
-    .mixchip.on{background:rgba(255,176,32,.16);border-color:rgba(255,176,32,.42);color:var(--am)}
-    .mixchip.on .led{background:var(--am)}
+    .mixchip.on{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.42);color:var(--cyan)}
+    .mixchip.on .led{background:var(--cyan)}
 
     .qline{
-      padding:10px 13px;border-radius:15px;background:rgba(255,255,255,.05);
-      border:1px solid rgba(255,255,255,.09);font-size:16px;font-weight:700;line-height:1.3;color:var(--tx);
+      padding:10px 13px;border-radius:var(--r-card);background:rgba(255,255,255,.05);
+      border:1px solid var(--border);font-size:16px;font-weight:700;line-height:1.3;color:var(--tx);
     }
     .qline-sub{margin:-2px 2px 0;font-size:13px;line-height:1.5;color:var(--tx-3)}
 
@@ -369,30 +428,31 @@
        startSpotlightTourIfNeeded). Kalıcı "i" ikonundan (.info-btn) TAMAMEN
        AYRI. #spotlightOverlay'in TAMAMI pointer-events:none — karartma/delik
        HİÇBİR gerçek tıklamayı engellemez (KORUMA: mekanik dokunulmadı),
-       sadece #spotlightCallout (metin+butonlar) tıklanabilir. */
+       sadece #spotlightCallout (metin+butonlar) tıklanabilir. G73: vurgu
+       rengi --cyan'a taşındı (birincil vurgu). */
     #spotlightOverlay{position:fixed;inset:0;z-index:75;pointer-events:none}
     /* Delik efekti: KLASİK CSS spotlight hilesi — devasa box-shadow spread'i
        (9999px) elementin ETRAFINI karartır, elementin KENDİSİ (arka planı
        şeffaf) hiç boyanmaz — SVG mask'e gerek yok, hafif ve GPU-dostu. */
     #spotlightHole{
-      position:fixed;border-radius:16px;box-shadow:0 0 0 9999px rgba(6,8,14,.72);
+      position:fixed;border-radius:var(--r-card);box-shadow:0 0 0 9999px rgba(6,8,14,.72);
       pointer-events:none;
       transition:top .28s cubic-bezier(.4,0,.2,1),left .28s cubic-bezier(.4,0,.2,1),
         width .28s cubic-bezier(.4,0,.2,1),height .28s cubic-bezier(.4,0,.2,1);
     }
     #spotlightCallout{
       position:fixed;max-width:min(300px, calc(100vw - 24px));padding:14px 16px;
-      border-radius:16px;background:#10141F;border:1px solid rgba(255,176,32,.35);
+      border-radius:var(--r-card);background:var(--bg-panel);border:1px solid rgba(34,211,238,.35);
       box-shadow:0 10px 30px rgba(0,0,0,.45);pointer-events:auto;
       transition:top .28s cubic-bezier(.4,0,.2,1),left .28s cubic-bezier(.4,0,.2,1);
     }
-    #spotlightStepLabel{font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--am)}
+    #spotlightStepLabel{font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--cyan)}
     #spotlightText{margin:6px 0 0;font-size:15px;line-height:1.45;color:var(--tx)}
     #spotlightActions{display:flex;justify-content:flex-end;align-items:center;gap:14px;margin-top:12px}
-    #spotlightActions button{font-size:14px;font-weight:700;border-radius:11px;border:none;padding:8px 14px}
+    #spotlightActions button{font-size:14px;font-weight:700;border-radius:var(--r-btn);border:none;padding:8px 14px}
     #spotlightSkip{background:none;color:var(--tx-3);padding:8px 4px}
-    #spotlightNext{background:var(--am);color:#1A1206}
-    #spotlightNext:active{background:var(--am-2, var(--am))}
+    #spotlightNext{background:var(--cyan);color:#07242b}
+    #spotlightNext:active{background:#1ac2dc}
 
     /* ---- spektrum paneli (3 aşamalı: ask / hint / done) ---- */
     .analyzer{padding:12px 13px 10px}
@@ -400,18 +460,20 @@
       display:flex;align-items:center;flex-wrap:wrap;row-gap:8px;justify-content:space-between;gap:10px;
       min-height:22px;margin-bottom:10px;
     }
-    .analyzer-label{font-size:13px;font-weight:700;letter-spacing:.08em;color:#8C95AB;white-space:nowrap}
+    .analyzer-label{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--text-3);white-space:nowrap}
     .gainval{font-size:14px;font-weight:700;color:var(--bl)}
     [data-phase="ask"] .gainval,[data-phase="hint"] .gainval{visibility:hidden}
+    /* G73: "İPUCU" etiketi artık --cyan (birincil vurgu — ipucu kullanımı
+       combo/boss/süre kapsamına girmiyor). */
     .hinttag{
-      display:none;font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--am);
-      background:rgba(255,176,32,.16);border:1px solid rgba(255,176,32,.34);
-      padding:4px 9px;border-radius:9px;white-space:nowrap;
+      display:none;font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--cyan);
+      background:rgba(34,211,238,.16);border:1px solid rgba(34,211,238,.34);
+      padding:4px 9px;border-radius:var(--r-chip);white-space:nowrap;
     }
     [data-phase="hint"] .hinttag{display:inline-block;animation:fade .28s ease-out}
     @keyframes fade{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 
-    .canvas-stage{position:relative;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.02)}
+    .canvas-stage{position:relative;border-radius:var(--r-card);overflow:hidden;background:rgba(255,255,255,.02)}
     /* F4: cevap dokunmalı burada veriliyor (pointerdown/pointermove, app.js) — kaydırma/
        pan/zoom gerekmiyor, touch-action:none tarayıcının kendi jest tanımasını (çift
        dokunma zoom dahil) tamamen devre dışı bırakıyor. pointerdown/pointermove olayları
@@ -427,17 +489,17 @@
        üzerinden otomatik okur). */
     #analyzer.analyzer-compact #visualizer{height:140px}
     .hint-mask{position:absolute;inset:0;pointer-events:none;overflow:hidden}
-    .hint-mask-seg{position:absolute;top:0;bottom:0;background:rgba(8,11,20,.74);opacity:0;transition:opacity .28s ease}
+    .hint-mask-seg{position:absolute;top:0;bottom:0;background:rgba(8,9,11,.74);opacity:0;transition:opacity .28s ease}
     .hint-mask-seg.show{opacity:1}
     [data-phase="ask"] .hint-mask,[data-phase="done"] .hint-mask{opacity:0;pointer-events:none}
 
     .tapHint{
-      padding:11px 14px;border-radius:14px;background:rgba(255,255,255,.05);
-      border:1px solid rgba(255,255,255,.12);color:var(--tx-2);
+      padding:11px 14px;border-radius:var(--r-card);background:rgba(255,255,255,.05);
+      border:1px solid var(--border-strong);color:var(--tx-2);
       font-size:14px;font-weight:600;text-align:center;
     }
 
-    #freqInfo{position:relative;padding:14px 16px;border-radius:16px;border:1px solid rgba(255,255,255,.12);font-size:13.5px;line-height:1.55}
+    #freqInfo{position:relative;padding:14px 16px;border-radius:var(--r-card);border:1px solid var(--border-strong);font-size:13.5px;line-height:1.55}
     /* Geri bildirim kartlarının ORTAK kapat-butonu stili — #freqInfo (Frekans Bulma'nın
        zengin panel, kendi HTML'ini basıyor) VE #feedbackBox (diğer modların TEK ortak
        yüzeyi, bkz. app.js:setFeedback) AYNI görsel/konum kuralını PAYLAŞIYOR — X'in
@@ -448,16 +510,20 @@
     /* ---- şıklı cevap ---- */
     .answers{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
     .answers.hidden{display:none}
-    .ans{min-height:58px;padding:7px 4px;border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.05);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+    .ans{min-height:58px;padding:7px 4px;border-radius:var(--r-panel);border:1px solid var(--line);background:rgba(255,255,255,.05);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
     .ans b{font-size:21px;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
     /* Q Genişliği'ne özel — bkz. q-genisligi.js:renderAnswerChoices notu. Şık
        metni SAYI değil KELİME (tabular-nums gereksiz) ve "Çok Geniş" iki
        kelime — dar telefon genişliğinde (~375px) sarmasın diye küçültülüyor,
        SADECE bu sınıfı taşıyan butonları etkiler. */
     .ans b.ans-word{font-size:16px;font-variant-numeric:normal}
-    .ans span{font-size:14px;font-weight:600;color:#8C95AB}
-    .ans.pick{border:2px solid #FFB020;background:rgba(255,176,32,.16)}
-    .ans.pick b{color:#FFD98A}
+    .ans span{font-size:14px;font-weight:600;color:var(--text-3)}
+    /* G73: "seçildi" (henüz sonuç açıklanmadan önceki işaretleme) durumu
+       artık --cyan — birincil vurgu, doğru/yanlış'ın yeşil/kırmızısıyla
+       ÇAKIŞMASIN diye onlardan ayrı bir renk olması gerekiyordu, amber'ın
+       eski rolünü cyan devraldı. */
+    .ans.pick{border:2px solid var(--cyan);background:rgba(34,211,238,.16)}
+    .ans.pick b{color:#8FE9F7}
     .ans.right{border:2px solid var(--gr);background:rgba(43,217,168,.18)}
     .ans.right b{color:#8FF3D8}
     .ans.right span{color:var(--gr)}
@@ -471,21 +537,23 @@
        hâlâ yukarıdaki kurallardan geliyor) — bunlar SADECE düzen/görsel katmanı
        ekliyor, core/three-way-cards.js bu class'ları üretir. */
     .answers.answers-m2{grid-template-columns:1fr;gap:10px}
-    .ans-m2{flex-direction:row;align-items:center;justify-content:flex-start;gap:13px;padding:12px 13px;min-height:0;border-radius:20px;background:rgba(255,255,255,.045)}
-    .ans-m2-key{width:52px;height:52px;flex:none;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:var(--tx-2);background:rgba(255,255,255,.07);transition:background .2s,color .2s}
+    .ans-m2{flex-direction:row;align-items:center;justify-content:flex-start;gap:13px;padding:12px 13px;min-height:0;border-radius:var(--r-panel);background:rgba(255,255,255,.045)}
+    .ans-m2-key{width:52px;height:52px;flex:none;border-radius:var(--r-btn);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:var(--tx-2);background:rgba(255,255,255,.07);transition:background .2s,color .2s}
     .ans-m2-body{flex:1;min-width:0}
     .ans-m2-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
     .ans-m2-name{font-size:16px;font-weight:700}
-    .ans-m2-state{font-size:14px;font-weight:600;color:#9AA3B8;white-space:nowrap}
+    .ans-m2-state{font-size:14px;font-weight:600;color:var(--text-3);white-space:nowrap}
     .ans-m2-wave{display:flex;align-items:flex-end;gap:3px;height:26px;margin-top:9px}
     .ans-m2-wave i{flex:1;border-radius:2px;background:rgba(255,255,255,.18);transition:background .2s}
 
-    /* Çalan kart vurgusu — amber glow (kenar + dış parlama), doğru/yanlış'ın
-       kırmızı/yeşiliyle ÇAKIŞMASIN diye ayrı bir renk (marka rengi --am). */
-    .ans-m2-playing{border-color:rgba(255,176,32,.5);background:rgba(255,176,32,.08);box-shadow:0 0 0 1px rgba(255,176,32,.35),0 0 22px rgba(255,176,32,.22)}
-    .ans-m2-playing .ans-m2-key{background:linear-gradient(150deg,var(--am),var(--am-2));color:#1A1206}
-    .ans-m2-playing .ans-m2-wave i{background:rgba(255,194,70,.8)}
-    .ans-m2-playing .ans-m2-state{color:var(--am)}
+    /* Çalan kart vurgusu — G73: --cyan glow (kenar + dış parlama), doğru/yanlış'ın
+       kırmızı/yeşiliyle ÇAKIŞMASIN diye ayrı bir renk. Bu "şu an çalıyor" durumu
+       combo/boss/süre kapsamına girmediği için (birincil vurgu kuralı) amber'dan
+       cyan'a taşındı. */
+    .ans-m2-playing{border-color:rgba(34,211,238,.5);background:rgba(34,211,238,.08);box-shadow:0 0 0 1px rgba(34,211,238,.35),0 0 22px rgba(34,211,238,.22)}
+    .ans-m2-playing .ans-m2-key{background:linear-gradient(150deg,var(--cyan),#0ea5b8);color:#07242b}
+    .ans-m2-playing .ans-m2-wave i{background:rgba(34,211,238,.8)}
+    .ans-m2-playing .ans-m2-state{color:var(--cyan)}
 
     .ans-m2.right .ans-m2-key{background:var(--gr);color:#04231B}
     .ans-m2.wrong .ans-m2-key{background:var(--rd);color:#2A0710}
@@ -496,13 +564,13 @@
        renderAnswerChoices'ının ürettiği markup'ı burada stilize eder. */
     .answers.answers-tonal{display:flex;flex-direction:column;gap:14px}
     .tonal-bands{display:flex;flex-direction:column;gap:8px}
-    .tonal-band{padding:9px 14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.04);transition:border-color .2s,background .2s}
+    .tonal-band{padding:9px 14px;border-radius:var(--r-card);border:1px solid var(--line);background:rgba(255,255,255,.04);transition:border-color .2s,background .2s}
     .tonal-band-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
     .tonal-band-label{font-size:14px;font-weight:700;letter-spacing:.02em;color:var(--tx-2)}
     .tonal-band-value{font-size:13px;font-weight:700;color:var(--bl);font-variant-numeric:tabular-nums}
     .tonal-slider{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:99px;background:rgba(255,255,255,.12);outline:none;margin:0}
-    .tonal-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:var(--bl);border:3px solid #0A0E1A;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
-    .tonal-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--bl);border:3px solid #0A0E1A;box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
+    .tonal-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:var(--bl);border:3px solid var(--bg-page);box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
+    .tonal-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--bl);border:3px solid var(--bg-page);box-shadow:0 1px 4px rgba(0,0,0,.4);cursor:pointer}
     .tonal-slider:disabled{opacity:.5}
     .tonal-band.right{border-color:rgba(43,217,168,.5);background:rgba(43,217,168,.1)}
     .tonal-band.right .tonal-band-value{color:var(--gr)}
@@ -512,10 +580,12 @@
     .tonal-submit:disabled{opacity:.4}
 
     /* ---- süre çubuğu ---- */
+    /* G73 İSTİSNA — süre (round timer): kural gereği amber KALIYOR
+       (combo/boss/süre öğeleri istisnası, tek amber-gradyan kullanım yeri). */
     .timer-row{display:flex;align-items:center;gap:11px}
     .bar{height:8px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden;flex:1}
-    .bar > i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--am),var(--am-2));transition:width .12s linear}
-    .timer-text{font-size:14px;font-weight:700;color:var(--am);flex:none}
+    .bar > i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--amber),var(--am-2));transition:width .12s linear}
+    .timer-text{font-size:14px;font-weight:700;color:var(--amber);flex:none}
 
     /* ---- geri bildirim kartı ---- */
     /* G58 DÜZELTMESİ — Q Genişliği (ve #feedbackBox kullanan diğer modlar) cevap
@@ -535,9 +605,10 @@
        çok daha uzun geri bildirim metni taşıyan modlarda (ör. Frekans Bulma'nın
        AYRI #freqInfo paneli — bu kartı hiç KULLANMIYOR, kapsam dışı) küçük bir
        kalıntı kayma olabilir, ama YAYGIN durumda kayma SIFIRLANIYOR (canlı
-       doğrulandı, bkz. DURUM.md G58 BİTTİ). Reskin'e (renk/tipografi/boyut)
-       DOKUNULMADI — SADECE gizleme mekanizması display→visibility oldu. */
-    .fb{position:relative;padding:14px 16px;border-radius:20px;background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);visibility:hidden;min-height:100px}
+       doğrulandı, bkz. DURUM.md G58 BİTTİ). G73: bu turda da SADECE renk
+       değişti — min-height/visibility mekanizmasına, dolayısıyla --actionbar-h
+       ile ilişkisine TEK SATIR dokunulmadı (bkz. DOĞRULAMA raporu). */
+    .fb{position:relative;padding:14px 16px;border-radius:var(--r-panel);background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);visibility:hidden;min-height:100px}
     .fb.show-result{visibility:visible}
     .fb-head{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:700;color:#8FF3D8;padding-right:32px}
     .fb-dot{width:20px;height:20px;flex:none;border-radius:99px;background:var(--gr)}
@@ -548,8 +619,8 @@
 
     /* Geri bildirim kartı karşılaştırma butonları (prototype.html: cmprow/cmp) */
     .cmprow{display:flex;gap:7px;margin-top:13px;flex-wrap:wrap}
-    .cmp{flex:1 1 auto;min-height:44px;padding:9px 11px;border-radius:13px;
-      border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);
+    .cmp{flex:1 1 auto;min-height:44px;padding:9px 11px;border-radius:var(--r-card);
+      border:1px solid var(--border-strong);background:rgba(255,255,255,.05);
       font-size:15px;font-weight:700;color:var(--tx-2);white-space:nowrap}
     .cmp.on{background:rgba(108,140,255,.22);border-color:rgba(108,140,255,.5);color:#DCE4FF}
     .cmp.hide{display:none}
@@ -560,7 +631,7 @@
       width:min(560px,100%);margin:0 auto;
       padding:12px 16px calc(16px + env(safe-area-inset-bottom));
       border-top:1px solid rgba(255,255,255,.08);
-      background:linear-gradient(180deg, rgba(8,11,20,0), rgba(8,11,20,.96) 26%);
+      background:linear-gradient(180deg, rgba(8,9,11,0), rgba(8,9,11,.96) 26%);
       transition:transform .25s ease;
     }
     .actionbar .row{margin-bottom:8px}
@@ -595,7 +666,7 @@
     .abpair{display:flex;gap:3px}
     .abside{
       min-width:24px;padding:3px 0;border-radius:7px;text-align:center;font-size:14px;font-weight:800;
-      line-height:1.1;color:#7E8698;background:rgba(255,255,255,.05);transition:background .12s ease,color .12s ease;
+      line-height:1.1;color:var(--text-muted);background:rgba(255,255,255,.05);transition:background .12s ease,color .12s ease;
     }
     .abbtn[data-ab="A"] .abside[data-side="A"]{background:rgba(255,255,255,.2);color:var(--tx)}
     .abbtn[data-ab="B"] .abside[data-side="B"]{background:rgba(108,140,255,.4);color:#EAF0FF}
@@ -605,9 +676,10 @@
     .abside-c{display:none}
     .abbtn.three-way .abside-c{display:block}
     .abbtn[data-ab="C"] .abside[data-side="C"]{background:rgba(168,85,247,.4);color:#F5EAFF}
-    /* A/B uzun basma döngüsü aktifken (bkz. app.js startAbLoop/stopAbLoop) */
-    .abbtn.loop{background:rgba(255,176,32,.14);border-color:rgba(255,176,32,.4)}
-    .abbtn.loop .abtitle{color:var(--am)}
+    /* A/B uzun basma döngüsü aktifken (bkz. app.js startAbLoop/stopAbLoop) —
+       G73: döngü combo/boss/süre kapsamına girmediği için --cyan'a taşındı. */
+    .abbtn.loop{background:rgba(34,211,238,.14);border-color:rgba(34,211,238,.4)}
+    .abbtn.loop .abtitle{color:var(--cyan)}
     /* G71: "basılı tut: döngü" küçük ipucu — çok küçük/soluk, dikkat sesten
        KAYMASIN diye. Döngü zaten aktifken (abTitle "Döngü" diyor) gizlenir —
        tekrar SÖYLENMEZ. */
@@ -616,7 +688,7 @@
 
     /* ---- ayarlar / değer seçici sheet ---- */
     .sheet-overlay{
-      position:fixed;inset:0;background:rgba(2,4,10,.62);backdrop-filter:blur(3px);
+      position:fixed;inset:0;background:rgba(2,3,5,.62);backdrop-filter:blur(3px);
       z-index:90;opacity:0;pointer-events:none;transition:opacity .22s ease;
     }
     .sheet-overlay.open{opacity:1;pointer-events:auto}
@@ -624,8 +696,8 @@
       position:fixed;left:0;right:0;bottom:0;z-index:91;
       width:min(560px,100%);margin:0 auto;
       max-height:78vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
-      background:#10141F;border:1px solid var(--line);border-bottom:0;
-      border-radius:26px 26px 0 0;
+      background:var(--bg-panel);border:1px solid var(--line);border-bottom:0;
+      border-radius:var(--r-panel) var(--r-panel) 0 0;
       padding:10px 18px calc(24px + env(safe-area-inset-bottom));
       transform:translateY(100%);transition:transform .22s ease-out;
     }
@@ -633,7 +705,8 @@
     .sheet-handle{width:44px;height:5px;border-radius:99px;background:rgba(255,255,255,.2);margin:4px auto 14px}
     .sheet-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
     .sheet-header h3{margin:0;font-size:19px;font-weight:700;color:var(--tx)}
-    .sheet-cancel{background:none;border:0;color:var(--am);font-size:15px;font-weight:600;padding:6px}
+    /* G73: "Kapat" metni artık --cyan (birincil vurgu). */
+    .sheet-cancel{background:none;border:0;color:var(--cyan);font-size:15px;font-weight:600;padding:6px}
     /* G37: "bir daha gösterme" onay kutusu — Dizayn/prototype.html .cbrow/.cb'den
        birebir taşındı (kulaklık uyarı sheet'i). */
     .cbrow{
@@ -641,7 +714,7 @@
       background:none;border:none;text-align:left;font-size:14px;font-weight:600;color:var(--tx-3);
     }
     .cbrow .cb{
-      flex:none;width:24px;height:24px;border-radius:8px;display:flex;align-items:center;
+      flex:none;width:24px;height:24px;border-radius:var(--r-chip);display:flex;align-items:center;
       justify-content:center;font-size:15px;font-weight:800;color:transparent;
       border:1.5px solid rgba(255,255,255,.22);
     }
@@ -650,11 +723,12 @@
     .sheet-options{display:flex;flex-direction:column;gap:8px}
     .sheet-option{
       display:flex;justify-content:space-between;align-items:center;min-height:54px;padding:0 16px;
-      border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
+      border-radius:var(--r-card);background:rgba(255,255,255,.05);border:1px solid var(--border);
       color:var(--tx);font-size:15px;font-weight:600;
     }
     .sheet-option:active{background:rgba(255,255,255,.1)}
-    .sheet-option .check{color:var(--am);font-weight:700;opacity:0;transition:opacity .12s ease}
+    /* G73: seçili işareti (✓) artık --cyan. */
+    .sheet-option .check{color:var(--cyan);font-weight:700;opacity:0;transition:opacity .12s ease}
     .sheet-option.selected .check{opacity:1}
 
     /* Kaynak sheet'i gibi <optgroup>'lu select'lerde grup başlıkları accordion:
@@ -668,7 +742,8 @@
     }
     .sheet-group-header .kicker{margin:0}
     .sheet-group-header .chev{color:var(--tx-3);font-size:13px;transition:transform .15s ease,color .15s ease}
-    .sheet-group.open .sheet-group-header .chev{color:var(--am);transform:rotate(90deg)}
+    /* G73: açık akordeon oku artık --cyan. */
+    .sheet-group.open .sheet-group-header .chev{color:var(--cyan);transform:rotate(90deg)}
     .sheet-group-body{display:flex;flex-direction:column;gap:8px;margin-top:2px}
     .sheet-group-body.collapsed{display:none}
 
@@ -685,18 +760,19 @@
     .settings-group .setting-row{
       display:flex;justify-content:space-between;align-items:center;gap:12px;
       width:100%;min-height:54px;padding:0 16px;text-align:left;
-      border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);
+      border-radius:var(--r-card);background:rgba(255,255,255,.05);border:1px solid var(--border);
     }
     .settings-group .setting-row:active{background:rgba(255,255,255,.1)}
     .settings-row-label{flex:none;color:var(--tx-3);font-size:14px}
     .settings-row-value{display:flex;align-items:center;gap:6px;flex:none;font-weight:700;color:var(--tx);font-size:15px}
     .settings-row-value .chev{color:var(--tx-3);font-size:16px;line-height:1}
-    /* Z7: autoDiffAsk — prototype.html'deki callout ile aynı renk dili (uyarı/amber). */
-    .auto-diff-ask{margin-top:12px;padding:14px;border-radius:18px;background:rgba(255,176,32,.1);border:1px solid rgba(255,176,32,.3)}
+    /* Z7: autoDiffAsk — G73'te callout rengi --cyan'a taşındı (birincil vurgu;
+       "uyarı" tonu artık amber'a rezerve DEĞİL, sadece combo/boss/süre kullanıyor). */
+    .auto-diff-ask{margin-top:12px;padding:14px;border-radius:var(--r-panel);background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.3)}
     .auto-diff-ask p{margin:0;font-size:15px;line-height:1.5;color:var(--tx-2)}
     .auto-diff-ask .row{margin-top:12px}
     .auto-diff-ask .row .btn{min-height:48px;font-size:15px}
-    .upload-row{padding:14px 16px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09)}
+    .upload-row{padding:14px 16px;border-radius:var(--r-card);background:rgba(255,255,255,.05);border:1px solid var(--border)}
     .upload-row label{display:block;margin-bottom:8px;color:var(--tx-3);font-size:14px}
     .upload-row input[type="file"]{width:100%;color:var(--tx-2);font-size:13px}
     /* Native "Dosya Seç" butonu tarayıcı varsayılanında (beyaz/köşeli) geliyordu —
@@ -705,7 +781,7 @@
        için aynı kurallar. */
     .upload-row input[type="file"]::file-selector-button,
     .upload-row input[type="file"]::-webkit-file-upload-button{
-      margin-right:10px;padding:8px 14px;border-radius:12px;border:1px solid var(--line);
+      margin-right:10px;padding:8px 14px;border-radius:var(--r-btn);border:1px solid var(--line);
       background:rgba(255,255,255,.08);color:var(--tx);font-size:13px;font-weight:700;
     }
     .upload-row input[type="file"]::file-selector-button:active,
@@ -723,32 +799,35 @@
     select{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 
     /* ---- İlerleme ekranı ---- */
-    .stat-big{flex:1;padding:14px;border-radius:20px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);text-align:center}
+    .stat-big{flex:1;padding:14px;border-radius:var(--r-panel);background:rgba(255,255,255,.045);border:1px solid var(--border);text-align:center}
     .stat-big b{display:block;font-size:24px;font-weight:800}
     .stat-big span{font-size:13px;font-weight:600;color:var(--tx-3)}
     .h2{margin:22px 2px 12px;font-size:18px;font-weight:700}
     .h2:first-child{margin-top:6px}
-    .block{padding:16px;border-radius:20px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08)}
+    .block{padding:16px;border-radius:var(--r-panel);background:rgba(255,255,255,.045);border:1px solid var(--border)}
     .block + .block{margin-top:14px}
     .kicker{font-size:14px;font-weight:700;letter-spacing:.1em;color:var(--tx-3)}
     .danger-zone{border-color:rgba(255,77,109,.3);background:rgba(255,77,109,.04)}
 
     .daily-grid,.metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     @media (max-width:380px){.daily-grid,.metrics{grid-template-columns:1fr}}
-    .daily-card,.metric{padding:14px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}
+    .daily-card,.metric{padding:14px;border-radius:var(--r-card);background:rgba(255,255,255,.05);border:1px solid var(--border)}
     .daily-card h4,.metric .k{margin:0 0 4px;font-size:14px;color:var(--tx-3);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
     .daily-card p{margin:0;font-size:13px;color:var(--tx-3);line-height:1.5}
     .metric .v{font-size:22px;font-weight:800}
 
     .achievement-list,.history-list{display:grid;gap:9px;max-height:280px;overflow:auto;padding-right:2px}
     .achievement,.history{
-      padding:13px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+      padding:13px;border-radius:var(--r-card);background:rgba(255,255,255,.05);border:1px solid var(--border);
       display:flex;gap:12px;align-items:flex-start;
     }
     .achievement.locked{opacity:.45;filter:grayscale(.3)}
+    /* G73: başarım/rozet ikon zemini artık --gold (ödül/statü rengi — amber'ın
+       eski rolünün combo/boss/süre dışındaki en yakın karşılığı burada birincil
+       vurgu (cyan) DEĞİL, "kazanılmış rozet" anlamına daha uygun gold). */
     .achievement .icon,.history .icon{
-      width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:grid;place-items:center;
-      background:rgba(255,176,32,.12);font-size:18px;
+      width:38px;height:38px;flex:0 0 38px;border-radius:var(--r-btn);display:grid;place-items:center;
+      background:rgba(232,196,106,.14);font-size:18px;
     }
     .achievement h4,.history h4{margin:0 0 3px;font-size:14px}
     .achievement p,.history p{margin:0;color:var(--tx-3);font-size:14px;line-height:1.5}
@@ -765,25 +844,28 @@
     .placeholder p{margin:0;font-size:14px;line-height:1.5}
 
     /* ---- efektler (toast/xp/particle) ---- */
+    /* G73: XP/ödül efektleri (+XP uçan yazı, doğru-cevap parçacık patlaması)
+       artık --gold — "kazanım" anlamı birincil vurgudan (cyan) ayrı tutuldu. */
     .floating-xp,.toast,.particle{position:fixed;pointer-events:none;z-index:9999}
-    .floating-xp{font-weight:900;color:#fff;text-shadow:0 0 20px rgba(255,176,32,.7);animation:floatUp 1.4s ease forwards}
+    .floating-xp{font-weight:900;color:#fff;text-shadow:0 0 20px rgba(232,196,106,.7);animation:floatUp 1.4s ease forwards}
     @keyframes floatUp{from{transform:translateY(0) scale(.9);opacity:0}15%{opacity:1}to{transform:translateY(-90px) scale(1.15);opacity:0}}
     .toast{
       /* F3: eskiden sağ-alt köşede sabitti — actionbar/geri bildirim kartındaki
          karşılaştırma butonlarıyla (özellikle kısa ekranlarda) çakışıyordu. Ekranın
          ÜSTÜNDE, tüm oyun içeriğinin/actionbar'ın dışında sabit — top değeri
          relayoutToasts() (fx.js) tarafından JS'ten yönetiliyor, aynı anda birden
-         fazla toast üst üste binmez. */
+         fazla toast üst üste binmez. G73: kenarlık rengi --cyan'a taşındı (nötr/
+         genel bildirim vurgusu — bkz. yukarıdaki not, ödül efektleri hariç). */
       right:16px;width:min(340px, calc(100vw - 32px));
-      padding:14px 16px;border-radius:18px;background:rgba(9,16,29,.92);border:1px solid rgba(255,176,32,.2);
+      padding:14px 16px;border-radius:var(--r-panel);background:rgba(9,10,12,.92);border:1px solid rgba(34,211,238,.2);
       backdrop-filter:blur(14px);animation:toastIn .32s ease;
     }
     .toast b{display:block;margin-bottom:4px;font-size:14px}
     .toast small{color:var(--tx-3);line-height:1.5;font-size:13px}
     @keyframes toastIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}
     .particle{
-      width:8px;height:8px;border-radius:50%;background:radial-gradient(circle, white, var(--am));
-      box-shadow:0 0 16px rgba(255,176,32,.7);animation:burst 900ms ease-out forwards;
+      width:8px;height:8px;border-radius:50%;background:radial-gradient(circle, white, var(--gold));
+      box-shadow:0 0 16px rgba(232,196,106,.7);animation:burst 900ms ease-out forwards;
     }
     @keyframes burst{from{transform:translate(0,0) scale(1);opacity:1}to{transform:translate(var(--dx), var(--dy)) scale(.15);opacity:0}}
 
@@ -804,11 +886,11 @@
     .group{margin-top:18px}
     .group:first-child{margin-top:4px}
     .group > h6{margin:0 0 8px 4px;font-size:14px;font-weight:700;letter-spacing:.1em;color:var(--tx-3)}
-    .group > .list{border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);overflow:hidden}
+    .group > .list{border-radius:var(--r-panel);background:rgba(255,255,255,.04);border:1px solid var(--border);overflow:hidden}
     .item{
       display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;
       text-align:left;padding:14px 16px;background:none;border:none;color:var(--tx);
-      border-bottom:1px solid rgba(255,255,255,.07);
+      border-bottom:1px solid var(--border);
     }
     .list > .item:last-child{border-bottom:none}
     button.item:active{background:rgba(255,255,255,.07)}
@@ -824,9 +906,10 @@
     .item.pick .tick{color:#04231B;background:var(--gr);border-color:var(--gr)}
     .item.pick h5{color:var(--gr)}
 
-    .seg{display:flex;gap:4px;padding:4px;border-radius:14px;background:rgba(255,255,255,.06);flex:none}
-    .seg button{min-height:36px;padding:0 12px;border:none;border-radius:11px;background:none;font-size:14px;font-weight:600;color:var(--tx-3)}
-    .seg button.on{background:rgba(255,176,32,.2);color:var(--am)}
+    /* G73: segmentli seçicinin aktif durumu artık --cyan. */
+    .seg{display:flex;gap:4px;padding:4px;border-radius:var(--r-card);background:rgba(255,255,255,.06);flex:none}
+    .seg button{min-height:36px;padding:0 12px;border:none;border-radius:var(--r-btn);background:none;font-size:14px;font-weight:600;color:var(--tx-3)}
+    .seg button.on{background:rgba(34,211,238,.2);color:var(--cyan)}
     .sw{width:50px;height:30px;flex:none;border-radius:99px;border:none;padding:3px;background:rgba(255,255,255,.14);display:flex}
     .sw i{width:24px;height:24px;border-radius:99px;background:#fff;transition:transform .18s}
     .sw.on{background:var(--gr)}
@@ -834,12 +917,14 @@
     .sublist{display:none;padding:4px 0 6px}
     .sublist.on{display:block}
 
-    .sheet-header .back{width:38px;height:38px;font-size:20px;margin-right:2px;border-radius:12px}
+    .sheet-header .back{width:38px;height:38px;font-size:20px;margin-right:2px;border-radius:var(--r-btn)}
 
     /* ---- kalibrasyon ---- */
+    /* G73: çalan referans tonun ölçer çubukları artık --cyan gradyanı (bu bir
+       "süre" göstergesi DEĞİL, ses seviyesi ölçer — istisna kapsamına girmiyor). */
     .cal-meter{display:flex;align-items:flex-end;justify-content:center;gap:5px;height:52px}
     .cal-meter i{display:block;width:6px;border-radius:3px;background:rgba(255,255,255,.12)}
-    .cal-meter.playing i{background:linear-gradient(180deg,#FFC246,#FF7A18)}
+    .cal-meter.playing i{background:linear-gradient(180deg,#5eead4,var(--cyan))}
     #calPlayBtn.on{background:rgba(43,217,168,.18);border-color:rgba(43,217,168,.42);color:#8FF3D8}
 
     /* ---- SSS ---- */
@@ -857,70 +942,79 @@
     .feedback-textarea::placeholder{color:var(--tx-3)}
 
     /* ---- satın alma ---- */
-    .plan{padding:16px;border-radius:22px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04)}
-    .plan.pro{border-color:rgba(255,176,32,.35);background:linear-gradient(160deg,rgba(255,176,32,.14),rgba(255,122,24,.04))}
+    /* G73: Pro plan kartı artık --gold (premium/statü rengi — Pro rozetiyle
+       (bkz. .mode-chip-pro) TUTARLI, birincil vurgudan (cyan) kasıtlı olarak
+       AYRI tutuldu). */
+    .plan{padding:16px;border-radius:var(--r-panel);border:1px solid var(--border-strong);background:rgba(255,255,255,.04)}
+    .plan.pro{border-color:rgba(232,196,106,.35);background:linear-gradient(160deg,rgba(232,196,106,.14),rgba(232,196,106,.04))}
     .li{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.45;color:var(--tx-2)}
     .li i{width:6px;height:6px;border-radius:99px;background:var(--tx-3);margin-top:7px;flex:none}
-    .plan.pro .li i{background:var(--am)}
+    .plan.pro .li i{background:var(--gold)}
 
     /* ---- kalibrasyon: adım noktaları (seviye slider'ıyla karışmasın diye çubuk değil nokta dizisi) ---- */
+    /* G73: aktif/geçilmiş adım noktaları artık --cyan. */
     .cal-steps{display:flex;align-items:center;justify-content:center;gap:10px}
     .cal-step-dot{width:7px;height:7px;border-radius:99px;background:rgba(255,255,255,.16);transition:background .18s ease,transform .18s ease}
-    .cal-step-dot.done{background:rgba(255,176,32,.55)}
-    .cal-step-dot.active{background:var(--am);transform:scale(1.4)}
+    .cal-step-dot.done{background:rgba(34,211,238,.55)}
+    .cal-step-dot.active{background:var(--cyan);transform:scale(1.4)}
 
     /* ---- seviye rozeti (ana menü) — G36, Dizayn/prototype.html .lvl/.lvl-badge'den
        taşındı. XP/seviye verisi zaten var (progress.xpProgress, İlerleme sekmesiyle AYNI
-       hesap — bkz. app.js updateUI notu), burada SADECE görsel bir kart eklendi. */
+       hesap — bkz. app.js updateUI notu), burada SADECE görsel bir kart eklendi.
+       G73: rozet artık --gold-grad — "seviye" bir statü/prestij göstergesi,
+       birincil vurgudan (cyan) kasıtlı olarak ayrı, Pro rozeti/başarımlarla
+       AYNI görsel aileye (gold) taşındı. */
     .lvl{display:flex;align-items:center;gap:14px;padding:14px 16px;margin-bottom:14px}
     .lvl-badge{
-      width:58px;height:58px;flex:none;border-radius:16px;color:#1A1206;
-      background:linear-gradient(150deg,var(--am),var(--am-2));
+      width:58px;height:58px;flex:none;border-radius:var(--r-btn);color:#2b2308;
+      background:var(--gold-grad);
       display:flex;flex-direction:column;align-items:center;justify-content:center;
     }
     .lvl-badge small{font-size:13px;font-weight:800;letter-spacing:.1em;opacity:.78}
     .lvl-badge b{font-size:22px;line-height:1;font-weight:800}
 
     /* ---- bugünün önerisi (ana menü) ---- */
-    .sug{position:relative;padding:16px;border-radius:22px;margin-bottom:18px;
+    .sug{position:relative;padding:16px;border-radius:var(--r-panel);margin-bottom:18px;
       background:linear-gradient(155deg,rgba(43,217,168,.16),rgba(43,217,168,.04));
       border:1px solid rgba(43,217,168,.28)}
     .x{
-      position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:11px;
-      border:1px solid rgba(255,255,255,.13);background:rgba(255,255,255,.06);color:var(--tx-2);
+      position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:var(--r-btn);
+      border:1px solid var(--border-strong);background:rgba(255,255,255,.06);color:var(--tx-2);
       font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;
     }
     .x:active{background:rgba(255,255,255,.16)}
     .btn.green{border:none;color:#04231B;background:var(--gr)}
 
     /* ---- Araçlar: Pro kilit örtüsü ---- */
+    /* G73: kilit ikonu artık --gold (Pro/premium göstergesi, .mode-chip-pro/
+       .plan.pro ile AYNI görsel aile). */
     .pro-lock{position:relative}
     .pro-lock-overlay{
-      position:absolute;inset:0;z-index:2;border-radius:22px;
-      background:rgba(8,11,20,.78);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
+      position:absolute;inset:0;z-index:2;border-radius:var(--r-panel);
+      background:rgba(8,9,11,.78);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);
       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
       text-align:center;padding:20px;border:none;width:100%;color:inherit;font:inherit;
     }
-    .pro-lock-overlay:active{background:rgba(8,11,20,.88)}
+    .pro-lock-overlay:active{background:rgba(8,9,11,.88)}
     .pro-lock-icon{
-      width:42px;height:42px;border-radius:14px;background:rgba(255,176,32,.14);
-      border:1px solid rgba(255,176,32,.3);display:flex;align-items:center;justify-content:center;
-      font-size:19px;color:var(--am);
+      width:42px;height:42px;border-radius:var(--r-card);background:rgba(232,196,106,.14);
+      border:1px solid rgba(232,196,106,.3);display:flex;align-items:center;justify-content:center;
+      font-size:19px;color:var(--gold);
     }
     .pro-lock-overlay b{font-size:15px;font-weight:700;color:var(--tx)}
     .pro-lock-overlay span{font-size:14px;color:var(--tx-3)}
 
     /* ---- Araçlar: analiz spektrum + eksen ---- */
-    .tool-spec{position:relative;height:76px;overflow:hidden;border-radius:12px}
+    .tool-spec{position:relative;height:76px;overflow:hidden;border-radius:var(--r-btn)}
     .tool-bars{position:absolute;inset:0;display:flex;align-items:flex-end;gap:2px}
     .tool-bars i{flex:1;border-radius:3px 3px 1px 1px;background:linear-gradient(180deg,rgba(108,140,255,.7),rgba(108,140,255,.15))}
     .tool-axis{display:flex;justify-content:space-between;margin-top:8px;padding-top:8px;
-      border-top:1px solid rgba(255,255,255,.07);font-size:14px;color:var(--tx-3)}
+      border-top:1px solid var(--border);font-size:14px;color:var(--tx-3)}
 
     /* ---- Araçlar: referans filtre chip'leri ---- */
     .fchip{
-      flex:none;min-height:42px;padding:9px 14px;border-radius:14px;
-      background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+      flex:none;min-height:42px;padding:9px 14px;border-radius:var(--r-card);
+      background:rgba(255,255,255,.05);border:1px solid var(--border-strong);
       font-size:14px;font-weight:600;color:var(--tx-2);white-space:nowrap;
     }
     .fchip.on{background:rgba(108,140,255,.22);border-color:rgba(108,140,255,.5);color:#DCE4FF}

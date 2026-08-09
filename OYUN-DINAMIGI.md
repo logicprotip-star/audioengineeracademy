@@ -1,78 +1,223 @@
-# OYUN DİNAMİKLERİ — Tasarımcı Özeti
+# OYUN DİNAMİKLERİ — Teknik Envanter (kod-referanslı)
 
-*Bu belge gerçek koddan çıkarılmıştır (kod içermez). Audio Engineer Academy — kulak eğitimi uygulaması.*
+*Audio Engineer Academy. Bu belge geliştirici/QA içindir — her satırda gerçek DOM id/class + dosya:satır referansı var, "yok" yazılan yerler kodda GERÇEKTEN doğrulanmış yokluklardır, tahmin edilmemiştir. Tüm satır numaraları bu belgenin yazıldığı anda `grep -n` ile doğrulanmıştır; kod ileride değişirse numaralar kayabilir.*
 
-## 1. Modlar
+---
 
-10 oynanabilir mod var, 4'ü ("Hız Modu", "Stereo Genişlik", "Pan Konumu", "Hangisi Farklı") katalogda tanımlı ama henüz kodlanmadı — kartları "yakında" görünür.
+## 1) MOD ENVANTERİ
 
-| Mod | Motor | Kulaklık | Erişim | Ne soruluyor | Cevap biçimi |
-|---|---|---|---|---|---|
-| Frekans Bulma | 1 | Hayır | Ücretsiz | Hangi frekans artırıldı/kesildi | Spektrumda **dokunarak işaretle** (uygulamadaki TEK dokunmalı mod) — ya da 3–6 şık |
-| Kesim Noktası | 1 | Hayır | Ücretsiz | Filtrenin kesim frekansı (+ tipi) | 3–6 şık |
-| Q Genişliği | 1 | Hayır | Ücretsiz | Bandın genişlik karakteri (Dar/Orta/Geniş sözel etiket) | 3–5 şık |
-| Boost mu Cut mu | 1 | Hayır | Ücretsiz | Yön, sonra miktar, sonra frekans — kademeli 3 katman | 2 şık → 3–6 şık |
-| dB Seviyesi | 1 | Hayır | Pro | Kaç dB, hangi yönde değişti | 3–6 şık |
-| Kompresör | 2 | Hayır | Ücretsiz* | A/B/C'den farklı olanı bul (kompresyon) | 3 kart (dinle-ve-seç) |
-| Reverb | 2 | Evet | Pro | A/B/C'den farklı olanı bul (reverb miktarı/tipi) | 3 kart |
-| Tonal Denge | 2 | Evet | Pro | Bozulmuş dengeyi kaydırıcılarla nötürle | 4–6 kaydırıcı + onay butonu |
-| Distortion | 2 | Hayır | Pro | A/B/C'den farklı olanı bul (saturation/distortion) | 3 kart |
-| Frekans Çakışması | 3 | Evet | Pro (günde 1 ücretsiz) | Çok aşamalı: önce çakışma frekansını bul, sonra hangi kaynaktan kesileceğine karar ver, sonra kes | Aşamaya göre 2–6 şık |
+Her mod için 11 öğe kontrol edildi: spektrum görseli, play-pause, döngü, A/B karşılaştırma, kaynak seçici, odak aralığı, ipucu, atla (X), mod içi "i", zorluk göstergesi, cevap biçimi.
 
-*Kompresör kartta "Pro" rengiyle işaretli ama gerçek erişimi ücretsiz — bilinen küçük bir tutarsızlık.
+Paylaşılan/evrensel öğeler (tüm modlarda aynı DOM elementi, tanım tek yerde) her mod başlığında tekrar edilir ama dosya:satır sadece §2'de detaylandırılır.
 
-**Motor** iç bir gruplama: Motor 1 = tek kaynağı dinle/işaretle, Motor 2 = üç klip arasından farklı olanı bul (Kompresör/Reverb/Distortion, Tonal Denge kendi kaydırıcı arayüzünü kullanır), Motor 3 = iki kaynaklı, çok aşamalı akış (Frekans Çakışması).
+### frekans-bulma (Motor 1)
 
-## 2. Seans Yapısı
+Mod ID: `www/js/modes/frekans-bulma.js:18` (`MODE_ID = "frekans-bulma"`)
 
-- **Can:** 5 can ile başlanır. Biterse **30 dakikada 1 can** kendiliğinden dolar; ya da reklam izleyip anında doldurulabilir.
-- **Ücretsiz sınırı:** seans başına **5 soru** — sonra paywall açılır.
-- **"10 Soruluk Bölüm":** sabit uzunlukta bir tur; sonuna kadar (can bitmeden) tamamlanırsa **+%50 XP bonusu**.
-- **Boss Round:** her **5. soru** otomatik olarak Boss — süre kısalır, zorluk bir tık artar, doğru cevap **1.65×** XP verir.
-- **Seans üç şekilde biter:**
-  - Canlar biter → "CANLARIN BİTTİ" (kırmızı)
-  - Ücretsiz 5-soru sınırı dolar → "ÜCRETSİZ OTURUM BİTTİ" (amber)
-  - 10 soru kayıpsız tamamlanır → "SEANS TAMAMLANDI" (yeşil)
+- Spektrum görseli: **FFT** — `SHOW_SPECTRUM` export edilmiyor → varsayılan `true` (`www/js/app.js:3461`), canvas `#visualizer` (`www/index.html:227`)
+- Play-pause: var — `#startBtn` (paylaşılan, bkz. §2)
+- Döngü: var — `#abToggle`, iki-yönlü döngü (`www/js/app.js:1247-1264`, `isThreeWayModule` false)
+- A/B karşılaştırma: var — `#abToggle` iki-yönlü A/B (temiz/işlenmiş)
+- Kaynak seçici: var — `#sourceChipWrap`/`#sourceSelect` (`www/index.html:142,145`)
+- Odak aralığı: **var** — `FOCUS_RANGES` export edilir (`www/js/modes/frekans-bulma.js:232-236`), `#focusChipWrap` gösterilir (`www/index.html:153`, koşul `www/js/app.js:409`)
+- İpucu: var — `#hintBtn` (`www/index.html:275`)
+- Atla (X): var — `#nextBtn` (paylaşılan)
+- Mod içi "i": var — `#gameInfoBtn` (paylaşılan)
+- Zorluk göstergesi: var — `#levelChip` (kullanıcı seviyesi, ayrı bir zorluk-tier rozeti YOK, bkz. §2 not)
+- Cevap biçimi: **ikisi de** — dokunmalı (canvas pointerdown, `www/js/app.js:3543-3558`, `choiceOnly` yok) + şıklı (kullanıcı seçebilir, `#answerFormatChipWrap`); 3–6 şık, `DIFFICULTY.options` `www/js/modes/frekans-bulma.js:38-43`
 
-## 3. XP ve Seviye
+### kesim-noktasi (Motor 1)
 
-- XP **mod başına ayrı** tutulur — tek bir global "oyuncu seviyesi" yok. **"Akademi seviyesi"** = oynanan tüm modların kendi seviyelerinin TOPLAMI.
-- Seviye eşiği katlanarak büyür: her seviye bir öncekinden **70 XP daha pahalı** (1→2: 120 XP, 2→3: 190 XP, 3→4: 260 XP…).
-- Bir doğru cevabın XP'si çarpımsal: **zorluk tabanı × combo bonusu** (art arda doğru, maks. 2,4×) **× ipucu kullanıldıysa yarı × Boss'ta 1,65× × hızlı cevapta 1,2× × 10-Soruluk-Bölüm'de 1,5×**.
-- **9 rozet:** İlk Kulak (ilk doğru cevap), Alev Zinciri (5'lik combo), Şimşek Kulak (10'luk combo), Dayanıklılık (25 tur), EQ Beyni (100 tur), Keskin Hedef (en az 20 turda %70 isabet), Yükseliş (seviye 5), Pro Kulak (Pro zorlukta 8 doğru), Boss Avcısı (1 Boss kazan).
+Mod ID: `www/js/modes/kesim-noktasi.js:33`
 
-## 4. Zorluk Sistemi
+- Spektrum görseli: **FFT** — export yok → varsayılan `true`
+- Play-pause: var — `#startBtn` (paylaşılan)
+- Döngü: var — `#abToggle` iki-yönlü
+- A/B karşılaştırma: var — `#abToggle`
+- Kaynak seçici: var — `#sourceChipWrap`
+- Odak aralığı: **yok** — `FOCUS_RANGES` export edilmiyor, kod yorumu bunu açıkça belirtiyor (`www/js/modes/kesim-noktasi.js:309`)
+- İpucu: var — `#hintBtn`
+- Atla (X): var — `#nextBtn` (paylaşılan)
+- Mod içi "i": var — `#gameInfoBtn` (paylaşılan)
+- Zorluk göstergesi: var — `#levelChip`
+- Cevap biçimi: **şıklı (zorunlu)** — `choiceOnly: true` (`www/js/modes/kesim-noktasi.js:296`); 3–6 şık, `DIFFICULTY.options` `www/js/modes/kesim-noktasi.js:65-69`
 
-- Seviye 1–20 arası **sürekli/kademesiz** bir eğri — ses ipucunun belirginliği, filtre keskinliği ve süre limiti seviyeyle birlikte yumuşakça zorlaşır. 20'den sonra süre ve ses ipucu daha da kısılmaya devam eder.
-- Eğri 4 isimli kademeye karşılık gelir: **Kolay (1–4) / Orta (5–8) / Zor (9–12) / Pro (13–20+)**. Ayrıca "Pro Plus" (çok-bantlı, aynı anda 4 işaretleme) var — bu ayrı bir oyun tarzı, sadece Sabit modda elle seçilebilir, Otomatik'e hiç girmez.
-- Bir seans İÇİNDE zorluk hafifçe dalgalanır: her 5 soruluk döngünün ilk sorusu bilerek kolaylaştırılır ("ısınma"), sona doğru zorlaşır, Boss round her zaman en zor noktaya denk gelir — amaç düz/tahmin edilebilir bir zorluk hissi vermemek.
-- **Otomatik:** oyun zorluğu kendi seviyene göre kendisi seçer, sen müdahale etmezsin. **Sabit:** zorluğu (Kolay/Orta/Zor/Pro/Pro Plus) sen elle seçersin — **SADECE Pro'da açık**, ücretsiz kullanıcı hep Otomatik'te kalır. Otomatik'teyken "Zorluk" satırına dokununca "Sabit'e geçmek ister misin?" diye sorulur (bu istem performansa göre değil, sadece dokunmayla tetikleniyor — metniyle tam örtüşmüyor).
-- **Sınav sistemi (yalnızca Pro'da aktif):** 10 sorudan üst üste 6 doğru (ya da toplamda 6/10) → 4 soruluk sınav hakkı; 4'te 3 doğru geçer → o modun seviyesi **kalıcı olarak 1 artar**, parkur baştan başlar. Geçemezsen parkur yine baştan başlar. Hiç 6'ya ulaşamazsan zayıf bölgeni hedefleyen 5 soruluk bir "telafi turu" gelir (3/5 geçer notu). Önemli: XP arka planda hep birikir ama **seviye sınavı geçmeden ilerlemez** — XP tek başına yeterli değil.
+### q-genisligi (Motor 1)
 
-## 5. Feedback Akışı (cevap sonrası)
+Mod ID: `www/js/modes/q-genisligi.js:44`
 
-- **Doğru:** onay sesi, "+XP" parçacık animasyonu, ekranda kısa bir "patlama" efekti, doğru cevap + neden doğru olduğunun açıklaması.
-- **Yanlış:** uyarı sesi, ekran hafifçe sallanır, bir can sessizce azalır (kalan can sayısı gösterilir), doğru cevap + açıklama.
-- **Otomatik ilerleme süresi:** doğru cevapta 4 saniye, yanlışta 6 saniye (okuma payı için daha uzun). "Geri bildirim ekranı" ayarı KAPALIYSA panel hiç gösterilmez, her iki durumda da 0,7 saniyede (sadece sesle) sıradaki soruya geçilir — hızlı-tekrar modu.
-- **"X" (kapat) butonu:** bekleme süresini atlar, anında sıradaki soruya geçer.
+- Spektrum görseli: **FFT** — export yok → varsayılan `true`
+- Play-pause: var — `#startBtn` (paylaşılan)
+- Döngü: var — `#abToggle` iki-yönlü
+- A/B karşılaştırma: var — `#abToggle`
+- Kaynak seçici: var — `#sourceChipWrap`
+- Odak aralığı: **yok** — `FOCUS_RANGES` export edilmiyor (grep boş, `www/js/modes/q-genisligi.js`)
+- İpucu: var — `#hintBtn`
+- Atla (X): var — `#nextBtn` (paylaşılan)
+- Mod içi "i": var — `#gameInfoBtn` (paylaşılan)
+- Zorluk göstergesi: var — `#levelChip`
+- Cevap biçimi: **şıklı (zorunlu)** — `choiceOnly: true` (`www/js/modes/q-genisligi.js:262`); 3–5 şık (sayısal Q değil, sözel etiket), `DIFFICULTY.options` `www/js/modes/q-genisligi.js:144-148`
 
-## 6. Free / Pro Sınırları
+### boost-mu-cut-mu (Motor 1)
 
-- **Ücretsiz:** 5 mod sınırsız (Frekans Bulma, Kesim Noktası, Q Genişliği, Boost mu Cut mu, Kompresör) + Frekans Çakışması **günde 1 kez ücretsiz tadımlık**.
-- **Pro — tek seferlik ₺399:** 10 modun tamamı, sınırsız oynama (5-soru sınırı kalkar), sınav + seviye atlama sistemi, kendi ses dosyanı yükleyip çalışma, Araçlar sekmesi (referans filtreleri), reklamsız.
-- **Ücretsizde ek kısıtlar:** seans başına 5 soru, Sabit zorluk seçimi yok, Odak aralığı (Bas/Orta/Tiz) seçimi yok, zayıf-bölge raporu yok, geçmiş grafiği bulanıklaştırılmış.
-- **Canlar biterse** tek istisna: Pro satın almadan da bir reklam izleyerek anında doldurulabilir (paywall'daki 6 tetikleyici noktanın içinde reklam seçeneği olan TEK durum).
+Mod ID: `www/js/modes/boost-mu-cut-mu.js:31`
 
-## 7. Ekran Listesi (11 ekran)
+- Spektrum görseli: **FFT** — export yok → varsayılan `true`
+- Play-pause: var — `#startBtn` (paylaşılan)
+- Döngü: var — `#abToggle` iki-yönlü
+- A/B karşılaştırma: var — `#abToggle`
+- Kaynak seçici: var — `#sourceChipWrap`
+- Odak aralığı: **yok** — `FOCUS_RANGES` export edilmiyor (grep boş, `www/js/modes/boost-mu-cut-mu.js`)
+- İpucu: var — `#hintBtn`
+- Atla (X): var — `#nextBtn` (paylaşılan)
+- Mod içi "i": var — `#gameInfoBtn` (paylaşılan)
+- Zorluk göstergesi: var — `#levelChip`
+- Cevap biçimi: **şıklı (zorunlu)** — `choiceOnly: true` (`www/js/modes/boost-mu-cut-mu.js:287`); 3 katmanlı soru (yön → miktar → frekans+miktar), 3–6 şık, `DIFFICULTY.options` `www/js/modes/boost-mu-cut-mu.js:76-80`
 
-1. **Ana Menü** — mod seçim ızgarası, seviye rozeti, günün önerisi
-2. **Oyun** — asıl oynanış ekranı (soru, spektrum/kartlar, cevap, alt kontrol çubuğu)
-3. **İlerleme** — seviye, istatistikler, isabet grafiği, zayıf bölge raporu
-4. **Araçlar** *(Pro)* — kendi mixini yükle, farklı cihaz/referans filtreleriyle dinle
-5. **Kalibrasyon** — referans ton çalıp kullanıcının kendi cihazına göre ses seviyesini ayarladığı ilk-kurulum ekranı
-6. **Sık Sorulan Sorular**
-7. **Geri Bildirim** — serbest metinli öneri/hata bildirim formu (oyun-içi cevap geri bildiriminden AYRI)
-8. **Bize Ulaşın** — destek iletişim bilgisi
-9. **Gizlilik / Kullanım Şartları**
-10. **Satın Alma (Paywall)** — 6 farklı tetikleyiciden (seans limiti, can bitti, kilitli mod, upload, günlük tadımlık bitti, serbest mod) açılabilen tek ekran
-11. **Seans Sonu** — skor halkası, XP özeti, zayıf bölge yorumu
+### db-seviyesi (Motor 1)
+
+Mod ID: `www/js/modes/db-seviyesi.js:30`
+
+- Spektrum görseli: **dikey bar** — `export const SHOW_SPECTRUM = false;` (`www/js/modes/db-seviyesi.js:47`), kendi çizimi `drawDbBars` (`www/js/modes/db-seviyesi.js:565`, çağrı `www/js/modes/db-seviyesi.js:627-644`); genel FFT çizimi `www/js/app.js:3461`'de atlanıyor
+- Play-pause: var — `#startBtn` (paylaşılan)
+- Döngü: var — `#abToggle` iki-yönlü
+- A/B karşılaştırma: var — `#abToggle`
+- Kaynak seçici: var — `#sourceChipWrap`
+- Odak aralığı: **yok** — `FOCUS_RANGES` export edilmiyor (grep boş, `www/js/modes/db-seviyesi.js`)
+- İpucu: var — `#hintBtn`
+- Atla (X): var — `#nextBtn` (paylaşılan)
+- Mod içi "i": var — `#gameInfoBtn` (paylaşılan)
+- Zorluk göstergesi: var — `#levelChip`
+- Cevap biçimi: **şıklı (zorunlu)** — `choiceOnly: true` (`www/js/modes/db-seviyesi.js:248`); 3–6 şık (tek işaretli dB sayısı), `DIFFICULTY.options` `www/js/modes/db-seviyesi.js:65-70`
+
+### kompresor (Motor 2)
+
+Mod ID: `www/js/modes/kompresor.js:255` — `THREE_WAY = true` (`kompresor.js:98`)
+
+- Spektrum görseli: **FFT** — `SHOW_SPECTRUM` export edilmiyor → varsayılan `true`, `drawSpectrumBars` (`www/js/app.js:3466`)
+- Play-pause: var — `#startBtn` (paylaşılan)
+- Döngü: var, **otomatik başlar** — round başında `if (isThreeWayModule(mode)) startAbLoop();` (`www/js/app.js:3313`)
+- A/B karşılaştırma: var — bizzat 3 kartın kendisi (`renderThreeWayCards`, `www/js/core/three-way-cards.js:24`), `#abToggle` basışı `cycleThreeWayPreview()` ile kartlar arası döner (`www/js/app.js:3079-3087`)
+- Kaynak seçici: var, kısıtlı — `uyumluKaynaklar: compatibleSourceIds({ requireTransient: true })` (`www/js/modes/kompresor.js:262`, transient içermeyen — pink/white noise — dışlanır)
+- Odak aralığı: **yok** — `FOCUS_RANGES` export edilmiyor (grep boş)
+- İpucu: var — `getHintText` (`www/js/modes/kompresor.js:440`), `#hintBtn`
+- Atla (X): var — `#nextBtn` (paylaşılan)
+- Mod içi "i": var — `#gameInfoBtn` (paylaşılan)
+- Zorluk göstergesi: var — `#levelChip`
+- Cevap biçimi: **kart** — her zaman tam 3 kart A/B/C (`www/js/modes/kompresor.js:294`, `renderAnswerChoices = renderThreeWayCards` satır 466)
+
+### reverb (Motor 2)
+
+Mod ID: `www/js/modes/reverb.js:229` — `THREE_WAY = true` (`reverb.js:59`)
+
+- Spektrum görseli: **FFT** — export yok → varsayılan `true`
+- Play-pause: var — `#startBtn` (paylaşılan)
+- Döngü: var, **otomatik başlar** — `isThreeWayModule` içinde (`www/js/app.js:53`), auto-start `www/js/app.js:3313`
+- A/B karşılaştırma: var — 3 kartın kendisi (`renderAnswerChoices = renderThreeWayCards`, `www/js/modes/reverb.js:477`)
+- Kaynak seçici: var, kısıtlı (kapalı liste) — `uyumluKaynaklar: compatibleSourceIds({ only: ["guitar","vocal","snare","groove","upload"] })` (`www/js/modes/reverb.js:248`)
+- Odak aralığı: **yok** — `FOCUS_RANGES` export edilmiyor (grep boş)
+- İpucu: var — `getHintText` (`www/js/modes/reverb.js:451`)
+- Atla (X): var — `#nextBtn` (paylaşılan)
+- Mod içi "i": var — `#gameInfoBtn` (paylaşılan)
+- Zorluk göstergesi: var — `#levelChip`
+- Cevap biçimi: **kart** — 3 kart A/B/C (`www/js/modes/reverb.js:294`, `renderAnswerChoices` satır 477)
+
+### distortion (Motor 2)
+
+Mod ID: `www/js/modes/distortion.js:249` — `THREE_WAY = true` (`distortion.js:42`)
+
+- Spektrum görseli: **FFT** — export yok → varsayılan `true`
+- Play-pause: var — `#startBtn` (paylaşılan)
+- Döngü: var, **otomatik başlar** — `isThreeWayModule` içinde, auto-start `www/js/app.js:3313`
+- A/B karşılaştırma: var — 3 kartın kendisi (`renderAnswerChoices = renderThreeWayCards`, `www/js/modes/distortion.js:432`)
+- Kaynak seçici: var, kısıtlama yok — `uyumluKaynaklar: compatibleSourceIds()` (`www/js/modes/distortion.js:262`, argümansız → tüm kaynaklar, `www/js/core/source-catalog.js:150-155`)
+- Odak aralığı: **yok** — `FOCUS_RANGES` export edilmiyor (grep boş)
+- İpucu: var — `getHintText` (`www/js/modes/distortion.js:409`)
+- Atla (X): var — `#nextBtn` (paylaşılan)
+- Mod içi "i": var — `#gameInfoBtn` (paylaşılan)
+- Zorluk göstergesi: var — `#levelChip`
+- Cevap biçimi: **kart** — 3 kart A/B/C (`www/js/modes/distortion.js:291`, `renderAnswerChoices` satır 432)
+
+### tonal-denge (Motor 2)
+
+Mod ID: `www/js/modes/tonal-denge.js:58` — **three-way DEĞİL** (`THREE_WAY_MODE_IDS` içinde yok, `www/js/app.js:53`)
+
+- Spektrum görseli: **FFT, ama kompakt** — `SHOW_SPECTRUM` export edilmiyor → FFT bar ÇİZİLİYOR ama `COMPACT_ANALYZER = true` (`www/js/modes/tonal-denge.js:71`) canvas yüksekliğini 140px'e düşürüyor (`www/styles.css:428`, toggle `www/js/app.js:1381`)
+- Play-pause: var — `#startBtn` (paylaşılan)
+- Döngü: var, **elle uzun basma gerekir** (three-way'in aksine otomatik başlamaz, `www/js/app.js:3313`'ün kapsamı dışında) — `#abToggle` iki-yönlü formda
+- A/B karşılaştırma: var — `#abToggle`'ın kendisi (temiz sinyal ↔ gizli EQ bozulması karşılaştırması, `toggleAB()` `www/js/app.js:3089-3098`); kullanıcının canlı kaydırıcı düzeltmesinden AYRI bir "önce/sonra" bileşeni YOK
+- Kaynak seçici: var, kısıtlı — `uyumluKaynaklar: compatibleSourceIds({ only: ["groove","upload"] })` (`www/js/modes/tonal-denge.js:267`)
+- Odak aralığı: **yok** — `FOCUS_RANGES` export edilmiyor (grep boş)
+- İpucu: var — `getHintText` (`www/js/modes/tonal-denge.js:481`)
+- Atla (X): var — `#nextBtn` (paylaşılan)
+- Mod içi "i": var — `#gameInfoBtn` (paylaşılan)
+- Zorluk göstergesi: var — `#levelChip`
+- Cevap biçimi: **kaydırıcı** — N slider (4/5/6, `bandCountForSessionIndex`, `www/js/modes/tonal-denge.js:129-134`; sınavda her zaman 6), `SLIDER_MIN_DB=-12/MAX_DB=12/STEP_DB=0.5` (`tonal-denge.js:139-141`), + `.tonal-submit` onay butonu (`tonal-denge.js:525`)
+
+### frekans-cakismasi (Motor 3)
+
+Mod ID: `www/js/modes/frekans-cakismasi.js` (dosya başı `MODE_ID`) — çok aşamalı, kendi kaynak-çifti mimarisi
+
+- Spektrum görseli: **eğri** — `SHOW_SPECTRUM = false` (`www/js/modes/frekans-cakismasi.js:73`), kendi `drawOverlay` (`frekans-cakismasi.js:697-736`): iki kaynağın "varlık eğrisi" (`drawRegionCurve`, amber/mor, satır 617-635) + çakışma bandı vurgusu (`drawCollisionBand`, satır 643-655)
+- Play-pause: var — `#startBtn` (paylaşılan)
+- Döngü: **yok** — `#abToggle` bu modda tamamen gizli (`syncCakismaVisibility`, `www/js/app.js:911`)
+- A/B karşılaştırma: var, ama FARKLI bir mekanizma — `#cakismaCompare` (Önce/Sonra, `www/index.html:247-249`) — SADECE Aşama 3 cevaplandıktan sonra (doğru/yanlış fark etmeksizin) açılır (`www/js/app.js:2901-2905`)
+- Kaynak seçici: var, ama ÇİFT seçici — `#cakismaPairChipWrap`/`#cakismaPairSelect` (`www/index.html:181-192`), 3 hazır çift + "own" (kendi 2 dosyası) — `SOURCE_PAIRS` (`www/js/core/source-catalog.js:94-107`), `OWN_SOURCE_PAIR` (satır 120-123)
+- Odak aralığı: **yok** — `FOCUS_RANGES` export edilmiyor (grep boş)
+- İpucu: var — `getHintText` (`www/js/modes/frekans-cakismasi.js:511-518`, aşamaya göre farklı metin)
+- Atla (X): var — `#nextBtn` (paylaşılan)
+- Mod içi "i": var — `#gameInfoBtn` (paylaşılan)
+- Zorluk göstergesi: var — `#levelChip` (bu modda da gizlenmiyor)
+- Cevap biçimi: **aşamalı** — 3 aşama, `stageForIndex(sessionQuestionIndex)` (`frekans-cakismasi.js:88-96`, oturum soru sırasına göre: ilk 3 soru Aşama 1, sonraki 3 Aşama 2, gerisi Aşama 3): Aşama 1 (çakışma frekansını bul) 3–6 şık (`diff.options`), Aşama 2 (hangi kaynaktan kesilecek) TAM 2 şık sabit (`frekans-cakismasi.js:322`), Aşama 3 (kaç dB kesilecek) 3–6 şık
+
+---
+
+## 2) MERKEZİ BAĞLANTILAR
+
+- **`#feedbackBox`** — Tanım: `www/index.html:252` (`#feedbackClose` içinde nested, satır 253). Davranış: `setFeedback(title, detail, showResult, bad)` (`www/js/app.js:1176-1184`). Kullanan modlar: Kesim Noktası/dB Seviyesi/Boost-Cut/Q Genişliği/Kompresör-Reverb-Distortion (three-way)/Tonal Denge/Frekans Çakışması — hepsi `submit*Guess` fonksiyonlarında `feedback.showResult=true` ile bunu birincil sonuç kartı olarak kullanıyor (`submitCutoffGuess` app.js:2335, `submitLevelGuess` 2431, `submitBoostCutGuess` 2510, `submitQWidthGuess` 2597, `submitThreeWayGuess` 2679, `submitTonalDengeGuess` 2761, `submitCakismaGuess` 2838). **İstisna:** Frekans Bulma (`submitFrequencyGuess`, app.js:2233) ve Pro Plus (`submitProPlusGuess`, app.js:2924) `showResult=false` geçip bunun yerine daha zengin `#freqInfo` panelini kullanır (`mode.showFreqInfoPanel`, app.js:2271/2291).
+- **`#feedbackClose`** (`.fb-close`) — Tanım: `www/index.html:253`. TEK merkezi event-delegation ile bağlı (mod başına AYRI listener YOK): `els.feedbackBox.addEventListener("click", e => { if (e.target.closest(".fb-close")) goToNextRound(); })` (`www/js/app.js:4119-4121`). Bekleme süresini atlayıp direkt sıradaki soruya geçer.
+- **`#abToggle`** — Tanım: `www/index.html:262`. Merkezi davranış: `updateAbToggleUI()` (`www/js/app.js:1247-1263`) — `isThreeWayModule(mode)` (satır 1249) iki-yönlü/üç-yönlü dalını seçer. Uzun-basma zamanlayıcısı: `abPressTimer` (satır 589), pointerdown→520ms→`startAbLoop()` (satır 4008-4015), pointerup/leave'de iptal (4018-4019). `startAbLoop`/`stopAbLoop` tanımları `www/js/app.js:3104-3117`. Frekans Çakışması'nda gizli (`syncCakismaVisibility`, satır 911).
+- **`guideSheet`** (`#guideSheetOverlay`/`#guideSheet`) — Tanım: `www/index.html:902-910`, `.app-shell` kökünde (G71 düzeltmesiyle `#screen-menu`'nün içinden buraya taşındı — eskiden `.screen{display:none}` yüzünden oyun ekranından açılamıyordu, açıklama yorumu `index.html:889-901`). Açan: `openGuideSheet(modeId)` (`app.js:4228-4262`), kapatan: `closeGuideSheet()` (`app.js:4264-4266`). Tetikleyiciler: `#menuInfoBtn` (`app.js:4268`), mod kartı `.mode-info-btn` (`app.js:1699-1703`), `#gameInfoBtn` (`app.js:4274-4278`).
+- **`lvlSheet`** (`#lvlSheetOverlay`/`#lvlSheet`) — Tanım: `www/index.html:381-389`, `#screen-game` İÇİNDE (guideSheet'in aksine cross-screen sorunu hiç yaşamadı, çünkü tetikleyicisi de aynı ekranda). Açan: `openLevelSheet()` (`app.js:4211-4214`) → `renderLevelSheet()` (`app.js:4160-4210`, `levelSheetTermsFor(modeId)` ile mod-özel terim kullanıyor, bkz. §4). Tetikleyici: `#levelChip` click (`app.js:4220`).
+- **`--actionbar-h`** — CSS özel değişkeni, `www/styles.css:51` (`168px`). Kullanım: `www/styles.css:320` — oyun ekranının kaydırılabilir alanına `margin-bottom:calc(var(--actionbar-h) + env(safe-area-inset-bottom))` vererek sabit alt kontrol çubuğunun içeriği örtmesini engelliyor. Stylesheet'te sadece bu iki geçiş var.
+- **Diğer mimari önemde paylaşılan ID'ler:**
+  - `#hearts` — can göstergesi, `www/index.html:128`, `els.hearts` `app.js:201`, tüm modlarda mod-agnostik (branşlama yok).
+  - `#answers` — şıklı/kart/kaydırıcı cevap konteyneri, `www/index.html:240`, `els.answers` `app.js:300`, her modun kendi `renderAnswerChoices()`'ı `syncAnswerArea()` (`app.js:930-938`) üzerinden mod-agnostik dispatch edilir.
+  - `#analyzer`/`#visualizer` — spektrum kartı ve GERÇEK canvas id'si (`#canvas` DEĞİL — JS'te `els.canvas = document.getElementById("visualizer")`, `app.js:246`) — `www/index.html:220,227`.
+  - `#levelChip` — yukarıda ayrıca ele alındı, tüm modlarda aynı tetikleyici.
+  - `#gameSettingsSheet`/`#gameSettingsBtn` — "..." (dots) ikonuyla açılan Oyun Ayarları, tüm modlarda aynı.
+  - `#difficultySelect` — zorluk seçici `<select>`, sadece Oyun Ayarları sheet'inin içinde, oyun ekranında doğrudan görünmez (`www/index.html:290-296`).
+
+---
+
+## 3) MEKANİK GERÇEĞİ (kodda ŞU AN ne var)
+
+**Kombo:** `stats.combo++` + `stats.bestCombo = Math.max(...)` doğru cevapta, her modun kendi submit fonksiyonunda tekrarlanan AYNI iki satır (9 tekrar — `www/js/app.js:2252-2253, 2357-2358, 2452-2453, 2537-2538, 2618-2619, 2700-2701, 2779-2780, 2857-2858, 2945-2946`). Yanlış cevapta/süre dolunca `stats.combo = 0` (`app.js:2218` süre dolumu, ve her modun kendi yanlış-dalı: 2282, 2384, 2473, 2559, 2639, 2721, 2800, 2879, 2965). **XP'yi etkiliyor:** `comboBoost = Math.min(2.4, 1 + combo * 0.12)` (`www/js/modes/frekans-bulma.js:507`, tüm modlarda aynı formül) — 12 combo'da tavan (2.4×). Ayrıca in-session `score`'u da etkiliyor: `diffState().score += gained * Math.max(1, stats.combo)` (`app.js:2259`).
+
+**Boss round / son soru:** `isBossRound(roundsCompleted) { return (roundsCompleted+1) % 5 === 0; }` — TEK tanım `www/js/modes/frekans-bulma.js:306-308`, diğer 8 mod aynı fonksiyonu import/re-export ediyor. `www/js/app.js:3261`: `const boss = examActive ? false : mode.isBossRound(stats.rounds);` — sınav/telafi fazlarında boss BİLEREK devre dışı. Süre: `Math.max(6, baseTime - 2)` boss'ta (`app.js:3215-3216`, 6sn taban). XP: `bossBoost = question.boss ? 1.65 : 1` (tüm modlarda aynı sabit). **"Son soru" (10. soru) için AYRI bir davranış YOK** — `challenge.done>=challenge.total` (`app.js:3133`) SADECE `finishChallenge()`'ı tetikler, süre/zorluk/XP'de 10. soruya özel bir dallanma bulunamadı; boss 5'lik kendi bağımsız döngüsünde çalışmaya devam eder.
+
+**Can dolumu:** `TOTAL_LIVES=5`, `LIVES_REFILL_INTERVAL_MS=30*60*1000` (`www/js/core/paywall.js:99-100`). `onLifeLost()` (satır 105-108) SADECE canlar TAM 5'ten düşünce zamanlayıcıyı sıfırlar (5→4'te sıfırlanır, 3→2'de sıfırlanmaz — zaten işleyen sayaç bozulmaz). `applyLivesRefill()` (satır 116-127): geçen süre/30dk = tam sayı "tick" kadar can (`Math.floor`), 5'te tavanlanır, saat geri alınırsa (`now<=lastRefillAt`) sıfır can + dokunulmamış referans. Çağrı noktaları (`syncLives()`, `app.js:965-976`): açılış (`app.js:4654`), "Tekrar dene" akışı (`4476`), "Sıfırla" butonu (`4531`), sekme ön plana dönünce (`visibilitychange`, `4642`), "Reklam izle" (`5586`). **`setInterval` YOK** — sadece bu 5 ayrık tetiklenme noktasında, gerçek geçen zamana göre lazy hesaplanıyor.
+
+**calculateXP formülü — MOD BAŞINA AYRI (paylaşılan bir fonksiyon YOK):** `grep "function calculateXP" www/js/modes/*.js` → 10 eşleşme, her mod dosyası kendi bağımsız fonksiyonunu export ediyor (`www/js/core/registry.js`'in `registerMode`/`getMode`'u ile modül namespace'i olarak kayıtlı, `app.js` `mode.calculateXP(...)` çağırıyor — hangi mod aktifse onun implementasyonu çalışır). Yapı (kopyala-yapıştır kaynaklı) TÜM 10 modda aynı: `base(zorluk tablosu) × comboBoost × hintPenalty(ipucu kullanıldıysa 0.5) × bossBoost × timeBoost(süre %55'ten fazla kaldıysa 1.2) × xpMultiplier`. Taban XP tabloları (easy/medium/hard/pro/proplus): Frekans Bulma 16/24/36/52/45 (`frekans-bulma.js:39-43`), Kompresör 14/22/32/46/46 (`kompresor.js:175-179`), Tonal Denge 18/28/40/58/58 (`tonal-denge.js:160-164`), Frekans Çakışması 16/24/36/52/52 (`frekans-cakismasi.js:111-115`). **Mod-özel istisnalar:** Frekans Bulma'nın proplus dalı isabet oranıyla ölçekliyor (`ratio*1.5`, satır 514-517); Frekans Çakışması `STAGE_XP_MULTIPLIER = {1:0.8, 2:0.9, 3:1.3}` ile aşamaya göre ek çarpan uyguluyor (satır 416, 426); Tonal Denge `proximityBoost = max(0.55, proximityScore/100)` ile "ne kadar yakın doğru" ölçekliyor (satır 407-409) — doğru/yanlış ikili DEĞİL, dereceli.
+
+**Seviye eşiği:** `xpNeeded(level) = 120 + (level-1)*70` (`www/js/core/progress.js:3-5`) — seviye 1 için taban 120, her ek seviye +70. `levelFromXp`/`xpProgress` bunu döngüyle harcayarak seviyeyi bulur (satır 7-25). `modeXp` mod başına ayrı XP havuzu okur (satır 46-48). `modeLevel` ham XP seviyesini sınav-aktif modlarda `examLevel`'a kilitler (satır 62-67, `Math.min`). `academyLevel` tüm modların `modeLevel()`'lerinin TOPLAMI (satır 78-80, ortalama DEĞİL).
+
+**10 soruluk bölüm sayacı:** `let challenge = { active:false, total:10, done:0, correct:0, xp:0 };` (`app.js:763`), yeniden başlatma `startChallenge()` (`app.js:3396`). Artış `challengeTick()` (`app.js:3412-3417`), bitiş kontrolü `app.js:3133`. **AYRI bir değişken:** `roundsInThisPlaySession` (`app.js:627`, artış `app.js:3295`) — oturum boyunca kurulan TÜM soruların sayacı (challenge aktif olsun olmasın artar, zorluk rampasını/free-limit'i besler, `challenge.done`'dan BAĞIMSIZ, challenge başlayınca sıfırlanmaz). **Sınav sisteminin `PARKUR_LENGTH=10`'u** (`www/js/core/exam-system.js:57`) `challenge.total`'dan TAMAMEN AYRI bir sistem — kendi `position` sayacını tutuyor (exam-system.js:135), ve `app.js:3129-3133`'teki yorum sınavın "10'un ötesine geçebildiğini" (erken sınav + telafi turları) bu yüzden `challenge.done>=10`'un sınav aktifken BİLEREK bastırıldığını açıkça belirtiyor. Bonus: challenge'ın +%50 XP'si `CHALLENGE_XP_MULT=1.5` (`app.js:764`), `xpMult()` (`app.js:766`) ile her modun `calculateXP`'ine `xpMultiplier` olarak geçiyor.
+
+---
+
+## 4) BİLİNEN AÇIKLARIN BUGÜNKÜ DURUMU
+
+- **dB modunda arka plan spektrumu — DÜZELTİLMİŞ (G39, bu oturumdan ÇOK ÖNCE).** `db-seviyesi.js:47`: `export const SHOW_SPECTRUM = false;` — `app.js:3461`'deki `if (mode.SHOW_SPECTRUM !== false)` koşuluyla genel FFT çizimi atlanıyor, kendi dikey-bar görseli (`drawDbBars`) kullanılıyor. DURUM.md G39 kaydı canlı tarayıcıda doğrulanmış: "dB Seviyesi'ne girildi → arka planda spektrum çubukları YOK... Kesim Noktası'na geçildi → spektrum çubukları NORMAL çalışıyor (regresyon yok)." **Bugün de kod aynı durumda, doğrulandı.**
+- **Q Genişliği'nde cevap sonrası 42px kayma — DÜZELTİLMİŞ (G58).** Kök sebep paylaşılan altyapıdaydı, Q Genişliği'ne özgü değildi: `#feedbackBox` ÖNCEDEN `display:none`→`display:block` ile ANİDEN yükseklik kazanıyordu, `.game-scroll`'u kaydırıyordu. Düzeltme: `.fb` artık `display` değil `visibility` ile gizleniyor + `min-height:100px` ile yer PEŞİNEN ayrılıyor. Canlı doğrulanan sayılar (DURUM.md G58): Q Genişliği 54.5px→**0px**, Boost/Cut 54.5px→**0px**, Kesim Noktası 38px→2px, dB Seviyesi 80px→2px. **Kapsam dışı bırakılan AYRI bir bulgu:** Frekans Bulma hâlâ ~244.5px kayıyor çünkü bu mod `#feedbackBox` KULLANMIYOR, kendi `#freqInfo` panelini kullanıyor — o mekanizma bu düzeltmenin kapsamına HİÇ girmedi, hâlâ AÇIK (ayrı bir iş olarak DURUM.md'de not düşülmüş).
+- **Kompresör'de cevap sonrası A şıkkında renk uygulanmaması — İNCELENDİ, KOD MANTIĞI DOĞRU BULUNDU, bir yarış-durumu SERTLEŞTİRİLEREK KAPATILDI (G58).** `markThreeWayCards`'ın harf-eşleme mantığında sistematik bir hata YOK — canlı testte A hem doğruyken hem yanlışken ayrı ayrı denendi, ikisinde de doğru renklendi; `test/three-way-cards.test.mjs` (6 test) bunu kilitliyor. Bulunan GERÇEK ama nadir sorun: Kompresör'ün otomatik A/B/C döngüsünün (`setInterval`) kuyruğa alınmış bir çağrısı, cevap anındaki `clearInterval` ile durdurulamayıp `cycleThreeWayPreview()`'ı yine de tetikleyebiliyordu. Savunma eklendi: `cycleThreeWayPreview()` artık `if (!roundActive) return;` ile başlıyor — **bu satır bugün kodda mevcut, doğrulandı** (`www/js/app.js:3080`). **Dürüstlük notu (G58'in kendi kaydı, hâlâ geçerli):** A'nın gerçekten renklenmediği bir durum canlı olarak YAKALANAMADI — kapatılan, koda göre teorik olarak mümkün olan bir pencereydi.
+- **`renderLevelSheet`'in tüm modlarda aynı dili konuşması — DÜZELTİLMİŞ (G64), satır numarası ARTIK app.js:3929 DEĞİL.** O tarihte fonksiyon `core/difficulty-curve.js`'in jenerik `difficultyParams()`'ını (Frekans Bulma için yazılmış, "Bant genişliği/Değişim miktarı" döndüren) TÜM 10 modda çağırıyordu. Düzeltme: yeni `core/level-sheet-terms.js` (`LEVEL_SHEET_TERMS`, 10 mod → kendi `sensitivityLabel`/`amountLabel`/`formatSensitivity`/`formatAmount`'ı), `renderLevelSheet` artık `levelSheetTermsFor(modeId)` çağırıyor. **Bugün doğrulandı:** fonksiyon şu an `www/js/app.js:4160`'ta (satır numarası kaymış, kod tabanı G64'ten beri büyüdü), içinde `const terms = levelSheetTermsFor(modeId);` satırı GERÇEKTEN var (`app.js:4166`). `test/level-sheet-terms.test.mjs` (17 test) her modun gerçek `paramsForDifficultyPosition`'ıyla çökmediğini/doğru birim taşıdığını kilitliyor. **Dürüstlük notu (G64'ün kendi kaydı, hâlâ geçerli):** canlı/cihaz UI doğrulaması (kart düzeni, uzun etiketlerin taşması) hiçbir zaman yapılamadı — sadece Node'da metin önizlemesi + testler.
+
+---
+
+## DOĞRULAMA
+
+- **Mod başlığı sayısı:** 10/10 (frekans-bulma, kesim-noktasi, q-genisligi, boost-mu-cut-mu, db-seviyesi, kompresor, reverb, distortion, tonal-denge, frekans-cakismasi).
+- **Öğe satırı sayısı (§1):** 10 mod × 11 öğe = 110 satır, hepsinde ya gerçek ID/dosya:satır ya "yok" var.
+- **"Yok" sayısı (§1):** 10 — kesim-noktasi/q-genisligi/boost-mu-cut-mu/db-seviyesi/kompresor/reverb/distortion/tonal-denge'nin her birinde 1'er (Odak aralığı), frekans-cakismasi'nde 2 (Döngü + Odak aralığı). frekans-bulma'da 0 (tek istisna — hem odak aralığı hem dokunmalı format bu modda var).
+- **Benzersiz DOM id/class/CSS-değişkeni sayısı (§1+§2'de dosya:satırla anılan):** 34 — `#startBtn`, `#abToggle`, `#sourceChipWrap`, `#sourceSelect`, `#focusChipWrap`, `#hintBtn`, `#nextBtn`, `#gameInfoBtn`, `#levelChip`, `#lvlSheetOverlay`, `#lvlSheet`, `#visualizer`, `#analyzer`, `#answers`, `#freqInfo`, `#feedbackBox`, `#feedbackClose`, `.fb-close`, `#hearts`, `#cakismaCompare`, `#cakismaBefore`, `#cakismaAfter`, `#cakismaPairChipWrap`, `#cakismaPairSelect`, `#guideSheetOverlay`, `#guideSheet`, `#menuInfoBtn`, `.mode-info-btn`, `#gameSettingsSheet`, `#gameSettingsBtn`, `#difficultySelect`, `#answerFormatChipWrap`, `#bossChip`, `--actionbar-h`.
