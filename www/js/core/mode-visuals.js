@@ -11,14 +11,32 @@
 // UĞRAŞMAZ, mode.getMeta().id'yi bilir.
 //
 // G75 DÜZELTMESİ: kart üstüne bindirilen "i" (sol üst) ve PRO (sağ üst) rozetleri
-// CSS köşelerinde SABİT piksel boyutta dururken, buradaki SVG preserveAspectRatio=
-// "none" ile YATAYDA esner (dar kartta sıkışır, geniş kartta gerilir) — bu yüzden
-// birkaç gövdenin köşe metni/şekli rozetle çakışıyordu (comp:"OUT", db:"+4 dB?",
-// reverb: dry referans çubuğu, mask:"KICK"/"BAS" — canlı ekran görüntüsüyle
-// doğrulandı, bkz. DURUM.md G75 raporu). DÜŞEY eksen preserveAspectRatio'dan
-// ETKİLENMEZ (viewBox yüksekliği 84 = kart yüksekliği 84px HER ZAMAN 1:1), bu
-// yüzden düzeltmeler köşe metinlerini y>=34'e indirerek yapıldı — rozetlerin
-// düşey alanı (y:8-28 CSS/viewBox ortak) her kart genişliğinde SABİT kalır.
+// CSS köşelerinde SABİT piksel boyutta dururken, SVG o zamanki preserveAspectRatio=
+// "none" ile YATAYDA esniyordu (dar kartta sıkışır, geniş kartta gerilir) — bu
+// yüzden birkaç gövdenin köşe metni/şekli rozetle çakışıyordu (comp:"OUT",
+// db:"+4 dB?", reverb: dry referans çubuğu, mask:"KICK"/"BAS" — canlı ekran
+// görüntüsüyle doğrulandı, bkz. DURUM.md G75 raporu) — köşe metinleri y>=34'e
+// indirilerek düzeltildi (rozetlerin düşey alanı, o zaman SADECE dikey eksen
+// preserveAspectRatio'dan ETKİLENMEDİĞİ için, her kart genişliğinde SABİTTİ).
+// G76 DÜZELTMESİ (kart yüksekliği): preserveAspectRatio artık "none" DEĞİL,
+// "xMidYMid slice" — .mode-card-viz artık SABİT 84px DEĞİL (bkz. styles.css
+// .mode-card-viz notu), satır arkadaşının metin bloğu daha uzunsa BÜYÜYOR;
+// "none" ile bu büyüme görseli DAHA DA esnetirdi (oranlar bozulur), "slice"
+// yerine HER İKİ eksende TEK bir ölçekle (kapsayan/cover) büyütüp taşan
+// kısmı ORTALANMIŞ olarak kırpıyor — oranlar KORUNUYOR.
+// G76 DÜZELTMESİ (kırpma): "slice"e geçiş AYRI bir sorun ortaya çıkardı —
+// kart genişliği (166px, 2 sütunlu dar ekran) TASARIM oranından (200:84)
+// DAR olduğu için container HER ZAMAN (görsel hiç büyümese, sabit 84px
+// kalsa BİLE) kırpılıyor — ölçek yükseklik tarafından belirleniyor (84/84=1
+// > 166/200=0.83), görünen viewBox genişliği ~166, HER kenardan ~17 birim
+// kırpılıyor. Kenara yakın metinler (comp:"OUT" x=8, reverb: dry çubuğu x=8,
+// tonal:"karanlık" x=14/"parlak" x=186, mask:"KICK" x=14, comp:"IN dB"
+// x=186) bu yüzden GERÇEKTEN görünmez oluyordu (canlı ekran görüntüsüyle
+// doğrulandı — "OUT" tamamen kayboldu) — hepsi x:~30-172 güvenli bandına
+// kaydırıldı. reverb'in dry çubuğu (dekoratif, metin DEĞİL) sadece x=8→20
+// ile KISMEN iyileştirildi (tamamen ortalamak dizideki ilk çubukla
+// çakışırdı) — çok dar cihazlarda hâlâ hafif kırpılabilir, kabul edilebilir
+// (bkz. DURUM.md G76 raporu).
 
 const CYAN = "#22d3ee";
 const CYAN_DIM = "rgba(34,211,238,0.22)";
@@ -84,8 +102,8 @@ function compBody() {
     <path d="M14,76 L72,36 C80,30 88,28 100,26 L186,16" fill="none" stroke="${CYAN}" stroke-width="2"/>
     <circle cx="72" cy="36" r="3.5" fill="${CYAN}"/>
     <text x="80" y="50" font-size="8" font-family="Inter" font-weight="600" fill="#7cd8e8">knee · 4:1</text>
-    <text x="186" y="79" text-anchor="end" font-size="7" font-family="Inter" fill="#4a4f56">IN dB</text>
-    <text x="8" y="37" font-size="7" font-family="Inter" fill="#4a4f56">OUT</text>`;
+    <text x="172" y="79" text-anchor="end" font-size="7" font-family="Inter" fill="#4a4f56">IN dB</text>
+    <text x="32" y="37" font-size="7" font-family="Inter" fill="#4a4f56">OUT</text>`;
 }
 
 function dbBody() {
@@ -112,7 +130,7 @@ function reverbBody() {
     bars += `<rect x="${x}" y="${46 - hgt}" width="5" height="${hgt * 2}" rx="2.5" fill="${CYAN}" opacity="${Math.max(0.12, 1 - i * 0.07)}"/>`;
   }
   return `
-    <rect x="8" y="34" width="7" height="46" rx="3.5" fill="${CYAN}"/>
+    <rect x="20" y="34" width="7" height="46" rx="3.5" fill="${CYAN}"/>
     ${bars}
     <text x="100" y="12" text-anchor="middle" font-size="8" font-family="Inter" font-weight="600" fill="#7cd8e8">decay 1.8 s</text>`;
 }
@@ -124,8 +142,8 @@ function tonalBody(gradId) {
     <path d="${flat}" fill="none" stroke="#5a6068" stroke-width="1.5" stroke-dasharray="4 3"/>
     <path d="${tilt} L190,84 L10,84 Z" fill="url(#${gradId})"/>
     <path d="${tilt}" fill="none" stroke="${CYAN}" stroke-width="2"/>
-    <text x="14" y="76" font-size="7" font-family="Inter" fill="#4a4f56">karanlık</text>
-    <text x="186" y="16" text-anchor="end" font-size="7" font-family="Inter" fill="#4a4f56">parlak</text>`;
+    <text x="32" y="76" font-size="7" font-family="Inter" fill="#4a4f56">karanlık</text>
+    <text x="172" y="37" text-anchor="end" font-size="7" font-family="Inter" fill="#4a4f56">parlak</text>`;
 }
 
 function distBody() {
@@ -153,7 +171,7 @@ function maskBody() {
     <path d="${kick}" fill="none" stroke="${CYAN}" stroke-width="1.8"/>
     <path d="${bass}" fill="none" stroke="${AMBER}" stroke-width="1.8"/>
     <rect x="52" y="26" width="46" height="58" fill="rgba(255,80,80,0.08)"/>
-    <text x="14" y="37" font-size="8" font-family="Inter" font-weight="700" fill="${CYAN}">KICK</text>
+    <text x="34" y="37" font-size="8" font-family="Inter" font-weight="700" fill="${CYAN}">KICK</text>
     <text x="150" y="37" font-size="8" font-family="Inter" font-weight="700" fill="${AMBER}">BAS</text>`;
 }
 
@@ -188,7 +206,7 @@ export function modeVisualSvg(modeId) {
   const bodyFn = kind && BODY_BY_KIND[kind];
   if (!bodyFn) return null;
   const gradId = `modeviz-grad-${modeId}`;
-  return `<svg width="100%" height="100%" viewBox="0 0 ${GRID_W} ${GRID_H}" preserveAspectRatio="none" style="display:block">` +
+  return `<svg width="100%" height="100%" viewBox="0 0 ${GRID_W} ${GRID_H}" preserveAspectRatio="xMidYMid slice" style="display:block">` +
     `<defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">` +
     `<stop offset="0" stop-color="rgba(34,211,238,0.35)"/><stop offset="1" stop-color="rgba(34,211,238,0)"/>` +
     `</linearGradient></defs>${gridLines()}${bodyFn(gradId)}</svg>`;

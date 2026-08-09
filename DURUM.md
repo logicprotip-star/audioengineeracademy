@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G75)
+Son güncelleme: 09.08.2026 (G76)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,83 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G75, tek commit) — **Ana Ekran düzeltmeleri — G74'ün 5 bug'ı
+Bu commit (G76, tek commit) — **Mod kartı yükseklik düzeltmesi — G75'in
+eşit-yükseklik çözümü fazla boyu metnin ALTINA ölü boşluk olarak
+ekliyordu, artık GÖRSELE gidiyor**
+
+**SORUN (kullanıcı raporu):** G75'te eklenen `.mode-card{height:100%}` +
+`.mode-grid{align-items:stretch}` satırdaki kartları hizalıyordu ama
+`.mode-card-body{flex:1}` fazla boyu KENDİSİ yutuyordu (`.mode-card-desc`
+`flex:1` ile büyüyordu) — tek satırlık açıklaması olan kartlarda (Reverb,
+Kesim Noktası, Frekans Bulma) metnin altında geniş, görünür boş alan
+kalıyordu, görsel (`.mode-card-viz`, SABİT 84px) küçük duruyordu.
+
+**DÜZELTME:**
+1. `.mode-card-viz{height:84px}` → `min-height:84px;flex:1` — artık BÜYÜYOR.
+2. `.mode-card-body{flex:1}` → flex:1 KALDIRILDI, artık SADECE içeriği
+   kadar yer kaplıyor (fazla boy body'e DEĞİL viz'e gidiyor).
+3. `.mode-card-desc{flex:1}` → flex:1 kaldırıldı (body artık stretch
+   olmadığı için dağıtılacak fazla boşluk hiç kalmıyordu, ölü/etkisiz
+   kural haline gelmişti).
+4. SVG `preserveAspectRatio="none"` → `"xMidYMid slice"` (task'ın kendi
+   isteği) — viz artık değişken yükseklikte olduğu için "none" ile büyüme
+   görseli DAHA DA esnetirdi (oranlar bozulur); "slice" HER İKİ eksende
+   TEK ölçekle (kapsayan/cover) büyütüp taşanı ORTALANMIŞ kırpıyor —
+   oranlar KORUNUYOR.
+
+**YAN ETKİ, CANLI TARAYICIDA BULUNUP DÜZELTİLDİ (task'ın kapsamında
+DEĞİLDİ ama "slice"e geçişin DOĞRUDAN sonucuydu, atlanamazdı):** "slice"
+kırpması SADECE görsel büyüdüğünde değil, kart TASARIM ORANINDAN (200:84)
+dar olduğunda da (166px'lik dar-ekran kartı, sabit 84px yükseklikte bile)
+tetikleniyor — ölçek yükseklik tarafından belirleniyor (84/84=1 >
+166/200=0.83), her kenardan ~17 birim kırpılıyor. Kenara yakın metinler
+GERÇEKTEN kayboluyordu (canlı ekran görüntüsüyle doğrulandı — Kompresör'ün
+"OUT" etiketi TAMAMEN görünmez olmuştu): `mode-visuals.js`'te comp:"OUT"
+(x=8→32), reverb: dry çubuğu (x=8→20, kısmi iyileştirme — tam ortalamak
+dizideki ilk çubukla çakışırdı), tonal:"karanlık" (x=14→32)/"parlak"
+(x=186→172, AYRICA y=16→37 — PRO rozetinin altında kaldığı SONRADAN fark
+edildi), mask:"KICK" (x=14→34), comp:"IN dB" (x=186→172) — hepsi x:~30-172
+güvenli bandına kaydırıldı.
+
+**Testler:** DEĞİŞMEDİ (`mode-visuals.test.mjs` SVG'nin varlığını/gradyan
+id'sini test ediyor, koordinat değişiklikleri bu testleri BOZMUYOR).
+`npm test`: **1043/1043** (değişmedi — bu tur salt CSS/SVG koordinat
+düzeltmesi, test kapsamı G75'te zaten tamamdı).
+
+**DOĞRULAMA (canlı tarayıcı, `python3 -m http.server` port 8042 +
+Claude-in-Chrome, temiz `localStorage`, hem 258px masaüstü hem 166px
+dar-ekran proxy testi — G74/G75'teki AYNI yöntem):**
+- **Grid satırlarında kart yükseklik farkı: 0px** — her 5 satırda, HER İKİ
+  genişlikte de `Math.max(heights) - Math.min(heights) === 0` ölçüldü.
+- **Metin bloğunun altındaki boşluk: 0px, 10 modun HEPSİNDE, HER İKİ
+  genişlikte** — `.mode-card-body`'nin son GÖRÜNÜR çocuğunun alt kenarı ile
+  body'nin (padding çıkarılmış) alt kenarı arasındaki fark ölçüldü, hedef
+  ≤12px'ti, GERÇEK sonuç 0px (hiçbir kart artık ölü boşluk taşımıyor).
+- **Görsel/kart yükseklik oranı, 10 mod için (dar / geniş):** Frekans
+  Bulma 0.506/0.6, Kesim Noktası 0.506/0.6, Q Genişliği 0.497/0.6, Boost mu
+  Cut mu 0.515/0.6, dB Seviyesi 0.592/0.6, Kompresör 0.497/0.6, Reverb
+  0.497/0.6, Tonal Denge 0.497/0.6, Distortion 0.586/0.647, Frekans
+  Çakışması 0.41/0.53 (en düşük oran — bu kartın kendi gövdesi en uzun,
+  2 satır isim + açıklama + "günde 1 ücretsiz" rozeti, viz büyümeye en az
+  ihtiyaç duyan kart).
+- **Kenar-kırpma regresyonu tek tek doğrulandı:** Kompresör "OUT",
+  Frekans Çakışması "KICK", Tonal Denge "karanlık"/"parlak", Reverb dry
+  çubuğu — DÜZELTMEDEN ÖNCE ekran görüntüsünde GERÇEKTEN kayboluyordu/
+  kesikti, DÜZELTMEDEN SONRA hepsi tam okunuyor (zoom ekran görüntüsüyle
+  doğrulandı). "i"/PRO rozeti çakışması (G75'in konusu) YENİDEN test
+  edildi, regresyon YOK.
+- **`npm test`: 1043/1043.**
+- `PROTOTIP-KAPSAM.md` bu commit'e DAHİL edildi (üç turdur staged
+  bekliyordu, task'ın açık isteğiyle).
+
+**KORUMA:** paywall/erişim mantığı, sınav sistemi, ses/zorluk, spotlight,
+`academyLevel`/XP mantığı (G75) TEK SATIR değişmedi — sadece
+`.mode-card-viz`/`.mode-card-body`/`.mode-card-desc` CSS kuralları ve
+`mode-visuals.js`'teki SVG koordinatları/preserveAspectRatio.
+
+---
+
+Önceki commit (G75, tek commit) — **Ana Ekran düzeltmeleri — G74'ün 5 bug'ı
 kapatıldı, madde 15 (Sv tutarsızlığı) DAHİL**
 
 Tasarım kaynağı: `Tasarim-2026-08/Ana Ekran.dc.html` (aynı, G74'teki).
@@ -5792,16 +5868,19 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G75 itibarıyla):** AÇIK İŞLER madde 14 — G67-G75'in
+**Tek sonraki adım (G76 itibarıyla):** AÇIK İŞLER madde 14 — G67-G76'nın
 TAMAMI (kalıcı "i" + SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu +
-G74'ün yeni ana ekranı + G75'in 5 düzeltmesi) GERÇEK CİHAZDA (bu turda da
-SADECE masaüstü Chrome'da doğrulandı, iOS WKWebView'de HENÜZ değil — font
-rendering/safe-area farkları VE özellikle G75 madde 4'ün Safari grid-
-stretch savunması gerçek Safari'de test edilmeli) elle denenmeli. Ayrıca
-BEKLEYEN KARARLAR madde J (ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini
-yavaşlatması) kullanıcı onayı bekliyor. Aşağıdaki liste (G59 itibarıyla
-güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini
-kapsıyor.
+G74'ün yeni ana ekranı + G75'in 5 düzeltmesi + G76'nın kart yükseklik/SVG
+slice düzeltmesi) GERÇEK CİHAZDA (bu turda da SADECE masaüstü Chrome'da
+doğrulandı, iOS WKWebView'de HENÜZ değil — font rendering/safe-area
+farkları VE özellikle şunlar Safari'de YENİDEN doğrulanmalı: G75 madde
+4'ün grid-stretch savunması, G76'nın SVG `preserveAspectRatio="xMidYMid
+slice"` kırpma matematiği — bu turda Chrome'da ölçülüp doğrulandı ama
+font metrikleri Safari'de farklı olursa kenar-güvenlik marjı [x:~30-172]
+yeniden gözden geçirilmeli) elle denenmeli. Ayrıca BEKLEYEN KARARLAR madde
+J (ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini yavaşlatması) kullanıcı
+onayı bekliyor. Aşağıdaki liste (G59 itibarıyla güncellendi) bu adımdan
+BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma
 (unlockLevel:1, free), Kesim Noktası (2, free), Q Genişliği (3, free), Boost
