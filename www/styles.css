@@ -835,16 +835,80 @@
        doğrulandı, bkz. DURUM.md G58 BİTTİ). G73: bu turda da SADECE renk
        değişti — min-height/visibility mekanizmasına, dolayısıyla --actionbar-h
        ile ilişkisine TEK SATIR dokunulmadı (bkz. DOĞRULAMA raporu). */
-    .fb{position:relative;padding:14px 16px;border-radius:var(--r-panel);background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);visibility:hidden;min-height:100px}
-    .fb.show-result{visibility:visible}
-    .fb-head{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:700;color:#8FF3D8;padding-right:32px}
-    .fb-dot{width:20px;height:20px;flex:none;border-radius:99px;background:var(--gr)}
-    .fb p{margin:8px 0 0;font-size:14px;line-height:1.5;color:var(--tx-2)}
-    .fb.bad{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3)}
-    .fb.bad .fb-head{color:#FFB3C2}
-    .fb.bad .fb-dot{background:var(--rd)}
+    /* G81: Tasarim-2026-08/Geri Bildirim.dc.html'in birebir uygulaması —
+       ikon dairesi + başlık/alt başlık + XP rakamı, combo/boss/hız/ipucu/bölüm
+       kırılım satırı, açıklama kutusu, otomatik-geçiş çubuğu. min-height/
+       visibility mekanizması (G58 kök-sebep düzeltmesi) KORUNDU — kart cevap
+       ÖNCESİ de SONRASI kadar yer kaplıyor, cevap gelince ANİ yükseklik
+       sıçraması (dolayısıyla scroll kayması) olmuyor. min-height yeni içerik
+       (ikon satırı + combo satırı + açıklama + ilerleme çubuğu) için ~192px'e
+       çıkarıldı (canlı ölçülüp DOĞRULAMA raporunda teyit edilecek).
+       @keyframes shakeX/popIn/countdown4/countdown6 tasarım dosyasından BİREBİR. */
+    @keyframes fbShakeX{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+    @keyframes fbPopIn{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
+    @keyframes fbCountdown{from{width:100%}to{width:0%}}
 
-    /* Geri bildirim kartı karşılaştırma butonları (prototype.html: cmprow/cmp) */
+    .fb{position:relative;padding:16px 16px 14px;border-radius:var(--r-panel);
+      background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);
+      visibility:hidden;min-height:192px}
+    .fb.show-result{visibility:visible}
+    .fb.show-result.bad{animation:fbShakeX 300ms ease-in-out}
+    .fb.bad{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3)}
+
+    .fb-result-row{display:flex;align-items:center;gap:12px;padding-right:26px}
+    .fb-icon{width:40px;height:40px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;
+      background:var(--green-grad);animation:fbPopIn 250ms 80ms cubic-bezier(.2,.8,.3,1.4) both}
+    .fb.bad .fb-icon{background:linear-gradient(180deg,#f88a6e,#d9553e)}
+    .fb-result-text{flex:1;min-width:0}
+    .fb-title{font-size:19px;font-weight:800;letter-spacing:-.3px;color:var(--gr)}
+    .fb.bad .fb-title{color:var(--rd)}
+    .fb-subtitle{font-size:13px;font-weight:600;color:#8fd9a4;margin-top:2px}
+    .fb.bad .fb-subtitle{color:#d9a08f}
+    .fb-xp{flex:none;text-align:right;animation:fbPopIn 300ms 200ms cubic-bezier(.2,.8,.3,1.3) both}
+    .fb-xp-value{font-size:20px;font-weight:800;letter-spacing:-.5px;color:var(--gr);font-variant-numeric:tabular-nums}
+    .fb-xp-label{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.3px}
+
+    .fb-combo-row{display:flex;align-items:center;gap:8px;margin-top:11px;padding:8px 11px;border-radius:11px;
+      background:rgba(240,180,66,.08);border:1px solid rgba(240,180,66,.28)}
+    .fb-combo-row svg{flex:none}
+    #fbComboText{font-size:12.5px;font-weight:700;color:var(--tx-2);font-variant-numeric:tabular-nums}
+    #fbComboText b{color:var(--amber);font-weight:700}
+
+    .fb p{margin:11px 0 0;padding:11px 12px;border-radius:12px;background:var(--card-grad);
+      border:1px solid var(--border);font-size:13px;line-height:1.55;color:var(--tx-2)}
+
+    /* ---- otomatik geçiş çubuğu — doğru 4sn/yanlış 6sn (koddan, DEĞİŞMEDİ),
+       scheduleNext'e VERİLEN gerçek süreyle app.js'te senkron başlatılıyor;
+       karşılaştırma önizlemesi sırasında (cmpPreview duraklatması) JS ile
+       AYNI anda paused. */
+    .fb-advance{margin-top:11px}
+    .fb-advance-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;
+      font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-muted);text-transform:uppercase}
+    .fb-advance-track{height:2px;border-radius:1px;background:rgba(255,255,255,.08);overflow:hidden}
+    #fbAdvanceBar{display:block;height:100%;border-radius:1px;background:linear-gradient(90deg,#2fbf46,#4ade80)}
+    .fb.bad #fbAdvanceBar{background:linear-gradient(90deg,#d9553e,#f88a6e)}
+    #fbAdvanceBar.run{animation-name:fbCountdown;animation-timing-function:linear;animation-fill-mode:forwards}
+    #fbAdvanceBar.paused{animation-play-state:paused}
+
+    /* ---- "kulak" omuz butonları — tasarımda YOK, kullanıcının kendi
+       yerleşimi: panelin İÇİNDE değil üst kenarına oturup yukarı taşıyor.
+       SADECE Frekans Bulma'da JS ile doldurulup gösterilir (bkz. app.js).
+       Dokunma alanı min-height:40px (task'ın kendi kuralı). data-preview
+       ("mine"/"correct"/"clean") #freqInfo'nun ESKİ .cmp'siyle AYNI semantik —
+       app.js'teki delegasyon SADECE hedef elemanı değiştirdi (#feedbackBox
+       üzerinden), ses-çalma mantığı BİREBİR aynı. */
+    .fb-ear{position:absolute;top:0;transform:translateY(-52%);min-height:40px;padding:0 13px;
+      border-radius:11px;font-size:12.5px;font-weight:700;white-space:nowrap;
+      display:flex;align-items:center;gap:5px;cursor:pointer;
+      background:#14161a;box-shadow:0 4px 10px rgba(0,0,0,.35)}
+    .fb-ear-left{left:14px;border:1.5px solid var(--rd);color:#FFB3C2}
+    .fb-ear-left.neutral{border-color:var(--border-strong);color:var(--tx-2)}
+    .fb-ear-right{right:14px;border:1.5px solid var(--gr);color:#8FF3D8}
+    .fb-ear.on{background:rgba(108,140,255,.22);border-color:rgba(108,140,255,.6);color:#DCE4FF}
+
+    /* Geri bildirim kartı karşılaştırma butonları (prototype.html: cmprow/cmp) —
+       G81'den beri SADECE Pro Plus'ın #freqInfo paneli kullanıyor (bkz. app.js
+       submitProPlusGuess) — tek-bant Frekans Bulma yukarıdaki .fb-ear'a taşındı. */
     .cmprow{display:flex;gap:7px;margin-top:13px;flex-wrap:wrap}
     .cmp{flex:1 1 auto;min-height:44px;padding:9px 11px;border-radius:var(--r-card);
       border:1px solid var(--border-strong);background:rgba(255,255,255,.05);

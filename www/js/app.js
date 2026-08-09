@@ -273,6 +273,17 @@ const els = {
   timerBar: document.getElementById("timerBar"),
   feedbackBox: document.getElementById("feedbackBox"),
   feedbackDetail: document.getElementById("feedbackDetail"),
+  fbIcon: document.getElementById("fbIcon"),
+  fbTitle: document.getElementById("fbTitle"),
+  fbSubtitle: document.getElementById("fbSubtitle"),
+  fbXpBlock: document.getElementById("fbXpBlock"),
+  fbXpValue: document.getElementById("fbXpValue"),
+  fbComboRow: document.getElementById("fbComboRow"),
+  fbComboText: document.getElementById("fbComboText"),
+  fbAdvance: document.getElementById("fbAdvance"),
+  fbAdvanceBar: document.getElementById("fbAdvanceBar"),
+  fbEarLeft: document.getElementById("fbEarLeft"),
+  fbEarRight: document.getElementById("fbEarRight"),
 
   // alt aksiyon çubuğu
   startBtn: document.getElementById("startBtn"),
@@ -1207,25 +1218,149 @@ function hideSessionEnd() {
 // Geri bildirim / genel UI yardımcıları
 // ═══════════════════════════════════════════════════════════════════════════
 
+// G81: Tasarim-2026-08/Geri Bildirim.dc.html'in ikon SVG'leri — dosyadaki
+// renderVals()'ın check/cross path'leriyle BİREBİR aynı (path verisi
+// kopyalandı, sadece boyut/stroke rengi burada CSS'ten geliyor).
+const FB_ICON_CHECK = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#06230e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg>`;
+const FB_ICON_CROSS = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2a0d09" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>`;
+
+// title/detail: setFeedback()'İN ESKİ imzası TEK SATIR değişmedi (10 mod × ~20
+// çağrı sitesi hâlâ AYNI 4 parametreyi geçiyor) — SADECE #feedbackBox'ın
+// İÇİNDEKİ yapı G81'de yeniden kuruldu (bkz. index.html). detail'in sonundaki
+// " (+N XP)" (9 modun getFeedbackData'sının ORTAK deseni, bkz. o dosyaların
+// dosya başı notu) burada KIRPILIYOR — XP artık ayrı #fbXpBlock'ta gösteriliyor,
+// mode dosyalarına DOKUNULMADI (metin aynı üretiliyor, sadece EKRANDA tekrar
+// etmesin diye görüntüleme katmanında bir kez kesiliyor).
+// Her çağrı XP/combo/kulak bloklarını SIFIRLAR — bunlar SADECE showXpBreakdown()/
+// showEarButtons() ile (setFeedback'TEN SONRA, ayrı bir satırda) açılır; bu
+// yüzden "yanlış" dalları hiçbir şey çağırmadan otomatik gizli kalır.
 function setFeedback(title, detail, showResult = false, bad = false) {
-  els.feedbackBox.querySelector("strong").textContent = title;
-  els.feedbackDetail.textContent = detail;
+  els.fbTitle.textContent = title;
+  els.feedbackDetail.textContent = (detail || "").replace(/\s*\(\+\d+ XP\)$/, "");
+  els.fbIcon.innerHTML = bad ? FB_ICON_CROSS : FB_ICON_CHECK;
   els.feedbackBox.classList.toggle("show-result", !!showResult);
   els.feedbackBox.classList.toggle("bad", !!bad);
+  if (els.fbSubtitle) { els.fbSubtitle.textContent = ""; els.fbSubtitle.classList.add("hidden"); }
+  if (els.fbXpBlock) els.fbXpBlock.classList.add("hidden");
+  if (els.fbComboRow) els.fbComboRow.classList.add("hidden");
+  if (els.fbEarLeft) els.fbEarLeft.classList.add("hidden");
+  if (els.fbEarRight) els.fbEarRight.classList.add("hidden");
+  stopFeedbackAdvanceBar();
   // Gerçek bir sonuç kartı gösterildiğinde (ambient/durum mesajları değil) kartın
   // tamamı görünür olsun diye alan yeniden ölçülür ve en alta kaydırılır.
   if (showResult) scrollFeedbackIntoView();
 }
 
-// F1: cevap sonrası #feedbackBox (basit başlık+metin) ve #freqInfo (mode.showFreqInfoPanel/
-// showProPlusInfoPanel — karşılaştırma butonlu zengin panel) AYNI bilgiyi tekrar
-// ediyordu, iki ayrı kart olarak görünüyordu. Tek kart kalsın diye submitFrequencyGuess/
-// submitProPlusGuess artık #feedbackBox'ı GÖSTERMİYOR (showResult=false) — ama eski
-// panelde olup yeni panelde HİÇ olmayan iki bilgi vardı (kalite sözcüğü: "🎯 Tam
-// isabet!"/"Çok iyi!"/"Doğru!", ve yanlışta "Kalan can: N") — mode dosyalarına
-// dokunmadan (bkz. iş kuralları) bunlar burada, #freqInfo'nun İÇİNE küçük bir not
-// olarak ekleniyor. Var olan .cmprow'un (karşılaştırma butonları) hemen üstüne
-// yerleşir; proplus'ta .cmprow yok, o zaman panelin sonuna eklenir.
+// G81: #fbSubtitle — SADECE yapısal (panel: {zone,guessHz,...}) veri taşıyan
+// modlarda anlamlı bir kısa özet üretilebiliyor (bugün SADECE Frekans Bulma,
+// bkz. showFrequencyFeedback). Diğer 9 modun getFeedbackData'sı TEK bir
+// detail metni döndürüyor (ayrı bir "özet" alanı YOK) — UYDURMAMAK için o
+// modlarda bu satır hiç çağrılmıyor, alt başlık boş/gizli kalıyor.
+function setFeedbackSubtitle(text) {
+  if (!els.fbSubtitle || !text) return;
+  els.fbSubtitle.textContent = text;
+  els.fbSubtitle.classList.remove("hidden");
+}
+
+// G81: "kulak" omuz butonları — kullanıcının kendi isteği (tasarımda YOK).
+// Sol omuz: yanlışta "Senin cevabın" (kırmızı, data-preview="mine" +
+// data-guess-hz), doğruda "Temiz" (nötr, data-preview="clean"). Sağ omuz HER
+// ZAMAN "Doğru cevap" (yeşil, data-preview="correct"). Tıklama app.js'in
+// #feedbackBox click delegasyonunda (bkz. aşağı) — preview semantiği
+// #freqInfo'nun ESKİ .cmp'siyle BİREBİR aynı (buildQuestionChain). SADECE
+// Frekans Bulma'nın "frequency" sorularında çağrılır (Kesim Noktası/proplus/
+// diğer sekiz mod bu butonları hiç görmez).
+function showFrequencyEars(ok, guessHz) {
+  if (!els.fbEarLeft || !els.fbEarRight) return;
+  els.fbEarLeft.classList.remove("hidden");
+  els.fbEarRight.classList.remove("hidden");
+  els.fbEarLeft.classList.toggle("neutral", ok);
+  if (ok) {
+    els.fbEarLeft.textContent = "Temiz";
+    els.fbEarLeft.dataset.preview = "clean";
+    delete els.fbEarLeft.dataset.guessHz;
+  } else {
+    els.fbEarLeft.textContent = "Senin cevabın";
+    els.fbEarLeft.dataset.preview = "mine";
+    els.fbEarLeft.dataset.guessHz = String(guessHz);
+  }
+  els.fbEarRight.dataset.preview = "correct";
+  els.fbEarLeft.classList.remove("on");
+  els.fbEarRight.classList.remove("on");
+}
+
+// Gerçek XP kırılımı — CLAUDE.md/task kuralı: "uydurma sayı yazma". Tüm
+// çarpanlar calculateXP()'ye GEÇİLEN AYNI context'ten (bkz. her submit
+// fonksiyonunun kendi calculateXP çağrısı) veya mode'un KENDİ DIFFICULTY/
+// xpBase'inden okunuyor — burada YENİDEN icat edilen hiçbir sayı yok.
+// extraFactor: {label, value} — SADECE Tonal Denge'nin proximityBoost'u gibi
+// calculateXP içinde combo/boss/hız/ipucu/bölüm'ün DIŞINDA GERÇEKTEN var olan
+// bir 6. çarpanı taşıyan modlar için (bkz. submitTonalDengeGuess). Diğer 9
+// modda undefined — hiçbir şey eklemez.
+function xpBaseFor(q, level) {
+  const diff = mode.DIFFICULTY[level] || mode.DIFFICULTY.medium;
+  return typeof mode.xpBase === "function" ? mode.xpBase(q, level) : diff.xp;
+}
+function fmtFactor(v) {
+  return String(Math.round(v * 100) / 100);
+}
+function showXpBreakdown(q, level, gained, extraFactor) {
+  if (!els.fbXpBlock || !gained) return;
+  els.fbXpValue.textContent = `+${gained}`;
+  els.fbXpBlock.classList.remove("hidden");
+
+  const base = xpBaseFor(q, level);
+  const comboBoost = Math.min(2.4, 1 + (stats.combo || 0) * 0.12);
+  const hintPenalty = q.hintUsed ? 0.5 : 1;
+  const bossBoost = q.boss ? 1.65 : 1;
+  const timeBoost = roundFlow.timeLeft > roundFlow.roundDuration * 0.55 ? 1.2 : 1;
+  const challengeBoost = xpMult();
+
+  const parts = [];
+  if (comboBoost > 1.001) parts.push(`<b>${fmtFactor(comboBoost)} combo</b>`);
+  if (bossBoost > 1) parts.push(`<b>${fmtFactor(bossBoost)} boss</b>`);
+  if (timeBoost > 1) parts.push(`<b>${fmtFactor(timeBoost)} hız</b>`);
+  if (hintPenalty < 1) parts.push(`<b>${fmtFactor(hintPenalty)} ipucu</b>`);
+  if (challengeBoost > 1) parts.push(`<b>${fmtFactor(challengeBoost)} bölüm</b>`);
+  if (extraFactor) parts.push(`<b>${fmtFactor(extraFactor.value)} ${extraFactor.label}</b>`);
+
+  if (!parts.length) { els.fbComboRow.classList.add("hidden"); return; }
+  els.fbComboText.innerHTML = `${Math.round(base)} XP ${parts.map(p => `× ${p}`).join(" ")}`;
+  els.fbComboRow.classList.remove("hidden");
+}
+
+// G81: otomatik-geçiş çubuğu — scheduleNext'e VERİLEN gerçek süreyle (4000/6000/
+// QUICK_ADVANCE_MS) senkron başlar, karşılaştırma önizlemesi (cmp preview)
+// duraklattığında JS ile AYNI anda paused/resumed (bkz. #feedbackBox click
+// delegasyonu ve cancelCmpPreviewPause). Süreler KODDAN — burada icat edilmiş
+// yeni bir zamanlama sistemi YOK, SADECE var olan setTimeout süresiyle aynı
+// CSS animation-duration.
+function startFeedbackAdvanceBar(ms) {
+  if (!els.fbAdvanceBar || !ms) return;
+  els.fbAdvanceBar.classList.remove("run", "paused");
+  void els.fbAdvanceBar.offsetWidth; // animasyonu yeniden BAŞLATMAK için zorla reflow
+  els.fbAdvanceBar.style.animationDuration = `${ms}ms`;
+  els.fbAdvanceBar.classList.add("run");
+}
+function pauseFeedbackAdvanceBar() {
+  if (els.fbAdvanceBar) els.fbAdvanceBar.classList.add("paused");
+}
+function resumeFeedbackAdvanceBar() {
+  if (els.fbAdvanceBar) els.fbAdvanceBar.classList.remove("paused");
+}
+function stopFeedbackAdvanceBar() {
+  if (!els.fbAdvanceBar) return;
+  els.fbAdvanceBar.classList.remove("run", "paused");
+}
+
+// F1 (G81'de daraltıldı): Pro Plus HÂLÂ #freqInfo + #feedbackBox'ı AYNI ANDA
+// kullanıyor (#feedbackBox showResult=false, sade), showProPlusInfoPanel'in
+// kendi içeriğinde olmayan bir bilgiyi (kalite başlığı/kalan can) panelin
+// İÇİNE not olarak ekler — bkz. submitProPlusGuess. Frekans Bulma'nın tek-bant
+// "frequency" sorusu G81'de #feedbackBox'a taşındığı için (bkz. showFrequencyEars/
+// setFeedbackSubtitle) ARTIK bu fonksiyonu kullanmıyor, mode dosyalarına
+// dokunmadan aynı ihtiyacı doğrudan #feedbackBox'ın kendi alanlarından
+// karşılıyor.
 function appendFreqInfoNote(text, ok) {
   if (!els.freqInfo || !text) return;
   const note = document.createElement("div");
@@ -2447,15 +2582,19 @@ function submitFrequencyGuess(guessHz) {
     session.correct++; session.xp += gained;
 
     const feedback = mode.getFeedbackData(q, guessHz, { gained });
-    // F1: #feedbackBox artık GÖSTERİLMİYOR (showResult zorla false) — #freqInfo aynı
-    // bilgiyi zaten veriyor. feedback.title'daki kalite sözcüğü ("🎯 Tam isabet!" vb.)
-    // #freqInfo'nun kendi içeriğinde YOK, kaybolmasın diye panelin içine taşınıyor.
-    setFeedback(feedback.title, feedback.detail, false, false);
-    if (prefs.feedbackScreen) {
-      mode.showFreqInfoPanel(els.freqInfo, feedback);
-      appendFreqInfoNote(feedback.title, true);
-      scrollFeedbackIntoView();
-    }
+    // G81: Frekans Bulma artık DİĞER DOKUZ modla AYNI yüzeyi (#feedbackBox)
+    // kullanıyor — #freqInfo SADECE Pro Plus için kalıyor (bkz. submitProPlusGuess).
+    // Bu, #freqInfo'nun display:none aç/kapa'sının yol açtığı ~201px ekran
+    // kaymasını da kapatıyor (G58'de diğer sekiz mod için yapılan visibility
+    // düzeltmesi artık Frekans Bulma'ya da uygulanmış oluyor, bkz. .fb CSS).
+    // title/detail feedback.title/detail'İN KENDİSİ (mode dosyası DEĞİŞMEDİ);
+    // subtitle/açıklama result.zone/act/quality gibi ZATEN VAR OLAN yapılı
+    // veriden türetiliyor, UYDURULMUŞ metin yok.
+    setFeedback(feedback.title, feedback.detail, true, false);
+    setFeedbackSubtitle(`${formatHz(q.freq)} ${result.act} · ${result.zone.t.split(" (")[0]}`);
+    showXpBreakdown(q, q.difficulty, gained);
+    showFrequencyEars(true, guessHz);
+    scrollFeedbackIntoView();
     mode.recordZone(zoneStats, q.freq, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -2468,19 +2607,25 @@ function submitFrequencyGuess(guessHz) {
     session.wrong++;
 
     const feedback = mode.getFeedbackData(q, guessHz, { gained: 0 });
-    // F1: aynı — #feedbackBox gösterilmiyor, loseLife de silent (kendi panelini
-    // göstermiyor); "Kalan can: N" bilgisi kaybolmasın diye #freqInfo'nun içine
-    // taşınıyor (currentLives, loseLife çağrısından SONRA okunuyor — güncel değer).
-    setFeedback(feedback.title, feedback.detail, false, true);
-    if (prefs.feedbackScreen) mode.showFreqInfoPanel(els.freqInfo, feedback);
+    // G81: aynı — #freqInfo yerine #feedbackBox. "Kalan can: N" (loseLife
+    // SONRASI okunan GÜNCEL değer) appendExamNote'un AYNI deseniyle
+    // #feedbackDetail'e eklenir (bkz. o fonksiyon).
+    setFeedback(feedback.title, feedback.detail, true, true);
+    setFeedbackSubtitle(`Sen ${formatHz(result.guessHz)} dedin (${mode.closenessWord(result.dOct)}, ${result.dir})`);
+    showFrequencyEars(false, result.guessHz);
     mode.recordZone(zoneStats, q.freq, false, result.dOct);
     audioEngine.sfxBuzz();
     shake(els.canvas);
     loseLife("Frekansı ıskaladın.", { silent: true });
-    if (prefs.feedbackScreen) {
-      appendFreqInfoNote(currentLives > 0 ? `Kalan can: ${currentLives}` : "Canların tükendi.", false);
-      scrollFeedbackIntoView();
+    // "Kalan can: N" — appendExamNote'un (bkz. o fonksiyon) AYNI "zaten
+    // yazılmış karta ekle" deseni, SADECE isim sınav'a özgü olduğu için
+    // burada aynı tek satır tekrarlanıyor (currentLives, loseLife SONRASI
+    // okunan GÜNCEL değer).
+    if (els.feedbackDetail) {
+      const note = currentLives > 0 ? `Kalan can: ${currentLives}` : "Canların tükendi.";
+      els.feedbackDetail.textContent = `${els.feedbackDetail.textContent} ${note}`;
     }
+    scrollFeedbackIntoView();
     challengeTick(false, 0);
   }
 
@@ -2558,6 +2703,7 @@ function submitCutoffGuess(answer) {
     // kullandığı için showResult:false geçtiği yerlerle KARIŞTIRILMASIN —
     // buradaki `false` öğretici metnin hiç görünmemesine yol açan bir hataydı).
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    showXpBreakdown(q, q.difficulty, gained);
     mode.recordZone(zoneStats, q.freq, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -2648,6 +2794,7 @@ function submitLevelGuess(value) {
 
     const feedback = mode.getFeedbackData(q, value, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    showXpBreakdown(q, q.difficulty, gained);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
@@ -2733,6 +2880,7 @@ function submitBoostCutGuess(answer) {
 
     const feedback = mode.getFeedbackData(q, answer, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    showXpBreakdown(q, q.difficulty, gained);
     if (q.layer === 3) mode.recordZone(zoneStats, q.freq, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -2814,6 +2962,7 @@ function submitQWidthGuess(labelId) {
 
     const feedback = mode.getFeedbackData(q, labelId, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    showXpBreakdown(q, q.difficulty, gained);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
@@ -2896,6 +3045,7 @@ function submitThreeWayGuess(letter) {
 
     const feedback = mode.getFeedbackData(q, letter, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    showXpBreakdown(q, q.difficulty, gained);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
@@ -2975,6 +3125,14 @@ function submitTonalDengeGuess() {
 
     const feedback = mode.getFeedbackData(q, answer, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    // Tonal Denge'nin calculateXP'si (bkz. modes/tonal-denge.js) combo/boss/hız/
+    // ipucu/bölüm'ün DIŞINDA GERÇEK bir 6. çarpan taşıyor: proximityBoost —
+    // doğru sayılan bir cevapta bile nötüre ne kadar yakın kalındığına göre
+    // (result.proximityScore) XP'yi ölçekler. Diğer 9 modda YOK — sadece burada,
+    // AYNI formülle (Math.max(.55, proximityScore/100)) kırılıma eklendi; mode'un
+    // KENDİ "Yakınlık %N" terminolojisi (bkz. getFeedbackData/o dosyanın notu)
+    // kullanıldı, UYDURULMUŞ bir etiket değil.
+    showXpBreakdown(q, q.difficulty, gained, { label: "yakınlık", value: Math.max(0.55, (result.proximityScore || 0) / 100) });
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
@@ -3053,6 +3211,7 @@ function submitCakismaGuess(answer) {
 
     const feedback = mode.getFeedbackData(q, answer, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    showXpBreakdown(q, q.difficulty, gained);
     if (q.stage === 1) mode.recordZone(zoneStats, q.trueCenter, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -3332,6 +3491,13 @@ function ensureAutoNext(durationMs) {
   // (challenge.active ? "Soru N/10" : "Sonraki") BİREBİR aynı kalır.
   const label = examGateActive() ? examSystem.label() : challenge.active ? `Soru ${challenge.done + 1}/10` : "Sonraki";
   roundFlow.ensureAutoNext(durationMs, label);
+  // G81: geri bildirim kartının otomatik-geçiş çubuğu — SADECE kart GERÇEKTEN
+  // görünürken (show-result) başlatılır, tam olarak BURADA kurulan JS
+  // zamanlayıcısıyla AYNI durationMs ile (örn. QUICK_ADVANCE_MS/onTimeUp gibi
+  // kart göstermeyen çağrılarda show-result zaten yok, çubuk hiç başlamaz).
+  if (els.feedbackBox && els.feedbackBox.classList.contains("show-result")) {
+    startFeedbackAdvanceBar(durationMs);
+  }
 }
 
 function scheduleNext(durationMs) {
@@ -4255,26 +4421,29 @@ if (els.abLoopBtn) els.abLoopBtn.addEventListener("click", () => {
   else startAbLoop();
 });
 
-// Geri bildirim kartındaki karşılaştırma butonları (prototype.html: cmprow/setCmp).
-// mode.showFreqInfoPanel her cevaptan sonra #freqInfo'yu YENİDEN kurduğu için
-// (innerHTML tamamen değişiyor) tek tek buton değil, sabit kalan #freqInfo üzerinde
-// delegasyon kullanılıyor. Prototipte butonlar sadece görsel toggle'dı (statik
-// mockup); burada üçü de GERÇEK ses çalıyor — activeQuestion'ın kendisini
-// MUTASYONA UĞRATMADAN geçici bir soru kopyası üzerinden buildQuestionChain'i
-// yeniden kuruyor (aynı desen: her önizleme sıfırdan bir zincir, kalıcı graf
-// mutasyonu yok — bkz. CLAUDE.md "Ses motoru notları").
-// G15: X (kapat) butonu OTOMATİK geçişle BİRLİKTE çalışır (G14'te kaldırılmıştı,
-// kullanıcı kararıyla geri getirildi) — üç durum: X'e basan hemen sıradaki soruya
-// geçer; hiçbir şeye basmayan otomatik geçişi bekler; karşılaştırma dinleyen kişi
-// için otomatik geçiş dinleme bitene kadar ertelenir. Ses hâlâ çalıyorsa X ile
-// her zaman atlanabilir.
-if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
-  if (e.target.closest(".freq-info-close")) {
+// G81: Frekans Bulma'nın tek-bant karşılaştırma önizlemesi #feedbackBox'a
+// (.fb-ear "kulak" omuz butonları) TAŞINDI — #freqInfo artık SADECE Pro Plus
+// için kullanılıyor (bkz. submitProPlusGuess/showProPlusInfoPanel, o modun
+// KENDİ cmprow'u/önizlemesi YOK, SADECE kapat butonu var). Bu yüzden burada
+// SADECE .freq-info-close kaldı.
+if (els.freqInfo) els.freqInfo.addEventListener("click", (e) => {
+  if (e.target.closest(".freq-info-close")) goToNextRound();
+});
+
+// G81: Geri bildirim kartındaki karşılaştırma önizlemesi ("kulak" omuz
+// butonları, bkz. index.html #fbEarLeft/#fbEarRight + showFrequencyFeedback).
+// ESKİDEN #freqInfo'nun .cmp'siydi (G15/F2) — mantık BİREBİR aynı taşındı,
+// SADECE hedef eleman (#freqInfo → #feedbackBox) ve buton class'ı (.cmp →
+// .fb-ear) değişti. Butonlar #feedbackBox'ın SABİT çocukları (showFrequencyFeedback
+// innerHTML'i YENİDEN KURMAZ, SADECE textContent/dataset günceller) — yine de
+// delegasyon kullanılıyor (diğer .fb-close deseniyle TUTARLI).
+if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
+  if (e.target.closest(".fb-close")) {
     goToNextRound();
     return;
   }
-  const btn = e.target.closest(".cmp");
-  if (!btn || !activeQuestion || activeQuestion.mode !== "frequency") return;
+  const btn = e.target.closest(".fb-ear");
+  if (!btn || btn.classList.contains("hidden") || !activeQuestion || activeQuestion.mode !== "frequency") return;
 
   const preview = btn.dataset.preview;
   let guessQuestion = null;
@@ -4286,7 +4455,7 @@ if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
     return;
   }
 
-  els.freqInfo.querySelectorAll(".cmp").forEach(c => c.classList.remove("on"));
+  els.feedbackBox.querySelectorAll(".fb-ear").forEach(c => c.classList.remove("on"));
   btn.classList.add("on");
 
   await audioEngine.initAudio();
@@ -4299,20 +4468,16 @@ if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
   }
 
   // F2 (kullanıcı kararı): önizleme sırasında otomatik-geçiş sayacı duraklar.
-  // G15: bu bekleme ARTIK kaynağın döngü uzunluğuna DEĞİL, SABİT CMP_PREVIEW_RESUME_MS
-  // süresine bağlı (bkz. DURUM.md madde 13 — eskiden loopAwarePreviewMs uzun bir
-  // yüklenen dosyada bu süreyi dakikalarca sürecek şekilde buffer'ın TAM UZUNLUĞUNA
-  // yuvarlıyordu). Önizleme sesi (loop:true) burada DURDURULMUYOR — kesilmeden çalmaya
-  // devam eder, sadece otomatik-geçiş zamanlayıcısı bu sabit süre sonunda yeniden
-  // kurulur; asıl susturma bir sonraki turun buildQuestionChain'indeki stopAudio()
-  // ile (ya da kullanıcı X'e basarsa hemen) gerçekleşir.
+  // G81: otomatik-geçiş ÇUBUĞU da (fbAdvanceBar) AYNI anda paused — JS
+  // zamanlayıcısıyla görsel olarak SENKRON kalsın diye.
+  pauseFeedbackAdvanceBar();
   clearTimeout(cmpPreviewStopTimer);
   if (cmpPreviewRemainingMs === null) {
     cmpPreviewRemainingMs = roundFlow.captureRemainingAndClear();
   }
   cmpPreviewStopTimer = setTimeout(() => {
     cmpPreviewStopTimer = null;
-    els.freqInfo.querySelectorAll(".cmp").forEach(c => c.classList.remove("on"));
+    els.feedbackBox.querySelectorAll(".fb-ear").forEach(c => c.classList.remove("on"));
     // G15 düzeltme: captureRemainingAndClear() orijinal otomatik-geçiş zamanlayıcısı bu
     // önizlemeye basılana kadar zaten ateşlenmişse (gerçek dünyada birkaç saniye sürebilir)
     // null döner. Eskiden bu null değeri "yeniden kurma" adımını tamamen atlatıyordu ve tur
@@ -4322,19 +4487,12 @@ if (els.freqInfo) els.freqInfo.addEventListener("click", async (e) => {
     const remain = cmpPreviewRemainingMs;
     cmpPreviewRemainingMs = null;
     if (activeQuestion && !autoStopped) ensureAutoNext(remain);
+    // G81: JS zamanlayıcısı remain kadar bir süre için YENİDEN kurulduğu anda
+    // çubuk da devam eder — animation-play-state:paused sırasında GEÇEN zaman
+    // sıfırlanmadığı için (tarayıcı animasyonu kaldığı yerden sürdürür) kalan
+    // görsel süre JS'in remain'iyle KENDİLİĞİNDEN eşleşir, ayrı bir hesap YOK.
+    resumeFeedbackAdvanceBar();
   }, CMP_PREVIEW_RESUME_MS);
-});
-
-// G27: X (kapat) butonu artık MERKEZİ — #freqInfo'nun .freq-info-close'uyla AYNI
-// goToNextRound() semantiği (basınca hemen sıradaki soru, basılmazsa hizalı otomatik
-// geçiş devam eder), ama #feedbackBox STATİK bir HTML elemanı olduğu (setFeedback()
-// sadece .textContent günceller, innerHTML'i asla YENİDEN KURMAZ — bkz. #freqInfo'nun
-// AKSİNE) için TEK bir delegasyon burada yeter: Kesim Noktası/dB Seviyesi/Boost mu Cut
-// mu/Q Genişliği (ve #feedbackBox kullanan HER GELECEK mod) hiçbir mod-dosyası/app.js
-// değişikliği GEREKMEDEN bunu otomatik alır — buton zaten index.html'de, .fb.show-
-// result ile AYNI anda görünür/gizlenir (bkz. styles.css).
-if (els.feedbackBox) els.feedbackBox.addEventListener("click", e => {
-  if (e.target.closest(".fb-close")) goToNextRound();
 });
 
 els.hintBtn.addEventListener("click", giveHint);

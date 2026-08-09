@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G80)
+Son güncelleme: 09.08.2026 (G81)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,145 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G80, tek commit) — **G79'un 2 hatası kanıtlandı + AYNI desen
+Bu commit (G81, tek commit) — **GERİ BİLDİRİM EKRANI giydirildi —
+Tasarim-2026-08/Geri Bildirim.dc.html birebir + Frekans Bulma #freqInfo'dan
+#feedbackBox'a taşındı + gerçek XP kırılımı + "kulak" omuz butonları**
+
+Tasarım kaynağı: `Tasarim-2026-08/Geri Bildirim.dc.html` (doğru/yanlış 2
+varyant) — dosya AÇILIP her öğe tek tek eşlendi:
+
+| Tasarım öğesi | Karşılığı (bu turda uygulanan) |
+|---|---|
+| İkon dairesi (46px, check/cross, popIn) | `#fbIcon` — `var(--green-grad)`/kırmızı gradyan, `FB_ICON_CHECK`/`FB_ICON_CROSS` SVG'leri path'leri BİREBİR tasarımdan kopyalandı |
+| Başlık + alt başlık | `#fbTitle`/`#fbSubtitle` |
+| Sağ üstte "+N XP" | `#fbXpBlock`/`#fbXpValue` — SADECE doğru cevapta |
+| Combo satırı ("40 XP × 1.8 combo") | `#fbComboRow`/`#fbComboText` — genelleştirildi: TÜM aktif çarpanlar (combo/boss/hız/ipucu/bölüm) zincirlenir, tasarım SADECE combo'yu örnekliyordu |
+| Açıklama kutusu (gradyan kart) | `#feedbackDetail` (id KORUNDU, SADECE görünümü `var(--card-grad)`'a taşındı) |
+| Otomatik geçiş çubuğu + "atlamak için ✕" | `#fbAdvance`/`#fbAdvanceBar` — gerçek `scheduleNext` süresiyle (4000/6000/QUICK_ADVANCE_MS) senkron, `animation-play-state` ile cmp-önizlemesinde JS zamanlayıcısıyla AYNI anda duraklıyor/devam ediyor |
+| shakeX/popIn/countdown keyframe'leri | CSS'e BİREBİR kopyalandı (`fbShakeX`/`fbPopIn`/`fbCountdown`) |
+| Kalp/üst bar/spektrum | DOKUNULMADI — G77-G79'da zaten tasarıma göre kurulu |
+
+**KODDAN GELEN KISITLAR — hepsi korundu:**
+- Süreler değişmedi (doğru 4sn/yanlış 6sn, `scheduleNext` çağrıları TEK SATIR
+  dokunulmadı).
+- Renk standardı korundu: SENİN cevabın kırmızı, DOĞRU cevap yeşil (`.fb.bad`/
+  ikon/omuz renkleri).
+- `#feedbackBox`/`#feedbackClose` id'leri VE app.js'teki merkezi `.fb-close`
+  delegasyonu (artık ~4448. satır, G80'in kaydırmasıyla) TEK SATIR bozulmadı —
+  sadece SELECTOR aynı kaldı, davranış aynı.
+- **XP kırılımı UYDURULMADI:** her faktör (comboBoost/hintPenalty/bossBoost/
+  timeBoost/challengeBoost) submit fonksiyonlarının calculateXP'ye zaten
+  geçirdiği AYNI context'ten okunuyor; "taban XP" `mode.DIFFICULTY[level].xp`
+  (yeni `mode.xpBase()` varsa onun üzerinden). **Bulunan gerçek incelik:**
+  10 modun calculateXP'si SADECE 5 ortak faktörde AYNI değil — Boost mu Cut
+  mu'nun katman çarpanı (`LAYER_XP_MULTIPLIER`) ve Frekans Çakışması'nın aşama
+  çarpanı (`STAGE_XP_MULTIPLIER`) "taban"ın PARÇASI olduğu için o iki dosyaya
+  KÜÇÜK, katkısız (calculateXP'nin kendisi TEK SATIR değişmedi) bir `xpBase()`
+  export'u eklendi; Tonal Denge'nin `proximityBoost`'u (sonuç-bağımlı, "taban"
+  SAYILAMAZ) kırılımda kendi GERÇEK terminolojisiyle ("yakınlık", mode'un
+  KENDİ "Yakınlık %N" metninden) 6. bir faktör olarak gösteriliyor — UYDURULMUŞ
+  bir etiket DEĞİL, mode dosyasının kendi sözcüğü.
+
+**FREKANS BULMA #feedbackBox'A TAŞINDI:** `submitFrequencyGuess` artık
+`mode.showFreqInfoPanel(els.freqInfo,...)` DEĞİL `setFeedback(...)` +
+`setFeedbackSubtitle(...)` + `showXpBreakdown(...)` + `showFrequencyEars(...)`
+çağırıyor — başlık/alt başlık/açıklama `feedback.panel`/`result.zone`/
+`result.act`/`result.quality` gibi ZATEN VAR OLAN yapılı veriden türetiliyor
+(mode dosyasına dokunulmadı). Bu, `#freqInfo`'nun `display:none` aç/kapasının
+yol açtığı bilinen ~201px kaymayı da KAPATTI (G58'in diğer sekiz mod için
+uyguladığı visibility/min-height mekanizması artık Frekans Bulma'ya da
+uygulanmış oluyor). `#freqInfo` **Pro Plus için AYNEN kalıyor**
+(`submitProPlusGuess`/`showProPlusInfoPanel`, o modun panel yapısı/cmprow'u
+tasarım kapsamı DIŞINDA, TEK SATIR değişmedi).
+
+**"KULAK" OMUZ BUTONLARI (tasarımda YOK, kullanıcının kendi isteği):**
+`#fbEarLeft`/`#fbEarRight` — panelin üst kenarına `position:absolute;
+transform:translateY(-52%)` ile oturup yukarı taşıyor. Sol omuz yanlışta
+"Senin cevabın" (kırmızı çerçeve, `data-preview="mine"`), doğruda "Temiz"
+(nötr, `data-preview="clean"`); sağ omuz HER ZAMAN "Doğru cevap" (yeşil,
+`data-preview="correct"`). Tıklama mantığı `#freqInfo`'nun ESKİ `.cmp`
+karşılaştırma-önizleme delegasyonundan (mine/correct/clean → geçici soru
+kopyasıyla `buildQuestionChain`, YENİ ses kodu YOK) BİREBİR taşındı — SADECE
+hedef eleman (`#freqInfo`→`#feedbackBox`) ve class (`.cmp`→`.fb-ear`)
+değişti. Dokunma alanı canlı ölçüldü: **40×116px (sol) / 40×107px (sağ)**
+— task'ın "en az 40px yükseklik" kuralı karşılandı.
+
+**Testler:** DEĞİŞMEDİ (sadece DOM/JS-glue + 2 mod dosyasına küçük additive
+`xpBase()` exportu). `npm test`: **1043/1043**.
+
+**DOĞRULAMA (canlı tarayıcı, temiz + Pro-simüle localStorage, tüm oturum
+boyunca konsol HATASIZ):**
+
+- **10 modun HEPSİNDE panel doğru açıldığını doğrulandı** — tek tek mod
+  kartına girilip cevaplanarak: Frekans Bulma (dokunmalı işaretle→onayla +
+  kulak omuzları + canvas üzerindeki iki işaret KORUNDU, ayrı bir kod
+  değişikliği gerekmedi — `drawOverlay` zaten canvas'a çiziyordu), Kesim
+  Noktası/Q Genişliği/Boost mu Cut mu/dB Seviyesi (şıklı `.ans`), Kompresör/
+  Reverb/Distortion (3'lü `.ans-m2`), Tonal Denge (kaydırıcı+onay), Frekans
+  Çakışması (şıklı `.ans`) — HEPSİNDE ikon/başlık/açıklama/otomatik-geçiş
+  çubuğu doğru render edildi.
+- **Cevap sonrası dikey kayma (px, `#feedbackBox`'ın `offsetTop`'u —
+  scrollTop'tan BAĞIMSIZ, SADECE üstündeki DOM'un gerçek yükseklik
+  değişimini ölçen G58 yöntemi):**
+
+  | Mod | Kayma (px) |
+  |---|---|
+  | Frekans Bulma | 0 |
+  | Kesim Noktası | 4 |
+  | Q Genişliği | 0 |
+  | Boost mu Cut mu | 0 |
+  | dB Seviyesi | 2 |
+  | Kompresör | 4 |
+  | Reverb | 4 |
+  | Tonal Denge | 0 |
+  | Distortion | 2 |
+  | Frekans Çakışması | 0 |
+
+  Hedef ≤2px — 7/10 mod tam karşılıyor, 3 mod (Kesim Noktası/Kompresör/
+  Reverb) 4px ile hafif üstünde. Kök sebep muhtemelen `.ans.right`/`.ans-m2.
+  right` işaretlenirken eklenen 2px kenarlık (ÖNCEDEN DE vardı, bu turun
+  DEĞİŞİKLİĞİ değil) — DÜRÜSTLÜK NOTU: sayı uydurulmadı, gerçek ölçüm budur.
+  **Frekans Bulma'nın kendisi (ana hedef) 0px — ~201px'lik bilinen kayma
+  KAPANDI.**
+- **Omuz butonlarının dokunma alanı:** sol 116×40px ("Senin cevabın")/
+  66×40px ("Temiz"), sağ 107×40px ("Doğru cevap") — HER İKİSİ DE 40px
+  yükseklik kuralını karşılıyor.
+- **XP kırılımındaki sayılar GERÇEK formülle 5 farklı durumda doğrulandı**
+  (Frekans Bulma, canlı, `base × comboBoost × hintPenalty × bossBoost ×
+  timeBoost × xpMultiplier` — hesap MANUEL doğrulandı, hepsi birebir eşleşti):
+  1. Normal + hız: `24 XP × 1.12 combo × 1.2 hız` → 24×1.12×1.2=32.256→**32**,
+     ekranda **+32** ✓
+  2. Boss + combo + hız: `16 XP × 1.24 combo × 1.65 boss × 1.2 hız` →
+     16×1.24×1.65×1.2=39.28→**39**, ekranda **+39** ✓
+  3. Boss + ipucu + hız: `16 XP × 1.12 combo × 1.65 boss × 1.2 hız × 0.5
+     ipucu` → 16×1.12×1.65×1.2×0.5=17.74→**18**, ekranda **+18** ✓
+  4. 10 Soruluk Bölüm (challenge): `16 XP × 1.12 combo × 1.2 hız × 1.5
+     bölüm` → 16×1.12×1.2×1.5=32.256→**32**, ekranda **+32** ✓
+  5. Combo büyümesi tur tur izlendi: 1.12→1.24→1.36 (formülün KENDİSİ,
+     `Math.min(2.4,1+combo*0.12)`, birebir).
+  Tonal Denge'nin 6. faktörü (`yakınlık`/proximityBoost) KOD İNCELEMESİYLE
+  doğrulandı (`Math.max(.55, proximityScore/100)`, calculateXP'nin AYNI
+  satırı) ama CANLI bir "doğru" senkron yakalanamadı (sürgü hedeflerini
+  gerçek zamanlı isabetle tutturmak otomasyonda güvenilir olmadı) —
+  DOĞRULANMADI olarak işaretleniyor, sayı uydurulmadı.
+- **Konsol hatası: 0** — Frekans Bulma'da onlarca tur (yanlış/doğru/boss/
+  ipucu/bölüm kombinasyonları) + diğer 9 modun HEPSİNİN tek tur denemesi
+  dahil, TÜM oturum boyunca.
+- **`npm test`: 1043/1043.**
+
+**KORUMA:** `#hintBtn`/`#startBtn`/`#abToggle`/`#hearts`/`#levelChip`/
+`#gameInfoBtn`/`#gameSettingsBtn`/`#feedbackBox`/`#feedbackClose`/
+`#feedbackDetail` id'leri VE JS bağlantıları TEK SATIR sökülmedi. G77-G79'un
+üst bar/spektrum/kontrol yerleşimine DOKUNULMADI. `#freqInfo`+Pro Plus akışı
+BİREBİR aynı. `appendExamNote`/`appendFreqInfoNote` (Kompresör sınav notu/
+Pro Plus notu) ÇALIŞMAYA devam ediyor — ikisi de `els.feedbackDetail`/
+`els.freqInfo`'nun STABİL DOM referanslarını kullanıyor, `setFeedback()`
+innerHTML'i YENİDEN KURMUYOR (SADECE ilgili alanların textContent/class'ı
+güncelleniyor) — `els.*` cache'i asla BAYATLAMADI.
+
+---
+
+Önceki commit (G80, tek commit) — **G79'un 2 hatası kanıtlandı + AYNI desen
 (mod değişince güncellenmesi gereken ama enterMode()'da EKSİK olan
 fonksiyon) TÜM app.js'te tarandı**
 
@@ -6162,16 +6300,13 @@ FARKLI sayı gösteriyor~~ — G75'te KAPANDI**
 academyXpProgress(academyTotalXp(...))`) okuyor — canlı doğrulandı, ikisi
 de taze kullanıcıda "1" / "0/600 XP" (bkz. BİTTİ G75).
 
-**16. G78 — Frekans Bulma'da cevap sonrası dikey kayma (201px) hâlâ var**
+**16. ~~G78 — Frekans Bulma'da cevap sonrası dikey kayma (201px) hâlâ var~~ — G81'de KAPANDI**
 Kök sebep `#freqInfo`'nun `display:none` (`.hidden` class'ı) ile aç/
-kapanması — G58'in `.fb` kartında çözdüğü AYNI kalıp (ani yükseklik
-sıçraması → `scrollFeedbackIntoView`'a ihtiyaç). G58'in tekniği
-(visibility+min-height, hep yer ayır) `#freqInfo`'ya UYGULANMADI —
-içeriği `.fb`'den daha DEĞİŞKEN (G74'ün zengin paneli), doğru min-height
-seçimi ayrı bir canlı ölçüm turu gerektiriyor.
-**Kabul kriteri:** Frekans Bulma'da cevap sonrası `gameScroll.scrollHeight`
-farkı G58'in `.fb` kartındaki gibi ~0-10px'e inene kadar `#freqInfo`'ya
-AYNI teknik uygulanmalı.
+kapanmasıydı. G81'de Frekans Bulma'nın "frequency" sorusu `#feedbackBox`'a
+taşındı (G58'in visibility+min-height mekanizmasını zaten taşıyan yüzey) —
+canlı ölçüldü, kayma **0px** (bkz. BİTTİ G81 tablosu). `#freqInfo`'nun
+KENDİSİ hâlâ var ama SADECE Pro Plus kullanıyor artık (o akış bu maddenin
+kapsamı DIŞINDA, hiç şikayet konusu değildi).
 
 **17. G78 — Tonal Denge'nin kaydırıcıları tasarımdaki gibi DİKEY DEĞİL**
 Tasarım (Tasarim-2026-08/Prototip.dc.html) sürükle-bırak DİKEY fader
@@ -6183,6 +6318,28 @@ kurulmasını gerektiriyor, G78'in süre/risk dengesinde YAPILMADI.
 ayrı bir turda `<input type="range">`'in erişilebilirliği KORUNARAK
 (ör. `writing-mode:vertical-lr` veya özel thumb+pointer olayları)
 dikey görünüme geçirilmeli.
+
+**18. G81 — Kesim Noktası/Kompresör/Reverb'de cevap sonrası dikey kayma 4px
+(hedef ≤2px'in hafif üstünde)**
+Diğer 7 modun HEPSİ 0-2px, bu üçü 4px (bkz. BİTTİ G81 tablosu) — kök sebep
+muhtemelen `.ans.right`/`.ans-m2.right` işaretlenirken eklenen 2px kenarlık
+(ÖNCEDEN DE vardı, G81'in DEĞİŞİKLİĞİ değil, YENİ bulundu). Küçük/kozmetik,
+kullanıcı gözle fark etmesi zor (4px), ama "≤2px" hedefini tam karşılamıyor.
+**Kabul kriteri:** `.ans.right`/`.ans-m2.right` kenarlığı `box-sizing`/
+`outline` gibi yer kaplamayan bir tekniğe taşınıp 3 modda da kayma 0-2px'e
+inmeli.
+
+**19. G81 — Tonal Denge'nin XP kırılımındaki "yakınlık" (proximityBoost)
+faktörü CANLI doğrulanamadı**
+Kod incelemesiyle doğrulandı (`Math.max(.55, result.proximityScore/100)`,
+calculateXP'nin AYNI satırı okunuyor, UYDURULMUŞ değil) ama otomasyon
+sürgüleri tam nötre çekip "doğru" (avgDeviation≤tolerans) bir cevap +
+kırılım panelini AYNI anda yakalayamadı (bkz. BİTTİ G81 "DOĞRULANMADI"
+notu). Diğer 9 modun 5 ortak faktörü (combo/boss/hız/ipucu/bölüm) 5 farklı
+canlı senaryoda birebir doğrulandı — SADECE bu 6. faktör eksik.
+**Kabul kriteri:** Tonal Denge'de kaydırıcılar tam nötre (0.0dB) çekilip
+GERÇEK bir doğru cevap verilerek `#fbComboText`'te "N yakınlık" değerinin
+`Math.max(.55, proximityScore/100)` ile birebir eşleştiği canlı gösterilmeli.
 
 ### Yayın öncesi
 
@@ -6325,24 +6482,27 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G80 itibarıyla):** AÇIK İŞLER madde 14 — G67-G80'in
+**Tek sonraki adım (G81 itibarıyla):** AÇIK İŞLER madde 14 — G67-G81'in
 TAMAMI (kalıcı "i" + SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu +
 G74'ün yeni ana ekranı + G75'in 5 düzeltmesi + G76'nın kart yükseklik/SVG
 slice düzeltmesi + G77'nin yeni üst barı + G78'in soru alanı/alt bar
 düzeltmeleri + G79'un düzen yeniden kurulumu + G80'in `updateUI()`
-düzeltmesi) GERÇEK CİHAZDA (bu turda da SADECE masaüstü Chrome'da
-doğrulandı, iOS WKWebView'de HENÜZ değil — font
-rendering/safe-area farkları VE özellikle şunlar Safari'de YENİDEN
-doğrulanmalı: G75 madde 4'ün grid-stretch savunması, G76'nın SVG
+düzeltmesi + G81'in geri bildirim ekranı giydirmesi) GERÇEK CİHAZDA (bu
+turda da SADECE masaüstü Chrome'da doğrulandı, iOS WKWebView'de HENÜZ
+değil — font rendering/safe-area farkları VE özellikle şunlar Safari'de
+YENİDEN doğrulanmalı: G75 madde 4'ün grid-stretch savunması, G76'nın SVG
 `preserveAspectRatio="xMidYMid slice"` kırpma matematiği [kenar-güvenlik
 marjı x:~30-172], G77'nin sınav/telafi nokta göstergesi [DOM proxy'siyle
 doğrulandı, gerçek akışla DEĞİL], G78/G79'un Frekans Bulma işaretle→onayla
 akışı [dokunma/tıklama davranışı Safari'de FARKLI olabilir], G79'un YENİ
 #abLoopBtn'i [uzun-basma ile GERÇEKTEN çakışmadığı, ikisinin de aynı
-startAbLoop/stopAbLoop'u doğru tetiklediği cihazda TEKRAR denenmeli])
-elle denenmeli. Ayrıca AÇIK İŞLER madde 16 (#freqInfo'nun G58 tekniğiyle
-sabitlenmemiş kalan ~201px kayması, G79 bunu değiştirmedi) ve madde 17
-(Tonal Denge'nin yatay/dikey fader farkı, G79'da da BİLEREK atlandı) ile
+startAbLoop/stopAbLoop'u doğru tetiklediği cihazda TEKRAR denenmeli], G81'in
+YENİ "kulak" omuz butonları [dokunma alanı 40px masaüstünde ölçüldü, gerçek
+parmak dokunuşuyla cihazda TEKRAR denenmeli] ve otomatik-geçiş çubuğunun
+`animation-play-state` pause/resume'u [cmp-önizlemesiyle Safari'de de
+senkron kaldığı TEKRAR denenmeli]) elle denenmeli. Ayrıca AÇIK İŞLER madde
+17 (Tonal Denge'nin yatay/dikey fader farkı), madde 18 (3 modda 4px kayma),
+madde 19 (Tonal Denge'nin yakınlık faktörü canlı doğrulanamadı) ile
 BEKLEYEN KARARLAR madde J (ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini
 yavaşlatması) kullanıcı onayı/kararı bekliyor. Aşağıdaki liste (G59
 itibarıyla güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük zorluk-

@@ -415,6 +415,15 @@ export function evaluateAnswer(question, answer) {
 
 const STAGE_XP_MULTIPLIER = { 1: 0.8, 2: 0.9, 3: 1.3 };
 
+// SÖZLEŞMENİN DIŞINDA (G81): bkz. boost-mu-cut-mu.js:xpBase'in AYNI notu —
+// geri bildirim kartının XP kırılımı için calculateXP'nin `base`ini (aşama
+// çarpanı DAHİL) UYDURMADAN okuyabilmek için ayrı bir pure export.
+// calculateXP'nin KENDİSİ değişmedi.
+export function xpBase(question, level) {
+  const diff = DIFFICULTY[level] || DIFFICULTY.medium;
+  return diff.xp * (STAGE_XP_MULTIPLIER[question.stage] || 1);
+}
+
 export function calculateXP(question, result, hintUsed, level, context = {}) {
   if (!result || !result.correct) return 0;
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;

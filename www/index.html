@@ -402,10 +402,47 @@
           <button type="button" class="btn on" id="cakismaAfter">Sonra</button>
         </div>
 
+        <!-- G81: Tasarim-2026-08/Geri Bildirim.dc.html'in birebir uygulaması.
+             #feedbackBox/#feedbackClose id'leri VE app.js:4336'daki merkezi
+             .fb-close delegasyonu KORUNDU — SADECE içerik yapısı (eski
+             .fb-head/.fb-dot/<strong> düz metin kartı) yeniden kuruldu.
+             #feedbackDetail id'si de KORUNDU (appendExamNote/G50 hâlâ bunu
+             .textContent ile okuyor) — artık "Açıklama" kutusunun kendisi.
+             #fbEarLeft/#fbEarRight ("kulak" omuz butonları) tasarımda YOK,
+             kullanıcının kendi isteği — SADECE Frekans Bulma'da JS ile
+             doldurulup gösterilir (bkz. app.js showFrequencyFeedback). -->
         <div class="fb" id="feedbackBox">
+          <button type="button" class="fb-ear fb-ear-left hidden" id="fbEarLeft"></button>
+          <button type="button" class="fb-ear fb-ear-right hidden" id="fbEarRight">Doğru cevap</button>
+
           <button type="button" class="fb-close" id="feedbackClose" aria-label="Kapat, sıradaki soruya geç">✕</button>
-          <div class="fb-head"><span class="fb-dot"></span><strong>Başlamak için "Oyunu Başlat"a dokun.</strong></div>
+
+          <div class="fb-result-row">
+            <div class="fb-icon" id="fbIcon"></div>
+            <div class="fb-result-text">
+              <div class="fb-title" id="fbTitle"></div>
+              <div class="fb-subtitle hidden" id="fbSubtitle"></div>
+            </div>
+            <div class="fb-xp hidden" id="fbXpBlock">
+              <div class="fb-xp-value" id="fbXpValue"></div>
+              <div class="fb-xp-label">XP</div>
+            </div>
+          </div>
+
+          <div class="fb-combo-row hidden" id="fbComboRow">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="#f0b442"><path d="M12 2c1 4-4 5.5-4 9.5a4 4 0 0 0 8 .3c1.2 1 2 2.6 2 4.2a6 6 0 1 1-12 0C6 10 12 8 12 2Z"></path></svg>
+            <span id="fbComboText"></span>
+          </div>
+
           <p id="feedbackDetail"></p>
+
+          <div class="fb-advance" id="fbAdvance">
+            <div class="fb-advance-head">
+              <span>Sonraki soru</span>
+              <span>atlamak için ✕</span>
+            </div>
+            <div class="fb-advance-track"><i id="fbAdvanceBar"></i></div>
+          </div>
         </div>
       </div>
 

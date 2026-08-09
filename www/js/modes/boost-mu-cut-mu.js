@@ -405,6 +405,16 @@ export function evaluateAnswer(question, answer) {
 // eşit ödüllendirmek adaletsiz olurdu, bkz. dosya başı not.
 const LAYER_XP_MULTIPLIER = { 1: 0.6, 2: 1.0, 3: 1.5 };
 
+// SÖZLEŞMENİN DIŞINDA (G81): geri bildirim kartındaki XP kırılımı ("taban XP ×
+// comboBoost × ...") gerçek sayılardan gelsin diye — calculateXP'nin İÇİNDEKİ
+// `base` hesabının (katman çarpanı DAHİL) AYNI kopyası, app.js'in UYDURMADAN
+// okuyabilmesi için ayrı bir pure export. calculateXP'nin KENDİSİ TEK SATIR
+// değişmedi (davranış/testler etkilenmez).
+export function xpBase(question, level) {
+  const diff = DIFFICULTY[level] || DIFFICULTY.medium;
+  return diff.xp * (LAYER_XP_MULTIPLIER[question.layer] || 1);
+}
+
 export function calculateXP(question, result, hintUsed, level, context = {}) {
   if (!result || !result.correct) return 0;
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
