@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #08090b; font-family: 'Inter', -apple-system, sans-serif; }
+  a { color: #4ade80; } a:hover { color: #86efac; }
+  * { box-sizing: border-box; }
+  @keyframes breathe { 0%,100% { box-shadow: 0 8px 20px rgba(0,0,0,0.5), 0 0 14px rgba(34,211,238,0.18), inset 0 1px 0 rgba(255,255,255,0.12) } 50% { box-shadow: 0 8px 20px rgba(0,0,0,0.5), 0 0 26px rgba(34,211,238,0.45), inset 0 1px 0 rgba(255,255,255,0.12) } }
+  @keyframes flameGlow { 0%,100% { filter: drop-shadow(0 0 3px rgba(240,180,66,0.5)) } 50% { filter: drop-shadow(0 0 9px rgba(240,180,66,0.9)) } }
+  @keyframes bossPulse { 0%,100% { box-shadow: 0 0 0 rgba(232,196,106,0) } 50% { box-shadow: 0 0 18px rgba(232,196,106,0.35) } }
+  @keyframes timerRun { from { width: 78% } to { width: 0% } }
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; gap: 40px; flex-wrap: wrap; padding: 48px 32px; background: radial-gradient(ellipse at 50% 0%, #14161a 0%, #08090b 70%)">
+
+<!-- VARYANT A -->
+<div style="display: flex; flex-direction: column; gap: 12px; align-items: center">
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 4px">
+    <div style="font-size: 12px; font-weight: 800; letter-spacing: 1.6px; color: #22d3ee">VARYANT A</div>
+    <div style="font-size: 12px; font-weight: 500; color: #6c7178">Frekans Bulma · dokunmalı</div>
+  </div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="430px,880px">
+    <div style="height: 100%; display: flex; flex-direction: column; background: #0c0d0f; font-family: 'Inter', sans-serif; color: #e7e9ec; padding: 62px 16px 40px 16px; gap: 14px">
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 10px">
+        <button onClick="{{ noop }}" style="width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #b8bdc4; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+        <div style="flex: 1; min-width: 0">
+          <div style="font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: #f2f3f5">Frekans Bulma</div>
+          <div style="display: flex; align-items: center; gap: 3px; margin-top: 3px">
+            <sc-for list="{{ hearts }}" as="h" hint-placeholder-count="5">
+              <svg width="12" height="12" viewBox="0 0 24 24"><path d="M12 21C7 16.5 3 13 3 8.8 3 5.9 5.2 4 7.7 4 9.4 4 11 4.9 12 6.3 13 4.9 14.6 4 16.3 4 18.8 4 21 5.9 21 8.8 21 13 17 16.5 12 21Z" fill="{{ h.fill }}" stroke="{{ h.stroke }}" stroke-width="1.5"></path></svg>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 6px">
+          <div style="display: flex; align-items: center; gap: 3px; padding: 5px 8px; border-radius: 8px; background: rgba(240,180,66,0.12); border: 1px solid rgba(240,180,66,0.35); animation: flameGlow 1.8s ease-in-out infinite">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="#f0b442"><path d="M12 2c1 4-4 5.5-4 9.5a4 4 0 0 0 8 .3c1.2 1 2 2.6 2 4.2a6 6 0 1 1-12 0C6 10 12 8 12 2Z"></path></svg>
+            <span style="font-size: 12px; font-weight: 800; color: #f0b442">x3</span>
+          </div>
+          <div style="font-size: 12px; font-weight: 700; color: #c9cdd3; font-variant-numeric: tabular-nums; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 5px 8px">3<span style="color: #6c7178; font-weight: 500"> / 5</span></div>
+        </div>
+      </div>
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px">
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: 1.2px; color: #22d3ee; background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.3); border-radius: 7px; padding: 4px 9px">ORTA</div>
+        <div style="font-size: 11px; font-weight: 500; color: #6c7178">Spektruma dokunarak işaretle</div>
+      </div>
+
+      <div style="flex-shrink: 0; border-radius: 18px; overflow: hidden; background: #0a0c0e; border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 8px 24px rgba(0,0,0,0.4)">
+        <div onClick="{{ onMark }}" style="height: 280px; cursor: crosshair; position: relative">{{ spectrumA }}</div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 14px 10px 14px; border-top: 1px solid rgba(255,255,255,0.05)">
+          <div style="font-size: 10px; font-weight: 600; color: #4a4f56; letter-spacing: 0.6px">20 Hz</div>
+          <div style="font-size: 10px; font-weight: 600; color: #4a4f56; letter-spacing: 0.6px">1 kHz</div>
+          <div style="font-size: 10px; font-weight: 600; color: #4a4f56; letter-spacing: 0.6px">20 kHz</div>
+        </div>
+      </div>
+
+      <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 18px">
+        <button onClick="{{ togglePlay }}" style="width: 66px; height: 66px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.15); background: linear-gradient(180deg, #23262b, #15171a); color: #f2f3f5; display: flex; align-items: center; justify-content: center; cursor: pointer; animation: {{ playAnim }}; box-shadow: 0 8px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); transition: transform 120ms" style-active="transform: scale(0.94)">{{ playIcon }}</button>
+        <button onClick="{{ toggleBypass }}" style="height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid {{ bypassBorder }}; background: {{ bypassBg }}; color: {{ bypassColor }}; font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: {{ bypassShadow }}; transition: transform 120ms, box-shadow 200ms" style-active="transform: scale(0.97)">
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: {{ bypassDot }}"></div>
+          A/B Bypass
+        </button>
+      </div>
+
+      <div style="flex: 1"></div>
+
+      <button onClick="{{ noop }}" style="flex-shrink: 0; height: 52px; border: none; border-radius: 14px; background: {{ confirmBg }}; color: {{ confirmColor }}; font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: {{ confirmShadow }}; transition: transform 120ms" style-active="transform: scale(0.98)">{{ confirmLabel }}</button>
+    </div>
+  </x-import>
+</div>
+
+<!-- VARYANT B -->
+<div style="display: flex; flex-direction: column; gap: 12px; align-items: center">
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 4px">
+    <div style="font-size: 12px; font-weight: 800; letter-spacing: 1.6px; color: #22d3ee">VARYANT B</div>
+    <div style="font-size: 12px; font-weight: 500; color: #6c7178">Kompresör · 3 kart</div>
+  </div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="430px,880px">
+    <div style="height: 100%; display: flex; flex-direction: column; background: #0c0d0f; font-family: 'Inter', sans-serif; color: #e7e9ec; padding: 62px 16px 40px 16px; gap: 14px">
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 10px">
+        <button onClick="{{ noop }}" style="width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #b8bdc4; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+        <div style="flex: 1; min-width: 0">
+          <div style="font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: #f2f3f5">Kompresör</div>
+          <div style="display: flex; align-items: center; gap: 3px; margin-top: 3px">
+            <sc-for list="{{ heartsB }}" as="h" hint-placeholder-count="5">
+              <svg width="12" height="12" viewBox="0 0 24 24"><path d="M12 21C7 16.5 3 13 3 8.8 3 5.9 5.2 4 7.7 4 9.4 4 11 4.9 12 6.3 13 4.9 14.6 4 16.3 4 18.8 4 21 5.9 21 8.8 21 13 17 16.5 12 21Z" fill="{{ h.fill }}" stroke="{{ h.stroke }}" stroke-width="1.5"></path></svg>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 6px">
+          <div style="display: flex; align-items: center; gap: 3px; padding: 5px 8px; border-radius: 8px; background: rgba(240,180,66,0.08); border: 1px solid rgba(240,180,66,0.22)">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="#a8842f"><path d="M12 2c1 4-4 5.5-4 9.5a4 4 0 0 0 8 .3c1.2 1 2 2.6 2 4.2a6 6 0 1 1-12 0C6 10 12 8 12 2Z"></path></svg>
+            <span style="font-size: 12px; font-weight: 800; color: #a8842f">x1</span>
+          </div>
+          <div style="font-size: 12px; font-weight: 700; color: #c9cdd3; font-variant-numeric: tabular-nums; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 5px 8px">2<span style="color: #6c7178; font-weight: 500"> / 5</span></div>
+        </div>
+      </div>
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px">
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: 1.2px; color: #4ade80; background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3); border-radius: 7px; padding: 4px 9px">KOLAY</div>
+        <div style="font-size: 11px; font-weight: 500; color: #6c7178">Üçünü dinle, farklı olanı seç</div>
+      </div>
+
+      <div style="flex-shrink: 0; text-align: center; font-size: 17px; font-weight: 700; letter-spacing: -0.2px; color: #f2f3f5; margin-top: 4px">Farklı olanı bul</div>
+
+      <div style="flex-shrink: 0; display: flex; flex-direction: column; gap: 12px">
+        <sc-for list="{{ cards }}" as="c" hint-placeholder-count="3">
+          <div onClick="{{ c.select }}" style="border-radius: 16px; padding: 14px; background: {{ c.bg }}; border: 1.5px solid {{ c.border }}; box-shadow: {{ c.shadow }}; display: flex; align-items: center; gap: 14px; cursor: pointer; transition: transform 120ms, border-color 160ms, box-shadow 200ms" style-active="transform: scale(0.98)">
+            <button onClick="{{ c.play }}" style="width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0; border: 1px solid {{ c.playBorder }}; background: linear-gradient(180deg, #23262b, #15171a); color: {{ c.playColor }}; display: flex; align-items: center; justify-content: center; cursor: pointer; animation: {{ c.playAnim }}; box-shadow: 0 6px 14px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.1); transition: transform 120ms" style-active="transform: scale(0.94)">{{ c.icon }}</button>
+            <div style="flex: 1; min-width: 0">
+              <div style="font-size: 17px; font-weight: 800; letter-spacing: -0.2px; color: {{ c.labelColor }}">{{ c.label }}</div>
+              <div style="font-size: 11.5px; font-weight: 500; color: #6c7178; margin-top: 2px">{{ c.sub }}</div>
+            </div>
+            <div style="flex-shrink: 0; width: 76px; height: 34px">{{ c.wave }}</div>
+            <div style="flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid {{ c.dotBorder }}; background: {{ c.dotBg }}; display: flex; align-items: center; justify-content: center">{{ c.check }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="flex: 1"></div>
+
+      <button onClick="{{ noop }}" style="flex-shrink: 0; height: 52px; border: none; border-radius: 14px; background: {{ confirmBBg }}; color: {{ confirmBColor }}; font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: {{ confirmBShadow }}; transition: transform 120ms" style-active="transform: scale(0.98)">{{ confirmBLabel }}</button>
+    </div>
+  </x-import>
+</div>
+
+<!-- BOSS ROUND -->
+<div style="display: flex; flex-direction: column; gap: 12px; align-items: center">
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 4px">
+    <div style="font-size: 12px; font-weight: 800; letter-spacing: 1.6px; color: #e8c46a">BOSS ROUND</div>
+    <div style="font-size: 12px; font-weight: 500; color: #6c7178">her 5. soru · süreli</div>
+  </div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="430px,880px">
+    <div style="height: 100%; display: flex; flex-direction: column; background: radial-gradient(ellipse 120% 30% at 50% 0%, rgba(217,168,60,0.12) 0%, rgba(217,168,60,0) 60%), #0c0d0f; font-family: 'Inter', sans-serif; color: #e7e9ec; padding: 62px 16px 40px 16px; gap: 14px">
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 10px">
+        <button onClick="{{ noop }}" style="width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(232,196,106,0.25); background: rgba(232,196,106,0.07); color: #e8c46a; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg></button>
+        <div style="flex: 1; min-width: 0">
+          <div style="display: flex; align-items: center; gap: 7px">
+            <div style="font-size: 10px; font-weight: 800; letter-spacing: 1.4px; color: #1a1305; background: linear-gradient(180deg, #f6d878, #d9a83c); border-radius: 6px; padding: 3px 8px; animation: bossPulse 1.6s ease-in-out infinite">BOSS</div>
+            <div style="font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: #f2f3f5">Frekans Bulma</div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 3px; margin-top: 4px">
+            <sc-for list="{{ heartsBoss }}" as="h" hint-placeholder-count="5">
+              <svg width="12" height="12" viewBox="0 0 24 24"><path d="M12 21C7 16.5 3 13 3 8.8 3 5.9 5.2 4 7.7 4 9.4 4 11 4.9 12 6.3 13 4.9 14.6 4 16.3 4 18.8 4 21 5.9 21 8.8 21 13 17 16.5 12 21Z" fill="{{ h.fill }}" stroke="{{ h.stroke }}" stroke-width="1.5"></path></svg>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 6px">
+          <div style="display: flex; align-items: center; gap: 3px; padding: 5px 8px; border-radius: 8px; background: rgba(240,180,66,0.16); border: 1px solid rgba(240,180,66,0.5); animation: flameGlow 1.2s ease-in-out infinite">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="#f6d878"><path d="M12 2c1 4-4 5.5-4 9.5a4 4 0 0 0 8 .3c1.2 1 2 2.6 2 4.2a6 6 0 1 1-12 0C6 10 12 8 12 2Z"></path></svg>
+            <span style="font-size: 12px; font-weight: 800; color: #f6d878">x5</span>
+          </div>
+          <div style="font-size: 12px; font-weight: 700; color: #e8c46a; font-variant-numeric: tabular-nums; background: rgba(232,196,106,0.1); border: 1px solid rgba(232,196,106,0.3); border-radius: 8px; padding: 5px 8px">5<span style="color: #a8842f; font-weight: 500"> / 5</span></div>
+        </div>
+      </div>
+
+      <!-- süre çubuğu -->
+      <div style="flex-shrink: 0">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px">
+          <div style="display: flex; align-items: center; gap: 6px">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f0b442" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2"></path></svg>
+            <span style="font-size: 10px; font-weight: 800; letter-spacing: 1px; color: #f0b442">SÜRE</span>
+          </div>
+          <div style="font-size: 10.5px; font-weight: 800; color: #1a1305; background: linear-gradient(180deg, #f6d878, #d9a83c); border-radius: 6px; padding: 3px 8px; letter-spacing: 0.3px">XP 1.65x</div>
+        </div>
+        <div style="height: 7px; border-radius: 4px; background: rgba(0,0,0,0.5); border: 1px solid rgba(232,196,106,0.2); overflow: hidden">
+          <div style="height: 100%; border-radius: 4px; background: linear-gradient(90deg, #d9553e, #f0b442, #f6d878); box-shadow: 0 0 10px rgba(240,180,66,0.5); animation: timerRun 9s linear infinite"></div>
+        </div>
+      </div>
+
+      <div style="flex-shrink: 0; border-radius: 18px; overflow: hidden; background: #0a0c0e; border: 1px solid rgba(232,196,106,0.25); box-shadow: 0 8px 24px rgba(0,0,0,0.4), 0 0 22px rgba(232,196,106,0.08)">
+        <div onClick="{{ onMark }}" style="height: 258px; cursor: crosshair">{{ spectrumBoss }}</div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 14px 10px 14px; border-top: 1px solid rgba(255,255,255,0.05)">
+          <div style="font-size: 10px; font-weight: 600; color: #4a4f56; letter-spacing: 0.6px">20 Hz</div>
+          <div style="font-size: 10px; font-weight: 600; color: #a8842f; letter-spacing: 0.6px">PRO ZORLUK · Q 4.0</div>
+          <div style="font-size: 10px; font-weight: 600; color: #4a4f56; letter-spacing: 0.6px">20 kHz</div>
+        </div>
+      </div>
+
+      <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 18px">
+        <button onClick="{{ togglePlay }}" style="width: 66px; height: 66px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.15); background: linear-gradient(180deg, #23262b, #15171a); color: #f2f3f5; display: flex; align-items: center; justify-content: center; cursor: pointer; animation: {{ playAnim }}; box-shadow: 0 8px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12); transition: transform 120ms" style-active="transform: scale(0.94)">{{ playIcon }}</button>
+        <button onClick="{{ toggleBypass }}" style="height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid {{ bypassBorder }}; background: {{ bypassBg }}; color: {{ bypassColor }}; font-family: 'Inter', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: {{ bypassShadow }}; transition: transform 120ms, box-shadow 200ms" style-active="transform: scale(0.97)">
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: {{ bypassDot }}"></div>
+          A/B Bypass
+        </button>
+      </div>
+
+      <div style="flex: 1"></div>
+
+      <button onClick="{{ noop }}" style="flex-shrink: 0; height: 52px; border: none; border-radius: 14px; background: {{ confirmBg }}; color: {{ confirmColor }}; font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: {{ confirmShadow }}; transition: transform 120ms" style-active="transform: scale(0.98)">{{ confirmLabel }}</button>
+    </div>
+  </x-import>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1500, &quot;height&quot;: 1020}}">
+class Component extends DCLogic {
+  state = { markX: 0.62, playing: true, bypass: false, t: 0, sel: null, playingCard: 1 };
+  componentDidMount() { this._iv = setInterval(() => { if (this.state.playing) this.setState(s => ({ t: s.t + 1 })); }, 90); }
+  componentWillUnmount() { clearInterval(this._iv); }
+  freqAt(f) {
+    const hz = 20 * Math.pow(1000, f);
+    return hz >= 1000 ? (hz / 1000).toFixed(hz >= 10000 ? 1 : 2) + ' kHz' : Math.round(hz / 5) * 5 + ' Hz';
+  }
+  spectrum(H, boss) {
+    const e = React.createElement;
+    const W = 400;
+    const grid = [];
+    ['50', '100', '500', '1k', '5k', '10k'].forEach((l, i) => {
+      const fr = [0.15, 0.233, 0.466, 0.566, 0.8, 0.9][i];
+      const x = fr * W;
+      grid.push(e('line', { key: 'v' + i, x1: x, y1: 0, x2: x, y2: H, stroke: 'rgba(255,255,255,0.05)', strokeWidth: 1 }));
+      grid.push(e('text', { key: 'vt' + i, x: x + 4, y: H - 8, fontSize: 9, fontFamily: 'Inter', fill: '#4a4f56' }, l));
+    });
+    ['+12', '0', '-12'].forEach((l, i) => {
+      const y = H * 0.2 + i * H * 0.26;
+      grid.push(e('line', { key: 'h' + i, x1: 0, y1: y, x2: W, y2: y, stroke: 'rgba(255,255,255,0.05)', strokeWidth: 1 }));
+      grid.push(e('text', { key: 'ht' + i, x: 8, y: y - 4, fontSize: 9, fontFamily: 'Inter', fill: '#4a4f56' }, l));
+    });
+    const t = this.state.t, bypass = this.state.bypass;
+    const bellX = boss ? 0.71 * W : 0.58 * W;
+    const pts = [];
+    for (let i = 0; i <= 90; i++) {
+      const x = i / 90 * W;
+      const base = H * 0.66 - i * (H * 0.0028);
+      const bell = bypass ? 0 : (boss ? H * 0.2 : H * 0.22) * Math.exp(-Math.pow((x - bellX) / (boss ? 18 : 30), 2));
+      const jit = this.state.playing ? Math.sin(i * 1.6 + t * 0.9) * 4 + Math.sin(i * 0.55 - t * 0.5) * 5 : 0;
+      pts.push([x, Math.max(H * 0.08, base - bell + jit)]);
+    }
+    const d = 'M' + pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L');
+    const mx = this.state.markX * W;
+    const accent = boss ? '#f6d878' : '#22d3ee';
+    const marker = [
+      e('line', { key: 'mk', x1: mx, y1: 8, x2: mx, y2: H - 20, stroke: accent, strokeWidth: 2, opacity: 0.9 }),
+      e('rect', { key: 'mb', x: Math.min(W - 62, Math.max(2, mx - 30)), y: 10, width: 60, height: 20, rx: 6, fill: 'rgba(10,12,14,0.92)', stroke: accent, strokeWidth: 1 }),
+      e('text', { key: 'mt', x: Math.min(W - 32, Math.max(32, mx)), y: 24, textAnchor: 'middle', fontSize: 11, fontFamily: 'Inter', fontWeight: 800, fill: accent }, this.freqAt(this.state.markX)),
+      e('circle', { key: 'mc', cx: mx, cy: H - 20, r: 5, fill: accent })
+    ];
+    return e('svg', { width: '100%', height: '100%', viewBox: '0 0 400 ' + H, preserveAspectRatio: 'none', style: { display: 'block' } },
+      e('defs', null, e('linearGradient', { id: 'sg' + H, x1: 0, y1: 0, x2: 0, y2: 1 },
+        e('stop', { offset: 0, stopColor: 'rgba(34,211,238,0.32)' }), e('stop', { offset: 1, stopColor: 'rgba(34,211,238,0)' }))),
+      grid,
+      e('path', { d: d + ' L400,' + H + ' L0,' + H + ' Z', fill: 'url(#sg' + H + ')' }),
+      e('path', { d, fill: 'none', stroke: bypass ? '#8b8f96' : '#22d3ee', strokeWidth: 2 }),
+      marker);
+  }
+  miniWave(active) {
+    const e = React.createElement;
+    const bars = [];
+    for (let i = 0; i < 16; i++) {
+      const h = 6 + Math.abs(Math.sin(i * 1.1) * Math.cos(i * 0.4)) * 22;
+      bars.push(e('rect', { key: i, x: i * 4.8, y: 17 - h / 2, width: 2.6, height: h, rx: 1.3, fill: active ? '#22d3ee' : '#3a3f45' }));
+    }
+    return e('svg', { width: '100%', height: '100%', viewBox: '0 0 76 34' }, bars);
+  }
+  renderVals() {
+    const e = React.createElement;
+    const s = this.state;
+    const heartRow = n => [0, 1, 2, 3, 4].map(i => i < n ? { fill: '#ef4a5e', stroke: '#ef4a5e' } : { fill: 'none', stroke: 'rgba(255,255,255,0.22)' });
+    const picked = s.sel != null;
+    return {
+      noop: () => {},
+      hearts: heartRow(4), heartsB: heartRow(5), heartsBoss: heartRow(3),
+      spectrumA: this.spectrum(280, false),
+      spectrumBoss: this.spectrum(258, true),
+      onMark: ev => {
+        const r = ev.currentTarget.getBoundingClientRect();
+        this.setState({ markX: Math.max(0.02, Math.min(0.98, (ev.clientX - r.left) / r.width)) });
+      },
+      togglePlay: () => this.setState(v => ({ playing: !v.playing })),
+      playAnim: s.playing ? 'breathe 2.4s ease-in-out infinite' : 'none',
+      playIcon: s.playing
+        ? e('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'currentColor' }, e('rect', { x: 6, y: 5, width: 4.5, height: 14, rx: 1.5 }), e('rect', { x: 13.5, y: 5, width: 4.5, height: 14, rx: 1.5 }))
+        : e('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'currentColor', style: { marginLeft: 3 } }, e('path', { d: 'M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z' })),
+      toggleBypass: () => this.setState(v => ({ bypass: !v.bypass })),
+      bypassBorder: s.bypass ? 'rgba(34,211,238,0.7)' : 'rgba(255,255,255,0.12)',
+      bypassBg: s.bypass ? 'rgba(34,211,238,0.1)' : 'rgba(255,255,255,0.05)',
+      bypassColor: s.bypass ? '#22d3ee' : '#8f949b',
+      bypassDot: s.bypass ? '#22d3ee' : '#4a4f56',
+      bypassShadow: s.bypass ? '0 0 18px rgba(34,211,238,0.3)' : 'none',
+      confirmLabel: this.freqAt(s.markX) + ' olarak onayla',
+      confirmBg: 'linear-gradient(180deg, #46d968, #27a63e)', confirmColor: '#06230e',
+      confirmShadow: '0 4px 16px rgba(46,191,70,0.35), inset 0 1px 0 rgba(255,255,255,0.3)',
+      cards: ['A', 'B', 'C'].map((label, i) => {
+        const sel = s.sel === i, playing = s.playingCard === i;
+        return {
+          label, sub: playing ? 'çalıyor · 0:04' : 'dinlemek için bas',
+          labelColor: sel ? '#4ade80' : '#eef0f2',
+          bg: sel ? 'rgba(74,222,128,0.07)' : 'linear-gradient(180deg, #17191d, #121316)',
+          border: sel ? '#4ade80' : playing ? 'rgba(34,211,238,0.45)' : 'rgba(255,255,255,0.08)',
+          shadow: sel ? '0 0 18px rgba(74,222,128,0.2)' : playing ? '0 0 20px rgba(34,211,238,0.15)' : '0 6px 16px rgba(0,0,0,0.35)',
+          playBorder: playing ? 'rgba(34,211,238,0.6)' : 'rgba(255,255,255,0.15)',
+          playColor: playing ? '#22d3ee' : '#c9cdd3',
+          playAnim: playing ? 'breathe 2.4s ease-in-out infinite' : 'none',
+          icon: playing
+            ? e('svg', { width: 19, height: 19, viewBox: '0 0 24 24', fill: 'currentColor' }, e('rect', { x: 6, y: 5, width: 4.5, height: 14, rx: 1.5 }), e('rect', { x: 13.5, y: 5, width: 4.5, height: 14, rx: 1.5 }))
+            : e('svg', { width: 19, height: 19, viewBox: '0 0 24 24', fill: 'currentColor', style: { marginLeft: 2 } }, e('path', { d: 'M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z' })),
+          wave: this.miniWave(playing),
+          dotBorder: sel ? '#4ade80' : 'rgba(255,255,255,0.18)',
+          dotBg: sel ? '#4ade80' : 'transparent',
+          check: sel ? e('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: '#06230e', strokeWidth: 3.5, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M4 12.5l5 5L20 6.5' })) : null,
+          play: ev => { ev.stopPropagation(); this.setState({ playingCard: i }); },
+          select: () => this.setState({ sel: i })
+        };
+      }),
+      confirmBLabel: picked ? ['A', 'B', 'C'][s.sel] + ' olarak onayla' : 'Bir kart seç',
+      confirmBBg: picked ? 'linear-gradient(180deg, #46d968, #27a63e)' : 'rgba(255,255,255,0.06)',
+      confirmBColor: picked ? '#06230e' : '#5a6068',
+      confirmBShadow: picked ? '0 4px 16px rgba(46,191,70,0.35), inset 0 1px 0 rgba(255,255,255,0.3)' : 'none'
+    };
+  }
+}
+</script>
+</body>
+</html>

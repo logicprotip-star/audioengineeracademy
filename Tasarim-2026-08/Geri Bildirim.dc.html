@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #08090b; font-family: 'Inter', -apple-system, sans-serif; }
+  a { color: #4ade80; } a:hover { color: #86efac; }
+  * { box-sizing: border-box; }
+  @keyframes shakeX { 0%,100% { transform: translateX(0) } 20% { transform: translateX(-6px) } 40% { transform: translateX(5px) } 60% { transform: translateX(-3px) } 80% { transform: translateX(2px) } }
+  @keyframes popIn { 0% { transform: scale(0.85); opacity: 0 } 100% { transform: scale(1); opacity: 1 } }
+  @keyframes heartOut { 0% { transform: scale(1); opacity: 1 } 40% { transform: scale(1.25) } 100% { transform: scale(0.85); opacity: 0.28 } }
+  @keyframes countdown4 { from { width: 100% } to { width: 0% } }
+  @keyframes countdown6 { from { width: 100% } to { width: 0% } }
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; gap: 48px; flex-wrap: wrap; padding: 48px 32px; background: radial-gradient(ellipse at 50% 0%, #14161a 0%, #08090b 70%)">
+<sc-for list="{{ variants }}" as="v" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 12px; align-items: center">
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+    <div style="font-size: 12px; font-weight: 800; letter-spacing: 1.6px; color: {{ v.labelColor }}; text-transform: uppercase">{{ v.stateLabel }}</div>
+    <div style="font-size: 12px; font-weight: 500; color: #6c7178">{{ v.timerLabel }}</div>
+  </div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="430px,880px">
+    <div style="height: 100%; display: flex; flex-direction: column; background: #0c0d0f; font-family: 'Inter', sans-serif; color: #e7e9ec; padding: 62px 16px 0 16px; gap: 14px; animation: {{ v.shellAnim }}">
+
+      <!-- Üst bar -->
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 10px">
+        <div style="flex: 1; min-width: 0">
+          <div style="font-size: 15px; font-weight: 700; letter-spacing: -0.2px; color: #f2f3f5">Frekans Bulma</div>
+          <div style="display: flex; align-items: center; gap: 3px; margin-top: 4px">
+            <sc-for list="{{ v.hearts }}" as="h" hint-placeholder-count="5">
+              <svg width="12" height="12" viewBox="0 0 24 24" style="animation: {{ h.anim }}"><path d="M12 21C7 16.5 3 13 3 8.8 3 5.9 5.2 4 7.7 4 9.4 4 11 4.9 12 6.3 13 4.9 14.6 4 16.3 4 18.8 4 21 5.9 21 8.8 21 13 17 16.5 12 21Z" fill="{{ h.fill }}" stroke="{{ h.stroke }}" stroke-width="1.5"></path></svg>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex-shrink: 0; font-size: 12px; font-weight: 700; color: #c9cdd3; font-variant-numeric: tabular-nums; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 5px 9px">3<span style="color: #6c7178; font-weight: 500"> / 5</span></div>
+        <button onClick="{{ noop }}" style="width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #b8bdc4; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: transform 120ms" style-hover="background: rgba(255,255,255,0.09)" style-active="transform: scale(0.94)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+        </button>
+      </div>
+
+      <!-- Spektrum -->
+      <div style="flex-shrink: 0; border-radius: 18px; overflow: hidden; background: #0a0c0e; border: 1px solid {{ v.specBorder }}; box-shadow: 0 8px 24px rgba(0,0,0,0.4)">
+        <div style="height: 250px; position: relative">
+          {{ v.spectrum }}
+          <sc-if value="{{ v.showParticles }}" hint-placeholder-val="{{ false }}">
+            <div style="position: absolute; inset: 0; pointer-events: none">{{ v.particles }}</div>
+          </sc-if>
+        </div>
+        <div style="display: flex; justify-content: space-between; padding: 8px 14px 10px 14px; border-top: 1px solid rgba(255,255,255,0.05)">
+          <div style="font-size: 10px; font-weight: 600; color: #4a4f56; letter-spacing: 0.6px">20 Hz</div>
+          <div style="font-size: 10px; font-weight: 600; color: #4a4f56; letter-spacing: 0.6px">{{ v.specCaption }}</div>
+          <div style="font-size: 10px; font-weight: 600; color: #4a4f56; letter-spacing: 0.6px">20 kHz</div>
+        </div>
+      </div>
+
+      <!-- Sonuç başlığı -->
+      <div style="flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 2px">
+        <div style="width: 46px; height: 46px; border-radius: 50%; flex-shrink: 0; background: {{ v.iconBg }}; display: flex; align-items: center; justify-content: center; animation: popIn 250ms 80ms cubic-bezier(0.2,0.8,0.3,1.4) both">{{ v.icon }}</div>
+        <div style="flex: 1; min-width: 0">
+          <div style="font-size: 21px; font-weight: 800; letter-spacing: -0.4px; color: {{ v.titleColor }}">{{ v.title }}</div>
+          <div style="font-size: 13px; font-weight: 600; color: {{ v.subColor }}; margin-top: 2px">{{ v.subtitle }}</div>
+        </div>
+        <sc-if value="{{ v.showXp }}" hint-placeholder-val="{{ false }}">
+          <div style="flex-shrink: 0; text-align: right; animation: popIn 300ms 200ms cubic-bezier(0.2,0.8,0.3,1.3) both">
+            <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #4ade80; font-variant-numeric: tabular-nums">+72</div>
+            <div style="font-size: 10px; font-weight: 700; color: #6c7178; letter-spacing: 0.3px">XP</div>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- Combo satırı -->
+      <sc-if value="{{ v.showXp }}" hint-placeholder-val="{{ false }}">
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 11px; background: rgba(240,180,66,0.08); border: 1px solid rgba(240,180,66,0.28)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#f0b442"><path d="M12 2c1 4-4 5.5-4 9.5a4 4 0 0 0 8 .3c1.2 1 2 2.6 2 4.2a6 6 0 1 1-12 0C6 10 12 8 12 2Z"></path></svg>
+          <div style="font-size: 12.5px; font-weight: 700; color: #d6d9dd; font-variant-numeric: tabular-nums">40 XP <span style="color: #6c7178">×</span> <span style="color: #f0b442">1.8 combo</span></div>
+        </div>
+      </sc-if>
+
+      <!-- Açıklama -->
+      <div style="flex-shrink: 0; border-radius: 14px; padding: 13px 14px; background: linear-gradient(180deg, #17191d, #121316); border: 1px solid rgba(255,255,255,0.07); font-size: 13px; line-height: 1.55; color: #b8bdc4; text-wrap: pretty">{{ v.explain }}</div>
+
+      <div style="flex: 1"></div>
+
+      <!-- Otomatik geçiş göstergesi -->
+      <div style="flex-shrink: 0; padding-bottom: 30px">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px">
+          <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.8px; color: #4a4f56; text-transform: uppercase">Sonraki soru</div>
+          <div style="font-size: 10px; font-weight: 700; color: #4a4f56">atlamak için ✕</div>
+        </div>
+        <div style="height: 2px; border-radius: 1px; background: rgba(255,255,255,0.06); overflow: hidden">
+          <div style="height: 100%; border-radius: 1px; background: {{ v.timerBar }}; animation: {{ v.timerAnim }}"></div>
+        </div>
+      </div>
+    </div>
+  </x-import>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1040, &quot;height&quot;: 1020}}">
+class Component extends DCLogic {
+  spectrum(kind) {
+    const e = React.createElement;
+    const W = 400, H = 250;
+    const grid = [];
+    ['100', '1k', '10k'].forEach((l, i) => {
+      const x = 93 + i * 133;
+      grid.push(e('line', { key: 'v' + i, x1: x, y1: 0, x2: x, y2: H, stroke: 'rgba(255,255,255,0.05)', strokeWidth: 1 }));
+      grid.push(e('text', { key: 'vt' + i, x: x + 4, y: H - 8, fontSize: 9, fontFamily: 'Inter', fill: '#4a4f56' }, l));
+    });
+    ['+12', '0', '-12'].forEach((l, i) => {
+      const y = 50 + i * 62;
+      grid.push(e('line', { key: 'h' + i, x1: 0, y1: y, x2: W, y2: y, stroke: 'rgba(255,255,255,0.05)', strokeWidth: 1 }));
+      grid.push(e('text', { key: 'ht' + i, x: 8, y: y - 4, fontSize: 9, fontFamily: 'Inter', fill: '#4a4f56' }, l));
+    });
+    const bellX = 266;
+    const pts = [];
+    for (let i = 0; i <= 90; i++) {
+      const x = i / 90 * W;
+      pts.push([x, 112 - 58 * Math.exp(-Math.pow((x - bellX) / 28, 2))]);
+    }
+    const d = 'M' + pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L');
+    const marker = (x, y, color, label, below) => [
+      e('line', { key: 'ml' + x, x1: x, y1: 14, x2: x, y2: H - 22, stroke: color, strokeWidth: 1.2, strokeDasharray: '3 3', opacity: 0.65 }),
+      e('circle', { key: 'mc' + x, cx: x, cy: y, r: 5, fill: '#0a0c0e', stroke: color, strokeWidth: 2 }),
+      e('rect', { key: 'mr' + x, x: Math.min(W - 62, Math.max(2, x - 30)), y: below ? y + 12 : y - 32, width: 60, height: 19, rx: 6, fill: 'rgba(10,12,14,0.92)', stroke: color, strokeWidth: 1 }),
+      e('text', { key: 'mt' + x, x: Math.min(W - 32, Math.max(32, x)), y: below ? y + 25 : y - 19, textAnchor: 'middle', fontSize: 10, fontFamily: 'Inter', fontWeight: 800, fill: color }, label)
+    ];
+    const marks = kind === 'correct'
+      ? marker(bellX, 54, '#4ade80', '2 kHz ✓', false)
+      : [...marker(bellX, 54, '#4ade80', '2 kHz', false), ...marker(160, 112, '#f88a6e', '500 Hz ✕', true)];
+    return e('svg', { width: '100%', height: '100%', viewBox: '0 0 400 250', preserveAspectRatio: 'none', style: { display: 'block' } },
+      e('defs', null, e('linearGradient', { id: 'fg' + kind, x1: 0, y1: 0, x2: 0, y2: 1 },
+        e('stop', { offset: 0, stopColor: 'rgba(34,211,238,0.3)' }), e('stop', { offset: 1, stopColor: 'rgba(34,211,238,0)' }))),
+      grid,
+      e('path', { d: d + ' L400,250 L0,250 Z', fill: 'url(#fg' + kind + ')' }),
+      e('path', { d, fill: 'none', stroke: '#22d3ee', strokeWidth: 2 }),
+      marks);
+  }
+  particles() {
+    const e = React.createElement;
+    const items = [];
+    for (let i = 0; i < 14; i++) {
+      const left = 40 + (i * 37) % 320;
+      const size = 3 + (i % 3);
+      const dur = 900 + (i % 5) * 160;
+      const delay = 60 + (i % 7) * 70;
+      const drift = ((i % 5) - 2) * 14;
+      items.push(e('span', {
+        key: i,
+        style: {
+          position: 'absolute', left, top: 150, width: size, height: size, borderRadius: '50%',
+          background: i % 4 === 0 ? '#f0b442' : '#4ade80',
+          boxShadow: '0 0 6px rgba(74,222,128,0.7)',
+          animation: 'p' + (i % 5) + ' ' + dur + 'ms ' + delay + 'ms cubic-bezier(0.2,0.7,0.3,1) both',
+          ['--dx']: drift + 'px'
+        }
+      }));
+    }
+    const css = [0, 1, 2, 3, 4].map(k =>
+      '@keyframes p' + k + '{0%{transform:translate(0,0) scale(0.6);opacity:0}20%{opacity:1}100%{transform:translate(' + ((k - 2) * 16) + 'px,' + (-70 - k * 14) + 'px) scale(1);opacity:0}}'
+    ).join('');
+    return e(React.Fragment, null, e('style', null, css), items);
+  }
+  renderVals() {
+    const e = React.createElement;
+    const check = e('svg', { width: 23, height: 23, viewBox: '0 0 24 24', fill: 'none', stroke: '#06230e', strokeWidth: 3, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M4 12.5l5 5L20 6.5' }));
+    const cross = e('svg', { width: 21, height: 21, viewBox: '0 0 24 24', fill: 'none', stroke: '#2a0d09', strokeWidth: 3, strokeLinecap: 'round' }, e('path', { d: 'M6 6l12 12M18 6L6 18' }));
+    const hearts = (full, dying) => [0, 1, 2, 3, 4].map(i => ({
+      fill: i < full ? '#ef4a5e' : 'none',
+      stroke: i < full ? '#ef4a5e' : 'rgba(255,255,255,0.22)',
+      anim: dying != null && i === dying ? 'heartOut 420ms 200ms cubic-bezier(0.3,0.7,0.4,1) both' : 'none'
+    }));
+    return {
+      noop: () => {},
+      variants: [
+        {
+          stateLabel: 'Doğru', labelColor: '#4ade80', timerLabel: '4 sn otomatik geçiş',
+          shellAnim: 'none',
+          hearts: hearts(4, null),
+          spectrum: this.spectrum('correct'),
+          specBorder: 'rgba(74,222,128,0.3)',
+          specCaption: 'DOĞRU BANT İŞARETLENDİ',
+          showParticles: true, particles: this.particles(),
+          iconBg: 'linear-gradient(180deg, #46d968, #27a63e)', icon: check,
+          title: 'Doğru!', titleColor: '#4ade80',
+          subtitle: '2 kHz · üst-orta', subColor: '#8fd9a4',
+          showXp: true,
+          explain: '2 kHz vokal netliğinin merkezi. Mixte vokali öne almak için ilk bakılan bant burasıdır; 3 dB üstü artışlar hızla sertleşir.',
+          timerBar: 'linear-gradient(90deg, #2fbf46, #4ade80)',
+          timerAnim: 'countdown4 4s linear infinite'
+        },
+        {
+          stateLabel: 'Yanlış', labelColor: '#f87160', timerLabel: '6 sn otomatik geçiş',
+          shellAnim: 'shakeX 300ms ease-in-out',
+          hearts: hearts(4, 3),
+          spectrum: this.spectrum('wrong'),
+          specBorder: 'rgba(248,113,96,0.3)',
+          specCaption: 'SENİN İŞARETİN vs DOĞRU BANT',
+          showParticles: false, particles: null,
+          iconBg: 'linear-gradient(180deg, #f88a6e, #d9553e)', icon: cross,
+          title: 'Cevap: 2 kHz', titleColor: '#f87160',
+          subtitle: 'Sen 500 Hz işaretledin', subColor: '#d9a08f',
+          showXp: false,
+          explain: '500 Hz gövde ve kalınlık bölgesi; fazlası mixi kutu gibi yapar. 2 kHz ise netlik ve atak. Ayırt etmek için vokalin "önde" mi yoksa "kalın" mı duyulduğuna odaklan.',
+          timerBar: 'linear-gradient(90deg, #d9553e, #f88a6e)',
+          timerAnim: 'countdown6 6s linear infinite'
+        }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

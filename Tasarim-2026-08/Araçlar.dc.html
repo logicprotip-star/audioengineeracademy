@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #08090b; font-family: 'Inter', -apple-system, sans-serif; }
+  a { color: #4ade80; } a:hover { color: #86efac; }
+  * { box-sizing: border-box; }
+  @keyframes breathe { 0%,100% { box-shadow: 0 6px 14px rgba(0,0,0,0.45), 0 0 12px rgba(34,211,238,0.18) } 50% { box-shadow: 0 6px 14px rgba(0,0,0,0.45), 0 0 22px rgba(34,211,238,0.42) } }
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; gap: 48px; flex-wrap: wrap; padding: 48px 32px; background: radial-gradient(ellipse at 50% 0%, #14161a 0%, #08090b 70%)">
+
+<!-- PRO -->
+<div style="display: flex; flex-direction: column; gap: 12px; align-items: center">
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+    <div style="font-size: 12px; font-weight: 800; letter-spacing: 1.6px; color: #f6d878">PRO</div>
+    <div style="font-size: 12px; font-weight: 500; color: #6c7178">araçlar açık</div>
+  </div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="430px,880px">
+    <div style="height: 100%; display: flex; flex-direction: column; background: #0c0d0f; font-family: 'Inter', sans-serif; color: #e7e9ec">
+      <div style="flex: 1; overflow-y: auto; padding: 62px 16px 96px 16px; display: flex; flex-direction: column; gap: 16px">
+
+        <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px">
+          <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.4px; color: #f2f3f5">Araçlar</div>
+          <div style="display: flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: linear-gradient(180deg, #f6d878, #d9a83c); box-shadow: 0 3px 10px rgba(217,168,60,0.3)">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="#1a1305"><path d="M13 2L4.5 13.5h5L10 22l8.5-11.5h-5L13 2Z"></path></svg>
+            <span style="font-size: 11px; font-weight: 800; letter-spacing: 0.8px; color: #1a1305">PRO</span>
+          </div>
+        </div>
+
+        <!-- Mixini Yükle -->
+        <div style="flex-shrink: 0; border-radius: 18px; background: linear-gradient(180deg, #17191d, #121316); border: 1px solid rgba(255,255,255,0.08); overflow: hidden; box-shadow: 0 8px 20px rgba(0,0,0,0.35)">
+          <div style="padding: 16px 16px 14px 16px">
+            <div style="display: flex; align-items: center; gap: 11px">
+              <div style="width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; background: rgba(34,211,238,0.09); border: 1px solid rgba(34,211,238,0.22); display: flex; align-items: center; justify-content: center">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"></path></svg>
+              </div>
+              <div style="flex: 1; min-width: 0">
+                <div style="font-size: 16px; font-weight: 700; letter-spacing: -0.2px; color: #f2f3f5">Mixini Yükle</div>
+                <div style="font-size: 11.5px; font-weight: 500; color: #8f949b; margin-top: 2px">Kendi dosyanı uygulama içinde dinle ve çalış</div>
+              </div>
+            </div>
+            <button onClick="{{ noop }}" style="width: 100%; height: 46px; margin-top: 14px; border: 1px dashed rgba(34,211,238,0.4); border-radius: 12px; background: rgba(34,211,238,0.06); color: #22d3ee; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 120ms, background 150ms" style-hover="background: rgba(34,211,238,0.1)" style-active="transform: scale(0.98)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+              Dosya seç · WAV, MP3, AIFF
+            </button>
+          </div>
+          <div style="padding: 10px 16px 6px 16px; font-size: 10px; font-weight: 700; letter-spacing: 1px; color: #4a4f56; text-transform: uppercase; border-top: 1px solid rgba(255,255,255,0.05)">Son yüklenenler</div>
+          <sc-for list="{{ files }}" as="f" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid rgba(255,255,255,0.04)">
+              <button onClick="{{ f.play }}" style="width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; border: 1px solid {{ f.playBorder }}; background: linear-gradient(180deg, #23262b, #15171a); color: {{ f.playColor }}; display: flex; align-items: center; justify-content: center; cursor: pointer; animation: {{ f.anim }}; transition: transform 120ms" style-active="transform: scale(0.94)">{{ f.icon }}</button>
+              <div style="flex: 1; min-width: 0">
+                <div style="font-size: 13px; font-weight: 600; color: #d6d9dd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ f.name }}</div>
+                <div style="font-size: 10.5px; font-weight: 500; color: #4a4f56; margin-top: 1px; font-variant-numeric: tabular-nums">{{ f.meta }}</div>
+              </div>
+              <div style="flex-shrink: 0; width: 62px; height: 26px">{{ f.wave }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- Referans Filtreleri -->
+        <div style="flex-shrink: 0; border-radius: 18px; background: linear-gradient(180deg, #17191d, #121316); border: 1px solid rgba(255,255,255,0.08); padding: 16px; box-shadow: 0 8px 20px rgba(0,0,0,0.35)">
+          <div style="display: flex; align-items: center; gap: 11px">
+            <div style="width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0; background: rgba(34,211,238,0.09); border: 1px solid rgba(34,211,238,0.22); display: flex; align-items: center; justify-content: center">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18V9M9 18V5M14 18v-7M19 18v-4"></path></svg>
+            </div>
+            <div style="flex: 1; min-width: 0">
+              <div style="font-size: 16px; font-weight: 700; letter-spacing: -0.2px; color: #f2f3f5">Referans Filtreleri</div>
+              <div style="font-size: 11.5px; font-weight: 500; color: #8f949b; margin-top: 2px">Mixini farklı cihaz simülasyonlarıyla dinle</div>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px">
+            <sc-for list="{{ filters }}" as="fl" hint-placeholder-count="6">
+              <div onClick="{{ fl.select }}" style="border-radius: 14px; padding: 12px; background: {{ fl.bg }}; border: 1.5px solid {{ fl.border }}; cursor: pointer; display: flex; flex-direction: column; gap: 9px; box-shadow: {{ fl.shadow }}; transition: transform 120ms, border-color 150ms, box-shadow 200ms" style-active="transform: scale(0.97)">
+                <div style="display: flex; align-items: center; justify-content: space-between">
+                  <div style="color: {{ fl.iconColor }}">{{ fl.icon }}</div>
+                  <sc-if value="{{ fl.active }}" hint-placeholder-val="{{ false }}">
+                    <div style="font-size: 9px; font-weight: 800; letter-spacing: 0.6px; color: #22d3ee; background: rgba(34,211,238,0.12); border: 1px solid rgba(34,211,238,0.35); border-radius: 5px; padding: 2px 6px">AÇIK</div>
+                  </sc-if>
+                </div>
+                <div style="height: 26px">{{ fl.curve }}</div>
+                <div>
+                  <div style="font-size: 12.5px; font-weight: 700; color: {{ fl.nameColor }}">{{ fl.name }}</div>
+                  <div style="font-size: 10px; font-weight: 500; color: #6c7178; margin-top: 1px">{{ fl.range }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 84px; padding: 10px 8px 28px 8px; background: rgba(14,15,18,0.92); backdrop-filter: blur(20px); border-top: 1px solid rgba(255,255,255,0.08); display: grid; grid-template-columns: 1fr 1fr 1fr">
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #6c7178"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13a8 8 0 0 1 16 0"></path><rect x="3" y="13" width="4" height="7" rx="2"></rect><rect x="17" y="13" width="4" height="7" rx="2"></rect></svg><div style="font-size: 10.5px; font-weight: 600">Antrenman</div></div>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #6c7178"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"></path><path d="M5 20v-6l4-4 4 3 6-7"></path></svg><div style="font-size: 10.5px; font-weight: 600">İlerleme</div></div>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #22d3ee"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"></path></svg><div style="font-size: 10.5px; font-weight: 700">Araçlar</div></div>
+      </div>
+    </div>
+  </x-import>
+</div>
+
+<!-- FREE -->
+<div style="display: flex; flex-direction: column; gap: 12px; align-items: center">
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+    <div style="font-size: 12px; font-weight: 800; letter-spacing: 1.6px; color: #6c7178">FREE</div>
+    <div style="font-size: 12px; font-weight: 500; color: #6c7178">kilit ekranı</div>
+  </div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="430px,880px">
+    <div style="height: 100%; display: flex; flex-direction: column; background: radial-gradient(ellipse 120% 30% at 50% 10%, rgba(217,168,60,0.1) 0%, rgba(217,168,60,0) 60%), #0c0d0f; font-family: 'Inter', sans-serif; color: #e7e9ec">
+      <div style="flex: 1; padding: 62px 20px 96px 20px; display: flex; flex-direction: column">
+        <div style="flex-shrink: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.4px; color: #f2f3f5">Araçlar</div>
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; text-align: center">
+          <div style="position: relative; width: 92px; height: 92px; filter: drop-shadow(0 8px 22px rgba(217,168,60,0.3))">
+            <svg width="92" height="92" viewBox="0 0 52 52">
+              <defs><linearGradient id="fg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6d878"></stop><stop offset="0.45" stop-color="#d9a83c"></stop><stop offset="1" stop-color="#8f6a1c"></stop></linearGradient></defs>
+              <polygon points="26,3 48,19 40,46 12,46 4,19" fill="url(#fg2)" stroke="#fbe9a8" stroke-width="1.2"></polygon>
+              <polygon points="26,9 42.5,21 36.5,41 15.5,41 9.5,21" fill="#2a2013" stroke="#c79a33" stroke-width="0.8"></polygon>
+            </svg>
+            <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding-top: 4px">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f6d878" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 21px; font-weight: 800; letter-spacing: -0.4px; color: #f2f3f5">Araçlar Pro'ya özel</div>
+            <div style="font-size: 13.5px; line-height: 1.55; color: #8f949b; margin-top: 8px; max-width: 280px; text-wrap: pretty">Kendi mixini yükle, telefon hoparlöründen club sistemine kadar referans filtreleriyle dinle.</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 9px; width: 100%; max-width: 290px">
+            <sc-for list="{{ lockedList }}" as="l" hint-placeholder-count="2">
+              <div style="display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 12px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.07)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e8c46a" stroke-width="2" stroke-linecap="round" style="flex-shrink: 0"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+                <div style="font-size: 12.5px; font-weight: 600; color: #b8bdc4; text-align: left">{{ l }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="flex-shrink: 0; display: flex; flex-direction: column; gap: 10px">
+          <button onClick="{{ noop }}" style="height: 52px; border: none; border-radius: 14px; background: linear-gradient(180deg, #f6d878, #d9a83c); color: #1a1305; font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 16px rgba(217,168,60,0.35), inset 0 1px 0 rgba(255,255,255,0.35); transition: transform 120ms" style-hover="filter: brightness(1.06)" style-active="transform: scale(0.98)">Pro'ya Geç · ₺249</button>
+          <div style="text-align: center; font-size: 11.5px; font-weight: 500; color: #4a4f56">Tek seferlik satın alma · abonelik yok</div>
+        </div>
+      </div>
+
+      <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 84px; padding: 10px 8px 28px 8px; background: rgba(14,15,18,0.92); backdrop-filter: blur(20px); border-top: 1px solid rgba(255,255,255,0.08); display: grid; grid-template-columns: 1fr 1fr 1fr">
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #6c7178"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13a8 8 0 0 1 16 0"></path><rect x="3" y="13" width="4" height="7" rx="2"></rect><rect x="17" y="13" width="4" height="7" rx="2"></rect></svg><div style="font-size: 10.5px; font-weight: 600">Antrenman</div></div>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #6c7178"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"></path><path d="M5 20v-6l4-4 4 3 6-7"></path></svg><div style="font-size: 10.5px; font-weight: 600">İlerleme</div></div>
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #22d3ee"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"></path></svg><div style="font-size: 10.5px; font-weight: 700">Araçlar</div></div>
+      </div>
+    </div>
+  </x-import>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1040, &quot;height&quot;: 1020}}">
+class Component extends DCLogic {
+  state = { playing: 0, filter: 1 };
+  wave(active) {
+    const e = React.createElement;
+    const bars = [];
+    for (let i = 0; i < 14; i++) {
+      const h = 5 + Math.abs(Math.sin(i * 1.15) * Math.cos(i * 0.42)) * 18;
+      bars.push(e('rect', { key: i, x: i * 4.4, y: 13 - h / 2, width: 2.4, height: h, rx: 1.2, fill: active ? '#22d3ee' : '#3a3f45' }));
+    }
+    return e('svg', { width: '100%', height: '100%', viewBox: '0 0 62 26' }, bars);
+  }
+  curve(kind, active) {
+    const e = React.createElement;
+    const W = 130, H = 26;
+    const shapes = {
+      phone: 'M2,24 L18,24 C26,24 30,6 44,6 L92,6 C104,6 108,22 118,24 L128,24',
+      car: 'M2,10 C14,4 22,20 34,20 C50,20 58,8 74,10 C90,12 98,20 112,14 L128,18',
+      head: 'M2,20 C24,18 40,10 64,9 C88,8 106,12 128,16',
+      club: 'M2,4 C14,4 20,6 30,14 C40,22 56,22 72,20 C92,18 108,20 128,22',
+      laptop: 'M2,24 L26,24 C36,24 40,10 56,10 L100,10 C112,10 116,20 128,22',
+      flat: 'M2,13 L128,13'
+    };
+    const color = active ? '#22d3ee' : '#5a6068';
+    return e('svg', { width: '100%', height: '100%', viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none', style: { display: 'block' } },
+      e('line', { x1: 0, y1: 13, x2: W, y2: 13, stroke: 'rgba(255,255,255,0.05)', strokeWidth: 1 }),
+      e('path', { d: shapes[kind], fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinejoin: 'round' }));
+  }
+  renderVals() {
+    const e = React.createElement;
+    const s = this.state;
+    const ic = p => e('svg', { width: 17, height: 17, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: p }));
+    const fileRow = (name, meta, i) => {
+      const playing = s.playing === i;
+      return {
+        name, meta,
+        play: () => this.setState({ playing: playing ? -1 : i }),
+        playBorder: playing ? 'rgba(34,211,238,0.6)' : 'rgba(255,255,255,0.15)',
+        playColor: playing ? '#22d3ee' : '#b8bdc4',
+        anim: playing ? 'breathe 2.4s ease-in-out infinite' : 'none',
+        icon: playing
+          ? e('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'currentColor' }, e('rect', { x: 6, y: 5, width: 4.5, height: 14, rx: 1.5 }), e('rect', { x: 13.5, y: 5, width: 4.5, height: 14, rx: 1.5 }))
+          : e('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'currentColor', style: { marginLeft: 2 } }, e('path', { d: 'M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z' })),
+        wave: this.wave(playing)
+      };
+    };
+    const filt = (name, range, kind, icon, i) => {
+      const active = s.filter === i;
+      return {
+        name, range, icon: ic(icon), curve: this.curve(kind, active), active,
+        select: () => this.setState({ filter: i }),
+        bg: active ? 'rgba(34,211,238,0.07)' : 'rgba(255,255,255,0.03)',
+        border: active ? 'rgba(34,211,238,0.55)' : 'rgba(255,255,255,0.08)',
+        shadow: active ? '0 0 18px rgba(34,211,238,0.15)' : 'none',
+        iconColor: active ? '#22d3ee' : '#6c7178',
+        nameColor: active ? '#eef0f2' : '#b8bdc4'
+      };
+    };
+    return {
+      noop: () => {},
+      files: [
+        fileRow('Gece Yarısı — mix v7.wav', '48 kHz · 24 bit · 3:42', 0),
+        fileRow('Vokal denemesi 03.mp3', '44.1 kHz · 320 kbps · 2:18', 1),
+        fileRow('Davul bus — ham.aiff', '48 kHz · 24 bit · 1:05', 2)
+      ],
+      filters: [
+        filt('Telefon Hoparlörü', '400 Hz – 6 kHz', 'phone', 'M7 3h10v18H7zM10 18h4', 0),
+        filt('Araba', '60 Hz – 14 kHz', 'car', 'M4 16v-3l2-5h12l2 5v3M4 16h16M7 16v2M17 16v2', 1),
+        filt('Kulaklık', '20 Hz – 20 kHz', 'head', 'M4 13a8 8 0 0 1 16 0M3 15h4v5H3zM17 15h4v5h-4z', 2),
+        filt('Club Sistemi', '25 Hz – 18 kHz', 'club', 'M5 3h14v18H5zM12 8a2 2 0 1 0 .01 0M12 15a3 3 0 1 0 .01 0', 3),
+        filt('Laptop Hoparlörü', '250 Hz – 12 kHz', 'laptop', 'M4 6h16v10H4zM2 19h20', 4),
+        filt('Filtresiz', 'düz referans', 'flat', 'M3 12h18', 5)
+      ],
+      lockedList: ['Mixini yükle ve uygulama içinde dinle', 'Altı cihaz referans filtresi']
+    };
+  }
+}
+</script>
+</body>
+</html>

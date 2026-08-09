@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #08090b; font-family: 'Inter', -apple-system, sans-serif; }
+  a { color: #4ade80; } a:hover { color: #86efac; }
+  * { box-sizing: border-box; }
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 32px; background: radial-gradient(ellipse at 50% 0%, #14161a 0%, #08090b 70%)">
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="430px,880px">
+  <div style="height: 100%; display: flex; flex-direction: column; background: #0c0d0f; font-family: 'Inter', sans-serif; color: #e7e9ec">
+    <div style="flex: 1; overflow-y: auto; padding: 62px 16px 96px 16px; display: flex; flex-direction: column; gap: 16px">
+
+      <!-- Kullanıcı kartı: brushed metal -->
+      <div style="flex-shrink: 0; border-radius: 18px; padding: 16px; position: relative; overflow: hidden; background: linear-gradient(160deg, #6b6f75 0%, #43464b 18%, #2e3034 45%, #232427 70%, #3a3c40 100%); border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 12px 28px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.25)">
+        <div style="position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.028) 0px, rgba(255,255,255,0.028) 1px, transparent 1px, transparent 3px); pointer-events: none"></div>
+        <div style="position: relative; display: flex; align-items: center; gap: 12px">
+          <div style="width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(180deg, #1b1c1f, #101113); border: 1px solid rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.6)">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="4" fill="#8b8f96"></circle><path d="M4 20c0-3.6 3.6-6 8-6s8 2.4 8 6" fill="#8b8f96"></path></svg>
+          </div>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 17px; font-weight: 700; letter-spacing: -0.2px; color: #f2f3f5; text-shadow: 0 1px 1px rgba(0,0,0,0.5)">Kalibre Kulak</div>
+            <div style="font-size: 12px; font-weight: 500; color: #a9adb4; margin-top: 2px">Akademi Seviyesi · tüm modların toplamı</div>
+          </div>
+          <div style="position: relative; width: 52px; height: 52px; flex-shrink: 0; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.5))">
+            <svg width="52" height="52" viewBox="0 0 52 52">
+              <defs>
+                <linearGradient id="goldg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#f6d878"></stop><stop offset="0.45" stop-color="#d9a83c"></stop><stop offset="1" stop-color="#8f6a1c"></stop>
+                </linearGradient>
+              </defs>
+              <polygon points="26,3 48,19 40,46 12,46 4,19" fill="url(#goldg)" stroke="#fbe9a8" stroke-width="1.5"></polygon>
+              <polygon points="26,9 42.5,21 36.5,41 15.5,41 9.5,21" fill="#2a2013" stroke="#c79a33" stroke-width="1"></polygon>
+            </svg>
+            <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding-top: 2px">
+              <div style="font-size: 9px; font-weight: 700; color: #e8c46a; letter-spacing: 0.5px; line-height: 1">Sv</div>
+              <div style="font-size: 16px; font-weight: 800; color: #f6d878; line-height: 1.1">{{ academyLevel }}</div>
+            </div>
+          </div>
+        </div>
+        <div style="position: relative; margin-top: 14px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px">
+            <div style="font-size: 11px; font-weight: 600; color: #9ba0a8; letter-spacing: 0.4px; text-transform: uppercase">XP</div>
+            <div style="font-size: 12px; font-weight: 600; color: #c9cdd3; font-variant-numeric: tabular-nums">{{ xpLabel }}</div>
+          </div>
+          <div style="height: 8px; border-radius: 4px; background: rgba(0,0,0,0.55); box-shadow: inset 0 1px 2px rgba(0,0,0,0.7); overflow: hidden">
+            <div style="height: 100%; width: {{ xpPct }}; border-radius: 4px; background: linear-gradient(180deg, #5eea72, #2fbf46); box-shadow: 0 0 8px rgba(74,222,128,0.5)"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Günün önerisi -->
+      <div onClick="{{ noop }}" style="flex-shrink: 0; border-radius: 18px; padding: 16px; background: linear-gradient(180deg, rgba(74,222,128,0.07), rgba(74,222,128,0.02)), #131518; border: 1px solid rgba(74,222,128,0.45); box-shadow: 0 0 24px rgba(74,222,128,0.07), 0 8px 20px rgba(0,0,0,0.4); cursor: pointer; transition: transform 120ms, border-color 150ms" style-hover="border-color: rgba(74,222,128,0.7)" style-active="transform: scale(0.98)">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px">
+          <div style="width: 6px; height: 6px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.8)"></div>
+          <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.6px; color: #4ade80; text-transform: uppercase">Günün Önerisi</div>
+        </div>
+        <div style="font-size: 13.5px; line-height: 1.55; color: #c4c9cf; text-wrap: pretty">Zayıf bölgen <span style="color: #f87160; font-weight: 700">ÜST-ORTA (2–8 kHz)</span> — son 30 günde isabet %48. Bu bölgeyi en çok çalıştıran mod:</div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.25)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c4 0 5-10 9-10s5 10 9 10"></path></svg>
+          <div style="flex: 1; font-size: 14px; font-weight: 700; color: #eef0f2">Frekans Bulma</div>
+          <div style="display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: #4ade80">Başla
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Egzersizler -->
+      <div style="flex-shrink: 0; display: flex; align-items: baseline; justify-content: space-between; margin-top: 4px">
+        <div style="font-size: 22px; font-weight: 800; letter-spacing: -0.4px; color: #f2f3f5">Egzersizler</div>
+        <div style="font-size: 12px; font-weight: 600; color: #6c7178">10 mod</div>
+      </div>
+
+      <div style="flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+        <sc-for list="{{ exercises }}" as="ex" hint-placeholder-count="10">
+          <div onClick="{{ noop }}" style="border-radius: 16px; background: linear-gradient(180deg, #17191d, #121316); border: 1px solid rgba(255,255,255,0.07); overflow: hidden; box-shadow: 0 6px 16px rgba(0,0,0,0.35); display: flex; flex-direction: column; cursor: pointer; transition: transform 120ms, border-color 150ms" style-hover="border-color: rgba(255,255,255,0.16)" style-active="transform: scale(0.97)">
+            <div style="height: 84px; background: #0a0c0e; border-bottom: 1px solid rgba(255,255,255,0.06); position: relative">
+              {{ ex.viz }}
+              <sc-if value="{{ ex.pro }}" hint-placeholder-val="{{ false }}">
+                <div style="position: absolute; top: 8px; right: 8px; display: flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 7px; background: rgba(20,16,6,0.85); border: 1px solid rgba(232,196,106,0.45)">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#e8c46a" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+                  <span style="font-size: 9px; font-weight: 800; color: #e8c46a; letter-spacing: 0.4px">PRO</span>
+                </div>
+              </sc-if>
+            </div>
+            <div style="padding: 12px; display: flex; flex-direction: column; gap: 6px; flex: 1">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px">
+                <div style="font-size: 13.5px; font-weight: 700; letter-spacing: -0.2px; color: #eef0f2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ ex.name }}</div>
+                <div style="flex-shrink: 0; font-size: 10px; font-weight: 700; color: #e8c46a; background: rgba(232,196,106,0.12); border: 1px solid rgba(232,196,106,0.3); border-radius: 6px; padding: 2px 6px; line-height: 1.3">Sv {{ ex.lv }}</div>
+              </div>
+              <div style="font-size: 11px; line-height: 1.45; color: #8f949b; flex: 1">{{ ex.desc }}</div>
+              <sc-if value="{{ ex.daily }}" hint-placeholder-val="{{ false }}">
+                <div style="align-self: flex-start; font-size: 9.5px; font-weight: 700; color: #f0b442; background: rgba(240,180,66,0.1); border: 1px solid rgba(240,180,66,0.3); border-radius: 6px; padding: 2px 7px">günde 1 ücretsiz</div>
+              </sc-if>
+              <div style="height: 4px; border-radius: 2px; background: rgba(255,255,255,0.07); overflow: hidden; margin-top: 4px">
+                <div style="height: 100%; width: {{ ex.pct }}; border-radius: 2px; background: linear-gradient(90deg, #2fbf46, #4ade80)"></div>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- Yakında -->
+      <div style="flex-shrink: 0; font-size: 13px; font-weight: 700; letter-spacing: 1px; color: #6c7178; text-transform: uppercase; margin-top: 4px">Yakında</div>
+      <div style="flex-shrink: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+        <sc-for list="{{ coming }}" as="c" hint-placeholder-count="4">
+          <div style="border-radius: 16px; background: linear-gradient(180deg, #141619, #101114); border: 1px dashed rgba(255,255,255,0.09); padding: 14px; display: flex; align-items: center; gap: 11px; opacity: 0.55">
+            <div style="width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; color: #6c7178">{{ c.icon }}</div>
+            <div style="flex: 1; min-width: 0">
+              <div style="font-size: 12.5px; font-weight: 700; color: #9ba0a8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ c.name }}</div>
+              <div style="font-size: 10px; font-weight: 600; color: #4a4f56; margin-top: 2px">Yakında</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div style="position: absolute; left: 0; right: 0; bottom: 0; height: 84px; padding: 10px 8px 28px 8px; background: rgba(14,15,18,0.92); backdrop-filter: blur(20px); border-top: 1px solid rgba(255,255,255,0.08); display: grid; grid-template-columns: 1fr 1fr 1fr">
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #22d3ee; cursor: pointer">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13a8 8 0 0 1 16 0"></path><rect x="3" y="13" width="4" height="7" rx="2"></rect><rect x="17" y="13" width="4" height="7" rx="2"></rect></svg>
+        <div style="font-size: 10.5px; font-weight: 700">Antrenman</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #6c7178; cursor: pointer" style-hover="color: #9ba0a8">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"></path><path d="M5 20v-6l4-4 4 3 6-7"></path></svg>
+        <div style="font-size: 10.5px; font-weight: 600">İlerleme</div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: #6c7178; cursor: pointer" style-hover="color: #9ba0a8">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"></path></svg>
+        <div style="font-size: 10.5px; font-weight: 600">Araçlar</div>
+      </div>
+    </div>
+  </div>
+</x-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 500, &quot;height&quot;: 960}}">
+class Component extends DCLogic {
+  vizSvg(kind) {
+    const e = React.createElement;
+    const W = 200, H = 84;
+    const grid = [];
+    for (let x = 20; x < W; x += 20) grid.push(e('line', { key: 'v' + x, x1: x, y1: 0, x2: x, y2: H, stroke: 'rgba(255,255,255,0.045)', strokeWidth: 1 }));
+    for (let y = 14; y < H; y += 14) grid.push(e('line', { key: 'h' + y, x1: 0, y1: y, x2: W, y2: y, stroke: 'rgba(255,255,255,0.045)', strokeWidth: 1 }));
+    const cyan = '#22d3ee', cyanDim = 'rgba(34,211,238,0.22)', amber = '#f0b442';
+    let body = [];
+    if (kind === 'bell') {
+      const d = 'M0,64 C50,64 62,64 78,60 C92,56 96,20 100,20 C104,20 108,56 122,60 C138,64 150,64 200,64';
+      body = [e('path', { key: 'f', d: d + ' L200,84 L0,84 Z', fill: 'url(#gB)' }), e('path', { key: 's', d, fill: 'none', stroke: cyan, strokeWidth: 2 }), e('line', { key: 'c', x1: 100, y1: 14, x2: 100, y2: 78, stroke: 'rgba(34,211,238,0.5)', strokeWidth: 1, strokeDasharray: '3 3' }), e('circle', { key: 'p', cx: 100, cy: 20, r: 3.5, fill: cyan }), e('text', { key: 't', x: 100, y: 11, textAnchor: 'middle', fontSize: 8, fontFamily: 'Inter', fontWeight: 600, fill: '#7cd8e8' }, '+6 dB · 2.5k')];
+    } else if (kind === 'cut') {
+      const bars = [];
+      for (let i = 0; i < 30; i++) {
+        const x = 8 + i * 6.4;
+        const hgt = 5 + Math.abs(Math.sin(i * 0.9) * Math.cos(i * 0.31)) * 26;
+        const after = x > 118;
+        bars.push(e('rect', { key: 'b' + i, x, y: 42 - hgt, width: 3.6, height: hgt * 2, rx: 1.8, fill: after ? 'rgba(90,96,104,0.35)' : cyan, opacity: after ? 1 : 0.85 }));
+      }
+      body = [...bars, e('line', { key: 'c', x1: 118, y1: 6, x2: 118, y2: 78, stroke: amber, strokeWidth: 1.5, strokeDasharray: '5 3' }), e('text', { key: 't', x: 122, y: 14, fontSize: 8, fontFamily: 'Inter', fontWeight: 600, fill: amber }, 'kesim')];
+    } else if (kind === 'q') {
+      const wide = 'M10,66 C50,64 60,30 100,30 C140,30 150,64 190,66';
+      const narrow = 'M55,66 C80,64 88,18 100,18 C112,18 120,64 145,66';
+      body = [e('path', { key: 'w', d: wide, fill: 'none', stroke: '#5a6068', strokeWidth: 1.5, strokeDasharray: '4 3' }), e('path', { key: 'nf', d: narrow + ' L145,84 L55,84 Z', fill: 'url(#gB)' }), e('path', { key: 'n', d: narrow, fill: 'none', stroke: cyan, strokeWidth: 2 }), e('line', { key: 'a', x1: 72, y1: 44, x2: 128, y2: 44, stroke: '#7cd8e8', strokeWidth: 1.2 }), e('text', { key: 't', x: 100, y: 40, textAnchor: 'middle', fontSize: 9, fontFamily: 'Inter', fontWeight: 700, fill: '#7cd8e8' }, 'Q')];
+    } else if (kind === 'boostcut') {
+      const up = 'M10,44 C40,44 52,44 64,40 C74,36 76,20 80,20 C84,20 86,36 96,40 C108,44 120,44 130,44';
+      const dn = 'M70,44 C100,44 112,44 124,48 C134,52 136,66 140,66 C144,66 146,52 156,48 C168,44 180,44 190,44';
+      body = [
+        e('path', { key: 'u', d: up, fill: 'none', stroke: '#4ade80', strokeWidth: 2 }),
+        e('path', { key: 'd', d: dn, fill: 'none', stroke: '#f87160', strokeWidth: 2 }),
+        e('line', { key: 'z', x1: 0, y1: 44, x2: 200, y2: 44, stroke: 'rgba(255,255,255,0.14)', strokeWidth: 1, strokeDasharray: '2 3' }),
+        e('text', { key: 'tu', x: 80, y: 13, textAnchor: 'middle', fontSize: 8, fontFamily: 'Inter', fontWeight: 700, fill: '#4ade80' }, 'BOOST'),
+        e('text', { key: 'td', x: 140, y: 79, textAnchor: 'middle', fontSize: 8, fontFamily: 'Inter', fontWeight: 700, fill: '#f87160' }, 'CUT')
+      ];
+    } else if (kind === 'comp') {
+      body = [
+        e('line', { key: 'diag', x1: 14, y1: 76, x2: 108, y2: 12, stroke: '#5a6068', strokeWidth: 1.3, strokeDasharray: '4 3' }),
+        e('path', { key: 'c', d: 'M14,76 L72,36 C80,30 88,28 100,26 L186,16', fill: 'none', stroke: cyan, strokeWidth: 2 }),
+        e('circle', { key: 'k', cx: 72, cy: 36, r: 3.5, fill: cyan }),
+        e('text', { key: 't', x: 80, y: 50, fontSize: 8, fontFamily: 'Inter', fontWeight: 600, fill: '#7cd8e8' }, 'knee · 4:1'),
+        e('text', { key: 'x', x: 186, y: 79, textAnchor: 'end', fontSize: 7, fontFamily: 'Inter', fill: '#4a4f56' }, 'IN dB'),
+        e('text', { key: 'y', x: 8, y: 12, fontSize: 7, fontFamily: 'Inter', fill: '#4a4f56' }, 'OUT')
+      ];
+    } else if (kind === 'db') {
+      const ticks = [];
+      ['+12', '+6', '0', '-6', '-12'].forEach((l, i) => {
+        const y = 12 + i * 15;
+        ticks.push(e('line', { key: 'l' + i, x1: 92, y1: y, x2: 108, y2: y, stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1 }));
+        ticks.push(e('text', { key: 'x' + i, x: 116, y: y + 3, fontSize: 8, fontFamily: 'Inter', fontWeight: 500, fill: '#6c7178' }, l));
+      });
+      body = [e('rect', { key: 'tr', x: 97, y: 10, width: 6, height: 64, rx: 3, fill: 'rgba(0,0,0,0.6)', stroke: 'rgba(255,255,255,0.12)', strokeWidth: 1 }), ...ticks, e('rect', { key: 'fl', x: 97, y: 22, width: 6, height: 52, rx: 3, fill: cyanDim }), e('rect', { key: 'cap', x: 84, y: 16, width: 32, height: 13, rx: 4, fill: '#2a2d31', stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1 }), e('rect', { key: 'cl', x: 84, y: 21.5, width: 32, height: 2, fill: cyan }), e('text', { key: 't', x: 62, y: 26, textAnchor: 'end', fontSize: 9, fontFamily: 'Inter', fontWeight: 700, fill: '#7cd8e8' }, '+4 dB?')];
+    } else if (kind === 'reverb') {
+      const bars = [];
+      for (let i = 0; i < 16; i++) {
+        const x = 22 + i * 10.5;
+        const hgt = 30 * Math.exp(-i * 0.24);
+        bars.push(e('rect', { key: 'b' + i, x, y: 46 - hgt, width: 5, height: hgt * 2, rx: 2.5, fill: cyan, opacity: Math.max(0.12, 1 - i * 0.07) }));
+      }
+      body = [
+        e('rect', { key: 'dry', x: 8, y: 12, width: 7, height: 68, rx: 3.5, fill: cyan }),
+        ...bars,
+        e('text', { key: 't', x: 100, y: 12, textAnchor: 'middle', fontSize: 8, fontFamily: 'Inter', fontWeight: 600, fill: '#7cd8e8' }, 'decay 1.8 s')
+      ];
+    } else if (kind === 'tonal') {
+      const flat = 'M10,46 C60,44 140,44 190,42';
+      const tilt = 'M10,60 C60,52 120,36 190,24';
+      body = [
+        e('path', { key: 'f', d: flat, fill: 'none', stroke: '#5a6068', strokeWidth: 1.5, strokeDasharray: '4 3' }),
+        e('path', { key: 'tf', d: tilt + ' L190,84 L10,84 Z', fill: 'url(#gB)' }),
+        e('path', { key: 't', d: tilt, fill: 'none', stroke: cyan, strokeWidth: 2 }),
+        e('text', { key: 'l1', x: 14, y: 76, fontSize: 7, fontFamily: 'Inter', fill: '#4a4f56' }, 'karanlık'),
+        e('text', { key: 'l2', x: 186, y: 16, textAnchor: 'end', fontSize: 7, fontFamily: 'Inter', fill: '#4a4f56' }, 'parlak')
+      ];
+    } else if (kind === 'dist') {
+      let dClean = 'M10,42', dClip = 'M10,42';
+      for (let i = 0; i <= 90; i++) {
+        const x = 10 + i * 2;
+        const v = Math.sin(i / 7.2) * 30;
+        dClean += ' L' + x + ',' + (42 - v);
+        dClip += ' L' + x + ',' + (42 - Math.max(-16, Math.min(16, v * 1.6)));
+      }
+      body = [
+        e('path', { key: 'c', d: dClean, fill: 'none', stroke: '#5a6068', strokeWidth: 1.3, strokeDasharray: '3 3' }),
+        e('path', { key: 'k', d: dClip, fill: 'none', stroke: amber, strokeWidth: 2 }),
+        e('line', { key: 'u', x1: 10, y1: 26, x2: 190, y2: 26, stroke: 'rgba(248,113,96,0.5)', strokeWidth: 1, strokeDasharray: '2 3' }),
+        e('line', { key: 'l', x1: 10, y1: 58, x2: 190, y2: 58, stroke: 'rgba(248,113,96,0.5)', strokeWidth: 1, strokeDasharray: '2 3' }),
+        e('text', { key: 't', x: 100, y: 14, textAnchor: 'middle', fontSize: 8, fontFamily: 'Inter', fontWeight: 600, fill: amber }, 'clip')
+      ];
+    } else {
+      const kick = 'M10,72 C30,26 44,20 58,30 C74,44 90,64 120,70 C150,74 170,76 190,77';
+      const bass = 'M10,76 C40,72 52,50 74,38 C92,28 108,32 124,46 C142,62 165,72 190,74';
+      body = [e('path', { key: 'kf', d: kick + ' L190,84 L10,84 Z', fill: 'rgba(34,211,238,0.15)' }), e('path', { key: 'bf', d: bass + ' L190,84 L10,84 Z', fill: 'rgba(240,180,66,0.13)' }), e('path', { key: 'k', d: kick, fill: 'none', stroke: cyan, strokeWidth: 1.8 }), e('path', { key: 'b', d: bass, fill: 'none', stroke: amber, strokeWidth: 1.8 }), e('rect', { key: 'ov', x: 52, y: 26, width: 46, height: 58, fill: 'rgba(255,80,80,0.08)' }), e('text', { key: 'tk', x: 14, y: 16, fontSize: 8, fontFamily: 'Inter', fontWeight: 700, fill: cyan }, 'KICK'), e('text', { key: 'tb', x: 162, y: 16, fontSize: 8, fontFamily: 'Inter', fontWeight: 700, fill: amber }, 'BAS')];
+    }
+    return e('svg', { width: '100%', height: '100%', viewBox: '0 0 200 84', preserveAspectRatio: 'none', style: { display: 'block' } },
+      e('defs', null, e('linearGradient', { id: 'gB', x1: 0, y1: 0, x2: 0, y2: 1 }, e('stop', { offset: 0, stopColor: 'rgba(34,211,238,0.35)' }), e('stop', { offset: 1, stopColor: 'rgba(34,211,238,0)' }))),
+      grid, body);
+  }
+  renderVals() {
+    const e = React.createElement;
+    const xpCur = 2140, xpMax = 3000;
+    const exercises = [
+      { name: 'Frekans Bulma', lv: 4, desc: 'Hangi frekans bandı artırıldı? Bell eğrisini kulakla bul.', pct: '72%', viz: this.vizSvg('bell'), pro: false, daily: false },
+      { name: 'Kesim Noktası', lv: 3, desc: 'HP/LP filtrenin kesim frekansını tahmin et.', pct: '35%', viz: this.vizSvg('cut'), pro: false, daily: false },
+      { name: 'Q Genişliği', lv: 3, desc: 'Geniş mi dar mı? Bant genişliğini ayırt et.', pct: '41%', viz: this.vizSvg('q'), pro: false, daily: false },
+      { name: 'Boost mu Cut mu', lv: 2, desc: 'Bant yükseltildi mi, kesildi mi? Yönü duy.', pct: '28%', viz: this.vizSvg('boostcut'), pro: false, daily: false },
+      { name: 'Kompresör', lv: 2, desc: 'Oran ve atak süresini kulakla tanı. Ücretsiz.', pct: '19%', viz: this.vizSvg('comp'), pro: false, daily: false },
+      { name: 'dB Seviyesi', lv: 2, desc: 'Uygulanan gain miktarını dB cinsinden tahmin et.', pct: '24%', viz: this.vizSvg('db'), pro: false, daily: false },
+      { name: 'Reverb', lv: 1, desc: 'Decay süresi ve oda boyutunu ayırt et.', pct: '8%', viz: this.vizSvg('reverb'), pro: false, daily: false },
+      { name: 'Tonal Denge', lv: 1, desc: 'Mix karanlık mı parlak mı? Eğimi değerlendir.', pct: '5%', viz: this.vizSvg('tonal'), pro: false, daily: false },
+      { name: 'Distortion', lv: 1, desc: 'Saturasyon türünü ve miktarını tanı.', pct: '0%', viz: this.vizSvg('dist'), pro: true, daily: false },
+      { name: 'Frekans Çakışması', lv: 2, desc: 'Kick ile bas nerede çakışıyor? Maskelemeyi duy.', pct: '12%', viz: this.vizSvg('mask'), pro: true, daily: true }
+    ];
+    const cIcon = p => e('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: p }));
+    return {
+      noop: () => {},
+      academyLevel: exercises.reduce((a, x) => a + x.lv, 0),
+      xpLabel: xpCur.toLocaleString('tr-TR') + ' / ' + xpMax.toLocaleString('tr-TR'),
+      xpPct: Math.round(xpCur / xpMax * 100) + '%',
+      exercises,
+      coming: [
+        { name: 'Hız Modu', icon: cIcon('M12 8v4l3 2M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z') },
+        { name: 'Stereo Genişlik', icon: cIcon('M7 12h10M4 8v8M20 8v8M9 5v14M15 5v14') },
+        { name: 'Pan Konumu', icon: cIcon('M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9ZM12 12l4-5') },
+        { name: 'Hangisi Farklı', icon: cIcon('M4 8h5v8H4zM10 6h5v12h-5zM16 9h4v6h-4z') }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

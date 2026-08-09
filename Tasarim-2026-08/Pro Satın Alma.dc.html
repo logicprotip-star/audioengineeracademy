@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #08090b; font-family: 'Inter', -apple-system, sans-serif; }
+  a { color: #4ade80; } a:hover { color: #86efac; }
+  * { box-sizing: border-box; }
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; gap: 48px; flex-wrap: wrap; padding: 48px 32px; background: radial-gradient(ellipse at 50% 0%, #14161a 0%, #08090b 70%)">
+<sc-for list="{{ variants }}" as="v" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 12px; align-items: center">
+  <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+    <div style="font-size: 12px; font-weight: 800; letter-spacing: 1.6px; color: {{ v.accent }}">{{ v.variantLabel }}</div>
+    <div style="font-size: 12px; font-weight: 500; color: #6c7178">{{ v.variantSub }}</div>
+  </div>
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="430px,880px">
+    <div style="height: 100%; display: flex; flex-direction: column; background: radial-gradient(ellipse 100% 40% at 50% 0%, rgba(217,168,60,0.1) 0%, rgba(217,168,60,0) 60%), #0c0d0f; font-family: 'Inter', sans-serif; color: #e7e9ec; padding: 62px 20px 34px 20px; gap: {{ v.gap }}; overflow-y: auto">
+
+      <div style="flex-shrink: 0; display: flex">
+        <button onClick="{{ noop }}" style="width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: #b8bdc4; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 120ms" style-hover="background: rgba(255,255,255,0.09)" style-active="transform: scale(0.94)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+        </button>
+      </div>
+
+      <!-- Tetikleyici uyarısı -->
+      <sc-if value="{{ v.showTrigger }}" hint-placeholder-val="{{ false }}">
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 12px; background: rgba(248,113,96,0.07); border: 1px solid rgba(248,113,96,0.3)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="#f87160" style="flex-shrink: 0"><path d="M12 21C7 16.5 3 13 3 8.8 3 5.9 5.2 4 7.7 4 9.4 4 11 4.9 12 6.3 13 4.9 14.6 4 16.3 4 18.8 4 21 5.9 21 8.8 21 13 17 16.5 12 21Z" opacity="0.35"></path><path d="M4 4l16 16" stroke="#f87160" stroke-width="2" stroke-linecap="round"></path></svg>
+          <div style="font-size: 12.5px; font-weight: 600; color: #d9a08f">Canların bitti · sonraki can 28:14</div>
+        </div>
+      </sc-if>
+
+      <!-- Rozet -->
+      <div style="flex-shrink: 0; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding-top: 2px">
+        <div style="position: relative; width: {{ v.badgeSize }}; height: {{ v.badgeSize }}; filter: drop-shadow(0 8px 22px rgba(217,168,60,0.32))">
+          <svg width="100%" height="100%" viewBox="0 0 52 52">
+            <defs><linearGradient id="pg{{ v.key }}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6d878"></stop><stop offset="0.45" stop-color="#d9a83c"></stop><stop offset="1" stop-color="#8f6a1c"></stop></linearGradient></defs>
+            <polygon points="26,3 48,19 40,46 12,46 4,19" fill="url(#pg{{ v.key }})" stroke="#fbe9a8" stroke-width="1.2"></polygon>
+            <polygon points="26,9 42.5,21 36.5,41 15.5,41 9.5,21" fill="#2a2013" stroke="#c79a33" stroke-width="0.8"></polygon>
+          </svg>
+          <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding-top: 4px">
+            <div style="font-size: {{ v.proSize }}; font-weight: 800; letter-spacing: 0.5px; color: #f6d878">PRO</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 12px; font-weight: 600; letter-spacing: 2px; color: #9ba0a8; text-transform: uppercase">Audio Engineer Academy</div>
+          <div style="font-size: 25px; font-weight: 800; letter-spacing: -0.6px; color: #f6d878; margin-top: 2px">PRO</div>
+        </div>
+      </div>
+
+      <!-- Özellikler -->
+      <div style="flex-shrink: 0; border-radius: 16px; background: linear-gradient(180deg, #17191d, #121316); border: 1px solid rgba(255,255,255,0.07); overflow: hidden">
+        <sc-for list="{{ features }}" as="f" hint-placeholder-count="7">
+          <div style="display: flex; align-items: center; gap: 11px; padding: 10px 15px; border-bottom: 1px solid rgba(255,255,255,0.04)">
+            <div style="width: 19px; height: 19px; border-radius: 50%; flex-shrink: 0; background: linear-gradient(180deg, #46d968, #27a63e); display: flex; align-items: center; justify-content: center">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#06230e" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg>
+            </div>
+            <div style="font-size: 13.5px; font-weight: 600; color: #eef0f2">{{ f }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- Fiyat -->
+      <div style="flex-shrink: 0; border-radius: 16px; padding: {{ v.pricePad }}; background: linear-gradient(180deg, rgba(232,196,106,0.08), rgba(232,196,106,0.02)), #131518; border: 1px solid rgba(232,196,106,0.4); box-shadow: 0 0 24px rgba(217,168,60,0.07); text-align: center">
+        <div style="font-size: 32px; font-weight: 800; letter-spacing: -0.9px; color: #f2f3f5; font-variant-numeric: tabular-nums; line-height: 1">₺399</div>
+        <div style="font-size: 12.5px; font-weight: 600; color: #9ba0a8; margin-top: 6px">Tek seferlik · abonelik yok</div>
+      </div>
+
+      <div style="flex: 1; min-height: 0"></div>
+
+      <!-- CTA -->
+      <div style="flex-shrink: 0; display: flex; flex-direction: column; gap: 10px; align-items: center">
+        <button onClick="{{ noop }}" style="width: 100%; height: 52px; border: none; border-radius: 14px; background: linear-gradient(180deg, #46d968, #27a63e); color: #06230e; font-family: 'Inter', sans-serif; font-size: 16.5px; font-weight: 700; letter-spacing: -0.2px; cursor: pointer; box-shadow: 0 4px 16px rgba(46,191,70,0.38), inset 0 1px 0 rgba(255,255,255,0.3); transition: transform 120ms" style-hover="filter: brightness(1.08)" style-active="transform: scale(0.98)">Pro'ya Geç</button>
+        <sc-if value="{{ v.showAd }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ noop }}" style="width: 100%; height: 46px; border: 1px solid rgba(255,255,255,0.14); border-radius: 13px; background: rgba(255,255,255,0.05); color: #c9cdd3; font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 120ms" style-hover="background: rgba(255,255,255,0.09)" style-active="transform: scale(0.98)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5-11-6.5Z"></path></svg>
+            veya reklam izle, canları doldur
+          </button>
+        </sc-if>
+        <button onClick="{{ noop }}" style="border: none; background: none; color: #9ba0a8; font-family: 'Inter', sans-serif; font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 2px 8px" style-hover="color: #c9cdd3">Satın alımı geri yükle</button>
+        <div style="font-size: 9.5px; line-height: 1.5; color: #4a4f56; text-align: center; max-width: 300px">Ödeme App Store hesabınızdan tahsil edilir. Tek seferlik satın alma; otomatik yenileme yoktur. Kullanım Koşulları ve Gizlilik Politikası geçerlidir.</div>
+      </div>
+    </div>
+  </x-import>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 1040, &quot;height&quot;: 1020}}">
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      noop: () => {},
+      features: [
+        '10 modun tamamı',
+        'Sınırsız soru',
+        'Sınav ve seviye atlama',
+        'Kendi dosyanı yükleme',
+        'Araçlar sekmesi',
+        'Zayıf bölge raporu ve geçmiş grafiği',
+        'Reklamsız'
+      ],
+      variants: [
+        { key: 'std', variantLabel: 'STANDART', variantSub: 'genel giriş', accent: '#f6d878', showTrigger: false, showAd: false, badgeSize: '96px', proSize: '23px', gap: '13px', rowPad: '10px 15px', pricePad: '15px 16px' },
+        { key: 'life', variantLabel: 'CANLAR BİTTİ', variantSub: 'reklam istisnası', accent: '#f87160', showTrigger: true, showAd: true, badgeSize: '64px', proSize: '16px', gap: '9px', rowPad: '7px 15px', pricePad: '11px 16px' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
