@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G77)
+Son güncelleme: 09.08.2026 (G78)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,147 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G77, tek commit) — **Oyun Ekranı 1. bölüm: üst bar + bölüm
+Bu commit (G78, tek commit) — **Oyun Ekranı 2. bölüm: üst bar düzeltmeleri
++ çip satırı + soru alanı + alt bar**
+
+Tasarım kaynağı: `Tasarim-2026-08/Oyun Ekranı Varyantları.dc.html` (3
+varyant) + `Soru Ekranı.dc.html` (şıklı) + `Prototip.dc.html` (5 soru tipi
++ sheet'ler). Bu tur öncekinden (G77, "1. bölüm") DEVAM ediyor — orada
+BİLEREK bırakılan soru alanı + alt bar bu turda tamamlandı.
+
+**A) ÜST BAR DÜZELTMELERİ:**
+1. Kalpler artık ÇERÇEVESİZ (`.hearts`'ın background/border/padding'i
+   kaldırıldı) — tasarımda mod adının altında sade duruyorlar.
+2. Bölüm göstergesi artık HEP görünür (boss turu HARİÇ) — eskiden
+   (G77) SADECE `challenge.active` iken görünürdü. Serbest'te noktalar
+   `.dim` (opaklık .45) + etiket "BÖLÜM —"; 10 Soruluk Bölüm'de normal
+   `challenge.done/total`.
+
+**B) ÇİP SATIRI:** Zorluk göstergesi (`#gameDiffChip`, eskiden `.ghead`'de
+ayrı satırdı) artık `.chiprow`'un İÇİNDE, TEK satırda kaynak/odak/cevap-
+biçimi/karıştır çipleriyle birlikte. Kırpma sorunu ("Pink N...", "Tüm
+sp...") KÖKTEN çözüldü: satır artık `overflow-x:auto` + `flex-wrap:nowrap`,
+her çip `flex:none` (içeriğe göre doğal genişlik) — sığmayan satır
+KAYAR, hiçbir metin kesilmiyor (`.srctag b`'deki eski
+`overflow:hidden;text-overflow:ellipsis` kaldırıldı, artık gereksiz).
+Görünürlük kuralları (odak/cevap-biçimi SADECE frekans-bulma, kaynak her
+modda, cakisma'da çift-kaynak) koddan DOĞRULANDI, TEK SATIR değişmedi.
+
+**C) SÜRE ÇUBUĞU ÇİFT GÖSTERİMİ:** Soru alanındaki eski `.timer-row`
+(`#timerBar`/`#timerText`) artık `hidden` — üst bardaki (G77) tek çubuk
+kaldı. `#timerBar`/`#timerText` DOM'dan SİLİNMEDİ (`updateTimerUI()`
+bunları guard'sız okuyor) — SADECE CSS ile gizlendi.
+
+**D) SORU ALANI — 5 BİÇİM:**
+- **Dokunmalı spektrum (Frekans Bulma):** EN BÜYÜK davranış değişikliği bu
+  turda burada — eskiden tek dokunuş ANINDA `submitFrequencyGuess()`
+  çağırıyordu (onay YOKTU). Artık İŞARETLE→ONAYLA: dokunuş SADECE
+  `freqGuessHz`'i ayarlar (işaretçi zaten `drawOverlay`'e canlı geçtiği
+  için ANINDA çizilir, çizim koduna DOKUNULMADI), `#freqGuessArea`'da
+  "{X} olarak onayla" yeşil bir buton belirir (`renderFreqConfirmButton`,
+  YENİ). Butona basınca (YENİ delegated click listener) `submitFrequencyGuess`
+  GERÇEKTEN çağrılır — fonksiyonun KENDİSİ tek satır değişmedi, SADECE
+  NE ZAMAN çağrıldığı değişti. Tekrar dokunmak onaydan ÖNCE işareti
+  günceller (round hâlâ aktif). frekans-bulma.js `renderGuessAreaControls`
+  artık tur başında tap-hint metnini ("Cevabını vermek için spektruma
+  dokun") gösteriyor (eskiden non-proplus'ta TAMAMEN gizliydi). Pro Plus
+  (4-nokta) YOLU DEĞİŞMEDİ — hâlâ 4. işaretten sonra otomatik gönderiyor.
+- **Şıklı (Kesim Noktası/Q Genişliği/Boost mu Cut mu/dB Seviyesi):**
+  `.answers` grid'i 3 sütundan **2 sütuna** (2x2) çevrildi — şık sayısı
+  moda göre değişse de (2-6) sütun sabit 2, satır sayısı otomatik.
+- **3 kart A/B/C (Kompresör/Reverb/Distortion):** mevcut `.ans-m2`/
+  `core/three-way-cards.js` yapısı zaten tasarıma YAKINDI (play+dalga
+  formu+seçim ✓) — DEĞİŞİKLİK YAPILMADI, canlı doğrulandı.
+  kompresor/reverb/distortion'daki döngü-otomatik-başlama TEK SATIR
+  değişmedi.
+- **Kaydırıcı (Tonal Denge):** analizör zaten kompakt (140px, G46'dan
+  beri VARDI) — DEĞİŞİKLİK YAPILMADI. **Kapsam kararı (dürüstlük notu):**
+  tasarım DİKEY sürükle-bırak fader gösteriyor, mevcut kod YATAY
+  `<input type="range">` kullanıyor — DİKEY fader'a geçmek özel
+  pointer-drag JS'i gerektirir (mevcut `<input>`'un erişilebilirlik/
+  klavye desteğini kaybetmeden), bu turun kapsamında YAPILMADI — AÇIK
+  İŞ olarak bırakıldı (aşağıya bkz.).
+- **Aşamalı (Frekans Çakışması):** #abToggle'ın gizli kalması VE
+  #cakismaCompare'in (Önce/Sonra) 3. aşamadan sonra açılması — koddan
+  DOĞRULANDI, TEK SATIR değişmedi (canlı test: cakisma ekranında A/B Test
+  butonu GERÇEKTEN yok).
+
+**E) ALT BAR:** Üst sıra artık hint-ikonu (YENİ ampul SVG'si, metin
+`#hintBtnLabel` nested span'e taşındı — levelChip'in G77'deki AYNI
+retarget deseni) · oynat/durdur (`#startBtn`, öne çıkan/geniş) · A/B
+Bypass (`#abToggle`, pill) sırasıyla; alt sırada büyük YEŞİL (`--green-grad`)
+`#nextBtn`. `.btn.primary`'nin PAYLAŞILAN kuralına (paywall/sınav/vb. onu
+kullanıyor) DOKUNULMADI — `#nextBtn` id-özgüllüğüyle override edildi.
+**Kapsam kararı (dürüstlük notu):** tasarım `#startBtn`'i küçük/dairesel
+İKON-SADECE bir buton olarak gösteriyor; mevcut `updateStartBtnLabel()`
+UZUN metin döndürüyor ("▶ Oyunu Başlat"/"⏸ Durdur"/"🔄 Tekrar Çal") — bu
+metni ikon-sadece bir gösterime çevirmek (hintBtn'de yapılan retarget
+deseninin AYNISI) bu turda YAPILMADI (risk/süre dengesi) — buton
+GENİŞ/öne-çıkan bir dikdörtgen olarak kaldı, tam dairesel değil.
+
+**Testler:** DEĞİŞMEDİ (bu tur DOM/CSS/JS-davranış — hiçbir saf fonksiyon
+etkilenmedi). `npm test`: **1043/1043**.
+
+**ORTAM NOTU (canlı doğrulama sırasında bulundu, gelecek turlar için
+önemli):** `python3 -m http.server` + Chrome'da `type="module"` script'ler
+BAZEN düz `navigate`/`location.reload()` ile TAZELENMİYOR (ES module cache
+HTTP cache'den BAĞIMSIZ, kendi başına bayat kalabiliyor) — bir `fetch(...,
+{cache:'no-store'})` TAZE içerik gösterse bile `import`'un KENDİSİ eski
+kod çalıştırabiliyor. Bu turda gerçek bir hard-reload (Cmd+Shift+R) ile
+doğrulandı/düzeltildi. **Gelecekte JS değişikliğinden SONRA canlı test
+yaparken HER SEFERİNDE hard-reload kullanılmalı**, aksi halde "değişiklik
+çalışmıyor" YANLIŞ teşhisi konabilir (bu turda tam olarak oldu, ~20 dakika
+kaybedildi).
+
+**DOĞRULAMA (canlı tarayıcı, temiz + Pro-simüle localStorage, konsol
+HATASIZ — tüm oturum boyunca sıfır hata):**
+- **10 modun HER BİRİNDE doğru soru biçimi — tek tek açılıp doğrulandı:**
+  Frekans Bulma → dokunmalı+onay butonu ("1.12 kHz olarak onayla" GERÇEKTEN
+  belirdi, tıklanınca GERÇEKTEN gönderdi); Kesim Noktası/Q Genişliği/
+  Boost mu Cut mu/dB Seviyesi → 2x2 şıklı grid; Kompresör/Reverb/
+  Distortion → 3 kart A/B/C (biri canlı BOSS turunda yakalandı, SÜRE/BOSS/
+  XP1.65× satırı da doğrulandı); Tonal Denge → 4 yatay kaydırıcı + kompakt
+  analizör + "Cevabı Onayla"; Frekans Çakışması → aşama 1 şıklı seçim,
+  #abToggle GERÇEKTEN yok.
+- **Çip satırında kesilen metin: 0** — "Kolay"/"Pink Noise"/"Tüm spektrum"/
+  "Dokunmalı" tek satırda, hiçbiri kırpılmadan, ekran görüntüsüyle
+  doğrulandı.
+- **Ekrandaki süre çubuğu sayısı: 1** — `.timer-row:not(.hidden)` DOM
+  sorgusuyla ölçüldü: **0** (eski çubuk gizli), üst bardaki speed-row/
+  boss-row İKİSİ ASLA aynı anda görünmüyor (biri açıkken öteki hidden) —
+  toplam GERÇEKTEN görünen çubuk sayısı **1**.
+- **Bölüm göstergesi iki durumda da doğrulandı:** Serbest'te "BÖLÜM —" +
+  sönük noktalar (ekran görüntüsü), 10 Soruluk Bölüm'de normal
+  "BÖLÜM 1/10" + dolan noktalar (G77'de zaten doğrulanmıştı, bu turda
+  Serbest hâli YENİ eklendi ve doğrulandı).
+- **Alt bar içerik örtmesi: 0px** — `#gameActionbar`'ın üst kenarı ile
+  `#gameScroll`'un son çocuğunun alt kenarı arasında **24px boşluk**
+  ölçüldü (örtüşme YOK, negatif değer değil).
+- **Cevap sonrası dikey kayma, 10 mod için ayrı ayrı (`gameScroll.
+  scrollHeight` farkı):** Frekans Bulma **201px** (bilinen ~244px'ten
+  DÜŞTÜ ama KAPANMADI — dürüstlük notu altında), Kesim Noktası 4px,
+  Q Genişliği 0px, Boost mu Cut mu 0px, dB Seviyesi 2px, Kompresör 4px,
+  Reverb 4px, Distortion 4px, Tonal Denge 2px, Frekans Çakışması **77px**
+  (BUG DEĞİL — aşama 1'den aşama 2'ye GERÇEK içerik büyümesi, "kayma"
+  değil "yeni aşama içeriği").
+  **Frekans Bulma'nın 201px'i NEDEN kapanmadı (dürüstlük notu):** kök
+  sebep `#freqInfo`'nun HÂLÂ eski `display:none` (`.hidden` class'ı)
+  ile aç/kapanması — G58'in `.fb` kartında çözdüğü AYNI kalıp
+  (visibility+min-height yerine display toggle, ani yükseklik sıçraması).
+  Bu turda G58'in AYNI tekniği `#freqInfo`'ya UYGULANMADI — içeriği
+  `.fb`'den çok daha DEĞİŞKEN (zengin panel, G74) olduğu için min-height
+  seçimi ayrı bir ölçüm/karar gerektiriyor, süre/risk dengesiyle bu
+  tura BIRAKILMADI, AÇIK İŞ'e eklendi.
+- **`npm test`: 1043/1043.**
+
+**KORUMA:** paywall/erişim mantığı, sınav sistemi, ses/zorluk, spotlight,
+`core/three-way-cards.js`, `core/utils.js`, mod-özel istisnalar
+(db-seviyesi'nin kendi dikey barları, kompresor/reverb/distortion'un
+otomatik döngüsü) TEK SATIR değişmedi. `--actionbar-h`'a DOKUNULMADI.
+
+---
+
+Önceki commit (G77, tek commit) — **Oyun Ekranı 1. bölüm: üst bar + bölüm
 göstergesi YENİDEN kuruldu**
 
 Tasarım kaynağı: `Tasarim-2026-08/Oyun Ekranı Varyantları.dc.html` +
@@ -5828,6 +5968,28 @@ FARKLI sayı gösteriyor~~ — G75'te KAPANDI**
 academyXpProgress(academyTotalXp(...))`) okuyor — canlı doğrulandı, ikisi
 de taze kullanıcıda "1" / "0/600 XP" (bkz. BİTTİ G75).
 
+**16. G78 — Frekans Bulma'da cevap sonrası dikey kayma (201px) hâlâ var**
+Kök sebep `#freqInfo`'nun `display:none` (`.hidden` class'ı) ile aç/
+kapanması — G58'in `.fb` kartında çözdüğü AYNI kalıp (ani yükseklik
+sıçraması → `scrollFeedbackIntoView`'a ihtiyaç). G58'in tekniği
+(visibility+min-height, hep yer ayır) `#freqInfo`'ya UYGULANMADI —
+içeriği `.fb`'den daha DEĞİŞKEN (G74'ün zengin paneli), doğru min-height
+seçimi ayrı bir canlı ölçüm turu gerektiriyor.
+**Kabul kriteri:** Frekans Bulma'da cevap sonrası `gameScroll.scrollHeight`
+farkı G58'in `.fb` kartındaki gibi ~0-10px'e inene kadar `#freqInfo`'ya
+AYNI teknik uygulanmalı.
+
+**17. G78 — Tonal Denge'nin kaydırıcıları tasarımdaki gibi DİKEY DEĞİL**
+Tasarım (Tasarim-2026-08/Prototip.dc.html) sürükle-bırak DİKEY fader
+gösteriyor, mevcut kod YATAY `<input type="range">` (`.tonal-slider`)
+kullanıyor — bilinçli kapsam kararıydı (bkz. BİTTİ G78): dikey fader'a
+geçmek özel pointer-drag JS'i + klavye erişilebilirliğinin YENİDEN
+kurulmasını gerektiriyor, G78'in süre/risk dengesinde YAPILMADI.
+**Kabul kriteri:** kullanıcı bu görsel farkı kabul edilebilir bulmuyorsa,
+ayrı bir turda `<input type="range">`'in erişilebilirliği KORUNARAK
+(ör. `writing-mode:vertical-lr` veya özel thumb+pointer olayları)
+dikey görünüme geçirilmeli.
+
 ### Yayın öncesi
 
 **9. ~~Logo / uygulama ikonu yapılmadı~~ — STALE, zaten yapılmış**
@@ -5969,25 +6131,24 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G77 itibarıyla):** OYUN EKRANI'nın 2. bölümü — soru
-alanı (spektrum/şıklar/kartlar/kaydırıcılar) + alt kontrol çubuğu, G77'de
-BİLEREK kapsam dışı bırakıldı. O turda ayrıca G77'nin kendi notu ele
-alınmalı: boss turunda üst bar "SÜRE" çubuğu ile soru alanındaki mevcut
-`.timer-row` AYNI ANDA görünüyor (GEÇİCİ fazlalık, bkz. BİTTİ G77).
-Bunun ardından AÇIK İŞLER madde 14 — G67-G77'nin TAMAMI (kalıcı "i" +
-SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu + G74'ün yeni ana ekranı
-+ G75'in 5 düzeltmesi + G76'nın kart yükseklik/SVG slice düzeltmesi +
-G77'nin yeni üst barı) GERÇEK CİHAZDA (bu turda da SADECE masaüstü
-Chrome'da doğrulandı, iOS WKWebView'de HENÜZ değil — font rendering/
-safe-area farkları VE özellikle şunlar Safari'de YENİDEN doğrulanmalı:
-G75 madde 4'ün grid-stretch savunması, G76'nın SVG `preserveAspectRatio=
-"xMidYMid slice"` kırpma matematiği [kenar-güvenlik marjı x:~30-172],
-G77'nin sınav/telafi nokta göstergesi — bu turda GERÇEK 6-peş-peşe-doğru
-akışıyla DEĞİL, DOM proxy'siyle doğrulandı, bkz. BİTTİ G77 dürüstlük
-notu) elle denenmeli. Ayrıca BEKLEYEN KARARLAR madde J (ACADEMY_XP_
-MULTIPLIER'ın Pro seviye kilidini yavaşlatması) kullanıcı onayı bekliyor.
-Aşağıdaki liste (G59 itibarıyla güncellendi) bu adımdan
-BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini kapsıyor.
+**Tek sonraki adım (G78 itibarıyla):** AÇIK İŞLER madde 14 — G67-G78'in
+TAMAMI (kalıcı "i" + SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu +
+G74'ün yeni ana ekranı + G75'in 5 düzeltmesi + G76'nın kart yükseklik/SVG
+slice düzeltmesi + G77'nin yeni üst barı + G78'in soru alanı/alt bar
+düzeltmeleri) GERÇEK CİHAZDA (bu turda da SADECE masaüstü Chrome'da
+doğrulandı, iOS WKWebView'de HENÜZ değil — font rendering/safe-area
+farkları VE özellikle şunlar Safari'de YENİDEN doğrulanmalı: G75 madde
+4'ün grid-stretch savunması, G76'nın SVG `preserveAspectRatio="xMidYMid
+slice"` kırpma matematiği [kenar-güvenlik marjı x:~30-172], G77'nin sınav/
+telafi nokta göstergesi [DOM proxy'siyle doğrulandı, gerçek akışla DEĞİL],
+G78'in Frekans Bulma işaretle→onayla akışı [dokunma/tıklama davranışı
+Safari'de FARKLI olabilir]) elle denenmeli. Ayrıca AÇIK İŞLER madde 16
+(#freqInfo'nun G58 tekniğiyle sabitlenmemiş kalan ~201px kayması) ve
+madde 17 (Tonal Denge'nin yatay/dikey fader farkı) ile BEKLEYEN KARARLAR
+madde J (ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini yavaşlatması)
+kullanıcı onayı/kararı bekliyor. Aşağıdaki liste (G59 itibarıyla
+güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük zorluk-mimarisi
+işlerini kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma
 (unlockLevel:1, free), Kesim Noktası (2, free), Q Genişliği (3, free), Boost

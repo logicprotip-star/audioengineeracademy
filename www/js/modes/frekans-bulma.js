@@ -684,13 +684,16 @@ export function clearHintMask(hintMaskLayerEl) {
   if (hintMaskLayerEl) hintMaskLayerEl.innerHTML = "";
 }
 
-// Tek bant modunda soru metni ("Hangi frekansla oynandı? Dalga üzerine tıkla.") zaten
-// aynı yönergeyi veriyor — burada tekrar etmiyoruz. Pro Plus'ta ise bu satır statik
-// değil, canlı bir sayaç ("kalan: N") taşıdığı için ayrı tutuluyor.
+// Pro Plus'ta bu satır statik değil, canlı bir sayaç ("kalan: N") taşıyor.
+// G78: tek-bant modunda ARTIK gizli DEĞİL — Tasarim-2026-08/Prototip.dc.html'in
+// "isSingleMark" durumu (dokunma ipucu metni) burada gösteriliyor. İşaretlenince
+// (bkz. app.js pointerdown + renderFreqConfirmButton) bu içeriğin YERİNE bir
+// onay butonu geçiyor — bu fonksiyon SADECE tur BAŞINDA çağrıldığı için o
+// geçiş app.js'in runtime state'inde (freqGuessHz) yönetiliyor, burada değil.
 export function renderGuessAreaControls(freqGuessAreaEl, q) {
   if (q.mode !== "proplus") {
-    freqGuessAreaEl.textContent = "";
-    freqGuessAreaEl.classList.add("hidden");
+    freqGuessAreaEl.classList.remove("hidden");
+    freqGuessAreaEl.innerHTML = `<span class="tap-hint-text">Cevabını vermek için spektruma dokun</span>`;
     return;
   }
   freqGuessAreaEl.classList.remove("hidden");

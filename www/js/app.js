@@ -279,6 +279,7 @@ const els = {
   abToggle: document.getElementById("abToggle"),
   abTitle: document.getElementById("abTitle"),
   hintBtn: document.getElementById("hintBtn"),
+  hintBtnLabel: document.getElementById("hintBtnLabel"),
   nextBtn: document.getElementById("nextBtn"),
 
   // oyun ayarları sheet (dots)
@@ -1248,9 +1249,14 @@ function updateHintChipLabel() {
   if (els.hintStatCount) els.hintStatCount.textContent = stats.hintsRemaining;
   if (!els.hintBtn) return;
   const used = !!(activeQuestion && activeQuestion.hintUsed);
-  els.hintBtn.textContent = used && activeQuestion.hintText
+  // G78: hedef #hintBtn (artık kalıcı bir ampul SVG'si taşıyor, bkz. index.html)
+  // DEĞİL #hintBtnLabel (nested span) — levelChip'in G77'deki AYNI retarget
+  // deseni, mantık/koşul TEK SATIR değişmedi.
+  const label = used && activeQuestion.hintText
     ? activeQuestion.hintText
     : `İpucu Ver (${stats.hintsRemaining})`;
+  if (els.hintBtnLabel) els.hintBtnLabel.textContent = label;
+  else els.hintBtn.textContent = label;
   els.hintBtn.disabled = stats.hintsRemaining <= 0 || !activeQuestion || !roundActive || used;
 }
 
@@ -2206,22 +2212,30 @@ function renderGameHeader() {
     els.gameExamProgress.textContent = `${isRemedial ? "TELAFİ" : "SINAV"} ${Math.min(current + 1, total)}/${total}`;
   }
 
-  // İkinci satır — boss SÜRE satırı > bölüm göstergesi (10 Soruluk Bölüm) >
-  // (Serbest'te) hiçbiri. boss activeQuestion.boss'tan okunur (startRound()'un
-  // ZATEN hesapladığı GERÇEK değer, burada YENİDEN hesaplanmıyor).
+  // İkinci satır — boss SÜRE satırı > bölüm göstergesi. boss
+  // activeQuestion.boss'tan okunur (startRound()'un ZATEN hesapladığı GERÇEK
+  // değer, burada YENİDEN hesaplanmıyor).
+  // G78: bölüm göstergesi artık challenge.active'e BAĞLI DEĞİL — tasarımda
+  // HEP görünür (task'ın kendi kararı, G77'nin "sadece 10 Soruluk Bölüm'de"
+  // kuralını DEĞİŞTİRİYOR). challenge PASİFKEN (Serbest) noktalar sönük
+  // (.dim) + "BÖLÜM —"; AKTİFKEN normal challenge.done/total.
   const boss = !!(activeQuestion && activeQuestion.boss);
   if (els.gameBossRow) els.gameBossRow.classList.toggle("hidden", !boss);
-  const showChapter = !boss && challenge.active;
+  const showChapter = !boss;
   if (els.gameChapterRow) els.gameChapterRow.classList.toggle("hidden", !showChapter);
   if (els.gameSpeedRow) els.gameSpeedRow.classList.toggle("hidden", !showChapter);
   if (showChapter && els.gameChapterDots && els.gameChapterLabel) {
+    els.gameChapterRow.classList.toggle("dim", !challenge.active);
     els.gameChapterDots.innerHTML = "";
-    for (let i = 0; i < challenge.total; i++) {
+    const total = challenge.active ? challenge.total : 10;
+    for (let i = 0; i < total; i++) {
       const dot = document.createElement("div");
-      dot.className = `game-chapter-dot${i < challenge.done ? " on" : ""}`;
+      dot.className = `game-chapter-dot${challenge.active && i < challenge.done ? " on" : ""}`;
       els.gameChapterDots.appendChild(dot);
     }
-    els.gameChapterLabel.textContent = `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`;
+    els.gameChapterLabel.textContent = challenge.active
+      ? `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`
+      : "BÖLÜM —";
   }
 }
 
@@ -3657,6 +3671,24 @@ function faCanvasPos(e) {
 }
 const isWaveMode = () => !!activeQuestion;
 
+// G78: Frekans Bulma'nın tek-bant dokunmalı biçimi — işaretle→onayla akışının
+// onay butonu (bkz. pointerdown listener'daki not). formatHz zaten import edilmiş
+// (core/utils.js) — YENİ bir formatlayıcı UYDURULMADI.
+function renderFreqConfirmButton(hz) {
+  if (!els.freqGuessArea) return;
+  els.freqGuessArea.classList.remove("hidden");
+  els.freqGuessArea.innerHTML = `<button type="button" class="btn game-freq-confirm" id="freqConfirmBtn">${formatHz(hz)} olarak onayla</button>`;
+}
+if (els.freqGuessArea) els.freqGuessArea.addEventListener("click", e => {
+  if (!e.target.closest("#freqConfirmBtn")) return;
+  if (freqGuessHz == null) return;
+  els.freqGuessArea.classList.add("hidden");
+  // F2: submitFrequencyGuess kendi içinde scheduleNext(duration) çağırıyor
+  // (doğru/yanlışa göre 4sn/6sn) — burada tekrar ensureAutoNext() çağırmak
+  // varsayılan 1500ms ile üzerine yazardı, o yüzden KALDIRILDI.
+  try { submitFrequencyGuess(freqGuessHz); } catch (err) { console.error(err); }
+});
+
 els.canvas.addEventListener("pointermove", e => {
   if (!isWaveMode() || !roundActive) return;
   freqHoverHz = mode.faXToF(faCanvasPos(e), canvasCssW);
@@ -3671,11 +3703,16 @@ els.canvas.addEventListener("pointerdown", e => {
   const hz = mode.faXToF(faCanvasPos(e), canvasCssW);
 
   if (q.mode !== "proplus") {
+    // G78: tasarım tek-dokunuşla ANINDA göndermek yerine İŞARETLE→ONAYLA istiyor
+    // (bkz. Tasarim-2026-08/Prototip.dc.html "X kHz olarak onayla" butonu) —
+    // ESKİDEN burada doğrudan submitFrequencyGuess(hz) çağrılıyordu (bkz. git
+    // geçmişi). Artık SADECE işaretliyor (freqGuessHz zaten drawOverlay'e
+    // geçiyor, işaretçi ANINDA çizilir, bkz. drawVisualizer) — gönderim
+    // renderFreqConfirmButton'ın ürettiği butona basılınca olur (aşağıdaki
+    // click listener). Tekrar dokunmak sadece işareti GÜNCELLER (submitFrequencyGuess
+    // HENÜZ çağrılmadığı için roundActive hâlâ true, ikinci dokunuş engellenmez).
     freqGuessHz = hz;
-    // F2: submitFrequencyGuess kendi içinde scheduleNext(duration) çağırıyor
-    // (doğru/yanlışa göre 4sn/6sn) — burada tekrar ensureAutoNext() çağırmak
-    // varsayılan 1500ms ile üzerine yazardı, o yüzden KALDIRILDI.
-    try { submitFrequencyGuess(hz); } catch (err) { console.error(err); }
+    renderFreqConfirmButton(hz);
     return;
   }
 

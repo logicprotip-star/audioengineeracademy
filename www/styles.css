@@ -447,8 +447,9 @@
        devam ediyor, sadece görünmüyor. */
     .game-sub{font-size:14px;color:var(--tx-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    .hearts{display:flex;align-items:center;gap:6px;padding:7px 7px;border-radius:var(--r-btn);
-      background:rgba(255,77,109,.13);border:1px solid rgba(255,77,109,.26);align-self:flex-start}
+    /* G78: kutu (arka plan/kenarlık/padding) KALDIRILDI — tasarımda kalpler
+       mod adının altında ÇERÇEVESİZ (bkz. Tasarim-2026-08/Prototip.dc.html). */
+    .hearts{display:flex;align-items:center;gap:6px;align-self:flex-start}
     /* Dolu/boş can arasında BARİZ bir fark olsun — sadece opaklık farkı küçük
        noktalarda ayırt edilmiyordu, kaybedilen canlar artık İÇİ BOŞ (kontur). */
     .heart{width:11px;height:11px;border-radius:99px;background:var(--rd);
@@ -483,15 +484,20 @@
     .game-level-pentagon{position:relative;width:30px;height:30px;flex:none;background:none;border:none;padding:0;cursor:pointer}
     .game-level-pentagon-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:1px;font-size:11px;font-weight:800;color:#f6d878}
 
-    /* G77: zorluk göstergesi — SADECE bilgi, tıklayınca lvlSheet (bkz. index.html notu). */
+    /* G77/G78: zorluk göstergesi — SADECE bilgi, tıklayınca lvlSheet (bkz.
+       index.html notu). G78: .ghead'den .chiprow'a taşındı (B maddesi — tek
+       satırda birleştirme), flex:none diğer çiplerle AYNI (bkz. .chiprow>*). */
     .game-diff-chip{
-      align-self:flex-start;margin-top:10px;font-size:10px;font-weight:700;letter-spacing:.6px;
-      color:var(--text-2);background:rgba(255,255,255,.05);border:1px solid var(--border-strong);
-      border-radius:var(--r-chip);padding:4px 9px;cursor:pointer;
+      flex:none;min-height:44px;display:flex;align-items:center;font-size:10px;font-weight:700;
+      letter-spacing:.6px;white-space:nowrap;color:var(--text-2);background:rgba(255,255,255,.05);
+      border:1px solid var(--border-strong);border-radius:var(--r-chip);padding:0 9px;cursor:pointer;
     }
 
-    /* G77: bölüm göstergesi (10 Soruluk Bölüm) — challenge.done/total. */
-    .game-chapter-row{display:flex;align-items:center;gap:10px;margin-top:10px}
+    /* G77/G78: bölüm göstergesi — challenge.done/total. G78: artık challenge
+       AKTİF OLMASA da HEP görünür (Serbest'te .dim + "BÖLÜM —", bkz. app.js
+       renderGameHeader) — tasarımın kendi kararı. */
+    .game-chapter-row{display:flex;align-items:center;gap:10px;margin-top:10px;transition:opacity .2s}
+    .game-chapter-row.dim{opacity:.45}
     .game-chapter-dots{display:flex;align-items:center;gap:4px;flex:1}
     .game-chapter-dot{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);transition:background .3s}
     .game-chapter-dot.on{background:var(--cyan)}
@@ -556,28 +562,28 @@
        sıçramaz, ikisi birlikte yumuşak kayar. */
     #screen-game.actionbar-tucked .game-scroll{margin-bottom:env(safe-area-inset-bottom)}
 
-    /* ---- kaynak / karıştır chip satırı ---- */
-    .chiprow{display:flex;gap:8px;align-items:stretch}
-    /* KÖK SEBEP (E2'nin 3. chip'i eklemesiyle ortaya çıktı, tarayıcıda ölçülerek
-       bulundu): .srctag'ın gerçek flex kapsayıcısı .chiprow DEĞİL — .chiprow ile
-       .srctag arasında ekstra bir <div class="control control-sheet"> katmanı var
-       (Kaynak/Odak/Cevap-biçimi sheet'lerinin select+label çiftini sarmalamak için).
-       O div flex:1 ile doğru şekilde daralıyordu (88px ölçüldü) ama .srctag'ın
-       KENDİSİ o div'in flex ÖĞESİ değil, sıradan bir blok çocuğu — üstündeki
-       flex:1/min-width:0 hiç uygulanmıyordu (etkisiz), width:auto'su içeriğe göre
-       taştı (134px ölçüldü, 88px'lik kapsayıcıyı görmezden gelerek). width:100%
-       bunu doğrudan kapsayan div'in genişliğine kenetler; .srctag b'deki
-       min-width:0 da OLMADAN ellipsis hiç devreye girmiyordu (flex metin
-       çocukları varsayılan min-width:auto ile içeriğin doğal genişliğinin altına
-       küçülmez) — ikisi birlikte gerekli. */
+    /* ---- kaynak / karıştır / zorluk çip satırı ---- */
+    /* G78 DÜZELTMESİ — çip metinleri kırpılıyordu ("Pink N...", "Tüm sp...")
+       çünkü satır flex:1 ile daraltılan çiplere BÖLÜNÜYORDU (dar ekranda hepsi
+       sığmak zorundaydı). Kısaltma yerine YATAY KAYDIRILABİLİR tek satır:
+       satır artık overflow-x:auto + wrap:nowrap, HER çip kendi doğal (içerik)
+       genişliğinde (.chiprow > * ile flex:none) — taşarsa satır kayar, metin
+       asla kesilmez. */
+    .chiprow{display:flex;gap:8px;align-items:stretch;overflow-x:auto;flex-wrap:nowrap;
+      -webkit-overflow-scrolling:touch;scrollbar-width:none}
+    .chiprow::-webkit-scrollbar{display:none}
+    .chiprow > *{flex:none}
+    /* .srctag artık width:100% DEĞİL — kapsayan .control-sheet div'i flex:none
+       (içeriğe göre) olduğu için doğal genişliğinde duruyor, kırpma GEREKMİYOR
+       (b'deki overflow:hidden/text-overflow:ellipsis kaldırıldı). */
     .srctag{
-      display:flex;align-items:center;gap:6px;width:100%;min-width:0;flex:1;min-height:44px;padding:8px 10px;
+      display:flex;align-items:center;gap:6px;min-height:44px;padding:8px 10px;
       border-radius:var(--r-card);background:rgba(255,255,255,.06);border:1px solid var(--border-strong);
-      font-size:14px;font-weight:600;color:var(--tx-3);text-align:left;
+      font-size:14px;font-weight:600;color:var(--tx-3);text-align:left;white-space:nowrap;
     }
     .srctag:active{background:rgba(255,255,255,.14)}
-    .srctag b{min-width:0;font-weight:700;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .srctag .chev{font-size:15px;margin-left:auto;flex:none;color:var(--tx-3)}
+    .srctag b{font-weight:700;color:var(--tx);white-space:nowrap}
+    .srctag .chev{font-size:15px;flex:none;color:var(--tx-3)}
     /* G73: "Karıştır" (kaynağı rastgele seçme) aç/kapa göstergesi artık --cyan. */
     .mixchip{
       flex:none;min-height:44px;padding:8px 12px;border-radius:var(--r-card);display:flex;align-items:center;gap:8px;
@@ -670,6 +676,17 @@
       border:1px solid var(--border-strong);color:var(--tx-2);
       font-size:14px;font-weight:600;text-align:center;
     }
+    /* G78: Frekans Bulma tek-bant dokunmalı — işaretle→onayla akışının onay
+       butonu (bkz. app.js renderFreqConfirmButton). #freqGuessArea'nın
+       .tapHint kutusu İÇİNDE oturuyor — padding'i kaldırıp KENDİ tam-genişlik
+       yeşil (--green-grad, tasarımdaki gibi) yüzeyini kaplıyor. */
+    .tapHint:has(.game-freq-confirm){padding:0;border:none;background:none}
+    .game-freq-confirm{
+      width:100%;min-height:52px;border:none;border-radius:var(--r-btn);
+      background:var(--green-grad);color:#06230e;font-size:16px;font-weight:800;
+      font-variant-numeric:tabular-nums;
+    }
+    .game-freq-confirm:active{filter:brightness(1.08)}
 
     #freqInfo{position:relative;padding:14px 16px;border-radius:var(--r-card);border:1px solid var(--border-strong);font-size:13.5px;line-height:1.55}
     /* Geri bildirim kartlarının ORTAK kapat-butonu stili — #freqInfo (Frekans Bulma'nın
@@ -680,7 +697,10 @@
     #freqInfo .freq-info-close:active, .fb .fb-close:active{background:rgba(255,255,255,.16)}
 
     /* ---- şıklı cevap ---- */
-    .answers{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+    /* G78: tasarım 2x2 grid istiyor (Tasarim-2026-08/Soru Ekranı.dc.html) —
+       3 sütun DEĞİL. Şık sayısı moda/zorluğa göre değişebilir (2-6) — auto
+       satır sayısı bunu doğal olarak karşılıyor, sadece sütun sayısı sabit 2. */
+    .answers{display:grid;grid-template-columns:1fr 1fr;gap:9px}
     .answers.hidden{display:none}
     .ans{min-height:58px;padding:7px 4px;border-radius:var(--r-panel);border:1px solid var(--line);background:rgba(255,255,255,.05);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
     .ans b{font-size:21px;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
@@ -808,6 +828,25 @@
     }
     .actionbar .row{margin-bottom:8px}
     .actionbar .btn{font-size:14px}
+    /* G78: üst sıra — ipucu (küçük ikon) · oynat/durdur (öne çıkan, orta) ·
+       A/B Bypass (pill). Üç buton da AYNI id/JS'i korur (bkz. index.html
+       notu) — sadece boyut/sıra/CSS. */
+    .game-transport-row{display:flex;align-items:stretch;gap:8px}
+    .game-hint-btn{
+      flex:0 0 64px;width:auto;padding:8px 4px;gap:3px;flex-direction:column;
+      font-size:10px;line-height:1.2;
+    }
+    .game-hint-btn svg{flex:none}
+    .game-play-btn{
+      flex:1.3;width:auto;background:linear-gradient(180deg,#23262b,#15171a);
+      border:1px solid var(--border-strong);box-shadow:0 4px 14px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .abbtn{width:auto}
+    /* G78: onay/Sonraki butonu artık yeşil (--green-grad, tasarımdaki gibi) —
+       .btn.primary'nin PAYLAŞILAN kuralına (paywall/sınav/vb. onu kullanıyor)
+       DOKUNULMADI, id-özgüllüğüyle SADECE #nextBtn override edildi. */
+    #nextBtn{background:var(--green-grad);color:#06230e}
+    #nextBtn:active{filter:brightness(1.08)}
     /* E3: cevap verildikten sonra actionbar'ın kontrolleri işlevsiz kalıyordu
        (Durdur/A-B/İpucu/Atla — hiçbiri anlamlı değil, karşılaştırma butonları
        artık kartın içinde). #screen-game'e eklenen .actionbar-tucked sınıfı
