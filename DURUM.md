@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G81)
+Son güncelleme: 09.08.2026 (G82)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,130 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G81, tek commit) — **GERİ BİLDİRİM EKRANI giydirildi —
+Bu commit (G82, tek commit) — **SEANS SONU EKRANI giydirildi —
+Tasarim-2026-08/Prototip.dc.html "SEANS SONU" bloğu (SS objesi) +
+Seans Özeti.dc.html birebir, üç durum (done/lives/free) + gerçek XP kırılımı +
+canlı can geri sayımı + rozet kartı**
+
+Tasarım kaynağı: `Tasarim-2026-08/Prototip.dc.html` (satır ~2010, SS objesi —
+ÇELİŞTİKLERİNDE bu geçerli sayıldı) + `Seans Özeti.dc.html` (üç varyant demo,
+rozet kartı buradan). Her ikisi AÇILIP satır satır karşılaştırıldı.
+
+**KURAL — mevcut id'ler/fonksiyonlar sökülmedi:** `showSessionEnd()`/
+`hideSessionEnd()`/`resCta`/`resRetryBtn`/`resMenuBtn` id'leri VE ÇAĞIRILDIKLARI
+4 nokta (loseLife/finalizeIfGameOver×2/finishChallenge) TEK SATIR değişmedi.
+`resKicker`/`resPct`→`resScore`/`resHead`/`resLead`/`resLevelUp*`/`resXpBar`/
+`resLvl`/`resXpNum`/`resStreak*`/`resHints`/`resSumTitle`/`resFreqMap`/
+`resDots`/`resSeqMap`/`resBoxes`/`resComment` id'lerinin HEPSİ KORUNDU —
+bazılarının GÖRSEL ROLÜ tasarıma göre genişledi (örn. resXpBar/resLvl/
+resXpNum eskiden zorluk-bazlı XP ilerlemesiydi, artık MOD-bazlı "mod
+ilerleme çubuğu" — G80'in perMode/perDiff ayrımının AYNI yönde devamı).
+`resXp` (eski "Kazanılan XP" tek satırı) kaldırıldı — grep ile TEK okuyucu/
+yazıcı olduğu doğrulanıp YERİNE geçen `#resXpRows`'un "Toplam" satırı AYNI
+bilgiyi taşıdığı için. Bölge haritası/soru sırası (resFreqMap/resSeqMap/
+resDots/resBoxes) tasarımda YOK ama gerçek/çalışan bir özellik — SÖKÜLMEDİ.
+
+**Üç durum, tasarımdan birebir:** done (yeşil, "SEANS TAMAMLANDI"), lives
+(kırmızı, "CANLARIN BİTTİ"), free (amber, "ÜCRETSİZ OTURUM BİTTİ") — her
+birinin pill rengi/ikonu/halka rengi/birincil buton rengi-etiketi
+`showSessionEnd(kind)` içinde `accent`/`pillBg`/`pillBorder`/`pillIconPath`
+olarak SS objesinin aynısı.
+
+**İsabet halkası** — CSS conic-gradient YERİNE tasarımın KENDİ tekniği
+(animasyonlu SVG, `stroke-dasharray`/`stroke-dashoffset`, `@keyframes
+resRingDraw`, R=76). `buildResultRing()` her `showSessionEnd()` çağrısında
+`#resRing.innerHTML`'i YENİDEN kuruyor — bu yüzden içindeki `resScore`/
+`resPct` id'leri `els{}` önbelleğinden ÇIKARILDI (module-load anında
+cache'lenmiş bir referans ilk yeniden kurmadan SONRA bayatlardı, G81'in
+`#freqInfo` dersiyle AYNI).
+
+**XP kırılımı — G81'in xpBaseFor() mantığı SESSION toplamına genişletildi:**
+`session.xpBaseSum` her doğru cevapta (8 in-scope submit fonksiyonu + proplus,
+toplam 9 nokta) `xpBaseFor(q, q.difficulty)` ile artıyor — UYDURULMUŞ bir
+sayı yok. "Bölüm bonusu %50" satırı SADECE `kind==="normal"` iken (`finishChallenge()`
+TEK bir yerden, SADECE `challenge.active` iken çağrılabildiği grep ile
+doğrulandı — yani "normal" HER ZAMAN tamamlanmış bir 10 Soruluk Bölüm'dür,
+çarpanı YENİDEN saklamaya gerek yok).
+
+**Can geri sayımı — SADECE görüntü zamanlayıcısı** (`startResWaitTicker`/
+`stopResWaitTicker`, her saniye `stats.livesLastRefillAt`'tan kalan GERÇEK
+süreyi okur) — `paywall.applyLivesRefill`/`LIVES_REFILL_INTERVAL_MS`'e
+(dolum mekaniğinin KENDİSİ) TEK SATIR dokunulmadı, task'ın kendi kuralı.
+SADECE "lost" durumunda gösterilir/başlatılır; ekrandan ayrılan HER buton
+(`resRetryBtn`/`resMenuBtn`) zamanlayıcıyı durdurur (sızıntı yok).
+
+**Rozet kartı** — Seans Özeti.dc.html'de var, Prototip'in CANLI özet
+ekranında yok (çeliştikleri yer, task'ın kendi maddesinde AÇIKÇA istendiği
+için uygulandı) — mevcut rozet sistemine (`core/progress.js:ACHIEVEMENTS`,
+`stats.unlocked`) bağlandı: `session.newBadges` bu OTURUMDA `notifyNewAchievements()`
+ile açılan HER başarımı biriktiriyor, kart SADECE en az biri varsa (en
+sonuncusu gösterilerek) görünür. Tasarımın örnek rozeti ("Kusursuz Kulak")
+UYDURULMADI/kopyalanmadı — `ACHIEVEMENTS` listesinde böyle bir rozet YOK.
+
+**Birincil buton (`resCta`) — duruma göre 3 GERÇEK eylem:**
+- done: "Yeni Seans" → `startFreshAttempt({forceChallenge:true})` (DEĞİŞMEDİ)
+- lives: "Reklam izle, +1 can" → `grantAdLife()` (G63'ün watchAdBtn'iyle
+  PAYLAŞILAN, TEK gerçek/simüle reklam mekaniği — YENİ bir ödül sistemi
+  İCAT EDİLMEDİ). Tasarımın "canları doldur" (tümünü) metni GERÇEK mekanikle
+  (+1 can) ÇELİŞTİĞİ için etiket "canları doldur" DEĞİL "+1 can" yazıyor —
+  DÜRÜSTLÜK NOTU, kopya bilerek tasarımdan SAPTIRILDI.
+- free: "Pro ile sınırsız devam et" → `openPaywallReason("sessionLimit")`
+  (mevcut, GERÇEK paywall giriş noktalarından biri)
+
+**BULUNAN YAPISAL DURUM (kod incelemesiyle doğrulandı, DÜZELTİLMEDİ — task
+kapsamı DIŞINDA, kullanıcı kararı gerektirir):** `showSessionEnd("normal")`
+(yani "done") SADECE `finishChallenge()`'dan çağrılıyor, o da SADECE
+`challenge.active && !examGateActive() && challenge.done>=10` iken (bkz.
+`ensureAutoNext`). `examGateActive() = mode.EXAM_ENABLED && isUserPro()` —
+G50 sınav sistemini TÜM 10 moda yaydığından beri (`EXAM_ENABLED` artık HER
+modda `true`, grep ile doğrulandı) bu, **Pro kullanıcı için "done"un HİÇBİR
+zaman tetiklenemediği** anlamına geliyor (exam her zaman `finishChallenge()`'ı
+BLOKE ediyor — parkur 6+ doğruyla sınava/kutlama sheet'ine gidiyor, azıyla
+"parkur baştan"a). Free kullanıcı ise `paywall.isFreeSessionLimitReached`
+(5 soru) her zaman "done"dan ÖNCE devreye girip "freeLimit"e düşürüyor.
+Yani **"done" mevcut kod tabanında YAPISAL OLARAK ERİŞİLEMEZ** görünüyor —
+bu G82'nin DEĞİL, G50'nin (exam'ı 7→10 moda yayarken) BIRAKTIĞI bir durum
+olabilir. Kullanıcı kararı gerekiyor: (a) kasıtlı mı (Pro'da ödül yolu artık
+sınav-kutlama sheet'i, "done" SADECE teorik/free-ama-limitsiz bir senaryo
+için mi), yoksa (b) `finishChallenge()`'ın exam-passed/remedial-passed
+SONRASI da tetiklenmesi gereken bir regresyon mu.
+
+**Testler:** DEĞİŞMEDİ. `npm test`: **1043/1043**.
+
+**DOĞRULAMA (canlı tarayıcı, temiz localStorage, konsol HATASIZ):**
+- **"lost" (canlar bitti) canlı tetiklendi ve doğrulandı** — taze profil
+  (`paywallSuppressedFirstSession` TRUE olsun diye stats temizlenip
+  YENİDEN yüklendi, non-Pro), Frekans Bulma'da 5 yanlış cevap → "❤ CANLARIN
+  BİTTİ" pill'i, "5 canı da kullandın. Seans 5. soruda kapandı.", halka 0/5
+  (%0 İSABET), XP satırları 0/0/0, "Reklam izle, +1 can" (yeşil) butonu +
+  "veya 30 dk bekle · sonraki can 29:51" satırı GERÇEK zamanda sayarken
+  ölçüldü (29:25→29:22, 3 saniyede 3 saniye — birebir). Butona basınca
+  `grantAdLife()` GERÇEKTEN çalıştı (kalp 0/5→1/5, bekleme satırı kayboldu).
+- **"freeLimit" (ücretsiz kota) canlı tetiklendi ve doğrulandı** — taze
+  profil, non-Pro, 5. soruda (3 doğru/1-2 yanlış karışık) → "🔒 ÜCRETSİZ
+  OTURUM BİTTİ" pill'i (amber), "Günlük 5 ücretsiz sorunu tamamladın.",
+  halka 3/5 (%60 İSABET, amber), XP satırları **Temel XP 48 + Combo bonusu
+  +3 = Toplam 51 XP (48+3=51, GERÇEK toplamla eşleşti)**, mod çubuğu
+  "Frekans Bulma · Sv 1 — 51/120 XP" (session.xp'yle BİREBİR), "Pro ile
+  sınırsız devam et" (altın) butonu `openPaywallReason("sessionLimit")`'i
+  GERÇEKTEN çağırdığı doğrulandı (ilk oturumda bilinçli olarak sessiz kalıyor
+  — `paywallSuppressedFirstSession` kuralı, kodun KENDİSİ; Pro-simüle ayrı
+  bir oturumda AYNI çağrının paywall ekranını GERÇEKTEN açtığı ayrıca
+  doğrulandı).
+- **"done" (kayıpsız bitiş) canlı TETİKLENEMEDİ** — yukarıdaki "BULUNAN
+  YAPISAL DURUM" nedeniyle. Render kodu (`buildResultRing`/`buildXpRows`/
+  mod çubuğu/rozet/buton mantığı) "lost"/"freeLimit" ile AYNI ortak
+  fonksiyonlardan geçiyor (ikisinde de canlı doğrulandı) — bu YÜZDEN
+  yüksek güvenle doğru çalışacağı değerlendiriliyor, ama "done"a ÖZGÜ hiçbir
+  şey (bonus satırı görünürlüğü, "Yeni Seans" butonu) canlı TETİKLENEMEDİ.
+  Sayı UYDURULMADI — bu madde açıkça DOĞRULANMADI olarak işaretleniyor.
+- **Konsol hatası: 0** — onlarca deneme turu (Kesim Noktası/dB Seviyesi'nde
+  sınav/telafi döngüleri DAHİL ~150+ cevap) boyunca TEK bir hata yok.
+- **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G81, tek commit) — **GERİ BİLDİRİM EKRANI giydirildi —
 Tasarim-2026-08/Geri Bildirim.dc.html birebir + Frekans Bulma #freqInfo'dan
 #feedbackBox'a taşındı + gerçek XP kırılımı + "kulak" omuz butonları**
 
@@ -6341,6 +6464,26 @@ canlı senaryoda birebir doğrulandı — SADECE bu 6. faktör eksik.
 GERÇEK bir doğru cevap verilerek `#fbComboText`'te "N yakınlık" değerinin
 `Math.max(.55, proximityScore/100)` ile birebir eşleştiği canlı gösterilmeli.
 
+**20. G82 — Seans Sonu'nun "done" (kayıpsız 10 Soruluk Bölüm) durumu
+YAPISAL OLARAK ERİŞİLEMEZ görünüyor (BEKLEYEN KARARLAR'a da bkz.)**
+`showSessionEnd("normal")` SADECE `finishChallenge()`'dan, o da SADECE
+`challenge.active && !examGateActive() && challenge.done>=10` iken
+çağrılıyor. `examGateActive()=mode.EXAM_ENABLED && isUserPro()` — G50 sınav
+sistemini TÜM 10 moda yaydığından beri (`EXAM_ENABLED` her modda `true`,
+grep ile doğrulandı) Pro kullanıcı için bu koşul HİÇBİR ZAMAN `true`
+olamıyor (exam her zaman `finishChallenge()`'ı bloke ediyor). Free kullanıcı
+da `paywall.isFreeSessionLimitReached` (5 soru) yüzünden "done"a hiç
+ulaşamıyor. Canlı denendi (~150+ cevap, sınav/telafi/parkur-baştan
+döngüleri dahil) — asla tetiklenmedi. "done"un RENDER KODU "lost"/
+"freeLimit" ile AYNI ortak fonksiyonlardan geçtiği için (o ikisi canlı
+doğrulandı) yüksek güvenle doğru çalışacağı değerlendiriliyor, ama kendine
+özgü hiçbir parçası (bonus satırı, "Yeni Seans" butonu) canlı görülmedi.
+**Kabul kriteri:** kullanıcı kararı BEKLEYEN KARARLAR'daki maddeye bkz. —
+karar netleşince (a) kasıtlıysa bu madde "beklenen davranış" olarak
+kapatılır, (b) regresyonsa `finishChallenge()`'ın exam-passed/remedial-passed
+sonrasında da (ya da EXAM_ENABLED olmayan bir moda dönülürse) tetiklenmesi
+sağlanıp "done" canlı yeniden denenmeli.
+
 ### Yayın öncesi
 
 **9. ~~Logo / uygulama ikonu yapılmadı~~ — STALE, zaten yapılmış**
@@ -6480,33 +6623,63 @@ Beşi de bu turda `grep` ile TEK TEK yeniden doğrulandı, hepsi hâlâ true:
 Hangisinin düzeltileceği/nasıl birleştirileceği ürün kararı — kod tarafında
 hazır, sadece onay bekliyor.
 
+**K. G82 — Pro kullanıcı için "done" (kayıpsız 10 Soruluk Bölüm) Seans Sonu
+durumu HİÇ tetiklenemiyor, kasıtlı mı?**
+Kod incelemesiyle doğrulandı (bkz. AÇIK İŞLER madde 20): G50, sınav
+sistemini (`EXAM_ENABLED`) tek tek her moda yayarken (Kompresör'den 10
+moda) `ensureAutoNext()`'teki `finishChallenge()` guard'ı (`!examGateActive()`)
+GÜNCELLENMEDİ — o zaman "diğer yedi modda mode.EXAM_ENABLED undefined"
+varsayımıyla yazılmıştı, artık YANLIŞ. Sonuç: Pro kullanıcı `challenge.done>=10`'a
+ULAŞTIĞINDA sınav HER ZAMAN devreye giriyor (parkur bitmeden), "done"
+ekranı yerine YA sınav-geçti kutlama sheet'i YA "parkur baştan" görüyor.
+İki olası karar:
+1. **Kasıtlı** — Pro'nun "ödül anı" artık sınav-geçti kutlama sheet'i,
+   "done" ekranı SADECE (teorik olarak erişilemeyen) free+limitsiz bir
+   senaryo için var. Bu durumda "done" kodu YİNE de dursun (zararsız,
+   test edilebilir) ama AÇIK İŞLER madde 20 "beklenen davranış" olarak
+   kapatılır.
+2. **Regresyon** — sınav sistemi genişletilirken KAÇIRILAN bir durum;
+   `finishChallenge()` sınav-geçti/telafi-geçti SONRASI (ya da parkurun
+   TAMAMI sınavsız bitmişse) de çağrılmalı. Bu, `core/exam-system.js`/
+   `ensureAutoNext`'e AYRI bir turda dokunmayı gerektirir — bu turun
+   kapsamı DIŞINDA bırakıldı (task "Seans Sonu ekranı giydirilecek" dedi,
+   sınav akışını YENİDEN kablolamak DEĞİL).
+**Kabul kriteri:** kullanıcı 1 ya da 2'yi seçer; 2 seçilirse ayrı bir görev
+olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
+"done" canlı yeniden denenir.
+
 ## SIRADAKİ
 
-**Tek sonraki adım (G81 itibarıyla):** AÇIK İŞLER madde 14 — G67-G81'in
-TAMAMI (kalıcı "i" + SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu +
-G74'ün yeni ana ekranı + G75'in 5 düzeltmesi + G76'nın kart yükseklik/SVG
-slice düzeltmesi + G77'nin yeni üst barı + G78'in soru alanı/alt bar
-düzeltmeleri + G79'un düzen yeniden kurulumu + G80'in `updateUI()`
-düzeltmesi + G81'in geri bildirim ekranı giydirmesi) GERÇEK CİHAZDA (bu
-turda da SADECE masaüstü Chrome'da doğrulandı, iOS WKWebView'de HENÜZ
-değil — font rendering/safe-area farkları VE özellikle şunlar Safari'de
-YENİDEN doğrulanmalı: G75 madde 4'ün grid-stretch savunması, G76'nın SVG
-`preserveAspectRatio="xMidYMid slice"` kırpma matematiği [kenar-güvenlik
-marjı x:~30-172], G77'nin sınav/telafi nokta göstergesi [DOM proxy'siyle
-doğrulandı, gerçek akışla DEĞİL], G78/G79'un Frekans Bulma işaretle→onayla
-akışı [dokunma/tıklama davranışı Safari'de FARKLI olabilir], G79'un YENİ
-#abLoopBtn'i [uzun-basma ile GERÇEKTEN çakışmadığı, ikisinin de aynı
-startAbLoop/stopAbLoop'u doğru tetiklediği cihazda TEKRAR denenmeli], G81'in
-YENİ "kulak" omuz butonları [dokunma alanı 40px masaüstünde ölçüldü, gerçek
-parmak dokunuşuyla cihazda TEKRAR denenmeli] ve otomatik-geçiş çubuğunun
-`animation-play-state` pause/resume'u [cmp-önizlemesiyle Safari'de de
-senkron kaldığı TEKRAR denenmeli]) elle denenmeli. Ayrıca AÇIK İŞLER madde
-17 (Tonal Denge'nin yatay/dikey fader farkı), madde 18 (3 modda 4px kayma),
-madde 19 (Tonal Denge'nin yakınlık faktörü canlı doğrulanamadı) ile
-BEKLEYEN KARARLAR madde J (ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini
-yavaşlatması) kullanıcı onayı/kararı bekliyor. Aşağıdaki liste (G59
-itibarıyla güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük zorluk-
-mimarisi işlerini kapsıyor.
+**Tek sonraki adım (G82 itibarıyla):** ÖNCELİKLE BEKLEYEN KARARLAR madde K
+(Pro'da "done" Seans Sonu durumu hiç tetiklenemiyor — kasıtlı mı, regresyon
+mu) kullanıcı kararı bekliyor; karar netleşmeden AÇIK İŞLER madde 20
+kapatılamaz/"done" canlı doğrulanamaz. Bunun dışında AÇIK İŞLER madde 14 —
+G67-G82'nin TAMAMI (kalıcı "i" + SPOTLIGHT + oyun seçenekleri + "basılı tut"
+ipucu + G74'ün yeni ana ekranı + G75'in 5 düzeltmesi + G76'nın kart
+yükseklik/SVG slice düzeltmesi + G77'nin yeni üst barı + G78'in soru alanı/
+alt bar düzeltmeleri + G79'un düzen yeniden kurulumu + G80'in `updateUI()`
+düzeltmesi + G81'in geri bildirim ekranı giydirmesi + G82'nin Seans Sonu
+giydirmesi) GERÇEK CİHAZDA (bu turda da SADECE masaüstü Chrome'da
+doğrulandı, iOS WKWebView'de HENÜZ değil — font rendering/safe-area
+farkları VE özellikle şunlar Safari'de YENİDEN doğrulanmalı: G75 madde
+4'ün grid-stretch savunması, G76'nın SVG `preserveAspectRatio="xMidYMid
+slice"` kırpma matematiği [kenar-güvenlik marjı x:~30-172], G77'nin sınav/
+telafi nokta göstergesi [DOM proxy'siyle doğrulandı, gerçek akışla DEĞİL],
+G78/G79'un Frekans Bulma işaretle→onayla akışı [dokunma/tıklama davranışı
+Safari'de FARKLI olabilir], G79'un YENİ #abLoopBtn'i [uzun-basma ile
+GERÇEKTEN çakışmadığı, ikisinin de aynı startAbLoop/stopAbLoop'u doğru
+tetiklediği cihazda TEKRAR denenmeli], G81'in YENİ "kulak" omuz butonları
+[dokunma alanı 40px masaüstünde ölçüldü, gerçek parmak dokunuşuyla cihazda
+TEKRAR denenmeli] ve otomatik-geçiş çubuğunun `animation-play-state`
+pause/resume'u [cmp-önizlemesiyle Safari'de de senkron kaldığı TEKRAR
+denenmeli], G82'nin SVG halka animasyonu/canlı can geri sayımı [Safari'de
+`setInterval` arka planda/kilitli ekranda TEKRAR denenmeli]) elle
+denenmeli. Ayrıca AÇIK İŞLER madde 17 (Tonal Denge'nin yatay/dikey fader
+farkı), madde 18 (3 modda 4px kayma), madde 19 (Tonal Denge'nin yakınlık
+faktörü canlı doğrulanamadı) ile BEKLEYEN KARARLAR madde J
+(ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini yavaşlatması) kullanıcı
+onayı/kararı bekliyor. Aşağıdaki liste (G59 itibarıyla güncellendi) bu
+adımdan BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma
 (unlockLevel:1, free), Kesim Noktası (2, free), Q Genişliği (3, free), Boost

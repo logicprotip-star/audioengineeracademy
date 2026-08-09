@@ -1134,6 +1134,20 @@
 
     select{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 
+    /* ---- Seans Sonu (G82) — Tasarim-2026-08/Prototip.dc.html "SEANS SONU"
+       bloğu + Seans Özeti.dc.html birebir. Halka dolma animasyonu tasarımın
+       KENDİ ringDraw'ı (isim çakışmasın diye resRingDraw). */
+    /* R=76 halkası için tam çevre (2*PI*76≈478) — JS'teki (buildResultRing)
+       AYNI R'yi kullanıyor, ikisi UYUMSUZ kalırsa animasyon "boş" başlamaz. */
+    @keyframes resRingDraw{from{stroke-dashoffset:478}}
+    @keyframes resBarGrow{from{width:0%}}
+    #resXpRows .row{display:flex;align-items:center;justify-content:space-between;padding:10px 15px;border-bottom:1px solid rgba(255,255,255,.04)}
+    #resXpRows .row:last-child{border-bottom:none}
+    #resXpRows .row .lbl{font-size:12.5px;font-weight:600;color:var(--tx-3)}
+    #resXpRows .row.total .lbl{color:var(--tx)}
+    #resXpRows .row .val{font-size:13px;font-weight:700;color:var(--tx-2);font-variant-numeric:tabular-nums}
+    #resXpRows .row.total .val{color:var(--gr)}
+
     /* ---- İlerleme ekranı ---- */
     .stat-big{flex:1;padding:14px;border-radius:var(--r-panel);background:rgba(255,255,255,.045);border:1px solid var(--border);text-align:center}
     .stat-big b{display:block;font-size:24px;font-weight:800}

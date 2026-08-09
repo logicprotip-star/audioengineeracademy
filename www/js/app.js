@@ -377,15 +377,24 @@ const els = {
   accChartLast: document.getElementById("accChartLast"),
 
   // seans sonu ekranı
+  resPill: document.getElementById("resPill"),
+  resPillIcon: document.getElementById("resPillIcon"),
   resKicker: document.getElementById("resKicker"),
+  // G82: resRing ARTIK statik değil — her showSessionEnd() çağrısında
+  // innerHTML'i TAMAMEN yeniden kuruluyor (animasyonlu SVG halka + merkez
+  // metin, bkz. buildResultRing). Eski resPct/resScore statik div'leri bu
+  // yüzden els{} önbelleğinden KALDIRILDI — module-load anında cache'lenmiş
+  // bir referans, ilk yeniden kurmadan SONRA BAYATLARDI (detached node'a
+  // yazardı, els.freqInfo'nun İÇİNİN her zaman TAZE sorgulanması gerektiği
+  // AYNI G81 dersi). Değerler artık DOĞRUDAN buildResultRing'in ürettiği
+  // HTML string'ine gömülüyor, ayrı bir "bul ve yaz" adımı YOK.
   resRing: document.getElementById("resRing"),
-  resPct: document.getElementById("resPct"),
-  resScore: document.getElementById("resScore"),
   resHead: document.getElementById("resHead"),
   resLead: document.getElementById("resLead"),
+  resBonusRow: document.getElementById("resBonusRow"),
   resLevelUp: document.getElementById("resLevelUp"),
   resLevelUpBadge: document.getElementById("resLevelUpBadge"),
-  resXp: document.getElementById("resXp"),
+  resXpRows: document.getElementById("resXpRows"),
   resXpBar: document.getElementById("resXpBar"),
   resLvl: document.getElementById("resLvl"),
   resXpNum: document.getElementById("resXpNum"),
@@ -398,7 +407,13 @@ const els = {
   resSeqMap: document.getElementById("resSeqMap"),
   resBoxes: document.getElementById("resBoxes"),
   resComment: document.getElementById("resComment"),
+  resBadge: document.getElementById("resBadge"),
+  resBadgeIcon: document.getElementById("resBadgeIcon"),
+  resBadgeName: document.getElementById("resBadgeName"),
+  resBadgeDesc: document.getElementById("resBadgeDesc"),
   resCta: document.getElementById("resCta"),
+  resWaitRow: document.getElementById("resWaitRow"),
+  resWaitCountdown: document.getElementById("resWaitCountdown"),
   resRetryBtn: document.getElementById("resRetryBtn"),
   resMenuBtn: document.getElementById("resMenuBtn")
 };
@@ -643,7 +658,11 @@ let currentLives = stats.lives;
 // bölge haritası (dokunmalı/tek frekans) ya da soru sırası (proplus/çok bantlı)
 // görselleştirmesi buradan besleniyor. freq sadece "frequency" tipi sorularda
 // dolar (proplus'ta null) — pushHistory() ile birlikte doldurulur.
-let session = { correct: 0, wrong: 0, xp: 0, hints: 0, log: [] };
+// G82: xpBaseSum/newBadges Seans Sonu ekranının XP kırılımı/rozet kartı için
+// eklendi (bkz. showSessionEnd) — xpBaseSum her doğru cevapta xpBaseFor() ile
+// (G81'in AYNI gerçek-taban okuyucusu) artıyor, newBadges her notifyNewAchievements()
+// çağrısında bu OTURUMDA açılan başarımları biriktiriyor.
+let session = { correct: 0, wrong: 0, xp: 0, hints: 0, log: [], xpBaseSum: 0, newBadges: [] };
 // Seans Sonu'nda "Seviye atladın" kartı için: bu oturum/deneme BAŞLARKEN hangi
 // seviyedeydi. resetSession() her yeni deneme başında (Oyunu Başlat/Tekrar Oyna/
 // 10 Soru Daha) çağrıldığında güncellenir; burada da (currentLives ile aynı mantık)
@@ -652,7 +671,7 @@ let session = { correct: 0, wrong: 0, xp: 0, hints: 0, log: [] };
 // kartı hiç çıkmazdı (null !== null her zaman false döner).
 let sessionStartLevel = progress.xpProgress(diffState().xp).level;
 function resetSession() {
-  session = { correct: 0, wrong: 0, xp: 0, hints: 0, log: [] };
+  session = { correct: 0, wrong: 0, xp: 0, hints: 0, log: [], xpBaseSum: 0, newBadges: [] };
   sessionStartLevel = progress.xpProgress(diffState().xp).level;
   roundsInThisPlaySession = 0;
 }
@@ -1115,8 +1134,92 @@ function zoneInsightSentence(enough) {
 // Tasarımdaki (Dizayn/prototype.html #s-result) alanların TAMAMI gerçek oyun
 // state'inden okunur — karşılığı olmayanlar (bkz. rapor: "önceki seansa göre +N
 // puan" ve "odak setini aç" önerisi) BİLEREK atlandı, uydurulmadı.
+// G82: Tasarim-2026-08/Prototip.dc.html'in "SEANS SONU" bloğu (SS objesi) +
+// Seans Özeti.dc.html'in halka/rozet kartı BİREBİR — R=76 sabiti styles.css'teki
+// @keyframes resRingDraw'ın "from" değeriyle (478≈2*PI*76) EŞLEŞMELİ.
+function buildResultRing(pct, scoreTop, pctLabel, color) {
+  const R = 76, C = 2 * Math.PI * R;
+  const off = C * (1 - Math.max(0, Math.min(1, pct)));
+  // Tasarımın KENDİ tekniği (Seans Özeti.dc.html:ring()) — animasyonun SADECE
+  // "from" karesi var (styles.css @keyframes resRingDraw, C'ye eşit), "to"
+  // hedefi buradaki inline stroke-dashoffset'in KENDİSİ (CSS animation'ın
+  // fill-mode:both'u iki ucu böyle birleştiriyor, ayrı bir "to" keyframe'i
+  // GEREKMİYOR).
+  return `<svg width="162" height="162" viewBox="0 0 162 162" style="display:block;transform:rotate(-90deg)">
+    <circle cx="81" cy="81" r="${R}" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="11"></circle>
+    <circle cx="81" cy="81" r="${R}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round"
+      stroke-dasharray="${C.toFixed(2)}" style="stroke-dashoffset:${off.toFixed(2)};filter:drop-shadow(0 0 8px ${color});animation:resRingDraw 800ms 150ms cubic-bezier(.2,.8,.2,1) both"></circle>
+  </svg>
+  <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+    <div class="num" style="font-size:36px;font-weight:800;letter-spacing:-1.4px;color:var(--tx);line-height:1" id="resScore">${scoreTop}</div>
+    <div style="font-size:12.5px;font-weight:600;color:var(--tx-3);margin-top:4px" id="resScoreLabel">doğru</div>
+    <div class="num" style="font-size:11px;font-weight:700;letter-spacing:.8px;color:${color};margin-top:5px" id="resPct">${pctLabel}</div>
+  </div>`;
+}
+
+// Temel XP/Combo bonusu/[Bölüm bonusu]/Toplam — G81'in xpBaseFor()'uyla
+// session.xpBaseSum'dan (her doğru cevapta gerçek zamanlı biriktirilir, bkz.
+// submit fonksiyonları) türetiliyor. challengeMult SADECE "normal" kind'de
+// >1 olabilir çünkü showSessionEnd("normal") TEK bir yerden (finishChallenge)
+// çağrılıyor ve o SADECE challenge.active iken tetiklenebiliyor (grep ile
+// doğrulandı) — yani "normal" HER ZAMAN tamamlanmış bir 10 Soruluk Bölüm'dür,
+// çarpanı YENİDEN sormaya/saklamaya gerek yok. "lost"/"freeLimit"te bölüm
+// yarıda kesilmiş olsa bile (nadir) tasarımın KENDİSİ bu iki durumda bonus
+// satırı hiç göstermiyor (Prototip'in SS.lives/SS.free'si bonus:false) —
+// AYNI basitleştirme burada da uygulanıyor, DÜRÜSTLÜK NOTU: bu durumda
+// (kesintiye uğramış bölüm) "Combo bonusu" satırı o +%50'yi de İÇİNDE
+// taşıyabilir, Toplam GERÇEK kalır (session.xp, hiç dokunulmadı).
+function buildXpRows(kind, totalXp, baseSum) {
+  const base = Math.round(baseSum);
+  const challengeMult = kind === "normal" ? CHALLENGE_XP_MULT : 1;
+  const subtotal = challengeMult > 1 ? totalXp / challengeMult : totalXp;
+  const comboBonus = Math.max(0, Math.round(subtotal - base));
+  const rows = [
+    { label: "Temel XP", val: String(base) },
+    { label: "Combo bonusu", val: `+${comboBonus}` }
+  ];
+  if (challengeMult > 1) {
+    rows.push({ label: `Bölüm bonusu %${Math.round((challengeMult - 1) * 100)}`, val: `+${Math.round(totalXp - subtotal)}` });
+  }
+  rows.push({ label: "Toplam", val: `${totalXp} XP`, total: true });
+  return rows;
+}
+
+let resWaitTimer = null;
+function stopResWaitTicker() {
+  if (resWaitTimer) { clearInterval(resWaitTimer); resWaitTimer = null; }
+}
+// Can geri sayımı — SADECE görüntü zamanlayıcısı. paywall.applyLivesRefill/
+// LIVES_REFILL_INTERVAL_MS'e (dolum mekaniğinin KENDİSİ) TEK SATIR dokunulmuyor,
+// bu fonksiyon SADECE stats.livesLastRefillAt'tan kalan GERÇEK süreyi her
+// saniye yeniden okuyup ekrana yazıyor. Süre dolunca syncLives() (mevcut,
+// applyLivesRefill'i ZATEN çağıran fonksiyon) BİR KEZ tetiklenip satır kapanır.
+function startResWaitTicker() {
+  stopResWaitTicker();
+  const tick = () => {
+    const msLeft = Math.max(0, (stats.livesLastRefillAt || Date.now()) + paywall.LIVES_REFILL_INTERVAL_MS - Date.now());
+    if (msLeft <= 0) {
+      syncLives();
+      stopResWaitTicker();
+      if (currentLives > 0 && els.resWaitRow) els.resWaitRow.classList.add("hidden");
+      return;
+    }
+    const totalSec = Math.ceil(msLeft / 1000);
+    const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
+    const ss = String(totalSec % 60).padStart(2, "0");
+    if (els.resWaitCountdown) els.resWaitCountdown.textContent = `${mm}:${ss}`;
+  };
+  tick();
+  resWaitTimer = setInterval(tick, 1000);
+}
+
+// showSessionEnd'in çağrıldığı kind — resCta'nın tıklama davranışı duruma göre
+// FARKLI (Yeni Seans/Reklam İzle/Pro'ya geç), bkz. resCta'nın kendi dinleyicisi.
+let sessionEndKind = null;
+
 function showSessionEnd(kind) {
   sessionEndVisible = true;
+  sessionEndKind = kind;
   const lost = kind === "lost";
   const freeLimit = kind === "freeLimit";
   // "lost"/"freeLimit" İKİSİ de bir 10-soruluk bölümün TAMAMLANMASI değil, bu
@@ -1130,55 +1233,70 @@ function showSessionEnd(kind) {
   // olumsuz kapanış) bunu bastırır — ÖNCEKİ davranış.
   const leveledUp = !lost && sessionStartLevel !== null && nowLevel > sessionStartLevel;
 
+  // Tasarım (Prototip.dc.html SS objesi) — accent/pill/ikon/buton renkleri
+  // birebir: yeşil (done) / kırmızı (lives) / amber (free).
+  const accent = lost ? "var(--rd)" : freeLimit ? "var(--am)" : "var(--gr)";
+  const pillBg = lost ? "rgba(255,77,109,.1)" : freeLimit ? "rgba(240,180,66,.1)" : "rgba(43,217,168,.1)";
+  const pillBorder = lost ? "rgba(255,77,109,.4)" : freeLimit ? "rgba(240,180,66,.4)" : "rgba(43,217,168,.4)";
+  const pillIconPath = lost
+    ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="' + accent + '"><path d="M12 21C7 16.5 3 13 3 8.8 3 5.9 5.2 4 7.7 4 9.4 4 11 4.9 12 6.3 13 4.9 14.6 4 16.3 4 18.8 4 21 5.9 21 8.8 21 13 17 16.5 12 21Z"></path></svg>'
+    : freeLimit
+    ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="' + accent + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11h14v9H5zM8 11V7a4 4 0 0 1 8 0v4"></path></svg>'
+    : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="' + accent + '" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg>';
+  if (els.resPill) { els.resPill.style.background = pillBg; els.resPill.style.border = `1px solid ${pillBorder}`; }
+  if (els.resPillIcon) els.resPillIcon.innerHTML = pillIconPath;
   els.resKicker.textContent = lost ? "CANLARIN BİTTİ" : freeLimit ? "ÜCRETSİZ OTURUM BİTTİ" : "SEANS TAMAMLANDI";
-  els.resKicker.style.color = lost ? "var(--rd)" : freeLimit ? "var(--am)" : "var(--gr)";
+  els.resKicker.style.color = accent;
 
   const total = endedEarly ? (session.correct + session.wrong) : challenge.total;
   const correctCount = endedEarly ? session.correct : challenge.correct;
   const pct = total > 0 ? Math.round((correctCount / total) * 100) : 0;
-  els.resPct.textContent = `%${pct}`;
-  els.resScore.textContent = `${correctCount} / ${total} doğru`;
-  const ringColor = lost ? "var(--rd)" : freeLimit ? "var(--am)" : "var(--gr)";
-  els.resRing.style.background = `conic-gradient(${ringColor} 0turn ${(pct / 100).toFixed(3)}turn, rgba(255,255,255,.08) ${(pct / 100).toFixed(3)}turn 1turn)`;
+  els.resRing.innerHTML = buildResultRing(total > 0 ? correctCount / total : 0, `${correctCount}/${total}`, `%${pct} İSABET`, accent);
 
   const zoneEnough = zoneScores().filter(s => s.n >= 2);
   const insight = zoneInsightSentence(zoneEnough);
   const weakest = zoneEnough.length ? zoneEnough.slice().sort((a, b) => a.pct - b.pct)[0] : null;
 
   const activeModeCatalogEntry = MODE_CATALOG.find(e => e.id === mode.getMeta().id);
+  // Tasarımın statusSub'ı (pill'in HEMEN altındaki kısa cümle) — gerçek
+  // sayılarla (storage.TOTAL_LIVES/paywall.FREE_SESSION_QUESTION_LIMIT),
+  // Prototip'in KENDİ cümle kalıbına birebir yakın.
   els.resHead.textContent = lost
-    ? "Canların bitti, seans burada kapandı"
+    ? `${storage.TOTAL_LIVES} canı da kullandın. Seans ${total}. soruda kapandı.`
     : freeLimit
-    ? "Ücretsiz oturumun bitti"
-    : (weakest ? `${weakest.label} bölgede ilerleme var` : `${activeModeCatalogEntry ? activeModeCatalogEntry.ad : "Bu"} seansını bitirdin`);
+    ? `Günlük ${paywall.FREE_SESSION_QUESTION_LIMIT} ücretsiz sorunu tamamladın.`
+    : `${total} soruyu can kaybetmeden bitirdin.`;
 
   // Tasarımdaki "Son seansına göre +N puan" karşılaştırması VERİ KAYNAĞI YOK —
   // önceki seansın skor anlık görüntüsü hiçbir yerde tutulmuyor. Uydurmak yerine
-  // sadece "lost"/"freeLimit"te gerçek veriye dayanan bir cümle gösteriliyor,
-  // "normal" durumda bu satır boş/gizli kalıyor.
-  if (lost) {
-    // G61: "can dolum özelliği henüz eklenmedi" metni ARTIK YANLIŞ (PAYWALL.md
-    // ile gerçek zaman-tabanlı dolum geldi, bkz. paywall.applyLivesRefill) —
-    // kalan süre stats.livesLastRefillAt'tan HESAPLANIYOR, uydurulmuyor.
-    const msLeft = Math.max(0, (stats.livesLastRefillAt || Date.now()) + paywall.LIVES_REFILL_INTERVAL_MS - Date.now());
-    const minsLeft = Math.max(1, Math.ceil(msLeft / 60000));
-    els.resLead.textContent = `${total} soruda bitti. Canların tükendi — ${minsLeft} dakikada 1 can dolacak.`;
-    els.resLead.classList.remove("hidden");
-  } else if (freeLimit) {
-    els.resLead.textContent = `${paywall.LOCK_MESSAGES.sessionLimit.detail}`;
-    els.resLead.classList.remove("hidden");
-  } else {
-    els.resLead.textContent = "";
-    els.resLead.classList.add("hidden");
-  }
+  // bu satır (resLead) SADECE zayıf-bölge içgörüsü varsa dolduruluyor, aksi
+  // halde boş/gizli — tasarımın TEK-satırlık statusSub'ına (resHead) sadık
+  // kalmak için "N dakikada can dolacak" cümlesi BURADAN kaldırıldı, o bilgi
+  // artık kendi CANLI satırında (bkz. #resWaitRow/startResWaitTicker).
+  els.resLead.textContent = "";
+  els.resLead.classList.add("hidden");
+
+  if (els.resBonusRow) els.resBonusRow.classList.toggle("hidden", kind !== "normal");
 
   els.resLevelUp.classList.toggle("hidden", !leveledUp);
   if (leveledUp) els.resLevelUpBadge.textContent = nowLevel;
 
-  els.resXp.textContent = `+${session.xp}`;
-  els.resXpBar.style.width = `${Math.max(0, Math.min(100, (xp.current / xp.required) * 100))}%`;
-  els.resLvl.textContent = `Seviye ${nowLevel}`;
-  els.resXpNum.textContent = `${xp.current} / ${xp.required}`;
+  if (els.resXpRows) {
+    els.resXpRows.innerHTML = buildXpRows(kind, session.xp, session.xpBaseSum).map(r =>
+      `<div class="row${r.total ? " total" : ""}"><span class="lbl">${r.label}</span><span class="val">${r.val}</span></div>`
+    ).join("");
+  }
+
+  // Mod ilerleme çubuğu — G80'de kurulan perMode/perDiff ayrımının AYNISI:
+  // Seans Sonu'nun "hangi moddasın" bilgisi diffState() (zorluk-bazlı) DEĞİL
+  // progress.modeLevel/modeXp (mod-bazlı) okumalı, tasarımın "Frekans Bulma ·
+  // Sv 4" satırıyla BİREBİR.
+  const modeId = mode.getMeta().id;
+  const modeLevel = progress.modeLevel(stats, modeId);
+  const modeXpProg = progress.xpProgress(progress.modeXp(stats, modeId));
+  els.resLvl.textContent = `${activeModeCatalogEntry ? activeModeCatalogEntry.ad : modeId} · Sv ${modeLevel}`;
+  els.resXpNum.textContent = `${modeXpProg.current} / ${modeXpProg.required} XP`;
+  els.resXpBar.style.width = `${Math.max(0, Math.min(100, (modeXpProg.current / modeXpProg.required) * 100))}%`;
 
   els.resStreakMax.textContent = stats.bestCombo;
   els.resStreak.textContent = stats.combo;
@@ -1207,11 +1325,40 @@ function showSessionEnd(kind) {
 
   els.resComment.textContent = insight || (weakest ? `${weakest.label} bölgesinde %${weakest.pct} isabetin var.` : "");
 
+  // Rozet kartı — Seans Özeti.dc.html'de var, Prototip'in canlı özet ekranında
+  // yok (çeliştikleri yer, task'ın kendi maddesinde AÇIKÇA istendi) — bu
+  // OTURUMDA gerçekten açılan bir başarım varsa (session.newBadges, bkz.
+  // notifyNewAchievements) EN SON açılanı gösterir; yoksa kart HİÇ görünmez
+  // (tasarımdaki sabit "Kusursuz Kulak" örneği UYDURULMADI/kopyalanmadı —
+  // mevcut progress.ACHIEVEMENTS'ta böyle bir başarım YOK).
+  if (els.resBadge) {
+    const badge = session.newBadges.length ? session.newBadges[session.newBadges.length - 1] : null;
+    els.resBadge.classList.toggle("hidden", !badge);
+    if (badge) {
+      if (els.resBadgeIcon) els.resBadgeIcon.textContent = badge.icon;
+      if (els.resBadgeName) els.resBadgeName.textContent = badge.title;
+      if (els.resBadgeDesc) els.resBadgeDesc.textContent = badge.desc;
+    }
+  }
+
+  // Butonlar — duruma göre birincil CTA (bkz. resCta'nın kendi dinleyicisi,
+  // sessionEndKind'i okuyor) + can geri sayımı SADECE "lost"ta.
+  if (els.resCta) {
+    els.resCta.textContent = lost ? "Reklam izle, +1 can" : freeLimit ? "Pro ile sınırsız devam et" : "Yeni Seans";
+    els.resCta.style.background = freeLimit ? "var(--gold-grad)" : "var(--green-grad)";
+    els.resCta.style.color = freeLimit ? "#1a1305" : "#06230e";
+  }
+  if (els.resWaitRow) {
+    els.resWaitRow.classList.toggle("hidden", !lost);
+    if (lost) startResWaitTicker(); else stopResWaitTicker();
+  }
+
   goScreen("result");
 }
 
 function hideSessionEnd() {
   sessionEndVisible = false;
+  stopResWaitTicker();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2300,7 +2447,11 @@ function updateDaily(correct) {
 }
 
 function notifyNewAchievements() {
-  progress.checkAchievements(stats).forEach(a => toast(`${a.icon} ${a.title}`, a.desc));
+  const newly = progress.checkAchievements(stats);
+  newly.forEach(a => toast(`${a.icon} ${a.title}`, a.desc));
+  // G82: Seans Sonu'nun "Yeni Rozet" kartı için — bu OTURUMDA açılan HER
+  // başarım (toast'la aynı, mevcut rozet sistemine bkz. progress.ACHIEVEMENTS).
+  session.newBadges.push(...newly);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2580,6 +2731,10 @@ function submitFrequencyGuess(guessHz) {
     if (q.difficulty === "pro") stats.proCorrect++;
     if (q.boss) stats.bossWins++;
     session.correct++; session.xp += gained;
+    // G82: Seans Sonu'nun XP kırılımı ("Temel XP" satırı) için — G81'in
+    // xpBaseFor()'u burada da TEK gerçek kaynak, UYDURULMUŞ bir sayı yok
+    // (bkz. showSessionEnd/buildXpRows).
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
 
     const feedback = mode.getFeedbackData(q, guessHz, { gained });
     // G81: Frekans Bulma artık DİĞER DOKUZ modla AYNI yüzeyi (#feedbackBox)
@@ -2695,6 +2850,10 @@ function submitCutoffGuess(answer) {
     if (q.difficulty === "pro") stats.proCorrect++;
     if (q.boss) stats.bossWins++;
     session.correct++; session.xp += gained;
+    // G82: Seans Sonu'nun XP kırılımı ("Temel XP" satırı) için — G81'in
+    // xpBaseFor()'u burada da TEK gerçek kaynak, UYDURULMUŞ bir sayı yok
+    // (bkz. showSessionEnd/buildXpRows).
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
 
     const feedback = mode.getFeedbackData(q, answer, { gained });
     // G20: Kesim Noktası'nın zengin bir #freqInfo paneli YOK (bilerek, bkz.
@@ -2791,6 +2950,10 @@ function submitLevelGuess(value) {
     if (q.difficulty === "pro") stats.proCorrect++;
     if (q.boss) stats.bossWins++;
     session.correct++; session.xp += gained;
+    // G82: Seans Sonu'nun XP kırılımı ("Temel XP" satırı) için — G81'in
+    // xpBaseFor()'u burada da TEK gerçek kaynak, UYDURULMUŞ bir sayı yok
+    // (bkz. showSessionEnd/buildXpRows).
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
 
     const feedback = mode.getFeedbackData(q, value, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
@@ -2877,6 +3040,10 @@ function submitBoostCutGuess(answer) {
     if (q.difficulty === "pro") stats.proCorrect++;
     if (q.boss) stats.bossWins++;
     session.correct++; session.xp += gained;
+    // G82: Seans Sonu'nun XP kırılımı ("Temel XP" satırı) için — G81'in
+    // xpBaseFor()'u burada da TEK gerçek kaynak, UYDURULMUŞ bir sayı yok
+    // (bkz. showSessionEnd/buildXpRows).
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
 
     const feedback = mode.getFeedbackData(q, answer, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
@@ -2959,6 +3126,10 @@ function submitQWidthGuess(labelId) {
     if (q.difficulty === "pro") stats.proCorrect++;
     if (q.boss) stats.bossWins++;
     session.correct++; session.xp += gained;
+    // G82: Seans Sonu'nun XP kırılımı ("Temel XP" satırı) için — G81'in
+    // xpBaseFor()'u burada da TEK gerçek kaynak, UYDURULMUŞ bir sayı yok
+    // (bkz. showSessionEnd/buildXpRows).
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
 
     const feedback = mode.getFeedbackData(q, labelId, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
@@ -3042,6 +3213,10 @@ function submitThreeWayGuess(letter) {
     if (q.difficulty === "pro") stats.proCorrect++;
     if (q.boss) stats.bossWins++;
     session.correct++; session.xp += gained;
+    // G82: Seans Sonu'nun XP kırılımı ("Temel XP" satırı) için — G81'in
+    // xpBaseFor()'u burada da TEK gerçek kaynak, UYDURULMUŞ bir sayı yok
+    // (bkz. showSessionEnd/buildXpRows).
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
 
     const feedback = mode.getFeedbackData(q, letter, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
@@ -3122,6 +3297,10 @@ function submitTonalDengeGuess() {
     if (q.difficulty === "pro") stats.proCorrect++;
     if (q.boss) stats.bossWins++;
     session.correct++; session.xp += gained;
+    // G82: Seans Sonu'nun XP kırılımı ("Temel XP" satırı) için — G81'in
+    // xpBaseFor()'u burada da TEK gerçek kaynak, UYDURULMUŞ bir sayı yok
+    // (bkz. showSessionEnd/buildXpRows).
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
 
     const feedback = mode.getFeedbackData(q, answer, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
@@ -3208,6 +3387,10 @@ function submitCakismaGuess(answer) {
     if (q.difficulty === "pro") stats.proCorrect++;
     if (q.boss) stats.bossWins++;
     session.correct++; session.xp += gained;
+    // G82: Seans Sonu'nun XP kırılımı ("Temel XP" satırı) için — G81'in
+    // xpBaseFor()'u burada da TEK gerçek kaynak, UYDURULMUŞ bir sayı yok
+    // (bkz. showSessionEnd/buildXpRows).
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
 
     const feedback = mode.getFeedbackData(q, answer, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
@@ -3296,6 +3479,10 @@ function submitProPlusGuess() {
     diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
     if (q.boss) stats.bossWins++;
     session.correct++; session.xp += gained;
+    // G82: Seans Sonu'nun XP kırılımı ("Temel XP" satırı) için — G81'in
+    // xpBaseFor()'u burada da TEK gerçek kaynak, UYDURULMUŞ bir sayı yok
+    // (bkz. showSessionEnd/buildXpRows).
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
 
     feedback = mode.getFeedbackData(q, q.guesses, { gained });
     // F1: aynı desen — #feedbackBox gösterilmiyor, kaybolan bilgi (kalite başlığı)
@@ -4877,15 +5064,32 @@ function startFreshAttempt({ forceChallenge }) {
   goScreen("game");
   setAutoPlay(true);
 }
+// G82: birincil buton artık DURUMA göre üç farklı gerçek eylem — tasarımın
+// "Yeni Seans"/"Reklam izle, +1 can"/"Pro ile sınırsız devam et" ayrımı,
+// sessionEndKind (bkz. showSessionEnd) üzerinden. "lives" dalı grantAdLife()'ı
+// (G63'ün KENDİ simüle reklam mekaniği, bkz. watchAdBtn) ÇAĞIRIYOR — YENİ bir
+// ödül sistemi İCAT EDİLMEDİ. "free" dalı openPaywallReason("sessionLimit")
+// (mevcut, GERÇEK paywall giriş noktalarından biri) açıyor.
 if (els.resCta) els.resCta.addEventListener("click", async () => {
+  if (sessionEndKind === "lost") {
+    grantAdLife();
+    if (els.resWaitRow && currentLives > 0) { els.resWaitRow.classList.add("hidden"); stopResWaitTicker(); }
+    return;
+  }
+  if (sessionEndKind === "freeLimit") {
+    openPaywallReason("sessionLimit");
+    return;
+  }
   await audioEngine.initAudio();
   startFreshAttempt({ forceChallenge: true });
 });
 if (els.resRetryBtn) els.resRetryBtn.addEventListener("click", async () => {
+  stopResWaitTicker();
   await audioEngine.initAudio();
   startFreshAttempt({ forceChallenge: false });
 });
 if (els.resMenuBtn) els.resMenuBtn.addEventListener("click", () => {
+  stopResWaitTicker();
   hideSessionEnd();
   resetSession();
   goScreen("menu");
@@ -5989,7 +6193,11 @@ if (els.restorePurchaseBtn) els.restorePurchaseBtn.addEventListener("click", () 
 // LIVES'ı aşmaz), paywall.onLifeLost'un TERSİ bir "can kazanıldı" olayı: tam
 // dolarsa dolum referansı da "şimdi"ye çekilir (applyLivesRefill'in kendi
 // "tam doluyken referans sabit" kuralıyla TUTARLI kalsın diye).
-if (els.watchAdBtn) els.watchAdBtn.addEventListener("click", () => {
+// G82: aynı gerçek (simüle) mekanik Seans Sonu'nun "lives" durumundaki
+// birincil butonundan da (bkz. showSessionEnd/resCta) çağrılabilsin diye
+// paylaşılan bir fonksiyona çıkarıldı — davranış TEK SATIR değişmedi, SADECE
+// iki çağıran arasında tekrar etmesin diye.
+function grantAdLife() {
   const now = Date.now();
   if (typeof stats.lives !== "number") stats.lives = 0;
   stats.lives = Math.min(storage.TOTAL_LIVES, stats.lives + 1);
@@ -5997,6 +6205,9 @@ if (els.watchAdBtn) els.watchAdBtn.addEventListener("click", () => {
   persistStats();
   syncLives();
   toast("🎬 Reklam izlendi (simülasyon)", "+1 can");
+}
+if (els.watchAdBtn) els.watchAdBtn.addEventListener("click", () => {
+  grantAdLife();
   goBackFromSubpage();
 });
 

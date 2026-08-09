@@ -991,20 +991,41 @@
     </section>
 
     <!-- ================= EKRAN: SEANS SONU ================= -->
+    <!-- G82: Tasarim-2026-08/Prototip.dc.html'in "SEANS SONU" bloğu (SS objesi,
+         satır ~2010) + Tasarim-2026-08/Seans Özeti.dc.html birebir uygulandı.
+         KURAL: mevcut id'ler (resKicker/resPct/resScore/resRing/resHead/resLead/
+         resLevelUp*/resXpBar/resLvl/resXpNum/resStreak*/resHints/resSumTitle/
+         resFreqMap/resDots/resSeqMap/resBoxes/resComment/resCta/resRetryBtn/
+         resMenuBtn) TEK BİRİ silinmedi — app.js:showSessionEnd() hâlâ AYNI
+         id'lere yazıyor, SADECE bazılarının GÖRSEL ROLÜ tasarıma göre genişledi
+         (örn. resXpBar/resLvl/resXpNum eskiden zorluk-bazlı XP ilerlemesiydi,
+         artık MOD-bazlı "mod ilerleme çubuğu" — G80'in perMode/perDiff ayrımının
+         AYNI yönde devamı). SADECE gerçekten YENİ olan öğeler (rozet kartı, XP
+         kırılım satırları, bölüm bonusu rozeti, can geri sayımı) yeni id aldı.
+         resXp (eski "Kazanılan XP" başlığı) kaldırıldı — YERİNE geçen
+         #resXpRows'un "Toplam" satırı AYNI bilgiyi taşıyor, hiçbir başka kod
+         resXp'yi okumuyordu (grep ile doğrulandı). Bölge haritası/soru sırası
+         (resFreqMap/resSeqMap/resDots/resBoxes) tasarımda YOK ama gerçek/
+         çalışan bir özellik — SÖKÜLMEDİ, ayrı bir kart olarak KORUNDU. -->
     <section class="screen" id="screen-result">
       <div class="scroll" style="padding-top:12px">
         <div style="text-align:center;padding:10px 4px 4px">
-          <div style="font-size:13px;font-weight:700;letter-spacing:.12em" id="resKicker">SEANS TAMAMLANDI</div>
-          <div style="margin:14px auto 0;width:128px;height:128px;border-radius:99px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative" id="resRing">
-            <div style="position:absolute;inset:9px;border-radius:99px;background:#0A0E18"></div>
-            <div class="num" style="position:relative;font-size:30px;font-weight:800;line-height:1" id="resPct">%0</div>
-            <div class="num" style="position:relative;font-size:14px;font-weight:600;color:var(--tx-3)" id="resScore">0 / 0 doğru</div>
+          <div id="resPill" style="display:inline-flex;align-items:center;gap:7px;padding:6px 14px;border-radius:999px">
+            <span id="resPillIcon" style="display:flex;flex:none"></span>
+            <span style="font-size:11.5px;font-weight:800;letter-spacing:1.2px" id="resKicker">SEANS TAMAMLANDI</span>
           </div>
-          <h1 style="margin:15px 0 0;font-size:21px;font-weight:800;line-height:1.28" id="resHead">Seans tamamlandı</h1>
-          <p class="lead hidden" style="margin:9px 0 0" id="resLead"></p>
+          <h1 style="margin:10px 0 0;font-size:13px;font-weight:500;color:var(--tx-3);line-height:1.4" id="resHead">Seans tamamlandı</h1>
+          <p class="lead hidden" style="margin:6px 0 0" id="resLead"></p>
+
+          <div style="margin:14px auto 0;width:162px;height:162px;position:relative" id="resRing"></div>
         </div>
 
-        <div class="card hidden" id="resLevelUp" style="margin-top:16px;padding:16px;background:linear-gradient(150deg,rgba(255,194,70,.2),rgba(255,122,24,.06));border-color:rgba(255,176,32,.42)">
+        <div id="resBonusRow" class="hidden" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:6px;padding:9px 14px;border-radius:11px;background:rgba(74,222,128,.09);border:1px solid rgba(74,222,128,.35)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="#4ade80"><path d="M13 2L4.5 13.5h5L10 22l8.5-11.5h-5L13 2Z"></path></svg>
+          <span style="font-size:13px;font-weight:800;color:#4ade80">+%50 Bölüm Bonusu</span>
+        </div>
+
+        <div class="card hidden" id="resLevelUp" style="margin-top:12px;padding:16px;background:linear-gradient(150deg,rgba(255,194,70,.2),rgba(255,122,24,.06));border-color:rgba(255,176,32,.42)">
           <div style="display:flex;align-items:center;gap:12px">
             <div style="width:48px;height:48px;flex:none;border-radius:16px;background:linear-gradient(150deg,var(--am),var(--am-2));color:#1A1206;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:800" id="resLevelUpBadge">—</div>
             <div style="flex:1;min-width:0">
@@ -1014,21 +1035,30 @@
           </div>
         </div>
 
-        <div class="card" style="margin-top:12px;padding:15px 16px">
-          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px">
-            <div style="font-size:15px;font-weight:700">Kazanılan XP</div>
-            <div class="num" style="font-size:19px;font-weight:800;color:var(--am)" id="resXp">+0</div>
+        <!-- XP kırılımı — G81'de kurulan gerçek-faktör mantığı (xpBaseFor/
+             comboBoost/CHALLENGE_XP_MULT) session toplamına genişletildi,
+             satırlar Tasarim-2026-08/Seans Özeti.dc.html'in xpRows'uyla birebir. -->
+        <div class="card" style="margin-top:12px;padding:0;overflow:hidden">
+          <div id="resXpRows"></div>
+        </div>
+
+        <div class="card" style="margin-top:12px;padding:13px 15px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+            <span class="num" style="font-size:12px;font-weight:700;color:var(--gold)" id="resLvl">Seviye 1</span>
+            <span class="num" style="font-size:12px;font-weight:600;color:var(--tx-2)" id="resXpNum">0 / 120</span>
           </div>
-          <div class="bar" style="margin-top:10px"><i id="resXpBar" style="width:0%"></i></div>
-          <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:14px;font-weight:600;color:var(--tx-3)">
-            <span id="resLvl">Seviye 1</span><span class="num" id="resXpNum">0 / 120</span>
-          </div>
+          <div class="bar"><i id="resXpBar" style="width:0%"></i></div>
         </div>
 
         <div class="row" style="margin-top:10px">
           <div class="stat-big"><b id="resStreakMax">0</b><span>En uzun seri</span></div>
           <div class="stat-big"><b id="resStreak">0</b><span>Mevcut seri</span></div>
           <div class="stat-big" style="color:var(--am)"><b id="resHints">0</b><span>İpucu</span></div>
+        </div>
+
+        <div id="resWeakBox" style="display:flex;align-items:center;gap:9px;margin-top:10px;padding:11px 13px;border-radius:12px;background:rgba(248,113,96,.06);border:1px solid rgba(248,113,96,.22)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f87160" stroke-width="2" stroke-linecap="round" style="flex:none"><path d="M12 8v5"></path><circle cx="12" cy="16.5" r=".5" fill="#f87160"></circle><path d="M10.3 3.6 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"></path></svg>
+          <p style="margin:0;font-size:12px;font-weight:600;line-height:1.45;color:#d9a08f" id="resComment"></p>
         </div>
 
         <div class="card" style="margin-top:12px;padding:15px 16px">
@@ -1048,12 +1078,38 @@
               <span>1. SORU</span><span>SON</span>
             </div>
           </div>
-          <p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:var(--tx-2)" id="resComment"></p>
+        </div>
+
+        <!-- Rozet kartı — Tasarim-2026-08/Seans Özeti.dc.html'de var, Prototip'in
+             CANLI özet ekranında yok (çeliştikleri yer) — task'ın kendi
+             maddesinde AÇIKÇA istendiği için uygulandı, gerçek rozet sistemine
+             (core/progress.js:ACHIEVEMENTS, bu OTURUMDA açılan) bağlandı. -->
+        <div class="card hidden" id="resBadge" style="margin-top:12px;padding:13px 15px;display:flex;align-items:center;gap:13px;background:linear-gradient(180deg,rgba(232,196,106,.08),rgba(232,196,106,.02)) var(--card-2);border-color:rgba(232,196,106,.4)">
+          <div style="position:relative;width:46px;height:46px;flex:none">
+            <svg width="46" height="46" viewBox="0 0 52 52">
+              <defs><linearGradient id="resBadgeGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6d878"></stop><stop offset=".45" stop-color="#d9a83c"></stop><stop offset="1" stop-color="#8f6a1c"></stop></linearGradient></defs>
+              <polygon points="26,3 48,19 40,46 12,46 4,19" fill="url(#resBadgeGrad)" stroke="#fbe9a8" stroke-width="1.5"></polygon>
+              <polygon points="26,9 42.5,21 36.5,41 15.5,41 9.5,21" fill="#2a2013" stroke="#c79a33" stroke-width="1"></polygon>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:19px" id="resBadgeIcon"></div>
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10px;font-weight:700;letter-spacing:1.2px;color:#a8842f;text-transform:uppercase">Yeni Rozet</div>
+            <div style="font-size:14.5px;font-weight:700;color:#f6d878;margin-top:2px" id="resBadgeName"></div>
+            <div style="font-size:11px;font-weight:500;color:var(--tx-3);margin-top:1px" id="resBadgeDesc"></div>
+          </div>
         </div>
       </div>
 
       <div class="actionbar">
         <button class="btn primary" id="resCta">10 soru daha</button>
+        <!-- Can geri sayımı — SADECE "lost" durumunda, gerçek zaman ile canlı
+             sayıyor (bkz. app.js startResWaitTicker — paywall.applyLivesRefill'in
+             KENDİSİNE dokunulmadı, bu SADECE bir GÖRÜNTÜ zamanlayıcısı). -->
+        <div id="resWaitRow" class="hidden" style="display:flex;align-items:center;justify-content:center;gap:7px;margin-top:9px;padding:9px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--border)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--tx-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2"></path></svg>
+          <span style="font-size:12px;font-weight:600;color:var(--tx-3)">veya 30 dk bekle · sonraki can <span id="resWaitCountdown" class="num">--:--</span></span>
+        </div>
         <div class="row" style="margin-top:9px">
           <button class="btn" id="resRetryBtn">Tekrar oyna</button>
           <button class="btn" id="resMenuBtn">Menüye dön</button>
