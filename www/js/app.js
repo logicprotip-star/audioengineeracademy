@@ -1746,38 +1746,28 @@ function renderComingGrid() {
 }
 
 function updateUI() {
-  const xp = progress.xpProgress(diffState().xp);
-  const percent = Math.max(0, Math.min(100, (xp.current / xp.required) * 100));
-
   els.accuracyValue.textContent = `%${progress.accuracy(stats)}`;
 
-  // G40: İlerleme'nin SV rozeti — Ana Menü'nün G36'daki .lvl-badge'iyle BİREBİR AYNI
-  // hesabı (xp/percent, yukarıda) okur, ayrı bir sorgu/kaynak YOK — ikisi HER ZAMAN
-  // senkron. G36'nın "menü kartı İlerleme'yle senkron" notunun AYNISI, ters yönden.
-  if (els.progLevelValue) els.progLevelValue.textContent = xp.level;
-  if (els.progXpText) els.progXpText.textContent = `${xp.current}/${xp.required} XP`;
-  if (els.progXpBar) els.progXpBar.style.width = `${percent}%`;
-  if (els.progNextLevelText) els.progNextLevelText.innerHTML = `Sonraki seviyeye <b style="color:var(--am)">${xp.required - xp.current} XP</b>`;
+  // G75: Ana Menü'nün "Sv" pentagonu VE İlerleme sekmesinin KENDİ rozeti artık
+  // AYNI kaynaktan okuyor — progress.academyXpProgress(academyTotalXp(...)),
+  // TÜM modların TOPLAM XP'sinden, akademiye özel (yavaş) eğriyle (bkz.
+  // progress.js:academyLevel notu). ESKİDEN (G40) bu ikisi diffState().xp
+  // (aktif zorluğun XP'si) okuyordu — G74 Ana Menü'yü academyLevel'a taşıyınca
+  // İlerleme geride kalmıştı (bkz. DURUM.md G74 "DÜRÜSTLÜK NOTU" + AÇIK İŞLER
+  // madde 15) — bu turda İKİSİ DE academyXp'ye taşınarak kapatıldı.
+  const academyXp = progress.academyXpProgress(progress.academyTotalXp(stats, playableModeIds()));
+  const academyPercent = Math.max(0, Math.min(100, (academyXp.current / academyXp.required) * 100));
 
-  // G74: Ana Menü'nün YENİ kullanıcı kartı "Akademi Seviyesi · tüm modların
-  // toplamı" diyor (Tasarim-2026-08/Ana Ekran.dc.html) — bu artık İlerleme'nin
-  // (yukarıdaki, DEĞİŞMEYEN) diffState()-tabanlı xp.level'ından FARKLI bir
-  // sayı: progress.academyLevel(stats, playableModeIds()), 10 modun KENDİ
-  // modeLevel()'lerinin TOPLAMI (bkz. progress.js:academyLevel notu — hiç
-  // oynanmamış bir mod bile levelFromXp tabanı 1 sayıldığı için taze bir
-  // kullanıcı bile academyLevel=10 ile başlar, xp.level=1 DEĞİL). DÜRÜSTLÜK
-  // NOTU (bkz. DURUM.md G74): bu, Ana Menü'nün "Sv" pentagonu ile İlerleme
-  // sekmesinin KENDİ rozetinin BİLEREK farklı sayı göstermesi demek — İlerleme
-  // bu turun kapsamı dışı, o ekran yeniden tasarlanınca uzlaştırılmalı.
-  // menuXpText/menuXpBar/menuNextLevelText veri kaynağı DEĞİŞMEDİ (aynı xp/
-  // percent) — kartta pentagon'dan AYRI, ikinci bir metrik (mevcut oyun
-  // ilerlemesi) olarak kalıyor.
-  const academyLvl = progress.academyLevel(stats, playableModeIds());
-  if (els.menuLevelValue) els.menuLevelValue.textContent = academyLvl;
-  if (els.menuLevelTitle) els.menuLevelTitle.textContent = progress.levelTitle(academyLvl);
-  if (els.menuXpText) els.menuXpText.textContent = `${xp.current}/${xp.required} XP`;
-  if (els.menuXpBar) els.menuXpBar.style.width = `${percent}%`;
-  if (els.menuNextLevelText) els.menuNextLevelText.innerHTML = `Sonraki seviyeye <b style="color:var(--cyan)">${xp.required - xp.current} XP</b>`;
+  if (els.progLevelValue) els.progLevelValue.textContent = academyXp.level;
+  if (els.progXpText) els.progXpText.textContent = `${academyXp.current}/${academyXp.required} XP`;
+  if (els.progXpBar) els.progXpBar.style.width = `${academyPercent}%`;
+  if (els.progNextLevelText) els.progNextLevelText.innerHTML = `Sonraki seviyeye <b style="color:var(--am)">${academyXp.required - academyXp.current} XP</b>`;
+
+  if (els.menuLevelValue) els.menuLevelValue.textContent = academyXp.level;
+  if (els.menuLevelTitle) els.menuLevelTitle.textContent = progress.levelTitle(academyXp.level);
+  if (els.menuXpText) els.menuXpText.textContent = `${academyXp.current}/${academyXp.required} XP`;
+  if (els.menuXpBar) els.menuXpBar.style.width = `${academyPercent}%`;
+  if (els.menuNextLevelText) els.menuNextLevelText.innerHTML = `Sonraki seviyeye <b style="color:var(--cyan)">${academyXp.required - academyXp.current} XP</b>`;
 
   if (els.seriChip) els.seriChip.textContent = 'Seri ' + stats.rounds;
   // Z3/Z6: bu MOD seviyesi — diffState()'in yukarıdaki (perDiff, zorluk-bazlı) xp'sinden

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G74)
+Son güncelleme: 09.08.2026 (G75)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,108 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G74, tek commit) — **Yeni tasarımın ANA EKRANI uygulandı**
+Bu commit (G75, tek commit) — **Ana Ekran düzeltmeleri — G74'ün 5 bug'ı
+kapatıldı, madde 15 (Sv tutarsızlığı) DAHİL**
+
+Tasarım kaynağı: `Tasarim-2026-08/Ana Ekran.dc.html` (aynı, G74'teki).
+
+**1. "i" butonu okunmuyordu — CANLI TARAYICIDA doğrulandı, kök sebep +
+düzeltme:** Reverb'de "i" tam dry-referans çubuğunun (`x=8,y=12,h=68`,
+opak cyan) üzerine oturuyordu — taban `.mode-info-btn` zemini
+(`rgba(34,211,238,.14)`) parlak/dolu SVG üzerinde neredeyse hiç fark
+edilmiyordu. `.mode-card-viz .mode-info-btn`'e (taban kural DEĞİL, sadece
+bu iç-içe kural — `#gameInfoBtn` etkilenmedi) koyu neredeyse-opak zemin
+(`rgba(6,9,12,.8)`) + belirginleştirilmiş kenarlık eklendi — artık HER
+görselin üstünde okunuyor (10 modun hepsi canlı ekran görüntüsüyle tek tek
+doğrulandı, aşağıya bkz.). Ayrıca Reverb'in dry çubuğu (`y=34,h=46` —
+üstten kısaltıldı) ve Kompresör'ün "OUT" etiketi (`y=12→37`) "i" rozetinin
+düşey alanından (y:8-28) tamamen ÇIKARILDI (kaydırma, task'ın kendi ikinci
+seçeneği).
+**2. PRO rozeti görsel etiketleri kesiyordu — kök sebep + düzeltme:**
+Frekans Çakışması'nın "BAS" etiketi (`x=162,y=16`) canlı ekranda GERÇEKTEN
+PRO rozetinin ALTINDA tamamen GİZLİYDİ (zoom ekran görüntüsüyle doğrulandı
+— rozet DOM'da SVG'nin üstünde, tam o noktayı kaplıyor). "KICK"/"BAS"
+`y=37`'ye indirildi (rozetlerin düşey alanı — hem "i" hem PRO, CSS'te
+top:8/height~20 — her kart genişliğinde SABİT, çünkü SVG'nin
+`preserveAspectRatio="none"` esnemesi SADECE yatay eksende; bkz.
+`mode-visuals.js` başındaki G75 notu). dB Seviyesi'nin "+4 dB?" etiketi
+(`x=62→74`) dar kartlarda (preserveAspectRatio yatay sıkışması, kart
+genişliği viewBox'tan dar olunca "i" rozetinin viewBox-eşdeğeri alanı
+BÜYÜR) rozetle çakışmaması için sağa kaydırıldı.
+**3. Uzun mod adı kesiliyordu — düzeltildi:** `.mode-card-name`'den
+`white-space:nowrap;overflow:hidden;text-overflow:ellipsis` kaldırıldı,
+artık 2 satıra inebiliyor (kırpma YOK). `.mode-card-head` `align-items:
+center`→`flex-start` (Sv rozeti isim 2 satıra taşınca üstte hizalı
+kalsın). "Frekans Çakışması" hem 258px hem 166px kart genişliğinde TAM
+görünüyor (canlı doğrulandı, aşağıya bkz.) — Sv rozeti küçültülmedi,
+sadece isim kablosu çözüldü.
+**4. Kart yükseklikleri hizasızdı — düzeltildi:** `.mode-card`'a
+`height:100%;box-sizing:border-box`, `.mode-grid`'e açık
+`align-items:stretch` eklendi. Bu ortamda (masaüstü Chrome) grid stretch
+DÜZELTMEDEN ÖNCE de 0px fark veriyordu (canlı ölçüldü) — DÜZELTME iOS
+Safari'nin bilinen grid-stretch+flex-item quirk'üne karşı SAVUNMACI bir
+ek, gerçek WebKit'te henüz doğrulanamadı (CLAUDE.md: "DOM davranışı
+kaynak koddan doğrulanamaz", bu ortamda sadece Chromium var).
+**5. Akademi Seviyesi yeniden hesaplandı — artık mod seviyelerinin
+TOPLAMI DEĞİL:** `progress.js`'e `academyXpNeeded`/`academyTotalXp`/
+`academyXpProgress` eklendi, `academyLevel()` bunların üstüne YENİDEN
+TANIMLANDI — TÜM modların TOPLAM XP'sinden (`modeXp` toplamı), mod
+eğrisinden (`xpNeeded`) 5 KAT YAVAŞ akademiye-özel bir eşik eğrisiyle
+(`ACADEMY_XP_MULTIPLIER=5`, TASLAK/TAHMİNİ — playtest'le DOĞRULANMADI,
+kod içinde açıkça işaretli). Taze kullanıcı artık academyLevel=1 (ESKİ:
+10). `LEVEL_TITLES` eşikleri (1/3/6/10/15/22/30) bu yeni ölçeğe göre
+YENİDEN KALİBRE EDİLDİ — eski eşikler (0/20/35/...) yeni ölçekte
+ULAŞILMAZ olurdu. `updateUI()`'da Ana Menü (`menuLevelValue`/`menuXpText`/
+`menuXpBar`/`menuNextLevelText`) VE İlerleme (`progLevelValue`/
+`progXpText`/`progXpBar`/`progNextLevelText`) ARTIK AYNI `academyXpProgress`
+kaynağını okuyor (ikisi eskiden AYRI kaynaktan okuyordu — İlerleme
+`diffState().xp`, aktif zorluğun XP'si — bu G74'ün AÇIK İŞLER madde
+15'iydi, KAPANDI). `index.html`'deki kart alt yazısı "tüm modların
+toplamı"→"tüm modlardaki toplam emeğin" (task'ın kendi metni).
+**YAN ETKİ, BU TURUN KAPSAMI DIŞI (BEKLEYEN KARARLAR'a eklendi):**
+`paywall.meetsLevelRequirement` AYNI academyLevel'ı Pro seviye kilidi
+(`mode-catalog.js` `unlockLevel`, 1-20 aralığı) için de okuyor —
+çarpanın büyümesi bu kilitlerin açılma HIZINI da (Pro kullanıcılar için)
+yavaşlatıyor, kod bunu DEĞİŞTİRMEDİ, kullanıcı kararı bekliyor.
+
+**Testler:** `test/progress.test.mjs` — `academyLevel`/`LEVEL_TITLES`
+bölümleri YENİ formüle göre YENİDEN YAZILDI (eski "sum of levels" testleri
+kaldırıldı, `academyTotalXp`/`academyXpNeeded`/`academyXpProgress` için
+yeni testler eklendi — akademi eğrisinin mod eğrisinden her seviyede daha
+yavaş olduğu, taze kullanıcının 1'den başladığı, monoton arttığı
+doğrulandı). `test/mode-visuals.test.mjs` DEĞİŞMEDİ (SVG string'in
+KENDİSİNİ değil, sadece varlığını/gradyan id'sini test ediyor — koordinat
+değişiklikleri bu testleri BOZMADI, `npm test` ile doğrulandı).
+
+**DOĞRULAMA (canlı tarayıcı, `python3 -m http.server` port 8042 +
+Claude-in-Chrome, temiz `localStorage`):**
+- **Taze kullanıcıda Akademi Sv: 1.** Ana Menü (`#menuLevelValue`) ve
+  İlerleme (`#progLevelValue`) İKİSİ DE "1", ikisi de "0/600 XP" —
+  `getBoundingClientRect`/`textContent` ile ölçüldü, AYNI.
+- **10 modun HER BİRİNDE "i"/PRO rozeti görsel etiketlerle çakışmıyor —
+  tek tek zoom ekran görüntüsüyle doğrulandı** (frekans-bulma, kesim-
+  noktasi, q-genisligi, boost-mu-cut-mu, db-seviyesi, kompresor, reverb,
+  tonal-denge, distortion, frekans-cakismasi) — Kompresör'ün "OUT" ve
+  Frekans Çakışması'nın "KICK"/"BAS"ı DÜZELTMEDEN ÖNCE ekran görüntüsünde
+  GERÇEKTEN gizliydi/kesikti, DÜZELTMEDEN SONRA hepsi tam okunuyor.
+- **"Frekans Çakışması" adı tam görünüyor** — 258px (masaüstü) genişlikte
+  tek satır, 166px (dar-ekran proxy testi, G74'teki AYNI yöntemle: gerçek
+  `resize_window` bu ortamda `window.innerWidth`'i değiştirmiyor, bunun
+  yerine `.app-shell` GEÇİCİ 375px'e sıkıştırılıp GERÇEK DOM ölçüldü)
+  genişlikte 2 satıra iniyor, HİÇBİR genişlikte kırpılmıyor.
+- **Grid satırlarında kart yükseklik farkı: 0px** — hem 258px hem 166px
+  kart genişliğinde, 5 satırın (10 kart) HEPSİNDE `Math.max(heights) -
+  Math.min(heights) === 0` ölçüldü.
+- **`npm test`: 1043/1043** (1042 → +1 net; `academyLevel` bölümü
+  yeniden yazıldı, birkaç test kaldırıldı/eklendi).
+
+**KORUMA:** paywall/erişim mantığı, sınav sistemi, ses/zorluk, spotlight,
+mevcut "i" içerikleri, `mode-catalog.js` (unlockLevel DAHİL) TEK SATIR
+değişmedi.
+
+---
+
+Önceki commit (G74, tek commit) — **Yeni tasarımın ANA EKRANI uygulandı**
 (Tasarim-2026-08/Ana Ekran.dc.html) — oyun ekranı/İlerleme/Araçlar bu
 turda DEĞİŞMEDİ.
 
@@ -5543,17 +5644,12 @@ elle denenip doğrulandı, taslak metinler (`MODE_GUIDE_TEXTS`,
 `MODE_OPTIONS_TEXTS`, `SPOTLIGHT_STEPS`) kullanıcı tarafından gözden
 geçirilip gerekiyorsa `guide-texts.js`'te düzeltildi.
 
-**15. G74 — Ana Menü'nün "Sv" rozeti ile İlerleme sekmesinin rozeti artık
-FARKLI sayı gösteriyor**
-Ana ekranın yeni kullanıcı kartı `progress.academyLevel()` (10 modun
-toplamı, taze kullanıcıda 10) gösteriyor, İlerleme sekmesinin KENDİ rozeti
-(`#progLevelValue`) hâlâ eski `diffState().xp` tabanlı sayıyı gösteriyor
-(taze kullanıcıda 1) — G74'ün kapsamı SADECE ana ekrandı, İlerleme'ye
-dokunulmadı. **Kabul kriteri:** İlerleme sekmesi yeniden tasarlanırken (ya
-da ayrı bir görevde) bu iki rozet AYNI academyLevel kaynağını okuyacak
-şekilde uzlaştırılmalı — ya İlerleme'nin rozeti de academyLevel'a
-taşınmalı, ya da ikisinin NEDEN farklı şeyler gösterdiği kullanıcıya
-açıkça anlatılmalı (ör. "bu mod seviyesi" vs "akademi seviyesi" etiketiyle).
+**15. ~~G74 — Ana Menü'nün "Sv" rozeti ile İlerleme sekmesinin rozeti artık
+FARKLI sayı gösteriyor~~ — G75'te KAPANDI**
+`updateUI()`'da İlerleme'nin `#progLevelValue`/`#progXpText`/`#progXpBar`/
+`#progNextLevelText` ARTIK Ana Menü'yle AYNI kaynağı (`progress.
+academyXpProgress(academyTotalXp(...))`) okuyor — canlı doğrulandı, ikisi
+de taze kullanıcıda "1" / "0/600 XP" (bkz. BİTTİ G75).
 
 ### Yayın öncesi
 
@@ -5656,6 +5752,21 @@ rakamı önceki bir oturumun canlı ölçümüydü, bu turda yeniden ölçülmed
 mekanizma değişmemiş, karar hâlâ açık: Pro Plus dar odakta kısıtlansın mı (o
 kombinasyon seçilemesin), yoksa az bantla mı devam etsin?
 
+**J. G75 — ACADEMY_XP_MULTIPLIER (=5, taslak) Pro seviye kilidinin (madde B)
+açılma hızını da yavaşlattı, kod bunu ÇÖZMEDİ**
+`academyLevel()` artık TOPLAM XP'den, mod eğrisinden 5 kat yavaş bir
+eğriyle hesaplanıyor (bkz. BİTTİ G75) — AYNI fonksiyon `paywall.
+meetsLevelRequirement`'ın Pro seviye kilidinde (`unlockLevel`, madde B'nin
+konusu) de kullanılıyor. Örnek: `unlockLevel:20` (frekans-cakismasi) artık
+TOPLAM ~142.500 XP gerektiriyor (5×xpNeeded'in kümülatif toplamı,
+seviye 20'ye kadar) — eski "sum of levels" ölçeğinde çok daha kolay
+erişilen bir eşikti. Bu YAVAŞLAMA task'ın G75 isteğinin (Sv rozetinin
+DOĞRU görünmesi) DOĞAL bir yan etkisi ama AYRI bir ürün kararı: çarpan
+(5) düşürülsün mü, yoksa `unlockLevel` değerleri (madde B'nin KENDİ konusu,
+zaten "hâlâ belirlenmedi" diyor) yeni ölçeğe göre YENİDEN mi ayarlansın?
+Bugün SADECE Pro kullanıcıları etkiliyor (G62: ücretsizde kilit hiç
+tetiklenmiyor).
+
 **I. İsimlendirme tutarsızlıkları (D6 denetimi — düzeltilmedi, sadece raporlandı)**
 Beşi de bu turda `grep` ile TEK TEK yeniden doğrulandı, hepsi hâlâ true:
 1. Zorluk `proplus` değeri iki yerde iki farklı isimle: `index.html:272`
@@ -5681,15 +5792,15 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G74 itibarıyla):** AÇIK İŞLER madde 15 — Ana Menü'nün
-yeni "Sv" rozeti (academyLevel) ile İlerleme sekmesinin rozeti
-(diffState().xp) arasındaki uzlaşmazlığı çözmek, İlerleme ekranı yeniden
-tasarlanırken. Bunun ardından madde 14 (G67-G74'ün TAMAMI: kalıcı "i" +
-SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu + G74'ün yeni ana ekranı)
-GERÇEK CİHAZDA (bu turda masaüstü Chrome'da doğrulandı, ama iOS WKWebView'de
-HENÜZ değil — font rendering/safe-area farkları olabilir) elle denenmeli.
-Aşağıdaki liste (G59 itibarıyla güncellendi) bu adımdan BAĞIMSIZ, daha
-eski/büyük zorluk-mimarisi işlerini
+**Tek sonraki adım (G75 itibarıyla):** AÇIK İŞLER madde 14 — G67-G75'in
+TAMAMI (kalıcı "i" + SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu +
+G74'ün yeni ana ekranı + G75'in 5 düzeltmesi) GERÇEK CİHAZDA (bu turda da
+SADECE masaüstü Chrome'da doğrulandı, iOS WKWebView'de HENÜZ değil — font
+rendering/safe-area farkları VE özellikle G75 madde 4'ün Safari grid-
+stretch savunması gerçek Safari'de test edilmeli) elle denenmeli. Ayrıca
+BEKLEYEN KARARLAR madde J (ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini
+yavaşlatması) kullanıcı onayı bekliyor. Aşağıdaki liste (G59 itibarıyla
+güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini
 kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma

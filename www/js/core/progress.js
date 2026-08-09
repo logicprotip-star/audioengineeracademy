@@ -66,39 +66,65 @@ export function modeLevel(stats, modeId) {
   return Math.min(rawLevel, exam.examLevel);
 }
 
-// AKADEMİ (genel) seviyesi — KARAR (Z3): mod seviyelerinin TOPLAMI (her modLevel()
-// levelFromXp gibi her zaman >=1 döner — sıfır XP'li bir mod bile "seviye 1" sayılır).
-// Bu, tek oynanabilir mod olduğu SÜRECE academyLevel === modeLevel(o mod) demektir
-// (mevcut davranışla birebir tutarlı). NOT (gelecek için): yeni modlar eklendikçe
-// HİÇ OYNANMAMIŞ modlar da +1 katkı yapacak ("bedava seviye şişmesi") — bugün bunu
-// önleyecek bir eşik (ör. sadece xp>0 olan modları say) EKLENMEDİ, çünkü mevcut tek-mod
-// gerçekliğinde unlockLevel:1 kilidinin her zaman >=1 seviyeyle geçmesi gerekiyor
-// (0 tabanlı bir toplam, sıfır-XP'li yeni kullanıcıyı ilk moddan bile kilitlerdi).
-// İkinci mod eklendiğinde bu ödün yeniden değerlendirilmeli.
+// AKADEMİ (genel) seviyesi — G75 KARARI (bkz. DURUM.md G75 raporu): ESKİ tanım
+// (mod seviyelerinin TOPLAMI, bkz. git geçmişi) TERK EDİLDİ — 10 oynanabilir modla
+// taze bir kullanıcı bile hiçbir şey yapmadan "Sv 10" gösteriyordu (her modLevel()
+// sıfır XP'de bile 1 döner, 10 mod × 1 = 10) ve mod sayısı arttıkça bu taban KENDİLİĞİNDEN
+// yükseliyordu. YENİ tanım: TÜM modların TOPLAM XP'sinden, mod eğrisinden (xpNeeded)
+// AYRI/DAHA YAVAŞ bir eşik eğrisiyle hesaplanıyor — taze kullanıcı academyLevel=1'den
+// başlar. ACADEMY_XP_MULTIPLIER TASLAK/TAHMİNİ bir sabit — playtest'le DOĞRULANMADI
+// (CLAUDE.md "sayı uydurma" ilkesi gereği burada açıkça belirtiliyor). Çarpan=1 (saf
+// xpNeeded eğrisi total XP'ye uygulansaydı) akademiyi TEK bir moddan bile DAHA HIZLI
+// doldururdu (10 modun XP'si TOPLANDIĞI için) — task'ın "mod eğrisi akademi için çok
+// hızlı dolar" gerekçesiyle TERS bir sonuç olurdu, bu yüzden çarpan >1 zorunlu.
+// YAN ETKİ (ürün kararı, BURADA ÇÖZÜLMEDİ): paywall.meetsLevelRequirement bu AYNI
+// academyLevel'ı Pro seviye kilidi (mode-catalog.js unlockLevel, 1..20 aralığı) için
+// de kullanıyor — çarpanın büyümesi bu kilitlerin açılma HIZINI da yavaşlatır, bu
+// task'ın kapsamı DEĞİL, kullanıcıya bırakıldı (bkz. DURUM.md G75 BEKLEYEN KARARLAR).
+const ACADEMY_XP_MULTIPLIER = 5;
+
+export function academyXpNeeded(level) {
+  return ACADEMY_XP_MULTIPLIER * xpNeeded(level);
+}
+
+export function academyTotalXp(stats, modeIds) {
+  return (modeIds || []).reduce((sum, id) => sum + modeXp(stats, id), 0);
+}
+
+// levelFromXp/xpProgress'in AYNI merdiven mantığı, sadece academyXpNeeded eğrisiyle.
+export function academyXpProgress(xp) {
+  let level = 1;
+  let spent = 0;
+  while (xp >= spent + academyXpNeeded(level)) {
+    spent += academyXpNeeded(level);
+    level++;
+  }
+  return { level, current: xp - spent, required: academyXpNeeded(level) };
+}
+
 export function academyLevel(stats, modeIds) {
-  return (modeIds || []).reduce((sum, id) => sum + modeLevel(stats, id), 0);
+  return academyXpProgress(academyTotalXp(stats, modeIds)).level;
 }
 
 // G74 — Ana ekranın yeni kullanıcı kartı bir "seviye unvanı" (ör. "Kalibre
 // Kulak") istiyor. Kodda BÖYLE bir tablo YOKTU (rapor edildi, bkz. DURUM.md
 // G74) — task'ın kendi isteğiyle burada OLUŞTURULDU. TASLAK/tahmini: kesin
 // isim/eşik DEĞİL, kullanıcı cihazda görüp düzeltecek (guide-texts.js'in
-// AYNI "taslak" ilkesi). Eşikler academyLevel'a göre — academyLevel HİÇ
-// oynanmamış bir kullanıcıda bile EN AZ playableModeIds().length kadardır
-// (her mod levelFromXp tabanı 1 sayılıyor, bkz. academyLevel notu) — bugün
-// 10 oynanabilir mod var, yani gerçek başlangıç noktası 10'dur, 1 DEĞİL;
-// ilk eşik bunu kapsayacak şekilde 10'dan başlıyor. Tasarım dosyasının
-// kendi örnek verisi (10 modun toplamı 4+3+3+2+2+2+1+1+1+2=21) "Kalibre
-// Kulak" unvanına denk gelmeli diye ikinci eşik bunu İÇİNE ALACAK şekilde
-// seçildi.
+// AYNI "taslak" ilkesi).
+// G75: eşikler YENİDEN KALİBRE EDİLDİ — academyLevel artık mod seviyelerinin
+// TOPLAMI DEĞİL (eski taban: HİÇ oynanmamış kullanıcıda bile 10), TOPLAM XP'den
+// KENDİ (yavaş) eğrisiyle hesaplanan bir sayı (bkz. academyLevel notu) — taze
+// kullanıcı academyLevel=1'den başlıyor, eski eşikler (0/20/35/...) artık
+// ANLAMSIZ (asla erişilemez) olurdu. Yeni eşikler academyLevel'ın YENİ 1-tabanlı
+// ölçeğine göre TASLAK/TAHMİNİ seçildi — playtest'le DOĞRULANMADI.
 export const LEVEL_TITLES = [
-  { min: 0, title: "Çırak Kulak" },
-  { min: 20, title: "Kalibre Kulak" },
-  { min: 35, title: "Keskin Kulak" },
-  { min: 55, title: "Uzman Kulak" },
-  { min: 80, title: "Usta Kulak" },
-  { min: 110, title: "Prodüksiyon Ustası" },
-  { min: 150, title: "Altın Kulak" }
+  { min: 1, title: "Çırak Kulak" },
+  { min: 3, title: "Kalibre Kulak" },
+  { min: 6, title: "Keskin Kulak" },
+  { min: 10, title: "Uzman Kulak" },
+  { min: 15, title: "Usta Kulak" },
+  { min: 22, title: "Prodüksiyon Ustası" },
+  { min: 30, title: "Altın Kulak" }
 ];
 
 // SAF FONKSİYON — academyLevel'a karşılık gelen unvanı döndürür (eşiği

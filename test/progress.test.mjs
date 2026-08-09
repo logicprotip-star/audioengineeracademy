@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { levelFromXp, modeXp, modeLevel, academyLevel, LEVEL_TITLES, levelTitle } from "../www/js/core/progress.js";
+import { levelFromXp, modeXp, modeLevel, academyLevel, academyXpNeeded, academyXpProgress, academyTotalXp, xpNeeded, LEVEL_TITLES, levelTitle } from "../www/js/core/progress.js";
 
 function statsWithPerMode(perMode) {
   return { perMode };
@@ -82,65 +82,78 @@ describe("modeLevel() — G47 sınav sistemi examState guard'ı", () => {
   });
 });
 
-describe("academyLevel()", () => {
-  it("tek mod varken academyLevel === o modun kendi seviyesi (geriye dönük tutarlı)", () => {
-    const stats = statsWithPerMode({ "frekans-bulma": { xp: 730 } });
-    assert.equal(academyLevel(stats, ["frekans-bulma"]), modeLevel(stats, "frekans-bulma"));
+// G75: academyLevel ARTIK mod seviyelerinin TOPLAMI DEĞİL — TÜM modların TOPLAM
+// XP'sinden, KENDİ (mod eğrisinden daha yavaş) academyXpNeeded eğrisiyle hesaplanır
+// (bkz. progress.js:academyLevel notu, DURUM.md G75 raporu).
+describe("academyTotalXp()", () => {
+  it("modIds'deki tüm modların XP'sini toplar", () => {
+    const stats = statsWithPerMode({ "frekans-bulma": { xp: 500 }, "kesim-noktasi": { xp: 50 } });
+    assert.equal(academyTotalXp(stats, ["frekans-bulma", "kesim-noktasi"]), 550);
   });
 
-  it("birden fazla mod: TOPLAM, her modun kendi seviyesinin toplamı", () => {
-    const stats = statsWithPerMode({
-      "frekans-bulma": { xp: 500 }, // levelFromXp(500) hesapla
-      "kesim-noktasi": { xp: 0 }
-    });
-    const expected = modeLevel(stats, "frekans-bulma") + modeLevel(stats, "kesim-noktasi");
-    assert.equal(academyLevel(stats, ["frekans-bulma", "kesim-noktasi"]), expected);
-  });
-
-  it("hiç oynanmamış (xp=0) bir mod bile levelFromXp(0)=1 katkı yapar (KARAR — bkz. progress.js yorumu)", () => {
+  it("boş/undefined modIds için 0 döner, çökmez", () => {
     const stats = statsWithPerMode({});
-    assert.equal(academyLevel(stats, ["hic-oynanmamis"]), 1);
+    assert.equal(academyTotalXp(stats, []), 0);
+    assert.equal(academyTotalXp(stats, undefined), 0);
   });
+});
 
-  it("boş modIds listesi için 0 döner, çökmez", () => {
+describe("academyXpNeeded() — mod eğrisinden (xpNeeded) DAHA YAVAŞ olmalı", () => {
+  it("her seviye için academyXpNeeded, xpNeeded'den KESİN OLARAK BÜYÜK", () => {
+    for (let lvl = 1; lvl <= 10; lvl++) {
+      assert.ok(academyXpNeeded(lvl) > xpNeeded(lvl), `seviye ${lvl}: akademi eğrisi mod eğrisinden yavaş DEĞİL`);
+    }
+  });
+});
+
+describe("academyLevel() / academyXpProgress()", () => {
+  it("taze kullanıcı (0 toplam XP, N mod) academyLevel=1 — eski 'taban=mod sayısı' hatası DÜZELTİLDİ", () => {
     const stats = statsWithPerMode({});
-    assert.equal(academyLevel(stats, []), 0);
-    assert.equal(academyLevel(stats, undefined), 0);
+    const tenModeIds = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+    assert.equal(academyLevel(stats, tenModeIds), 1);
   });
 
-  it("örnek veri: frekans-bulma xp=850 → örnek raporlama (SON RAPOR'a taşınacak)", () => {
-    const stats = statsWithPerMode({ "frekans-bulma": { xp: 850 } });
-    const lvl = modeLevel(stats, "frekans-bulma");
-    const academy = academyLevel(stats, ["frekans-bulma"]);
-    assert.equal(lvl, academy);
-    assert.ok(lvl >= 1);
+  it("boş modIds listesi için de 1 döner (0 toplam XP → levelFromXp tabanı), çökmez", () => {
+    const stats = statsWithPerMode({});
+    assert.equal(academyLevel(stats, []), 1);
+    assert.equal(academyLevel(stats, undefined), 1);
+  });
+
+  it("academyLevel === academyXpProgress(academyTotalXp(...)).level (tutarlı)", () => {
+    const stats = statsWithPerMode({ "frekans-bulma": { xp: 5000 }, kompresor: { xp: 2000 } });
+    const modeIds = ["frekans-bulma", "kompresor"];
+    assert.equal(academyLevel(stats, modeIds), academyXpProgress(academyTotalXp(stats, modeIds)).level);
+  });
+
+  it("toplam XP arttıkça academyLevel AZALMAZ (monoton artan)", () => {
+    const low = statsWithPerMode({ "frekans-bulma": { xp: 100 } });
+    const high = statsWithPerMode({ "frekans-bulma": { xp: 100000 } });
+    assert.ok(academyLevel(high, ["frekans-bulma"]) > academyLevel(low, ["frekans-bulma"]));
   });
 });
 
 // G74 — ana ekran kullanıcı kartının "seviye unvanı" (ör. "Kalibre Kulak").
 // LEVEL_TITLES/levelTitle() bu turda YENİ eklendi (kodda daha önce hiç
 // yoktu, bkz. DURUM.md G74 raporu) — TASLAK değerler, kesin/nihai DEĞİL.
-describe("LEVEL_TITLES / levelTitle() — G74 (YENİ, taslak)", () => {
+// G75: eşikler academyLevel'ın YENİ (1-tabanlı, yavaş) ölçeğine göre YENİDEN
+// KALİBRE EDİLDİ (bkz. progress.js:LEVEL_TITLES notu) — testler buna göre güncellendi.
+describe("LEVEL_TITLES / levelTitle() — G74/G75 (taslak)", () => {
   it("eşikler KESİN OLARAK ARTAN sırada (her min bir öncekinden büyük)", () => {
     for (let i = 1; i < LEVEL_TITLES.length; i++) {
       assert.ok(LEVEL_TITLES[i].min > LEVEL_TITLES[i - 1].min, `${LEVEL_TITLES[i].title} eşiği bir öncekinden büyük değil`);
     }
   });
 
-  it("ilk kademe min:0 — academyLevel HİÇBİR ZAMAN undefined bırakmaz", () => {
-    assert.equal(LEVEL_TITLES[0].min, 0);
+  it("ilk kademe min:1 — academyLevel HİÇBİR ZAMAN 1'in altına düşmez (levelFromXp tabanı)", () => {
+    assert.equal(LEVEL_TITLES[0].min, 1);
   });
 
-  it("hiç oynanmamış bir kullanıcının gerçek academyLevel tabanı (10 oynanabilir mod × seviye 1 = 10) İLK kademeye düşer", () => {
+  it("taze kullanıcı (0 toplam XP, kaç mod olursa olsun) academyLevel=1 → İLK kademeye düşer", () => {
     const tenModeIds = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
     const stats = statsWithPerMode({});
     const freshAcademyLevel = academyLevel(stats, tenModeIds);
-    assert.equal(freshAcademyLevel, 10);
+    assert.equal(freshAcademyLevel, 1);
     assert.equal(levelTitle(freshAcademyLevel), LEVEL_TITLES[0].title);
-  });
-
-  it("tasarımın kendi örnek toplamı (4+3+3+2+2+2+1+1+1+2=21) 'Kalibre Kulak' unvanına denk gelir", () => {
-    assert.equal(levelTitle(21), "Kalibre Kulak");
   });
 
   it("eşiğin TAM ÜZERİNDEKİ değer bir sonraki kademeye geçer, bir ALTINDAKİ geçmez", () => {

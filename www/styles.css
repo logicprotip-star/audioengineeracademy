@@ -279,7 +279,7 @@
     .section-title{font-size:19px;font-weight:700}
     .section-count{font-size:14px;font-weight:600;color:var(--tx-3)}
 
-    .mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch}
     .mode-grid.single{grid-template-columns:1fr}
     @media (max-width:420px){.mode-grid{grid-template-columns:1fr}}
 
@@ -292,7 +292,7 @@
        yerlerde de kullanılıyor, bkz. app.js:4814) — sadece kart İÇİNDE
        NASIL kullanıldığı değişti. */
     .mode-card{
-      display:flex;flex-direction:column;background:var(--card-grad);
+      display:flex;flex-direction:column;height:100%;box-sizing:border-box;background:var(--card-grad);
       border:1px solid var(--border);border-radius:var(--r-card);overflow:hidden;
       box-shadow:0 6px 16px rgba(0,0,0,.35);text-align:left;
     }
@@ -304,8 +304,16 @@
        .mode-info-btn'in KENDİSİ (bkz. aşağıdaki .ghead bölümü) DEĞİŞMEDİ,
        burada SADECE konumu ata seçiciyle override ediliyor (oyun ekranındaki
        #gameInfoBtn AYNI class'ı satır-içi kullanıyor, ona dokunulmasın diye
-       taban kural DEĞİL, bu iç-içe kural değiştirildi). */
-    .mode-card-viz .mode-info-btn{position:absolute;top:8px;left:8px;width:20px;height:20px;font-size:11px}
+       taban kural DEĞİL, bu iç-içe kural değiştirildi). G75: taban kuralın
+       zemini (rgba(34,211,238,.14)) parlak/dolu SVG içeriğinin (ör. Reverb'in
+       dry referans çubuğu) üstünde OKUNMUYORDU — burada koyu, neredeyse-opak
+       bir zemin + belirginleştirilmiş kenarlıkla override edildi ki HER
+       görselin üstünde okunsun (bkz. DURUM.md G75 raporu, canlı ekran
+       görüntüsüyle doğrulandı). */
+    .mode-card-viz .mode-info-btn{
+      position:absolute;top:8px;left:8px;width:20px;height:20px;font-size:11px;
+      background:rgba(6,9,12,.8);border-color:rgba(34,211,238,.55);
+    }
     .mode-card-badge{
       position:absolute;top:8px;right:8px;display:flex;align-items:center;gap:4px;
       padding:3px 7px;border-radius:7px;background:rgba(20,16,6,.85);
@@ -313,8 +321,11 @@
       font-size:9px;font-weight:800;letter-spacing:.4px;
     }
     .mode-card-body{padding:12px;display:flex;flex-direction:column;gap:6px;flex:1}
-    .mode-card-head{display:flex;align-items:center;justify-content:space-between;gap:6px}
-    .mode-card-name{font-size:13.5px;font-weight:700;letter-spacing:-.2px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* G75: align-items:center → flex-start — .mode-card-name artık 2 satıra
+       inebiliyor ("Frekans Çakışması" kırpılıyordu, bkz. DURUM.md G75 raporu),
+       flex-start Sv rozetini isim iki satıra taştığında üstte hizalı tutar. */
+    .mode-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:6px}
+    .mode-card-name{font-size:13.5px;font-weight:700;letter-spacing:-.2px;color:var(--text)}
     /* DÜZELTME: bu iki kural G74'ün ilk taslağında YANLIŞLIKLA silinmişti
        (ana ekran mod kartı artık bunları KULLANMIYOR ama app.js:4814'teki
        "Serbest oyun" Pro kilidi rozeti — Oyun Türü sheet'i, bu turun kapsamı

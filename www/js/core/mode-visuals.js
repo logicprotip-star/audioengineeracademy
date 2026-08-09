@@ -9,6 +9,16 @@
 // tonal/dist/mask) ama dışa açılan asıl API gerçek mod ID'sine göre (bkz.
 // MODE_VIZ_KIND + modeVisualSvg) — çağıran taraf (app.js) "kind" string'iyle
 // UĞRAŞMAZ, mode.getMeta().id'yi bilir.
+//
+// G75 DÜZELTMESİ: kart üstüne bindirilen "i" (sol üst) ve PRO (sağ üst) rozetleri
+// CSS köşelerinde SABİT piksel boyutta dururken, buradaki SVG preserveAspectRatio=
+// "none" ile YATAYDA esner (dar kartta sıkışır, geniş kartta gerilir) — bu yüzden
+// birkaç gövdenin köşe metni/şekli rozetle çakışıyordu (comp:"OUT", db:"+4 dB?",
+// reverb: dry referans çubuğu, mask:"KICK"/"BAS" — canlı ekran görüntüsüyle
+// doğrulandı, bkz. DURUM.md G75 raporu). DÜŞEY eksen preserveAspectRatio'dan
+// ETKİLENMEZ (viewBox yüksekliği 84 = kart yüksekliği 84px HER ZAMAN 1:1), bu
+// yüzden düzeltmeler köşe metinlerini y>=34'e indirerek yapıldı — rozetlerin
+// düşey alanı (y:8-28 CSS/viewBox ortak) her kart genişliğinde SABİT kalır.
 
 const CYAN = "#22d3ee";
 const CYAN_DIM = "rgba(34,211,238,0.22)";
@@ -75,7 +85,7 @@ function compBody() {
     <circle cx="72" cy="36" r="3.5" fill="${CYAN}"/>
     <text x="80" y="50" font-size="8" font-family="Inter" font-weight="600" fill="#7cd8e8">knee · 4:1</text>
     <text x="186" y="79" text-anchor="end" font-size="7" font-family="Inter" fill="#4a4f56">IN dB</text>
-    <text x="8" y="12" font-size="7" font-family="Inter" fill="#4a4f56">OUT</text>`;
+    <text x="8" y="37" font-size="7" font-family="Inter" fill="#4a4f56">OUT</text>`;
 }
 
 function dbBody() {
@@ -91,7 +101,7 @@ function dbBody() {
     <rect x="97" y="22" width="6" height="52" rx="3" fill="${CYAN_DIM}"/>
     <rect x="84" y="16" width="32" height="13" rx="4" fill="#2a2d31" stroke="rgba(255,255,255,0.25)" stroke-width="1"/>
     <rect x="84" y="21.5" width="32" height="2" fill="${CYAN}"/>
-    <text x="62" y="26" text-anchor="end" font-size="9" font-family="Inter" font-weight="700" fill="#7cd8e8">+4 dB?</text>`;
+    <text x="74" y="26" text-anchor="end" font-size="9" font-family="Inter" font-weight="700" fill="#7cd8e8">+4 dB?</text>`;
 }
 
 function reverbBody() {
@@ -102,7 +112,7 @@ function reverbBody() {
     bars += `<rect x="${x}" y="${46 - hgt}" width="5" height="${hgt * 2}" rx="2.5" fill="${CYAN}" opacity="${Math.max(0.12, 1 - i * 0.07)}"/>`;
   }
   return `
-    <rect x="8" y="12" width="7" height="68" rx="3.5" fill="${CYAN}"/>
+    <rect x="8" y="34" width="7" height="46" rx="3.5" fill="${CYAN}"/>
     ${bars}
     <text x="100" y="12" text-anchor="middle" font-size="8" font-family="Inter" font-weight="600" fill="#7cd8e8">decay 1.8 s</text>`;
 }
@@ -143,8 +153,8 @@ function maskBody() {
     <path d="${kick}" fill="none" stroke="${CYAN}" stroke-width="1.8"/>
     <path d="${bass}" fill="none" stroke="${AMBER}" stroke-width="1.8"/>
     <rect x="52" y="26" width="46" height="58" fill="rgba(255,80,80,0.08)"/>
-    <text x="14" y="16" font-size="8" font-family="Inter" font-weight="700" fill="${CYAN}">KICK</text>
-    <text x="162" y="16" font-size="8" font-family="Inter" font-weight="700" fill="${AMBER}">BAS</text>`;
+    <text x="14" y="37" font-size="8" font-family="Inter" font-weight="700" fill="${CYAN}">KICK</text>
+    <text x="150" y="37" font-size="8" font-family="Inter" font-weight="700" fill="${AMBER}">BAS</text>`;
 }
 
 const BODY_BY_KIND = {

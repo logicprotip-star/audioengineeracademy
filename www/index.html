@@ -48,14 +48,11 @@
 
         <!-- G74: kullanıcı kartı — Tasarim-2026-08/Ana Ekran.dc.html'den taşındı
              (fırçalanmış metal zemin, altın pentagon "Sv" rozeti, XP çubuğu).
-             #menuLevelValue artık ESKİ diffState() tabanlı seviye DEĞİL,
-             academyLevel(stats, playableModeIds()) — pentagonun altındaki
-             "Akademi Seviyesi · tüm modların toplamı" alt yazısı ile TUTARLI
-             olması için (bkz. app.js updateUI notu + DURUM.md G74: bu, İlerleme
-             sekmesinin HENÜZ değişmeyen rozetinden BİLEREK FARKLI bir sayı
-             gösterecek — o ekran bu turun kapsamı dışı). #menuXpText/
-             #menuXpBar/#menuNextLevelText veri kaynağı DEĞİŞMEDİ (aynı
-             diffState() XP ilerlemesi — kartta İKİNCİ, ayrı bir metrik). -->
+             G75: #menuLevelValue artık academyXpProgress(academyTotalXp(...)).level
+             — TÜM modların TOPLAM XP'sinden, akademiye özel yavaş eğriyle (bkz.
+             progress.js:academyLevel notu) — İlerleme sekmesinin KENDİ rozeti
+             (#progLevelValue) ARTIK AYNI kaynağı okuyor, iki ekran senkron (bkz.
+             app.js updateUI notu + DURUM.md G75, kapatılan AÇIK İŞ madde 15). -->
         <div class="card user-card">
           <div class="user-card-noise"></div>
           <div class="user-card-row">
@@ -64,7 +61,7 @@
             </div>
             <div style="flex:1;min-width:0">
               <div class="user-card-title" id="menuLevelTitle">Çırak Kulak</div>
-              <div class="user-card-sub">Akademi Seviyesi · tüm modların toplamı</div>
+              <div class="user-card-sub">Akademi Seviyesi · tüm modlardaki toplam emeğin</div>
             </div>
             <div class="user-card-pentagon">
               <svg width="52" height="52" viewBox="0 0 52 52">
