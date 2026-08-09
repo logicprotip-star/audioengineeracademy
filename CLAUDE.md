@@ -11,7 +11,7 @@ Capacitor ile iOS/Android'e paketleniyor.
   iki platform farklı ID kullanıyordu, bkz. DURUM.md)
 - Tasarım referansı: `Dizayn/prototype.html` (git'te takipli — UI değişikliklerinde buna bak)
 - Backend yok, tüm veri `localStorage`'da
-- Ürün modeli: ücretsiz + Pro (tek seferlik ₺199), 14 mod hedefi
+- Ürün modeli: ücretsiz + Pro (tek seferlik ₺399), 14 mod hedefi
 
 > Not: Proje eskiden tek dosyalık `frekans-avi-3mod (14).html` idi. O mimari tamamen
 > terk edildi. Tek dosya referansı içeren eski talimatları dikkate alma.

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 08.08.2026 (G71)
+Son güncelleme: 09.08.2026 (G72)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,60 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G71, tek commit) — **Mod içi "i" cihazda AÇILMIYORDU — kök sebep
+Bu commit (G72, tek commit) — **Fiyat kararı netleşti (₺399) — eski ₺199
+referansları belgelerde düzeltildi + tasarımcı özeti eklendi.**
+
+**1. OYUN-DINAMIGI.md (YENİ):** tasarımcıya verilecek, kod İÇERMEYEN, tek
+dosyalık ~2 sayfalık özet — 10 modun tamamı (soru formatı/cevap biçimi/
+görselleştirme), seans yapısı (can/limit/Boss/10-Soruluk-Bölüm), XP+seviye
+formülü+9 rozet, zorluk sistemi (sürekli eğri + Otomatik/Sabit + sınav
+mekaniği), feedback akışı (süreler/X butonu), Free/Pro sınırları, 11 ekranın
+tam listesi. TAMAMI gerçek koddan (mode-catalog.js, paywall.js, progress.js,
+difficulty-curve.js, exam-system.js, app.js, index.html) çıkarıldı — hiçbir
+sayı uydurulmadı. Bu araştırma sırasında güncel kodun Pro fiyatını **₺399**
+taşıdığı (`core/paywall.js:PRO_PRICE`), ama `CLAUDE.md`'nin hâlâ eski ₺199
+değerini taşıdığı fark edildi (madde 2'nin konusu).
+
+**2. Fiyat tutarsızlığı düzeltmesi (kullanıcı kararı: "₺399 kesin, kod zaten
+doğru, sadece belgeleri düzelt"):**
+- `CLAUDE.md`: "Pro (tek seferlik ₺199)" → **₺399**.
+- `DURUM.md` (ÜRÜN NOTLARI, "Fiyat ve can ekonomisi"): "Pro ₺199" → **₺399**
+  + bir açıklama cümlesi eklendi (bu notun eski bir tarihte ₺199 yazdığı,
+  güncel kararın ₺399 olduğu). `DURUM.md`'deki TEK diğer ₺199 geçişi
+  (satır ~677) BİLEREK DOKUNULMADI — o satır bir DEĞİŞİKLİK anını
+  ("Fiyat ₺199→₺399 taşındı") belgeleyen GEÇMİŞ bir changelog kaydı,
+  düzeltilecek bir HATA değil.
+- `PAYWALL.md`/`TASARIM.md`: `grep` ile tarandı, ikisinde de ZATEN doğru
+  değer (₺399) ya da hiç fiyat geçmiyor — düzeltme GEREKMEDİ.
+- `OYUN-DINAMIGI.md`'deki "tutarsızlık" notu KALDIRILDI — artık sadece
+  "Pro — tek seferlik ₺399" diyor.
+- **Dokunulmadı (bilerek):** `Dizayn/prototype.html` (statik tasarım
+  referansı, CLAUDE.md'nin kendi tanımıyla "UI değişikliklerinde buna
+  bakılır" — canlı kod DEĞİL) hâlâ eski `₺199` taşıyor
+  (`prototype.html:3028`, `var PRO_PRICE = '₺199'`) — kullanıcının isteği
+  SADECE "belgeler" (CLAUDE.md/DURUM.md/PAYWALL.md) ile sınırlıydı, bu
+  dosya kapsam dışı bırakıldı, RAPORA not düşülüyor.
+
+**Build artefaktları senkronlandı:** `android/app/src/main/assets/public/`
+(git'e hiç girmeyen, `www/`'den ÜRETİLEN bir kopya) ESKİ ₺199 gösteriyordu
+— kaynak (`www/`) zaten doğruydu, sadece senkron eskiydi. `npx cap sync
+android` çalıştırıldı, doğrulandı (`index.html:786` artık ₺399). iOS
+tarafı (`ios/App/App/public`) G71'de zaten senkronlanmıştı, bu tur
+etkilenmedi.
+
+**Doğrulama:**
+- `npm test`: **1013/1013** (bu tur sadece .md dosyaları + build senkronu,
+  kaynak JS/HTML'e dokunulmadı — sayı G71'den DEĞİŞMEDİ).
+- `grep -rn "₺199" --include="*.md" .` ile TÜM belgeler tarandı: kalan İKİ
+  eşleşme de yukarıda açıklanan BİLİNÇLİ (tarihsel changelog + yeni
+  açıklama cümlesinin kendisi) — gerçek bir "hâlâ yanlış" kalmadı.
+
+**KORUMA:** Kod (10 mod/ses/sınav/paywall/spotlight/"i" sistemi) TEK SATIR
+değişmedi — bu tur SADECE belge metni + build senkronu.
+
+---
+
+Önceki commit (G71, tek commit) — **Mod içi "i" cihazda AÇILMIYORDU — kök sebep
 bulundu/düzeltildi + "basılı tut" küçük açıklaması eklendi.**
 
 **1. MOD İÇİ "i" TEPKİSİZ — KÖK SEBEP:** G70'te `#gameInfoBtn`'in click
@@ -5452,7 +5505,9 @@ Araçlar sekmesinde, Pro özelliği. Cihaz adı etiketli filtre setleri.
 Ücretli sürüme ek değer olarak düşünüldü. Kapsam tanımlanmadı.
 
 **Fiyat ve can ekonomisi**
-Pro ₺199, tek seferlik. Ücretsiz: 5 can, 30 dakikada bir dolum (tasarım niyeti).
+Pro ₺399, tek seferlik (bu not eski bir tarihte ₺199 yazıyordu, güncel karar
+₺399'a taşındı — bkz. G56 sonrası kayıtları/`core/paywall.js:PRO_PRICE`).
+Ücretsiz: 5 can, 30 dakikada bir dolum (tasarım niyeti).
 Can dolumu KODDA YOK — bkz. BEKLEYEN KARARLAR **D**.
 Paywall ekranında dolum süresi hiç geçmiyor, sadece "5 can" yazıyor — eksik bilgi.
 Not: 3. bug (oyun 0 canla başlıyor) bundan bağımsız — mevcut can sistemi
