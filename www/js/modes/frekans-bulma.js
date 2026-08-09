@@ -10,7 +10,7 @@
 // parçası değildir — sadece bu modun app.js tarafından nasıl render edileceğini
 // tarif eder. Gelecekteki modların böyle bir arayüze ihtiyacı olmayabilir.
 
-import { logFreq, shuffle, formatHz, hexToRgba } from "../core/utils.js";
+import { logFreq, shuffle, formatHz } from "../core/utils.js";
 import { personalizedRange } from "../core/personalization.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { compatibleSourceIds } from "../core/source-catalog.js";
@@ -267,9 +267,7 @@ const AXIS_FONT_PX = 14;
 // Tahmin ("sen") ve doğru cevap etiketleri her zaman FARKLI satırlarda çizilir
 // (biri üstte, biri altta) — yatay olarak ne kadar yakın olurlarsa olsunlar asla
 // üst üste binmezler (bkz. drawOverlay tek-bant bloğu).
-const LABEL_FONT_PX = 15;
 const GUESS_LABEL_Y = 22;
-const ANSWER_LABEL_Y = 48;
 // app.js'in spektrum çubuklarını EQ eğrisi/etiket şeridiyle aynı bölgede tutabilmesi
 // için dışa açık (bkz. drawSpectrumBars: çubuklar bu çizginin ÜSTÜNE taşmaz).
 export const CURVE_TOP = 88;
@@ -1062,26 +1060,31 @@ export function closenessWord(dOct) {
   if (dOct <= 0.5) return "yakın";
   return "uzak";
 }
-function closenessColor(dOct) {
-  if (dOct <= 0.17) return "#2BD9A8";
-  if (dOct <= 0.5) return "#FFC246";
-  return "#FF4D6D";
-}
+// G85 DÜZELTMESİ: tahmin/cevap arasını boyayan "mesafe bandı" (closenessColor/
+// drawClosenessBand) SÖKÜLDÜ — Tasarim-2026-08/Prototip.dc.html:spectrum()'ün
+// marker/fbMark'ında böyle bir bant YOK (task'ın kendi uyarısı, dosya AÇILIP
+// doğrulandı). closenessWord() (sözel "yakın/uzak") KORUNDU — feedback kartının
+// metnine gömülü, ayrı bir görsel değil.
 
-// Sadece renkli "mesafe bandı" (arka plan dolgusu) — sözel etiket (chip) artık
-// buraya çizilmiyor.
-function drawClosenessBand(ctx2d, w, h, q, guessHz) {
-  const dOct = Math.abs(Math.log2(guessHz / q.freq));
-  const color = closenessColor(dOct);
-
-  const plotBottom = h - AXIS_H;
-  const x1 = faFToX(guessHz, w);
-  const x2 = faFToX(q.freq, w);
-  const left = Math.min(x1, x2), right = Math.max(x1, x2);
-  const top = CURVE_TOP, bottom = plotBottom - 6;
-
-  ctx2d.fillStyle = hexToRgba(color, 0.16);
-  ctx2d.fillRect(left, top, Math.max(2, right - left), bottom - top);
+// G85: "Senin işaretin" kutusu — Prototip.dc.html:spectrum()'ün marker'ı
+// (satır 1567-1572) birebir: 62x20 rx:6 kutu, bg rgba(10,12,14,.92), accent
+// kenarlık, accent metin — SABİT boyut (drawPillLabel'ın metin-genişliğine
+// göre büyüyen kutusundan FARKLI, bu yüzden ayrı bir çizici).
+function drawMarkerBox(ctx2d, text, x, y, accent, clampW) {
+  const bw = 62, bh = 20, r = 6;
+  let cx = x;
+  const half = bw / 2;
+  if (cx - half < 2) cx = 2 + half;
+  if (cx + half > clampW - 2) cx = clampW - 2 - half;
+  roundRectPath(ctx2d, cx - half, y, bw, bh, r);
+  ctx2d.fillStyle = "rgba(10,12,14,.92)";
+  ctx2d.fill();
+  ctx2d.strokeStyle = accent; ctx2d.lineWidth = 1; ctx2d.stroke();
+  ctx2d.fillStyle = accent;
+  ctx2d.font = "800 11px 'JetBrains Mono', monospace";
+  ctx2d.textAlign = "center";
+  ctx2d.fillText(text, cx, y + bh / 2 + 4);
+  ctx2d.textAlign = "left";
 }
 
 // Tur boyunca canvas üzerine dalga/EQ eğrisinin ÜSTÜNE binen; tahmin/cevap/hint
@@ -1142,33 +1145,33 @@ export function drawOverlay(ctx2d, canvasEl, w, h, state) {
   }
 
   // ---- TEK BANT (frekans modu) ----
+  // G85: Prototip.dc.html:spectrum()'ün marker/fbMark'ı (satır 1565-1589)
+  // birebir. accent boss'ta altın (#f6d878), aksi halde cyan (#22d3ee) —
+  // tasarımın "boss turunda çizgi ve işaretler altın" ifadesi (G83'te de
+  // aynı yorumla uygulanmıştı, tutarlı). Kırmızı mesafe bandı SÖKÜLDÜ.
   const showGuess = freqGuessHz;
   const revealed = !roundActive && q.freqRevealed;
 
   if (revealed) {
     drawEqResponseCurve(ctx2d, audioCtx, w, h, q);
-    if (showGuess) drawClosenessBand(ctx2d, w, h, q, showGuess);
   }
 
   const guessX = showGuess ? faFToX(showGuess, w) : null;
   const answerX = revealed ? faFToX(q.freq, w) : null;
+  const accent = q.boss ? "#f6d878" : "#22d3ee";
 
-  // Tahmin ve doğru cevap etiketleri YATAY mesafeden bağımsız olarak her zaman farklı
-  // satırlarda çizilir (tahmin üstte, cevap altta) — bu yüzden ne kadar yakın olurlarsa
-  // olsunlar asla üst üste binmezler. Yatay kenar taşması drawPillLabel'ın clampW'ü ile
-  // ayrıca önlenir.
-  const labelFont = `800 ${LABEL_FONT_PX}px 'JetBrains Mono', monospace`;
   if (showGuess) {
-    ctx2d.strokeStyle = "#FFC246"; ctx2d.lineWidth = 3;
-    ctx2d.beginPath(); ctx2d.moveTo(guessX, 4); ctx2d.lineTo(guessX, plotBottom); ctx2d.stroke();
-    drawPillLabel(ctx2d, formatHz(showGuess), guessX, GUESS_LABEL_Y, "rgba(15,23,32,.9)", "#FFC246",
-      labelFont, LABEL_FONT_PX, w);
+    ctx2d.strokeStyle = accent; ctx2d.lineWidth = 2;
+    ctx2d.beginPath(); ctx2d.moveTo(guessX, 8); ctx2d.lineTo(guessX, plotBottom); ctx2d.stroke();
+    drawMarkerBox(ctx2d, formatHz(showGuess), guessX, 10, accent, w);
+    ctx2d.beginPath(); ctx2d.arc(guessX, plotBottom, 5, 0, Math.PI * 2);
+    ctx2d.fillStyle = accent; ctx2d.fill();
   }
   if (revealed) {
-    const up = q.gain >= 0;
-    ctx2d.strokeStyle = "#2BD9A8"; ctx2d.lineWidth = 3; ctx2d.setLineDash([5, 4]);
-    ctx2d.beginPath(); ctx2d.moveTo(answerX, 4); ctx2d.lineTo(answerX, plotBottom); ctx2d.stroke(); ctx2d.setLineDash([]);
-    drawPillLabel(ctx2d, (up ? "▲ " : "▼ ") + formatHz(q.freq), answerX, ANSWER_LABEL_Y, "rgba(15,23,32,.9)", "#2BD9A8",
-      labelFont, LABEL_FONT_PX, w);
+    ctx2d.strokeStyle = "#4ade80"; ctx2d.lineWidth = 1.4; ctx2d.setLineDash([4, 3]);
+    ctx2d.beginPath(); ctx2d.moveTo(answerX, 8); ctx2d.lineTo(answerX, plotBottom); ctx2d.stroke(); ctx2d.setLineDash([]);
+    ctx2d.beginPath(); ctx2d.arc(answerX, plotBottom, 5, 0, Math.PI * 2);
+    ctx2d.fillStyle = "#0a0c0e"; ctx2d.fill();
+    ctx2d.strokeStyle = "#4ade80"; ctx2d.lineWidth = 2; ctx2d.stroke();
   }
 }

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G84)
+Son güncelleme: 09.08.2026 (G85)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,107 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G84, tek commit) — **SINAV EKRANLARI giydirildi — beş durum
+Bu commit (G85, tek commit) — **OYUN EKRANI DÜZELTMESİ — çip satırı/spektrum
+kartı/cevap sonrası işaretler/kontrol satırı/geri bildirim sheet'i/omuz
+butonları Prototip.dc.html'in LİTERAL ölçülerine hizalandı**
+
+Tasarım kaynağı: `Tasarim-2026-08/Prototip.dc.html` (çip satırı satır ~531,
+spektrum kartı satır ~640-654, marker/fbMark satır ~1565-1589, kontrol
+satırı satır ~677-698, feedback sheet satır ~1308-1343) — AÇILIP öğe öğe
+karşılaştırıldı, öğe eşleme:
+
+| Tasarım öğesi | Karşılığı (bu turda uygulanan) |
+|---|---|
+| Çip satırı — TEK kapsayıcı, flex-wrap | İki `.chiprow` divi TEK'e birleştirildi — G79'un "iki sabit satır" kararı YANLIŞ tasarım okumasıydı, dosya yeniden karşılaştırılıp düzeltildi |
+| Zorluk çipi — cyan `#22d3ee`/altın (boss) | `.game-diff-chip` yeniden yazıldı, `.boss` varyantı eklendi (`renderGameHeader()`) |
+| Dokunmalı\|Şıklı segment — 4px 10px/6px/10.5px | `.seg-toggle`/`.seg-toggle-btn` literal ölçüye küçültüldü |
+| Odak/Kaynak çipleri — 5px 10px/9px/10.5px + 10x10 chevron | `.srctag` küçültüldü, metin chevron (`&#8250;`) → 10x10 SVG |
+| Karışık — 11x11 ikon + metin | LED nokta KALDIRILDI, tasarımın kendi çapraz-ok SVG'si eklendi |
+| Spektrum kartı — 18px radius/#0a0c0e/boss altın kenarlık | Yeni `#analyzerPanel` sarmalayıcı — `.canvas-stage` + `#analyzerFoot` TEK kutuda |
+| Yükseklik — dokunmalı 252/şıklı-kademeli 188 | `.analyzer-choice` (yeni, `syncAnswerArea()`'da `isChoiceFormat()`'a göre toggle) — `.analyzer-compact` (Tonal Denge) ÖNCELİKLİ kalıyor |
+| Alt şerit "20 Hz/SPEKTRUM ANALİZÖRÜ/20 kHz" (boss: "PRO ZORLUK · Q 4.0") | `updateAnalyzerFoot()` G83'ün GERÇEK FA_MIN/FA_MAX kararını GERİ ALDI (bu turun açık talimatı) — literal metne döndü; boss caption YENİ |
+| "+10 dB" göstergesi | KALDIRILDI (`#gainValue` DOM'dan silindi, `els.gainValue` guard'lı çağrılar zararsız kaldı) |
+| Cevap sonrası işaretler — SADECE 2px çizgi+62x20 kutu+nokta (sen) / 1.4px kesik+halka (doğru) | `frekans-bulma.js` tek-bant bloğu YENİDEN yazıldı — `drawClosenessBand` (kırmızı bant) SÖKÜLDÜ |
+| İpucu 46x46/19x19/Yazı YOK | `#hintBtn` büyütüldü, `#hintBtnLabel` CSS ile gizlendi (DOM'da kaldı — metni `#hintTag`'de ZATEN tekrarlanıyor) |
+| A/B track 44px/pill 38px×12px×10px×13.5px×800 | `#abToggle.game-ctrl-ab`/`.abside` düzeltildi — kesilmenin GERÇEK kök sebebi `.btn`in `min-height:52px`'i ve `.abbtn`in `padding:8px 10px`'iydi (özgüllük/kaynak-sırası çakışması) |
+| Döngü 44x44 + "DÖNGÜ" rozet satırı | `.game-ctrl-loop` küçültüldü, YENİ `#gameLoopBadgeRow` (`startAbLoop`/`stopAbLoop`'ta toggle) |
+| Geri bildirim sheet — alttan açılan panel + karartma | `#feedbackBox` `position:fixed`'e taşındı, YENİ `#feedbackOverlay` backdrop (`setFeedback()`/`goToNextRound()`'da senkron toggle) |
+| Omuz butonları kontrolleri örtmemeli | Karartma eklenince ÇÖZÜLDÜ (arka plan zaten sönük) — ayrı bir CSS/JS gerekmedi |
+| Sol omuz HER ZAMAN "Senin cevabın" | `showFrequencyEars()`'ın doğru-cevapta "Temiz"e dönme dalı SÖKÜLDÜ |
+| Süre çubuğu cevap sonrası durmalı | CANLI ÖLÇÜLDÜ: `roundFlow.clearTimer()` ZATEN doğru çalışıyordu (700ms boyunca `%13.75` sabit kaldı feedback açıkken) — kod DEĞİŞTİRİLMEDİ, sadece doğrulandı |
+
+**"20 Hz"/"20 kHz" — G83'ün kararı BİLEREK GERİ ALINDI:** G83 "gerçek FA_MIN/
+FA_MAX" (ör. "80 Hz"/"17.0 kHz") yazıyordu — bu turun kendi açık talimatı
+("ŞU AN '80 Hz / 17.0 kHz' yazıyor, YANLIŞ") tasarımın LİTERAL "20 Hz"/
+"20 kHz" yazdığını netleştirdi (ızgaranın kendisi 50Hz-10kHz sabit tiklerle
+çalışıyor, uçlardaki "20"lar gerçek aralık DEĞİL, sabit bir ölçek etiketi).
+Kod buna göre düzeltildi — İKİ ard arda görev arasında ÇELİŞEN talimat,
+SONRAKİ (bu görev) esas alındı, dosya tekrar açılıp doğrulandı.
+
+**Alttan-açılan sheet mimarisine geçiş — G81'in "min-height/visibility, akış
+İÇİNDE kart" mimarisi TERK EDİLDİ:** `.fb` artık `.bottom-sheet`'in AYNI
+`position:fixed`+`transform:translateY` desenini kullanıyor — eski "ani
+yükseklik sıçraması olmasın" kaygısı da ORTADAN KALKTI (fixed eleman flow'u
+hiç etkilemiyor). Panelin doğru/yanlış YEŞİL/KIRMIZI translucent arka planı
+(G81'in kendi, bu turun kapsamı DIŞINDAKİ kararı) DEĞİŞTİRİLMEDİ — SADECE
+konumlandırma taşındı.
+
+**Kesilme kök sebebi — iki AYRI özgüllük/kaynak-sırası çakışması bulundu:**
+1. `#abToggle.game-ctrl-ab{height:44px}` yazılmıştı ama `.btn{min-height:52px}`
+   (aynı özgüllük, dosyada SONRA tanımlı) KAZANIYORDU — `min-height` her
+   zaman `height`'ı ezer. `#abToggle` (id) ile `min-height:44px` de EKLENEREK
+   düzeltildi.
+2. `.abside`'ın eski ölçüsü (24px/3px 0/7px/14px) `.game-ctrl-ab`'ın 44px'lik
+   sabit yüksekliğinde `.abbtn`in 8px dikey padding'iyle TOPLANINCA taşıyordu.
+   `.game-ctrl-ab .abside{height:100%;min-width:38px;padding:0 12px}` ile
+   düzeltildi.
+Canlı ölçüldü: `#abToggle` 92×44px (tasarım: 44px yükseklik ✓), içerik
+konteynerin İÇİNDE (`overflowsRow:false`, 4/4 kontrol butonu).
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ (sadece canvas/DOM/
+CSS). `npm test`: **1043/1043**.
+
+**DOĞRULAMA (canlı tarayıcı, taze sekme, konsol HATASIZ):**
+- **10 modda çip satırı canlı doğrulandı — 0 kesilme:** Frekans Bulma'da
+  ekran görüntüsü + `getBoundingClientRect` ölçümleri (zorluk çipi 83×44,
+  seg-toggle 134×44, segBtn 81×38/10.5px, focusChip 148×24/10.5px, mixChip
+  75×24/10.5px) — tasarımın literal değerleriyle BİREBİR eşleşti (font-size/
+  border-radius/padding). Kesim Noktası/dB Seviyesi/Frekans Çakışması'nda
+  (kendi çip alt kümeleri) ekran görüntüsüyle görsel kontrol, kesilme YOK.
+- **Kontrol butonları px olarak ölçüldü, kırpılmadı:** `#hintBtn` 46×46,
+  `#startBtn` 64×64 (İKİSİ de tasarımla BİREBİR), `#abToggle` 92×44 (düzeltme
+  SONRASI), `#abLoopBtn` 44×44. `#gameSpectrumControls`'ün 4 çocuğunun HİÇBİRİ
+  satırın alt sınırını AŞMIYOR (`overflowsRow:false`, 4/4).
+- **Spektrum alt satırı "20 Hz / SPEKTRUM ANALİZÖRÜ / 20 kHz" doğrulandı** —
+  Frekans Bulma/Kompresör ekran görüntüleriyle; boss turunda "PRO ZORLUK ·
+  Q 4.0"a değiştiği CANLI bir boss turunda doğrulandı (aynı turda `#analyzer`
+  altın kenarlık + zorluk çipi altın varyantı da GÖRÜLDÜ).
+- **Cevap sonrası spektrumda SADECE iki işaret, kırmızı bant YOK:** Frekans
+  Bulma'da canlı tur — "Senin işaretin" (cyan, 62x20 kutu + alt nokta) hem
+  soru sırasında hem cevap ANINDA ekran görüntüsüyle yakalandı; bir başka
+  turda (timeout/gerçek cevap açığa çıkma) SADECE doğru-cevap işareti
+  (kesikli yeşil çizgi + İÇİ BOŞ halka, ETİKETSİZ) görüldü — hiçbir turda
+  kırmızı/renkli bant YOK.
+- **Geri bildirim açıkken arka planın karardığı VE omuzların kontrolleri
+  örtmediği doğrulandı:** Şıklı formatta canlı bir doğru cevap turu —
+  `#feedbackOverlay` `.open`, `#feedbackBox` `.show-result` (DOM'dan
+  doğrulandı) — ekran görüntüsünde ÜST barın/çip satırının/spektrumun TAMAMI
+  kararmış, panel alt kenardan yükselmiş, SOL omuz "Senin cevabın" (kırmızı,
+  DOĞRU cevapta bile — G81'in "Temiz" davranışı KALKTI), SAĞ omuz "Doğru
+  cevap" (yeşil) — panelin üst kenarında, arkadaki (kararmış) kontrol
+  satırıyla ÇAKIŞMIYOR.
+- **Süre çubuğu — CANLI ÖLÇÜLDÜ, zaten doğruydu:** cevap verilip
+  `show-result` `true` iken 700ms boyunca (8 örnek, 100ms arayla)
+  `#gameBossBarFill`/`#gameSpeedBarFill` genişliği `%13.75`de SABİT kaldı —
+  koda dokunulmadı, sadece doğrulandı (ilk turda YANLIŞLIKLA "akıyor" gibi
+  göründü — o ölçüm ARADAN feedback'in KENDİSİ kapanıp yeni bir tur
+  başladığı için yanıltıcıydı, 100ms'lik örneklemeyle DÜZELTİLDİ).
+- **Konsol hatası: 0** (taze sekme, tüm test turları boyunca — Frekans
+  Bulma/Kompresör/dB Seviyesi/Frekans Çakışması). **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G84, tek commit) — **SINAV EKRANLARI giydirildi — beş durum
 (announce/run/passed/failed/makeup), Prototip.dc.html examSets objesi
 birebir + telafi ekseninin/tetikleyicisinin koddan doğrulanmış düzeltmesi**
 
@@ -6873,9 +6973,9 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G84 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları)
-kod/test/canlı doğrulama açısından TAM kapandı, yeni açık iş bırakmadı.
-ÖNCELİKLE BEKLEYEN KARARLAR madde K
+**Tek sonraki adım (G85 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları) +
+G85 (Oyun Ekranı Düzeltmesi) kod/test/canlı doğrulama açısından TAM kapandı,
+yeni açık iş bırakmadı. ÖNCELİKLE BEKLEYEN KARARLAR madde K
 (Pro'da "done" Seans Sonu durumu hiç tetiklenemiyor — kasıtlı mı, regresyon
 mu) kullanıcı kararı bekliyor; karar netleşmeden AÇIK İŞLER madde 20
 kapatılamaz/"done" canlı doğrulanamaz. Bunun dışında AÇIK İŞLER madde 14 —

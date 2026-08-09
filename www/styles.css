@@ -592,53 +592,66 @@
     #screen-game.actionbar-tucked .game-scroll{margin-bottom:env(safe-area-inset-bottom)}
 
     /* ---- kaynak / karıştır / zorluk / cevap-biçimi / odak çip satırları ---- */
-    /* G79 DÜZELTMESİ — G78'in "tek satır + yatay kaydır" yaklaşımı TERK
-       EDİLDİ (task'ın kararı: "kaydırma YOK"). Artık İKİ SABİT satır
-       (index.html'de iki ayrı .chiprow), HER İKİSİ DE flex-wrap:wrap —
-       çipler kendi doğal genişliğinde (.chiprow > *{flex:none}), satıra
-       sığmayan çip alt satıra SARAR (taşma/kesilme YOK, kaydırma da YOK).
-       Gerçek kullanım: her satırda en fazla 3/2 çip var, pratikte HİÇ
-       sarmıyor — sarma sadece çok dar ekranlarda bir güvenlik ağı. */
+    /* G85 DÜZELTMESİ — Tasarim-2026-08/Prototip.dc.html satır 531: TEK
+       kapsayıcı, `display:flex;flex-wrap:wrap;gap:7px`. G79'un "iki sabit
+       satır" kararı YANLIŞ okumaydı (bu notun ESKİ hali) — dosya AÇILIP
+       yeniden karşılaştırıldı, kod GERÇEKTEN tek satır. .chiprow>*{flex:none}
+       KORUNDU (çipler kendi doğal genişliğinde, satıra sığmayan alt satıra
+       SARAR — taşma/kesilme YOK, kaydırma YOK, tasarımla AYNI güvenlik ağı). */
     .chiprow{display:flex;gap:7px;flex-wrap:wrap}
-    .chiprow + .chiprow{margin-top:7px}
     .chiprow > *{flex:none}
+    /* G85: zorluk çipi artık tasarımın LİTERAL cyan vurgusu (satır 532) —
+       eskiden nötr gri/beyazdı. Boss'ta altın varyant (.game-diff-chip.boss,
+       app.js renderGameHeader'da toggle edilir) — tasarımın diffColor/diffBg/
+       diffBorder'ın boss dalı, koddan DOĞRUDAN görünmüyor ama Prototip'in
+       genel boss altın paleti (#f6d878/rgba(240,180,66,..)) ile TUTARLI. */
+    .game-diff-chip{
+      display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:1.2px;
+      text-transform:uppercase;border-radius:8px;padding:5px 8px;color:var(--cyan);
+      background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.3);white-space:nowrap;
+    }
+    .game-diff-chip.boss{color:#f6d878;background:rgba(240,180,66,.12);border-color:rgba(240,180,66,.4)}
     /* Çipler NÖTR (gri/beyaz metin) — eski mavi/yeşil/mor inline renkler
        (--bl/--gr/--pu) kaldırıldı (bkz. index.html), SADECE aktif/seçili
-       durum cyan vurgulu (bkz. .seg-toggle-btn.active, .mixchip.on). */
+       durum cyan vurgulu (bkz. .seg-toggle-btn.active, .mixchip.on). G85:
+       Odak/Kaynak çipleri tasarımın LİTERAL ölçüsüne küçültüldü (satır 542) —
+       eskiden daha büyük/daha açık renkli bir "ayarlar satırı" görünümündeydi. */
     .srctag{
-      display:flex;align-items:center;gap:6px;min-height:40px;padding:7px 10px;
-      border-radius:var(--r-card);background:rgba(255,255,255,.06);border:1px solid var(--border-strong);
-      font-size:13px;font-weight:600;color:var(--tx-3);text-align:left;white-space:nowrap;
+      display:flex;align-items:center;gap:5px;padding:5px 10px;
+      border-radius:9px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+      font-size:10.5px;font-weight:700;color:#b8bdc4;text-align:left;white-space:nowrap;
     }
     .srctag:active{background:rgba(255,255,255,.14)}
-    .srctag b{font-weight:700;color:var(--tx);white-space:nowrap}
-    .srctag .chev{font-size:15px;flex:none;color:var(--tx-3)}
+    .srctag b{font-weight:700;color:#b8bdc4;white-space:nowrap}
+    .srctag .chev{flex:none;color:#6c7178;display:flex}
     /* G79: "Kaynak: "/"Odak: " öneki — SAF CSS (JS'e dokunmadan, ::before
        içerik ekliyor), task'ın istediği "Kaynak: Pink Noise"/"Odak: Tümü"
        formatını üretir. */
-    #sourceChipLabel::before{content:"Kaynak: ";font-weight:600;color:var(--tx-3)}
-    #focusChipLabel::before{content:"Odak: ";font-weight:600;color:var(--tx-3)}
+    #sourceChipLabel::before{content:"Kaynak: ";font-weight:600;color:#b8bdc4}
+    #focusChipLabel::before{content:"Odak: ";font-weight:600;color:#b8bdc4}
     /* G73: "Karıştır" (kaynağı rastgele seçme) aç/kapa göstergesi artık --cyan.
-       G79: metin görünür oldu ("⇄ Karışık", task'ın kararı). */
+       G85: tasarımın LİTERAL ölçüsüne küçültüldü (satır 551-553) — nokta LED
+       yerine 11x11 çapraz-ok ikonu (design'ın KENDİ path'i), metin "Karışık"
+       (öneki YOK, tasarımda "⇄" yok, düz ikon+metin). */
     .mixchip{
-      flex:none;min-height:40px;padding:7px 12px;border-radius:var(--r-card);display:flex;align-items:center;gap:8px;
-      font-size:13px;font-weight:700;white-space:nowrap;background:rgba(255,255,255,.04);
-      border:1px solid var(--border-strong);color:var(--text-muted);
+      flex:none;padding:5px 10px;border-radius:9px;display:flex;align-items:center;gap:5px;
+      font-size:10.5px;font-weight:700;white-space:nowrap;background:rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.08);color:#b8bdc4;
     }
+    .mixchip svg{flex:none}
     /* G79: cevap biçimi — İKİLİ segmented toggle (Dokunmalı|Şıklı), NÖTR
-       taban + cyan aktif (bkz. index.html notu, JS: syncAnswerFormatToggleUI). */
+       taban + cyan aktif (bkz. index.html notu, JS: syncAnswerFormatToggleUI).
+       G85: tasarımın LİTERAL ölçüsü (satır 537-539). */
     .seg-toggle{
-      display:flex;padding:2px;border-radius:calc(var(--r-card) + 2px);
-      background:rgba(0,0,0,.4);border:1px solid var(--border-strong);flex:none;
+      display:flex;padding:2px;border-radius:9px;
+      background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);flex:none;
     }
     .seg-toggle-btn{
-      padding:7px 11px;border-radius:var(--r-chip);font-size:12px;font-weight:700;
+      padding:4px 10px;border-radius:6px;font-size:10.5px;font-weight:700;
       color:var(--text-3);background:none;white-space:nowrap;
     }
     .seg-toggle-btn.active{background:rgba(34,211,238,.16);color:var(--cyan)}
-    .mixchip .led{width:8px;height:8px;border-radius:99px;background:rgba(255,255,255,.22);flex:none}
     .mixchip.on{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.42);color:var(--cyan)}
-    .mixchip.on .led{background:var(--cyan)}
 
     .qline{
       padding:10px 13px;border-radius:var(--r-card);background:rgba(255,255,255,.05);
@@ -685,8 +698,6 @@
       min-height:22px;margin-bottom:10px;
     }
     .analyzer-label{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--text-3);white-space:nowrap}
-    .gainval{font-size:14px;font-weight:700;color:var(--bl)}
-    [data-phase="ask"] .gainval,[data-phase="hint"] .gainval{visibility:hidden}
     /* G73: "İPUCU" etiketi artık --cyan (birincil vurgu — ipucu kullanımı
        combo/boss/süre kapsamına girmiyor). */
     .hinttag{
@@ -697,13 +708,33 @@
     [data-phase="hint"] .hinttag{display:inline-block;animation:fade .28s ease-out}
     @keyframes fade{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 
-    .canvas-stage{position:relative;border-radius:var(--r-card);overflow:hidden;background:rgba(255,255,255,.02)}
+    /* G85 DÜZELTMESİ: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün kartı
+       (satır 640) — border-radius:18px;overflow:hidden;bg:#0a0c0e;border
+       rgba(255,255,255,.08) (boss: rgba(232,196,106,.25));
+       box-shadow:0 8px 24px rgba(0,0,0,.4). ÖNCEDEN bu stil .canvas-stage'in
+       ÜZERİNDEydi VE #analyzerFoot AYRI bir kutuydu (görsel olarak İKİ ayrı
+       kart gibi duruyordu) — şimdi TEK #analyzerPanel ızgara+alt şeridi
+       BİRLİKTE kapsıyor (tasarımın kendi yapısı, canvas+alt şerit AYNI
+       yuvarlatılmış/kesilmiş kutunun içinde). */
+    .analyzer-panel{
+      border-radius:18px;overflow:hidden;background:#0a0c0e;
+      border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 24px rgba(0,0,0,.4);
+    }
+    #analyzer.boss .analyzer-panel{border-color:rgba(232,196,106,.25)}
+    .canvas-stage{position:relative}
     /* F4: cevap dokunmalı burada veriliyor (pointerdown/pointermove, app.js) — kaydırma/
        pan/zoom gerekmiyor, touch-action:none tarayıcının kendi jest tanımasını (çift
        dokunma zoom dahil) tamamen devre dışı bırakıyor. pointerdown/pointermove olayları
        touch-action'dan ETKİLENMEZ, sadece tarayıcının PARALEL varsayılan jestleri
-       engellenir. */
-    #visualizer{width:100%;height:280px;display:block;touch-action:none}
+       engellenir.
+       G85 DÜZELTMESİ: tasarımın LİTERAL yükseklikleri — dokunmalı (Frekans
+       Bulma tap formatı) 252px, şıklı/kademeli 188px (satır 641/617/670) —
+       #analyzer.analyzer-choice app.js:syncAnswerArea()'da isChoiceFormat()'a
+       göre toggle edilir (bkz. o fonksiyon). .analyzer-compact (Tonal Denge,
+       G46, 140px) İKİSİNDEN de ÖNCELİKLİ — kaynak sırası CSS'te BUNLARDAN
+       SONRA tanımlanarak sağlanıyor. */
+    #visualizer{width:100%;height:252px;display:block;touch-action:none}
+    #analyzer.analyzer-choice #visualizer{height:188px}
     /* G46: Tonal Denge — altı kaydırıcıya kadar çıkabilen bant listesi spektrumun
        ALTINDA kalıyordu, ulaşmak için fazladan kaydırma gerekiyordu. #analyzer'a
        app.js'in mode.COMPACT_ANALYZER bayrağına göre eklediği bir modifier class
@@ -714,15 +745,15 @@
     #analyzer.analyzer-compact #visualizer{height:140px}
     .hint-mask{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 
-    /* G83: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün alt kenar satırı
-       ("20 Hz · SPEKTRUM ANALİZÖRÜ · 20 kHz") — canvas'ın DIŞINDA, kartın
-       kendi alt şeridi (app.js:updateAnalyzerFoot GERÇEK FA_MIN/FA_MAX
-       değerlerini yazıyor). SHOW_SPECTRUM===false modlarda (dB Seviyesi/
-       Frekans Çakışması) .analyzer-no-foot ile gizlenir — o ikisi KENDİ
-       görsellerini kullanıyor, bu satır anlamsız kalırdı. */
+    /* G83/G85: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün alt kenar
+       satırı (satır 649-653) — LİTERAL "20 Hz"/"SPEKTRUM ANALİZÖRÜ"/"20 kHz"
+       (boss'ta "PRO ZORLUK · Q 4.0", satır 2594), #analyzerPanel'in İÇİNDE
+       (bkz. yukarı). SHOW_SPECTRUM===false modlarda (dB Seviyesi/Frekans
+       Çakışması) .analyzer-no-foot ile gizlenir — o ikisi KENDİ görsellerini
+       kullanıyor, bu satır anlamsız kalırdı. */
     .analyzer-foot{
-      display:flex;justify-content:space-between;margin-top:9px;padding-top:9px;
-      border-top:1px solid var(--border);
+      display:flex;justify-content:space-between;padding:8px 14px 10px 14px;
+      border-top:1px solid rgba(255,255,255,.05);
     }
     .analyzer-foot span{font-size:10px;font-weight:600;color:#4a4f56;letter-spacing:.06em}
     #analyzer.analyzer-no-foot .analyzer-foot{display:none}
@@ -864,23 +895,39 @@
        doğrulandı, bkz. DURUM.md G58 BİTTİ). G73: bu turda da SADECE renk
        değişti — min-height/visibility mekanizmasına, dolayısıyla --actionbar-h
        ile ilişkisine TEK SATIR dokunulmadı (bkz. DOĞRULAMA raporu). */
-    /* G81: Tasarim-2026-08/Geri Bildirim.dc.html'in birebir uygulaması —
-       ikon dairesi + başlık/alt başlık + XP rakamı, combo/boss/hız/ipucu/bölüm
-       kırılım satırı, açıklama kutusu, otomatik-geçiş çubuğu. min-height/
-       visibility mekanizması (G58 kök-sebep düzeltmesi) KORUNDU — kart cevap
-       ÖNCESİ de SONRASI kadar yer kaplıyor, cevap gelince ANİ yükseklik
-       sıçraması (dolayısıyla scroll kayması) olmuyor. min-height yeni içerik
-       (ikon satırı + combo satırı + açıklama + ilerleme çubuğu) için ~192px'e
-       çıkarıldı (canlı ölçülüp DOĞRULAMA raporunda teyit edilecek).
+    /* G81/G85: Tasarim-2026-08/Prototip.dc.html'in "FEEDBACK SHEET"i (satır
+       1308-1343) — ikon dairesi + başlık/alt başlık + XP rakamı, combo/boss/
+       hız/ipucu/bölüm kırılım satırı, açıklama kutusu, otomatik-geçiş çubuğu.
+       G85 DÜZELTMESİ: G81'in "min-height/visibility, .game-scroll akışı
+       İÇİNDE bir kart" mimarisi TERK EDİLDİ — tasarımın KENDİSİ #feedbackBox'ı
+       GERÇEK bir sabit-konumlu (position:fixed) alttan-açılan panel olarak
+       kuruyor (#feedbackOverlay karartmasıyla EŞLİ). Artık .game-scroll
+       akışının DIŞINDA olduğu için eski "yer ayır, ani sıçrama olmasın" kaygısı
+       da ORTADAN KALKTI (fixed eleman zaten flow'u hiç etkilemiyor) —
+       .bottom-sheet'in KENDİ transform:translateY tabanlı aç/kapa deseniyle
+       DEĞİŞTİRİLDİ (tutarlılık, YENİ bir mekanizma İCAT EDİLMEDİ).
        @keyframes shakeX/popIn/countdown4/countdown6 tasarım dosyasından BİREBİR. */
     @keyframes fbShakeX{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
     @keyframes fbPopIn{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
     @keyframes fbCountdown{from{width:100%}to{width:0%}}
 
-    .fb{position:relative;padding:16px 16px 14px;border-radius:var(--r-panel);
-      background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);
-      visibility:hidden;min-height:192px}
-    .fb.show-result{visibility:visible}
+    /* G85: karartma — tasarımın LİTERAL rgba(0,0,0,.5)'i (satır 1309),
+       .sheet-overlay'in genel bulanık/koyu varyantından FARKLI — bu yüzden
+       ayrı bir modifier (.fb-overlay), z-index/position/transition mekaniği
+       .sheet-overlay'den KORUNDU (tutarlılık). */
+    .fb-overlay{background:rgba(0,0,0,.5);backdrop-filter:none}
+    /* Panel arka planı G81'in KENDİ (bu turun kapsamı DIŞINDA) doğru/yanlış
+       yeşil/kırmızı translucent tonu — DEĞİŞTİRİLMEDİ, SADECE konumlandırma
+       (fixed+backdrop+üst köşe yuvarlama) tasarımın istediği mimariye taşındı. */
+    .fb{
+      position:fixed;left:0;right:0;bottom:0;z-index:91;
+      width:min(560px,100%);margin:0 auto;
+      padding:16px 16px calc(34px + env(safe-area-inset-bottom));
+      border-radius:22px 22px 0 0;background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);border-bottom:0;
+      box-shadow:0 -12px 40px rgba(0,0,0,.6);
+      transform:translateY(100%);transition:transform .3s cubic-bezier(.3,.8,.3,1);pointer-events:none;
+    }
+    .fb.show-result{transform:translateY(0);pointer-events:auto}
     .fb.show-result.bad{animation:fbShakeX 300ms ease-in-out}
     .fb.bad{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3)}
 
@@ -967,23 +1014,27 @@
     #nextBtn{background:rgba(255,255,255,.05);color:var(--text-3);border:1px solid var(--border-strong)}
     #nextBtn:active{background:rgba(255,255,255,.1)}
 
-    /* G79: spektrumun HEMEN ALTINDAKİ kontrol satırı — ipucu(ikon)·oynat/
+    /* G79/G85: spektrumun HEMEN ALTINDAKİ kontrol satırı — ipucu(ikon)·oynat/
        durdur(büyük yuvarlak)·A/B seçici(pill)·döngü(ikon). #hintBtn/#startBtn/
        #abToggle AYNI id/JS — SADECE konum (artık .actionbar'ın DIŞINDA,
-       .game-scroll içinde) ve görünüm değişti. */
+       .game-scroll içinde) ve görünüm değişti. G85: ölçüler Tasarim-2026-08/
+       Prototip.dc.html satır 677-691'in LİTERAL değerleri — G79'un kendi
+       tahmini ölçüleri (44x44/pill'ler) dosya AÇILIP karşılaştırıldığında
+       hafif KÜÇÜK/dar çıktı, alttan kesilme buradan kaynaklanıyordu (abside
+       içeriği 44px min-height'i AŞIYORDU, .abbtn'in KENDİ padding:8px'i
+       ÜSTÜNE binince toplam yükseklik konteynerden TAŞIYORDU). */
     .game-spectrum-controls{display:flex;align-items:center;justify-content:center;gap:14px;padding:2px 0}
     .game-ctrl-btn{
-      width:44px;height:44px;flex:none;border-radius:13px;border:1px solid var(--border-strong);
+      width:46px;height:46px;flex:none;border-radius:13px;border:1px solid var(--border-strong);
       background:rgba(255,255,255,.05);color:var(--text-3);display:flex;flex-direction:column;
       align-items:center;justify-content:center;gap:1px;
     }
     .game-ctrl-btn:active{background:rgba(255,255,255,.12)}
     .game-ctrl-btn svg{flex:none}
-    /* İpucu sayacı — ikon-altı KÜÇÜK etiket (task: "yazılı buton değil ikon",
-       sayaç bilgi kaybı OLMASIN diye minik font'ta tutuldu). Gerçek ipucu
-       METNİ açığa çıkınca (hint kullanıldı) doğal olarak büyür/sarar —
-       bilgi HİÇ kaybolmuyor, sadece varsayılan durumda ikon baskın. */
-    #hintBtnLabel{font-size:7.5px;font-weight:700;line-height:1.1;max-width:56px;text-align:center}
+    /* G85: tasarımın hint butonu İKON-ONLY ("Yazı YOK", satır 678-680) —
+       #hintBtnLabel DOM'da kalıyor (index.html'in kendi notu), SADECE
+       görünmüyor. */
+    #hintBtnLabel.hidden{display:none}
     .game-ctrl-play{
       width:64px;height:64px;flex:none;border-radius:50%;border:1px solid var(--border-strong);
       background:linear-gradient(180deg,#23262b,#15171a);color:var(--text);font-size:24px;
@@ -992,15 +1043,32 @@
     }
     .game-ctrl-play:active{filter:brightness(1.1)}
     .game-ctrl-play.warning{border-color:rgba(255,77,109,.4)}
-    /* A/B seçici — pill'e indirgendi, başlık/basılı-tut metni bu dar
+    /* A/B seçici — tasarımın LİTERAL "abTrack" ölçüsü (satır 682): height:44px
+       (min-height DEĞİL — sabit, içerik onu AŞMAYACAK şekilde ayarlandı),
+       padding:4px, border-radius:13px. Başlık/basılı-tut metni bu dar
        bağlamda GİZLİ (#abLoopBtn zaten görünür bir döngü tetikleyicisi). */
-    .game-ctrl-ab{width:auto;flex:none;padding:0 4px;min-height:44px}
+    /* #abToggle (id) BİLEREK — .abbtn'in KENDİ padding:8px 10px kuralıyla
+       (aşağıda, styles.css'in İLERİSİNDE tanımlı) AYNI özgüllükte bir class
+       kaçırma riskini önler; id her zaman kazanır, kaynak sırasından
+       BAĞIMSIZ. Bu, alttan kesilmenin GERÇEK kök sebebiydi — .abbtn'in 8px
+       dikey padding'i .game-ctrl-ab'ın 44px'ini AŞIYORDU. */
+    #abToggle.game-ctrl-ab{width:auto;flex:none;height:44px;min-height:44px;padding:4px;border-radius:13px}
     .game-ctrl-ab .abtitle,.game-ctrl-ab .abholdhint{display:none}
-    .game-ctrl-ab .abpair{gap:4px}
-    .game-ctrl-loop{color:var(--text-3)}
+    .game-ctrl-ab .abpair{gap:6px;height:100%}
+    /* G85: döngü butonu tasarımın LİTERAL 44x44'ü (satır 689) — hint
+       butonundan (46x46) FARKLI, .game-ctrl-btn'İN üzerine yazıyor. */
+    .game-ctrl-loop{width:44px;height:44px;color:var(--text-3)}
     /* Döngü aktifken (#abToggle'daki .loop class'ı startAbLoop/stopAbLoop'tan,
        YENİ bir durum İCAT EDİLMEDİ) — kardeş seçiciyle vurgulanır. */
     #abToggle.loop ~ #abLoopBtn{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.4);color:var(--cyan)}
+    /* G85 YENİ: "DÖNGÜ" rozet satırı (Prototip.dc.html satır 694-698) —
+       ölçüler literal. */
+    .game-loop-badge-row{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:-4px}
+    .game-loop-badge{
+      font-size:10.5px;font-weight:800;letter-spacing:1px;color:#1a1305;
+      background:linear-gradient(180deg,#f6d878,#d9a83c);border-radius:7px;padding:3px 10px;
+    }
+    .game-loop-caption{font-size:11px;font-weight:500;color:#8f949b}
     /* E3: cevap verildikten sonra actionbar'ın kontrolleri işlevsiz kalıyordu
        (Durdur/A-B/İpucu/Atla — hiçbiri anlamlı değil, karşılaştırma butonları
        artık kartın içinde). #screen-game'e eklenen .actionbar-tucked sınıfı
@@ -1029,10 +1097,15 @@
     .abbtn{flex-direction:column;gap:5px;padding:8px 10px;-webkit-user-select:none;user-select:none}
     .abtitle{font-size:13px;font-weight:700;color:var(--tx-2);line-height:1}
     .abpair{display:flex;gap:3px}
+    /* G85: tasarımın LİTERAL pill ölçüsü (satır 684) — eskiden 24px/3px 0/7px/
+       14px, alttan kesilmenin İKİNCİ kaynağıydı (.game-ctrl-ab'ın 44px'lik
+       sabit yüksekliğinde dikey padding+line-height toplamı taştığı için). */
     .abside{
-      min-width:24px;padding:3px 0;border-radius:7px;text-align:center;font-size:14px;font-weight:800;
+      display:flex;align-items:center;justify-content:center;min-width:24px;padding:3px 0;
+      border-radius:7px;text-align:center;font-size:14px;font-weight:800;
       line-height:1.1;color:var(--text-muted);background:rgba(255,255,255,.05);transition:background .12s ease,color .12s ease;
     }
+    .game-ctrl-ab .abside{height:100%;min-width:38px;padding:0 12px;border-radius:10px;font-size:13.5px}
     .abbtn[data-ab="A"] .abside[data-side="A"]{background:rgba(255,255,255,.2);color:var(--tx)}
     .abbtn[data-ab="B"] .abside[data-side="B"]{background:rgba(108,140,255,.4);color:#EAF0FF}
     /* G30: Kompresör'ün 3-yönlü dinleme genişlemesi — "C" pill'i SADECE bu mod

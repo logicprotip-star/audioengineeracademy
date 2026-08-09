@@ -288,6 +288,7 @@ const els = {
   timerText: document.getElementById("timerText"),
   timerBar: document.getElementById("timerBar"),
   feedbackBox: document.getElementById("feedbackBox"),
+  feedbackOverlay: document.getElementById("feedbackOverlay"),
   feedbackDetail: document.getElementById("feedbackDetail"),
   fbIcon: document.getElementById("fbIcon"),
   fbTitle: document.getElementById("fbTitle"),
@@ -306,6 +307,7 @@ const els = {
   abToggle: document.getElementById("abToggle"),
   abTitle: document.getElementById("abTitle"),
   abLoopBtn: document.getElementById("abLoopBtn"),
+  gameLoopBadgeRow: document.getElementById("gameLoopBadgeRow"),
   hintBtn: document.getElementById("hintBtn"),
   hintBtnLabel: document.getElementById("hintBtnLabel"),
   nextBtn: document.getElementById("nextBtn"),
@@ -999,6 +1001,14 @@ function syncCakismaVisibility() {
 // de "Cevap biçimi" ayarı değiştiğinde (bkz. answerFormatSelect'in change dinleyicisi)
 // çağrılır.
 function syncAnswerArea() {
+  // G85: spektrum yüksekliği — Tasarim-2026-08/Prototip.dc.html'in LİTERAL
+  // ölçüleri (dokunmalı 252px, şıklı/kademeli 188px, satır 641/670) —
+  // .analyzer-compact (Tonal Denge, G46) İLE ÇAKIŞMAZ, CSS kaynak sırası
+  // onu ÖNCELİKLİ tutuyor (bkz. styles.css). resizeCanvas() ZORUNLU —
+  // #visualizer'ın gerçek piksel tamponu CSS yüksekliği değişince YENİDEN
+  // ölçülmezse çizim eski (yanlış) boyutta kalır (G83'ün AYNI deseni).
+  if (els.analyzer) els.analyzer.classList.toggle("analyzer-choice", isChoiceFormat());
+  resizeCanvas();
   if (!els.answers) return;
   if (activeQuestion && isChoiceFormat()) {
     mode.renderAnswerChoices(els.answers, activeQuestion);
@@ -1394,6 +1404,9 @@ function setFeedback(title, detail, showResult = false, bad = false) {
   els.fbIcon.innerHTML = bad ? FB_ICON_CROSS : FB_ICON_CHECK;
   els.feedbackBox.classList.toggle("show-result", !!showResult);
   els.feedbackBox.classList.toggle("bad", !!bad);
+  // G85: karartma katmanı — #feedbackBox'ın AYNI show-result durumuyla
+  // senkron (bkz. index.html #feedbackOverlay notu).
+  if (els.feedbackOverlay) els.feedbackOverlay.classList.toggle("open", !!showResult);
   if (els.fbSubtitle) { els.fbSubtitle.textContent = ""; els.fbSubtitle.classList.add("hidden"); }
   if (els.fbXpBlock) els.fbXpBlock.classList.add("hidden");
   if (els.fbComboRow) els.fbComboRow.classList.add("hidden");
@@ -1424,20 +1437,18 @@ function setFeedbackSubtitle(text) {
 // #freqInfo'nun ESKİ .cmp'siyle BİREBİR aynı (buildQuestionChain). SADECE
 // Frekans Bulma'nın "frequency" sorularında çağrılır (Kesim Noktası/proplus/
 // diğer sekiz mod bu butonları hiç görmez).
+// G85 DÜZELTMESİ: doğru cevapta sol omuzun "Temiz"e (preview="clean", dry/
+// işlenmemiş referans) dönme davranışı KALDIRILDI — böyle bir ürün kararı
+// hiç verilmedi (task'ın kendi uyarısı). Sol omuz artık HER ZAMAN "Senin
+// cevabın" (preview="mine", guessHz), doğru/yanlış fark etmeksizin.
 function showFrequencyEars(ok, guessHz) {
   if (!els.fbEarLeft || !els.fbEarRight) return;
   els.fbEarLeft.classList.remove("hidden");
   els.fbEarRight.classList.remove("hidden");
-  els.fbEarLeft.classList.toggle("neutral", ok);
-  if (ok) {
-    els.fbEarLeft.textContent = "Temiz";
-    els.fbEarLeft.dataset.preview = "clean";
-    delete els.fbEarLeft.dataset.guessHz;
-  } else {
-    els.fbEarLeft.textContent = "Senin cevabın";
-    els.fbEarLeft.dataset.preview = "mine";
-    els.fbEarLeft.dataset.guessHz = String(guessHz);
-  }
+  els.fbEarLeft.classList.remove("neutral");
+  els.fbEarLeft.textContent = "Senin cevabın";
+  els.fbEarLeft.dataset.preview = "mine";
+  els.fbEarLeft.dataset.guessHz = String(guessHz);
   els.fbEarRight.dataset.preview = "correct";
   els.fbEarLeft.classList.remove("on");
   els.fbEarRight.classList.remove("on");
@@ -1688,11 +1699,17 @@ function goBackFromSubpage(fallback = "menu") {
 // "20 kHz"si DEĞİL, bizim soru havuzumuzun GERÇEK sınırı 80Hz-17kHz, uydurulmadı).
 // SHOW_SPECTRUM===false modlarda satırın KENDİSİ CSS ile gizli (bkz. enterMode/
 // styles.css .analyzer-no-foot) — bu fonksiyon o durumda erken çıkar, boş yazmaz.
+// G85 DÜZELTMESİ: G83'te bilinçli olarak GERÇEK FA_MIN/FA_MAX (ör. "80 Hz"/
+// "17.0 kHz") yazılıyordu — bu turun kendi talimatı bunun YANLIŞ olduğunu
+// belirtti: Tasarim-2026-08/Prototip.dc.html:spectrum() satır 650/652
+// LİTERAL "20 Hz"/"20 kHz" yazıyor (mod aralığından BAĞIMSIZ, sabit bir
+// ölçek etiketi — ızgaranın KENDİSİ de 50Hz-10kHz aralığında sabit tikler
+// kullanıyor, uçlardaki "20"ler o ızgaranın gerçek uç noktaları değil).
 function updateAnalyzerFoot() {
   if (!els.analyzerFootMin || !els.analyzerFootMax) return;
   if (mode.SHOW_SPECTRUM === false) return;
-  els.analyzerFootMin.textContent = formatHz(mode.FA_MIN);
-  els.analyzerFootMax.textContent = formatHz(mode.FA_MAX);
+  els.analyzerFootMin.textContent = "20 Hz";
+  els.analyzerFootMax.textContent = "20 kHz";
   if (els.analyzerFootCaption) els.analyzerFootCaption.textContent = "SPEKTRUM ANALİZÖRÜ";
 }
 
@@ -2678,6 +2695,9 @@ function renderGameHeader() {
     els.gameDiffChip.textContent = prefs.difficultyMode !== "fixed"
       ? "OTOMATİK"
       : els.difficultySelect.options[els.difficultySelect.selectedIndex].text.toUpperCase();
+    // G85: boss turunda zorluk çipi altına dönüyor (Prototip.dc.html'in genel
+    // boss altın paleti, diffColor'ın kendisi koddan görünmüyor ama TUTARLI).
+    els.gameDiffChip.classList.toggle("boss", !!(activeQuestion && activeQuestion.boss));
   }
 
   // Sınav/telafi fazı — kalpler YERİNE nokta göstergesi. EXAM_CONFIG.
@@ -2719,6 +2739,15 @@ function renderGameHeader() {
   // ikisi de görünür kalıyordu). examActive eklendi.
   const boss = !!(activeQuestion && activeQuestion.boss);
   if (els.gameBossRow) els.gameBossRow.classList.toggle("hidden", !boss);
+  // G85: spektrum kartının boss altın kenarlığı + alt şerit ortası
+  // ("SPEKTRUM ANALİZÖRÜ" → "PRO ZORLUK · Q 4.0", Prototip.dc.html satır
+  // 2594) — "Q 4.0" tasarımın KENDİ literal örnek değeri, GERÇEK bir Q
+  // parametresi değil (bu genel bir zorluk rozeti, mod-spesifik bir Q
+  // değeri YOK — uydurma sayılmaz, tasarımın AYNEN kopyası).
+  if (els.analyzer) els.analyzer.classList.toggle("boss", boss);
+  if (els.analyzerFootCaption && mode.SHOW_SPECTRUM !== false) {
+    els.analyzerFootCaption.textContent = boss ? "PRO ZORLUK · Q 4.0" : "SPEKTRUM ANALİZÖRÜ";
+  }
   const showChapter = !boss && !examActive;
   if (els.gameChapterRow) els.gameChapterRow.classList.toggle("hidden", !showChapter);
   if (els.gameSpeedRow) els.gameSpeedRow.classList.toggle("hidden", !showChapter);
@@ -3803,6 +3832,7 @@ function startAbLoop() {
   abLoopTimer = setInterval(toggleAB, 2000);
   if (els.abToggle) els.abToggle.classList.add("loop");
   if (els.abTitle) els.abTitle.textContent = "Döngü";
+  if (els.gameLoopBadgeRow) els.gameLoopBadgeRow.classList.remove("hidden");
 }
 function stopAbLoop() {
   if (!abLoopTimer) return;
@@ -3810,6 +3840,7 @@ function stopAbLoop() {
   abLoopTimer = null;
   if (els.abToggle) els.abToggle.classList.remove("loop");
   if (els.abTitle) els.abTitle.textContent = "A/B Test";
+  if (els.gameLoopBadgeRow) els.gameLoopBadgeRow.classList.add("hidden");
   updateAbToggleUI();
 }
 
@@ -3897,6 +3928,7 @@ function pauseRound() {
   roundFlow.clearTimer(); // timeLeft'e DOKUNMAZ
   audioEngine.muteOutput();
   els.feedbackBox.classList.remove("show-result");
+  if (els.feedbackOverlay) els.feedbackOverlay.classList.remove("open");
   if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
   updateStartBtnLabel();
 }

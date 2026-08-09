@@ -241,12 +241,14 @@
       </div>
 
       <div class="scroll game-scroll" id="gameScroll">
-        <!-- G79: Tasarim-2026-08/Prototip.dc.html referansıyla İKİ SABİT satır
-             (G78'in "tek satır + yatay kaydır" yaklaşımı TERK EDİLDİ, task'ın
-             kendi kararı) — kaydırma YOK, kesilme YOK: 1. satır zorluk+cevap
-             biçimi+odak, 2. satır kaynak+karışık. Görünürlük kuralları
-             (odak/cevap-biçimi SADECE frekans-bulma'da, kaynak her modda,
-             cakisma'da çift-kaynak) TEK SATIR değişmedi (bkz. app.js
+        <!-- G85 DÜZELTMESİ: Tasarim-2026-08/Prototip.dc.html satır 531 —
+             `display:flex;flex-wrap:wrap;gap:7px` TEK kapsayıcı, sıra zorluk→
+             Dokunmalı|Şıklı→Odak→Kaynak→Karışık. G79'un "iki sabit satır"
+             kararı (bu dosyanın ESKİ notu) tasarımı YANLIŞ okumuştu — asıl
+             kod TEK satır, kendiliğinden sarıyor (kaydırma YOK, kesilme YOK,
+             G79'un istediği SONUÇ zaten bununla da sağlanıyor). Görünürlük
+             kuralları (odak/cevap-biçimi SADECE frekans-bulma'da, kaynak her
+             modda, cakisma'da çift-kaynak) TEK SATIR değişmedi (bkz. app.js
              syncAnswerFormatVisibility/populateFocusSelect/syncCakismaVisibility). -->
         <div class="chiprow chiprow-wrap">
           <!-- Zorluk göstergesi — SADECE gösterge, tıklayınca #lvlSheet açılır
@@ -270,17 +272,15 @@
             <!-- <option> listesi app.js'te mode.FOCUS_RANGES'tan üretilir (bkz. populateFocusSelect) -->
             <select id="focusSelect" class="hidden"></select>
             <button class="srctag setting-row" data-sheet-select="focusSelect" data-sheet-title="Odak aralığı">
-              <b class="setting-row-value-text" id="focusChipLabel">Tüm spektrum</b><span class="chev">&#8250;</span>
+              <b class="setting-row-value-text" id="focusChipLabel">Tüm spektrum</b><span class="chev"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
             </button>
           </div>
-        </div>
-        <div class="chiprow chiprow-wrap">
           <div class="control control-sheet" id="sourceChipWrap">
             <label class="hidden">Kaynak</label>
             <!-- <option>/<optgroup> listesi app.js'te SOURCE_GROUPS'tan üretilir (bkz. populateSourceSelect) -->
             <select id="sourceSelect" class="hidden"></select>
             <button class="srctag setting-row" data-sheet-select="sourceSelect" data-sheet-title="Kaynak">
-              <b class="setting-row-value-text" id="sourceChipLabel">Pink Noise</b><span class="chev">&#8250;</span>
+              <b class="setting-row-value-text" id="sourceChipLabel">Pink Noise</b><span class="chev"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
             </button>
           </div>
           <!-- G51: Motor 3 (Frekans Çakışması) — kaynak ÇİFTİ seçici, diğer sekiz
@@ -298,10 +298,14 @@
               <option value="own">Kendi dosyalarım</option>
             </select>
             <button class="srctag setting-row" data-sheet-select="cakismaPairSelect" data-sheet-title="Kaynak çifti">
-              <b class="setting-row-value-text" id="cakismaPairChipLabel">Kick + Bas</b><span class="chev">&#8250;</span>
+              <b class="setting-row-value-text" id="cakismaPairChipLabel">Kick + Bas</b><span class="chev"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
             </button>
           </div>
-          <button class="mixchip" id="mixToggle" aria-label="Karıştır" title="Karıştır"><span class="led"></span><span>⇄ Karışık</span></button>
+          <!-- G85: 11x11 çapraz-ok ikonu (Tasarim-2026-08/Prototip.dc.html
+               satır 552'nin AYNI path'i) — eski nokta LED KALDIRILDI, tasarımda
+               yok. .mixchip.on hâlâ AYNI aç/kapa vurgusunu (cyan) veriyor,
+               SVG currentColor kullandığı için ayrı bir renk kuralı gerekmedi. -->
+          <button class="mixchip" id="mixToggle" aria-label="Karıştır" title="Karıştır"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7M21 16v5h-5M14 14l7 7"></path></svg><span>Karışık</span></button>
         </div>
 
         <!-- G56: "Kendi dosyalarım" seçilince İKİ GENEL yükleme yuvası ("Ses 1"/
@@ -334,29 +338,35 @@
         <div class="qline hidden" id="questionTitle"></div>
         <div class="qline-sub hidden" id="questionMeta"></div>
 
-        <!-- G83: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün analizör
-             kartı — alt kenar satırı "20 Hz · SPEKTRUM ANALİZÖRÜ · 20 kHz"
-             (bkz. o dosyanın satır ~649-653) YENİ eklendi. Kenar sayıları
-             tasarımın LİTERAL "20 Hz"/"20 kHz"si DEĞİL — gerçek soru havuzu
-             80Hz-17kHz (frekans-bulma.js:FA_MIN/FA_MAX), o yüzden JS'te
-             (bkz. app.js:updateAnalyzerFoot) GERÇEK değerlerle dolduruluyor,
-             uydurulmuyor. #analyzer-head (analyzerLabel/gainValue/hintTag) —
-             tasarımda YOK ama GERÇEK/çalışan bilgi taşıyor (A/B izleme
-             durumu, canlı kazanç, ipucu) — SÖKÜLMEDİ, olduğu gibi kaldı. -->
+        <!-- G85 DÜZELTMESİ: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün
+             analizör kartı (satır ~640-654) birebir — ızgara+alt kenar satırı
+             ("20 Hz · SPEKTRUM ANALİZÖRÜ · 20 kHz", boss'ta "PRO ZORLUK ·
+             Q 4.0") TEK bir yuvarlatılmış/kesilmiş kutunun (border-radius:18px;
+             overflow:hidden) İÇİNDE — bu yüzden .canvas-stage + #analyzerFoot
+             YENİ bir #analyzerPanel sarmalayıcıya taşındı, kart stili (bg
+             #0a0c0e/border/box-shadow, boss'ta altın border) ORAYA taşındı.
+             G83'ün "80 Hz/17.0 kHz gerçek değer" kararı bu turda GERİ ALINDI
+             (task'ın kendi açık talimatı) — tasarımın KENDİSİ "20 Hz"/"20 kHz"
+             LİTERAL yazıyor, updateAnalyzerFoot artık sabit metin yazıyor.
+             "+10 dB" göstergesi (#gainValue) KALDIRILDI — prototipte YOK ve
+             soru sırasında ipucu veriyordu (task'ın kendi gerekçesi).
+             #analyzer-head (analyzerLabel/hintTag) tasarımda YOK ama GERÇEK/
+             çalışan bilgi taşıyor (A/B izleme durumu, ipucu) — SÖKÜLMEDİ. -->
         <div class="card analyzer" id="analyzer" data-phase="ask">
           <div class="analyzer-head">
             <span class="analyzer-label" id="analyzerLabel">SPEKTRUM · B İŞLENMİŞ</span>
-            <span class="gainval" id="gainValue">+0 dB</span>
             <span class="hinttag" id="hintTag">İPUCU</span>
           </div>
-          <div class="canvas-stage">
-            <canvas id="visualizer" width="1200" height="320"></canvas>
-            <div class="hint-mask" id="hintMaskLayer"></div>
-          </div>
-          <div class="analyzer-foot" id="analyzerFoot">
-            <span id="analyzerFootMin">20 Hz</span>
-            <span id="analyzerFootCaption">SPEKTRUM ANALİZÖRÜ</span>
-            <span id="analyzerFootMax">20 kHz</span>
+          <div class="analyzer-panel" id="analyzerPanel">
+            <div class="canvas-stage">
+              <canvas id="visualizer" width="1200" height="320"></canvas>
+              <div class="hint-mask" id="hintMaskLayer"></div>
+            </div>
+            <div class="analyzer-foot" id="analyzerFoot">
+              <span id="analyzerFootMin">20 Hz</span>
+              <span id="analyzerFootCaption">SPEKTRUM ANALİZÖRÜ</span>
+              <span id="analyzerFootMax">20 kHz</span>
+            </div>
           </div>
         </div>
 
@@ -368,9 +378,14 @@
              startAbLoop/stopAbLoop'a bağlanıyor, aynı fonksiyonlar SÖKÜLMEDİ,
              sadece uzun-basmanın YANINDA görünür bir ikinci tetikleyici). -->
         <div class="game-spectrum-controls" id="gameSpectrumControls">
+          <!-- G85 DÜZELTMESİ: Tasarim-2026-08/Prototip.dc.html satır 678 —
+               46x46/19x19, "Yazı YOK". #hintBtnLabel DOM'DA KALDI (app.js:
+               updateHintChipLabel() hâlâ yazıyor) ama CSS ile gizlendi —
+               "kullanıldı" metni ZATEN #hintTag'de AYNEN tekrarlanıyor (bkz.
+               app.js satır ~2642, "İPUCU · " + hintText), bilgi kaybı YOK. -->
           <button class="game-ctrl-btn" id="hintBtn" aria-label="İpucu">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5.9 1.1 1 1.6h5c.1-.5.4-1.1 1-1.6A6 6 0 0 0 12 3Z"></path></svg>
-            <span id="hintBtnLabel">İpucu Ver (3)</span>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5.9 1.1 1 1.6h5c.1-.5.4-1.1 1-1.6A6 6 0 0 0 12 3Z"></path></svg>
+            <span id="hintBtnLabel" class="hidden">İpucu Ver (3)</span>
           </button>
           <button class="game-ctrl-play" id="startBtn" aria-label="Oynat/Durdur">▶</button>
           <button class="btn abbtn game-ctrl-ab" id="abToggle" data-ab="B">
@@ -389,8 +404,19 @@
                CSS kardeş seçiciyle vurgulanır — YENİ bir durum değişkeni
                EKLENMEDİ. -->
           <button class="game-ctrl-btn game-ctrl-loop" id="abLoopBtn" aria-label="Döngü">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l3 3-3 3"></path><path d="M20 6H8a4 4 0 0 0-4 4M7 21l-3-3 3-3"></path><path d="M4 18h12a4 4 0 0 0 4-4"></path></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l3 3-3 3"></path><path d="M20 6H8a4 4 0 0 0-4 4M7 21l-3-3 3-3"></path><path d="M4 18h12a4 4 0 0 0 4-4"></path></svg>
           </button>
+        </div>
+
+        <!-- G85 YENİ: Tasarim-2026-08/Prototip.dc.html satır 694-698 —
+             döngü aktifken kontrol satırının ALTINDA ortalanmış rozet
+             satırı, tasarımda VARDI ama hiç uygulanmamıştı. app.js
+             startAbLoop/stopAbLoop mevcut ".loop" durumuyla AYNI anda
+             toggle ediyor (bkz. o iki fonksiyon), YENİ bir state değişkeni
+             İCAT EDİLMEDİ. -->
+        <div class="game-loop-badge-row hidden" id="gameLoopBadgeRow">
+          <span class="game-loop-badge">DÖNGÜ</span>
+          <span class="game-loop-caption">A ↔ B kesintisiz geçiş</span>
         </div>
 
         <div id="freqInfo" class="hidden"></div>
@@ -416,7 +442,12 @@
           <button type="button" class="btn on" id="cakismaAfter">Sonra</button>
         </div>
 
-        <!-- G81: Tasarim-2026-08/Geri Bildirim.dc.html'in birebir uygulaması.
+        <!-- G81/G85: Tasarim-2026-08/Prototip.dc.html'in "FEEDBACK SHEET"i
+             (satır 1308-1343) birebir — ALTTAN AÇILAN panel + ARKASINDA
+             KARARTMA. G81'de #feedbackBox .game-scroll akışı İÇİNDE bir kart
+             olarak kurulmuştu (task'ın o zamanki isteği) — bu turda GERÇEK
+             bir sabit-konumlu sheet'e (position:fixed, #feedbackOverlay
+             karartmasıyla) dönüştürüldü, tasarımın kendi mimarisiyle BİREBİR.
              #feedbackBox/#feedbackClose id'leri VE app.js:4336'daki merkezi
              .fb-close delegasyonu KORUNDU — SADECE içerik yapısı (eski
              .fb-head/.fb-dot/<strong> düz metin kartı) yeniden kuruldu.
@@ -424,7 +455,13 @@
              .textContent ile okuyor) — artık "Açıklama" kutusunun kendisi.
              #fbEarLeft/#fbEarRight ("kulak" omuz butonları) tasarımda YOK,
              kullanıcının kendi isteği — SADECE Frekans Bulma'da JS ile
-             doldurulup gösterilir (bkz. app.js showFrequencyFeedback). -->
+             doldurulup gösterilir (bkz. app.js showFrequencyFeedback).
+             Karartma katmanı sayesinde omuzlar artık arkadaki kontrol
+             satırıyla (İpucu/Play/A-B/Döngü) görsel olarak ÇAKIŞMIYOR —
+             hepsi karartmanın ALTINDA kalıyor, omuzlar panelin üst kenarında
+             onun ÜSTÜNDE duruyor (z-index sırası: overlay < panel < ears,
+             DOM sırasıyla doğal). -->
+        <div class="sheet-overlay fb-overlay" id="feedbackOverlay"></div>
         <div class="fb" id="feedbackBox">
           <button type="button" class="fb-ear fb-ear-left hidden" id="fbEarLeft"></button>
           <button type="button" class="fb-ear fb-ear-right hidden" id="fbEarRight">Doğru cevap</button>
