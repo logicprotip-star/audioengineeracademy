@@ -348,38 +348,35 @@ const els = {
   audioFileInput: document.getElementById("audioFileInput"),
   resetStatsBtn: document.getElementById("resetStatsBtn"),
 
-  // ilerleme ekranı — G40: SV rozeti tek-kart (Ana Menü'nün .lvl-badge'iyle AYNI
-  // desen, prog* önekiyle ayrı id'ler — bkz. index.html notu). comboValue/xpValue/
-  // levelValue/xpBar/progressText (eski 4'lü ızgara + ayrı bar bloğu) KALDIRILDI.
-  progLevelValue: document.getElementById("progLevelValue"),
-  progXpText: document.getElementById("progXpText"),
-  progXpBar: document.getElementById("progXpBar"),
-  progNextLevelText: document.getElementById("progNextLevelText"),
-  accuracyValue: document.getElementById("accuracyValue"),
-  roundsValue: document.getElementById("roundsValue"),
-  correctValue: document.getElementById("correctValue"),
-  wrongValue: document.getElementById("wrongValue"),
-  avgScoreValue: document.getElementById("avgScoreValue"),
-  bestComboValue: document.getElementById("bestComboValue"),
-  bestScoreValue: document.getElementById("bestScoreValue"),
+  // G87: İlerleme sekmesi Prototip.dc.html'in İLERLEME bloğuna göre yeniden
+  // giydirildi (bkz. DURUM.md) — eski progLevelValue/progXpBar/accuracyValue/
+  // roundsValue/wrongValue/avgScoreValue/bestComboValue/bestScoreValue/
+  // totalPracticeValue/totalRoundsValue/whereNowText/zonePanelToggle/zoneCaret/
+  // zoneWrap/zoneSub (tasarımda YOK olan lvl-badge/3'lü-stat/"Şu An Neredesin"/
+  // "Canlı İstatistikler" kartları) KALDIRILDI — bu id'leri okuyan updateUI()/
+  // renderExtraStats()/renderWhereNow() satırları da SÖKÜLDÜ.
+  progEmptyState: document.getElementById("progEmptyState"),
+  progContent: document.getElementById("progContent"),
+  progStartFreqBtn: document.getElementById("progStartFreqBtn"),
+  dailyCounter: document.getElementById("dailyCounter"),
   achievementList: document.getElementById("achievementList"),
   achievementCount: document.getElementById("achievementCount"),
   historyList: document.getElementById("historyList"),
   dailyList: document.getElementById("dailyList"),
-
-  // ilerleme: ek istatistikler / şu an neredesin / frekans bölgesi / mod seviyeleri / grafik
-  totalPracticeValue: document.getElementById("totalPracticeValue"),
-  totalRoundsValue: document.getElementById("totalRoundsValue"),
-  whereNowText: document.getElementById("whereNowText"),
-  zonePanelToggle: document.getElementById("zonePanelToggle"),
-  zoneCaret: document.getElementById("zoneCaret"),
-  zoneWrap: document.getElementById("zoneWrap"),
-  zoneSub: document.getElementById("zoneSub"),
+  recentToggle: document.getElementById("recentToggle"),
+  recentWrap: document.getElementById("recentWrap"),
+  recentChevron: document.getElementById("recentChevron"),
+  clearRecentBtn: document.getElementById("clearRecentBtn"),
+  badgesToggle: document.getElementById("badgesToggle"),
+  badgesChevron: document.getElementById("badgesChevron"),
   zoneList: document.getElementById("zoneList"),
+  zoneLock: document.getElementById("zoneLock"),
+  zoneProBtn: document.getElementById("zoneProBtn"),
+  accChartFilterWrap: document.getElementById("accChartFilterWrap"),
+  accChartLock: document.getElementById("accChartLock"),
+  accChartProBtn: document.getElementById("accChartProBtn"),
   modeLevelsToggle: document.getElementById("modeLevelsToggle"),
-  modeLevelsCaret: document.getElementById("modeLevelsCaret"),
-  modeLevelsWrap: document.getElementById("modeLevelsWrap"),
-  modeLevelsSub: document.getElementById("modeLevelsSub"),
+  modeLevelsChevron: document.getElementById("modeLevelsChevron"),
   modeLevelsList: document.getElementById("modeLevelsList"),
   accChartSvg: document.getElementById("accChartSvg"),
   accChartEmpty: document.getElementById("accChartEmpty"),
@@ -1151,7 +1148,7 @@ function finalizeIfGameOver() {
 // zoneScores() DÜZ bir dizi döndürür (renderZonePanel() bunu {scores,enough}'a
 // sarıp ayrıca DOM'a da yazıyor — burada o yan etkiyi istemediğimiz için aynı
 // "n>=2 yeterli veri" filtresi lokal olarak tekrarlanıyor, renderDailyTip()'teki
-// desenin aynısı). "Şu An Neredesin" (renderWhereNow) ile aynı cümle kalıbını üretir.
+// desenin aynısı). Seans Sonu ekranındaki "güçlü/zayıf bölge" cümlesini üretir.
 function zoneInsightSentence(enough) {
   if (enough.length < 2) return "";
   const sorted = enough.slice().sort((a, b) => a.pct - b.pct);
@@ -2191,6 +2188,10 @@ function renderExerciseGrid() {
     const card = document.createElement("button");
     card.type = "button";
     card.className = `mode-card${(playable && access.allowed) ? "" : " locked"}`;
+    // G87: İlerleme'nin boş-durum "İlk seansını başlat" CTA'sı Frekans Bulma
+    // kartına PROGRAMATİK tıklıyor (bkz. progStartFreqBtn) — erişim/paywall/
+    // kulaklık-uyarısı mantığını TEKRARLAMAMAK için, aynı elemente ihtiyaç var.
+    card.dataset.modeId = entry.id;
     const viz = modeVisualSvg(entry.id) || "";
     // "i" bilgi rozeti (bkz. core/guide-texts.js) — SADECE gerçek metni olan
     // 10 mod için (hepsi burada zaten, MODE_GUIDE_TEXTS[entry.id] HER ZAMAN
@@ -2312,22 +2313,13 @@ function renderComingGrid() {
 }
 
 function updateUI() {
-  els.accuracyValue.textContent = `%${progress.accuracy(stats)}`;
-
-  // G75: Ana Menü'nün "Sv" pentagonu VE İlerleme sekmesinin KENDİ rozeti artık
-  // AYNI kaynaktan okuyor — progress.academyXpProgress(academyTotalXp(...)),
-  // TÜM modların TOPLAM XP'sinden, akademiye özel (yavaş) eğriyle (bkz.
-  // progress.js:academyLevel notu). ESKİDEN (G40) bu ikisi diffState().xp
-  // (aktif zorluğun XP'si) okuyordu — G74 Ana Menü'yü academyLevel'a taşıyınca
-  // İlerleme geride kalmıştı (bkz. DURUM.md G74 "DÜRÜSTLÜK NOTU" + AÇIK İŞLER
-  // madde 15) — bu turda İKİSİ DE academyXp'ye taşınarak kapatıldı.
+  // G87: İlerleme sekmesinin KENDİ Sv/XP rozeti KALDIRILDI (Prototip.dc.html'in
+  // İLERLEME bloğunda böyle bir kart yok, bkz. index.html'in G87 notu) — Ana
+  // Menü'nün rozeti (aşağıdaki menuLevelValue/menuXpText/...) TEK kaynak
+  // olmaya devam ediyor, hesap DEĞİŞMEDİ (madde 10'un "tutarlılık" doğrulaması
+  // bu yüzden artık tek taraflı: sadece Ana Menü'nün kendisi doğru mu diye).
   const academyXp = progress.academyXpProgress(progress.academyTotalXp(stats, playableModeIds()));
   const academyPercent = Math.max(0, Math.min(100, (academyXp.current / academyXp.required) * 100));
-
-  if (els.progLevelValue) els.progLevelValue.textContent = academyXp.level;
-  if (els.progXpText) els.progXpText.textContent = `${academyXp.current}/${academyXp.required} XP`;
-  if (els.progXpBar) els.progXpBar.style.width = `${academyPercent}%`;
-  if (els.progNextLevelText) els.progNextLevelText.innerHTML = `Sonraki seviyeye <b style="color:var(--am)">${academyXp.required - academyXp.current} XP</b>`;
 
   if (els.menuLevelValue) els.menuLevelValue.textContent = academyXp.level;
   if (els.menuLevelTitle) els.menuLevelTitle.textContent = progress.levelTitle(academyXp.level);
@@ -2344,14 +2336,11 @@ function updateUI() {
   // hangi DOM node'a yazıldığı değişti (bkz. index.html .ghead notu).
   if (els.levelChipValue) els.levelChipValue.textContent = progress.modeLevel(stats, mode.getMeta().id);
   if (els.gameAccValue) els.gameAccValue.textContent = `%${progress.accuracy(stats)}`;
-  els.roundsValue.textContent = stats.rounds;
-  els.correctValue.textContent = stats.correct;
-  if (els.wrongValue) els.wrongValue.textContent = stats.wrong;
-  if (els.avgScoreValue) els.avgScoreValue.textContent = stats.rounds > 0 ? Math.round(diffState().score / stats.rounds) : 0;
-  els.bestComboValue.textContent = `${stats.bestCombo}x`;
-  els.bestScoreValue.textContent = diffState().bestScore;
   els.scoreChip.textContent = `Skor ${diffState().score}`;
   els.streakText.textContent = stats.combo > 1 ? `${stats.combo}x combo aktif` : "Akışta kal";
+
+  if (els.progEmptyState) els.progEmptyState.classList.toggle("hidden", stats.rounds > 0);
+  if (els.progContent) els.progContent.classList.toggle("hidden", stats.rounds === 0);
 
   renderAchievements();
   renderHearts();
@@ -2363,58 +2352,134 @@ function updateUI() {
   renderGameHeader();
 }
 
+// G87: Prototip.dc.html'in Günlük Görevler satırı (satır 194-208) — 26x26 ikon
+// kutusu istiyor, mevcut daily.tasks veri modelinde (storage.js freshDaily())
+// ikon YOK — burada task.id'ye göre SABİT, üç görevle BİREBİR eşleşen üç ikon
+// tanımlandı (uydurma veri DEĞİL, sadece görsel bir eşleme).
+const DAILY_TASK_ICON = {
+  d1: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14v-2a9 9 0 0 1 18 0v2"></path><rect x="1" y="14" width="6" height="7" rx="2"></rect><rect x="17" y="14" width="6" height="7" rx="2"></rect></svg>`,
+  d2: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6.5"></path></svg>`,
+  d3: `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-4 5.5-4 9.5a4 4 0 0 0 8 .3c1.2 1 2 2.6 2 4.2a6 6 0 1 1-12 0C6 10 12 8 12 2Z"></path></svg>`
+};
+
 function renderDaily() {
-  els.dailyList.innerHTML = "";
-  daily.tasks.forEach(task => {
-    const div = document.createElement("div");
-    div.className = "daily-card";
-    div.innerHTML = `
-      <h4>${task.title}</h4>
-      <p>${task.desc}</p>
-      <div class="progress-shell" style="margin-top:10px;padding:10px;">
-        <div class="progress-label">
-          <span>${task.value} / ${task.target}</span>
-          <span>${task.claimed ? "Tamamlandı" : "+" + task.reward + " XP"}</span>
+  els.dailyList.innerHTML = daily.tasks.map(task => {
+    const pct = Math.min(100, Math.round((task.value / task.target) * 100));
+    const done = task.claimed;
+    return `<div class="prog-daily-row${done ? " done" : ""}">
+      <div class="prog-daily-icon${done ? " done" : ""}">${DAILY_TASK_ICON[task.id] || ""}</div>
+      <div class="prog-daily-body">
+        <div class="prog-daily-title${done ? " done" : ""}">${task.title}</div>
+        <div class="prog-daily-progress-row">
+          <div class="prog-daily-track"><i style="width:${pct}%${done ? ";background:linear-gradient(90deg,#2fbf46,#4ade80)" : ""}"></i></div>
+          <div class="prog-daily-count">${task.value} / ${task.target}</div>
         </div>
-        <div class="progress"><span style="width:${Math.min(100, (task.value / task.target) * 100)}%"></span></div>
       </div>
-    `;
-    els.dailyList.appendChild(div);
-  });
+      <div class="prog-daily-xp${done ? " done" : ""}">${done ? "✓" : "+" + task.reward}</div>
+    </div>`;
+  }).join("");
+  if (els.dailyCounter) {
+    const claimedCount = daily.tasks.filter(t => t.claimed).length;
+    els.dailyCounter.textContent = `bugün · ${claimedCount}/${daily.tasks.length}`;
+  }
 }
 
+// G87: Prototip.dc.html'in rozet pentagon'u (satır 311-317) — 9 başarımın
+// (progress.js ACHIEVEMENTS) HİÇBİRİNİN kendi rengi/kategorisi YOK, bu yüzden
+// TÜMÜ aynı (uygulama genelinde ZATEN kullanılan, bkz. index.html Sv rozeti)
+// altın pentagon paletini paylaşıyor — kazanılmamışlarda soluk/gri varyant.
 function renderAchievements() {
   const unlocked = new Set(stats.unlocked || []);
-  if (els.achievementCount) els.achievementCount.textContent = `${unlocked.size} / ${progress.ACHIEVEMENTS.length} kazanıldı`;
-  els.achievementList.innerHTML = "";
-  progress.ACHIEVEMENTS.forEach(a => {
-    const div = document.createElement("div");
-    div.className = `achievement ${unlocked.has(a.id) ? "" : "locked"}`;
-    div.innerHTML = `
-      <div class="icon">${a.icon}</div>
-      <div>
-        <h4>${a.title}</h4>
-        <p>${a.desc}</p>
+  if (els.achievementCount) els.achievementCount.textContent = `${unlocked.size}/${progress.ACHIEVEMENTS.length}`;
+  els.achievementList.innerHTML = progress.ACHIEVEMENTS.map(a => {
+    const won = unlocked.has(a.id);
+    const outerFill = won ? "var(--gold-grad)" : "rgba(255,255,255,.05)";
+    const outerStroke = won ? "#fbe9a8" : "rgba(255,255,255,.15)";
+    const innerFill = won ? "#2a2013" : "#1a1b1e";
+    const innerStroke = won ? "#c79a33" : "rgba(255,255,255,.08)";
+    return `<div class="prog-badge${won ? "" : " locked"}">
+      <div class="prog-badge-icon">
+        <svg width="52" height="52" viewBox="0 0 52 52">
+          <polygon points="26,3 48,19 40,46 12,46 4,19" fill="${outerFill}" stroke="${outerStroke}" stroke-width="1.4"></polygon>
+          <polygon points="26,9 42.5,21 36.5,41 15.5,41 9.5,21" fill="${innerFill}" stroke="${innerStroke}" stroke-width="1"></polygon>
+        </svg>
+        <div class="prog-badge-glyph">${a.icon}</div>
       </div>
-    `;
-    els.achievementList.appendChild(div);
+      <div class="prog-badge-name">${a.title}</div>
+      <div class="prog-badge-cond">${a.desc}</div>
+    </div>`;
+  }).join("");
+}
+
+function relativeTime(ts) {
+  if (!ts) return "—";
+  const min = Math.floor((Date.now() - ts) / 60000);
+  if (min < 1) return "az önce";
+  if (min < 60) return `${min}dk`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}s`;
+  return `${Math.floor(hr / 24)}g`;
+}
+
+// G87: Prototip.dc.html'in sola-kaydır→Sil deseni (satır 220-230) — GERÇEK
+// dokunma cihazında çalışsın diye Pointer Events'le (calibLevelTrack'in AYNI
+// pointerdown/move/up deseni) kuruldu, prototipin kendi click-simülasyonu
+// (onClick:{{ra.swipe}}) DEĞİL — bu bir statik demo'ydu, burada gerçek sürükleme var.
+const HIST_DEL_WIDTH = 84;
+function bindHistorySwipe(rowEl, onDelete) {
+  const content = rowEl.querySelector(".prog-hist-content");
+  const delBtn = rowEl.querySelector(".prog-hist-del");
+  if (!content) return;
+  let startX = 0, curX = 0, dragging = false, open = false;
+  const setX = (x, animate) => {
+    content.style.transition = animate ? "transform 220ms cubic-bezier(0.3,0.8,0.3,1)" : "none";
+    content.style.transform = `translateX(${x}px)`;
+  };
+  content.addEventListener("pointerdown", e => {
+    dragging = true; startX = e.clientX; curX = open ? -HIST_DEL_WIDTH : 0;
+    content.setPointerCapture(e.pointerId);
   });
+  content.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    const dx = Math.max(-HIST_DEL_WIDTH, Math.min(0, curX + (e.clientX - startX)));
+    setX(dx, false);
+  });
+  const finish = e => {
+    if (!dragging) return;
+    dragging = false;
+    const dx = Math.max(-HIST_DEL_WIDTH, Math.min(0, curX + (e.clientX - startX)));
+    open = dx < -HIST_DEL_WIDTH / 2;
+    setX(open ? -HIST_DEL_WIDTH : 0, true);
+  };
+  content.addEventListener("pointerup", finish);
+  content.addEventListener("pointercancel", finish);
+  if (delBtn) delBtn.addEventListener("click", onDelete);
 }
 
 function renderHistory() {
-  els.historyList.innerHTML = "";
   if (!history.length) {
-    const div = document.createElement("div");
-    div.className = "history";
-    div.innerHTML = `<div class="icon">📝</div><div><h4>Henüz kayıt yok</h4><p>İlk turdan sonra son cevapların burada görünür.</p></div>`;
-    els.historyList.appendChild(div);
+    els.historyList.innerHTML = `<div class="prog-hist-empty">Liste temizlendi</div>`;
     return;
   }
-  history.forEach(h => {
-    const div = document.createElement("div");
-    div.className = "history";
-    div.innerHTML = `<div class="icon">${h.icon}</div><div><h4>${h.title}</h4><p>${h.desc}</p></div>`;
-    els.historyList.appendChild(div);
+  els.historyList.innerHTML = history.map(h => `
+    <div class="prog-hist-row">
+      <div class="prog-hist-del">Sil</div>
+      <div class="prog-hist-content">
+        <div class="prog-hist-icon" style="background:${h.correct ? "rgba(74,222,128,.16)" : "rgba(248,113,96,.16)"};color:${h.correct ? "#4ade80" : "#f87160"}">${h.correct ? "✓" : "✕"}</div>
+        <div class="prog-hist-body">
+          <div class="prog-hist-mode">${h.label}</div>
+          <div class="prog-hist-q">${h.detail}</div>
+        </div>
+        <div class="prog-hist-time">${relativeTime(h.ts)}</div>
+      </div>
+    </div>
+  `).join("");
+  Array.from(els.historyList.children).forEach((rowEl, idx) => {
+    bindHistorySwipe(rowEl, () => {
+      history.splice(idx, 1);
+      persistStats();
+      renderHistory();
+    });
   });
 }
 
@@ -2431,67 +2496,48 @@ function zoneScores() {
     const key = z.t.split(" (")[0];
     const v = zoneStats[key] || { n: 0, ok: 0 };
     const pct = v.n > 0 ? Math.round((v.ok / v.n) * 100) : null;
-    return { key, label: ZONE_SHORT_LABEL[key] || key, n: v.n, pct };
+    // G87: Zayıf Bölge Raporu satırının "aralık" alt metni (Prototip.dc.html
+    // satır 278) — FA_ZONES.t'nin ZATEN taşıdığı "(20–120 Hz)" parçası,
+    // yeni bir Hz formatlaması İCAT EDİLMEDİ.
+    const rangeMatch = z.t.match(/\(([^)]+)\)/);
+    return { key, label: ZONE_SHORT_LABEL[key] || key, range: rangeMatch ? rangeMatch[1] : "", n: v.n, pct };
   });
 }
 
+// G87: Prototip.dc.html'in Zayıf Bölge Raporu satırı (satır 274-284) — tasarımda
+// bu kart ARTIK katlanır DEĞİL (Frekans bölgesi panelinin eski "zonePanelToggle"
+// aç/kapa'sı KALDIRILDI, task'ın 7. maddesi collapsble İSTEMİYOR), her zaman açık
+// 6 satır. Kilit — madde 7 "FREE'DE KİLİTLİ (madde 6'daki katmanın aynısı)" diyor,
+// paywall.isWeakZoneReportLocked TAM kilit (bulanık DEĞİL — task'ın kendi "aynı
+// katman" talimatı üzerine G61'in ESKİ "sadece bulanık" kararı bu ekranda BİLEREK
+// GENİŞLETİLDİ, aşağıdaki overlay artık dokunulamaz karartma+kilit halkası).
 function renderZonePanel() {
   const scores = zoneScores();
+  const locked = paywall.isWeakZoneReportLocked(isUserPro());
   if (els.zoneList) {
     els.zoneList.innerHTML = scores.map(s => {
       const hasData = s.pct !== null;
       const pct = hasData ? s.pct : 0;
-      const color = !hasData ? "rgba(255,255,255,.18)" : pct >= 70 ? "var(--gr)" : pct >= 45 ? "var(--am)" : "var(--rd)";
-      return `<div class="zone-bar-row">
-        <span style="width:76px;flex:none;font-size:14px;color:var(--tx-3)">${s.label}</span>
-        <div class="zone-bar-track"><i style="width:${pct}%;background:${color}"></i></div>
-        <span class="num" style="width:42px;flex:none;text-align:right;font-size:14px;font-weight:700;color:${hasData ? color : "var(--tx-3)"}">${hasData ? "%" + s.pct : "—"}</span>
+      const weak = hasData && pct < 45;
+      const nameColor = weak ? "#f87160" : "#9ba0a8";
+      const barBg = weak ? "linear-gradient(90deg,#d9553e,#f88a6e)" : "linear-gradient(90deg,#2fbf46,#4ade80)";
+      const barGlow = weak ? "0 0 10px rgba(248,113,96,.4)" : "none";
+      const trackBorder = weak ? "rgba(248,113,96,.35)" : "rgba(255,255,255,.06)";
+      const pctColor = !hasData ? "#4a4f56" : weak ? "#f87160" : "#c9cdd3";
+      return `<div class="prog-zone-row">
+        <div class="prog-zone-name">
+          <div style="color:${nameColor}">${s.label}</div>
+          <div class="prog-zone-range">${s.range}</div>
+        </div>
+        <div class="prog-zone-track" style="border-color:${trackBorder}"><i style="width:${pct}%;background:${barBg};box-shadow:${barGlow}"></i></div>
+        <div class="prog-zone-pct" style="color:${pctColor}">${hasData ? "%" + s.pct : "—"}</div>
       </div>`;
     }).join("");
-    // G61 (PAYWALL.md): "6 bölge geçmiş analizi: bulanık önizleme" — task'ın
-    // kendi kelimesi "bulanık" (blur), tam gizleme DEĞİL — panel yine
-    // açılabilir/veri orada OLDUĞU görülür, sadece rakamlar okunamaz. Yeni bir
-    // CSS bileşeni/ekran İCAT EDİLMEDİ, tek satır inline filter (reskin'e
-    // dokunmadan, sadece bu ERİŞİM kısıtı için).
-    // G63 (Parça 2, tetikleme #6): pointer-events ARTIK "none" DEĞİL —
-    // bulanık grafiğe basınca paywall açılsın diye tıklanabilir bırakılıyor
-    // (bkz. aşağıdaki tek seferlik click listener'ı), imleç de bunu ifade eder.
-    const blurred = paywall.isZoneHistoryBlurred(isUserPro());
-    els.zoneList.style.filter = blurred ? "blur(5px)" : "";
-    els.zoneList.style.cursor = blurred ? "pointer" : "";
   }
+  if (els.zoneList) els.zoneList.classList.toggle("prog-blurred", locked);
+  if (els.zoneLock) els.zoneLock.classList.toggle("hidden", !locked);
   const enough = scores.filter(s => s.n >= 2);
-  const weakest = enough.length ? enough.slice().sort((a, b) => a.pct - b.pct)[0] : null;
-  // G61: "zayıf bölge raporu: kilitli" — zoneSub da (toggle'ın hemen altındaki
-  // "en zayıf: X · %Y" özeti) panel hiç AÇILMADAN aynı bilgiyi ifşa ediyordu,
-  // bu yüzden bulanıklaştırma YETMEZ, TAM kilitlenir (whereNowText'le AYNI karar).
-  if (els.zoneSub) {
-    els.zoneSub.textContent = paywall.isWeakZoneReportLocked(isUserPro())
-      ? "Pro'da açılır"
-      : weakest ? `en zayıf: ${weakest.label.toLowerCase()} · %${weakest.pct}` : "henüz yeterli veri yok";
-  }
   return { scores, enough };
-}
-
-function renderWhereNow(zoneResult) {
-  if (!els.whereNowText) return;
-  // G61 (PAYWALL.md): "Zayıf bölge raporu: kilitli" — task'ın "KISITLANMAYAN"
-  // listesindeki "oturum skoru/kişisel rekor" gibi GENEL istatistiklerden FARKLI
-  // olarak bu, kişiselleştirilmiş bir ÖNERİ/teşhis metni — bilerek TAM kilitli
-  // (bulanık DEĞİL, çünkü bir CÜMLE bulanıklaştırılamaz, sadece görüntü verisi
-  // bulanıklaşabilir — bkz. renderZonePanel'in AYRI "bulanık" kararı).
-  if (paywall.isWeakZoneReportLocked(isUserPro())) {
-    els.whereNowText.textContent = paywall.LOCK_MESSAGES.weakZoneReport.detail;
-    return;
-  }
-  const enough = zoneResult.enough;
-  if (enough.length < 2) {
-    els.whereNowText.textContent = "Birkaç tur daha oynayınca burada kişisel bir özet göreceksin.";
-    return;
-  }
-  const sorted = enough.slice().sort((a, b) => a.pct - b.pct);
-  const weak = sorted[0], strong = sorted[sorted.length - 1];
-  els.whereNowText.textContent = `${strong.label} bölgesinde iyisin (%${strong.pct}), ${weak.label.toLowerCase()} bölgesinde zorlanıyorsun (%${weak.pct}).`;
 }
 
 // Ana menüdeki "Bugünün Önerisi" kartı — en zayıf bölgeyi zoneScores()'tan (İlerleme
@@ -2530,36 +2576,35 @@ function modeTotalXp(modeApi) {
   return progress.modeXp(stats, modeApi.getMeta().id);
 }
 
+// G87: Prototip.dc.html'in Mod Seviyeleri satırı (satır 333-344) solda ayrıca
+// küçük bir "sınav durumu" rozeti de gösteriyor (m.exam/m.examColor/...) — bu
+// uygulamada kalıcı, moda özel bir sınav-geçti/kaldı geçmişi TUTULMUYOR
+// (examSystem oturum-içi/bellek durumu, bkz. exam-system.js dosya başı notu;
+// stats.examState[modeId].examLevel zaten "Sv N" rozetiyle AYNI sayı).
+// Var olmayan bir durumu uydurmak yerine (CLAUDE.md "sayı uydurma") bu rozet
+// BİLİNÇLİ olarak atlandı — satır sadece ilerleme çubuğu + "Sv N" taşıyor.
 function renderModeLevels() {
   const modes = listModes();
   if (els.modeLevelsList) {
     els.modeLevelsList.innerHTML = modes.map(m => {
       const meta = m.getMeta();
-      // Ad, getMeta()'da yok (kart metni yalnızca MODE_CATALOG'tan okunur) — burada
-      // da aynı tek kaynağa bakılır, id üzerinden eşleştirilir.
       const catalogEntry = MODE_CATALOG.find(e => e.id === meta.id);
       const displayName = catalogEntry ? catalogEntry.ad : meta.id;
       const totalXp = modeTotalXp(m);
       const played = totalXp > 0;
       const xp = progress.xpProgress(totalXp);
       const pct = played ? Math.max(0, Math.min(100, Math.round((xp.current / xp.required) * 100))) : 0;
-      const acc = played ? progress.accuracy(stats) : null;
-      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;${played ? "" : "opacity:.45"}">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:15px;font-weight:600">${displayName}</div>
-          <div style="margin-top:8px;height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden">
-            <i style="display:block;height:100%;width:${pct}%;border-radius:99px;background:linear-gradient(90deg,var(--gr),#16C79A)"></i>
+      return `<div class="prog-mode-row">
+        <div class="prog-mode-body">
+          <div class="prog-mode-name">${displayName}</div>
+          <div class="prog-mode-track-row">
+            <div class="prog-mode-track"><i style="width:${pct}%"></i></div>
           </div>
         </div>
-        <div style="flex:none;text-align:right">
-          <div style="display:inline-block;padding:4px 9px;border-radius:99px;background:rgba(255,255,255,.08);font-size:14px;font-weight:700">${played ? `Sv ${xp.level}` : "Yeni"}</div>
-          <div class="num" style="margin-top:6px;font-size:14px;font-weight:700;color:${played ? "var(--tx-2)" : "var(--tx-3)"}">${played ? `%${acc}` : "—"}</div>
-        </div>
+        <div class="prog-mode-lv">${played ? `Sv ${xp.level}` : "Yeni"}</div>
       </div>`;
     }).join("");
   }
-  const playedCount = modes.filter(m => modeTotalXp(m) > 0).length;
-  if (els.modeLevelsSub) els.modeLevelsSub.textContent = `${playedCount} / ${modes.length} mod oynandı`;
 }
 
 function last30DailyAccPoints() {
@@ -2596,24 +2641,20 @@ function renderAccuracyChart() {
   if (els.accChartLast) els.accChartLast.textContent = `bugün %${points[points.length - 1].pct}`;
 }
 
-function formatPracticeDuration(ms) {
-  const totalMin = Math.floor(ms / 60000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return h > 0 ? `${h}s ${m}d` : `${m}d`;
-}
-
-function renderExtraStats() {
-  if (els.totalRoundsValue) els.totalRoundsValue.textContent = stats.rounds;
-  if (els.totalPracticeValue) els.totalPracticeValue.textContent = formatPracticeDuration(stats.totalPracticeMs || 0);
+// G87: madde 6 "FREE'DE KİLİTLİ" — isZoneHistoryBlurred (zaten "geçmiş
+// veri" adını taşıyan tek predicate, ESKİDEN sadece zone bar'larını
+// bulanıklaştırmak için kullanılıyordu) İsabet Grafiği kartına da uygulandı.
+function renderChartLock() {
+  const locked = paywall.isZoneHistoryBlurred(isUserPro());
+  if (els.accChartFilterWrap) els.accChartFilterWrap.classList.toggle("prog-blurred", locked);
+  if (els.accChartLock) els.accChartLock.classList.toggle("hidden", !locked);
 }
 
 function renderAnalysis() {
-  const zoneResult = renderZonePanel();
-  renderWhereNow(zoneResult);
+  renderZonePanel();
   renderModeLevels();
   renderAccuracyChart();
-  renderExtraStats();
+  renderChartLock();
 }
 
 function pushHistory(correct) {
@@ -2637,10 +2678,17 @@ function pushHistory(correct) {
     : activeQuestion.mode === "tonal-denge"
     ? `Tonal Denge · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`;
+  // G87: desc'in KENDİSİ (yukarıdaki, her mod için AYRI test edilmiş dal
+  // zinciri) DEĞİŞMEDİ — sadece "Son Cevaplar" kartının iki satırlık
+  // (mod/detay + zaman) düzenine bölünüyor. ts YENİ alan — İLK KEZ eklendi,
+  // "{{ ra.time }}" (Prototip.dc.html satır 228) için gerekli; ts'siz eski
+  // (bu turdan önce kaydedilmiş) kayıtlar renderHistory'de "—" gösterir.
+  const [firstSeg, ...restSeg] = desc.split(" · ");
   history.unshift({
-    icon: correct ? "✅" : "❌",
-    title: correct ? `${mode.correctLabel(activeQuestion)} doğru bulundu` : `${mode.correctLabel(activeQuestion)} kaçırıldı`,
-    desc
+    correct,
+    label: firstSeg,
+    detail: (correct ? "Doğru · " : "Kaçırıldı · ") + restSeg.join(" · "),
+    ts: Date.now()
   });
   history = history.slice(0, 12);
   renderHistory();
@@ -5358,6 +5406,13 @@ els.resetStatsBtn.addEventListener("click", () => {
   if (!confirm("Tüm istatistikler, ilerleme ve görevler sıfırlansın mı?")) return;
   storage.clearStats();
   storage.clearDaily();
+  // G87: İlerleme'nin AYRI "bölge verisini temizle" bağlantısı (Zayıf Bölge
+  // Raporu kartı artık tasarımda katlanır DEĞİL, o bağlantının yeri yok)
+  // KALDIRILDIĞI için, "Tüm istatistikler" sözü GERÇEKTEN tutulsun diye
+  // zoneStats de burada temizleniyor — ÖNCEDEN bu buton zoneStats'a hiç
+  // dokunmuyordu, kullanıcı SADECE o ayrı bağlantıyla temizleyebiliyordu.
+  storage.clearZoneStats();
+  zoneStats = {};
   stats = storage.freshStats(difficultyLivesMap(), HINTS_PER_GAME, playableModeIds());
   history = [];
   daily = storage.freshDaily();
@@ -5382,6 +5437,7 @@ els.resetStatsBtn.addEventListener("click", () => {
   renderHistory();
   renderDaily();
   renderAchievements();
+  renderAnalysis();
   renderHearts();
   updateTimerUI();
   setFeedback("Sıfırlandı", "Tüm ilerleme, XP, skor ve görevler temizlendi.");
@@ -5389,38 +5445,49 @@ els.resetStatsBtn.addEventListener("click", () => {
 });
 
 renderAnalysis();
-(function () {
-  const ar = document.getElementById("analysisReset");
-  if (ar) ar.addEventListener("click", () => {
-    if (!confirm("Kişisel analiz verisi (bölge başarıların) sıfırlansın mı?")) return;
-    zoneStats = {};
-    storage.clearZoneStats();
-    renderAnalysis();
-  });
-})();
 
-// İlerleme sekmesindeki katlanır paneller (Frekans bölgesi / Mod seviyeleri) — varsayılan
-// kapalı, kapalıyken bile üst satırda özet bilgi (renderAnalysis zaten dolduruyor).
-function bindCollapsiblePanel(toggleBtn, wrapEl, caretEl) {
+// G87: İlerleme sekmesindeki açılır-kapanır kartlar (Son Cevaplar/Rozetler/
+// Mod Seviyeleri, madde 5/8/9) — chevron 180° döner, varsayılan kapalı.
+function bindCollapsiblePanel(toggleBtn, wrapEl, chevronEl) {
   if (!toggleBtn || !wrapEl) return;
   toggleBtn.addEventListener("click", () => {
     const opening = wrapEl.classList.contains("hidden");
     wrapEl.classList.toggle("hidden", !opening);
-    if (caretEl) caretEl.style.transform = opening ? "rotate(180deg)" : "none";
+    if (chevronEl) chevronEl.style.transform = opening ? "rotate(180deg)" : "none";
   });
 }
-bindCollapsiblePanel(els.zonePanelToggle, els.zoneWrap, els.zoneCaret);
-bindCollapsiblePanel(els.modeLevelsToggle, els.modeLevelsWrap, els.modeLevelsCaret);
+bindCollapsiblePanel(els.recentToggle, els.recentWrap, els.recentChevron);
+bindCollapsiblePanel(els.badgesToggle, els.achievementList, els.badgesChevron);
+bindCollapsiblePanel(els.modeLevelsToggle, els.modeLevelsList, els.modeLevelsChevron);
 
-// G63 (PAYWALL.md Parça 2, tetikleme #6): "İlerleme'de bulanık grafiğe
-// basınca → paywall". TEK SEFERLİK dinleyici — renderZonePanel() her
-// çağrıldığında els.zoneList.innerHTML'i değiştiriyor (bkz. o fonksiyon)
-// ama bu, KENDİSİNE (child'larına değil) bağlı bir dinleyiciyi SİLMEZ, o
-// yüzden burada bir kez bağlanması yeterli. İlk oturumda (openPaywallReason
-// false döner) hiçbir şey olmaz — blur zaten sadece görsel bir teaser,
-// tıklamanın "boşa gitmesi" güvenli bir varsayılan.
-if (els.zoneList) els.zoneList.addEventListener("click", () => {
-  if (paywall.isZoneHistoryBlurred(isUserPro())) openPaywallReason("zoneHistory");
+// Madde 5: "Tümünü temizle" — SADECE Son Cevaplar listesini boşaltır
+// (resetStatsBtn'in AKSİNE XP/seviye/görevlere DOKUNMAZ).
+if (els.clearRecentBtn) els.clearRecentBtn.addEventListener("click", e => {
+  e.stopPropagation();
+  history = [];
+  persistStats();
+  renderHistory();
+});
+
+// Madde 6/7: "Pro ile aç" butonları — G63 (PAYWALL.md Parça 2, tetikleme #6)
+// "İlerleme'de kilitli veriye basınca → paywall" ile AYNI karar, artık tüm
+// karta değil SADECE bu iki düğmeye bağlı (tasarımın kendi buton konumu).
+// Tek "zoneHistory" nedeni İKİ butonu da kapsıyor — paywall.js:PAYWALL_REASONS.
+// zoneHistory'nin metni ZATEN hem grafiği hem zayıf bölge raporunu anıyor
+// ("6 bölgenin detaylı isabet analizi VE zayıf bölge raporu"), ayrı bir
+// "weakZoneReport" paywall-ekranı nedeni HİÇ TANIMLI DEĞİL (o isim sadece
+// LOCK_MESSAGES'ta, toast'a düşen AYRI/daha basit bir katalog — burada
+// openPaywallReason PAYWALL_REASONS'ı okuyor, ikisi karıştırılmadı).
+if (els.accChartProBtn) els.accChartProBtn.addEventListener("click", () => openPaywallReason("zoneHistory"));
+if (els.zoneProBtn) els.zoneProBtn.addEventListener("click", () => openPaywallReason("zoneHistory"));
+
+// Madde 2: boş-durumun "İlk seansını başlat" CTA'sı — Frekans Bulma kartına
+// PROGRAMATİK tıklar (bkz. renderExerciseGrid'in card.dataset.modeId notu),
+// erişim/kulaklık-uyarısı mantığını burada TEKRARLAMAZ.
+if (els.progStartFreqBtn) els.progStartFreqBtn.addEventListener("click", () => {
+  goScreen("home");
+  const card = document.querySelector(`.mode-card[data-mode-id="${frekansBulma.MODE_ID}"]`);
+  if (card) card.click();
 });
 
 els.difficultySelect.addEventListener("change", () => {

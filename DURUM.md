@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G86)
+Son güncelleme: 10.08.2026 (G87)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,90 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G86, tek commit) — **OYUN EKRANI — 12 madde (Prototip.dc.html) —
+Bu commit (G87, tek commit) — **İLERLEME SEKMESİ giydirildi — Prototip.dc.html
+İLERLEME bloğu birebir, 10 madde (boş durum/Günlük Görevler/Son Cevaplar
+sola-kaydır-sil/İsabet Grafiği/Zayıf Bölge Raporu/Rozetler/Mod Seviyeleri)**
+
+Kaynak: `Tasarim-2026-08/Prototip.dc.html` "<!-- İLERLEME -->" bloğu (satır
+171-350) — AÇILIP birebir uygulandı. Eski ekran (lvl-badge kartı, 3'lü stat
+satırı, "Şu An Neredesin", "Canlı İstatistikler" ızgarası) tasarımda YOK,
+TAMAMEN kaldırıldı — task'ın kendi 10 maddesi bu ekranın artık TEK doğruluk
+kaynağı. Öğe haritası:
+
+| # | Madde | Uygulanan değişiklik |
+|---|---|---|
+| 1 | Başlık satırı | "İlerleme" + 32x32 dişli — prototipin Free/Pro demo geçişi UYGULANMADI (task'ın kendi notu: "PROTOTİPE ÖZEL DEMO") |
+| 2 | Veri yoksa boş durum | `stats.rounds===0` iken `#progEmptyState` (ikon+metin+yeşil CTA) — CTA Frekans Bulma kartına PROGRAMATİK tıklıyor |
+| 3 | Kart ortak stili | `.prog-card` — 16px radius, literal gradient/border |
+| 4 | Günlük Görevler | `renderDaily()` yeniden yazıldı — 26x26 ikon kutusu (3 görev için 3 sabit SVG), ilerleme çubuğu, "bugün · N/3" sayaç |
+| 5 | Son Cevaplar | `renderHistory()` yeniden yazıldı — GERÇEK Pointer Events sürüklemesiyle sola-kaydır→84px kırmızı "Sil" (prototipin click-simülasyonu DEĞİL); "Tümünü temizle" SADECE history'i temizler (XP/görevlere dokunmaz) |
+| 6 | İsabet Grafiği | Free'de `.prog-blurred` (5px blur) + kilit halkası + "Pro ile aç" (`openPaywallReason("zoneHistory")`) |
+| 7 | Zayıf Bölge Raporu | ARTIK katlanır DEĞİL (task'ın 7. maddesi collapsible istemiyor, eski `zonePanelToggle` SÖKÜLDÜ) — aynı kilit deseni, "aralık" alt metni `FA_ZONES.t`'nin GERÇEK Hz aralığından |
+| 8 | Rozetler (açılır-kapanır) | 9 ACHIEVEMENTS pentagon SVG'de, kazanılmamışlar soluk/gri |
+| 9 | Mod Seviyeleri (açılır-kapanır) | 10 mod, ilerleme çubuğu + "Sv N"/"Yeni" rozeti |
+| 10 | Akademi Sv tutarlılığı | Progress sekmesinin KENDİ Sv/XP kartı KALDIRILDI (tasarımda yok) — tutarlılık artık SADECE Ana Menü'nün kendi göstergesinin regresyonsuz kaldığını doğrulamak anlamına geliyor |
+
+**Bilinçli kapsam kararları (uydurma değil):**
+- Madde 9'un tasarımdaki küçük "sınav durumu" rozeti (m.exam/examColor) ATLANDI
+  — uygulamada moda-özel kalıcı bir sınav geçti/kaldı geçmişi TUTULMUYOR
+  (examSystem oturum-içi bellek durumu), var olmayan bir veriyi uydurmak
+  yerine satır sadece ilerleme çubuğu + "Sv N" taşıyor.
+- "İstatistikleri Sıfırla" butonu tasarımda YOK ama başka hiçbir yerden
+  erişilemeyen ÇALIŞAN bir özellik — sessizce silinmedi, en altta korundu;
+  artık "Tüm istatistikler" sözünü tutması için zoneStats'ı da temizliyor
+  (ÖNCEDEN sadece ayrı, şimdi kaldırılan bir "temizle" bağlantısı yapıyordu).
+- Son Cevaplar satırlarına YENİ bir `ts` (zaman damgası) alanı eklendi —
+  tasarımın "{{ ra.time }}" alanı için gerekliydi, önceki oturumlardan kalan
+  `ts`'siz kayıtlar "—" gösterir.
+
+**Canlı testte bulunan İKİ regresyon (aynı oturumda düzeltildi):**
+1. İsabet Grafiği'nin blur sarmalayıcısı (`#accChartFilterWrap`) `els`
+   önbelleğine hiç eklenmemişti — `renderChartLock()` sessizce hiçbir şey
+   yapmıyordu, kilitliyken grafik/boş-metin BULANIKLAŞMIYORDU. `els`e eklendi.
+2. `renderZonePanel()` kilit overlay'ini gösteriyordu ama `#zoneList`'in
+   kendisine blur filtresi hiç uygulamıyordu — gerçek %0 değerleri kilitliyken
+   bile net okunuyordu. `.prog-blurred` toggle'ı eklendi.
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ (sadece DOM/render).
+**`npm test`: 1043/1043.**
+
+**DOĞRULAMA (canlı tarayıcı, taze sekme, konsol HATASIZ):**
+- **Boş durum:** temiz localStorage'da "Henüz veri yok" + CTA ekran
+  görüntüsüyle doğrulandı; CTA'ya basınca Frekans Bulma'ya doğrudan girildi.
+- **5 tur oynanıp** (hepsi yanlış, canlar bitti) İlerleme'ye dönüldü —
+  Günlük Görevler "5 tur oyna" 5/5 yeşil tamamlandı satırı, Son Cevaplar 5
+  satır (mod/detay/zaman) ekran görüntüsüyle görüldü.
+- **Sola-kaydır→Sil canlı test edildi:** gerçek sürükleme (`left_click_drag`)
+  ile bir satır açıldı, "Sil"e basılınca O satır silindi, diğerleri kaldı;
+  "Tümünü temizle" ile liste "Liste temizlendi" boş durumuna döndü —
+  Günlük Görevler'in "5 tur oyna" ilerlemesi ETKİLENMEDİ (ayrı veri kanıtı).
+- **Free/Pro karşılaştırması:** Free'de İsabet Grafiği + Zayıf Bölge Raporu
+  ikisi de bulanık+altın kilit halkası+"Pro ile aç" ekran görüntüsüyle
+  yakalandı; butona basınca "PRO RAPORU · Zayıf bölge geçmişini gör" paywall
+  ekranı açıldı. `devFlags.simulatePro` ile Pro'ya geçilip AYNI ekran
+  tekrar açıldığında kilitler tamamen kalktı, gerçek %0/— değerleri net
+  görüldü (zoom ekran görüntüsüyle karşılaştırıldı).
+- **Üç açılır bölüm** (Son Cevaplar/Rozetler/Mod Seviyeleri) TEK TEK açılıp
+  chevron dönüşü + içerik ekran görüntüsüyle doğrulandı — Rozetler 9/9
+  pentagon (0/9 kazanılmış, hepsi soluk), Mod Seviyeleri 10 mod (hepsi
+  "Yeni" — XP=0 çünkü 5 tur da yanlıştı, mevcut modeTotalXp mantığıyla
+  TUTARLI, yeni bir hata değil).
+- **Zayıf bölge raporu gerçek veriden geliyor:** 5 turun TAMAMI aynı frekans
+  bölgesinde değildi (Sub/Bas/Alt-orta/Tiz'de veri var, Orta/Üst-orta'da
+  yok) — ekranda BİREBİR bu dağılım görüldü (n≥1 olanlar kırmızı %0, veri
+  olmayanlar gri "—").
+- **Akademi Sv tutarlılığı:** Ana Menü'nün Sv kartı (Sv 1, 0/600 XP)
+  değişmeden doğru render edildi — İlerleme'nin kendi ayrı Sv göstergesi
+  ARTIK yok (madde 10'un kararı, yukarıda).
+- **Ayarlar dişlisi** (progressSettingsBtn) hâlâ Ayarlar sheet'ini açıyor —
+  regresyon YOK.
+- **Konsol hatası: 0** (tüm test turları boyunca — boş durum, 5 tur oynama,
+  Son Cevaplar sürükleme, Free/Pro karşılaştırması, Ayarlar sheet).
+  **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G86, tek commit) — **OYUN EKRANI — 12 madde (Prototip.dc.html) —
 tek dokunuşla cevap, Motor 2 kart yapısı, geri bildirim paneli işaretleri
 örtmüyor, combo çipi tam sayı, spektrum alt satırı gerçek Hz'e döndü**
 
@@ -7062,11 +7145,12 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G86 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları) +
-G85 (Oyun Ekranı Düzeltmesi #1) + G86 (Oyun Ekranı — 12 madde) kod/test/canlı
-doğrulama açısından TAM kapandı, yeni açık iş bırakmadı — G86'nın kendi
-canlı testinde bulduğu ÜÇ regresyon (TDZ/startBtn/freqGuessArea, bkz. BİTTİ)
-AYNI oturumda düzeltildi. ÖNCELİKLE BEKLEYEN KARARLAR madde K
+**Tek sonraki adım (G87 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları) +
+G85 (Oyun Ekranı Düzeltmesi #1) + G86 (Oyun Ekranı — 12 madde) + G87 (İlerleme
+Sekmesi) kod/test/canlı doğrulama açısından TAM kapandı, yeni açık iş
+bırakmadı — G86'nın TDZ/startBtn/freqGuessArea (3 regresyon) ve G87'nin
+accChartFilterWrap/zoneList blur (2 regresyon) kendi canlı testlerinde
+bulunup AYNI oturumda düzeltildi. ÖNCELİKLE BEKLEYEN KARARLAR madde K
 (Pro'da "done" Seans Sonu durumu hiç tetiklenemiyor — kasıtlı mı, regresyon
 mu) kullanıcı kararı bekliyor; karar netleşmeden AÇIK İŞLER madde 20
 kapatılamaz/"done" canlı doğrulanamaz. Bunun dışında AÇIK İŞLER madde 14 —

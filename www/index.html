@@ -674,102 +674,109 @@
 
     <!-- ================= EKRAN: İLERLEME ================= -->
     <section class="screen" id="screen-progress" data-tab="progress">
-      <div class="scroll">
-        <div class="section-head" style="margin-top:6px;align-items:center">
-          <div class="section-title">İlerleme</div>
-          <button class="gear" id="progressSettingsBtn" aria-label="Ayarlar"><i></i></button>
-        </div>
-
-        <!-- G40: prototipteki .lvl/.lvl-badge tek-kart deseni — Ana Menü'nün G36'da
-             taşıdığı AYNI HTML/CSS (bkz. #screen-menu .card.lvl), sadece id'ler
-             prog* önekiyle ayrı (aynı sayfada iki #levelValue OLAMAZ). Veri KAYNAĞI
-             app.js updateUI()'daki AYNI xp/percent hesabı — Ana Menü'yle her zaman
-             senkron (menü ile birebir aynı desen, bkz. o dosyadaki not). -->
-        <div class="card lvl" style="margin-top:0">
-          <div class="lvl-badge"><small>SV</small><b id="progLevelValue">1</b></div>
-          <div style="flex:1;min-width:0">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
-              <div style="font-size:16px;font-weight:700;white-space:nowrap">Kalibre Kulak</div>
-              <div class="num" style="font-size:14px;font-weight:600;color:var(--tx-3)" id="progXpText">0/120 XP</div>
-            </div>
-            <div class="bar" style="margin-top:9px"><i id="progXpBar" style="width:0%"></i></div>
-            <div style="margin-top:8px;font-size:14px;color:var(--tx-3)" id="progNextLevelText">Sonraki seviyeye <b style="color:var(--am)">120 XP</b></div>
-          </div>
-        </div>
-
-        <!-- G40: prototipteki 3'lü stat satırı (.row + 3x .stat-big, Antrenman/Soru/
-             İsabet) — id'ler DEĞİŞMEDİ (totalPracticeValue/totalRoundsValue/
-             accuracyValue zaten vardı, sadece tek satıra taşındı; "Seri" çıkarıldı,
-             prototipte de yok). -->
-        <div class="row" style="margin-top:14px">
-          <div class="stat-big"><b id="totalPracticeValue">0d</b><span>Antrenman</span></div>
-          <div class="stat-big"><b id="totalRoundsValue">0</b><span>Soru</span></div>
-          <div class="stat-big"><b id="accuracyValue">%0</b><span>İsabet</span></div>
-        </div>
-
-        <div class="h2">📅 Günlük Görevler</div>
-        <div class="daily-grid" id="dailyList"></div>
-
-        <div class="h2" style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
-          <span>🏆 Başarımlar</span>
-          <span id="achievementCount" style="font-size:14px;font-weight:600;color:var(--tx-3)">0 / 0 kazanıldı</span>
-        </div>
-        <div class="achievement-list" id="achievementList"></div>
-
-        <div class="h2">🧭 Şu An Neredesin</div>
-        <div class="block" id="whereNowBlock">
-          <p id="whereNowText" style="margin:0;font-size:14px;line-height:1.55;color:var(--tx-2)">
-            Birkaç tur daha oynayınca burada kişisel bir özet göreceksin.
-          </p>
-        </div>
-
-        <div class="card" style="margin-top:22px;padding:0;overflow:hidden">
-          <button class="item" type="button" id="zonePanelToggle" style="border-bottom:none">
-            <div><h5>Frekans bölgesi</h5><p id="zoneSub">en zayıf: —</p></div>
-            <span class="caret" id="zoneCaret" style="transition:transform .18s">⌄</span>
+      <!-- G87: Tasarim-2026-08/Prototip.dc.html "İLERLEME" bloğu (satır 171-350)
+           birebir — eski lvl-badge kartı/3'lü stat satırı/"Şu An Neredesin"/
+           "Canlı İstatistikler" ızgarası tasarımda HİÇ YOK, KALDIRILDI (madde 10'un
+           "Akademi Sv tutarlılığı" doğrulaması bu YÜZDEN sadece Ana Menü'nün KENDİ
+           göstergesini hedefliyor — bu ekranda artık ayrı bir Sv göstergesi yok).
+           "İstatistikleri Sıfırla" tasarımda da yok ama ÇALIŞAN, başka hiçbir yerden
+           erişilemeyen bir veri-silme özelliği — task'ın "uydurma" talimatı YENİ öğe
+           eklemeyi yasaklıyor, VAR OLAN bir işlevi sessizce silmeyi değil; en altta
+           küçük bir "tehlike alanı" olarak KORUNDU. -->
+      <div class="scroll prog-scroll">
+        <div class="prog-head">
+          <div class="prog-title">İlerleme</div>
+          <button class="prog-gear" id="progressSettingsBtn" aria-label="Ayarlar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"></path></svg>
           </button>
-          <div id="zoneWrap" class="hidden" style="padding:0 16px 16px">
-            <div class="zone-bars" id="zoneList"></div>
-            <div style="display:flex;justify-content:flex-end;margin-top:10px">
-              <span id="analysisReset" style="cursor:pointer;color:var(--tx-3);font-size:14px;text-decoration:underline">temizle</span>
+        </div>
+
+        <!-- Madde 2: veri yoksa boş durum — stats.rounds===0 iken TEK gösterilen blok. -->
+        <div class="prog-empty hidden" id="progEmptyState">
+          <div class="prog-empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4a4f56" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"></path><path d="M5 20v-6l4-4 4 3 6-7"></path></svg></div>
+          <div>
+            <div class="prog-empty-title">Henüz veri yok</div>
+            <div class="prog-empty-sub">İlk seansını bitirdiğinde bölge analizin ve isabet grafiğin burada görünecek.</div>
+          </div>
+          <button class="prog-empty-cta" id="progStartFreqBtn" type="button">İlk seansını başlat</button>
+        </div>
+
+        <div id="progContent">
+          <!-- Madde 4: Günlük Görevler -->
+          <div class="prog-card">
+            <div class="prog-card-head">
+              <div class="prog-card-label">Günlük Görevler</div>
+              <div class="prog-card-count" id="dailyCounter">bugün · 0/3</div>
+            </div>
+            <div class="prog-daily-list" id="dailyList"></div>
+          </div>
+
+          <!-- Madde 5: Son Cevaplar (açılır-kapanır + sola kaydır → Sil) -->
+          <div class="prog-card prog-card-flush">
+            <div class="prog-card-head prog-card-head-row">
+              <div class="prog-card-label prog-clickable" id="recentToggle">Son Cevaplar</div>
+              <div class="prog-clear-btn" id="clearRecentBtn">Tümünü temizle</div>
+              <svg class="prog-chevron" id="recentChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+            <div id="recentWrap" class="hidden">
+              <div id="historyList"></div>
             </div>
           </div>
-        </div>
 
-        <div class="h2">📈 Son 30 Gün</div>
-        <div class="card" style="padding:16px">
-          <svg id="accChartSvg" viewBox="0 0 320 110" preserveAspectRatio="none" style="width:100%;height:110px;overflow:visible" class="hidden"></svg>
-          <p id="accChartEmpty" style="margin:0;font-size:14px;line-height:1.5;color:var(--tx-3)">Grafik için en az birkaç günde tur oynaman gerekiyor. Birkaç gün antrenman yaptıkça burada isabet trendin belirecek.</p>
-          <div id="accChartLabels" class="hidden" style="display:flex;justify-content:space-between;margin-top:8px;font-size:14px;font-weight:600;color:var(--tx-3)">
-            <span id="accChartFirst">—</span><span id="accChartLast">—</span>
+          <!-- Madde 6: İsabet Grafiği (Free'de kilitli) -->
+          <div class="prog-card prog-lockable">
+            <div class="prog-card-head">
+              <div class="prog-card-label">İsabet Grafiği</div>
+              <div class="prog-card-count">son 30 gün</div>
+            </div>
+            <div class="prog-chart-wrap" id="accChartFilterWrap">
+              <svg id="accChartSvg" viewBox="0 0 320 110" preserveAspectRatio="none" class="hidden"></svg>
+              <p id="accChartEmpty" class="prog-chart-empty">Grafik için en az birkaç günde tur oynaman gerekiyor. Birkaç gün antrenman yaptıkça burada isabet trendin belirecek.</p>
+              <div id="accChartLabels" class="hidden prog-chart-labels">
+                <span id="accChartFirst">—</span><span id="accChartLast">—</span>
+              </div>
+            </div>
+            <div class="prog-lock-overlay hidden" id="accChartLock">
+              <div class="prog-lock-ring"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#e8c46a" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
+              <button class="prog-lock-btn" id="accChartProBtn" type="button">Pro ile aç</button>
+            </div>
           </div>
-        </div>
 
-        <div class="card" style="margin-top:22px;padding:0;overflow:hidden">
-          <button class="item" type="button" id="modeLevelsToggle" style="border-bottom:none">
-            <div><h5>Mod seviyeleri</h5><p id="modeLevelsSub">— mod oynandı</p></div>
-            <span class="caret" id="modeLevelsCaret" style="transition:transform .18s">⌄</span>
-          </button>
-          <div id="modeLevelsWrap" class="hidden" style="padding:0 16px 16px">
-            <div style="display:flex;flex-direction:column;gap:10px" id="modeLevelsList"></div>
+          <!-- Madde 7: Zayıf Bölge Raporu (Free'de kilitli, HER ZAMAN açık — tasarımda katlanır DEĞİL) -->
+          <div class="prog-card prog-lockable">
+            <div class="prog-card-head">
+              <div class="prog-card-label">Zayıf Bölge Raporu</div>
+              <div class="prog-card-count">6 bölge</div>
+            </div>
+            <div class="prog-zone-list" id="zoneList"></div>
+            <div class="prog-lock-overlay hidden" id="zoneLock">
+              <div class="prog-lock-ring"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#e8c46a" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
+              <button class="prog-lock-btn" id="zoneProBtn" type="button">Pro ile aç</button>
+            </div>
           </div>
-        </div>
 
-        <div class="h2">📊 Canlı İstatistikler</div>
-        <div class="metrics">
-          <div class="metric"><div class="k">Toplam Tur</div><div class="v" id="roundsValue">0</div></div>
-          <div class="metric"><div class="k">Doğru</div><div class="v" id="correctValue" style="color:var(--gr)">0</div></div>
-          <div class="metric"><div class="k">Yanlış</div><div class="v" id="wrongValue" style="color:var(--rd)">0</div></div>
-          <div class="metric"><div class="k">Ort. Puan / Tur</div><div class="v" id="avgScoreValue">0</div></div>
-          <div class="metric"><div class="k">En İyi Seri</div><div class="v" id="bestComboValue">0x</div></div>
-          <div class="metric"><div class="k">En Yüksek Skor</div><div class="v" id="bestScoreValue">0</div></div>
-        </div>
+          <!-- Madde 8: Rozetler (açılır-kapanır) -->
+          <div class="prog-card">
+            <div class="prog-card-head prog-card-head-row">
+              <div class="prog-card-label prog-clickable" id="badgesToggle" style="flex:1">Rozetler</div>
+              <div class="prog-card-count" id="achievementCount">0/9</div>
+              <svg class="prog-chevron" id="badgesChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+            <div class="prog-badge-grid hidden" id="achievementList"></div>
+          </div>
 
-        <div class="h2">🕐 Son Turlar</div>
-        <div class="history-list" id="historyList"></div>
+          <!-- Madde 9: Mod Seviyeleri (açılır-kapanır) -->
+          <div class="prog-card prog-card-flush">
+            <div class="prog-card-head prog-card-head-row prog-clickable" id="modeLevelsToggle">
+              <div class="prog-card-label">Mod Seviyeleri</div>
+              <svg class="prog-chevron" id="modeLevelsChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+            <div id="modeLevelsList" class="hidden"></div>
+          </div>
 
-        <div class="block danger-zone" style="margin-top:22px">
-          <button class="btn danger" id="resetStatsBtn">İstatistikleri Sıfırla</button>
+          <div class="prog-danger">
+            <button class="btn danger" id="resetStatsBtn">İstatistikleri Sıfırla</button>
+          </div>
         </div>
       </div>
     </section>
