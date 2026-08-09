@@ -782,75 +782,72 @@
     </section>
 
     <!-- ================= EKRAN: ARAÇLAR (yer tutucu) ================= -->
+    <!-- G88: Tasarim-2026-08/Prototip.dc.html "ARAÇLAR" bloğu (satır 352-449)
+         birebir — eski "Analiz" kartı (sahte/statik LUFS/LRA/dBTP/mono-uyum
+         verisi, koddaki kendi G53 notu "gerçek DSP/analiz içermiyor" diyordu)
+         tasarımda YOK, task'ın kendi 6. maddesi ("ANALİZ MOTORU BU TURDA YOK")
+         gereği HTML'den kaldırıldı — renderToolBars()/TOOL analiz JS'i
+         SİLİNMEDİ (els.toolBars artık yok, fonksiyon zararsızca no-op kalır).
+         Eski per-kart .pro-lock-overlay (analyzeLock/filtersLock) YERİNE
+         tasarımın kendi TEK üst-seviye Pro/Free dalı (toolsProContent/
+         toolsFreeLock) geçti — bkz. app.js'in AYNI G88 notu. -->
     <section class="screen" id="screen-tools" data-tab="tools">
-      <div class="scroll">
-        <div class="section-head" style="margin-top:6px;align-items:center">
-          <div class="section-title">Araçlar</div>
-          <button class="gear" id="toolsSettingsBtn" aria-label="Ayarlar"><i></i></button>
-        </div>
-        <p class="lead" style="margin:0 2px 14px">Kendi miksini yükle, farklı cihazlarda nasıl duyulacağını dinle.</p>
-
-        <div class="card" style="padding:16px">
-          <div style="display:flex;align-items:center;gap:13px">
-            <div style="width:46px;height:46px;flex:none;border-radius:15px;background:rgba(255,176,32,.14);border:1px solid rgba(255,176,32,.3);display:flex;align-items:center;justify-content:center;color:var(--am);font-size:19px;font-weight:800">↑</div>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:15px;font-weight:700" id="toolsFileName">Henüz dosya yok</div>
-              <div class="num" style="margin-top:3px;font-size:14px;color:var(--tx-3)" id="toolsFileMeta">Analiz ve referans filtreleri için yükle</div>
-            </div>
-          </div>
-          <div class="row" style="margin-top:12px">
-            <button class="btn" id="toolsUploadBtn">Dosya yükle</button>
-          </div>
-          <input type="file" id="toolsFileInput" accept="audio/*" class="hidden" />
-          <p style="margin:11px 2px 0;font-size:14px;line-height:1.45;color:var(--tx-3)">Tek yükleme; hem analiz hem referans filtreleri bu dosyayı kullanır.</p>
+      <div class="scroll tools-scroll">
+        <div class="tools-head">
+          <div class="tools-title">Araçlar</div>
         </div>
 
-        <div class="h2">Analiz</div>
-        <div class="pro-lock">
-          <div class="card" style="padding:16px">
-            <span style="font-size:14px;font-weight:700;letter-spacing:.06em;color:var(--tx-3)">SPEKTRUM · REFERANSA GÖRE SAPMA</span>
-            <div class="tool-spec" style="margin-top:10px"><div class="tool-bars" id="toolBars"></div></div>
-            <div class="tool-axis"><span>40</span><span>160</span><span>640</span><span>2,5k</span><span>16k</span></div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px">
-              <div class="stat" style="flex-direction:column;gap:3px;min-height:60px"><b class="num" style="font-size:16px">−9,4 LUFS</b><span style="font-size:14px;color:var(--tx-3)">Bütünleşik</span></div>
-              <div class="stat" style="flex-direction:column;gap:3px;min-height:60px"><b class="num" style="font-size:16px">6,2 LU</b><span style="font-size:14px;color:var(--tx-3)">LRA</span></div>
-              <div class="stat" style="flex-direction:column;gap:3px;min-height:60px"><b class="num" style="font-size:16px;color:var(--rd)">+0,8 dBTP</b><span style="font-size:14px;color:var(--tx-3)">True peak</span></div>
-              <div class="stat" style="flex-direction:column;gap:3px;min-height:60px"><b class="num" style="font-size:16px">%88</b><span style="font-size:14px;color:var(--tx-3)">Mono uyum</span></div>
+        <div id="toolsProContent">
+          <div class="tools-card">
+            <div class="tools-card-top">
+              <div class="tools-card-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"></path></svg></div>
+              <div class="tools-card-copy">
+                <div class="tools-card-title">Mixini Yükle</div>
+                <div class="tools-card-sub">Kendi dosyanı uygulama içinde dinle ve çalış</div>
+              </div>
             </div>
-            <div style="margin-top:14px;display:flex;flex-direction:column;gap:9px">
-              <div class="li"><i style="background:var(--rd)"></i><span>150 Hz civarında birikme — yaklaşık +4 dB</span></div>
-              <div class="li"><i style="background:var(--am)"></i><span>Üst-orta çukur (2–4 kHz) — vokal öne çıkmıyor</span></div>
-              <div class="li"><i style="background:var(--rd)"></i><span>True peak 0 dBTP üzerinde — kırpma riski</span></div>
+            <button class="tools-upload-btn" id="toolsUploadBtn" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+              <span id="toolsUploadBtnLabel">Dosya seç</span>
+            </button>
+            <input type="file" id="toolsFileInput" accept="audio/*" class="hidden" />
+            <div class="tools-recent-label">Son yüklenenler</div>
+            <div id="toolsRecentEmpty" class="tools-recent-empty">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#3f444a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h6l2 2h8v10H4z"></path></svg>
+              <div class="tools-recent-empty-title">Henüz dosya yüklemedin</div>
+              <div class="tools-recent-empty-sub">Yüklediğin mixler burada listelenir ve tüm modlarda kullanılabilir.</div>
             </div>
-            <button class="btn primary" style="margin-top:14px">Otomatik düzelt</button>
-            <p style="margin:11px 2px 0;font-size:14px;line-height:1.45;color:var(--tx-3)">Bu bir yön göstergesidir, kesin teşhis değildir.</p>
+            <div id="toolsRecentList"></div>
           </div>
-          <button class="pro-lock-overlay" id="analyzeLock" type="button">
-            <div class="pro-lock-icon">🔒</div>
-            <b>Analiz — Pro özelliği</b>
-            <span>LUFS/LRA/true peak ölçümü ve otomatik düzeltme önerileri Pro'da açılır.</span>
-          </button>
+
+          <div class="tools-card">
+            <div class="tools-card-top">
+              <div class="tools-card-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18V9M9 18V5M14 18v-7M19 18v-4"></path></svg></div>
+              <div class="tools-card-copy">
+                <div class="tools-card-title">Referans Filtreleri</div>
+                <div class="tools-card-sub">Mixini farklı cihaz simülasyonlarıyla dinle</div>
+              </div>
+            </div>
+            <div class="tools-filter-grid" id="toolsFilterGrid"></div>
+            <p class="tools-filter-note">Tipik cihaz eğrilerine yaklaşıktır, ölçüm değildir.</p>
+          </div>
         </div>
 
-        <div class="h2">Referans filtreleri</div>
-        <div class="pro-lock">
-          <div class="card" style="padding:16px">
-            <div id="filterChips" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px"></div>
-            <div style="margin-top:13px;padding:13px 14px;border-radius:15px;background:rgba(108,140,255,.1);border:1px solid rgba(108,140,255,.26)">
-              <div style="font-size:15px;font-weight:700;color:#DCE4FF" id="filterName">Düz</div>
-              <div style="margin-top:5px;font-size:14px;line-height:1.45;color:var(--tx-2)" id="filterDesc">Referans — hiçbir renklendirme yok.</div>
-              <div style="margin-top:9px;font-size:14px;line-height:1.45;color:#AFC0FF" id="filterListen">Ne dinlemeli: miksin kendi dengesi.</div>
+        <div id="toolsFreeLock" class="tools-lock hidden">
+          <div class="tools-lock-pentagon">
+            <svg width="92" height="92" viewBox="0 0 52 52">
+              <polygon points="26,3 48,19 40,46 12,46 4,19" fill="var(--gold-grad)" stroke="#fbe9a8" stroke-width="1.2"></polygon>
+              <polygon points="26,9 42.5,21 36.5,41 15.5,41 9.5,21" fill="#2a2013" stroke="#c79a33" stroke-width="0.8"></polygon>
+            </svg>
+            <div class="tools-lock-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f6d878" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
             </div>
-            <div class="row" style="margin-top:12px">
-              <button class="btn" id="filterResetBtn">Düz'e dön</button>
-            </div>
-            <p style="margin:11px 2px 0;font-size:14px;line-height:1.45;color:var(--tx-3)">Tipik cihaz eğrilerine yaklaşıktır, ölçüm değildir.</p>
           </div>
-          <button class="pro-lock-overlay" id="filtersLock" type="button">
-            <div class="pro-lock-icon">🔒</div>
-            <b>Referans filtreleri — Pro özelliği</b>
-            <span>Miksini araba, Bluetooth hoparlör, ucuz kulaklık gibi ortamlarda simüle et.</span>
-          </button>
+          <div>
+            <div class="tools-lock-title">Araçlar Pro'ya özel</div>
+            <div class="tools-lock-sub">Kendi mixini yükle, telefon hoparlöründen club sistemine kadar referans filtreleriyle dinle.</div>
+          </div>
+          <button class="tools-lock-cta" id="toolsProBtn" type="button">Pro'ya Geç · ₺399</button>
         </div>
       </div>
     </section>

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G87)
+Son güncelleme: 10.08.2026 (G88)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,71 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G87, tek commit) — **İLERLEME SEKMESİ giydirildi — Prototip.dc.html
+Bu commit (G88, tek commit) — **ARAÇLAR SEKMESİ giydirildi — Prototip.dc.html
+ARAÇLAR bloğu birebir, gerçek uploadManager'a bağlı dosya yükleme + önizleme
+çalma, sahte Analiz kartı kaldırıldı**
+
+Kaynak: `Tasarim-2026-08/Prototip.dc.html` "<!-- ARAÇLAR -->" bloğu (satır
+352-449) — AÇILIP birebir uygulandı. Öğe haritası:
+
+| # | Madde | Uygulanan değişiklik |
+|---|---|---|
+| 1 | Başlık | "Araçlar" — prototipin Free/Pro demo geçişi UYGULANMADI; toolsSettingsBtn (dişli) da KALDIRILDI, tasarımda yok VE Ana Menü/İlerleme'nin kendi dişlisinden ZATEN erişilebiliyor |
+| 2 | Mixini Yükle kartı | Yeni `.tools-card` — cyan ikon kutusu + başlık/alt metin + kesikli-çerçeveli "Dosya seç" butonu. Format metni "WAV, MP3, AIFF" YERİNE koddaki GERÇEK liste (`upload.js:ALLOWED_AUDIO_EXTENSIONS` — 7 format) baz alındı |
+| 3 | Son Yüklenenler | uploadManager TEK buffer tuttuğu için liste EN FAZLA 1 satır — sahte çoklu-dosya geçmişi İCAT EDİLMEDİ. Play butonu GERÇEK önizleme çalıyor (yeni: `upload.js`'e `get duration()`, app.js'e `toggleToolsPreview()`) |
+| 4 | Referans Filtreleri | 8 filtrenin ad/açıklama/"ne dinlemeli" metni G53'ten beri GERÇEK — YENİ eklenen SADECE ikon + 26px eğri (süsleme, ölçüm DEĞİL). 2 sütunlu grid, seçim (`toolsActiveFilterIdx`) çalışıyor. "Tipik cihaz eğrilerine yaklaşıktır" notu korundu |
+| 5 | Free kilit ekranı | Altın pentagon + kilit + "Araçlar Pro'ya özel" + CTA — `paywall.isToolsContentLocked` |
+| 6 | Analiz motoru bu turda yok | Sahte LUFS/LRA/dBTP/mono-uyum kartı (G53'ten beri statik, gerçek bir dosyayı HİÇ ölçmüyordu) HTML'den kaldırıldı — `renderToolBars()` JS'i task'ın "kodunu silme" talimatı gereği SİLİNMEDİ, sadece hedefi (#toolBars) yok, zararsızca no-op |
+
+**Gerçek işlevsellik eklendi (öncesinde YOKTU):** "Mixini Yükle" ÖNCEDEN
+sadece ad/boyut gösteren bir vitrindi (`uploadManager.loadFile()` hiç
+çağrılmıyordu). Artık `validateAudioFile` → `uploadManager.loadFile` →
+gerçek decode + `getSourceNode()`/`pausePlayback()` ile çalışan bir
+önizleme oynatıcısı — `startCalibrationTone()`'un AYNI deseni
+(`audioEngine.analyser` zaten destination'a bağlı, kendi gain node'unu
+oraya takar), oyun turunun ses zincirinden AYRI.
+
+**Canlı testte bulunan bir kök-neden (kod hatası DEĞİL, tarayıcı önbelleği):**
+İlk dosya yükleme testinde süre "NaN:NaN" gösterdi — sistematik hata
+ayıklamayla (geçici `window.__DEBUG_*` proplarıyla `uploadManager`'ı
+inceleyip `Object.keys()` çekilince) kanıtlandı: tarayıcı `upload.js`'in
+ESKİ (duration getter'ı olmayan) sürümünü önbellekten sunuyordu — normal
+navigasyon/yeni sekme BİLE bunu kırmıyordu, SADECE `cmd+shift+r` düzeltti.
+Sunucu (`curl` ile doğrulandı) baştan beri doğru içeriği veriyordu. G83/
+G86 seansındaki AYNI sınıf sorun — kod DEĞİŞTİRİLMEDİ, tanı hook'ları
+(`window.__DEBUG_uploadManager/audioEngine`) doğrulama SONRASI kaldırıldı.
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ.
+**`npm test`: 1043/1043.**
+
+**DOĞRULAMA (canlı tarayıcı, taze sekme, konsol HATASIZ):**
+- **Free durumu:** pentagon+kilit+"Araçlar Pro'ya özel"+CTA ekran görüntüsüyle
+  doğrulandı; CTA'ya basınca genel paywall ekranı ("PRO RAPORU" değil, genel
+  "Tam sürüm sadece sınırları kaldırır" ekranı — `resetPaywallToGeneric()`) açıldı.
+- **Pro durumu** (`devFlags.simulatePro`): Mixini Yükle + Referans Filtreleri
+  kartları görüldü, sahte Analiz kartı YOK.
+- **Boş durum** (dosya yokken): "Henüz dosya yüklemedin" + alt metin ekran
+  görüntüsüyle doğrulandı.
+- **Dosya seçme akışı çalıştığı:** sentetik bir WAV (`File`+`DataTransfer`)
+  gerçek `#toolsFileInput`'a atanıp `change` event'i tetiklendi — dosya GERÇEKTEN
+  decode edildi (`uploadManager.hasBuffer`), satır adı/boyutu/GERÇEK süresiyle
+  ("0:07", 7 saniyelik test dosyası) listede göründü; play butonuna basınca
+  GERÇEK ses çaldı (breathe animasyonlu cyan halka), tekrar basınca durdu.
+- **Referans filtrelerinin gerçek koda bağlı olduğu:** `TOOL_FILTERS` (8 filtre,
+  G53'ten beri var) grid'de render edildi, karta tıklayınca seçim (AÇIK rozeti +
+  cyan kenarlık) GERÇEKTEN değişti — ekran görüntüsüyle (Düz→Laptop geçişi)
+  doğrulandı.
+- **Sahte analiz verisi gösterilmediği:** yeni HTML'de LUFS/LRA/dBTP/mono-uyum
+  hiç yok — hem Free hem Pro ekran görüntülerinde doğrulandı.
+- **Regresyon taraması:** localStorage temizlenip Ana Menü, İlerleme (G87,
+  boş durum), Frekans Bulma modu tek tek açıldı — hiçbiri bozulmadı.
+- **Konsol hatası: 0** (tüm test turları boyunca — Free/Pro geçişleri, dosya
+  yükleme, önizleme çalma/durdurma, filtre seçimi, regresyon taraması).
+  **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G87, tek commit) — **İLERLEME SEKMESİ giydirildi — Prototip.dc.html
 İLERLEME bloğu birebir, 10 madde (boş durum/Günlük Görevler/Son Cevaplar
 sola-kaydır-sil/İsabet Grafiği/Zayıf Bölge Raporu/Rozetler/Mod Seviyeleri)**
 
@@ -7145,12 +7209,14 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G87 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları) +
+**Tek sonraki adım (G88 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları) +
 G85 (Oyun Ekranı Düzeltmesi #1) + G86 (Oyun Ekranı — 12 madde) + G87 (İlerleme
-Sekmesi) kod/test/canlı doğrulama açısından TAM kapandı, yeni açık iş
-bırakmadı — G86'nın TDZ/startBtn/freqGuessArea (3 regresyon) ve G87'nin
-accChartFilterWrap/zoneList blur (2 regresyon) kendi canlı testlerinde
-bulunup AYNI oturumda düzeltildi. ÖNCELİKLE BEKLEYEN KARARLAR madde K
+Sekmesi) + G88 (Araçlar Sekmesi) kod/test/canlı doğrulama açısından TAM
+kapandı, yeni açık iş bırakmadı — G86'nın TDZ/startBtn/freqGuessArea (3
+regresyon), G87'nin accChartFilterWrap/zoneList blur (2 regresyon) ve
+G88'in tanı sırasında yakalanan tarayıcı-önbellek yanıltmacası (kod hatası
+DEĞİL, bkz. BİTTİ) kendi canlı testlerinde bulunup AYNI oturumda
+düzeltildi/doğrulandı. ÖNCELİKLE BEKLEYEN KARARLAR madde K
 (Pro'da "done" Seans Sonu durumu hiç tetiklenemiyor — kasıtlı mı, regresyon
 mu) kullanıcı kararı bekliyor; karar netleşmeden AÇIK İŞLER madde 20
 kapatılamaz/"done" canlı doğrulanamaz. Bunun dışında AÇIK İŞLER madde 14 —

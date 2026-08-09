@@ -119,19 +119,28 @@ const els = {
   spotlightNext: document.getElementById("spotlightNext"),
   menuSettingsBtn: document.getElementById("menuSettingsBtn"),
   progressSettingsBtn: document.getElementById("progressSettingsBtn"),
-  toolsSettingsBtn: document.getElementById("toolsSettingsBtn"),
-  toolsFileName: document.getElementById("toolsFileName"),
-  toolsFileMeta: document.getElementById("toolsFileMeta"),
+  // G88: Araçlar sekmesi Prototip.dc.html'in ARAÇLAR bloğuna göre yeniden
+  // giydirildi (bkz. DURUM.md + index.html'in AYNI G88 notu) — eski
+  // toolsSettingsBtn/toolsFileName/toolsFileMeta/toolBars/filterChips/
+  // filterName/filterDesc/filterListen/filterResetBtn/analyzeLock/
+  // filtersLock (tasarımda YOK olan dişli + sahte Analiz kartı + eski
+  // filtre-chip/panel deseni) KALDIRILDI. toolsSettingsBtn'in kaldırılması
+  // BİR erişim noktasının kaybı DEĞİL — Ayarlar'a Ana Menü/İlerleme'nin
+  // KENDİ dişlisinden ZATEN ulaşılıyor (bkz. menuSettingsBtn/
+  // progressSettingsBtn), tasarım da bu ekranda dişli göstermiyor.
   toolsUploadBtn: document.getElementById("toolsUploadBtn"),
+  toolsUploadBtnLabel: document.getElementById("toolsUploadBtnLabel"),
   toolsFileInput: document.getElementById("toolsFileInput"),
+  toolsProContent: document.getElementById("toolsProContent"),
+  toolsFreeLock: document.getElementById("toolsFreeLock"),
+  toolsProBtn: document.getElementById("toolsProBtn"),
+  toolsRecentEmpty: document.getElementById("toolsRecentEmpty"),
+  toolsRecentList: document.getElementById("toolsRecentList"),
+  toolsFilterGrid: document.getElementById("toolsFilterGrid"),
+  // G88: #toolBars artık HTML'de YOK (sahte Analiz kartı kaldırıldı, bkz.
+  // aşağıdaki renderToolBars() notu) — cache burada BİLEREK tutuluyor,
+  // fonksiyon kendi null-guard'ıyla zararsızca no-op kalır.
   toolBars: document.getElementById("toolBars"),
-  filterChips: document.getElementById("filterChips"),
-  filterName: document.getElementById("filterName"),
-  filterDesc: document.getElementById("filterDesc"),
-  filterListen: document.getElementById("filterListen"),
-  filterResetBtn: document.getElementById("filterResetBtn"),
-  analyzeLock: document.getElementById("analyzeLock"),
-  filtersLock: document.getElementById("filtersLock"),
   mainSettingsOverlay: document.getElementById("mainSettingsOverlay"),
   mainSettingsSheet: document.getElementById("mainSettingsSheet"),
   mainSettingsBack: document.getElementById("mainSettingsBack"),
@@ -5874,7 +5883,7 @@ function closeMainSettingsSheet() {
   els.mainSettingsOverlay.classList.remove("open");
   els.mainSettingsSheet.classList.remove("open");
 }
-[els.menuSettingsBtn, els.progressSettingsBtn, els.toolsSettingsBtn].forEach(btn => {
+[els.menuSettingsBtn, els.progressSettingsBtn].forEach(btn => {
   if (btn) btn.addEventListener("click", openMainSettingsSheet);
 });
 if (els.mainSettingsOverlay) els.mainSettingsOverlay.addEventListener("click", closeMainSettingsSheet);
@@ -6542,22 +6551,19 @@ if (els.watchAdBtn) els.watchAdBtn.addEventListener("click", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Araçlar sekmesi — iskelet (Dizayn/prototype.html'den taşındı). Analiz ve Referans
-// Filtreleri gerçek DSP/analiz içermiyor, sadece düzen + Pro kilit davranışı —
-// gerçek satın alma bu sürümde yok, o yüzden kilit her zaman devrede kalacak.
+// Araçlar sekmesi — G88'de Prototip.dc.html'in ARAÇLAR bloğuna göre yeniden
+// giydirildi. Referans Filtreleri hâlâ gerçek DSP içermiyor (seçim SADECE
+// görsel/bilgilendirici — G53'ten beri değişmedi, bu turun kapsamı bunu
+// eklemek DEĞİLDİ) ama artık GERÇEK uploadManager'a bağlı: "Mixini Yükle"
+// dosyayı GERÇEKTEN decode edip çalınabilir hale getiriyor (ÖNCEDEN sadece
+// ad/boyut gösteren bir vitrindi, hiçbir yere yüklenmiyordu).
 // ═══════════════════════════════════════════════════════════════════════════
 
-const TOOL_FILTERS = [
-  ["Düz", "Referans — hiçbir renklendirme yok.", "miksin kendi dengesi."],
-  ["Araba", "Bas vurgulu, orta bölgede çukur.", "Bas fazla mı, vokal kayboluyor mu?"],
-  ["Kulüp / PA", "Aşırı bas, uzun kuyruk.", "Alt bölge dağılıyor mu, kick belirgin mi?"],
-  ["Laptop", "Bas zayıf, orta ağırlıklı.", "Bas hiç duyulmuyorsa gövde yeterli mi?"],
-  ["Teyp / Radyo", "Dar bant, hafif saturation.", "Şarkı dar bantta da anlaşılıyor mu?"],
-  ["Ucuz kulaklık", "Bas ve tiz vurgulu.", "Tizler cırlıyor mu, S sesleri batıyor mu?"],
-  ["Bluetooth hoparlör", "Dar bant, kompresyonlu.", "Dinamik kalıyor mu, itiliyor mu?"],
-  ["Mono", "Kanallar toplanmış.", "Faz kaybı var mı, enstrüman kayboluyor mu?"]
-];
-
+// G88 (madde 6, "ANALİZ MOTORU BU TURDA YOK"): sahte/statik Analiz kartı
+// (LUFS/LRA/dBTP/mono-uyum — hepsi G53'ten beri sabit, gerçek bir dosyayı
+// HİÇ ölçmüyordu) index.html'den KALDIRILDI, kullanıcı artık göremiyor —
+// ama task'ın kendi talimatı "kodunu silme" gereği bu fonksiyon BİLEREK
+// silinmedi, sadece hedefi (#toolBars) yok — çağrıldığında zararsızca no-op.
 function renderToolBars() {
   if (!els.toolBars) return;
   let html = "";
@@ -6570,30 +6576,161 @@ function renderToolBars() {
 }
 renderToolBars();
 
-function renderFilterChips() {
-  if (!els.filterChips) return;
-  els.filterChips.innerHTML = TOOL_FILTERS.map((f, i) => `<button type="button" class="fchip${i === 0 ? " on" : ""}">${f[0]}</button>`).join("");
-  if (els.filterName) els.filterName.textContent = TOOL_FILTERS[0][0];
-  if (els.filterDesc) els.filterDesc.textContent = TOOL_FILTERS[0][1];
-  if (els.filterListen) els.filterListen.textContent = `Ne dinlemeli: ${TOOL_FILTERS[0][2]}`;
-}
-renderFilterChips();
+// G88: her filtrenin ad/açıklama/"ne dinlemeli" metni G53'ten beri GERÇEK,
+// DEĞİŞMEDİ — sadece tasarımın istediği ikon + 26px eğri görseli EKLENDİ.
+// Bunlar ÖLÇÜM DEĞİL (Referans Filtreleri'nin kendisi gerçek DSP içermiyor,
+// yukarı bkz.) — süsleme, o filtrenin AYNI satırdaki gerçek metniyle
+// tutarlı bir eğri şekli (ör. "bas vurgulu, orta çukur" → sol yüksek/orta
+// çukur). Kompresör kartlarının sabit dalga barlarıyla AYNI felsefe (G86).
+const TOOLS_FILTER_ICONS = {
+  duz: `<path d="M3 12h18"></path>`,
+  araba: `<path d="M3 16l1.6-5.2A2 2 0 0 1 6.5 9.4h11a2 2 0 0 1 1.9 1.4L21 16"></path><rect x="2" y="16" width="20" height="4" rx="1.3"></rect><circle cx="7" cy="20" r="1.3"></circle><circle cx="17" cy="20" r="1.3"></circle>`,
+  club: `<rect x="6" y="2.5" width="12" height="19" rx="2"></rect><circle cx="12" cy="8" r="2"></circle><circle cx="12" cy="15.5" r="3"></circle>`,
+  laptop: `<rect x="3" y="4" width="18" height="12" rx="1.5"></rect><path d="M2 19.5h20"></path>`,
+  radyo: `<rect x="3" y="6" width="18" height="12" rx="1.5"></rect><circle cx="8" cy="12" r="2.3"></circle><circle cx="16" cy="12" r="2.3"></circle>`,
+  earbud: `<path d="M5 13v-1a7 7 0 0 1 14 0v1"></path><rect x="3" y="13" width="4.5" height="7" rx="2"></rect><rect x="16.5" y="13" width="4.5" height="7" rx="2"></rect>`,
+  bluetooth: `<path d="M8 7l8 5-8 5V2l8 5-8 5"></path>`,
+  mono: `<circle cx="12" cy="12" r="8"></circle><path d="M12 8v8M8.5 12h7"></path>`
+};
 
-// G53: Araçlar sekmesi (statik örnek analiz — gerçek ses zincirine BAĞLI
-// DEĞİL, sadece ad/boyut gösterimi) AYNI native-önce/web-fallback desenini
-// alıyor — tutarlılık için, kullanıcının "hiçbir yerde açılmıyor" raporu
-// bunu da kapsayabilir.
+// y=2 en yüksek (boost), y=24 en düşük (cut), 13 nötr — 6 noktalık düz çizgi
+// eğrisi (curveSvg() interpolasyonu için).
+const TOOLS_FILTER_CURVES = {
+  duz: [13, 13, 13, 13, 13, 13],
+  araba: [8, 10, 18, 20, 16, 12],
+  club: [4, 6, 13, 18, 16, 13],
+  laptop: [20, 16, 9, 8, 10, 14],
+  radyo: [22, 12, 8, 8, 12, 22],
+  earbud: [8, 14, 20, 20, 14, 7],
+  bluetooth: [20, 10, 9, 9, 10, 20],
+  mono: [13, 13, 13, 13, 13, 13]
+};
+
+function curveSvg(points) {
+  const w = 70, h = 26;
+  const step = w / (points.length - 1);
+  const d = points.map((y, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${y.toFixed(1)}`).join(" ");
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
+}
+
+const TOOL_FILTERS = [
+  { icon: "duz", name: "Düz", desc: "Referans — hiçbir renklendirme yok.", listen: "miksin kendi dengesi." },
+  { icon: "araba", name: "Araba", desc: "Bas vurgulu, orta bölgede çukur.", listen: "Bas fazla mı, vokal kayboluyor mu?" },
+  { icon: "club", name: "Kulüp / PA", desc: "Aşırı bas, uzun kuyruk.", listen: "Alt bölge dağılıyor mu, kick belirgin mi?" },
+  { icon: "laptop", name: "Laptop", desc: "Bas zayıf, orta ağırlıklı.", listen: "Bas hiç duyulmuyorsa gövde yeterli mi?" },
+  { icon: "radyo", name: "Teyp / Radyo", desc: "Dar bant, hafif saturation.", listen: "Şarkı dar bantta da anlaşılıyor mu?" },
+  { icon: "earbud", name: "Ucuz kulaklık", desc: "Bas ve tiz vurgulu.", listen: "Tizler cırlıyor mu, S sesleri batıyor mu?" },
+  { icon: "bluetooth", name: "Bluetooth hoparlör", desc: "Dar bant, kompresyonlu.", listen: "Dinamik kalıyor mu, itiliyor mu?" },
+  { icon: "mono", name: "Mono", desc: "Kanallar toplanmış.", listen: "Faz kaybı var mı, enstrüman kayboluyor mu?" }
+];
+let toolsActiveFilterIdx = 0;
+
+function renderToolsFilters() {
+  if (!els.toolsFilterGrid) return;
+  els.toolsFilterGrid.innerHTML = TOOL_FILTERS.map((f, i) => {
+    const active = i === toolsActiveFilterIdx;
+    return `<div class="tools-filter-card${active ? " active" : ""}" data-idx="${i}">
+      <div class="tools-filter-top">
+        <div class="tools-filter-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${TOOLS_FILTER_ICONS[f.icon]}</svg></div>
+        ${active ? `<div class="tools-filter-on">AÇIK</div>` : ""}
+      </div>
+      <div class="tools-filter-curve">${curveSvg(TOOLS_FILTER_CURVES[f.icon])}</div>
+      <div>
+        <div class="tools-filter-name">${f.name}</div>
+        <div class="tools-filter-range">${f.desc}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+if (els.toolsFilterGrid) els.toolsFilterGrid.addEventListener("click", e => {
+  const card = e.target.closest(".tools-filter-card");
+  if (!card) return;
+  toolsActiveFilterIdx = Number(card.dataset.idx);
+  renderToolsFilters();
+});
+renderToolsFilters();
+
+// G88: "Son yüklenenler" — uploadManager TEK bir buffer tutuyor (bkz.
+// core/upload.js dosya başı notu, çoklu dosya geçmişi YOK) — bu yüzden liste
+// en fazla TEK satır taşıyabilir, sahte bir "geçmiş" İCAT EDİLMEDİ.
+let toolsUploadedFile = null; // { name, sizeKb }
+let toolsPreviewPlaying = false;
+let toolsPreviewNode = null;
+let toolsPreviewGain = null;
+
+function formatToolsDuration(sec) {
+  const s = Math.round(sec);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function renderToolsRecent() {
+  const hasFile = !!toolsUploadedFile && uploadManager.hasBuffer;
+  if (els.toolsRecentEmpty) els.toolsRecentEmpty.classList.toggle("hidden", hasFile);
+  if (!els.toolsRecentList) return;
+  if (!hasFile) { els.toolsRecentList.innerHTML = ""; return; }
+  const meta = `${toolsUploadedFile.sizeKb} KB · ${formatToolsDuration(uploadManager.duration)}`;
+  els.toolsRecentList.innerHTML = `<div class="tools-recent-row">
+    <button type="button" class="tools-recent-play${toolsPreviewPlaying ? " playing" : ""}" id="toolsPreviewBtn" aria-label="${toolsPreviewPlaying ? "Durdur" : "Dinle"}">
+      ${toolsPreviewPlaying
+        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.2" height="14" rx="1"></rect><rect x="13.8" y="5" width="4.2" height="14" rx="1"></rect></svg>`
+        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-left:1px"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z"></path></svg>`}
+    </button>
+    <div class="tools-recent-body">
+      <div class="tools-recent-name">${toolsUploadedFile.name}</div>
+      <div class="tools-recent-meta">${meta}</div>
+    </div>
+    <div class="tools-recent-wave">${curveSvg([16, 10, 20, 8, 18, 12]).replace("width=\"100%\" height=\"26\"", "width=\"62\" height=\"26\"")}</div>
+  </div>`;
+  const playBtn = document.getElementById("toolsPreviewBtn");
+  if (playBtn) playBtn.addEventListener("click", toggleToolsPreview);
+}
+
+// G88: önizleme çalması OYUN TURUNUN ses zincirinden AYRI — calibLevelTrack'in
+// startCalibrationTone()'unun AYNI deseni (audioEngine.analyser zaten
+// destination'a bağlı, kendi gain node'unu ORAYA takar). uploadManager'ın
+// GERÇEK offset/duraklatma mantığını (pausePlayback/getSourceNode) kullanır —
+// yeni bir çalma durumu İCAT EDİLMEDİ.
+async function toggleToolsPreview() {
+  if (!uploadManager.hasBuffer) return;
+  await audioEngine.initAudio();
+  const ctx = audioEngine.audioCtx, analyser = audioEngine.analyser;
+  if (!ctx || !analyser) return;
+  if (toolsPreviewPlaying) {
+    uploadManager.pausePlayback();
+    if (toolsPreviewNode) { try { toolsPreviewNode.stop(); } catch (e) {} toolsPreviewNode = null; }
+    toolsPreviewPlaying = false;
+  } else {
+    toolsPreviewGain = toolsPreviewGain || ctx.createGain();
+    toolsPreviewGain.gain.value = 0.85;
+    toolsPreviewGain.connect(analyser);
+    toolsPreviewNode = uploadManager.getSourceNode();
+    if (!toolsPreviewNode) return;
+    toolsPreviewNode.connect(toolsPreviewGain);
+    toolsPreviewPlaying = true;
+  }
+  renderToolsRecent();
+}
+
 function processToolsUploadFile(file) {
   if (!file) return;
-  if (els.toolsFileName) els.toolsFileName.textContent = file.name;
-  if (els.toolsFileMeta) els.toolsFileMeta.textContent = `${Math.max(1, Math.round(file.size / 1024))} KB`;
+  const validation = validateAudioFile(file);
+  if (!validation.ok) { toast(validation.title, validation.detail); return; }
+  if (els.toolsUploadBtnLabel) els.toolsUploadBtnLabel.textContent = "Yükleniyor…";
+  audioEngine.initAudio().then(() => uploadManager.loadFile(file)).then(res => {
+    if (!res.ok) { toast(res.title, res.detail); return; }
+    toolsPreviewPlaying = false;
+    toolsUploadedFile = { name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)) };
+    renderToolsRecent();
+    toast("Dosya yüklendi", `${file.name} — dinlemek için oynat, modlarda kaynak olarak da seçilebilir.`);
+  }).finally(() => {
+    if (els.toolsUploadBtnLabel) els.toolsUploadBtnLabel.textContent = "Dosya seç";
+  });
 }
 if (els.toolsUploadBtn && els.toolsFileInput) {
   els.toolsUploadBtn.addEventListener("click", async () => {
-    // G61 (PAYWALL.md): "Araçlar sekmesi içeriği: kilitli" — bu buton
-    // Analiz/Referans filtrelerini besleyen TEK yükleme kartı, ikisi de
-    // zaten Pro kilidi arkasında (bkz. applyProLockVisibility) — kartın
-    // KENDİSİ o kilitlerin ÜSTÜNDE durduğu için ayrıca burada da kapatılır.
+    // G61 (PAYWALL.md): "Araçlar sekmesi içeriği: kilitli" — kart Pro-only
+    // dalında (toolsProContent) zaten render edilmiyor ama bu buton yine de
+    // savunmacı olarak kontrol ediyor (applyProLockVisibility'nin ÜSTÜNDE).
     if (paywall.isToolsContentLocked(isUserPro())) {
       if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail);
       return;
@@ -6608,22 +6745,17 @@ if (els.toolsUploadBtn && els.toolsFileInput) {
     processToolsUploadFile(file);
   });
 }
+if (els.toolsProBtn) els.toolsProBtn.addEventListener("click", () => { resetPaywallToGeneric(); goScreen("paywall"); });
 
-// Gerçek satın alma bu sürümde yok — Analiz/Referans Filtreleri normalde her zaman
-// kilitli görünür, dokununca paywall'a yönlendirir. isUserPro() true ise (gerçek ya
-// da geliştirici simülasyonu) kilit örtüsü gizlenir, altındaki .card görünür/
-// dokunulabilir olur — İÇERİK hâlâ statik örnek veri (gerçek analiz motoru bu
-// görevin kapsamı dışı), sadece ERİŞİM engeli kaldırılıyor.
+// Gerçek satın alma bu sürümde yok — Araçlar sekmesi normalde her zaman
+// kilitli görünür (toolsFreeLock), dokununca paywall'a yönlendirir. isUserPro()
+// true ise (gerçek ya da geliştirici simülasyonu) toolsProContent görünür
+// olur — Referans Filtreleri hâlâ statik örnek/bilgilendirici veri (gerçek
+// DSP bu görevin kapsamı dışı), sadece ERİŞİM engeli kaldırılıyor.
 function applyProLockVisibility() {
   const pro = isUserPro();
-  [els.analyzeLock, els.filtersLock].forEach(btn => {
-    if (!btn) return;
-    btn.classList.toggle("hidden", pro);
-  });
+  if (els.toolsProContent) els.toolsProContent.classList.toggle("hidden", !pro);
+  if (els.toolsFreeLock) els.toolsFreeLock.classList.toggle("hidden", pro);
 }
-[els.analyzeLock, els.filtersLock].forEach(btn => {
-  if (!btn) return;
-  btn.addEventListener("click", () => { closeMainSettingsSheet(); resetPaywallToGeneric(); goScreen("paywall"); });
-});
 applyProLockVisibility();
 enforceFreeRestrictions(); // G61: temiz açılışta da (Pro'dan düşmüş eski bir localStorage kaydı olabilir)

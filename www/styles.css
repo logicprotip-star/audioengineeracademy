@@ -1441,6 +1441,61 @@
     .placeholder h3{margin:0 0 6px;color:var(--tx);font-size:17px}
     .placeholder p{margin:0;font-size:14px;line-height:1.5}
 
+    /* G88: Tasarim-2026-08/Prototip.dc.html ARAÇLAR bloğunun (satır 352-449)
+       literal ölçüleri — eski .pro-lock/.pro-lock-overlay/.fchip/.tool-spec/
+       .tool-bars/.tool-axis (sahte Analiz kartı + eski filtre-chip deseni)
+       KASITLI olarak silinmedi (kodları hâlâ dosyada, bkz. app.js'in AYNI
+       notu) ama artık HİÇBİR HTML onları kullanmıyor. */
+    .tools-scroll{padding:62px 16px 96px 16px !important;display:flex;flex-direction:column;gap:15px}
+    .tools-head{flex-shrink:0}
+    .tools-title{font-size:22px;font-weight:800;letter-spacing:-.4px;color:#f2f3f5}
+
+    .tools-card{flex-shrink:0;border-radius:18px;background:linear-gradient(180deg,#17191d,#121316);border:1px solid rgba(255,255,255,.08);overflow:hidden;box-shadow:0 8px 20px rgba(0,0,0,.35);padding:16px 16px 14px 16px}
+    .tools-card-top{display:flex;align-items:center;gap:11px}
+    .tools-card-icon{width:40px;height:40px;border-radius:12px;flex-shrink:0;background:rgba(34,211,238,.09);border:1px solid rgba(34,211,238,.22);display:flex;align-items:center;justify-content:center}
+    .tools-card-copy{flex:1;min-width:0}
+    .tools-card-title{font-size:16px;font-weight:700;letter-spacing:-.2px;color:#f2f3f5}
+    .tools-card-sub{font-size:11.5px;font-weight:500;color:#8f949b;margin-top:2px}
+
+    .tools-upload-btn{width:100%;height:46px;margin-top:14px;border:1px dashed rgba(34,211,238,.4);border-radius:12px;background:rgba(34,211,238,.06);color:#22d3ee;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
+    .tools-upload-btn:active{transform:scale(.98)}
+    .tools-recent-label{margin:10px -16px 0;padding:10px 16px 6px 16px;font-size:10px;font-weight:700;letter-spacing:1px;color:#4a4f56;text-transform:uppercase;border-top:1px solid rgba(255,255,255,.05)}
+    .tools-recent-empty{padding:18px 0 8px 0;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+    .tools-recent-empty-title{font-size:13px;font-weight:600;color:#6c7178}
+    .tools-recent-empty-sub{font-size:11.5px;line-height:1.45;color:#4a4f56;max-width:240px}
+    .tools-recent-row{display:flex;align-items:center;gap:12px;margin:0 -16px;padding:10px 16px 0 16px;border-top:1px solid rgba(255,255,255,.04)}
+    @keyframes toolsBreathe{0%,100%{box-shadow:0 0 0 0 rgba(34,211,238,.35)}50%{box-shadow:0 0 0 6px rgba(34,211,238,0)}}
+    .tools-recent-play{width:34px;height:34px;border-radius:50%;flex-shrink:0;border:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg,#23262b,#15171a);color:#c9cdd3;display:flex;align-items:center;justify-content:center;cursor:pointer}
+    .tools-recent-play.playing{border-color:rgba(34,211,238,.6);color:#22d3ee;animation:toolsBreathe 2.4s ease-in-out infinite}
+    .tools-recent-play:active{transform:scale(.94)}
+    .tools-recent-body{flex:1;min-width:0}
+    .tools-recent-name{font-size:13px;font-weight:600;color:#d6d9dd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tools-recent-meta{font-size:10.5px;font-weight:500;color:#4a4f56;margin-top:1px;font-variant-numeric:tabular-nums}
+    .tools-recent-wave{flex-shrink:0;width:62px;height:26px;color:#3a3f45}
+
+    .tools-filter-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+    .tools-filter-card{border-radius:14px;padding:12px;background:rgba(255,255,255,.03);border:1.5px solid rgba(255,255,255,.08);cursor:pointer;display:flex;flex-direction:column;gap:9px}
+    .tools-filter-card:active{transform:scale(.97)}
+    .tools-filter-card.active{background:rgba(34,211,238,.07);border-color:rgba(34,211,238,.55);box-shadow:0 0 18px rgba(34,211,238,.15)}
+    .tools-filter-top{display:flex;align-items:center;justify-content:space-between;min-height:18px}
+    .tools-filter-icon{color:#8f949b}
+    .tools-filter-card.active .tools-filter-icon{color:#22d3ee}
+    .tools-filter-on{font-size:9px;font-weight:800;letter-spacing:.6px;color:#22d3ee;background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.35);border-radius:5px;padding:2px 6px}
+    .tools-filter-curve{height:26px;color:#4a4f56}
+    .tools-filter-card.active .tools-filter-curve{color:#22d3ee}
+    .tools-filter-name{font-size:12.5px;font-weight:700;color:#d6d9dd}
+    .tools-filter-card.active .tools-filter-name{color:#eef0f2}
+    .tools-filter-range{font-size:10px;font-weight:500;color:#6c7178;margin-top:1px}
+    .tools-filter-note{margin:11px 2px 0;font-size:11.5px;line-height:1.45;color:#6c7178}
+
+    .tools-lock{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:20px 4px}
+    .tools-lock-pentagon{position:relative;width:92px;height:92px;filter:drop-shadow(0 8px 22px rgba(217,168,60,.3))}
+    .tools-lock-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:4px}
+    .tools-lock-title{font-size:21px;font-weight:800;letter-spacing:-.4px;color:#f2f3f5}
+    .tools-lock-sub{font-size:13.5px;line-height:1.55;color:#8f949b;margin-top:8px;max-width:280px}
+    .tools-lock-cta{width:100%;max-width:290px;height:50px;border:none;border-radius:14px;background:linear-gradient(180deg,#f6d878,#d9a83c);color:#1a1305;font-family:'Inter',sans-serif;font-size:15.5px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(217,168,60,.35),inset 0 1px 0 rgba(255,255,255,.35)}
+    .tools-lock-cta:active{transform:scale(.98)}
+
     /* ---- efektler (toast/xp/particle) ---- */
     /* G73: XP/ödül efektleri (+XP uçan yazı, doğru-cevap parçacık patlaması)
        artık --gold — "kazanım" anlamı birincil vurgudan (cyan) ayrı tutuldu. */
