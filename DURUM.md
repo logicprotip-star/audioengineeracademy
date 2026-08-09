@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G83)
+Son güncelleme: 09.08.2026 (G84)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,129 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G83, tek commit) — **SPEKTRUM ANALİZÖRÜ giydirildi —
+Bu commit (G84, tek commit) — **SINAV EKRANLARI giydirildi — beş durum
+(announce/run/passed/failed/makeup), Prototip.dc.html examSets objesi
+birebir + telafi ekseninin/tetikleyicisinin koddan doğrulanmış düzeltmesi**
+
+Tasarım kaynağı: `Tasarim-2026-08/Prototip.dc.html` (satır ~1958-2007,
+`examSets` objesi + satır ~827-865, `screen==='exam'` bloğu) — AÇILIP
+öğe öğe eşlendi:
+
+| Tasarım öğesi | Karşılığı (bu turda uygulanan) |
+|---|---|
+| Sınav anonsu (altın duyuru), gir/devam seçimi | Yeni `#screen-exam` "announce" durumu — `showExamScreen("announce", {source})`. ÖNCEDEN `examOfferSheet` (küçük bottom-sheet) idi, TAM EKRANA taşındı |
+| Sınav modu (üst barda kalpler yerine 4 nokta + "SINAV N/4") | G77'de kurulmuştu (`renderGameHeader()`) — canlı doğrulandı, İKİ gerçek fark bulundu ve düzeltildi (aşağıda) |
+| Geçti, "Sv N → N+1" kutlaması | Yeni `#screen-exam` "passed" durumu. ÖNCEDEN `examPassSheet` idi, TAM EKRANA taşındı |
+| Kaldı, parkur baştan | Yeni `#screen-exam` "failed" durumu — ÖNCEDEN sadece `appendExamNote()` (feedback kartına eklenen TEK satır) vardı, hiç ekran YOKTU |
+| Telafi turu — zayıf bölge bilgisi, 5 soru, geçme koşulu 3 doğru | Yeni `#screen-exam` "makeup" durumu — ÖNCEDEN sadece `appendExamNote()` vardı, hiç ekran YOKTU |
+| Badge/pill (altıgen SVG, `26,3 48,19 40,46 12,46 4,19` + `26,9 42.5,21 36.5,41 15.5,41 9.5,21`) | `#resBadge`/`#levelChip`'in AYNI iki-poligon tekniği, `#examBadgeGrad` yeni gradyan def |
+| popIn animasyonu | Yeni keyframe İCAT EDİLMEDİ — G81'in `fbPopIn`'i (AYNI teknik, farklı isim) reuse edildi |
+
+**KRİTİK DÜZELTME (task'ın kendi uyarısı, `core/exam-system.js`'ten
+doğrulandı) — telafi YANLIŞ eksene bağlıydı:** Tasarımın "failed" durumunun
+`onPrimary`'si telafiye zincirleniyordu (`{exam:'makeup'}`) ve "makeup"ın
+gövde metni "Sınavdaki üç hatanın da..." diyordu — GERÇEK kodda telafi
+SADECE 10 soruluk PARKUR toplamda `<6` doğruyla biterse başlıyor
+(`remedial-start` event'i, `exam-system.js:recordAnswer`'ın PARKUR dalından
+DÖNER); sınavda kalmak (`exam-failed`) BASİT — telafi YOK, doğrudan parkur
+baştan (`resetParkur()` ZATEN çağrılmış). Bu yüzden:
+- "failed" ekranının gövdesi/faktleri sınav sonucunu (`ctx.examCorrect`)
+  gösterir, birincil buton **"Devam Et"** (tasarımın "Telafi turuna gir"i
+  DEĞİL — parkur zaten sıfırlandı, sıradaki soru taze bir parkurun ilk
+  sorusu).
+- "makeup" ekranının gövdesi **"10 soruluk parkurda en az 6 doğru
+  yapılamadı"** der (sınavı DEĞİL, parkuru referans alır).
+
+**Telafi ekseni — modun GERÇEK `EXAM_WEAK_AREA`'sına göre:** `getWeakArea()`
+(mevcut, G50) `mode.EXAM_WEAK_AREA==="zone"` iken zayıf FREKANS bölgesini
+(`"Zayıf bölgen: X"`), aksi halde zayıf ZORLUK kademesini (`"Zayıf
+kademen: X"`) döner — task'ın "Frekans Bulma/Kesim Noktası/Boost mu Cut
+mu/Q Genişliği → zone" listesi koddan doğrulandı, AMA **Frekans Çakışması da
+`EXAM_WEAK_AREA="zone"`** (task'ın listesinde YOK, koddan bulundu — 5.
+zone-modu). Metin `mode.EXAM_WEAK_AREA` DEĞERİNİ okuyarak üretildiği için bu
+5. modu da OTOMATİK doğru ele alıyor, ayrı bir kod dalı GEREKMEDİ.
+
+**"Sınavda can harcanmaz" — sınava özgü bir istisna İCAT EDİLMEDİ:**
+`examGateActive()` zaten `isUserPro()` gerektiriyor VE `loseLife()` Pro'da
+HİÇ can azaltmıyor (mevcut, dosya başı notu "Pro'da can sınırı yok") — yani
+bu cümle GERÇEKTEN doğru, ayrı bir "sınavda can yok" mekanizması EKLENMEDİ.
+
+**"run" durumunda G77'den beri var olan İKİ gerçek fark bulundu, düzeltildi:**
+1. **Nokta göstergesi İKİ değil ÜÇ durumu ayırt etmeliydi** — tasarımın
+   `examDots`'u (`i<examOk` altın / `i<examIdx` kırmızı / kalan gri) — G77
+   SADECE `i<current` (tek "on" durumu) uyguluyordu, YANLIŞ cevaplanan
+   sorular da altın görünüyordu. `.game-exam-dot.wrong` (kırmızı,
+   `rgba(248,113,96,.6)`) eklendi, `examSystem.examCorrect`/`remedialCorrect`
+   okunarak üç durum ayırt ediliyor. Genişlik 20px→22px (tasarımın literal
+   değeri).
+2. **Bölüm (chapter) satırı sınav/telafi sırasında GİZLENMİYORDU** —
+   tasarımın `showChapter`'ı (`!boss && s.exam!=='run'`) sınav/telafi
+   fazında bu satırı da gizliyor; G77/G78 SADECE `!boss` uyguluyordu, "BÖLÜM
+   10/10" ile "SINAV 2/4" AYNI ekranda ÇAKIŞIYORDU. `showChapter = !boss &&
+   !examActive` — düzeltildi.
+
+**Birincil buton renkleri — İLK uygulamada UNUTULMUŞTU, canlı doğrulamada
+yakalandı:** Tasarımın `pbg`/`pc` alanları (announce ALTIN, passed/failed/
+makeup'ın ÜÇÜ de YEŞİL) `els.exCta`'ya hiç UYGULANMAMIŞTI — buton
+`.btn.primary`'nin varsayılan (cyan) rengini gösteriyordu. Canlı ekran
+görüntüsüyle YAKALANIP düzeltildi (`GOLD_BTN`/`GREEN_BTN` sabitleri).
+
+**Kazanılan XP (passed ekranı) — YENİ, küçük bir biriktirici gerekti:**
+`examSystem` XP'ye hiç dokunmuyor (mode-agnostic) — `passed`ın "Kazanılan
+XP" gerçeği için `examXpSum` eklendi (G81/G82'nin `xpBaseSum` deseninin
+AYNISI), `handleExamOutcome`'a yeni `gained` parametresi (8 çağrı noktası,
+`submitFrequencyGuess`'ten `submitCakismaGuess`'e kadar) — SADECE
+`examSystem.phase==="exam"` iken artıyor, telafi/parkur XP'si karışmıyor.
+Canlı doğrulandı: +446/+528 XP gerçek sınav XP'siyle BİREBİR eşleşti.
+
+**"failed" ekranının sınav sonucu — resetParkur() SAYAÇLARI SIFIRLADIKTAN
+SONRA okunmaz hale geliyordu, elle anlık görüntü alındı:** `exam-failed`
+dalında `resetParkur()` `examCorrect`/`examIndex`'i SIFIRLIYOR — bu yüzden
+"2/4 doğru" gibi bir sonuç `recordAnswer()` ÇAĞRILMADAN ÖNCE
+(`examCorrectSnapshot = examSystem.examCorrect + (result.correct?1:0)`)
+yakalanıp `ctx.examCorrect` olarak taşınıyor.
+
+**"Yeni rozet" (passed) — G82'nin AYNI kuralı:** SADECE bu OTURUMDA
+gerçekten açılan bir başarım varsa (`session.newBadges`) satır görünür,
+tasarımın sabit "İlk Sınav" örneği UYDURULMADI.
+
+**remedial-passed/remedial-failed'ın kendi ekranı YOK** — task'ın "beş
+durum" listesi (announce/run/passed/failed/makeup) bunları KAPSAMIYOR,
+mevcut `appendExamNote()` deseni KORUNDU (canlı doğrulandı: telafiyi geçmek
+sessizce parkura dönüyor, ekran açılmıyor — beklenen davranış).
+
+**Sökülen eski kod:** `examOfferSheet`/`examPassSheet` (2 bottom-sheet, HTML
++ 9 `els{}` girdisi + 4 fonksiyon) tamamen kaldırıldı, yerine tek
+`showExamScreen(kind, ctx)` + `#screen-exam` geçti.
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ. `npm test`:
+**1043/1043**.
+
+**DOĞRULAMA (canlı tarayıcı, geçici `window.__examDebug` ile — canlı doğrulama
+SONRASI SÖKÜLDÜ, commit'te YOK):**
+- **Beşi de canlı tetiklendi:** announce (İKİ yoldan — kombo-6 erken teklifi
+  VE otomatik parkur-sonu tetikleyicisi, ikisi de AYNI ekranı açıyor),
+  run (SINAV N/4 + TELAFİ N/5, ikisi de dokümanlı), passed (Kompresör'de
+  4/4, Sv 1→2 VE Sv 2→3, gerçek rozet "Şimşek Kulak"/"Pro Kulak"), failed
+  (2/4, "Parkur baştan"), makeup (Kompresör'de TİER ekseni "Zayıf kademen:
+  Kolay"; Q Genişliği'nde ZONE ekseni "Zayıf bölgen: genel spektrum" —
+  yeterli veri yokken dürüst fallback, uydurma yok).
+- **Kalpler gizlenip nokta göstergesi çıktığı doğrulandı:** ekran
+  görüntüsüyle — sınav/telafi sırasında `#hearts` gizli, `#gameExamRow`
+  görünür, üç renkli nokta durumu (altın/kırmızı/gri) canlı gözlemlendi.
+  `#gameChapterRow`/`#gameSpeedRow` da AYNI anda gizli (G84'ün 2. düzeltmesi).
+- **İki farklı modda telafi ekseni doğrulandı:** Kompresör (KADEME ekseni,
+  "Kolay" gerçek etiketi) + Q Genişliği (BÖLGE ekseni, "genel spektrum"
+  dürüst fallback'i) — metinler kod-doğru eksenle eşleşti.
+- **"Sonra" (erken teklif reddi) canlı doğrulandı:** `declineEarlyExam()`
+  gerçekten çağrıldı, parkur KALDIĞI YERDEN (position 6) devam etti, ekran
+  #screen-game'e geri döndü.
+- **Konsol hatası: 0** (taze sekme, sayfa yüklemesinden itibaren izlendi).
+  **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G83, tek commit) — **SPEKTRUM ANALİZÖRÜ giydirildi —
 Tasarim-2026-08/Prototip.dc.html `spectrum()`/`dualSpectrum()` birebir +
 soru sırasında kopya vermeyen NÖTR çizgi (G38 deseninin devamı)**
 
@@ -6751,7 +6873,7 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G83 itibarıyla):** G83 (Spektrum Analizörü giydirme)
+**Tek sonraki adım (G84 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları)
 kod/test/canlı doğrulama açısından TAM kapandı, yeni açık iş bırakmadı.
 ÖNCELİKLE BEKLEYEN KARARLAR madde K
 (Pro'da "done" Seans Sonu durumu hiç tetiklenemiyor — kasıtlı mı, regresyon

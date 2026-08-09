@@ -213,6 +213,19 @@ const els = {
   gameExamRow: document.getElementById("gameExamRow"),
   gameExamDots: document.getElementById("gameExamDots"),
   gameExamProgress: document.getElementById("gameExamProgress"),
+  // G84: #screen-exam (announce/passed/failed/makeup) — bkz. showExamScreen()
+  exPill: document.getElementById("exPill"),
+  exPillIcon: document.getElementById("exPillIcon"),
+  exKicker: document.getElementById("exKicker"),
+  exBadgeOuter: document.getElementById("exBadgeOuter"),
+  exBadgeInner: document.getElementById("exBadgeInner"),
+  exBadgeTop: document.getElementById("exBadgeTop"),
+  exBadgeMain: document.getElementById("exBadgeMain"),
+  exTitle: document.getElementById("exTitle"),
+  exBody: document.getElementById("exBody"),
+  exFacts: document.getElementById("exFacts"),
+  exCta: document.getElementById("exCta"),
+  exSecondary: document.getElementById("exSecondary"),
   gameComboChip: document.getElementById("gameComboChip"),
   gameComboLabel: document.getElementById("gameComboLabel"),
   gameQCounter: document.getElementById("gameQCounter"),
@@ -311,16 +324,6 @@ const els = {
   lvlSheetTitle: document.getElementById("lvlSheetTitle"),
   lvlSheetClose: document.getElementById("lvlSheetClose"),
   lvlSheetBody: document.getElementById("lvlSheetBody"),
-  // G47: sınav sistemi sheet'leri (hpSheet'in AYNI bottom-sheet deseni)
-  examOfferOverlay: document.getElementById("examOfferOverlay"),
-  examOfferSheet: document.getElementById("examOfferSheet"),
-  examOfferDesc: document.getElementById("examOfferDesc"),
-  examOfferAccept: document.getElementById("examOfferAccept"),
-  examOfferDecline: document.getElementById("examOfferDecline"),
-  examPassOverlay: document.getElementById("examPassOverlay"),
-  examPassSheet: document.getElementById("examPassSheet"),
-  examPassDesc: document.getElementById("examPassDesc"),
-  examPassContinue: document.getElementById("examPassContinue"),
   // G37: kulaklık uyarı sheet'i (Dizayn/prototype.html #hpSheet'ten)
   hpSheetOverlay: document.getElementById("hpSheetOverlay"),
   hpSheet: document.getElementById("hpSheet"),
@@ -1811,73 +1814,35 @@ function closeHeadphoneSheet() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// G47 — Sınav sistemi: mode.EXAM_ENABLED olan modlarda (bugün SADECE Kompresör,
-// bkz. kompresor.js) submitThreeWayGuess'in çağırdığı orkestrasyon + iki sheet
-// (erken sınav teklifi, "BÖLÜM GEÇTİN" kutlaması — hpSheet'in AYNI .open class
-// deseni). Mekanik core/exam-system.js'te; burası SADECE o modülün event'lerine
-// göre DOM/ses tepkisi üretir.
+// G47/G84 — Sınav sistemi: mode.EXAM_ENABLED olan modlarda submitThreeWayGuess
+// vb.'nin çağırdığı orkestrasyon + tam ekran #screen-exam (announce/passed/
+// failed/makeup, bkz. showExamScreen()). Mekanik core/exam-system.js'te;
+// burası SADECE o modülün event'lerine göre DOM/ses tepkisi üretir.
+//
+// G84: ÖNCEDEN (G47) "erken sınav teklifi" ve "BÖLÜM GEÇTİN" birer küçük
+// bottom-sheet'ti (hpSheet'in AYNI .open class deseni); "exam-failed"/
+// "remedial-start" hiç EKRAN değildi, SADECE appendExamNote (feedback
+// kartına eklenen tek satır) vardı. Tasarim-2026-08/Prototip.dc.html'in
+// examSets objesi dört alt-durumu TAM EKRAN gösteriyor — bu tur o birebir
+// uygulandı, mekanik (acceptEarlyExam/declineEarlyExam/acknowledgePassed/
+// startRemedial) TEK SATIR değişmedi.
 // ═══════════════════════════════════════════════════════════════════════════
 
-function openExamOfferSheet(remaining) {
-  if (els.examOfferDesc) {
-    els.examOfferDesc.textContent = `Yanıtlanacak ${remaining} sorunuz daha var ve sınav daha zor. Sınava geçmeye emin misiniz?`;
-  }
-  if (els.examOfferOverlay) els.examOfferOverlay.classList.add("open");
-  if (els.examOfferSheet) els.examOfferSheet.classList.add("open");
-}
-function closeExamOfferSheet() {
-  if (els.examOfferOverlay) els.examOfferOverlay.classList.remove("open");
-  if (els.examOfferSheet) els.examOfferSheet.classList.remove("open");
-}
-if (els.examOfferAccept) els.examOfferAccept.addEventListener("click", () => {
-  examSystem.acceptEarlyExam();
-  closeExamOfferSheet();
-  goToNextRound();
-});
-if (els.examOfferDecline) els.examOfferDecline.addEventListener("click", () => {
-  examSystem.declineEarlyExam();
-  closeExamOfferSheet();
-  goToNextRound();
-});
-
-function openExamPassSheet(newLevel) {
-  if (els.examPassDesc) {
-    els.examPassDesc.textContent = `Sınavı geçtin — Seviye ${newLevel}'e yükseldin! Yeni bir 10 soruluk parkur başlıyor.`;
-  }
-  if (els.examPassOverlay) els.examPassOverlay.classList.add("open");
-  if (els.examPassSheet) els.examPassSheet.classList.add("open");
-}
-function closeExamPassSheet() {
-  if (els.examPassOverlay) els.examPassOverlay.classList.remove("open");
-  if (els.examPassSheet) els.examPassSheet.classList.remove("open");
-}
-if (els.examPassContinue) els.examPassContinue.addEventListener("click", () => {
-  examSystem.acknowledgePassed();
-  closeExamPassSheet();
-  goToNextRound();
-});
-
-// Cevap sonrası feedback kartının metnine (setFeedback ZATEN çağrılmış) sınav-
-// ilgili bir NOT ekler — ayrı bir toast/ikinci kart AÇMAK yerine (task'ın "sessiz
-// XP artışı" eleştirdiği aynı sessizlik hissini geri getirmemek için) mevcut
-// karta EKLENİR, kullanıcı zaten okuduğu tek yüzeyden devam eder.
-function appendExamNote(note) {
-  if (!note || !els.feedbackDetail) return;
-  els.feedbackDetail.textContent = `${els.feedbackDetail.textContent} ${note}`;
-}
+// Sınav fazında kazanılan XP — examSystem KENDİSİ XP'ye hiç dokunmuyor (mode-
+// agnostic, bkz. o dosyanın notu), "passed" ekranının "Kazanılan XP" gerçeği
+// bu yüzden AYRI, küçük bir biriktiriciyle tutuluyor (session.xpBaseSum'un
+// AYNI deseni, G81/G82) — SADECE examSystem.phase==="exam" iken artıyor,
+// telafi/parkur XP'si karışmaz. handleExamOutcome'daki "announce" açılışında
+// sıfırlanır (yeni bir sınavın başlangıcı).
+let examXpSum = 0;
 
 // G50 — SINAV SİSTEMİNİN 7 moda yayılması: telafinin HANGİ eksende kişisel-
 // leştirileceğini seçen dispatcher (task'ın kendi ismi/imzası). mode.
-// EXAM_WEAK_AREA==="zone" (Frekans Bulma/Kesim Noktası/Boost-Cut/Q Genişliği)
-// iken zayıf FREKANS BÖLGESİ (personalization.js:getWeakZone, PAYLAŞILAN
-// zoneStats + modun kendi FA_ZONES'u üzerinden) — aksi halde (undefined: dB
-// Seviyesi/Kompresör/Reverb/Tonal Denge, "bu modun bölge kavramı yok") ESKİ
-// zayıf ZORLUK KADEMESİ (exam-system.js:getWeakTier, tierStats üzerinden,
-// G47'den beri DEĞİŞMEDİ). Dönen `value` examSystem.startRemedial()'a AYNEN
-// geçirilir — exam-system.js bunun bir tier string'i mi yoksa bir zone
-// nesnesi mi olduğunu HİÇ bilmez/sormaz (opaque taşır, bkz. o dosyanın "mode-
-// agnostic kalsın" notu); YORUMLAMA (difficulty override mü, focusRange
-// daraltması mı) TAMAMEN app.js:startRound()'un işi (bkz. o fonksiyondaki not).
+// EXAM_WEAK_AREA==="zone" iken zayıf FREKANS BÖLGESİ (personalization.js:
+// getWeakZone, PAYLAŞILAN zoneStats + modun kendi FA_ZONES'u üzerinden) —
+// aksi halde ESKİ zayıf ZORLUK KADEMESİ (exam-system.js:getWeakTier,
+// tierStats üzerinden, G47'den beri DEĞİŞMEDİ). Dönen `value`
+// examSystem.startRemedial()'a AYNEN geçirilir.
 function getWeakArea(stats, modeId) {
   if (mode.EXAM_WEAK_AREA === "zone") {
     const weak = mode.FA_ZONES ? getWeakZone(zoneStats, mode.FA_ZONES) : null;
@@ -1889,11 +1854,163 @@ function getWeakArea(stats, modeId) {
   return { type: "tier", value: tier, label: mode.DIFFICULTY[tier]?.label || tier };
 }
 
-// submitThreeWayGuess'in (Kompresör/Reverb PAYLAŞTIĞI) SONUNDA, SADECE
-// mode.EXAM_ENABLED true iken çağrılır. Dönen boolean: true ise çağıran taraf
-// normal scheduleNext(...)'ü ATLAMALI (bu fonksiyon sheet açıp akışı KENDİSİ
-// yönetiyor demektir) — false ise normal akış (scheduleNext) DEVAM ETMELİ.
-function handleExamOutcome(q, result) {
+// {{ exFacts }}'ın (Prototip.dc.html satır 2428) AYNI satırı — renk
+// verilmezse tasarımın varsayılanı (#d6d9dd → --tx).
+function exFactRow(k, v, color) {
+  return `<div class="ex-fact"><div class="ex-fact-k">${k}</div><div class="ex-fact-v" style="color:${color || "var(--tx)"}">${v}</div></div>`;
+}
+// ico(p,sz,color) — Prototip.dc.html'in AYNI helper'ı (satır ~1781), fill
+// argümanı hiçbir exPillIcon çağrısında verilmiyor → hepsi stroke-only.
+function exPillIconSvg(d, color) {
+  return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"></path></svg>`;
+}
+
+// showExamScreen(kind, ctx) — kind: "announce"|"passed"|"failed"|"makeup".
+// showSessionEnd()'in AYNI "tek DOM, parametrik doldurma" deseni. ctx:
+//   announce: { source: "offer"|"start" } — hangi tetikleyiciden geldiği,
+//     "Sınava başla"/"Sonra" butonlarının GERÇEK mekaniği bu ikisinde FARKLI
+//     (bkz. aşağıdaki ctaHandler/secondaryHandler).
+//   failed: { examCorrect } — resetParkur() examSystem.examCorrect/examIndex'i
+//     SIFIRLADIKTAN SONRA bu fonksiyon çağrıldığı için (bkz. exam-system.js
+//     recordAnswer), gerçek sonuç ÇAĞIRAN TARAFTAN (handleExamOutcome,
+//     recordAnswer'dan ÖNCE) anlık görüntü olarak taşınır.
+//   makeup: { area } — getWeakArea()'nın döndüğü nesne, AYNEN.
+function showExamScreen(kind, ctx = {}) {
+  const modeId = mode.getMeta().id;
+  const es = examStatsFor(modeId);
+  const activeModeCatalogEntry = MODE_CATALOG.find(e => e.id === modeId);
+  const modeName = activeModeCatalogEntry ? activeModeCatalogEntry.ad : modeId;
+  const GOLD = "#f6d878", RED = "var(--rd)", CYAN = "var(--cyan)";
+  // Prototip.dc.html'in examSets'inin AYNI pbg/pc çiftleri — SADECE announce
+  // altın (pill/badge'iyle AYNI vurgu), passed/failed/failed/makeup ÜÇÜ de
+  // YEŞİL (sonucu ne olursa olsun birincil buton "ileri" bir eylem, tasarımın
+  // kendi literal renk seçimi — ilk uygulamada UNUTULMUŞTU, canlı doğrulamada
+  // yakalandı: buton varsayılan .btn.primary rengini [cyan] gösteriyordu).
+  const GOLD_BTN = { pbg: "linear-gradient(180deg,#f6d878,#d9a83c)", pc: "#1a1305" };
+  const GREEN_BTN = { pbg: "linear-gradient(180deg,#46d968,#27a63e)", pc: "#06230e" };
+  let accent, pillBg, pillBorder, pillIconD, kicker, badgeFill, badgeStroke, badgeInnerStroke,
+    badgeTop, badgeMain, title, body, facts, ctaLabel, ctaHandler, ctaBtn, secondaryLabel, secondaryHandler;
+
+  if (kind === "announce") {
+    accent = GOLD; pillBg = "rgba(240,180,66,.12)"; pillBorder = "rgba(240,180,66,.4)";
+    pillIconD = "M6 3h12v18l-6-4-6 4Z"; kicker = "SINAV HAKKI";
+    badgeFill = "url(#examBadgeGrad)"; badgeStroke = "#fbe9a8"; badgeInnerStroke = "#c79a33";
+    badgeTop = "SINAV"; badgeMain = es.examLevel; ctaBtn = GOLD_BTN;
+    title = "Sınav hakkı kazandın!";
+    body = `${modeName} modunda Sv ${es.examLevel} sınavına girmeye hak kazandın.`;
+    facts = [
+      exFactRow("Soru sayısı", `${EXAM_CONFIG.EXAM_LENGTH} soru`),
+      exFactRow("Geçme koşulu", `${EXAM_CONFIG.EXAM_PASS_COUNT} doğru`, "var(--gr)"),
+      // G84: examGateActive() zaten isUserPro() gerektiriyor (bkz. o
+      // fonksiyon) VE loseLife() Pro'da HİÇ can azaltmıyor (bkz. o fonksiyonun
+      // dosya başı notu, "Pro'da can sınırı yok") — yani sınav GERÇEKTEN can
+      // harcamıyor, sınava özgü bir istisna İCAT EDİLMEDİ.
+      exFactRow("Can", "Sınavda can harcanmaz")
+    ];
+    ctaLabel = "Sınava başla";
+    ctaHandler = () => {
+      examXpSum = 0;
+      if (ctx.source === "offer") examSystem.acceptEarlyExam();
+      goScreen("game");
+      goToNextRound();
+    };
+    secondaryLabel = "Sonra";
+    secondaryHandler = () => {
+      if (ctx.source === "offer") { examSystem.declineEarlyExam(); goScreen("game"); goToNextRound(); }
+      else goScreen("home");
+    };
+  } else if (kind === "passed") {
+    accent = GOLD; pillBg = "rgba(240,180,66,.12)"; pillBorder = "rgba(240,180,66,.45)";
+    pillIconD = "M4 12.5l5 5L20 6.5"; kicker = "SINAV GEÇİLDİ";
+    badgeFill = "url(#examBadgeGrad)"; badgeStroke = "#fbe9a8"; badgeInnerStroke = "#c79a33";
+    badgeTop = "SEVİYE"; badgeMain = es.examLevel; ctaBtn = GREEN_BTN;
+    title = `Seviye ${es.examLevel - 1} → ${es.examLevel}`;
+    body = `${modeName} modunda bir üst seviyeye geçtin. Yeni bir 10 soruluk parkur başlıyor.`;
+    facts = [
+      exFactRow("Sınav sonucu", `${examSystem.examCorrect} / ${EXAM_CONFIG.EXAM_LENGTH} doğru`, "var(--gr)"),
+      exFactRow("Kazanılan XP", `+${examXpSum}`, "var(--gr)")
+    ];
+    // G82'nin AYNI "sadece gerçekten açıldıysa göster" kuralı — tasarımın
+    // sabit "İlk Sınav" örneği UYDURULMADI/kopyalanmadı.
+    const badge = session.newBadges.length ? session.newBadges[session.newBadges.length - 1] : null;
+    if (badge) facts.push(exFactRow("Yeni rozet", badge.title, GOLD));
+    ctaLabel = "Devam";
+    ctaHandler = () => { examSystem.acknowledgePassed(); goScreen("game"); goToNextRound(); };
+    secondaryLabel = "Ana Ekran";
+    secondaryHandler = () => { examSystem.acknowledgePassed(); goScreen("home"); };
+  } else if (kind === "failed") {
+    accent = RED; pillBg = "rgba(248,113,96,.1)"; pillBorder = "rgba(248,113,96,.4)";
+    pillIconD = "M6 6l12 12M18 6L6 18"; kicker = "SINAV GEÇİLEMEDİ";
+    badgeFill = "#22252a"; badgeStroke = "rgba(255,255,255,.14)"; badgeInnerStroke = "rgba(255,255,255,.1)";
+    badgeTop = "SEVİYE"; badgeMain = es.examLevel; ctaBtn = GREEN_BTN;
+    title = "Parkur baştan";
+    body = `Sınavı geçemedin — Sv ${es.examLevel} parkuru baştan başlıyor. Kazandığın XP duruyor, hiçbir şey silinmiyor.`;
+    facts = [
+      exFactRow("Sınav sonucu", `${ctx.examCorrect} / ${EXAM_CONFIG.EXAM_LENGTH} doğru`, RED),
+      exFactRow("XP'in", "Korundu", "var(--gr)"),
+      exFactRow("Yeni hak", `${EXAM_CONFIG.TOTAL_THRESHOLD} doğruda tekrar`)
+    ];
+    ctaLabel = "Devam Et";
+    ctaHandler = () => { goScreen("game"); goToNextRound(); };
+    secondaryLabel = "Ana Ekran";
+    secondaryHandler = () => goScreen("home");
+  } else { // makeup
+    accent = CYAN; pillBg = "rgba(34,211,238,.1)"; pillBorder = "rgba(34,211,238,.35)";
+    pillIconD = "M3 12a9 9 0 1 0 2.6-6.3M3 4v5h5"; kicker = "TELAFİ TURU";
+    badgeFill = "#1b2a2e"; badgeStroke = "rgba(34,211,238,.5)"; badgeInnerStroke = "rgba(34,211,238,.35)";
+    badgeTop = "SORU"; badgeMain = EXAM_CONFIG.REMEDIAL_LENGTH; ctaBtn = GREEN_BTN;
+    const area = ctx.area || { type: "tier", label: null };
+    const isZone = area.type === "zone";
+    const areaLabel = area.label || (isZone ? "genel spektrum" : "orta");
+    title = `Zayıf ${isZone ? "bölgen" : "kademen"}: ${areaLabel}`;
+    // G84 KRİTİK DÜZELTME (task'ın uyarısı, core/exam-system.js'ten
+    // doğrulandı): tasarımın "Sınavdaki üç hatanın da..." metni YANLIŞ
+    // eksene bağlıydı — telafi SINAVDA kalınca DEĞİL, 10 soruluk PARKUR
+    // toplamda <6 doğruyla bitince başlıyor (bkz. core/exam-system.js
+    // recordAnswer, "remedial-start" event'i SADECE parkur dalından döner).
+    body = `10 soruluk parkurda en az ${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — telafi turu ${isZone ? (area.label ? `${area.label} bölgesine` : "genel spektruma") : `${areaLabel} kademesine`} odaklanacak.`;
+    facts = [
+      exFactRow(isZone ? "Bölge" : "Kademe", areaLabel, RED),
+      exFactRow("Soru sayısı", `${EXAM_CONFIG.REMEDIAL_LENGTH} soru`),
+      exFactRow("Geçme koşulu", `${EXAM_CONFIG.REMEDIAL_PASS_COUNT} doğru`, "var(--gr)")
+    ];
+    ctaLabel = "Telafi turunu başlat";
+    ctaHandler = () => { goScreen("game"); goToNextRound(); };
+    secondaryLabel = "Ana Ekran";
+    secondaryHandler = () => goScreen("home");
+  }
+
+  if (els.exPill) { els.exPill.style.background = pillBg; els.exPill.style.border = `1px solid ${pillBorder}`; }
+  if (els.exPillIcon) els.exPillIcon.innerHTML = exPillIconSvg(pillIconD, accent);
+  if (els.exKicker) { els.exKicker.textContent = kicker; els.exKicker.style.color = accent; }
+  if (els.exBadgeOuter) { els.exBadgeOuter.setAttribute("fill", badgeFill); els.exBadgeOuter.setAttribute("stroke", badgeStroke); }
+  if (els.exBadgeInner) els.exBadgeInner.setAttribute("stroke", badgeInnerStroke);
+  if (els.exBadgeTop) { els.exBadgeTop.textContent = badgeTop; els.exBadgeTop.style.color = accent; }
+  if (els.exBadgeMain) { els.exBadgeMain.textContent = badgeMain; els.exBadgeMain.style.color = accent; }
+  if (els.exTitle) els.exTitle.textContent = title;
+  if (els.exBody) els.exBody.textContent = body;
+  if (els.exFacts) els.exFacts.innerHTML = facts.join("");
+  // exCta/exSecondary'nin onclick'i (addEventListener DEĞİL) BİLEREK — her
+  // showExamScreen() çağrısı öncekini birikmeden DEĞİŞTİRİR (showSessionEnd'in
+  // resCta'sıyla AYNI tek-atama deseni).
+  if (els.exCta) {
+    els.exCta.textContent = ctaLabel;
+    els.exCta.onclick = ctaHandler;
+    els.exCta.style.background = ctaBtn.pbg;
+    els.exCta.style.color = ctaBtn.pc;
+  }
+  if (els.exSecondary) { els.exSecondary.textContent = secondaryLabel; els.exSecondary.onclick = secondaryHandler; }
+
+  goScreen("exam");
+}
+
+// submitThreeWayGuess vb.'nin (8 çağrı noktası, bkz. grep) SONUNDA, SADECE
+// mode.EXAM_ENABLED true iken çağrılır. `gained` — bu turda kazanılan GERÇEK
+// XP (çağıran fonksiyonun KENDİ `gained` değişkeni, G84: examXpSum için).
+// Dönen boolean: true ise çağıran taraf normal scheduleNext(...)'ü ATLAMALI
+// (bu fonksiyon #screen-exam açıp akışı KENDİSİ yönetiyor demektir) — false
+// ise normal akış (scheduleNext) DEVAM ETMELİ.
+function handleExamOutcome(q, result, gained) {
   const modeId = mode.getMeta().id;
   const es = examStatsFor(modeId);
   // tierStats SADECE normal parkur cevaplarından beslenir — sınav/telafi
@@ -1902,51 +2019,59 @@ function handleExamOutcome(q, result) {
   if (examSystem.phase === "parkur") {
     es.tierStats = recordTierResult(es.tierStats, q.difficulty, result.correct);
   }
+  // G84: examXpSum SADECE sınav fazındaki sorularda artıyor — recordAnswer()
+  // fazı DEĞİŞTİRMEDEN ÖNCE okunuyor (bu satır "exam"in SON sorusu için de
+  // doğru çalışır, çünkü faz geçişi recordAnswer'IN İÇİNDE olur).
+  if (examSystem.phase === "exam") examXpSum += gained || 0;
+  // G84: "failed" ekranının "Sınav sonucu" gerçeği — resetParkur()
+  // (recordAnswer'IN İÇİNDE, "exam-failed" dalında) examCorrect/examIndex'i
+  // SIFIRLAR; o yüzden BU cevabın sonucu recordAnswer'DAN ÖNCE, elle
+  // hesaplanıp yakalanıyor (recordAnswer'ın kendi examIndex++/examCorrect++
+  // mantığının AYNISI).
+  const examCorrectSnapshot = examSystem.examCorrect + (result.correct ? 1 : 0);
 
   const outcome = examSystem.recordAnswer(result.correct, q.difficulty);
 
   switch (outcome.event) {
     case "exam-offer":
-      openExamOfferSheet(outcome.remaining);
-      return true; // scheduleNext YOK — kullanıcı sheet'te karar verene kadar bekler
+      showExamScreen("announce", { source: "offer" });
+      return true; // scheduleNext YOK — kullanıcı ekranda karar verene kadar bekler
     case "exam-start":
-      appendExamNote(`Sınav başlıyor — ${EXAM_CONFIG.EXAM_LENGTH} soru, zorlaştırılmış.`);
-      return false;
-    // G48 DÜZELTMESİ: telafi artık BURADA (parkur TOPLAM<6, ne kombo ne
-    // toplam yolu tetiklendi) başlıyor — ÖNCEDEN (G47) burada doğrudan
-    // "parkur-failed" (telafi YOK) vardı, hata BUYDU.
-    // G50: tier YERİNE getWeakArea() — moda göre zon ya da kademe döner (bkz.
-    // o fonksiyonun notu). value null olabilir (zone tipinde, yeterli veri
-    // yoksa) — startRemedial(null) GÜVENLİ (startRound() bunu "daraltma yok"
-    // olarak yorumlar, bkz. o fonksiyon), tier tipinde ASLA null değil
-    // ("medium" fallback'i getWeakArea İÇİNDE zaten uygulanıyor).
+      examXpSum = 0;
+      showExamScreen("announce", { source: "start" });
+      return true;
+    // G48 DÜZELTMESİ: telafi BURADA (parkur TOPLAM<6, ne kombo ne toplam
+    // yolu tetiklendi) başlıyor. G50: tier YERİNE getWeakArea() — moda göre
+    // zon ya da kademe döner (bkz. o fonksiyonun notu). value null olabilir
+    // (zone tipinde, yeterli veri yoksa) — startRemedial(null) GÜVENLİ
+    // (startRound() bunu "daraltma yok" olarak yorumlar).
     case "remedial-start": {
       const area = getWeakArea(stats, modeId);
       examSystem.startRemedial(area.value);
-      const desc = area.type === "zone"
-        ? (area.label ? `${area.label} bölgesinde` : "genel spektrumda")
-        : `${area.label} kademesinde`;
-      appendExamNote(`${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — ${desc} ${EXAM_CONFIG.REMEDIAL_LENGTH} telafi sorusu geliyor.`);
-      return false;
+      showExamScreen("makeup", { area });
+      return true;
     }
     case "exam-passed": {
       es.examLevel = (es.examLevel || 1) + 1;
       persistStats();
       updateUI();
       // "Belirgin, ödül hissi" (task) — doğru cevaptaki AYNI flörtür fx'leri
-      // (ding+burst), sıradan bir doğru cevaptan AYRIŞSIN diye kutlama sheet'iyle
-      // BİRLİKTE.
+      // (ding+burst), sıradan bir doğru cevaptan AYRIŞSIN diye kutlama
+      // ekranıyla BİRLİKTE.
       audioEngine.sfxDing();
       burst(els.canvas);
-      openExamPassSheet(es.examLevel);
-      return true; // scheduleNext YOK — kullanıcı kutlamayı "Devam Et" ile kapatana kadar bekler
+      showExamScreen("passed");
+      return true;
     }
-    // G48: sınavda kalmak artık BASİT (task: "sınav tekrar ya da parkur
-    // baştan") — telafi YOK, doğrudan parkur baştan (core/exam-system.js
-    // resetParkur'u ZATEN çağırdı).
+    // G48: sınavda kalmak BASİT (task: "sınav tekrar ya da parkur baştan") —
+    // telafi YOK, doğrudan parkur baştan (core/exam-system.js resetParkur'u
+    // ZATEN çağırdı).
     case "exam-failed":
-      appendExamNote("Sınavı geçemedin — parkur baştan başlıyor.");
-      return false;
+      showExamScreen("failed", { examCorrect: examCorrectSnapshot });
+      return true;
+    // G84: remedial-passed/remedial-failed'ın kendi bir tam ekranı YOK —
+    // task'ın "beş durum" listesi bunları KAPSAMIYOR (announce/run/passed/
+    // failed/makeup) — mevcut appendExamNote deseni KORUNDU.
     case "remedial-passed":
       appendExamNote("Telafiyi geçtin — parkura devam.");
       return false;
@@ -1956,6 +2081,15 @@ function handleExamOutcome(q, result) {
     default:
       return false;
   }
+}
+
+// Cevap sonrası feedback kartının metnine (setFeedback ZATEN çağrılmış) sınav-
+// ilgili bir NOT ekler — remedial-passed/remedial-failed için hâlâ kullanılıyor
+// (bkz. yukarı), announce/passed/failed/makeup artık kendi tam ekranını
+// kullanıyor (G84).
+function appendExamNote(note) {
+  if (!note || !els.feedbackDetail) return;
+  els.feedbackDetail.textContent = `${els.feedbackDetail.textContent} ${note}`;
 }
 
 // Şimdilik tek mod var; kayıt defterinden beslenir, elle yazılmaz (bkz. core/registry.js).
@@ -2556,10 +2690,16 @@ function renderGameHeader() {
     const isRemedial = examSystem.phase === "remedial";
     const total = isRemedial ? EXAM_CONFIG.REMEDIAL_LENGTH : EXAM_CONFIG.EXAM_LENGTH;
     const current = isRemedial ? examSystem.remedialIndex : examSystem.examIndex;
+    // G84 DÜZELTMESİ: Prototip.dc.html'in examDots'u (satır ~2395) ÜÇ durumu
+    // ayırt ediyor — i<correctCount ALTIN (doğru cevaplanmış), i<current
+    // KIRMIZI (cevaplanmış ama YANLIŞ), kalanı GRİ (henüz cevaplanmamış).
+    // G77 SADECE current'a bakıyordu (tek "on" durumu) — yanlış cevaplanan
+    // sorular da altın görünüyordu, DÜZELTİLDİ.
+    const correctCount = isRemedial ? examSystem.remedialCorrect : examSystem.examCorrect;
     els.gameExamDots.innerHTML = "";
     for (let i = 0; i < total; i++) {
       const dot = document.createElement("div");
-      dot.className = `game-exam-dot${i < current ? " on" : ""}`;
+      dot.className = `game-exam-dot${i < correctCount ? " on" : i < current ? " wrong" : ""}`;
       els.gameExamDots.appendChild(dot);
     }
     els.gameExamProgress.textContent = `${isRemedial ? "TELAFİ" : "SINAV"} ${Math.min(current + 1, total)}/${total}`;
@@ -2572,9 +2712,14 @@ function renderGameHeader() {
   // HEP görünür (task'ın kendi kararı, G77'nin "sadece 10 Soruluk Bölüm'de"
   // kuralını DEĞİŞTİRİYOR). challenge PASİFKEN (Serbest) noktalar sönük
   // (.dim) + "BÖLÜM —"; AKTİFKEN normal challenge.done/total.
+  // G84 DÜZELTMESİ: tasarımın showChapter'ı (`!boss && s.exam !== 'run'`,
+  // Prototip.dc.html satır 2373) sınav/telafi fazında bölüm satırını da
+  // GİZLİYOR — G77/G78 sadece `!boss` uyguluyordu, sınav/telafi sırasında
+  // "BÖLÜM 10/10" ile "SINAV 2/4" ÇAKIŞIYORDU (aynı satırın altında,
+  // ikisi de görünür kalıyordu). examActive eklendi.
   const boss = !!(activeQuestion && activeQuestion.boss);
   if (els.gameBossRow) els.gameBossRow.classList.toggle("hidden", !boss);
-  const showChapter = !boss;
+  const showChapter = !boss && !examActive;
   if (els.gameChapterRow) els.gameChapterRow.classList.toggle("hidden", !showChapter);
   if (els.gameSpeedRow) els.gameSpeedRow.classList.toggle("hidden", !showChapter);
   if (showChapter && els.gameChapterDots && els.gameChapterLabel) {
@@ -2824,7 +2969,7 @@ function submitFrequencyGuess(guessHz) {
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması (bkz. o
   // fonksiyondaki not) — SADECE mode.EXAM_ENABLED true iken (G50'den beri
   // Frekans Bulma) çağrılır.
-  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -2926,7 +3071,7 @@ function submitCutoffGuess(answer) {
   // X'iyle (bkz. #feedbackClose, merkezi delegasyon) ANINDA atlanabilir.
   const gameOver = finalizeIfGameOver();
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
-  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -3013,7 +3158,7 @@ function submitLevelGuess(value) {
   // (#feedbackClose) de var — merkezi delegasyon, bu mod hiçbir şey eklemedi.
   const gameOver = finalizeIfGameOver();
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
-  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -3105,7 +3250,7 @@ function submitBoostCutGuess(answer) {
   // bu mod hiçbir şey eklemeden otomatik geldi.
   const gameOver = finalizeIfGameOver();
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
-  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -3187,7 +3332,7 @@ function submitQWidthGuess(labelId) {
   // KENDİ X'i (#feedbackClose, G27) de merkezi delegasyondan otomatik geldi.
   const gameOver = finalizeIfGameOver();
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
-  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -3278,7 +3423,7 @@ function submitThreeWayGuess(letter) {
   // çağrılır, Reverb (AYNI fonksiyonu paylaşıyor) tamamen ETKİLENMEDEN eski
   // yoldan devam eder. handleExamOutcome true dönerse (sheet açıldı, akış
   // KENDİSİ yönetiyor demek) normal scheduleNext ATLANIR.
-  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
   // Diğer beş modla AYNI hizalı geçiş formülü (bkz. G21). #feedbackBox'ın
   // KENDİ X'i (#feedbackClose, G27) de merkezi delegasyondan otomatik geldi.
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
@@ -3367,7 +3512,7 @@ function submitTonalDengeGuess() {
   // odd-one-out DEĞİL (bkz. dosya başı not) ama handleExamOutcome q/result
   // şeklinden BAĞIMSIZ (sadece result.correct + q.difficulty okur) — three-way
   // olmayan diğer beş submit fonksiyonuyla AYNI şekilde generic çalışır.
-  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
@@ -3465,7 +3610,7 @@ function submitCakismaGuess(answer) {
   persistDaily();
   const gameOver = finalizeIfGameOver();
   // G51: sınav sistemi — diğer sekiz modla AYNI kablolama.
-  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result);
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
