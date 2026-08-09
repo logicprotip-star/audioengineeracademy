@@ -28,7 +28,7 @@ import { compatibleSourceIds } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
-import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState } from "../core/three-way-cards.js";
+import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState, selectThreeWayCard } from "../core/three-way-cards.js";
 
 // app.js'in GENEL görselleştiricisi diğer dokuz modla AYNI re-export
 // deseni — Distortion'ın KENDİSİ frekansla ilgilenmiyor ama paylaşılan arka
@@ -40,6 +40,9 @@ export const MAX_LIVES = 5;
 // Motor 2'nin ("A/B/C odd-one-out") HANGİ modları kapsadığını app.js TEK
 // yerde (THREE_WAY_MODE_IDS) tutuyor — Kompresör/Reverb'in AYNI bayrağı.
 export const THREE_WAY = true;
+
+// G86: Kompresör/Reverb'in AYNI kararı — Motor 2'de spektrum HİÇ YOK.
+export const HIDE_ANALYZER = true;
 
 // G47/G50'nin AYNI mode-agnostik sınav bayrağı. EXAM_WEAK_AREA export
 // EDİLMEDİ — Kompresör/Reverb/Tonal Denge'nin AYNI zayıf-KADEME (frekans
@@ -419,12 +422,12 @@ export function clearHintMask(hintMaskLayerEl) {
   if (hintMaskLayerEl) hintMaskLayerEl.innerHTML = "";
 }
 
-// Dinleme kontrolü #freqGuessArea'da DEĞİL — app.js'in mevcut 3-yönlü
-// abToggle'ı (Kompresör/Reverb'le PAYLAŞILAN) kullanılıyor.
+// G86 DÜZELTMESİ: Kompresör/Reverb'in AYNI kararı — #freqGuessArea artık
+// Motor 2 onay butonunu taşıyor (bkz. app.js updateThreeWayConfirmButton).
 export function renderGuessAreaControls(freqGuessAreaEl) {
   if (!freqGuessAreaEl) return;
-  freqGuessAreaEl.textContent = "";
-  freqGuessAreaEl.classList.add("hidden");
+  freqGuessAreaEl.classList.remove("hidden");
+  freqGuessAreaEl.innerHTML = `<button type="button" class="btn game-threeway-confirm" id="threeWayConfirmBtn" disabled>Bir kart seç</button>`;
 }
 
 // G41'in büyük kart görseli — core/three-way-cards.js'e delege (Kompresör/
@@ -432,6 +435,7 @@ export function renderGuessAreaControls(freqGuessAreaEl) {
 export const renderAnswerChoices = renderThreeWayCards;
 export const markAnswerChoices = markThreeWayCards;
 export const updateAnswerPlayState = updateThreeWayCardsPlayState;
+export { selectThreeWayCard };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GÖRSEL — task: "distortion karakterini göster — dalga şekli (clipping

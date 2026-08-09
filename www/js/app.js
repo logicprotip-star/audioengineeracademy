@@ -308,6 +308,9 @@ const els = {
   abTitle: document.getElementById("abTitle"),
   abLoopBtn: document.getElementById("abLoopBtn"),
   gameLoopBadgeRow: document.getElementById("gameLoopBadgeRow"),
+  gameLoopCaption: document.getElementById("gameLoopCaption"),
+  gameSpectrumControls: document.getElementById("gameSpectrumControls"),
+  gameM2HintUsedRow: document.getElementById("gameM2HintUsedRow"),
   hintBtn: document.getElementById("hintBtn"),
   hintBtnLabel: document.getElementById("hintBtnLabel"),
   nextBtn: document.getElementById("nextBtn"),
@@ -472,7 +475,12 @@ function populateFocusSelect() {
   if (els.focusChipWrap) els.focusChipWrap.classList.remove("hidden");
 }
 populateFocusSelect();
-updateAnalyzerFoot();
+// G86 DÜZELTMESİ: BURADAKİ erken çağrı SÖKÜLDÜ — updateAnalyzerFoot() artık
+// currentFocusRange() üzerinden isUserPro()'yu (devFlags okur) da çağırıyor,
+// devFlags bu SATIRDAN SONRA (satır ~643) tanımlanıyor — TDZ ReferenceError
+// (canlı konsolda YAKALANDI). #analyzer zaten #screen-game aktif olmadan
+// GÖRÜNMEZ, enterMode() içindeki GERÇEK çağrı (mod gerçekten girilince)
+// yeterli — bu ilk/erken çağrının GÖZLENEBİLİR hiçbir etkisi yoktu.
 
 const ctx2d = els.canvas.getContext("2d");
 
@@ -736,6 +744,11 @@ let threeWayGuessLetter = null;
 // İLK çalışı zaten variants[0] (A) ile başlıyor (bkz. kompresor.js/reverb.js:
 // applyProcessing'in notu), bu ikisi HER ZAMAN senkron kalmalı.
 let threeWayPlayLetter = "A";
+// G86 YENİ — Motor 2 kartlarının SEÇİLİ (henüz gönderilmemiş) harfi. Kart
+// tıklanınca değişir (bkz. #answers click delegasyonu), gönderim AYRI bir
+// onay butonuyla olur (kompresor.js/reverb.js/distortion.js
+// renderGuessAreaControls). Her yeni turda null'a döner.
+let threeWaySelectedLetter = null;
 
 // G45: Tonal Denge'nin CANLI EQ kaydırıcı durumu — {bandId: correctionDb}.
 // dbGuess/boostCutGuess gibi bu modun KENDİ değişkeni (three-way'in paylaşılan
@@ -1413,9 +1426,13 @@ function setFeedback(title, detail, showResult = false, bad = false) {
   if (els.fbEarLeft) els.fbEarLeft.classList.add("hidden");
   if (els.fbEarRight) els.fbEarRight.classList.add("hidden");
   stopFeedbackAdvanceBar();
-  // Gerçek bir sonuç kartı gösterildiğinde (ambient/durum mesajları değil) kartın
-  // tamamı görünür olsun diye alan yeniden ölçülür ve en alta kaydırılır.
-  if (showResult) scrollFeedbackIntoView();
+  // G86 DÜZELTMESİ: G85'ten ÖNCE #feedbackBox .game-scroll akışının İÇİNDEYDİ
+  // — "en alta kaydır" O ZAMAN kartı görünür kılmak içindi. G85 onu
+  // position:fixed'e taşıdı (artık scroll'dan BAĞIMSIZ, HER ZAMAN görünür) —
+  // bu satır ARTIK gereksiz VE ZARARLI hale gelmişti: .game-scroll'u en alta
+  // kaydırmak spektrumdaki cevap işaretlerini (üstte) EKRAN DIŞINA İTİYORDU
+  // (task'ın kendi raporu — "geri bildirim paneli cevap işaretlerini
+  // örtüyor", GERÇEK kök sebep BUYDU). SÖKÜLDÜ.
 }
 
 // G81: #fbSubtitle — SADECE yapısal (panel: {zone,guessHz,...}) veri taşıyan
@@ -1544,6 +1561,12 @@ function appendFreqInfoNote(text, ok) {
 // yerler/koşulları TEK SATIR değişmedi.
 function updateStartBtnLabel() {
   if (!els.startBtn) return;
+  // G86: Motor 2'de büyük yuvarlak play/durdur kontrolü control satırında YOK
+  // (bkz. styles.css .controls-m2 notu) — ama activeQuestion HENÜZ yokken
+  // (idle/"Oyunu Başlat" durumu) bu buton turu başlatan TEK tetikleyici,
+  // gizlenirse mod hiç oynanamaz hale gelirdi (canlı testte yakalandı).
+  // Bu yüzden SADECE round gerçekten aktifken gizleniyor.
+  els.startBtn.classList.toggle("hidden", !!(mode.THREE_WAY && activeQuestion));
   if (!activeQuestion || currentLives <= 0) {
     els.startBtn.textContent = "▶";
     els.startBtn.setAttribute("aria-label", "Oyunu Başlat");
@@ -1560,15 +1583,20 @@ function updateHintChipLabel() {
   if (els.hintStatCount) els.hintStatCount.textContent = stats.hintsRemaining;
   if (!els.hintBtn) return;
   const used = !!(activeQuestion && activeQuestion.hintUsed);
+  // G86: Motor 2'de buton metni SABİT "İpucu" (Prototip.dc.html satır 776) —
+  // "kullanıldı" bilgisi ayrı bir satırda (#gameM2HintUsedRow, aşağı).
+  const isM2 = !!(mode && mode.THREE_WAY);
   // G78: hedef #hintBtn (artık kalıcı bir ampul SVG'si taşıyor, bkz. index.html)
   // DEĞİL #hintBtnLabel (nested span) — levelChip'in G77'deki AYNI retarget
   // deseni, mantık/koşul TEK SATIR değişmedi.
-  const label = used && activeQuestion.hintText
+  const label = isM2 ? "İpucu"
+    : used && activeQuestion.hintText
     ? activeQuestion.hintText
     : `İpucu Ver (${stats.hintsRemaining})`;
   if (els.hintBtnLabel) els.hintBtnLabel.textContent = label;
   else els.hintBtn.textContent = label;
   els.hintBtn.disabled = stats.hintsRemaining <= 0 || !activeQuestion || !roundActive || used;
+  if (els.gameM2HintUsedRow) els.gameM2HintUsedRow.classList.toggle("hidden", !(isM2 && used));
 }
 
 function setAnalyzerPhase(phase) {
@@ -1699,17 +1727,20 @@ function goBackFromSubpage(fallback = "menu") {
 // "20 kHz"si DEĞİL, bizim soru havuzumuzun GERÇEK sınırı 80Hz-17kHz, uydurulmadı).
 // SHOW_SPECTRUM===false modlarda satırın KENDİSİ CSS ile gizli (bkz. enterMode/
 // styles.css .analyzer-no-foot) — bu fonksiyon o durumda erken çıkar, boş yazmaz.
-// G85 DÜZELTMESİ: G83'te bilinçli olarak GERÇEK FA_MIN/FA_MAX (ör. "80 Hz"/
-// "17.0 kHz") yazılıyordu — bu turun kendi talimatı bunun YANLIŞ olduğunu
-// belirtti: Tasarim-2026-08/Prototip.dc.html:spectrum() satır 650/652
-// LİTERAL "20 Hz"/"20 kHz" yazıyor (mod aralığından BAĞIMSIZ, sabit bir
-// ölçek etiketi — ızgaranın KENDİSİ de 50Hz-10kHz aralığında sabit tikler
-// kullanıyor, uçlardaki "20"ler o ızgaranın gerçek uç noktaları değil).
+// G86 DÜZELTMESİ: G85 tasarımın LİTERAL "20 Hz"/"20 kHz"sine dönmüştü — bu
+// turun kendi talimatı BİLEREK tasarımdan AYRILDIĞINI belirtiyor: gerçek
+// mod/odak aralığı yazılsın (task: "PROTOTİPTEN BİLEREK AYRILIYORUZ").
+// currentFocusRange() aktif bir odak seçiliyse [a,b] döner (ör. "Bas"),
+// yoksa mod.FA_MIN/FA_MAX'a düşülür — G83'ün kararının AYNISI, SADECE
+// artık odak aralığını da hesaba katıyor (o zaman yoktu/kullanılmamıştı).
 function updateAnalyzerFoot() {
   if (!els.analyzerFootMin || !els.analyzerFootMax) return;
   if (mode.SHOW_SPECTRUM === false) return;
-  els.analyzerFootMin.textContent = "20 Hz";
-  els.analyzerFootMax.textContent = "20 kHz";
+  const range = currentFocusRange();
+  const lo = range ? range[0] : mode.FA_MIN;
+  const hi = range ? range[1] : mode.FA_MAX;
+  els.analyzerFootMin.textContent = formatHz(lo);
+  els.analyzerFootMax.textContent = formatHz(hi);
   if (els.analyzerFootCaption) els.analyzerFootCaption.textContent = "SPEKTRUM ANALİZÖRÜ";
 }
 
@@ -1757,6 +1788,15 @@ function enterMode(entry, realMode) {
     // modlarda anlamlı — dB Seviyesi/Frekans Çakışması kendi görsellerini
     // kullanıyor (bkz. updateAnalyzerFoot).
     if (els.analyzer) els.analyzer.classList.toggle("analyzer-no-foot", mode.SHOW_SPECTRUM === false);
+    // G86: Motor 2'de (Kompresör/Reverb/Distortion) spektrum kartı HİÇ YOK
+    // (Tasarim-2026-08/Prototip.dc.html isCompMode, task'ın kendi talimatı) —
+    // SHOW_SPECTRUM'dan (grid çizimi, dB Seviyesi/Frekans Çakışması'nda hâlâ
+    // KART görünür kalır) AYRI bir bayrak: mode.HIDE_ANALYZER kartın
+    // TAMAMINI gizler.
+    if (els.analyzer) els.analyzer.classList.toggle("hidden", !!mode.HIDE_ANALYZER);
+    // G86: Motor 2'nin kontrol satırı farklı ölçüler/öğeler taşıyor (bkz.
+    // styles.css .controls-m2 override'ları + index.html'in bu turdaki notu).
+    if (els.gameSpectrumControls) els.gameSpectrumControls.classList.toggle("controls-m2", !!mode.THREE_WAY);
     updateAnalyzerFoot();
     // G47: farklı bir moda geçince sınav sistemi de sıfırlanır (bir modun yarım
     // parkuru başka bir moda SIZMAZ) — examSystem.setMode kendi içinde SADECE
@@ -1777,6 +1817,12 @@ function enterMode(entry, realMode) {
     closeSpotlightTour(false);
     if (els.freqInfo) els.freqInfo.classList.add("hidden");
     if (els.answers) { els.answers.innerHTML = ""; els.answers.classList.add("hidden"); }
+    // G86 DÜZELTMESİ (canlı testte bulundu): #freqGuessArea BURADA hiç
+    // temizlenmiyordu — Motor 2'nin #threeWayConfirmBtn'i ("Bir kart seç")
+    // artık GERÇEK, tıklanabilir görünen bir buton olduğu için, Kompresör'den
+    // Tonal Denge'ye (veya herhangi başka bir moda) geçilince bu ESKİ buton
+    // yeni modun idle ekranında ASILI kalıyordu. #answers'la AYNI desen.
+    if (els.freqGuessArea) { els.freqGuessArea.innerHTML = ""; els.freqGuessArea.classList.add("hidden"); }
     updateStartBtnLabel();
     updateAbToggleUI();
     // G80 DÜZELTMESİ (populateFocusSelect ile AYNI desen taranırken bulundu):
@@ -2661,14 +2707,23 @@ function giveHint() {
 // öğeleri (combo/sayaç/zorluk/bölüm/sınav/hız) besler.
 // ═══════════════════════════════════════════════════════════════════════════
 function renderGameHeader() {
-  // Combo çipi — N gerçek comboBoost'tan türetiliyor. Formül 10 modun
-  // HEPSİNİN calculateXP()'inde birebir aynı (bkz. frekans-bulma.js:507,
-  // grep ile doğrulandı) — burada SAF GÖRÜNTÜLEME amaçlı tekrarlanıyor,
-  // gerçek XP hesabına hiç karışmıyor (paralel sistem DEĞİL).
+  // G86 DÜZELTMESİ: Tasarim-2026-08/Prototip.dc.html satır 2579 —
+  // comboLabel 'x'+GERÇEK stats.combo (TAM SAYI seri sayacı), comboBoost'un
+  // (XP çarpanı, ondalıklı) DEĞİL — ikisi FARKLI kavramlar, eskiden
+  // birbirine karıştırılmıştı ("x1.12" gösteriyordu, tasarım "x2"/"x3"
+  // istiyor). Renkler tasarımın KENDİ eşiği (satır 2580-2583): combo<=1 sönük
+  // amber, combo>1 parlak amber (boss'ta altın), combo>2 flameGlow.
   const combo = stats.combo || 0;
-  const comboBoost = Math.min(2.4, 1 + combo * 0.12);
-  if (els.gameComboLabel) els.gameComboLabel.textContent = `x${comboBoost.toFixed(2)}`;
-  if (els.gameComboChip) els.gameComboChip.classList.toggle("dim", combo === 0);
+  const bossNow = !!(activeQuestion && activeQuestion.boss);
+  if (els.gameComboLabel) els.gameComboLabel.textContent = `x${combo}`;
+  if (els.gameComboChip) {
+    const bright = combo > 1;
+    const fill = bright ? (bossNow ? "#f6d878" : "#f0b442") : "#a8842f";
+    els.gameComboChip.style.color = fill;
+    els.gameComboChip.style.background = bright ? "rgba(240,180,66,.14)" : "rgba(240,180,66,.07)";
+    els.gameComboChip.style.borderColor = bright ? "rgba(240,180,66,.45)" : "rgba(240,180,66,.2)";
+    els.gameComboChip.classList.toggle("flame", combo > 2);
+  }
 
   // Soru sayacı — ücretsiz oturum limiti (paywall.FREE_SESSION_QUESTION_LIMIT=5).
   // Pro'da anlamsız (sınır yok) — gizlenir.
@@ -2781,11 +2836,23 @@ function renderQuestion() {
   mode.clearHintMask(els.hintMaskLayer);
   updateHintChipLabel();
 
-  // G79: idle placeholder KALDIRILDIĞI için (bkz. enterMode notu) ilk GERÇEK
-  // soru burada .hidden'ı kaldırıp gösteriyor.
-  els.questionTitle.classList.remove("hidden");
-  els.questionTitle.textContent =
-    q.mode === "proplus" ? "4 frekansla oynandı — dördünü de dalga üzerinde işaretle."
+  // G86 DÜZELTMESİ: Frekans Bulma'nın DOKUNMALI (tek-işaret, choice DEĞİL)
+  // biçiminde bu kutu Tasarim-2026-08/Prototip.dc.html'in isFreqMode
+  // bloğunda (satır 530-740, TAMAMI okunup doğrulandı) HİÇ yok — kaldırıldı,
+  // yerini #freqGuessArea'nın "Cevabını vermek için spektruma dokun" metni
+  // alıyor (zaten oradaydı). Şıklı biçimde (isChoiceFormat) DOKUNULMADI —
+  // task'ın kapsamı SADECE "dokunmalı" diyor, tasarımın showChoices bloğunda
+  // da böyle bir kutu yok ama bu turun talimatı o kapsamı GENİŞLETMİYOR.
+  const isFreqTouch = q.mode === "frequency" && !isChoiceFormat();
+  els.questionTitle.classList.toggle("hidden", isFreqTouch);
+  // G86: Motor 2 (Kompresör/Reverb/Distortion) — Prototip.dc.html'in
+  // isCompMode başlığı (satır 759) "Farklı olanı bul", HER ÜÇ modda AYNI
+  // (hangisinin FARKLI olduğunu soran eski mod-özel cümleler yerine) — alt
+  // satır (questionMeta) da tasarımda YOK, boşaltıldı.
+  const isM2 = q.mode === "kompresor" || q.mode === "reverb" || q.mode === "distortion";
+  els.questionTitle.textContent = isFreqTouch ? ""
+    : isM2 ? "Farklı olanı bul"
+    : q.mode === "proplus" ? "4 frekansla oynandı — dördünü de dalga üzerinde işaretle."
     : q.mode === "cutoff" ? (q.typeRevealed
         ? `Bu bir ${q.filterLabel}, kesim frekansı nerede?`
         : "Ne tür filtre, hangi frekansta?")
@@ -2794,14 +2861,12 @@ function renderQuestion() {
         : "Açıldı mı kısıldı mı, ne kadar?")
     : q.mode === "boostcut" ? mode.questionTitle(q)
     : q.mode === "qwidth" ? mode.questionTitle(q)
-    : q.mode === "kompresor" ? "Üç ses (A/B/C) — hangisinin kompresyonu FARKLI?"
-    : q.mode === "reverb" ? "Üç ses (A/B/C) — hangisinin reverb'i FARKLI?"
-    : q.mode === "distortion" ? "Üç ses (A/B/C) — hangisinin distortion'ı FARKLI?"
     : q.mode === "tonal-denge" ? `${q.bandCount} bant — kaydırıcılarla sesi nötüre getir.`
     : q.mode === "cakisma" ? mode.questionTitle(q)
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
+  if (isM2) els.questionTitle.classList.add("qline-m2"); else els.questionTitle.classList.remove("qline-m2");
 
-  els.questionMeta.textContent = mode.modeDescription(q);
+  els.questionMeta.textContent = isFreqTouch || isM2 ? "" : mode.modeDescription(q);
   // G51: yeni bir cakisma sorusu render edilirken önceki sorunun öncesi/sonrası
   // karşılaştırma butonları KAPALI başlamalı (bkz. syncCakismaVisibility notu —
   // burada AYRICA çağrılıyor çünkü renderQuestion() her round'da tetiklenir,
@@ -2836,6 +2901,7 @@ function renderQuestion() {
   qGuessLabelId = null;
   threeWayGuessLetter = null;
   threeWayPlayLetter = "A";
+  threeWaySelectedLetter = null;
   tonalDengeCorrections = {};
   cakismaGuess = null;
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
@@ -2945,7 +3011,6 @@ function submitFrequencyGuess(guessHz) {
     setFeedbackSubtitle(`${formatHz(q.freq)} ${result.act} · ${result.zone.t.split(" (")[0]}`);
     showXpBreakdown(q, q.difficulty, gained);
     showFrequencyEars(true, guessHz);
-    scrollFeedbackIntoView();
     mode.recordZone(zoneStats, q.freq, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -2976,7 +3041,6 @@ function submitFrequencyGuess(guessHz) {
       const note = currentLives > 0 ? `Kalan can: ${currentLives}` : "Canların tükendi.";
       els.feedbackDetail.textContent = `${els.feedbackDetail.textContent} ${note}`;
     }
-    scrollFeedbackIntoView();
     challengeTick(false, 0);
   }
 
@@ -3812,6 +3876,39 @@ function cycleThreeWayPreview() {
   updateAbToggleUI();
 }
 
+// G86 YENİ — kartın KENDİ play butonuna basılınca o harfi DOĞRUDAN çalar
+// (cycleThreeWayPreview'ın "sıradakine geç" davranışından FARKLI — burada
+// hangi harf isteniyorsa O çalar, Tasarim-2026-08/Prototip.dc.html'in
+// card.play'i ile AYNI: play: ev => { ev.stopPropagation();
+// this.setState({playingCard:i}) }).
+function playThreeWaySpecific(letter) {
+  if (!roundActive || !isThreeWayQuestion(activeQuestion)) return;
+  const q = activeQuestion;
+  if (!q.variants.some(v => v.letter === letter)) return;
+  threeWayPlayLetter = letter;
+  audioEngine.buildQuestionChain({ ...q, previewLetter: letter }, true, q.source, uploadManager, mode.applyProcessing);
+  updateAbToggleUI();
+}
+
+// G86 YENİ — Motor 2'nin onay butonu (#freqGuessArea içinde, kompresor.js/
+// reverb.js/distortion.js renderGuessAreaControls tarafından basılıyor).
+// Seçim değişince (kart tıklanınca) çağrılır — buton HTML'i ZATEN DOM'da,
+// sadece metin/renk güncellenir (showSessionEnd/resCta'nın AYNI "tek DOM,
+// parametrik güncelleme" deseni).
+function updateThreeWayConfirmButton() {
+  const btn = document.getElementById("threeWayConfirmBtn");
+  if (!btn) return;
+  const sel = threeWaySelectedLetter;
+  btn.textContent = sel ? `${sel} olarak onayla` : "Bir kart seç";
+  btn.disabled = !sel;
+  btn.classList.toggle("ready", !!sel);
+}
+if (els.freqGuessArea) els.freqGuessArea.addEventListener("click", e => {
+  if (!e.target.closest("#threeWayConfirmBtn")) return;
+  if (!roundActive || !threeWaySelectedLetter) return;
+  try { submitThreeWayGuess(threeWaySelectedLetter); } catch (err) { console.error(err); }
+});
+
 function toggleAB() {
   if (isThreeWayQuestion(activeQuestion)) {
     cycleThreeWayPreview();
@@ -3833,6 +3930,11 @@ function startAbLoop() {
   if (els.abToggle) els.abToggle.classList.add("loop");
   if (els.abTitle) els.abTitle.textContent = "Döngü";
   if (els.gameLoopBadgeRow) els.gameLoopBadgeRow.classList.remove("hidden");
+  // G86: Motor 2'nin AYRI döngü metni (Prototip.dc.html satır 697 vs 793).
+  if (els.gameLoopCaption) {
+    els.gameLoopCaption.textContent = isThreeWayQuestion(activeQuestion)
+      ? "Seçili kart kesintisiz tekrar" : "A ↔ B kesintisiz geçiş";
+  }
 }
 function stopAbLoop() {
   if (!abLoopTimer) return;
@@ -4224,23 +4326,16 @@ function faCanvasPos(e) {
 }
 const isWaveMode = () => !!activeQuestion;
 
-// G78: Frekans Bulma'nın tek-bant dokunmalı biçimi — işaretle→onayla akışının
-// onay butonu (bkz. pointerdown listener'daki not). formatHz zaten import edilmiş
-// (core/utils.js) — YENİ bir formatlayıcı UYDURULMADI.
-function renderFreqConfirmButton(hz) {
-  if (!els.freqGuessArea) return;
-  els.freqGuessArea.classList.remove("hidden");
-  els.freqGuessArea.innerHTML = `<button type="button" class="btn game-freq-confirm" id="freqConfirmBtn">${formatHz(hz)} olarak onayla</button>`;
-}
-if (els.freqGuessArea) els.freqGuessArea.addEventListener("click", e => {
-  if (!e.target.closest("#freqConfirmBtn")) return;
-  if (freqGuessHz == null) return;
-  els.freqGuessArea.classList.add("hidden");
-  // F2: submitFrequencyGuess kendi içinde scheduleNext(duration) çağırıyor
-  // (doğru/yanlışa göre 4sn/6sn) — burada tekrar ensureAutoNext() çağırmak
-  // varsayılan 1500ms ile üzerine yazardı, o yüzden KALDIRILDI.
-  try { submitFrequencyGuess(freqGuessHz); } catch (err) { console.error(err); }
-});
+// G86 DÜZELTMESİ: G78'in "işaretle→onayla" akışı (onay butonu) İKİ TUR
+// UYGULANMAMIŞ bir talimatı geri alıyor — Tasarim-2026-08/Prototip.dc.html
+// onMark (satır 2596-2605) dokunuşta DOĞRUDAN cevabı gönderiyor: markX
+// ayarlanır, 180ms sonra answer() çağrılır (clearTimeout ile her yeni
+// dokunuş öncekini iptal eder — kullanıcı parmağını gezdirirken ara
+// dokunuşlar gönderilmez, SADECE son dokunuştan 180ms sonraki GERÇEK
+// olur). Onay butonu (renderFreqConfirmButton, SÖKÜLDÜ) SADECE Pro Plus'ta
+// vardı zaten (aşağıdaki q.guesses akışı, bu turun kapsamı DIŞINDA —
+// DEĞİŞMEDİ, hâlâ 4. işarette otomatik gönderiyor).
+let freqTapTimer = null;
 
 els.canvas.addEventListener("pointermove", e => {
   if (!isWaveMode() || !roundActive) return;
@@ -4256,16 +4351,12 @@ els.canvas.addEventListener("pointerdown", e => {
   const hz = mode.faXToF(faCanvasPos(e), canvasCssW);
 
   if (q.mode !== "proplus") {
-    // G78: tasarım tek-dokunuşla ANINDA göndermek yerine İŞARETLE→ONAYLA istiyor
-    // (bkz. Tasarim-2026-08/Prototip.dc.html "X kHz olarak onayla" butonu) —
-    // ESKİDEN burada doğrudan submitFrequencyGuess(hz) çağrılıyordu (bkz. git
-    // geçmişi). Artık SADECE işaretliyor (freqGuessHz zaten drawOverlay'e
-    // geçiyor, işaretçi ANINDA çizilir, bkz. drawVisualizer) — gönderim
-    // renderFreqConfirmButton'ın ürettiği butona basılınca olur (aşağıdaki
-    // click listener). Tekrar dokunmak sadece işareti GÜNCELLER (submitFrequencyGuess
-    // HENÜZ çağrılmadığı için roundActive hâlâ true, ikinci dokunuş engellenmez).
     freqGuessHz = hz;
-    renderFreqConfirmButton(hz);
+    clearTimeout(freqTapTimer);
+    freqTapTimer = setTimeout(() => {
+      if (!roundActive) return;
+      try { submitFrequencyGuess(hz); } catch (err) { console.error(err); }
+    }, 180);
     return;
   }
 
@@ -4283,8 +4374,29 @@ els.canvas.addEventListener("pointerdown", e => {
 
 if (els.answers) els.answers.addEventListener("click", e => {
   if (!isChoiceFormat() || !roundActive) return;
+  // G86 YENİ — Motor 2 kartının play butonu: KENDİ dinleme tetikleyicisi,
+  // dışarıdaki kart SEÇİMİ click'iyle karışmasın diye burada erken durdurulur
+  // (nested <button> HTML'de geçersiz olduğu için dış kapsayıcı artık <div>,
+  // bkz. core/three-way-cards.js).
+  const playBtn = e.target.closest(".ans-m2-play");
+  if (playBtn) {
+    if (playBtn.disabled || !isThreeWayQuestion(activeQuestion)) return;
+    playThreeWaySpecific(playBtn.dataset.letter);
+    return;
+  }
   const btn = e.target.closest(".ans");
-  if (!btn || btn.disabled) return;
+  if (!btn || btn.disabled || btn.classList.contains("ans-m2-disabled")) return;
+  // G86 DÜZELTMESİ: Motor 2 kartı artık DOĞRUDAN göndermiyor — SADECE seçer
+  // (Tasarim-2026-08/Prototip.dc.html'in card.select/confirmCard ayrımı,
+  // satır 2645/2652). Gönderim #freqGuessArea'daki onay butonuyla olur (bkz.
+  // kompresor.js/reverb.js/distortion.js renderGuessAreaControls +
+  // updateThreeWayConfirmButton).
+  if (isThreeWayQuestion(activeQuestion)) {
+    threeWaySelectedLetter = btn.dataset.letter;
+    mode.selectThreeWayCard(els.answers, threeWaySelectedLetter);
+    updateThreeWayConfirmButton();
+    return;
+  }
   btn.classList.add("pick");
   // Kesim Noktası'nda ("cutoff") şıklar frekans+filtre tipi TAŞIR (data-filter-type) —
   // ayrı bir gönderim fonksiyonuna yönlendirilir (bkz. submitCutoffGuess dosya başı not).
@@ -4332,13 +4444,8 @@ if (els.answers) els.answers.addEventListener("click", e => {
     try { submitCakismaGuess(answer); } catch (err) { console.error(err); }
     return;
   }
-  // Motor 2 modları (Kompresör/Reverb) — şıklar SADECE harf taşır (bkz.
-  // data-letter, kompresor.js/reverb.js renderAnswerChoices — AYNI şablon).
-  if (isThreeWayQuestion(activeQuestion)) {
-    const letter = btn.dataset.letter;
-    try { submitThreeWayGuess(letter); } catch (err) { console.error(err); }
-    return;
-  }
+  // Motor 2 (Kompresör/Reverb/Distortion) artık BURAYA hiç düşmüyor — kendi
+  // seçim dalı yukarıda ERKEN dönüyor (bkz. bu handler'ın başı).
   const hz = Number(btn.dataset.freq);
   freqGuessHz = hz;
   // F2: bkz. yukarıdaki pointerdown handler'daki not — submitFrequencyGuess kendi
@@ -5263,6 +5370,7 @@ els.resetStatsBtn.addEventListener("click", () => {
   qGuessLabelId = null;
   threeWayGuessLetter = null;
   threeWayPlayLetter = "A";
+  threeWaySelectedLetter = null;
   tonalDengeCorrections = {};
   cakismaGuess = null;
   syncLives();
@@ -5376,6 +5484,9 @@ if (els.answerFormatChoiceBtn) els.answerFormatChoiceBtn.addEventListener("click
 if (els.focusSelect) els.focusSelect.addEventListener("change", () => {
   prefs.focusRange = els.focusSelect.value;
   storage.savePrefs(prefs);
+  // G86: spektrum alt satırı odak aralığına göre değişiyor (bkz.
+  // updateAnalyzerFoot) — odak değişince YENİDEN yazılmalı.
+  updateAnalyzerFoot();
 });
 
 // KÖK SEBEP: "visibilitychange" olayı SADECE document üzerinde ateşlenir, window

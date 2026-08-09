@@ -426,7 +426,18 @@
        ekranlarda (calibrasyon/SSS/geri bildirim/vb.) 44x44 KALIYOR, .dots
        SADECE burada kullanılıyor ama yine de scoped tutuldu (netlik için). */
     .ghead-row .back{width:34px;height:34px;font-size:18px;border-radius:10px}
-    .ghead-right .mode-info-btn{width:30px;height:30px;font-size:14px;border-radius:9px}
+    /* G86 DÜZELTMESİ: oyun ekranındaki "i" tabanı (.mode-info-btn'in cyan/
+       italik serif görünümü, mod kartı rozeti İÇİN doğru) YANLIŞ taşınmıştı —
+       Tasarim-2026-08/Prototip.dc.html'in #gameInfoBtn'i "..." (dots/ayarlar)
+       ile AYNI nötr görünümde (satır 202 civarı, task'ın kendi literal
+       ölçüleri). Base .mode-info-btn (mod kartı rozeti) DOKUNULMADI — bu
+       SCOPED override font-family/style dahil HER ŞEYİ ezer. */
+    .ghead-right .mode-info-btn{
+      width:30px;height:30px;border-radius:9px;font-family:'Inter',sans-serif;
+      font-style:normal;font-weight:800;font-size:13px;color:#8f949b;
+      background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+    }
+    .ghead-right .mode-info-btn:active{background:rgba(255,255,255,.1)}
     .ghead-right .dots{width:30px;height:30px;border-radius:9px}
     /* "i" bilgi ikonu — KALICI, solmaz (bkz. core/guide-texts.js). gear/dots'un
        AYNI 44x44 taban stili, sadece glyph farklı: G73'te --cyan'a taşındı
@@ -488,16 +499,20 @@
 
     /* G77: sağ küme — combo çipi/soru sayacı/seviye pentagonu/i/ayarlar. */
     .ghead-right{flex:none;display:flex;align-items:center;gap:6px}
-    /* G73 İSTİSNA — combo göstergesi amber KALIYOR (combo/boss/süre öğeleri
-       istisnası). Combo 0 iken (.dim) sönük — task'ın kendi kuralı. */
+    /* G86 DÜZELTMESİ: Tasarim-2026-08/Prototip.dc.html satır 479-481 —
+       renk/arka plan/kenarlık JS'ten inline (app.js renderGameHeader,
+       combo>1/boss'a göre) SET ediliyor, burada SADECE taban ölçü/geçiş
+       kalıyor. Eskiden combo XP-çarpanının (comboBoost) ondalıklı hâlini
+       gösteriyordu ("x1.12") — tasarımda TAM SAYI seri sayacı (comboLabel:
+       'x'+combo), düzeltildi (bkz. app.js). */
     .game-combo-chip{
-      display:flex;align-items:center;gap:3px;padding:5px 8px;border-radius:var(--r-chip);
-      background:rgba(240,180,66,.12);border:1px solid rgba(240,180,66,.35);color:var(--amber);
-      transition:opacity .2s;
+      display:flex;align-items:center;gap:3px;padding:5px 8px;border-radius:8px;
+      border:1px solid transparent;transition:background .2s,border-color .2s;
     }
-    .game-combo-chip.dim{opacity:.5}
     .game-combo-chip svg{flex:none}
-    .game-combo-chip span{font-size:12px;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums}
+    .game-combo-chip span{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+    @keyframes flameGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(240,180,66,.5))}50%{filter:drop-shadow(0 0 9px rgba(240,180,66,.9))}}
+    .game-combo-chip.flame{animation:flameGlow 1.4s ease-in-out infinite}
     .game-qcounter{
       font-size:12px;font-weight:700;color:var(--text-2);font-variant-numeric:tabular-nums;
       background:rgba(255,255,255,.06);border:1px solid var(--border-strong);border-radius:var(--r-chip);
@@ -761,27 +776,17 @@
     .hint-mask-seg.show{opacity:1}
     [data-phase="ask"] .hint-mask,[data-phase="done"] .hint-mask{opacity:0;pointer-events:none}
 
-    /* G79: #freqGuessArea artık alt sabit bar'ın İÇİNDE (bkz. index.html) —
-       "sönük" metin task'ın kendi sözcüğü, --text-muted (en soluk ton). */
+    /* G86 DÜZELTMESİ: G78'in onay-butonlu "kart" görünümü SÖKÜLDÜ (bkz.
+       app.js pointerdown notu — dokunuş artık DOĞRUDAN gönderiyor, buton
+       yok). Tasarim-2026-08/Prototip.dc.html'in isSingleMark metni birebir
+       (satır 737-739): DÜZ metin, kart/kenarlık YOK. */
     .tapHint{
-      padding:11px 14px;border-radius:var(--r-card);background:rgba(255,255,255,.05);
-      border:1px solid var(--border-strong);color:var(--text-muted);
-      font-size:13.5px;font-weight:600;text-align:center;
+      padding:14px 0 6px 0;color:#6c7178;
+      font-size:12.5px;font-weight:600;text-align:center;
     }
-    /* G78: Frekans Bulma tek-bant dokunmalı — işaretle→onayla akışının onay
-       butonu (bkz. app.js renderFreqConfirmButton). #freqGuessArea'nın
-       .tapHint kutusu İÇİNDE oturuyor — padding'i kaldırıp KENDİ tam-genişlik
-       yeşil (--green-grad, tasarımdaki gibi) yüzeyini kaplıyor. */
-    .tapHint:has(.game-freq-confirm){padding:0;border:none;background:none}
     /* Görünürken (proplus/frekans-bulma dokunmalı) #nextBtn'den ayırmak için
        boşluk — .hidden zaten display:none olduğu için gizliyken hiç yer kaplamaz. */
     .tapHint:not(.hidden){margin-bottom:8px}
-    .game-freq-confirm{
-      width:100%;min-height:52px;border:none;border-radius:var(--r-btn);
-      background:var(--green-grad);color:#06230e;font-size:16px;font-weight:800;
-      font-variant-numeric:tabular-nums;
-    }
-    .game-freq-confirm:active{filter:brightness(1.08)}
 
     #freqInfo{position:relative;padding:14px 16px;border-radius:var(--r-card);border:1px solid var(--border-strong);font-size:13.5px;line-height:1.55}
     /* Geri bildirim kartlarının ORTAK kapat-butonu stili — #freqInfo (Frekans Bulma'nın
@@ -818,32 +823,102 @@
     .ans.wrong b{color:#FFB3C2}
     .ans.wrong span{color:var(--rd)}
 
-    /* ---- Motor 2 (Kompresör/Reverb) büyük cevap kartları — G41, Dizayn/
-       prototype.html'in .opt/.opt-key/.wave/.opt.playing yapısından taşındı.
-       .ans/.answers'ın TEMEL kuralları KORUNUYOR (tıklama/pick/right/wrong
-       hâlâ yukarıdaki kurallardan geliyor) — bunlar SADECE düzen/görsel katmanı
-       ekliyor, core/three-way-cards.js bu class'ları üretir. */
-    .answers.answers-m2{grid-template-columns:1fr;gap:10px}
-    .ans-m2{flex-direction:row;align-items:center;justify-content:flex-start;gap:13px;padding:12px 13px;min-height:0;border-radius:var(--r-panel);background:rgba(255,255,255,.045)}
-    .ans-m2-key{width:52px;height:52px;flex:none;border-radius:var(--r-btn);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;color:var(--tx-2);background:rgba(255,255,255,.07);transition:background .2s,color .2s}
+    /* G86 DÜZELTMESİ: Motor 2 (Kompresör/Reverb/Distortion) büyük cevap
+       kartları — Tasarim-2026-08/Prototip.dc.html satır 760-772 birebir.
+       ESKİ "harf kutusu + Birinci/İkinci/Üçüncü ses" yapısı SÖKÜLDÜ — solda
+       YUVARLAK play butonu (kendi click'i, seçim click'ini durdurur), ortada
+       A/B/C + alt durum metni, sağda dalga + 22x22 seçim işareti. Dış
+       kapsayıcı artık <div> (core/three-way-cards.js) — İÇ play butonu GERÇEK
+       <button>, nested <button> HTML'de geçersiz olurdu. */
+    .answers.answers-m2{grid-template-columns:1fr;gap:12px}
+    .ans-m2{
+      flex-direction:row;align-items:center;justify-content:flex-start;gap:14px;
+      padding:14px;min-height:0;border-radius:16px;border:1.5px solid rgba(255,255,255,.08);
+      background:linear-gradient(180deg,#17191d,#121316);box-shadow:0 6px 16px rgba(0,0,0,.35);
+      transition:border-color .16s,box-shadow .2s,background .16s;cursor:pointer;
+    }
+    @keyframes breathe{0%,100%{box-shadow:0 6px 14px rgba(0,0,0,.45),0 0 10px rgba(34,211,238,.18),inset 0 1px 0 rgba(255,255,255,.1)}50%{box-shadow:0 6px 14px rgba(0,0,0,.45),0 0 18px rgba(34,211,238,.4),inset 0 1px 0 rgba(255,255,255,.1)}}
+    .ans-m2-play{
+      width:52px;height:52px;flex:none;border-radius:50%;border:1px solid rgba(255,255,255,.15);
+      background:linear-gradient(180deg,#23262b,#15171a);color:#c9cdd3;
+      display:flex;align-items:center;justify-content:center;
+    }
     .ans-m2-body{flex:1;min-width:0}
-    .ans-m2-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
-    .ans-m2-name{font-size:16px;font-weight:700}
-    .ans-m2-state{font-size:14px;font-weight:600;color:var(--text-3);white-space:nowrap}
-    .ans-m2-wave{display:flex;align-items:flex-end;gap:3px;height:26px;margin-top:9px}
-    .ans-m2-wave i{flex:1;border-radius:2px;background:rgba(255,255,255,.18);transition:background .2s}
+    .ans-m2-name{font-size:17px;font-weight:800;letter-spacing:-.2px;color:#eef0f2}
+    .ans-m2-state{font-size:11.5px;font-weight:500;color:#6c7178;margin-top:2px}
+    .ans-m2-wave{flex:none;display:flex;align-items:flex-end;gap:3px;width:70px;height:32px}
+    .ans-m2-wave i{flex:1;border-radius:1.2px;background:#3a3f45;transition:background .2s}
+    .ans-m2-dot{
+      flex:none;width:22px;height:22px;border-radius:50%;border:1.5px solid rgba(255,255,255,.18);
+      background:transparent;display:flex;align-items:center;justify-content:center;
+    }
 
-    /* Çalan kart vurgusu — G73: --cyan glow (kenar + dış parlama), doğru/yanlış'ın
-       kırmızı/yeşiliyle ÇAKIŞMASIN diye ayrı bir renk. Bu "şu an çalıyor" durumu
-       combo/boss/süre kapsamına girmediği için (birincil vurgu kuralı) amber'dan
-       cyan'a taşındı. */
-    .ans-m2-playing{border-color:rgba(34,211,238,.5);background:rgba(34,211,238,.08);box-shadow:0 0 0 1px rgba(34,211,238,.35),0 0 22px rgba(34,211,238,.22)}
-    .ans-m2-playing .ans-m2-key{background:linear-gradient(150deg,var(--cyan),#0ea5b8);color:#07242b}
-    .ans-m2-playing .ans-m2-wave i{background:rgba(34,211,238,.8)}
-    .ans-m2-playing .ans-m2-state{color:var(--cyan)}
+    /* Çalan kart vurgusu — cyan kenar/glow, seçili/doğru/yanlış'ın YEŞİL/
+       KIRMIZI'sıyla çakışmasın diye ayrı. */
+    .ans-m2.ans-m2-playing{border-color:rgba(34,211,238,.45);box-shadow:0 0 20px rgba(34,211,238,.15)}
+    .ans-m2.ans-m2-playing .ans-m2-play{border-color:rgba(34,211,238,.6);color:#22d3ee;animation:breathe 2.4s ease-in-out infinite}
+    .ans-m2.ans-m2-playing .ans-m2-wave i{background:#22d3ee}
+    .ans-m2.ans-m2-playing .ans-m2-state{color:#22d3ee}
 
-    .ans-m2.right .ans-m2-key{background:var(--gr);color:#04231B}
-    .ans-m2.wrong .ans-m2-key{background:var(--rd);color:#2A0710}
+    /* Seçili (henüz gönderilmemiş) kart — YEŞİL, tasarımın "sel" durumu. */
+    .ans-m2.selected{background:rgba(74,222,128,.07);border-color:#4ade80;box-shadow:0 0 18px rgba(74,222,128,.2)}
+    .ans-m2.selected .ans-m2-name{color:#4ade80}
+    .ans-m2.selected .ans-m2-wave i{background:#4ade80}
+    .ans-m2.selected .ans-m2-dot{border-color:#4ade80;background:#4ade80}
+
+    /* Cevap sonrası — doğru/yanlış (bkz. core/three-way-cards.js
+       markThreeWayCards, .ans.right/.ans.wrong TABANI da uygulanır ama
+       burada kart-özel katman EZER). */
+    .ans-m2.right{border-color:var(--gr);background:rgba(43,217,168,.1)}
+    .ans-m2.right .ans-m2-name{color:var(--gr)}
+    .ans-m2.wrong{border-color:var(--rd);background:rgba(255,77,109,.1)}
+    .ans-m2.wrong .ans-m2-name{color:var(--rd)}
+    .ans-m2.ans-m2-disabled{cursor:default}
+    .ans-m2-play:disabled{opacity:.6}
+
+    /* G86 YENİ — "Farklı olanı bul" başlığı (Prototip.dc.html satır 759) —
+       #questionTitle'ın Motor 2 varyantı, kart/kenarlık YOK (Motor 1'in
+       .qline'ından FARKLI). */
+    .qline.qline-m2{
+      background:none;border:none;padding:6px 0 0;text-align:center;
+      font-size:17px;font-weight:700;letter-spacing:-.2px;color:#f2f3f5;
+    }
+
+    /* G86 YENİ — Motor 2 onay butonu (#freqGuessArea içinde, tasarımın
+       confirmCard butonu, satır 797). Seçim yokken sönük/pasif, seçiliyken
+       YEŞİL (app.js:updateThreeWayConfirmButton). */
+    .game-threeway-confirm{
+      width:100%;min-height:52px;border:none;border-radius:14px;
+      background:rgba(255,255,255,.06);color:#5a6068;font-size:16px;font-weight:700;
+      transition:background .15s,color .15s;
+    }
+    .game-threeway-confirm.ready{
+      background:var(--green-grad);color:#06230e;
+      box-shadow:0 4px 16px rgba(46,191,70,.35),inset 0 1px 0 rgba(255,255,255,.3);
+    }
+    .game-threeway-confirm:disabled{cursor:default}
+
+    /* G86 YENİ — Motor 2'nin "Bir şık elendi · XP yarıya indi" satırı
+       (Prototip.dc.html satır 787-789). */
+    .game-m2-hint-used{
+      text-align:center;font-size:11.5px;font-weight:700;color:var(--amber);
+      margin-top:8px;
+    }
+
+    /* G86: kontrol satırının Motor 2 varyantı (Prototip.dc.html satır
+       773-786) — büyük yuvarlak play YOK, İpucu METİNLİ, pill'ler 34px/13px.
+       #startBtn burada DEĞİL — o SADECE round AKTİFKEN gizlenir (bkz.
+       updateStartBtnLabel()'daki .hidden toggle'ı). Bir blanket display:none
+       #startBtn'i idle/"Oyunu Başlat" durumunda da (activeQuestion henüz YOK)
+       tıklanamaz yapıp turu HİÇ başlatılamaz kılıyordu — canlı testte
+       yakalandı (round hiç oluşmuyordu, ekran boş kalıyordu). */
+    .controls-m2 #hintBtn{
+      width:auto;height:44px;padding:0 16px;border-radius:12px;
+      flex-direction:row;gap:8px;
+    }
+    .controls-m2 #hintBtnLabel{display:inline;font-size:13.5px;font-weight:700}
+    .controls-m2 #hintBtn svg{width:17px;height:17px}
+    .controls-m2 .abside{min-width:34px;padding:0 10px;font-size:13px}
 
     /* ---- Tonal Denge (G45) — canlı EQ kaydırıcıları. .answers/.ans'ın grid
        düzeninden BAĞIMSIZ (bkz. .answers-tonal) — bu bir "şık seç" ekranı
@@ -1031,10 +1106,10 @@
     }
     .game-ctrl-btn:active{background:rgba(255,255,255,.12)}
     .game-ctrl-btn svg{flex:none}
-    /* G85: tasarımın hint butonu İKON-ONLY ("Yazı YOK", satır 678-680) —
-       #hintBtnLabel DOM'da kalıyor (index.html'in kendi notu), SADECE
-       görünmüyor. */
-    #hintBtnLabel.hidden{display:none}
+    /* G85: Motor 1'in hint butonu İKON-ONLY ("Yazı YOK", satır 678-680).
+       G86: Motor 2'de METİNLİ (bkz. yukarı .controls-m2 #hintBtnLabel) —
+       taban KAPALI, SADECE .controls-m2 İÇİNDE açılıyor. */
+    #hintBtnLabel{display:none}
     .game-ctrl-play{
       width:64px;height:64px;flex:none;border-radius:50%;border:1px solid var(--border-strong);
       background:linear-gradient(180deg,#23262b,#15171a);color:var(--text);font-size:24px;

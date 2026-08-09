@@ -82,7 +82,7 @@ import { compatibleSourceIds } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
-import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState } from "../core/three-way-cards.js";
+import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState, selectThreeWayCard } from "../core/three-way-cards.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
 // HER moddan mode-agnostik olarak okur — diğer beş modla AYNI re-export deseni
@@ -96,6 +96,14 @@ export const MAX_LIVES = 5;
 // yerde (THREE_WAY_MODE_IDS) tutuyor — bu bayrak SADECE dokümantasyon/
 // kendi-kendini-açıklama amaçlı (G35'te Reverb bunu MİRAS ALDI).
 export const THREE_WAY = true;
+
+// G86: Tasarim-2026-08/Prototip.dc.html'in isCompMode'u — showBigSpectrum
+// SADECE isFreqMode (touch/choice/staged) için true, Motor 2'de spektrum HİÇ
+// YOK (task'ın kendi talimatı). app.js enterMode() bu bayrağa göre
+// #analyzer'ı TAMAMEN gizler — SHOW_SPECTRUM (grid çizimi) bundan AYRI bir
+// mekanizma, db-seviyesi/frekans-cakismasi'nin kendi görselleri İÇİN kart
+// GÖRÜNÜR kalırken bu ÜÇ modda kart hiç YOK.
+export const HIDE_ANALYZER = true;
 
 // G47: Sınav sistemi (core/exam-system.js) PİLOT modu — SHOW_SPECTRUM/
 // COMPACT_ANALYZER'ın AYNI mode-agnostik bayrak deseni: app.js
@@ -450,20 +458,22 @@ export function clearHintMask(hintMaskLayerEl) {
   if (hintMaskLayerEl) hintMaskLayerEl.innerHTML = "";
 }
 
-// Dinleme kontrolü artık #freqGuessArea'da DEĞİL — app.js'in mevcut A/B
-// butonu (#abToggle) bu mod aktifken 3-yönlü döngüye genişletiliyor (bkz.
-// app.js: toggleAB/updateAbToggleUI'nin "kompresor" dalı). Bu yüzden
-// #freqGuessArea diğer dört modla AYNI şekilde gizli kalıyor.
+// G86 DÜZELTMESİ: #freqGuessArea artık Motor 2'nin ONAY BUTONUNU taşıyor —
+// Tasarim-2026-08/Prototip.dc.html'in confirmCard butonu (satır 797) birebir,
+// kart SEÇİMİNDEN (bkz. app.js #answers click delegasyonu) SONRA basılır.
+// Metin/renk app.js:updateThreeWayConfirmButton()'da GÜNCELLENİR — burada
+// SADECE DOM bir kez kuruluyor (yeni turda sıfırdan, seçim henüz yok).
 export function renderGuessAreaControls(freqGuessAreaEl) {
   if (!freqGuessAreaEl) return;
-  freqGuessAreaEl.textContent = "";
-  freqGuessAreaEl.classList.add("hidden");
+  freqGuessAreaEl.classList.remove("hidden");
+  freqGuessAreaEl.innerHTML = `<button type="button" class="btn game-threeway-confirm" id="threeWayConfirmBtn" disabled>Bir kart seç</button>`;
 }
 
 // G41: büyük kart görseli (harf+isim+waveform+durum) — core/three-way-cards.js'e
 // delege edilir (Reverb'le PAYLAŞILAN, gerçek bir mod-özel fark YOK). Mod
 // sözleşmesi bu isimlerle export edilmesini istiyor, gövde ORTAK modülde.
 export const renderAnswerChoices = renderThreeWayCards;
+export { selectThreeWayCard };
 export const markAnswerChoices = markThreeWayCards;
 export const updateAnswerPlayState = updateThreeWayCardsPlayState;
 

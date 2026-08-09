@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G85)
+Son güncelleme: 10.08.2026 (G86)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,96 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G85, tek commit) — **OYUN EKRANI DÜZELTMESİ — çip satırı/spektrum
+Bu commit (G86, tek commit) — **OYUN EKRANI — 12 madde (Prototip.dc.html) —
+tek dokunuşla cevap, Motor 2 kart yapısı, geri bildirim paneli işaretleri
+örtmüyor, combo çipi tam sayı, spektrum alt satırı gerçek Hz'e döndü**
+
+Kaynak: `Tasarim-2026-08/Prototip.dc.html`. 12 maddenin haritası:
+
+| # | Madde | Uygulanan değişiklik |
+|---|---|---|
+| 1 | Frekans Bulma onay butonu (2 turdur bekliyordu) | Dokununca 180ms sonra DOĞRUDAN `submitFrequencyGuess()` — onay butonu SÖKÜLDÜ. isSingleMark'ta "Cevabını vermek için spektruma dokun" sönük metin (isPlus'ta değişmedi) |
+| 2 | Soru metni kutusu (dokunmalı) | `isFreqTouch` durumunda `#questionTitle` boş+gizli |
+| 3 | Motor 2'de spektrum | `mode.HIDE_ANALYZER=true` (kompresor/reverb/distortion.js) → `#analyzer` tamamen gizli |
+| 4 | Motor 2 kart yapısı | `core/three-way-cards.js` TAMAMEN yeniden yazıldı — yuvarlak play butonu + ad/durum + dalga + seçim noktası. Dış kapsayıcı `<button>`→`<div>` (iç play butonu GERÇEK `<button>`, nested button geçersiz) |
+| 5 | Başlık "Farklı olanı bul" | `renderQuestion()`'da Motor 2 için sabit metin |
+| 6 | Motor 2 onay butonu | Yeni `#threeWayConfirmBtn` (`renderGuessAreaControls`) — seçim yokken "Bir kart seç", seçiliyken "X olarak onayla" |
+| 7 | Motor 2 kontrol satırı | `.controls-m2` CSS — İpucu metinli, pill'ler küçültüldü, büyük play YOK (bkz. aşağıdaki startBtn notu) |
+| 8 | Döngü/ipucu metinleri | "Seçili kart kesintisiz tekrar", ipucuda "Bir şık elendi · XP yarıya indi" |
+| 9 | Geri bildirim paneli işaretleri örtüyor | G85'in `scrollFeedbackIntoView()` çağrıları (setFeedback + submitFrequencyGuess) SÖKÜLDÜ — G85 `.fb`'yi `position:fixed`'e taşımıştı, bu çağrılar ARTIK zararlıydı (spektrumu işaretlerin ÖTESİNE kaydırıyordu) |
+| 10 | "i" butonu nötr görünüm | `.ghead-right .mode-info-btn` — cyan yerine `#8f949b`/nötr arka plan |
+| 11 | Combo çipi tam sayı | `renderGameHeader()` — `x1.12` ondalık YERİNE `x{stats.combo}` tam sayı, combo>2'de `flameGlow` animasyonu |
+| 12 | Spektrum alt satırı gerçek Hz | `updateAnalyzerFoot()` — G85'in "20 Hz/20 kHz" kararı BİLİNÇLİ GERİ ALINDI, `currentFocusRange()`/`FA_MIN`/`FA_MAX`'a döndü, boss'ta "PRO ZORLUK · Q 4.0" |
+
+**Canlı testte bulunan ÜÇ regresyon (item 12'nin kendi değişikliği tetikledi,
+hepsi bu turda düzeltildi, kodda değil DURUM'da kayıtlı — gelecek bir
+`updateAnalyzerFoot`/`#startBtn`/`#freqGuessArea` değişikliğinde AYNI hataya
+düşülmesin diye):**
+
+1. **TDZ ReferenceError, uygulama HİÇ açılmıyordu.** `updateAnalyzerFoot()`
+   artık `currentFocusRange()` → `isUserPro()` → modül-seviyesi `devFlags`
+   okuyor; ama modül üstünde `populateFocusSelect(); updateAnalyzerFoot();`
+   `devFlags`'ın `let` tanımından (satır ~643) ÖNCE (satır ~478) çalışıyordu.
+   Erken/gereksiz çağrı SÖKÜLDÜ — `#analyzer` zaten `#screen-game` aktif
+   olmadan görünmüyor, `enterMode()`'un gerçek çağrısı yeterli.
+2. **Motor 2 (Kompresör/Reverb/Distortion) hiç oynanamıyordu.** İlk
+   `.controls-m2 #startBtn{display:none}` CSS'i `#startBtn`'i HER durumda
+   (idle DAHİL) gizliyordu — ama bu buton aynı zamanda İLK `startRound()`'u
+   tetikleyen TEK öğe (`els.startBtn.addEventListener("click", ...)`, satır
+   ~4740). Sonuç: ekran tamamen boş kalıyordu (`#answers` boş, `#questionTitle`
+   boş), round hiç başlamıyordu. Düzeltme: CSS kuralı kaldırıldı,
+   `updateStartBtnLabel()` içine `.hidden` toggle'ı taşındı —
+   `mode.THREE_WAY && activeQuestion` (round GERÇEKTEN aktifken) true, idle
+   durumda (activeQuestion yok) buton GÖRÜNÜR kalır.
+3. **Kompresör'den başka bir moda geçince eski "Bir kart seç" butonu
+   asılı kalıyordu.** `enterMode()`'un idle-sıfırlama bloğu `#answers`'ı
+   temizliyordu ama `#freqGuessArea`'yı HİÇ temizlemiyordu (item 6 öncesi
+   bu alanın içeriği hep zararsızdı — artık gerçek bir buton). `els.answers`
+   ile AYNI desen (`innerHTML=""` + `.hidden`) `#freqGuessArea`'ya da eklendi.
+
+**Item 3'ün bilinen ödünü:** Motor 2'nin spektrumu kaldırılınca cevap-sonrası
+eğri/zarf görselleştirmesi (`drawOverlay`, gerçek bir öğretim özelliğiydi) de
+kayboldu — task'ın kendi net talimatıydı ("Motor 2'de spektrum YOK. Kaldır."),
+karşı öneri sunulmadı.
+
+**Item 2'nin kapsam kararı:** SADECE Frekans Bulma'nın dokunmalı formatında
+kutu kaldırıldı — şıklı formatta (Kesim Noktası vb.) tasarımın o ekranı hiç
+modellememiş olması BAŞKA modlara genişletme gerekçesi sayılmadı, task
+literal olarak "(dokunmalı)" diyordu.
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ.
+`test/three-way-cards.test.mjs` güncellendi — dış kapsayıcı `<div>` olduğu
+için "kilitlendi" artık `.disabled` property değil `.ans-m2-disabled` class
+(3 assertion). **`npm test`: 1043/1043.**
+
+**DOĞRULAMA (canlı tarayıcı, taze sekme + Pro simülasyonu, konsol HATASIZ):**
+- **Frekans Bulma:** tek dokunuşla cevap onay butonu OLMADAN gitti (ekran
+  görüntüsüyle yakalandı, round sayacı 3/5→4/5 ilerledi); "Cevabını vermek
+  için spektruma dokun" metni görüldü; soru kutusu YOK.
+- **Kompresör/Reverb/Distortion:** spektrum kartı HİÇ yok; kart yapısı
+  (yuvarlak play + ad/durum + dalga + seçim noktası, seçili/çalıyor renk
+  durumları) ekran görüntüsüyle doğrulandı; "Farklı olanı bul" başlığı;
+  onay butonu "Bir kart seç"→"A olarak onayla" (yeşil) geçişi çalıştı;
+  kontrol satırı (metinli İpucu, küçük pill'ler, büyük play YOK) + "DÖNGÜ ·
+  Seçili kart kesintisiz tekrar" görüldü; boss turunda "PRO ZORLUK · Q 4.0"
+  alt satırı GÖRÜLDÜ (item 12 bonus doğrulama).
+- **Kırmızı/yeşil işaretler panelin üstünde:** Frekans Bulma'da yanlış cevap
+  sonrası "Senin cevabın"/"Doğru cevap" chip'leri + iki işaret çizgisi
+  panelin ÜSTÜNDE görüldü (zoom ekran görüntüsü). Tonal Denge'de "Yakınlık
+  %41" panelinin üstünde hedef/senin-sonucun karşılaştırma eğrisi + slider
+  sapma etiketleri görüldü.
+- **"i" butonu** nötr (gri, cyan değil) — ana ekran + oyun ekranı ekran
+  görüntülerinde doğrulandı.
+- **10 modun TAMAMI** (Frekans Bulma, Kesim Noktası, Q Genişliği, Boost mu
+  Cut mu, dB Seviyesi, Kompresör, Reverb, Tonal Denge, Distortion, Frekans
+  Çakışması) tek tek açılıp idle ekranı ekran görüntüsüyle kontrol edildi —
+  hiçbiri bozulmadı.
+- **Konsol hatası: 0** (tüm test turları boyunca, TDZ/startBtn/freqGuessArea
+  düzeltmelerinden SONRA). **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G85, tek commit) — **OYUN EKRANI DÜZELTMESİ — çip satırı/spektrum
 kartı/cevap sonrası işaretler/kontrol satırı/geri bildirim sheet'i/omuz
 butonları Prototip.dc.html'in LİTERAL ölçülerine hizalandı**
 
@@ -6973,9 +7062,11 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G85 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları) +
-G85 (Oyun Ekranı Düzeltmesi) kod/test/canlı doğrulama açısından TAM kapandı,
-yeni açık iş bırakmadı. ÖNCELİKLE BEKLEYEN KARARLAR madde K
+**Tek sonraki adım (G86 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları) +
+G85 (Oyun Ekranı Düzeltmesi #1) + G86 (Oyun Ekranı — 12 madde) kod/test/canlı
+doğrulama açısından TAM kapandı, yeni açık iş bırakmadı — G86'nın kendi
+canlı testinde bulduğu ÜÇ regresyon (TDZ/startBtn/freqGuessArea, bkz. BİTTİ)
+AYNI oturumda düzeltildi. ÖNCELİKLE BEKLEYEN KARARLAR madde K
 (Pro'da "done" Seans Sonu durumu hiç tetiklenemiyor — kasıtlı mı, regresyon
 mu) kullanıcı kararı bekliyor; karar netleşmeden AÇIK İŞLER madde 20
 kapatılamaz/"done" canlı doğrulanamaz. Bunun dışında AÇIK İŞLER madde 14 —

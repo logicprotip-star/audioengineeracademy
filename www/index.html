@@ -377,16 +377,25 @@
              SADECE konum + görünüm değişti. #abLoopBtn YENİ (mevcut
              startAbLoop/stopAbLoop'a bağlanıyor, aynı fonksiyonlar SÖKÜLMEDİ,
              sadece uzun-basmanın YANINDA görünür bir ikinci tetikleyici). -->
+        <!-- G86 DÜZELTMESİ: Motor 2'de (Kompresör/Reverb/Distortion) bu
+             satır Tasarim-2026-08/Prototip.dc.html'in isCompMode kontrol
+             satırından (satır 773-786) FARKLI — büyük yuvarlak play YOK,
+             İpucu METİNLİ, pill'ler 34px/13px. app.js enterMode()
+             mode.THREE_WAY'e göre #gameSpectrumControls'e "controls-m2"
+             class'ı ekliyor (bkz. styles.css bu class'ın kapsadığı
+             override'lar), YENİ bir DOM iskeleti KURULMADI. -->
         <div class="game-spectrum-controls" id="gameSpectrumControls">
-          <!-- G85 DÜZELTMESİ: Tasarim-2026-08/Prototip.dc.html satır 678 —
-               46x46/19x19, "Yazı YOK". #hintBtnLabel DOM'DA KALDI (app.js:
-               updateHintChipLabel() hâlâ yazıyor) ama CSS ile gizlendi —
-               "kullanıldı" metni ZATEN #hintTag'de AYNEN tekrarlanıyor (bkz.
-               app.js satır ~2642, "İPUCU · " + hintText), bilgi kaybı YOK. -->
+          <!-- G85: 46x46/19x19/"Yazı YOK" (Motor 1). G86: Motor 2'de METİNLİ
+               (44px/0 16px/12px, satır 774-777) — #hintBtnLabel'ın
+               görünürlüğü/metni artık .controls-m2'ye göre CSS+JS'ten
+               (bkz. app.js updateHintChipLabel). -->
           <button class="game-ctrl-btn" id="hintBtn" aria-label="İpucu">
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5.9 1.1 1 1.6h5c.1-.5.4-1.1 1-1.6A6 6 0 0 0 12 3Z"></path></svg>
-            <span id="hintBtnLabel" class="hidden">İpucu Ver (3)</span>
+            <span id="hintBtnLabel">İpucu Ver (3)</span>
           </button>
+          <!-- G86: Motor 2'de büyük yuvarlak play YOK (task'ın talimatı) —
+               .controls-m2 #startBtn{display:none} (bkz. styles.css). Ses
+               otomatik başlıyor zaten (playQuestion, round başında). -->
           <button class="game-ctrl-play" id="startBtn" aria-label="Oynat/Durdur">▶</button>
           <button class="btn abbtn game-ctrl-ab" id="abToggle" data-ab="B">
             <span class="abtitle" id="abTitle">A/B Test</span>
@@ -408,15 +417,25 @@
           </button>
         </div>
 
+        <!-- G86 YENİ: Motor 2'nin "Bir şık elendi · XP yarıya indi" satırı
+             (Prototip.dc.html satır 787-789) — Motor 1'de İPUCU rozeti
+             (#hintTag) ile AYNI bilgiyi TAŞIR ama Motor 2'de o rozet YOK
+             (spektrum kartı gizliyken #hintTag da onunla birlikte gizli),
+             bu yüzden AYRI bir satır gerekti. SADECE mode.THREE_WAY +
+             hintUsed iken görünür (bkz. app.js updateHintChipLabel). -->
+        <div class="game-m2-hint-used hidden" id="gameM2HintUsedRow">Bir şık elendi · XP yarıya indi</div>
+
         <!-- G85 YENİ: Tasarim-2026-08/Prototip.dc.html satır 694-698 —
              döngü aktifken kontrol satırının ALTINDA ortalanmış rozet
              satırı, tasarımda VARDI ama hiç uygulanmamıştı. app.js
              startAbLoop/stopAbLoop mevcut ".loop" durumuyla AYNI anda
              toggle ediyor (bkz. o iki fonksiyon), YENİ bir state değişkeni
-             İCAT EDİLMEDİ. -->
+             İCAT EDİLMEDİ. G86: caption metni Motor 1/2'de FARKLI (bkz.
+             app.js startAbLoop — "A ↔ B kesintisiz geçiş" / "Seçili kart
+             kesintisiz tekrar"), #gameLoopCaption id'si eklendi. -->
         <div class="game-loop-badge-row hidden" id="gameLoopBadgeRow">
           <span class="game-loop-badge">DÖNGÜ</span>
-          <span class="game-loop-caption">A ↔ B kesintisiz geçiş</span>
+          <span class="game-loop-caption" id="gameLoopCaption">A ↔ B kesintisiz geçiş</span>
         </div>
 
         <div id="freqInfo" class="hidden"></div>

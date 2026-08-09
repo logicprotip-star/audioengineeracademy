@@ -57,9 +57,13 @@ describe("markThreeWayCards() — A/B/C'nin HER BİRİ tutarlı renkleniyor mu (
     assert.ok(!a.classList.contains("wrong"));
     assert.ok(b.classList.contains("wrong"));
     assert.ok(!c.classList.contains("right") && !c.classList.contains("wrong"));
-    assert.equal(a.disabled, true);
-    assert.equal(b.disabled, true);
-    assert.equal(c.disabled, true);
+    // G86: dış kapsayıcı <button> yerine <div> oldu (İÇ play butonu GERÇEK
+    // <button>, nested <button> HTML'de geçersiz olurdu) — "kilitlendi"
+    // artık DOM .disabled property'si DEĞİL, .ans-m2-disabled class'ı (bkz.
+    // app.js click delegasyonu, AYNI şekilde kontrol ediyor).
+    assert.equal(a.classList.contains("ans-m2-disabled"), true);
+    assert.equal(b.classList.contains("ans-m2-disabled"), true);
+    assert.equal(c.classList.contains("ans-m2-disabled"), true);
   });
 
   it("A doğruyken, kullanıcı DA A'yı seçerse (doğru cevap): A SADECE 'right' alır, 'wrong' ALMAZ", () => {

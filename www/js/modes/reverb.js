@@ -35,7 +35,7 @@ import { compatibleSourceIds } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
-import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState } from "../core/three-way-cards.js";
+import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState, selectThreeWayCard } from "../core/three-way-cards.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
 // HER moddan mode-agnostik olarak okur — diğer altı modla AYNI re-export deseni.
@@ -57,6 +57,10 @@ export const EXAM_DIFFICULTY = "pro";
 // dosyadaki not) ama gelecekteki bir mod bu dosyayı ŞABLON alırken aynı ismi
 // aramalı.
 export const THREE_WAY = true;
+
+// G86: Kompresör'ün AYNI kararı — Motor 2'de spektrum HİÇ YOK (task'ın
+// talimatı, Tasarim-2026-08/Prototip.dc.html isCompMode).
+export const HIDE_ANALYZER = true;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // REVERB TİPLERİ — üç KARAKTER (Room/Hall/Plate), her biri kendi decay/
@@ -462,13 +466,12 @@ export function clearHintMask(hintMaskLayerEl) {
   if (hintMaskLayerEl) hintMaskLayerEl.innerHTML = "";
 }
 
-// Dinleme kontrolü #freqGuessArea'da DEĞİL — Kompresör'ün AYNI deseni,
-// app.js'in mevcut A/B butonu (#abToggle) bu mod aktifken 3-yönlü döngüye
-// genişletiliyor.
+// G86 DÜZELTMESİ: Kompresör'ün AYNI kararı — #freqGuessArea artık Motor 2
+// onay butonunu taşıyor (bkz. app.js updateThreeWayConfirmButton).
 export function renderGuessAreaControls(freqGuessAreaEl) {
   if (!freqGuessAreaEl) return;
-  freqGuessAreaEl.textContent = "";
-  freqGuessAreaEl.classList.add("hidden");
+  freqGuessAreaEl.classList.remove("hidden");
+  freqGuessAreaEl.innerHTML = `<button type="button" class="btn game-threeway-confirm" id="threeWayConfirmBtn" disabled>Bir kart seç</button>`;
 }
 
 // G41: büyük kart görseli (harf+isim+waveform+durum) — core/three-way-cards.js'e
@@ -477,6 +480,7 @@ export function renderGuessAreaControls(freqGuessAreaEl) {
 export const renderAnswerChoices = renderThreeWayCards;
 export const markAnswerChoices = markThreeWayCards;
 export const updateAnswerPlayState = updateThreeWayCardsPlayState;
+export { selectThreeWayCard };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // GÖRSEL — diğer modların frekans-yanıtı eğrisinin AKSİNE reverb'in frekans
