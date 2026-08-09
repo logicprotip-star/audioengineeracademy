@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G76)
+Son güncelleme: 09.08.2026 (G77)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,108 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G76, tek commit) — **Mod kartı yükseklik düzeltmesi — G75'in
+Bu commit (G77, tek commit) — **Oyun Ekranı 1. bölüm: üst bar + bölüm
+göstergesi YENİDEN kuruldu**
+
+Tasarım kaynağı: `Tasarim-2026-08/Oyun Ekranı Varyantları.dc.html` +
+`Soru Ekranı.dc.html` + `Prototip.dc.html` (satır ~460-520, üst bar bloğu).
+**Kapsam dışı bırakıldı (task'ın kendi kuralı):** soru alanı (spektrum/
+şıklar/kartlar/kaydırıcılar) ve alt kontrol çubuğu — TEK SATIR değişmedi.
+
+**UYGULANAN:**
+1. **Üst bar, soldan sağa:** Geri · Mod adı+altında 5 kalp (`#hearts`) ·
+   Combo çipi (alev+"xN", N=gerçek `comboBoost`) · Soru sayacı ("N/5",
+   ücretsizde) · Altın pentagon seviye (`#levelChip`, tıklayınca `#lvlSheet`)
+   · "i" (`#gameInfoBtn`) · "..." (`#gameSettingsBtn`) — hepsi task'ın
+   verdiği sırayla.
+2. **Zorluk göstergesi** — YENİ `#gameDiffChip`, SADECE bilgi
+   (`#difficultySelect`'i okur, YAZMAZ), tıklayınca `#lvlSheet` açılır
+   (levelChip'in AYNI sheet'i).
+3. **Bölüm göstergesi (2. satır)** — `challenge.active` (10 Soruluk Bölüm)
+   iken 10 nokta + "BÖLÜM x/10" (`challenge.done`/`total`) + hızlı-cevap
+   çubuğu ("hızlı cevap 1.2x", GERÇEK `roundFlow.timeLeft`/`roundDuration`
+   ile canlı güncellenir, dekoratif DEĞİL — `#timerBar`'ın AYNI tick'inden
+   beslenir). Boss turunda (`activeQuestion.boss`) bu satırın YERİNE "SÜRE"
+   çubuğu + `#bossChip` ("BOSS" rozetine dönüştürüldü) + "XP 1.65×"
+   (frekans-bulma.js:509 `bossBoost` — grep ile doğrulandı). Serbest'te
+   (challenge pasif, boss değil) HİÇBİRİ gösterilmez.
+4. **Sınav/telafi fazı** — `examGateActive() && examSystem.phase!=="parkur"`
+   iken `#hearts` YERİNE 4 (sınav, `EXAM_CONFIG.EXAM_LENGTH`) ya da 5
+   (telafi, `REMEDIAL_LENGTH`) nokta + "SINAV N/4" / "TELAFİ N/5" —
+   `PARKUR_LENGTH`(10) İLE KARIŞTIRILMADI (task'ın kendi uyarısı, ayrı
+   sistem).
+
+**KORUMA (task'ın kendi kuralı) — HİÇBİR fonksiyon sökülmedi:**
+`#hearts`/`#levelChip`/`#gameInfoBtn`/`#gameSettingsBtn`/`#bossChip` AYNI
+id, AYNI JS bağlantısıyla duruyor. Tasarımda yer BULAMAYAN eski öğeler
+(`#roundChip`/`#streakText`'in taşıyıcısı `.game-sub`, eski `.stats-row`'un
+seri/skor/ipucu/isabet çipleri) SİLİNMEDİ — SADECE CSS ile gizlendi, kendi
+güncelleme kodları (`renderQuestion()`/`updateUI()` içindeki
+`.textContent` satırları) TEK SATIR değişmedi. **TEK gerçek JS değişikliği:**
+`#levelChip`'in İÇERİĞİ artık bir SVG pentagon taşıdığı için, seviye
+sayısını yazan satır hedefini `els.levelChip.textContent` → `els.
+levelChipValue.textContent` olarak DEĞİŞTİRDİ (mantık/hesap AYNI — `progress.
+modeLevel(...)` — SADECE hangi DOM node'a yazıldığı değişti, bkz. o satırın
+kendi yorumu).
+
+**YENİ:** `renderGameHeader()` (app.js) — combo/sayaç/zorluk/sınav/bölüm
+göstergelerini besleyen SAF DOM-render fonksiyonu, `renderQuestion()`
+(her yeni soru) VE `updateUI()` (her genel senkron — submit sonrası DAHİL,
+combo/hearts ANINDA güncellensin diye) içinden çağrılıyor. `updateTimerUI()`
+(mevcut `#timerBar` tick handler'ı) İKİ SATIRLA genişletildi (hızlı-cevap
++ boss SÜRE çubukları AYNI tick'i okuyor) — fonksiyon SÖKÜLMEDİ, sadece
+ek satır.
+
+**Testler:** DEĞİŞMEDİ — bu tur SADECE `index.html`/`styles.css`/`app.js`
+(DOM/CSS render), `renderGameHeader()` DOM okuyup DOM yazan saf bir
+fonksiyon ama `test/`'teki hiçbir saf fonksiyon (createQuestion/
+evaluateAnswer) etkilenmedi. `npm test`: **1043/1043** (değişmedi).
+
+**DOĞRULAMA (canlı tarayıcı, `python3 -m http.server` port 8042 +
+Claude-in-Chrome, temiz `localStorage`, konsol hatasız — tüm oturum
+boyunca SIFIR konsol hatası):**
+- **Combo çipi — 3 GERÇEK combo değeriyle doğrulandı** (localStorage'a
+  `stats.combo` yazılıp sayfa yenilenerek, gerçek `updateUI()` akışı
+  okundu): combo=0 → "x1.00" (dim), combo=5 → "x1.60", combo=20 → "x2.40"
+  (2.4 tavanı doğru çalışıyor) — formülle (`Math.min(2.4,1+combo*0.12)`)
+  BİREBİR eşleşiyor.
+- **Boss turu — GERÇEK oyun motoruyla doğrulandı** (`stats.rounds=4` →
+  `(rounds+1)%5===0`, `startRound()` GERÇEKTEN boss hesapladı): üst bar
+  ikinci satırı "⏱ SÜRE" + "BOSS" (`#bossChip`, `chip boss` class'ı) +
+  "XP 1.65×"'e döndü, çubuk `roundFlow`'un GERÇEK timeLeft'ini takip etti.
+- **Sınav modu — DOM/CSS proxy testiyle doğrulandı, DÜRÜSTLÜK NOTU:**
+  gerçek `examSystem.phase==="exam"`e ulaşmak parkur içinde 6 PEŞ PEŞE
+  doğru GERÇEK ses cevabı gerektiriyor (`comboInParkur>=6`) — bu, otomatik
+  tıklama ile GÜVENİLİR şekilde tetiklenemedi (doğru frekansı piksel-
+  hassasiyetiyle tıklamak gerekiyor). Bunun yerine `renderGameHeader()`'ın
+  ÜRETECEĞİ AYNI DOM mutasyonları (hidden/dot/metin) elle uygulanıp CSS/
+  markup'ın DOĞRU render ettiği doğrulandı (kalpler gizlendi, 4 nokta —
+  2 dolu 2 boş — + "SINAV 3/4" göründü). State-machine geçişinin KENDİSİ
+  (exam-system.js) bu turda DEĞİŞMEDİ, sadece kod okumasıyla doğrulandı.
+- **Ücretsiz/Pro soru sayacı — ikisi ayrı ayrı doğrulandı:** ücretsizde
+  `#gameQCounter` görünür ("1/5"), `devFlags.simulatePro=true`
+  (localStorage) + yenilemede `.hidden` class'ı ANINDA eklendi.
+- **10 Soruluk Bölüm — GERÇEK `startChallenge()` akışıyla doğrulandı:**
+  `#playModeSelect`→"challenge" + Oyunu Başlat → bölüm satırı 10 boş nokta
+  + "BÖLÜM 1/10" ile göründü, hızlı-cevap çubuğu round başında ~94
+  (neredeyse dolu, "active" cyan) → 4 saniye sonra ~19 (label aktifliği
+  KAPANDI) — GERÇEK zamanlı, dekoratif DEĞİL.
+- **Üst bar yüksekliği / soru alanı kayması — 3 durumda ölçüldü:**
+  Serbest (boss değil): 128px, Boss: 131px, 10 Soruluk Bölüm: 128px —
+  ÜÇÜNDE de `#gameScroll`'un üst kenarı `.ghead`'in alt kenarına TAM
+  oturuyor (**boşluk/örtüşme: 0px**), yatay taşma **0px**.
+- **`npm test`: 1043/1043.**
+
+**BİLİNEN, BU TURUN KAPSAMI DIŞI SINIRLAMA:** Boss turunda üst bardaki YENİ
+"SÜRE" çubuğu ile soru alanındaki MEVCUT `.timer-row`/`#timerBar` (aynı
+`roundFlow` verisini okuyan, AYNI ANDA görünen iki çubuk) GEÇİCİ bir
+fazlalık — bu, "1. bölüm" (üst bar) ile "2. bölüm" (soru alanı,
+`.timer-row` DAHİL) arasındaki KASITLI kapsam ayrımının doğal sonucu,
+soru alanı turunda gözden geçirilmeli.
+
+---
+
+Önceki commit (G76, tek commit) — **Mod kartı yükseklik düzeltmesi — G75'in
 eşit-yükseklik çözümü fazla boyu metnin ALTINA ölü boşluk olarak
 ekliyordu, artık GÖRSELE gidiyor**
 
@@ -5868,18 +5969,24 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G76 itibarıyla):** AÇIK İŞLER madde 14 — G67-G76'nın
-TAMAMI (kalıcı "i" + SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu +
-G74'ün yeni ana ekranı + G75'in 5 düzeltmesi + G76'nın kart yükseklik/SVG
-slice düzeltmesi) GERÇEK CİHAZDA (bu turda da SADECE masaüstü Chrome'da
-doğrulandı, iOS WKWebView'de HENÜZ değil — font rendering/safe-area
-farkları VE özellikle şunlar Safari'de YENİDEN doğrulanmalı: G75 madde
-4'ün grid-stretch savunması, G76'nın SVG `preserveAspectRatio="xMidYMid
-slice"` kırpma matematiği — bu turda Chrome'da ölçülüp doğrulandı ama
-font metrikleri Safari'de farklı olursa kenar-güvenlik marjı [x:~30-172]
-yeniden gözden geçirilmeli) elle denenmeli. Ayrıca BEKLEYEN KARARLAR madde
-J (ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini yavaşlatması) kullanıcı
-onayı bekliyor. Aşağıdaki liste (G59 itibarıyla güncellendi) bu adımdan
+**Tek sonraki adım (G77 itibarıyla):** OYUN EKRANI'nın 2. bölümü — soru
+alanı (spektrum/şıklar/kartlar/kaydırıcılar) + alt kontrol çubuğu, G77'de
+BİLEREK kapsam dışı bırakıldı. O turda ayrıca G77'nin kendi notu ele
+alınmalı: boss turunda üst bar "SÜRE" çubuğu ile soru alanındaki mevcut
+`.timer-row` AYNI ANDA görünüyor (GEÇİCİ fazlalık, bkz. BİTTİ G77).
+Bunun ardından AÇIK İŞLER madde 14 — G67-G77'nin TAMAMI (kalıcı "i" +
+SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu + G74'ün yeni ana ekranı
++ G75'in 5 düzeltmesi + G76'nın kart yükseklik/SVG slice düzeltmesi +
+G77'nin yeni üst barı) GERÇEK CİHAZDA (bu turda da SADECE masaüstü
+Chrome'da doğrulandı, iOS WKWebView'de HENÜZ değil — font rendering/
+safe-area farkları VE özellikle şunlar Safari'de YENİDEN doğrulanmalı:
+G75 madde 4'ün grid-stretch savunması, G76'nın SVG `preserveAspectRatio=
+"xMidYMid slice"` kırpma matematiği [kenar-güvenlik marjı x:~30-172],
+G77'nin sınav/telafi nokta göstergesi — bu turda GERÇEK 6-peş-peşe-doğru
+akışıyla DEĞİL, DOM proxy'siyle doğrulandı, bkz. BİTTİ G77 dürüstlük
+notu) elle denenmeli. Ayrıca BEKLEYEN KARARLAR madde J (ACADEMY_XP_
+MULTIPLIER'ın Pro seviye kilidini yavaşlatması) kullanıcı onayı bekliyor.
+Aşağıdaki liste (G59 itibarıyla güncellendi) bu adımdan
 BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma

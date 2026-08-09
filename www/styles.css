@@ -435,31 +435,103 @@
     }
     .mode-info-btn:active{background:rgba(34,211,238,.26)}
     .gear i{width:16px;height:16px;border-radius:99px;border:3px solid var(--tx-2)}
-    .ghead-titles{flex:1;min-width:0}
-    /* G70: mod içi "i" — başlığın YANINDA, küçük/sessiz (bkz. index.html'in
-       #gameInfoBtn notu). min-width:0 + ellipsis: en uzun mod adı
-       ("Frekans Çakışması") + rozet dar ekranda YAN YANA sığmazsa başlık
-       kırpılır, rozet asla İTİLMEZ (flex:none). */
+    .ghead-titles{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+    /* G70: mod içi "i" — G77'de sağ kümeye taşındı (bkz. index.html notu),
+       bu kural SADECE başlık satırı içindir artık. min-width:0 + ellipsis:
+       en uzun mod adı ("Frekans Çakışması") dar ekranda kırpılabilir. */
     .game-title-row{display:flex;align-items:center;gap:6px;min-width:0}
-    .game-title{font-size:16px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .game-title{font-size:15px;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    /* G77: tasarımda yer bulamayan ESKİ alt satır (Soru N / streakText) —
+       .game-sub'un KENDİSİ artık hep .hidden taşıyor (bkz. index.html),
+       JS (roundChip/streakText.textContent) TEK SATIR değişmeden çalışmaya
+       devam ediyor, sadece görünmüyor. */
     .game-sub{font-size:14px;color:var(--tx-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    .hearts{display:flex;align-items:center;gap:6px;padding:9px 7px;border-radius:var(--r-btn);
-      background:rgba(255,77,109,.13);border:1px solid rgba(255,77,109,.26)}
+    .hearts{display:flex;align-items:center;gap:6px;padding:7px 7px;border-radius:var(--r-btn);
+      background:rgba(255,77,109,.13);border:1px solid rgba(255,77,109,.26);align-self:flex-start}
     /* Dolu/boş can arasında BARİZ bir fark olsun — sadece opaklık farkı küçük
        noktalarda ayırt edilmiyordu, kaybedilen canlar artık İÇİ BOŞ (kontur). */
     .heart{width:11px;height:11px;border-radius:99px;background:var(--rd);
       box-sizing:border-box;display:block}
     .heart.off{background:transparent;border:1.5px solid rgba(255,77,109,.4)}
 
+    /* G77: sınav/telafi fazında #hearts'ın YERİNE (bkz. app.js renderGameHeader) */
+    .game-exam-row{display:flex;align-items:center;gap:5px}
+    .game-exam-dots{display:flex;align-items:center;gap:5px}
+    .game-exam-dot{width:20px;height:5px;border-radius:3px;background:rgba(255,255,255,.1)}
+    .game-exam-dot.on{background:var(--gold)}
+    .game-exam-progress{font-size:10px;font-weight:700;color:var(--gold)}
+
+    /* G77: sağ küme — combo çipi/soru sayacı/seviye pentagonu/i/ayarlar. */
+    .ghead-right{flex:none;display:flex;align-items:center;gap:6px}
+    /* G73 İSTİSNA — combo göstergesi amber KALIYOR (combo/boss/süre öğeleri
+       istisnası). Combo 0 iken (.dim) sönük — task'ın kendi kuralı. */
+    .game-combo-chip{
+      display:flex;align-items:center;gap:3px;padding:5px 8px;border-radius:var(--r-chip);
+      background:rgba(240,180,66,.12);border:1px solid rgba(240,180,66,.35);color:var(--amber);
+      transition:opacity .2s;
+    }
+    .game-combo-chip.dim{opacity:.5}
+    .game-combo-chip svg{flex:none}
+    .game-combo-chip span{font-size:12px;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums}
+    .game-qcounter{
+      font-size:12px;font-weight:700;color:var(--text-2);font-variant-numeric:tabular-nums;
+      background:rgba(255,255,255,.06);border:1px solid var(--border-strong);border-radius:var(--r-chip);
+      padding:5px 8px;
+    }
+    .game-qcounter span{color:var(--text-muted);font-weight:500}
+    .game-level-pentagon{position:relative;width:30px;height:30px;flex:none;background:none;border:none;padding:0;cursor:pointer}
+    .game-level-pentagon-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:1px;font-size:11px;font-weight:800;color:#f6d878}
+
+    /* G77: zorluk göstergesi — SADECE bilgi, tıklayınca lvlSheet (bkz. index.html notu). */
+    .game-diff-chip{
+      align-self:flex-start;margin-top:10px;font-size:10px;font-weight:700;letter-spacing:.6px;
+      color:var(--text-2);background:rgba(255,255,255,.05);border:1px solid var(--border-strong);
+      border-radius:var(--r-chip);padding:4px 9px;cursor:pointer;
+    }
+
+    /* G77: bölüm göstergesi (10 Soruluk Bölüm) — challenge.done/total. */
+    .game-chapter-row{display:flex;align-items:center;gap:10px;margin-top:10px}
+    .game-chapter-dots{display:flex;align-items:center;gap:4px;flex:1}
+    .game-chapter-dot{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);transition:background .3s}
+    .game-chapter-dot.on{background:var(--cyan)}
+    .game-chapter-label{flex:none;font-size:9.5px;font-weight:700;letter-spacing:.6px;color:var(--text-muted)}
+    /* G73 İSTİSNA — hızlı-cevap süre çubuğu amber KALIYOR (.bar/.bar>i PAYLAŞILAN
+       taban kural, bkz. aşağıdaki .bar notu — SADECE yükseklik override edildi). */
+    .game-speed-row{display:flex;align-items:center;gap:9px;margin-top:6px}
+    .game-speed-row .bar{height:3px}
+    .game-speed-label{flex:none;font-size:9.5px;font-weight:700;color:var(--text-muted);transition:color .2s}
+    .game-speed-label.active{color:var(--cyan)}
+
+    /* G77: boss satırı — chapter/speed'in YERİNE (bkz. app.js renderGameHeader).
+       #bossChip BURADA "BOSS" rozetine dönüşüyor — className toggle'ı (chip/
+       chip boss) app.js'te AYNI, sadece .chip'in KENDİSİ artık varsayılan
+       gizli, .chip.boss görünür + tasarımın altın rozet stili. */
+    .game-boss-row{margin-top:10px}
+    .game-boss-row-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+    .game-boss-sure{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;letter-spacing:1px;color:var(--amber);flex:1}
+    .game-boss-row .chip{display:none}
+    .game-boss-row .chip.boss{
+      display:block;font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+      color:#1a1305;background:var(--gold-grad);border-radius:6px;padding:3px 8px;flex:none;
+    }
+    .game-boss-xp{flex:none;font-size:10.5px;font-weight:800;color:#1a1305;background:var(--gold-grad);border-radius:6px;padding:3px 8px}
+    /* NOT: aşağıdaki .bar/.bar > i (PAYLAŞILAN taban kural) bu dosyada DAHA
+       SONRA tanımlı — .game-boss-bar TEK BAŞINA (0-1-0/0-1-1) o kuralla AYNI
+       özgüllükte olurdu ve kaynak SIRASI gereği taban kural KAZANIRDI. Burada
+       .game-boss-row ile BİRLEŞTİRİLEREK özgüllük bilerek YÜKSELTİLDİ. */
+    .game-boss-row .game-boss-bar{height:7px;border-radius:4px;background:rgba(0,0,0,.5);border:1px solid rgba(232,196,106,.2);overflow:hidden}
+    .game-boss-row .game-boss-bar > i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#d9553e,var(--amber),#f6d878);box-shadow:0 0 10px rgba(240,180,66,.5);transition:width .12s linear}
+
+    /* G77: ESKİ .stats-row — tasarımda yer YOK, kalıcı gizli (bkz. index.html
+       notu) — JS (seriChip/scoreChip/hintStatCount/gameAccValue.textContent)
+       TEK SATIR değişmeden çalışmaya devam ediyor. */
     .stats-row{display:flex;gap:8px;margin-top:12px}
     .stat{
       flex:1;min-height:42px;display:flex;align-items:center;justify-content:center;gap:7px;
       border-radius:var(--r-card);background:var(--card);border:1px solid var(--border);
       font-size:14px;font-weight:600;padding:6px;text-align:center;white-space:nowrap;
     }
-    /* G73 İSTİSNA — "Seri" (combo) göstergesi: kural gereği amber KALIYOR
-       (combo/boss/süre öğeleri istisnası). */
     .stat .dot{width:7px;height:7px;border-radius:99px;background:var(--amber);flex:none}
     .stat.stat-acc{background:rgba(43,217,168,.12);border-color:rgba(43,217,168,.24);color:var(--gr);font-weight:700}
     .stat.stat-boss{background:rgba(255,77,109,.15);border-color:rgba(255,77,109,.3);color:#FFB3C2;font-weight:700}

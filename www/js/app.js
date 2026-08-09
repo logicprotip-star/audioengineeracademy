@@ -209,6 +209,24 @@ const els = {
   roundChip: document.getElementById("roundChip"),
   scoreChip: document.getElementById("scoreChip"),
   streakText: document.getElementById("streakText"),
+  // G77: üst bar — bkz. index.html .ghead notu
+  gameExamRow: document.getElementById("gameExamRow"),
+  gameExamDots: document.getElementById("gameExamDots"),
+  gameExamProgress: document.getElementById("gameExamProgress"),
+  gameComboChip: document.getElementById("gameComboChip"),
+  gameComboLabel: document.getElementById("gameComboLabel"),
+  gameQCounter: document.getElementById("gameQCounter"),
+  gameQNum: document.getElementById("gameQNum"),
+  levelChipValue: document.getElementById("levelChipValue"),
+  gameDiffChip: document.getElementById("gameDiffChip"),
+  gameChapterRow: document.getElementById("gameChapterRow"),
+  gameChapterDots: document.getElementById("gameChapterDots"),
+  gameChapterLabel: document.getElementById("gameChapterLabel"),
+  gameSpeedRow: document.getElementById("gameSpeedRow"),
+  gameSpeedBarFill: document.getElementById("gameSpeedBarFill"),
+  gameSpeedLabel: document.getElementById("gameSpeedLabel"),
+  gameBossRow: document.getElementById("gameBossRow"),
+  gameBossBarFill: document.getElementById("gameBossBarFill"),
 
   // kaynak / karıştır
   sourceSelect: document.getElementById("sourceSelect"),
@@ -544,6 +562,15 @@ function updateTimerUI(timeLeft = roundFlow.timeLeft, roundDuration = roundFlow.
   els.timerText.textContent = `${timeLeft.toFixed(1)}s`;
   const pct = roundDuration ? (timeLeft / roundDuration) * 100 : 0;
   els.timerBar.style.width = `${Math.max(0, pct)}%`;
+  // G77: üst barın "hızlı cevap 1.2x" çubuğu (bölüm göstergesi satırı) + boss
+  // "SÜRE" çubuğu — AYNI timeLeft/roundDuration'ı okur (#timerBar'ın KENDİSİ,
+  // bkz. yukarıdaki satır). Eşik (0.55) modların calculateXP()'indeki AYNI
+  // timeBoost formülüyle BİREBİR aynı (bkz. frekans-bulma.js:510 vb.) — çubuk
+  // dekoratif DEĞİL, gerçek kalan süreyi gösterir.
+  const clampedPct = Math.max(0, pct);
+  if (els.gameSpeedBarFill) els.gameSpeedBarFill.style.width = `${clampedPct}%`;
+  if (els.gameSpeedLabel) els.gameSpeedLabel.classList.toggle("active", roundDuration > 0 && timeLeft > roundDuration * 0.55);
+  if (els.gameBossBarFill) els.gameBossBarFill.style.width = `${clampedPct}%`;
 }
 
 const roundFlow = createRoundFlow({
@@ -1772,7 +1799,11 @@ function updateUI() {
   if (els.seriChip) els.seriChip.textContent = 'Seri ' + stats.rounds;
   // Z3/Z6: bu MOD seviyesi — diffState()'in yukarıdaki (perDiff, zorluk-bazlı) xp'sinden
   // FARKLI, progress.modeLevel() perMode'dan (mod-bazlı) okur.
-  if (els.levelChip) els.levelChip.textContent = 'Seviye ' + progress.modeLevel(stats, mode.getMeta().id);
+  // G77: hedef #levelChip (buton, düz metin) DEĞİL #levelChipValue (pentagon
+  // SVG'sinin içindeki nested span) — #levelChip artık bir SVG taşıyor,
+  // .textContent'e yazılsaydı SVG'yi SİLERDİ. Hesap/mantık AYNI, SADECE
+  // hangi DOM node'a yazıldığı değişti (bkz. index.html .ghead notu).
+  if (els.levelChipValue) els.levelChipValue.textContent = progress.modeLevel(stats, mode.getMeta().id);
   if (els.gameAccValue) els.gameAccValue.textContent = `%${progress.accuracy(stats)}`;
   els.roundsValue.textContent = stats.rounds;
   els.correctValue.textContent = stats.correct;
@@ -1788,6 +1819,9 @@ function updateUI() {
   renderAnalysis();
   renderDailyTip();
   updateHintChipLabel();
+  // G77: combo/hearts değişince (submit sonrası, updateUI HER submit'te
+  // çağrılıyor) üst bar ANINDA senkron kalsın — sonraki round'u BEKLEMEZ.
+  renderGameHeader();
 }
 
 function renderDaily() {
@@ -2119,6 +2153,79 @@ function giveHint() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// G77: Oyun ekranı ÜST BAR — Tasarim-2026-08/Oyun Ekranı Varyantları.dc.html +
+// Prototip.dc.html (satır ~460-520) referansıyla. renderQuestion() (her yeni
+// soru) VE updateUI() (her genel senkron — submit sonrası DAHİL, combo/hearts
+// ANINDA güncellensin diye) içinden çağrılıyor. SAF DOM render — state
+// mutasyonu YAPMAZ, sadece OKUR. #hearts/#levelChip/#gameInfoBtn/
+// #gameSettingsBtn/#bossChip'in KENDİ güncelleme kodlarına (renderHearts(),
+// updateUI() içindeki levelChipValue satırı, renderQuestion() içindeki
+// bossChip satırları) DOKUNMAZ — SADECE onlarla birlikte görünecek YENİ
+// öğeleri (combo/sayaç/zorluk/bölüm/sınav/hız) besler.
+// ═══════════════════════════════════════════════════════════════════════════
+function renderGameHeader() {
+  // Combo çipi — N gerçek comboBoost'tan türetiliyor. Formül 10 modun
+  // HEPSİNİN calculateXP()'inde birebir aynı (bkz. frekans-bulma.js:507,
+  // grep ile doğrulandı) — burada SAF GÖRÜNTÜLEME amaçlı tekrarlanıyor,
+  // gerçek XP hesabına hiç karışmıyor (paralel sistem DEĞİL).
+  const combo = stats.combo || 0;
+  const comboBoost = Math.min(2.4, 1 + combo * 0.12);
+  if (els.gameComboLabel) els.gameComboLabel.textContent = `x${comboBoost.toFixed(2)}`;
+  if (els.gameComboChip) els.gameComboChip.classList.toggle("dim", combo === 0);
+
+  // Soru sayacı — ücretsiz oturum limiti (paywall.FREE_SESSION_QUESTION_LIMIT=5).
+  // Pro'da anlamsız (sınır yok) — gizlenir.
+  const pro = isUserPro();
+  if (els.gameQCounter) els.gameQCounter.classList.toggle("hidden", pro);
+  if (els.gameQNum) {
+    els.gameQNum.textContent = Math.max(1, Math.min(roundsInThisPlaySession, paywall.FREE_SESSION_QUESTION_LIMIT));
+  }
+
+  // Zorluk göstergesi — SADECE bilgi (#difficultySelect'i okur, YAZMAZ —
+  // oyun ortasında zorluk bu ÇİPTEN değiştirilemez, task'ın kendi kuralı).
+  if (els.gameDiffChip && els.difficultySelect && els.difficultySelect.selectedIndex >= 0) {
+    els.gameDiffChip.textContent = els.difficultySelect.options[els.difficultySelect.selectedIndex].text;
+  }
+
+  // Sınav/telafi fazı — kalpler YERİNE nokta göstergesi. EXAM_CONFIG.
+  // EXAM_LENGTH(4)/REMEDIAL_LENGTH(5) kullanılır — PARKUR_LENGTH(10) İLE
+  // KARIŞTIRILMAZ (o AYRI bir sistem, task'ın kendi uyarısı).
+  const examActive = examGateActive() && examSystem.phase !== "parkur";
+  if (els.hearts) els.hearts.classList.toggle("hidden", examActive);
+  if (els.gameExamRow) els.gameExamRow.classList.toggle("hidden", !examActive);
+  if (examActive && els.gameExamDots && els.gameExamProgress) {
+    const isRemedial = examSystem.phase === "remedial";
+    const total = isRemedial ? EXAM_CONFIG.REMEDIAL_LENGTH : EXAM_CONFIG.EXAM_LENGTH;
+    const current = isRemedial ? examSystem.remedialIndex : examSystem.examIndex;
+    els.gameExamDots.innerHTML = "";
+    for (let i = 0; i < total; i++) {
+      const dot = document.createElement("div");
+      dot.className = `game-exam-dot${i < current ? " on" : ""}`;
+      els.gameExamDots.appendChild(dot);
+    }
+    els.gameExamProgress.textContent = `${isRemedial ? "TELAFİ" : "SINAV"} ${Math.min(current + 1, total)}/${total}`;
+  }
+
+  // İkinci satır — boss SÜRE satırı > bölüm göstergesi (10 Soruluk Bölüm) >
+  // (Serbest'te) hiçbiri. boss activeQuestion.boss'tan okunur (startRound()'un
+  // ZATEN hesapladığı GERÇEK değer, burada YENİDEN hesaplanmıyor).
+  const boss = !!(activeQuestion && activeQuestion.boss);
+  if (els.gameBossRow) els.gameBossRow.classList.toggle("hidden", !boss);
+  const showChapter = !boss && challenge.active;
+  if (els.gameChapterRow) els.gameChapterRow.classList.toggle("hidden", !showChapter);
+  if (els.gameSpeedRow) els.gameSpeedRow.classList.toggle("hidden", !showChapter);
+  if (showChapter && els.gameChapterDots && els.gameChapterLabel) {
+    els.gameChapterDots.innerHTML = "";
+    for (let i = 0; i < challenge.total; i++) {
+      const dot = document.createElement("div");
+      dot.className = `game-chapter-dot${i < challenge.done ? " on" : ""}`;
+      els.gameChapterDots.appendChild(dot);
+    }
+    els.gameChapterLabel.textContent = `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Soru render / gönderim
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -2218,6 +2325,7 @@ function renderQuestion() {
     : q.mode === "cakisma" ? mode.modeDescription(q)
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
+  renderGameHeader();
 }
 
 function onTimeUp() {
@@ -4234,6 +4342,9 @@ function closeLevelSheet() {
 if (els.levelChip) els.levelChip.addEventListener("click", openLevelSheet);
 if (els.lvlSheetClose) els.lvlSheetClose.addEventListener("click", closeLevelSheet);
 if (els.lvlSheetOverlay) els.lvlSheetOverlay.addEventListener("click", closeLevelSheet);
+// G77: zorluk göstergesi çipi — levelChip'İN AYNI sheet'ini açar, KENDİ
+// #difficultySelect'i DEĞİŞTİRME davranışı YOK (SADECE bilgi, bkz. index.html notu).
+if (els.gameDiffChip) els.gameDiffChip.addEventListener("click", openLevelSheet);
 
 // "i" bilgi/rehber sistemi (bkz. core/guide-texts.js) — KALICI, tıkla-aç/tıkla-kapa.
 // TEK sheet (guideSheet), lvlSheet'in AYNI deseni: ana ekranın "i"si GENERAL_GUIDE'ı,

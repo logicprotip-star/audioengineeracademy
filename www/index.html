@@ -137,37 +137,105 @@
 
     <!-- ================= EKRAN: OYUN (Motor 1) ================= -->
     <section class="screen" id="screen-game">
+      <!-- G77: üst bar — Tasarim-2026-08/Oyun Ekranı Varyantları.dc.html +
+           Prototip.dc.html (satır ~460-520) referansıyla YENİDEN kuruldu.
+           KURAL (task'ın kendisi): mevcut id'ler/JS bağlantıları KORUNDU
+           (#hearts/#levelChip/#gameInfoBtn/#gameSettingsBtn/#bossChip HÂLÂ
+           AYNI id, AYNI click-handler) — tasarımda yer BULAMAYAN eski
+           öğeler (#roundChip/#streakText'in taşıyıcısı .game-sub, eski
+           .stats-row'un seri/skor/ipucu/isabet çipleri) SİLİNMEDİ, sadece
+           CSS ile gizlendi (bkz. styles.css), kendi güncelleme kodları
+           (app.js) TEK SATIR değişmedi. #levelChip'in İÇERİĞİ değişti
+           (düz metin → altın pentagon SVG + #levelChipValue nested span) —
+           bu, app.js'te SADECE hangi DOM node'a yazıldığını değiştiren TEK
+           satırlık bir retarget (fonksiyon/mantık SÖKÜLMEDİ, bkz. o satırın
+           kendi yorumu). -->
       <div class="ghead">
         <div class="ghead-row">
           <button class="back" id="backBtn" aria-label="Menüye dön">&#8249;</button>
           <div class="ghead-titles">
             <div class="game-title-row">
               <div class="game-title" id="gameTitle">Frekans Bulma</div>
-              <!-- G70: mod İÇİ (oyun ekranı) "i" — spotlight 2 oyundan sonra
-                   solunca kullanıcının oynarken çıkmadan bilgiye TEK erişimi
-                   buydu, eksikti. Mod kartındakiyle AYNI openGuideSheet(modeId)
-                   içeriği (bkz. app.js) — YENİ metin YOK. #gameTitle'ın
-                   KARDEŞİ (İÇİNDE DEĞİL) — enterMode() her mod değişiminde
-                   #gameTitle.textContent'i YENİDEN yazıyor, içine konsaydı
-                   HER mod değişiminde silinirdi. .mode-info-btn'in AYNI küçük
-                   (22px) amber rozeti — yeni bir görsel dil İCAT edilmedi. -->
-              <button type="button" class="mode-info-btn" id="gameInfoBtn" aria-label="Mod bilgisi">i</button>
             </div>
-            <div class="game-sub num">
+            <div class="hearts" id="hearts"></div>
+            <!-- Sınav/telafi fazında (examActive) kalplerin YERİNE — bkz.
+                 app.js renderGameHeader(). 4 nokta EXAM_CONFIG.EXAM_LENGTH'e,
+                 5 nokta REMEDIAL_LENGTH'e göre (core/exam-system.js) — PARKUR_LENGTH
+                 (10) İLE KARIŞTIRILMASIN, task'ın kendi uyarısı. -->
+            <div class="game-exam-row hidden" id="gameExamRow">
+              <div class="game-exam-dots" id="gameExamDots"></div>
+              <span class="game-exam-progress" id="gameExamProgress"></span>
+            </div>
+            <!-- ESKİ subrow — tasarımda yer YOK, CSS ile gizli (bkz. yukarı not) -->
+            <div class="game-sub num hidden">
               <span id="roundChip">Soru 0</span>
               <span id="streakText" class="hidden">Hazır</span>
             </div>
           </div>
-          <div class="chip hidden" id="bossChip">Normal</div>
-          <div class="hearts" id="hearts"></div>
-          <button class="dots" id="gameSettingsBtn" aria-label="Oyun ayarları"><i></i><i></i><i></i></button>
+          <div class="ghead-right">
+            <!-- Combo çipi — N gerçek comboBoost'tan (bkz. app.js renderGameHeader,
+                 frekans-bulma.js:507'deki AYNI formül — 10 modun HEPSİNDE birebir
+                 aynı, burada saf GÖRÜNTÜLEME amaçlı tekrarlanıyor). -->
+            <div class="game-combo-chip dim" id="gameComboChip">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-4 5.5-4 9.5a4 4 0 0 0 8 .3c1.2 1 2 2.6 2 4.2a6 6 0 1 1-12 0C6 10 12 8 12 2Z"></path></svg>
+              <span id="gameComboLabel">x1.00</span>
+            </div>
+            <!-- Soru sayacı — ücretsiz oturum limiti (paywall.FREE_SESSION_QUESTION_LIMIT).
+                 Pro'da sınır yok, app.js gizler. -->
+            <div class="game-qcounter" id="gameQCounter"><b id="gameQNum">1</b><span> / 5</span></div>
+            <!-- Seviye pentagon — #levelChip'İN KENDİSİ, id/click AYNI (Z6 lvlSheet). -->
+            <button class="game-level-pentagon" id="levelChip" type="button" aria-label="Seviye bilgisi">
+              <svg width="30" height="30" viewBox="0 0 52 52">
+                <polygon points="26,3 48,19 40,46 12,46 4,19" fill="var(--gold-grad)" stroke="#fbe9a8" stroke-width="1.6"></polygon>
+                <polygon points="26,9 42.5,21 36.5,41 15.5,41 9.5,21" fill="#2a2013" stroke="#c79a33" stroke-width="1.2"></polygon>
+              </svg>
+              <span class="game-level-pentagon-num" id="levelChipValue">1</span>
+            </button>
+            <!-- G70: mod İÇİ "i" — AYNI openGuideSheet(modeId) içeriği, YENİ metin
+                 YOK. Konumu G77'de sağ kümeye taşındı (task'ın "soldan sağa" sırası). -->
+            <button type="button" class="mode-info-btn" id="gameInfoBtn" aria-label="Mod bilgisi">i</button>
+            <button class="dots" id="gameSettingsBtn" aria-label="Oyun ayarları"><i></i><i></i><i></i></button>
+          </div>
         </div>
-        <div class="stats-row">
+
+        <!-- Zorluk göstergesi — SADECE gösterge, tıklayınca #lvlSheet açılır
+             (levelChip'İN AYNI sheet'i) — #difficultySelect'i DEĞİŞTİRMEZ,
+             oyun ortasında zorluk sabit kalır (task'ın kendi kuralı). -->
+        <button type="button" class="game-diff-chip" id="gameDiffChip">Orta</button>
+
+        <!-- Bölüm göstergesi — SADECE challenge.active (10 Soruluk Bölüm) iken,
+             boss turunda DEĞİL (bkz. app.js renderGameHeader). -->
+        <div class="game-chapter-row hidden" id="gameChapterRow">
+          <div class="game-chapter-dots" id="gameChapterDots"></div>
+          <span class="game-chapter-label" id="gameChapterLabel">BÖLÜM 1/10</span>
+        </div>
+        <div class="game-speed-row hidden" id="gameSpeedRow">
+          <div class="bar game-speed-bar"><i id="gameSpeedBarFill"></i></div>
+          <span class="game-speed-label" id="gameSpeedLabel">hızlı cevap 1.2x</span>
+        </div>
+
+        <!-- Boss satırı — chapter/speed satırının YERİNE, isBossRound'da.
+             #bossChip'İN KENDİSİ (mevcut textContent/className toggle'ı,
+             bkz. app.js renderQuestion) — SADECE CSS ile "BOSS" rozetine
+             dönüştürüldü, JS TEK SATIR değişmedi. -->
+        <div class="game-boss-row hidden" id="gameBossRow">
+          <div class="game-boss-row-head">
+            <span class="game-boss-sure">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2"></path></svg>
+              SÜRE
+            </span>
+            <div class="chip" id="bossChip">Normal</div>
+            <span class="game-boss-xp">XP 1.65×</span>
+          </div>
+          <div class="bar game-boss-bar"><i id="gameBossBarFill"></i></div>
+        </div>
+
+        <!-- ESKİ .stats-row — tasarımda yer YOK, CSS ile gizli (bkz. yukarı not) -->
+        <div class="stats-row hidden">
           <div class="stat"><span class="dot"></span><span id="seriChip">Seri 0</span></div>
           <div class="stat num" id="scoreChip">Skor 0</div>
           <div class="stat"><span id="hintStatCount">3</span>&nbsp;ipucu</div>
           <div class="stat stat-acc" id="gameAccValue">%0</div>
-          <button class="stat" id="levelChip" type="button">Seviye 1</button>
         </div>
       </div>
 
