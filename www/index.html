@@ -152,6 +152,9 @@
            kendi yorumu). -->
       <div class="ghead">
         <div class="ghead-row">
+          <!-- G79: 34x34'e küçültüldü (tasarım "daha sıkışık" istedi) — SCOPED
+               override (.ghead-row .back), diğer ekranlardaki .back (calibrasyon/
+               SSS/geri bildirim/vb. geri butonları) DEĞİŞMEDİ. -->
           <button class="back" id="backBtn" aria-label="Menüye dön">&#8249;</button>
           <div class="ghead-titles">
             <div class="game-title-row">
@@ -192,7 +195,10 @@
               <span class="game-level-pentagon-num" id="levelChipValue">1</span>
             </button>
             <!-- G70: mod İÇİ "i" — AYNI openGuideSheet(modeId) içeriği, YENİ metin
-                 YOK. Konumu G77'de sağ kümeye taşındı (task'ın "soldan sağa" sırası). -->
+                 YOK. Konumu G77'de sağ kümeye taşındı (task'ın "soldan sağa" sırası).
+                 G79: 30x30'a küçültüldü (tasarım "daha sıkışık" istedi) — bu
+                 SCOPED bir CSS override (.ghead-right .mode-info-btn), taban
+                 .mode-info-btn (mod kartlarında da kullanılıyor) DEĞİŞMEDİ. -->
             <button type="button" class="mode-info-btn" id="gameInfoBtn" aria-label="Mod bilgisi">i</button>
             <button class="dots" id="gameSettingsBtn" aria-label="Oyun ayarları"><i></i><i></i><i></i></button>
           </div>
@@ -235,46 +241,48 @@
       </div>
 
       <div class="scroll game-scroll" id="gameScroll">
-        <!-- G78: TEK satır, yatay kaydırılabilir (bkz. styles.css .chiprow notu)
-             — zorluk göstergesi buraya taşındı (eskiden .ghead'de ayrı satırdı),
-             kaynak/odak/cevap-biçimi çipleri artık DARALTILMIYOR (metin
-             kırpılmıyor) — hepsi kendi doğal genişliğinde, taşarsa satır
-             kayar. Görünürlük kuralları (odak/cevap-biçimi SADECE frekans-
-             bulma'da, kaynak her modda, cakisma'da çift-kaynak) TEK SATIR
-             değişmedi (bkz. app.js syncAnswerFormatVisibility/
-             populateFocusSelect/syncCakismaVisibility). -->
-        <div class="chiprow">
+        <!-- G79: Tasarim-2026-08/Prototip.dc.html referansıyla İKİ SABİT satır
+             (G78'in "tek satır + yatay kaydır" yaklaşımı TERK EDİLDİ, task'ın
+             kendi kararı) — kaydırma YOK, kesilme YOK: 1. satır zorluk+cevap
+             biçimi+odak, 2. satır kaynak+karışık. Görünürlük kuralları
+             (odak/cevap-biçimi SADECE frekans-bulma'da, kaynak her modda,
+             cakisma'da çift-kaynak) TEK SATIR değişmedi (bkz. app.js
+             syncAnswerFormatVisibility/populateFocusSelect/syncCakismaVisibility). -->
+        <div class="chiprow chiprow-wrap">
           <!-- Zorluk göstergesi — SADECE gösterge, tıklayınca #lvlSheet açılır
                (levelChip'İN AYNI sheet'i) — #difficultySelect'i DEĞİŞTİRMEZ,
-               oyun ortasında zorluk sabit kalır (task'ın kendi kuralı). -->
+               oyun ortasında zorluk sabit kalır (task'ın kendi kuralı).
+               "OTOMATİK"/tier adı app.js renderGameHeader'da yazılıyor. -->
           <button type="button" class="game-diff-chip" id="gameDiffChip">Orta</button>
-          <div class="control control-sheet" id="sourceChipWrap">
-            <label class="hidden">Kaynak</label>
-            <!-- <option>/<optgroup> listesi app.js'te SOURCE_GROUPS'tan üretilir (bkz. populateSourceSelect) -->
-            <select id="sourceSelect" class="hidden"></select>
-            <button class="srctag setting-row" data-sheet-select="sourceSelect" data-sheet-title="Kaynak">
-              <span class="dot"></span><b class="setting-row-value-text" id="sourceChipLabel">Pink Noise</b><span class="chev">&#8250;</span>
-            </button>
+          <!-- G79: cevap biçimi artık sheet açan bir chip DEĞİL, İKİLİ SEGMENTED
+               TOGGLE (Dokunmalı|Şıklı) — #answerFormatSelect'İN KENDİSİNE
+               (id/JS AYNI) doğrudan yazıp "change" event'i tetikliyor (mevcut
+               change listener'ın AYNISI çalışır, sheet-tabanlı Oyun Ayarları
+               satırı da HÂLÂ ayrı bir giriş noktası olarak duruyor,
+               dokunulmadı). Görünürlük #answerFormatChipWrap id'sinde KALDI
+               (syncAnswerFormatVisibility TEK SATIR değişmedi). -->
+          <div class="seg-toggle" id="answerFormatChipWrap">
+            <button type="button" class="seg-toggle-btn" id="answerFormatTouchBtn" data-format="touch">Dokunmalı</button>
+            <button type="button" class="seg-toggle-btn" id="answerFormatChoiceBtn" data-format="choice">Şıklı</button>
           </div>
           <div class="control control-sheet hidden" id="focusChipWrap">
             <label class="hidden">Odak aralığı</label>
             <!-- <option> listesi app.js'te mode.FOCUS_RANGES'tan üretilir (bkz. populateFocusSelect) -->
             <select id="focusSelect" class="hidden"></select>
             <button class="srctag setting-row" data-sheet-select="focusSelect" data-sheet-title="Odak aralığı">
-              <b class="setting-row-value-text" id="focusChipLabel" style="color:var(--bl)">Tüm spektrum</b><span class="chev">&#8250;</span>
+              <b class="setting-row-value-text" id="focusChipLabel">Tüm spektrum</b><span class="chev">&#8250;</span>
             </button>
           </div>
-          <!-- E2: cevap biçimi chip'i — answerFormatSelect'in KENDİSİ burada değil, Oyun
-               Ayarları sheet'inde tanımlı (bkz. o sheet'teki control-sheet bloğu); bu satır
-               AYNI select'e data-sheet-select ile bağlanıyor. initSettingsSheet'in generic
-               mekanizması (bkz. app.js) iki satırı da otomatik senkron tutar. -->
-          <div class="control control-sheet" id="answerFormatChipWrap">
-            <label class="hidden">Cevap biçimi</label>
-            <button class="srctag setting-row" data-sheet-select="answerFormatSelect" data-sheet-title="Cevap biçimi">
-              <b class="setting-row-value-text" id="answerFormatChipLabel" style="color:var(--gr)">Dokunmalı</b><span class="chev">&#8250;</span>
+        </div>
+        <div class="chiprow chiprow-wrap">
+          <div class="control control-sheet" id="sourceChipWrap">
+            <label class="hidden">Kaynak</label>
+            <!-- <option>/<optgroup> listesi app.js'te SOURCE_GROUPS'tan üretilir (bkz. populateSourceSelect) -->
+            <select id="sourceSelect" class="hidden"></select>
+            <button class="srctag setting-row" data-sheet-select="sourceSelect" data-sheet-title="Kaynak">
+              <b class="setting-row-value-text" id="sourceChipLabel">Pink Noise</b><span class="chev">&#8250;</span>
             </button>
           </div>
-          <button class="mixchip" id="mixToggle" aria-label="Karıştır" title="Karıştır"><span class="led"></span><span>⇄</span></button>
           <!-- G51: Motor 3 (Frekans Çakışması) — kaynak ÇİFTİ seçici, diğer sekiz
                modun TEK-kaynak Kaynak chip'inin yerine geçer (o mod içinde
                sourceChipWrap app.js tarafından gizlenir, bkz. "Frekans
@@ -290,9 +298,10 @@
               <option value="own">Kendi dosyalarım</option>
             </select>
             <button class="srctag setting-row" data-sheet-select="cakismaPairSelect" data-sheet-title="Kaynak çifti">
-              <b class="setting-row-value-text" id="cakismaPairChipLabel" style="color:var(--pu)">Kick + Bas</b><span class="chev">&#8250;</span>
+              <b class="setting-row-value-text" id="cakismaPairChipLabel">Kick + Bas</b><span class="chev">&#8250;</span>
             </button>
           </div>
+          <button class="mixchip" id="mixToggle" aria-label="Karıştır" title="Karıştır"><span class="led"></span><span>⇄ Karışık</span></button>
         </div>
 
         <!-- G56: "Kendi dosyalarım" seçilince İKİ GENEL yükleme yuvası ("Ses 1"/
@@ -317,7 +326,12 @@
           </div>
         </div>
 
-        <div class="qline" id="questionTitle">Başlamak için "Oyunu Başlat"a dokun.</div>
+        <!-- G79: "Başlamak için 'Oyunu Başlat'a dokun." statik metni KALDIRILDI
+             (task'ın kendi kararı — altındaki play butonu ZATEN aynı şeyi
+             söylüyor, tekrar). #questionTitle SİLİNMEDİ — renderQuestion()
+             HER turda GERÇEK soru metnini yazıp .hidden'ı kaldırıyor
+             (bkz. app.js), sadece İLK açılıştaki placeholder boş/gizli. -->
+        <div class="qline hidden" id="questionTitle"></div>
         <div class="qline-sub hidden" id="questionMeta"></div>
 
         <div class="card analyzer" id="analyzer" data-phase="ask">
@@ -332,7 +346,39 @@
           </div>
         </div>
 
-        <div id="freqGuessArea" class="tapHint hidden"></div>
+        <!-- G79: kontroller — spektrumun HEMEN ALTINDA, sabit alt bara
+             YAPIŞMIYOR (tasarımın kendi kararı, alt bar SADECE onay/Atla
+             taşıyor artık, bkz. aşağı). #hintBtn/#startBtn/#abToggle AYNI
+             id/JS (giveHint/updateStartBtnLabel/toggleAB+basılı-tut) —
+             SADECE konum + görünüm değişti. #abLoopBtn YENİ (mevcut
+             startAbLoop/stopAbLoop'a bağlanıyor, aynı fonksiyonlar SÖKÜLMEDİ,
+             sadece uzun-basmanın YANINDA görünür bir ikinci tetikleyici). -->
+        <div class="game-spectrum-controls" id="gameSpectrumControls">
+          <button class="game-ctrl-btn" id="hintBtn" aria-label="İpucu">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5.9 1.1 1 1.6h5c.1-.5.4-1.1 1-1.6A6 6 0 0 0 12 3Z"></path></svg>
+            <span id="hintBtnLabel">İpucu Ver (3)</span>
+          </button>
+          <button class="game-ctrl-play" id="startBtn" aria-label="Oynat/Durdur">▶</button>
+          <button class="btn abbtn game-ctrl-ab" id="abToggle" data-ab="B">
+            <span class="abtitle" id="abTitle">A/B Test</span>
+            <span class="abpair"><span class="abside" data-side="A">A</span><span class="abside" data-side="B">B</span><span class="abside abside-c" data-side="C">C</span></span>
+            <!-- G71: "basılı tut" (520ms uzun basma → startAbLoop, bkz. app.js
+                 pointerdown/abPressTimer) kod olarak zaten VARDI ama kullanıcıya
+                 hiç anlatılmıyordu. cakisma HARİÇ TÜM modlarda GERÇEKTEN
+                 çalışıyor — buton zaten cakisma'da tamamen gizli
+                 (syncCakismaVisibility). G79: bu metin küçük ikon satırında
+                 CSS ile gizlendi (#abLoopBtn zaten görünür bir alternatif). -->
+            <span class="abholdhint">Basılı tut: döngü</span>
+          </button>
+          <!-- G79: YENİ — tasarımın "döngü ikonu". Mevcut startAbLoop/stopAbLoop'u
+               ÇAĞIRIR (aynı fonksiyonlar), aktifken (.loop class'ı #abToggle'da)
+               CSS kardeş seçiciyle vurgulanır — YENİ bir durum değişkeni
+               EKLENMEDİ. -->
+          <button class="game-ctrl-btn game-ctrl-loop" id="abLoopBtn" aria-label="Döngü">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3l3 3-3 3"></path><path d="M20 6H8a4 4 0 0 0-4 4M7 21l-3-3 3-3"></path><path d="M4 18h12a4 4 0 0 0 4-4"></path></svg>
+          </button>
+        </div>
+
         <div id="freqInfo" class="hidden"></div>
 
         <!-- G78: ÇİFT süre gösterimi vardı (bu + üst bardaki G77 çubuğu) —
@@ -363,42 +409,20 @@
         </div>
       </div>
 
-      <!-- G78: alt bar — Tasarim-2026-08 (showTransport bloğu) referansıyla
-           yeniden düzenlendi: ipucu (küçük ikon) · oynat/durdur (büyük,
-           öne çıkan) · A/B Bypass (pill) üst sırada, altında büyük yeşil
-           onay/Sonraki butonu. #startBtn/#abToggle/#hintBtn/#nextBtn AYNI
-           id, AYNI JS (updateStartBtnLabel/toggleAB/giveHint/round-flow
-           auto-advance) — TEK SATIR mantık değişmedi, SADECE CSS/sıra +
-           hintBtn'in metnini taşıyan node (bkz. altındaki not). -->
+      <!-- G79: alt bar artık SADECE onay/Atla taşıyor — ipucu/play/A-B/döngü
+           kontrolleri spektrumun altına taşındı (yukarı bkz. #gameSpectrumControls).
+           #freqGuessArea BURAYA taşındı (eskiden .game-scroll içindeydi, G78) —
+           işaretle→onayla akışının (frekans-bulma dokunmalı biçimi) yeşil onay
+           butonu artık GERÇEKTEN "en altta". #nextBtn ARTIK YEŞİL DEĞİL —
+           nötr/sönük (task'ın kararı: "Atla" geri bildirim ekranındaki ✕ ile
+           AYNI işi yapar, yeşil onay rengi SADECE gerçek onay eylemine ait).
+           #freqGuessArea/#nextBtn id'leri, app.js'teki TÜM okuma/yazma kodu
+           (renderFreqConfirmButton/updateTimerUI/round-flow auto-advance)
+           TEK SATIR değişmedi — sadece DOM'daki KONUMLARI değişti. --actionbar-h'a
+           DOKUNULMADI. -->
       <div class="actionbar" id="gameActionbar">
-        <div class="row game-transport-row">
-          <!-- G78: hintBtn İÇİNDE artık kalıcı bir ampul ikonu VAR — app.js'in
-               textContent'i SİLMEMESİ için metin ayrı bir #hintBtnLabel span'e
-               taşındı (levelChip'in G77'deki AYNI deseni: id/disabled/click
-               AYNI, SADECE hangi node'a yazıldığı değişti). -->
-          <button class="btn game-hint-btn" id="hintBtn">
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5.9 1.1 1 1.6h5c.1-.5.4-1.1 1-1.6A6 6 0 0 0 12 3Z"></path></svg>
-            <span id="hintBtnLabel">İpucu Ver (3)</span>
-          </button>
-          <button class="btn game-play-btn" id="startBtn">Oyunu Başlat</button>
-          <button class="btn abbtn" id="abToggle" data-ab="B">
-            <span class="abtitle" id="abTitle">A/B Test</span>
-            <span class="abpair"><span class="abside" data-side="A">A</span><span class="abside" data-side="B">B</span><span class="abside abside-c" data-side="C">C</span></span>
-            <!-- G71: "basılı tut" (520ms uzun basma → startAbLoop, bkz. app.js
-                 pointerdown/abPressTimer) kod olarak zaten VARDI ama kullanıcıya
-                 hiç anlatılmıyordu. Ayrı bir spotlight adımı DEĞİL — küçük/sessiz
-                 bir yazı. cakisma HARİÇ TÜM modlarda GERÇEKTEN çalışıyor (toggleAB
-                 hem A/B hem A/B/C dalını kapsıyor) — mod bazlı bir gösterme/gizleme
-                 GEREKMEDİ, buton zaten cakisma'da tamamen gizli
-                 (syncCakismaVisibility). Döngü aktifken (.loop class'ı) CSS ile
-                 gizlenir — abTitle zaten "Döngü" diyor, tekrar söylemeye gerek yok. -->
-            <span class="abholdhint">Basılı tut: döngü</span>
-          </button>
-        </div>
-        <!-- G78: yeşil (--green-grad, tasarımdaki gibi) — .btn.primary'nin
-             PAYLAŞILAN kuralına DOKUNULMADI (paywall/sınav/vb. onu KULLANIYOR),
-             #nextBtn'e özel bir override eklendi (bkz. styles.css). -->
-        <button class="btn primary" id="nextBtn">Atla ▶</button>
+        <div id="freqGuessArea" class="tapHint hidden"></div>
+        <button class="btn" id="nextBtn">Atla ▶</button>
       </div>
 
       <!-- Zorluk/Oyun Türü/Süre/Dosya yükleme: dots ikonuyla açılan sheet -->

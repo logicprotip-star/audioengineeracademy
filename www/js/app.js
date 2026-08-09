@@ -278,9 +278,12 @@ const els = {
   startBtn: document.getElementById("startBtn"),
   abToggle: document.getElementById("abToggle"),
   abTitle: document.getElementById("abTitle"),
+  abLoopBtn: document.getElementById("abLoopBtn"),
   hintBtn: document.getElementById("hintBtn"),
   hintBtnLabel: document.getElementById("hintBtnLabel"),
   nextBtn: document.getElementById("nextBtn"),
+  answerFormatTouchBtn: document.getElementById("answerFormatTouchBtn"),
+  answerFormatChoiceBtn: document.getElementById("answerFormatChoiceBtn"),
 
   // oyun ayarları sheet (dots)
   gameSettingsOverlay: document.getElementById("gameSettingsOverlay"),
@@ -1234,15 +1237,23 @@ function appendFreqInfoNote(text, ok) {
   else els.freqInfo.appendChild(note);
 }
 
+// G79: tasarım #startBtn'i büyük yuvarlak İKON butonu istiyor ("yazılı buton
+// değil") — 3 durumun METNİ (Oyunu Başlat/Durdur/Tekrar Çal) kaldırılıp SADECE
+// glyph bırakıldı, aria-label ile bilgi KAYBOLMADI (ekran okuyucular hâlâ
+// "Oyunu Başlat"/"Durdur"/"Tekrar Çal" duyar). Fonksiyonun KENDİSİ/çağrıldığı
+// yerler/koşulları TEK SATIR değişmedi.
 function updateStartBtnLabel() {
   if (!els.startBtn) return;
   if (!activeQuestion || currentLives <= 0) {
-    els.startBtn.textContent = "▶ Oyunu Başlat";
+    els.startBtn.textContent = "▶";
+    els.startBtn.setAttribute("aria-label", "Oyunu Başlat");
     els.startBtn.classList.remove("warning");
     return;
   }
   els.startBtn.classList.add("warning");
-  els.startBtn.textContent = autoStopped ? "🔄 Tekrar Çal" : "⏸ Durdur";
+  const tekrarCal = autoStopped;
+  els.startBtn.textContent = tekrarCal ? "🔄" : "⏸";
+  els.startBtn.setAttribute("aria-label", tekrarCal ? "Tekrar Çal" : "Durdur");
 }
 
 function updateHintChipLabel() {
@@ -1405,6 +1416,14 @@ function enterMode(entry, realMode) {
     autoStopped = true;
     mode = realMode;
     populateSourceSelect(); // yeni modun kaynak uyumluluğuna göre kaynak listesini süz
+    // G79 DÜZELTMESİ (canlı testte bulundu, ÖNCEDEN VARDI): populateFocusSelect()
+    // SADECE modül yüklenirken (satır ~440) BİR KEZ çağrılıyordu — o an varsayılan
+    // mod frekans-bulma olduğu için (bkz. dosya başı `let mode = getMode(...)`)
+    // odak çipi İLK açılışta doğru görünüyordu ama BAŞKA hiçbir moda geçince BİR
+    // DAHA HİÇ gizlenmiyordu (odak SADECE frekans-bulma'da olmalı) — populateSourceSelect/
+    // syncAnswerFormatVisibility/syncCakismaVisibility'nin AYNI "mod değişince
+    // yeniden değerlendir" deseni burada EKSİKTİ, eklendi.
+    populateFocusSelect();
     syncAnswerFormatVisibility();
     syncCakismaVisibility();
     // G46: Tonal Denge'nin altı kaydırıcıya kadar çıkabilen kart listesi spektrumun
@@ -1420,7 +1439,12 @@ function enterMode(entry, realMode) {
     // modId GERÇEKTEN değiştiyse resetler (bkz. core/exam-system.js), aynı moda
     // geri dönmek (menüden çıkıp aynı karta basmak) yarım parkuru KORUR.
     examSystem.setMode(realMode.MODE_ID);
-    els.questionTitle.textContent = 'Başlamak için "Oyunu Başlat"a dokun.';
+    // G79: "Başlamak için 'Oyunu Başlat'a dokun." kutusu KALDIRILDI (task'ın
+    // kararı — altındaki play butonu ZATEN aynı şeyi söylüyor). #questionTitle
+    // SİLİNMEDİ, idle durumda SADECE boş+gizli — renderQuestion() ilk turda
+    // GERÇEK soru metnini yazıp .hidden'ı kaldırır (bkz. o fonksiyon).
+    els.questionTitle.textContent = "";
+    els.questionTitle.classList.add("hidden");
     els.questionMeta.textContent = "";
     // Önceki modun spotlight turu yeni moda SIZMASIN — startSpotlightTourIfNeeded
     // zaten her startRound()'da yeniden değerlendirir, ama "Oyunu Başlat"a basılana
@@ -2189,8 +2213,21 @@ function renderGameHeader() {
 
   // Zorluk göstergesi — SADECE bilgi (#difficultySelect'i okur, YAZMAZ —
   // oyun ortasında zorluk bu ÇİPTEN değiştirilemez, task'ın kendi kuralı).
+  // G79: Otomatik moddaysa tasarımdaki gibi "OTOMATİK" yazar — module-level
+  // `diffModeAuto` DEĞİL, AYNI koşulun (prefs.difficultyMode !== "fixed")
+  // KENDİSİ okunuyor: renderGameHeader() updateUI() üzerinden SAYFA
+  // AÇILIŞINDA senkron çağrılıyor, o an diffModeAuto HENÜZ TDZ'de (kendi
+  // `let`i script'in çok daha AŞAĞISINDA) — canlı test bunu YAKALADI
+  // (ReferenceError). prefs ise çok daha ERKEN (satır ~603) tanımlı, güvenli.
+  // Türkçe büyük harf İ/i dönüşümü CSS text-transform'a GÜVENİLMEDİ (bilinen
+  // hata, bkz. progress.js academyLevel yorumları), literal doğru-case string
+  // burada yazılı. Sabit zorlukta gerçek tier adı (Kolay/Orta/Zor/Pro/Pro
+  // Plus) — bu 5 metnin HİÇBİRİ noktalı küçük "i" içermediği için .toUpperCase()
+  // güvenle kullanılabiliyor.
   if (els.gameDiffChip && els.difficultySelect && els.difficultySelect.selectedIndex >= 0) {
-    els.gameDiffChip.textContent = els.difficultySelect.options[els.difficultySelect.selectedIndex].text;
+    els.gameDiffChip.textContent = prefs.difficultyMode !== "fixed"
+      ? "OTOMATİK"
+      : els.difficultySelect.options[els.difficultySelect.selectedIndex].text.toUpperCase();
   }
 
   // Sınav/telafi fazı — kalpler YERİNE nokta göstergesi. EXAM_CONFIG.
@@ -2254,6 +2291,9 @@ function renderQuestion() {
   mode.clearHintMask(els.hintMaskLayer);
   updateHintChipLabel();
 
+  // G79: idle placeholder KALDIRILDIĞI için (bkz. enterMode notu) ilk GERÇEK
+  // soru burada .hidden'ı kaldırıp gösteriyor.
+  els.questionTitle.classList.remove("hidden");
   els.questionTitle.textContent =
     q.mode === "proplus" ? "4 frekansla oynandı — dördünü de dalga üzerinde işaretle."
     : q.mode === "cutoff" ? (q.typeRevealed
@@ -4197,6 +4237,16 @@ els.abToggle.addEventListener("click", async () => {
   );
 });
 
+// G79: tasarımın "döngü ikonu" — mevcut startAbLoop/stopAbLoop'u ÇAĞIRIR
+// (uzun-basmanın AYNI fonksiyonları, YENİ bir durum makinesi EKLENMEDİ).
+// Aktif/pasif görünümü #abToggle'daki .loop class'ının kardeş seçicisiyle
+// (bkz. styles.css) — o class ZATEN startAbLoop/stopAbLoop tarafından
+// yönetiliyor, burada TEKRAR yönetilmiyor.
+if (els.abLoopBtn) els.abLoopBtn.addEventListener("click", () => {
+  if (abLoopTimer) stopAbLoop();
+  else startAbLoop();
+});
+
 // Geri bildirim kartındaki karşılaştırma butonları (prototype.html: cmprow/setCmp).
 // mode.showFreqInfoPanel her cevaptan sonra #freqInfo'yu YENİDEN kurduğu için
 // (innerHTML tamamen değişiyor) tek tek buton değil, sabit kalan #freqInfo üzerinde
@@ -4643,7 +4693,10 @@ function startFreshAttempt({ forceChallenge }) {
     // yerine eski soru metni/yanlış-doğru cevap kartı görünmeye devam eder —
     // bkz. G2 doğrulaması.
     if (els.freqInfo) els.freqInfo.classList.add("hidden");
-    if (els.questionTitle) els.questionTitle.textContent = "Canların bitti";
+    if (els.questionTitle) {
+      els.questionTitle.classList.remove("hidden");
+      els.questionTitle.textContent = "Canların bitti";
+    }
     if (els.questionMeta) els.questionMeta.textContent = "";
     const msLeft = Math.max(0, (stats.livesLastRefillAt || Date.now()) + paywall.LIVES_REFILL_INTERVAL_MS - Date.now());
     const minsLeft = Math.max(1, Math.ceil(msLeft / 60000));
@@ -4762,15 +4815,40 @@ els.difficultySelect.addEventListener("change", () => {
   });
 });
 
+// G79: cevap biçimi çipi artık sheet açan bir buton DEĞİL, doğrudan görünen
+// İKİLİ segmented toggle (Dokunmalı|Şıklı) — hangisinin cyan/aktif olduğunu
+// gösterir. #answerFormatSelect'İN KENDİSİ hâlâ TEK doğruluk kaynağı (Oyun
+// Ayarları sheet'indeki satır da ONU okuyor/yazıyor) — bu fonksiyon SADECE
+// görünümü senkronlar, state TUTMAZ.
+function syncAnswerFormatToggleUI() {
+  if (!els.answerFormatSelect) return;
+  const val = els.answerFormatSelect.value;
+  if (els.answerFormatTouchBtn) els.answerFormatTouchBtn.classList.toggle("active", val === "touch");
+  if (els.answerFormatChoiceBtn) els.answerFormatChoiceBtn.classList.toggle("active", val === "choice");
+}
 if (els.answerFormatSelect) els.answerFormatSelect.addEventListener("change", () => {
   prefs.answerFormat = els.answerFormatSelect.value;
   storage.savePrefs(prefs);
+  syncAnswerFormatToggleUI();
   // Cevaplanmamış bir soru ortasında biçim değişirse görünümü hemen senkronla —
   // soru/timer/skor state'ine dokunmaz, sadece .ans grid'i gösterir/gizler.
   if (activeQuestion && roundActive) {
     syncAnswerArea();
     if (isChoiceFormat()) scrollFeedbackIntoView();
   }
+});
+// G79: iki YENİ toggle butonu — #answerFormatSelect'e yazıp AYNI "change"
+// event'ini tetikliyor (yukarıdaki listener + initSettingsSheet'in KENDİ
+// sync'i ÇALIŞMAYA devam eder, ikinci bir mekanizma İCAT EDİLMEDİ).
+if (els.answerFormatTouchBtn) els.answerFormatTouchBtn.addEventListener("click", () => {
+  if (!els.answerFormatSelect || els.answerFormatSelect.value === "touch") return;
+  els.answerFormatSelect.value = "touch";
+  els.answerFormatSelect.dispatchEvent(new Event("change", { bubbles: true }));
+});
+if (els.answerFormatChoiceBtn) els.answerFormatChoiceBtn.addEventListener("click", () => {
+  if (!els.answerFormatSelect || els.answerFormatSelect.value === "choice") return;
+  els.answerFormatSelect.value = "choice";
+  els.answerFormatSelect.dispatchEvent(new Event("change", { bubbles: true }));
 });
 
 if (els.focusSelect) els.focusSelect.addEventListener("change", () => {
@@ -5267,6 +5345,11 @@ function applyPrefs() {
   updateCalibRowLabel();
 }
 applyPrefs();
+// G79: taze kullanıcıda prefs.answerFormat HENÜZ yok — applyPrefs() o durumda
+// "change" event'ini HİÇ tetiklemiyor (bkz. yukarıdaki if), toggle butonları
+// HTML'in kendi varsayılan seçili option'ını (touch) hiç yansıtmadan kalırdı.
+// Güvenlik ağı — koşulsuz TEK çağrı.
+syncAnswerFormatToggleUI();
 if (els.notifSwitch) els.notifSwitch.addEventListener("click", () => {
   // Not: gerçek bir bildirim planlama altyapısı yok, sadece tercih saklanıyor.
   prefs.notifications = !prefs.notifications;

@@ -411,8 +411,8 @@
     .tab.active{color:var(--cyan);background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.3);font-weight:700}
 
     /* ---- oyun ekranı: başlık ---- */
-    .ghead{flex:none;padding:10px 16px 0}
-    .ghead-row{display:flex;align-items:center;gap:9px}
+    .ghead{flex:none;padding:8px 16px 0}
+    .ghead-row{display:flex;align-items:center;gap:7px}
     .back,.dots,.gear,.info-btn{
       width:44px;height:44px;flex:none;border-radius:var(--r-btn);border:1px solid var(--line);
       background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;
@@ -421,6 +421,13 @@
     .back:active,.dots:active,.gear:active,.info-btn:active{background:rgba(255,255,255,.14)}
     .dots{gap:3.5px}
     .dots i{width:4px;height:4px;border-radius:99px;background:var(--tx-2)}
+    /* G79: oyun ekranı üst barı "daha sıkışık" (tasarımın kararı) — back/i/
+       ayarlar 44x44'ten 30-34px'e küçüldü. SCOPED override — .back diğer
+       ekranlarda (calibrasyon/SSS/geri bildirim/vb.) 44x44 KALIYOR, .dots
+       SADECE burada kullanılıyor ama yine de scoped tutuldu (netlik için). */
+    .ghead-row .back{width:34px;height:34px;font-size:18px;border-radius:10px}
+    .ghead-right .mode-info-btn{width:30px;height:30px;font-size:14px;border-radius:9px}
+    .ghead-right .dots{width:30px;height:30px;border-radius:9px}
     /* "i" bilgi ikonu — KALICI, solmaz (bkz. core/guide-texts.js). gear/dots'un
        AYNI 44x44 taban stili, sadece glyph farklı: G73'te --cyan'a taşındı
        (birincil vurgu, italik serif "i" karakteri korunuyor). */
@@ -502,10 +509,16 @@
     .game-chapter-dot{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);transition:background .3s}
     .game-chapter-dot.on{background:var(--cyan)}
     .game-chapter-label{flex:none;font-size:9.5px;font-weight:700;letter-spacing:.6px;color:var(--text-muted)}
-    /* G73 İSTİSNA — hızlı-cevap süre çubuğu amber KALIYOR (.bar/.bar>i PAYLAŞILAN
-       taban kural, bkz. aşağıdaki .bar notu — SADECE yükseklik override edildi). */
+    /* G79 DÜZELTMESİ: tasarımın KENDİ rengi bu çubukta CYAN (#1aa8ba→#34e0f5,
+       Tasarim-2026-08/Prototip.dc.html "hızlı cevap" satırı) — G77'de yanlışlıkla
+       PAYLAŞILAN .bar>i'nin amber gradyanına bırakılmıştı ("süre" için amber
+       istisnası SADECE #timerBar/boss SÜRE çubuğunda geçerli, bu İKİNCİL/
+       dekoratif bir "hız bonusu" göstergesi — task'ın kendi düzeltmesi).
+       .game-speed-bar > i özgüllüğü .bar > i'den YÜKSEK (2 sınıf+child vs
+       1 sınıf+child) — kaynak sırasından BAĞIMSIZ kazanır. */
     .game-speed-row{display:flex;align-items:center;gap:9px;margin-top:6px}
     .game-speed-row .bar{height:3px}
+    .game-speed-row .game-speed-bar > i{background:linear-gradient(90deg,#1aa8ba,#34e0f5)}
     .game-speed-label{flex:none;font-size:9.5px;font-weight:700;color:var(--text-muted);transition:color .2s}
     .game-speed-label.active{color:var(--cyan)}
 
@@ -562,34 +575,51 @@
        sıçramaz, ikisi birlikte yumuşak kayar. */
     #screen-game.actionbar-tucked .game-scroll{margin-bottom:env(safe-area-inset-bottom)}
 
-    /* ---- kaynak / karıştır / zorluk çip satırı ---- */
-    /* G78 DÜZELTMESİ — çip metinleri kırpılıyordu ("Pink N...", "Tüm sp...")
-       çünkü satır flex:1 ile daraltılan çiplere BÖLÜNÜYORDU (dar ekranda hepsi
-       sığmak zorundaydı). Kısaltma yerine YATAY KAYDIRILABİLİR tek satır:
-       satır artık overflow-x:auto + wrap:nowrap, HER çip kendi doğal (içerik)
-       genişliğinde (.chiprow > * ile flex:none) — taşarsa satır kayar, metin
-       asla kesilmez. */
-    .chiprow{display:flex;gap:8px;align-items:stretch;overflow-x:auto;flex-wrap:nowrap;
-      -webkit-overflow-scrolling:touch;scrollbar-width:none}
-    .chiprow::-webkit-scrollbar{display:none}
+    /* ---- kaynak / karıştır / zorluk / cevap-biçimi / odak çip satırları ---- */
+    /* G79 DÜZELTMESİ — G78'in "tek satır + yatay kaydır" yaklaşımı TERK
+       EDİLDİ (task'ın kararı: "kaydırma YOK"). Artık İKİ SABİT satır
+       (index.html'de iki ayrı .chiprow), HER İKİSİ DE flex-wrap:wrap —
+       çipler kendi doğal genişliğinde (.chiprow > *{flex:none}), satıra
+       sığmayan çip alt satıra SARAR (taşma/kesilme YOK, kaydırma da YOK).
+       Gerçek kullanım: her satırda en fazla 3/2 çip var, pratikte HİÇ
+       sarmıyor — sarma sadece çok dar ekranlarda bir güvenlik ağı. */
+    .chiprow{display:flex;gap:7px;flex-wrap:wrap}
+    .chiprow + .chiprow{margin-top:7px}
     .chiprow > *{flex:none}
-    /* .srctag artık width:100% DEĞİL — kapsayan .control-sheet div'i flex:none
-       (içeriğe göre) olduğu için doğal genişliğinde duruyor, kırpma GEREKMİYOR
-       (b'deki overflow:hidden/text-overflow:ellipsis kaldırıldı). */
+    /* Çipler NÖTR (gri/beyaz metin) — eski mavi/yeşil/mor inline renkler
+       (--bl/--gr/--pu) kaldırıldı (bkz. index.html), SADECE aktif/seçili
+       durum cyan vurgulu (bkz. .seg-toggle-btn.active, .mixchip.on). */
     .srctag{
-      display:flex;align-items:center;gap:6px;min-height:44px;padding:8px 10px;
+      display:flex;align-items:center;gap:6px;min-height:40px;padding:7px 10px;
       border-radius:var(--r-card);background:rgba(255,255,255,.06);border:1px solid var(--border-strong);
-      font-size:14px;font-weight:600;color:var(--tx-3);text-align:left;white-space:nowrap;
+      font-size:13px;font-weight:600;color:var(--tx-3);text-align:left;white-space:nowrap;
     }
     .srctag:active{background:rgba(255,255,255,.14)}
     .srctag b{font-weight:700;color:var(--tx);white-space:nowrap}
     .srctag .chev{font-size:15px;flex:none;color:var(--tx-3)}
-    /* G73: "Karıştır" (kaynağı rastgele seçme) aç/kapa göstergesi artık --cyan. */
+    /* G79: "Kaynak: "/"Odak: " öneki — SAF CSS (JS'e dokunmadan, ::before
+       içerik ekliyor), task'ın istediği "Kaynak: Pink Noise"/"Odak: Tümü"
+       formatını üretir. */
+    #sourceChipLabel::before{content:"Kaynak: ";font-weight:600;color:var(--tx-3)}
+    #focusChipLabel::before{content:"Odak: ";font-weight:600;color:var(--tx-3)}
+    /* G73: "Karıştır" (kaynağı rastgele seçme) aç/kapa göstergesi artık --cyan.
+       G79: metin görünür oldu ("⇄ Karışık", task'ın kararı). */
     .mixchip{
-      flex:none;min-height:44px;padding:8px 12px;border-radius:var(--r-card);display:flex;align-items:center;gap:8px;
-      font-size:14px;font-weight:700;white-space:nowrap;background:rgba(255,255,255,.04);
+      flex:none;min-height:40px;padding:7px 12px;border-radius:var(--r-card);display:flex;align-items:center;gap:8px;
+      font-size:13px;font-weight:700;white-space:nowrap;background:rgba(255,255,255,.04);
       border:1px solid var(--border-strong);color:var(--text-muted);
     }
+    /* G79: cevap biçimi — İKİLİ segmented toggle (Dokunmalı|Şıklı), NÖTR
+       taban + cyan aktif (bkz. index.html notu, JS: syncAnswerFormatToggleUI). */
+    .seg-toggle{
+      display:flex;padding:2px;border-radius:calc(var(--r-card) + 2px);
+      background:rgba(0,0,0,.4);border:1px solid var(--border-strong);flex:none;
+    }
+    .seg-toggle-btn{
+      padding:7px 11px;border-radius:var(--r-chip);font-size:12px;font-weight:700;
+      color:var(--text-3);background:none;white-space:nowrap;
+    }
+    .seg-toggle-btn.active{background:rgba(34,211,238,.16);color:var(--cyan)}
     .mixchip .led{width:8px;height:8px;border-radius:99px;background:rgba(255,255,255,.22);flex:none}
     .mixchip.on{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.42);color:var(--cyan)}
     .mixchip.on .led{background:var(--cyan)}
@@ -671,16 +701,21 @@
     .hint-mask-seg.show{opacity:1}
     [data-phase="ask"] .hint-mask,[data-phase="done"] .hint-mask{opacity:0;pointer-events:none}
 
+    /* G79: #freqGuessArea artık alt sabit bar'ın İÇİNDE (bkz. index.html) —
+       "sönük" metin task'ın kendi sözcüğü, --text-muted (en soluk ton). */
     .tapHint{
       padding:11px 14px;border-radius:var(--r-card);background:rgba(255,255,255,.05);
-      border:1px solid var(--border-strong);color:var(--tx-2);
-      font-size:14px;font-weight:600;text-align:center;
+      border:1px solid var(--border-strong);color:var(--text-muted);
+      font-size:13.5px;font-weight:600;text-align:center;
     }
     /* G78: Frekans Bulma tek-bant dokunmalı — işaretle→onayla akışının onay
        butonu (bkz. app.js renderFreqConfirmButton). #freqGuessArea'nın
        .tapHint kutusu İÇİNDE oturuyor — padding'i kaldırıp KENDİ tam-genişlik
        yeşil (--green-grad, tasarımdaki gibi) yüzeyini kaplıyor. */
     .tapHint:has(.game-freq-confirm){padding:0;border:none;background:none}
+    /* Görünürken (proplus/frekans-bulma dokunmalı) #nextBtn'den ayırmak için
+       boşluk — .hidden zaten display:none olduğu için gizliyken hiç yer kaplamaz. */
+    .tapHint:not(.hidden){margin-bottom:8px}
     .game-freq-confirm{
       width:100%;min-height:52px;border:none;border-radius:var(--r-btn);
       background:var(--green-grad);color:#06230e;font-size:16px;font-weight:800;
@@ -818,6 +853,11 @@
     .cmp.hide{display:none}
 
     /* ---- alt sabit aksiyon çubuğu ---- */
+    /* G79: alt bar artık SADECE onay/Atla taşıyor (bkz. index.html notu) —
+       ipucu/play/A-B/döngü spektrumun altına taşındı. --actionbar-h'a
+       DOKUNULMADI (task'ın kuralı), içerik KÜÇÜLDÜĞÜ için .game-scroll'un
+       margin-bottom'u artık gerçek ihtiyaçtan BÜYÜK — örtüşme YOK (sadece
+       fazladan boşluk), canlı ölçümle doğrulanacak (bkz. DURUM.md). */
     .actionbar{
       position:fixed;left:0;right:0;bottom:0;z-index:60;
       width:min(560px,100%);margin:0 auto;
@@ -828,25 +868,46 @@
     }
     .actionbar .row{margin-bottom:8px}
     .actionbar .btn{font-size:14px}
-    /* G78: üst sıra — ipucu (küçük ikon) · oynat/durdur (öne çıkan, orta) ·
-       A/B Bypass (pill). Üç buton da AYNI id/JS'i korur (bkz. index.html
-       notu) — sadece boyut/sıra/CSS. */
-    .game-transport-row{display:flex;align-items:stretch;gap:8px}
-    .game-hint-btn{
-      flex:0 0 64px;width:auto;padding:8px 4px;gap:3px;flex-direction:column;
-      font-size:10px;line-height:1.2;
+    /* G79: "Atla" NÖTR/sönük — geri bildirim ekranındaki ✕ ile AYNI ağırlık
+       (task'ın kararı, G78'in yeşili GERİ ALINDI — yeşil artık SADECE
+       #freqGuessArea içindeki GERÇEK onay butonuna ait, bkz. .game-freq-confirm). */
+    #nextBtn{background:rgba(255,255,255,.05);color:var(--text-3);border:1px solid var(--border-strong)}
+    #nextBtn:active{background:rgba(255,255,255,.1)}
+
+    /* G79: spektrumun HEMEN ALTINDAKİ kontrol satırı — ipucu(ikon)·oynat/
+       durdur(büyük yuvarlak)·A/B seçici(pill)·döngü(ikon). #hintBtn/#startBtn/
+       #abToggle AYNI id/JS — SADECE konum (artık .actionbar'ın DIŞINDA,
+       .game-scroll içinde) ve görünüm değişti. */
+    .game-spectrum-controls{display:flex;align-items:center;justify-content:center;gap:14px;padding:2px 0}
+    .game-ctrl-btn{
+      width:44px;height:44px;flex:none;border-radius:13px;border:1px solid var(--border-strong);
+      background:rgba(255,255,255,.05);color:var(--text-3);display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:1px;
     }
-    .game-hint-btn svg{flex:none}
-    .game-play-btn{
-      flex:1.3;width:auto;background:linear-gradient(180deg,#23262b,#15171a);
-      border:1px solid var(--border-strong);box-shadow:0 4px 14px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.08);
+    .game-ctrl-btn:active{background:rgba(255,255,255,.12)}
+    .game-ctrl-btn svg{flex:none}
+    /* İpucu sayacı — ikon-altı KÜÇÜK etiket (task: "yazılı buton değil ikon",
+       sayaç bilgi kaybı OLMASIN diye minik font'ta tutuldu). Gerçek ipucu
+       METNİ açığa çıkınca (hint kullanıldı) doğal olarak büyür/sarar —
+       bilgi HİÇ kaybolmuyor, sadece varsayılan durumda ikon baskın. */
+    #hintBtnLabel{font-size:7.5px;font-weight:700;line-height:1.1;max-width:56px;text-align:center}
+    .game-ctrl-play{
+      width:64px;height:64px;flex:none;border-radius:50%;border:1px solid var(--border-strong);
+      background:linear-gradient(180deg,#23262b,#15171a);color:var(--text);font-size:24px;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 4px 14px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.08);
     }
-    .abbtn{width:auto}
-    /* G78: onay/Sonraki butonu artık yeşil (--green-grad, tasarımdaki gibi) —
-       .btn.primary'nin PAYLAŞILAN kuralına (paywall/sınav/vb. onu kullanıyor)
-       DOKUNULMADI, id-özgüllüğüyle SADECE #nextBtn override edildi. */
-    #nextBtn{background:var(--green-grad);color:#06230e}
-    #nextBtn:active{filter:brightness(1.08)}
+    .game-ctrl-play:active{filter:brightness(1.1)}
+    .game-ctrl-play.warning{border-color:rgba(255,77,109,.4)}
+    /* A/B seçici — pill'e indirgendi, başlık/basılı-tut metni bu dar
+       bağlamda GİZLİ (#abLoopBtn zaten görünür bir döngü tetikleyicisi). */
+    .game-ctrl-ab{width:auto;flex:none;padding:0 4px;min-height:44px}
+    .game-ctrl-ab .abtitle,.game-ctrl-ab .abholdhint{display:none}
+    .game-ctrl-ab .abpair{gap:4px}
+    .game-ctrl-loop{color:var(--text-3)}
+    /* Döngü aktifken (#abToggle'daki .loop class'ı startAbLoop/stopAbLoop'tan,
+       YENİ bir durum İCAT EDİLMEDİ) — kardeş seçiciyle vurgulanır. */
+    #abToggle.loop ~ #abLoopBtn{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.4);color:var(--cyan)}
     /* E3: cevap verildikten sonra actionbar'ın kontrolleri işlevsiz kalıyordu
        (Durdur/A-B/İpucu/Atla — hiçbiri anlamlı değil, karşılaştırma butonları
        artık kartın içinde). #screen-game'e eklenen .actionbar-tucked sınıfı

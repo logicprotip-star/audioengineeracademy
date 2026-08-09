@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 09.08.2026 (G78)
+Son güncelleme: 09.08.2026 (G79)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,100 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G78, tek commit) — **Oyun Ekranı 2. bölüm: üst bar düzeltmeleri
+Bu commit (G79, tek commit) — **Oyun ekranı düzeni tasarıma göre YENİDEN
+kuruldu (G77/G78'in devamı, daha birebir uygulama)**
+
+Referans: `Tasarim-2026-08/Prototip.dc.html` (oyun ekranı, dokunmalı
+varyant) + `Oyun Ekranı Varyantları.dc.html` — bu dosyalar YENİDEN açılıp
+task'ın 7 maddesi birebir uygulandı.
+
+**1) ÜST BAR:** back/i/ayarlar butonları 44x44'ten 30-34px'e küçüldü
+(SCOPED override — `.ghead-row .back`/`.ghead-right .mode-info-btn`/
+`.ghead-right .dots`, diğer ekranlardaki AYNI class'lar DEĞİŞMEDİ).
+**2) BÖLÜM SATIRI:** "hızlı cevap 1.2x" çubuğu artık CYAN (`#1aa8ba→
+#34e0f5`, tasarımın KENDİ rengi) — G77'de yanlışlıkla paylaşılan amber
+`.bar>i`'ye bırakılmıştı, düzeltildi.
+**3) ÇİP SATIRLARI:** G78'in "tek satır + yatay kaydır" yaklaşımı TERK
+EDİLDİ — artık İKİ SABİT satır (1. zorluk+cevap biçimi+odak, 2. kaynak+
+karışık), `flex-wrap:wrap` (kaydırma YOK, kesilme YOK). Cevap biçimi
+artık sheet açan bir chip DEĞİL, İKİLİ segmented toggle (Dokunmalı|Şıklı,
+YENİ `#answerFormatTouchBtn`/`#answerFormatChoiceBtn` — `#answerFormatSelect`'e
+YAZIP "change" event'i tetikliyor, sheet-tabanlı Oyun Ayarları satırı da
+HÂLÂ ayrı bir giriş noktası). Kaynak/odak etiketleri artık "Kaynak: X"/
+"Odak: X" (SAF CSS `::before`, JS'e dokunulmadı). Karışık artık metin
+taşıyor ("⇄ Karışık"). Eski mavi/yeşil/mor inline renkler kaldırıldı,
+çipler nötr, SADECE aktif/seçili cyan.
+**4) SPEKTRUM:** değişmedi (zaten tasarıma yakındı).
+**5) KONTROLLER:** ipucu/oynat-durdur/A-B/döngü artık spektrumun HEMEN
+ALTINDA (`#gameSpectrumControls`, YENİ), sabit alt bara YAPIŞMIYOR —
+canlı ölçüldü, spektrumdan 10px, alt bardan ~203px uzakta. YENİ
+`#abLoopBtn` eklendi (mevcut `startAbLoop`/`stopAbLoop`'u ÇAĞIRIYOR, YENİ
+bir durum makinesi YOK — aktifliği `#abToggle.loop` kardeş seçicisiyle
+CSS'te okunuyor). `#startBtn` artık İKON-SADECE (▶/⏸/🔄, "Oyunu Başlat"/
+"Durdur"/"Tekrar Çal" metinleri KALKTI — aria-label ile bilgi KORUNDU).
+**6) EN ALT:** `#freqGuessArea` (işaretle→onayla akışı, G78'de eklenmişti)
+artık GERÇEKTEN alt sabit bar'ın İÇİNDE — yeşil onay butonu + üstünde
+`#nextBtn`. `#nextBtn` ARTIK YEŞİL DEĞİL (G78'in kararı GERİ ALINDI) —
+nötr/sönük, "Atla" ✕ ile aynı ağırlıkta (task'ın kararı).
+**7)** "Başlamak için 'Oyunu Başlat'a dokun." kutusu KALDIRILDI —
+`#questionTitle` SİLİNMEDİ, idle durumda boş+gizli, `renderQuestion()`
+ilk turda dolduruyor.
+
+**CANLI TESTTE BULUNAN 2 GERÇEK HATA, İKİSİ DE DÜZELTİLDİ:**
+1. **TDZ hatası:** yeni "OTOMATİK" mantığı module-level `diffModeAuto`'yu
+   (script'in ÇOK aşağısında `let` ile tanımlı) `updateUI()`'ın SAYFA
+   AÇILIŞINDAKİ senkron ilk çağrısından okuyordu — `ReferenceError: Cannot
+   access 'diffModeAuto' before initialization`. Düzeltme: `diffModeAuto`
+   YERİNE onu üreten AYNI koşul (`prefs.difficultyMode !== "fixed"`)
+   okunuyor — `prefs` çok daha ERKEN tanımlı, güvenli.
+2. **ÖNCEDEN VAR OLAN gerçek bug (bu turun DOĞRULAMA gereksinimi
+   sayesinde bulundu):** `populateFocusSelect()` SADECE modül yüklenirken
+   BİR KEZ çağrılıyordu (varsayılan mod frekans-bulma olduğu için odak
+   çipi İLK açılışta doğru görünüyordu) ama `enterMode()`'un
+   `populateSourceSelect`/`syncAnswerFormatVisibility`/`syncCakismaVisibility`
+   ile AYNI "mod değişince yeniden değerlendir" listesinde YOKTU — başka
+   HİÇBİR moda geçince odak çipi bir daha hiç gizlenmiyordu (canlı testte
+   Reverb'de "Odak: Tüm spektrum" GÖRÜNÜR yakalandı). `enterMode()`'a
+   TEK SATIR eklendi.
+
+**Testler:** DEĞİŞMEDİ. `npm test`: **1043/1043**.
+
+**DOĞRULAMA (canlı tarayıcı, temiz + Pro-simüle localStorage, konsol
+HATASIZ — TÜM oturum boyunca sıfır hata, iki gerçek hata YAKALANIP
+DÜZELTİLDİKTEN SONRA):**
+- **10 modun HEPSİNDE düzen doğrulandı, tek tek:** Frekans Bulma
+  (işaretle→onayla akışı GERÇEKTEN alt barda, "1.56 kHz olarak onayla"
+  yeşil buton + üstünde nötr "Atla" — ekran görüntüsüyle doğrulandı),
+  Kesim Noktası/Q Genişliği/Boost mu Cut mu/dB Seviyesi (2 satır çip,
+  odak+format GÖRÜNÜR), Kompresör/Reverb/Distortion/Tonal Denge/Frekans
+  Çakışması (2 satır çip, odak+format GİZLİ — düzeltmeden SONRA
+  doğrulandı, ÖNCESİNDE Reverb'de odak çipi yanlışlıkla görünüyordu).
+  Frekans Çakışması'nda "Kick + Bas" çift-kaynak çipi + #abToggle'ın HÂLÂ
+  gizli olduğu doğrulandı.
+- **Kesilen çip metni: 0** — TÜM 10 modda `scrollWidth > clientWidth`
+  kontrolü (kesilmenin GERÇEK ölçüsü, sadece göz kararıyla DEĞİL) hiçbir
+  çipte pozitif çıkmadı.
+- **Kontroller alt bara yapışmıyor, spektrumun altında — canlı ölçüldü:**
+  `#gameSpectrumControls` spektrumdan **10px**, alt bardan **~203px**
+  uzakta (TÜM modlarda tutarlı).
+- **Alt barın içeriği örtmediği — canlı ölçüldü:** `#gameActionbar`'ın üst
+  kenarı ile `#gameScroll`'un son çocuğunun alt kenarı arasında **37px
+  boşluk** (10 modun HEPSİNDE aynı) — örtüşme YOK. `--actionbar-h`'a
+  DOKUNULMADI (task'ın kuralı) — alt bar içeriği KÜÇÜLDÜĞÜ için bu boşluk
+  G78'deki 24px'ten G79'da 37px'e ÇIKTI (daha fazla fazlalık, hâlâ 0'ın
+  ÜSTÜNDE — örtüşme riski YOK, sadece kozmetik fazla boşluk).
+- **`npm test`: 1043/1043.**
+
+**KORUMA:** `#hintBtn`/`#startBtn`/`#abToggle`/`#hearts`/`#levelChip`/
+`#gameInfoBtn`/`#gameSettingsBtn` id'leri VE JS bağlantıları (giveHint/
+updateStartBtnLabel/toggleAB+basılı-tut/renderHearts/openLevelSheet/
+openGuideSheet/openGameSettingsSheet) TEK SATIR sökülmedi — SADECE DOM
+konumu/görünüm değişti. `--actionbar-h` DOKUNULMADI. Paywall/sınav
+sistemi/ses-zorluk/spotlight TEK SATIR değişmedi.
+
+---
+
+Önceki commit (G78, tek commit) — **Oyun Ekranı 2. bölüm: üst bar düzeltmeleri
 + çip satırı + soru alanı + alt bar**
 
 Tasarım kaynağı: `Tasarim-2026-08/Oyun Ekranı Varyantları.dc.html` (3
@@ -6131,24 +6224,27 @@ hazır, sadece onay bekliyor.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G78 itibarıyla):** AÇIK İŞLER madde 14 — G67-G78'in
+**Tek sonraki adım (G79 itibarıyla):** AÇIK İŞLER madde 14 — G67-G79'un
 TAMAMI (kalıcı "i" + SPOTLIGHT + oyun seçenekleri + "basılı tut" ipucu +
 G74'ün yeni ana ekranı + G75'in 5 düzeltmesi + G76'nın kart yükseklik/SVG
 slice düzeltmesi + G77'nin yeni üst barı + G78'in soru alanı/alt bar
-düzeltmeleri) GERÇEK CİHAZDA (bu turda da SADECE masaüstü Chrome'da
-doğrulandı, iOS WKWebView'de HENÜZ değil — font rendering/safe-area
-farkları VE özellikle şunlar Safari'de YENİDEN doğrulanmalı: G75 madde
-4'ün grid-stretch savunması, G76'nın SVG `preserveAspectRatio="xMidYMid
-slice"` kırpma matematiği [kenar-güvenlik marjı x:~30-172], G77'nin sınav/
-telafi nokta göstergesi [DOM proxy'siyle doğrulandı, gerçek akışla DEĞİL],
-G78'in Frekans Bulma işaretle→onayla akışı [dokunma/tıklama davranışı
-Safari'de FARKLI olabilir]) elle denenmeli. Ayrıca AÇIK İŞLER madde 16
-(#freqInfo'nun G58 tekniğiyle sabitlenmemiş kalan ~201px kayması) ve
-madde 17 (Tonal Denge'nin yatay/dikey fader farkı) ile BEKLEYEN KARARLAR
-madde J (ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini yavaşlatması)
-kullanıcı onayı/kararı bekliyor. Aşağıdaki liste (G59 itibarıyla
-güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük zorluk-mimarisi
-işlerini kapsıyor.
+düzeltmeleri + G79'un düzen yeniden kurulumu) GERÇEK CİHAZDA (bu turda da
+SADECE masaüstü Chrome'da doğrulandı, iOS WKWebView'de HENÜZ değil — font
+rendering/safe-area farkları VE özellikle şunlar Safari'de YENİDEN
+doğrulanmalı: G75 madde 4'ün grid-stretch savunması, G76'nın SVG
+`preserveAspectRatio="xMidYMid slice"` kırpma matematiği [kenar-güvenlik
+marjı x:~30-172], G77'nin sınav/telafi nokta göstergesi [DOM proxy'siyle
+doğrulandı, gerçek akışla DEĞİL], G78/G79'un Frekans Bulma işaretle→onayla
+akışı [dokunma/tıklama davranışı Safari'de FARKLI olabilir], G79'un YENİ
+#abLoopBtn'i [uzun-basma ile GERÇEKTEN çakışmadığı, ikisinin de aynı
+startAbLoop/stopAbLoop'u doğru tetiklediği cihazda TEKRAR denenmeli])
+elle denenmeli. Ayrıca AÇIK İŞLER madde 16 (#freqInfo'nun G58 tekniğiyle
+sabitlenmemiş kalan ~201px kayması, G79 bunu değiştirmedi) ve madde 17
+(Tonal Denge'nin yatay/dikey fader farkı, G79'da da BİLEREK atlandı) ile
+BEKLEYEN KARARLAR madde J (ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini
+yavaşlatması) kullanıcı onayı/kararı bekliyor. Aşağıdaki liste (G59
+itibarıyla güncellendi) bu adımdan BAĞIMSIZ, daha eski/büyük zorluk-
+mimarisi işlerini kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma
 (unlockLevel:1, free), Kesim Noktası (2, free), Q Genişliği (3, free), Boost
