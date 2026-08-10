@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G108)
+Son güncelleme: 11.08.2026 (G109)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,85 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G108, tek commit) — **SADECE TEŞHİS: copyFile sonrası donma için adım adım günlükleme (task'ın kendi kuralı — düzeltme YAPILMADI).**
+Bu commit (G109, tek commit) — **Kaydırma kilidi sertleştirildi + [scroll-diag] günlüğü — Dosyalarım sheet'i kapanınca Araçlar kaydırılamıyor (üçüncü bildirim).**
+
+**BAĞLAM (G108'in bulgusu):** teşhis günlükleri cihazda çalıştırıldı —
+yükleme zincirinin 7 adımının HEPSİ 500ms altında tamamlandı, donma DEĞİL.
+Gerçek sorun: Dosyalarım sheet'i kapandıktan sonra Araçlar sekmesi
+kaydırılamıyor — kullanıcının EN İLK bildirdiği "sayfa yukarı kaymıyor"
+şikâyetiyle AYNI aile, üçüncü kez geri geliyor.
+
+**1) Kaydırma kabı belirlendi:** `.tools-scroll` (`#screen-tools` içindeki
+TEK `overflow-y:auto` bölge — `styles.css:.scroll{overflow-y:auto;
+-webkit-overflow-scrolling:touch}` + `.tools-scroll{padding...}` katkısı).
+`html`/`body` DEĞİL — onlar G107'den beri KALICI `position:fixed;inset:0;
+overflow:hidden` (kod incelemesiyle DOĞRULANDI, `toolsSetBackgroundScrollLocked`
+onlara HİÇ dokunmuyor).
+
+**2) Kilit AÇILMA/KAPANMA'da değişen stiller — TAM liste (kod incelemesiyle
+çıkarıldı, `toolsSetBackgroundScrollLocked` fonksiyonu):**
+- **Kilitlenirken (`locked=true`):** `.tools-scroll`'a inline `overflow:
+  hidden` + (G109'da EKLENDİ) inline `touch-action:none`.
+- **Kilit kalkarken (`locked=false`, ESKİ hâl):** SADECE inline `overflow`
+  BOŞ STRİNG'e (`""`) çekiliyordu + `scrollTop=0`.
+- **Kilit kalkarken (YENİ, G109):** `overflow` + `touch-action` +
+  (önlem amaçlı, hiç dokunulmadıkları DOĞRULANMIŞ olsa da) `pointer-events`/
+  `position`/`inset` — BEŞİ DE `removeProperty` ile TEMİZLENİYOR (BOŞ
+  STRİNG atamak yerine — niyeti netleştirmek için), `scrollTop=0`, sonra
+  `void scrollEl.offsetHeight` okunarak GERÇEK bir reflow ZORLANIYOR (iOS'un
+  overflow değişikliğini bazen ANINDA uygulamadığı bilinen bir mobil Safari
+  tuhaflığına karşı — KANITLANMIŞ bir düzeltme DEĞİL, ek bir güvenlik
+  önlemi, DÜRÜSTLÜKLE işaretlendi).
+- **pointer-events/position/inset bu elemanda daha önce DE hiç
+  değiştirilmiyordu** — kullanıcının "bunlar da eski hâline dönsün" isteği,
+  incelemeyle, ZATEN karşılanıyordu; G109 sadece bunu AÇIKÇA/KANITLANABİLİR
+  hale getirdi.
+
+**3) "Tek fonksiyonda topla" — DOĞRULAMA:** `toolsOpenFilesSheet`/
+`toolsCloseFilesSheet`/`toolsOpenResultsSheet`/`toolsCloseResultsSheet`
+(hem Dosyalarım hem Ölçüm Sonuçları sheet'inin DÖRDÜ de) `grep` ile
+incelendi — HEPSİ ZATEN SADECE `toolsSetBackgroundScrollLocked()`'ı
+çağırıyordu, `.tools-scroll`'a dokunan BAŞKA HİÇBİR kod yolu yoktu
+(`grep -n "tools-scroll" app.js` → SADECE bu fonksiyon içinde eşleşme).
+Yani "dağınık stil değişikliği" YOKTU — ama fonksiyonun KENDİSİ eksikti
+(sadece overflow, reflow zorlaması yok, touch-action hiç yok) — G109 bu
+TEK fonksiyonu sertleştirdi, YENİ bir fonksiyon/soyutlama EKLEMEDİ.
+
+**4) `[scroll-diag]` günlüğü eklendi** — unlock'ın SONUNDA, `.tools-scroll`'un
+GERÇEK (hesaplanmış) durumunu yazıyor: `overflow-y`, `touch-action`,
+`scrollTop`, `scrollHeight`, `clientHeight`, `kaydırılabilir` (scrollHeight>
+clientHeight). Tek satır, kolayca `grep`lenebilir önek (`[scroll-diag]`).
+
+**DÜRÜSTLÜK NOTU (AÇIK KALAN BİR OLASILIK, ELENMEDİ):** kullanıcının
+hipotezi ("G106/G107'nin html,body kilidi çakışıyor olabilir") kısmen
+DOĞRULANDI kısmen DÜZELTİLDİ: `toolsSetBackgroundScrollLocked`'ın KENDİSİ
+html/body'ye hiç dokunmuyordu (bu iddia yanlıştı) — AMA G107'nin html/body'yi
+KALICI OLARAK `position:fixed` yapması, `.tools-scroll`'un KENDİ touch-scroll
+davranışını sheet'ten TAMAMEN BAĞIMSIZ olarak etkiliyor OLABİLİR (iOS'un
+iç-içe `overflow:auto` bölgelerinin momentum-scroll fiziğini nasıl
+işlediğiyle ilgili, statik kod incelemesiyle KANITLANAMAYAN bir alan) —
+bu ihtimal bu turda ELENMEDİ. [scroll-diag] çıktısı sheet hiç AÇILMADAN
+da (kullanıcı konsoldan `document.querySelector('.tools-scroll')`
+üzerinden elle) kontrol edilebilir — eğer sheet açılmadan BİLE
+`overflow-y` "auto" DEĞİLSE, sorun kilit mekanizmasında değil, G107'nin
+html/body kuralında aranmalı.
+
+**DOĞRULAMA (masaüstü Chrome — task'ın notu: bu sorun BURADA
+ÜRETİLEMİYOR, aşağıdakiler sadece REGRESYON kontrolü, cihaz kanıtı
+DEĞİL):**
+- Dosyalarım sheet'i açıldı (5 dosyalık dolu liste) → kapatıldı →
+  `[scroll-diag]` konsola yazdı: `overflow-y=auto, touch-action=auto,
+  scrollTop=0, scrollHeight=899, clientHeight=899` (bu viewport'ta içerik
+  tam sığıyordu, "kaydırılabilir=false" — beklenen, hata değil).
+  Ardından "Referans Filtreleri" açılıp içerik viewport'u AŞACAK kadar
+  uzatıldı, GERÇEK bir scroll jesti ekran görüntüsüyle DOĞRULANDI (liste
+  kaydı, `.tools-scroll` sorunsuz çalıştı).
+- Konsol hatası: 0.
+- **`npm test`: 1119/1119.**
+
+---
+
+Önceki commit (G108, tek commit) — **SADECE TEŞHİS: copyFile sonrası donma için adım adım günlükleme (task'ın kendi kuralı — düzeltme YAPILMADI).**
 
 **Kullanıcının kanıtı:** G107'nin copyFile düzeltmesi ÇALIŞIYOR (appendFile/
 base64 trafiği tamamen kalkmış, konsolda `Filesystem.mkdir → Filesystem.
@@ -9073,7 +9151,30 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G108 itibarıyla):** Kullanıcı cihazda (32MB+ dosyayla,
+**Tek sonraki adım (G109 itibarıyla):** Kullanıcı cihazda (Dosyalarım
+sheet'ini açıp kapatarak, aynı "Araçlar artık kaydırılamıyor" senaryosu)
+tekrar denemeli ve konsoldaki `[scroll-diag]` satırını getirmeli —
+özellikle:
+(1) `overflow-y`/`touch-action` gerçekten "auto"/"auto" mu dönüyor (yoksa
+hâlâ "hidden"/"none" gibi TAKILI bir değer mi — bu, kilit kalkma
+mekanizmasının KENDİSİNİN cihazda çalışmadığını gösterir);
+(2) `kaydırılabilir=true` olduğu bir durumda (içerik viewport'u aşıyorken)
+BİLE parmakla kaydırma GERÇEKTEN çalışıyor mu (JS tarafı "doğru" diyor
+olsa da iOS'un touch-event işleme katmanı AYRI bir sorun olabilir — bu,
+statik günlükle KANITLANAMAZ, sadece elle denenerek görülür);
+(3) sheet HİÇ AÇILMADAN `.tools-scroll`'un `overflow-y` değeri (Safari
+Web Inspector konsolundan elle: `getComputedStyle(document.querySelector(
+'.tools-scroll')).overflowY`) — eğer bu BİLE "auto" değilse, sorun kilit
+mekanizmasında DEĞİL, G107'nin html/body kalıcı kilidinde aranmalı (bkz.
+BİTTİ'nin DÜRÜSTLÜK notu, henüz ELENMEDİ).
+Eğer (2) hâlâ başarısızsa (JS durumu doğru ama parmak kaydırmıyor), bir
+SONRAKİ turda G107'nin `html,body{position:fixed;inset:0;overflow:hidden}`
+kuralının KENDİSİ sorgulanmalı — belki TAMAMEN kaldırıp Ölçüm Sonuçları
+sheet'inin "ekranın altında kalma" sorununa (G107'nin asıl amacı) FARKLI
+bir çözüm aranmalı, çünkü bu kalıcı kilit `.tools-scroll`'u BOZUYOR
+olabilir.
+
+**Önceki adım (G108 itibarıyla):** Kullanıcı cihazda (32MB+ dosyayla,
 donma daha önce OLUŞAN aynı senaryo) tekrar deneyip Safari/Xcode konsolunun
 TAM görüntüsünü getirmeli — özellikle:
 (1) `[upload-diag]` loglarının copyFile'dan (adım 6) SONRA hangi noktada

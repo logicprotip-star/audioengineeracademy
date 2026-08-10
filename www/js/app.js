@@ -7386,18 +7386,64 @@ function toolsResetSheetScroll(sheetEl) {
 // denk gelirse, iOS Safari'de position:fixed kaplamalar arka plan dokunmalı
 // kaydırmayı GÜVENİLİR şekilde ENGELLEMEZ (iyi belgelenmiş bir mobil Safari
 // davranışı) — arka plan görünmeden kayar, sheet kapanınca "kilitli" bir
-// konumda ortaya çıkar. Düzeltme: sheet AÇIKKEN arka plan kaydırması
-// `overflow:hidden` ile TAMAMEN kilitleniyor (kaymaya hiç FIRSAT
-// vermiyor), sheet KAPANDIĞINDA hem kilit kaldırılıyor HEM scrollTop
-// açıkça sıfırlanıyor (task'ın "içerik en üste dönsün" talimatı).
+// konumda ortaya çıkar.
+//
+// G109 — AYNI şikayet ÜÇÜNCÜ kez geldi ("sheet kapanınca Araçlar hiç
+// kaydırılamıyor", cihazda — G108'in teşhis günlükleri yükleme zincirinin
+// SORUNSUZ bittiğini kanıtladı, bu yüzden konu KESİN OLARAK bu kilide
+// daraltıldı). Bu fonksiyon HER ZAMAN tek nokta olmuştu — Dosyalarım VE
+// Ölçüm Sonuçları sheet'inin DÖRDÜ de (open/close) ZATEN SADECE bunu
+// çağırıyordu (kod incelemesiyle DOĞRULANDI, bkz. rapor) — "dağınık stil
+// değişikliği" YOKTU, ama fonksiyonun KENDİSİ yetersizdi: sadece `overflow`
+// dokunuyordu, `style.overflow=""` inline değeri KALDIRMAK yerine BOŞ
+// STRING atıyordu (davranışça aynı ama niyeti daha belirsiz), ve iOS'un
+// overflow toggle'ını her zaman ANINDA geçerli kılmadığı (bilinen bir mobil
+// Safari tuhaflığı, KANITLANMIŞ bir düzeltme değil ama zararsız bir ek
+// güvenlik önlemi) hiç HESABA KATILMIYORDU. Bu turda SERTLEŞTİRİLDİ:
+// - `touch-action` de AÇIKÇA kilitleniyor/kaldırılıyor (sadece overflow'a
+//   güvenmek yerine, iOS'un touch gesture'ı overflow'dan BAĞIMSIZ olarak
+//   başlatabildiği durumlara karşı ikinci bir bariyer).
+// - unlock'ta `removeProperty` kullanılıyor (niyeti netleştirmek için) +
+//   scrollTop sıfırlanıyor + `offsetHeight` okunarak GERÇEK bir reflow
+//   zorlanıyor (iOS'un overflow değişikliğini hemen "görmesi" için).
+// - `pointer-events`/`position`/`inset` — kod incelemesiyle bu elemanda
+//   HİÇ DOKUNULMADIĞI doğrulandı (kullanıcının "bunlar da eski hâline
+//   dönsün" isteği bu yüzden zaten karşılanıyordu) — yine de AÇIKÇA
+//   temizleniyor, gelecekte biri yanlışlıkla bunlardan birini eklerse bu
+//   fonksiyon YİNE doğru davransın diye.
+// - `[scroll-diag]` — unlock'tan HEMEN SONRA kaydırma kabının GERÇEK
+//   durumunu (hesaplanmış overflow-y, touch-action, scrollTop/Height,
+//   clientHeight, "kaydırılabilir mi") konsola yazar — cihazda DOĞRULANABİLSİN
+//   diye (bu ortamda ÜRETİLEMEYEN bir sorun, bkz. task notu).
+// NOT (DÜRÜSTLÜK): `.tools-scroll` bu ekranın TEK `overflow-y:auto`
+// bölgesi — html/body G107'den beri KALICI olarak position:fixed/
+// overflow:hidden (bkz. styles.css'in G107 notu) ve bu fonksiyon onlara
+// HİÇ dokunmuyor. G107'nin bu KALICI kilidinin `.tools-scroll`'un kendi
+// touch-scroll davranışını (sheet'ten TAMAMEN bağımsız olarak) etkileyip
+// etkilemediği bu turda ELENEMEDİ — bu ihtimal hâlâ AÇIK, bu yüzden
+// [scroll-diag] çıktısı hem sheet kapatıldıktan SONRA hem de (kullanıcı
+// isterse) hiç sheet açılmadan konsoldan elle çağrılabilecek şekilde AYNI
+// fonksiyonun İÇİNDE (tek yerde, tekrar yazılmadan).
 function toolsSetBackgroundScrollLocked(locked) {
   const scrollEl = document.querySelector(".tools-scroll");
   if (!scrollEl) return;
   if (locked) {
     scrollEl.style.overflow = "hidden";
+    scrollEl.style.touchAction = "none";
   } else {
-    scrollEl.style.overflow = "";
+    scrollEl.style.removeProperty("overflow");
+    scrollEl.style.removeProperty("touch-action");
+    scrollEl.style.removeProperty("pointer-events");
+    scrollEl.style.removeProperty("position");
+    scrollEl.style.removeProperty("inset");
     scrollEl.scrollTop = 0;
+    void scrollEl.offsetHeight; // GERÇEK reflow zorla — bkz. yukarıdaki not
+    const cs = window.getComputedStyle(scrollEl);
+    console.log(
+      `[scroll-diag] kilit kalktı — overflow-y=${cs.overflowY}, touch-action=${cs.touchAction}, ` +
+      `scrollTop=${scrollEl.scrollTop}, scrollHeight=${scrollEl.scrollHeight}, clientHeight=${scrollEl.clientHeight}, ` +
+      `kaydırılabilir=${scrollEl.scrollHeight > scrollEl.clientHeight}`
+    );
   }
 }
 function toolsOpenFilesSheet() {
