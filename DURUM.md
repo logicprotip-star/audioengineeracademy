@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G97)
+Son güncelleme: 10.08.2026 (G98)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,109 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G97, tek commit) — **Yedi ürün kararı uygulandı: (1) ücretsizde
+Bu commit (G98, tek commit) — **Araçlar ölçüm motoru, 1. bölüm: hesaplama
+çekirdeği (`www/js/core/analysis.js`, ARAYÜZSÜZ, saf fonksiyonlar). iZotope
+RX Waveform Statistics + Loudness panelindeki 11 parametreyi (kanal başına
+true peak/sample peak/max-min-total RMS/possibly clipped/DC offset + program
+geneli max momentary/max short-term/integrated LUFS/LRA) ITU-R BS.1770-4 /
+EBU R128 / EBU Tech 3342 standartlarına göre hesaplıyor. Arayüz YOK (sonraki
+tur), mevcut sahte Analiz kartına DOKUNULMADI.**
+
+Kaynak: DEVIR.md FAZ 2 (07.08'de netleşen karar) + task'ın verdiği iZotope RX
+referans parametre listesi + standart metinleri (ITU-R BS.1770-4, EBU R128,
+EBU Tech 3342).
+
+**K-weighting katsayı türetimi (DÜRÜSTLÜK notu):** Standart RBJ Audio-EQ-
+Cookbook shelf/highpass formülleri DENENDİ, ITU'nun 48kHz referans
+katsayılarıyla (b0=1.53512485958697 vb.) UYUŞMADI (a1/a2 10 hane tuttu ama
+b0/b1/b2 sabit bir çarpanla kaydı). Bunun yerine K=tan(π·f0/fs) tabanlı
+bilineer-dönüşüm formülü kullanıldı — f0/G/Q=1681.9744509555319/
+3.99984385397/0.7071752369554193 (ön-filtre) ve f0/Q=38.13547087613982/
+0.5003270373238773 (RLB) parametreleriyle 48kHz'de ITU'nun TÜM 5 katsayısını
+10+ ondalık hane doğrulukla üretiyor — **sayısal olarak node ile doğrulandı,
+testte KİLİTLİ** (`test/analysis.test.mjs`, "K-weighting katsayı türetimi"
+describe bloğu).
+
+**True Peak (DÜRÜSTLÜK notu):** BS.1770-4 Ek 2'nin resmi 4x polifaz FIR
+tablosu (12 taps×4 faz) ezbere/güvenilir biçimde yazılamayacağı için (yanlış
+sayı üretme riski) BİREBİR uygulanmadı — yerine kendi tasarlanan 4x
+Kaiser-pencereli sinc ara değerleme filtresi (halfWidth=12, beta=8.6,
+tapsPerPhase=24) kullanıldı. Polifaz ayrıştırmanın her fazının DC kazancı
+~1.0 (±1e-4) — testle doğrulandı. Frekans taraması ile ÖLÇÜLEN sınır: saf
+tonlarda bu filtre gerçek tepe değerinin EN FAZLA ~0.55dB ÜZERİNDE okuyabilir
+(en kötü durum ~%63 Nyquist civarı) — bu sınır teste KİLİTLİ (<0.7dB
+regresyon testi). Sapma YUKARI yönlü (fazla okur, az okumaz) — kırpma
+tespiti için güvenli yönde.
+
+**RMS konvansiyonu:** HAM (tam ölçekli sinüs → −3.0103dB) ve AES17 (→0dB,
+HAM+3.0103dB) İKİSİ DE hesaplanıp döndürülüyor (`maxRmsDb.raw/.aes17` vb.) —
+hangisinin RX'inkiyle örtüştüğü kullanıcı karşılaştırmasıyla belirlenecek.
+
+**Seçilen pencereler/eşikler (RX'in kendi değerleriyle BİREBİR TUTMAYI
+hedeflemiyor, task'ın kendi notu):**
+
+| Parametre | Seçilen değer | Gerekçe |
+|---|---|---|
+| Windowed RMS penceresi | 300ms | Klasik Type I VU-metre entegrasyon süresine yakın, yaygın "yavaş RMS" varsayılanı — `options.rmsWindowMs` ile override edilebilir |
+| Kırpma eşiği | \|örnek\| ≥ 0.9999 | ~tam ölçek, 16-bit PCM'in tam ölçek uçlarını (32767/32768≈0.999969) da kapsar |
+| Kırpma ardışıklık kuralı | ≥3 art arda örnek | İzole tek bir tam-ölçek örneği gerçek bir tepe olabilir, kırpılma değil |
+| True peak aşırı örnekleme | 4x | Task'ın "en az 4x" gereği |
+
+**Bellek:** decodeAudioData'nın kendisi (bu modülün kontrolü DIŞINDA)
+zaten tüm dosyayı bellekte tutuyor — bu modül CHUNK_SIZE'lık bloklar
+halinde (varsayılan 131072 örnek) akışkan işler, dosya-boyutunda YENİ bir
+kopya TUTMAZ; sadece O(1) durum (biquad/FIR/pencere state'leri) ve
+O(süre/100ms) büyüklüğünde bir "blok gücü" dizisi (5 dakikada ~3000 float
+≈ 24KB) tutar.
+
+**DOĞRULAMA:**
+- **11 parametrenin hepsi hesaplanıyor** — `analyzeAudioBuffer()`'ın döndürdüğü
+  `channels[].{samplePeakDb, truePeakDb, maxRmsDb, minRmsDb, totalRmsDb,
+  possiblyClippedSamples, dcOffsetPercent}` (kanal başına ×2 için L/R) ve
+  `program.{maxMomentaryLufs, maxShortTermLufs, integratedLufs, lra}`.
+- **Referans testleri (beklenen/ölçülen/sapma, gerçek node çalıştırmasıyla):**
+
+  | Test | Beklenen | Ölçülen | Sapma |
+  |---|---|---|---|
+  | 0dBFS 1kHz sinüs, sample peak | 0.000 dBFS | 0.000 dBFS | <0.001dB |
+  | 0dBFS 1kHz sinüs, total RMS (ham) | −3.0103 dB | −3.0103 dB | <0.01dB |
+  | 0dBFS 1kHz sinüs, total RMS (AES17) | 0.000 dB | 0.000 dB | <0.01dB |
+  | EBU R128 uyum sinyali: −23dBFS stereo sinüs, integrated | −23.0 LUFS | −22.993 LUFS | 0.007 LU |
+  | Mono, aynı per-kanal seviye, stereo'dan fark | 3.0103 LU | 3.0103 LU (±0.02 tolerans içinde geçti) | ~0 |
+  | −12dBFS vs −18dBFS mono, integrated farkı | 6.0 LU | 6.0 LU (±0.02 tolerans içinde geçti) | ~0 |
+  | +0.1 sabit DC | %10.000 | %10.000 | <0.0001 |
+  | −0.05 sabit DC | %−5.000 | %−5.000 | <0.0001 |
+  | 10 ardışık tam-ölçek örnek | 10 örnek | 10 örnek | 0 |
+  | 2+izole (ardışık olmayan) tam-ölçek | 0 örnek | 0 örnek | 0 |
+  | Tam sessizlik | integrated/momentary/short-term=−∞, LRA=0 | birebir | 0 |
+  | Sessizlik+ton (kapı testi) | naif sızıntı ~1.76 LU'nun ÇOK altında | 0.166 LU (geçiş-bloğu kenar etkisi, beklenen) | — |
+
+- **RMS'in iki konvansiyondaki değerleri:** her kanal için `raw`/`aes17`
+  alanlarında AYRI AYRI döner (yukarıdaki tabloda 0dBFS örneği).
+- **Seçilen RMS penceresi:** 300ms (`meta.rmsWindowMs`, override edilebilir).
+  **Kırpma eşiği:** 0.9999, **ardışıklık kuralı:** ≥3 (`meta.clipThreshold`,
+  `meta.clipMinConsecutive`).
+- **Bellek kullanımı (gerçek ölçüm, `process.memoryUsage()`, 5 dakikalık
+  44.1kHz stereo sentetik sinyal, `--expose-gc` ile zorlanmış GC sonrası):**
+  ham PCM (decodeAudioData eşdeğeri) **100.9 MB** (arrayBuffers) — analiz
+  motorunun EK arrayBuffers tüketimi **0.00 MB** (dosya-boyutunda yeni kopya
+  YOK, iddia edilen tasarım doğrulandı), EK RSS **~9 MB** (~%9, geçici
+  chunk/state tahsisleri + GC artığı). İşlem süresi (Node, M-serisi olmayan
+  bir donanım varsayımı yapılmadı, SADECE bu makinede ölçüldü): **~2.2
+  saniye** / 300 saniyelik stereo dosya.
+- **`npm test`: 1091/1091** (G97 sonrası 1057, +34 yeni test —
+  `test/analysis.test.mjs`, hiçbir eski test SİLİNMEDİ/DEĞİŞTİRİLMEDİ).
+- **Canlı tarayıcı/cihaz doğrulaması YAPILMADI** — bu tur "arayüz yok, sadece
+  çekirdek" kapsamında, task'ın kendi isteğiyle. Gerçek bir yüklenmiş dosya
+  üzerinde (upload.js'in decode ettiği GERÇEK AudioBuffer ile) çalıştırma
+  bir sonraki (arayüz) turun işi.
+
+**Not — provenance sorusu HÂLÂ AÇIK:** `OYUN-MANTIGI.md` bu turda da
+commit'e dahil edilmedi (bkz. G97 kaydı), kullanıcı henüz yanıt vermedi.
+
+---
+
+Önceki commit (G97, tek commit) — **Yedi ürün kararı uygulandı: (1) ücretsizde
 seans rampası artık offset=0 (boss hariç) — 10 soruya yayılan rampa ücretsizin
 5 soruluk oturumunda hep yarım kalıyordu; (2) `session-plan.js` başına
 "kullanılmıyor" notu (dosya SİLİNMEDİ); (3) boss süresi dolunca can artık
@@ -7863,7 +7965,21 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G97 itibarıyla):** Yedi madde de kod/test/canlı doğrulama
+**Tek sonraki adım (G98 itibarıyla): Araçlar ölçüm motoru 2. bölüm — ARAYÜZ.**
+Hesaplama çekirdeği (`analysis.js`) tam kapandı (11 parametre, 34 test, tüm
+DOĞRULAMA maddeleri bkz. BİTTİ) ama şunlar SONRAKİ tura kaldı: (1) gerçek
+bir yüklenmiş ses dosyasıyla (upload.js'in decode ettiği GERÇEK AudioBuffer,
+sentetik DEĞİL) canlı çalıştırma HİÇ yapılmadı — ilk arayüz turunda MUTLAKA
+denenmeli; (2) sahte Analiz kartının yerine yeni sonuçları GÖSTEREN gerçek
+bir arayüz yok; (3) `analyzeAudioBuffer()` senkron ve ~2.2sn/300sn-dosya
+sürüyor (Node'da ölçüldü) — arayüz turunda ana thread'i BLOKE ETMEMESİ için
+(çağrının ne zaman/nasıl tetikleneceğine bağlı) bir yükleme göstergesi veya
+parça parça `await` ile çağırma gerekebilir, bu turda ELE ALINMADI (task
+kapsam dışı bıraktı); (4) True Peak'in ~0.55dB'lik ölçülen sapma sınırı
+arayüzde KULLANICIYA GÖRÜNÜR şekilde belirtilmeli mi (ör. "yaklaşık" ibaresi)
+— ürün kararı, bu turda verilmedi.
+
+**Önceki adım (G97 itibarıyla):** Yedi madde de kod/test/canlı doğrulama
 açısından TAM kapandı (madde 2'nin "dosya silinsin mi" sorusu bu turda
 CEVAPLANDI: not eklendi, dosya kalıyor — bkz. BİTTİ). Bu turun kendi açık
 işleri: (1) **hiçbiri GERÇEK CİHAZDA doğrulanmadı** (tekrar eden aynı eksik
