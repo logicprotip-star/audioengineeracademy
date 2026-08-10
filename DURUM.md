@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G99)
+Son güncelleme: 10.08.2026 (G100)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,138 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G99, tek commit) — **Araçlar ölçüm motoru, 2. bölüm: arayüz.**
+Bu commit (G100, tek commit) — **Ölçüm motoru, RX 11 karşılaştırmasına göre
+düzeltme.** Kullanıcı gerçek bir dosyayı hem iZotope RX 11'de hem uygulamada
+ölçüp karşılaştırdı — True peak/Sample peak/Kırpılmış/Integrated/Max
+momentary/Max short-term zaten TUTUYORDU, Max/Min/Total RMS'te ~3-8dB, LRA'da
+0,8 LU sapma bulundu. Beş madde:
+
+**1) RMS konvansiyonu → AES17 (gösterimde):** Total RMS'teki ~3dB sapma TAM
+OLARAK AES17 kaydırmasıydı (RX AES17 kullanıyor — tam ölçekli sinüs 0dB
+okur). `analysis.js`'te HAM hesap KORUNDU (`raw` alanı hâlâ var, silinmedi),
+sadece `app.js`'in gösterdiği alan `.raw`'dan `.aes17`'ye çevrildi. Standart
+notu güncellendi.
+
+**2) RMS penceresi: 300ms → 100ms:** Perkusif/dinamik bir test sinyalinde
+50/100/300ms karşılaştırıldı (aşağıdaki DOĞRULAMA tablosu) — 100ms seçildi:
+yaygın bir "hızlı RMS" tanım aralığında VE test sinyalinde gözlenen sapma
+büyüklüğüne (RX'in Max RMS'i bizden ~3dB yüksek okuyordu) 50ms'den daha
+yakın düştü. `DEFAULT_RMS_WINDOW_MS` sabiti güncellendi (`options.
+rmsWindowMs` ile hâlâ override edilebilir).
+
+**3) DC offset hassasiyeti: 2 → 4 ondalık basamak:** `app.js:fmtPercent()`
+artık `toFixed(4)` kullanıyor (RX'in +0,002% gibi binde-iki hassasiyetini
+gösterebilmek için) — `analysis.js` zaten tam float hassasiyetinde
+hesaplıyordu, sorun SADECE gösterim yuvarlamasıydı.
+
+**4) LRA — iki algoritmik düzeltme:** (a) gating blok adımı 1s (10×100ms)
+→ 100ms (1×100ms)'e çekildi — libebur128'in (EBU uyumluluğu bağımsız
+doğrulanmış açık kaynak referansı) momentary/short-term ile AYNI 100ms
+adımı kullanma pratiğiyle hizalandı; (b) yüzdelik hesabı doğrusal
+enterpolasyondan "en yakın rütbe" (nearest-rank, yeni `percentileNearestRank()`
+fonksiyonu) yöntemine çevrildi — Tech 3342'nin histogram-tabanlı tanımına
+daha yakın. Eski `percentile()` (doğrusal) SİLİNMEDİ, genel kullanım için
+duruyor + testi hâlâ geçiyor.
+
+**5) True Peak filtresi — L artırmak DEĞİL, halfWidth/beta ayarlamak
+işe yaradı (önemli, dürüst bulgu):** Task'ın varsaydığının AKSİNE, aşırı
+örnekleme oranını (L) TEK BAŞINA 4x'ten 8x/16x'e çıkarmak overshoot'u
+NEREDEYSE HİÇ değiştirmedi (0.549→0.542→0.549dB) — çünkü faz başına filtre
+uzunluğu (tapsPerPhase=2·halfWidth) L'DEN BAĞIMSIZ, asıl doğruluğu o
+belirliyor. Asıl kazanç: halfWidth 12→6, beta 8.6→26 (overshoot
+0.549→0.036dB). AYRICA bulundu: L, farklı bir metriği (Nyquist'in hemen
+altındaki UNDERSHOOT) GERÇEKTEN etkiliyor (0.688→0.169dB, L=4→8) — bu yüzden
+L=8 de benimsendi. tapsPerPhase yarıya indiği için (24→12) L'yi 4'ten 8'e
+çıkarmak işlem maliyetini DEĞİŞTİRMEDİ (4×24=8×12=96 çarpma/örnek).
+
+**Dosya/değişiklik haritası:**
+
+| Değişiklik | Dosya | Not |
+|---|---|---|
+| True Peak filtre sabitleri (L=8/hw=6/beta=26) | `core/analysis.js` | `TRUE_PEAK_L/HALF_WIDTH/BETA` |
+| RMS pencere varsayılanı 300→100ms | `core/analysis.js` | `DEFAULT_RMS_WINDOW_MS` |
+| LRA adımı 1s→100ms + `percentileNearestRank()` eklendi | `core/analysis.js` | `LRA_STEP_BLOCKS`, yeni fonksiyon |
+| RMS gösterimi `.raw`→`.aes17`, DC ondalık 2→4, standart notu güncellendi | `app.js` | Sadece gösterim, hesap değişmedi |
+| Filtre/pencere/LRA testleri güncellendi + `percentileNearestRank` testleri | `test/analysis.test.mjs` | Eski testler SİLİNMEDİ, güncellenen sabit değerlere göre düzeltildi |
+
+**DOĞRULAMA:**
+
+- **Perkusif test sinyalinde (transient + sabit zemin) RMS penceresi
+  karşılaştırması (Max RMS, HAM/AES17):**
+
+  | Pencere | Max RMS (HAM) | Max RMS (AES17) | Min RMS (HAM) | Min RMS (AES17) |
+  |---|---|---|---|---|
+  | 50ms | −5.29 | −2.28 | −33.47 | −30.46 |
+  | 100ms (SEÇİLEN) | −6.49 | −3.48 | −33.47 | −30.46 |
+  | 300ms (eski) | −10.01 | −7.00 | −26.02 | −23.01 |
+
+  100ms→300ms farkı: Max RMS'te +3.51dB, yönü ve büyüklüğü kullanıcının
+  gözlemlediği sapmayla (RX'in bizden ~3dB yüksek okuması) TUTARLI.
+
+- **Aynı 11 parametre, ESKİ (G99) vs YENİ (G100), 40s'lik sabit test
+  dosyasında (4 seviye bölümü + sessizlik + kasıtlı kırpma — G98/G99'da
+  kullanılan AYNI dosya, gerçek `analyzeAudioBuffer()` çağrılarıyla):**
+
+  | Parametre | ESKİ (G99) | YENİ (G100) |
+  |---|---|---|
+  | True peak (dBTP) | +0.031 | +0.031 (bu dosyada aynı — bkz. not) |
+  | Sample peak (dBFS) | +0.000 | +0.000 |
+  | Max RMS (gösterilen) | −2.9 (HAM) | +0.1 (AES17) |
+  | Min RMS (gösterilen) | −∞ | −∞ |
+  | Total RMS (gösterilen) | −9.9 (HAM) | −6.9 (AES17) |
+  | Olası kırpılmış | 19500 | 19500 |
+  | DC offset | +1.72% (2 ondalık) | +1.7200% (4 ondalık) |
+  | Max momentary | 0.142 LUFS | 0.142 LUFS |
+  | Max short-term | 0.142 LUFS | 0.142 LUFS |
+  | Integrated | −4.959 LUFS | −4.959 LUFS |
+  | LRA | 14.133 LU | 14.133 LU |
+
+  Not: Bu SABİT dosyada True Peak/LRA değişmedi çünkü dosyanın yapısı (uzun
+  düz seviyeler + tam kırpma) filtre/algoritma değişikliklerine duyarlı
+  DEĞİL — bu iki maddenin gerçek etkisi aşağıdaki ÖZEL test sinyalleriyle
+  gösterildi.
+
+- **True Peak filtresi — eski/yeni karşılaştırma (frekans taraması,
+  44.1kHz, 53Hz adımlarla):**
+
+  | | overshoot (üst sınır) | undershoot (Nyquist yakını) |
+  |---|---|---|
+  | ESKİ (L=4, hw=12, beta=8.6, tapsPerPhase=24) | 0.549dB @ 13986Hz | −0.687dB @ 21989Hz |
+  | YENİ (L=8, hw=6, beta=26, tapsPerPhase=12) | 0.036dB @ 10435Hz | −0.169dB @ 21989Hz |
+
+  L=16'ya çıkarmak undershoot'u daha da düşürüyor (−0.043dB) ama işlem
+  maliyetini 2 katına çıkarıyor — L=8'de bırakıldı (G98'in ORİJİNAL maliyetiyle
+  AYNI, bkz. yukarı).
+
+- **LRA farkının sebebi:** iki algoritmik düzeltme (100ms adım + nearest-rank
+  yüzdelik) gerçekçi bir dinamik test sinyalinde (90s, yavaş zarf + mikro
+  varyasyon) LRA'yı **9.194 → 9.296 LU** taşıdı (+0.10 LU, DOĞRU yönde).
+  **Dürüstlük notu:** bu, kullanıcının gözlemlediği 0,8 LU'luk farkın
+  TAMAMINI KAPATMIYOR — gerçek dosya elimde olmadığı için tam eşleşme
+  doğrulanamadı. Kalan fark muhtemelen RX'in kendi (belgelenmemiş, kapalı
+  kaynak) LRA uygulama detaylarından kaynaklanıyor — LRA'nın farklı EBU
+  R128-uyumlu metreler arasında ~1 LU'ya kadar değişebilmesi literatürde
+  bilinen bir durum (Tech 3342 bazı uygulama detaylarını açık bırakıyor).
+- **`npm test`: 1096/1096** (G99 sonrası 1094, +2 yeni test —
+  `percentileNearestRank()` — hiçbir eski test SİLİNMEDİ, sadece değişen
+  sabit değerlere göre 4 test güncellendi: RMS penceresi varsayılanı,
+  truePeakOversample, True Peak overshoot sınırı, DC offset formatı).
+- **Canlı tarayıcı doğrulaması — KISITLI:** Bu turda tarayıcı otomasyon
+  eklentisi kararsız kaldı (dosya yükleme aracı defalarca başarı raporlayıp
+  dosyayı gerçekte iliştirmedi) — G99'da AYNI render fonksiyonlarının
+  (`renderToolsAnalysisChannelTable` vb.) canlı çalıştığı zaten kanıtlanmıştı,
+  bu turun değişiklikleri o fonksiyonlarda SADECE hangi alanın okunduğunu
+  (`.raw`→`.aes17`) ve statik metni değiştirdi — node ile mantık seviyesinde
+  doğrulandı (DC offset "+10.0000%" gösterdi, RMS AES17 alanını okudu, meta
+  değerleri doğru) ama TAM DOM canlı ekran görüntüsü bu turda alınamadı.
+  **Bir sonraki oturumda kısa bir canlı doğrulama turu YARARLI olur.**
+
+**Not — provenance:** `OYUN-MANTIGI.md` bu commit'te DAHİL edildi (kullanıcı
+onayladı, ayrı commit — bkz. hemen önceki commit `e4dab63`).
+
+---
+
+Önceki commit (G99, tek commit) — **Araçlar ölçüm motoru, 2. bölüm: arayüz.**
 G98'in `analysis.js`'i ekrana bağlandı — "Mixini Yükle" ile "Referans
 Filtreleri" arasına, MEVCUT `.tools-card` ailesinden (border-radius/gradient/
 ikon kutusu/bölüm başlığı) BİREBİR türetilen yeni bir "Analiz" kartı
@@ -8073,7 +8204,26 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G99 itibarıyla):** Araçlar ölçüm motoru İKİ bölümü de
+**Tek sonraki adım (G100 itibarıyla):** RX 11 karşılaştırmasının 5 maddesi
+de kod/test seviyesinde TAM uygulandı (bkz. BİTTİ). Bu turun kendi açık
+işleri: (1) **TAM canlı doğrulama YAPILAMADI** — tarayıcı otomasyon eklentisi
+bu turda kararsızdı, değişiklikler node seviyesinde doğrulandı ama gerçek
+DOM ekran görüntüsü alınamadı — bir sonraki oturumda MUTLAKA kısa bir tur
+(dosya yükle→analiz et→AES17 değerlerin/DC 4-ondalık hassasiyetin/güncellenmiş
+standart notunun ekranda GÖRÜNDÜĞÜNÜ doğrula) yapılmalı; (2) **LRA'daki 0.8
+LU'luk farkın TAMAMI kapanmadı** (sadece ~0.1 LU'luk kısmı, algoritmik
+düzeltmelerle) — kullanıcının orijinal test dosyası elde edilebilirse (ya da
+kullanıcı RX'te farklı dosyalarla birkaç ölçüm daha yaparsa) kalan farkın
+sistematik mi (düzeltilebilir) yoksa RX'in kendi uygulama farkı mı (kabul
+edilmesi gereken bir sınır) olduğu netleştirilebilir; (3) **RMS penceresinin
+(100ms) gerçek dosyada RX'e ne kadar yaklaştığı DOĞRULANMADI** — seçim
+sentetik bir temsili sinyalle yapıldı, kullanıcı gerçek dosyasıyla YENİDEN
+ölçüp Max/Min RMS'in artık RX'e ne kadar yakın olduğunu bildirirse pencere
+değeri gerekirse İNCE AYAR yapılabilir; (4) **True Peak'in yeni ~0.04dB'lik
+sınırı kullanıcıya arayüzde GÖRÜNÜR değil** (sadece standart notunda metin
+olarak var) — ürün kararı, verilmedi.
+
+**Önceki adım (G99 itibarıyla):** Araçlar ölçüm motoru İKİ bölümü de
 (çekirdek + arayüz) kod/test/canlı doğrulama açısından TAM kapandı, canlı
 testte bulunan gerçek bir bug (rAF sonsuz askıda kalma + hata sınıflandırma
 karışıklığı) AYNI turda düzeltildi. Bu turun kendi açık işleri: (1) **gerçek

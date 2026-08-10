@@ -43,30 +43,45 @@
 // (fs değiştikçe K=tan(π·f0/fs) değişir, geri kalan cebir sabit) — bu,
 // "48k değilse katsayılar yeniden türetilmeli" gereğini karşılar.
 //
-// === TRUE PEAK — DÜRÜSTLÜK NOTU ===
-// BS.1770-4 Ek 2'nin resmi 4x polifaz FIR tablosunu (12 taps × 4 faz, ITU'nun
-// KENDİ ölçtüğü katsayılar) BİREBİR uygulamıyoruz — o tabloyu güvenilir
-// biçimde ezbere yazamayacağımız için (yanlış sayı üretme riski, bkz.
-// CLAUDE.md "sayı uydurma") yerine GENEL AMAÇLI, kendi tasarladığımız 4x
-// Kaiser-pencereli sinc ara değerleme filtresi kullanılıyor (bkz.
-// designInterpolationFilter — polifaz ayrıştırmanın DC kazancı test edildi,
-// her fazın kazancı 1.0'a ~5 ondalık basamak yakın, bkz. testler). Bu "en az
-// 4x aşırı örnekleme" gereğini karşılıyor, ama ITU'nun resmi filtresiyle
-// BİT-BİRE-BİR AYNI OLDUĞU İDDİA EDİLMİYOR.
-// ÖLÇÜLEN SINIR (frekans taraması ile, bkz. testler): saf ton girdilerinde bu
-// filtre gerçek (analitik) tepe değerinin EN FAZLA ~0.55dB ÜZERİNDE bir
-// True Peak okuyabiliyor — en kötü durum ~%63 Nyquist civarında (44.1kHz'de
-// ~14kHz, 48kHz'de ~15.3kHz), pencerelenmiş sinc'in kaçınılmaz geçiş-bandı
-// dalgalanması (Gibbs benzeri). Bu YUKARI yönlü bir sapma (fazla okur,
-// AZ okumaz) — kırpılma/inter-sample-over TESPİTİ için güvenli yöndedir
-// (gerçek bir sorunu KAÇIRMAZ, ama sınıra yakın "temiz" bir sesi yanlışlıkla
-// "az üstünde" gösterebilir). Referans bir True Peak metreyle örtüşme
-// kullanıcının canlı karşılaştırmasıyla doğrulanmalı.
+// === TRUE PEAK — DÜRÜSTLÜK NOTU (G100'de yeniden ayarlandı) ===
+// BS.1770-4 Ek 2'nin resmi polifaz FIR tablosunu BİREBİR uygulamıyoruz (yanlış
+// sayı üretme riski, bkz. CLAUDE.md "sayı uydurma") — GENEL AMAÇLI, kendi
+// tasarladığımız Kaiser-pencereli sinc ara değerleme filtresi kullanılıyor.
+// G100 BULGUSU (RX 11 karşılaştırmasından sonra frekans taramasıyla ÖLÇÜLDÜ,
+// bkz. testler) — İKİ AYRI etki birbirinden ayrıştırıldı:
+// (1) OVERSHOOT (gerçek tepenin ÜZERİNE okuma): aşırı örnekleme oranını (L)
+//     TEK BAŞINA 4x'ten 8x/16x'e çıkarmak NEREDEYSE HİÇ ETKİLEMEDİ
+//     (0.549→0.542→0.549dB, hw=12/beta=8.6 sabitken) — çünkü faz başına
+//     filtre uzunluğu (tapsPerPhase = 2·halfWidth, L'DEN BAĞIMSIZ) asıl
+//     doğruluğu belirliyor. Asıl kazanç halfWidth/beta'dan geldi: halfWidth
+//     küçültülüp (12→6) beta yükseltilince (8.6→26) overshoot 0.549dB'den
+//     ~0.03dB'ye düştü.
+// (2) UNDERSHOOT (Nyquist'in HEMEN ALTINDAKİ içerikte zayıflama): BUNU L
+//     GERÇEKTEN etkiliyor — aynı hw=6/beta=26'da L=4→8→16 undershoot'u
+//     0.688→0.169→0.043dB'ye düşürdü (grid L arttıkça sıklaştığı için
+//     Nyquist'e en yakın, en hızlı salınan içeriği daha iyi örnekliyor).
+// tapsPerPhase halfWidth'ten (2·halfWidth) geldiği ve L'DEN bağımsız olduğu
+// için hw=12'den 6'ya küçültmek tapsPerPhase'i yarıya indirdi (24→12) — bu da
+// L'yi AYNI ANDA 4x'ten 8x'e çıkarmayı işlem maliyetini DEĞİŞTİRMEDEN
+// mümkün kıldı (4×24=8×12=96 çarpma/örnek, G98'le AYNI). Yeni parametreler:
+// L=8, halfWidth=6, beta=26, tapsPerPhase=12.
+// ÖLÇÜLEN SINIR (güncel, L=8): saf tonlarda gerçek tepe değerinin EN FAZLA
+// ~0.04dB ÜZERİNDE okuyor (eski ~0.55dB'den düştü, en kötü durum ~%22
+// Nyquist civarında) VE Nyquist'in hemen altında EN FAZLA ~0.17dB ALTINDA
+// okuyor (eski ~0.69dB'den düştü). TAM Nyquist'teki (ör. %99.9+) içerik
+// örnekleme teorisi gereği fazdan bağımsız yeniden kurulamaz — HİÇBİR filtre
+// bunu tamamen gideremez, bu modülün bir kusuru değil (bkz. testler).
+// BİT-BİRE-BİR ITU eşleşmesi hâlâ iddia edilmiyor, ama sapma sınırı HER İKİ
+// yönde de belirgin şekilde daraldı.
 //
-// === RMS KONVANSİYONU ===
+// === RMS KONVANSİYONU (G100'de AES17'ye çevrildi) ===
 // HAM (tam ölçekli sinüs → −3.01 dB) ve AES17 (tam ölçekli sinüs → 0 dB, HAM'a
-// +3.0103 dB eklenir) İKİSİ DE hesaplanıp döndürülüyor — RX'in hangisini
-// kullandığı bilinmiyor, kullanıcı kendi karşılaştırmasıyla seçecek.
+// +3.0103 dB eklenir) İKİSİ DE hesaplanmaya devam ediyor (`raw`/`aes17` alanları,
+// HAM hesap koddan SİLİNMEDİ) — ama G100'de RX 11 ile canlı karşılaştırmada
+// Total RMS'teki ~3dB'lik sapmanın TAM OLARAK bu kaydırma olduğu doğrulandı
+// (RX AES17 kullanıyor) — arayüz artık `aes17` alanını gösteriyor (bkz.
+// app.js). RMS PENCERESİ de aynı karşılaştırmada 300ms'den 100ms'e çekildi
+// (bkz. testler — 50/100/300ms karşılaştırması, DURUM.md G100 raporu).
 //
 // === BELLEK ===
 // decodeAudioData'nın kendisi zaten TÜM dosyayı Float32 PCM olarak bellekte
@@ -123,13 +138,15 @@ function newBiquadState() {
   return { x1: 0, x2: 0, y1: 0, y2: 0 };
 }
 
-// ---- True peak: 4x Kaiser-pencereli sinc ara değerleme filtresi ----
-// Bkz. dosya başı "TRUE PEAK — DÜRÜSTLÜK NOTU". L=4 (aşırı örnekleme oranı),
-// halfWidth=12 (orijinal-hız örnek cinsinden filtrenin tek taraflı açıklığı),
-// beta=8.6 (Kaiser penceresi, ~85dB durdurma bandı zayıflatması hedefler).
-const TRUE_PEAK_L = 4;
-const TRUE_PEAK_HALF_WIDTH = 12;
-const TRUE_PEAK_BETA = 8.6;
+// ---- True peak: 8x Kaiser-pencereli sinc ara değerleme filtresi ----
+// Bkz. dosya başı "TRUE PEAK — DÜRÜSTLÜK NOTU" (G100'de yeniden ayarlandı).
+// L=8 (aşırı örnekleme oranı), halfWidth=6 (orijinal-hız örnek cinsinden
+// filtrenin tek taraflı açıklığı — G98'in 12'sinden küçültüldü, ÖLÇÜLEN
+// overshoot'u büyük ölçüde AZALTTI, bkz. not), beta=26 (Kaiser penceresi,
+// G98'in 8.6'sından yükseltildi — sidelobe/ripple bastırma böyle artıyor).
+const TRUE_PEAK_L = 8;
+const TRUE_PEAK_HALF_WIDTH = 6;
+const TRUE_PEAK_BETA = 26;
 
 function besselI0(x) {
   let sum = 1;
@@ -214,11 +231,16 @@ function processTruePeakBlock(state, filter, samples) {
 const CLIP_THRESHOLD = 0.9999;
 const CLIP_MIN_CONSECUTIVE = 3;
 
-// ---- Windowed RMS penceresi ----
-// RX'in kullandığı pencere bilinmiyor (task notu) — burada seçilen: 300ms,
-// klasik Type I VU-metre entegrasyon süresine yakın, yaygın bir "yavaş RMS"
-// varsayılanı. `options.rmsWindowMs` ile override edilebilir.
-const DEFAULT_RMS_WINDOW_MS = 300;
+// ---- Windowed RMS penceresi (G100'de 300ms'den 100ms'e çekildi) ----
+// RX'in TAM pencere değeri hâlâ bilinmiyor (RX kaynak kodu yok) — ama G100'de
+// gerçek bir dosyanın RX 11 ölçümüyle karşılaştırılması, 300ms'in RX'ten
+// BELİRGİN daha "yavaş" (Max RMS'i düşük, Min RMS'i yüksek gösteren) bir
+// pencere olduğunu ortaya çıkardı. 50/100/300ms karşılaştırması (bkz. testler
+// + DURUM.md G100 raporu, temsili bir sinyalle) 100ms'i seçti — yaygın bir
+// "hızlı RMS" tanım aralığında (birçok metre "Fast" ayarı ~50-125ms arası
+// kullanır) VE test sinyalinde RX'in gözlemlenen sapma büyüklüğüne 50ms'den
+// daha yakın düştü. `options.rmsWindowMs` ile override edilebilir.
+const DEFAULT_RMS_WINDOW_MS = 100;
 
 // ---- LUFS / gating sabitleri (ITU-R BS.1770-4 §5, EBU Tech 3342) ----
 const GATING_BLOCK_MS = 100; // temel "blok gücü" adımı
@@ -227,7 +249,16 @@ const SHORT_TERM_BLOCKS = 30; // 3000ms / 100ms
 const ABSOLUTE_GATE_LUFS = -70;
 const RELATIVE_GATE_OFFSET_LU = -10; // integrated
 const LRA_WINDOW_BLOCKS = 30; // 3s / 100ms
-const LRA_STEP_BLOCKS = 10; // 1s / 100ms
+// G100: 1s (10 blok) → 100ms (1 blok)'a çekildi — libebur128 (EBU
+// uyumluluğu bağımsız doğrulanmış, yaygın referans alınan açık kaynak
+// uygulama) LRA gating bloklarını momentary/short-term ile AYNI 100ms
+// adımda üretiyor, Tech 3342'nin "3s pencere, 1s adım" ifadesi bazı
+// uygulamalarda daha KABA (1s) örneklendiği için farklı yorumlanabiliyor —
+// 100ms'e çekmek RX 11 karşılaştırmasında LRA'yı DOĞRU YÖNDE (yukarı)
+// hareket ettirdi (bkz. testler), ama TEK BAŞINA gözlenen 0.8 LU farkın
+// tamamını KAPATMADI (ölçülen katkı ~0.1 LU, bkz. DURUM.md G100 raporu) —
+// kalan fark muhtemelen RX'in kendi (belgelenmemiş) LRA uygulama detaylarından.
+const LRA_STEP_BLOCKS = 1; // 100ms
 const LRA_RELATIVE_GATE_OFFSET_LU = -20;
 const LRA_LOW_PERCENTILE = 10;
 const LRA_HIGH_PERCENTILE = 95;
@@ -256,6 +287,19 @@ function percentile(sortedValues, p) {
   if (lo === hi) return sortedValues[lo];
   const frac = rank - lo;
   return sortedValues[lo] + (sortedValues[hi] - sortedValues[lo]) * frac;
+}
+
+// SAF. "En yakın rütbe" (nearest-rank) yüzdelik — EBU Tech 3342'nin LRA
+// algoritmasının (çoğu referans uygulamada) kullandığı yöntem: histogram/
+// kümülatif dağılımda p%'e ULAŞAN İLK değeri seçer, iki değer arasında ARA
+// DEĞER ÜRETMEZ (bkz. percentile()'ın yukarıdaki notu — o, kasıtlı olarak
+// FARKLI bir tanım, genel amaçlı kullanım için hâlâ mevcut). G100'de LRA
+// bunu kullanacak şekilde değiştirildi (bkz. computeLRA çağrısı).
+function percentileNearestRank(sortedValues, p) {
+  const n = sortedValues.length;
+  if (n === 0) return NaN;
+  const rank = Math.ceil((p / 100) * n);
+  return sortedValues[Math.min(n - 1, Math.max(0, rank - 1))];
 }
 
 // SAF. Ana giriş noktası. bufferLike: {sampleRate, numberOfChannels, length,
@@ -443,7 +487,7 @@ export function analyzeAudioBuffer(bufferLike, options = {}) {
     const relGated = lraAbsGated.filter((p) => powerToLufs(p) > relThreshold);
     if (relGated.length > 0) {
       const loudnessValues = relGated.map(powerToLufs).sort((a, b) => a - b);
-      lra = percentile(loudnessValues, LRA_HIGH_PERCENTILE) - percentile(loudnessValues, LRA_LOW_PERCENTILE);
+      lra = percentileNearestRank(loudnessValues, LRA_HIGH_PERCENTILE) - percentileNearestRank(loudnessValues, LRA_LOW_PERCENTILE);
     }
   }
 
@@ -498,5 +542,6 @@ export const _internal = {
   rlbFilterCoeffs,
   designInterpolationFilter,
   percentile,
+  percentileNearestRank,
   besselI0,
 };

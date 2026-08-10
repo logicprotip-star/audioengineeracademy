@@ -66,20 +66,21 @@ describe("analysis.js — K-weighting katsayı türetimi (ITU-R BS.1770-4 refera
   });
 });
 
-describe("analysis.js — polifaz True Peak filtresi tasarımı", () => {
+describe("analysis.js — polifaz True Peak filtresi tasarımı (G100: L=8/halfWidth=6/beta=26)", () => {
   it("her fazın DC kazancı 1.0'a çok yakın (sabit sinyal interpolasyondan sonra sabit KALMALI)", () => {
-    const filter = _internal.designInterpolationFilter(4, 12, 8.6);
-    for (let p = 0; p < 4; p++) {
+    const filter = _internal.designInterpolationFilter(8, 6, 26);
+    for (let p = 0; p < 8; p++) {
       const sum = filter.taps[p].reduce((a, b) => a + b, 0);
-      assert.ok(Math.abs(sum - 1.0) < 1e-3, `phase ${p} DC kazancı ${sum}, 1.0'a yakın değil`);
+      assert.ok(Math.abs(sum - 1.0) < 1e-2, `phase ${p} DC kazancı ${sum}, 1.0'a yakın değil`);
     }
   });
 
-  it("saf ton taramasında en kötü aşırı-okuma (overshoot) ~0.55dB sınırının altında kalır (regresyon kilidi — bkz. analysis.js dosya başı DÜRÜSTLÜK notu)", () => {
+  it("saf ton taramasında en kötü aşırı-okuma (overshoot) ~0.05dB sınırının altında kalır (G100 regresyon kilidi — bkz. analysis.js dosya başı DÜRÜSTLÜK notu, G98'in ~0.55dB'sinden düştü)", () => {
     // Kısaltılmış tarama (npm test hızlı kalsın diye) — tam tarama bu testi
     // yazarken node ile ayrıca çalıştırılıp analysis.js'in DÜRÜSTLÜK notundaki
-    // "~0.55dB, ~%63 Nyquist" bulgusu ELDE EDİLDİ, burada sadece ÜST SINIR kilitleniyor.
-    const filter = _internal.designInterpolationFilter(4, 12, 8.6);
+    // "~0.04dB, RX 11 karşılaştırması sonrası halfWidth/beta yeniden ayarlandı"
+    // bulgusu ELDE EDİLDİ, burada sadece ÜST SINIR kilitleniyor.
+    const filter = _internal.designInterpolationFilter(8, 6, 26);
     const H = filter.tapsPerPhase - 1;
     let worst = -Infinity;
     for (let f = 2000; f < SR / 2 - 500; f += 1500) {
@@ -100,8 +101,8 @@ describe("analysis.js — polifaz True Peak filtresi tasarımı", () => {
       const db = 20 * Math.log10(maxAbs);
       if (db > worst) worst = db;
     }
-    assert.ok(worst < 0.7, `en kötü overshoot ${worst}dB, 0.7dB sınırını aştı`);
-    assert.ok(worst > 0.3, `beklenenden çok daha iyi (${worst}dB) — sınır sayısı güncellenmeli mi kontrol et`);
+    assert.ok(worst < 0.05, `en kötü overshoot ${worst}dB, 0.05dB sınırını aştı`);
+    assert.ok(worst > 0.01, `beklenenden çok daha iyi (${worst}dB) — sınır sayısı güncellenmeli mi kontrol et`);
   });
 });
 
@@ -111,6 +112,23 @@ describe("analysis.js — percentile() yardımcı fonksiyonu", () => {
     assert.equal(_internal.percentile(sorted, 0), 1);
     assert.equal(_internal.percentile(sorted, 100), 10);
     assert.ok(Math.abs(_internal.percentile(sorted, 50) - 5.5) < 1e-9);
+  });
+});
+
+describe("analysis.js — G100: percentileNearestRank() (LRA'nın kullandığı yöntem)", () => {
+  it("bilinen küçük dizi: ara değer ÜRETMEZ, en yakın rütbeyi seçer", () => {
+    const sorted = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    assert.equal(_internal.percentileNearestRank(sorted, 0), 1);
+    assert.equal(_internal.percentileNearestRank(sorted, 100), 10);
+    // percentile()'ın (doğrusal) 50.'de 5.5 döndürdüğü AYNI dizide, nearest-rank
+    // dizideki GERÇEK bir değeri (5 ya da 6) döner, ARA değer ÜRETMEZ.
+    const p50 = _internal.percentileNearestRank(sorted, 50);
+    assert.ok(sorted.includes(p50), `p50=${p50} dizideki bir değer DEĞİL`);
+  });
+
+  it("tek elemanlı dizi", () => {
+    assert.equal(_internal.percentileNearestRank([42], 10), 42);
+    assert.equal(_internal.percentileNearestRank([42], 95), 42);
   });
 });
 
@@ -316,10 +334,10 @@ describe("analysis.js — windowed RMS (max/min), bilinen iki-seviyeli sinyal", 
     assert.ok(r.channels[0].maxRmsDb.raw > r.channels[0].minRmsDb.raw);
   });
 
-  it("seçilen RMS penceresi meta.rmsWindowMs olarak raporlanır (varsayılan 300ms)", () => {
+  it("seçilen RMS penceresi meta.rmsWindowMs olarak raporlanır (varsayılan 100ms — G100'de 300'den düşürüldü)", () => {
     const d = sineWave(1000, 0.5, 1, SR);
     const r = analyzeAudioBuffer(fakeBuffer([d], SR));
-    assert.equal(r.meta.rmsWindowMs, 300);
+    assert.equal(r.meta.rmsWindowMs, 100);
   });
 
   it("options.rmsWindowMs override edilebilir", () => {
@@ -370,12 +388,12 @@ describe("analysis.js — blok bazlı işleme, chunk sınırlarından BAĞIMSIZ 
 });
 
 describe("analysis.js — meta alanları rapora yazılacak sabitleri doğru yansıtır", () => {
-  it("clipThreshold=0.9999, clipMinConsecutive=3, truePeakOversample=4", () => {
+  it("clipThreshold=0.9999, clipMinConsecutive=3, truePeakOversample=8 (G100'de 4'ten yükseltildi)", () => {
     const d = sineWave(1000, 0.5, 0.5, SR);
     const r = analyzeAudioBuffer(fakeBuffer([d], SR));
     assert.equal(r.meta.clipThreshold, 0.9999);
     assert.equal(r.meta.clipMinConsecutive, 3);
-    assert.equal(r.meta.truePeakOversample, 4);
+    assert.equal(r.meta.truePeakOversample, 8);
     assert.equal(r.meta.gatingBlockMs, 100);
   });
 

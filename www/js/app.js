@@ -7264,20 +7264,27 @@ function fmtLu(v) {
   if (!Number.isFinite(v)) return "—";
   return `${v.toFixed(1)} LU`;
 }
+// G100: RX 11 ile canlı karşılaştırmada RX'in binde-iki (+0.002%) hassasiyet
+// gösterdiği görüldü, biz sıfıra yuvarlıyorduk (2 ondalık basamak DC offset
+// gibi küçük yüzdeler için yetersiz) — 4 ondalık basamağa çıkarıldı.
 function fmtPercent(v) {
   if (!Number.isFinite(v)) return "—";
-  return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+  return `${v >= 0 ? "+" : ""}${v.toFixed(4)}%`;
 }
 function fmtCount(v) {
   return Number.isFinite(v) ? String(v) : "—";
 }
 
+// G100: RX 11 ile canlı karşılaştırmada Total RMS'teki ~3dB'lik sapmanın TAM
+// OLARAK AES17 kaydırması olduğu doğrulandı (RX AES17 kullanıyor) — gösterilen
+// RMS artık `.aes17` alanlarını okuyor. HAM (`.raw`) analysis.js'te hesaplanmaya
+// devam ediyor, sadece BURADA gösterilmiyor (bkz. renderToolsAnalysisStandardNote).
 const TOOLS_ANALYSIS_CHANNEL_ROWS = [
   { label: "True peak (dBTP)", get: (c) => fmtDb(c.truePeakDb) },
   { label: "Sample peak (dBFS)", get: (c) => fmtDb(c.samplePeakDb) },
-  { label: "Max RMS (dB)", get: (c) => fmtDb(c.maxRmsDb.raw) },
-  { label: "Min RMS (dB)", get: (c) => fmtDb(c.minRmsDb.raw) },
-  { label: "Total RMS (dB)", get: (c) => fmtDb(c.totalRmsDb.raw) },
+  { label: "Max RMS (dB)", get: (c) => fmtDb(c.maxRmsDb.aes17) },
+  { label: "Min RMS (dB)", get: (c) => fmtDb(c.minRmsDb.aes17) },
+  { label: "Total RMS (dB)", get: (c) => fmtDb(c.totalRmsDb.aes17) },
   { label: "Olası kırpılmış örnek", get: (c) => fmtCount(c.possiblyClippedSamples) },
   { label: "DC offset (%)", get: (c) => fmtPercent(c.dcOffsetPercent) }
 ];
@@ -7308,7 +7315,7 @@ function renderToolsAnalysisStandardNote(result) {
   if (!els.toolsAnalysisStandardNote) return;
   const m = result.meta;
   els.toolsAnalysisStandardNote.textContent =
-    `ITU-R BS.1770-4 / EBU R128 · True peak: ${m.truePeakOversample}x aşırı örnekleme (genel amaçlı filtre — ITU'nun resmi tablosuyla bit-bire-bir aynı değil, ölçülen üst sınır ~0.55dB yukarı sapma) · RMS penceresi: ${m.rmsWindowMs}ms · RMS konvansiyonu: HAM (tam ölçekli sinüs = −3.01dB; AES17 konvansiyonunda bu +3.01dB kayar)`;
+    `ITU-R BS.1770-4 / EBU R128 · True peak: ${m.truePeakOversample}x aşırı örnekleme (genel amaçlı filtre — ITU'nun resmi tablosuyla bit-bire-bir aynı değil, ölçülen üst sınır ~0.04dB yukarı sapma) · RMS penceresi: ${m.rmsWindowMs}ms · RMS konvansiyonu: AES17 (tam ölçekli sinüs = 0dB; HAM konvansiyonda bu −3.01dB kayar, RX 11 karşılaştırmasıyla doğrulandı)`;
 }
 
 // --- Short-term seyri grafiği (canvas, DPR-farkında — oyun ekranındaki
