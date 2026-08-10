@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G112)
+Son güncelleme: 11.08.2026 (G113)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,106 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G112, tek commit) — **KÖK SEBEP #2: son kart tab bar'ın arkasında kalıyordu — kaydırma kabının alt boşluğu tab bar yüksekliğini karşılamıyordu.**
+Bu commit (G113, tek commit) — **KÖK SEBEP KESİN: G112'nin YANLIŞ mekanizması (padding) margin'e çevrildi — `.game-scroll`'un ZATEN öğrettiği ders G112'de uygulanmamıştı.**
+
+**Kullanıcının cihaz kanıtı (Safari Web Inspector + CANLI DENEY):**
+`innerHeight=932`, tab bar `top=804 height=128`, `.tools-scroll h=873
+sh=873 ch=873 kaydırılabilir=false padding-bottom=96px`. Konsoldan CANLI
+DENEY: `sc.style.height='804px'; sc.style.flex='0 0 auto'` → `ch=804,
+sh=961, kaydırılabilir=TRUE`, GERÇEK parmak kaydırma ÇALIŞTI.
+
+**KÖK SEBEP (kesinleşti):** G112, `.tools-scroll`'un alt PADDING'ini
+`--tabbar-h`'a bağlamıştı — ama `padding-bottom` bir flex-item'ın (`flex:1
+1 0%`) KENDİ boyutunu KÜÇÜLTMEZ, sadece İÇİNDEKİ taşma eşiğini değiştirir.
+`.tools-scroll`'un KUTUSU (clientHeight) HÂLÂ `.screen`'in TÜM yüksekliğini
+(tab bar'ın kapladığı ~106-128px DAHİL) kaplıyordu — padding değeri NE
+OLURSA OLSUN bu değişmiyordu. **Bu proje bu DERSİ ZATEN ÖĞRENMİŞTİ**:
+`.game-scroll`'un kendi (G-numarasız, köklü) yorumu BİREBİR AYNI teşhisi
+yapıyor — "padding-bottom sadece scroll edilebilir FAZLA alan ekler,
+KUTUNUN KENDİSİNİ actionbar'ın önünde DURDURMAZ... margin-bottom bunun
+yerine KUTUNUN KENDİSİNİ actionbar'ın üst kenarında durdurur." G112 bu
+YERLEŞİK dersi UYGULAMADAN, `.game-scroll`'un DAHA ÖNCE terk ettiği
+padding-only yaklaşımına GERİ DÖNMÜŞTÜ.
+
+**1) Kullanılan yükseklik hesabı:** `margin-bottom:calc(var(--tabbar-h) +
+env(safe-area-inset-bottom))` — `--tabbar-h` DEĞİŞMEDİ (106px, G112'de
+zaten `--actionbar-h` emsaliyle türetilmişti, kullanıcının YENİ cihaz
+ölçümüyle çapraz doğrulandı: gerçek tab bar toplamı 128px = ~94px içerik
++ ~34px standart home-indicator safe-area, TAM olarak --tabbar-h'ın
+kendi 94px ölçümüyle örtüşüyor). `margin-bottom`, flex-item'ın flex
+container'dan aldığı DAĞITILABİLİR alanı DÜŞÜRÜYOR — kutunun KENDİSİ artık
+tab bar'ın üst kenarında BİTİYOR (`.game-scroll` ile AYNI mekanizma,
+BİREBİR).
+
+**2) `padding-bottom`'ın durumu — KALDIRILMADI, KÜÇÜLTÜLDÜ:**
+`.game-scroll`'un KENDİ deseni (`padding-bottom:20px` + `margin-bottom`)
+takip edildi — `.tools-scroll`/`.prog-scroll`'un padding-bottom'u
+`calc(var(--tabbar-h)+...)`'tan **20px**'e (küçük nefes payı) indirildi.
+TAMAMEN kaldırılmadı çünkü `.game-scroll` da tutmuyor (task'ın kendi
+sorusu "gereksizse kaldır" — burada TAM gereksiz değil, KÜÇÜLTÜLMESİ
+gerekiyordu, kaldırılması değil).
+
+**3) Sheet için seçilen çözüm ve gerekçesi:** "sheet tab bar'ı ÖRTSÜN"
+(zaten böyleydi, `z-index` — `.tools-sheet:93` > `.tabbar:59`) SEÇİLDİ.
+GEREKÇE: bottom-sheet/modal deseni için DOĞRU ve BEKLENEN davranış — sheet
+AÇIKKEN tab bar'ın görünmesi/kullanılabilir olması zaten YANLIŞ olurdu.
+`.tools-scroll`'daki KÖK SEBEP (kutunun KENDİSİ tab bar'ın ARKASINA
+uzanıyordu, `position:static` bir KARDEŞ elemanla ÇAKIŞMA) sheet'te YOK —
+sheet zaten `bottom:0`'da kendi z-index'iyle KAZANIYOR. Sheet'in GERÇEK
+eksiği DAHA BASİTTİ: `.tools-sheet-body`'nin 30px alt boşluğu `env(safe-
+area-inset-bottom)` İÇERMİYORDU (home-indicator'lı cihazlarda son satır
+bu güvenli alana çok yakın/içinde kalabiliyordu) — `calc(30px + env(safe-
+area-inset-bottom))`'a çevrildi. Bu SINIF, `.tools-scroll`'unkinden
+FARKLI bir sorun — aynı "AYNI hata" başlığı altında bildirilmiş olsa da
+KÖK SEBEBİ AYRI, bu yüzden AYRI bir çözümle ele alındı (Dosyalarım sheet'i
+AYNI `.tools-sheet-body` class'ını paylaştığı için otomatik kapsandı).
+
+**4) Ana Menü VE İlerleme — AYNI desende yazılmış, AYNI düzeltme
+uygulandı:** İlerleme'nin `.prog-scroll`'u `.tools-scroll` ile BİREBİR
+AYNI yapıdaydı (G112'nin de zaten fark ettiği gibi) — AYNI margin-bottom
+düzeltmesi uygulandı. Ana Menü'nün (`#screen-menu`) `.scroll`'u (özel bir
+alt-class'ı YOKTU, tabanı DOĞRUDAN kullanıyordu) AYNI `flex:1 1 0%`
+deseninde olduğu DOĞRULANDI — yeni bir `.menu-scroll` class'ı EKLENDİ
+(TABANDAKİ `.scroll` kuralına DOKUNULMADI, diğer `.scroll` kullanıcıları
+— ayarlar/SSS gibi tab bar'ın görünmeyebileceği alt ekranlar — bilerek
+ETKİLENMEDİ) ve AYNI margin-bottom uygulandı.
+
+**DOĞRULAMA (masaüstü Chrome, `getBoundingClientRect()` ile GERÇEK geometri
+ölçümü — task'ın notu: bu sınıf sorunlar cihazda ANLAMLI, aşağıdakiler
+REGRESYON+mekanik doğrulama):**
+- **`.tools-scroll`:** `clientHeight=793, elBottom=793, tabbarTop=805 →
+  elStopsBeforeTabbar=true`, `marginBottom=106px, paddingBottom=20px,
+  scrollHeight=852, overflows=true` — kutunun KENDİSİ artık tab bar'ın
+  12px ÖNÜNDE bitiyor (kullanıcının "kabın yüksekliği: görünür alan − tab
+  bar yüksekliği" isteğiyle BİREBİR).
+- **`.menu-scroll`:** `clientHeight=793, elBottom=793, tabbarTop=805 →
+  elStopsBeforeTabbar=true`, `marginBottom=106px, scrollHeight=1678`.
+- **`.prog-scroll`:** `clientHeight=793, elBottom=793, tabbarTop=805 →
+  elStopsBeforeTabbar=true`, `marginBottom=106px, scrollHeight=1117,
+  overflows=true` — "İstatistikleri Sıfırla" butonu tab bar'ın üstünde,
+  boşlukla (ekran görüntüsü).
+- **Referans Filtreleri kartı:** dosyasız (sönük) durumda BİLE tam
+  görünür, tab bar'ın üstünde (ekran görüntüsü) — G111'in "kartlar her
+  zaman DOM'da" kararıyla BİRLEŞTİĞİNDE artık BAŞTAN doğru konumda.
+- **Ölçüm Sonuçları sheet'i:** gerçek yüklü dosyayla açıldı, en alta
+  kaydırıldı (`atBottom=true`), standart notu TAM görünür (ekran
+  görüntüsü), `.tools-sheet-body` `paddingBottom=30px` (env(safe-area)=0
+  bu ortamda, cihazda +~34px olacak).
+- Konsol hatası: 0 (tüm akış boyunca).
+- **`npm test`: 1119/1119** (SADECE CSS/HTML class değişti, JS davranışı
+  aynı).
+
+**DÜRÜSTLÜK NOTU:** `--tabbar-h:106px` DEĞİŞMEDİ ama bu turda kullanıcının
+GERÇEK cihaz ölçümüyle (128px toplam − ~34px standart safe-area ≈ 94px
+içerik) ÇAPRAZ DOĞRULANDI — G112'nin Chrome tahmini (94px ölçüldü, 106px'e
+yuvarlandı) TUTARLI çıktı. Mekanizma (margin-bottom) `.game-scroll`'un
+ZATEN PROVEN deseni olduğu için YÜKSEK güvenle doğru — ama BU TURDA da
+iOS'ta CANLI DOĞRULANMADI (kullanıcının BİR SONRAKİ cihaz turunda
+kesinleşecek).
+
+---
+
+Önceki commit (G112, tek commit) — **KÖK SEBEP #2: son kart tab bar'ın arkasında kalıyordu — kaydırma kabının alt boşluğu tab bar yüksekliğini karşılamıyordu.**
 
 **Kullanıcının cihaz ölçümü (Safari Web Inspector, gerçek değerler):**
 `.tools-scroll sh=873 ch=873` — scrollHeight===clientHeight, ama kartların
@@ -9368,7 +9467,30 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G112 itibarıyla):** `npx cap sync ios` + kullanıcı
+**Tek sonraki adım (G113 itibarıyla):** `npx cap sync ios` + kullanıcı
+cihazda AYNI Safari Web Inspector yöntemiyle (bu turun kanıtını ÜRETEN
+yöntem) doğrulamalı:
+(1) `.tools-scroll`'un `getBoundingClientRect().bottom`'u artık tab bar'ın
+`top`'undan KÜÇÜK mü (bu turda Chrome'da `793 ≤ 805` ölçüldü — cihazda
+KENDİ gerçek sayılarıyla AYNI ilişki doğrulanmalı, mutlak px değerleri
+FARKLI olacaktır);
+(2) `sc.style.height`/`flex` ile elle müdahale ARTIK GEREKMİYOR mu — yani
+sayfa YÜKLENİR YÜKLENMEZ (hiçbir konsol komutu çalıştırmadan)
+`kaydırılabilir=true` çıkıyor mu;
+(3) Referans Filtreleri kartına GERÇEKTEN parmakla kaydırılıp
+ulaşılabiliyor mu, akordiyon içindeki 5 filtre kartı da AYNI şekilde;
+(4) Ölçüm Sonuçları VE Dosyalarım sheet'lerinin ikisinde de en alttaki
+içerik (standart notu / dosya listesinin sonu) tab bar'ın/home-
+indicator'ın gerisinde KALMIYOR mu;
+(5) Ana Menü'nün EN ALTINDAKİ kart/bölüm de AYNI şekilde erişilebilir mi.
+Bu G108'den beri SÜREN "Araçlar sekmesi cihazda tam çalışmıyor" şikayet
+zincirinin EN TEMEL kök sebebi bu turda bulundu (kullanıcının kendi canlı
+deneyiyle KANITLANDI) — eğer BU doğrulama da geçerse zincir GERÇEKTEN
+kapanmış olur; geçmezse artık "hangi mekanizma" sorusu değil, "--tabbar-h
+değeri cihazda yanlış mı" sorusuna daralmış olur (tek bir sabit,
+kolayca ayarlanabilir).
+
+**Önceki adım (G112 itibarıyla):** `npx cap sync ios` + kullanıcı
 cihazda Safari Web Inspector'la DOĞRUDAN bu turun kendi kabul kriterini
 ölçmeli:
 (1) Referans Filtreleri kartı (ve akordiyon açıkken içindeki 5 filtre
