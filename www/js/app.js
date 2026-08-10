@@ -1080,8 +1080,27 @@ function syncAnswerArea() {
 // ("beyaz kalp + kırmızı leke" — canlı testte yakalandı). Artık DOĞRUDAN
 // SVG çiziliyor, arkaplan/leke YOK.
 const HEART_PATH = "M12 21C7 16.5 3 13 3 8.8 3 5.9 5.2 4 7.7 4 9.4 4 11 4.9 12 6.3 13 4.9 14.6 4 16.3 4 18.8 4 21 5.9 21 8.8 21 13 17 16.5 12 21Z";
-function renderHearts() {
+// G92 (madde 12a): loseAnimIndex verilirse (SADECE loseLife()'ın çağrısı) o
+// index'teki kalp heartOut'la (Prototip.dc.html satır 20/476 birebir: 420ms
+// 150ms cubic-bezier(.3,.7,.4,1) both) oynar — diğer 5 çağrı yeri (mod
+// değişimi/round başlangıcı/vb.) parametresiz çağırıyor, animasyon YOK
+// (spurious replay olmasın diye SADECE gerçek can kaybında tetiklenir).
+// G92 düzeltme: loseLife() renderHearts(prevLives-1)'i çağırıp heartOut'u
+// DOM'a yazdıktan hemen sonra, AYNI senkron tick içinde updateUI()'nin
+// KENDİ renderHearts()'ı (parametresiz) tekrar çağrılıyor — innerHTML=""
+// ile TÜM kalpler sıfırdan (animasyonsuz) yeniden kuruluyor, henüz boyanmamış
+// animasyonlu node'u paint'ten ÖNCE siliyordu (canlı testte yakalandı: can
+// azaldığı halde .heart svg'lerinde style="animation:..." hiç görünmüyordu).
+// Çözüm: imza (maxLives+currentLives) değişmediyse ve loseAnimIndex
+// verilmediyse (yani "gerçek bir değişiklik yok, sadece rutin re-render")
+// hiçbir şey yapma — az önce loseAnimIndex'li çağrının yazdığı animasyonlu
+// DOM aynen kalsın.
+let lastRenderedHeartsSignature = null;
+function renderHearts(loseAnimIndex = null) {
   const maxLives = currentDifficultyConfig().lives;
+  const signature = `${maxLives}:${currentLives}`;
+  if (loseAnimIndex === null && signature === lastRenderedHeartsSignature) return;
+  lastRenderedHeartsSignature = signature;
   els.hearts.innerHTML = "";
   for (let i = 0; i < maxLives; i++) {
     const filled = i < currentLives;
@@ -1090,6 +1109,7 @@ function renderHearts() {
     svg.setAttribute("height", "12");
     svg.setAttribute("viewBox", "0 0 24 24");
     svg.classList.add("heart");
+    if (i === loseAnimIndex) svg.style.animation = "heartOut 420ms 150ms cubic-bezier(.3,.7,.4,1) both";
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", HEART_PATH);
     path.setAttribute("fill", filled ? "#ef4a5e" : "none");
@@ -1142,7 +1162,9 @@ function loseLife(reasonText, { silent = false } = {}) {
   // onLifeLost'un kendi notu (zaten dolu DEĞİLKEN kaybedilen bir can sayacı
   // SIFIRLAMAZ, kaldığı yerden devam eder).
   stats.livesLastRefillAt = paywall.onLifeLost(prevLives, currentLives, stats.livesLastRefillAt, Date.now(), storage.TOTAL_LIVES);
-  renderHearts();
+  // G92 (madde 12a): kaybedilen kalp (prevLives-1 index'i — az önce dolu→boş
+  // geçen kalp) heartOut ile oynasın.
+  renderHearts(prevLives - 1);
   if (currentLives <= 0) {
     if (!silent) setFeedback("Oyun bitti", `${reasonText} Canların tükendi.`, true, true);
     toast("💔 Oyun Bitti", "Canların tükendi.");
@@ -1220,19 +1242,23 @@ function zoneInsightSentence(enough) {
 // puan" ve "odak setini aç" önerisi) BİLEREK atlandı, uydurulmadı.
 // G82: Tasarim-2026-08/Prototip.dc.html'in "SEANS SONU" bloğu (SS objesi) +
 // Seans Özeti.dc.html'in halka/rozet kartı BİREBİR — R=76 sabiti styles.css'teki
-// @keyframes resRingDraw'ın "from" değeriyle (478≈2*PI*76) EŞLEŞMELİ.
+// @keyframes ringDraw'ın "from" değeriyle (478≈2*PI*76) EŞLEŞMELİ. G92
+// (madde 12): animasyon ismi ringDraw'a (Prototip.dc.html'in KENDİ ismi)
+// yeniden adlandırıldı, "from" DEĞERİ (478) BİLEREK 490'a ÇEVRİLMEDİ — bu
+// app'in GERÇEK R=76 halkasının çevresi, tasarımın kendi (farklı R'li)
+// halkasının 490'ı DEĞİL (bkz. styles.css'teki AYNI not).
 function buildResultRing(pct, scoreTop, pctLabel, color) {
   const R = 76, C = 2 * Math.PI * R;
   const off = C * (1 - Math.max(0, Math.min(1, pct)));
   // Tasarımın KENDİ tekniği (Seans Özeti.dc.html:ring()) — animasyonun SADECE
-  // "from" karesi var (styles.css @keyframes resRingDraw, C'ye eşit), "to"
+  // "from" karesi var (styles.css @keyframes ringDraw, C'ye eşit), "to"
   // hedefi buradaki inline stroke-dashoffset'in KENDİSİ (CSS animation'ın
   // fill-mode:both'u iki ucu böyle birleştiriyor, ayrı bir "to" keyframe'i
   // GEREKMİYOR).
   return `<svg width="162" height="162" viewBox="0 0 162 162" style="display:block;transform:rotate(-90deg)">
     <circle cx="81" cy="81" r="${R}" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="11"></circle>
     <circle cx="81" cy="81" r="${R}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round"
-      stroke-dasharray="${C.toFixed(2)}" style="stroke-dashoffset:${off.toFixed(2)};filter:drop-shadow(0 0 8px ${color});animation:resRingDraw 800ms 150ms cubic-bezier(.2,.8,.2,1) both"></circle>
+      stroke-dasharray="${C.toFixed(2)}" style="stroke-dashoffset:${off.toFixed(2)};filter:drop-shadow(0 0 8px ${color});animation:ringDraw 800ms 150ms cubic-bezier(.2,.8,.2,1) both"></circle>
   </svg>
   <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
     <div class="num" style="font-size:36px;font-weight:800;letter-spacing:-1.4px;color:var(--tx);line-height:1" id="resScore">${scoreTop}</div>
@@ -1636,6 +1662,12 @@ function updateStartBtnLabel() {
   // "Oynat", çünkü tekrar basınca artık GERÇEKTEN play'e dönüyor).
   els.startBtn.textContent = autoStopped ? "▶" : "⏸";
   els.startBtn.setAttribute("aria-label", autoStopped ? "Oynat" : "Durdur");
+  // G92 (madde 12 TEMEL KURAL): sessizlik alanında İZİN VERİLEN tek hareket
+  // süre çubuğu + "çalan kartın nefes alması" — Motor 1'in büyük yuvarlak
+  // butonu ÖNCEDEN hiç nefes almıyordu (Motor 2'nin .ans-m2-playing'i
+  // ZATEN vardı, bkz. styles.css breathe). autoStopped=false → GERÇEKTEN
+  // çalıyor (⏸ gösteriyor).
+  els.startBtn.classList.toggle("breathing", !autoStopped);
 }
 
 function updateHintChipLabel() {
@@ -2827,6 +2859,14 @@ function giveHint() {
 // bossChip satırları) DOKUNMAZ — SADECE onlarla birlikte görünecek YENİ
 // öğeleri (combo/sayaç/zorluk/bölüm/sınav/hız) besler.
 // ═══════════════════════════════════════════════════════════════════════════
+// G92 (madde 12d): "çip SADECE seri arttığı anda tek seferlik flameGlow
+// yapar (sürekli titremez)" — ÖNCEDEN combo>2 olduğu SÜRECE `infinite`
+// animasyon çalışıyordu (sessizlik alanını ihlal ediyordu, DENETIM/G92'nin
+// kendi doğrulama gerekçesi). Artık SADECE combo bir ÖNCEKİ render'a göre
+// ARTMIŞSA bir kerelik (styles.css: .game-combo-chip.flame, sonlu
+// iterasyon) tetikleniyor — lastRenderedCombo modül-seviyeli, SADECE bunun
+// için tutuluyor.
+let lastRenderedCombo = 0;
 function renderGameHeader() {
   // G86 DÜZELTMESİ: Tasarim-2026-08/Prototip.dc.html satır 2579 —
   // comboLabel 'x'+GERÇEK stats.combo (TAM SAYI seri sayacı), comboBoost'un
@@ -2843,7 +2883,18 @@ function renderGameHeader() {
     els.gameComboChip.style.color = fill;
     els.gameComboChip.style.background = bright ? "rgba(240,180,66,.14)" : "rgba(240,180,66,.07)";
     els.gameComboChip.style.borderColor = bright ? "rgba(240,180,66,.45)" : "rgba(240,180,66,.2)";
-    els.gameComboChip.classList.toggle("flame", combo > 2);
+    // Her render'da ÖNCE temizle + reflow zorla — AYNI class art arda iki
+    // artışta da (flame flame) YENİDEN tetiklensin diye (CSS animasyonu
+    // class zaten VARKEN tekrar eklenirse çalışmaz).
+    els.gameComboChip.classList.remove("flame", "break");
+    if (combo > 2 && combo > lastRenderedCombo) {
+      void els.gameComboChip.offsetWidth;
+      els.gameComboChip.classList.add("flame");
+    } else if (combo === 0 && lastRenderedCombo > 0) {
+      void els.gameComboChip.offsetWidth;
+      els.gameComboChip.classList.add("break");
+    }
+    lastRenderedCombo = combo;
   }
 
   // Soru sayacı — ücretsiz oturum limiti (paywall.FREE_SESSION_QUESTION_LIMIT=5).
@@ -3013,7 +3064,12 @@ function renderQuestion() {
     : `Soru ${stats.rounds + 1}`;
   els.scoreChip.textContent = `Skor ${diffState().score}`;
   els.bossChip.textContent = q.boss ? "Boss" : "Normal";
-  els.bossChip.className = `chip ${q.boss ? "boss" : ""}`;
+  // G92 (madde 12e): "bossPulse sadece boss rozetinde" — TEMEL KURAL'ın
+  // sessizlik alanı gereği SÜREKLİ/infinite DEĞİL, bu YENİ round'un başında
+  // BİR KEZ (className zaten her yeni soruda TEK sefer yeniden yazılıyor,
+  // "pulse" da onunla birlikte tazeleniyor) — birkaç saniyede biter, kullanıcı
+  // dinleme/karar fazına geçtiğinde ekranda hiçbir şey animasyonlu değildir.
+  els.bossChip.className = `chip ${q.boss ? "boss pulse" : ""}`;
 
   freqGuessHz = null; freqHoverHz = null;
   cutoffGuess = null;

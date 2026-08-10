@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G91)
+Son güncelleme: 10.08.2026 (G92)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,97 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G91, tek commit) — **DENETIM.md'den çıkan 10 madde: Bugünün Önerisi
+Bu commit (G92, tek commit) — **madde 11 (Altın Vurgular) + madde 12
+(Animasyonlar): Ana ekran başlığında "Audio" splash'in altın renginde
+(`var(--gold)`), Ana Menü/mod kartı "i" butonları altın, Oyun Ekranı "i" cyan'a
+DÖNDÜ (G86'nın nötr gri kararını tersine çeviriyor), döngü butonu aktifken
+altın; Prototip.dc.html'in 14 keyframe'i (`shakeX, popIn, heartOut, breathe,
+flameGlow, bossPulse, timerRun, ringDraw, barGrow, fadeSlide, comboBreak,
+flashPop, spin, dlgIn`) birebir taşındı ve "sessizlik alanı" kuralı (soru
+çalarken SADECE süre çubuğu + breathe) canlı doğrulandı. Canlı testte kritik
+bir bug bulundu ve AYNI oturumda düzeltildi (aşağıda).**
+
+Kaynak: `Tasarim-2026-08/Prototip.dc.html` (14 keyframe tanımı satır 18-31,
+birebir alındı). Splash ekranının "altın rengi" için kodda bağımsız bir splash
+HTML/CSS'i YOK (native Capacitor PNG asset) — `resources/splash.png`'nin
+kendi piksel renkleri (`--gold:#e8c46a`'dan sapan, daha doygun turuncu/koyu
+teal) SAMPLE'LANMADI; bunun yerine "koddan al" talimatı, uygulamada ZATEN
+Pro/boss/premium için tek kaynak olan `--gold`/`--gold-grad` custom
+property'leri kullanmak olarak yorumlandı — YENİ hex uydurulmadı ama bu bir
+YORUM kararı, kullanıcı isterse PNG'den gerçek örnekleme istenebilir.
+
+**Canlı testte bulunan ve düzeltilen bug (heartOut hiç oynamıyordu):**
+`loseLife()` kalp kaybında `renderHearts(prevLives-1)`'i (animasyonlu) çağırsa
+da, AYNI senkron tick içinde çağıranın hemen ardından çalıştırdığı `updateUI()`
+kendi `renderHearts()`'ını (parametresiz) çağırıyor — bu, `innerHTML=""` ile
+TÜM kalpleri sıfırdan (animasyonsuz) yeniden kuruyor ve boyanmamış animasyonlu
+node'u paint'ten ÖNCE siliyordu. Canlı ölçümde (`.heart` svg'lerinin
+`style` attribute'u) can azaldığı halde HİÇBİR kalpte `animation:` hiç
+görünmedi — kök sebep `www/js/app.js:1088` (`renderHearts`) ve
+`www/js/app.js:2430` (`updateUI`'nin ikinci, gölgeleyen çağrısı) arasındaki
+çakışmaydı. Düzeltme: `renderHearts()`'a `${maxLives}:${currentLives}`
+imzalı bir "son render" önbelleği eklendi — `loseAnimIndex` VERİLMEDEN aynı
+imzayla tekrar çağrılırsa (yani gerçek bir değişiklik yok, sadece rutin
+re-render) hiçbir şey yapmıyor, az önce animasyonlu yazılmış DOM aynen kalıyor.
+Düzeltme sonrası canlı ölçümde `style="animation: 420ms ... heartOut"` doğru
+kalpte (kaybedilen index) doğrulandı.
+
+Öğe haritası:
+
+| # | Madde | Uygulanan değişiklik |
+|---|---|---|
+| 11 | Altın vurgular | `.brand .brand-gold{color:var(--gold)}` ("Audio"); `.info-btn` ve base `.mode-info-btn` altına döndü; `.ghead-right .mode-info-btn` (`#gameInfoBtn`) cyan'a döndü (`#22d3ee`/`rgba(34,211,238,.3)` — G86 kararını BİLEREK tersine çeviriyor); `#abToggle.loop ~ #abLoopBtn` altın; Pro rozeti/paywall/boss'a HİÇ dokunulmadı |
+| 12a | Cevap anı | `.fb-icon{animation:popIn}` (her iki sonuçta da — ikon girişi genel), `.fb-xp{animation:flashPop}` (SADECE doğruda, XP rozeti yanlışta hiç render edilmiyor), `.fb.show-result.bad{animation:shakeX}`, `renderHearts(prevLives-1)` → kaybedilen kalpte `heartOut` |
+| 12b | Geri bildirim paneli | `.fb-result-row{animation:dlgIn}` — panelin KENDİ `translateY(100%)→0` transition'ıyla (tüm alt sheet'lerle ortak) çakışmasın diye dlgIn dış `.fb`'ye DEĞİL iç `.fb-result-row`'a uygulandı (bilinçli kompromis); `.fb p{animation:fadeSlide}` + `:nth-of-type` ile 40ms kademeli gecikme |
+| 12c | Seans özeti | `buildResultRing()`'in circle'ı `animation:ringDraw 800ms` (dashoffset hedefi inline stroke-dashoffset, `stroke-dasharray` uygulamanın KENDİ `R=76` yarıçapından — 478≈2π·76 — hesaplanıyor, prototipin 490'ı BİLEREK kullanılmadı çünkü farklı bir R'ye karşılık geliyor ve geometrik olarak yanlış olurdu); `#resXpRows .row{animation:fadeSlide}` + `::before{animation:barGrow 600ms}` kademeli |
+| 12d | Combo | `.game-combo-chip.flame{animation:flameGlow .7s×2}` (SADECE seri arttığında, `lastRenderedCombo` ile tek-seferlik tetikleniyor); `.game-combo-chip.break{animation:comboBreak}` seri kırılınca |
+| 12e | Boss | `.game-boss-row .chip.boss.pulse{animation:bossPulse .7s×3}` — "tur boyunca" talimatı ile TEMEL KURAL'ın "boss rozeti bu fazda durgun kalır" çelişkisi, bitişli (3 tekrar ≈2.1sn) bir "duyuru" darbesi olarak çözüldü, SÜREKLİ değil |
+| 12f | Yükleniyor | `.audio-loading-spin{animation:spin .7s linear infinite}` (tek meşru `infinite` — yükleme bitene kadar sürüyor, "sessizlik alanı" ihlali DEĞİL çünkü soru oynatma fazıyla aynı anda değil) |
+| — | Erişilebilirlik | `@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important}}` — TÜM 14 keyframe'i kapsıyor (başka hiçbir kuralda `!important` yok, cascade garantili); NOT: bu kural sadece `animation:`'ı kapatıyor, `transition:`'a dokunmuyor — talimatın "sadece opaklık geçişleri kalsın" cümlesi opaklık-DIŞI transition'ların (ör. `.fb`'nin transform slide'ı, timer bar genişlik transition'ı) da kısıtlanmasını ima edebilir, bu YAPILMADI (kısmi uyum, açık karar bekliyor) |
+| — | Eksik motion boşluğu (bulundu, düzeltildi) | Motor 1'in büyük yuvarlak `#startBtn`'i "breathe"MİYORDU (SADECE Motor 2'nin kart-içi play butonlarında vardı) — TEMEL KURAL'ın izin verdiği tek hareketlerden biri asıl eksikti; `updateStartBtnLabel()`'a `classList.toggle("breathing", !autoStopped)` eklendi |
+| — | İsim birleştirme | Değeri AYNI kalan, sadece ismi prototipe uyan 3 keyframe (`fbShakeX→shakeX`, `fbPopIn→popIn`, `fbCountdown→timerRun`) ve isim+değeri güncellenen 2'si (`resRingDraw→ringDraw` değer korunarak, `resBarGrow→barGrow` ilk kez kullanıma alındı) — çift/yakın-kopya soyutlama BIRAKILMADI |
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ. **`npm test`: 1043/1043**
+(fix öncesi ve sonrası, `node --check www/js/app.js` her JS değişikliğinden
+sonra).
+
+**DOĞRULAMA (canlı tarayıcı, taze sekme, hard-reload + JS-sürüşlü test):**
+- **Altın vurgular:** "Audio" altın/"Engineer" beyaz/"Academy" cyan, Ana Menü
+  `#menuInfoBtn` ve mod kartı `.mode-info-btn` altın, oyun ekranı `#gameInfoBtn`
+  cyan, `#abLoopBtn` aktifken `rgb(232,196,106)` (computed style ile) — ekran
+  görüntüsü + computed style ile doğrulandı.
+- **Sessizlik alanı:** soru çalarken (`document.getAnimations()`,
+  `playState:"running"` filtresi) TAM 3 animasyon: timer bar genişlik/renk
+  transition'ı (süre çubuğu) + `startBtn`'in `breathe`'i — **0 yetkisiz
+  animasyon**, talimatla BİREBİR eşleşiyor.
+- **Cevap sonrası:** yanlış cevapta `shakeX|fb`, `dlgIn|fb-result-row`,
+  `popIn|fb-icon`, `fadeSlide|feedbackDetail` canlı `getAnimations()` ile
+  yakalandı; doğru cevapta AYNI liste + `flashPop|fb-xp` yakalandı; can
+  kaybında (bug düzeltildikten SONRA) `heartOut` doğru kalpte `style`
+  attribute'unda doğrulandı; combo kırılınca `comboBreak|game-combo-chip`
+  yakalandı.
+- **Seans özeti:** `buildResultRing`/`buildXpRows`'un ÜRETTİĞİ GERÇEK markup
+  enjekte edilip computed style ile `ringDraw` (0.8s, circle), `fadeSlide`
+  (her `.row`), `barGrow` (0.6s, her `.row::before`) doğrulandı — GERÇEK
+  10-soruluk bölüm oyun-içi RNG'yle (doğru cevap tahmini gerektirdiği için)
+  zaman kısıtından ötürü yakalanamadı, bunun yerine üretilen markup'ın
+  KENDİSİ üzerinden doğrulandı (aynı fonksiyonlar, aynı gerçek DOM şablonu).
+- **Combo/boss tek-seferlik:** `flameGlow` (computed style: `.7s`×2 iterasyon,
+  infinite DEĞİL) ve `bossPulse` (computed style: `.7s`×3 iterasyon, infinite
+  DEĞİL) — GERÇEK bir boss round'a rastlanmadığı için (nadir tetikleniyor)
+  class'lar elle uygulanıp computed style üzerinden doğrulandı.
+- **prefers-reduced-motion:** OS/DevTools seviyesinde canlı emülasyon
+  yapacak bir araç bu oturumda YOKTU — bunun yerine CSS cascade analiziyle
+  doğrulandı: `styles.css`'te `animation` üzerinde `!important` kullanan
+  TEK kural bu (`grep` ile teyit), yani media query eşleştiğinde HİÇBİR
+  başka kural onu geçemez — canlı OS-toggle testi YAPILMADI, bu bir statik
+  doğrulama, cihazda/DevTools Rendering panelinde tekrar denenmeli.
+- **Konsol hatası: 0** (tüm test turu boyunca, ilk yükleme dahil).
+  **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G91, tek commit) — **DENETIM.md'den çıkan 10 madde: Bugünün Önerisi
 akordiyon oldu, Odak/Kaynak çipleri cyan vurguya döndü, çip satırı tüm modlarda
 tam genişlik, play/pause ikonu düzeltildi (🔄 bug'ı), İpucu amber, kalpler
 gerçek SVG (eski "beyaz kalp + kırmızı leke" bug'ı düzeltildi), spektrum
@@ -7453,7 +7543,27 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G91 itibarıyla):** G91 (DENETIM.md'den çıkan 10 madde)
+**Tek sonraki adım (G92 itibarıyla):** G92 (madde 11 Altın Vurgular + madde
+12 Animasyonlar) kod/test/canlı doğrulama açısından TAM kapandı, canlı testte
+bulunan `heartOut` bug'ı AYNI oturumda düzeltildi. Bu turun kendi açık işi:
+(1) **prefers-reduced-motion GERÇEK OS/DevTools emülasyonuyla hiç test
+edilmedi** (sadece CSS cascade statik analiziyle) — cihazda "Hareketi Azalt"
+açıkken TÜM ekranlar gözle tekrar denenmeli; (2) **bossPulse/flameGlow GERÇEK
+oyun akışında (RNG'ye bağlı boss round/combo artışı) yakalanamadı**, sadece
+class'lar elle uygulanıp computed style ile doğrulandı — bir sonraki turda
+gerçek bir boss round'a/combo artışına rastlanırsa ekran görüntüsüyle teyit
+edilmeli; (3) **Seans özeti (ringDraw/barGrow) GERÇEK 10-soruluk bölüm sonunda
+yakalanamadı** (doğru cevap RNG'sine bağlı), üretilen markup'ın kendisi
+üzerinden doğrulandı — bir sonraki turda gerçek bir "normal" (kayıpsız)
+tamamlanmış bölümde ekran görüntüsüyle teyit edilmeli; (4) reduced-motion
+kuralı `transition:`'a dokunmuyor (sadece `animation:`) — "sadece opaklık
+geçişleri kalsın" talimatının opaklık-dışı transition'ları da kısıtlamayı
+gerektirip gerektirmediği KULLANICIYA sorulmalı; (5) **hiçbiri GERÇEK
+CİHAZDA doğrulanmadı** (G90/G91'in AYNI eksik kalemi hâlâ geçerli). **Kabul
+kriteri:** yukarıdaki 4 madde gerçek cihazda/gerçek oyun akışında gözle
+doğrulanır.
+
+**Önceki adım (G91 itibarıyla, hâlâ geçerli):** G91 (DENETIM.md'den çıkan 10 madde)
 kod/test/canlı doğrulama açısından TAM kapandı — 10 maddenin hepsi masaüstü
 Chrome'da canlı test edildi, konsol hatası 0. Bu turun kendi açık işi:
 **hiçbiri GERÇEK CİHAZDA doğrulanmadı** (G90'ın AYNI eksik kalemi hâlâ

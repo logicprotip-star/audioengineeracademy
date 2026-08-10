@@ -275,6 +275,7 @@
     .brand{font-size:19px;font-weight:800;letter-spacing:-.01em}
     /* G73: marka vurgusu artık --cyan (birincil vurgu). */
     .brand .accent{color:var(--cyan)}
+    .brand .brand-gold{color:var(--gold)}
     .section-head{display:flex;align-items:baseline;justify-content:space-between;margin:22px 2px 12px}
     .section-title{font-size:19px;font-weight:700}
     .section-count{font-size:14px;font-weight:600;color:var(--tx-3)}
@@ -426,32 +427,39 @@
        ekranlarda (calibrasyon/SSS/geri bildirim/vb.) 44x44 KALIYOR, .dots
        SADECE burada kullanılıyor ama yine de scoped tutuldu (netlik için). */
     .ghead-row .back{width:34px;height:34px;font-size:18px;border-radius:10px}
-    /* G86 DÜZELTMESİ: oyun ekranındaki "i" tabanı (.mode-info-btn'in cyan/
-       italik serif görünümü, mod kartı rozeti İÇİN doğru) YANLIŞ taşınmıştı —
+    /* G86: oyun ekranındaki "i" tabanı (.mode-info-btn'in cyan/italik serif
+       görünümü, mod kartı rozeti İÇİN doğru) YANLIŞ taşınmıştı —
        Tasarim-2026-08/Prototip.dc.html'in #gameInfoBtn'i "..." (dots/ayarlar)
        ile AYNI nötr görünümde (satır 202 civarı, task'ın kendi literal
-       ölçüleri). Base .mode-info-btn (mod kartı rozeti) DOKUNULMADI — bu
-       SCOPED override font-family/style dahil HER ŞEYİ ezer. */
+       ölçüleri) — NÖTR yapılmıştı. G92 (madde 11): task'ın kendi YENİ kararı
+       bunu TERSİNE çevirdi — #gameInfoBtn artık literal cyan (#22d3ee /
+       rgba(34,211,238,0.3)), mod kartı rozetinin (ALTIN oldu, yukarı bkz.)
+       AKSİNE. Base .mode-info-btn DOKUNULMADI — bu SCOPED override
+       font-family/style dahil HER ŞEYİ ezer. */
     .ghead-right .mode-info-btn{
       width:30px;height:30px;border-radius:9px;font-family:'Inter',sans-serif;
-      font-style:normal;font-weight:800;font-size:13px;color:#8f949b;
-      background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+      font-style:normal;font-weight:800;font-size:13px;color:#22d3ee;
+      background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.3);
     }
-    .ghead-right .mode-info-btn:active{background:rgba(255,255,255,.1)}
+    .ghead-right .mode-info-btn:active{background:rgba(34,211,238,.22)}
     .ghead-right .dots{width:30px;height:30px;border-radius:9px}
     /* "i" bilgi ikonu — KALICI, solmaz (bkz. core/guide-texts.js). gear/dots'un
-       AYNI 44x44 taban stili, sadece glyph farklı: G73'te --cyan'a taşındı
-       (birincil vurgu, italik serif "i" karakteri korunuyor). */
-    .info-btn{font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:700;font-size:19px;color:var(--cyan)}
+       AYNI 44x44 taban stili, sadece glyph farklı.
+       G92 (madde 11): --cyan → --gold — Ana Menü'nün "i"si (#menuInfoBtn) artık
+       altın (task'ın kendi kararı, splash.png'nin KENDİ altın renginin koddaki
+       karşılığı var(--gold) — yeni hex İCAT EDİLMEDİ). */
+    .info-btn{font-family:Georgia,"Times New Roman",serif;font-style:italic;font-weight:700;font-size:19px;color:var(--gold)}
     /* mod kartı üstündeki minik "i" rozeti — .mode-chip-level'in AYNI boyut
        dilinde ama yuvarlak, tek karakterlik (bkz. app.js renderModeGrid).
-       G73: --cyan'a taşındı. */
+       G92 (madde 11): --cyan → --gold (mod kartı "i"si, #gameInfoBtn'in
+       .ghead-right override'ı AŞAĞIDA AYRI — bu taban kural SADECE mod
+       kartlarını etkiliyor artık, oyun ekranındaki "i" cyan'a geçti). */
     .mode-info-btn{
-      width:22px;height:22px;flex:none;border-radius:99px;border:1px solid rgba(34,211,238,.3);
-      background:rgba(34,211,238,.14);color:var(--cyan);font-family:Georgia,"Times New Roman",serif;
+      width:22px;height:22px;flex:none;border-radius:99px;border:1px solid rgba(232,196,106,.3);
+      background:rgba(232,196,106,.14);color:var(--gold);font-family:Georgia,"Times New Roman",serif;
       font-style:italic;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;
     }
-    .mode-info-btn:active{background:rgba(34,211,238,.26)}
+    .mode-info-btn:active{background:rgba(232,196,106,.26)}
     .gear i{width:16px;height:16px;border-radius:99px;border:3px solid var(--tx-2)}
     .ghead-titles{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
     /* G70: mod içi "i" — G77'de sağ kümeye taşındı (bkz. index.html notu),
@@ -489,9 +497,9 @@
 
     /* G84: SINAV ekranı (announce/passed/failed/makeup, bkz. #screen-exam +
        app.js showExamScreen) — Prototip.dc.html'in badge/fact-row stilleri
-       birebir. Badge popIn animasyonu mevcut @keyframes fbPopIn'i (G81)
-       kullanıyor, YENİ bir keyframe İCAT EDİLMEDİ. */
-    #exBadgeWrap{animation:fbPopIn 380ms cubic-bezier(.2,.8,.3,1.3) both}
+       birebir. Badge popIn animasyonu @keyframes popIn'i (Prototip.dc.html
+       ile AYNI isim) kullanıyor, YENİ bir keyframe İCAT EDİLMEDİ. */
+    #exBadgeWrap{animation:popIn 380ms cubic-bezier(.2,.8,.3,1.3) both}
     .ex-fact{display:flex;align-items:center;justify-content:space-between;padding:11px 15px;
       border-radius:13px;background:linear-gradient(180deg,#17191d,#121316);border:1px solid rgba(255,255,255,.07)}
     .ex-fact-k{font-size:12.5px;font-weight:600;color:var(--tx-3)}
@@ -512,7 +520,12 @@
     .game-combo-chip svg{flex:none}
     .game-combo-chip span{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
     @keyframes flameGlow{0%,100%{filter:drop-shadow(0 0 3px rgba(240,180,66,.5))}50%{filter:drop-shadow(0 0 9px rgba(240,180,66,.9))}}
-    .game-combo-chip.flame{animation:flameGlow 1.4s ease-in-out infinite}
+    /* G92 (madde 12d): infinite → sonlu (2 tekrar, ~1.4s'te biter) — SADECE
+       seri ARTTIĞI ANDA app.js:renderGameHeader'ın eklediği tek seferlik
+       tetikleme (lastRenderedCombo karşılaştırması). Sessizlik alanında
+       (soru çalarken/karar beklenirken combo DEĞİŞMEZ) hiç çalışmaz. */
+    .game-combo-chip.flame{animation:flameGlow .7s ease-in-out 2}
+    .game-combo-chip.break{animation:comboBreak 320ms ease-in-out}
     .game-qcounter{
       font-size:12px;font-weight:700;color:var(--text-2);font-variant-numeric:tabular-nums;
       background:rgba(255,255,255,.06);border:1px solid var(--border-strong);border-radius:var(--r-chip);
@@ -565,6 +578,10 @@
       display:block;font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
       color:#1a1305;background:var(--gold-grad);border-radius:6px;padding:3px 8px;flex:none;
     }
+    /* G92 (madde 12e): SONLU (3 tekrar, ~2.1s) — round başına BİR KEZ
+       (bkz. app.js:renderQuestion "boss pulse" className), infinite DEĞİL —
+       sessizlik alanı ihlal edilmesin diye. */
+    .game-boss-row .chip.boss.pulse{animation:bossPulse .7s ease-in-out 3}
     .game-boss-xp{flex:none;font-size:10.5px;font-weight:800;color:#1a1305;background:var(--gold-grad);border-radius:6px;padding:3px 8px}
     /* NOT: aşağıdaki .bar/.bar > i (PAYLAŞILAN taban kural) bu dosyada DAHA
        SONRA tanımlı — .game-boss-bar TEK BAŞINA (0-1-0/0-1-1) o kuralla AYNI
@@ -863,7 +880,10 @@
       background:linear-gradient(180deg,#17191d,#121316);box-shadow:0 6px 16px rgba(0,0,0,.35);
       transition:border-color .16s,box-shadow .2s,background .16s;cursor:pointer;
     }
-    @keyframes breathe{0%,100%{box-shadow:0 6px 14px rgba(0,0,0,.45),0 0 10px rgba(34,211,238,.18),inset 0 1px 0 rgba(255,255,255,.1)}50%{box-shadow:0 6px 14px rgba(0,0,0,.45),0 0 18px rgba(34,211,238,.4),inset 0 1px 0 rgba(255,255,255,.1)}}
+    /* G92 (madde 12): değerler Prototip.dc.html satır 21 ile BİREBİR
+       eşleşecek şekilde güncellendi (6px/14px/.45/10px/.18/18px/.4 →
+       8px/20px/.5/14px/.18/26px/.45) — isim zaten aynıydı. */
+    @keyframes breathe{0%,100%{box-shadow:0 8px 20px rgba(0,0,0,.5),0 0 14px rgba(34,211,238,.18),inset 0 1px 0 rgba(255,255,255,.12)}50%{box-shadow:0 8px 20px rgba(0,0,0,.5),0 0 26px rgba(34,211,238,.45),inset 0 1px 0 rgba(255,255,255,.12)}}
     .ans-m2-play{
       width:52px;height:52px;flex:none;border-radius:50%;border:1px solid rgba(255,255,255,.15);
       background:linear-gradient(180deg,#23262b,#15171a);color:#c9cdd3;
@@ -1008,9 +1028,40 @@
        .bottom-sheet'in KENDİ transform:translateY tabanlı aç/kapa deseniyle
        DEĞİŞTİRİLDİ (tutarlılık, YENİ bir mekanizma İCAT EDİLMEDİ).
        @keyframes shakeX/popIn/countdown4/countdown6 tasarım dosyasından BİREBİR. */
-    @keyframes fbShakeX{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
-    @keyframes fbPopIn{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
-    @keyframes fbCountdown{from{width:100%}to{width:0%}}
+    /* G92 (madde 12): fbShakeX/fbPopIn/fbCountdown → Prototip.dc.html'in
+       KENDİ isimlerine (shakeX/popIn/timerRun) yeniden adlandırıldı — DEĞERLER
+       zaten birebir aynıydı (karşılaştırıldı), sadece isim tasarımla
+       BULUŞTURULDU (iki paralel isim/aynı animasyon YOK edildi). */
+    @keyframes shakeX{0%,100%{transform:translateX(0)}20%{transform:translateX(-6px)}40%{transform:translateX(5px)}60%{transform:translateX(-3px)}80%{transform:translateX(2px)}}
+    @keyframes popIn{0%{transform:scale(.85);opacity:0}100%{transform:scale(1);opacity:1}}
+    @keyframes timerRun{from{width:100%}to{width:0%}}
+    /* G92 (madde 12) — Prototip.dc.html'den birebir, YENİ eklenen 6 keyframe
+       (heartOut/bossPulse/fadeSlide/comboBreak/flashPop/dlgIn — kalan 8'i
+       (shakeX/popIn/breathe/flameGlow/timerRun/ringDraw/barGrow/spin) ya
+       yeniden adlandırıldı ya değerleri güncellendi, bkz. ilgili yorumlar). */
+    @keyframes heartOut{0%{transform:scale(1);opacity:1}40%{transform:scale(1.25)}100%{transform:scale(.85);opacity:.28}}
+    @keyframes bossPulse{0%,100%{box-shadow:0 0 0 rgba(232,196,106,0)}50%{box-shadow:0 0 18px rgba(232,196,106,.35)}}
+    @keyframes fadeSlide{from{transform:translateX(-10px);opacity:0}to{transform:translateX(0);opacity:1}}
+    @keyframes comboBreak{0%{transform:translateX(0) scale(1)}25%{transform:translateX(-4px) scale(1.1)}50%{transform:translateX(4px) scale(1.1)}75%{transform:translateX(-2px) scale(1)}100%{transform:translateX(0) scale(1)}}
+    @keyframes flashPop{0%{transform:scale(.7);opacity:0}25%{transform:scale(1.05);opacity:1}70%{transform:scale(1);opacity:1}100%{transform:scale(1);opacity:0}}
+    @keyframes dlgIn{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+    /* G92 (madde 12f): audioLoadingSpin → spin (isim birleştirildi, değer
+       AYNI) — tek kullanım yeri aşağıda (.audio-loading-spin). */
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* G92 (madde 12, ERİŞİLEBİLİRLİK): "Hareketi Azalt" (iOS) / prefers-
+       reduced-motion açık kullanıcılarda TÜM @keyframes animasyonları
+       kapanır — her elementin animasyon-DIŞI CSS'i (background/opacity/
+       border vb.) zaten doğru "görünür/dinlenme" durumunu tanımlıyor
+       (keyframe'lerin 0% karesi AYRI bir kalıcı class DEĞİL, SADECE geçici
+       bir giriş efekti), bu yüzden animation:none uygulamak hiçbir elementi
+       görünmez/yanlış konumda BIRAKMAZ — canlı doğrulandı (bkz. DURUM.md).
+       Opaklık GEÇİŞLERİ (transition, .exit-confirm-box/.sheet-overlay vb.)
+       AYRI bir CSS özelliği olduğu için buradan HİÇ etkilenmiyor, aynen
+       çalışmaya devam ediyor. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; }
+    }
 
     /* G85: karartma — tasarımın LİTERAL rgba(0,0,0,.5)'i (satır 1309),
        .sheet-overlay'in genel bulanık/koyu varyantından FARKLI — bu yüzden
@@ -1029,19 +1080,32 @@
       transform:translateY(100%);transition:transform .3s cubic-bezier(.3,.8,.3,1);pointer-events:none;
     }
     .fb.show-result{transform:translateY(0);pointer-events:auto}
-    .fb.show-result.bad{animation:fbShakeX 300ms ease-in-out}
+    .fb.show-result.bad{animation:shakeX 300ms ease-in-out}
     .fb.bad{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.3)}
 
+    /* G92 (madde 12b): panel açılınca dlgIn — .fb'nin KENDİSİ zaten
+       translateY(100%)→0 SHEET geçişi kullanıyor (tüm sheet'lerle TUTARLI,
+       bkz. .sheet-overlay/.bottom-sheet AYNI desen), bu transform'u dlgIn'in
+       scale'iyle DEĞİŞTİRMEK diğer sheet'lerle tutarsız olurdu — dlgIn bunun
+       yerine İÇ satıra (.fb-result-row, kendi transform'u YOK, çakışma yok)
+       ek bir "içeri düşme" hissi olarak uygulandı. */
+    .fb.show-result .fb-result-row{animation:dlgIn 320ms cubic-bezier(.2,.8,.2,1) both}
     .fb-result-row{display:flex;align-items:center;gap:12px;padding-right:26px}
+    /* G92 (madde 12a): "doğruda ikon popIn" — fbPopIn → popIn (isim
+       birleştirildi, değer AYNI). */
     .fb-icon{width:40px;height:40px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;
-      background:var(--green-grad);animation:fbPopIn 250ms 80ms cubic-bezier(.2,.8,.3,1.4) both}
+      background:var(--green-grad);animation:popIn 250ms 80ms cubic-bezier(.2,.8,.3,1.4) both}
     .fb.bad .fb-icon{background:linear-gradient(180deg,#f88a6e,#d9553e)}
     .fb-result-text{flex:1;min-width:0}
     .fb-title{font-size:19px;font-weight:800;letter-spacing:-.3px;color:var(--gr)}
     .fb.bad .fb-title{color:var(--rd)}
     .fb-subtitle{font-size:13px;font-weight:600;color:#8fd9a4;margin-top:2px}
     .fb.bad .fb-subtitle{color:#d9a08f}
-    .fb-xp{flex:none;text-align:right;animation:fbPopIn 300ms 200ms cubic-bezier(.2,.8,.3,1.3) both}
+    /* G92 (madde 12a): "XP rozetinde flashPop" — fbPopIn'den flashPop'a
+       DEĞİŞTİ (task'ın kendi eşleşmesi, popIn'den FARKLI bir keyframe). */
+    /* G92 (madde 12, SÜRE VE EĞRİ): "kısa geri bildirim efektleri
+       180-260ms" — 260ms üst sınırı kullanıldı. */
+    .fb-xp{flex:none;text-align:right;animation:flashPop 260ms 200ms cubic-bezier(.2,.8,.3,1.3) both}
     .fb-xp-value{font-size:20px;font-weight:800;letter-spacing:-.5px;color:var(--gr);font-variant-numeric:tabular-nums}
     .fb-xp-label{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.3px}
 
@@ -1051,8 +1115,18 @@
     #fbComboText{font-size:12.5px;font-weight:700;color:var(--tx-2);font-variant-numeric:tabular-nums}
     #fbComboText b{color:var(--amber);font-weight:700}
 
+    /* G92 (madde 12b): "açıklama satırları fadeSlide ile sırayla gelir
+       (satır başına 40ms gecikme)" — .fb p birden fazla olabilir
+       (appendFreqInfoNote vb. ile eklenen ek notlar), :nth-of-type ile
+       KADEMELİ gecikme — JS'e HİÇ dokunulmadı, saf CSS. */
     .fb p{margin:11px 0 0;padding:11px 12px;border-radius:12px;background:var(--card-grad);
-      border:1px solid var(--border);font-size:13px;line-height:1.55;color:var(--tx-2)}
+      border:1px solid var(--border);font-size:13px;line-height:1.55;color:var(--tx-2);
+      animation:fadeSlide 220ms cubic-bezier(.2,.8,.2,1) both}
+    .fb p:nth-of-type(1){animation-delay:40ms}
+    .fb p:nth-of-type(2){animation-delay:80ms}
+    .fb p:nth-of-type(3){animation-delay:120ms}
+    .fb p:nth-of-type(4){animation-delay:160ms}
+    .fb p:nth-of-type(5){animation-delay:200ms}
 
     /* ---- otomatik geçiş çubuğu — doğru 4sn/yanlış 6sn (koddan, DEĞİŞMEDİ),
        scheduleNext'e VERİLEN gerçek süreyle app.js'te senkron başlatılıyor;
@@ -1064,7 +1138,7 @@
     .fb-advance-track{height:2px;border-radius:1px;background:rgba(255,255,255,.08);overflow:hidden}
     #fbAdvanceBar{display:block;height:100%;border-radius:1px;background:linear-gradient(90deg,#2fbf46,#4ade80)}
     .fb.bad #fbAdvanceBar{background:linear-gradient(90deg,#d9553e,#f88a6e)}
-    #fbAdvanceBar.run{animation-name:fbCountdown;animation-timing-function:linear;animation-fill-mode:forwards}
+    #fbAdvanceBar.run{animation-name:timerRun;animation-timing-function:linear;animation-fill-mode:forwards}
     #fbAdvanceBar.paused{animation-play-state:paused}
 
     /* ---- "kulak" omuz butonları — tasarımda YOK, kullanıcının kendi
@@ -1155,6 +1229,10 @@
     }
     .game-ctrl-play:active{filter:brightness(1.1)}
     .game-ctrl-play.warning{border-color:rgba(255,77,109,.4)}
+    /* G92 (madde 12, TEMEL KURAL): Motor 1'in büyük play butonu — gerçekten
+       çalarken (autoStopped=false) nefes alır, Motor 2'nin .ans-m2-playing'i
+       ile AYNI breathe keyframe'i. */
+    .game-ctrl-play.breathing{animation:breathe 2.4s ease-in-out infinite}
     /* A/B seçici — tasarımın LİTERAL "abTrack" ölçüsü (satır 682): height:44px
        (min-height DEĞİL — sabit, içerik onu AŞMAYACAK şekilde ayarlandı),
        padding:4px, border-radius:13px. Başlık/basılı-tut metni bu dar
@@ -1171,8 +1249,11 @@
        butonundan (46x46) FARKLI, .game-ctrl-btn'İN üzerine yazıyor. */
     .game-ctrl-loop{width:44px;height:44px;color:var(--text-3)}
     /* Döngü aktifken (#abToggle'daki .loop class'ı startAbLoop/stopAbLoop'tan,
-       YENİ bir durum İCAT EDİLMEDİ) — kardeş seçiciyle vurgulanır. */
-    #abToggle.loop ~ #abLoopBtn{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.4);color:var(--cyan)}
+       YENİ bir durum İCAT EDİLMEDİ) — kardeş seçiciyle vurgulanır.
+       G92 (madde 11): cyan → altın (task'ın kendi kararı: "Döngü butonu
+       AKTİFKEN çerçevesi altın, pasifken nötr" — pasif durum zaten
+       .game-ctrl-loop{color:var(--text-3)}'ten NÖTR, dokunulmadı). */
+    #abToggle.loop ~ #abLoopBtn{background:rgba(232,196,106,.16);border-color:rgba(232,196,106,.4);color:var(--gold)}
     /* G85 YENİ: "DÖNGÜ" rozet satırı (Prototip.dc.html satır 694-698) —
        ölçüler literal. */
     .game-loop-badge-row{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:-4px}
@@ -1248,7 +1329,7 @@
       border:1px solid rgba(255,255,255,.1);box-shadow:0 20px 50px rgba(0,0,0,.6);
       text-align:center;opacity:0;pointer-events:none;transition:opacity .2s ease;
     }
-    .exit-confirm-box.open{opacity:1;pointer-events:auto;animation:fbPopIn 200ms cubic-bezier(.2,.8,.3,1.2) both}
+    .exit-confirm-box.open{opacity:1;pointer-events:auto;animation:popIn 200ms cubic-bezier(.2,.8,.3,1.2) both}
     .exit-confirm-title{font-size:18px;font-weight:800;letter-spacing:-.3px;color:#f2f3f5}
     .exit-confirm-body{font-size:13px;line-height:1.5;color:#8f949b;margin-top:8px}
     .exit-confirm-actions{display:flex;flex-direction:column;gap:9px;margin-top:18px}
@@ -1392,12 +1473,42 @@
 
     /* ---- Seans Sonu (G82) — Tasarim-2026-08/Prototip.dc.html "SEANS SONU"
        bloğu + Seans Özeti.dc.html birebir. Halka dolma animasyonu tasarımın
-       KENDİ ringDraw'ı (isim çakışmasın diye resRingDraw). */
+       KENDİ ringDraw ismini kullanıyor (G92 madde 12'de resRingDraw'dan
+       yeniden adlandırıldı). */
     /* R=76 halkası için tam çevre (2*PI*76≈478) — JS'teki (buildResultRing)
-       AYNI R'yi kullanıyor, ikisi UYUMSUZ kalırsa animasyon "boş" başlamaz. */
-    @keyframes resRingDraw{from{stroke-dashoffset:478}}
-    @keyframes resBarGrow{from{width:0%}}
-    #resXpRows .row{display:flex;align-items:center;justify-content:space-between;padding:10px 15px;border-bottom:1px solid rgba(255,255,255,.04)}
+       AYNI R'yi kullanıyor, ikisi UYUMSUZ kalırsa animasyon "boş" başlamaz.
+       G92: Prototip.dc.html'in KENDİ "from:490"ı BİLEREK KOPYALANMADI —
+       490, tasarımın KENDİ halkasının (FARKLI R) çevresi; bu app'in
+       GERÇEK R=76 halkasıyla eşleşen DOĞRU değer 478'dir (uydurma DEĞİL,
+       ölçülmüş gerçek geometri — 490 kullansaydık halka EKSİK/TAŞMIŞ
+       çizilirdi). */
+    @keyframes ringDraw{from{stroke-dashoffset:478}}
+    /* G92 (madde 12): resBarGrow → barGrow (isim birleştirildi). ÖNCEDEN
+       tanımlı ama HİÇ KULLANILMIYORDU (ölü kod) — şimdi #resXpRows'un her
+       satırına gerçek bir "materialize" arka plan çubuğu olarak bağlandı
+       (bkz. aşağıdaki .row::before) + fadeSlide ile giriş, satır başına
+       kademeli gecikme (item c: "XP kırılım satırları barGrow + fadeSlide
+       ile sırayla gelir"). */
+    @keyframes barGrow{from{width:0%}}
+    #resXpRows .row{
+      position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;
+      padding:10px 15px;border-bottom:1px solid rgba(255,255,255,.04);
+      animation:fadeSlide 240ms cubic-bezier(.2,.8,.2,1) both;
+    }
+    #resXpRows .row::before{
+      /* G92 (madde 12, SÜRE VE EĞRİ): "ilerleme dolumları 600ms". */
+      content:"";position:absolute;inset:0;background:rgba(74,222,128,.07);
+      width:0%;animation:barGrow 600ms cubic-bezier(.2,.8,.2,1) both;
+    }
+    #resXpRows .row:nth-of-type(1){animation-delay:0ms}
+    #resXpRows .row:nth-of-type(1)::before{animation-delay:60ms}
+    #resXpRows .row:nth-of-type(2){animation-delay:60ms}
+    #resXpRows .row:nth-of-type(2)::before{animation-delay:120ms}
+    #resXpRows .row:nth-of-type(3){animation-delay:120ms}
+    #resXpRows .row:nth-of-type(3)::before{animation-delay:180ms}
+    #resXpRows .row:nth-of-type(4){animation-delay:180ms}
+    #resXpRows .row:nth-of-type(4)::before{animation-delay:240ms}
+    #resXpRows .row > *{position:relative}
     #resXpRows .row:last-child{border-bottom:none}
     #resXpRows .row .lbl{font-size:12.5px;font-weight:600;color:var(--tx-3)}
     #resXpRows .row.total .lbl{color:var(--tx)}
@@ -1756,12 +1867,13 @@
     }
     #audioLoadingRow{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1)}
     #audioLoadingRow span:last-child{font-size:12.5px;font-weight:600;color:var(--tx-3)}
+    /* G92 (madde 12f): "Yükleniyor durumları — spin" — audioLoadingSpin →
+       spin (Prototip.dc.html'in KENDİ ismi, isim birleştirildi). */
     .audio-loading-spin{
       width:14px;height:14px;flex:none;border-radius:50%;
       border:2px solid rgba(255,255,255,.18);border-top-color:var(--cyan);
-      animation:audioLoadingSpin .7s linear infinite;
+      animation:spin .7s linear infinite;
     }
-    @keyframes audioLoadingSpin{to{transform:rotate(360deg)}}
 
     /* ---- kalibrasyon ---- */
     /* G73: çalan referans tonun ölçer çubukları artık --cyan gradyanı (bu bir
