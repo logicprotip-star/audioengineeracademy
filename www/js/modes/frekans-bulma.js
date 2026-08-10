@@ -960,7 +960,12 @@ export function drawSpectrumBackground(ctx2d, canvasEl, w, h, opts = {}) {
     // tarafı (sağ) düşük. Sabit, ses verisinden BAĞIMSIZ.
     const tilt = 0.5 - frac * 0.85;
     const wobble = Math.sin(i * 0.42) * 0.09 + Math.sin(i * 0.17 + 1.4) * 0.06;
-    const jit = playing ? Math.sin(i * 1.6 + t * 1.6) * 0.045 + Math.sin(i * 0.55 - t * 0.9) * 0.05 : 0;
+    // G91 (madde 7): hareket miktarı artırıldı (0.045/0.05 → 0.09/0.11,
+    // 1.6/0.9 → 2.1/1.3 — daha hızlı/daha belirgin dalgalanma). KISIT
+    // KORUNUYOR: jit SADECE i (sabit index) ve t'ye (performance.now(),
+    // playing=false'ta 0) bağlı — audioEngine'in GERÇEK analyser/FFT
+    // verisine hâlâ hiç dokunmuyor, hangi frekansın arttığını ELE VERMEZ.
+    const jit = playing ? Math.sin(i * 1.6 + t * 2.1) * 0.09 + Math.sin(i * 0.55 - t * 1.3) * 0.11 : 0;
     const y = midY - bandH * (tilt + wobble + jit);
     pts.push([frac * w, y]);
   }

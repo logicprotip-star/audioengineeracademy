@@ -84,16 +84,24 @@
           </div>
         </div>
 
+        <!-- G91 (madde 1) — ✕ kapatma KALDIRILDI, yerine İlerleme'nin AYNI
+             akordiyon deseni (bindCollapsiblePanel, bkz. app.js). Varsayılan
+             AÇIK — dailyTipWrap'in hidden'sız başlaması + chevron'un
+             rotate(180deg) ile başlaması bunu sağlıyor. -->
         <div class="card sug hidden" id="dailyTipCard">
-          <button class="x" id="dailyTipClose" aria-label="Kapat">&times;</button>
-          <div style="display:flex;align-items:center;gap:8px;padding-right:38px">
-            <span style="display:block;width:8px;height:8px;border-radius:99px;background:var(--gr);flex:none"></span>
-            <span class="kicker" style="color:var(--gr)">BUGÜNÜN ÖNERİSİ</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer" id="dailyTipToggle">
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="display:block;width:8px;height:8px;border-radius:99px;background:var(--gr);flex:none"></span>
+              <span class="kicker" style="color:var(--gr)">BUGÜNÜN ÖNERİSİ</span>
+            </div>
+            <svg class="prog-chevron" id="dailyTipChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="M6 9l6 6 6-6"></path></svg>
           </div>
-          <p id="dailyTipText" style="margin:10px 0 0;font-size:15px;line-height:1.5;color:var(--tx-2)"></p>
-          <div class="row" style="margin-top:14px">
-            <button class="btn green" id="dailyTipStartBtn">Seti başlat</button>
-            <button class="btn ghost" id="dailyTipSkipBtn" style="flex:none;width:auto">Şimdi değil</button>
+          <div id="dailyTipWrap">
+            <p id="dailyTipText" style="margin:10px 0 0;font-size:15px;line-height:1.5;color:var(--tx-2)"></p>
+            <div class="row" style="margin-top:14px">
+              <button class="btn green" id="dailyTipStartBtn">Seti başlat</button>
+              <button class="btn ghost" id="dailyTipSkipBtn" style="flex:none;width:auto">Şimdi değil</button>
+            </div>
           </div>
         </div>
 
@@ -760,13 +768,19 @@
         </div>
 
         <div id="progContent">
-          <!-- Madde 4: Günlük Görevler -->
+          <!-- G91 (madde 10): Madde 4: Günlük Görevler — artık AÇILIR-KAPANIR,
+               Rozetler/Mod Seviyeleri'nin AYNI deseni (bindCollapsiblePanel),
+               SADECE varsayılan AÇIK (dailyWrap hidden'sız başlıyor, chevron
+               rotate(180deg) ile başlıyor — dailyTip'in G91-1'deki AYNI deseni). -->
           <div class="prog-card">
-            <div class="prog-card-head">
-              <div class="prog-card-label">Günlük Görevler</div>
+            <div class="prog-card-head prog-card-head-row">
+              <div class="prog-card-label prog-clickable" id="dailyToggle" style="flex:1">Günlük Görevler</div>
               <div class="prog-card-count" id="dailyCounter">bugün · 0/3</div>
+              <svg class="prog-chevron" id="dailyChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="M6 9l6 6 6-6"></path></svg>
             </div>
-            <div class="prog-daily-list" id="dailyList"></div>
+            <div id="dailyWrap">
+              <div class="prog-daily-list" id="dailyList"></div>
+            </div>
           </div>
 
           <!-- Madde 5: Son Cevaplar (açılır-kapanır + sola kaydır → Sil) -->
@@ -800,13 +814,20 @@
             </div>
           </div>
 
-          <!-- Madde 7: Zayıf Bölge Raporu (Free'de kilitli, HER ZAMAN açık — tasarımda katlanır DEĞİL) -->
+          <!-- G91 (madde 10): Madde 7: Zayıf Bölge Raporu — artık AÇILIR-KAPANIR
+               (ÖNCEKİ "tasarımda katlanır DEĞİL, HER ZAMAN açık" kararı bu turun
+               AÇIK talimatıyla DEĞİŞTİ), varsayılan AÇIK. .prog-lock-overlay
+               #zoneLock DIŞARIDA kaldı (Free kilidi accordion durumundan BAĞIMSIZ,
+               position:absolute;inset:0 İLE tüm kartı KAPLAMAYA devam ediyor). -->
           <div class="prog-card prog-lockable">
-            <div class="prog-card-head">
-              <div class="prog-card-label">Zayıf Bölge Raporu</div>
+            <div class="prog-card-head prog-card-head-row">
+              <div class="prog-card-label prog-clickable" id="zoneToggle" style="flex:1">Zayıf Bölge Raporu</div>
               <div class="prog-card-count">6 bölge</div>
+              <svg class="prog-chevron" id="zoneChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="M6 9l6 6 6-6"></path></svg>
             </div>
-            <div class="prog-zone-list" id="zoneList"></div>
+            <div id="zoneWrap2">
+              <div class="prog-zone-list" id="zoneList"></div>
+            </div>
             <div class="prog-lock-overlay hidden" id="zoneLock">
               <div class="prog-lock-ring"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#e8c46a" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
               <button class="prog-lock-btn" id="zoneProBtn" type="button">Pro ile aç</button>
@@ -1406,6 +1427,13 @@
         <div class="item-v2">
           <div style="padding-right:12px"><h5>Geri bildirim ekranı</h5><p>Cevap sonrası doğru/yanlış kartını göster. Kapalıyken hemen sıradaki soruya geçilir.</p></div>
           <button type="button" class="sw" id="feedbackScreenSwitch" aria-label="Geri bildirim ekranı"><i></i></button>
+        </div>
+        <!-- G91 (madde 1) — kapatılırsa "Bugünün Önerisi" kartı Ana Menü'de
+             HİÇ görünmez (renderDailyTip() prefs.showDailyTip'i ilk kontrol
+             ediyor, bkz. app.js). -->
+        <div class="item-v2">
+          <div style="padding-right:12px"><h5>Bugünün önerisini göster</h5><p>Ana menüde zayıf bölgene göre günlük öneri kartı</p></div>
+          <button type="button" class="sw" id="showDailyTipSwitch" aria-label="Bugünün önerisini göster"><i></i></button>
         </div>
       </div>
     </div>

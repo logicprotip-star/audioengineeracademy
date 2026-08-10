@@ -46,6 +46,13 @@ export const EXAM_DIFFICULTY = "pro";
 // ile okuyor — export ETMEYEN modlarda varsayılan true (davranış değişmiyor).
 export const SHOW_SPECTRUM = false;
 
+// G91 (madde 9): "SPEKTRUM · B İŞLENMİŞ" kart çerçevesi (bg/border/gölge/
+// başlık) tamamen kaldırılacak, SADECE barlar (bkz. drawDbBars) çıplak
+// görünsün — task'ın kendi kararı. mode-agnostik bayrak (COMPACT_ANALYZER/
+// HIDE_ANALYZER'ın AYNI deseni, bkz. app.js enterMode) — export ETMEYEN
+// modlarda varsayılan false (kart görünür kalır, davranış değişmez).
+export const BARE_ANALYZER = true;
+
 // MAX_LIVES: diğer iki modla AYNI sabit (can sayısı zorluğa göre değişmez).
 export const MAX_LIVES = 5;
 
@@ -512,7 +519,9 @@ const BAR_LABEL_GAP = 8;
 const BAR_LABEL_H = 20;
 
 const REF_PALETTE = { container: "rgba(255,255,255,.05)", gradTop: "#9AA3B8", gradBottom: "#5A6377" };
-const PROC_PALETTE = { container: "rgba(108,140,255,.1)", gradTop: "#8FA6FF", gradBottom: "#4E6BE0" };
+// G91 (madde 9): mavi/mor (rgba(108,140,255,..)) → uygulama yeşili (task'ın
+// literal renkleri: #4ade80 / linear-gradient(180deg,#46d968,#27a63e)).
+const PROC_PALETTE = { container: "rgba(74,222,128,.1)", gradTop: "#46d968", gradBottom: "#27a63e" };
 const PROC_ANSWERED_PALETTE = { ...PROC_PALETTE, outline: CORRECT_COLOR };
 
 function dbToBarFrac(db) {
@@ -581,7 +590,7 @@ function drawDbBars(ctx2d, w, h, opts) {
   ctx2d.textAlign = "center";
   ctx2d.fillStyle = "#8C95AB";
   ctx2d.fillText("A · Referans", aX + boxW / 2, labelY);
-  ctx2d.fillStyle = "#AFC0FF";
+  ctx2d.fillStyle = "#4ade80";
   ctx2d.fillText("B · İşlenmiş", bX + boxW / 2, labelY);
   ctx2d.textAlign = "left";
 

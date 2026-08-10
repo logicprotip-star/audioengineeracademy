@@ -94,7 +94,12 @@ const els = {
   exitConfirmLeave: document.getElementById("exitConfirmLeave"),
   tabbar: document.getElementById("tabbar"),
   dailyTipCard: document.getElementById("dailyTipCard"),
-  dailyTipClose: document.getElementById("dailyTipClose"),
+  // G91 (madde 1): #dailyTipClose (✕) KALDIRILDI — yerine akordiyon
+  // (dailyTipToggle/dailyTipWrap/dailyTipChevron, bkz. bindCollapsiblePanel).
+  dailyTipToggle: document.getElementById("dailyTipToggle"),
+  dailyTipWrap: document.getElementById("dailyTipWrap"),
+  dailyTipChevron: document.getElementById("dailyTipChevron"),
+  showDailyTipSwitch: document.getElementById("showDailyTipSwitch"),
   dailyTipText: document.getElementById("dailyTipText"),
   dailyTipStartBtn: document.getElementById("dailyTipStartBtn"),
   dailyTipSkipBtn: document.getElementById("dailyTipSkipBtn"),
@@ -390,6 +395,13 @@ const els = {
   achievementCount: document.getElementById("achievementCount"),
   historyList: document.getElementById("historyList"),
   dailyList: document.getElementById("dailyList"),
+  // G91 (madde 10): Günlük Görevler + Zayıf Bölge Raporu artık akordiyon.
+  dailyToggle: document.getElementById("dailyToggle"),
+  dailyWrap: document.getElementById("dailyWrap"),
+  dailyChevron: document.getElementById("dailyChevron"),
+  zoneToggle: document.getElementById("zoneToggle"),
+  zoneWrap2: document.getElementById("zoneWrap2"),
+  zoneChevron: document.getElementById("zoneChevron"),
   recentToggle: document.getElementById("recentToggle"),
   recentWrap: document.getElementById("recentWrap"),
   recentChevron: document.getElementById("recentChevron"),
@@ -1059,14 +1071,32 @@ function syncAnswerArea() {
 // Can / seri / puan / XP
 // ═══════════════════════════════════════════════════════════════════════════
 
+// G91 (madde 6) — Tasarim-2026-08/Prototip.dc.html satır 470-476 birebir:
+// 12x12 SVG kalp (AYNI path — "canların bitti" bannerındaki BÜYÜK kalple
+// AYNI çizim, sadece 12x12'ye küçültülmüş), stroke-width HER ZAMAN 1.5.
+// ÖNCEDEN "♥" metin glyph'i .heart{background:var(--rd);border-radius:99px}
+// (bir NOKTA için tasarlanmış CSS) İÇİNE basılıyordu — glyph'in KENDİ beyaz
+// rengi + arkasındaki dairenin kırmızı background'u ÜST ÜSTE biniyordu
+// ("beyaz kalp + kırmızı leke" — canlı testte yakalandı). Artık DOĞRUDAN
+// SVG çiziliyor, arkaplan/leke YOK.
+const HEART_PATH = "M12 21C7 16.5 3 13 3 8.8 3 5.9 5.2 4 7.7 4 9.4 4 11 4.9 12 6.3 13 4.9 14.6 4 16.3 4 18.8 4 21 5.9 21 8.8 21 13 17 16.5 12 21Z";
 function renderHearts() {
   const maxLives = currentDifficultyConfig().lives;
   els.hearts.innerHTML = "";
   for (let i = 0; i < maxLives; i++) {
-    const span = document.createElement("span");
-    span.className = `heart ${i < currentLives ? "" : "off"}`;
-    span.textContent = "♥";
-    els.hearts.appendChild(span);
+    const filled = i < currentLives;
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", "12");
+    svg.setAttribute("height", "12");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.classList.add("heart");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", HEART_PATH);
+    path.setAttribute("fill", filled ? "#ef4a5e" : "none");
+    path.setAttribute("stroke", filled ? "#ef4a5e" : "rgba(255,255,255,.22)");
+    path.setAttribute("stroke-width", "1.5");
+    svg.appendChild(path);
+    els.hearts.appendChild(svg);
   }
 }
 
@@ -1598,9 +1628,14 @@ function updateStartBtnLabel() {
     return;
   }
   els.startBtn.classList.add("warning");
-  const tekrarCal = autoStopped;
-  els.startBtn.textContent = tekrarCal ? "🔄" : "⏸";
-  els.startBtn.setAttribute("aria-label", tekrarCal ? "Tekrar Çal" : "Durdur");
+  // G91 (madde 4): "🔄" (Tekrar Çal) İKONU KALDIRILDI — task'ın kendi kararı:
+  // duraklatılmışken PLAY (▶), çalarken PAUSE (⏸) görünmeli, tasarımın
+  // playIcon mantığıyla (Prototip.dc.html satır 2615-2621 — SADECE playing
+  // boolean'ına göre play/pause SVG'si, ayrı bir "replay" durumu YOK) BİREBİR.
+  // aria-label GERÇEK davranışı anlatmaya devam ediyor ("Tekrar Çal" yerine
+  // "Oynat", çünkü tekrar basınca artık GERÇEKTEN play'e dönüyor).
+  els.startBtn.textContent = autoStopped ? "▶" : "⏸";
+  els.startBtn.setAttribute("aria-label", autoStopped ? "Oynat" : "Durdur");
 }
 
 function updateHintChipLabel() {
@@ -1812,6 +1847,10 @@ function enterMode(entry, realMode) {
     // modlarda anlamlı — dB Seviyesi/Frekans Çakışması kendi görsellerini
     // kullanıyor (bkz. updateAnalyzerFoot).
     if (els.analyzer) els.analyzer.classList.toggle("analyzer-no-foot", mode.SHOW_SPECTRUM === false);
+    // G91 (madde 9): dB Seviyesi'nin "SPEKTRUM · B İŞLENMİŞ" kart çerçevesi
+    // (bg/border/gölge/başlık) kaldırılıyor — SADECE canvas/barlar kalıyor
+    // (bkz. mode.BARE_ANALYZER, db-seviyesi.js + styles.css #analyzer.analyzer-bare).
+    if (els.analyzer) els.analyzer.classList.toggle("analyzer-bare", !!mode.BARE_ANALYZER);
     // G86: Motor 2'de (Kompresör/Reverb/Distortion) spektrum kartı HİÇ YOK
     // (Tasarim-2026-08/Prototip.dc.html isCompMode, task'ın kendi talimatı) —
     // SHOW_SPECTRUM'dan (grid çizimi, dB Seviyesi/Frekans Çakışması'nda hâlâ
@@ -2573,6 +2612,10 @@ function renderZonePanel() {
 // çünkü "Başla" butonu odak-aralığı özelliği olmadan anlamsız bir vaat olurdu.
 function renderDailyTip() {
   if (!els.dailyTipCard) return;
+  // G91 (madde 1): Ayarlar'daki "Bugünün önerisini göster" kapalıysa kart
+  // HİÇ görünmez — daily.tipDismissed'in (günlük "şimdi değil") AKSİNE bu
+  // KALICI bir tercih.
+  if (!prefs.showDailyTip) { els.dailyTipCard.classList.add("hidden"); return; }
   if (daily.tipDismissed) { els.dailyTipCard.classList.add("hidden"); return; }
   const enough = zoneScores().filter(s => s.n >= 2);
   if (!enough.length) { els.dailyTipCard.classList.add("hidden"); return; }
@@ -5584,6 +5627,14 @@ function bindCollapsiblePanel(toggleBtn, wrapEl, chevronEl) {
 bindCollapsiblePanel(els.recentToggle, els.recentWrap, els.recentChevron);
 bindCollapsiblePanel(els.badgesToggle, els.achievementList, els.badgesChevron);
 bindCollapsiblePanel(els.modeLevelsToggle, els.modeLevelsList, els.modeLevelsChevron);
+// G91 (madde 1): "Bugünün Önerisi" — AYNI fonksiyon, ama VARSAYILAN AÇIK
+// (dailyTipWrap HTML'de "hidden" TAŞIMIYOR, dailyTipChevron rotate(180deg)
+// ile başlıyor — bkz. index.html).
+bindCollapsiblePanel(els.dailyTipToggle, els.dailyTipWrap, els.dailyTipChevron);
+// G91 (madde 10): "Günlük Görevler" + "Zayıf Bölge Raporu" — AYNI desen,
+// AYNI varsayılan-açık kurulumu (wrap hidden'sız, chevron rotate(180deg)).
+bindCollapsiblePanel(els.dailyToggle, els.dailyWrap, els.dailyChevron);
+bindCollapsiblePanel(els.zoneToggle, els.zoneWrap2, els.zoneChevron);
 
 // Madde 5: "Tümünü temizle" — SADECE Son Cevaplar listesini boşaltır
 // (resetStatsBtn'in AKSİNE XP/seviye/görevlere DOKUNMAZ).
@@ -5734,14 +5785,10 @@ document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => goScreen(TAB_TO_SCREEN[btn.dataset.tab] || "menu"));
 });
 
-if (els.dailyTipClose) els.dailyTipClose.addEventListener("click", () => {
-  daily.tipDismissed = true;
-  persistDaily();
-  renderDailyTip();
-});
-// G36: "Şimdi değil" — Dizayn/prototype.html'in ikinci butonu, X ile TAMAMEN AYNI
-// kapatma davranışı (prototipte de ikisi aynı işi yapıyor, bkz. TASARIM.md RESKIN
-// RAPORU madde 4/b notu).
+// G36: "Şimdi değil" — GÜNLÜK kapatma (daily.tipDismissed, gece yarısı sıfırlanır).
+// G91 (madde 1): eski ✕ butonu (AYNI davranışı taşıyordu) KALDIRILDI, kart artık
+// akordiyon — "Şimdi değil" bu günlük kapatmayı TEK BAŞINA taşıyor; KALICI
+// kapatma için ayrı bir yol var (Ayarlar → "Bugünün önerisini göster", prefs.showDailyTip).
 if (els.dailyTipSkipBtn) els.dailyTipSkipBtn.addEventListener("click", () => {
   daily.tipDismissed = true;
   persistDaily();
@@ -6166,6 +6213,7 @@ function applyPrefs() {
   if (els.notifSwitch) els.notifSwitch.classList.toggle("on", prefs.notifications);
   if (els.hpWarnSwitch) els.hpWarnSwitch.classList.toggle("on", prefs.hpWarning);
   if (els.feedbackScreenSwitch) els.feedbackScreenSwitch.classList.toggle("on", prefs.feedbackScreen);
+  if (els.showDailyTipSwitch) els.showDailyTipSwitch.classList.toggle("on", prefs.showDailyTip);
   if (els.answerFormatSelect && prefs.answerFormat) {
     els.answerFormatSelect.value = prefs.answerFormat;
     els.answerFormatSelect.dispatchEvent(new Event("change", { bubbles: true }));
@@ -6197,6 +6245,12 @@ if (els.feedbackScreenSwitch) els.feedbackScreenSwitch.addEventListener("click",
   prefs.feedbackScreen = !prefs.feedbackScreen;
   applyPrefs();
   storage.savePrefs(prefs);
+});
+if (els.showDailyTipSwitch) els.showDailyTipSwitch.addEventListener("click", () => {
+  prefs.showDailyTip = !prefs.showDailyTip;
+  applyPrefs();
+  storage.savePrefs(prefs);
+  renderDailyTip();
 });
 if (els.langSeg) {
   els.langSeg.querySelectorAll("button").forEach(btn => {

@@ -225,7 +225,7 @@ export function clearDaily() {
 // etmez) | "fixed" (kullanıcının difficultySelect'ten kendi seçtiği zorluk
 // geçerli).
 export function freshPrefs() {
-  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full", difficultyMode: "auto", feedbackScreen: true };
+  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full", difficultyMode: "auto", feedbackScreen: true, showDailyTip: true };
 }
 
 export function loadPrefs() {

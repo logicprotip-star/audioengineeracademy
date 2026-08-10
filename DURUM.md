@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G90)
+Son güncelleme: 10.08.2026 (G91)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,66 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G90, tek commit) — **SHEET'LER, TOAST'LAR, YARDIMCI EKRANLAR
+Bu commit (G91, tek commit) — **DENETIM.md'den çıkan 10 madde: Bugünün Önerisi
+akordiyon oldu, Odak/Kaynak çipleri cyan vurguya döndü, çip satırı tüm modlarda
+tam genişlik, play/pause ikonu düzeltildi (🔄 bug'ı), İpucu amber, kalpler
+gerçek SVG (eski "beyaz kalp + kırmızı leke" bug'ı düzeltildi), spektrum
+hareketi artırıldı, geri bildirim omuz butonları panel kenarından taşıyor,
+dB Seviyesi'nin spektrum kartı kalktı + barlar yeşil, İlerleme'de 2 yeni
+akordiyon**
+
+Kaynak: `Tasarim-2026-08/Prototip.dc.html` — ölçü verilen yerlerde (kalp SVG'si,
+hearts container gap/margin, chiprow yapısı) birebir alındı; ölçü VERİLMEYEN
+yerlerde (Bugünün Önerisi'nin akordiyon davranışı, çip satırının tam genişlik
+doldurması, Odak/Kaynak çiplerinin cyan rengi, İlerleme'nin 2 yeni akordiyonu)
+kullanıcının KENDİ açık kararı esas alındı — bunlar tasarımın KENDİSİNİN
+literal okumasından SAPIYOR (bazıları önceki G85/G87 turlarının "tasarım böyle
+istiyor" kararlarını BİLEREK TERSİNE çeviriyor), task metninde AÇIKÇA
+istendiği için uygulandı.
+
+Öğe haritası:
+
+| # | Madde | Uygulanan değişiklik |
+|---|---|---|
+| 1 | Bugünün Önerisi akordiyon | ✕ kapatma KALDIRILDI, İlerleme'nin AYNI `bindCollapsiblePanel` deseni (varsayılan AÇIK) — Ayarlar → OYUN'a YENİ "Bugünün önerisini göster" anahtarı (`prefs.showDailyTip`), kapalıyken kart hiç render edilmiyor |
+| 2 | Odak çipi | `.srctag` artık `.game-diff-chip`'in AYNI cyan paleti (`rgba(34,211,238,.1)` bg/border, `var(--cyan)` metin) |
+| 3 | Çip satırı tam genişlik | `.chiprow`'a `justify-content:space-between` — `gap:7px`'i TABAN alıp fazla genişliği çip aralarına dağıtıyor; Kaynak çipi de aynı `.srctag` cyan paletini paylaştığı için madde 2 ile TEK değişiklikte çözüldü |
+| 4 | Play/Pause ikonu | `updateStartBtnLabel()`'daki "🔄" (Tekrar Çal) dalı KALDIRILDI — `autoStopped` artık her zaman "▶", aksi halde "⏸" |
+| 5 | İpucu amber | `#hintBtn` scoped override — `#f0b442` / `rgba(240,180,66,.1)` bg / `rgba(240,180,66,.3)` border (task'ın literal renkleri) |
+| 6 | Kalp ikonları | `renderHearts()` artık GERÇEK SVG çiziyor (`HEART_PATH`, Prototip.dc.html satır 473 birebir) — eski `♥` metin glyph'i + `.heart{background/border-radius}` (bir NOKTA için tasarlanmış CSS) ÜST ÜSTE binen "beyaz kalp + kırmızı leke" görünümünün kök sebebiydi |
+| 7 | Spektrum hareketi | `frekans-bulma.js:drawSpectrumBackground`'daki `jit` genliği/hızı ~2 kat artırıldı — G83 kısıtı KORUNUYOR (SADECE `i`/`t`'ye bağlı, gerçek FFT verisine HİÇ dokunmuyor) |
+| 8 | Omuz butonları | `.fb-ear{transform:translateY(-52%)}` → `-100%` — buton gövdesinin TAMAMI artık panelin üst kenarının DIŞINDA, alt kenarı hizalı |
+| 9 | dB Seviyesi kartı | YENİ `mode.BARE_ANALYZER` bayrağı (db-seviyesi.js) — `#analyzer.analyzer-bare` kart bg/border/başlığını kaldırıyor, SADECE canvas/barlar kalıyor; `PROC_PALETTE` mavi/mor (`rgba(108,140,255,..)`) → yeşil (`#4ade80`/`linear-gradient(180deg,#46d968,#27a63e)`) |
+| 10 | İlerleme akordiyonları | "Günlük Görevler" + "Zayıf Bölge Raporu" artık `bindCollapsiblePanel` ile açılır-kapanır (Rozetler/Mod Seviyeleri'nin AYNI deseni), varsayılan AÇIK — Zayıf Bölge Raporu'nun ÖNCEKİ "tasarımda katlanır DEĞİL" (G87) kararı bu turun AÇIK talimatıyla BİLEREK değiştirildi, Free kilidi (`#zoneLock`) accordion durumundan BAĞIMSIZ kaldı |
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ. **`npm test`: 1043/1043.**
+
+**DOĞRULAMA (canlı tarayıcı, taze sekme, hard-reload):**
+- **Çip satırı:** dB Seviyesi ve Kompresör'de (7 modun 2'si, PAYLAŞILAN
+  `.chiprow`/`.srctag` CSS'i yüzünden temsili) satırın artık sağ kenara kadar
+  yayıldığı ekran görüntüsüyle doğrulandı; kalan 5 mod (Kesim Noktası/Q
+  Genişliği/Reverb/Frekans Çakışması/Distortion/Tonal Denge) AYNI paylaşılan
+  kuralı kullandığı için tek tek açılmadı.
+- **dB Seviyesi:** "SPEKTRUM · B İŞLENMİŞ" kartı TAMAMEN kalktı (bg/border/
+  başlık yok, sadece çıplak grid+barlar), barlar yeşil (`B · İşlenmiş` etiketi
+  dahil) — ekran görüntüsüyle doğrulandı.
+- **Play/pause ikonu:** Frekans Bulma'da round başlatılıp "Durdur"a basıldı,
+  buton "▶" gösterdi (🔄 DEĞİL) — canlı doğrulandı.
+- **Kalpler:** gerçek SVG kalp şekli (leke/glyph çakışması YOK) ekran
+  görüntüsüyle doğrulandı.
+- **Omuz butonları:** yanlış cevap sonrası geri bildirim kartında "Senin
+  cevabın"/"Doğru cevap" butonlarının TAMAMEN panelin üst kenarının dışında,
+  alt kenarları hizalı durduğu yakın çekim ekran görüntüsüyle doğrulandı.
+- **İki akordiyon:** İlerleme'de "Günlük Görevler" ve "Zayıf Bölge Raporu"
+  aç/kapa test edildi, chevron doğru döndü, içerik doğru gizlendi/gösterildi.
+- **Ayarlar anahtarı:** "Bugünün önerisini göster" kapatılınca kart Ana
+  Menü'den TAMAMEN kayboldu, tekrar açılınca geri geldi — canlı doğrulandı.
+- **Konsol hatası: 0** (tüm doğrulama turu boyunca — mod geçişleri, round
+  başlatma/durdurma, akordiyon aç/kapa, ayar değişimi). **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G90, tek commit) — **SHEET'LER, TOAST'LAR, YARDIMCI EKRANLAR
 giydirildi — Prototip.dc.html'in ÇIKIŞ ONAYI/AYARLAR/SEVİYE/REHBER/TOAST/
 SPOTLIGHT/KULAKLIK/KALİBRASYON blokları birebir + canlı testte bulunan
 GERÇEK bir çıkış-onayı bug'ı düzeltildi**
@@ -7394,7 +7453,23 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G90 itibarıyla):** G90 (Sheet'ler/Toast'lar/Yardımcı
+**Tek sonraki adım (G91 itibarıyla):** G91 (DENETIM.md'den çıkan 10 madde)
+kod/test/canlı doğrulama açısından TAM kapandı — 10 maddenin hepsi masaüstü
+Chrome'da canlı test edildi, konsol hatası 0. Bu turun kendi açık işi:
+**hiçbiri GERÇEK CİHAZDA doğrulanmadı** (G90'ın AYNI eksik kalemi hâlâ
+geçerli) — özellikle çip satırının `justify-content:space-between` ile
+tam-genişlik doldurması dar/gerçek mobil ekranlarda TEKRAR denenmeli (masaüstü
+Chrome'da doğru göründü ama chip sayısı/genişlik oranı cihazda farklı
+sarabilir), spektrumun artırılmış hareket miktarının (madde 7) gerçek
+performansta (düşük FPS cihazlarda) göze batıp batmadığı ölçülmedi. 7 modlu
+çip satırı listesinin sadece 2'si (dB Seviyesi/Kompresör) tek tek açılıp
+canlı doğrulandı, kalan 5'i (Kesim Noktası/Q Genişliği/Reverb/Frekans
+Çakışması/Distortion/Tonal Denge) PAYLAŞILAN `.chiprow` CSS kuralına
+dayanılarak doğrulanmadı — bir sonraki turda tek tek açılıp gözle
+kontrol edilebilir. **Kabul kriteri:** yukarıdaki maddeler gerçek
+iOS/Android cihazda + kalan 5 mod masaüstünde gözle doğrulanır.
+
+**Önceki adım (G90 itibarıyla, hâlâ geçerli):** G90 (Sheet'ler/Toast'lar/Yardımcı
 Ekranlar) kod/test/canlı doğrulama açısından TAM kapandı — 10 maddenin
 hepsi masaüstü Chrome'da canlı test edildi, çıkış-onayı bug'ı (bkz. G90
 BİTTİ) bulunup AYNI oturumda düzeltildi. Bu turun kendi açık işi: **hiçbiri
