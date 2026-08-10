@@ -149,10 +149,21 @@ const els = {
   toolsRecentEmpty: document.getElementById("toolsRecentEmpty"),
   toolsRecentList: document.getElementById("toolsRecentList"),
   toolsFilterGrid: document.getElementById("toolsFilterGrid"),
-  // G88: #toolBars artık HTML'de YOK (sahte Analiz kartı kaldırıldı, bkz.
-  // aşağıdaki renderToolBars() notu) — cache burada BİLEREK tutuluyor,
-  // fonksiyon kendi null-guard'ıyla zararsızca no-op kalır.
-  toolBars: document.getElementById("toolBars"),
+  // G99: Araçlar ölçüm motoru arayüzü (analysis.js'e bağlı GERÇEK Analiz
+  // kartı) — eski sahte #toolBars (renderToolBars) ve o kartın cache girdisi
+  // bu turda SİLİNDİ (bkz. DURUM.md G99), yerine bu YENİ öğeler geldi.
+  toolsAnalysisCard: document.getElementById("toolsAnalysisCard"),
+  toolsAnalyzeBtn: document.getElementById("toolsAnalyzeBtn"),
+  toolsAnalyzeBtnLabel: document.getElementById("toolsAnalyzeBtnLabel"),
+  toolsAnalysisProgress: document.getElementById("toolsAnalysisProgress"),
+  toolsAnalysisError: document.getElementById("toolsAnalysisError"),
+  toolsAnalysisResults: document.getElementById("toolsAnalysisResults"),
+  toolsAnalysisChannelTable: document.getElementById("toolsAnalysisChannelTable"),
+  toolsAnalysisLoudness: document.getElementById("toolsAnalysisLoudness"),
+  toolsAnalysisChart: document.getElementById("toolsAnalysisChart"),
+  toolsAnalysisChartWrap: document.getElementById("toolsAnalysisChartWrap"),
+  toolsAnalysisChartReadout: document.getElementById("toolsAnalysisChartReadout"),
+  toolsAnalysisStandardNote: document.getElementById("toolsAnalysisStandardNote"),
   mainSettingsOverlay: document.getElementById("mainSettingsOverlay"),
   mainSettingsSheet: document.getElementById("mainSettingsSheet"),
   mainSettingsBack: document.getElementById("mainSettingsBack"),
@@ -544,6 +555,11 @@ function resizeCanvas() {
 }
 window.addEventListener("resize", resizeCanvas);
 window.addEventListener("orientationchange", resizeCanvas);
+// G99: Analiz kartının short-term grafiği de AYNI DPR/CSS-genişlik deseni —
+// sonuç varken pencere boyutu değişirse (döndürme, klavye açılışı vb.) yeniden çiz.
+window.addEventListener("resize", () => {
+  if (toolsAnalysisState === "success" && toolsAnalysisResult) drawShortTermChart(toolsAnalysisResult);
+});
 
 // Oyun ekranındaki .game-scroll'un alt boşluğu artık ÖLÇÜLMÜYOR — CSS'teki
 // --actionbar-h değişkeninden margin-bottom ile türetiliyor (bkz. styles.css
@@ -1788,6 +1804,13 @@ function goScreen(name) {
     // Oyun ekranından çıkılınca A/B döngüsü arka planda dönmeye devam etmesin
     // (prototype.html: go() içindeki aynı temizlik, "s-game1" dışına çıkınca stopAbLoop).
     stopAbLoop();
+  }
+  // G99: "game" dalıyla AYNI zamanlama sorunu (ekran bir önceki karede
+  // "display:none" idi, canvas 0 genişlikte ölçülürdü) — Analiz sonucu
+  // Araçlar sekmesi GİZLİYKEN hesaplanmışsa (ör. arka planda), grafiği bu
+  // sekmeye HER girişte yeniden çizerek doğru genişlikte göster.
+  if (name === "tools" && toolsAnalysisState === "success" && toolsAnalysisResult) {
+    drawShortTermChart(toolsAnalysisResult);
   }
   closeMainSettingsSheet();
   // Kalibrasyon tonu sadece o ekrandayken çalsın — başka bir ekrana geçilince arka
@@ -6943,22 +6966,12 @@ if (els.watchAdBtn) els.watchAdBtn.addEventListener("click", () => {
 // ad/boyut gösteren bir vitrindi, hiçbir yere yüklenmiyordu).
 // ═══════════════════════════════════════════════════════════════════════════
 
-// G88 (madde 6, "ANALİZ MOTORU BU TURDA YOK"): sahte/statik Analiz kartı
-// (LUFS/LRA/dBTP/mono-uyum — hepsi G53'ten beri sabit, gerçek bir dosyayı
-// HİÇ ölçmüyordu) index.html'den KALDIRILDI, kullanıcı artık göremiyor —
-// ama task'ın kendi talimatı "kodunu silme" gereği bu fonksiyon BİLEREK
-// silinmedi, sadece hedefi (#toolBars) yok — çağrıldığında zararsızca no-op.
-function renderToolBars() {
-  if (!els.toolBars) return;
-  let html = "";
-  for (let i = 0; i < 34; i++) {
-    const t = i / 33;
-    const v = 20 + 50 * Math.exp(-Math.pow((t - 0.2) / 0.3, 2)) + 16 * Math.exp(-Math.pow((t - 0.78) / 0.18, 2)) + 6 * Math.sin(i * 2.1);
-    html += `<i style="height:${Math.round(Math.max(8, Math.min(74, v)))}px"></i>`;
-  }
-  els.toolBars.innerHTML = html;
-}
-renderToolBars();
+// G99: sahte/statik Analiz kartı (LUFS/LRA/dBTP/mono-uyum — hepsi G53'ten
+// beri sabit, gerçek bir dosyayı HİÇ ölçmüyordu; G88'de HTML'den kaldırılmış,
+// render fonksiyonu "yerine gerçeği geliyor" notuyla bilerek bırakılmıştı)
+// artık GERÇEK bir analiz motoruna (core/analysis.js) bağlı Analiz kartıyla
+// DEĞİŞTİRİLDİ — eski renderToolBars()/#toolBars TAMAMEN SİLİNDİ (bkz.
+// DURUM.md G99). Yeni kart aşağıda: renderToolsAnalysisCard() ailesi.
 
 // G88: her filtrenin ad/açıklama/"ne dinlemeli" metni G53'ten beri GERÇEK,
 // DEĞİŞMEDİ — sadece tasarımın istediği ikon + 26px eğri görseli EKLENDİ.
@@ -7105,6 +7118,11 @@ function processToolsUploadFile(file) {
     toolsPreviewPlaying = false;
     toolsUploadedFile = { name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)) };
     renderToolsRecent();
+    // G99: YENİ bir dosya yüklenince önceki analiz sonucu/hatası ARTIK o
+    // dosyaya ait değil — sıfırla, kart "Analiz et" ile YENİDEN tetiklenmeyi
+    // bekleyen taze duruma dönsün (task: "Dosya seçilince otomatik başlamasın").
+    resetToolsAnalysis();
+    renderToolsAnalysisCard();
     toast("Dosya yüklendi", `${file.name} — dinlemek için oynat, modlarda kaynak olarak da seçilebilir.`);
   }).finally(() => {
     if (els.toolsUploadBtnLabel) els.toolsUploadBtnLabel.textContent = "Dosya seç";
@@ -7130,6 +7148,366 @@ if (els.toolsUploadBtn && els.toolsFileInput) {
   });
 }
 if (els.toolsProBtn) els.toolsProBtn.addEventListener("click", () => { resetPaywallToGeneric(); goScreen("paywall"); });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// G99 — Araçlar ölçüm motoru ARAYÜZÜ. core/analysis.js'in (G98) 11 parametresini
+// ekrana bağlar. Kilit YOK — kart zaten toolsProContent'in (Pro-only) İÇİNDE,
+// ayrı bir kilit eklenmedi (task madde 7).
+//
+// Analiz "Analiz et"e basılınca ÇALIŞIR — dosya seçilince OTOMATİK başlamaz
+// (task madde 1, kullanıcı uzun dosyada beklemeyi kendi seçsin).
+//
+// analyzeAudioBuffer() saf/senkron ama büyük dosyalarda birkaç saniye
+// sürebiliyor (G98 raporu: Node'da 300s stereo dosyada ~2.2sn, mobilde daha
+// uzun olabilir) — ANA THREAD'İ BLOKE ETMESİN diye core/analysis-worker.js
+// içinde bir Web Worker'a taşındı (analysis.js'in KENDİSİ değişmedi, worker
+// onu sadece ÇAĞIRIYOR). Worker oluşturulamazsa (bazı WebView/eski tarayıcı
+// kısıtları) ana thread'e DÜŞÜLÜR — bu durumda arayüz o süre boyunca donabilir
+// ama analiz yine de TAMAMLANIR (sessizce başarısız OLMAZ, task madde 8).
+// ═══════════════════════════════════════════════════════════════════════════
+
+function runAnalysisInWorker(audioBuffer) {
+  return new Promise((resolve, reject) => {
+    let worker;
+    try {
+      worker = new Worker(new URL("./core/analysis-worker.js", import.meta.url), { type: "module" });
+    } catch (err) {
+      reject(err);
+      return;
+    }
+    const channelBuffers = [];
+    const transferList = [];
+    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+      // .slice() GERÇEK bir kopya üretir — worker'a transfer edilen bu kopya,
+      // AudioBuffer'ın kendi (canlı, çalma için hâlâ gereken) verisini
+      // ASLA "neuter" etmez (bkz. upload.js:getBuffer() notu).
+      const copy = audioBuffer.getChannelData(ch).slice();
+      channelBuffers.push(copy.buffer);
+      transferList.push(copy.buffer);
+    }
+    worker.onmessage = (e) => {
+      worker.terminate();
+      if (e.data && e.data.ok) {
+        resolve(e.data.result);
+      } else {
+        // G99 canlı testte bulunan hata: worker'ın kendisi SORUNSUZ çalışıp
+        // analysis.js'in BİLEREK fırlattığı bir uygulama hatasını (ör. 3+
+        // kanal desteklenmiyor) doğru şekilde yakalayıp postMessage'la
+        // bildirdiği durumu, "worker altyapısı bozuldu" ile KARIŞTIRMAMAK
+        // için işaretleniyor — bkz. analyzeUploadedFile'ın bu bayrağı okuyan
+        // dalı (fallback'e DÜŞMEDEN direkt kullanıcıya gösterilmeli, aksi
+        // halde ana thread'de AYNI veriyle AYNI hata tekrar üretilir, boşuna
+        // bir "worker başarısız" yanlış tanısı + gereksiz yeniden deneme olur).
+        const err = new Error((e.data && e.data.error) || "Worker analiz sonucu döndürmedi.");
+        err.isApplicationError = !!(e.data && e.data.error);
+        reject(err);
+      }
+    };
+    worker.onerror = (err) => {
+      worker.terminate();
+      reject(err instanceof Error ? err : new Error((err && err.message) || "Worker hatası"));
+    };
+    worker.postMessage(
+      { sampleRate: audioBuffer.sampleRate, numberOfChannels: audioBuffer.numberOfChannels, length: audioBuffer.length, channelBuffers },
+      transferList
+    );
+  });
+}
+
+async function analyzeUploadedFile(audioBuffer) {
+  try {
+    return await runAnalysisInWorker(audioBuffer);
+  } catch (err) {
+    // G99 canlı testte bulunan iki hata birden düzeltildi:
+    // (1) worker'ın GERÇEKTEN çalışıp analysis.js'in KENDİ (data'ya bağlı,
+    // deterministik) hatasını bildirdiği durumda (err.isApplicationError)
+    // ana thread'e DÜŞMEK anlamsız — AYNI veriyle AYNI hata yeniden üretilir,
+    // sadece gecikme ekler. Doğrudan yukarı fırlatılır.
+    if (err && err.isApplicationError) throw err;
+    console.warn("[analiz] Worker altyapısı başarısız, ana thread'e düşülüyor (arayüz kısa süre donabilir):", err && err.message);
+    // (2) Burada ÖNCEDEN requestAnimationFrame ile "bir kare boyansın" diye
+    // bekleniyordu — rAF, sekme ARKA PLANDAYKEN (document.hidden===true)
+    // ASLA ateşlenmiyor, bu da analizi SONSUZA KADAR "loading" durumunda
+    // TAKILI bırakıyordu (canlı testte bulundu — buton kalıcı devre dışı,
+    // hata hiç gösterilmiyordu, task madde 8'in "sessizce başarısız olmasın"
+    // gereğini ihlal ediyordu). setTimeout arka planda KISILIR ama ASLA
+    // DURMAZ — bu yüzden rAF yerine setTimeout(0) kullanılıyor.
+    await new Promise((r) => setTimeout(r, 0));
+    const { analyzeAudioBuffer } = await import("./core/analysis.js");
+    return analyzeAudioBuffer(audioBuffer);
+  }
+}
+
+function toolsAnalysisErrorMessage(err) {
+  const raw = (err && err.message) || String(err || "");
+  if (/kanal desteklenmiyor/i.test(raw)) {
+    return "Bu dosyanın kanal sayısı (2'den fazla) şu an desteklenmiyor. Mono veya stereo bir dosya dene.";
+  }
+  if (/memory|allocation|out of memory/i.test(raw)) {
+    return "Dosya analiz için çok büyük/uzun olabilir. Daha kısa bir dosyayla dene.";
+  }
+  return `Analiz sırasında bir hata oluştu (${raw || "bilinmeyen hata"}). Dosya bozuk olabilir — farklı bir dosya dene.`;
+}
+
+function fmtDb(v) {
+  if (v === -Infinity) return "−∞";
+  if (v === Infinity) return "+∞";
+  if (!Number.isFinite(v)) return "—";
+  return (v >= 0 ? "+" : "") + v.toFixed(1);
+}
+function fmtLufs(v) {
+  if (v === -Infinity) return "−∞ LUFS";
+  if (!Number.isFinite(v)) return "—";
+  return `${v.toFixed(1)} LUFS`;
+}
+function fmtLu(v) {
+  if (!Number.isFinite(v)) return "—";
+  return `${v.toFixed(1)} LU`;
+}
+function fmtPercent(v) {
+  if (!Number.isFinite(v)) return "—";
+  return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
+}
+function fmtCount(v) {
+  return Number.isFinite(v) ? String(v) : "—";
+}
+
+const TOOLS_ANALYSIS_CHANNEL_ROWS = [
+  { label: "True peak (dBTP)", get: (c) => fmtDb(c.truePeakDb) },
+  { label: "Sample peak (dBFS)", get: (c) => fmtDb(c.samplePeakDb) },
+  { label: "Max RMS (dB)", get: (c) => fmtDb(c.maxRmsDb.raw) },
+  { label: "Min RMS (dB)", get: (c) => fmtDb(c.minRmsDb.raw) },
+  { label: "Total RMS (dB)", get: (c) => fmtDb(c.totalRmsDb.raw) },
+  { label: "Olası kırpılmış örnek", get: (c) => fmtCount(c.possiblyClippedSamples) },
+  { label: "DC offset (%)", get: (c) => fmtPercent(c.dcOffsetPercent) }
+];
+
+function renderToolsAnalysisChannelTable(result) {
+  if (!els.toolsAnalysisChannelTable) return;
+  const channels = result.channels;
+  const headerCols = channels.map(c => `<div class="tools-analysis-col">${c.label}</div>`).join("");
+  const rowsHtml = TOOLS_ANALYSIS_CHANNEL_ROWS.map(row => {
+    const cols = channels.map(c => `<div class="tools-analysis-col">${row.get(c)}</div>`).join("");
+    return `<div class="tools-analysis-row"><div class="tools-analysis-label">${row.label}</div>${cols}</div>`;
+  }).join("");
+  els.toolsAnalysisChannelTable.innerHTML =
+    `<div class="tools-analysis-col-headers"><div class="tools-analysis-label"></div>${headerCols}</div>${rowsHtml}`;
+}
+
+function renderToolsAnalysisLoudness(result) {
+  if (!els.toolsAnalysisLoudness) return;
+  const p = result.program;
+  els.toolsAnalysisLoudness.innerHTML = `
+    <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Max momentary</div><div class="tools-analysis-lv">${fmtLufs(p.maxMomentaryLufs)}</div></div>
+    <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Max short-term</div><div class="tools-analysis-lv">${fmtLufs(p.maxShortTermLufs)}</div></div>
+    <div class="tools-analysis-loudness-row integrated"><div class="tools-analysis-label">Integrated</div><div class="tools-analysis-lv">${fmtLufs(p.integratedLufs)}</div></div>
+    <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Loudness range</div><div class="tools-analysis-lv">${fmtLu(p.lra)}</div></div>`;
+}
+
+function renderToolsAnalysisStandardNote(result) {
+  if (!els.toolsAnalysisStandardNote) return;
+  const m = result.meta;
+  els.toolsAnalysisStandardNote.textContent =
+    `ITU-R BS.1770-4 / EBU R128 · True peak: ${m.truePeakOversample}x aşırı örnekleme (genel amaçlı filtre — ITU'nun resmi tablosuyla bit-bire-bir aynı değil, ölçülen üst sınır ~0.55dB yukarı sapma) · RMS penceresi: ${m.rmsWindowMs}ms · RMS konvansiyonu: HAM (tam ölçekli sinüs = −3.01dB; AES17 konvansiyonunda bu +3.01dB kayar)`;
+}
+
+// --- Short-term seyri grafiği (canvas, DPR-farkında — oyun ekranındaki
+// spektrum çiziminin AYNI cyan-çizgi/gradyan-dolgu görsel dili, bkz.
+// frekans-bulma.js:drawSpectrumBackground). ---
+let toolsAnalysisChartCtx = null;
+let toolsAnalysisChartCssW = 300;
+let toolsAnalysisChartCssH = 90;
+let toolsAnalysisChartData = null; // {series, startMs, stepMs, integratedLufs, lo, hi}
+
+function resizeToolsAnalysisChart() {
+  if (!els.toolsAnalysisChart) return null;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = els.toolsAnalysisChart.getBoundingClientRect();
+  // Ekran henüz görünmüyorsa (ör. Araçlar'a hiç girilmediyse) genişlik 0
+  // ölçülebilir — önceki bilinen boyutu koru (ana oyun canvas'ının AYNI deseni).
+  if (rect.width > 0) toolsAnalysisChartCssW = rect.width;
+  toolsAnalysisChartCssH = 90;
+  const targetW = Math.max(1, Math.round(toolsAnalysisChartCssW * dpr));
+  const targetH = Math.max(1, Math.round(toolsAnalysisChartCssH * dpr));
+  if (els.toolsAnalysisChart.width !== targetW || els.toolsAnalysisChart.height !== targetH) {
+    els.toolsAnalysisChart.width = targetW;
+    els.toolsAnalysisChart.height = targetH;
+  }
+  if (!toolsAnalysisChartCtx) toolsAnalysisChartCtx = els.toolsAnalysisChart.getContext("2d");
+  toolsAnalysisChartCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { cssW: toolsAnalysisChartCssW, cssH: toolsAnalysisChartCssH };
+}
+
+function drawShortTermChart(result) {
+  const dims = resizeToolsAnalysisChart();
+  if (!dims) return;
+  const { cssW, cssH } = dims;
+  const ctx = toolsAnalysisChartCtx;
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const series = result.program.shortTermLufsSeries;
+  const startMs = result.program.shortTermSeriesStartMs;
+  const stepMs = result.program.shortTermSeriesStepMs;
+  const integratedLufs = result.program.integratedLufs;
+
+  if (!series || series.length < 2) {
+    toolsAnalysisChartData = null;
+    ctx.fillStyle = "#4a4f56";
+    ctx.font = "600 11.5px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Grafik için dosya çok kısa (en az ~3sn gerekli)", cssW / 2, cssH / 2 + 4);
+    return;
+  }
+
+  const finiteValues = series.filter(Number.isFinite);
+  let lo = finiteValues.length ? Math.min(...finiteValues) : -40;
+  let hi = finiteValues.length ? Math.max(...finiteValues) : 0;
+  if (Number.isFinite(integratedLufs)) {
+    lo = Math.min(lo, integratedLufs);
+    hi = Math.max(hi, integratedLufs);
+  }
+  if (hi - lo < 3) { const mid = (hi + lo) / 2; lo = mid - 1.5; hi = mid + 1.5; }
+  const pad = (hi - lo) * 0.08;
+  lo -= pad; hi += pad;
+
+  const plotTop = 4, plotBottom = cssH - 4;
+  const yFor = (lufs) => {
+    const v = Number.isFinite(lufs) ? lufs : lo;
+    const t = (v - lo) / (hi - lo);
+    return plotBottom - t * (plotBottom - plotTop);
+  };
+  const xFor = (i) => (i / (series.length - 1)) * cssW;
+
+  toolsAnalysisChartData = { series, startMs, stepMs, integratedLufs, lo, hi, cssW, cssH };
+
+  if (Number.isFinite(integratedLufs)) {
+    const y = yFor(integratedLufs);
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.strokeStyle = "rgba(255,255,255,.22)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(cssW, y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const grad = ctx.createLinearGradient(0, plotTop, 0, plotBottom);
+  grad.addColorStop(0, "rgba(34,211,238,.32)");
+  grad.addColorStop(1, "rgba(34,211,238,0)");
+  ctx.beginPath();
+  series.forEach((v, i) => {
+    const x = xFor(i), y = yFor(v);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(cssW, plotBottom);
+  ctx.lineTo(0, plotBottom);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  series.forEach((v, i) => {
+    const x = xFor(i), y = yFor(v);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = "#22d3ee";
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.stroke();
+}
+
+let toolsAnalysisChartScrubbing = false;
+function toolsAnalysisChartReadoutAt(clientX) {
+  if (!toolsAnalysisChartData || !els.toolsAnalysisChart) return;
+  const { series, startMs, stepMs, cssW } = toolsAnalysisChartData;
+  const rect = els.toolsAnalysisChart.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const frac = Math.max(0, Math.min(1, x / (rect.width || cssW)));
+  const idx = Math.round(frac * (series.length - 1));
+  const v = series[idx];
+  const tSec = Math.round((startMs + idx * stepMs) / 1000);
+  const timeLabel = `${Math.floor(tSec / 60)}:${String(tSec % 60).padStart(2, "0")}`;
+  if (els.toolsAnalysisChartReadout) {
+    els.toolsAnalysisChartReadout.textContent = Number.isFinite(v)
+      ? `${timeLabel} — ${v.toFixed(1)} LUFS (short-term)`
+      : `${timeLabel} — sessizlik / mutlak eşik altı`;
+  }
+}
+if (els.toolsAnalysisChart) {
+  els.toolsAnalysisChart.addEventListener("pointerdown", (e) => { toolsAnalysisChartScrubbing = true; toolsAnalysisChartReadoutAt(e.clientX); });
+  els.toolsAnalysisChart.addEventListener("pointermove", (e) => { if (toolsAnalysisChartScrubbing) toolsAnalysisChartReadoutAt(e.clientX); });
+  window.addEventListener("pointerup", () => { toolsAnalysisChartScrubbing = false; });
+}
+
+function renderToolsAnalysisResults(result) {
+  renderToolsAnalysisChannelTable(result);
+  renderToolsAnalysisLoudness(result);
+  drawShortTermChart(result);
+  renderToolsAnalysisStandardNote(result);
+  if (els.toolsAnalysisChartReadout) els.toolsAnalysisChartReadout.textContent = "Grafiğe dokun — o noktanın değeri burada görünür.";
+}
+
+let toolsAnalysisState = "idle"; // idle | loading | success | error
+let toolsAnalysisResult = null;
+let toolsAnalysisErrorMsg = "";
+
+function resetToolsAnalysis() {
+  toolsAnalysisState = "idle";
+  toolsAnalysisResult = null;
+  toolsAnalysisErrorMsg = "";
+  toolsAnalysisChartData = null;
+}
+
+function renderToolsAnalysisState() {
+  if (!els.toolsAnalysisCard) return;
+  const loading = toolsAnalysisState === "loading";
+  const success = toolsAnalysisState === "success";
+  const error = toolsAnalysisState === "error";
+  if (els.toolsAnalysisProgress) els.toolsAnalysisProgress.classList.toggle("hidden", !loading);
+  if (els.toolsAnalysisError) {
+    els.toolsAnalysisError.classList.toggle("hidden", !error);
+    if (error) els.toolsAnalysisError.textContent = toolsAnalysisErrorMsg;
+  }
+  if (els.toolsAnalysisResults) els.toolsAnalysisResults.classList.toggle("hidden", !success);
+  if (els.toolsAnalyzeBtn) els.toolsAnalyzeBtn.disabled = loading;
+  if (els.toolsAnalyzeBtnLabel) {
+    els.toolsAnalyzeBtnLabel.textContent = loading ? "Analiz ediliyor…" : success ? "Yeniden analiz et" : "Analiz et";
+  }
+  if (success && toolsAnalysisResult) renderToolsAnalysisResults(toolsAnalysisResult);
+}
+
+// uploadManager.hasBuffer değiştiğinde (yeni dosya yüklenince) kartın kendisi
+// görünür/gizli olur — task madde: "Dosya seçili değilken görünmez."
+function renderToolsAnalysisCard() {
+  if (!els.toolsAnalysisCard) return;
+  const show = uploadManager.hasBuffer;
+  els.toolsAnalysisCard.classList.toggle("hidden", !show);
+  if (show) renderToolsAnalysisState();
+}
+renderToolsAnalysisCard();
+
+if (els.toolsAnalyzeBtn) {
+  els.toolsAnalyzeBtn.addEventListener("click", async () => {
+    if (!uploadManager.hasBuffer || toolsAnalysisState === "loading") return;
+    const buffer = uploadManager.getBuffer();
+    if (!buffer) return;
+    toolsAnalysisState = "loading";
+    renderToolsAnalysisState();
+    try {
+      const result = await analyzeUploadedFile(buffer);
+      toolsAnalysisResult = result;
+      toolsAnalysisState = "success";
+    } catch (err) {
+      console.error("[analiz] hata:", err && err.message, err);
+      toolsAnalysisErrorMsg = toolsAnalysisErrorMessage(err);
+      toolsAnalysisState = "error";
+    }
+    renderToolsAnalysisState();
+  });
+}
 
 // Gerçek satın alma bu sürümde yok — Araçlar sekmesi normalde her zaman
 // kilitli görünür (toolsFreeLock), dokununca paywall'a yönlendirir. isUserPro()

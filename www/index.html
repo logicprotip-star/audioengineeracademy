@@ -876,16 +876,16 @@
       </div>
     </section>
 
-    <!-- ================= EKRAN: ARAÇLAR (yer tutucu) ================= -->
+    <!-- ================= EKRAN: ARAÇLAR ================= -->
     <!-- G88: Tasarim-2026-08/Prototip.dc.html "ARAÇLAR" bloğu (satır 352-449)
-         birebir — eski "Analiz" kartı (sahte/statik LUFS/LRA/dBTP/mono-uyum
-         verisi, koddaki kendi G53 notu "gerçek DSP/analiz içermiyor" diyordu)
-         tasarımda YOK, task'ın kendi 6. maddesi ("ANALİZ MOTORU BU TURDA YOK")
-         gereği HTML'den kaldırıldı — renderToolBars()/TOOL analiz JS'i
-         SİLİNMEDİ (els.toolBars artık yok, fonksiyon zararsızca no-op kalır).
-         Eski per-kart .pro-lock-overlay (analyzeLock/filtersLock) YERİNE
-         tasarımın kendi TEK üst-seviye Pro/Free dalı (toolsProContent/
-         toolsFreeLock) geçti — bkz. app.js'in AYNI G88 notu. -->
+         birebir. G99: sahte/statik Analiz kartı (LUFS/LRA/dBTP/mono-uyum,
+         gerçek DSP içermiyordu) G88'de kaldırılmıştı — bu turda YERİNE
+         core/analysis.js'e bağlı GERÇEK bir Analiz kartı (#toolsAnalysisCard)
+         eklendi, tasarımda YOK olduğu için mevcut .tools-card ailesinden
+         BİREBİR türetildi (bkz. app.js G99 notu). Eski per-kart
+         .pro-lock-overlay (analyzeLock/filtersLock) YERİNE tasarımın kendi TEK
+         üst-seviye Pro/Free dalı (toolsProContent/toolsFreeLock) geçti —
+         bkz. app.js'in AYNI G88 notu. -->
     <section class="screen" id="screen-tools" data-tab="tools">
       <div class="scroll tools-scroll">
         <div class="tools-head">
@@ -913,6 +913,46 @@
               <div class="tools-recent-empty-sub">Yüklediğin mixler burada listelenir ve tüm modlarda kullanılabilir.</div>
             </div>
             <div id="toolsRecentList"></div>
+          </div>
+
+          <!-- G99 — Araçlar ölçüm motoru arayüzü (www/js/core/analysis.js'e bağlı,
+               gerçek ITU-R BS.1770-4/EBU R128 ölçümü). Prototip.dc.html'de bu blok
+               YOK (tasarım kapsam dışı bırakmıştı) — kart stili (border-radius,
+               gradient, ikon kutusu, bölüm başlığı vb.) MEVCUT .tools-card
+               ailesinden BİREBİR alındı, sadece içerik yeni. Dosya seçili değilken
+               (uploadManager.hasBuffer=false) gizli — bkz. app.js renderToolsAnalysisCard(). -->
+          <div class="tools-card hidden" id="toolsAnalysisCard">
+            <div class="tools-card-top">
+              <div class="tools-card-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3.5l2-6 3 14 2.5-11 2 3h4"></path></svg></div>
+              <div class="tools-card-copy">
+                <div class="tools-card-title">Analiz</div>
+                <div class="tools-card-sub">True peak, RMS, loudness — gerçek ölçüm</div>
+              </div>
+            </div>
+            <button class="tools-upload-btn" id="toolsAnalyzeBtn" type="button">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"></path></svg>
+              <span id="toolsAnalyzeBtnLabel">Analiz et</span>
+            </button>
+            <div id="toolsAnalysisProgress" class="tools-analysis-progress hidden">
+              <span class="audio-loading-spin"></span>
+              <span>Analiz ediliyor…</span>
+            </div>
+            <div id="toolsAnalysisError" class="tools-analysis-error hidden"></div>
+            <div id="toolsAnalysisResults" class="hidden">
+              <div class="tools-recent-label">KANAL ÖLÇÜMLERİ</div>
+              <div class="tools-analysis-table" id="toolsAnalysisChannelTable"></div>
+
+              <div class="tools-recent-label">LOUDNESS</div>
+              <div class="tools-analysis-loudness" id="toolsAnalysisLoudness"></div>
+
+              <div class="tools-recent-label">SHORT-TERM SEYRİ</div>
+              <div class="tools-analysis-chart-wrap" id="toolsAnalysisChartWrap">
+                <canvas id="toolsAnalysisChart" class="tools-analysis-chart"></canvas>
+                <div class="tools-analysis-chart-readout" id="toolsAnalysisChartReadout">Grafiğe dokun — o noktanın değeri burada görünür.</div>
+              </div>
+
+              <div class="tools-analysis-standard-note" id="toolsAnalysisStandardNote"></div>
+            </div>
           </div>
 
           <div class="tools-card">

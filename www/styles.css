@@ -1708,6 +1708,35 @@
     .tools-filter-range{font-size:10px;font-weight:500;color:#6c7178;margin-top:1px}
     .tools-filter-note{margin:11px 2px 0;font-size:11.5px;line-height:1.45;color:#6c7178}
 
+    /* G99 — Araçlar ölçüm motoru arayüzü (analysis.js'e bağlı). Renk/tipografi
+       tokenleri MEVCUT .tools-* ailesinden BİREBİR (cyan #22d3ee, metin
+       #f2f3f5/#8f949b/#b8bdc4/#4a4f56, bölüm başlığı deseni .tools-recent-label
+       ile AYNI, ayrıca burada TEKRAR TANIMLANMADI). */
+    .tools-analysis-progress{display:flex;align-items:center;gap:9px;margin-top:14px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);font-size:12.5px;font-weight:600;color:#b8bdc4}
+    .tools-analysis-error{display:flex;align-items:flex-start;gap:8px;margin-top:14px;padding:12px;border-radius:10px;background:rgba(248,113,96,.08);border:1px solid rgba(248,113,96,.28);font-size:12.5px;font-weight:600;line-height:1.5;color:#f88a6e}
+
+    .tools-analysis-table{margin-top:2px}
+    .tools-analysis-col-headers{display:flex;align-items:center;padding:8px 0 6px 0}
+    .tools-analysis-col-headers .tools-analysis-label{visibility:hidden}
+    .tools-analysis-col-headers .tools-analysis-col{font-size:10px;font-weight:700;letter-spacing:.5px;color:#5b6067;text-transform:uppercase}
+    .tools-analysis-row{display:flex;align-items:center;padding:9px 0;border-top:1px solid rgba(255,255,255,.04)}
+    .tools-analysis-label{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:#b8bdc4}
+    .tools-analysis-col{flex:0 0 78px;text-align:right;font-size:13px;font-weight:700;color:#f2f3f5;font-variant-numeric:tabular-nums}
+    .tools-analysis-col+.tools-analysis-col{margin-left:4px}
+
+    .tools-analysis-loudness{margin-top:2px}
+    .tools-analysis-loudness-row{display:flex;align-items:baseline;justify-content:space-between;padding:9px 0;border-top:1px solid rgba(255,255,255,.04)}
+    .tools-analysis-loudness-row .tools-analysis-label{font-size:12.5px;font-weight:600;color:#b8bdc4;flex:none}
+    .tools-analysis-loudness-row .tools-analysis-lv{font-size:13px;font-weight:700;color:#f2f3f5;font-variant-numeric:tabular-nums}
+    .tools-analysis-loudness-row.integrated .tools-analysis-label{font-size:13px;font-weight:700;color:#d6d9dd}
+    .tools-analysis-loudness-row.integrated .tools-analysis-lv{font-size:18px;font-weight:800;color:#22d3ee;font-variant-numeric:tabular-nums}
+
+    .tools-analysis-chart-wrap{position:relative;margin-top:2px}
+    .tools-analysis-chart{display:block;width:100%;height:90px}
+    .tools-analysis-chart-readout{margin-top:6px;font-size:11px;font-weight:600;color:#6c7178;min-height:14px}
+
+    .tools-analysis-standard-note{margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.04);font-size:10px;font-weight:500;line-height:1.5;color:#4a4f56}
+
     .tools-lock{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:20px 4px}
     .tools-lock-pentagon{position:relative;width:92px;height:92px;filter:drop-shadow(0 8px 22px rgba(217,168,60,.3))}
     .tools-lock-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-top:4px}

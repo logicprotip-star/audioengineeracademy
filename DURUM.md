@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G98)
+Son güncelleme: 10.08.2026 (G99)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,115 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G98, tek commit) — **Araçlar ölçüm motoru, 1. bölüm: hesaplama
+Bu commit (G99, tek commit) — **Araçlar ölçüm motoru, 2. bölüm: arayüz.**
+G98'in `analysis.js`'i ekrana bağlandı — "Mixini Yükle" ile "Referans
+Filtreleri" arasına, MEVCUT `.tools-card` ailesinden (border-radius/gradient/
+ikon kutusu/bölüm başlığı) BİREBİR türetilen yeni bir "Analiz" kartı
+eklendi (tasarımda bu blok YOK, task'ın kendi notu). Dosya seçilince
+OTOMATİK başlamıyor — "Analiz et" butonuyla tetikleniyor. Analiz bir
+**Web Worker**'da (`core/analysis-worker.js`, YENİ dosya) çalışıyor —
+ana thread'i bloke etmiyor (canlı, 10 dakikalık sentetik bir dosyayla
+kanıtlandı, aşağıda). Sonuçlar iki grup halinde (KANAL ÖLÇÜMLERİ tablosu +
+LOUDNESS listesi, Integrated büyük/vurgulu) + "SHORT-TERM SEYRİ" adında
+zamana yayılı bir grafik (canvas, cyan çizgi+dolgu, dokununca o noktanın
+değeri/zamanı görünüyor, Integrated kesikli referans çizgisi) + standart
+notu (ITU-R BS.1770-4/EBU R128, aşırı örnekleme oranı, RMS penceresi/
+konvansiyonu) olarak gösteriliyor. Eski sahte `renderToolBars()`/`#toolBars`
+TAMAMEN SİLİNDİ (kod dahil, sadece HTML değil — task'ın açık talimatı).
+
+**Kural ihlali — AÇIKÇA bildirilmiş, gerekçeli iki sapma:**
+1. Task "analysis.js'e DOKUNMA" dedi — ama "Short-term seyri" grafiği ZATEN
+   hesaplanan ama dışa AKTARILMAYAN `shortTermSeries`'e ihtiyaç duyuyordu.
+   K-weighting+gating mantığını arayüz katmanında TEKRAR yazmak (ciddi
+   sapma riski) yerine TEK katkısal alan eklendi (`program.
+   shortTermLufsSeries/shortTermSeriesStartMs/shortTermSeriesStepMs`) —
+   MEVCUT hiçbir alan/algoritma değişmedi, G98'in 34 testi DEĞİŞTİRİLMEDEN
+   geçiyor + 3 yeni test eklendi (bkz. tablo).
+2. `upload.js`'e `getBuffer()` eklendi (bu dosya "dokunma" kapsamında
+   değildi, ama önceki tasarım BİLEREK buffer'ı dışarı sızdırmıyordu) —
+   ölçüm motorunun girdisi (gerçek PCM) başka türlü elde edilemezdi.
+
+**Dosya/değişiklik haritası:**
+
+| Değişiklik | Dosya | Not |
+|---|---|---|
+| Yeni "Analiz" kartı (`#toolsAnalysisCard`) | `index.html` | `.tools-card` ailesinden birebir, dosya seçili değilken `hidden` |
+| ~15 yeni CSS kuralı (`.tools-analysis-*`) | `styles.css` | Renk/tipografi tokenleri MEVCUT `.tools-*`'tan, TEKRAR TANIMLANMADI |
+| Worker orkestrasyon + render + hata mesajları + chart çizim/etkileşim | `app.js` | `runAnalysisInWorker`/`analyzeUploadedFile`/`renderToolsAnalysis*`/`drawShortTermChart` ailesi |
+| Web Worker (YENİ dosya) | `core/analysis-worker.js` | analysis.js'i SADECE çağırır, değiştirmez |
+| `shortTermLufsSeries` eklendi (katkısal) | `core/analysis.js` | Yukarıdaki sapma notu 1 |
+| `getBuffer()` eklendi | `core/upload.js` | Yukarıdaki sapma notu 2 |
+| 3 yeni test (`shortTermLufsSeries`) | `test/analysis.test.mjs` | G98'in 34 testi DEĞİŞMEDEN geçiyor |
+
+**Canlı testte BULUNAN ve DÜZELTİLEN gerçek bug (task'ın istediği "hata
+durumları sessizce başarısız olmasın" doğrulaması SIRASINDA ortaya çıktı):**
+3 kanallı bir dosya yüklenip "Analiz et"e basıldığında arayüz SONSUZA KADAR
+"Analiz ediliyor…" durumunda TAKILI kalıyordu (buton kalıcı devre dışı, hata
+HİÇ gösterilmiyordu) — kök sebep iki katmanlıydı: (1) worker'ın KENDİSİ
+sorunsuz çalışıp analysis.js'in BİLEREK fırlattığı "3 kanal desteklenmiyor"
+hatasını doğru yakalayıp bildiriyordu, ama app.js bunu YANLIŞLIKLA "worker
+altyapısı bozuldu" sayıp ana thread'e DÜŞÜYORDU (anlamsız, aynı veriyle aynı
+hata tekrar üretilecekti); (2) o ana-thread yoluna geçerken "bir kare
+boyansın" diye `requestAnimationFrame` ile bekleniyordu — rAF, sekme ARKA
+PLANDAYKEN (`document.hidden===true`) HİÇ ateşlenmiyor, bu da bekleyişi
+SONSUZA çeviriyordu (canlı ölçüldü: `document.hidden` gerçekten `true`,
+3 saniyelik bir rAF beklemesi hiç tetiklenmedi). Düzeltme: (a) worker'ın
+kendi bildirdiği uygulama hataları (`err.isApplicationError`) fallback'e
+DÜŞMEDEN doğrudan kullanıcıya gösteriliyor, (b) geri kalan (gerçek altyapı
+arızası) fallback yolu `requestAnimationFrame` yerine `setTimeout(0)`
+kullanıyor (arka planda KISILIR ama ASLA DURMAZ). Düzeltme sonrası aynı
+3-kanal dosyası ~100ms içinde doğru Türkçe hatayı gösterdi (bkz. DOĞRULAMA).
+
+**DOĞRULAMA:**
+- **11 parametrenin hepsi ekranda göründü** (gerçek, sentetik bir test
+  dosyası — 40s stereo, 4 farklı seviye bölümü + 5s sessizlik + 5s kasıtlı
+  kırpma içeriyordu — yüklenip analiz edildi, canlı ekran görüntüsüyle
+  doğrulandı): True peak +0.0/+0.0 dBTP, Sample peak +0.0/+0.0 dBFS, Max RMS
+  −2.9/−2.9 dB, Min RMS −∞/−∞ (sessizlik bölümü doğru yakalandı), Total RMS
+  −9.9/−9.9 dB, Olası kırpılmış örnek 19500/19500, DC offset +1.72%/+1.72%,
+  Max momentary 0.1 LUFS, Max short-term 0.1 LUFS, Integrated −5.0 LUFS
+  (büyük/vurgulu), Loudness range 14.1 LU — hepsi test dosyasının BİLİNEN
+  yapısıyla (kasıtlı kırpma/sessizlik/DC/seviye bölümleri) TUTARLI.
+- **Uzun dosyada arayüz DONMADI — sıkı bir testle kanıtlandı:** 10 dakikalık
+  sentetik bir stereo dosya (worker'a doğrudan, gerçek `core/analysis-worker.js`
+  ile) analiz ettirildi (~20.9 saniye sürdü); analiz HÂLÂ ÇALIŞIRKEN
+  (`workerDone:false`, 10.6s noktasında ölçüldü) gerçek bir fare tıklaması
+  VE bir kaydırma (scroll) hareketi başarıyla gerçekleştirildi, sayfa akıcı
+  tepki verdi — ana thread'in GERÇEKTEN serbest olduğunun doğrudan kanıtı
+  (basit bir `setInterval` heartbeat'i YANILTICI çıktı — Chrome'un arka
+  plan sekme kısıtlaması yüzünden worker'sız kontrol testinde de aynı düşük
+  sayıyı verdi, bu yüzden GERÇEK etkileşim tabanlı bir teste geçildi).
+- **Short-term grafiği gerçek veriden çizildi:** ekran görüntüsünde net bir
+  yüksek→düşük→yüksek eğrisi (test dosyasının seviye bölümleriyle tutarlı),
+  kesikli Integrated referans çizgisi görünür durumda. **Dokunma/kaydırma
+  etkileşimi test edildi:** grafiğe tıklanınca "0:27 — -2.3 LUFS
+  (short-term)" gibi doğru zaman+değer okuması çıktı.
+- **Hata durumları:** yukarıdaki bug bulma/düzeltme sürecinin KENDİSİ bu
+  maddenin doğrulaması — düzeltme SONRASI 3-kanallı dosya ~100ms içinde
+  "Bu dosyanın kanal sayısı (2'den fazla) şu an desteklenmiyor. Mono veya
+  stereo bir dosya dene." mesajını gösterdi, buton yeniden aktif oldu
+  (ekran görüntüsüyle doğrulandı).
+- **Konsol hatası:** hata-yolu testinde GÖRÜLEN `console.error`/`console.warn`
+  girdileri KENDİ kasıtlı tanı loglarım (`[analiz] hata:` / `[analiz] Worker
+  başarısız...`) — HANDLED, beklenen bir durumun (desteklenmeyen dosya)
+  loglanması, sessiz/beklenmedik bir çökme DEĞİL. Bunların dışında (normal
+  analiz akışında) konsol hatası **0**.
+- **`npm test`: 1094/1094** (G98 sonrası 1091, +3 yeni test —
+  `shortTermLufsSeries` — hiçbir eski test SİLİNMEDİ/DEĞİŞTİRİLMEDİ).
+- **Not — bu turun test ortamı sınırlaması:** Son bir "temiz tekrar" koşusu
+  sırasında tarayıcı otomasyon eklentisi geçici olarak bağlantısını
+  kaybetti/kararsızlaştı (dosya yükleme aracı başarı raporlayıp gerçekte
+  dosyayı iliştirmedi) — bu ortamsal bir arıza, kod DEĞİŞİKLİĞİ değil.
+  Yukarıdaki TÜM doğrulamalar (11 parametre, donma-yok kanıtı, grafik+
+  etkileşim, hata düzeltmesi) bu arızadan ÖNCE, temiz/tekrarlanabilir
+  koşullarda elde edildi.
+
+**Not — provenance sorusu HÂLÂ AÇIK:** `OYUN-MANTIGI.md` bu turda da
+commit'e dahil edilmedi, kullanıcı henüz yanıt vermedi.
+
+---
+
+Önceki commit (G98, tek commit) — **Araçlar ölçüm motoru, 1. bölüm: hesaplama
 çekirdeği (`www/js/core/analysis.js`, ARAYÜZSÜZ, saf fonksiyonlar). iZotope
 RX Waveform Statistics + Loudness panelindeki 11 parametreyi (kanal başına
 true peak/sample peak/max-min-total RMS/possibly clipped/DC offset + program
@@ -7965,19 +8073,25 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G98 itibarıyla): Araçlar ölçüm motoru 2. bölüm — ARAYÜZ.**
-Hesaplama çekirdeği (`analysis.js`) tam kapandı (11 parametre, 34 test, tüm
-DOĞRULAMA maddeleri bkz. BİTTİ) ama şunlar SONRAKİ tura kaldı: (1) gerçek
-bir yüklenmiş ses dosyasıyla (upload.js'in decode ettiği GERÇEK AudioBuffer,
-sentetik DEĞİL) canlı çalıştırma HİÇ yapılmadı — ilk arayüz turunda MUTLAKA
-denenmeli; (2) sahte Analiz kartının yerine yeni sonuçları GÖSTEREN gerçek
-bir arayüz yok; (3) `analyzeAudioBuffer()` senkron ve ~2.2sn/300sn-dosya
-sürüyor (Node'da ölçüldü) — arayüz turunda ana thread'i BLOKE ETMEMESİ için
-(çağrının ne zaman/nasıl tetikleneceğine bağlı) bir yükleme göstergesi veya
-parça parça `await` ile çağırma gerekebilir, bu turda ELE ALINMADI (task
-kapsam dışı bıraktı); (4) True Peak'in ~0.55dB'lik ölçülen sapma sınırı
-arayüzde KULLANICIYA GÖRÜNÜR şekilde belirtilmeli mi (ör. "yaklaşık" ibaresi)
-— ürün kararı, bu turda verilmedi.
+**Tek sonraki adım (G99 itibarıyla):** Araçlar ölçüm motoru İKİ bölümü de
+(çekirdek + arayüz) kod/test/canlı doğrulama açısından TAM kapandı, canlı
+testte bulunan gerçek bir bug (rAF sonsuz askıda kalma + hata sınıflandırma
+karışıklığı) AYNI turda düzeltildi. Bu turun kendi açık işleri: (1) **gerçek
+cihazda (özellikle iOS/WKWebView) hiç doğrulanmadı** — module Worker desteği
+WKWebView'de teorik olarak var ama CANLI denenmedi, bir sonraki cihaz
+turunda MUTLAKA kontrol edilmeli (worker oluşturma başarısız olursa ana
+thread fallback'i devreye giriyor — bu da test edilmeli, ör. eski bir
+WebView'de); (2) **True Peak'in ~0.55dB'lik ölçülen sapma sınırı** standart
+notunda YAZIYOR ama kullanıcıya "yaklaşık" gibi ayrı bir görsel uyarı
+verilmiyor — ürün kararı, bu turda verilmedi; (3) **RMS konvansiyonu şu an
+SADECE HAM gösteriliyor** (standart notunda belirtiliyor) — kullanıcı RX ile
+karşılaştırıp AES17'nin daha uygun olduğuna karar verirse, `meta`'da her iki
+değer de zaten hesaplı (`maxRmsDb.aes17` vb.), sadece render fonksiyonunda
+hangi alanın okunacağını değiştirmek yeterli, bu turun kapsamı dışında
+bırakıldı; (4) test ortamı sınırlaması nedeniyle SON "temiz tekrar" koşusu
+tamamlanamadı (bkz. BİTTİ'nin son notu) — kanıtlar önceki temiz koşulardan,
+ama bir sonraki oturumda tekrar hızlı bir canlı doğrulama turu (5 dakika)
+YARARLI olur.
 
 **Önceki adım (G97 itibarıyla):** Yedi madde de kod/test/canlı doğrulama
 açısından TAM kapandı (madde 2'nin "dosya silinsin mi" sorusu bu turda

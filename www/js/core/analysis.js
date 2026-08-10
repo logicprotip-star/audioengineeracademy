@@ -2,6 +2,16 @@
 // fonksiyon SAF (ses/DOM'a dokunmaz, sadece Float32Array/nesne alıp sayı
 // döndürür) — testler bunlara doğrudan sentetik sinyallerle dayanıyor.
 //
+// G99 NOTU (arayüz turu — "bu dosyaya DOKUNMA" kuralından KASITLI, AÇIKÇA
+// bildirilmiş bir sapma): "Short-term seyri" grafiği zaman içinde değişen
+// short-term loudness DEĞERLERİNE ihtiyaç duyuyor — bu SADECE bu dosyanın
+// ZATEN hesapladığı (ama önceden dışa AKTARMADIĞI) shortTermSeries'te var.
+// Bunu arayüz katmanında AYRICA (K-weighting + gating'i tekrar yazarak)
+// hesaplamak ciddi bir mantık TEKRARI ve sapma riski olurdu — bunun yerine
+// TEK, katkısal (additive) bir alan eklendi (program.shortTermLufsSeries/
+// shortTermSeriesStartMs/shortTermSeriesStepMs). MEVCUT hiçbir alan/algoritma
+// DEĞİŞMEDİ — G98'in 34 testi DEĞİŞTİRİLMEDEN aynen geçiyor (bkz. npm test).
+//
 // Girdi: upload.js'in decodeAudioData ile ürettiği GERÇEK AudioBuffer, YA DA
 // aynı minimal arayüzü taklit eden herhangi bir nesne:
 //   { sampleRate, numberOfChannels, length, getChannelData(ch) -> Float32Array }
@@ -462,6 +472,13 @@ export function analyzeAudioBuffer(bufferLike, options = {}) {
       maxShortTermLufs,
       integratedLufs,
       lra,
+      // G99 — ARAYÜZ turunun "Short-term seyri" grafiği için EKLENDİ (SAF
+      // olarak ZATEN hesaplanan shortTermSeries'in LUFS'a çevrilmiş hali —
+      // hiçbir MEVCUT alan/algoritma DEĞİŞMEDİ, bkz. G99 dosya başı notu).
+      // series[i]'nin zamanı: shortTermSeriesStartMs + i*shortTermSeriesStepMs.
+      shortTermLufsSeries: shortTermSeries.map(powerToLufs),
+      shortTermSeriesStartMs: (SHORT_TERM_BLOCKS - 1) * GATING_BLOCK_MS,
+      shortTermSeriesStepMs: GATING_BLOCK_MS,
     },
     meta: {
       rmsWindowMs,

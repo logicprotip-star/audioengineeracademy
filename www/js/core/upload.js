@@ -181,11 +181,21 @@ export function createUploadManager(getAudioCtx) {
     return { ok: true };
   }
 
+  // G99: analysis.js'in (Araçlar ölçüm motoru) girdisi doğrudan bir
+  // AudioBuffer — önceki tasarım (duration/hasBuffer) BİLEREK buffer'ı hiç
+  // dışarı sızdırmıyordu (yukarıdaki eski not), ama ölçüm motoru GERÇEK PCM
+  // veriye ihtiyaç duyduğu için bu artık kaçınılmaz — getSourceNode()'un AYNI
+  // deseniyle (fonksiyon çağrısı, silent getter DEĞİL) açıkça isimlendirildi.
+  function getBuffer() {
+    return buffer;
+  }
+
   return {
     loadFile,
     pausePlayback,
     startFromZero,
     getSourceNode,
+    getBuffer,
     get hasBuffer() { return !!buffer; },
     // G88: Araçlar sekmesinin "Son yüklenenler" satırı gerçek dosya süresini
     // gösteriyor (bkz. app.js processToolsUploadFile) — hasBuffer'ın AYNI

@@ -385,3 +385,36 @@ describe("analysis.js — meta alanları rapora yazılacak sabitleri doğru yans
     assert.ok(Math.abs(r.durationSec - 2.5) < 1e-6);
   });
 });
+
+describe("analysis.js — G99: program.shortTermLufsSeries (arayüz turunun 'Short-term seyri' grafiği için EKLENEN katkısal alan)", () => {
+  it("6s sabit ton: dizi uzunluğu ~(6000-2900)/100+1, tüm değerler maxShortTermLufs'a eşit (±0.01, sabit tonda dalgalanma yok)", () => {
+    const d = sineWave(1000, dbfsToLinear(-10), 6, SR);
+    const r = analyzeAudioBuffer(fakeBuffer([d], SR));
+    const series = r.program.shortTermLufsSeries;
+    assert.ok(Array.isArray(series) && series.length > 10);
+    for (const v of series) {
+      assert.ok(Math.abs(v - r.program.maxShortTermLufs) < 0.01);
+    }
+  });
+
+  it("iki-seviyeli sinyal (3s yüksek + 3s düşük): dizi YÜKSEKTEN DÜŞÜĞE geçiş gösterir, max(dizi)===maxShortTermLufs", () => {
+    const loud = sineWave(1000, dbfsToLinear(-6), 3, SR);
+    const quiet = sineWave(1000, dbfsToLinear(-30), 3, SR);
+    const combined = new Float32Array(loud.length + quiet.length);
+    combined.set(loud, 0);
+    combined.set(quiet, loud.length);
+    const r = analyzeAudioBuffer(fakeBuffer([combined], SR));
+    const series = r.program.shortTermLufsSeries;
+    const maxOfSeries = Math.max(...series);
+    assert.ok(Math.abs(maxOfSeries - r.program.maxShortTermLufs) < 1e-9);
+    assert.ok(series[0] > series[series.length - 1], "dizi baştan sona AZALMALI (yüksek->düşük)");
+  });
+
+  it("shortTermSeriesStartMs/StepMs ile hesaplanan zaman ekseni ses süresini AŞMAZ", () => {
+    const d = sineWave(1000, 0.4, 5, SR);
+    const r = analyzeAudioBuffer(fakeBuffer([d], SR));
+    const lastMs = r.program.shortTermSeriesStartMs + (r.program.shortTermLufsSeries.length - 1) * r.program.shortTermSeriesStepMs;
+    assert.ok(lastMs <= r.durationSec * 1000 + 1);
+    assert.equal(r.program.shortTermSeriesStepMs, 100);
+  });
+});
