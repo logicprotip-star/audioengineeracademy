@@ -402,6 +402,95 @@ describe("Tonal Denge — paramsForDifficultyPosition() (merkezi zorluk eğrisi)
   });
 });
 
+// G95 — ZORLUK.md bulgusu: sabit NEUTRAL_TOLERANCE_DB (1.5dB), position>=16'da
+// (disturbDb eğrisi altına düşünce) modu "hiç dokunmadan geçilebilir" yapıyordu.
+// Tolerans artık disturbDb'nin position'a göre küçülen bir ORANI
+// (TOLERANCE_RATIO_AT_1/AT_CAP). Bu describe iki KABUL KRİTERİNİ kilitliyor:
+// (1) 1..LEVEL_CAP arası HİÇBİR pozisyonda "hiç dokunmadan" geçilemez,
+// (2) yakın (±%20 hata payıyla) düzeltmenin geçme oranı Z1'de yüksek, tavana
+// doğru azalır ama SIFIRLANMAZ (imkânsızlaşmaz).
+describe("Tonal Denge — G95: neutralToleranceDb (disturbDb'ye bağlı, sabit DEĞİL)", () => {
+  it("position arttıkça neutralToleranceDb PÜRÜZSÜZ (monoton) KÜÇÜLÜR", () => {
+    let prev = Infinity;
+    for (let p = 1; p <= 20; p += 0.25) {
+      const { neutralToleranceDb } = mode.paramsForDifficultyPosition(p);
+      assert.ok(neutralToleranceDb <= prev + 1e-9, `position ${p}'de tolerans azalmadı`);
+      prev = neutralToleranceDb;
+    }
+  });
+
+  it("position=1'de disturbDb*TOLERANCE_RATIO_AT_1, LEVEL_CAP'te disturbDb*TOLERANCE_RATIO_AT_CAP'i birebir döner", () => {
+    const cfg = mode.TONAL_CURVE_CONFIG;
+    const p1 = mode.paramsForDifficultyPosition(1);
+    const pCap = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP);
+    assert.ok(Math.abs(p1.neutralToleranceDb - p1.disturbDb * cfg.TOLERANCE_RATIO_AT_1) < 1e-9);
+    assert.ok(Math.abs(pCap.neutralToleranceDb - pCap.disturbDb * cfg.TOLERANCE_RATIO_AT_CAP) < 1e-9);
+  });
+
+  it("tolerans HER ZAMAN o pozisyonun disturbDb'sinden KESİN küçük (aksi halde 'geçme' garantisi kırılır)", () => {
+    for (let p = 1; p <= 20; p += 1) {
+      const { disturbDb, neutralToleranceDb } = mode.paramsForDifficultyPosition(p);
+      assert.ok(neutralToleranceDb < disturbDb, `position ${p}: tolerans (${neutralToleranceDb}) >= disturbDb (${disturbDb})`);
+    }
+  });
+
+  it("KABUL KRİTERİ 1 — 1..LEVEL_CAP arası HER pozisyonda, HER bant-sayısında (4/5/6), 300 'hiç dokunmadan' denemede geçme oranı %0", () => {
+    const cfg = mode.TONAL_CURVE_CONFIG;
+    const bandSets = [mode.BAND_SET_4, mode.BAND_SET_5, mode.BAND_SET_6];
+    for (let L = 1; L <= cfg.LEVEL_CAP; L++) {
+      const { disturbDb, neutralToleranceDb } = mode.paramsForDifficultyPosition(L);
+      for (const bandIds of bandSets) {
+        for (let t = 0; t < 300; t++) {
+          const bands = mode.bandsForQuestion(bandIds, disturbDb);
+          const r = mode.evaluateAnswer({ bands, neutralToleranceDb }, {});
+          assert.equal(r.correct, false, `L${L} bant=${bandIds.length}: hiç dokunmadan GEÇTİ (avgDeviation=${r.avgDeviation}, tolerans=${neutralToleranceDb})`);
+        }
+      }
+    }
+  });
+
+  it("KABUL KRİTERİ 2 — yakın (±%20 hata payıyla) düzeltmenin geçme oranı Z1'de yüksek, Z20'ye doğru azalır ama SIFIRLANMAZ", () => {
+    function nearTargetPassRate(bandIds, disturbDb, neutralToleranceDb, trials) {
+      let pass = 0;
+      for (let t = 0; t < trials; t++) {
+        const bands = mode.bandsForQuestion(bandIds, disturbDb);
+        const corrections = {};
+        for (const b of bands) {
+          const e = (Math.random() * 2 - 1) * 0.2; // ±%20
+          corrections[b.id] = -b.bugDb * (1 + e);
+        }
+        const r = mode.evaluateAnswer({ bands, neutralToleranceDb }, corrections);
+        if (r.correct) pass++;
+      }
+      return pass / trials;
+    }
+    const z1 = mode.paramsForDifficultyPosition(1);
+    const z20 = mode.paramsForDifficultyPosition(20);
+    const rateZ1 = nearTargetPassRate(mode.BAND_SET_6, z1.disturbDb, z1.neutralToleranceDb, 400);
+    const rateZ20 = nearTargetPassRate(mode.BAND_SET_6, z20.disturbDb, z20.neutralToleranceDb, 400);
+    assert.ok(rateZ1 > 0.85, `Z1 geçme oranı çok düşük: %${rateZ1 * 100}`);
+    assert.ok(rateZ20 > 0, `Z20 İMKÂNSIZ hale gelmiş: %${rateZ20 * 100}`);
+    assert.ok(rateZ20 < rateZ1, `Z20 (%${rateZ20 * 100}) Z1'den (%${rateZ1 * 100}) kolay olamaz`);
+  });
+
+  it("createQuestion(): eğri aktifken question.neutralToleranceDb curve'den gelir, eğri YOKSA sabit NEUTRAL_TOLERANCE_DB'ye düşer", () => {
+    const withCurve = mode.createQuestion("medium", { source: "groove", difficultyPosition: 10 });
+    assert.ok(Math.abs(withCurve.neutralToleranceDb - mode.paramsForDifficultyPosition(10).neutralToleranceDb) < 1e-9);
+
+    const withoutCurve = mode.createQuestion("medium", { source: "groove" });
+    assert.equal(withoutCurve.neutralToleranceDb, mode.NEUTRAL_TOLERANCE_DB);
+
+    const proplusIgnoresCurve = mode.createQuestion("proplus", { source: "groove", difficultyPosition: 20 });
+    assert.equal(proplusIgnoresCurve.neutralToleranceDb, mode.NEUTRAL_TOLERANCE_DB);
+  });
+
+  it("evaluateAnswer(): question.neutralToleranceDb YOKSA (bare test nesnesi) sabit NEUTRAL_TOLERANCE_DB'ye düşer — regresyon yok", () => {
+    const q = { bands: [{ id: "bas", bugDb: 5 }] };
+    const r = mode.evaluateAnswer(q, { bas: -5 + mode.NEUTRAL_TOLERANCE_DB * 0.5 });
+    assert.equal(r.correct, true);
+  });
+});
+
 describe("Tonal Denge — createQuestion(settings.difficultyPosition) entegrasyonu", () => {
   it("difficultyPosition VERİLMEZSE davranış eski statik tabloyla BİREBİR aynı kalır (proplus dahil): timeSec statik", () => {
     for (const level of Object.keys(mode.DIFFICULTY)) {

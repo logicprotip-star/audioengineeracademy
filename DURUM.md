@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G94)
+Son güncelleme: 10.08.2026 (G96)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,84 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G94, tek commit) — **`.warning` (play butonunun kırmızı halkası)
+Bu commit (G95+G96, tek commit) — **ZORLUK.md'nin iki bulgusu düzeltildi:
+(1) Tonal Denge artık Z16-Z20'de "hiç dokunmadan" kaybedilemiyordu — tolerans
+sabitten disturbDb'nin position'a göre küçülen bir oranına çevrildi; (2)
+seans rampası artık 10 Soruluk Bölüm'e oturuyor — CYCLE_LENGTH 5'ten 10'a
+çıktı, session-plan.js (ölü kod, hâlâ dokunulmadı) devreye ALINMADI, kullanıcı
+kararıyla mevcut sürekli-ofset mekanizması genişletildi.**
+
+Kaynak: ZORLUK.md (bu oturumdan önceki tur) + OYUN-DINAMIGI.md (10 Soruluk
+Bölüm/roundsInThisPlaySession/challenge.done ilişkisinin doğrulanması için
+okundu). Sıra kullanıcının istediği gibi: G95 önce bitirilip doğrulandı,
+SONRA G96'ya geçildi.
+
+**G95 — Tonal Denge tolerans:**
+
+| Değişiklik | Dosya:satır | Not |
+|---|---|---|
+| `TONAL_CURVE_CONFIG`'e `TOLERANCE_RATIO_AT_1=0.14`/`TOLERANCE_RATIO_AT_CAP=0.045` eklendi | `tonal-denge.js:TONAL_CURVE_CONFIG` | Oran TAVANI (0.14) yapısal bir sınırla seçildi: `bandsForQuestion`'ın en dilüe durumu (6 banttan 1'i bozuk, min jitter 0.9x) ile "hiç dokunmadan" elde edilebilecek minimum avgDeviation ≈ disturbDb×0.15'e iniyor — 0.14 bunun altında güvenlik payı bırakıyor |
+| `paramsForDifficultyPosition()` artık `neutralToleranceDb` (=disturbDb×oran) döndürüyor | `tonal-denge.js:paramsForDifficultyPosition` | disturbDb'nin POST-floor haliyle çarpılıyor, LEVEL_CAP ötesinde disturbDb sabitlenince tolerans da doğal sabitleniyor |
+| `createQuestion()` soru nesnesine `neutralToleranceDb` ekliyor (eğri yoksa sabit `NEUTRAL_TOLERANCE_DB`'ye düşer) | `tonal-denge.js:createQuestion` | proplus/statik-doğrudan-çağrı/mevcut testler İÇİN davranış BİREBİR korunuyor |
+| `evaluateAnswer()`, per-bant `teachingText()`, per-bant `markAnswerChoices()` ÜÇÜ de artık AYNI soru-özel toleransı okuyor | `tonal-denge.js:417,434,492-500,589-598` | eskiden sadece genel sonuç sabit kullanıyordu, bant-başı metin/renk HÂLÂ eski sabit 1.5dB'yi kullanıyordu — bu TUTARSIZLIK (genel "yanlış" derken bir bant "iyi düzelttin"/yeşil görünebilirdi) da giderildi |
+
+**DOĞRULAMA (G95 — istenen iki ölçüm, gerçek kodla):**
+- **Ölçüm 1 — "hiç dokunmadan" geçme oranı, Z1-Z20 HEPSİNDE, HER bant sayısında
+  (4/5/6), 300'er deneme (test) + keşif turunda 20000'er deneme: %0.00.**
+  1.2 milyon denemelik stres testinde TEK bir geçiş bulunamadı — en dar marj
+  Z1'de (minAvgDeviation − tolerans = 0.09dB, hep pozitif).
+- **Ölçüm 2 — yakın (±%20 hata payıyla) düzeltmenin geçme oranı: Z1'de %98.4,
+  Z20'de %38.6** (3×1000 deneme/seviye, tam Z1-Z20 tablosu ZORLUK.md'nin
+  takibi olarak konuşmada raporlandı) — kademeli düşüyor, SIFIRLANMIYOR
+  (imkânsız değil).
+- **7 yeni test** eklendi (`test/tonal-denge.test.mjs`, "G95" describe
+  bloğu) — yukarıdaki iki ölçümü KALICI olarak kilitliyor, artık `npm test`in
+  parçası.
+- **Canlı tarayıcı:** Tonal Denge'ye girilip 4 kaydırık da 0.0dB'de
+  BIRAKILARAK "Cevabı Onayla"ya basıldı — "Yakınlık %65 / Henüz nötr değil"
+  (kırmızı ✕) çıktı, sadece GERÇEKTEN bozuk olan bantlar kırmızı işaretlendi
+  (BAS/TİZ zaten ~nötrdü, yeşil kaldı) — genel sonuç ile bant renkleri TUTARLI.
+  Konsol hatası: 0.
+
+**G96 — Seans rampası 10 soruya hizalama:**
+
+| Değişiklik | Dosya:satır | Not |
+|---|---|---|
+| `SESSION_RAMP_CONFIG.CYCLE_LENGTH` 5→10 | `difficulty-curve.js:SESSION_RAMP_CONFIG` | MIN_OFFSET/MAX_OFFSET/BOSS_OFFSET DEĞİŞMEDİ — sadece periyot uzadı. `isBossRound()`'un KENDİ periyodu (5, `stats.rounds`) BU DEĞİŞİKLİKTEN AYRI, ETKİLENMEDİ |
+| `session-plan.js` (SESSION_RAMP_WEIGHTS: 3 kolay/3 orta/3 zor/1 pro) | dokunulmadı | Kullanıcı kararıyla devreye ALINMADI — hâlâ sadece kendi test dosyasından import ediliyor, hâlâ ölü kod (bilerek, DURUM.md'de not) |
+| 2 hardcoded test düzeltildi (CYCLE_LENGTH=5 varsayıyorlardı) | `test/difficulty-curve.test.mjs` (periyodiklik testi), `test/db-seviyesi.test.mjs:466` (seans rampası eğilimi testi) | İkisi de artık `SESSION_RAMP_CONFIG.CYCLE_LENGTH`'i OKUYOR, sabit sayı YAZMIYOR — db-seviyesi testi CYCLE_LENGTH=10'da eskiden SADECE idx 0-4'ü (hepsi kırpılan alt-yarı) tarıyordu, `npm test` bunu YAKALADI (1 test FAIL etti, düzeltildi) |
+| 3 yeni test eklendi | `test/difficulty-curve.test.mjs` ("G96" describe bloğu) | CYCLE_LENGTH===10, ilk/son soru ofsetleri, eski 5'lik periyodun ARTIK tekrarlamadığı — kilitli |
+
+**DOĞRULAMA (G96):**
+- **10 Soruluk Bölüm'ün ofset dizisi (gerçek `sessionRampOffset()` çağrılarıyla
+  hesaplandı, canlı oynanmadan):**
+
+  | Soru | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | ofset | −1.500 | −1.222 | −0.944 | −0.667 | −0.389 | −0.111 | +0.167 | +0.444 | +0.722 | +1.000 |
+
+  Bölümün İLK sorusu her zaman en kolay (−1.5), SON sorusu (boss DEĞİLSE) en
+  zor (+1.0) — TEK bir ısınma→zorlaşma eğrisi, eskiden (CYCLE_LENGTH=5) bu
+  eğri bölüm İÇİNDE İKİ KEZ tekrarlanıyordu. Boss'ta (hangi index olursa
+  olsun) ofset HER ZAMAN +2.0 — `isBossRound`'un KENDİ 5-lifetime-round
+  periyodu bu tabloyla hizalı olmayabilir (bilinen, DEĞİŞMEYEN bir ayrım,
+  bkz. kod notu).
+- **`roundsInThisPlaySession` ↔ `challenge.done` hizası doğrulandı (kod
+  okuması):** her gerçek challenge başlangıcında (`startFreshAttempt`/
+  `#startBtn`'in idle dalı) `resetSession()` (roundsInThisPlaySession=0)
+  `startChallenge()`'DAN HEMEN ÖNCE, AYNI senkron çağrıda çalışıyor — bu
+  yüzden tablo GERÇEK bir 10 Soruluk Bölüm'e birebir uygulanıyor.
+- **Canlı tarayıcı:** "Seti başlat · 10 soru" ile bölüm başlatıldı, birkaç
+  soru cevaplanıp/atlanıp BÖLÜM sayacının (2/10→3/10) doğru ilerlediği,
+  boss+Pro Zorluk turunun da normal akışta çıktığı görüldü — çökme yok.
+  Konsol hatası: 0.
+- **`npm test`: 1053/1053** (G95 öncesi 1043, +10 yeni test — 7'si G95, 3'ü
+  G96 — hiçbir eski test SİLİNMEDİ/zayıflatılmadı, sadece 2 tanesi
+  CYCLE_LENGTH'i sabit sayı yerine okuyacak şekilde genelleştirildi).
+
+---
+
+Önceki commit (G94, tek commit) — **`.warning` (play butonunun kırmızı halkası)
 artık TÜM 10 modda SADECE gerçek ses yükleme hatasında çıkıyor — G93'te
 SADECE dB Seviyesi'nde kapsam dışı bırakılan kök sebep bu turda TÜM modlarda
 düzeltildi, dB'nin kendi özel `.neutral-play` hack'i gereksiz hale gelip
@@ -7658,7 +7735,20 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G94 itibarıyla):** G94 (`.warning` kırmızı halkasının
+**Tek sonraki adım (G95+G96 itibarıyla):** İkisi de kod/test/canlı doğrulama
+açısından TAM kapandı. Bu turun kendi açık işleri: (1) **hiçbiri GERÇEK
+CİHAZDA doğrulanmadı** (tekrar eden aynı eksik kalem); (2) **`session-plan.js`
+HÂLÂ ölü kod** — kullanıcı BİLEREK devreye almamayı seçti (G96), ama dosya
+kendisi silinmedi/işaretlenmedi, ileride biri "bu neden hiç çağrılmıyor"
+diye tekrar keşfedebilir — KULLANICIYA SORULMALI: dosya silinsin mi, yoksa
+başında "KULLANILMIYOR" notu mu dursun (şu an dosya başında böyle bir not
+YOK); (3) **Tonal Denge'nin TOLERANCE_RATIO_AT_1/AT_CAP (0.14/0.045) KULAKLA
+DOĞRULANMADI** — matematiksel garanti (hiç dokunmadan geçilemez) sağlam ama
+"Z1'de %98 kolay/Z20'de %39 zor" hissinin GERÇEKTEN doğru kalibre olup
+olmadığı gerçek kullanıcı testiyle doğrulanmadı, diğer 9 modun AYNI
+"KULAKLA DOĞRULANMADI" dürüstlük notuna tabi.
+
+**Önceki adım (G94 itibarıyla, hâlâ geçerli):** G94 (`.warning` kırmızı halkasının
 TÜM 10 modda düzeltilmesi) kod/test/canlı doğrulama açısından TAM kapandı —
 G93'ün SIRADAKİ'sinde bırakılan (1) numaralı açık madde ("diğer 9 modda da
 düzeltilsin mi?") bu turda kapatıldı, kullanıcı kararına gerek kalmadı. Bu

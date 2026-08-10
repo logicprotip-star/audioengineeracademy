@@ -119,16 +119,32 @@ export function examCappedLevel(continuousRawLevel, examLevel) {
 
 // Seans içi zorluk rampasının şekli — ısınma (negatif ofset, seans/döngünün
 // başı) → zorlaşma (pozitif ofset, döngünün sonuna doğru) → boss (en yüksek,
-// {boss:true} geldiğinde döngüdeki konumdan BAĞIMSIZ olarak). CYCLE_LENGTH=5,
-// isBossRound()'un (frekans-bulma.js) KULLANDIĞI AYNI periyot — bilerek: iki
-// kavram (boss round'un GERÇEK belirlenmesi — stats.rounds, ÖMÜR BOYU sayaç —
-// ile rampanın seans-içi şekli — roundsInThisPlaySession, HER DENEMEDE sıfırlanan
-// yerel sayaç) FARKLI sayaçlara dayanır (bkz. app.js roundsInThisPlaySession
-// tanımındaki not) ve HER ZAMAN hizalı olmayabilir — bu yüzden ramp kendi
-// "hangi index boss" tahminini YAPMAZ, çağıran tarafın (app.js, mode.isBossRound
-// sonucunu) verdiği GERÇEK {boss} bayrağına güvenir.
+// {boss:true} geldiğinde döngüdeki konumdan BAĞIMSIZ olarak).
+//
+// G96 (ZORLUK.md/OYUN-DINAMIGI.md bulgusu): CYCLE_LENGTH ESKİDEN 5'ti —
+// "10 Soruluk Bölüm" (challenge.total=10, app.js) İLE UYUMSUZDU: bir bölüm
+// İÇİNDE ramp TAM İKİ KEZ dönüyordu (ısınma→zorlaşma iki kez), "bölüm
+// boyunca TEK bir ısınma→zorlaşma eğrisi" beklentisini karşılamıyordu.
+// Kullanıcı KARARI: session-plan.js'in (SESSION_RAMP_WEIGHTS: ayrık kademe
+// dağılımı, HİÇBİR YERDEN import edilmeyen ölü kod) devreye alınması DEĞİL —
+// bu mevcut SÜREKLİ ofset mekanizması (Otomatik modun GERÇEK XP-tabanlı
+// taban seviyesini KORUYAN) 10'a genişletildi. `roundsInThisPlaySession`
+// (bu fonksiyonun sessionIndex'i) her GERÇEK challenge başlangıcında
+// (resetSession()+startChallenge(), app.js:startFreshAttempt/startBtn click)
+// ZATEN 0'a sıfırlanıp challenge.done ile AYNI ADIMDA artıyor — bu yüzden
+// CYCLE_LENGTH=10, bölümün 10 sorusuna TAM BİR ısınma→zorlaşma döngüsü
+// olarak oturuyor (Serbest/sonsuz moddaysa da AYNI 10'luk periyotla
+// tekrarlanmaya devam eder, sabit bir "bölüm sonu" olmadığı için doğal).
+//
+// isBossRound()'un (frekans-bulma.js) KENDİ periyodu (5, stats.rounds —
+// ÖMÜR BOYU sayaç) BU DEĞİŞİKLİKTEN ETKİLENMEDİ — iki kavram (boss'un GERÇEK
+// belirlenmesi ile rampanın seans-içi şekli) FARKLI sayaçlara dayanır (bkz.
+// app.js roundsInThisPlaySession tanımındaki not) ve HER ZAMAN hizalı
+// olmayabilir — ramp kendi "hangi index boss" tahminini YAPMAZ, çağıran
+// tarafın (app.js, mode.isBossRound sonucunu) verdiği GERÇEK {boss}
+// bayrağına güvenir.
 export const SESSION_RAMP_CONFIG = {
-  CYCLE_LENGTH: 5,
+  CYCLE_LENGTH: 10,
   MIN_OFFSET: -1.5,  // döngü başı (ısınma) — taban seviyeden bir miktar KOLAY
   MAX_OFFSET: 1.0,   // döngü sonu, boss OLMAYAN son soru — taban seviyeden ZOR
   BOSS_OFFSET: 2.0   // boss round — döngüdeki konumdan bağımsız, HER ZAMAN en yüksek

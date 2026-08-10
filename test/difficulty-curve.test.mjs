@@ -243,13 +243,29 @@ describe("sessionRampOffset() — seans içi ısınma→zorlaşma→boss rampas�
       assert.equal(sessionRampOffset(i, { boss: true }), SESSION_RAMP_CONFIG.BOSS_OFFSET);
     }
   });
-  it("döngü TEKRARLANIR (5. index, 0. index ile AYNI ofseti verir — periyodik)", () => {
-    assert.equal(sessionRampOffset(0, {}), sessionRampOffset(5, {}));
-    assert.equal(sessionRampOffset(2, {}), sessionRampOffset(7, {}));
+  it("döngü TEKRARLANIR (CYCLE_LENGTH. index, 0. index ile AYNI ofseti verir — periyodik)", () => {
+    const cl = SESSION_RAMP_CONFIG.CYCLE_LENGTH;
+    assert.equal(sessionRampOffset(0, {}), sessionRampOffset(cl, {}));
+    assert.equal(sessionRampOffset(2, {}), sessionRampOffset(cl + 2, {}));
   });
   it("negatif/ondalık index çökmez, güvenli bir index'e düşer", () => {
     assert.doesNotThrow(() => sessionRampOffset(-3, {}));
     assert.doesNotThrow(() => sessionRampOffset(2.7, {}));
+  });
+});
+
+// G96: "10 Soruluk Bölüm" (challenge.total=10) İLE rampanın hizalanması —
+// ESKİDEN CYCLE_LENGTH=5'ti, bir bölüm içinde ramp İKİ KEZ dönüyordu.
+describe("SESSION_RAMP_CONFIG — G96: 10 Soruluk Bölüm'e hizalanma", () => {
+  it("CYCLE_LENGTH TAM 10 — bölümün 10 sorusuna TEK bir ısınma→zorlaşma döngüsü olarak oturur", () => {
+    assert.equal(SESSION_RAMP_CONFIG.CYCLE_LENGTH, 10);
+  });
+  it("bir bölümün İLK sorusu (index 0) en kolay, SON sorusu (index 9, boss DEĞİLSE) en zor ofseti alır", () => {
+    assert.equal(sessionRampOffset(0, { boss: false }), SESSION_RAMP_CONFIG.MIN_OFFSET);
+    assert.equal(sessionRampOffset(9, { boss: false }), SESSION_RAMP_CONFIG.MAX_OFFSET);
+  });
+  it("bir bölüm İÇİNDE (index 0..9) ramp SADECE BİR KEZ döner — index 5 (eski periyodun tekrar noktası) artık index 0'la AYNI DEĞİL", () => {
+    assert.notEqual(sessionRampOffset(0, {}), sessionRampOffset(5, {}));
   });
 });
 

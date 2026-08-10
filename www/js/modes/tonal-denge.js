@@ -182,7 +182,34 @@ export const TONAL_CURVE_CONFIG = {
   TIME_SEC_AT_1: 26,
   TIME_SEC_AT_CAP: 13,
   TIME_SEC_FLOOR: 10,
-  TIME_SEC_REDUCTION_PER_STEP: 0.3
+  TIME_SEC_REDUCTION_PER_STEP: 0.3,
+
+  // G95: ZORLUK.md bulgusu — NEUTRAL_TOLERANCE_DB (1.5) SABİT kalırken disturbDb
+  // eğrisi position>=16'da (temsilci "pro" aralığının İÇİNDE) bunun ALTINA
+  // düşüyordu: 2000 GERÇEK bandsForQuestion+evaluateAnswer denemesinde, HİÇBİR
+  // kaydırıcıya dokunmadan en yüksek ortalama sapma 0.958dB ölçüldü (tolerans
+  // 1.5dB) — yani en zor kademede mod hiç kaybedilemiyordu. Tolerans artık
+  // SABİT DEĞİL, disturbDb'nin KENDİSİNİN bir ORANI (neutralToleranceDb =
+  // disturbDb * oran, bkz. paramsForDifficultyPosition) — oran da position'a
+  // göre logLerp ile küçülüyor (Z1'de gevşek, Z20'de sıkı).
+  //
+  // ORAN TAVANI (0.14) YAPISAL bir sınırla belirlendi, keyfi DEĞİL: en kötü
+  // durum (bandsForQuestion'ın disturbCount=1 seçtiği, yani 6 banttan SADECE 1
+  // TANESİ bozukken diğer 5'i bugDb=0 — avgDeviation bu TEK bandın değeriyle
+  // 6'ya BÖLÜNEREK sulanıyor) + jitter'ın en düşük ucu (0.9x) birleşince,
+  // "hiç dokunmadan" elde edilebilecek MİNİMUM avgDeviation ≈ disturbDb*0.9/6
+  // ≈ disturbDb*0.15'e iniyor — oran bunun ÜSTÜNE çıkarsa "dokunmadan geçme"
+  // olasılığı sıfır OLMAKTAN çıkar. 0.14 bu yapısal tavanın altında güvenlik
+  // payı bırakıyor; 1.2 milyon denemelik (20 seviye × 3 bant-sayısı × 20000)
+  // bir stres testinde HİÇBİR "dokunmadan geçme" bulunamadı (en dar marj
+  // pozisyon 1'de: minAvgDeviation - tolerance = 0.09dB, hep pozitif).
+  //
+  // TOLERANCE_RATIO_AT_CAP (0.045) ise "yakın (±%20 hata payıyla) düzeltmenin
+  // Z20'de de İMKÂNSIZLAŞMAMASI" gereksinimini karşılayacak şekilde seçildi —
+  // gerçek simülasyonla (±%20 hatalı düzeltme, 3×1000 deneme/seviye) ölçülen
+  // geçme oranı Z1'de %98.4, Z20'de %38.6 — kademeli düşüyor ama sıfırlanmıyor.
+  TOLERANCE_RATIO_AT_1: 0.14,
+  TOLERANCE_RATIO_AT_CAP: 0.045
 };
 
 // SAF FONKSİYON. position: zorlukKonumu — diğer sekiz modun
@@ -194,11 +221,20 @@ export function paramsForDifficultyPosition(position, config = TONAL_CURVE_CONFI
 
   const disturbCurve = logLerp(config.DISTURB_DB_AT_1, config.DISTURB_DB_AT_CAP, t);
   const timeCurve = logLerp(config.TIME_SEC_AT_1, config.TIME_SEC_AT_CAP, t);
+  const toleranceRatio = logLerp(config.TOLERANCE_RATIO_AT_1, config.TOLERANCE_RATIO_AT_CAP, t);
+
+  const disturbDb = applyPostCapFloor(disturbCurve, safePos, config.LEVEL_CAP, config.DISTURB_DB_FLOOR, config.DISTURB_DB_REDUCTION_PER_STEP);
 
   return {
     position: safePos,
-    disturbDb: applyPostCapFloor(disturbCurve, safePos, config.LEVEL_CAP, config.DISTURB_DB_FLOOR, config.DISTURB_DB_REDUCTION_PER_STEP),
-    timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP)
+    disturbDb,
+    timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP),
+    // G95: bkz. TONAL_CURVE_CONFIG.TOLERANCE_RATIO_AT_1/AT_CAP notu — SABİT
+    // NEUTRAL_TOLERANCE_DB'nin YERİNE, o pozisyondaki GERÇEK disturbDb'nin bir
+    // oranı. applyPostCapFloor'un DIŞINDA tutuldu (disturbDb zaten floor'lanmış
+    // haliyle çarpılıyor) — LEVEL_CAP ötesinde disturbDb sabitlenince tolerans
+    // da onunla birlikte doğal olarak sabitlenir, ayrı bir floor GEREKMEZ.
+    neutralToleranceDb: disturbDb * toleranceRatio
   };
 }
 
@@ -294,6 +330,10 @@ export function createQuestion(level, settings = {}) {
 
   const baseDisturbDb = curve ? curve.disturbDb : diff.disturbDb;
   const timeSec = curve ? curve.timeSec : diff.time;
+  // G95: eğri aktifken tolerans da o pozisyonun neutralToleranceDb'si — eğri
+  // YOKSA (proplus, statik doğrudan çağrılar, mevcut testler) ESKİ SABİT
+  // NEUTRAL_TOLERANCE_DB'ye düşer, davranış BİREBİR korunur (regresyon yok).
+  const neutralToleranceDb = curve ? curve.neutralToleranceDb : NEUTRAL_TOLERANCE_DB;
 
   const sessionQuestionIndex = Number.isFinite(settings.sessionQuestionIndex) ? settings.sessionQuestionIndex : 0;
   const bandCount = settings.examBandBoost ? 6 : bandCountForSessionIndex(sessionQuestionIndex);
@@ -308,7 +348,8 @@ export function createQuestion(level, settings = {}) {
     bands,
     hintUsed: false,
     boss,
-    timeSec
+    timeSec,
+    neutralToleranceDb
   };
 }
 
@@ -370,6 +411,14 @@ export function setLiveBandGain(audioCtx, bandId, netGainDb) {
 // ekseni (Kompresör'ün gainReductionDb'sinin AYNI rolü). proximityScore (0-100)
 // kullanıcıya gösterilecek, XP'yi ÖLÇEKLEYECEK yakınlık skoru.
 // ═══════════════════════════════════════════════════════════════════════════
+// G95: ARTIK SABİT DEĞİL — bkz. TONAL_CURVE_CONFIG.TOLERANCE_RATIO_AT_1/AT_CAP
+// notu. Bu sabit KALDIRILMADI, iki rolü var: (1) question.neutralToleranceDb
+// YOKSA (eğri hiç çalışmadıysa — proplus, statik doğrudan çağrılar, question
+// nesnesi createQuestion'dan GEÇMEDEN elle kurulan testler) FALLBACK değeri,
+// (2) createQuestion'ın KENDİSİNİN eğri yokken düştüğü statik değer (bkz. o
+// fonksiyondaki not) — ESKİ "tek sabit tolerans" davranışı bu iki yolda
+// BİREBİR korunuyor, SADECE eğri aktifken (gerçek oyun) tolerans artık
+// disturbDb'nin oranı.
 export const NEUTRAL_TOLERANCE_DB = 1.5; // ortalama sapma bunun altındaysa "doğru" sayılır — KULAKLA DOĞRULANMADI
 const PROXIMITY_MAX_DEVIATION_DB = 12; // avgDeviation bu değerde/üstündeyse proximityScore=0 (slider'ın uç-uca aralığı)
 
@@ -382,7 +431,8 @@ export function evaluateAnswer(question, answer) {
   });
   const avgDeviation = deviations.reduce((sum, d) => sum + d.deviation, 0) / deviations.length;
   const proximityScore = Math.max(0, Math.min(100, Math.round(100 * (1 - avgDeviation / PROXIMITY_MAX_DEVIATION_DB))));
-  const correct = avgDeviation <= NEUTRAL_TOLERANCE_DB;
+  const tolerance = Number.isFinite(question.neutralToleranceDb) ? question.neutralToleranceDb : NEUTRAL_TOLERANCE_DB;
+  const correct = avgDeviation <= tolerance;
   return { mode: "tonal-denge", correct, avgDeviation, proximityScore, deviations };
 }
 
@@ -442,10 +492,16 @@ function fmtSigned(db) {
 export function teachingText(question, answer) {
   const result = evaluateAnswer(question, answer);
   const ordered = [...result.deviations].sort((a, b) => b.deviation - a.deviation);
+  // G95: bant-başı "iyi düzelttin" eşiği artık evaluateAnswer'ın KULLANDIĞI
+  // AYNI toleransla (question.neutralToleranceDb, yoksa sabit fallback) —
+  // eskiden HER ZAMAN sabit 1.5dB kullanıyordu, bu da yüksek pozisyonlarda
+  // (tolerans ~0.04-0.1dB) genel sonuç "yanlış" derken bant satırının "iyi
+  // düzelttin" demesine (tutarsız geri bildirim) yol açardı.
+  const tolerance = Number.isFinite(question.neutralToleranceDb) ? question.neutralToleranceDb : NEUTRAL_TOLERANCE_DB;
 
   const bandLines = ordered.map(d => {
     const label = BAND_ACCUSATIVE[d.id] || BAND_DEFS_BY_ID[d.id].label;
-    if (d.deviation <= NEUTRAL_TOLERANCE_DB) return `${label} iyi düzelttin.`;
+    if (d.deviation <= tolerance) return `${label} iyi düzelttin.`;
     const overshoot = d.residualDb > 0;
     const verb = overshoot ? "fazla bıraktın" : "eksik bıraktın";
     const words = BAND_MIX_WORDS[d.id] || { over: "dengesiz", under: "dengesiz" };
@@ -533,13 +589,17 @@ export function renderAnswerChoices(answersEl, q) {
 export function markAnswerChoices(answersEl, q, answer) {
   if (!answersEl) return;
   const result = evaluateAnswer(q, answer || {});
+  // G95: teachingText'teki AYNI gerekçe — satır rengi de soru-özel toleransı
+  // kullanmalı, yoksa yüksek pozisyonda genel sonuç "yanlış" iken bir bant
+  // yeşil (right) görünebilirdi.
+  const tolerance = Number.isFinite(q.neutralToleranceDb) ? q.neutralToleranceDb : NEUTRAL_TOLERANCE_DB;
   answersEl.querySelectorAll(".tonal-slider").forEach(input => { input.disabled = true; });
   const submitBtn = answersEl.querySelector(".tonal-submit");
   if (submitBtn) submitBtn.disabled = true;
   result.deviations.forEach(d => {
     const row = answersEl.querySelector(`.tonal-band[data-band-id="${d.id}"]`);
     if (!row) return;
-    row.classList.add(d.deviation <= NEUTRAL_TOLERANCE_DB ? "right" : "wrong");
+    row.classList.add(d.deviation <= tolerance ? "right" : "wrong");
     const valueEl = row.querySelector('[data-role="value"]');
     if (valueEl) valueEl.textContent = `kalan: ${fmtSigned(d.residualDb)}dB`;
   });

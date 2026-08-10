@@ -7,7 +7,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as mode from "../www/js/modes/db-seviyesi.js";
-import { representativeLevelForTier, continuousLevel, sessionRampOffset } from "../www/js/core/difficulty-curve.js";
+import { representativeLevelForTier, continuousLevel, sessionRampOffset, SESSION_RAMP_CONFIG } from "../www/js/core/difficulty-curve.js";
 
 describe("dB Seviyesi — createQuestion() genel sözleşme", () => {
   for (const level of Object.keys(mode.DIFFICULTY)) {
@@ -464,16 +464,20 @@ describe("dB Seviyesi — G24: pickDbDelta artık DB_FLOOR'u ihlal etmiyor + sea
   });
 
   it("SEANS RAMPASI: taze oyuncuda (seviye 1) bile ortalama |dbDelta| POSITION arttıkça İNER — N=1000 seans", () => {
-    // NOT: seviye 1'de idx 0/1/2'nin ramp ofseti (-1.5/-0.875/-0.25) hepsi
-    // Math.max(1, baseline+ramp) ile AYNI position'a (1.0) KIRPILIYOR — bu ÜÇÜ
-    // arasında bir eğilim beklenmez (aynı hedef, sadece jitter gürültüsü), bu
-    // yüzden idx bazında değil POSITION bazında gruplanıp karşılaştırılıyor
-    // (gerçek app.js akışıyla AYNI: position her zaman Math.max(1, baseline+ramp)).
+    // NOT: seviye 1'de döngünün ALT YARISINDAKİ idx'lerin ramp ofseti
+    // (G96: CYCLE_LENGTH=10 — bkz. o değişikliğin notu) Math.max(1,
+    // baseline+ramp) ile AYNI position'a (1.0) KIRPILIYOR — bunlar arasında
+    // bir eğilim beklenmez (aynı hedef, sadece jitter gürültüsü), bu yüzden
+    // idx bazında değil POSITION bazında gruplanıp karşılaştırılıyor (gerçek
+    // app.js akışıyla AYNI: position her zaman Math.max(1, baseline+ramp)).
+    // TÜM döngü (0..CYCLE_LENGTH-1) taranıyor — kırpılmayan üst uca (idx
+    // yüksekken) ulaşmak için gerekli, SADECE ilk birkaç idx'i taramak
+    // (CYCLE_LENGTH değiştiğinde) yanlışlıkla hep kırpılan bölgede kalabilir.
     const N = 1000;
     const baseline = continuousLevel({ level: 1, current: 0, required: 100 });
     const byPosition = new Map();
     for (let trial = 0; trial < N; trial++) {
-      for (let idx = 0; idx < 5; idx++) {
+      for (let idx = 0; idx < SESSION_RAMP_CONFIG.CYCLE_LENGTH; idx++) {
         const ramp = sessionRampOffset(idx, { boss: false });
         const position = Math.max(1, baseline + ramp);
         const base = mode.paramsForDifficultyPosition(position).dbDelta;
