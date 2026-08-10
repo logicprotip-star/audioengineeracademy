@@ -103,7 +103,23 @@
        user-scalable=no ile birlikte iki katmanlı koruma: bazı WKWebView
        sürümlerinde user-scalable=no tek başına çift-dokunma zoom'unu güvenilir
        engellemiyor. */
-    html,body{margin:0;min-height:100%;background:var(--bg-page);touch-action:manipulation}
+    /* G107 — "Ölçüm Sonuçları sheet'i ekranın altında kalıyor, tam görünmüyor,
+       yukarı çekilemiyor" (üçüncü kez bildirildi, G103/G105'in --app-vh/
+       overflow-lock düzeltmeleri iOS'ta ÇÖZMEDİ). KÖK SEBEP ADAYI: iyi
+       belgelenmiş bir WKWebView/iOS Safari davranışı — position:fixed
+       elemanlar (bkz. .tools-sheet) belge (html/body) KAYDIRILABİLİR
+       durumdaysa "layout viewport"a göre konumlanıyor, bu "visual viewport"tan
+       (gerçek görünür alan) FARKLI olabiliyor; sonuç: fixed eleman gerçek
+       ekranın altında/dışında gibi davranıyor. Bu projede body/html'in
+       ZATEN hiç kaydırılması GEREKMİYOR — TÜM içerik zaten kendi .scroll
+       bölgeleri içinde taşıyor (.app-shell height:var(--app-vh) + .screen
+       height:100% + .scroll/.game-scroll/.tools-scroll overflow-y:auto,
+       bkz. .app-shell'in G73 notu "artık .game-scroll GERÇEKTEN kendi
+       içinde taşıyor"). Belgeyi position:fixed+overflow:hidden ile TAMAMEN
+       kilitlemek (rubber-band/overscroll dahil) hem bu sınıf iOS fixed-
+       positioning tutarsızlığını KÖKTEN ortadan kaldırıyor hem de mevcut
+       mimariyle TUTARLI (hiçbir ekran zaten body kaydırmasına dayanmıyor). */
+    html,body{position:fixed;inset:0;margin:0;overflow:hidden;overscroll-behavior:none;background:var(--bg-page);touch-action:manipulation}
     /* Metin seçimi kapalı — bu bir oyun arayüzü, uzun basış "Kopyala/Ara/Çevir"
        menüsünü açıp oyun ekranını kapatıyordu (bkz. 6-düzeltme maddesi 2).
        İSTİSNA: kullanıcının GERÇEKTEN kopyalaması/düzenlemesi gerekebilecek

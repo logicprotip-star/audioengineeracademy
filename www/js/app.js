@@ -4951,6 +4951,7 @@ async function pickNativeAudioFile() {
       return null;
     }
     let blob;
+    let nativePath = null;
     if (picked.blob) {
       blob = picked.blob; // web implementasyonu (plugin kendi içinde input kullanıyor)
     } else if (picked.path && window.Capacitor && window.Capacitor.convertFileSrc) {
@@ -4958,11 +4959,18 @@ async function pickNativeAudioFile() {
       // convertFileSrc deseni (bkz. plugin README "Upload a picked file").
       const resp = await fetch(window.Capacitor.convertFileSrc(picked.path));
       blob = await resp.blob();
+      nativePath = picked.path;
     } else {
       throw new Error("dosya verisine (blob/path) erişilemedi");
     }
     console.log("[filepicker] dosya seçildi:", picked.name, "| tip:", picked.mimeType || "(boş)", "|", Math.round((picked.size || blob.size) / 1024), "KB");
-    return new File([blob], picked.name || "ses-dosyasi", { type: picked.mimeType || blob.type || "" });
+    const file = new File([blob], picked.name || "ses-dosyasi", { type: picked.mimeType || blob.type || "" });
+    // G107 — kalıcı depoya native (base64'süz) kopyalama için: FilePicker'ın
+    // pickFiles() delegate'i seçilen dosyayı ZATEN uygulamanın kendi tmp/
+    // cache dizinine kopyalamış oluyor (bkz. file-storage.js'in G107 notu),
+    // bu yüzden bu yol GÜVENLİ — security-scoped resource erişimi gerekmez.
+    if (nativePath) file.__nativePickerPath = nativePath;
+    return file;
   } catch (err) {
     // Kullanıcının seçiciyi iptal etmesi bazı platformlarda reject olarak
     // gelir (ör. "cancel" içeren bir mesajla) — bu bir HATA değil, sessizce
@@ -7197,7 +7205,7 @@ async function toolsAddFile(file) {
     file, // bellek-içi ÖNBELLEK — persist edilmiyor (JSON.stringify tarafından atlanır çünkü toolsSaveLibraryManifest bunu ayrıca seçip alıyor)
   };
   try {
-    await fileStorage.saveFile(entry.id, file, toolsSetFileSaveProgress);
+    await fileStorage.saveFile(entry.id, file, toolsSetFileSaveProgress, file.__nativePickerPath || null);
   } catch (e) {
     console.error("[tools] dosya kalıcı depoya yazılamadı:", e);
     toast("Dosya kaydedilemedi", "Dosya bu oturumda kullanılabilir ama kalıcı olarak saklanamadı.");
@@ -7611,9 +7619,13 @@ function fmtLufs(v) {
   if (!Number.isFinite(v)) return "—";
   return `${v.toFixed(2)} LUFS`;
 }
+// G107 — G105'te Loudness range BİLİNÇLİ olarak 1 ondalıkta bırakılmıştı
+// ("task'ın listesi sadece dB/LUFS diyordu"). Kullanıcı bu turda AÇIKÇA
+// tutarlılık istedi ("LU değeri de 2 ondalık gösterilsin") — G105'in kararını
+// GEÇERSİZ KILAN yeni, açık bir talimat, tahmin DEĞİL.
 function fmtLu(v) {
   if (!Number.isFinite(v)) return "—";
-  return `${v.toFixed(1)} LU`;
+  return `${v.toFixed(2)} LU`;
 }
 function fmtPercent(v) {
   if (!Number.isFinite(v)) return "—";

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G106)
+Son güncelleme: 10.08.2026 (G107)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,97 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G106, tek commit) — **Araçlar: ölçüm motoruna STEREO katmanı + eşik göstergeleri.**
+Bu commit (G107, tek commit) — **Araçlar: cihazda (iOS Safari Web Inspector) kanıtlanan ÜÇ düzeltme.**
+
+**1) DOSYA YÜKLEME DONMASI — Yol B (native copyFile) seçildi, Yol A (küçültülmüş
+parça) güvenlik ağı olarak korundu.** Kullanıcının konsol kanıtı (32MB WAV,
+writeFile 1 + appendFile ardışık 8+, her biri base64 dize) KÖK SEBEBİ zaten
+doğru teşhis etmişti — iki yol da değerlendirildi, plugin KAYNAK KODU okunarak
+karar verildi (tahmin değil):
+- **Yol B seçildi:** `@capawesome/capacitor-file-picker`'ın KENDİ `copyFile()`
+  metodu — kaynak doğrulandı (`node_modules/@capawesome/capacitor-file-picker/
+  ios/Plugin/FilePicker.swift:17-39`: düz `FileManager.copyItem`; `android/.../
+  FilePicker.java:32-51`: `ContentResolver` stream kopyası) — İKİSİ DE base64/
+  JS-native köprü veri taşıması İÇERMİYOR. Kaynak yol (`picked.path`) GÜVENLİ:
+  aynı plugin'in `pickFiles()` delegate'i (`FilePicker.swift:303-310`) seçilen
+  dosyayı DAHA ÖNCE uygulamanın kendi tmp/cache dizinine kopyalamış oluyor —
+  security-scoped resource erişimi gerekmiyor.
+- **Android'e özgü bulunan EK kök sebep (bkz. Filesystem/FilePicker kaynağı):**
+  `copyFile()`'ın Android tarafı hedef URI'yi `FileProvider.getUriForFile()`
+  ile çözüyor; `Directory.Data` Android'de `context.filesDir`'e eşleniyor
+  (`@capacitor/filesystem LegacyFilesystemImplementation.kt:54`) ama
+  `android/app/src/main/res/xml/file_paths.xml`'de bunu kapsayan bir
+  `<files-path>` girdisi YOKTU — düzeltilmeseydi Yol B Android'de HER ZAMAN
+  "Failed to find configured root" hatasıyla başarısız olurdu. EKLENDİ.
+- **Yol A korundu (güvenlik ağı):** `NATIVE_WRITE_CHUNK_BYTES` 4MB→1MB
+  (kullanıcının önerdiği 512KB-1MB aralığının üst ucu) — nativePath yoksa
+  (web `<input>` yolu) VEYA Yol B başarısız olursa OTOMATİK buraya düşülüyor
+  (`file-storage.js:saveFile`, try/catch).
+- **Uygulama:** `app.js:pickNativeAudioFile()` artık native path'i döndürülen
+  `File`'a `__nativePickerPath` olarak iliştiriyor (5 çağıran taraf da
+  DEĞİŞMEDİ); `toolsAddFile()` bunu `fileStorage.saveFile(id, file, onProgress,
+  nativePath)`'e geçiyor.
+- **DÜRÜSTLÜK NOTU:** hem Yol B'nin doğruluğu hem file_paths.xml eksikliği
+  PLUGIN KAYNAĞI okunarak doğrulandı, ama bu ortamda gerçek iOS/Android cihaz
+  YOK — runtime davranışı BURADA KANITLANAMADI (task'ın kendi notu). Chrome'da
+  ÜÇ senaryo gerçek `file-storage.js` modülü stub'lanmış `window.Capacitor` ile
+  çalıştırılarak DOĞRULANDI (aşağıda) — bu, KOD YOLUNUN doğru dallandığını
+  kanıtlıyor, cihazdaki GERÇEK performansı değil.
+
+**2) ÖLÇÜM SHEET'İ EKRANIN ALTINDA KALIYOR — üçüncü bildirim, KÖK SEBEP
+FARKLI bir katmanda arandı.** G103/G105 zaten `.tools-sheet`'i `--app-vh`
+tabanlı yükseklik + arka plan kilidiyle düzeltmişti ama iOS'ta ÇÖZMEMİŞTİ —
+bu ikisi SHEET'İN KENDİ CSS'İNE odaklanıyordu. Bu turda BELGE (`html`/`body`)
+seviyesine bakıldı: iyi belgelenmiş bir WKWebView/iOS Safari davranışı,
+`position:fixed` elemanlar belge KAYDIRILABİLİR durumdaysa "layout viewport"a
+göre konumlanabiliyor — bu "visual viewport"tan farklı olabiliyor, sonuç
+fixed elemanın gerçek ekranın altında/dışında gibi davranması. Bu projede
+`html`/`body`'nin ZATEN hiç kaydırılması GEREKMİYOR (`.app-shell` height:
+var(--app-vh) + `.screen` height:100% + TÜM içerik kendi `.scroll`/`.game-
+scroll`/`.tools-scroll` bölgeleri içinde taşıyor — G73 döneminden kalan
+kendi yorumu bunu zaten doğruluyor: "artık .game-scroll GERÇEKTEN kendi
+içinde taşıyor"). **Düzeltme:** `html,body{position:fixed;inset:0;
+overflow:hidden;overscroll-behavior:none}` — belge TAMAMEN kilitlendi,
+rubber-band/overscroll dahil hiç kaydırılamıyor. `app.js`'teki
+`scrollToAnalyzer()` (`window.scrollTo`/`scrollY` kullanıyor) BİLEREK
+DOKUNULMADI — mevcut mimaride zaten geometrik olarak no-op olması gerekiyordu
+(`.screen` her zaman `--app-vh`'yi TAM dolduruyor), bu değişiklik onu
+KESİNLEŞTİRİYOR, yeni bir regresyon YARATMIYOR (kapsam dışı, ayrı incelenmeli
+istenirse). **DÜRÜSTLÜK NOTU:** bu da cihazda KANITLANAMADI — Chrome'da sheet
+açma/kapama/yeniden açma DÖNGÜSÜ regresyon için test edildi (aşağıda), gerçek
+iOS layout-viewport davranışı BURADA ÜRETİLEMEDİ.
+
+**3) LOUDNESS RANGE ONDALIK TUTARSIZLIĞI — düzeltildi.** `fmtLu()`
+`.toFixed(1)`→`.toFixed(2)`. G105'in "task'ın listesi sadece dB/LUFS diyordu"
+kararı bu turda kullanıcının AÇIK yeni talimatıyla geçersiz kılındı — tahmin
+değil, doğrudan istek.
+
+**DOĞRULAMA:**
+- **Yol seçimi ve gerekçesi:** yukarıda — Yol B (plugin kaynağı OKUNARAK
+  doğrulandı), Yol A güvenlik ağı.
+- **32MB dosyada en uzun bloklanma süresi:** ÖLÇÜLEMEDİ — cihaz yok. Chrome'da
+  ÜÇ senaryo gerçek `file-storage.js` (stub'lanmış `window.Capacitor` ile)
+  çalıştırılarak KOD YOLU doğrulandı: (a) nativePath VAR + copyFile BAŞARILI →
+  SADECE `mkdir/getUri/copyFile` çağrıldı, `writeFile/appendFile` HİÇ
+  çağrılmadı; (b) nativePath YOK → doğrudan Yol A (`writeFile`+`appendFile`);
+  (c) nativePath VAR ama copyFile HATA fırlatıyor → Yol B denendi, BAŞARISIZ
+  olunca OTOMATİK Yol A'ya düştü. 32MB'lık bir Yol A senaryosunda 32 çağrı,
+  her biri ~1.4MB base64 (eski 4MB parçanın ~5.5MB'ından düştü) — ÖLÇÜLDÜ.
+- **Yükleme sırasında tıklama/kaydırma kanıtı:** cihaz yok, KANITLANAMADI.
+- **Sheet'in tam göründüğü, arka planın kilitlendiği:** Chrome'da gerçek bir
+  dosya yüklendi → Analiz et → sheet TAM açıldı (ekran görüntüsü) → kapatıldı
+  → arka plan doğru döndü, konsol hatası 0. Gerçek iOS layout-viewport bug'ı
+  BURADA ÜRETİLEMEDİĞİ için düzeltmenin KENDİSİ cihazda doğrulanmadı.
+- **Konsol hatası: 0** (gerçek akışta — sadece kasıtlı simülasyon testimin
+  KENDİ `console.error`'ı görüldü, beklenen/doğru davranış).
+- **`npm test`: 1119/1119** (test sayısı değişmedi — file-storage.js'in
+  Capacitor-bridge bağımlılığı yüzünden bu modül için `node:test` birim testi
+  YOK, Chrome'da canlı stub testiyle doğrulandı, kalıcı test dosyası
+  EKLENMEDİ).
+
+---
+
+Önceki commit (G106, tek commit) — **Araçlar: ölçüm motoruna STEREO katmanı + eşik göstergeleri.**
 Referans filtrelerinin DSP'sine bu turda DOKUNULMADI (kullanıcının kendi
 kapsam sınırı) — o hâlâ ayrı bir tur.
 
@@ -8922,7 +9012,31 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G106 itibarıyla):** Kullanıcı BEKLEYEN KARARLAR N/O'yu
+**Tek sonraki adım (G107 itibarıyla):** `npx cap sync` (hem iOS hem Android —
+bu turda Android tarafında `file_paths.xml` DEĞİŞTİ) + GERÇEK cihazda
+doğrulama, ÖZELLİKLE:
+(1) 32MB+ bir dosya "Mixini Yükle"den seçilince Yol B'nin (native copyFile)
+GERÇEKTEN devreye girdiği — Safari/Android konsolunda ARTIK `writeFile`/
+`appendFile` çağrılarının base64 dizeleri GÖRÜNMEMELİ, sadece `mkdir`/
+`getUri`/`copyFile` (bkz. BİTTİ'nin DÜRÜSTLÜK notu — Chrome'da SADECE kod
+yolu doğrulandı, cihazdaki gerçek süre/tıklama-yanıtı HİÇ ölçülmedi);
+(2) Android'de `file_paths.xml`'e eklenen `<files-path>` girdisinin
+GERÇEKTEN "Failed to find configured root" hatasını önlediği (bu G107'de
+sadece KAYNAK OKUNARAK çıkarıldı, cihazda hiç denenmedi);
+(3) Ölçüm Sonuçları sheet'inin GERÇEKTEN tam yükselip göründüğü, sürüklenip
+kapatılabildiği (bu, üçüncü bildirimdi — G103/G105 çözmemişti, bu turun
+`html,body` kilidi FARKLI bir katmana odaklandı ama YİNE cihazda
+doğrulanmadı);
+(4) `scrollToAnalyzer()`'ın (oyun ekranı, `window.scrollTo` kullanıyor)
+`html,body{position:fixed}` sonrası hâlâ beklenen (zaten no-op) davranışta
+olduğu — G107'de BİLEREK dokunulmadı ama regresyon riski TAM sıfır
+değerlendirilmedi, gözle kontrol edilmeli.
+Eğer (1)-(2) cihazda YİNE başarısız olursa: Yol A (1MB parça) otomatik
+devreye giriyor olmalı (`saveFile`'ın try/catch'i) — bu durumda bile ESKİ
+G104 davranışından (4MB parça) daha iyi olması BEKLENİR, ama bu da HENÜZ
+cihazda ölçülmedi.
+
+**Önceki adım (G106 itibarıyla):** Kullanıcı BEKLEYEN KARARLAR N/O'yu
 netleştirmeli (süre artışı kabul edilebilir mi, bant sızıntısı düzeltilsin
 mi — ikisi birbirine ters yönde). Ayrıca bu turun kendi ölçümleri SADECE
 sentetik/masaüstü Chrome'da yapıldı — `npx cap sync ios` + gerçek cihazda

@@ -21,6 +21,10 @@ function getFilesystemPlugin() {
   return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) || null;
 }
 
+function getFilePickerPlugin() {
+  return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FilePicker) || null;
+}
+
 export function isNativeStorage() {
   return !!getFilesystemPlugin();
 }
@@ -98,20 +102,88 @@ async function idbDelete(id) {
 // writeFile(), geri kalanı appendFile() (plugin'in resmi API'si, definitions.
 // d.ts'te doğrulandı) ile. Her parça KÜÇÜK bir bridge mesajı + kendi
 // `await`'i sayesinde ana iş parçacığına DOĞAL bir nefes noktası oluyor.
-const NATIVE_WRITE_CHUNK_BYTES = 4 * 1024 * 1024; // 4MB — küçük köprü mesajları, sık nefes
+//
+// G107 — "32 MB dosyada arayüz donuyor" (canlı iOS konsol kanıtı: writeFile
+// 1 kez + appendFile ARDIŞIK 8+ kez, her birinin data'sı base64 dize).
+// KÖK SEBEP DOĞRULANDI: 4MB'lık ham parça base64'te ~5,5MB'a şişiyor, HER
+// appendFile çağrısı bu devasa dizeyi JS↔native köprüsünden TEK mesajda
+// taşıyor — köprü hem JS hem native tarafta bunu kopyalıyor (iyi belgelenmiş
+// bir Capacitor performans sınırı, task'ın kendi teşhisiyle örtüşüyor).
+// İKİ yol değerlendirildi:
+//   YOL A (parça küçültme): NATIVE_WRITE_CHUNK_BYTES 4MB'tan 1MB'a çekildi —
+//   base64 şişmesi ~1,4MB'a düşüyor, çağrı sayısı artıyor ama her mesaj
+//   köprüden hızlı geçiyor.
+//   YOL B (base64'ü tamamen atla): @capawesome/capacitor-file-picker'ın
+//   KENDİ copyFile() metodu — plugin kaynağı (node_modules/@capawesome/
+//   capacitor-file-picker/ios/Plugin/FilePicker.swift:17-39, android/.../
+//   FilePicker.java:32-51) OKUNDU ve DOĞRULANDI: iOS'ta düz
+//   `FileManager.copyItem(at:to:)`, Android'de `ContentResolver` stream
+//   kopyası — HİÇBİR base64/JS-native köprü veri taşıması YOK. Kaynak yolu
+//   (`picked.path`, app.js:pickNativeAudioFile) GÜVENLİ: aynı plugin'in
+//   `pickFiles()` delegate'i (FilePicker.swift:303-310, `saveTemporaryFile`)
+//   seçilen dosyayı DAHA ÖNCE uygulamanın kendi tmp/cache dizinine
+//   kopyalamış oluyor — yani security-scoped resource erişimi GEREKMİYOR,
+//   `picked.path` zaten uygulamanın kendi sandbox'ında.
+// YOL B SEÇİLDİ (birincil), YOL A onun GÜVENLİ DÜŞÜŞÜ olarak KORUNDU —
+// nativePath verilmemişse (ör. web `<input type=file>` yolu, native path
+// yok) ya da FilePicker.copyFile plugin'de yoksa/başarısız olursa Yol A'ya
+// düşülüyor. Android'de copyFile() hedefi FileProvider.getUriForFile() ile
+// çözüyor (FilePicker.java:81) — bu, Directory.Data'nın (Android'de
+// context.filesDir, bkz. @capacitor/filesystem LegacyFilesystemImplementation.
+// kt:54) file_paths.xml'de bir <files-path> girdisiyle KAPSANMASINI
+// gerektiriyor; bu G107'de EKLENDİ (android/app/src/main/res/xml/
+// file_paths.xml) — eksik olsaydı copyFile Android'de HER ZAMAN
+// başarısız olurdu.
+// DÜRÜSTLÜK NOTU: hem Yol B'nin kaynak-doğrulaması hem file_paths.xml
+// düzeltmesi statik kod/plugin kaynağı OKUNARAK yapıldı — bu ortamda gerçek
+// iOS/Android cihaz YOK, bu yüzden runtime davranışı burada KANITLANAMADI
+// (task'ın kendi notu — cihaz doğrulaması kullanıcıda). Yol A düşüşü TAM DA
+// bu belirsizliğe karşı bir güvenlik ağı.
+const NATIVE_WRITE_CHUNK_BYTES = 1 * 1024 * 1024; // G107: 4MB→1MB (Yol A) — bkz. yukarıdaki not
+const FS_MKDIR_PATH = FS_SUBDIR;
 
 // id: kütüphane manifestindeki dosya id'si (dosya adı ÇAKIŞMASINDAN bağımsız
 // üretilir, bkz. app.js:toolsGenerateId). blob: File/Blob. onProgress(fraction):
 // opsiyonel, 0..1 arası ilerleme — SADECE native/parçalı yolda birden fazla
 // kez çağrılır (web/IndexedDB yolu zaten tek adımda hızlı, bkz. idbPut notu).
-export async function saveFile(id, blob, onProgress) {
+// nativePath: G107 — FilePicker'ın döndürdüğü uygulama-sandbox'ı İÇİNDEKİ
+// gerçek dosya yolu (varsa). Verilirse Yol B (native copyFile) denenir.
+export async function saveFile(id, blob, onProgress, nativePath) {
   const fs = getFilesystemPlugin();
   if (fs) {
+    if (nativePath) {
+      try {
+        await saveFileNativeCopy(fs, id, nativePath, onProgress);
+        return;
+      } catch (e) {
+        console.error("[file-storage] Yol B (native copyFile) başarısız, Yol A'ya (parçalı base64) düşülüyor:", e);
+      }
+    }
     await saveFileNativeChunked(fs, id, blob, onProgress);
   } else {
     await idbPut(id, blob);
     if (onProgress) onProgress(1);
   }
+}
+
+// G107 — Yol B: base64 köprüsü YOK, dosya native tarafta doğrudan kopyalanıyor.
+async function saveFileNativeCopy(fs, id, nativePath, onProgress) {
+  const filePicker = getFilePickerPlugin();
+  if (!filePicker || typeof filePicker.copyFile !== "function") {
+    throw new Error("FilePicker.copyFile mevcut değil");
+  }
+  const path = `${FS_SUBDIR}/${id}`;
+  try {
+    await fs.mkdir({ path: FS_MKDIR_PATH, directory: FS_DIRECTORY, recursive: true });
+  } catch (e) {
+    // Dizin zaten varsa (en yaygın durum, ilk dosyadan sonra) sessizce geç —
+    // bu dosyanın diğer fonksiyonlarındaki (deleteFile/fileExists) AYNI
+    // "yoksay ve devam et" deseni.
+  }
+  const { uri } = await fs.getUri({ path, directory: FS_DIRECTORY });
+  if (onProgress) onProgress(0);
+  await filePicker.copyFile({ from: nativePath, to: uri, overwrite: true });
+  if (onProgress) onProgress(1);
 }
 
 async function saveFileNativeChunked(fs, id, blob, onProgress) {
