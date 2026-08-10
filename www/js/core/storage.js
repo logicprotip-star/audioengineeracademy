@@ -250,7 +250,11 @@ export function savePrefs(prefs) {
 // dışa aktar gibi bir işlem eklenirse geliştirici bayrakları yanlışlıkla kullanıcı
 // tercihiymiş gibi görünmesin.
 export function freshDevFlags() {
-  return { unlocked: false, simulatePro: false };
+  // G101: customTonalRef — Tonal Balance'ın "Kendi referansım" çipi (dördüncü
+  // hedef, kullanıcı kendi referans parçasını yükleyip mixiyle karşılaştırır)
+  // ÖZELLİK ANAHTARI arkasında — task'ın kendi kararı: kod yazılsın, varsayılan
+  // KAPALI, test grubunda tek bayrakla açılabilsin. simulatePro'nun AYNI deseni.
+  return { unlocked: false, simulatePro: false, customTonalRef: false };
 }
 
 export function loadDevFlags() {

@@ -19,6 +19,7 @@ import { tierForLevel, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, re
 import { levelSheetTermsFor } from "./core/level-sheet-terms.js";
 import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
 import { getWeakZone } from "./core/personalization.js";
+import * as tonalBalance from "./core/tonal-balance.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
@@ -131,39 +132,77 @@ const els = {
   spotlightNext: document.getElementById("spotlightNext"),
   menuSettingsBtn: document.getElementById("menuSettingsBtn"),
   progressSettingsBtn: document.getElementById("progressSettingsBtn"),
-  // G88: Araçlar sekmesi Prototip.dc.html'in ARAÇLAR bloğuna göre yeniden
-  // giydirildi (bkz. DURUM.md + index.html'in AYNI G88 notu) — eski
-  // toolsSettingsBtn/toolsFileName/toolsFileMeta/toolBars/filterChips/
-  // filterName/filterDesc/filterListen/filterResetBtn/analyzeLock/
-  // filtersLock (tasarımda YOK olan dişli + sahte Analiz kartı + eski
-  // filtre-chip/panel deseni) KALDIRILDI. toolsSettingsBtn'in kaldırılması
-  // BİR erişim noktasının kaybı DEĞİL — Ayarlar'a Ana Menü/İlerleme'nin
-  // KENDİ dişlisinden ZATEN ulaşılıyor (bkz. menuSettingsBtn/
-  // progressSettingsBtn), tasarım da bu ekranda dişli göstermiyor.
+  // G101 — Tasarim-2026-08/Araçlar.dc.html'in (YENİ sürüm) tam giydirmesi.
+  // G88/G99/G100'ün DAHA BASİT hali TAMAMEN bu yeni tasarıma göre değişti —
+  // eski toolsUploadBtnLabel/toolsRecentEmpty/toolsRecentList/toolsFilterGrid
+  // (8'li eski filtre ızgarası)/toolsAnalysisProgress/toolsAnalysisResults
+  // KALKTI (bkz. DURUM.md G101, her kaldırılan öğenin yeni karşılığı var).
+  toolsGearBtn: document.getElementById("toolsGearBtn"),
   toolsUploadBtn: document.getElementById("toolsUploadBtn"),
-  toolsUploadBtnLabel: document.getElementById("toolsUploadBtnLabel"),
-  toolsFileInput: document.getElementById("toolsFileInput"),
   toolsProContent: document.getElementById("toolsProContent"),
   toolsFreeLock: document.getElementById("toolsFreeLock"),
   toolsProBtn: document.getElementById("toolsProBtn"),
-  toolsRecentEmpty: document.getElementById("toolsRecentEmpty"),
-  toolsRecentList: document.getElementById("toolsRecentList"),
-  toolsFilterGrid: document.getElementById("toolsFilterGrid"),
-  // G99: Araçlar ölçüm motoru arayüzü (analysis.js'e bağlı GERÇEK Analiz
-  // kartı) — eski sahte #toolBars (renderToolBars) ve o kartın cache girdisi
-  // bu turda SİLİNDİ (bkz. DURUM.md G99), yerine bu YENİ öğeler geldi.
+  // C) Dosyalarım sheet'i
+  toolsFilesOverlay: document.getElementById("toolsFilesOverlay"),
+  toolsFilesSheet: document.getElementById("toolsFilesSheet"),
+  toolsFilesClose: document.getElementById("toolsFilesClose"),
+  toolsFilesPickBtn: document.getElementById("toolsFilesPickBtn"),
+  toolsFileInput: document.getElementById("toolsFileInput"),
+  toolsFilesList: document.getElementById("toolsFilesList"),
+  toolsFilesEmpty: document.getElementById("toolsFilesEmpty"),
+  toolsActionsList: document.getElementById("toolsActionsList"),
+  toolsActionsEmpty: document.getElementById("toolsActionsEmpty"),
+  toolsMeasurementsList: document.getElementById("toolsMeasurementsList"),
+  toolsMeasurementsEmpty: document.getElementById("toolsMeasurementsEmpty"),
+  // D) Tonal Balance
+  toolsTonalCard: document.getElementById("toolsTonalCard"),
+  toolsTonalChips: document.getElementById("toolsTonalChips"),
+  toolsTonalRefRow: document.getElementById("toolsTonalRefRow"),
+  toolsTonalRefCurrent: document.getElementById("toolsTonalRefCurrent"),
+  toolsTonalRefName: document.getElementById("toolsTonalRefName"),
+  toolsTonalRefChange: document.getElementById("toolsTonalRefChange"),
+  toolsTonalRefPick: document.getElementById("toolsTonalRefPick"),
+  toolsTonalLegend: document.getElementById("toolsTonalLegend"),
+  toolsTonalChart: document.getElementById("toolsTonalChart"),
+  toolsTonalSummary: document.getElementById("toolsTonalSummary"),
+  toolsTonalAbRow: document.getElementById("toolsTonalAbRow"),
+  toolsTonalPlayA: document.getElementById("toolsTonalPlayA"),
+  toolsTonalPlayB: document.getElementById("toolsTonalPlayB"),
+  toolsTonalProcChip: document.getElementById("toolsTonalProcChip"),
+  toolsTonalDraftNote: document.getElementById("toolsTonalDraftNote"),
+  // E) Ölçüm Sonuçları — kart/buton + sheet + kalıcı şerit. analysis.js'e
+  // DOKUNULMADI, bu yüzden içerik-render id'leri (toolsAnalysisChannelTable
+  // vb.) G99'dan AYNEN korundu, sadece konumları (artık sheet içinde) değişti.
   toolsAnalysisCard: document.getElementById("toolsAnalysisCard"),
   toolsAnalyzeBtn: document.getElementById("toolsAnalyzeBtn"),
   toolsAnalyzeBtnLabel: document.getElementById("toolsAnalyzeBtnLabel"),
-  toolsAnalysisProgress: document.getElementById("toolsAnalysisProgress"),
+  toolsAnalyzeBar: document.getElementById("toolsAnalyzeBar"),
   toolsAnalysisError: document.getElementById("toolsAnalysisError"),
-  toolsAnalysisResults: document.getElementById("toolsAnalysisResults"),
   toolsAnalysisChannelTable: document.getElementById("toolsAnalysisChannelTable"),
   toolsAnalysisLoudness: document.getElementById("toolsAnalysisLoudness"),
   toolsAnalysisChart: document.getElementById("toolsAnalysisChart"),
   toolsAnalysisChartWrap: document.getElementById("toolsAnalysisChartWrap"),
   toolsAnalysisChartReadout: document.getElementById("toolsAnalysisChartReadout"),
   toolsAnalysisStandardNote: document.getElementById("toolsAnalysisStandardNote"),
+  toolsResultsOverlay: document.getElementById("toolsResultsOverlay"),
+  toolsResultsSheet: document.getElementById("toolsResultsSheet"),
+  toolsResultsClose: document.getElementById("toolsResultsClose"),
+  toolsResultsTotalTime: document.getElementById("toolsResultsTotalTime"),
+  toolsResultsStrip: document.getElementById("toolsResultsStrip"),
+  // F) Referans Filtreleri — akordiyon + çalar
+  toolsFilterHeader: document.getElementById("toolsFilterHeader"),
+  toolsFilterHeaderBadge: document.getElementById("toolsFilterHeaderBadge"),
+  toolsFilterChevron: document.getElementById("toolsFilterChevron"),
+  toolsFilterBody: document.getElementById("toolsFilterBody"),
+  toolsFilterFileName: document.getElementById("toolsFilterFileName"),
+  toolsFilterFileChange: document.getElementById("toolsFilterFileChange"),
+  toolsFilterFileMeta: document.getElementById("toolsFilterFileMeta"),
+  toolsFilterWave: document.getElementById("toolsFilterWave"),
+  toolsFilterElapsed: document.getElementById("toolsFilterElapsed"),
+  toolsFilterTotal: document.getElementById("toolsFilterTotal"),
+  toolsFilterPlayBtn: document.getElementById("toolsFilterPlayBtn"),
+  toolsFilterPlayIcon: document.getElementById("toolsFilterPlayIcon"),
+  toolsFilterGrid: document.getElementById("toolsFilterGrid"),
   mainSettingsOverlay: document.getElementById("mainSettingsOverlay"),
   mainSettingsSheet: document.getElementById("mainSettingsSheet"),
   mainSettingsBack: document.getElementById("mainSettingsBack"),
@@ -555,10 +594,12 @@ function resizeCanvas() {
 }
 window.addEventListener("resize", resizeCanvas);
 window.addEventListener("orientationchange", resizeCanvas);
-// G99: Analiz kartının short-term grafiği de AYNI DPR/CSS-genişlik deseni —
-// sonuç varken pencere boyutu değişirse (döndürme, klavye açılışı vb.) yeniden çiz.
+// G99/G101: Ölçüm Sonuçları/Tonal Balance grafikleri de AYNI DPR/CSS-genişlik
+// deseni — sonuç varken pencere boyutu değişirse (döndürme, klavye açılışı
+// vb.) yeniden çiz.
 window.addEventListener("resize", () => {
   if (toolsAnalysisState === "success" && toolsAnalysisResult) drawShortTermChart(toolsAnalysisResult);
+  if (toolsTonalDevs) renderToolsTonalCard();
 });
 
 // Oyun ekranındaki .game-scroll'un alt boşluğu artık ÖLÇÜLMÜYOR — CSS'teki
@@ -1805,12 +1846,16 @@ function goScreen(name) {
     // (prototype.html: go() içindeki aynı temizlik, "s-game1" dışına çıkınca stopAbLoop).
     stopAbLoop();
   }
-  // G99: "game" dalıyla AYNI zamanlama sorunu (ekran bir önceki karede
-  // "display:none" idi, canvas 0 genişlikte ölçülürdü) — Analiz sonucu
-  // Araçlar sekmesi GİZLİYKEN hesaplanmışsa (ör. arka planda), grafiği bu
-  // sekmeye HER girişte yeniden çizerek doğru genişlikte göster.
-  if (name === "tools" && toolsAnalysisState === "success" && toolsAnalysisResult) {
-    drawShortTermChart(toolsAnalysisResult);
+  // G99/G101: "game" dalıyla AYNI zamanlama sorunu (ekran bir önceki karede
+  // "display:none" idi, canvas 0 genişlikte ölçülürdü) — Tonal Balance
+  // grafiği KART İÇİNDE (her zaman potansiyel olarak gizliyken ölçülmüş
+  // olabilir) bu yüzden Araçlar sekmesine HER girişte yeniden çizilir. Short-
+  // term grafiği artık sheet İÇİNDE (sheet açıkken zaten kendi rAF'ıyla
+  // doğru boyutta çiziliyor, bkz. toolsOpenResultsSheet) — yine de sheet
+  // açık kalmış olabilir diye (ör. hızlı sekme geçişi) burada da tazelenir.
+  if (name === "tools") {
+    if (toolsTonalDevs) renderToolsTonalCard();
+    if (toolsResultsSheetOpenFlag && toolsAnalysisResult) drawShortTermChart(toolsAnalysisResult);
   }
   closeMainSettingsSheet();
   // Kalibrasyon tonu sadece o ekrandayken çalsın — başka bir ekrana geçilince arka
@@ -6958,212 +7003,328 @@ if (els.watchAdBtn) els.watchAdBtn.addEventListener("click", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Araçlar sekmesi — G88'de Prototip.dc.html'in ARAÇLAR bloğuna göre yeniden
-// giydirildi. Referans Filtreleri hâlâ gerçek DSP içermiyor (seçim SADECE
-// görsel/bilgilendirici — G53'ten beri değişmedi, bu turun kapsamı bunu
-// eklemek DEĞİLDİ) ama artık GERÇEK uploadManager'a bağlı: "Mixini Yükle"
-// dosyayı GERÇEKTEN decode edip çalınabilir hale getiriyor (ÖNCEDEN sadece
-// ad/boyut gösteren bir vitrindi, hiçbir yere yüklenmiyordu).
+// ═══════════════════════════════════════════════════════════════════════════
+// G101 — Araçlar sekmesi. Tasarim-2026-08/Araçlar.dc.html'in (YENİ sürüm,
+// kullanıcı tarafından üzerine yazıldı) TAM giydirmesi. G88/G99/G100'ün daha
+// basit hali TAMAMEN bu tasarıma göre değişti. analysis.js/analysis-worker.js
+// AYNEN KORUNDU — sadece render hedefleri (artık sheet+şerit) değişti.
+// upload.js'in "TEK buffer" akışı da KORUNDU (task'ın kendi kuralı) — çoklu
+// dosya "kütüphanesi" (Dosyalarım) bu akışın DIŞINDA, oturum-kapsamlı bir
+// katalog (aşağıdaki DÜRÜSTLÜK notuna bkz.) olarak app.js'te tutuluyor.
 // ═══════════════════════════════════════════════════════════════════════════
 
-// G99: sahte/statik Analiz kartı (LUFS/LRA/dBTP/mono-uyum — hepsi G53'ten
-// beri sabit, gerçek bir dosyayı HİÇ ölçmüyordu; G88'de HTML'den kaldırılmış,
-// render fonksiyonu "yerine gerçeği geliyor" notuyla bilerek bırakılmıştı)
-// artık GERÇEK bir analiz motoruna (core/analysis.js) bağlı Analiz kartıyla
-// DEĞİŞTİRİLDİ — eski renderToolBars()/#toolBars TAMAMEN SİLİNDİ (bkz.
-// DURUM.md G99). Yeni kart aşağıda: renderToolsAnalysisCard() ailesi.
-
-// G88: her filtrenin ad/açıklama/"ne dinlemeli" metni G53'ten beri GERÇEK,
-// DEĞİŞMEDİ — sadece tasarımın istediği ikon + 26px eğri görseli EKLENDİ.
-// Bunlar ÖLÇÜM DEĞİL (Referans Filtreleri'nin kendisi gerçek DSP içermiyor,
-// yukarı bkz.) — süsleme, o filtrenin AYNI satırdaki gerçek metniyle
-// tutarlı bir eğri şekli (ör. "bas vurgulu, orta çukur" → sol yüksek/orta
-// çukur). Kompresör kartlarının sabit dalga barlarıyla AYNI felsefe (G86).
-const TOOLS_FILTER_ICONS = {
-  duz: `<path d="M3 12h18"></path>`,
-  araba: `<path d="M3 16l1.6-5.2A2 2 0 0 1 6.5 9.4h11a2 2 0 0 1 1.9 1.4L21 16"></path><rect x="2" y="16" width="20" height="4" rx="1.3"></rect><circle cx="7" cy="20" r="1.3"></circle><circle cx="17" cy="20" r="1.3"></circle>`,
-  club: `<rect x="6" y="2.5" width="12" height="19" rx="2"></rect><circle cx="12" cy="8" r="2"></circle><circle cx="12" cy="15.5" r="3"></circle>`,
-  laptop: `<rect x="3" y="4" width="18" height="12" rx="1.5"></rect><path d="M2 19.5h20"></path>`,
-  radyo: `<rect x="3" y="6" width="18" height="12" rx="1.5"></rect><circle cx="8" cy="12" r="2.3"></circle><circle cx="16" cy="12" r="2.3"></circle>`,
-  earbud: `<path d="M5 13v-1a7 7 0 0 1 14 0v1"></path><rect x="3" y="13" width="4.5" height="7" rx="2"></rect><rect x="16.5" y="13" width="4.5" height="7" rx="2"></rect>`,
-  bluetooth: `<path d="M8 7l8 5-8 5V2l8 5-8 5"></path>`,
-  mono: `<circle cx="12" cy="12" r="8"></circle><path d="M12 8v8M8.5 12h7"></path>`
-};
-
-// y=2 en yüksek (boost), y=24 en düşük (cut), 13 nötr — 6 noktalık düz çizgi
-// eğrisi (curveSvg() interpolasyonu için).
-const TOOLS_FILTER_CURVES = {
-  duz: [13, 13, 13, 13, 13, 13],
-  araba: [8, 10, 18, 20, 16, 12],
-  club: [4, 6, 13, 18, 16, 13],
-  laptop: [20, 16, 9, 8, 10, 14],
-  radyo: [22, 12, 8, 8, 12, 22],
-  earbud: [8, 14, 20, 20, 14, 7],
-  bluetooth: [20, 10, 9, 9, 10, 20],
-  mono: [13, 13, 13, 13, 13, 13]
-};
-
-function curveSvg(points) {
-  const w = 70, h = 26;
-  const step = w / (points.length - 1);
-  const d = points.map((y, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${y.toFixed(1)}`).join(" ");
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
-
-const TOOL_FILTERS = [
-  { icon: "duz", name: "Düz", desc: "Referans — hiçbir renklendirme yok.", listen: "miksin kendi dengesi." },
-  { icon: "araba", name: "Araba", desc: "Bas vurgulu, orta bölgede çukur.", listen: "Bas fazla mı, vokal kayboluyor mu?" },
-  { icon: "club", name: "Kulüp / PA", desc: "Aşırı bas, uzun kuyruk.", listen: "Alt bölge dağılıyor mu, kick belirgin mi?" },
-  { icon: "laptop", name: "Laptop", desc: "Bas zayıf, orta ağırlıklı.", listen: "Bas hiç duyulmuyorsa gövde yeterli mi?" },
-  { icon: "radyo", name: "Teyp / Radyo", desc: "Dar bant, hafif saturation.", listen: "Şarkı dar bantta da anlaşılıyor mu?" },
-  { icon: "earbud", name: "Ucuz kulaklık", desc: "Bas ve tiz vurgulu.", listen: "Tizler cırlıyor mu, S sesleri batıyor mu?" },
-  { icon: "bluetooth", name: "Bluetooth hoparlör", desc: "Dar bant, kompresyonlu.", listen: "Dinamik kalıyor mu, itiliyor mu?" },
-  { icon: "mono", name: "Mono", desc: "Kanallar toplanmış.", listen: "Faz kaybı var mı, enstrüman kayboluyor mu?" }
-];
-let toolsActiveFilterIdx = 0;
-
-function renderToolsFilters() {
-  if (!els.toolsFilterGrid) return;
-  els.toolsFilterGrid.innerHTML = TOOL_FILTERS.map((f, i) => {
-    const active = i === toolsActiveFilterIdx;
-    return `<div class="tools-filter-card${active ? " active" : ""}" data-idx="${i}">
-      <div class="tools-filter-top">
-        <div class="tools-filter-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${TOOLS_FILTER_ICONS[f.icon]}</svg></div>
-        ${active ? `<div class="tools-filter-on">AÇIK</div>` : ""}
-      </div>
-      <div class="tools-filter-curve">${curveSvg(TOOLS_FILTER_CURVES[f.icon])}</div>
-      <div>
-        <div class="tools-filter-name">${f.name}</div>
-        <div class="tools-filter-range">${f.desc}</div>
-      </div>
-    </div>`;
-  }).join("");
-}
-if (els.toolsFilterGrid) els.toolsFilterGrid.addEventListener("click", e => {
-  const card = e.target.closest(".tools-filter-card");
-  if (!card) return;
-  toolsActiveFilterIdx = Number(card.dataset.idx);
-  renderToolsFilters();
-});
-renderToolsFilters();
-
-// G88: "Son yüklenenler" — uploadManager TEK bir buffer tutuyor (bkz.
-// core/upload.js dosya başı notu, çoklu dosya geçmişi YOK) — bu yüzden liste
-// en fazla TEK satır taşıyabilir, sahte bir "geçmiş" İCAT EDİLMEDİ.
-let toolsUploadedFile = null; // { name, sizeKb }
-let toolsPreviewPlaying = false;
-let toolsPreviewNode = null;
-let toolsPreviewGain = null;
-
 function formatToolsDuration(sec) {
-  const s = Math.round(sec);
+  const s = Math.round(sec || 0);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
-
-function renderToolsRecent() {
-  const hasFile = !!toolsUploadedFile && uploadManager.hasBuffer;
-  if (els.toolsRecentEmpty) els.toolsRecentEmpty.classList.toggle("hidden", hasFile);
-  if (!els.toolsRecentList) return;
-  if (!hasFile) { els.toolsRecentList.innerHTML = ""; return; }
-  const meta = `${toolsUploadedFile.sizeKb} KB · ${formatToolsDuration(uploadManager.duration)}`;
-  els.toolsRecentList.innerHTML = `<div class="tools-recent-row">
-    <button type="button" class="tools-recent-play${toolsPreviewPlaying ? " playing" : ""}" id="toolsPreviewBtn" aria-label="${toolsPreviewPlaying ? "Durdur" : "Dinle"}">
-      ${toolsPreviewPlaying
-        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.2" height="14" rx="1"></rect><rect x="13.8" y="5" width="4.2" height="14" rx="1"></rect></svg>`
-        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-left:1px"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z"></path></svg>`}
-    </button>
-    <div class="tools-recent-body">
-      <div class="tools-recent-name">${toolsUploadedFile.name}</div>
-      <div class="tools-recent-meta">${meta}</div>
-    </div>
-    <div class="tools-recent-wave">${curveSvg([16, 10, 20, 8, 18, 12]).replace("width=\"100%\" height=\"26\"", "width=\"62\" height=\"26\"")}</div>
-  </div>`;
-  const playBtn = document.getElementById("toolsPreviewBtn");
-  if (playBtn) playBtn.addEventListener("click", toggleToolsPreview);
+function toolsGenerateId() {
+  return "t" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+function toolsRelativeTime(ts) {
+  const diffSec = Math.max(0, (Date.now() - ts) / 1000);
+  if (diffSec < 60) return "az önce";
+  if (diffSec < 3600) return Math.max(1, Math.round(diffSec / 60)) + " dakika önce";
+  if (diffSec < 86400) return Math.round(diffSec / 3600) + " saat önce";
+  const days = Math.round(diffSec / 86400);
+  return days === 1 ? "dün" : days + " gün önce";
 }
 
-// G88: önizleme çalması OYUN TURUNUN ses zincirinden AYRI — calibLevelTrack'in
-// startCalibrationTone()'unun AYNI deseni (audioEngine.analyser zaten
-// destination'a bağlı, kendi gain node'unu ORAYA takar). uploadManager'ın
-// GERÇEK offset/duraklatma mantığını (pausePlayback/getSourceNode) kullanır —
-// yeni bir çalma durumu İCAT EDİLMEDİ.
-async function toggleToolsPreview() {
-  if (!uploadManager.hasBuffer) return;
-  await audioEngine.initAudio();
-  const ctx = audioEngine.audioCtx, analyser = audioEngine.analyser;
-  if (!ctx || !analyser) return;
-  if (toolsPreviewPlaying) {
-    uploadManager.pausePlayback();
-    if (toolsPreviewNode) { try { toolsPreviewNode.stop(); } catch (e) {} toolsPreviewNode = null; }
-    toolsPreviewPlaying = false;
-  } else {
-    toolsPreviewGain = toolsPreviewGain || ctx.createGain();
-    toolsPreviewGain.gain.value = 0.85;
-    toolsPreviewGain.connect(analyser);
-    toolsPreviewNode = uploadManager.getSourceNode();
-    if (!toolsPreviewNode) return;
-    toolsPreviewNode.connect(toolsPreviewGain);
-    toolsPreviewPlaying = true;
-  }
-  renderToolsRecent();
-}
-
-function processToolsUploadFile(file) {
-  if (!file) return;
-  const validation = validateAudioFile(file);
-  if (!validation.ok) { toast(validation.title, validation.detail); return; }
-  if (els.toolsUploadBtnLabel) els.toolsUploadBtnLabel.textContent = "Yükleniyor…";
-  audioEngine.initAudio().then(() => uploadManager.loadFile(file)).then(res => {
-    if (!res.ok) { toast(res.title, res.detail); return; }
-    toolsPreviewPlaying = false;
-    toolsUploadedFile = { name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)) };
-    renderToolsRecent();
-    // G99: YENİ bir dosya yüklenince önceki analiz sonucu/hatası ARTIK o
-    // dosyaya ait değil — sıfırla, kart "Analiz et" ile YENİDEN tetiklenmeyi
-    // bekleyen taze duruma dönsün (task: "Dosya seçilince otomatik başlamasın").
-    resetToolsAnalysis();
-    renderToolsAnalysisCard();
-    toast("Dosya yüklendi", `${file.name} — dinlemek için oynat, modlarda kaynak olarak da seçilebilir.`);
-  }).finally(() => {
-    if (els.toolsUploadBtnLabel) els.toolsUploadBtnLabel.textContent = "Dosya seç";
-  });
-}
-if (els.toolsUploadBtn && els.toolsFileInput) {
-  els.toolsUploadBtn.addEventListener("click", async () => {
-    // G61 (PAYWALL.md): "Araçlar sekmesi içeriği: kilitli" — kart Pro-only
-    // dalında (toolsProContent) zaten render edilmiyor ama bu buton yine de
-    // savunmacı olarak kontrol ediyor (applyProLockVisibility'nin ÜSTÜNDE).
-    if (paywall.isToolsContentLocked(isUserPro())) {
-      if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail, "pro");
-      return;
+// Dosya listesindeki küçük dalga formu önizlemesi — Araçlar.dc.html'in KENDİ
+// wave() fonksiyonu sabit bir sinüs formülüyle SAHTE bar üretiyordu (tasarım
+// aracının canlı ses verisine erişimi yok). Burada GERÇEK decode edilmiş
+// örneklerden bir tepe-zarfı çıkarılıyor — tasarımın istediği görsel boyut/
+// bar sayısı KORUNDU, veri kaynağı sahteden gerçeğe yükseltildi (bu bir
+// "uydurma" DEĞİL, tam tersi — gerçek ölçülmüş veri kullanmak).
+function toolsWaveformPeaks(buffer, n) {
+  const data = buffer.getChannelData(0);
+  const chunk = Math.max(1, Math.floor(data.length / n));
+  const peaks = [];
+  for (let i = 0; i < n; i++) {
+    let peak = 0;
+    const start = i * chunk;
+    const end = Math.min(data.length, start + chunk);
+    const step = Math.max(1, Math.floor((end - start) / 32));
+    for (let j = start; j < end; j += step) {
+      const a = Math.abs(data[j]);
+      if (a > peak) peak = a;
     }
-    const picked = await pickNativeAudioFile();
-    if (picked === undefined) els.toolsFileInput.click();
-    else if (picked) processToolsUploadFile(picked);
+    peaks.push(peak);
+  }
+  return peaks;
+}
+function toolsWaveSvg(peaks, color) {
+  const barW = 4.4;
+  const w = peaks.length * barW;
+  const bars = peaks.map((p, i) => {
+    const h = Math.max(2, Math.min(24, 5 + p * 46));
+    const x = (i * barW + 0.6).toFixed(1);
+    return `<rect x="${x}" y="${(13 - h / 2).toFixed(1)}" width="2.6" height="${h.toFixed(1)}" rx="1.3" fill="${color}"></rect>`;
+  }).join("");
+  return `<svg viewBox="0 0 ${w.toFixed(1)} 26" width="100%" height="100%" preserveAspectRatio="none">${bars}</svg>`;
+}
+// Referans Filtreleri çaların büyük (56px) dalga formu — GERÇEK örneklerden,
+// AYNI mantık, daha çok bar (78) ile.
+function toolsDrawBigWave(canvas, buffer, progressFrac) {
+  if (!canvas || !buffer) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const cssW = rect.width || 300, cssH = 56;
+  canvas.width = Math.max(1, Math.round(cssW * dpr));
+  canvas.height = Math.max(1, Math.round(cssH * dpr));
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  const n = Math.max(20, Math.floor(cssW / 4));
+  const peaks = toolsWaveformPeaks(buffer, n);
+  const barW = cssW / n;
+  peaks.forEach((p, i) => {
+    const h = Math.max(2, Math.min(cssH - 4, 4 + p * (cssH - 6)));
+    const x = i * barW;
+    const active = progressFrac != null && i / n < progressFrac;
+    ctx.fillStyle = active ? "#22d3ee" : "#3a3f45";
+    ctx.fillRect(x + 0.6, (cssH - h) / 2, Math.max(1, barW - 1.4), h);
   });
-  els.toolsFileInput.addEventListener("change", () => {
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// C) Dosyalarım — oturum-kapsamlı çoklu dosya kütüphanesi.
+// KAPSAM/DÜRÜSTLÜK notu: upload.js SADECE TEK bir decode edilmiş buffer
+// tutuyor (bkz. upload.js dosya başı notu, task'ın "upload.js'in mevcut akışı
+// korunacak" kuralı) — bu yüzden BURADA, upload.js'e DOKUNMADAN, birden fazla
+// File nesnesini + her birinin (bir kez decode edilerek çıkarılan) küçük
+// metadatasını (süre, dalga önizlemesi) tutan bir liste kuruldu. Bir dosya
+// "seçildiğinde" o File uploadManager.loadFile() ile YENİDEN decode edilip
+// AKTİF hale getiriliyor (küçük bir performans maliyeti, ama upload.js'in
+// TEK-buffer modeline HİÇ dokunmadan doğru çalışıyor). Dosyaların KENDİSİ
+// sayfa yeniden yüklenince kaybolur (ses verisi localStorage/IndexedDB'de
+// SAKLANMIYOR — ayrı, büyük bir depolama katmanı gerektirir, bu turun
+// kapsamı DIŞINDA bırakıldı, bkz. DURUM.md BEKLEYEN KARARLAR). "Son
+// Ölçümlerim" bunun İSTİSNASI: SONUÇ nesnesinin kendisi (dosya değil)
+// localStorage'da kalıcı, bkz. aşağı.
+let toolsFiles = [];
+let toolsSelectedFileId = null;
+let toolsSwipedFileId = null;
+
+function toolsSelectedEntry() {
+  return toolsFiles.find((f) => f.id === toolsSelectedFileId) || null;
+}
+
+async function toolsAddFile(file) {
+  const validation = validateAudioFile(file);
+  if (!validation.ok) { toast(validation.title, validation.detail); return null; }
+  await audioEngine.initAudio();
+  const res = await uploadManager.loadFile(file);
+  if (!res.ok) { toast(res.title, res.detail); return null; }
+  const buffer = uploadManager.getBuffer();
+  const entry = {
+    id: toolsGenerateId(),
+    name: file.name,
+    sizeKb: Math.max(1, Math.round(file.size / 1024)),
+    durationSec: buffer.duration,
+    peaks: toolsWaveformPeaks(buffer, 15),
+    file,
+  };
+  toolsFiles.push(entry);
+  return entry;
+}
+
+function toolsSelectFile(id) {
+  const entry = toolsFiles.find((f) => f.id === id);
+  if (!entry) return;
+  toolsSelectedFileId = id;
+  toolsSwipedFileId = null;
+  resetToolsAnalysis();
+  toolsTonalDevs = null;
+  toolsFilterPlaying = false;
+  audioEngine.initAudio().then(() => uploadManager.loadFile(entry.file)).then((res) => {
+    if (!res.ok) { toast(res.title, res.detail); return; }
+    renderToolsCardsVisibility();
+    renderToolsFilterPlayer();
+  });
+  toolsCloseFilesSheet();
+  renderToolsFilesSheetContent();
+}
+
+function toolsRemoveFile(id) {
+  toolsFiles = toolsFiles.filter((f) => f.id !== id);
+  if (toolsSelectedFileId === id) {
+    toolsSelectedFileId = null;
+    resetToolsAnalysis();
+    toolsTonalDevs = null;
+  }
+  toolsSwipedFileId = null;
+  renderToolsFilesSheetContent();
+  renderToolsCardsVisibility();
+}
+
+// --- Son İşlemlerim / Son Ölçümlerim — localStorage'da KALICI (dosyanın
+// kendisi değil, KAYIT saklanıyor — bkz. yukarıdaki DÜRÜSTLÜK notu). ---
+const TOOLS_ACTIONS_KEY = "eqEarTrainerProXToolsActions";
+const TOOLS_MEASUREMENTS_KEY = "eqEarTrainerProXToolsMeasurements";
+const TOOLS_HISTORY_MAX = 10;
+
+function toolsLoadJson(key) {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : []; } catch { return []; }
+}
+function toolsSaveJson(key, arr) {
+  try { localStorage.setItem(key, JSON.stringify(arr.slice(0, TOOLS_HISTORY_MAX))); } catch (e) {}
+}
+function toolsLogAction(fileName, filterName) {
+  const list = toolsLoadJson(TOOLS_ACTIONS_KEY);
+  list.unshift({ file: fileName, filter: filterName, at: Date.now() });
+  toolsSaveJson(TOOLS_ACTIONS_KEY, list);
+}
+function toolsLogMeasurement(fileName, result) {
+  const list = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
+  list.unshift({ file: fileName, at: Date.now(), result });
+  toolsSaveJson(TOOLS_MEASUREMENTS_KEY, list);
+}
+
+function toolsOpenFilesSheet() {
+  if (paywall.isToolsContentLocked(isUserPro())) {
+    if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail, "pro");
+    return;
+  }
+  toolsCloseResultsSheet();
+  renderToolsFilesSheetContent();
+  if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.remove("hidden");
+  if (els.toolsFilesSheet) els.toolsFilesSheet.classList.remove("hidden");
+  requestAnimationFrame(() => {
+    if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.add("open");
+    if (els.toolsFilesSheet) els.toolsFilesSheet.classList.add("open");
+  });
+}
+function toolsCloseFilesSheet() {
+  if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.remove("open");
+  if (els.toolsFilesSheet) els.toolsFilesSheet.classList.remove("open");
+  setTimeout(() => {
+    if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.add("hidden");
+    if (els.toolsFilesSheet) els.toolsFilesSheet.classList.add("hidden");
+  }, 260);
+}
+
+function renderToolsFilesSheetContent() {
+  if (els.toolsFilesList) {
+    if (toolsFiles.length === 0) {
+      els.toolsFilesList.innerHTML = "";
+      if (els.toolsFilesEmpty) els.toolsFilesEmpty.classList.remove("hidden");
+    } else {
+      if (els.toolsFilesEmpty) els.toolsFilesEmpty.classList.add("hidden");
+      els.toolsFilesList.innerHTML = toolsFiles.map((f) => {
+        const selected = f.id === toolsSelectedFileId;
+        const swiped = f.id === toolsSwipedFileId;
+        return `<div class="tools-files-row">
+          <div class="tools-files-row-delete" data-remove="${f.id}">Sil</div>
+          <div class="tools-files-row-main${selected ? " selected" : ""}${swiped ? " swiped" : ""}" data-select="${f.id}">
+            <div class="tools-files-row-body">
+              <div class="tools-files-row-name">${escapeHtml(f.name)}</div>
+              <div class="tools-files-row-meta">${f.sizeKb} KB · ${formatToolsDuration(f.durationSec)}</div>
+            </div>
+            <div class="tools-files-row-wave">${toolsWaveSvg(f.peaks, "#3a3f45")}</div>
+          </div>
+        </div>`;
+      }).join("");
+    }
+  }
+
+  const actions = toolsLoadJson(TOOLS_ACTIONS_KEY);
+  if (els.toolsActionsList) {
+    els.toolsActionsList.innerHTML = actions.map((a) => `<div class="tools-files-history-row">
+      <div style="flex:1;min-width:0">
+        <div class="tools-files-history-name">${escapeHtml(a.file)}</div>
+        <div class="tools-files-history-sub">${escapeHtml(a.filter)}</div>
+      </div>
+      <div class="tools-files-history-time">${toolsRelativeTime(a.at)}</div>
+    </div>`).join("");
+  }
+  if (els.toolsActionsEmpty) els.toolsActionsEmpty.classList.toggle("hidden", actions.length > 0);
+
+  const measurements = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
+  if (els.toolsMeasurementsList) {
+    els.toolsMeasurementsList.innerHTML = measurements.map((m, i) => `<div class="tools-files-meas-row" data-open-measurement="${i}">
+      <div class="tools-files-meas-body">
+        <div class="tools-files-history-name">${escapeHtml(m.file)}</div>
+        <div class="tools-files-meas-time">${toolsRelativeTime(m.at)}</div>
+      </div>
+      <div class="tools-files-meas-lufs">${fmtLufs(m.result.program.integratedLufs)}</div>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4f56" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+    </div>`).join("");
+  }
+  if (els.toolsMeasurementsEmpty) els.toolsMeasurementsEmpty.classList.toggle("hidden", measurements.length > 0);
+}
+
+// Satır seçimi + sola-kaydır-sil — Araçlar.dc.html'in KENDİ down/up eşiğiyle
+// (−24px) AYNI.
+let toolsFilesSwipeStartX = null;
+if (els.toolsFilesList) {
+  els.toolsFilesList.addEventListener("pointerdown", (e) => {
+    const row = e.target.closest(".tools-files-row-main");
+    if (!row) return;
+    toolsFilesSwipeStartX = e.clientX;
+  });
+  els.toolsFilesList.addEventListener("pointerup", (e) => {
+    const row = e.target.closest(".tools-files-row-main");
+    if (!row || toolsFilesSwipeStartX === null) return;
+    const dx = e.clientX - toolsFilesSwipeStartX;
+    toolsFilesSwipeStartX = null;
+    const id = row.dataset.select;
+    if (dx < -24) { toolsSwipedFileId = id; renderToolsFilesSheetContent(); return; }
+    if (toolsSwipedFileId === id) { toolsSwipedFileId = null; renderToolsFilesSheetContent(); return; }
+    if (id) toolsSelectFile(id);
+  });
+  els.toolsFilesList.addEventListener("click", (e) => {
+    const del = e.target.closest("[data-remove]");
+    if (del) toolsRemoveFile(del.dataset.remove);
+  });
+}
+if (els.toolsMeasurementsList) {
+  els.toolsMeasurementsList.addEventListener("click", (e) => {
+    const row = e.target.closest("[data-open-measurement]");
+    if (!row) return;
+    const measurements = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
+    const m = measurements[Number(row.dataset.openMeasurement)];
+    if (m) toolsOpenSavedMeasurement(m);
+  });
+}
+
+async function toolsHandlePickNewFile() {
+  if (paywall.isToolsContentLocked(isUserPro())) {
+    if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail, "pro");
+    return;
+  }
+  const picked = await pickNativeAudioFile();
+  if (picked === undefined) { if (els.toolsFileInput) els.toolsFileInput.click(); return; }
+  if (!picked) return;
+  const entry = await toolsAddFile(picked);
+  if (entry) {
+    toast("Dosya yüklendi", `${picked.name} — Dosyalarım'da listelendi.`);
+    toolsSelectFile(entry.id);
+  }
+}
+if (els.toolsUploadBtn) els.toolsUploadBtn.addEventListener("click", toolsOpenFilesSheet);
+if (els.toolsGearBtn) els.toolsGearBtn.addEventListener("click", toolsOpenFilesSheet);
+if (els.toolsFilesPickBtn) els.toolsFilesPickBtn.addEventListener("click", toolsHandlePickNewFile);
+if (els.toolsFileInput) {
+  els.toolsFileInput.addEventListener("change", async () => {
     const file = els.toolsFileInput.files && els.toolsFileInput.files[0];
     els.toolsFileInput.value = "";
-    processToolsUploadFile(file);
+    if (!file) return;
+    const entry = await toolsAddFile(file);
+    if (entry) { toast("Dosya yüklendi", `${file.name} — Dosyalarım'da listelendi.`); toolsSelectFile(entry.id); }
   });
 }
+if (els.toolsFilesClose) els.toolsFilesClose.addEventListener("click", toolsCloseFilesSheet);
+if (els.toolsFilesOverlay) els.toolsFilesOverlay.addEventListener("click", toolsCloseFilesSheet);
 if (els.toolsProBtn) els.toolsProBtn.addEventListener("click", () => { resetPaywallToGeneric(); goScreen("paywall"); });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// G99 — Araçlar ölçüm motoru ARAYÜZÜ. core/analysis.js'in (G98) 11 parametresini
-// ekrana bağlar. Kilit YOK — kart zaten toolsProContent'in (Pro-only) İÇİNDE,
-// ayrı bir kilit eklenmedi (task madde 7).
-//
-// Analiz "Analiz et"e basılınca ÇALIŞIR — dosya seçilince OTOMATİK başlamaz
-// (task madde 1, kullanıcı uzun dosyada beklemeyi kendi seçsin).
-//
-// analyzeAudioBuffer() saf/senkron ama büyük dosyalarda birkaç saniye
-// sürebiliyor (G98 raporu: Node'da 300s stereo dosyada ~2.2sn, mobilde daha
-// uzun olabilir) — ANA THREAD'İ BLOKE ETMESİN diye core/analysis-worker.js
-// içinde bir Web Worker'a taşındı (analysis.js'in KENDİSİ değişmedi, worker
-// onu sadece ÇAĞIRIYOR). Worker oluşturulamazsa (bazı WebView/eski tarayıcı
-// kısıtları) ana thread'e DÜŞÜLÜR — bu durumda arayüz o süre boyunca donabilir
-// ama analiz yine de TAMAMLANIR (sessizce başarısız OLMAZ, task madde 8).
+// E) Ölçüm Sonuçları. core/analysis.js'in (G98) 11 parametresini ekrana
+// bağlar — WORKER/ANALİZ MANTIĞI G99/G100'den AYNEN KORUNDU, sadece sonuçların
+// GÖSTERİLDİĞİ yer (artık kart-içi DEĞİL, ayrı bir sheet + kapatılınca kalıcı
+// bir şerit) değişti (task madde E).
 // ═══════════════════════════════════════════════════════════════════════════
 
 function runAnalysisInWorker(audioBuffer) {
@@ -7228,10 +7389,8 @@ async function analyzeUploadedFile(audioBuffer) {
     // (2) Burada ÖNCEDEN requestAnimationFrame ile "bir kare boyansın" diye
     // bekleniyordu — rAF, sekme ARKA PLANDAYKEN (document.hidden===true)
     // ASLA ateşlenmiyor, bu da analizi SONSUZA KADAR "loading" durumunda
-    // TAKILI bırakıyordu (canlı testte bulundu — buton kalıcı devre dışı,
-    // hata hiç gösterilmiyordu, task madde 8'in "sessizce başarısız olmasın"
-    // gereğini ihlal ediyordu). setTimeout arka planda KISILIR ama ASLA
-    // DURMAZ — bu yüzden rAF yerine setTimeout(0) kullanılıyor.
+    // TAKILI bırakıyordu (canlı testte bulundu). setTimeout arka planda
+    // KISILIR ama ASLA DURMAZ — bu yüzden rAF yerine setTimeout(0) kullanılıyor.
     await new Promise((r) => setTimeout(r, 0));
     const { analyzeAudioBuffer } = await import("./core/analysis.js");
     return analyzeAudioBuffer(audioBuffer);
@@ -7264,9 +7423,6 @@ function fmtLu(v) {
   if (!Number.isFinite(v)) return "—";
   return `${v.toFixed(1)} LU`;
 }
-// G100: RX 11 ile canlı karşılaştırmada RX'in binde-iki (+0.002%) hassasiyet
-// gösterdiği görüldü, biz sıfıra yuvarlıyorduk (2 ondalık basamak DC offset
-// gibi küçük yüzdeler için yetersiz) — 4 ondalık basamağa çıkarıldı.
 function fmtPercent(v) {
   if (!Number.isFinite(v)) return "—";
   return `${v >= 0 ? "+" : ""}${v.toFixed(4)}%`;
@@ -7275,30 +7431,29 @@ function fmtCount(v) {
   return Number.isFinite(v) ? String(v) : "—";
 }
 
-// G100: RX 11 ile canlı karşılaştırmada Total RMS'teki ~3dB'lik sapmanın TAM
-// OLARAK AES17 kaydırması olduğu doğrulandı (RX AES17 kullanıyor) — gösterilen
-// RMS artık `.aes17` alanlarını okuyor. HAM (`.raw`) analysis.js'te hesaplanmaya
-// devam ediyor, sadece BURADA gösterilmiyor (bkz. renderToolsAnalysisStandardNote).
 const TOOLS_ANALYSIS_CHANNEL_ROWS = [
   { label: "True peak (dBTP)", get: (c) => fmtDb(c.truePeakDb) },
   { label: "Sample peak (dBFS)", get: (c) => fmtDb(c.samplePeakDb) },
   { label: "Max RMS (dB)", get: (c) => fmtDb(c.maxRmsDb.aes17) },
   { label: "Min RMS (dB)", get: (c) => fmtDb(c.minRmsDb.aes17) },
   { label: "Total RMS (dB)", get: (c) => fmtDb(c.totalRmsDb.aes17) },
-  { label: "Olası kırpılmış örnek", get: (c) => fmtCount(c.possiblyClippedSamples) },
+  { label: "Olası kırpılmış örnek", get: (c) => fmtCount(c.possiblyClippedSamples), clip: true },
   { label: "DC offset (%)", get: (c) => fmtPercent(c.dcOffsetPercent) }
 ];
 
 function renderToolsAnalysisChannelTable(result) {
   if (!els.toolsAnalysisChannelTable) return;
   const channels = result.channels;
-  const headerCols = channels.map(c => `<div class="tools-analysis-col">${c.label}</div>`).join("");
-  const rowsHtml = TOOLS_ANALYSIS_CHANNEL_ROWS.map(row => {
-    const cols = channels.map(c => `<div class="tools-analysis-col">${row.get(c)}</div>`).join("");
+  const headerCols = channels.map((c) => `<div class="tools-results-col-header">${c.label}</div>`).join("");
+  const rowsHtml = TOOLS_ANALYSIS_CHANNEL_ROWS.map((row) => {
+    const cols = channels.map((c) => {
+      const clipped = row.clip && c.possiblyClippedSamples > 0;
+      return `<div class="tools-analysis-col${clipped ? " clipped" : ""}">${row.get(c)}</div>`;
+    }).join("");
     return `<div class="tools-analysis-row"><div class="tools-analysis-label">${row.label}</div>${cols}</div>`;
   }).join("");
   els.toolsAnalysisChannelTable.innerHTML =
-    `<div class="tools-analysis-col-headers"><div class="tools-analysis-label"></div>${headerCols}</div>${rowsHtml}`;
+    `<div class="tools-results-col-headers"><div style="flex:1"></div>${headerCols}</div>${rowsHtml}`;
 }
 
 function renderToolsAnalysisLoudness(result) {
@@ -7307,7 +7462,10 @@ function renderToolsAnalysisLoudness(result) {
   els.toolsAnalysisLoudness.innerHTML = `
     <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Max momentary</div><div class="tools-analysis-lv">${fmtLufs(p.maxMomentaryLufs)}</div></div>
     <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Max short-term</div><div class="tools-analysis-lv">${fmtLufs(p.maxShortTermLufs)}</div></div>
-    <div class="tools-analysis-loudness-row integrated"><div class="tools-analysis-label">Integrated</div><div class="tools-analysis-lv">${fmtLufs(p.integratedLufs)}</div></div>
+    <div class="tools-results-integrated-row">
+      <div class="tools-results-integrated-label">Integrated</div>
+      <div class="tools-results-integrated-value"><div class="tools-results-integrated-num">${Number.isFinite(p.integratedLufs) ? p.integratedLufs.toFixed(1) : "—"}</div><div class="tools-results-integrated-unit">LUFS</div></div>
+    </div>
     <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Loudness range</div><div class="tools-analysis-lv">${fmtLu(p.lra)}</div></div>`;
 }
 
@@ -7330,8 +7488,6 @@ function resizeToolsAnalysisChart() {
   if (!els.toolsAnalysisChart) return null;
   const dpr = window.devicePixelRatio || 1;
   const rect = els.toolsAnalysisChart.getBoundingClientRect();
-  // Ekran henüz görünmüyorsa (ör. Araçlar'a hiç girilmediyse) genişlik 0
-  // ölçülebilir — önceki bilinen boyutu koru (ana oyun canvas'ının AYNI deseni).
   if (rect.width > 0) toolsAnalysisChartCssW = rect.width;
   toolsAnalysisChartCssH = 90;
   const targetW = Math.max(1, Math.round(toolsAnalysisChartCssW * dpr));
@@ -7455,76 +7611,626 @@ function renderToolsAnalysisResults(result) {
   drawShortTermChart(result);
   renderToolsAnalysisStandardNote(result);
   if (els.toolsAnalysisChartReadout) els.toolsAnalysisChartReadout.textContent = "Grafiğe dokun — o noktanın değeri burada görünür.";
+  if (els.toolsResultsTotalTime) els.toolsResultsTotalTime.textContent = formatToolsDuration(result.durationSec);
 }
 
 let toolsAnalysisState = "idle"; // idle | loading | success | error
 let toolsAnalysisResult = null;
 let toolsAnalysisErrorMsg = "";
+let toolsAnalyzedFileId = null; // toolsAnalysisResult HANGİ dosyaya ait
+let toolsResultsSheetOpenFlag = false;
 
 function resetToolsAnalysis() {
   toolsAnalysisState = "idle";
   toolsAnalysisResult = null;
   toolsAnalysisErrorMsg = "";
   toolsAnalysisChartData = null;
+  toolsAnalyzedFileId = null;
+  renderToolsAnalysisCardState();
 }
 
-function renderToolsAnalysisState() {
-  if (!els.toolsAnalysisCard) return;
+// Buton: dosya seçiliyken görünür, o dosya için BAŞARIYLA analiz edilmişse
+// (design: showAnalyze = analyzed!==selFile) GİZLENİR — sonuçlar artık
+// sheet+şeritte. Analiz sürerken (loading) buton disabled + "Ölçülüyor…" +
+// içindeki kozmetik ilerleme çubuğu doluyor (bkz. task madde E — çubuk GERÇEK
+// bir yüzde İZLEMİYOR, tasarımın kendi 1400ms'lik sabit animasyonu; asıl
+// "bitti mi" sinyali worker'ın GERÇEK tamamlanmasından geliyor, çubuk sadece
+// görsel aktivite göstergesi).
+function renderToolsAnalysisCardState() {
+  const entry = toolsSelectedEntry();
+  if (!entry) return;
   const loading = toolsAnalysisState === "loading";
-  const success = toolsAnalysisState === "success";
+  const success = toolsAnalysisState === "success" && toolsAnalyzedFileId === toolsSelectedFileId;
   const error = toolsAnalysisState === "error";
-  if (els.toolsAnalysisProgress) els.toolsAnalysisProgress.classList.toggle("hidden", !loading);
+  if (els.toolsAnalyzeBtn) {
+    els.toolsAnalyzeBtn.classList.toggle("hidden", success);
+    els.toolsAnalyzeBtn.disabled = loading;
+  }
+  if (els.toolsAnalyzeBtnLabel) els.toolsAnalyzeBtnLabel.textContent = loading ? "Ölçülüyor…" : "Analiz et";
   if (els.toolsAnalysisError) {
     els.toolsAnalysisError.classList.toggle("hidden", !error);
     if (error) els.toolsAnalysisError.textContent = toolsAnalysisErrorMsg;
   }
-  if (els.toolsAnalysisResults) els.toolsAnalysisResults.classList.toggle("hidden", !success);
-  if (els.toolsAnalyzeBtn) els.toolsAnalyzeBtn.disabled = loading;
-  if (els.toolsAnalyzeBtnLabel) {
-    els.toolsAnalyzeBtnLabel.textContent = loading ? "Analiz ediliyor…" : success ? "Yeniden analiz et" : "Analiz et";
-  }
-  if (success && toolsAnalysisResult) renderToolsAnalysisResults(toolsAnalysisResult);
+  if (els.toolsResultsStrip) els.toolsResultsStrip.classList.toggle("hidden", !(success && !toolsResultsSheetOpenFlag));
 }
 
-// uploadManager.hasBuffer değiştiğinde (yeni dosya yüklenince) kartın kendisi
-// görünür/gizli olur — task madde: "Dosya seçili değilken görünmez."
-function renderToolsAnalysisCard() {
-  if (!els.toolsAnalysisCard) return;
-  const show = uploadManager.hasBuffer;
-  els.toolsAnalysisCard.classList.toggle("hidden", !show);
-  if (show) renderToolsAnalysisState();
+function renderToolsCardsVisibility() {
+  const entry = toolsSelectedEntry();
+  const hasFile = !!entry;
+  if (els.toolsTonalCard) els.toolsTonalCard.classList.toggle("hidden", !hasFile);
+  if (els.toolsAnalysisCard) els.toolsAnalysisCard.classList.toggle("hidden", !hasFile);
+  if (!hasFile) {
+    if (els.toolsResultsStrip) els.toolsResultsStrip.classList.add("hidden");
+    return;
+  }
+  renderToolsAnalysisCardState();
+  renderToolsTonalCard();
 }
-renderToolsAnalysisCard();
 
 if (els.toolsAnalyzeBtn) {
   els.toolsAnalyzeBtn.addEventListener("click", async () => {
-    if (!uploadManager.hasBuffer || toolsAnalysisState === "loading") return;
+    const entry = toolsSelectedEntry();
+    if (!entry || toolsAnalysisState === "loading") return;
     const buffer = uploadManager.getBuffer();
     if (!buffer) return;
     toolsAnalysisState = "loading";
-    renderToolsAnalysisState();
+    renderToolsAnalysisCardState();
+    if (els.toolsAnalyzeBar) {
+      els.toolsAnalyzeBar.style.transition = "none";
+      els.toolsAnalyzeBar.style.width = "0%";
+      void els.toolsAnalyzeBar.offsetWidth;
+      els.toolsAnalyzeBar.style.transition = "width 1400ms linear";
+      els.toolsAnalyzeBar.style.width = "100%";
+    }
     try {
       const result = await analyzeUploadedFile(buffer);
       toolsAnalysisResult = result;
+      toolsAnalyzedFileId = entry.id;
       toolsAnalysisState = "success";
+      toolsLogMeasurement(entry.name, result);
     } catch (err) {
       console.error("[analiz] hata:", err && err.message, err);
       toolsAnalysisErrorMsg = toolsAnalysisErrorMessage(err);
       toolsAnalysisState = "error";
     }
-    renderToolsAnalysisState();
+    renderToolsAnalysisCardState();
+    if (toolsAnalysisState === "success") {
+      renderToolsAnalysisResults(toolsAnalysisResult);
+      toolsOpenResultsSheet();
+    }
   });
 }
+
+function toolsOpenResultsSheet() {
+  toolsResultsSheetOpenFlag = true;
+  if (els.toolsResultsStrip) els.toolsResultsStrip.classList.add("hidden");
+  if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.remove("hidden");
+  if (els.toolsResultsSheet) els.toolsResultsSheet.classList.remove("hidden");
+  requestAnimationFrame(() => {
+    if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.add("open");
+    if (els.toolsResultsSheet) els.toolsResultsSheet.classList.add("open");
+    if (toolsAnalysisResult) drawShortTermChart(toolsAnalysisResult);
+  });
+}
+function toolsCloseResultsSheet() {
+  toolsResultsSheetOpenFlag = false;
+  if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.remove("open");
+  if (els.toolsResultsSheet) els.toolsResultsSheet.classList.remove("open");
+  setTimeout(() => {
+    if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.add("hidden");
+    if (els.toolsResultsSheet) els.toolsResultsSheet.classList.add("hidden");
+  }, 260);
+  renderToolsAnalysisCardState();
+}
+// Şeritten yeniden açılınca ANALİZ TEKRAR ÇALIŞMAZ — sadece zaten hesaplanmış
+// toolsAnalysisResult'ı YENİDEN gösterir (task madde E'nin kendi kuralı).
+function toolsOpenSavedMeasurement(savedEntry) {
+  renderToolsAnalysisResults(savedEntry.result);
+  toolsCloseFilesSheet();
+  toolsOpenResultsSheet();
+}
+if (els.toolsResultsClose) els.toolsResultsClose.addEventListener("click", toolsCloseResultsSheet);
+if (els.toolsResultsOverlay) els.toolsResultsOverlay.addEventListener("click", toolsCloseResultsSheet);
+if (els.toolsResultsStrip) els.toolsResultsStrip.addEventListener("click", toolsOpenResultsSheet);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// D) Tonal Balance — G101'de SIFIRDAN yazıldı (task'ın kendi notu). Spektral
+// ölçüm core/tonal-balance.js'te (bkz. o dosyanın DÜRÜSTLÜK notu — analysis.js
+// spektrum ÜRETMİYOR, bu YENİ/AYRI bir modül). Grafik matematiği Araçlar.dc.
+// html'in KENDİ tbChart() fonksiyonundan BİREBİR taşındı (log frekans ekseni,
+// smoothstep bant-arası interpolasyon, ±1.5dB hedef bandı).
+//
+// ÜRÜN YORUMU — DÜRÜSTLÜK NOTU: tasarımın chart kodu `devs`'i (TB[genre])
+// DOĞRUDAN çizip ±1.5dB'yi SIFIR etrafında sabit bir bant olarak gösteriyor;
+// bu, tasarım aracının CANLI ses erişimi olmadığı için TB[genre]'yi "mix'in
+// kendi ölçümü" yerine geçici bir gösterim verisi olarak kullanmasından
+// kaynaklanıyor. GERÇEK üründe anlamlı olan yorum şu: preset hedefler
+// (Pop/EDM/Akustik) GERÇEKTEN tür-şekilli hedef eğrilerdir (task'ın kendi
+// "hedef eğriler" ifadesi) — bu yüzden çizilen değer MIX'İN KENDİ ÖLÇÜLEN
+// sapması EKSİ SEÇİLİ HEDEF EĞRİ'dir (kalıntı, hedeften sapma) — ±1.5dB bandı
+// "türe göre kabul edilebilir tolerans" anlamına geliyor. "Kendi referansım"
+// modunda (özellik anahtarı) tasarımın refDevs dalı BİREBİR: mix VE referans
+// eğrisi ayrı ayrı, HAM (birbirinden çıkarılmadan) çiziliyor.
+let toolsTonalTargetIdx = 0; // 0=Pop,1=EDM,2=Akustik,(3=Kendi referansım, flag açıkken)
+let toolsTonalDevs = null; // secili dosyanin OLCULEN sapmasi (6 eleman), cache
+let toolsTonalMeasuringForId = null;
+let toolsTonalCustomRef = null; // {name, devs} — "Kendi referansım" icin secilen referans
+let toolsTonalAbMode = "B";
+let toolsTonalProcOn = false;
+const TOOLS_TONAL_PRESETS = ["Pop", "EDM", "Akustik"];
+
+function toolsTonalTargetNames() {
+  const names = [...TOOLS_TONAL_PRESETS];
+  if (devFlags.customTonalRef) names.push("Kendi referansım");
+  return names;
+}
+function toolsTonalIsCustom() {
+  return devFlags.customTonalRef && toolsTonalTargetIdx === TOOLS_TONAL_PRESETS.length;
+}
+
+function renderToolsTonalChips() {
+  if (!els.toolsTonalChips) return;
+  const names = toolsTonalTargetNames();
+  els.toolsTonalChips.innerHTML = names.map((name, i) => `<div class="tools-tonal-chip${i === toolsTonalTargetIdx ? " active" : ""}" data-idx="${i}">${escapeHtml(name)}</div>`).join("");
+}
+if (els.toolsTonalChips) {
+  els.toolsTonalChips.addEventListener("click", (e) => {
+    const chip = e.target.closest(".tools-tonal-chip");
+    if (!chip) return;
+    toolsTonalTargetIdx = Number(chip.dataset.idx);
+    renderToolsTonalCard();
+  });
+}
+if (els.toolsTonalRefPick) {
+  els.toolsTonalRefPick.addEventListener("click", async () => {
+    const picked = await pickNativeAudioFile();
+    const file = picked === undefined ? null : picked;
+    if (!file) return;
+    try {
+      await audioEngine.initAudio();
+      const ctx0 = audioEngine.audioCtx;
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = await ctx0.decodeAudioData(arrayBuffer.slice(0));
+      const devs = await tonalBalance.measureSpectralDeviation(buffer);
+      toolsTonalCustomRef = { name: file.name, devs };
+      renderToolsTonalCard();
+    } catch (err) {
+      console.error("[tonal-balance] referans ölçüm hatası:", err && err.message, err);
+      toast("Referans ölçülemedi", "Bu dosya referans olarak analiz edilemedi.");
+    }
+  });
+}
+if (els.toolsTonalRefChange) els.toolsTonalRefChange.addEventListener("click", () => { toolsTonalCustomRef = null; renderToolsTonalCard(); });
+if (els.toolsTonalPlayA) els.toolsTonalPlayA.addEventListener("click", () => { toolsTonalAbMode = "A"; renderToolsTonalAbUi(); });
+if (els.toolsTonalPlayB) els.toolsTonalPlayB.addEventListener("click", () => { toolsTonalAbMode = "B"; renderToolsTonalAbUi(); });
+if (els.toolsTonalProcChip) els.toolsTonalProcChip.addEventListener("click", () => { toolsTonalProcOn = !toolsTonalProcOn; renderToolsTonalAbUi(); });
+function renderToolsTonalAbUi() {
+  if (els.toolsTonalPlayA) els.toolsTonalPlayA.classList.toggle("active-a", toolsTonalAbMode === "A");
+  if (els.toolsTonalPlayB) els.toolsTonalPlayB.classList.toggle("active-b", toolsTonalAbMode === "B");
+  if (els.toolsTonalProcChip) els.toolsTonalProcChip.classList.toggle("on", toolsTonalProcOn);
+}
+
+async function toolsEnsureTonalMeasured() {
+  const entry = toolsSelectedEntry();
+  if (!entry) return null;
+  if (toolsTonalDevs && toolsTonalMeasuringForId === entry.id) return toolsTonalDevs;
+  const buffer = uploadManager.getBuffer();
+  if (!buffer) return null;
+  try {
+    const devs = await tonalBalance.measureSpectralDeviation(buffer);
+    toolsTonalDevs = devs;
+    toolsTonalMeasuringForId = entry.id;
+    return devs;
+  } catch (err) {
+    console.error("[tonal-balance] ölçüm hatası:", err && err.message, err);
+    return null;
+  }
+}
+
+// --- Grafik: Araçlar.dc.html'in KENDİ tbChart() matematiğinden birebir. ---
+const TOOLS_TONAL_W = 340, TOOLS_TONAL_H = 160;
+const TOOLS_TONAL_X0 = 12, TOOLS_TONAL_X1 = TOOLS_TONAL_W - 10;
+const TOOLS_TONAL_GY0 = 10, TOOLS_TONAL_GY1 = 112;
+function toolsTonalFx(f) { return TOOLS_TONAL_X0 + (Math.log10(f / 20) / 3) * (TOOLS_TONAL_X1 - TOOLS_TONAL_X0); }
+function toolsTonalDy(d) { return (TOOLS_TONAL_GY0 + TOOLS_TONAL_GY1) / 2 - (d / 7) * ((TOOLS_TONAL_GY1 - TOOLS_TONAL_GY0) / 2); }
+function toolsTonalCenters() {
+  const e = tonalBalance.BAND_EDGES;
+  return e.slice(0, 6).map((f, i) => Math.sqrt(f * e[i + 1]));
+}
+function toolsTonalValueAt(devs, f, centers) {
+  const lf = Math.log10(f), lc = centers.map(Math.log10);
+  if (lf <= lc[0]) return devs[0];
+  if (lf >= lc[5]) return devs[5];
+  let i = 0;
+  while (i < 5 && lf > lc[i + 1]) i++;
+  const t = (lf - lc[i]) / (lc[i + 1] - lc[i]);
+  const sm = (1 - Math.cos(t * Math.PI)) / 2;
+  return devs[i] + (devs[i + 1] - devs[i]) * sm + Math.sin(lf * 11) * 0.16;
+}
+
+function drawTonalChart(devs, refDevs) {
+  const canvas = els.toolsTonalChart;
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const cssW = rect.width || 300, cssH = rect.height || 160;
+  canvas.width = Math.max(1, Math.round(cssW * dpr));
+  canvas.height = Math.max(1, Math.round(cssH * dpr));
+  const ctx = canvas.getContext("2d");
+  const sx = cssW / TOOLS_TONAL_W, sy = cssH / TOOLS_TONAL_H;
+  ctx.setTransform(dpr * sx, 0, 0, dpr * sy, 0, 0);
+  ctx.clearRect(0, 0, TOOLS_TONAL_W, TOOLS_TONAL_H);
+
+  const centers = toolsTonalCenters();
+  const pts = [];
+  for (let x = TOOLS_TONAL_X0; x <= TOOLS_TONAL_X1; x += 2) {
+    const f = 20 * Math.pow(10, ((x - TOOLS_TONAL_X0) / (TOOLS_TONAL_X1 - TOOLS_TONAL_X0)) * 3);
+    pts.push([x, toolsTonalValueAt(devs, f, centers)]);
+  }
+
+  // Merkez kesikli çizgi
+  ctx.strokeStyle = "rgba(34,211,238,.28)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(TOOLS_TONAL_X0, toolsTonalDy(0));
+  ctx.lineTo(TOOLS_TONAL_X1, toolsTonalDy(0));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Bant sınırları
+  const edges = tonalBalance.BAND_EDGES.slice(1, 6);
+  ctx.strokeStyle = "rgba(255,255,255,.06)";
+  edges.forEach((f) => {
+    ctx.beginPath();
+    ctx.moveTo(toolsTonalFx(f), TOOLS_TONAL_GY0);
+    ctx.lineTo(toolsTonalFx(f), TOOLS_TONAL_GY1 + 4);
+    ctx.stroke();
+  });
+
+  if (refDevs) {
+    const rpts = pts.map(([x]) => {
+      const f = 20 * Math.pow(10, ((x - TOOLS_TONAL_X0) / (TOOLS_TONAL_X1 - TOOLS_TONAL_X0)) * 3);
+      return [x, toolsTonalValueAt(refDevs, f, centers)];
+    });
+    // Fark dolgusu (>1.5dB olan bölgeler) — kırmızı
+    ctx.fillStyle = "rgba(248,113,96,.28)";
+    let run = null;
+    for (let i = 0; i < pts.length; i++) {
+      const big = Math.abs(pts[i][1] - rpts[i][1]) > 1.5;
+      if (big) { if (!run) run = [i, i]; else run[1] = i; }
+      else { if (run && run[1] - run[0] >= 1) toolsTonalFillRun(ctx, pts, rpts, run); run = null; }
+    }
+    if (run && run[1] - run[0] >= 1) toolsTonalFillRun(ctx, pts, rpts, run);
+    // Referans (altın) + mix (cyan)
+    toolsTonalStrokePath(ctx, rpts, "#e8c46a");
+    toolsTonalStrokePath(ctx, pts, "#22d3ee");
+  } else {
+    // ±1.5dB hedef bandı
+    const grad = ctx.createLinearGradient(0, TOOLS_TONAL_GY0, 0, TOOLS_TONAL_GY1);
+    grad.addColorStop(0, "rgba(34,211,238,.04)");
+    grad.addColorStop(0.5, "rgba(34,211,238,.16)");
+    grad.addColorStop(1, "rgba(34,211,238,.04)");
+    ctx.fillStyle = grad;
+    ctx.fillRect(TOOLS_TONAL_X0, toolsTonalDy(1.5), TOOLS_TONAL_X1 - TOOLS_TONAL_X0, toolsTonalDy(-1.5) - toolsTonalDy(1.5));
+    // Segment bazlı çizgi: hedef içi cyan, dışı amber + dolgu
+    let seg = null;
+    const segs = [];
+    pts.forEach((p) => {
+      const outside = Math.abs(p[1]) > 1.5;
+      if (!seg || seg.out !== outside) { if (seg) seg.pts.push(p); seg = { out: outside, pts: [p] }; segs.push(seg); }
+      else seg.pts.push(p);
+    });
+    segs.forEach((sg) => {
+      if (sg.out && sg.pts.length > 1) {
+        const edge = sg.pts[0][1] > 0 ? 1.5 : -1.5;
+        ctx.fillStyle = "rgba(232,196,106,.18)";
+        ctx.beginPath();
+        sg.pts.forEach((p, i) => { if (i === 0) ctx.moveTo(toolsTonalFx2x(p[0]), toolsTonalDy(p[1])); else ctx.lineTo(toolsTonalFx2x(p[0]), toolsTonalDy(p[1])); });
+        ctx.lineTo(toolsTonalFx2x(sg.pts[sg.pts.length - 1][0]), toolsTonalDy(edge));
+        ctx.lineTo(toolsTonalFx2x(sg.pts[0][0]), toolsTonalDy(edge));
+        ctx.closePath();
+        ctx.fill();
+      }
+    });
+    segs.forEach((sg) => toolsTonalStrokePath(ctx, sg.pts, sg.out ? "#e8c46a" : "#22d3ee"));
+  }
+
+  // Bant adları (alt)
+  ctx.font = "800 7.5px Inter, sans-serif";
+  ctx.textAlign = "center";
+  tonalBalance.BANDS.forEach((name, i) => {
+    ctx.fillStyle = Math.abs(devs[i]) > 1.5 ? "#e8c46a" : "#5a6068";
+    ctx.fillText(name, toolsTonalFx(centers[i]), 128);
+  });
+  // Frekans eksen etiketleri
+  ctx.font = "600 8.5px Inter, sans-serif";
+  ctx.fillStyle = "#3f444a";
+  [[20, "20"], [100, "100"], [500, "500"], [2000, "2k"], [8000, "8k"], [20000, "20k"]].forEach(([f, label]) => {
+    const x = Math.min(Math.max(toolsTonalFx(f), TOOLS_TONAL_X0 + 6), TOOLS_TONAL_X1 - 8);
+    ctx.fillText(label, x, 148);
+  });
+}
+function toolsTonalFx2x(x) { return x; } // pts zaten x kordinatinda (fx uygulanmis), pass-through
+function toolsTonalStrokePath(ctx, pts, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  pts.forEach((p, i) => { if (i === 0) ctx.moveTo(p[0], toolsTonalDy(p[1])); else ctx.lineTo(p[0], toolsTonalDy(p[1])); });
+  ctx.stroke();
+}
+function toolsTonalFillRun(ctx, pts, rpts, run) {
+  const top = pts.slice(run[0], run[1] + 1);
+  const bot = rpts.slice(run[0], run[1] + 1).slice().reverse();
+  ctx.beginPath();
+  top.forEach((p, i) => { if (i === 0) ctx.moveTo(p[0], toolsTonalDy(p[1])); else ctx.lineTo(p[0], toolsTonalDy(p[1])); });
+  bot.forEach((p) => ctx.lineTo(p[0], toolsTonalDy(p[1])));
+  ctx.closePath();
+  ctx.fill();
+}
+
+function renderToolsTonalSummary(summary) {
+  if (!els.toolsTonalSummary) return;
+  if (summary.allWithinTarget) {
+    els.toolsTonalSummary.textContent = "Tüm bölgeler hedef aralıkta";
+    els.toolsTonalSummary.style.color = "#22d3ee";
+  } else {
+    els.toolsTonalSummary.textContent = `${summary.offBands.length} bölge hedef dışında: ` +
+      summary.offBands.map((b) => `${b.name} ${b.dev > 0 ? "+" : "−"}${Math.abs(b.dev).toFixed(1)} dB`).join(", ");
+    els.toolsTonalSummary.style.color = "#e8c46a";
+  }
+}
+
+let toolsTonalRenderToken = 0;
+async function renderToolsTonalCard() {
+  if (!els.toolsTonalCard) return;
+  const entry = toolsSelectedEntry();
+  els.toolsTonalCard.classList.toggle("hidden", !entry);
+  if (!entry) return;
+  const myToken = ++toolsTonalRenderToken;
+  renderToolsTonalChips();
+  const isCustom = toolsTonalIsCustom();
+  if (els.toolsTonalRefRow) els.toolsTonalRefRow.classList.toggle("hidden", !isCustom);
+  if (els.toolsTonalLegend) els.toolsTonalLegend.classList.toggle("hidden", !isCustom);
+  if (els.toolsTonalAbRow) els.toolsTonalAbRow.classList.toggle("hidden", !isCustom);
+  if (els.toolsTonalDraftNote) {
+    els.toolsTonalDraftNote.textContent = isCustom
+      ? ""
+      : "Hedef eğri TASLAK — gerçek referans parçalardan yeniden türetilecek, kesin ölçüm değildir.";
+  }
+  if (isCustom) {
+    const hasRef = !!toolsTonalCustomRef;
+    if (els.toolsTonalRefCurrent) els.toolsTonalRefCurrent.classList.toggle("hidden", !hasRef);
+    if (els.toolsTonalRefPick) els.toolsTonalRefPick.classList.toggle("hidden", hasRef);
+    if (hasRef && els.toolsTonalRefName) els.toolsTonalRefName.textContent = toolsTonalCustomRef.name;
+    renderToolsTonalAbUi();
+  }
+
+  if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Mix ölçülüyor…"; els.toolsTonalSummary.style.color = "#8f949b"; }
+  const devs = await toolsEnsureTonalMeasured();
+  if (myToken !== toolsTonalRenderToken) return; // arada baska dosya secildi, bu sonuc ESKI
+  if (!devs) {
+    if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Bu tarayıcı Tonal Balance ölçümünü desteklemiyor."; els.toolsTonalSummary.style.color = "#e8c46a"; }
+    return;
+  }
+
+  if (isCustom) {
+    if (toolsTonalCustomRef) {
+      drawTonalChart(devs, toolsTonalCustomRef.devs);
+      const diff = devs.map((d, i) => d - toolsTonalCustomRef.devs[i]);
+      renderToolsTonalSummary(tonalBalance.summarizeDeviation(diff));
+    } else {
+      drawTonalChart(devs, null);
+      if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Referans parça seçilmedi"; els.toolsTonalSummary.style.color = "#8f949b"; }
+    }
+  } else {
+    const targetDevs = tonalBalance.DRAFT_TARGET_CURVES[TOOLS_TONAL_PRESETS[toolsTonalTargetIdx]];
+    const diff = devs.map((d, i) => d - targetDevs[i]);
+    drawTonalChart(diff, null);
+    renderToolsTonalSummary(tonalBalance.summarizeDeviation(diff));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F) Referans Filtreleri — akordiyon + çalar. GERÇEK DSP YOK (bilerek, bkz.
+// index.html'deki uyarı satırı) — filtre seçmek dinleme deneyimini
+// DEĞİŞTİRMİYOR, sadece hangi cihazın simüle edildiğini GÖSTERİYOR.
+// ═══════════════════════════════════════════════════════════════════════════
+const TOOLS_FILTERS = [
+  { name: "Telefon Hoparlörü", range: "400 Hz – 6 kHz", kind: "phone", icon: "M7 3h10v18H7zM10 18h4" },
+  { name: "Araba", range: "60 Hz – 14 kHz", kind: "car", icon: "M4 16v-3l2-5h12l2 5v3M4 16h16M7 16v2M17 16v2" },
+  { name: "Kulaklık", range: "20 Hz – 20 kHz", kind: "head", icon: "M4 13a8 8 0 0 1 16 0M3 15h4v5H3zM17 15h4v5h-4z" },
+  { name: "Club Sistemi", range: "25 Hz – 18 kHz", kind: "club", icon: "M5 3h14v18H5zM12 8a2 2 0 1 0 .01 0M12 15a3 3 0 1 0 .01 0" },
+  { name: "Laptop Hoparlörü", range: "250 Hz – 12 kHz", kind: "laptop", icon: "M4 6h16v10H4zM2 19h20" }
+];
+let toolsFilterActiveIdx = -1;
+let toolsFilterOpen = false;
+let toolsFilterPlaying = false;
+let toolsFilterPreviewNode = null;
+let toolsFilterPreviewGain = null;
+
+// Cihaz illüstrasyonları — Araçlar.dc.html'in KENDİ art() üretecinden
+// BİREBİR taşındı (React.createElement çağrıları düz SVG string'e çevrildi,
+// path/gradyan verileri DEĞİŞMEDİ).
+function toolsFilterArtDefs(u, rim, rimSoft) {
+  return `<defs>
+    <linearGradient id="bd${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#464d55"></stop><stop offset="0.42" stop-color="#2b3037"></stop><stop offset="1" stop-color="#14171a"></stop></linearGradient>
+    <linearGradient id="bd2${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a4048"></stop><stop offset="1" stop-color="#1a1d21"></stop></linearGradient>
+    <linearGradient id="met${u}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b939c"></stop><stop offset="0.3" stop-color="#d6dde4"></stop><stop offset="0.6" stop-color="#767d86"></stop><stop offset="1" stop-color="#3d434a"></stop></linearGradient>
+    <linearGradient id="gl${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.22"></stop><stop offset="1" stop-color="#ffffff" stop-opacity="0"></stop></linearGradient>
+    <radialGradient id="cone${u}" cx="0.5" cy="0.38" r="0.62"><stop offset="0" stop-color="#3d434b"></stop><stop offset="0.55" stop-color="#22262b"></stop><stop offset="1" stop-color="#0e1013"></stop></radialGradient>
+    <radialGradient id="cap${u}" cx="0.42" cy="0.34" r="0.7"><stop offset="0" stop-color="${rim}" stop-opacity="0.75"></stop><stop offset="0.7" stop-color="${rim}" stop-opacity="0.22"></stop><stop offset="1" stop-color="#0e1013" stop-opacity="0.9"></stop></radialGradient>
+  </defs>`;
+}
+function toolsFilterArt(kind, active) {
+  const u = kind + (active ? "a" : "p");
+  const rim = active ? "#22d3ee" : "#7b8189";
+  const rimSoft = active ? "rgba(34,211,238,.55)" : "rgba(255,255,255,.14)";
+  const F = `url(#bd${u})`, F2 = `url(#bd2${u})`, GL = `url(#gl${u})`, CONE = `url(#cone${u})`, CAP = `url(#cap${u})`, MET = `url(#met${u})`;
+  const shadow = (cx, cy, rx) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="2.6" fill="rgba(0,0,0,.55)"></ellipse><ellipse cx="${cx}" cy="${cy}" rx="${(rx * 0.62).toFixed(1)}" ry="1.6" fill="rgba(0,0,0,.5)"></ellipse>`;
+  const dots = (xs, y, r) => xs.map((x) => `<circle cx="${x}" cy="${y}" r="${r || 0.6}" fill="${rimSoft}"></circle>`).join("");
+  const bodies = {
+    phone: `${shadow(32, 52, 13)}
+      <rect x="20.5" y="2.5" width="23" height="47" rx="5.4" fill="${F}" stroke="${rimSoft}" stroke-width="0.9"></rect>
+      <rect x="22" y="4" width="20" height="44" rx="4.2" fill="#0a0d10"></rect>
+      <path d="M22 30 L42 8.5 v6.5 L22 37z" fill="${GL}"></path>
+      <rect x="27" y="5.4" width="10" height="1.1" rx="0.55" fill="rgba(255,255,255,.3)"></rect>
+      <line x1="21.4" y1="10" x2="21.4" y2="40" stroke="${rimSoft}" stroke-width="1.1" opacity="${active ? 0.9 : 0.5}"></line>
+      ${dots([27.5, 30, 32.5, 35, 37.5], 50.4, 0.62)}
+      <rect x="43.2" y="13" width="1.3" height="7" rx="0.65" fill="#5a6068"></rect>`,
+    car: `${shadow(32, 51, 24)}
+      <path d="M4 9h56a3 3 0 0 1 3 3v33a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V12a3 3 0 0 1 3-3z" fill="${F}"></path>
+      <rect x="2.5" y="9" width="59" height="1.6" rx="0.8" fill="rgba(255,255,255,.2)"></rect>
+      <path d="M1 22c16 5 34 6.5 62 2.5" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="1.2"></path>
+      <path d="M40 13h18a2 2 0 0 1 2 2v7H40z" fill="${F2}"></path>
+      <circle cx="22" cy="34" r="11.4" fill="${CONE}" stroke="rgba(255,255,255,.08)" stroke-width="1"></circle>
+      <circle cx="22" cy="34" r="8.4" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="0.9"></circle>
+      <circle cx="22" cy="34" r="5.6" fill="${CONE}"></circle>
+      <circle cx="22" cy="34" r="2.3" fill="${CAP}"></circle>
+      <circle cx="13.4" cy="25.4" r="0.75" fill="#6b727a"></circle><circle cx="30.6" cy="25.4" r="0.75" fill="#6b727a"></circle>
+      <circle cx="13.4" cy="42.6" r="0.75" fill="#6b727a"></circle><circle cx="30.6" cy="42.6" r="0.75" fill="#6b727a"></circle>
+      <line x1="2.6" y1="14" x2="2.6" y2="44" stroke="${rimSoft}" stroke-width="1.2" opacity="${active ? 0.95 : 0.45}"></line>
+      <path d="M44 30c5 1 10 1.5 16 1" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1.1"></path>`,
+    head: `${shadow(32, 52, 17)}
+      <path d="M11 33V23a21 21 0 0 1 42 0v10" fill="none" stroke="${MET}" stroke-width="3.6"></path>
+      <path d="M11.6 31.5V23a20 20 0 0 1 40.8 0v8.5" fill="none" stroke="rgba(255,255,255,.32)" stroke-width="0.9"></path>
+      <rect x="11.6" y="28" width="3.4" height="6" rx="1.4" fill="${F2}"></rect><rect x="49" y="28" width="3.4" height="6" rx="1.4" fill="${F2}"></rect>
+      <path d="M6 27.5h7.5a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-13a3 3 0 0 1 3-3z" fill="${F}"></path>
+      <path d="M50.5 27.5H58a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3h-7.5a3 3 0 0 1-3-3v-13a3 3 0 0 1 3-3z" fill="${F}"></path>
+      <path d="M7 30h5.5a2.4 2.4 0 0 1 2.4 2.4v9.2A2.4 2.4 0 0 1 12.5 44H7a2.4 2.4 0 0 1-2.4-2.4v-9.2A2.4 2.4 0 0 1 7 30z" fill="#15181c" stroke="${rimSoft}" stroke-width="0.9"></path>
+      <path d="M51.5 30H57a2.4 2.4 0 0 1 2.4 2.4v9.2A2.4 2.4 0 0 1 57 44h-5.5a2.4 2.4 0 0 1-2.4-2.4v-9.2A2.4 2.4 0 0 1 51.5 30z" fill="#15181c" stroke="${rimSoft}" stroke-width="0.9"></path>
+      <rect x="4.4" y="28.6" width="10.6" height="1.3" rx="0.65" fill="rgba(255,255,255,.22)"></rect>
+      <rect x="49.4" y="28.6" width="10.6" height="1.3" rx="0.65" fill="rgba(255,255,255,.22)"></rect>`,
+    club: `<ellipse cx="32" cy="30" rx="27" ry="23" fill="${active ? "rgba(34,211,238,.08)" : "rgba(255,255,255,.025)"}"></ellipse>
+      ${shadow(32, 51, 20)}
+      <rect x="17.5" y="3" width="29" height="16.5" rx="2" fill="${F}"></rect>
+      <path d="M22 8h7.5l8.5-2.6v11.2L29.5 14H22z" fill="${CONE}" stroke="rgba(255,255,255,.08)" stroke-width="0.9"></path>
+      <circle cx="41.5" cy="11.4" r="2.6" fill="${CAP}"></circle>
+      <rect x="18.5" y="3.6" width="27" height="1.1" rx="0.55" fill="rgba(255,255,255,.22)"></rect>
+      <rect x="13.5" y="21.5" width="37" height="27.5" rx="2" fill="${F}"></rect>
+      <line x1="32" y1="22.5" x2="32" y2="48" stroke="rgba(0,0,0,.5)" stroke-width="1"></line>
+      <circle cx="22.6" cy="35.4" r="7.6" fill="${CONE}" stroke="rgba(255,255,255,.07)" stroke-width="0.9"></circle><circle cx="22.6" cy="35.4" r="2.5" fill="${CAP}"></circle>
+      <circle cx="41.4" cy="35.4" r="7.6" fill="${CONE}" stroke="rgba(255,255,255,.07)" stroke-width="0.9"></circle><circle cx="41.4" cy="35.4" r="2.5" fill="${CAP}"></circle>
+      <rect x="14.5" y="22.1" width="35" height="1.1" rx="0.55" fill="rgba(255,255,255,.16)"></rect>
+      <line x1="14.2" y1="24" x2="14.2" y2="47" stroke="${rimSoft}" stroke-width="1.2" opacity="${active ? 0.9 : 0.4}"></line>
+      <line x1="49.8" y1="24" x2="49.8" y2="47" stroke="${rimSoft}" stroke-width="1.2" opacity="${active ? 0.55 : 0.25}"></line>`,
+    laptop: `${shadow(32, 48, 26)}
+      <path d="M13.5 5h37l3.5 26H10z" fill="${F2}" stroke="${rimSoft}" stroke-width="0.9"></path>
+      <path d="M15.5 7h33l2.6 22H12.9z" fill="#0a0d10"></path>
+      <path d="M14 29 L33 8.4 h6.4 L20.4 29z" fill="${GL}"></path>
+      <path d="M6 31h52l6 8.5H0z" fill="${F}"></path>
+      <path d="M6.6 31.6h50.8l1 1.4H5.6z" fill="rgba(255,255,255,.18)"></path>
+      <path d="M20.5 33.5h23l1.6 4.2H18.9z" fill="#14171b"></path>
+      ${dots([9, 11.6, 14.2], 37.2, 0.55)}
+      ${dots([49.8, 52.4, 55], 35, 0.55)}
+      ${dots([50.6, 53.2, 55.8], 37.2, 0.55)}
+      <line x1="0" y1="39.5" x2="64" y2="39.5" stroke="${rimSoft}" stroke-width="1.1"></line>`
+  };
+  return `<svg width="64" height="54" viewBox="0 0 64 56" style="display:block;overflow:visible">${toolsFilterArtDefs(u, rim, rimSoft)}${bodies[kind] || ""}</svg>`;
+}
+
+function renderToolsFilterGrid() {
+  if (!els.toolsFilterGrid) return;
+  els.toolsFilterGrid.innerHTML = TOOLS_FILTERS.map((f, i) => {
+    const active = i === toolsFilterActiveIdx;
+    return `<div class="tools-filter-card${active ? " active" : ""}" data-idx="${i}">
+      <div class="tools-filter-top">
+        <div class="tools-filter-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${f.icon}"></path></svg></div>
+        ${active ? `<div class="tools-filter-on">AÇIK</div>` : ""}
+      </div>
+      <div style="height:54px;display:flex;align-items:center;justify-content:center">${toolsFilterArt(f.kind, active)}</div>
+      <div>
+        <div class="tools-filter-name">${f.name}</div>
+        <div class="tools-filter-range">${f.range}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+if (els.toolsFilterGrid) {
+  els.toolsFilterGrid.addEventListener("click", (e) => {
+    const card = e.target.closest(".tools-filter-card");
+    if (!card) return;
+    const idx = Number(card.dataset.idx);
+    toolsFilterActiveIdx = toolsFilterActiveIdx === idx ? -1 : idx;
+    renderToolsFilterGrid();
+    renderToolsFilterHeaderBadge();
+    const entry = toolsSelectedEntry();
+    if (entry && toolsFilterActiveIdx >= 0) toolsLogAction(entry.name, TOOLS_FILTERS[toolsFilterActiveIdx].name);
+  });
+}
+
+function renderToolsFilterHeaderBadge() {
+  if (!els.toolsFilterHeaderBadge) return;
+  const active = toolsFilterActiveIdx >= 0 ? TOOLS_FILTERS[toolsFilterActiveIdx] : null;
+  els.toolsFilterHeaderBadge.classList.toggle("hidden", !active);
+  if (active) els.toolsFilterHeaderBadge.textContent = active.name;
+}
+
+function toolsToggleFilterAccordion() {
+  toolsFilterOpen = !toolsFilterOpen;
+  if (els.toolsFilterBody) els.toolsFilterBody.classList.toggle("hidden", !toolsFilterOpen);
+  if (els.toolsFilterChevron) els.toolsFilterChevron.classList.toggle("open", toolsFilterOpen);
+  if (toolsFilterOpen) { renderToolsFilterGrid(); renderToolsFilterPlayer(); }
+}
+if (els.toolsFilterHeader) els.toolsFilterHeader.addEventListener("click", toolsToggleFilterAccordion);
+
+// Çalar — G88'in toggleToolsPreview() AYNI mekanizması (audioEngine.analyser'a
+// takılan ayrı bir gain node, uploadManager'ın GERÇEK offset/duraklatma
+// mantığı) — sadece render hedefi (artık akordiyon içindeki oynatıcı) değişti.
+function renderToolsFilterPlayer() {
+  const entry = toolsSelectedEntry();
+  if (!entry) return;
+  if (els.toolsFilterFileName) els.toolsFilterFileName.textContent = entry.name;
+  if (els.toolsFilterFileMeta) els.toolsFilterFileMeta.textContent = `${entry.sizeKb} KB · ${formatToolsDuration(entry.durationSec)}`;
+  if (els.toolsFilterTotal) els.toolsFilterTotal.textContent = formatToolsDuration(entry.durationSec);
+  if (els.toolsFilterElapsed) els.toolsFilterElapsed.textContent = formatToolsDuration(uploadManager.duration ? 0 : 0);
+  const buffer = uploadManager.getBuffer();
+  if (buffer) toolsDrawBigWave(els.toolsFilterWave, buffer, 0);
+  if (els.toolsFilterPlayBtn) els.toolsFilterPlayBtn.classList.toggle("playing", toolsFilterPlaying);
+  if (els.toolsFilterPlayIcon) {
+    els.toolsFilterPlayIcon.innerHTML = toolsFilterPlaying
+      ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1.5"></rect><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"></rect></svg>`
+      : `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-left:3px"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z"></path></svg>`;
+  }
+}
+async function toolsToggleFilterPlayback() {
+  if (!uploadManager.hasBuffer) return;
+  await audioEngine.initAudio();
+  const ctx = audioEngine.audioCtx, analyser = audioEngine.analyser;
+  if (!ctx || !analyser) return;
+  if (toolsFilterPlaying) {
+    uploadManager.pausePlayback();
+    if (toolsFilterPreviewNode) { try { toolsFilterPreviewNode.stop(); } catch (e) {} toolsFilterPreviewNode = null; }
+    toolsFilterPlaying = false;
+  } else {
+    toolsFilterPreviewGain = toolsFilterPreviewGain || ctx.createGain();
+    toolsFilterPreviewGain.gain.value = 0.85;
+    toolsFilterPreviewGain.connect(analyser);
+    toolsFilterPreviewNode = uploadManager.getSourceNode();
+    if (!toolsFilterPreviewNode) return;
+    toolsFilterPreviewNode.connect(toolsFilterPreviewGain);
+    toolsFilterPlaying = true;
+  }
+  renderToolsFilterPlayer();
+}
+if (els.toolsFilterPlayBtn) els.toolsFilterPlayBtn.addEventListener("click", toolsToggleFilterPlayback);
+if (els.toolsFilterFileChange) els.toolsFilterFileChange.addEventListener("click", toolsOpenFilesSheet);
 
 // Gerçek satın alma bu sürümde yok — Araçlar sekmesi normalde her zaman
 // kilitli görünür (toolsFreeLock), dokununca paywall'a yönlendirir. isUserPro()
 // true ise (gerçek ya da geliştirici simülasyonu) toolsProContent görünür
-// olur — Referans Filtreleri hâlâ statik örnek/bilgilendirici veri (gerçek
-// DSP bu görevin kapsamı dışı), sadece ERİŞİM engeli kaldırılıyor.
+// olur. Referans Filtreleri hâlâ GERÇEK DSP içermiyor (bkz. F notu), sadece
+// ERİŞİM engeli kaldırılıyor.
 function applyProLockVisibility() {
   const pro = isUserPro();
   if (els.toolsProContent) els.toolsProContent.classList.toggle("hidden", !pro);
   if (els.toolsFreeLock) els.toolsFreeLock.classList.toggle("hidden", pro);
 }
+renderToolsCardsVisibility();
+renderToolsFilterGrid();
+renderToolsFilterHeaderBadge();
+
 applyProLockVisibility();
 enforceFreeRestrictions(); // G61: temiz açılışta da (Pro'dan düşmüş eski bir localStorage kaydı olabilir)

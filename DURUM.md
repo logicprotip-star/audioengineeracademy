@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G100)
+Son güncelleme: 10.08.2026 (G101)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,172 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G100, tek commit) — **Ölçüm motoru, RX 11 karşılaştırmasına göre
+Bu commit (G101, tek commit) — **Araçlar ekranı, Tasarim-2026-08/Araçlar.dc.html'in
+(kullanıcının üzerine yazdığı YENİ sürüm) TAM giydirmesi.** Dört kart (Mixini
+Yükle → Tonal Balance [YENİ] → Ölçüm Sonuçları → Referans Filtreleri) +
+"Dosyalarım" sheet'i (3 bölüm) + Ölçüm Sonuçları sheet'i + kalıcı şerit +
+Referans Filtreleri akordiyonu + çalar. analysis.js/analysis-worker.js'e
+DOKUNULMADI (task'ın kuralı) — sadece render hedefleri değişti.
+
+**A) Ekran iskeleti:** `index.html:891-905` — başlık satırı artık PRO
+rozeti (`.tools-pro-badge`) + 32x32 ayar çarkı (`#toolsGearBtn`) içeriyor,
+tasarımın satır 36-46'sıyla birebir (SVG path'ler, renkler, boyutlar
+kopyalandı). Kart ortak stili zaten G88'den beri `.tools-card` olarak
+vardı, DEĞİŞMEDİ. Sıra: Mixini Yükle → Tonal Balance → Ölçüm Sonuçları →
+Referans Filtreleri — tasarımın satır 49-199 sırasıyla BİREBİR.
+
+**B) Mixini Yükle:** `index.html:906-914` — buton artık `toolsOpenFilesSheet()`
+çağırıyor (tasarımın satır 60 `onClick="{{ openFiles }}"` karşılığı), sistem
+seçicisi DOĞRUDAN açılmıyor. Eski "Son yüklenenler" listesi (`toolsRecentEmpty`/
+`toolsRecentList`/`renderToolsRecent()`) TAMAMEN kaldırıldı.
+
+**C) Dosyalarım sheet'i:** `index.html:1006-1046`, `app.js` — tasarımın satır
+203-281'i birebir: kesikli çerçeveli "Cihazdan yeni dosya seç" satırı (satır
+219-222), üç bölüm (YÜKLEDİKLERİM/SON İŞLEMLERİM/SON ÖLÇÜMLERİM, satır 223/247/263).
+**KAPSAM KARARI (BEKLEYEN KARARLAR'a eklendi):** dosya kütüphanesi OTURUM-
+KAPSAMLI (sayfa yenilenince dosyaların KENDİSİ kaybolur) — upload.js'in TEK-
+buffer mimarisine DOKUNULMADI (task'ın kuralı), IndexedDB gibi kalıcı bir
+ses-blob depolama katmanı bu turun kapsamı DIŞINDA bırakıldı. "Son Ölçümlerim"
+bunun İSTİSNASI: SONUÇ nesnesinin kendisi (`eqEarTrainerProXToolsMeasurements`,
+localStorage, son 10 kayıt) kalıcı — dosya yeniden yüklenmeden "YENİDEN ANALİZ
+YAPILMADAN" (task'ın kendi ifadesi) tekrar açılabiliyor. "Son İşlemlerim" de
+AYNI şekilde kalıcı (`eqEarTrainerProXToolsActions`).
+**Sola-kaydır-sil:** tasarımın `down`/`up` + −24px eşiği BİREBİR (app.js
+pointerdown/pointerup delegasyonu).
+**Gerçek dalga formu önizlemesi:** tasarımın `wave()` fonksiyonu SAHTE bir
+sinüs formülüyle bar üretiyordu (tasarım aracının ses verisine erişimi yok)
+— burada GERÇEK decode edilmiş örneklerden bir tepe-zarfı çıkarıldı
+(`toolsWaveformPeaks`), boyut/bar sayısı KORUNDU.
+
+**D) Tonal Balance — SIFIRDAN yazıldı:** `www/js/core/tonal-balance.js` (YENİ
+dosya) + `index.html:915-949` + `app.js`. Tür çipleri (Pop/EDM/Akustik,
+tasarımın satır 78-80'i) + "Kendi referansım" (4. çip, `devFlags.
+customTonalRef` özellik anahtarı ARKASINDA, VARSAYILAN KAPALI — `storage.js:
+freshDevFlags()`). Grafik matematiği (log frekans ekseni, 6 bant smoothstep
+interpolasyonu, ±1.5dB hedef bandı, kırmızı fark dolgusu) tasarımın KENDİ
+`tbChart()`'ından BİREBİR taşındı (satır 526-616), canvas'a port edildi.
+**Spektral ölçüm — DÜRÜSTLÜK notu:** task "Veri analysis.js'in spektrumundan
+gelecek" diyordu ama analysis.js (G98-G100) hiç spektrum ÜRETMİYOR (sadece
+loudness/peak/RMS) — analysis.js'e DOKUNULAMAYACAĞI için (task'ın kendi kuralı)
+bu YENİ, AYRI bir modülde (`tonal-balance.js`), standart `OfflineAudioContext`
++ `AnalyserNode` (audio-engine.js'in oyun ekranında ZATEN kullandığı AYNI API)
+ile GERÇEK ölçüm olarak uygulandı — bkz. o dosyanın DÜRÜSTLÜK notu.
+**TASLAK hedef eğriler:** Pop/EDM/Akustik'in 6'şar bantlık dB sapma dizileri
+tasarımın KENDİ `TB` sabitinden (satır 640-643) BİREBİR alındı, kod içinde
+AÇIKÇA "taslak, gerçek referans parçalardan yeniden türetilecek" diye
+işaretlendi (`tonal-balance.js` dosya başı + `toolsTonalDraftNote` UI metni).
+**Ürün yorumu (DÜRÜSTLÜK notu, tonal-balance.js'te belgeli):** tasarımın chart
+kodu `devs`'i (=TB[genre]) DOĞRUDAN çiziyor, bu tasarım aracının CANLI ses
+erişimi olmadığı için bir gösterim kısayoluydu. Gerçek üründe anlamlı olan:
+çizilen değer MIX'İN KENDİ ölçülen sapması EKSİ SEÇİLİ hedef eğri (kalıntı) —
+±1.5dB bandı "türe göre kabul edilebilir tolerans" demek. Bu YORUM kararı
+raporda AÇIKÇA belirtiliyor, gizlenmiyor.
+
+**E) Ölçüm Sonuçları:** `index.html:950-960` (kart) + `1047-1097` (sheet) +
+`1099-1107` (şerit) + `app.js`. G99/G100'ün worker/render mantığı (`runAnalysisInWorker`/
+`analyzeUploadedFile`/`renderToolsAnalysisChannelTable` vb.) **AYNEN KORUNDU**
+— SADECE hedef DOM'ları (artık sheet içinde) ve buton içi kozmetik ilerleme
+çubuğu (`#toolsAnalyzeBar`, tasarımın 1400ms'lik sabit animasyonu, GERÇEK
+yüzde İZLEMİYOR — asıl "bitti" sinyali worker'ın GERÇEK tamamlanmasından
+geliyor) eklendi. Analiz edilince buton kaybolur (tasarım: `showAnalyze =
+analyzed !== selFile`), sheet OTOMATİK açılır; kapatılınca kalıcı şerit
+görünür; şeritten açılışta **analiz TEKRAR ÇALIŞMAZ** (`toolsOpenResultsSheet`
+sadece SAKLANMIŞ `toolsAnalysisResult`'ı yeniden render eder).
+**Standart notu gerçek değerlerle:** `renderToolsAnalysisStandardNote()`
+`result.meta`'dan okuyor — G100 sonrası GERÇEK değerler (8x/100ms/AES17)
+gösteriliyor, tasarımın ESKİ metni (4x/300ms) kullanılmadı (bkz. DOĞRULAMA,
+canlı ekran görüntüsüyle kanıtlandı).
+
+**F) Referans Filtreleri — akordiyon + çalar:** `index.html:961-992` + `app.js`.
+Başlık tıklanır, chevron 260ms rotate + aktif filtre rozeti (`toolsFilterHeaderBadge`,
+akordiyon AÇIK/KAPALI fark etmeksizin görünür — tasarımın satır 730 mantığı).
+5 YENİ filtre (Telefon Hoparlörü/Araba/Kulaklık/Club Sistemi/Laptop Hoparlörü,
+tasarımın satır 817-822'sinden BİREBİR — eski 8'li set, ad/aralık dahil,
+KALDIRILDI). Cihaz illüstrasyonları tasarımın `art()` üretecinden BİREBİR
+taşındı (gradyan/path verileri değişmedi, React.createElement → düz SVG
+string). Çalar, G88'in `toggleToolsPreview()` AYNI mekanizması (audioEngine.
+analyser'a takılan ayrı gain node, uploadManager'ın GERÇEK offset/duraklatma
+mantığı) — sadece render hedefi değişti. 10sn ileri/geri butonları tasarımın
+KENDİSİNDE `onClick="{{ noop }}"` (no-op) — BİREBİR aynı bırakıldı, seek
+YAZILMADI (uydurma özellik eklenmedi).
+**DSP yokluğu uyarısı (task'ın istediği "geçici uyarı metni"):**
+`.tools-filter-dsp-note` — "Şu an sadece dinleme deneyimi — filtre seçmek
+gerçek ses işleme (DSP) UYGULAMIYOR, ses değişmiyor..." — akordiyon her
+açıldığında görünür.
+
+**G) Free kilit ekranı:** `index.html:993-1005` — pentagon/başlık/açıklama/
+buton KORUNDU. Tasarımın YENİ `lockedList`'i (3 madde: "Mixini yükle ve
+uygulama içinde dinle" / "Beş cihaz referans filtresi" / "Tonal balance —
+6 bölge analizi", satır 824'ten BİREBİR) de eklendi — task'ın G) maddesi
+bunu açıkça istemiyordu ama tasarımda VARDI, "ölçüleri birebir uygula" genel
+kuralı gereği dahil edildi.
+
+**Canlı testte bulunan İKİ gerçek CSS bugı — düzeltildi:**
+1. **Sheet'ler ekran dışına taşıyordu:** `.tools-sheet`/`.tools-sheet-overlay`
+   `position:absolute` kullanıyordu — en yakın POZİSYONLANMIŞ atası `#screen-tools`
+   DEĞİL (o `position:static`), çok daha yukarıdaki bir ata olduğu için sheet
+   ekranın çok altına (görünmez) yerleşiyordu. `position:fixed`'e çevrildi
+   (mevcut `.bottom-sheet`/`.sheet-overlay` deseniyle AYNI, `styles.css:1728-1730`).
+2. **Dosya satırındaki "Sil" butonu HER ZAMAN görünüyordu (kaydırılmamışken
+   bile):** `.tools-files-row-main`'in arka planı TEK BAŞINA neredeyse şeffaftı
+   (`rgba(255,255,255,.03)`), altındaki (AYNI konumdaki, `position:absolute`)
+   kırmızı "Sil" butonunu neredeyse tam bırakıyordu. Tasarımın KENDİ iki
+   katmanlı deseni (`linear-gradient(0deg,{{f.bg}},{{f.bg}}),#131519`)
+   uygulanmamıştı — düzeltildi (`styles.css:1747-1748`).
+
+**DOĞRULAMA (ekran görüntüleriyle, canlı tarayıcı):**
+- **A/B:** Araçlar başlığı+PRO rozeti+ayar çarkı+dört kart doğru sırada
+  görüldü; boş durumda (dosya seçilmemişken) Tonal Balance/Ölçüm Sonuçları
+  kartları doğru şekilde GİZLİ, sadece Mixini Yükle + Referans Filtreleri
+  görünüyordu.
+- **C:** "Dosyalarım" sheet'i açıldı, boş durumlar (3 bölümün hepsi) doğru
+  metinlerle görüldü; 4 dosya yüklendikten sonra YÜKLEDİKLERİM listesi
+  gerçek ad/boyut/süre + dalga formuyla, seçili dosya cyan çerçeveyle,
+  SON ÖLÇÜMLERİM "g99-test.wav · 2 dakika önce · -5.0 LUFS" satırıyla
+  doğru render edildi.
+- **D:** Tonal Balance gerçek bir ses dosyası (1kHz sinüs test sinyali)
+  üzerinde ÇALIŞTI — Pop seçiliyken "5 bölge hedef dışında: BAS −2.1 dB,
+  ALT-ORTA +5.5 dB, ORTA +21.6 dB, ÜST-ORTA −14.2 dB, TİZ −12.2 dB" (saf
+  1kHz tonun ORTA bandında yoğunlaşan GERÇEK spektral imzasıyla TUTARLI —
+  tek bantta güçlü enerji, diğerlerinde derin negatif sapma), EDM'e
+  geçilince "4 bölge hedef dışında: ..." olarak FARKLI bir sonuca DOĞRU
+  şekilde yeniden hesaplandı. Taslak notu ve "hedef aralık ±1.5 dB" notu
+  görüldü. "Kendi referansım" çipi VARSAYILAN KAPALI (3 çip: Pop/EDM/Akustik,
+  4. çip YOK) doğrulandı.
+- **E:** "Analiz et" tıklanınca sheet OTOMATİK açıldı — KANAL ÖLÇÜMLERİ
+  (True peak/Sample peak/Max-Min-Total RMS/Olası kırpılmış [amber, 19500]/
+  DC offset [+1.7205%, 4 ondalık]), LOUDNESS (Integrated −5.0 LUFS, 27px/cyan
+  büyük stil), SHORT-TERM SEYRİ grafiği (0:00–0:40) hepsi doğru göründü.
+  **Standart notu GERÇEK değerleri gösterdi:** "True peak: 8x aşırı örnekleme
+  ... RMS penceresi: 100ms · RMS konvansiyonu: AES17 ... RX 11 karşılaştırmasıyla
+  doğrulandı" — tasarımın eski (4x/300ms) metni KULLANILMADI. Sheet kapatılınca
+  kalıcı şerit ("Ölçüm Sonuçları" + ikon + chevron) göründü; şeride tıklayınca
+  sheet AYNI sonuçla (yeniden hesaplama OLMADAN, anında) yeniden açıldı.
+- **F:** Akordiyon açıldı (chevron döndü), çalar bloğu (dosya adı+değiştir+
+  dalga formu+transport) + DSP uyarı notu + 5 filtre kartı (gerçek SVG cihaz
+  illüstrasyonlarıyla) doğru göründü.
+- **G:** simulatePro kapatılınca FREE kilit ekranı (pentagon/başlık/açıklama/
+  3 kilitli-özellik satırı/"Pro'ya Geç · ₺399") doğru göründü.
+- **Konsol hatası: 0** (tüm test oturumu boyunca, `read_console_messages`).
+- **`npm test`: 1103/1103** (G100 sonrası 1096, +7 yeni test —
+  `test/tonal-balance.test.mjs`, `BANDS`/`BAND_EDGES`'in Frekans Bulma'nın
+  `FA_ZONES`'uyla TUTARLILIĞI dahil — hiçbir eski test SİLİNMEDİ).
+- **Test ortamı notu:** Otomasyon sekmesi arka planda sayıldığı için CSS
+  transition'lar donuyordu (`document.hidden===true`, G99'da bulunan AYNI
+  kök sebep) — `element.getAnimations().forEach(a=>a.finish())` ile ZORLA
+  bitirilip GERÇEK son durum doğrulandı, bu bir üretim hatası DEĞİL.
+  `file_upload` aracı da bu turda kararsızdı (defalarca başarı raporlayıp
+  dosyayı iliştirmedi) — gerçek servis edilen bir örnek dosya (`/audio/
+  acoustic_guitar.m4a`) `fetch()`+`DataTransfer` ile GERÇEK bir `change`
+  event'i tetiklenerek dolaşıldı (uygulama kodu GERÇEKTEN çalıştı, sadece
+  OS seçici simülasyonu atlandı).
+
+**Not — provenance:** `OYUN-MANTIGI.md` konusu G100'de kapandı (kullanıcı
+onayladı, `e4dab63`).
+
+---
+
+Önceki commit (G100, tek commit) — **Ölçüm motoru, RX 11 karşılaştırmasına göre
 düzeltme.** Kullanıcı gerçek bir dosyayı hem iZotope RX 11'de hem uygulamada
 ölçüp karşılaştırdı — True peak/Sample peak/Kırpılmış/Integrated/Max
 momentary/Max short-term zaten TUTUYORDU, Max/Min/Total RMS'te ~3-8dB, LRA'da
@@ -8052,6 +8217,30 @@ kapatıldı.
 
 ## BEKLEYEN KARARLAR
 
+**L. G101 — "Dosyalarım" kalıcı (IndexedDB) mı, oturum-kapsamlı mı kalsın?**
+Şu an dosya kütüphanesi (Araçlar > Dosyalarım) SADECE bu oturumda yaşıyor —
+sayfa yenilenince/uygulama kapanıp açılınca yüklenen dosyaların KENDİSİ
+kaybolur (ses verisi hiçbir yerde saklanmıyor). "Son Ölçümlerim" bunun
+İSTİSNASI: ölçüm SONUÇLARI (sayılar, ~birkaç KB'lık JSON) localStorage'da
+kalıcı, dosyanın kendisi olmasa da GEÇMİŞ ölçüm tekrar açılabiliyor. Gerçek
+kalıcılık (dosyalar da hayatta kalsın) IndexedDB gibi ayrı, büyük bir
+depolama katmanı gerektirir — bu turda YAPILMADI (kod değişikliği DEĞİL, bir
+ürün/kapsam kararı, kullanıcıya soruluyor). **Kabul kriteri:** kullanıcı
+kalıcı depolama isterse ayrı bir tur — IndexedDB şeması, depolama kotası
+uyarıları, "eski dosyaları temizle" gibi ek UX gerektirir.
+
+**M. G101 — "Referans Filtreleri"nin GERÇEK DSP'si ne zaman eklenecek?**
+Filtre seçmek hâlâ sesi DEĞİŞTİRMİYOR (sadece hangi cihazın simüle edildiğini
+gösteriyor) — bu G53'ten beri KASITLI bir kapsam sınırı, bu turda da
+korundu (task'ın kendi kuralı: "Bu turda DSP yazma"). Kullanıcıya artık
+akordiyon içinde GERÇEK bir çalar (dosya adı/dalga formu/transport)
+gösterildiği için bu eksiklik daha BELİRGİN hale geldi — bir amber uyarı
+notu eklendi (`.tools-filter-dsp-note`) ama kalıcı çözüm gerçek EQ/filtre
+DSP'sinin (cihaz frekans eğrilerine göre) yazılması. **Kabul kriteri:**
+kullanıcı önceliklendirirse ayrı bir tur — her filtrenin `range` metnindeki
+frekans aralığına karşılık gelen bir EQ eğrisi (BiquadFilterNode zinciri)
+gerekir.
+
 **(Kaynak koda karşı doğrulandı, G59 sonrası.)** Karar **A** bu turda kod incelemesiyle
 zaten KODLANMIŞ bulundu (aşağıda) — DURUM.md hiç güncellenmemiş. Diğer
 maddeler tek tek yeniden `grep`'lendi; hâlâ hepsi gerçek, açık kararlar.
@@ -8204,7 +8393,31 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G100 itibarıyla):** RX 11 karşılaştırmasının 5 maddesi
+**Tek sonraki adım (G101 itibarıyla):** Araçlar ekranının TAM giydirmesi
+kod/canlı doğrulama açısından TAM kapandı (7 bölümün hepsi ekran görüntüsüyle
+kanıtlandı, 2 gerçek CSS bugı AYNI turda bulunup düzeltildi) — bu ARADA
+G100'ün SIRADAKİ (1) maddesi de ("AES17/100ms/8x'in ekranda göründüğü
+doğrulanmalı") KAPANDI, standart notu canlı ekran görüntüsünde doğru
+değerlerle görüldü. Bu turun kendi açık işleri: (1) **BEKLEYEN KARARLAR L/M**
+— Dosyalarım'ın kalıcı depolama (IndexedDB) isteyip istemediği ve Referans
+Filtreleri'nin gerçek DSP'sinin ne zaman ekleneceği kullanıcı kararı bekliyor;
+(2) **Tonal Balance'ın "mix eksi hedef" yorumu KULLANICI ONAYI bekliyor** —
+tasarımın chart kodu ham `devs`'i çiziyordu (gösterim kısayolu), gerçek
+üründe "mix'in ölçülen sapması eksi seçili hedef eğri" olarak yorumlandı
+(bkz. BİTTİ'nin DÜRÜSTLÜK notu) — kullanıcı FARKLI bir yorum istiyorsa
+(ör. mix'in HAM sapmasını hedefsiz göstermek) kolayca değiştirilebilir;
+(3) **TASLAK hedef eğriler (Pop/EDM/Akustik) hâlâ gerçek referans
+parçalardan türetilmedi** — tasarımın kendi taslak sayıları kullanılıyor,
+kod+UI'da AÇIKÇA "taslak" diye işaretli, gerçek veri kaynağı belirlenince
+`tonal-balance.js:DRAFT_TARGET_CURVES` güncellenmeli; (4) **"Kendi
+referansım" akışı SINIRLI test edildi** — referans dosya seçme/ölçme kodu
+yazıldı ama flag varsayılan kapalı olduğu için bu turda CANLI denenmedi
+(flag açılıp bir referans dosyayla uçtan uca doğrulanmalı); (5) **çoklu-dosya
+kütüphanesinde "seç" YENİDEN DECODE ediyor** (upload.js'in tek-buffer
+mimarisi korunduğu için) — çok sayıda büyük dosya arasında sık geçiş yapan
+bir kullanıcı için performans etkisi henüz GERÇEK cihazda ölçülmedi.
+
+**Önceki adım (G100 itibarıyla):** RX 11 karşılaştırmasının 5 maddesi
 de kod/test seviyesinde TAM uygulandı (bkz. BİTTİ). Bu turun kendi açık
 işleri: (1) **TAM canlı doğrulama YAPILAMADI** — tarayıcı otomasyon eklentisi
 bu turda kararsızdı, değişiklikler node seviyesinde doğrulandı ama gerçek
