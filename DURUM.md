@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G105)
+Son güncelleme: 10.08.2026 (G106)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,118 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G105, tek commit) — **Araçlar: cihazda görülen ÜÇ düzeltme.**
+Bu commit (G106, tek commit) — **Araçlar: ölçüm motoruna STEREO katmanı + eşik göstergeleri.**
+Referans filtrelerinin DSP'sine bu turda DOKUNULMADI (kullanıcının kendi
+kapsam sınırı) — o hâlâ ayrı bir tur.
+
+**1) ÜÇ yeni ölçüm — `www/js/core/analysis.js`, AYNI geçişte (dosya ikinci
+kez taranmıyor).** Mevcut 11 parametre ve worker yapısı DEĞİŞMEDİ, üstüne
+katkısal olarak eklendi (`program.stereo`, mono girdide `null`):
+- **Faz korelasyonu** — tüm dosya için tek değer + short-term'le AYNI
+  pencerede (3s/100ms adım) bir seyir dizisi (`correlationSeries`).
+  Faz B'nin var olan kanal-senkron döngüsüne `sumLR/sumLL/sumRR` (hem
+  toplam hem 100ms blok bazlı) eklenerek hesaplandı.
+- **Mid/Side dengesi** — `(L+R)/2`/`(L−R)/2` RMS'lerinin dB oranı
+  (`sideToMidDb`).
+- **Mono uyum kaybı** — mono downmix'in (mid sinyali) KENDİ K-ağırlıklı
+  integrated loudness'ı, ÜÇÜNCÜ bir biquad çifti ile AYNI geçişte
+  hesaplandı (`computeMomentarySeries`/`computeIntegratedLufs` — eski
+  inline integrated-loudness kodu bu iki saf fonksiyona REFACTOR edildi,
+  davranış değişmedi, testler aynı geçiyor). **DÜRÜSTLÜK NOTU (kritik
+  matematik düzeltmesi):** ITU-R BS.1770-4 kanal ağırlıkları stereo'da L+R
+  gücünü TOPLAR — aynı içerik (L=R) "stereo" ölçüldüğünde "mono"dan DOĞAL
+  olarak +3.0103dB (10·log10(2)) yüksek okur, FAZ SORUNU OLMASA BİLE (bu
+  proje zaten `test/analysis.test.mjs`'te BAŞKA bir yerde belgeli/testli
+  bir gerçek). Bu fark çıkarılmadan mono kaybı hesaplansaydı, TAM MONO
+  UYUMLU (L=R) bir sinyal bile +3dB "kayıp" gösterirdi — task'ın kendi
+  referans testiyle ("tam mono → kayıp 0") ÇELİŞİRdi. Referans olarak
+  stereo integratedLufs'tan sabit 3.0103dB çıkarılıyor
+  (`MONO_REFERENCE_OFFSET_DB`), kalan fark GERÇEK faz/genişlik kaynaklı
+  olanı yansıtıyor — üç referans testiyle SAYISAL doğrulandı (aşağıda).
+  Bant bazlı hesap (aşağıda) bu düzeltmeye ZATEN gerek duymuyor (kendi
+  içinde ortalama tanımlı, aynı sonucu farklı yoldan veriyor).
+- **Bant bazlı mono kaybı** (6 bölge, SUB/BAS/ALT-ORTA/ORTA/ÜST-ORTA/TİZ —
+  `tonal-balance.js`'in `BAND_EDGES`'iyle AYNI sınırlar, ama `analysis.js`
+  bir OYUN MODUNA bağımlı olmaması için buraya AYRICA sabit yazıldı).
+  Yöntem: RBJ Audio-EQ-Cookbook "constant 0dB peak gain" band-pass biquad'ı
+  (f0=kenarların geometrik ortalaması, Q=f0/bant genişliği) L ve R'ye AYRI
+  AYRI uygulanıp `(bandL+bandR)/2`'nin (mono) RMS'i `sqrt((bandL²+bandR²)/2)`
+  (stereo referans, ortalama — TOPLAM değil, bu yüzden LUFS'taki 3dB
+  düzeltmesine gerek yok) ile karşılaştırılıyor. **DÜRÜSTLÜK NOTU
+  (bilinen sınırlama, DÜZELTİLMEDİ — task'ın kapsamı dışında, kullanıcı
+  kararı gerekir):** tek kademe 2. derece filtre DİK bir crossover değil —
+  canlı testte SADECE 60Hz'i ters fazlı yapan bir sinyalde SUB +16.9dB
+  (doğru, beklenen) YANINDA BAS da +4.7dB kayıp gösterdi (komşu banda
+  düşük-Q sızıntısı, SUB'ın merkezi/Q'su düşük frekansta doğası gereği
+  geniş). Üst bantlarda (ALT-ORTA'dan TİZ'e, hepsi <1dB) bu sızıntı
+  gözlenmedi — bkz. testler. "Bas bölgede sorun var" tanısı bu yüzden SUB
+  için güvenilir, SUB'a komşu BAS için TEMKİNLİ okunmalı.
+
+**2) Eşik göstergeleri — `www/js/app.js`.** `toolsThresholdColor(kind,
+value)` — yeşil `#4ade80`/amber `#e8c46a`/kırmızı `#f87160`, sayılar KOD
+İÇİNDE sabit (task'ın verdiği eşikler, kaynağı yorumda). Sheet'teki HER
+satıra uygulandı (sadece yeni STEREO satırlarına değil): kanal
+tablosundaki True peak/Olası kırpılmış örnek/DC offset (satır başına TEK
+nokta, birden fazla kanal varsa EN KÖTÜ renk), Loudness'taki Loudness
+range, yeni STEREO satırları (korelasyon/Mid-Side/mono kaybı) + bant
+çubukları (sorunlu bant kırmızı vurgulu, `width` değeri de orantılı).
+Integrated LUFS BİLEREK renksiz bırakıldı (task'ın kendi kararı — "iyi/kötü
+değeri DEĞİL"), yanına küçük bir referans notu eklendi ("Yaygın hedefler:
+akış −14, yayın −23 LUFS").
+
+**3) Sheet'e STEREO bölümü + ikinci grafik — `www/index.html` +
+`www/styles.css`.** "KANAL ÖLÇÜMLERİ" ile "LOUDNESS" arasına, AYNI
+`.tools-files-section-label` stiliyle. "SHORT-TERM SEYRİ" grafiğinin
+altına ~60px'lik ikinci bir grafik (`drawCorrelationChart`) — AYNI DPR/
+gradyan-dolgu görsel dili, çizgi rengi violet `#c084fc` (cyan'la
+KARIŞMASIN diye), sabit −1..+1 ekseni. Standart notuna eşiklerin mutlak
+olmadığını belirten bir cümle eklendi.
+
+**DOĞRULAMA:**
+- **Üç referans sinyal (`test/analysis.test.mjs`'e 10 yeni test, hepsi
+  geçiyor):** tam mono (L=R) → korelasyon **+1.000000**, mono kaybı
+  **0.0000dB** (±0.01 tolerans içinde TAM sıfır), tüm bant kayıpları
+  <0.01dB. Ters fazlı (L=−R) → korelasyon **−1.000000**,
+  monoIntegratedLufs **−Infinity**, kayıp **+Infinity** ("monoda tam
+  iptal" — task'ın kendi beklentisiyle birebir). Bağımsız gürültü (2
+  ayrı deterministik LCG kaynağı) → korelasyon **~0.004** (~0).
+- **Gerçekçi mix (node script, korelasyon 0.9977 hedefiyle sentetik):**
+  monoLossDb 0.0236dB, bant kayıpları 0.012-2.276dB aralığında — makul.
+- **Kasıtlı sorunlu dosya (20s stereo WAV, 60Hz SUB ters fazlı + kasıtlı
+  DC offset ~%2 + 15 örnek kırpma + gerçek zamanlı tarayıcıda uçtan uca
+  test — dosya yükle → Analiz et → sheet aç):** True peak kırmızı nokta
+  (+1.45dBTP R), DC offset kırmızı nokta (+1.99%), Faz korelasyonu −0.30
+  kırmızı, Mid/Side +2.69dB amber, Mono uyum kaybı +2.82dB amber, SUB
+  bandı kırmızı çubuk (+16.91dB, tam genişlik), BAS kırmızı (+4.71dB, ~78%
+  genişlik — bkz. yukarıdaki sızıntı notu), ALT-ORTA/ORTA/ÜST-ORTA/TİZ
+  yeşil. Loudness range 0.0 LU amber (sabit ton, <3 LU eşiği). Sheet
+  kapatılıp yeniden açıldı, ikinci grafik (violet, 0-referans çizgisiyle)
+  doğru yeniden çizildi. **Konsol hatası: 0** (`read_console_messages`,
+  tüm akış boyunca).
+- **Olası kırpılmış örnek "0/0" göründü (BEKLENEN, G106'nın hatası
+  DEĞİL):** node'da `decodeWavPcm` (48kHz, dosyanın kendi hızı) 15/15
+  kırpılmış örnek DOĞRU tespit etti — ama tarayıcının `AudioContext`'i bu
+  ortamda 44.1kHz varsayılan, native `decodeAudioData` dosyayı 44.1kHz'e
+  YENİDEN ÖRNEKLİYOR ve anti-alias filtresi 15 örneklik (~0.3ms) kısa
+  patlamayı 0.9999 eşiğinin altına yumuşatıyor — G106'nın kırpma
+  MANTIĞINDA değil, test dosyasının seçtiği ÇOK KISA patlamada. DC offset
+  (geniş bantlı, resampling'den etkilenmiyor) aynı testte doğru kırmızı
+  çıktı, bu teşhisi destekliyor.
+- **Analiz süresi ÖLÇÜLDÜ, BELİRGİN ARTIŞ VAR (task'ın "artmadığı"
+  beklentisiyle ÇELİŞİYOR — DÜRÜSTLÜKLE raporlanıyor, gizlenmedi):** 300s
+  stereo 48kHz dosyada (dosya başı yorumdaki AYNI referans süre), 3 koşu
+  ortalaması G105→G106: **2610ms → 3624ms (+39%)**. Kaynak: 6 bant × 2
+  kanal = 12 yeni band-pass biquad + mono K-weighting için 2 biquad,
+  örnek başına. Worker içinde (ana thread DIŞINDA) çalıştığı için arayüz
+  DONMUYOR — ama sayı gerçek, "artmadı" denemez. **Ürün kararı
+  gerekiyorsa** (ör. bant sayısını azaltmak, bant filtrelerini daha ucuz
+  bir yöntemle değiştirmek) BEKLEYEN KARARLAR'a eklendi.
+- **`npm test`: 1119/1119** (1109 eski + 10 yeni G106 testi, hiçbiri
+  değiştirilmedi/silinmedi).
+
+---
+
+Önceki commit (G105, tek commit) — **Araçlar: cihazda görülen ÜÇ düzeltme.**
 
 **1) Dosya seçilince sayfa yukarı kaymıyordu — KÖK SEBEP DÜZELTİLDİ.**
 `www/js/app.js`. G103'ün `overscroll-behavior:contain`'i SADECE sheet'in
@@ -8591,6 +8702,26 @@ kapatılır, (b) regresyonsa `finishChallenge()`'ın exam-passed/remedial-passed
 sonrasında da (ya da EXAM_ENABLED olmayan bir moda dönülürse) tetiklenmesi
 sağlanıp "done" canlı yeniden denenmeli.
 
+**21. G106 — Bant bazlı mono kaybı, düşük frekans bantlarında (SUB→BAS)
+komşu banda sızıyor**
+Tek kademe 2. derece band-pass biquad kullanıldığı için (bkz. BİTTİ'nin
+DÜRÜSTLÜK notu) dik bir crossover yok — canlı testte SADECE 60Hz'i ters
+fazlı yapan bir sinyalde SUB doğru şekilde büyük kayıp (+16.9dB) gösterdi
+ama komşu BAS bandı da (kendi içeriği YOK, sadece sızıntı) +4.7dB kayıp
+gösterdi. Üst bantlarda (ALT-ORTA'dan TİZ'e) bu sızıntı gözlenmedi.
+**Kabul kriteri (eğer düzeltilecekse — kullanıcı kararı gerekir, bkz.
+BEKLEYEN KARARLAR):** aynı 60Hz-ters-faz test sinyalinde BAS bandının
+kaybı da <1dB'ye inmeli (daha dik filtre — kademeli/cascaded biquad ya da
+daha yüksek Q — gerektirir, işlem maliyetini ARTIRIR).
+
+**22. G106 — Analiz süresi 300s stereo dosyada +39% arttı (2.61s → 3.62s)**
+Kaynak: bant bazlı mono kaybı için eklenen 12 band-pass biquad (6 bant × 2
+kanal) + mono K-weighting için 2 biquad, örnek başına — bkz. BİTTİ'nin
+ölçüm notu. Worker içinde çalıştığı için arayüz DONMUYOR ama sayı gerçek.
+**Kabul kriteri (kullanıcı kararı gerekir, bkz. BEKLEYEN KARARLAR):**
+kullanıcı bu artışı kabul edilebilir bulmuyorsa bant sayısı azaltılmalı ya
+da daha ucuz bir filtre yöntemine geçilmeli.
+
 ### Yayın öncesi
 
 **9. ~~Logo / uygulama ikonu yapılmadı~~ — STALE, zaten yapılmış**
@@ -8604,6 +8735,19 @@ src/main/res/drawable-*/splash.png` altında platforma özel boyutlar da
 kapatıldı.
 
 ## BEKLEYEN KARARLAR
+
+**N. G106 — Ölçüm motorunun +39% süre artışı kabul edilebilir mi?**
+Bkz. AÇIK İŞLER madde 22. Worker içinde çalıştığı için arayüzü DONDURMUYOR
+ama gerçek bir artış (300s dosyada 2.61s→3.62s). Kabul edilebilirse madde
+kapanır; değilse bant sayısı azaltılmalı ya da band-pass filtreleri daha
+ucuz bir yönteme (ör. daha düşük dereceli/az taplı) taşınmalı — bu, bant
+bazlı sızıntıyı (madde 21) muhtemelen DAHA DA kötüleştirir, iki karar
+birbirine bağlı.
+
+**O. G106 — Bant bazlı mono kaybının SUB→BAS sızıntısı düzeltilsin mi?**
+Bkz. AÇIK İŞLER madde 21. Daha dik filtre işlem maliyetini ARTIRIR (madde
+N'yle çelişen bir yönde) — kullanıcı önce "doğruluk mu, hız mı" önceliğini
+netleştirmeli.
 
 **L. ~~G101 — "Dosyalarım" kalıcı (IndexedDB) mı, oturum-kapsamlı mı kalsın?~~
 — ÇÖZÜLDÜ, G102: kalıcı yapıldı**
@@ -8778,7 +8922,16 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G105 itibarıyla):** Bu üç düzeltmeyi (özellikle madde 1
+**Tek sonraki adım (G106 itibarıyla):** Kullanıcı BEKLEYEN KARARLAR N/O'yu
+netleştirmeli (süre artışı kabul edilebilir mi, bant sızıntısı düzeltilsin
+mi — ikisi birbirine ters yönde). Ayrıca bu turun kendi ölçümleri SADECE
+sentetik/masaüstü Chrome'da yapıldı — `npx cap sync ios` + gerçek cihazda
+(1) yeni STEREO bölümünün/ikinci grafiğin küçük ekranda taşmadan
+göründüğü, (2) 300s+ gerçek bir dosyada analiz süresinin GERÇEK cihazda
+(masaüstünden çok daha yavaş olabilir) ne kadar sürdüğü hâlâ
+doğrulanmadı.
+
+**Önceki adım (G105 itibarıyla):** Bu üç düzeltmeyi (özellikle madde 1
 — sheet kapanınca sayfa kilitlenmesi) GERÇEK bir iOS cihazda yeniden test
 etmek. Bu turda masaüstü Chrome'da hem kök sebep TEORİSİ (fixed kaplamalar +
 arka plan dokunmalı kaydırma bleed-through) hem DÜZELTMENİN KENDİSİ

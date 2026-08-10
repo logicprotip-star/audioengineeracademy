@@ -188,6 +188,9 @@ const els = {
   toolsAnalysisChart: document.getElementById("toolsAnalysisChart"),
   toolsAnalysisChartWrap: document.getElementById("toolsAnalysisChartWrap"),
   toolsAnalysisChartReadout: document.getElementById("toolsAnalysisChartReadout"),
+  // G106 — STEREO bölümü + korelasyon seyri grafiği.
+  toolsAnalysisStereo: document.getElementById("toolsAnalysisStereo"),
+  toolsAnalysisCorrelationChart: document.getElementById("toolsAnalysisCorrelationChart"),
   toolsAnalysisStandardNote: document.getElementById("toolsAnalysisStandardNote"),
   toolsResultsOverlay: document.getElementById("toolsResultsOverlay"),
   toolsResultsSheet: document.getElementById("toolsResultsSheet"),
@@ -603,7 +606,10 @@ window.addEventListener("orientationchange", resizeCanvas);
 // deseni — sonuç varken pencere boyutu değişirse (döndürme, klavye açılışı
 // vb.) yeniden çiz.
 window.addEventListener("resize", () => {
-  if (toolsAnalysisState === "success" && toolsAnalysisResult) drawShortTermChart(toolsAnalysisResult);
+  if (toolsAnalysisState === "success" && toolsAnalysisResult) {
+    drawShortTermChart(toolsAnalysisResult);
+    drawCorrelationChart(toolsAnalysisResult);
+  }
   if (toolsTonalDevs) renderToolsTonalCard();
 });
 
@@ -1860,7 +1866,10 @@ function goScreen(name) {
   // açık kalmış olabilir diye (ör. hızlı sekme geçişi) burada da tazelenir.
   if (name === "tools") {
     if (toolsTonalDevs) renderToolsTonalCard();
-    if (toolsResultsSheetOpenFlag && toolsAnalysisResult) drawShortTermChart(toolsAnalysisResult);
+    if (toolsResultsSheetOpenFlag && toolsAnalysisResult) {
+      drawShortTermChart(toolsAnalysisResult);
+      drawCorrelationChart(toolsAnalysisResult);
+    }
     toolsCheckLibraryIntegrity();
   }
   closeMainSettingsSheet();
@@ -7614,14 +7623,71 @@ function fmtCount(v) {
   return Number.isFinite(v) ? String(v) : "—";
 }
 
+// ---- G106: eşik göstergeleri ----
+// Sayılar KOD İÇİNDE sabit — kaynağı her case'in yanındaki yorumda. Sheet
+// altındaki standart notu bunların "kesin doğru" olmadığını AÇIKÇA belirtir
+// (bkz. renderToolsAnalysisStandardNote) — hiçbiri mutlak kural değil.
+const TOOLS_THRESHOLD_GREEN = "#4ade80";
+const TOOLS_THRESHOLD_AMBER = "#e8c46a";
+const TOOLS_THRESHOLD_RED = "#f87160";
+const TOOLS_THRESHOLD_RANK = { [TOOLS_THRESHOLD_GREEN]: 0, [TOOLS_THRESHOLD_AMBER]: 1, [TOOLS_THRESHOLD_RED]: 2 };
+
+function toolsThresholdColor(kind, value) {
+  if (!Number.isFinite(value)) return value === Infinity && kind === "monoLossDb" ? TOOLS_THRESHOLD_RED : null;
+  switch (kind) {
+    case "truePeak": // akış platformlarının kodlama başlıkları −1dBTP öneriyor (intersample overshoot payı)
+      if (value > 0) return TOOLS_THRESHOLD_RED;
+      if (value > -1) return TOOLS_THRESHOLD_AMBER;
+      return TOOLS_THRESHOLD_GREEN;
+    case "clippedSamples":
+      if (value > 10) return TOOLS_THRESHOLD_RED;
+      if (value >= 1) return TOOLS_THRESHOLD_AMBER;
+      return TOOLS_THRESHOLD_GREEN;
+    case "dcOffsetPercent": {
+      const a = Math.abs(value);
+      if (a > 1) return TOOLS_THRESHOLD_RED;
+      if (a > 0.1) return TOOLS_THRESHOLD_AMBER;
+      return TOOLS_THRESHOLD_GREEN;
+    }
+    case "lra": // 3 LU altı aşırı sıkıştırılmış, 20 LU üstü aşırı dinamik
+      if (value < 3 || value > 20) return TOOLS_THRESHOLD_AMBER;
+      return TOOLS_THRESHOLD_GREEN;
+    case "correlation":
+      if (value < 0) return TOOLS_THRESHOLD_RED;
+      if (value < 0.5) return TOOLS_THRESHOLD_AMBER;
+      return TOOLS_THRESHOLD_GREEN;
+    case "monoLossDb":
+      if (value > 3) return TOOLS_THRESHOLD_RED;
+      if (value > 1) return TOOLS_THRESHOLD_AMBER;
+      return TOOLS_THRESHOLD_GREEN;
+    case "sideToMidDb": // yan bileşen ortadan yüksekse aşırı genişletilmiş
+      return value > 0 ? TOOLS_THRESHOLD_AMBER : TOOLS_THRESHOLD_GREEN;
+    default:
+      return null;
+  }
+}
+function toolsThresholdDotHtml(color) {
+  return color ? `<span class="tools-threshold-dot" style="background:${color}" aria-hidden="true"></span>` : "";
+}
+// Bir satırda birden fazla kanal/değer varsa (ör. L/R) EN KÖTÜ rengi tek bir
+// noktada gösterir (satır başına tek nokta, "her satırın sağına" gereği).
+function toolsWorstThresholdColor(colors) {
+  let worst = null;
+  for (const c of colors) {
+    if (!c) continue;
+    if (!worst || TOOLS_THRESHOLD_RANK[c] > TOOLS_THRESHOLD_RANK[worst]) worst = c;
+  }
+  return worst;
+}
+
 const TOOLS_ANALYSIS_CHANNEL_ROWS = [
-  { label: "True peak (dBTP)", get: (c) => fmtDb(c.truePeakDb) },
+  { label: "True peak (dBTP)", get: (c) => fmtDb(c.truePeakDb), thresholdKind: "truePeak", rawGet: (c) => c.truePeakDb },
   { label: "Sample peak (dBFS)", get: (c) => fmtDb(c.samplePeakDb) },
   { label: "Max RMS (dB)", get: (c) => fmtDb(c.maxRmsDb.aes17) },
   { label: "Min RMS (dB)", get: (c) => fmtDb(c.minRmsDb.aes17) },
   { label: "Total RMS (dB)", get: (c) => fmtDb(c.totalRmsDb.aes17) },
-  { label: "Olası kırpılmış örnek", get: (c) => fmtCount(c.possiblyClippedSamples), clip: true },
-  { label: "DC offset (%)", get: (c) => fmtPercent(c.dcOffsetPercent) }
+  { label: "Olası kırpılmış örnek", get: (c) => fmtCount(c.possiblyClippedSamples), clip: true, thresholdKind: "clippedSamples", rawGet: (c) => c.possiblyClippedSamples },
+  { label: "DC offset (%)", get: (c) => fmtPercent(c.dcOffsetPercent), thresholdKind: "dcOffsetPercent", rawGet: (c) => c.dcOffsetPercent }
 ];
 
 function renderToolsAnalysisChannelTable(result) {
@@ -7633,7 +7699,10 @@ function renderToolsAnalysisChannelTable(result) {
       const clipped = row.clip && c.possiblyClippedSamples > 0;
       return `<div class="tools-analysis-col${clipped ? " clipped" : ""}">${row.get(c)}</div>`;
     }).join("");
-    return `<div class="tools-analysis-row"><div class="tools-analysis-label">${row.label}</div>${cols}</div>`;
+    const dot = row.thresholdKind
+      ? toolsThresholdDotHtml(toolsWorstThresholdColor(channels.map((c) => toolsThresholdColor(row.thresholdKind, row.rawGet(c)))))
+      : "";
+    return `<div class="tools-analysis-row"><div class="tools-analysis-label">${row.label}</div>${cols}${dot}</div>`;
   }).join("");
   els.toolsAnalysisChannelTable.innerHTML =
     `<div class="tools-results-col-headers"><div style="flex:1"></div>${headerCols}</div>${rowsHtml}`;
@@ -7642,21 +7711,52 @@ function renderToolsAnalysisChannelTable(result) {
 function renderToolsAnalysisLoudness(result) {
   if (!els.toolsAnalysisLoudness) return;
   const p = result.program;
+  const lraColor = toolsThresholdColor("lra", p.lra);
   els.toolsAnalysisLoudness.innerHTML = `
     <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Max momentary</div><div class="tools-analysis-lv">${fmtLufs(p.maxMomentaryLufs)}</div></div>
     <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Max short-term</div><div class="tools-analysis-lv">${fmtLufs(p.maxShortTermLufs)}</div></div>
     <div class="tools-results-integrated-row">
-      <div class="tools-results-integrated-label">Integrated</div>
+      <div class="tools-results-integrated-label">Integrated<div class="tools-results-integrated-ref">Yaygın hedefler: akış −14, yayın −23 LUFS</div></div>
       <div class="tools-results-integrated-value"><div class="tools-results-integrated-num">${Number.isFinite(p.integratedLufs) ? p.integratedLufs.toFixed(2) : "—"}</div><div class="tools-results-integrated-unit">LUFS</div></div>
     </div>
-    <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Loudness range</div><div class="tools-analysis-lv">${fmtLu(p.lra)}</div></div>`;
+    <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Loudness range</div><div class="tools-analysis-lv-wrap"><span class="tools-analysis-lv">${fmtLu(p.lra)}</span>${toolsThresholdDotHtml(lraColor)}</div></div>`;
+}
+
+// G106 — 6 bant etiketi çıktıdan geliyor (result.program.stereo.bandLabels),
+// burada TEKRAR yazılmıyor.
+function renderToolsAnalysisStereo(result) {
+  if (!els.toolsAnalysisStereo) return;
+  const st = result.program.stereo;
+  if (!st) {
+    els.toolsAnalysisStereo.innerHTML = `<div class="tools-analysis-stereo-na">Mono dosya — stereo ölçümleri uygulanamaz.</div>`;
+    return;
+  }
+  const fmtSigned2 = (v) => (Number.isFinite(v) ? (v >= 0 ? "+" : "") + v.toFixed(2) : v === Infinity ? "+∞" : v === -Infinity ? "−∞" : "—");
+  const corrColor = toolsThresholdColor("correlation", st.correlation);
+  const msColor = toolsThresholdColor("sideToMidDb", st.sideToMidDb);
+  const lossColor = toolsThresholdColor("monoLossDb", st.monoLossDb);
+  const bandRows = st.bandMonoLossDb.map((v, i) => {
+    const pct = Number.isFinite(v) ? Math.max(0, Math.min(100, (Math.min(v, 6) / 6) * 100)) : 100;
+    const color = toolsThresholdColor("monoLossDb", v) || TOOLS_THRESHOLD_GREEN;
+    return `
+      <div class="tools-band-loss-row">
+        <div class="tools-band-loss-label">${st.bandLabels[i]}</div>
+        <div class="tools-band-loss-track"><div class="tools-band-loss-fill" style="width:${pct}%;background:${color}"></div></div>
+        <div class="tools-band-loss-value">${fmtDb(v)} dB</div>
+      </div>`;
+  }).join("");
+  els.toolsAnalysisStereo.innerHTML = `
+    <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Faz korelasyonu</div><div class="tools-analysis-lv-wrap"><span class="tools-analysis-lv">${fmtSigned2(st.correlation)}</span>${toolsThresholdDotHtml(corrColor)}</div></div>
+    <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Mid/Side dengesi</div><div class="tools-analysis-lv-wrap"><span class="tools-analysis-lv">${fmtDb(st.sideToMidDb)} dB</span>${toolsThresholdDotHtml(msColor)}</div></div>
+    <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Mono uyum kaybı</div><div class="tools-analysis-lv-wrap"><span class="tools-analysis-lv">${fmtDb(st.monoLossDb)} dB</span>${toolsThresholdDotHtml(lossColor)}</div></div>
+    <div class="tools-band-loss-wrap">${bandRows}</div>`;
 }
 
 function renderToolsAnalysisStandardNote(result) {
   if (!els.toolsAnalysisStandardNote) return;
   const m = result.meta;
   els.toolsAnalysisStandardNote.textContent =
-    `ITU-R BS.1770-4 / EBU R128 · True peak: ${m.truePeakOversample}x aşırı örnekleme (genel amaçlı filtre — ITU'nun resmi tablosuyla bit-bire-bir aynı değil, ölçülen üst sınır ~0.04dB yukarı sapma) · RMS penceresi: ${m.rmsWindowMs}ms · RMS konvansiyonu: AES17 (tam ölçekli sinüs = 0dB; HAM konvansiyonda bu −3.01dB kayar, RX 11 karşılaştırmasıyla doğrulandı)`;
+    `ITU-R BS.1770-4 / EBU R128 · True peak: ${m.truePeakOversample}x aşırı örnekleme (genel amaçlı filtre — ITU'nun resmi tablosuyla bit-bire-bir aynı değil, ölçülen üst sınır ~0.04dB yukarı sapma) · RMS penceresi: ${m.rmsWindowMs}ms · RMS konvansiyonu: AES17 (tam ölçekli sinüs = 0dB; HAM konvansiyonda bu −3.01dB kayar, RX 11 karşılaştırmasıyla doğrulandı) · Eşik renkleri yaygın yayın/streaming hedeflerine göre belirlenmiştir, mutlak kural değildir.`;
 }
 
 // --- Short-term seyri grafiği (canvas, DPR-farkında — oyun ekranındaki
@@ -7788,10 +7888,96 @@ if (els.toolsAnalysisChart) {
   window.addEventListener("pointerup", () => { toolsAnalysisChartScrubbing = false; });
 }
 
+// G106 — Faz korelasyonu seyri, short-term grafiğinin AYNI görsel dili
+// (DPR-farkında, gradyan dolgulu çizgi) ama farklı renkte (violet, cyan'la
+// KARIŞMASIN diye) ve daha kısa (~60px). Sabit −1..+1 ekseni — LUFS gibi
+// içerik-bağımlı bir ölçek gerekmiyor, korelasyon zaten sınırlı bir aralık.
+let toolsCorrelationChartCtx = null;
+let toolsCorrelationChartCssW = 300;
+const TOOLS_CORRELATION_CHART_CSS_H = 60;
+
+function resizeToolsCorrelationChart() {
+  if (!els.toolsAnalysisCorrelationChart) return null;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = els.toolsAnalysisCorrelationChart.getBoundingClientRect();
+  if (rect.width > 0) toolsCorrelationChartCssW = rect.width;
+  const targetW = Math.max(1, Math.round(toolsCorrelationChartCssW * dpr));
+  const targetH = Math.max(1, Math.round(TOOLS_CORRELATION_CHART_CSS_H * dpr));
+  if (els.toolsAnalysisCorrelationChart.width !== targetW || els.toolsAnalysisCorrelationChart.height !== targetH) {
+    els.toolsAnalysisCorrelationChart.width = targetW;
+    els.toolsAnalysisCorrelationChart.height = targetH;
+  }
+  if (!toolsCorrelationChartCtx) toolsCorrelationChartCtx = els.toolsAnalysisCorrelationChart.getContext("2d");
+  toolsCorrelationChartCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { cssW: toolsCorrelationChartCssW, cssH: TOOLS_CORRELATION_CHART_CSS_H };
+}
+
+function drawCorrelationChart(result) {
+  if (!els.toolsAnalysisCorrelationChart) return;
+  const dims = resizeToolsCorrelationChart();
+  if (!dims) return;
+  const { cssW, cssH } = dims;
+  const ctx = toolsCorrelationChartCtx;
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const st = result.program.stereo;
+  const series = st ? st.correlationSeries : null;
+  if (!series || series.length < 2) {
+    ctx.fillStyle = "#4a4f56";
+    ctx.font = "600 10.5px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(st ? "Grafik için dosya çok kısa" : "Mono dosya — uygulanamaz", cssW / 2, cssH / 2 + 4);
+    return;
+  }
+
+  const lo = -1, hi = 1;
+  const plotTop = 3, plotBottom = cssH - 3;
+  const yFor = (v) => plotBottom - ((v - lo) / (hi - lo)) * (plotBottom - plotTop);
+  const xFor = (i) => (i / (series.length - 1)) * cssW;
+
+  const y0 = yFor(0);
+  ctx.save();
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = "rgba(255,255,255,.15)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, y0);
+  ctx.lineTo(cssW, y0);
+  ctx.stroke();
+  ctx.restore();
+
+  const grad = ctx.createLinearGradient(0, plotTop, 0, plotBottom);
+  grad.addColorStop(0, "rgba(192,132,252,.30)");
+  grad.addColorStop(1, "rgba(192,132,252,0)");
+  ctx.beginPath();
+  series.forEach((v, i) => {
+    const x = xFor(i), y = yFor(v);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(cssW, plotBottom);
+  ctx.lineTo(0, plotBottom);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  series.forEach((v, i) => {
+    const x = xFor(i), y = yFor(v);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = "#c084fc";
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.stroke();
+}
+
 function renderToolsAnalysisResults(result) {
   renderToolsAnalysisChannelTable(result);
+  renderToolsAnalysisStereo(result);
   renderToolsAnalysisLoudness(result);
   drawShortTermChart(result);
+  drawCorrelationChart(result);
   renderToolsAnalysisStandardNote(result);
   if (els.toolsAnalysisChartReadout) els.toolsAnalysisChartReadout.textContent = "Grafiğe dokun — o noktanın değeri burada görünür.";
   if (els.toolsResultsTotalTime) els.toolsResultsTotalTime.textContent = formatToolsDuration(result.durationSec);
@@ -7894,7 +8080,10 @@ function toolsOpenResultsSheet() {
   requestAnimationFrame(() => {
     if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.add("open");
     if (els.toolsResultsSheet) els.toolsResultsSheet.classList.add("open");
-    if (toolsAnalysisResult) drawShortTermChart(toolsAnalysisResult);
+    if (toolsAnalysisResult) {
+      drawShortTermChart(toolsAnalysisResult);
+      drawCorrelationChart(toolsAnalysisResult);
+    }
   });
 }
 function toolsCloseResultsSheet() {

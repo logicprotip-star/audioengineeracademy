@@ -263,6 +263,44 @@ const LRA_RELATIVE_GATE_OFFSET_LU = -20;
 const LRA_LOW_PERCENTILE = 10;
 const LRA_HIGH_PERCENTILE = 95;
 
+// ---- STEREO / MONO-UYUM ölçümleri (G106) ----
+// Bant sınırları Frekans Bulma modunun FA_ZONES'uyla (www/js/modes/frekans-bulma.js)
+// AYNI 6 bölge — kasıtlı olarak BURADA YENİDEN yazıldı, frekans-bulma.js'ten
+// import EDİLMEDİ: bu dosya "core" bir ölçüm motoru, bir OYUN MODUNA bağımlı
+// olmamalı (bağımlılık yönü ters olurdu). Sınırlar değişirse İKİ yerde de
+// (burada ve tonal-balance.js'in BAND_EDGES'inde) güncellenmeli.
+const STEREO_BAND_EDGES = [20, 120, 250, 500, 2000, 8000, 20000];
+const STEREO_BAND_LABELS = ["SUB", "BAS", "ALT-ORTA", "ORTA", "ÜST-ORTA", "TİZ"];
+
+// ITU-R BS.1770-4 kanal ağırlıkları stereo'da L ve R gücünü TOPLAR (1.0/1.0) —
+// bu yüzden L=R (tam mono uyumlu) bir sinyal bile "stereo" olarak ölçüldüğünde
+// "mono" ((L+R)/2, tek kanal) olarak ölçülenden DOĞAL olarak 10*log10(2) ≈
+// 3.0103 dB daha yüksek LUFS okur — FAZ SORUNU OLMASA BİLE (iki özdeş kanalın
+// gücü toplanır). Bu farkı "kayıp" sanmamak için referans olarak stereo
+// integratedLufs'tan bu sabit ÇIKARILIYOR — kalan fark GERÇEKTEN faz/genişlik
+// kaynaklı olanı yansıtır (doğrulama: L=R sinyalde referans === monoIntegratedLufs
+// çıkar → kayıp 0, bkz. testler).
+const MONO_REFERENCE_OFFSET_DB = 10 * Math.log10(2); // 3.0103
+
+// SAF. RBJ Audio-EQ-Cookbook "BPF (constant 0 dB peak gain)" band-geçiren
+// biquad'ı — bant bazlı mono-uyum kaybı için KABA bir 6-bölge ayrımı (dik
+// crossover DEĞİL, tek kademe 2. derece filtre — Frekans Bulma/Tonal Balance
+// modlarındaki bölgeler de zaten pedagojik amaçlı, keskin sınır değil, bu
+// yaklaşım o hassasiyetle tutarlı). f0 = bant kenarlarının geometrik ortalaması
+// (tonal-balance.js'teki merkez hesabıyla AYNI kural), Q = f0 / bant genişliği (Hz).
+function bandpassCoeffs(fs, f0, Q) {
+  const w0 = (2 * Math.PI * f0) / fs;
+  const alpha = Math.sin(w0) / (2 * Q);
+  const a0 = 1 + alpha;
+  return {
+    b0: alpha / a0,
+    b1: 0,
+    b2: -alpha / a0,
+    a1: (-2 * Math.cos(w0)) / a0,
+    a2: (1 - alpha) / a0,
+  };
+}
+
 function powerToLufs(power) {
   return power > 0 ? -0.691 + 10 * Math.log10(power) : -Infinity;
 }
@@ -300,6 +338,36 @@ function percentileNearestRank(sortedValues, p) {
   if (n === 0) return NaN;
   const rank = Math.ceil((p / 100) * n);
   return sortedValues[Math.min(n - 1, Math.max(0, rank - 1))];
+}
+
+// SAF. 100ms blockPowers dizisinden 400ms/100ms-adım momentary güç serisini
+// üretir — integrated loudness gating'i BUNUN üzerinde çalışır (bkz. ITU-R
+// BS.1770-4 §5). G106'da mono downmix'in KENDİ integrated loudness'ını da
+// AYNI algoritmayla hesaplamak için dışa çıkarıldı (önceden analyzeAudioBuffer
+// içine gömülüydü, davranış DEĞİŞMEDİ).
+function computeMomentarySeries(blockPowers) {
+  const series = [];
+  for (let i = 0; i < blockPowers.length; i++) {
+    if (i >= MOMENTARY_BLOCKS - 1) {
+      let sum = 0;
+      for (let k = i - MOMENTARY_BLOCKS + 1; k <= i; k++) sum += blockPowers[k];
+      series.push(sum / MOMENTARY_BLOCKS);
+    }
+  }
+  return series;
+}
+
+// SAF. İki aşamalı kapılama (mutlak -70 LUFS, sonra göreli -10 LU) — bkz.
+// computeMomentarySeries notu, aynı gerekçeyle dışa çıkarıldı.
+function computeIntegratedLufs(momentarySeries) {
+  const absoluteGated = momentarySeries.filter((p) => powerToLufs(p) > ABSOLUTE_GATE_LUFS);
+  if (absoluteGated.length === 0) return -Infinity;
+  const meanAbs = absoluteGated.reduce((a, b) => a + b, 0) / absoluteGated.length;
+  const relativeThreshold = powerToLufs(meanAbs) + RELATIVE_GATE_OFFSET_LU;
+  const relGated = absoluteGated.filter((p) => powerToLufs(p) > relativeThreshold);
+  if (relGated.length === 0) return powerToLufs(meanAbs);
+  const meanRel = relGated.reduce((a, b) => a + b, 0) / relGated.length;
+  return powerToLufs(meanRel);
 }
 
 // SAF. Ana giriş noktası. bufferLike: {sampleRate, numberOfChannels, length,
@@ -348,6 +416,48 @@ export function analyzeAudioBuffer(bufferLike, options = {}) {
   const blockPowers = [];
   let gatingAccum = 0;
   let gatingAccumCount = 0;
+
+  // G106 — STEREO / MONO-UYUM durumu, SADECE stereo girdide kurulur. AYNI
+  // geçişte (Faz B'nin içinde) biriktirilir — dosya İKİNCİ kez taranmaz.
+  const stereoEnabled = numberOfChannels === 2;
+  let stereoState = null;
+  if (stereoEnabled) {
+    const bands = [];
+    for (let bi = 0; bi < STEREO_BAND_EDGES.length - 1; bi++) {
+      const lo = STEREO_BAND_EDGES[bi];
+      const hi = STEREO_BAND_EDGES[bi + 1];
+      const f0 = Math.sqrt(lo * hi);
+      const q = f0 / (hi - lo);
+      bands.push({
+        coeffs: bandpassCoeffs(sampleRate, f0, q),
+        lState: newBiquadState(),
+        rState: newBiquadState(),
+        sumL2: 0,
+        sumR2: 0,
+        sumLR: 0,
+      });
+    }
+    stereoState = {
+      sumLR: 0,
+      sumLL: 0,
+      sumRR: 0,
+      sumMidSq: 0,
+      sumSideSq: 0,
+      sampleCount: 0,
+      monoPreState: newBiquadState(),
+      monoRlbState: newBiquadState(),
+      monoBlockPowers: [],
+      monoGatingAccum: 0,
+      monoGatingAccumCount: 0,
+      blockSumLR: [],
+      blockSumLL: [],
+      blockSumRR: [],
+      curBlockSumLR: 0,
+      curBlockSumLL: 0,
+      curBlockSumRR: 0,
+      bands,
+    };
+  }
 
   for (let offset = 0; offset < length; offset += chunkSize) {
     const n = Math.min(chunkSize, length - offset);
@@ -404,12 +514,63 @@ export function analyzeAudioBuffer(bufferLike, options = {}) {
         const afterRlb = applyBiquad(s.rlbState, rlbCoeffs, afterPre);
         sampleSum += afterRlb * afterRlb; // kanal ağırlığı 1.0 (mono/stereo)
       }
+
+      // G106 — stereo/mono-uyum birikimi, AYNI örnek geçişinde (ikinci
+      // dosya taraması YOK).
+      if (stereoEnabled) {
+        const st = stereoState;
+        const l = blocks[0][i];
+        const r = blocks[1][i];
+        st.sumLR += l * r;
+        st.sumLL += l * l;
+        st.sumRR += r * r;
+        st.curBlockSumLR += l * r;
+        st.curBlockSumLL += l * l;
+        st.curBlockSumRR += r * r;
+        st.sampleCount++;
+
+        const mid = (l + r) / 2;
+        const side = (l - r) / 2;
+        st.sumMidSq += mid * mid;
+        st.sumSideSq += side * side;
+
+        // Mono downmix'in KENDİ K-ağırlıklı gating gücü — ayrı bir biquad
+        // çifti, aynı katsayılar (preCoeffs/rlbCoeffs), mid sinyali üzerinde.
+        const monoAfterPre = applyBiquad(st.monoPreState, preCoeffs, mid);
+        const monoAfterRlb = applyBiquad(st.monoRlbState, rlbCoeffs, monoAfterPre);
+        st.monoGatingAccum += monoAfterRlb * monoAfterRlb;
+        st.monoGatingAccumCount++;
+        if (st.monoGatingAccumCount >= gatingBlockSamples) {
+          st.monoBlockPowers.push(st.monoGatingAccum / st.monoGatingAccumCount);
+          st.monoGatingAccum = 0;
+          st.monoGatingAccumCount = 0;
+        }
+
+        // Bant bazlı mono kaybı için 6 bant × (L,R) band-pass.
+        for (const band of st.bands) {
+          const bl = applyBiquad(band.lState, band.coeffs, l);
+          const br = applyBiquad(band.rState, band.coeffs, r);
+          band.sumL2 += bl * bl;
+          band.sumR2 += br * br;
+          band.sumLR += bl * br;
+        }
+      }
+
       gatingAccum += sampleSum;
       gatingAccumCount++;
       if (gatingAccumCount >= gatingBlockSamples) {
         blockPowers.push(gatingAccum / gatingAccumCount);
         gatingAccum = 0;
         gatingAccumCount = 0;
+        if (stereoEnabled) {
+          const st = stereoState;
+          st.blockSumLR.push(st.curBlockSumLR);
+          st.blockSumLL.push(st.curBlockSumLL);
+          st.blockSumRR.push(st.curBlockSumRR);
+          st.curBlockSumLR = 0;
+          st.curBlockSumLL = 0;
+          st.curBlockSumRR = 0;
+        }
       }
     }
   }
@@ -430,14 +591,9 @@ export function analyzeAudioBuffer(bufferLike, options = {}) {
   }
 
   // ---- Program geneli LUFS ----
-  const momentarySeries = [];
+  const momentarySeries = computeMomentarySeries(blockPowers);
   const shortTermSeries = [];
   for (let i = 0; i < blockPowers.length; i++) {
-    if (i >= MOMENTARY_BLOCKS - 1) {
-      let sum = 0;
-      for (let k = i - MOMENTARY_BLOCKS + 1; k <= i; k++) sum += blockPowers[k];
-      momentarySeries.push(sum / MOMENTARY_BLOCKS);
-    }
     if (i >= SHORT_TERM_BLOCKS - 1) {
       let sum = 0;
       for (let k = i - SHORT_TERM_BLOCKS + 1; k <= i; k++) sum += blockPowers[k];
@@ -457,19 +613,7 @@ export function analyzeAudioBuffer(bufferLike, options = {}) {
 
   // Integrated loudness — iki aşamalı kapılama (ITU-R BS.1770-4 §5).
   // Gating blokları = momentarySeries (400ms pencere, 100ms adım).
-  const absoluteGated = momentarySeries.filter((p) => powerToLufs(p) > ABSOLUTE_GATE_LUFS);
-  let integratedLufs = -Infinity;
-  if (absoluteGated.length > 0) {
-    const meanAbs = absoluteGated.reduce((a, b) => a + b, 0) / absoluteGated.length;
-    const relativeThreshold = powerToLufs(meanAbs) + RELATIVE_GATE_OFFSET_LU;
-    const relGated = absoluteGated.filter((p) => powerToLufs(p) > relativeThreshold);
-    if (relGated.length > 0) {
-      const meanRel = relGated.reduce((a, b) => a + b, 0) / relGated.length;
-      integratedLufs = powerToLufs(meanRel);
-    } else {
-      integratedLufs = powerToLufs(meanAbs);
-    }
-  }
+  const integratedLufs = computeIntegratedLufs(momentarySeries);
 
   // LRA — EBU Tech 3342 (3s pencere, 1s adım, -70 mutlak + -20 göreli kapı,
   // P95-P10).
@@ -489,6 +633,61 @@ export function analyzeAudioBuffer(bufferLike, options = {}) {
       const loudnessValues = relGated.map(powerToLufs).sort((a, b) => a - b);
       lra = percentileNearestRank(loudnessValues, LRA_HIGH_PERCENTILE) - percentileNearestRank(loudnessValues, LRA_LOW_PERCENTILE);
     }
+  }
+
+  // ---- G106: STEREO / MONO-UYUM türetimleri ----
+  let stereoResult = null;
+  if (stereoEnabled) {
+    const st = stereoState;
+    const denom = Math.sqrt(st.sumLL * st.sumRR);
+    const rawCorrelation = denom > 0 ? st.sumLR / denom : 0; // sessizlik → nötr 0 (bkz. yorum altta)
+    const correlation = Math.max(-1, Math.min(1, rawCorrelation));
+
+    const correlationSeries = [];
+    for (let i = 0; i < st.blockSumLR.length; i++) {
+      if (i >= SHORT_TERM_BLOCKS - 1) {
+        let sLR = 0, sLL = 0, sRR = 0;
+        for (let k = i - SHORT_TERM_BLOCKS + 1; k <= i; k++) {
+          sLR += st.blockSumLR[k];
+          sLL += st.blockSumLL[k];
+          sRR += st.blockSumRR[k];
+        }
+        const d = Math.sqrt(sLL * sRR);
+        const c = d > 0 ? sLR / d : 0;
+        correlationSeries.push(Math.max(-1, Math.min(1, c)));
+      }
+    }
+
+    const n = Math.max(1, st.sampleCount);
+    const midRmsDb = linearToDb(Math.sqrt(st.sumMidSq / n));
+    const sideRmsDb = linearToDb(Math.sqrt(st.sumSideSq / n));
+    const sideToMidDb = midRmsDb === -Infinity && sideRmsDb === -Infinity ? 0 : sideRmsDb - midRmsDb;
+
+    const monoMomentarySeries = computeMomentarySeries(st.monoBlockPowers);
+    const monoIntegratedLufs = computeIntegratedLufs(monoMomentarySeries);
+    const referenceLoudness = integratedLufs === -Infinity ? -Infinity : integratedLufs - MONO_REFERENCE_OFFSET_DB;
+    const monoLossDb =
+      referenceLoudness === -Infinity && monoIntegratedLufs === -Infinity ? 0 : referenceLoudness - monoIntegratedLufs;
+
+    const bandMonoLossDb = st.bands.map((band) => {
+      const stereoRefRms = Math.sqrt((band.sumL2 + band.sumR2) / (2 * n));
+      const monoRms = Math.sqrt(Math.max(0, band.sumL2 + 2 * band.sumLR + band.sumR2) / (4 * n));
+      const stereoDb = linearToDb(stereoRefRms);
+      const monoDb = linearToDb(monoRms);
+      return stereoDb === -Infinity && monoDb === -Infinity ? 0 : stereoDb - monoDb;
+    });
+
+    stereoResult = {
+      correlation,
+      correlationSeries,
+      midRmsDb,
+      sideRmsDb,
+      sideToMidDb,
+      monoIntegratedLufs,
+      monoLossDb,
+      bandMonoLossDb,
+      bandLabels: STEREO_BAND_LABELS,
+    };
   }
 
   const labels = numberOfChannels === 1 ? ["Mono"] : ["L", "R"];
@@ -523,6 +722,10 @@ export function analyzeAudioBuffer(bufferLike, options = {}) {
       shortTermLufsSeries: shortTermSeries.map(powerToLufs),
       shortTermSeriesStartMs: (SHORT_TERM_BLOCKS - 1) * GATING_BLOCK_MS,
       shortTermSeriesStepMs: GATING_BLOCK_MS,
+      // G106 — stereo/mono-uyum ölçümleri. Mono girdide null (kavram
+      // uygulanamaz). correlationSeries, shortTermLufsSeries ile AYNI
+      // pencerede/hizada (shortTermSeriesStartMs/StepMs paylaşılır).
+      stereo: stereoResult,
     },
     meta: {
       rmsWindowMs,
@@ -544,4 +747,7 @@ export const _internal = {
   percentile,
   percentileNearestRank,
   besselI0,
+  bandpassCoeffs,
+  computeMomentarySeries,
+  computeIntegratedLufs,
 };

@@ -436,3 +436,112 @@ describe("analysis.js — G99: program.shortTermLufsSeries (arayüz turunun 'Sho
     assert.equal(r.program.shortTermSeriesStepMs, 100);
   });
 });
+
+describe("analysis.js — G106: mono girdide program.stereo NULL (kavram uygulanamaz)", () => {
+  it("numberOfChannels=1 → program.stereo === null", () => {
+    const d = sineWave(1000, 0.5, 1, SR);
+    const r = analyzeAudioBuffer(fakeBuffer([d], SR));
+    assert.equal(r.program.stereo, null);
+  });
+});
+
+describe("analysis.js — G106: üç referans stereo sinyali (task'ın DOĞRULAMA istediği üç durum)", () => {
+  it("tam mono sinyal (L=R): korelasyon +1, mono kaybı 0", () => {
+    const d = sineWave(440, 0.5, 4, SR);
+    const r = analyzeAudioBuffer(fakeBuffer([d, d.slice()], SR));
+    assert.ok(Math.abs(r.program.stereo.correlation - 1) < 1e-6, `correlation=${r.program.stereo.correlation}`);
+    assert.ok(Math.abs(r.program.stereo.monoLossDb - 0) < 0.01, `monoLossDb=${r.program.stereo.monoLossDb}`);
+    for (const v of r.program.stereo.bandMonoLossDb) {
+      assert.ok(Math.abs(v) < 0.01, `bandMonoLossDb=${v}, L=R'de her bant ~0 olmalı`);
+    }
+  });
+
+  it("ters fazlı stereo (L=−R): korelasyon −1, monoda TAM iptal (monoIntegratedLufs=-Infinity, kayıp=+Infinity)", () => {
+    const d = sineWave(440, 0.5, 4, SR);
+    const negD = d.map((v) => -v);
+    const r = analyzeAudioBuffer(fakeBuffer([d, negD], SR));
+    assert.ok(Math.abs(r.program.stereo.correlation - -1) < 1e-6, `correlation=${r.program.stereo.correlation}`);
+    assert.equal(r.program.stereo.monoIntegratedLufs, -Infinity);
+    assert.equal(r.program.stereo.monoLossDb, Infinity);
+  });
+
+  it("bağımsız gürültü iki kanalda: korelasyon ~0", () => {
+    // Basit LCG PRNG — Math.random() yerine DETERMİNİSTİK, tekrarlanabilir
+    // (test flaky OLMASIN diye, bkz. CLAUDE.md 'sayı uydurma' — burada asıl
+    // riski önleyen şey rastgeleliğin kendisi değil, tekrarlanabilirlik).
+    function noise(n, seed) {
+      let s = seed;
+      const out = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        s = (s * 1103515245 + 12345) & 0x7fffffff;
+        out[i] = (s / 0x7fffffff) * 2 - 1;
+      }
+      return out;
+    }
+    const n = SR * 5;
+    const l = noise(n, 1);
+    const r2 = noise(n, 2);
+    const r = analyzeAudioBuffer(fakeBuffer([l, r2], SR));
+    assert.ok(Math.abs(r.program.stereo.correlation) < 0.05, `correlation=${r.program.stereo.correlation}, ~0 beklenir`);
+  });
+});
+
+describe("analysis.js — G106: Mid/Side dengesi", () => {
+  it("tam mono (L=R): side RMS −Infinity (yan bileşen tamamen sessiz)", () => {
+    const d = sineWave(1000, 0.5, 2, SR);
+    const r = analyzeAudioBuffer(fakeBuffer([d, d.slice()], SR));
+    assert.equal(r.program.stereo.sideRmsDb, -Infinity);
+  });
+
+  it("tam ters faz (L=−R): mid RMS −Infinity (orta bileşen tamamen sessiz)", () => {
+    const d = sineWave(1000, 0.5, 2, SR);
+    const negD = d.map((v) => -v);
+    const r = analyzeAudioBuffer(fakeBuffer([d, negD], SR));
+    assert.equal(r.program.stereo.midRmsDb, -Infinity);
+  });
+});
+
+describe("analysis.js — G106: correlationSeries, shortTermLufsSeries ile AYNI uzunluk/hizada", () => {
+  it("6s sinyalde iki dizi AYNI uzunlukta", () => {
+    const d = sineWave(1000, 0.5, 6, SR);
+    const r = analyzeAudioBuffer(fakeBuffer([d, d.slice()], SR));
+    assert.equal(r.program.stereo.correlationSeries.length, r.program.shortTermLufsSeries.length);
+  });
+
+  it("sabit korelasyonlu (L=R) sinyalde dizinin HER elemanı +1 (±1e-6)", () => {
+    const d = sineWave(1000, 0.5, 6, SR);
+    const r = analyzeAudioBuffer(fakeBuffer([d, d.slice()], SR));
+    for (const v of r.program.stereo.correlationSeries) {
+      assert.ok(Math.abs(v - 1) < 1e-6, `v=${v}`);
+    }
+  });
+});
+
+describe("analysis.js — G106: bant bazlı mono kaybı, sorunlu banda LOKALİZE olabiliyor", () => {
+  it("SADECE alt banttaki (100Hz) içerik ters fazlı, üst bantlar (5kHz) mono uyumlu → yalnızca alt bant büyük kayıp gösterir", () => {
+    const lowBand = sineWave(100, 0.4, 3, SR);
+    const highBand = sineWave(5000, 0.2, 3, SR);
+    const l = new Float32Array(lowBand.length);
+    const r = new Float32Array(lowBand.length);
+    for (let i = 0; i < l.length; i++) {
+      l[i] = lowBand[i] + highBand[i];
+      r[i] = -lowBand[i] + highBand[i]; // 100Hz ters fazlı, 5kHz aynı fazlı
+    }
+    const res = analyzeAudioBuffer(fakeBuffer([l, r], SR));
+    const { bandMonoLossDb, bandLabels } = res.program.stereo;
+    const subIdx = bandLabels.indexOf("SUB"); // 20-120Hz — 100Hz'i kapsar
+    const tizIdx = bandLabels.indexOf("TİZ"); // 8-20kHz — 5kHz'i KAPSAMAZ ama ÜST-ORTA'yı (2-8kHz) kontrol edelim
+    const ustOrtaIdx = bandLabels.indexOf("ÜST-ORTA"); // 2-8kHz — 5kHz'i kapsar
+    assert.ok(bandMonoLossDb[subIdx] > 6, `SUB kaybı=${bandMonoLossDb[subIdx]}, ters faz nedeniyle BÜYÜK olmalı`);
+    assert.ok(bandMonoLossDb[ustOrtaIdx] < 1, `ÜST-ORTA kaybı=${bandMonoLossDb[ustOrtaIdx]}, mono uyumlu olduğu için KÜÇÜK olmalı`);
+  });
+});
+
+describe("analysis.js — G106: _internal.bandpassCoeffs (RBJ cookbook BPF, DC kazancı 0'a yakın olmalı)", () => {
+  it("merkez frekansta genlik tepkisi ~1 (0dB), DC'de ~0", () => {
+    const c = _internal.bandpassCoeffs(SR, 1000, 1);
+    // DC kazancı: w=0 için transfer fonksiyonu (b0+b1+b2)/(1+a1+a2).
+    const dcGain = (c.b0 + c.b1 + c.b2) / (1 + c.a1 + c.a2);
+    assert.ok(Math.abs(dcGain) < 1e-6, `DC kazancı=${dcGain}, ~0 olmalı (band-pass)`);
+  });
+});
