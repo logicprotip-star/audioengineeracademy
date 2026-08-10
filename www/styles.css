@@ -103,23 +103,41 @@
        user-scalable=no ile birlikte iki katmanlı koruma: bazı WKWebView
        sürümlerinde user-scalable=no tek başına çift-dokunma zoom'unu güvenilir
        engellemiyor. */
-    /* G107 — "Ölçüm Sonuçları sheet'i ekranın altında kalıyor, tam görünmüyor,
-       yukarı çekilemiyor" (üçüncü kez bildirildi, G103/G105'in --app-vh/
-       overflow-lock düzeltmeleri iOS'ta ÇÖZMEDİ). KÖK SEBEP ADAYI: iyi
-       belgelenmiş bir WKWebView/iOS Safari davranışı — position:fixed
-       elemanlar (bkz. .tools-sheet) belge (html/body) KAYDIRILABİLİR
-       durumdaysa "layout viewport"a göre konumlanıyor, bu "visual viewport"tan
-       (gerçek görünür alan) FARKLI olabiliyor; sonuç: fixed eleman gerçek
-       ekranın altında/dışında gibi davranıyor. Bu projede body/html'in
-       ZATEN hiç kaydırılması GEREKMİYOR — TÜM içerik zaten kendi .scroll
-       bölgeleri içinde taşıyor (.app-shell height:var(--app-vh) + .screen
-       height:100% + .scroll/.game-scroll/.tools-scroll overflow-y:auto,
-       bkz. .app-shell'in G73 notu "artık .game-scroll GERÇEKTEN kendi
-       içinde taşıyor"). Belgeyi position:fixed+overflow:hidden ile TAMAMEN
-       kilitlemek (rubber-band/overscroll dahil) hem bu sınıf iOS fixed-
-       positioning tutarsızlığını KÖKTEN ortadan kaldırıyor hem de mevcut
-       mimariyle TUTARLI (hiçbir ekran zaten body kaydırmasına dayanmıyor). */
-    html,body{position:fixed;inset:0;margin:0;overflow:hidden;overscroll-behavior:none;background:var(--bg-page);touch-action:manipulation}
+    /* G107 — "Ölçüm Sonuçları sheet'i ekranın altında kalıyor" şikayeti için
+       html/body'ye KALICI `position:fixed;inset:0` eklenmişti (KÖK SEBEP
+       ADAYI: fixed elemanların "layout viewport" vs "visual viewport" farkı,
+       bkz. eski not — bu tahmin HİÇBİR ZAMAN cihazda doğrulanmadı, kendi
+       DÜRÜSTLÜK notunda işaretliydi).
+       G110 — YENİDEN DEĞERLENDİRİLDİ (cihaz kanıtı geldi): G107'den SONRA
+       Araçlar sekmesinde `.tools-scroll` sheet kapanınca kaydırılamaz oldu
+       (üçüncü kez bildirildi). Masaüstü Chrome'da KANITLANDI:
+       `.tools-scroll` zinciri (`.app-shell` height:var(--app-vh) → `.screen`
+       height:100% → `.tools-scroll` flex:1/min-height:0/overflow-y:auto,
+       kartlar `.tools-card{flex-shrink:0}` — SIKIŞTIRILAMIYOR) html/body
+       `position:fixed` YOKKEN GERÇEKTEN `scrollHeight>clientHeight` üretiyor
+       (44px taşma ölçüldü, 3 kart + normal viewport) — yani mimari SAĞLAM,
+       html/body'nin KALICI `position:fixed`'i GEREKLİ DEĞİLDİ. Üstelik
+       `position:fixed` olan bir eleman zaten `position:fixed` KATMANI
+       (`.tools-sheet`) için bir "containing block" değiştirmez (SADECE
+       `transform`/`filter`/`will-change:transform` gibi özellikler bunu
+       yapar, `position` DEĞİL) — yani G107'nin `position:fixed`'i teoride
+       de `.tools-sheet`'in konumlanmasını ETKİLEMİYORDU, düzelten şey
+       muhtemelen (test EDİLMEDİ, ama en olası aday) `overflow:hidden`'ın
+       KENDİSİYDİ. `position:fixed;inset:0` KALDIRILDI, `overflow:hidden`
+       KORUNDU (rubber-band/overscroll'u önlemede iOS'ta daha güvenilir
+       bilinen, ama `position:fixed` torunlarının containing block'unu
+       DEĞİŞTİRMEYEN daha ILIMLI bir önlem) — "yan etkisiz" bir orta yol.
+       Bu projede body/html'in ZATEN hiç kaydırılması GEREKMİYOR — TÜM
+       içerik kendi `.scroll` bölgeleri içinde taşıyor (bkz. .app-shell'in
+       G73 notu) — `overflow:hidden` bunu GARANTİLİYOR, `position:fixed`
+       İSE gereksiz bir yan etkiydi.
+       DÜRÜSTLÜK NOTU: bu da (G107 gibi) cihazda KANITLANAMADI — bir SONRAKİ
+       cihaz turunda hem `.tools-scroll`'un düzeldiği HEM Ölçüm Sonuçları
+       sheet'inin HÂLÂ ekranın altında kalmadığı AYRI AYRI doğrulanmalı;
+       ikincisi yeniden bozulursa `.tools-sheet`'in KENDİ `--app-vh`
+       tabanlı max-height'ı (G103) YETERSİZ demektir, o zaman BAŞKA bir
+       (html/body'yi kalıcı kilitlemeyen) çözüm aranmalı. */
+    html,body{margin:0;min-height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg-page);touch-action:manipulation}
     /* Metin seçimi kapalı — bu bir oyun arayüzü, uzun basış "Kopyala/Ara/Çevir"
        menüsünü açıp oyun ekranını kapatıyordu (bkz. 6-düzeltme maddesi 2).
        İSTİSNA: kullanıcının GERÇEKTEN kopyalaması/düzenlemesi gerekebilecek

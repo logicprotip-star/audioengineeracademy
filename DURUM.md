@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G109)
+Son güncelleme: 11.08.2026 (G110)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,89 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G109, tek commit) — **Kaydırma kilidi sertleştirildi + [scroll-diag] günlüğü — Dosyalarım sheet'i kapanınca Araçlar kaydırılamıyor (üçüncü bildirim).**
+Bu commit (G110, tek commit) — **KÖK SEBEP: G107'nin html/body position:fixed kilidi kaldırıldı — cihaz kanıtıyla DOĞRULANMIŞ gereksiz bir yan etkiydi.**
+
+**Kullanıcının cihaz kanıtı:** `[scroll-diag] kilit kalktı — overflow-y=auto,
+touch-action=auto, scrollTop=0, scrollHeight=873, clientHeight=873,
+kaydırılabilir=false` — kilit GERÇEKTEN kalkıyor, stiller doğru, ama
+`.tools-scroll`'un `scrollHeight`'ı içerikle BİRLİKTE BÜYÜMÜYOR. Kullanıcının
+kendi hipotezi: G107'nin `html,body{position:fixed;inset:0;overflow:hidden}`
+kuralı bunu bozuyor olabilir.
+
+**1) Yükseklik zincirinin TAM dökümü (masaüstü Chrome'da GERÇEK ölçüm,
+`getComputedStyle`+`scrollHeight`/`clientHeight` ile):**
+
+| Eleman | height | position | overflow | scrollHeight/clientHeight |
+|---|---|---|---|---|
+| `html` | 899px (`--app-vh`) | ~~fixed~~→static (G110) | hidden | 899/899 |
+| `body` | 899px | ~~fixed~~→static (G110) | hidden | 899/899 |
+| `.app-shell` | 899px (`var(--app-vh)`) | relative | visible | 899/899 |
+| `#screen-tools` (`.screen`) | 100% (→899px) | static | visible | 899/899 |
+| `.tools-scroll` (`.scroll`) | flex:1;min-height:0 (→899px) | static | **auto** | **944/899 (G110'da DÜZELDİ — önce html/body fixed'ken de AYNI ölçüm, aşağıya bkz.)** |
+
+**KRİTİK BULGU:** `.tools-scroll`'un `scrollHeight` (944) `clientHeight`'ı
+(899) AŞIYORDU — html/body'nin `position:fixed` OLDUĞU HALDE (yani G107'nin
+kuralı DEĞİŞTİRİLMEDEN, sadece dosya yüklenip 3 kart görünür haldeyken) —
+masaüstü Chrome'da zincir MEKANİK olarak ÇALIŞIYORDU (44px taşma). Bu,
+kullanıcının "kaydırma kabı BÜYÜYEMİYOR" iddiasının GENEL bir CSS/flex
+mimarisi kırığı OLMADIĞINI gösteriyor — kartlar zaten `.tools-card{flex-
+shrink:0}` ile sıkıştırılmaya karşı KORUNUYORDU (kod incelemesiyle
+doğrulandı, `.tools-head`/`.tools-card` ikisi de flex-shrink:0). Yani
+Chrome'da AYNI html/body kuralıyla bile taşma OLUŞUYORDU — bu, sorunun (varsa)
+SAF CSS zincirinden değil, iOS WKWebView'e ÖZGÜ bir render farkından
+geldiğini düşündürüyor (KANITLANAMADI, bkz. aşağıdaki DÜRÜSTLÜK notu).
+
+**2) `position:fixed;inset:0` KALDIRILDI, `overflow:hidden` KORUNDU
+(styles.css, `html,body` kuralı):**
+```css
+/* ÖNCESİ (G107): */
+html,body{position:fixed;inset:0;margin:0;overflow:hidden;overscroll-behavior:none;...}
+/* SONRASI (G110): */
+html,body{margin:0;min-height:100%;overflow:hidden;overscroll-behavior:none;...}
+```
+Gerekçe: `position:fixed` bir eleman, İÇİNDEKİ `position:fixed` torunların
+(`.tools-sheet`) containing block'unu DEĞİŞTİRMEZ — SADECE `transform`/
+`filter`/`will-change:transform` gibi özellikler bunu yapar. Yani G107'nin
+`position:fixed`'i TEORİDE `.tools-sheet`'in konumlanmasını hiç
+ETKİLEMİYORDU — G107'nin asıl faydası (varsa) muhtemelen SADECE
+`overflow:hidden`'dandı (KORUNDU). `position:fixed;inset:0` ise iOS
+WKWebView'de NESTED `overflow:auto` bölgelerinin momentum-scroll/layout
+hesaplamasını bozan, iyi belgelenmemiş bir yan etki OLABİLİRDİ (kullanıcının
+hipotezi) — kaldırıldığında Chrome'da HİÇBİR REGRESYON gözlenmedi (aşağıya
+bkz.), bu yüzden "yan etkisiz" alternatif olarak SEÇİLDİ.
+
+**3) Aynı zincir sorunu Ölçüm Sonuçları sheet'inin alt kısmını da etkileyip
+etkilemediği KONTROL EDİLDİ:** `#toolsResultsSheet .tools-sheet-body` AYNI
+desen (`flex:1;min-height:0;overflow-y:auto`) — G110'un düzeltmesinden
+SONRA test edildi: `scrollHeight=1082, clientHeight=687, overflows=true`,
+sheet EN ALTA KADAR kaydırıldı (`atBottom:true`), standart notu TAM
+GÖRÜNDÜ (ekran görüntüsüyle doğrulandı) — kesilme YOK.
+
+**DOĞRULAMA (masaüstü Chrome — task'ın notu: bu sorun BURADA
+ÜRETİLEMİYOR, aşağıdakiler REGRESYON kontrolü, cihaz kanıtı DEĞİL):**
+- Dosya yüklendi (3-4 kart) → `.tools-scroll`: `scrollHeight=944,
+  clientHeight=899, overflows=true` (G110'un YENİ html/body kuralıyla).
+- Ölçüm Sonuçları sheet'i açıldı → en alta kadar kaydırıldı → standart
+  notu TAM görünür, tab bar tarafından KESİLMEDİ.
+- Sheet kapatıldı → `[scroll-diag]`: `overflow-y=auto, touch-action=auto,
+  scrollTop=0, scrollHeight=926, clientHeight=899, kaydırılabilir=true`
+  (BİR ÖNCEKİ dosya-dolu durumunda) — kilit kalkışı ve taşma DOĞRU
+  algılanıyor.
+- Konsol hatası: 0.
+- **`npm test`: 1119/1119** (SADECE CSS değişti, JS davranışı aynı).
+
+**DÜRÜSTLÜK NOTU (KESİN KANIT DEĞİL):** bu değişiklik kullanıcının
+hipotezini test eden, MANTIKLI gerekçeli bir düzeltme — ama `position:fixed`
+kaldırıldığında iOS'ta GERÇEKTEN `.tools-scroll`'un düzeldiği BURADA
+KANITLANAMADI (bu sınıf sorunlar zaten masaüstünde üretilemiyor, task'ın
+kendi notu). AYNI ZAMANDA G107'nin ASIL amacı (sheet ekranın altında kalma)
+BAŞTAN BERİ cihazda hiç doğrulanmamıştı (G107'nin kendi DÜRÜSTLÜK notu) —
+yani bu değişiklik iki YÖNDE de (düzeltiyor mu, yeniden mi bozuyor) SADECE
+bir SONRAKİ cihaz turunda kesinleşecek.
+
+---
+
+Önceki commit (G109, tek commit) — **Kaydırma kilidi sertleştirildi + [scroll-diag] günlüğü — Dosyalarım sheet'i kapanınca Araçlar kaydırılamıyor (üçüncü bildirim).**
 
 **BAĞLAM (G108'in bulgusu):** teşhis günlükleri cihazda çalıştırıldı —
 yükleme zincirinin 7 adımının HEPSİ 500ms altında tamamlandı, donma DEĞİL.
@@ -9151,7 +9233,24 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G109 itibarıyla):** Kullanıcı cihazda (Dosyalarım
+**Tek sonraki adım (G110 itibarıyla):** `npx cap sync ios` + kullanıcı
+cihazda İKİ ŞEYİ AYRI AYRI doğrulamalı:
+(1) `.tools-scroll` artık DOĞRU mu — Dosyalarım sheet'i açılıp kapatıldıktan
+sonra `[scroll-diag]` çıktısında `scrollHeight > clientHeight` (kartlar
+viewport'u aşıyorsa) ve GERÇEK parmak kaydırma çalışıyor mu;
+(2) G107'nin ASIL amacı (Ölçüm Sonuçları sheet'inin ekranın altında
+kalmaması) HÂLÂ karşılanıyor mu — `position:fixed;inset:0` kaldırıldığı
+için bu YENİDEN bozulmuş OLABİLİR (bu ihtimal G110'da AÇIKÇA işaretlendi,
+bkz. BİTTİ'nin DÜRÜSTLÜK notu).
+Eğer (1) düzelip (2) YENİDEN bozulursa: `overflow:hidden`'ın TEK BAŞINA
+yeterli olmadığı, ama `position:fixed;inset:0`'ın (varsa) YALNIZCA Ölçüm
+Sonuçları sheet'i AÇIKKEN aktif olacak şekilde (G109'daki
+`toolsSetBackgroundScrollLocked`'a benzer, DİNAMİK bir kilit — `.tools-
+scroll`'u SÜREKLİ DEĞİL, SADECE sheet açıkken etkileyecek) yeniden
+eklenmesi gerekebilir — bu, BU turda TASARLANMADI (zaman/kapsam), bir
+SONRAKİ tur için bir seçenek olarak not edildi.
+
+**Önceki adım (G109 itibarıyla):** Kullanıcı cihazda (Dosyalarım
 sheet'ini açıp kapatarak, aynı "Araçlar artık kaydırılamıyor" senaryosu)
 tekrar denemeli ve konsoldaki `[scroll-diag]` satırını getirmeli —
 özellikle:
