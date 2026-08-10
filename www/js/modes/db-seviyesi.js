@@ -53,17 +53,14 @@ export const SHOW_SPECTRUM = false;
 // modlarda varsayılan false (kart görünür kalır, davranış değişmez).
 export const BARE_ANALYZER = true;
 
-// G93 (madde 7): büyük play butonunun ".warning" (kırmızı çerçeve, styles.css
-// .game-ctrl-play.warning) durumu app.js'te round aktifken KOŞULSUZ
-// ekleniyor (updateStartBtnLabel) — Prototip.dc.html'de (satır 2385) bu
-// kırmızı BORDER SADECE `s.audio==='error'` (gerçek yükleme hatası) iken
-// çıkıyor, "round aktif" bununla İLGİLİ DEĞİL. Bu köktenlik TÜM modları
-// etkiliyor ama task SADECE dB Seviyesi'nin düzeltilmesini istedi (kapsam
-// dışı modlara dokunulmadı, DURUM.md'de ayrıca not edildi) — bu mod-agnostik
-// bayrak SADECE bu moddaki butonu prototipin nötr varsayılanına
-// (linear-gradient(180deg,#23262b,#15171a) + inset/box-shadow, kırmızı
-// çerçeve YOK) döndürüyor.
-export const NEUTRAL_PLAY_BTN = true;
+// G93'te (madde 7) burada bir NEUTRAL_PLAY_BTN bayrağı vardı — büyük play
+// butonunun ".warning" kırmızı çerçevesinin SADECE bu modda ezilmesini
+// sağlıyordu (kök sebep — "warning" round aktifken TÜM modlarda koşulsuz
+// ekleniyordu — o turda kapsam dışı bırakılmıştı). G94'te kök sebebin
+// KENDİSİ düzeltildi (bkz. app.js showAudioError/hideAudioError notu —
+// artık SADECE gerçek sampleLoadFailed'de ekleniyor) — bu mod-özel ezme
+// artık GEREKSİZ/YANLIŞ olurdu (dB'de GERÇEK bir ses hatasını da
+// bastırırdı), KALDIRILDI.
 
 // MAX_LIVES: diğer iki modla AYNI sabit (can sayısı zorluğa göre değişmez).
 export const MAX_LIVES = 5;

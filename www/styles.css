@@ -1236,23 +1236,29 @@
     #hintBtn{color:#f0b442;background:rgba(240,180,66,.1);border-color:rgba(240,180,66,.3)}
     #hintBtn:active{background:rgba(240,180,66,.18)}
     #hintBtn:disabled{opacity:.45}
+    /* G94: box-shadow tasarımın KENDİ 64px buton ölçüsüne (Prototip.dc.html
+       satır 681: "0 8px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,
+       255,0.12)") döndürüldü — eskiden (0 4px 14px/.35, inset/.08) FARKLI,
+       daha sönük bir gölgeydi. G93'te bu SADECE dB Seviyesi'ne özel bir
+       `.neutral-play` override'ıyla uygulanmıştı (çünkü ".warning" round
+       aktifken TÜM modlarda koşulsuz ekleniyordu, bkz. aşağıdaki not);
+       G94'te ".warning"ın KENDİSİ gerçek hataya bağlandığı için artık BASE
+       kural HER modda doğru "nötr" görünüm — scoped override KALDIRILDI. */
     .game-ctrl-play{
       width:64px;height:64px;flex:none;border-radius:50%;border:1px solid var(--border-strong);
       background:linear-gradient(180deg,#23262b,#15171a);color:var(--text);font-size:24px;
       display:flex;align-items:center;justify-content:center;
-      box-shadow:0 4px 14px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.08);
+      box-shadow:0 8px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.12);
     }
     .game-ctrl-play:active{filter:brightness(1.1)}
+    /* G94: artık SADECE gerçek ses yükleme hatasında eklenir (bkz. app.js
+       showAudioError/hideAudioError notu) — ÖNCEDEN (G79'dan G93'e kadar)
+       round aktifken KOŞULSUZ ekleniyordu, TÜM modlarda "her tur kırmızı
+       halka" bug'ına sebep oluyordu (G93'te SADECE dB Seviyesi'nde
+       `.neutral-play` scoped override'ıyla "düzeltilmişti" — o hack artık
+       gereksiz, kaldırıldı). Prototip.dc.html satır 2385: playBtnBorder
+       SADECE `s.audio==='error'`. */
     .game-ctrl-play.warning{border-color:rgba(255,77,109,.4)}
-    /* G93 (madde 7): dB Seviyesi (bkz. db-seviyesi.js:NEUTRAL_PLAY_BTN) —
-       ".warning"ın kırmızı çerçevesi (Prototip.dc.html'de SADECE gerçek ses
-       yükleme hatasında [satır 2385] çıkan bir durum, "round aktif"le
-       İLGİSİZ) bu modda ezilir; box-shadow tasarımın KENDİ 64px buton
-       ölçüsüne (satır 681) döner — base .game-ctrl-play'in box-shadow'u
-       (0 4px 14px/.08) BU RENK/ölçüyle AYNI DEĞİL, task'ın literal değeri
-       kullanıldı. Kaynak selector'ın .warning'DEN SONRA gelmesi (eşit
-       özgüllük, 2 class) kırmızı border'ı doğru şekilde ezmesi için gerekli. */
-    .game-ctrl-play.neutral-play{border-color:var(--border-strong);box-shadow:0 8px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.12)}
     /* G92 (madde 12, TEMEL KURAL): Motor 1'in büyük play butonu — gerçekten
        çalarken (autoStopped=false) nefes alır, Motor 2'nin .ans-m2-playing'i
        ile AYNI breathe keyframe'i. */

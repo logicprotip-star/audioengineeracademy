@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G93)
+Son güncelleme: 10.08.2026 (G94)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,57 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G93, tek commit) — **9 madde: dB Seviyesi'nin arka planı (ızgara+
+Bu commit (G94, tek commit) — **`.warning` (play butonunun kırmızı halkası)
+artık TÜM 10 modda SADECE gerçek ses yükleme hatasında çıkıyor — G93'te
+SADECE dB Seviyesi'nde kapsam dışı bırakılan kök sebep bu turda TÜM modlarda
+düzeltildi, dB'nin kendi özel `.neutral-play` hack'i gereksiz hale gelip
+kaldırıldı.**
+
+Kaynak: `Tasarim-2026-08/Prototip.dc.html` satır 2385 (`playBtnBorder: s.audio
+=== 'error' ? 'rgba(248,113,96,0.4)' : 'rgba(255,255,255,0.15)'`) ve satır 681
+(nötr 64px buton box-shadow'u) — G93'te bulunan sinyal (`sampleLoadFailed`,
+G90'dan beri VAR olan gerçek hata bilgisi) bu turda `.warning`'in TEK kaynağı
+yapıldı.
+
+Öğe haritası:
+
+| Değişiklik | Dosya:satır | Not |
+|---|---|---|
+| `showAudioError()`/`hideAudioError()` artık `#startBtn`'e `.warning` ekleyip/kaldırıyor | `app.js:3994-4017` civarı (fonksiyonların YENİ gövdesi) | `#audioErrorRow` banner'ıyla AYNI yaşam döngüsü — playQuestion()'ın GERÇEK `sampleLoadFailed` sonucuna göre (2 çağrı yeri: cakisma dalı + normal dal), ayrı bir state değişkeni İCAT EDİLMEDİ |
+| `updateStartBtnLabel()`'daki koşulsuz `.classList.add("warning")` KALDIRILDI | `app.js:~1656-1663` | idle branch'teki `.remove("warning")` GÜVENLİK SIFIRLAMASI olarak KORUNDU (mod değişimi/tur sonunda kalıntı kırmızı kalmasın diye) |
+| `db-seviyesi.js`'nin `NEUTRAL_PLAY_BTN` bayrağı + app.js'teki `.neutral-play` toggle'ı + styles.css'teki `.neutral-play` kuralı KALDIRILDI | `db-seviyesi.js`, `app.js` (`enterMode()`), `styles.css` | G93'ün SADECE dB için uyguladığı scoped hack — kök sebep artık genel çözüldüğü için gereksiz (hatta YANLIŞ olurdu: dB'de GERÇEK bir hatayı da bastırırdı) |
+| Base `.game-ctrl-play`'in box-shadow'u prototipin KENDİ 64px buton ölçüsüne (satır 681) döndü | `styles.css:.game-ctrl-play` | Eskiden `0 4px 14px rgba(0,0,0,.35)` idi (G93'te SADECE dB'nin scoped override'ında düzeltilmişti) — şimdi `0 8px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.12)` TÜM modlarda |
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ. **`npm test`: 1043/1043.**
+
+**DOĞRULAMA (canlı tarayıcı, taze sekme, hard-reload + `AudioContext.prototype.
+decodeAudioData` gerçek-hata simülasyonu):**
+- **10 modun HEPSİNDE tur başında nötr:** her modda karta girilip round
+  başlatıldı, `#startBtn`'in computed `border-color`'ı TÜM 10 modda
+  `rgba(255,255,255,.1)` (nötr `var(--border-strong)`) ölçüldü, `.warning`
+  class'ı HİÇBİRİNDE yoktu (Frekans Bulma/Kesim Noktası/Q Genişliği/
+  Boost-Cut/dB Seviyesi/Kompresör/Reverb/Tonal Denge/Distortion/Frekans
+  Çakışması).
+- **Gerçek hata simülasyonu:** `AudioContext.prototype.decodeAudioData`
+  geçici olarak HER ZAMAN reddedecek şekilde yamandı (gerçek ağ/dosya
+  BOZULMADI, sadece decode aşaması simüle edildi) — örnek-tabanlı bir
+  kaynak (Kick/Snare) seçilip tur başlatıldığında Frekans Bulma'da VE dB
+  Seviyesi'nde (`sampleBufferCache` çakışmasın diye FARKLI örnekler
+  kullanıldı) `border-color: rgba(255,77,109,.4)` (kırmızı) + `.warning`
+  class'ı + "Ses yüklenemedi · Tekrar dene" banner'ı ekran görüntüsüyle
+  doğrulandı.
+- **Kurtarma:** decodeAudioData GERÇEK haline döndürülüp "Tekrar dene"ye
+  basıldığında buton nötre, banner gizliye döndü — round-trip (hata→kırmızı→
+  düzelt→nötr) tam doğrulandı.
+- **Konsol hatası: 0 GERÇEK hata** — simülasyon sırasında `console.error`
+  ile loglanan 6 mesaj TAMAMEN BEKLENEN/kasıtlı (audio-engine.js'in kendi
+  `catch(err){console.error(err);...}` bloğu, gerçek hata senaryosunda
+  ZATEN loglaması gereken, G90'dan beri var olan davranış) — uygulama
+  kaynaklı beklenmedik hata YOK. **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G93, tek commit) — **9 madde: dB Seviyesi'nin arka planı (ızgara+
 frekans etiketleri) tamamen kalktı + barlar gri/cyan ikili renge döndü, çip
 satırları TÜM modlarda eşit genişlik (flex:1), combo "x0" bug'ı düzeltildi
 (normalde x1, sadece kırılma anında kırmızı x0), "Atla" barı altın vurgulu,
@@ -7608,7 +7658,17 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G93 itibarıyla):** G93 (9 madde: dB arka planı/bar
+**Tek sonraki adım (G94 itibarıyla):** G94 (`.warning` kırmızı halkasının
+TÜM 10 modda düzeltilmesi) kod/test/canlı doğrulama açısından TAM kapandı —
+G93'ün SIRADAKİ'sinde bırakılan (1) numaralı açık madde ("diğer 9 modda da
+düzeltilsin mi?") bu turda kapatıldı, kullanıcı kararına gerek kalmadı. Bu
+turun kendi açık işi: **hiçbiri GERÇEK CİHAZDA doğrulanmadı** (G90'dan beri
+tekrar eden AYNI eksik kalem). G93'ün (2) numaralı maddesi (çip satırı
+eşitliğinin matematiksel olarak TAM olmaması, ~%12-19 kalan fark) HÂLÂ
+GEÇERLİ, bu turda dokunulmadı. **Kabul kriteri:** gerçek cihazda hem normal
+hem gerçek ses hatası senaryosu gözle doğrulanır.
+
+**Önceki adım (G93 itibarıyla, hâlâ geçerli — madde 2 dışında kapandı):** G93 (9 madde: dB arka planı/bar
 renkleri/çip eşitliği/combo x0/Atla altın/akordiyon tıklama alanı/dB play
 butonu) kod/test/canlı doğrulama açısından TAM kapandı. Bu turun kendi açık
 işleri: (1) **`.game-ctrl-play.warning` (kırmızı halka) kök sebebi TÜM

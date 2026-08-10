@@ -1650,10 +1650,19 @@ function updateStartBtnLabel() {
   if (!activeQuestion || currentLives <= 0) {
     els.startBtn.textContent = "▶";
     els.startBtn.setAttribute("aria-label", "Oyunu Başlat");
+    // G94: idle'a dönerken (mod değişimi/tur sonu) kalıntı kırmızı çerçeve
+    // kalmasın diye güvenlik sıfırlaması — GERÇEK aç/kapa artık showAudioError/
+    // hideAudioError'da (bkz. o fonksiyonların notu), burada SADECE reset.
     els.startBtn.classList.remove("warning");
     return;
   }
-  els.startBtn.classList.add("warning");
+  // G94: "warning" (kırmızı çerçeve) BURADAN kaldırıldı — round aktifken
+  // koşulsuz eklemek TÜM modlarda "her tur kırmızı" bug'ına sebep oluyordu
+  // (G93'te dB Seviyesi'nde bulunup SADECE o modda `.neutral-play` ile
+  // ezilerek "düzeltilmişti", kullanıcı bu turda kök sebebin TÜM modlarda
+  // giderilmesini istedi). Artık SADECE showAudioError()/hideAudioError()
+  // (playQuestion()'ın GERÇEK sampleLoadFailed sonucuna göre) bu class'ı
+  // yönetiyor.
   // G91 (madde 4): "🔄" (Tekrar Çal) İKONU KALDIRILDI — task'ın kendi kararı:
   // duraklatılmışken PLAY (▶), çalarken PAUSE (⏸) görünmeli, tasarımın
   // playIcon mantığıyla (Prototip.dc.html satır 2615-2621 — SADECE playing
@@ -1883,9 +1892,6 @@ function enterMode(entry, realMode) {
     // (bg/border/gölge/başlık) kaldırılıyor — SADECE canvas/barlar kalıyor
     // (bkz. mode.BARE_ANALYZER, db-seviyesi.js + styles.css #analyzer.analyzer-bare).
     if (els.analyzer) els.analyzer.classList.toggle("analyzer-bare", !!mode.BARE_ANALYZER);
-    // G93 (madde 7): bkz. db-seviyesi.js:NEUTRAL_PLAY_BTN notu — SADECE bu
-    // modda büyük play butonunun ".warning" kırmızı çerçevesi CSS'te ezilir.
-    if (els.startBtn) els.startBtn.classList.toggle("neutral-play", !!mode.NEUTRAL_PLAY_BTN);
     // G86: Motor 2'de (Kompresör/Reverb/Distortion) spektrum kartı HİÇ YOK
     // (Tasarim-2026-08/Prototip.dc.html isCompMode, task'ın kendi talimatı) —
     // SHOW_SPECTRUM'dan (grid çizimi, dB Seviyesi/Frekans Çakışması'nda hâlâ
@@ -3991,8 +3997,25 @@ function submitProPlusGuess() {
 // "Ses yüklenemedi · Tekrar dene" satırı + yükleniyor göstergesi. #gameSpectrumControls'ün
 // hemen ALTINDA (bkz. index.html) — playQuestion() her çağrıldığında (round başı, A/B,
 // vb.) senkronize edilir, KENDİ state değişkeni İCAT EDİLMEDİ.
-function showAudioError() { if (els.audioErrorRow) els.audioErrorRow.classList.remove("hidden"); }
-function hideAudioError() { if (els.audioErrorRow) els.audioErrorRow.classList.add("hidden"); }
+// G94: `.warning` (büyük play butonunun kırmızı çerçevesi, styles.css
+// .game-ctrl-play.warning) artık BU İKİ fonksiyona bağlı — Prototip.dc.
+// html'de (satır 2385: playBtnBorder) kırmızı çerçeve SADECE `s.audio===
+// 'error'` (gerçek ses yükleme hatası) iken çıkar. ÖNCEDEN (G79'dan beri)
+// updateStartBtnLabel() round aktifken KOŞULSUZ ekliyordu — TÜM modlarda
+// (dB Seviyesi'nde G93'te SADECE o mod için `.neutral-play` ile ezilerek
+// "düzeltilmişti") her tur kırmızı görünüyordu. Artık showAudioError/
+// hideAudioError'ın ZATEN TEK doğru çağrıldığı iki yer (playQuestion()'ın
+// cakisma dalı + normal dal, bkz. aşağıda) sampleLoadFailed'e göre
+// `#startBtn`'i de senkronize ediyor — `#audioErrorRow` banner'ıyla AYNI
+// yaşam döngüsü, ayrı bir state değişkeni İCAT EDİLMEDİ.
+function showAudioError() {
+  if (els.audioErrorRow) els.audioErrorRow.classList.remove("hidden");
+  if (els.startBtn) els.startBtn.classList.add("warning");
+}
+function hideAudioError() {
+  if (els.audioErrorRow) els.audioErrorRow.classList.add("hidden");
+  if (els.startBtn) els.startBtn.classList.remove("warning");
+}
 function showAudioLoading() { if (els.audioLoadingRow) els.audioLoadingRow.classList.remove("hidden"); }
 function hideAudioLoading() { if (els.audioLoadingRow) els.audioLoadingRow.classList.add("hidden"); }
 if (els.audioErrorRetry) els.audioErrorRetry.addEventListener("click", () => { playQuestion(currentPlayMode !== "clean"); });
