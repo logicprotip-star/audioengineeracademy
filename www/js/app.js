@@ -1883,6 +1883,9 @@ function enterMode(entry, realMode) {
     // (bg/border/gölge/başlık) kaldırılıyor — SADECE canvas/barlar kalıyor
     // (bkz. mode.BARE_ANALYZER, db-seviyesi.js + styles.css #analyzer.analyzer-bare).
     if (els.analyzer) els.analyzer.classList.toggle("analyzer-bare", !!mode.BARE_ANALYZER);
+    // G93 (madde 7): bkz. db-seviyesi.js:NEUTRAL_PLAY_BTN notu — SADECE bu
+    // modda büyük play butonunun ".warning" kırmızı çerçevesi CSS'te ezilir.
+    if (els.startBtn) els.startBtn.classList.toggle("neutral-play", !!mode.NEUTRAL_PLAY_BTN);
     // G86: Motor 2'de (Kompresör/Reverb/Distortion) spektrum kartı HİÇ YOK
     // (Tasarim-2026-08/Prototip.dc.html isCompMode, task'ın kendi talimatı) —
     // SHOW_SPECTRUM'dan (grid çizimi, dB Seviyesi/Frekans Çakışması'nda hâlâ
@@ -2876,13 +2879,27 @@ function renderGameHeader() {
   // amber, combo>1 parlak amber (boss'ta altın), combo>2 flameGlow.
   const combo = stats.combo || 0;
   const bossNow = !!(activeQuestion && activeQuestion.boss);
-  if (els.gameComboLabel) els.gameComboLabel.textContent = `x${combo}`;
+  // G93 (madde 4): Prototip.dc.html satır 2579-2582 — comboLabel/comboFill/
+  // comboBg/comboBorder'ın HEPSİ `s.comboBreak` (SADECE seri kırıldığı
+  // render'da true olan, bir sonrakinde otomatik false'a dönen GEÇİCİ bir
+  // bayrak) tarafından yönetiliyor: comboBreak'te "x0" + kırmızı, aksi halde
+  // "x{combo}" + amber. ÖNCEDEN (G86'dan beri) label HER ZAMAN ham
+  // stats.combo'yu basıyordu — bu, seri hiç başlamamışken/kırıldıktan SONRA
+  // (break flaşı bittikten sonra da) SÜREKLİ "x0" gösteriyordu (kullanıcı
+  // raporu). isBreakMoment aşağıdaki "flame/break" tetikleyicisiyle AYNI
+  // `combo===0 && lastRenderedCombo>0` ifadesi — SADECE o TEK render'da true,
+  // bir sonraki render'da lastRenderedCombo zaten 0 olacağından kendiliğinden
+  // "x1" tabanına döner (comboBreak'in prototipteki geçiciliğiyle AYNI etki,
+  // ayrı bir zamanlayıcı GEREKMEDİ).
+  const isBreakMoment = combo === 0 && lastRenderedCombo > 0;
+  const displayCombo = isBreakMoment ? 0 : Math.max(1, combo);
+  if (els.gameComboLabel) els.gameComboLabel.textContent = `x${displayCombo}`;
   if (els.gameComboChip) {
     const bright = combo > 1;
-    const fill = bright ? (bossNow ? "#f6d878" : "#f0b442") : "#a8842f";
+    const fill = isBreakMoment ? "#f87160" : bright ? (bossNow ? "#f6d878" : "#f0b442") : "#a8842f";
     els.gameComboChip.style.color = fill;
-    els.gameComboChip.style.background = bright ? "rgba(240,180,66,.14)" : "rgba(240,180,66,.07)";
-    els.gameComboChip.style.borderColor = bright ? "rgba(240,180,66,.45)" : "rgba(240,180,66,.2)";
+    els.gameComboChip.style.background = isBreakMoment ? "rgba(248,113,96,.16)" : bright ? "rgba(240,180,66,.14)" : "rgba(240,180,66,.07)";
+    els.gameComboChip.style.borderColor = isBreakMoment ? "rgba(248,113,96,.55)" : bright ? "rgba(240,180,66,.45)" : "rgba(240,180,66,.2)";
     // Her render'da ÖNCE temizle + reflow zorla — AYNI class art arda iki
     // artışta da (flame flame) YENİDEN tetiklensin diye (CSS animasyonu
     // class zaten VARKEN tekrar eklenirse çalışmaz).
@@ -2890,7 +2907,7 @@ function renderGameHeader() {
     if (combo > 2 && combo > lastRenderedCombo) {
       void els.gameComboChip.offsetWidth;
       els.gameComboChip.classList.add("flame");
-    } else if (combo === 0 && lastRenderedCombo > 0) {
+    } else if (isBreakMoment) {
       void els.gameComboChip.offsetWidth;
       els.gameComboChip.classList.add("break");
     }
@@ -4462,9 +4479,17 @@ function drawVisualizer() {
   const h = canvasCssH;
   ctx2d.clearRect(0, 0, w, h);
 
-  ctx2d.fillStyle = "rgba(255,255,255,.04)";
-  for (let x = 0; x < w; x += 40) ctx2d.fillRect(x, 0, 1, h);
-  for (let y = 0; y < h; y += 36) ctx2d.fillRect(0, y, w, 1);
+  // G93 (madde 1): dB Seviyesi'nde (mode.BARE_ANALYZER) bu GENEL nokta-ızgara
+  // arka planı da "ızgara çizgileri" kapsamına giriyor — kullanıcı raporu
+  // ("barların arkasında ızgara duruyor") bu genel çizimden geliyordu, mod
+  // dosyasındaki drawAxis'in (zaten kaldırıldı) DIŞINDA, TÜM modlarda
+  // ortak PAYLAŞILAN bir kod yolu. Diğer modlarda (Frekans Bulma vb.) bu
+  // ızgara İSTENİYOR, bu yüzden mode.BARE_ANALYZER'a bağlı koşullu.
+  if (!mode.BARE_ANALYZER) {
+    ctx2d.fillStyle = "rgba(255,255,255,.04)";
+    for (let x = 0; x < w; x += 40) ctx2d.fillRect(x, 0, 1, h);
+    for (let y = 0; y < h; y += 36) ctx2d.fillRect(0, y, w, 1);
+  }
 
   const overlayState = {
     audioCtx: audioEngine.audioCtx,

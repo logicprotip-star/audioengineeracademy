@@ -630,15 +630,20 @@
        yeniden karşılaştırıldı, kod GERÇEKTEN tek satır. .chiprow>*{flex:none}
        KORUNDU (çipler kendi doğal genişliğinde, satıra sığmayan alt satıra
        SARAR — taşma/kesilme YOK, kaydırma YOK, tasarımla AYNI güvenlik ağı). */
-    /* G91 (madde 3): birkaç çipli modlarda (Kesim Noktası/Q Genişliği/Reverb/
-       Kompresör/Frekans Çakışması/Distortion/Tonal Denge) satırın sağında boş
-       kalan alan — `justify-content:space-between` `gap:7px`'i TABAN alıp
-       (chip'ler asla 7px'ten YAKIN durmaz) fazla genişliği çip ARALARINA
-       dağıtıyor, son çip sağ kenara dayanıyor. Frekans Bulma'nın 5 çipi zaten
-       satırı dolduruyor, görsel fark YOK — task'ın kendi kararı, tasarımın
-       KENDİSİ (Prototip.dc.html satır 531) hiç stretch UYGULAMIYOR. */
-    .chiprow{display:flex;gap:7px;flex-wrap:wrap;justify-content:space-between}
-    .chiprow > *{flex:none}
+    /* G93 (madde 3): G91'in `justify-content:space-between` çözümü (çipleri
+       kendi doğal genişliğinde bırakıp FAZLA alanı aralarına dağıtma) YETERSİZ
+       bulundu — çipler hâlâ FARKLI genişlikteydi. Task'ın YENİ, AÇIK talimatı:
+       çipler EŞİT genişlikte (flex:1). Bu, tasarımın KENDİSİNİN (Prototip.dc.
+       html satır 531/532: `flex-shrink:0`, DOĞAL genişlik) BİR KEZ DAHA BİLEREK
+       tersine çevrilmesi — kullanıcı G91'de zaten aynı satırın "dolgunluk"
+       kararını tasarımdan SAPTIRMIŞTI, bu tur onu netleştiriyor. */
+    .chiprow{display:flex;gap:7px;flex-wrap:wrap}
+    /* `flex:1` kısayolu flex-basis'i "0%" yapıyor — box-sizing:border-box +
+       farklı padding/border'a sahip kardeşlerde (örn. #sourceChipWrap'ın
+       0 kendi chrome'u vs .mixchip'in 22px'i) Chromium'da EŞİT DAĞILMIYOR
+       (canlı ölçümde yakalandı: 176/158/180px, aynı flex-grow:1'e rağmen).
+       `flex-basis:0` (birimsiz, YÜZDE DEĞİL) bu tutarsızlığı gideriyor. */
+    .chiprow > *{flex:1 1 0;min-width:0}
     /* G85: zorluk çipi artık tasarımın LİTERAL cyan vurgusu (satır 532) —
        eskiden nötr gri/beyazdı. Boss'ta altın varyant (.game-diff-chip.boss,
        app.js renderGameHeader'da toggle edilir) — tasarımın diffColor/diffBg/
@@ -671,9 +676,15 @@
     /* G73: "Karıştır" (kaynağı rastgele seçme) aç/kapa göstergesi artık --cyan.
        G85: tasarımın LİTERAL ölçüsüne küçültüldü (satır 551-553) — nokta LED
        yerine 11x11 çapraz-ok ikonu (design'ın KENDİ path'i), metin "Karışık"
-       (öneki YOK, tasarımda "⇄" yok, düz ikon+metin). */
+       (öneki YOK, tasarımda "⇄" yok, düz ikon+metin). G93 (madde 3): eskiden
+       burada `flex:none` vardı — `.chiprow > *`'ın (G93'te flex:1'e çevrilen)
+       kuralıyla AYNI özgüllükte (tek class) olduğu ve DOSYADA SONRA geldiği
+       için onu EZİYORDU (canlı testte yakalandı: "Karışık" hep küçük kaldı,
+       chip satırının geri kalanı eşit genişlemedi). Şimdi flex ÖZELLİĞİ HİÇ
+       bildirilmiyor, `.chiprow > *`'ın flex:1'i doğrudan geçerli oluyor —
+       .seg-toggle'da (Dokunmalı|Şıklı sarmalayıcı) AYNI kök sebep/düzeltme. */
     .mixchip{
-      flex:none;padding:5px 10px;border-radius:9px;display:flex;align-items:center;gap:5px;
+      padding:5px 10px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:5px;
       font-size:10.5px;font-weight:700;white-space:nowrap;background:rgba(255,255,255,.05);
       border:1px solid rgba(255,255,255,.08);color:#b8bdc4;
     }
@@ -682,8 +693,8 @@
        taban + cyan aktif (bkz. index.html notu, JS: syncAnswerFormatToggleUI).
        G85: tasarımın LİTERAL ölçüsü (satır 537-539). */
     .seg-toggle{
-      display:flex;padding:2px;border-radius:9px;
-      background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);flex:none;
+      display:flex;padding:2px;border-radius:9px;justify-content:center;
+      background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);
     }
     .seg-toggle-btn{
       padding:4px 10px;border-radius:6px;font-size:10.5px;font-weight:700;
@@ -1190,8 +1201,12 @@
     /* G79: "Atla" NÖTR/sönük — geri bildirim ekranındaki ✕ ile AYNI ağırlık
        (task'ın kararı, G78'in yeşili GERİ ALINDI — yeşil artık SADECE
        #freqGuessArea içindeki GERÇEK onay butonuna ait, bkz. .game-freq-confirm). */
-    #nextBtn{background:rgba(255,255,255,.05);color:var(--text-3);border:1px solid var(--border-strong)}
-    #nextBtn:active{background:rgba(255,255,255,.1)}
+    /* G93 (madde 5): G90'da istenip UYGULANMAMIŞ kalmış altın vurgu — nötr
+       gri (rgba(255,255,255,.05)/var(--text-3)) yerine --gold tokenı, diğer
+       altın vurgulu ikincil öğelerle (.mode-info-btn) AYNI ölçüde (subtle,
+       tam dolu CTA DEĞİL). */
+    #nextBtn{background:rgba(232,196,106,.1);color:var(--gold);border:1px solid rgba(232,196,106,.3)}
+    #nextBtn:active{background:rgba(232,196,106,.18)}
 
     /* G79/G85: spektrumun HEMEN ALTINDAKİ kontrol satırı — ipucu(ikon)·oynat/
        durdur(büyük yuvarlak)·A/B seçici(pill)·döngü(ikon). #hintBtn/#startBtn/
@@ -1229,6 +1244,15 @@
     }
     .game-ctrl-play:active{filter:brightness(1.1)}
     .game-ctrl-play.warning{border-color:rgba(255,77,109,.4)}
+    /* G93 (madde 7): dB Seviyesi (bkz. db-seviyesi.js:NEUTRAL_PLAY_BTN) —
+       ".warning"ın kırmızı çerçevesi (Prototip.dc.html'de SADECE gerçek ses
+       yükleme hatasında [satır 2385] çıkan bir durum, "round aktif"le
+       İLGİSİZ) bu modda ezilir; box-shadow tasarımın KENDİ 64px buton
+       ölçüsüne (satır 681) döner — base .game-ctrl-play'in box-shadow'u
+       (0 4px 14px/.08) BU RENK/ölçüyle AYNI DEĞİL, task'ın literal değeri
+       kullanıldı. Kaynak selector'ın .warning'DEN SONRA gelmesi (eşit
+       özgüllük, 2 class) kırmızı border'ı doğru şekilde ezmesi için gerekli. */
+    .game-ctrl-play.neutral-play{border-color:var(--border-strong);box-shadow:0 8px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.12)}
     /* G92 (madde 12, TEMEL KURAL): Motor 1'in büyük play butonu — gerçekten
        çalarken (autoStopped=false) nefes alır, Motor 2'nin .ans-m2-playing'i
        ile AYNI breathe keyframe'i. */

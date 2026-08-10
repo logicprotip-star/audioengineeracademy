@@ -53,6 +53,18 @@ export const SHOW_SPECTRUM = false;
 // modlarda varsayılan false (kart görünür kalır, davranış değişmez).
 export const BARE_ANALYZER = true;
 
+// G93 (madde 7): büyük play butonunun ".warning" (kırmızı çerçeve, styles.css
+// .game-ctrl-play.warning) durumu app.js'te round aktifken KOŞULSUZ
+// ekleniyor (updateStartBtnLabel) — Prototip.dc.html'de (satır 2385) bu
+// kırmızı BORDER SADECE `s.audio==='error'` (gerçek yükleme hatası) iken
+// çıkıyor, "round aktif" bununla İLGİLİ DEĞİL. Bu köktenlik TÜM modları
+// etkiliyor ama task SADECE dB Seviyesi'nin düzeltilmesini istedi (kapsam
+// dışı modlara dokunulmadı, DURUM.md'de ayrıca not edildi) — bu mod-agnostik
+// bayrak SADECE bu moddaki butonu prototipin nötr varsayılanına
+// (linear-gradient(180deg,#23262b,#15171a) + inset/box-shadow, kırmızı
+// çerçeve YOK) döndürüyor.
+export const NEUTRAL_PLAY_BTN = true;
+
 // MAX_LIVES: diğer iki modla AYNI sabit (can sayısı zorluğa göre değişmez).
 export const MAX_LIVES = 5;
 
@@ -480,25 +492,14 @@ export function markAnswerChoices(answersEl, q, picked) {
   });
 }
 
-// Paylaşılan frekans ekseni — Kesim Noktası'nın drawAxis'iyle AYNI (spektrum
-// çubuklarının altında/arkasında aynı ölçekte dursun diye, bkz. app.js drawVisualizer
-// HER modda mode.drawOverlay çağırır). Bu modun KENDİSİ frekans ekseni kullanmıyor
-// ama paylaşılan spektrum görselinin altında tutarlı bir eksen kalsın diye çizilir.
-const AXIS_TICKS = [100, 200, 400, 800, 1600, 3200, 6400, 12800];
-function drawAxis(ctx2d, w, h) {
-  const plotBottom = h - AXIS_H;
-  ctx2d.font = "600 14px Inter, sans-serif";
-  ctx2d.textAlign = "center";
-  AXIS_TICKS.forEach(f => {
-    const x = faFToX(f, w);
-    ctx2d.strokeStyle = "rgba(255,255,255,.08)";
-    ctx2d.beginPath(); ctx2d.moveTo(x, 6); ctx2d.lineTo(x, plotBottom); ctx2d.stroke();
-    const label = f >= 1000 ? (f / 1000) + "k" : String(f);
-    ctx2d.fillStyle = "#8C95AB";
-    ctx2d.fillText(label, x, h - 12);
-  });
-  ctx2d.textAlign = "left";
-}
+// G93 (madde 1): eskiden burada bir drawAxis() vardı (frekans ızgarası +
+// 100/200/400/800/1.6k/3.2k/6.4k/12.8k etiketleri, Kesim Noktası'nın
+// drawAxis'iyle AYNI) — bu mod TEK bir seviye/gain farkını sorguluyor,
+// frekans ekseni bu modda anlamsız (kullanıcının KENDİ tespiti) — TAMAMEN
+// KALDIRILDI, drawOverlay artık SADECE drawDbBars çağırıyor. faFToX/AXIS_TICKS
+// kullanımı bununla birlikte gitti; import/re-export bloğu (satır 20/28)
+// DEĞİŞMEDİ (diğer modlarla AYNI mode-agnostic sözleşme, app.js'in genel
+// kodu bu isimleri her moddan okuyabilir varsayıyor).
 
 // G38: prototipteki #vizDb'ye (Dizayn/prototype.html) çevrilen İKİ DİKEY BAR görseli
 // ("A · Referans" / "B · İşlenmiş"). -DB_RANGE..+DB_RANGE, eski yatay göstergeyle AYNI
@@ -518,10 +519,14 @@ const BAR_TOP_MARGIN = 34;
 const BAR_LABEL_GAP = 8;
 const BAR_LABEL_H = 20;
 
-const REF_PALETTE = { container: "rgba(255,255,255,.05)", gradTop: "#9AA3B8", gradBottom: "#5A6377" };
-// G91 (madde 9): mavi/mor (rgba(108,140,255,..)) → uygulama yeşili (task'ın
-// literal renkleri: #4ade80 / linear-gradient(180deg,#46d968,#27a63e)).
-const PROC_PALETTE = { container: "rgba(74,222,128,.1)", gradTop: "#46d968", gradBottom: "#27a63e" };
+// G93 (madde 2): A/B artık İKİ FARKLI renkte — yeşil (G91'in kararı) hem A
+// hem B'de aynıydı ve "onay" rengiyle çakışıyordu. A nötr gri-mavi
+// (task'ın literal rengi #8f949b), B uygulamanın veri rengi cyan
+// (#22d3ee / linear-gradient(180deg,#22d3ee,#1aa8ba)) — yeşil SADECE
+// PROC_ANSWERED_PALETTE'in outline'ında ("bu doğru cevap" göstergesi
+// olarak) kalıyor, dolgu rengi DEĞİL.
+const REF_PALETTE = { container: "rgba(143,148,155,.08)", gradTop: "#8f949b", gradBottom: "#565b63" };
+const PROC_PALETTE = { container: "rgba(34,211,238,.1)", gradTop: "#22d3ee", gradBottom: "#1aa8ba" };
 const PROC_ANSWERED_PALETTE = { ...PROC_PALETTE, outline: CORRECT_COLOR };
 
 function dbToBarFrac(db) {
@@ -571,8 +576,12 @@ function drawBarBox(ctx2d, x, boxTop, boxW, boxH, fillFrac, palette) {
 // opts.answered=false → iki bar da REF_FRAC (nötr, soru sırasında). answered=true →
 // A sabit referansta, B gerçek dbDelta'da (yeşil kontur = "doğru"); guessFrac verilmişse
 // B'nin üstünde kesikli kırmızı çizgi + sayı ("senin cevabın") eklenir.
+// G93 (madde 1): eksen kaldırıldığı için AXIS_H'nin (50px, frekans etiketi
+// payı) yerini KÜÇÜK bir alt boşluk aldı — barlar artık canvas'ın büyük
+// kısmını kullanıyor.
+const BAR_BOTTOM_MARGIN = 14;
 function drawDbBars(ctx2d, w, h, opts) {
-  const plotBottom = h - AXIS_H;
+  const plotBottom = h - BAR_BOTTOM_MARGIN;
   const boxTop = BAR_TOP_MARGIN;
   const boxH = Math.max(60, plotBottom - BAR_TOP_MARGIN - BAR_LABEL_GAP - BAR_LABEL_H);
   const gap = Math.min(28, w * 0.07);
@@ -588,9 +597,9 @@ function drawDbBars(ctx2d, w, h, opts) {
   const labelY = boxTop + boxH + BAR_LABEL_GAP + 14;
   ctx2d.font = "700 13px Inter, sans-serif";
   ctx2d.textAlign = "center";
-  ctx2d.fillStyle = "#8C95AB";
+  ctx2d.fillStyle = REF_PALETTE.gradTop;
   ctx2d.fillText("A · Referans", aX + boxW / 2, labelY);
-  ctx2d.fillStyle = "#4ade80";
+  ctx2d.fillStyle = PROC_PALETTE.gradTop;
   ctx2d.fillText("B · İşlenmiş", bX + boxW / 2, labelY);
   ctx2d.textAlign = "left";
 
@@ -634,7 +643,6 @@ function drawDbBars(ctx2d, w, h, opts) {
 // state: { activeQuestion, roundActive, dbGuess } — dbGuess app.js'te
 // submitLevelGuess'in kaydettiği KULLANICI cevabı, yeni soru başında null'a döner.
 export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
-  drawAxis(ctx2d, w, h);
   const { activeQuestion: q, roundActive, dbGuess } = state;
   if (!q) return;
   if (roundActive) {

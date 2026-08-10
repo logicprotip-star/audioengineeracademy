@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G92)
+Son güncelleme: 10.08.2026 (G93)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,72 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G92, tek commit) — **madde 11 (Altın Vurgular) + madde 12
+Bu commit (G93, tek commit) — **9 madde: dB Seviyesi'nin arka planı (ızgara+
+frekans etiketleri) tamamen kalktı + barlar gri/cyan ikili renge döndü, çip
+satırları TÜM modlarda eşit genişlik (flex:1), combo "x0" bug'ı düzeltildi
+(normalde x1, sadece kırılma anında kırmızı x0), "Atla" barı altın vurgulu,
+İlerleme akordiyonlarının TAM satırı (chevron dahil) tıklanabilir, dB'nin
+play butonundaki kırmızı halka nötre döndü.**
+
+Kaynak: `Tasarim-2026-08/Prototip.dc.html` — comboLabel/comboFill/comboBg/
+comboBorder mantığı satır 2579-2583'ten birebir alındı (`s.comboBreak`
+GEÇİCİ bayrağı); play butonunün nötr paleti satır 681'den; chip satırının
+`flex:1` talebi tasarımın KENDİ satır 531/532 `flex-shrink:0`/doğal-genişlik
+kararını BİLEREK tersine çeviriyor (G91'in aynı satırdaki "dolgunluk" kararını
+da aşan, kullanıcının bu turdaki AÇIK talimatı).
+
+Öğe haritası:
+
+| # | Madde | Uygulanan değişiklik |
+|---|---|---|
+| 1 | dB arka planı kalksın | `db-seviyesi.js`: mod-özel `drawAxis()` (ızgara+100Hz..12.8kHz etiketleri) TAMAMEN silindi; ayrıca app.js'in TÜM modlarda ortak çizdiği nokta-ızgara (`drawVisualizer`'daki genel `for x+=40/y+=36` döngüsü) da `mode.BARE_ANALYZER` iken atlanıyor — kullanıcı raporu bu ikinci, paylaşılan katmandan geliyordu, mod dosyasındaki eksen silinmesi TEK BAŞINA yetmemişti (canlı testte yakalandı) |
+| 2 | Bar renkleri | `REF_PALETTE` (A·Referans) `#9AA3B8/#5A6377`→`#8f949b/#565b63` (nötr gri-mavi); `PROC_PALETTE` (B·İşlenmiş) yeşil (`#46d968/#27a63e`, G91'in kararı)→cyan (`#22d3ee/#1aa8ba`, task'ın literal rengi) — yeşil SADECE `PROC_ANSWERED_PALETTE`'in "doğru cevap" outline'ında kaldı, dolgu değil |
+| 3+8 | Çip satırı eşit genişlik | `.chiprow > *{flex:1;min-width:0}` (eskiden `flex:none`+`justify-content:space-between`) — AYRICA iki kök sebep bulunup düzeltildi: (a) `.mixchip`/`.seg-toggle`'ın KENDİ `flex:none` kuralı `.chiprow > *` ile AYNI özgüllükte olup dosyada SONRA geldiği için onu eziyordu ("Karışık" hep küçük kalıyordu); (b) `flex:1` kısayolunun `flex-basis:0%` çıktısı Chromium'da farklı padding'li kardeşlerde EŞİT dağılmıyordu, `flex-basis:0` (birimsiz) ile düzeltildi |
+| 4 | Combo x0 | `renderGameHeader()`: `isBreakMoment = combo===0 && lastRenderedCombo>0` (flame/break tetikleyicisiyle AYNI ifade) — SADECE o render'da label "x0"+kırmızı (`#f87160`/`rgba(248,113,96,..)`, prototipin comboBreak renkleri), aksi halde `Math.max(1,combo)` (taban x1); ÖNCEDEN ham `stats.combo` basılıyordu (hep 0'dan başlayıp kırıldıktan sonra da SÜREKLİ x0 kalıyordu) |
+| 5 | Atla altın | `#nextBtn` nötr gri (`rgba(255,255,255,.05)`/`var(--text-3)`)→`var(--gold)` paleti (`.mode-info-btn` ile AYNI ölçüde subtle vurgu) — G90'da istenip UYGULANMAMIŞ kalmıştı |
+| 6 | Akordiyon tıklama alanı | 4 akordiyonda (`dailyToggle`/`recentToggle`/`zoneToggle`/`badgesToggle`) id/`prog-clickable` SADECE `.prog-card-label`'daydı, chevron bir KARDEŞ eleman olduğu için tıklanamıyordu — `modeLevelsToggle`'ın ZATEN doğru olan deseni (id satırın TAMAMINDA) uygulandı; `dailyTipToggle` (Bugünün Önerisi) zaten doğruydu, dokunulmadı |
+| 7 | dB play butonu kırmızı halka | `.game-ctrl-play.warning` (kırmızı çerçeve) app.js'te round aktifken KOŞULSUZ ekleniyordu — Prototip.dc.html'de (satır 2385) bu SADECE gerçek ses yükleme hatasında (`s.audio==='error'`) çıkması gereken bir durum, TÜM modları etkileyen bir kök sebep ama task SADECE dB'nin düzeltilmesini istedi: yeni `mode.NEUTRAL_PLAY_BTN` bayrağı (db-seviyesi.js) `#startBtn`'e `.neutral-play` class'ı ekliyor, bu SADECE bu moddaki kırmızı çerçeveyi ezip nötr `linear-gradient(180deg,#23262b,#15171a)` + tasarımın 64px box-shadow'una (satır 681) döndürüyor — DİĞER 9 MOD DOKUNULMADI, aynı kırmızı halka onlarda hâlâ duruyor (bkz. SIRADAKİ) |
+| 9 | Ana ekran "i" rengi | Zaten G92'de doğru uygulanmıştı (altın) — bu turda canlı yeniden doğrulandı, ek değişiklik gerekmedi |
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ. **`npm test`: 1043/1043.**
+
+**DOĞRULAMA (canlı tarayıcı, taze sekme, hard-reload + JS-sürüşlü ölçüm):**
+- **dB arka planı:** ızgara çizgisi/frekans etiketi YOK (bare siyah zemin),
+  play'e basılınca SADECE iki dikey bar (gri/cyan) + alt etiketler — ekran
+  görüntüsüyle doğrulandı.
+- **Bar renkleri:** A·Referans gri-mavi, B·İşlenmiş cyan — ekran
+  görüntüsüyle doğrulandı (boss round'da da aynı, kırmızı/yeşil karışması
+  yok).
+- **Çip satırı eşit genişlik — 10 modun HEPSİNDE ölçüldü** (programatik
+  `getBoundingClientRect`): Frekans Bulma (5 çip) `[109,97,91,91,113]`
+  (maks. fark %19); diğer 9 modun (Kesim Noktası/Q Genişliği/Boost-Cut/dB
+  Seviyesi/Kompresör/Reverb/Tonal Denge/Distortion/Frekans Çakışması) HEPSİ
+  `[176,158,180]` (maks. fark %12, PAYLAŞILAN `.chiprow` kuralı yüzünden
+  aynı desen) — eskiden "Karışık" tek başına ~75px'te kilitli kalıp büyük
+  bir boşluk bırakıyordu, şimdi üç çip de görsel olarak eşit doluyor.
+  DÜRÜSTLÜK NOTU: matematiksel olarak TAM eşit DEĞİL (~%12-19 kalan fark) —
+  kök sebebi `<button>`/`<div>` karışık flex item'ların padding'e bağlı
+  intrinsic minimum boyutu (izole testte doğrulandı), TAM eşitlik için
+  padding'in flex item'ın kendisinden bir İÇ sarmalayıcıya taşınması (HTML
+  restrüktürü) gerekirdi — kapsam dışı bırakıldı, görsel sonuç yeterli
+  bulundu ama kullanıcı isterse madde açık kalabilir.
+- **Combo x0:** canlı oynanan 5 turda doğrulandı — combo 0→1→2 sırasında
+  label "x1"/"x1"/"x2" (dim/dim/parlak amber), seri kırılan turda TAM OLARAK
+  "x0" + `rgb(248,113,96)` (kırmızı), BİR SONRAKİ turda (hâlâ yanlış cevap
+  olmasına rağmen) "x1"e döndü — tek-seferlik davranış canlı teyit edildi.
+- **Akordiyon chevron:** hem programatik hem GERÇEK fare tıklamasıyla
+  (Günlük Görevler'in chevron'u, ekran görüntüsüyle) TÜM 5 akordiyonun
+  (`dailyToggle`/`recentToggle`/`zoneToggle`/`badgesToggle`/
+  `modeLevelsToggle`) artık chevron'dan da açılıp kapandığı doğrulandı.
+- **dB play butonu:** hem normal hem boss round durumunda kırmızı çerçeve
+  YOK (zoom ekran görüntüsüyle doğrulandı) — nötr gri halka.
+- **Konsol hatası: 0** (tüm test turu boyunca — 10 modun hepsine giriş,
+  dB'de tam bir round, İlerleme akordiyonları, kulaklık uyarısı akışı
+  dahil). **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G92, tek commit) — **madde 11 (Altın Vurgular) + madde 12
 (Animasyonlar): Ana ekran başlığında "Audio" splash'in altın renginde
 (`var(--gold)`), Ana Menü/mod kartı "i" butonları altın, Oyun Ekranı "i" cyan'a
 DÖNDÜ (G86'nın nötr gri kararını tersine çeviriyor), döngü butonu aktifken
@@ -7543,7 +7608,27 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G92 itibarıyla):** G92 (madde 11 Altın Vurgular + madde
+**Tek sonraki adım (G93 itibarıyla):** G93 (9 madde: dB arka planı/bar
+renkleri/çip eşitliği/combo x0/Atla altın/akordiyon tıklama alanı/dB play
+butonu) kod/test/canlı doğrulama açısından TAM kapandı. Bu turun kendi açık
+işleri: (1) **`.game-ctrl-play.warning` (kırmızı halka) kök sebebi TÜM
+modları etkiliyor** — Prototip.dc.html'de bu SADECE gerçek ses yükleme
+hatasında (`s.audio==='error'`) çıkması gereken bir durumken, uygulamada
+round aktifken KOŞULSUZ ekleniyor; bu tur SADECE dB Seviyesi'nde
+(`mode.NEUTRAL_PLAY_BTN`) düzeltildi, kapsam dışı bırakıldı — KULLANICIYA
+SORULMALI: diğer 9 modda da (Frekans Bulma dahil) aynı kırmızı halka duruyor,
+bunun GERÇEKTEN "hata durumu" anlamına gelecek şekilde yeniden bağlanması mı
+(prototipin kendi mantığı) yoksa hepsinde nötr yapılması mı isteniyor; (2)
+**çip satırı eşitliği matematiksel olarak TAM DEĞİL** (~%12-19 kalan fark,
+`<button>`/`<div>` karışık flex item'ların padding-bağlı intrinsic minimum
+boyutu — izole testte kök sebebi doğrulandı) — görsel olarak yeterli
+bulundu ama pixel-perfect eşitlik için padding'in flex item'ın kendisinden
+bir iç sarmalayıcıya taşınması (HTML restrüktürü, birden fazla dosya)
+gerekir, İSTENİRSE ayrı bir tur; (3) **hiçbiri GERÇEK CİHAZDA doğrulanmadı**
+(G90/G91/G92'nin AYNI eksik kalemi hâlâ geçerli). **Kabul kriteri:** (1) ve
+(2) için kullanıcı kararı + gerçek cihazda gözle doğrulama.
+
+**Önceki adım (G92 itibarıyla, hâlâ geçerli):** G92 (madde 11 Altın Vurgular + madde
 12 Animasyonlar) kod/test/canlı doğrulama açısından TAM kapandı, canlı testte
 bulunan `heartOut` bug'ı AYNI oturumda düzeltildi. Bu turun kendi açık işi:
 (1) **prefers-reduced-motion GERÇEK OS/DevTools emülasyonuyla hiç test
