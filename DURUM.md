@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G101)
+Son güncelleme: 10.08.2026 (G102)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,109 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G101, tek commit) — **Araçlar ekranı, Tasarim-2026-08/Araçlar.dc.html'in
+Bu commit (G102, tek commit) — **İKİ KARAR: Tonal Balance mutlak gösterim +
+canlı analizör (G101'in "mix eksi hedef" yorumu TERK EDİLDİ) ve Dosyalarım
+kalıcı depolama (native Filesystem + web IndexedDB).**
+
+**1) Tonal Balance — mutlak gösterim + canlı analizör:**
+`www/js/core/tonal-balance.js` + `www/js/app.js` + `index.html` + `styles.css`.
+G101'in "mix eksi hedef" sapma yorumu (grafiğin `diff = devs - targetDevs`'i
+sıfır etrafında sabit bir ±1.5dB bant üstüne çizmesi) kullanıcının bu turdaki
+AÇIK talimatıyla TERK EDİLDİ. Yeni davranış:
+- **Hedef bandı artık HEDEF EĞRİNİN KENDİ ŞEKLİ etrafında** (±1.5dB,
+  `rgba(34,211,238,.10)` dolgulu) sabit duruyor — sıfır etrafında DEĞİL.
+- **Mixin MUTLAK eğrisi** (`tonal-balance.js`'in devs'i — dosyanın kendi
+  ortalamasına göre sapma, ÇIKARMA YOK) doğrudan çiziliyor.
+- **Canlı analizör** (`toolsTonalLiveTick`, `requestAnimationFrame`):
+  `audioEngine.analyser`'dan (Referans Filtreleri'nin ZATEN kurduğu
+  `toolsFilterPreviewGain→analyser` bağlantısı, oyun ekranındaki AYNI
+  altyapı) tek kareler okunuyor, YENİ saf fonksiyon `tonal-balance.js:
+  bandDevsFromLiveSnapshot(freqData, sampleRate, fftSize)` ile aynı 6-bant
+  temsiline çevriliyor, tam parlaklıkta üstte çiziliyor. Dosyanın TAMAMININ
+  ortalama eğrisi arkada soluk (alpha .35) duruyor; çalmıyorken ortalama tek
+  başına normal parlaklıkta.
+- **Performans:** döngü SADECE Araçlar sekmesi aktifken VE dosya çalarken
+  devam ediyor — sekme değişince ya da duraklatılınca bir sonraki karede
+  kendiliğinden durur (`toolsTonalLiveTick`'in `shouldRun` kontrolü),
+  `toolsToggleFilterPlayback()`'te tekrar uyandırılıyor.
+- **Özet satırı HER ZAMAN ortalama eğriye göre** hesaplanıyor (canlı veriye
+  göre DEĞİL) — task'ın "titremesin" kuralı.
+**YORUM KARARLARI (kullanıcı onayı olmadan, açıkça işaretli):** (a) kartın
+kendi oynatma düğmesi olmadığı için "dosya çalarken" tetikleyicisi olarak
+Referans Filtreleri'nin MEVCUT çal/duraklat düğmesi kullanıldı; (b) "Kendi
+referansım" modu da AYNI mutlak+koridor gösterimine taşındı (eskiden mix+ref
+HAM ayrı ayrı çiziliyordu) — iki farklı görsel dil bir arada tutulmadı.
+**YENİ test:** `test/tonal-balance.test.mjs` — `bandDevsFromLiveSnapshot()`
+için 3 test (tek bantta yüksek enerji → doğru işaretli sapma, eşit enerjide
+~0, tamamı -Infinity'de NaN değil 6 elemanlı sıfır dizisi).
+
+**2) Dosya kalıcılığı — native Filesystem + web IndexedDB:**
+YENİ dosya `www/js/core/file-storage.js` — iki ayrı implementasyon, aynı
+arayüz (`saveFile`/`loadFile`/`deleteFile`/`fileExists`/`isNativeStorage`):
+NATIVE (`@capacitor/filesystem@8.1.2`, yeni bağımlılık — `window.Capacitor.
+Plugins.Filesystem` global erişimiyle, projenin YERLEŞİK deseni, ES import
+YOK) `Directory.Data` altına base64 yazıyor; WEB (`window.Capacitor` yokken,
+`python3 -m http.server` geliştirme ortamı) IndexedDB'ye Blob'u doğrudan
+yazıyor. `app.js`'te `toolsFiles` artık `TOOLS_LIBRARY_KEY` altında
+localStorage'a persist edilen HAFİF bir manifest (id/ad/boyut/süre/dalga-
+önizleme/mime/eklenme-zamanı) — dosyanın BAYT verisi ayrı, file-storage.js
+katmanında. En fazla 5 dosya (`TOOLS_LIBRARY_MAX`), 6. eklenince en eski
+(addedAt) otomatik silinir + toast. Dosyalarım sheet'inde her satırda boyut
+zaten vardı, şimdi altında toplam alan (`toolsLibraryTotalKb()`,
+"Toplam: 1.3 MB · 5/5 dosya") gösteriliyor. Araçlar sekmesine SAYFA-
+YÜKLEMESİ başına TEK SEFERLİK bütünlük kontrolü (`toolsCheckLibraryIntegrity`,
+`goScreen("tools")`'a bağlı, bellek-içi `toolsLibraryIntegrityChecked`
+bayrağı — arka plandan dönüşte ya da ikinci girişte TEKRAR ÇALIŞMAZ): her
+dosya için `fileExists()`, eksik olanlar manifestten düşer + "Dosya
+bulunamadı" toast'ı.
+**YORUM KARARI:** "en eski otomatik silinir" LİTERAL olarak eklenme-sırasına
+(`addedAt`) göre yorumlandı, "en son seçilen" gibi bir LRU DEĞİL.
+**Native taraf CANLI test EDİLEMEDİ** (bu oturum tarayıcıda, Capacitor
+yok) — `node_modules/@capacitor/filesystem/dist/esm/definitions.d.ts`'ten
+BİREBİR okunan API sözleşmesine göre yazıldı (binary native yazımın base64
+gerektirdiği, Blob'un SADECE web tarafında çalıştığı gibi detaylar dahil),
+ama gerçek iOS/Android cihazda `npx cap sync` sonrası DOĞRULANMADI —
+CLAUDE.md "tahminle düzeltme yapma" kuralı gereği bu açıkça belirtiliyor.
+
+**DOĞRULAMA (ekran görüntüleriyle + programatik, canlı tarayıcı):**
+- **Tonal Balance mutlak+canlı:** gerçekçi (broadband gürültü + düşük-frekans
+  vurgulu) bir test WAV dosyası üretilip yüklendi — grafik hedef eğrinin
+  KENDİ ŞEKLİNİ takip eden bir koridor çizdi (SUB'da yukarı, ORTA'da aşağı
+  kayan bant — Pop hedef eğrisinin kendi profiliyle TUTARLI), mix'in mutlak
+  eğrisi üstünde göründü. Referans Filtreleri'nde play'e basılınca "● CANLI"
+  rozeti belirdi, `canvas.toDataURL()` art arda örneklemede DEĞİŞTİ (gerçek
+  canlı yeniden çizim kanıtlandı, `AnalyserNode.getFloatFrequencyData`
+  çağrıları izlendi). Antrenman sekmesine geçilince canvas DONDU (rAF
+  döngüsü durdu — 0 `requestAnimationFrame`/`getFloatFrequencyData` çağrısı
+  1.5sn boyunca), Araçlar'a dönünce döngü yeniden başladı. Özet satırı
+  ("5 bölge hedef dışında: ...") canlı rozet açıkken de SABİT kaldı, hiç
+  değişmedi.
+  **Test ortamı notu:** otomasyon sekmesinin `document.visibilityState`'i
+  ara sıra "hidden" oluyor (gerçek OS odağı yerine CDP sürüşü) — bu durumda
+  tarayıcının KENDİ rAF kısıtlaması devreye giriyor (uygulama kodu DEĞİL);
+  gerçek bir cihazda ekran açıkken bu sorun yok, ilk doğrudan tıklama
+  sonrası canlı akış zaten kanıtlandı.
+- **Dosya kalıcılığı:** 2 dosya yüklendi (517 KB + 689 KB, "Toplam: 1.2 MB ·
+  2/5 dosya" doğru göründü) → sayfa TAM yenilendi → Dosyalarım sheet'inde
+  İKİ dosya da AYNI boyutlarla hâlâ listeliydi → biri seçilince IndexedDB'den
+  doğru şekilde okunup yeniden decode edildi, Tonal Balance AYNI sonucu
+  ("SUB +12.9 dB, BAS +3.1 dB, ...") üretti (bayt bozulmadı). 4 KÜÇÜK dosya
+  daha eklenip 6'ya çıkarıldı — 6. eklenince EN ESKİ (`test-tone.wav`)
+  otomatik düştü, "Toplam: 1.3 MB · 5/5 dosya" doğru güncellendi. Bir
+  dosyanın IndexedDB kaydı elle silinip sayfa yenilendi — Araçlar sekmesine
+  İLK girişte o dosya manifestten düştü, toast metni programatik olarak
+  yakalandı: **"Dosya bulunamadı" / "test-tone5.wav artık cihazda yok.
+  Kütüphaneden kaldırıldı."** Aynı oturumda (yenileme OLMADAN) başka bir
+  dosyanın kaydı silinip sekmeler arası geçiş yapıldı — bütünlük kontrolü
+  İKİNCİ kez ÇALIŞMADI (dosya manifestte silinmemiş halde kaldı), "sadece
+  ilk girişte" kuralı doğrulandı.
+- **Konsol hatası: 0** (tüm test oturumu boyunca, `read_console_messages`).
+- **`npm test`: 1106/1106** (G101 sonrası 1103, +3 yeni test —
+  `bandDevsFromLiveSnapshot()` için, hiçbir eski test SİLİNMEDİ/DEĞİŞMEDİ).
+
+---
+
+Önceki commit (G101, tek commit) — **Araçlar ekranı, Tasarim-2026-08/Araçlar.dc.html'in
 (kullanıcının üzerine yazdığı YENİ sürüm) TAM giydirmesi.** Dört kart (Mixini
 Yükle → Tonal Balance [YENİ] → Ölçüm Sonuçları → Referans Filtreleri) +
 "Dosyalarım" sheet'i (3 bölüm) + Ölçüm Sonuçları sheet'i + kalıcı şerit +
@@ -8217,17 +8319,14 @@ kapatıldı.
 
 ## BEKLEYEN KARARLAR
 
-**L. G101 — "Dosyalarım" kalıcı (IndexedDB) mı, oturum-kapsamlı mı kalsın?**
-Şu an dosya kütüphanesi (Araçlar > Dosyalarım) SADECE bu oturumda yaşıyor —
-sayfa yenilenince/uygulama kapanıp açılınca yüklenen dosyaların KENDİSİ
-kaybolur (ses verisi hiçbir yerde saklanmıyor). "Son Ölçümlerim" bunun
-İSTİSNASI: ölçüm SONUÇLARI (sayılar, ~birkaç KB'lık JSON) localStorage'da
-kalıcı, dosyanın kendisi olmasa da GEÇMİŞ ölçüm tekrar açılabiliyor. Gerçek
-kalıcılık (dosyalar da hayatta kalsın) IndexedDB gibi ayrı, büyük bir
-depolama katmanı gerektirir — bu turda YAPILMADI (kod değişikliği DEĞİL, bir
-ürün/kapsam kararı, kullanıcıya soruluyor). **Kabul kriteri:** kullanıcı
-kalıcı depolama isterse ayrı bir tur — IndexedDB şeması, depolama kotası
-uyarıları, "eski dosyaları temizle" gibi ek UX gerektirir.
+**L. ~~G101 — "Dosyalarım" kalıcı (IndexedDB) mı, oturum-kapsamlı mı kalsın?~~
+— ÇÖZÜLDÜ, G102: kalıcı yapıldı**
+Kullanıcı kararı: dosyalar kalıcı. `core/file-storage.js` (native Capacitor
+Filesystem + web IndexedDB) + localStorage manifest ile uygulandı, en fazla
+5 dosya + en-eski-önce tahliye + tek seferlik bütünlük kontrolü dahil (bkz.
+BİTTİ). **Native taraf (iOS/Android) hâlâ gerçek cihazda doğrulanmadı** —
+`npx cap sync` sonrası bir sonraki oturumda kontrol edilmeli, tek açık kalan
+uç bu.
 
 **M. G101 — "Referans Filtreleri"nin GERÇEK DSP'si ne zaman eklenecek?**
 Filtre seçmek hâlâ sesi DEĞİŞTİRMİYOR (sadece hangi cihazın simüle edildiğini
@@ -8393,19 +8492,34 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G101 itibarıyla):** Araçlar ekranının TAM giydirmesi
+**Tek sonraki adım (G102 itibarıyla):** `npx cap sync ios`/`android` çalıştırıp
+gerçek bir cihazda (ya da simülatörde) Dosyalarım'ın NATIVE Filesystem
+yolunu (`@capacitor/filesystem`, bu turda sadece tip tanımlarına göre yazıldı,
+hiç canlı denenmedi) uçtan uca doğrulamak: dosya seç → uygulama kapat/aç →
+dosya hâlâ duruyor mu, `Directory.Data`'ya gerçekten yazılıyor mu. Bu turun
+kendi açık işleri: (1) **native Filesystem canlı doğrulanmadı** (yukarıdaki
+madde); (2) **TASLAK hedef eğriler (Pop/EDM/Akustik) hâlâ gerçek referans
+parçalardan türetilmedi** — değişmedi, G101'den kalan aynı madde; (3)
+**Tonal Balance'ın canlı analizörü SADECE tek bir sentetik test dosyasıyla
+denendi** — gerçek bir müzik parçasında (kick/cymbal gibi belirgin geçici
+olaylarla) canlı eğrinin ortalamadan GÖRÜLÜR şekilde ayrıldığı henüz
+gözlemlenmedi (test dosyası durağan gürültüydü, canlı≈ortalama çıktı,
+mekanizma çalıştığı KANITLANDI ama görsel etkisi gerçek müzikte daha
+belirgin olacaktır); (4) **"Kendi referansım" akışı bu turda da CANLI
+denenmedi** (flag varsayılan kapalı, G101'den kalan aynı madde).
+
+**Önceki adım (G101 itibarıyla):** Araçlar ekranının TAM giydirmesi
 kod/canlı doğrulama açısından TAM kapandı (7 bölümün hepsi ekran görüntüsüyle
 kanıtlandı, 2 gerçek CSS bugı AYNI turda bulunup düzeltildi) — bu ARADA
 G100'ün SIRADAKİ (1) maddesi de ("AES17/100ms/8x'in ekranda göründüğü
 doğrulanmalı") KAPANDI, standart notu canlı ekran görüntüsünde doğru
-değerlerle görüldü. Bu turun kendi açık işleri: (1) **BEKLEYEN KARARLAR L/M**
-— Dosyalarım'ın kalıcı depolama (IndexedDB) isteyip istemediği ve Referans
-Filtreleri'nin gerçek DSP'sinin ne zaman ekleneceği kullanıcı kararı bekliyor;
-(2) **Tonal Balance'ın "mix eksi hedef" yorumu KULLANICI ONAYI bekliyor** —
-tasarımın chart kodu ham `devs`'i çiziyordu (gösterim kısayolu), gerçek
-üründe "mix'in ölçülen sapması eksi seçili hedef eğri" olarak yorumlandı
-(bkz. BİTTİ'nin DÜRÜSTLÜK notu) — kullanıcı FARKLI bir yorum istiyorsa
-(ör. mix'in HAM sapmasını hedefsiz göstermek) kolayca değiştirilebilir;
+değerlerle görüldü. Bu turun kendi açık işleri: (1) **BEKLEYEN KARARLAR L (G102'de KAPANDI,
+kalıcı yapıldı) / M (hâlâ açık)**
+— Referans Filtreleri'nin gerçek DSP'sinin ne zaman ekleneceği kullanıcı
+kararı bekliyor;
+(2) ~~**Tonal Balance'ın "mix eksi hedef" yorumu KULLANICI ONAYI bekliyor**~~
+— **G102'de KAPANDI:** kullanıcı farklı bir yorum istedi (mutlak gösterim +
+hedef eğri şekilli koridor + canlı analizör), bkz. yukarıdaki BİTTİ;
 (3) **TASLAK hedef eğriler (Pop/EDM/Akustik) hâlâ gerçek referans
 parçalardan türetilmedi** — tasarımın kendi taslak sayıları kullanılıyor,
 kod+UI'da AÇIKÇA "taslak" diye işaretli, gerçek veri kaynağı belirlenince

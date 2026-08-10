@@ -20,6 +20,7 @@ import { levelSheetTermsFor } from "./core/level-sheet-terms.js";
 import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
 import { getWeakZone } from "./core/personalization.js";
 import * as tonalBalance from "./core/tonal-balance.js";
+import * as fileStorage from "./core/file-storage.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
@@ -150,6 +151,7 @@ const els = {
   toolsFileInput: document.getElementById("toolsFileInput"),
   toolsFilesList: document.getElementById("toolsFilesList"),
   toolsFilesEmpty: document.getElementById("toolsFilesEmpty"),
+  toolsFilesTotalSpace: document.getElementById("toolsFilesTotalSpace"),
   toolsActionsList: document.getElementById("toolsActionsList"),
   toolsActionsEmpty: document.getElementById("toolsActionsEmpty"),
   toolsMeasurementsList: document.getElementById("toolsMeasurementsList"),
@@ -164,6 +166,7 @@ const els = {
   toolsTonalRefPick: document.getElementById("toolsTonalRefPick"),
   toolsTonalLegend: document.getElementById("toolsTonalLegend"),
   toolsTonalChart: document.getElementById("toolsTonalChart"),
+  toolsTonalLiveBadge: document.getElementById("toolsTonalLiveBadge"),
   toolsTonalSummary: document.getElementById("toolsTonalSummary"),
   toolsTonalAbRow: document.getElementById("toolsTonalAbRow"),
   toolsTonalPlayA: document.getElementById("toolsTonalPlayA"),
@@ -1856,6 +1859,7 @@ function goScreen(name) {
   if (name === "tools") {
     if (toolsTonalDevs) renderToolsTonalCard();
     if (toolsResultsSheetOpenFlag && toolsAnalysisResult) drawShortTermChart(toolsAnalysisResult);
+    toolsCheckLibraryIntegrity();
   }
   closeMainSettingsSheet();
   // Kalibrasyon tonu sadece o ekrandayken çalsın — başka bir ekrana geçilince arka
@@ -7090,23 +7094,59 @@ function toolsDrawBigWave(canvas, buffer, progressFrac) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// C) Dosyalarım — oturum-kapsamlı çoklu dosya kütüphanesi.
+// C) Dosyalarım — KALICI çoklu dosya kütüphanesi (G102).
 // KAPSAM/DÜRÜSTLÜK notu: upload.js SADECE TEK bir decode edilmiş buffer
 // tutuyor (bkz. upload.js dosya başı notu, task'ın "upload.js'in mevcut akışı
 // korunacak" kuralı) — bu yüzden BURADA, upload.js'e DOKUNMADAN, birden fazla
-// File nesnesini + her birinin (bir kez decode edilerek çıkarılan) küçük
-// metadatasını (süre, dalga önizlemesi) tutan bir liste kuruldu. Bir dosya
-// "seçildiğinde" o File uploadManager.loadFile() ile YENİDEN decode edilip
-// AKTİF hale getiriliyor (küçük bir performans maliyeti, ama upload.js'in
-// TEK-buffer modeline HİÇ dokunmadan doğru çalışıyor). Dosyaların KENDİSİ
-// sayfa yeniden yüklenince kaybolur (ses verisi localStorage/IndexedDB'de
-// SAKLANMIYOR — ayrı, büyük bir depolama katmanı gerektirir, bu turun
-// kapsamı DIŞINDA bırakıldı, bkz. DURUM.md BEKLEYEN KARARLAR). "Son
-// Ölçümlerim" bunun İSTİSNASI: SONUÇ nesnesinin kendisi (dosya değil)
-// localStorage'da kalıcı, bkz. aşağı.
-let toolsFiles = [];
+// dosyayı yöneten bir katalog kuruldu. Dosyanın KENDİSİ artık iki katmanda
+// tutuluyor:
+//   1. BAYT VERİSİ — core/file-storage.js (native: Capacitor Filesystem,
+//      Directory.Data; web: IndexedDB). iOS bir dosyanın YOLUNU saklayıp
+//      sonradan o yoldan okuyamadığı için, dosya seçilir seçilmez uygulamanın
+//      kendi alanına KOPYALANIR (task'ın "iOS kısıtı" notu).
+//   2. HAFİF MANİFEST — bu modüldeki toolsFiles dizisi, localStorage'da
+//      TOOLS_LIBRARY_KEY altında (id/ad/boyut/süre/dalga-önizleme/mime/
+//      eklenme-zamanı) — açılışta baytları hiç okumadan listeyi çizebilmek
+//      için. Bir dosya "seçildiğinde" baytlar file-storage'dan okunup
+//      uploadManager.loadFile() ile decode edilip AKTİF hale getiriliyor.
+// En fazla TOOLS_LIBRARY_MAX dosya tutulur; yenisi eklenince en eski (addedAt
+// en küçük olan) otomatik silinir. "Son Ölçümlerim" AYRICA kalıcı: SONUÇ
+// nesnesinin kendisi (dosya değil) localStorage'da, bkz. aşağı.
+const TOOLS_LIBRARY_KEY = "eqEarTrainerProXToolsLibrary";
+const TOOLS_LIBRARY_MAX = 5;
+
+function toolsLoadLibraryManifest() {
+  try {
+    const raw = localStorage.getItem(TOOLS_LIBRARY_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+function toolsSaveLibraryManifest() {
+  try {
+    const manifest = toolsFiles.map(({ id, name, sizeKb, durationSec, peaks, mimeType, addedAt }) =>
+      ({ id, name, sizeKb, durationSec, peaks, mimeType, addedAt }));
+    localStorage.setItem(TOOLS_LIBRARY_KEY, JSON.stringify(manifest));
+  } catch (e) {}
+}
+
+let toolsFiles = toolsLoadLibraryManifest();
 let toolsSelectedFileId = null;
 let toolsSwipedFileId = null;
+// Araçlar sekmesine bu SAYFA-YÜKLEMESİ boyunca zaten bir kez bütünlük kontrolü
+// yapıldı mı? (task: "her açılışta DEĞİL, sadece Araçlar sekmesine ilk
+// girişte" — bu yüzden kalıcı değil, bellek-içi tek seferlik bayrak.)
+let toolsLibraryIntegrityChecked = false;
+
+function toolsLibraryTotalKb() {
+  return toolsFiles.reduce((sum, f) => sum + (f.sizeKb || 0), 0);
+}
+function formatToolsSpace(kb) {
+  if (kb >= 1024) return `${(kb / 1024).toFixed(1)} MB`;
+  return `${Math.round(kb)} KB`;
+}
 
 function toolsSelectedEntry() {
   return toolsFiles.find((f) => f.id === toolsSelectedFileId) || null;
@@ -7125,9 +7165,30 @@ async function toolsAddFile(file) {
     sizeKb: Math.max(1, Math.round(file.size / 1024)),
     durationSec: buffer.duration,
     peaks: toolsWaveformPeaks(buffer, 15),
-    file,
+    mimeType: file.type || "application/octet-stream",
+    addedAt: Date.now(),
+    file, // bellek-içi ÖNBELLEK — persist edilmiyor (JSON.stringify tarafından atlanır çünkü toolsSaveLibraryManifest bunu ayrıca seçip alıyor)
   };
+  try {
+    await fileStorage.saveFile(entry.id, file);
+  } catch (e) {
+    console.error("[tools] dosya kalıcı depoya yazılamadı:", e);
+    toast("Dosya kaydedilemedi", "Dosya bu oturumda kullanılabilir ama kalıcı olarak saklanamadı.");
+  }
   toolsFiles.push(entry);
+  // En fazla TOOLS_LIBRARY_MAX dosya — yenisi eklenince en eski (addedAt) düşer.
+  while (toolsFiles.length > TOOLS_LIBRARY_MAX) {
+    let oldestIdx = 0;
+    for (let i = 1; i < toolsFiles.length; i++) {
+      if ((toolsFiles[i].addedAt || 0) < (toolsFiles[oldestIdx].addedAt || 0)) oldestIdx = i;
+    }
+    const [evicted] = toolsFiles.splice(oldestIdx, 1);
+    if (evicted && evicted.id !== entry.id) {
+      fileStorage.deleteFile(evicted.id).catch(() => {});
+      toast("Dosya kütüphanesi dolu", `En eski dosya (${evicted.name}) otomatik olarak kaldırıldı.`);
+    }
+  }
+  toolsSaveLibraryManifest();
   return entry;
 }
 
@@ -7139,16 +7200,29 @@ function toolsSelectFile(id) {
   resetToolsAnalysis();
   toolsTonalDevs = null;
   toolsFilterPlaying = false;
-  audioEngine.initAudio().then(() => uploadManager.loadFile(entry.file)).then((res) => {
+  (async () => {
+    await audioEngine.initAudio();
+    let fileObj = entry.file;
+    if (!fileObj) {
+      const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+      if (!blob) {
+        toast("Dosya bulunamadı", `${entry.name} artık cihazda yok. Kütüphaneden kaldırıldı.`);
+        toolsRemoveFile(id, { skipStorageDelete: true });
+        return;
+      }
+      fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+      entry.file = fileObj; // bu oturum için önbelleğe al
+    }
+    const res = await uploadManager.loadFile(fileObj);
     if (!res.ok) { toast(res.title, res.detail); return; }
     renderToolsCardsVisibility();
     renderToolsFilterPlayer();
-  });
+  })();
   toolsCloseFilesSheet();
   renderToolsFilesSheetContent();
 }
 
-function toolsRemoveFile(id) {
+function toolsRemoveFile(id, { skipStorageDelete = false } = {}) {
   toolsFiles = toolsFiles.filter((f) => f.id !== id);
   if (toolsSelectedFileId === id) {
     toolsSelectedFileId = null;
@@ -7156,6 +7230,35 @@ function toolsRemoveFile(id) {
     toolsTonalDevs = null;
   }
   toolsSwipedFileId = null;
+  toolsSaveLibraryManifest();
+  if (!skipStorageDelete) fileStorage.deleteFile(id).catch(() => {});
+  renderToolsFilesSheetContent();
+  renderToolsCardsVisibility();
+}
+
+// Araçlar sekmesine SAYFA-YÜKLEMESİ başına TEK SEFERLİK: manifestteki her
+// dosyanın baytları hâlâ kalıcı depoda duruyor mu? Eksik olanlar listeden
+// düşürülür + tek bir toplu uyarı gösterilir. Uygulama arka plandan dönünce
+// ya da her Araçlar girişinde DEĞİL — bkz. toolsLibraryIntegrityChecked.
+async function toolsCheckLibraryIntegrity() {
+  if (toolsLibraryIntegrityChecked || toolsFiles.length === 0) return;
+  toolsLibraryIntegrityChecked = true;
+  const missing = [];
+  for (const f of toolsFiles) {
+    const exists = await fileStorage.fileExists(f.id);
+    if (!exists) missing.push(f);
+  }
+  if (missing.length === 0) return;
+  const missingIds = new Set(missing.map((f) => f.id));
+  toolsFiles = toolsFiles.filter((f) => !missingIds.has(f.id));
+  if (missingIds.has(toolsSelectedFileId)) {
+    toolsSelectedFileId = null;
+    resetToolsAnalysis();
+    toolsTonalDevs = null;
+  }
+  toolsSaveLibraryManifest();
+  const names = missing.map((f) => f.name).join(", ");
+  toast("Dosya bulunamadı", missing.length === 1 ? `${names} artık cihazda yok. Kütüphaneden kaldırıldı.` : `${missing.length} dosya artık cihazda yok, kütüphaneden kaldırıldı: ${names}`);
   renderToolsFilesSheetContent();
   renderToolsCardsVisibility();
 }
@@ -7227,6 +7330,14 @@ function renderToolsFilesSheetContent() {
           </div>
         </div>`;
       }).join("");
+    }
+  }
+  if (els.toolsFilesTotalSpace) {
+    if (toolsFiles.length === 0) {
+      els.toolsFilesTotalSpace.classList.add("hidden");
+    } else {
+      els.toolsFilesTotalSpace.classList.remove("hidden");
+      els.toolsFilesTotalSpace.textContent = `Toplam: ${formatToolsSpace(toolsLibraryTotalKb())} · ${toolsFiles.length}/${TOOLS_LIBRARY_MAX} dosya`;
     }
   }
 
@@ -7734,30 +7845,84 @@ if (els.toolsResultsOverlay) els.toolsResultsOverlay.addEventListener("click", t
 if (els.toolsResultsStrip) els.toolsResultsStrip.addEventListener("click", toolsOpenResultsSheet);
 
 // ═══════════════════════════════════════════════════════════════════════════
-// D) Tonal Balance — G101'de SIFIRDAN yazıldı (task'ın kendi notu). Spektral
-// ölçüm core/tonal-balance.js'te (bkz. o dosyanın DÜRÜSTLÜK notu — analysis.js
-// spektrum ÜRETMİYOR, bu YENİ/AYRI bir modül). Grafik matematiği Araçlar.dc.
+// D) Tonal Balance — G101'de SIFIRDAN yazıldı, G102'de gösterim MUTLAĞA
+// çevrildi + CANLI analizör eklendi (task'ın kendi kararı — G101'in "mix eksi
+// hedef" sapma yorumu TERK EDİLDİ). Spektral ölçüm core/tonal-balance.js'te
+// (bkz. o dosyanın DÜRÜSTLÜK notu — analysis.js spektrum ÜRETMİYOR, bu YENİ/
+// AYRI bir modül). Grafik matematiğinin eksen/interpolasyon kısmı Araçlar.dc.
 // html'in KENDİ tbChart() fonksiyonundan BİREBİR taşındı (log frekans ekseni,
-// smoothstep bant-arası interpolasyon, ±1.5dB hedef bandı).
+// smoothstep bant-arası interpolasyon) — bant çizimi/dolgusu G102'de yeniden
+// yazıldı.
 //
-// ÜRÜN YORUMU — DÜRÜSTLÜK NOTU: tasarımın chart kodu `devs`'i (TB[genre])
-// DOĞRUDAN çizip ±1.5dB'yi SIFIR etrafında sabit bir bant olarak gösteriyor;
-// bu, tasarım aracının CANLI ses erişimi olmadığı için TB[genre]'yi "mix'in
-// kendi ölçümü" yerine geçici bir gösterim verisi olarak kullanmasından
-// kaynaklanıyor. GERÇEK üründe anlamlı olan yorum şu: preset hedefler
-// (Pop/EDM/Akustik) GERÇEKTEN tür-şekilli hedef eğrilerdir (task'ın kendi
-// "hedef eğriler" ifadesi) — bu yüzden çizilen değer MIX'İN KENDİ ÖLÇÜLEN
-// sapması EKSİ SEÇİLİ HEDEF EĞRİ'dir (kalıntı, hedeften sapma) — ±1.5dB bandı
-// "türe göre kabul edilebilir tolerans" anlamına geliyor. "Kendi referansım"
-// modunda (özellik anahtarı) tasarımın refDevs dalı BİREBİR: mix VE referans
-// eğrisi ayrı ayrı, HAM (birbirinden çıkarılmadan) çiziliyor.
+// G102 GÖSTERİM KARARI (kullanıcının kendi talimatı): hedef bant artık SIFIR
+// etrafında değil, SEÇİLİ HEDEF EĞRİNİN KENDİ ŞEKLİ etrafında (±1.5dB) sabit
+// duruyor; üstünde MİXİN MUTLAK eğrisi (kendi ortalamasına göre sapma —
+// tonal-balance.js'in devs'i, ÇIKARMA YOK) çiziliyor. Dosya çalarken canlı bir
+// kare üstte parlak, dosyanın TAMAMININ ortalama eğrisi arkada soluk duruyor;
+// çalmıyorken sadece ortalama eğri (normal parlaklıkta) görünür. Amber
+// vurgusu HANGİ eğri çiziliyorsa o eğrinin hedeften sapması >1.5dB olduğu
+// yerlerde uygulanıyor. Özet satırı HER ZAMAN ortalama eğriye göre (canlı
+// veriye göre DEĞİL) hesaplanıyor — aksi halde yazı sürekli titrer (task'ın
+// kendi gerekçesi).
+//
+// YORUM/TASARIM KARARI (bu turda, kullanıcı onayı olmadan): Tonal Balance
+// kartının kendi oynatma düğmesi YOK — "dosya çalarken" tetikleyicisi olarak
+// aşağıdaki Referans Filtreleri akordiyonunun MEVCUT çal/duraklat düğmesi
+// (toolsFilterPlaying) kullanıldı; bu, projede gerçek DSP/oynatma içeren TEK
+// kontrol. "Kendi referansım" modu da AYNI mutlak+koridor gösterimine
+// TAŞINDI (eskiden mix+referans HAM ayrı ayrı çiziliyordu) — tutarlılık için,
+// iki farklı görsel dil bir arada tutulmadı.
 let toolsTonalTargetIdx = 0; // 0=Pop,1=EDM,2=Akustik,(3=Kendi referansım, flag açıkken)
-let toolsTonalDevs = null; // secili dosyanin OLCULEN sapmasi (6 eleman), cache
+let toolsTonalDevs = null; // secili dosyanin OLCULEN sapmasi (6 eleman, ORTALAMA/offline), cache
 let toolsTonalMeasuringForId = null;
 let toolsTonalCustomRef = null; // {name, devs} — "Kendi referansım" icin secilen referans
 let toolsTonalAbMode = "B";
 let toolsTonalProcOn = false;
 const TOOLS_TONAL_PRESETS = ["Pop", "EDM", "Akustik"];
+
+// --- G102: canlı analizör durumu ---
+let toolsTonalLastAvgDevs = null;    // en son çizilen ORTALAMA eğri (rAF döngüsü bunu yeniden kullanır)
+let toolsTonalLastTargetDevs = null; // en son çizilen HEDEF eğri (null = bant yok)
+let toolsTonalLiveDevs = null;       // o anki canlı kare (çalmıyorken/sekme pasifken null)
+let toolsTonalLiveRafId = null;
+let toolsTonalLiveFreqData = null;
+
+function toolsToolsScreenActive() {
+  return document.querySelector(".screen.active")?.id === "screen-tools";
+}
+// Performans (task'ın kendi gereksinimi): SADECE Araçlar sekmesi açıkken VE
+// dosya çalarken çalışır; sekme değişince ya da duraklatılınca DURUR.
+function toolsTonalLiveTick() {
+  toolsTonalLiveRafId = null;
+  const shouldRun = toolsFilterPlaying && toolsToolsScreenActive() &&
+    els.toolsTonalCard && !els.toolsTonalCard.classList.contains("hidden");
+  if (!shouldRun) {
+    if (toolsTonalLiveDevs !== null) {
+      toolsTonalLiveDevs = null;
+      if (els.toolsTonalLiveBadge) els.toolsTonalLiveBadge.classList.add("hidden");
+      if (toolsTonalLastAvgDevs) drawTonalChart(toolsTonalLastAvgDevs, toolsTonalLastTargetDevs, null);
+    }
+    return;
+  }
+  const analyser = audioEngine.analyser, ctx = audioEngine.audioCtx;
+  if (analyser && ctx) {
+    if (!toolsTonalLiveFreqData || toolsTonalLiveFreqData.length !== analyser.frequencyBinCount) {
+      toolsTonalLiveFreqData = new Float32Array(analyser.frequencyBinCount);
+    }
+    analyser.getFloatFrequencyData(toolsTonalLiveFreqData);
+    toolsTonalLiveDevs = tonalBalance.bandDevsFromLiveSnapshot(toolsTonalLiveFreqData, ctx.sampleRate, analyser.fftSize);
+    if (els.toolsTonalLiveBadge) els.toolsTonalLiveBadge.classList.remove("hidden");
+    if (toolsTonalLastAvgDevs) drawTonalChart(toolsTonalLastAvgDevs, toolsTonalLastTargetDevs, toolsTonalLiveDevs);
+  }
+  toolsTonalLiveRafId = requestAnimationFrame(toolsTonalLiveTick);
+}
+// toolsToggleFilterPlayback() (aşağıda, F bölümü) her çal/duraklat basışında
+// bunu çağırır; goScreen() de sekme değişiminde çağırır (tab kapanınca döngü
+// kendi kendine bir sonraki karede DURUR, bkz. yukarıdaki shouldRun kontrolü).
+function toolsTonalSyncLiveLoop() {
+  if (toolsTonalLiveRafId) return; // zaten planlı, tekrar planlama
+  toolsTonalLiveRafId = requestAnimationFrame(toolsTonalLiveTick);
+}
 
 function toolsTonalTargetNames() {
   const names = [...TOOLS_TONAL_PRESETS];
@@ -7848,7 +8013,75 @@ function toolsTonalValueAt(devs, f, centers) {
   return devs[i] + (devs[i + 1] - devs[i]) * sm + Math.sin(lf * 11) * 0.16;
 }
 
-function drawTonalChart(devs, refDevs) {
+// x-ekseninde eşit aralıklı örnekler üstünde bir devs dizisini interpole eder.
+function toolsTonalInterp(devs, centers) {
+  const pts = [];
+  for (let x = TOOLS_TONAL_X0; x <= TOOLS_TONAL_X1; x += 2) {
+    const f = 20 * Math.pow(10, ((x - TOOLS_TONAL_X0) / (TOOLS_TONAL_X1 - TOOLS_TONAL_X0)) * 3);
+    pts.push([x, toolsTonalValueAt(devs, f, centers)]);
+  }
+  return pts;
+}
+function toolsTonalRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+// pts'i targetPts'e göre "hedef bandı (±1.5dB) içi/dışı" segmentlerine böler.
+// targetPts null ise TÜMÜ "içeride" sayılır (amber vurgusu yok — karşılaştıracak
+// hedef yok, ör. "Kendi referansım" seçiliyken henüz referans seçilmemiş).
+function toolsTonalSegments(pts, targetPts) {
+  let seg = null;
+  const segs = [];
+  pts.forEach((p, i) => {
+    const tv = targetPts ? targetPts[i][1] : null;
+    const outside = tv !== null && Math.abs(p[1] - tv) > tonalBalance.OFF_TARGET_THRESHOLD_DB;
+    const item = { p, tv };
+    if (!seg || seg.out !== outside) { if (seg) seg.items.push(item); seg = { out: outside, items: [item] }; segs.push(seg); }
+    else seg.items.push(item);
+  });
+  return segs;
+}
+// Bir eğriyi (avgPts ya da livePts) hedefe göre renklendirip çizer.
+// fillOutside: hedef dışı segmentlerin altını (hedef bandının en yakın kenarına
+// kadar) amber dolguyla vurgular — sadece o an EN ÖNDE olan eğri için açık
+// tutulur, aksi halde soluk arka-plan eğrisiyle üst üste iki dolgu çakışır.
+function toolsTonalStrokeCurve(ctx, pts, targetPts, { alpha = 1, fillOutside = false } = {}) {
+  const segs = toolsTonalSegments(pts, targetPts);
+  if (fillOutside) {
+    segs.forEach((sg) => {
+      if (!sg.out || sg.items.length < 2) return;
+      ctx.fillStyle = `rgba(232,196,106,${(0.18 * alpha).toFixed(3)})`;
+      ctx.beginPath();
+      sg.items.forEach((it, i) => { const y = toolsTonalDy(it.p[1]); if (i === 0) ctx.moveTo(it.p[0], y); else ctx.lineTo(it.p[0], y); });
+      for (let i = sg.items.length - 1; i >= 0; i--) {
+        const it = sg.items[i];
+        const edge = it.p[1] > it.tv ? it.tv + tonalBalance.OFF_TARGET_THRESHOLD_DB : it.tv - tonalBalance.OFF_TARGET_THRESHOLD_DB;
+        ctx.lineTo(it.p[0], toolsTonalDy(edge));
+      }
+      ctx.closePath();
+      ctx.fill();
+    });
+  }
+  segs.forEach((sg) => {
+    ctx.strokeStyle = toolsTonalRgba(sg.out ? "#e8c46a" : "#22d3ee", alpha);
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    sg.items.forEach((it, i) => { const y = toolsTonalDy(it.p[1]); if (i === 0) ctx.moveTo(it.p[0], y); else ctx.lineTo(it.p[0], y); });
+    ctx.stroke();
+  });
+}
+
+// G102 — MUTLAK gösterim: avgDevs (dosyanın TAMAMININ ortalama spektrumu,
+// tonal-balance.js'in "öz-ortalamaya göre sapma" tanımıyla) doğrudan çizilir
+// (G101'deki "mix eksi hedef" ÇIKARMASI YOK). targetDevs varsa (preset ya da
+// seçilmiş özel referans) o eğrinin KENDİ ŞEKLİ etrafında ±1.5dB'lik sabit bir
+// hedef bandı çizilir — artık sıfır etrafında sabit DEĞİL. liveDevs varsa
+// (dosya çalarken, bkz. toolsTonalLiveTick) TAM parlaklıkta üstte çizilir,
+// avgDevs o zaman SOLUK (arka plan) olur; liveDevs yoksa avgDevs NORMAL
+// parlaklıkta tek başına çizilir.
+function drawTonalChart(avgDevs, targetDevs, liveDevs) {
   const canvas = els.toolsTonalChart;
   if (!canvas) return;
   const dpr = window.devicePixelRatio || 1;
@@ -7862,14 +8095,12 @@ function drawTonalChart(devs, refDevs) {
   ctx.clearRect(0, 0, TOOLS_TONAL_W, TOOLS_TONAL_H);
 
   const centers = toolsTonalCenters();
-  const pts = [];
-  for (let x = TOOLS_TONAL_X0; x <= TOOLS_TONAL_X1; x += 2) {
-    const f = 20 * Math.pow(10, ((x - TOOLS_TONAL_X0) / (TOOLS_TONAL_X1 - TOOLS_TONAL_X0)) * 3);
-    pts.push([x, toolsTonalValueAt(devs, f, centers)]);
-  }
+  const avgPts = toolsTonalInterp(avgDevs, centers);
+  const targetPts = targetDevs ? toolsTonalInterp(targetDevs, centers) : null;
+  const livePts = liveDevs ? toolsTonalInterp(liveDevs, centers) : null;
 
-  // Merkez kesikli çizgi
-  ctx.strokeStyle = "rgba(34,211,238,.28)";
+  // 0 dB referans çizgisi (düz spektrum) — kesikli, soluk.
+  ctx.strokeStyle = "rgba(34,211,238,.18)";
   ctx.lineWidth = 1;
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
@@ -7888,59 +8119,34 @@ function drawTonalChart(devs, refDevs) {
     ctx.stroke();
   });
 
-  if (refDevs) {
-    const rpts = pts.map(([x]) => {
-      const f = 20 * Math.pow(10, ((x - TOOLS_TONAL_X0) / (TOOLS_TONAL_X1 - TOOLS_TONAL_X0)) * 3);
-      return [x, toolsTonalValueAt(refDevs, f, centers)];
-    });
-    // Fark dolgusu (>1.5dB olan bölgeler) — kırmızı
-    ctx.fillStyle = "rgba(248,113,96,.28)";
-    let run = null;
-    for (let i = 0; i < pts.length; i++) {
-      const big = Math.abs(pts[i][1] - rpts[i][1]) > 1.5;
-      if (big) { if (!run) run = [i, i]; else run[1] = i; }
-      else { if (run && run[1] - run[0] >= 1) toolsTonalFillRun(ctx, pts, rpts, run); run = null; }
-    }
-    if (run && run[1] - run[0] >= 1) toolsTonalFillRun(ctx, pts, rpts, run);
-    // Referans (altın) + mix (cyan)
-    toolsTonalStrokePath(ctx, rpts, "#e8c46a");
-    toolsTonalStrokePath(ctx, pts, "#22d3ee");
-  } else {
-    // ±1.5dB hedef bandı
-    const grad = ctx.createLinearGradient(0, TOOLS_TONAL_GY0, 0, TOOLS_TONAL_GY1);
-    grad.addColorStop(0, "rgba(34,211,238,.04)");
-    grad.addColorStop(0.5, "rgba(34,211,238,.16)");
-    grad.addColorStop(1, "rgba(34,211,238,.04)");
-    ctx.fillStyle = grad;
-    ctx.fillRect(TOOLS_TONAL_X0, toolsTonalDy(1.5), TOOLS_TONAL_X1 - TOOLS_TONAL_X0, toolsTonalDy(-1.5) - toolsTonalDy(1.5));
-    // Segment bazlı çizgi: hedef içi cyan, dışı amber + dolgu
-    let seg = null;
-    const segs = [];
-    pts.forEach((p) => {
-      const outside = Math.abs(p[1]) > 1.5;
-      if (!seg || seg.out !== outside) { if (seg) seg.pts.push(p); seg = { out: outside, pts: [p] }; segs.push(seg); }
-      else seg.pts.push(p);
-    });
-    segs.forEach((sg) => {
-      if (sg.out && sg.pts.length > 1) {
-        const edge = sg.pts[0][1] > 0 ? 1.5 : -1.5;
-        ctx.fillStyle = "rgba(232,196,106,.18)";
-        ctx.beginPath();
-        sg.pts.forEach((p, i) => { if (i === 0) ctx.moveTo(toolsTonalFx2x(p[0]), toolsTonalDy(p[1])); else ctx.lineTo(toolsTonalFx2x(p[0]), toolsTonalDy(p[1])); });
-        ctx.lineTo(toolsTonalFx2x(sg.pts[sg.pts.length - 1][0]), toolsTonalDy(edge));
-        ctx.lineTo(toolsTonalFx2x(sg.pts[0][0]), toolsTonalDy(edge));
-        ctx.closePath();
-        ctx.fill();
-      }
-    });
-    segs.forEach((sg) => toolsTonalStrokePath(ctx, sg.pts, sg.out ? "#e8c46a" : "#22d3ee"));
+  // Hedef bandı — HEDEF EĞRİNİN KENDİ ŞEKLİ etrafında ±1.5dB, sabit duruyor.
+  if (targetPts) {
+    ctx.fillStyle = "rgba(34,211,238,.10)";
+    ctx.beginPath();
+    targetPts.forEach((p, i) => { const y = toolsTonalDy(p[1] + tonalBalance.OFF_TARGET_THRESHOLD_DB); if (i === 0) ctx.moveTo(p[0], y); else ctx.lineTo(p[0], y); });
+    for (let i = targetPts.length - 1; i >= 0; i--) { const p = targetPts[i]; ctx.lineTo(p[0], toolsTonalDy(p[1] - tonalBalance.OFF_TARGET_THRESHOLD_DB)); }
+    ctx.closePath();
+    ctx.fill();
+    // Hedef eğrinin kendi izi — ince, soluk altın çizgi.
+    ctx.strokeStyle = "rgba(232,196,106,.35)";
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    targetPts.forEach((p, i) => { const y = toolsTonalDy(p[1]); if (i === 0) ctx.moveTo(p[0], y); else ctx.lineTo(p[0], y); });
+    ctx.stroke();
   }
 
-  // Bant adları (alt)
+  // Ortalama eğri — canlı veri akıyorsa arka planda SOLUK, yoksa NORMAL parlaklıkta tek başına.
+  toolsTonalStrokeCurve(ctx, avgPts, targetPts, { alpha: livePts ? 0.35 : 1, fillOutside: !livePts });
+  // Canlı eğri — üstte, TAM parlaklık (task: "dosya ÇALARKEN eğri CANLI akar").
+  if (livePts) toolsTonalStrokeCurve(ctx, livePts, targetPts, { alpha: 1, fillOutside: true });
+
+  // Bant adları (alt) — özet satırıyla TUTARLI: ortalama eğrinin hedeften
+  // sapmasına göre (canlı veriye göre DEĞİL, task'ın kendi "titremesin" kuralı).
   ctx.font = "800 7.5px Inter, sans-serif";
   ctx.textAlign = "center";
   tonalBalance.BANDS.forEach((name, i) => {
-    ctx.fillStyle = Math.abs(devs[i]) > 1.5 ? "#e8c46a" : "#5a6068";
+    const off = targetDevs ? Math.abs(avgDevs[i] - targetDevs[i]) > tonalBalance.OFF_TARGET_THRESHOLD_DB : false;
+    ctx.fillStyle = off ? "#e8c46a" : "#5a6068";
     ctx.fillText(name, toolsTonalFx(centers[i]), 128);
   });
   // Frekans eksen etiketleri
@@ -7950,25 +8156,6 @@ function drawTonalChart(devs, refDevs) {
     const x = Math.min(Math.max(toolsTonalFx(f), TOOLS_TONAL_X0 + 6), TOOLS_TONAL_X1 - 8);
     ctx.fillText(label, x, 148);
   });
-}
-function toolsTonalFx2x(x) { return x; } // pts zaten x kordinatinda (fx uygulanmis), pass-through
-function toolsTonalStrokePath(ctx, pts, color) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  pts.forEach((p, i) => { if (i === 0) ctx.moveTo(p[0], toolsTonalDy(p[1])); else ctx.lineTo(p[0], toolsTonalDy(p[1])); });
-  ctx.stroke();
-}
-function toolsTonalFillRun(ctx, pts, rpts, run) {
-  const top = pts.slice(run[0], run[1] + 1);
-  const bot = rpts.slice(run[0], run[1] + 1).slice().reverse();
-  ctx.beginPath();
-  top.forEach((p, i) => { if (i === 0) ctx.moveTo(p[0], toolsTonalDy(p[1])); else ctx.lineTo(p[0], toolsTonalDy(p[1])); });
-  bot.forEach((p) => ctx.lineTo(p[0], toolsTonalDy(p[1])));
-  ctx.closePath();
-  ctx.fill();
 }
 
 function renderToolsTonalSummary(summary) {
@@ -7984,16 +8171,18 @@ function renderToolsTonalSummary(summary) {
 }
 
 let toolsTonalRenderToken = 0;
+// devs: dosyanın TAMAMININ ORTALAMA eğrisi (offline ölçüm) — summary/bant-adı
+// renklendirmesi HER ZAMAN buna göre hesaplanır. toolsTonalLiveDevs (canlı
+// kare) SADECE çizim için ayrıca geçilir, hiçbir metin/özet hesabına girmez.
 async function renderToolsTonalCard() {
   if (!els.toolsTonalCard) return;
   const entry = toolsSelectedEntry();
   els.toolsTonalCard.classList.toggle("hidden", !entry);
-  if (!entry) return;
+  if (!entry) { toolsTonalLastAvgDevs = null; toolsTonalLastTargetDevs = null; return; }
   const myToken = ++toolsTonalRenderToken;
   renderToolsTonalChips();
   const isCustom = toolsTonalIsCustom();
   if (els.toolsTonalRefRow) els.toolsTonalRefRow.classList.toggle("hidden", !isCustom);
-  if (els.toolsTonalLegend) els.toolsTonalLegend.classList.toggle("hidden", !isCustom);
   if (els.toolsTonalAbRow) els.toolsTonalAbRow.classList.toggle("hidden", !isCustom);
   if (els.toolsTonalDraftNote) {
     els.toolsTonalDraftNote.textContent = isCustom
@@ -8013,23 +8202,25 @@ async function renderToolsTonalCard() {
   if (myToken !== toolsTonalRenderToken) return; // arada baska dosya secildi, bu sonuc ESKI
   if (!devs) {
     if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Bu tarayıcı Tonal Balance ölçümünü desteklemiyor."; els.toolsTonalSummary.style.color = "#e8c46a"; }
+    toolsTonalLastAvgDevs = null;
+    toolsTonalLastTargetDevs = null;
     return;
   }
 
-  if (isCustom) {
-    if (toolsTonalCustomRef) {
-      drawTonalChart(devs, toolsTonalCustomRef.devs);
-      const diff = devs.map((d, i) => d - toolsTonalCustomRef.devs[i]);
-      renderToolsTonalSummary(tonalBalance.summarizeDeviation(diff));
-    } else {
-      drawTonalChart(devs, null);
-      if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Referans parça seçilmedi"; els.toolsTonalSummary.style.color = "#8f949b"; }
-    }
-  } else {
-    const targetDevs = tonalBalance.DRAFT_TARGET_CURVES[TOOLS_TONAL_PRESETS[toolsTonalTargetIdx]];
+  const targetDevs = isCustom
+    ? (toolsTonalCustomRef ? toolsTonalCustomRef.devs : null)
+    : tonalBalance.DRAFT_TARGET_CURVES[TOOLS_TONAL_PRESETS[toolsTonalTargetIdx]];
+
+  toolsTonalLastAvgDevs = devs;
+  toolsTonalLastTargetDevs = targetDevs;
+  drawTonalChart(devs, targetDevs, toolsTonalLiveDevs);
+  toolsTonalSyncLiveLoop();
+
+  if (targetDevs) {
     const diff = devs.map((d, i) => d - targetDevs[i]);
-    drawTonalChart(diff, null);
     renderToolsTonalSummary(tonalBalance.summarizeDeviation(diff));
+  } else {
+    if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Referans parça seçilmedi"; els.toolsTonalSummary.style.color = "#8f949b"; }
   }
 }
 
@@ -8212,6 +8403,7 @@ async function toolsToggleFilterPlayback() {
     if (!toolsFilterPreviewNode) return;
     toolsFilterPreviewNode.connect(toolsFilterPreviewGain);
     toolsFilterPlaying = true;
+    toolsTonalSyncLiveLoop(); // G102: canlı analizör döngüsü uykudaysa uyandır
   }
   renderToolsFilterPlayer();
 }

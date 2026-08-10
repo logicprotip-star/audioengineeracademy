@@ -37,6 +37,49 @@ export const DRAFT_TARGET_CURVES = {
 
 export const OFF_TARGET_THRESHOLD_DB = 1.5;
 
+// SAF — offline (dosya geneli) ve canlı (tek kare) ölçümün İKİSİNİN de
+// paylaştığı bant biriktirme/normalize mantığı. Böylece iki yol da AYNI
+// "band ortalama enerji − dosya/kare geneli ortalama enerji" tanımını
+// kullanır, birbirinden sessizce sapmaz.
+function bandIndexForFreq(freq) {
+  if (freq < BAND_EDGES[0] || freq >= BAND_EDGES[BAND_EDGES.length - 1]) return -1;
+  for (let i = 0; i < BANDS.length; i++) {
+    if (freq >= BAND_EDGES[i] && freq < BAND_EDGES[i + 1]) return i;
+  }
+  return -1;
+}
+function accumulateFreqSnapshot(freqData, binHz, bandSum, bandCount) {
+  for (let bin = 1; bin < freqData.length; bin++) {
+    const bandIdx = bandIndexForFreq(bin * binHz);
+    if (bandIdx < 0) continue;
+    const db = freqData[bin];
+    if (!Number.isFinite(db)) continue;
+    bandSum[bandIdx] += db;
+    bandCount[bandIdx]++;
+  }
+}
+function normalizeBandSums(bandSum, bandCount) {
+  const bandAvgDb = bandSum.map((sum, i) => (bandCount[i] > 0 ? sum / bandCount[i] : null));
+  const finiteAvgs = bandAvgDb.filter((v) => v !== null);
+  if (finiteAvgs.length === 0) return BANDS.map(() => 0);
+  const overallAvg = finiteAvgs.reduce((a, b) => a + b, 0) / finiteAvgs.length;
+  return bandAvgDb.map((v) => (v === null ? 0 : v - overallAvg));
+}
+
+// SAF. TEK bir AnalyserNode karesini (getFloatFrequencyData çıktısı) 6-bant
+// öz-ortalamaya-göre-sapma temsiline çevirir — measureSpectralDeviation ile
+// AYNI iç mantık, tek fark dosya genelinde biriktirmek yerine TEK bir canlı
+// kareyi normalize etmesi. Oyun ekranındaki "canlı analizör" hiç GÖSTERİLMEZ
+// (cevabı ele verir); burada gizlenecek bir cevap yok — kullanıcının kendi
+// dosyası, task'ın kendi gerekçesi.
+export function bandDevsFromLiveSnapshot(freqData, sampleRate, fftSize) {
+  const binHz = sampleRate / fftSize;
+  const bandSum = new Array(BANDS.length).fill(0);
+  const bandCount = new Array(BANDS.length).fill(0);
+  accumulateFreqSnapshot(freqData, binHz, bandSum, bandCount);
+  return normalizeBandSums(bandSum, bandCount);
+}
+
 // SAF-E YAKIN (Web Audio gerektirir, ama DOM'a dokunmaz — sadece OfflineAudioContext).
 // audioBuffer: gerçek bir AudioBuffer (upload.js'in decode ettiği). Dönen:
 // 6 elemanlı dizi, her biri o bandın dosyanın KENDİ ortalamasına göre dB
@@ -67,19 +110,7 @@ export async function measureSpectralDeviation(audioBuffer, options = {}) {
 
   function sampleOnce() {
     analyser.getFloatFrequencyData(freqData);
-    for (let bin = 1; bin < freqData.length; bin++) {
-      const freq = bin * binHz;
-      if (freq < BAND_EDGES[0] || freq >= BAND_EDGES[BAND_EDGES.length - 1]) continue;
-      const db = freqData[bin];
-      if (!Number.isFinite(db)) continue;
-      let bandIdx = -1;
-      for (let i = 0; i < BANDS.length; i++) {
-        if (freq >= BAND_EDGES[i] && freq < BAND_EDGES[i + 1]) { bandIdx = i; break; }
-      }
-      if (bandIdx < 0) continue;
-      bandSum[bandIdx] += db;
-      bandCount[bandIdx]++;
-    }
+    accumulateFreqSnapshot(freqData, binHz, bandSum, bandCount);
   }
 
   await new Promise((resolve, reject) => {
@@ -101,11 +132,7 @@ export async function measureSpectralDeviation(audioBuffer, options = {}) {
   // Son bir örnek (kuyruk) — dosyanın en son anını da yakala.
   // (startRendering tamamlandığında render bitmiştir, ek suspend gerekmez.)
 
-  const bandAvgDb = bandSum.map((sum, i) => (bandCount[i] > 0 ? sum / bandCount[i] : null));
-  const finiteAvgs = bandAvgDb.filter((v) => v !== null);
-  if (finiteAvgs.length === 0) return BANDS.map(() => 0);
-  const overallAvg = finiteAvgs.reduce((a, b) => a + b, 0) / finiteAvgs.length;
-  return bandAvgDb.map((v) => (v === null ? 0 : v - overallAvg));
+  return normalizeBandSums(bandSum, bandCount);
 }
 
 // SAF. devs: 6 elemanlı sapma dizisi (dB). Hedef dışı bantları ve genel

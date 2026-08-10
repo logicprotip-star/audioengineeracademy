@@ -1764,6 +1764,7 @@
     .tools-files-empty-title{font-size:13px;font-weight:700;color:#b8bdc4}
     .tools-files-empty-sub{font-size:11.5px;font-weight:500;color:#6c7178;margin-top:4px}
     .tools-files-plain-empty{margin-top:10px;font-size:12px;font-weight:500;color:#6c7178}
+    .tools-files-total-space{margin-top:10px;font-size:10.5px;font-weight:600;color:#6c7178;text-align:right;font-variant-numeric:tabular-nums}
     .tools-files-history-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid rgba(255,255,255,.05)}
     .tools-files-history-name{font-size:12.5px;font-weight:600;color:#d6d9dd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .tools-files-history-sub{font-size:10.5px;font-weight:500;color:#6c7178;margin-top:2px}
@@ -1816,8 +1817,10 @@
     .tools-tonal-legend-item{display:flex;align-items:center;gap:6px}
     .tools-tonal-legend-dot{width:7px;height:7px;border-radius:50%}
     .tools-tonal-legend-item span{font-size:10.5px;font-weight:600;color:#8f949b}
-    .tools-tonal-chart-wrap{margin-top:14px;height:160px;border-radius:12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.05);overflow:hidden}
+    .tools-tonal-chart-wrap{position:relative;margin-top:14px;height:160px;border-radius:12px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.05);overflow:hidden}
     .tools-tonal-chart-wrap canvas{display:block;width:100%;height:100%}
+    .tools-tonal-live-badge{position:absolute;top:8px;right:10px;font-size:9.5px;font-weight:800;letter-spacing:.4px;color:#22d3ee;background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.3);border-radius:20px;padding:2px 8px;z-index:1;animation:tools-tonal-live-pulse 1.6s ease-in-out infinite}
+    @keyframes tools-tonal-live-pulse{0%,100%{opacity:1}50%{opacity:.55}}
     .tools-tonal-summary{margin-top:11px;font-size:12px;font-weight:600;line-height:1.45}
     .tools-tonal-ab-row{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
     .tools-tonal-ab-btn{flex:1 1 auto;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 10px;border-radius:11px;background:rgba(255,255,255,.03);border:1.5px solid rgba(255,255,255,.08);color:#8f949b;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}

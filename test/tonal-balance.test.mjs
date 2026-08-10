@@ -6,7 +6,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { BANDS, BAND_EDGES, DRAFT_TARGET_CURVES, OFF_TARGET_THRESHOLD_DB, summarizeDeviation } from "../www/js/core/tonal-balance.js";
+import { BANDS, BAND_EDGES, DRAFT_TARGET_CURVES, OFF_TARGET_THRESHOLD_DB, summarizeDeviation, bandDevsFromLiveSnapshot } from "../www/js/core/tonal-balance.js";
 import { FA_ZONES } from "../www/js/modes/frekans-bulma.js";
 
 describe("tonal-balance.js — BANDS/BAND_EDGES, Frekans Bulma'nın FA_ZONES'uyla TUTARLI mı", () => {
@@ -56,5 +56,44 @@ describe("tonal-balance.js — summarizeDeviation()", () => {
   it("eşik TAM sınırda (1.5) DAHİL SAYILMAZ (>1.5 kuralı, task'ın kendi eşiği)", () => {
     const r = summarizeDeviation([OFF_TARGET_THRESHOLD_DB, 0, 0, 0, 0, 0]);
     assert.equal(r.offBands.length, 0);
+  });
+});
+
+// G102 — canlı analizör (Tonal Balance: mutlak gösterim + rAF akışı) için
+// eklenen SAF fonksiyon. Node'da gerçek AnalyserNode yok — bu yüzden
+// getFloatFrequencyData()'nın döndürdüğü şekli ELLE üretiyoruz (Float32Array,
+// bin[i] = i*binHz frekansındaki dB değeri).
+describe("tonal-balance.js — bandDevsFromLiveSnapshot() (G102, canlı kare → bant sapması)", () => {
+  const sampleRate = 48000, fftSize = 8192;
+  const binHz = sampleRate / fftSize;
+  const binCount = fftSize / 2;
+
+  function freqDataWithLoudBand(loudFrom, loudTo, loudDb, baseDb) {
+    const data = new Float32Array(binCount).fill(baseDb);
+    for (let bin = 1; bin < binCount; bin++) {
+      const f = bin * binHz;
+      if (f >= loudFrom && f < loudTo) data[bin] = loudDb;
+    }
+    return data;
+  }
+
+  it("measureSpectralDeviation ile AYNI tanımı kullanır: sadece SUB'da yüksek enerji → SUB pozitif, diğerleri negatif sapma", () => {
+    const data = freqDataWithLoudBand(BAND_EDGES[0], BAND_EDGES[1], -20, -60);
+    const devs = bandDevsFromLiveSnapshot(data, sampleRate, fftSize);
+    assert.equal(devs.length, 6);
+    assert.ok(devs[0] > 0, `SUB pozitif olmalı, geldi: ${devs[0]}`);
+    for (let i = 1; i < 6; i++) assert.ok(devs[i] < 0, `bant ${i} negatif olmalı, geldi: ${devs[i]}`);
+  });
+
+  it("tüm bantlar eşit enerjideyse tüm sapmalar ~0'dır", () => {
+    const data = new Float32Array(binCount).fill(-40);
+    const devs = bandDevsFromLiveSnapshot(data, sampleRate, fftSize);
+    devs.forEach((d) => assert.ok(Math.abs(d) < 1e-9, `sapma 0'a yakın olmalı, geldi: ${d}`));
+  });
+
+  it("hiçbir bin sonlu (finite) değilse (ör. sessizlik/dolmamış buffer) 6 elemanlı sıfır dizisi döner, NaN/undefined DEĞİL", () => {
+    const data = new Float32Array(binCount).fill(-Infinity);
+    const devs = bandDevsFromLiveSnapshot(data, sampleRate, fftSize);
+    assert.deepEqual(devs, [0, 0, 0, 0, 0, 0]);
   });
 });

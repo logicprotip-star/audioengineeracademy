@@ -941,11 +941,15 @@
                 Referans parça seç
               </button>
             </div>
-            <div class="tools-tonal-legend hidden" id="toolsTonalLegend">
-              <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#e8c46a"></div><span>Referans</span></div>
-              <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#22d3ee"></div><span>Senin mixin</span></div>
+            <div class="tools-tonal-legend" id="toolsTonalLegend">
+              <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:rgba(34,211,238,.35)"></div><span>Hedef bandı</span></div>
+              <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#22d3ee;opacity:.4"></div><span>Ortalama</span></div>
+              <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#22d3ee"></div><span>Canlı (çalarken)</span></div>
             </div>
-            <div class="tools-tonal-chart-wrap"><canvas id="toolsTonalChart"></canvas></div>
+            <div class="tools-tonal-chart-wrap">
+              <div class="tools-tonal-live-badge hidden" id="toolsTonalLiveBadge">● CANLI</div>
+              <canvas id="toolsTonalChart"></canvas>
+            </div>
             <div class="tools-tonal-summary" id="toolsTonalSummary"></div>
             <div class="tools-tonal-ab-row hidden" id="toolsTonalAbRow">
               <div class="tools-tonal-ab-btn" id="toolsTonalPlayA">A · Referans</div>
@@ -1067,6 +1071,7 @@
             <div class="tools-files-empty-title">Henüz dosya yüklemedin</div>
             <div class="tools-files-empty-sub">WAV, MP3 veya AIFF yükle, referans filtreleriyle dinle.</div>
           </div>
+          <div class="tools-files-total-space hidden" id="toolsFilesTotalSpace"></div>
 
           <div class="tools-files-section-label">SON İŞLEMLERİM</div>
           <div id="toolsActionsList"></div>
