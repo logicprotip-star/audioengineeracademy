@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G110)
+Son güncelleme: 11.08.2026 (G111)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,82 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G110, tek commit) — **KÖK SEBEP: G107'nin html/body position:fixed kilidi kaldırıldı — cihaz kanıtıyla DOĞRULANMIŞ gereksiz bir yan etkiydi.**
+Bu commit (G111, tek commit) — **Araçlar: dört kart HER ZAMAN görünür — dosya yokken üçü sönük + "Önce bir dosya yükle" ipucu.**
+
+**GEREKÇE (kullanıcının kendi kararı):** (1) kullanıcı uygulamanın ne
+sunduğunu dosya yüklemeden GÖRSÜN; (2) G109'da bulunan "kartlar sonradan
+görünür olunca `.tools-scroll` yeniden ölçülmüyor" riskinin KAYNAĞI
+kapansın — kartlar artık HER ZAMAN DOM'da/düzende, sonradan `display:none`
+→ `flex` geçişi YOK.
+
+**1) HTML (`index.html`) — üç kart artık `.hidden` (display:none) yerine
+`.tools-card-disabled` ile başlıyor, her birine bir ipucu satırı eklendi:**
+- `#toolsTonalCard`, `#toolsAnalysisCard`: `class="tools-card hidden"` →
+  `class="tools-card tools-card-disabled"`.
+- Referans Filtreleri'nin sarmalayıcısı (önceden id'siz) artık
+  `id="toolsFilterCard" class="tools-card tools-card-disabled"` — bu kart
+  zaten HER ZAMAN görünürdü (`.hidden` hiç yoktu), şimdi İLK KEZ dosyasız
+  durumda sönük/tıklanamaz.
+- Her üçünün `.tools-card-top` başlığından HEMEN SONRA:
+  `<div class="tools-card-disabled-hint" id="...">Önce bir dosya yükle</div>`.
+
+**2) CSS (`styles.css`) — yeni iki kural:**
+```css
+.tools-card-disabled{opacity:.45;pointer-events:none}
+.tools-card-disabled-hint{display:none;padding:10px 0 0 0;text-align:center;font-size:12px;font-weight:600;color:#6c7178}
+.tools-card-disabled .tools-card-disabled-hint{display:block}
+```
+İpucu satırının görünürlüğü TAMAMEN CSS'in soy (descendant) seçicisiyle
+yönetiliyor — JS ipucuyu AYRICA toggle ETMİYOR, tek bir class (kartın
+kendisi) yeterli. `pointer-events:none` GERÇEK bir tıklama/dokunuşu
+engelliyor (sadece opacity yetmezdi — kart içindeki butonlar dosyasız
+durumda hâlâ tıklanabilir kalırdı). Başlık/ikon İÇİN ayrı bir istisna YOK —
+"sadece sönük olsun" isteği, kartın TAMAMININ (başlık dahil) aynı
+opacity'yle solmasıyla karşılandı.
+
+**3) JS (`app.js`) — `renderToolsCardsVisibility()` ve İKİ competing
+toggle düzeltildi:**
+- `renderToolsCardsVisibility()`: `.hidden` yerine `.tools-card-disabled`
+  toggle ediyor, ÜÇÜNCÜ karta (`els.toolsFilterCard`) da uygulanıyor
+  (öncesinde Referans Filtreleri bu fonksiyonun HİÇ kapsamında değildi).
+- `renderToolsTonalCard()` (satır ~8586) AYRICA `els.toolsTonalCard`'a
+  `.hidden` toggle ediyordu (redundant ama competing bir kod yolu) —
+  `.tools-card-disabled`'a çevrildi, aksi halde bu ikinci toggle kartı
+  YENİDEN `display:none` yapıp G111'i BOZARDI.
+  `toolsTonalLiveTick()`'teki `!classList.contains("hidden")` görünürlük
+  kontrolü de `.tools-card-disabled` kontrolüne çevrildi (aksi halde HER
+  ZAMAN `true` dönerdi, çünkü element artık HİÇBİR ZAMAN `.hidden`
+  almıyor).
+- `els.toolsFilterCard` yeni bir element referansı olarak eklendi.
+
+**DOĞRULAMA (ekran görüntüsüyle, masaüstü Chrome):**
+- **Dosya yokken:** dört kart da göründü — "Mixini Yükle" tam opak/aktif,
+  "Tonal Balance"/"Ölçüm Sonuçları"/"Referans Filtreleri" başlık+ikon
+  GÖRÜNÜR ama sönük (opacity .45), her birinde "Önce bir dosya yükle"
+  ortalanmış küçük metin, tıklama/dokunuş ETKİSİZ (pointer-events:none —
+  Referans Filtreleri başlığına tıklandığında akordiyon AÇILMADI).
+- **Dosya yüklenince:** üçü de TAM opaklığa döndü, ipucu metni KAYBOLDU,
+  Tonal Balance GERÇEK veriyle çizildi, Ölçüm Sonuçları'nın "Analiz et"
+  butonu aktif, Referans Filtreleri'ne tıklanınca akordiyon GERÇEKTEN
+  açıldı (chevron döndü, çalar paneli göründü) — üçü de TAM işlevsel.
+- **`[scroll-diag]` / `.tools-scroll` ölçümü:**
+  - Dosya YOKKEN (4 kart, 3'ü sönük ama DOM'da/ölçülüyor):
+    `scrollHeight=928, clientHeight=899, overflows=true` — task'ın
+    gerekçesi DOĞRULANDI, kap BAŞTAN doğru yükseklikte kuruluyor.
+    (dosyasız durumda sheet açılıp kapatılmadığı için `[scroll-diag]`
+    logu bu durumda tetiklenmedi, doğrudan `scrollHeight`/`clientHeight`
+    okunarak doğrulandı.)
+  - Dosya YÜKLENİP Dosyalarım sheet'i açılıp kapatıldıktan SONRA:
+    `[scroll-diag] kilit kalktı — overflow-y=auto, touch-action=auto,
+    scrollTop=0, scrollHeight=1700, clientHeight=899, kaydırılabilir=true`
+    (Referans Filtreleri akordiyonu da açıkken).
+- Konsol hatası: 0 (tüm akış boyunca — kart geçişleri, sheet aç/kapa,
+  akordiyon aç/kapa).
+- **`npm test`: 1119/1119.**
+
+---
+
+Önceki commit (G110, tek commit) — **KÖK SEBEP: G107'nin html/body position:fixed kilidi kaldırıldı — cihaz kanıtıyla DOĞRULANMIŞ gereksiz bir yan etkiydi.**
 
 **Kullanıcının cihaz kanıtı:** `[scroll-diag] kilit kalktı — overflow-y=auto,
 touch-action=auto, scrollTop=0, scrollHeight=873, clientHeight=873,
@@ -9233,7 +9308,22 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G110 itibarıyla):** `npx cap sync ios` + kullanıcı
+**Tek sonraki adım (G111 itibarıyla):** `npx cap sync ios` + kullanıcı
+cihazda ÜÇ ŞEYİ doğrulamalı:
+(1) dört kartın da baştan (dosya yüklenmeden) göründüğü, üçünün sönük/
+tıklanamaz olduğu, "Önce bir dosya yükle" ipucunun okunduğu — bu ilk kez
+CİHAZDA görülüyor;
+(2) dosya yüklenince üçünün de tam işlevsel hâle döndüğü;
+(3) EN ÖNEMLİSİ — G109'un asıl bulduğu "Dosyalarım sheet'i kapanınca Araçlar
+kaydırılamıyor" sorunu ARTIK cihazda da düzeldi mi — kartlar artık BAŞTAN
+DOM'da olduğu için `.tools-scroll` hiçbir zaman "sonradan yeniden ölçülmesi
+gereken" bir duruma girmiyor, teoride bu G109/G110'un ele aldığı sorunu
+TAMAMEN farklı bir açıdan (semptomu değil, kaynağı) kapatıyor olmalı — ama
+BU DA cihazda hiç doğrulanmadı.
+G107'nin ASIL amacı (Ölçüm Sonuçları sheet'inin ekranın altında kalmaması)
+da HÂLÂ ayrıca doğrulanmalı (G110'dan kalan açık soru, DEĞİŞMEDİ).
+
+**Önceki adım (G110 itibarıyla):** `npx cap sync ios` + kullanıcı
 cihazda İKİ ŞEYİ AYRI AYRI doğrulamalı:
 (1) `.tools-scroll` artık DOĞRU mu — Dosyalarım sheet'i açılıp kapatıldıktan
 sonra `[scroll-diag]` çıktısında `scrollHeight > clientHeight` (kartlar

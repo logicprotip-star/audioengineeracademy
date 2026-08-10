@@ -198,6 +198,7 @@ const els = {
   toolsResultsTotalTime: document.getElementById("toolsResultsTotalTime"),
   toolsResultsStrip: document.getElementById("toolsResultsStrip"),
   // F) Referans Filtreleri — akordiyon + çalar
+  toolsFilterCard: document.getElementById("toolsFilterCard"),
   toolsFilterHeader: document.getElementById("toolsFilterHeader"),
   toolsFilterHeaderBadge: document.getElementById("toolsFilterHeaderBadge"),
   toolsFilterChevron: document.getElementById("toolsFilterChevron"),
@@ -8123,11 +8124,23 @@ function renderToolsAnalysisCardState() {
   if (els.toolsResultsStrip) els.toolsResultsStrip.classList.toggle("hidden", !(success && !toolsResultsSheetOpenFlag));
 }
 
+// G111 — "kartlar her zaman görünür olacak" (kullanıcının kendi kararı,
+// GEREKÇE: uygulamanın ne sunduğu baştan görünsün + G109'da bulunan "kartlar
+// sonradan görünür olunca .tools-scroll yeniden ölçülmüyor" riskinin kaynağı
+// kapansın). ÖNCEKİ: Tonal Balance/Ölçüm Sonuçları `.hidden` (display:none)
+// ile DOM'dan/düzenden TAMAMEN çıkıyordu, Referans Filtreleri zaten hep
+// vardı. ARTIK üçü de HER ZAMAN düzende — `.tools-card-disabled` (opacity
+// .45 + pointer-events:none, bkz. styles.css) ile görsel/etkileşim olarak
+// devre dışı bırakılıyor, "Önce bir dosya yükle" ipucu SADECE CSS'in kendi
+// soy (descendant) seçicisiyle görünüyor (`.tools-card-disabled .tools-
+// card-disabled-hint{display:block}`) — JS ayrıca ipucu görünürlüğünü
+// TOGGLE ETMİYOR, tek bir class'ı (kartın kendisi) değiştirmek yetiyor.
 function renderToolsCardsVisibility() {
   const entry = toolsSelectedEntry();
   const hasFile = !!entry;
-  if (els.toolsTonalCard) els.toolsTonalCard.classList.toggle("hidden", !hasFile);
-  if (els.toolsAnalysisCard) els.toolsAnalysisCard.classList.toggle("hidden", !hasFile);
+  if (els.toolsTonalCard) els.toolsTonalCard.classList.toggle("tools-card-disabled", !hasFile);
+  if (els.toolsAnalysisCard) els.toolsAnalysisCard.classList.toggle("tools-card-disabled", !hasFile);
+  if (els.toolsFilterCard) els.toolsFilterCard.classList.toggle("tools-card-disabled", !hasFile);
   if (!hasFile) {
     if (els.toolsResultsStrip) els.toolsResultsStrip.classList.add("hidden");
     return;
@@ -8259,7 +8272,7 @@ function toolsToolsScreenActive() {
 function toolsTonalLiveTick() {
   toolsTonalLiveRafId = null;
   const shouldRun = toolsFilterPlaying && toolsToolsScreenActive() &&
-    els.toolsTonalCard && !els.toolsTonalCard.classList.contains("hidden");
+    els.toolsTonalCard && !els.toolsTonalCard.classList.contains("tools-card-disabled");
   if (!shouldRun) {
     if (toolsTonalLiveDevs !== null) {
       toolsTonalLiveDevs = null;
@@ -8570,7 +8583,7 @@ let toolsTonalRenderToken = 0;
 async function renderToolsTonalCard() {
   if (!els.toolsTonalCard) return;
   const entry = toolsSelectedEntry();
-  els.toolsTonalCard.classList.toggle("hidden", !entry);
+  els.toolsTonalCard.classList.toggle("tools-card-disabled", !entry);
   if (!entry) { toolsTonalLastAvgDevs = null; toolsTonalLastTargetDevs = null; return; }
   const myToken = ++toolsTonalRenderToken;
   renderToolsTonalChips();
