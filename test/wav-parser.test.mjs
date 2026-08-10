@@ -39,13 +39,13 @@ function buildWav({ audioFormat, bitsPerSample, sampleRate = 44100, numChannels 
 }
 
 describe("decodeWavPcm()", () => {
-  it("16-bit PCM: bilinen Int16 örnekleri doğru Float32'ye çevirir", () => {
+  it("16-bit PCM: bilinen Int16 örnekleri doğru Float32'ye çevirir", async () => {
     const samples = [0, 32767, -32768, 16384, -16384];
     const buf = buildWav({
       audioFormat: 1, bitsPerSample: 16, sampleCount: samples.length,
       writeSample: (view, offset, i) => view.setInt16(offset, samples[i], true)
     });
-    const result = decodeWavPcm(buf);
+    const result = await decodeWavPcm(buf);
     assert.equal(result.numChannels, 1);
     assert.equal(result.sampleRate, 44100);
     assert.equal(result.bitsPerSample, 16);
@@ -57,7 +57,7 @@ describe("decodeWavPcm()", () => {
     }
   });
 
-  it("24-bit PCM: 3-baytlık little-endian işaretli örnekleri doğru çevirir", () => {
+  it("24-bit PCM: 3-baytlık little-endian işaretli örnekleri doğru çevirir", async () => {
     const samples = [0, 8388607, -8388608, 4194304, -4194304]; // max, min, yarı
     const buf = buildWav({
       audioFormat: 1, bitsPerSample: 24, sampleCount: samples.length,
@@ -69,7 +69,7 @@ describe("decodeWavPcm()", () => {
         view.setUint8(offset + 2, (raw >> 16) & 0xff);
       }
     });
-    const result = decodeWavPcm(buf);
+    const result = await decodeWavPcm(buf);
     assert.equal(result.bitsPerSample, 24);
     const ch0 = result.channelData[0];
     for (let i = 0; i < samples.length; i++) {
@@ -77,13 +77,13 @@ describe("decodeWavPcm()", () => {
     }
   });
 
-  it("32-bit float (IEEE float, format tag 3): doğrudan Float32 olarak okur", () => {
+  it("32-bit float (IEEE float, format tag 3): doğrudan Float32 olarak okur", async () => {
     const samples = [0, 1, -1, 0.5, -0.5, 0.999999];
     const buf = buildWav({
       audioFormat: 3, bitsPerSample: 32, sampleCount: samples.length,
       writeSample: (view, offset, i) => view.setFloat32(offset, samples[i], true)
     });
-    const result = decodeWavPcm(buf);
+    const result = await decodeWavPcm(buf);
     assert.equal(result.bitsPerSample, 32);
     assert.equal(result.audioFormat, 3);
     const ch0 = result.channelData[0];
@@ -92,7 +92,7 @@ describe("decodeWavPcm()", () => {
     }
   });
 
-  it("WAVE_FORMAT_EXTENSIBLE (0xFFFE) + 24-bit PCM SubFormat: gerçek formatı GUID'den okur", () => {
+  it("WAVE_FORMAT_EXTENSIBLE (0xFFFE) + 24-bit PCM SubFormat: gerçek formatı GUID'den okur", async () => {
     const bitsPerSample = 24, bytesPerSample = 3, sampleCount = 3, numChannels = 1;
     const dataSize = sampleCount * numChannels * bytesPerSample;
     const fmtExtraSize = 22; // cbSize(2) sonrası: validBits(2)+channelMask(4)+GUID(16)
@@ -128,7 +128,7 @@ describe("decodeWavPcm()", () => {
       view.setUint8(o + 2, (raw >> 16) & 0xff);
       o += 3;
     }
-    const result = decodeWavPcm(buffer);
+    const result = await decodeWavPcm(buffer);
     assert.equal(result.audioFormat, 1); // GUID'den PCM olarak çözüldü
     assert.equal(result.sampleRate, 48000);
     const ch0 = result.channelData[0];
@@ -137,7 +137,7 @@ describe("decodeWavPcm()", () => {
     }
   });
 
-  it("2 kanallı (stereo) 16-bit PCM: interleaved veriyi doğru ayırır", () => {
+  it("2 kanallı (stereo) 16-bit PCM: interleaved veriyi doğru ayırır", async () => {
     // L: 100, 200, 300 — R: -100, -200, -300 (interleaved: L0,R0,L1,R1,L2,R2)
     const left = [100, 200, 300], right = [-100, -200, -300];
     const buf = buildWav({
@@ -148,7 +148,7 @@ describe("decodeWavPcm()", () => {
         view.setInt16(offset, isRight ? right[frame] : left[frame], true);
       }
     });
-    const result = decodeWavPcm(buf);
+    const result = await decodeWavPcm(buf);
     assert.equal(result.numChannels, 2);
     for (let i = 0; i < left.length; i++) {
       assert.ok(Math.abs(result.channelData[0][i] - left[i] / 32768) < 1e-6);
@@ -156,20 +156,20 @@ describe("decodeWavPcm()", () => {
     }
   });
 
-  it("RIFF/WAVE imzası yoksa hata fırlatır (sessizce yanlış sonuç üretmez)", () => {
+  it("RIFF/WAVE imzası yoksa hata fırlatır (sessizce yanlış sonuç üretmez)", async () => {
     const buf = new ArrayBuffer(20);
-    assert.throws(() => decodeWavPcm(buf), /RIFF\/WAVE/);
+    await assert.rejects(() => decodeWavPcm(buf), /RIFF\/WAVE/);
   });
 
-  it("desteklenmeyen format kodu (ör. A-law=6) hata fırlatır", () => {
+  it("desteklenmeyen format kodu (ör. A-law=6) hata fırlatır", async () => {
     const buf = buildWav({
       audioFormat: 6, bitsPerSample: 8, sampleCount: 2,
       writeSample: (view, offset) => view.setUint8(offset, 128)
     });
-    assert.throws(() => decodeWavPcm(buf), /format kodu/);
+    await assert.rejects(() => decodeWavPcm(buf), /format kodu/);
   });
 
-  it("fmt chunk'ından ÖNCE bilinmeyen bir chunk (ör. LIST) varsa yine de doğru ayrıştırır", () => {
+  it("fmt chunk'ından ÖNCE bilinmeyen bir chunk (ör. LIST) varsa yine de doğru ayrıştırır", async () => {
     // Bazı DAW'lar (Logic dahil) fmt'den önce metadata chunk'ları ekleyebilir —
     // ayrıştırıcı chunk boyutunu okuyup atlayabilmeli, fmt'yi sabit ofsette varsaymamalı.
     const listBody = new Uint8Array([1, 2, 3, 4, 5]); // 5 bayt, tek → 1 dolgu baytı gerekir
@@ -196,8 +196,35 @@ describe("decodeWavPcm()", () => {
     const restStart = 12 + listChunkLen;
     for (let i = 0; i < restLen; i++) outView.setUint8(restStart + i, innerView.getUint8(12 + i));
 
-    const result = decodeWavPcm(out);
+    const result = await decodeWavPcm(out);
     assert.equal(result.channelData[0].length, 2);
     assert.ok(Math.abs(result.channelData[0][0] - 1000 / 32768) < 1e-6);
+  });
+
+  // G104 — REGRESYON: "dosya yükleyince Araçlar donuyor" raporu. Büyük bir
+  // dosyada bu döngü ana iş parçacığını TEK BİR bloke bırakmamalı — periyodik
+  // olarak `setTimeout(0)` ile nefes vermeli. Bunu ÖLÇMEK için: decode
+  // ÇALIŞIRKEN paralel bir "kalp atışı" (setInterval, 5ms) kaç kez tetikleniyor
+  // sayılıyor — döngü TEK BİR senkron blok olsaydı kalp atışı SIFIR kalırdı
+  // (event loop decode bitene kadar hiç dönemezdi).
+  it("büyük bir dosyada (24-bit stereo, ~8.7M çerçeve, ~50MB) ana iş parçacığına periyodik olarak nefes verir", async () => {
+    const numChannels = 2, bitsPerSample = 24, sampleCount = 8_700_000; // ~50MB veri, YIELD_TARGET_MS'i (40ms) güvenle aşacak kadar büyük
+    const buf = buildWav({
+      audioFormat: 1, bitsPerSample, numChannels, sampleCount,
+      writeSample: (view, offset, i) => {
+        const raw = i % 8388608;
+        view.setUint8(offset, raw & 0xff);
+        view.setUint8(offset + 1, (raw >> 8) & 0xff);
+        view.setUint8(offset + 2, (raw >> 16) & 0xff);
+      }
+    });
+    let heartbeats = 0;
+    const timer = setInterval(() => { heartbeats++; }, 5);
+    const t0 = performance.now();
+    const result = await decodeWavPcm(buf);
+    const elapsedMs = performance.now() - t0;
+    clearInterval(timer);
+    assert.equal(result.channelData[0].length, sampleCount);
+    assert.ok(heartbeats > 0, `ana iş parçacığı hiç nefes almadı (${elapsedMs.toFixed(1)}ms sürdü, kalp atışı: ${heartbeats}) — döngü TEK bir bloke halinde çalışmış olabilir`);
   });
 });

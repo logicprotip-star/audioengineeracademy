@@ -14,6 +14,23 @@
 // Desteklenen bit derinlikleri: 8/16/24/32-bit PCM, 32-bit float. Başka bir şey
 // (ör. A-law/µ-law formatTag'leri, desteklenmeyen bit derinliği) Error fırlatır —
 // çağıran taraf bunu yakalayıp kullanıcıya net bir mesaj gösterir.
+//
+// G104 — ASENKRON + İŞBİRLİKÇİ NEFES VERME (canlı cihazda "dosya yükleyince
+// Araçlar donuyor" raporu üzerine eklendi). Bu döngü fmt/data chunk'ı DataView
+// üzerinden ÖRNEK ÖRNEK okuyor — TypedArray toplu kopyalama YOK çünkü format
+// (24-bit, big-endian dönüşüm, işaret genişletme) bunu gerektirmiyor. Ölçüldü:
+// 50 MB'lık 24-bit stereo bir dosya bile masaüstü V8'de ~120ms — ama bu SENKRON
+// bir döngü, hiç `await` içermiyordu; daha yavaş bir mobil JS motorunda (veya
+// daha büyük/çok kanallı bir dosyada) 100ms sınırını AŞMASI olası. Şimdi her
+// ~2048 çerçevede bir GEÇEN SÜRE ölçülüyor, YIELD_TARGET_MS'i (40ms — 100ms
+// sınırının altında güvenli bir pay) aşınca `setTimeout(0)` ile ana iş
+// parçacığına GERİ VERİLİYOR (tarayıcının olay döngüsü tıklama/kaydırma/çizim
+// işleyebilsin diye) — bu, sabit sayıda küçük parçaya bölmek yerine cihaz
+// hızına göre KENDİLİĞİNDEN uyarlanıyor (hızlı cihazda az yield, yavaş cihazda
+// çok ama her biri küçük).
+
+const YIELD_CHECK_FRAMES = 2048;
+const YIELD_TARGET_MS = 40;
 
 function readAscii(view, offset, length) {
   let s = "";
@@ -21,7 +38,7 @@ function readAscii(view, offset, length) {
   return s;
 }
 
-export function decodeWavPcm(arrayBuffer) {
+export async function decodeWavPcm(arrayBuffer) {
   const view = new DataView(arrayBuffer);
   if (arrayBuffer.byteLength < 12 || readAscii(view, 0, 4) !== "RIFF" || readAscii(view, 8, 4) !== "WAVE") {
     throw new Error("Geçerli bir WAV (RIFF/WAVE) dosyası değil");
@@ -75,6 +92,7 @@ export function decodeWavPcm(arrayBuffer) {
     throw new Error(`Desteklenmeyen WAV format kodu: ${audioFormat} (sadece PCM=1/IEEE float=3 destekleniyor)`);
   }
 
+  let lastYield = performance.now();
   for (let i = 0; i < frameCount; i++) {
     const frameStart = dataOffset + i * frameSize;
     for (let ch = 0; ch < numChannels; ch++) {
@@ -100,6 +118,13 @@ export function decodeWavPcm(arrayBuffer) {
         throw new Error(`Desteklenmeyen bit derinliği/format kombinasyonu: ${bitsPerSample}-bit, format ${audioFormat}`);
       }
       channelData[ch][i] = v;
+    }
+    if (i % YIELD_CHECK_FRAMES === 0 && i > 0) {
+      const now = performance.now();
+      if (now - lastYield > YIELD_TARGET_MS) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        lastYield = performance.now();
+      }
     }
   }
 

@@ -148,6 +148,8 @@ const els = {
   toolsFilesSheet: document.getElementById("toolsFilesSheet"),
   toolsFilesClose: document.getElementById("toolsFilesClose"),
   toolsFilesPickBtn: document.getElementById("toolsFilesPickBtn"),
+  toolsFilesPickBtnLabel: document.getElementById("toolsFilesPickBtnLabel"),
+  toolsFilesPickBar: document.getElementById("toolsFilesPickBar"),
   toolsFileInput: document.getElementById("toolsFileInput"),
   toolsFilesList: document.getElementById("toolsFilesList"),
   toolsFilesEmpty: document.getElementById("toolsFilesEmpty"),
@@ -7152,6 +7154,22 @@ function toolsSelectedEntry() {
   return toolsFiles.find((f) => f.id === toolsSelectedFileId) || null;
 }
 
+// G104 — "Kullanıcıya ilerleme göstergesi gösterilsin" (task'ın kendi kuralı).
+// file-storage.js artık büyük dosyaları PARÇA PARÇA yazıyor (bkz. o dosyanın
+// G104 notu) — her parça tamamlandığında burası çağrılır. fraction=null
+// gösterge sıfırlanır (varsayılan etikete döner).
+const TOOLS_PICK_BTN_DEFAULT_LABEL = "Cihazdan yeni dosya seç · WAV, MP3, AIFF";
+function toolsSetFileSaveProgress(fraction) {
+  if (fraction === null) {
+    if (els.toolsFilesPickBtnLabel) els.toolsFilesPickBtnLabel.textContent = TOOLS_PICK_BTN_DEFAULT_LABEL;
+    if (els.toolsFilesPickBar) els.toolsFilesPickBar.style.width = "0%";
+    return;
+  }
+  const pct = Math.round(fraction * 100);
+  if (els.toolsFilesPickBtnLabel) els.toolsFilesPickBtnLabel.textContent = `Dosya kaydediliyor… %${pct}`;
+  if (els.toolsFilesPickBar) els.toolsFilesPickBar.style.width = `${pct}%`;
+}
+
 async function toolsAddFile(file) {
   const validation = validateAudioFile(file);
   if (!validation.ok) { toast(validation.title, validation.detail); return null; }
@@ -7170,10 +7188,12 @@ async function toolsAddFile(file) {
     file, // bellek-içi ÖNBELLEK — persist edilmiyor (JSON.stringify tarafından atlanır çünkü toolsSaveLibraryManifest bunu ayrıca seçip alıyor)
   };
   try {
-    await fileStorage.saveFile(entry.id, file);
+    await fileStorage.saveFile(entry.id, file, toolsSetFileSaveProgress);
   } catch (e) {
     console.error("[tools] dosya kalıcı depoya yazılamadı:", e);
     toast("Dosya kaydedilemedi", "Dosya bu oturumda kullanılabilir ama kalıcı olarak saklanamadı.");
+  } finally {
+    toolsSetFileSaveProgress(null);
   }
   toolsFiles.push(entry);
   // En fazla TOOLS_LIBRARY_MAX dosya — yenisi eklenince en eski (addedAt) düşer.
@@ -7192,7 +7212,16 @@ async function toolsAddFile(file) {
   return entry;
 }
 
-function toolsSelectFile(id) {
+// G104 — skipReload: canlı ölçümde bulunan bir performans sorunu için
+// (bkz. DURUM.md G104). toolsAddFile() az önce eklenen dosyayı ZATEN decode
+// etmişti (buffer.duration/peaks için); onu HEMEN seçen çağrı yerleri
+// (toolsHandlePickNewFile/toolsFileInput "change") uploadManager'ın buffer'ı
+// hâlâ o dosya için GÜNCEL olduğundan skipReload:true geçer — böylece BÜYÜK
+// bir dosyanın (ör. 50 MB, elle WAV yedek yolundan geçen) ikinci bir tam
+// decode+bellek ayırma turuna (ölçülen GC baskısı dahil, uzun görev
+// üretebiliyordu) girmesi ÖNLENİR. Dosyalarım sheet'inden VAR OLAN bir
+// dosyayı seçmek (asıl kullanım amacı) skipReload'suz, eskisi gibi çalışır.
+function toolsSelectFile(id, { skipReload = false } = {}) {
   const entry = toolsFiles.find((f) => f.id === id);
   if (!entry) return;
   toolsSelectedFileId = id;
@@ -7200,24 +7229,29 @@ function toolsSelectFile(id) {
   resetToolsAnalysis();
   toolsTonalDevs = null;
   toolsFilterPlaying = false;
-  (async () => {
-    await audioEngine.initAudio();
-    let fileObj = entry.file;
-    if (!fileObj) {
-      const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
-      if (!blob) {
-        toast("Dosya bulunamadı", `${entry.name} artık cihazda yok. Kütüphaneden kaldırıldı.`);
-        toolsRemoveFile(id, { skipStorageDelete: true });
-        return;
-      }
-      fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
-      entry.file = fileObj; // bu oturum için önbelleğe al
-    }
-    const res = await uploadManager.loadFile(fileObj);
-    if (!res.ok) { toast(res.title, res.detail); return; }
+  if (skipReload) {
     renderToolsCardsVisibility();
     renderToolsFilterPlayer();
-  })();
+  } else {
+    (async () => {
+      await audioEngine.initAudio();
+      let fileObj = entry.file;
+      if (!fileObj) {
+        const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+        if (!blob) {
+          toast("Dosya bulunamadı", `${entry.name} artık cihazda yok. Kütüphaneden kaldırıldı.`);
+          toolsRemoveFile(id, { skipStorageDelete: true });
+          return;
+        }
+        fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+        entry.file = fileObj; // bu oturum için önbelleğe al
+      }
+      const res = await uploadManager.loadFile(fileObj);
+      if (!res.ok) { toast(res.title, res.detail); return; }
+      renderToolsCardsVisibility();
+      renderToolsFilterPlayer();
+    })();
+  }
   toolsCloseFilesSheet();
   renderToolsFilesSheetContent();
 }
@@ -7421,7 +7455,7 @@ async function toolsHandlePickNewFile() {
   const entry = await toolsAddFile(picked);
   if (entry) {
     toast("Dosya yüklendi", `${picked.name} — Dosyalarım'da listelendi.`);
-    toolsSelectFile(entry.id);
+    toolsSelectFile(entry.id, { skipReload: true });
   }
 }
 if (els.toolsUploadBtn) els.toolsUploadBtn.addEventListener("click", toolsOpenFilesSheet);
@@ -7433,7 +7467,7 @@ if (els.toolsFileInput) {
     els.toolsFileInput.value = "";
     if (!file) return;
     const entry = await toolsAddFile(file);
-    if (entry) { toast("Dosya yüklendi", `${file.name} — Dosyalarım'da listelendi.`); toolsSelectFile(entry.id); }
+    if (entry) { toast("Dosya yüklendi", `${file.name} — Dosyalarım'da listelendi.`); toolsSelectFile(entry.id, { skipReload: true }); }
   });
 }
 if (els.toolsFilesClose) els.toolsFilesClose.addEventListener("click", toolsCloseFilesSheet);

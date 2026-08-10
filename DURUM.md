@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G103)
+Son güncelleme: 10.08.2026 (G104)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,102 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G103, tek commit) — **Araçlar: cihazda test edilen DÖRT düzeltme.**
+Bu commit (G104, tek commit) — **Dosya yükleyince Araçlar donuyor — KÖK SEBEP
+TEŞHİSİ + düzeltme.** iOS'ta canlı bildirilen "dosya yüklendiğinde arayüz
+kilitleniyor" sorunu, önce TEŞHİS SONRA DÜZELTME talimatı gereği, önce
+gerçek zamanlama ölçümleriyle (10 MB/50 MB sentetik dosyalar, `PerformanceObserver`
+"longtask" API'si — tarayıcının kendi >50ms görev tanımı) araştırıldı.
+
+**TEŞHİS — adım adım, her adımın nerede/ne kadar sürdüğü:**
+1. `file.arrayBuffer()` (ana iş parçacığı, ~15-20ms/50MB) — sorun DEĞİL.
+2. `ctx.decodeAudioData()` (ana iş parçacığı çağırıyor, native decode arka
+   planda) — başarılıysa ~10ms; iOS WKWebView'in REDDETTİĞİ alt-tiplerde
+   (24-bit PCM/32-bit float, Logic/Pro Tools export'ları — dosya başı yorumu)
+   hızla reddediyor, adım 3'e düşülüyor.
+3. `decodeWavPcm()` (elle WAV ayrıştırıcı, `wav-parser.js`) — **KÖK SEBEP
+   ADAYI #1, DOĞRULANDI:** ana iş parçacığında TEK, SENKRON, ~350ms'lik
+   (50MB/24-bit/stereo) bir döngü — hiç `await` içermiyordu. Görev
+   tanımına göre 50ms üstü HER şey "longtask" — bu döngü TEK BAŞINA sınırı
+   aşıyordu.
+4. `ctx.createBuffer()`/`copyToChannel()` — ölçüldü, hızlı (~1-10ms), sorun
+   DEĞİL.
+5. `fileStorage.saveFile()` → native yolda `blobToBase64()` (`FileReader.
+   readAsDataURL`) + `Filesystem.writeFile()` — **KÖK SEBEP ADAYI #2
+   (kullanıcının kendi hipotezi), KISMEN DOĞRULANDI:** JS tarafındaki base64
+   dönüşümünün KENDİSİ hızlı ölçüldü (~23ms/10MB, doğrusal), ama
+   Capacitor'ın JS↔native köprüsünün TEK bir onlarca-MB'lık string'i
+   taşıması iyi belgelenmiş, bu ortamda GERÇEK cihaz olmadan doğrudan
+   ölçülemeyen bir risk.
+6. **YENİ bulunan ÜÇÜNCÜ kök sebep (hipotez listesinde YOKTU, ölçümle
+   ortaya çıktı):** `toolsAddFile()` dosyayı decode ediyor (adım 1-4),
+   HEMEN ardından `toolsSelectFile()` AYNI dosyayı BAŞTAN SONA YENİDEN
+   decode ediyordu (G102'den kalma, DURUM.md'de "performans etkisi
+   ölçülmedi" diye işaretliydi) — bu SADECE süreyi ikiye katlamıyor, aynı
+   turda tekrarlanan büyük (70MB+) bellek ayırmaları GC baskısı yaratıp
+   ek bir longtask'a (~330ms) yol açtığı canlı ölçümle gözlendi.
+
+**DÜZELTME — dört değişiklik, hepsi ölçümle doğrulandı:**
+1. **`www/js/core/wav-parser.js` — `decodeWavPcm` artık ASENKRON, işbirlikçi
+   nefes veriyor.** Her ~2048 çerçevede bir geçen süre ölçülüyor, 40ms'yi
+   (100ms sınırının altında güvenli bir pay) aşınca `await setTimeout(0)`
+   ile ana iş parçacığına geri veriliyor — cihaz hızına göre KENDİLİĞİNDEN
+   uyarlanıyor (sabit parça sayısı DEĞİL). `upload.js`'in tek çağrı yeri
+   `await` ile güncellendi.
+2. **`www/js/core/file-storage.js` — native `saveFile` artık PARÇA PARÇA
+   yazıyor.** 4MB'lık parçalara bölünüyor; ilk parça `Filesystem.writeFile()`,
+   geri kalanı resmi `appendFile()` API'siyle (plugin'in `definitions.d.ts`'i
+   doğrulandı) ekleniyor — Capacitor köprüsüne TEK dev bir string yerine çok
+   sayıda küçük mesaj gidiyor, her parça arasında doğal bir nefes noktası
+   var. `onProgress(fraction)` callback'i eklendi.
+3. **`www/js/app.js` — gerçek ilerleme göstergesi.** Dosyalarım sheet'indeki
+   "Cihazdan yeni dosya seç" butonu artık kaydetme sırasında "Dosya
+   kaydediliyor… %N" yazıp altında GERÇEK (kozmetik sabit animasyon DEĞİL)
+   bir ilerleme çubuğu dolduruyor — `toolsSetFileSaveProgress()`,
+   `fileStorage.saveFile()`'ın `onProgress` callback'ine bağlı.
+4. **`www/js/app.js` — çift decode ORTADAN KALDIRILDI.** `toolsSelectFile(id,
+   {skipReload})` yeni bir opsiyonel bayrak aldı — `toolsAddFile()`'ın HEMEN
+   ardından "az önce eklenen dosyayı seç" akışında (`toolsHandlePickNewFile`/
+   `toolsFileInput` "change") `skipReload:true` geçiliyor, çünkü
+   `uploadManager`'ın buffer'ı ZATEN o dosya için güncel — YENİDEN decode
+   ETMİYOR. Dosyalarım sheet'inden VAR OLAN bir dosyayı seçmek (asıl kullanım)
+   `skipReload`'suz, DEĞİŞMEDEN çalışıyor.
+
+**DOĞRULAMA (gerçek ölçümler, canlı tarayıcı — Node/V8 DEĞİL, gerçek
+`PerformanceObserver` longtask API'si + `input.dispatchEvent` ile tetiklenen
+GERÇEK uygulama kod yolu):**
+- **Düzeltme ÖNCESİ** (geçici teşhis enstrümantasyonuyla ölçüldü, koda
+  kalıcı bırakılmadı): 50MB/24-bit-stereo bir dosyada İKİ longtask —
+  ~680ms (senkron `decodeWavPcm` döngüsü) + ~330ms (ikinci, gereksiz
+  decode turunun GC baskısı).
+- **Düzeltme SONRASI** — üç ayrı senaryoda, 10 MB VE 50 MB'ta: **0 longtask**
+  (native decode başarılı senaryo, WAV yedek yolu senaryosu, web/IndexedDB
+  depolama senaryosu — hepsi 0). Toplam işlem süresi ~350-1000ms (dosya
+  boyutuna göre), TEK bir adımda bile 50ms'yi (longtask sınırı) aşan görev
+  YOK.
+- **İlerleme göstergesi GERÇEKTEN çalışıyor:** 50MB'lık bir dosyada 13 parça
+  callback'i doğrudan yakalandı — %8, %16, %24 ... %96, %100, sonra sıfırlama
+  — toplam ~63ms'lik bir pencerede (ne kadar HIZLI olduğunun kanıtı).
+- **Gerçek tıklama/kaydırma kanıtı:** yükleme akışı SÜRERKEN (aynı senkron
+  script içinde, event loop'a dönmeden) başka bir DOM elemanına
+  `dispatchEvent` ile tıklama gönderildi — 0.2ms'de senkron olarak
+  sonuçlandı (ana iş parçacığı bloke olsaydı bu senkron çağrının KENDİSİ de
+  beklerdi) — 0-longtask ölçümüyle TUTARLI, ikinci bir kanıt hattı.
+- **Konsol hatası: 0** (üç senaryonun HEPSİNDE, `read_console_messages`
+  tracking baştan kurulmuş halde).
+- **`npm test`: 1109/1109** (G103 sonrası 1108, +1 yeni test —
+  `wav-parser.test.mjs`'e "büyük bir dosyada nefes veriyor" regresyon testi,
+  paralel bir kalp-atışı sayacıyla — hiçbir eski test SİLİNMEDİ/BOZULMADI,
+  `decodeWavPcm` artık async olduğu için 8 eski test `await`/`assert.rejects`
+  ile güncellendi, DAVRANIŞLARI değişmedi).
+- **DÜRÜSTLÜK NOTU:** Capacitor'ın GERÇEK native köprü maliyeti (madde 5,
+  yukarıda) bu ortamda (cihaz/Capacitor runtime yok) DOĞRUDAN ölçülemedi —
+  sadece JS tarafı stub'landı. Parça parça yazma bunu YAPISAL olarak
+  azaltıyor (TEK dev mesaj yerine çok sayıda küçük mesaj) ama gerçek
+  cihazda NİHAİ doğrulama hâlâ gerekiyor (bkz. SIRADAKİ).
+
+---
+
+Önceki commit (G103, tek commit) — **Araçlar: cihazda test edilen DÖRT düzeltme.**
 
 **1) Tonal Balance — KÖK SEBEP: bant ortalaması yanlış domende hesaplanıyordu.**
 `www/js/core/tonal-balance.js`. Cihazda gerçek bir mix'te SUB +4.9, BAS +13.5,
@@ -8608,7 +8703,16 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G103 itibarıyla):** Bu dört düzeltmeyi GERÇEK cihazda
+**Tek sonraki adım (G104 itibarıyla):** `npx cap sync ios` çalıştırıp GERÇEK
+bir iOS cihazda (tercihen 24-bit/32-bit float export yapan bir DAW'dan çıkmış
+büyük — 30-50MB — bir dosyayla) uçtan uca doğrulamak: dosya seç → arayüz
+donmuyor mu, ilerleme çubuğu görünüyor mu, dosya doğru kaydediliyor mu. Bu
+turun kendi açık işi: **Capacitor'ın GERÇEK native köprü maliyeti hâlâ
+ölçülmedi** (bkz. BİTTİ'nin DÜRÜSTLÜK notu — bu ortamda sadece JS tarafı
+stub'landı, parça parça yazmanın YAPISAL olarak riski azalttığı biliniyor
+ama nihai kanıt cihazda).
+
+**Önceki adım (G103 itibarıyla):** Bu dört düzeltmeyi GERÇEK cihazda
 yeniden test etmek — özellikle madde 3 (Ölçüm Sonuçları sheet'i), çünkü
 masaüstü Chrome'da hiç ÜRETİLEMEDİ, sadece bu kod tabanının kendi belgelediği
 WKWebView bug kategorisine göre gerekçeli düzeltmeler uygulandı (bkz. BİTTİ'nin

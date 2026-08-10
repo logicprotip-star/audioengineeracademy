@@ -160,7 +160,10 @@ export function createUploadManager(getAudioCtx) {
         && String.fromCharCode(...new Uint8Array(arrayBuffer, 8, 4)) === "WAVE";
       if (isRiffWave) {
         try {
-          const wav = decodeWavPcm(arrayBuffer);
+          // G104 — decodeWavPcm ASENKRON (bkz. wav-parser.js'in kendi G104
+          // notu) — büyük dosyalarda ana iş parçacığını bloklamadan periyodik
+          // nefes veriyor.
+          const wav = await decodeWavPcm(arrayBuffer);
           const wavBuffer = ctx.createBuffer(wav.numChannels, wav.channelData[0].length, wav.sampleRate);
           for (let ch = 0; ch < wav.numChannels; ch++) wavBuffer.copyToChannel(wav.channelData[ch], ch);
           buffer = wavBuffer;

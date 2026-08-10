@@ -89,15 +89,52 @@ async function idbDelete(id) {
   });
 }
 
+// G104 — "dosya yükleyince Araçlar donuyor" (canlı iOS raporu) düzeltmesi.
+// KÖK SEBEP ADAYI olarak base64+tek writeFile çağrısı işaret edilmişti;
+// canlı ölçümde JS tarafındaki base64 dönüşümü/JSON boyutu TEK BAŞINA hızlı
+// çıktı (bkz. DURUM.md G104), ama Capacitor'ın JS↔native köprüsünün TEK bir
+// dev (onlarca MB) base64 string'i taşıması iyi belgelenmiş bir performans
+// sorunu — bu yüzden büyük dosyalar PARÇA PARÇA yazılıyor: ilk parça
+// writeFile(), geri kalanı appendFile() (plugin'in resmi API'si, definitions.
+// d.ts'te doğrulandı) ile. Her parça KÜÇÜK bir bridge mesajı + kendi
+// `await`'i sayesinde ana iş parçacığına DOĞAL bir nefes noktası oluyor.
+const NATIVE_WRITE_CHUNK_BYTES = 4 * 1024 * 1024; // 4MB — küçük köprü mesajları, sık nefes
+
 // id: kütüphane manifestindeki dosya id'si (dosya adı ÇAKIŞMASINDAN bağımsız
-// üretilir, bkz. app.js:toolsGenerateId). blob: File/Blob.
-export async function saveFile(id, blob) {
+// üretilir, bkz. app.js:toolsGenerateId). blob: File/Blob. onProgress(fraction):
+// opsiyonel, 0..1 arası ilerleme — SADECE native/parçalı yolda birden fazla
+// kez çağrılır (web/IndexedDB yolu zaten tek adımda hızlı, bkz. idbPut notu).
+export async function saveFile(id, blob, onProgress) {
   const fs = getFilesystemPlugin();
   if (fs) {
-    const base64 = await blobToBase64(blob);
-    await fs.writeFile({ path: `${FS_SUBDIR}/${id}`, data: base64, directory: FS_DIRECTORY, recursive: true });
+    await saveFileNativeChunked(fs, id, blob, onProgress);
   } else {
     await idbPut(id, blob);
+    if (onProgress) onProgress(1);
+  }
+}
+
+async function saveFileNativeChunked(fs, id, blob, onProgress) {
+  const path = `${FS_SUBDIR}/${id}`;
+  const total = blob.size;
+  if (total === 0) {
+    await fs.writeFile({ path, data: "", directory: FS_DIRECTORY, recursive: true });
+    if (onProgress) onProgress(1);
+    return;
+  }
+  let offset = 0;
+  let first = true;
+  while (offset < total) {
+    const end = Math.min(offset + NATIVE_WRITE_CHUNK_BYTES, total);
+    const base64 = await blobToBase64(blob.slice(offset, end));
+    if (first) {
+      await fs.writeFile({ path, data: base64, directory: FS_DIRECTORY, recursive: true });
+      first = false;
+    } else {
+      await fs.appendFile({ path, data: base64, directory: FS_DIRECTORY });
+    }
+    offset = end;
+    if (onProgress) onProgress(offset / total);
   }
 }
 
