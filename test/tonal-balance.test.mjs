@@ -68,32 +68,89 @@ describe("tonal-balance.js — bandDevsFromLiveSnapshot() (G102, canlı kare →
   const binHz = sampleRate / fftSize;
   const binCount = fftSize / 2;
 
-  function freqDataWithLoudBand(loudFrom, loudTo, loudDb, baseDb) {
-    const data = new Float32Array(binCount).fill(baseDb);
+  // G103: "nötr" giriş artık pembe eğimli (bkz. aşağıdaki pinkFreqData) —
+  // SUB'u pembe tabanın ÜSTÜNE +20dB çıkarırsak SUB pozitif, DİĞER BEŞ bant
+  // (ortalama SUB'un yukarı çekmesiyle) eşit ve makul negatif olmalı.
+  function pinkFreqDataWithSubBoost(boostDb) {
+    const data = new Float32Array(binCount).fill(-Infinity);
     for (let bin = 1; bin < binCount; bin++) {
       const f = bin * binHz;
-      if (f >= loudFrom && f < loudTo) data[bin] = loudDb;
+      if (f < BAND_EDGES[0] || f >= BAND_EDGES[6]) continue;
+      let db = -10 * Math.log10(f);
+      if (f >= BAND_EDGES[0] && f < BAND_EDGES[1]) db += boostDb;
+      data[bin] = db;
     }
     return data;
   }
 
-  it("measureSpectralDeviation ile AYNI tanımı kullanır: sadece SUB'da yüksek enerji → SUB pozitif, diğerleri negatif sapma", () => {
-    const data = freqDataWithLoudBand(BAND_EDGES[0], BAND_EDGES[1], -20, -60);
-    const devs = bandDevsFromLiveSnapshot(data, sampleRate, fftSize);
+  it("measureSpectralDeviation ile AYNI tanımı kullanır: SUB pembe tabanın üstüne çıkarılınca SUB pozitif, diğer beş bant negatif sapma", () => {
+    const devs = bandDevsFromLiveSnapshot(pinkFreqDataWithSubBoost(20), sampleRate, fftSize);
     assert.equal(devs.length, 6);
     assert.ok(devs[0] > 0, `SUB pozitif olmalı, geldi: ${devs[0]}`);
     for (let i = 1; i < 6; i++) assert.ok(devs[i] < 0, `bant ${i} negatif olmalı, geldi: ${devs[i]}`);
   });
 
-  it("tüm bantlar eşit enerjideyse tüm sapmalar ~0'dır", () => {
-    const data = new Float32Array(binCount).fill(-40);
+  // G103 — pembe-eğim telafisinden SONRA "nötr" (sapmasız) referans artık
+  // DÜZ dB DEĞİL, PEMBE gürültü şeklidir (power(f) ∝ 1/f, doğrusal bin'de
+  // −3dB/oktav) — gerçek geniş-bant programın doğal eğimini temsil eder.
+  function pinkFreqData() {
+    const data = new Float32Array(binCount).fill(-Infinity);
+    for (let bin = 1; bin < binCount; bin++) {
+      const f = bin * binHz;
+      if (f < BAND_EDGES[0] || f >= BAND_EDGES[6]) continue;
+      data[bin] = -10 * Math.log10(f);
+    }
+    return data;
+  }
+
+  it("pembe eğimli (1/f) giriş TÜM bantlarda ~0dB sapma verir (G103'ün telafi ettiği DOĞAL eğim)", () => {
+    const devs = bandDevsFromLiveSnapshot(pinkFreqData(), sampleRate, fftSize);
+    devs.forEach((d, i) => assert.ok(Math.abs(d) < 0.01, `bant ${i} ~0 olmalı, geldi: ${d}`));
+  });
+
+  it("DÜZ (her frekansta AYNI dB) giriş artık YUKARI eğimli okunur — pembe telafisi flat/white'ı DEĞİL pembe'yi nötr sayar", () => {
+    const data = new Float32Array(binCount).fill(-Infinity);
+    for (let bin = 1; bin < binCount; bin++) {
+      const f = bin * binHz;
+      if (f >= BAND_EDGES[0] && f < BAND_EDGES[6]) data[bin] = -40;
+    }
     const devs = bandDevsFromLiveSnapshot(data, sampleRate, fftSize);
-    devs.forEach((d) => assert.ok(Math.abs(d) < 1e-9, `sapma 0'a yakın olmalı, geldi: ${d}`));
+    for (let i = 1; i < 6; i++) assert.ok(devs[i] > devs[i - 1], `bant ${i} bir öncekinden yüksek olmalı (monoton artan), geldi: ${devs.map(v=>v.toFixed(1))}`);
   });
 
   it("hiçbir bin sonlu (finite) değilse (ör. sessizlik/dolmamış buffer) 6 elemanlı sıfır dizisi döner, NaN/undefined DEĞİL", () => {
     const data = new Float32Array(binCount).fill(-Infinity);
     const devs = bandDevsFromLiveSnapshot(data, sampleRate, fftSize);
     assert.deepEqual(devs, [0, 0, 0, 0, 0, 0]);
+  });
+
+  // G103 — REGRESYON: canlı cihaz testinde bulunan kök sebep. BAND_EDGES
+  // logaritmik aralıklı olduğu için TİZ bandı SUB'dan YÜZLERCE kat fazla bin
+  // içeriyor (binHz sabit). Eskiden bant ortalaması dB DEĞERLERİNİ doğrudan
+  // aritmetik ortalıyordu (ESKİ, YANLIŞ yöntem) — TİZ'e serpiştirilmiş
+  // neredeyse-sessiz (ama sıfır DEĞİL, gerçek bir gürültü tabanı gibi
+  // −60dB daha sessiz) bin'ler ortalamayı GERÇEK enerjiden çok daha aşağı
+  // çekiyordu. Kurulum: TÜM bantlar pembe-nötr (~0dB sapma verir, üstteki
+  // teste bkz.) SEÇMELİ olarak TİZ'in bin'lerinin SADECE 1/10'u pembe
+  // seviyesinde, kalanı −60dB daha sessiz (dijital sessizlik DEĞİL).
+  it("Pembe-nötr TİZ bandına seyrek+gürültü-tabanlı dolgu eklenince güç-domeninde ortalama MAKUL bir sapma üretir, ESKİ yöntemin ürettiği aşırı sapmayı DEĞİL", () => {
+    const data = new Float32Array(binCount).fill(-Infinity);
+    for (let bin = 1; bin < binCount; bin++) {
+      const f = bin * binHz;
+      if (f < BAND_EDGES[0] || f >= BAND_EDGES[6]) continue;
+      const pinkDb = -10 * Math.log10(f);
+      if (f >= BAND_EDGES[5] && f < BAND_EDGES[6]) {
+        data[bin] = (bin % 10 === 0) ? pinkDb : (pinkDb - 60);
+      } else {
+        data[bin] = pinkDb;
+      }
+    }
+    const devs = bandDevsFromLiveSnapshot(data, sampleRate, fftSize);
+    // Diğer 5 bant birbirine yakın (~+1.7dB, TİZ'in düşüşünün altışının
+    // ortalamasını aşağı çekmesinden) kalmalı, TİZ belirgin ama MAKUL
+    // negatif olmalı — eski (dB aritmetik ortalama) yöntem TİZ'i çok daha
+    // aşırı (~−45dB mertebesinde) bir sapmaya iterdi.
+    for (let i = 0; i < 5; i++) assert.ok(devs[i] > 0 && devs[i] < 5, `bant ${i} makul pozitif olmalı, geldi: ${devs[i].toFixed(2)}`);
+    assert.ok(devs[5] < -3 && devs[5] > -15, `TİZ makul negatif olmalı (aşırı DEĞİL), geldi: ${devs[5].toFixed(2)}`);
   });
 });

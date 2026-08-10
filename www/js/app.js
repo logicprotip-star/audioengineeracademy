@@ -7286,6 +7286,14 @@ function toolsLogMeasurement(fileName, result) {
   toolsSaveJson(TOOLS_MEASUREMENTS_KEY, list);
 }
 
+// G103 — "sheet açıldığında içerik EN ÜSTTEN başlasın": sheet DOM'dan
+// kaldırılmıyor (sadece gizleniyor), bu yüzden ÖNCEKİ açılışta kalan
+// scrollTop bir dahaki açılışa SIZABİLİYORDU. Her açılışta (animasyon
+// başlamadan ÖNCE, görünmezken) sıfırlanıyor.
+function toolsResetSheetScroll(sheetEl) {
+  const body = sheetEl && sheetEl.querySelector(".tools-sheet-body");
+  if (body) body.scrollTop = 0;
+}
 function toolsOpenFilesSheet() {
   if (paywall.isToolsContentLocked(isUserPro())) {
     if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail, "pro");
@@ -7293,6 +7301,7 @@ function toolsOpenFilesSheet() {
   }
   toolsCloseResultsSheet();
   renderToolsFilesSheetContent();
+  toolsResetSheetScroll(els.toolsFilesSheet);
   if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.remove("hidden");
   if (els.toolsFilesSheet) els.toolsFilesSheet.classList.remove("hidden");
   requestAnimationFrame(() => {
@@ -7814,6 +7823,7 @@ if (els.toolsAnalyzeBtn) {
 
 function toolsOpenResultsSheet() {
   toolsResultsSheetOpenFlag = true;
+  toolsResetSheetScroll(els.toolsResultsSheet);
   if (els.toolsResultsStrip) els.toolsResultsStrip.classList.add("hidden");
   if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.remove("hidden");
   if (els.toolsResultsSheet) els.toolsResultsSheet.classList.remove("hidden");
@@ -8045,7 +8055,13 @@ function toolsTonalSegments(pts, targetPts) {
 // fillOutside: hedef dışı segmentlerin altını (hedef bandının en yakın kenarına
 // kadar) amber dolguyla vurgular — sadece o an EN ÖNDE olan eğri için açık
 // tutulur, aksi halde soluk arka-plan eğrisiyle üst üste iki dolgu çakışır.
-function toolsTonalStrokeCurve(ctx, pts, targetPts, { alpha = 1, fillOutside = false } = {}) {
+// prominent: G103 — "mix eğrisi ayırt edilmiyor" düzeltmesi. O an EKRANDA
+// GÖSTERİLEN gerçek eğri (canlı yoksa ortalama, canlıysa canlı) için TRUE —
+// koyu bir hale (halo) + kalın çizgi + hafif parlama (shadowBlur) ekler, bu
+// sayede hedef bandının dolgusunun/izinin İÇİNDE bile net ayırt edilir.
+// Amber (hedef dışı) segmentlerde renk daha canlı bir turuncuya kaydırılır —
+// hedef dolgusunun SOLUK amberiyle karışmasın diye.
+function toolsTonalStrokeCurve(ctx, pts, targetPts, { alpha = 1, fillOutside = false, prominent = false } = {}) {
   const segs = toolsTonalSegments(pts, targetPts);
   if (fillOutside) {
     segs.forEach((sg) => {
@@ -8062,14 +8078,33 @@ function toolsTonalStrokeCurve(ctx, pts, targetPts, { alpha = 1, fillOutside = f
       ctx.fill();
     });
   }
-  segs.forEach((sg) => {
-    ctx.strokeStyle = toolsTonalRgba(sg.out ? "#e8c46a" : "#22d3ee", alpha);
-    ctx.lineWidth = 2;
+  const mainWidth = prominent ? 2.75 : 2;
+  if (prominent) {
+    // Koyu hale — hedef dolgusu/izi ne renkte olursa olsun kontrastı garanti eder.
+    ctx.strokeStyle = "rgba(8,9,11,.7)";
+    ctx.lineWidth = mainWidth + 2.4;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
+    segs.forEach((sg) => {
+      ctx.beginPath();
+      sg.items.forEach((it, i) => { const y = toolsTonalDy(it.p[1]); if (i === 0) ctx.moveTo(it.p[0], y); else ctx.lineTo(it.p[0], y); });
+      ctx.stroke();
+    });
+  }
+  segs.forEach((sg) => {
+    const color = sg.out ? (prominent ? "#ffb648" : "#e8c46a") : "#22d3ee";
+    ctx.strokeStyle = toolsTonalRgba(color, alpha);
+    ctx.lineWidth = mainWidth;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    if (prominent) {
+      ctx.shadowColor = toolsTonalRgba(color, 0.85 * alpha);
+      ctx.shadowBlur = 5;
+    }
     ctx.beginPath();
     sg.items.forEach((it, i) => { const y = toolsTonalDy(it.p[1]); if (i === 0) ctx.moveTo(it.p[0], y); else ctx.lineTo(it.p[0], y); });
     ctx.stroke();
+    if (prominent) { ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; }
   });
 }
 
@@ -8136,9 +8171,9 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
   }
 
   // Ortalama eğri — canlı veri akıyorsa arka planda SOLUK, yoksa NORMAL parlaklıkta tek başına.
-  toolsTonalStrokeCurve(ctx, avgPts, targetPts, { alpha: livePts ? 0.35 : 1, fillOutside: !livePts });
+  toolsTonalStrokeCurve(ctx, avgPts, targetPts, { alpha: livePts ? 0.35 : 1, fillOutside: !livePts, prominent: !livePts });
   // Canlı eğri — üstte, TAM parlaklık (task: "dosya ÇALARKEN eğri CANLI akar").
-  if (livePts) toolsTonalStrokeCurve(ctx, livePts, targetPts, { alpha: 1, fillOutside: true });
+  if (livePts) toolsTonalStrokeCurve(ctx, livePts, targetPts, { alpha: 1, fillOutside: true, prominent: true });
 
   // Bant adları (alt) — özet satırıyla TUTARLI: ortalama eğrinin hedeften
   // sapmasına göre (canlı veriye göre DEĞİL, task'ın kendi "titremesin" kuralı).

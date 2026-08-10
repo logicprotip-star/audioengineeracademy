@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G102)
+Son güncelleme: 10.08.2026 (G103)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,123 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G102, tek commit) — **İKİ KARAR: Tonal Balance mutlak gösterim +
+Bu commit (G103, tek commit) — **Araçlar: cihazda test edilen DÖRT düzeltme.**
+
+**1) Tonal Balance — KÖK SEBEP: bant ortalaması yanlış domende hesaplanıyordu.**
+`www/js/core/tonal-balance.js`. Cihazda gerçek bir mix'te SUB +4.9, BAS +13.5,
+ALT-ORTA +13.6, ÜST-ORTA −14.4, TİZ −18.5 dB gibi gerçekçi OLMAYAN sapmalar
+görüldü; sarı hedef alanı ekranı kaplıyor, mix eğrisi neredeyse hiç
+görünmüyordu. İKİ ayrı, birbirini tamamlayan kök sebep bulundu:
+- **(a) dB'lerin doğrudan aritmetik ortalaması.** dB logaritmik bir ölçek —
+  bir bandın bin'lerinin dB değerlerini düz ortalamak GERÇEK enerjiyi değil,
+  "kaç bin var"ı ölçer. BAND_EDGES logaritmik aralıklı olduğu için TİZ/ÜST-
+  ORTA SUB'dan yüzlerce kat fazla bin içeriyor — bu bantlardaki çok sayıda
+  neredeyse-sessiz bin ortalamayı gerçek seviyeden çok aşağı çekiyordu.
+  **Düzeltme:** dB → lineer güce çevrilip (`10^(db/10)`) GÜÇ domeninde
+  ortalanıyor, sonra tekrar dB'ye çevriliyor (`10*log10(avgPower)`).
+- **(b) pembe/geniş-bant eğim telafisi yok.** (a) tek başına yetmedi — gerçek
+  bir referans dosyasıyla (pembe gürültüye yakın, geniş-bant) canlı test
+  edilince hâlâ ±10-12dB'lik sahte sapmalar görüldü. Sebep: sabit binHz'li
+  DOĞRUSAL bir FFT'de geniş-bant/gerçekçi içerik doğal olarak ~1/f ile düşen
+  bir bin-gücü eğimi taşır (pembe gürültünün TANIMI: oktav başına eşit
+  enerji → doğrusal bin'de −3dB/oktav). DRAFT_TARGET_CURVES'un ("taslak"
+  hedefler) varsaydığı "dengeli bir mix ~0 civarında ölçülür" kuralıyla
+  ÇELİŞİYORDU. **Düzeltme:** her bin'in gücü kendi frekansıyla çarpılıp
+  (`power × freq`) toplanıyor — pembe içerik için `power(f)×f≈sabit`,
+  yani doğal −3dB/oktav eğim TAM olarak iptal oluyor (standart "pembe-
+  ağırlıklı"/PSD-normalize analiz — profesyonel spektrum analizörlerinin
+  "RTA/pink" modlarının aynı ilkesi).
+Bu İKİ düzeltme BİRLİKTE hem `measureSpectralDeviation` (offline) hem
+`bandDevsFromLiveSnapshot` (G102'nin canlı analizörü) için ORTAK
+`accumulateFreqSnapshot`/`normalizeBandSums` yardımcılarında uygulandı — iki
+yol da AYNI (artık doğru) tanımı kullanıyor.
+**YENİ testler (`test/tonal-balance.test.mjs`):** pembe girişin TÜM
+bantlarda ~0dB verdiği, düz/beyaz girişin artık yukarı eğimli okunduğu
+(pembe telafisinin flat'i DEĞİL pembe'yi nötr saydığını kanıtlar), pembe-
+nötr bir bandın seyrekleştirilince (silinmemiş, ama %90 sessiz taban)
+MAKUL bir sapma ürettiği (eskisi gibi aşırı DEĞİL) — 3 eski test de YENİ
+pembe-tabanlı senaryolara güncellendi (eski "düz dB = 0 sapma" varsayımı
+G103'ten sonra artık GEÇERSİZ, doğru davranış artık "pembe = 0 sapma").
+
+**2) Mix eğrisi ayırt edilmiyordu.** `www/js/app.js:toolsTonalStrokeCurve`.
+Kısmen (1)'in doğal sonucu (aşırı sapmalarda çoğu segment amber oluyor,
+hedef dolgusunun AYNI amber tonuyla karışıyordu) ama görsel olarak da
+güçlendirildi: o an EKRANDA gösterilen gerçek eğri (canlı yoksa ortalama,
+canlıysa canlı) artık `prominent:true` ile çiziliyor — koyu bir hale (halo,
+arkasında kalın koyu bir kontur), daha kalın çizgi (2.75px, önceki 2px),
+hafif bir parlama (shadowBlur) ve hedef-dışı segmentlerde daha canlı bir
+turuncu (#ffb648, hedef dolgusunun soluk amberinden AYRIŞIYOR). Arka
+plandaki soluk ortalama eğri (canlı akarken) prominent DEĞİL, sade kalıyor.
+
+**3) Ölçüm Sonuçları sheet'i açıldığı yere dönmüyordu.** `www/styles.css` +
+`www/js/app.js`. Masaüstü Chrome'da doğrudan yeniden ÜRETİLEMEDİ (yapısal
+CSS incelemesi + canlı testte sheet doğru davrandı) — ama üç KONKRET,
+gerekçeli düzeltme uygulandı, ikisi bu projenin KENDİ belgelenmiş WKWebView
+bug kategorisiyle BİREBİR örtüşüyor:
+- **`overscroll-behavior:contain`** eklendi (`.tools-sheet-body`) — bu
+  olmadan, sheet içeriğinin üstüne/altına ulaşılınca devam eden bir kaydırma
+  jesti ARKADAKİ `.tools-scroll`'a zincirleniyor (mobil Safari'de yaygın
+  "scroll chaining" davranışı, masaüstünde fark edilmez) — kullanıcının
+  tarif ettiği "kendi sınırları içinde kalsın, arkadaki sayfayı kaydırmasın"
+  talimatıyla BİREBİR örtüşüyor.
+- **`max-height:84%` → `calc(var(--app-vh) * .84)`** — bu dosyanın KENDİ
+  `.app-shell` yorumu, position:fixed elemanların yüzde yüksekliğinin
+  WKWebView'de JS'in ölçtüğü gerçek `window.innerHeight`'tan FARKLI
+  hesaplanabildiğini ZATEN belgeliyor (`--app-vh` bu YÜZDEN var). Aynı
+  kanıtlanmış deseni `.tools-sheet`'e de uygulamak, YENİ bir teori değil,
+  MEVCUT bir düzeltmeyi yaymak.
+- **Sheet her açılışta `.tools-sheet-body.scrollTop = 0`'a sıfırlanıyor**
+  (`toolsResetSheetScroll()`, hem Dosyalarım hem Ölçüm Sonuçları sheet'i) —
+  sheet DOM'dan kaldırılmıyor, sadece gizleniyor, bu yüzden ÖNCEKİ açılıştan
+  kalan scroll konumu bir dahaki açılışa SIZABİLİYORDU. Ayrıca
+  `.tools-sheet-body`'ye eksik olan `min-height:0` eklendi (flex+overflow
+  klasik tuzağı — olmadan `flex:1` içerik boyutunun altına küçülemeyebilir).
+**DÜRÜSTLÜK NOTU:** bu üç düzeltme masaüstünde canlı GÖZLEMLENEN bir
+regresyonu KANITLAMADI (sorun tekrar üretilemedi) — ama hepsi somut, bu
+kod tabanının kendi belgelediği bir bug kategorisine (WKWebView position:
+fixed/yüzde-yükseklik farkı) veya iyi bilinen bir mobil-web bug sınıfına
+(scroll chaining) karşılık geliyor, zararsız ve kullanıcının kendi
+tarifiyle (madde madde) örtüşüyor. Gerçek cihazda YENİDEN doğrulanmalı.
+
+**4) Sayılar yuvarlanmasın.** `www/js/app.js:fmtDb/fmtLufs/fmtPercent/
+fmtCount` + Tonal Balance özet satırı incelendi — TÜMÜ ZATEN spesifikasyona
+uyuyordu (dB/LUFS 1 ondalık, DC offset 4 ondalık, kırpılmış tam sayı, Tonal
+Balance sapmaları 1 ondalık) — kod incelemesi VE canlı tarayıcı testinde
+(gerçek değerler: True peak -4.7, DC offset -0.5498%, Loudness range 0.1 LU,
+Olası kırpılmış 0) hiçbir yuvarlama bulunamadı. **DÜRÜSTLÜK NOTU:** var
+olmayan bir sorunu "düzelttim" diye UYDURMADIK — muhtemel açıklama: madde
+1'deki KÖK SEBEP eski, aşırı (±20dB) sapma değerleri üretiyordu, bu büyük
+sayılar görsel olarak "yuvarlanmış" izlenimi vermiş olabilir; madde 1'in
+düzeltilmesiyle bu algı da ortadan kalkmalı.
+
+**DOĞRULAMA (ekran görüntüleriyle + programatik, canlı tarayıcı):**
+- **1:** Pembe gürültüye yakın bir referans dosyası (Node'da üretildi,
+  Paul Kellet pembe filtre yaklaşımı) yüklendi — Pop hedefine karşı sadece
+  "2 bölge hedef dışında: ÜST-ORTA −2.0 dB, TİZ +1.8 dB" (Kabul kriteri
+  ±6dB'nin ÇOK altında). Bilerek dengesiz bir dosya (geniş-bant + düşük-
+  frekans vurgusu) yüklenince GERÇEK dengesizlik hâlâ doğru yönde/büyüklükte
+  görüldü ("BAS −3.4 dB, ALT-ORTA −8.4 dB, ORTA −3.0 dB, ÜST-ORTA +2.1 dB,
+  TİZ +10.6 dB") — düzeltme gerçek sorunları GİZLEMİYOR, sadece ölçüm
+  yöntemini doğru domene taşıyor.
+- **2:** Zoom'lu ekran görüntüsünde mix eğrisi (cyan, hedef bandı içindeyken)
+  net, kalın, hedef dolgusunun ÜSTÜNDE görünür durumda; hedef dışı segmentler
+  parlak turuncu, arka plandaki soluk ortalama eğriden AÇIKÇA ayrışıyor.
+- **3:** Sheet açılınca EN ÜSTTEN başladı (başlık+kapat butonu ilk karede
+  görünür); içerik altıya kaydırıldı, kapat butonuyla kapatıldı, kalıcı
+  şeritten YENİDEN açılınca sheet YİNE en üstten başladı (önceki kaydırma
+  konumu SIZMADI) — programatik doğrulama.
+- **4:** Canlı DOM'dan okunan gerçek değerler: True peak -4.7/-5.2,
+  Sample peak -4.8/-5.4, Max/Min/Total RMS 1 ondalık, DC offset -0.5498%/
+  -0.2362% (4 ondalık), Olası kırpılmış örnek "0" (tam sayı), Loudness
+  range "0.1 LU"/"0.0 LU" — hiçbiri yuvarlanmamış.
+- **Konsol hatası: 0** (tüm test oturumu boyunca, `read_console_messages`).
+- **`npm test`: 1108/1108** (G102 sonrası 1106, +2 yeni test —
+  `bandDevsFromLiveSnapshot()`'ın pembe-eğim davranışı için — 3 ESKİ test
+  G103'ün yeni "pembe = nötr" kuralına göre güncellendi, hiçbiri silinmedi).
+
+---
+
+Önceki commit (G102, tek commit) — **İKİ KARAR: Tonal Balance mutlak gösterim +
 canlı analizör (G101'in "mix eksi hedef" yorumu TERK EDİLDİ) ve Dosyalarım
 kalıcı depolama (native Filesystem + web IndexedDB).**
 
@@ -8492,11 +8608,27 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G102 itibarıyla):** `npx cap sync ios`/`android` çalıştırıp
-gerçek bir cihazda (ya da simülatörde) Dosyalarım'ın NATIVE Filesystem
-yolunu (`@capacitor/filesystem`, bu turda sadece tip tanımlarına göre yazıldı,
-hiç canlı denenmedi) uçtan uca doğrulamak: dosya seç → uygulama kapat/aç →
-dosya hâlâ duruyor mu, `Directory.Data`'ya gerçekten yazılıyor mu. Bu turun
+**Tek sonraki adım (G103 itibarıyla):** Bu dört düzeltmeyi GERÇEK cihazda
+yeniden test etmek — özellikle madde 3 (Ölçüm Sonuçları sheet'i), çünkü
+masaüstü Chrome'da hiç ÜRETİLEMEDİ, sadece bu kod tabanının kendi belgelediği
+WKWebView bug kategorisine göre gerekçeli düzeltmeler uygulandı (bkz. BİTTİ'nin
+DÜRÜSTLÜK notu) — `overscroll-behavior:contain`/`--app-vh` düzeltmesinin
+GERÇEKTEN sorunu çözdüğü henüz kanıtlanmadı. Bu turun kendi açık işleri:
+(1) **madde 3 gerçek cihazda doğrulanmadı** (yukarıdaki madde); (2) **Tonal
+Balance'ın pembe-eğim telafisi SADECE sentetik dosyalarla (Node'da üretilen
+pembe gürültü + düşük-frekans-vurgulu gürültü) test edildi** — gerçek bir
+ticari/mastered müzik parçasında ±6dB kabul kriterinin tutup tutmadığı
+DOĞRULANMADI; (3) **DRAFT_TARGET_CURVES hâlâ taslak** (G101'den kalan aynı
+madde, değişmedi — artık ÖLÇÜM YÖNTEMİ doğru domende olduğu için gerçek
+referans parçalardan türetilecek sayılar daha ANLAMLI olacak).
+
+**Önceki adım (G102 itibarıyla):** `npx cap sync ios` bu turda ÇALIŞTIRILDI
+(ayrı commit, `1e03cbb`) — `Package.swift`/`Package.resolved` güncellendi,
+`@capacitor/filesystem` iOS tarafına kaydoldu. Ama gerçek bir cihazda (ya da
+simülatörde) Dosyalarım'ın NATIVE Filesystem yolunu (bu turda SADECE tip
+tanımlarına göre yazıldı, hiç canlı denenmedi) uçtan uca doğrulamak hâlâ
+YAPILMADI: dosya seç → uygulama kapat/aç → dosya hâlâ duruyor mu,
+`Directory.Data`'ya gerçekten yazılıyor mu. Bu turun
 kendi açık işleri: (1) **native Filesystem canlı doğrulanmadı** (yukarıdaki
 madde); (2) **TASLAK hedef eğriler (Pop/EDM/Akustik) hâlâ gerçek referans
 parçalardan türetilmedi** — değişmedi, G101'den kalan aynı madde; (3)

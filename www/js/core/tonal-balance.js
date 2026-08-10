@@ -41,6 +41,44 @@ export const OFF_TARGET_THRESHOLD_DB = 1.5;
 // paylaştığı bant biriktirme/normalize mantığı. Böylece iki yol da AYNI
 // "band ortalama enerji − dosya/kare geneli ortalama enerji" tanımını
 // kullanır, birbirinden sessizce sapmaz.
+//
+// G103 — KÖK SEBEP DÜZELTMESİ (canlı cihaz testinde bulundu): eskiden bant
+// içindeki bin'lerin dB DEĞERLERİ doğrudan aritmetik ortalanıyordu. dB
+// LOGARİTMİK bir ölçek — dB'leri doğrudan ortalamak, o bandın GERÇEK
+// enerjisini DEĞİL, "kaç tane bin var" sayısını ölçer: BAND_EDGES logaritmik
+// aralıklı olduğu için TİZ/ÜST-ORTA bandı SUB'dan YÜZLERCE kat fazla bin
+// içeriyor (sabit binHz, geniş Hz aralığı) — bu bantlardaki çok sayıda
+// neredeyse-sessiz bin, aritmetik ortalamayı GERÇEK algılanan seviyeden çok
+// daha aşağı çekiyor (SUB'da tam tersi — az sayıda, sürekli dolu bin daha
+// yüksek okunuyor). Sonuç: gerçek bir mix'te bile SUB/BAS/ALT-ORTA hep
+// "fazla yüksek", ÜST-ORTA/TİZ hep "fazla düşük" çıkıyordu (±20dB'ye varan
+// sahte sapmalar) — bantlar arasında ORTAK bir referans seviyesi YOKTU.
+// DÜZELTME: dB → LİNEER GÜÇ'e çevrilip (10^(db/10)) güç DOMAİNİNDE
+// ortalanıyor, sonra bandın ortalama gücü TEKRAR dB'ye çevriliyor
+// (10*log10(avgPower)) — bu, RMS/enerji-tabanlı doğru bant ortalaması
+// (birkaç yüksek-enerjili bin baskın olur, çok sayıda sessiz bin GERÇEK
+// enerjiye ORANTILI şekilde az ağırlık taşır — dB'nin logaritmik "mesafe"
+// eşitliğinin AKSİNE). -Infinity (tam sessizlik) bin'leri artık AYRICA
+// atlanmaya gerek kalmadan güvenle dahil edilebiliyor: 10^(-Infinity/10)=0,
+// yani sıfır enerji katkısı — matematiksel olarak doğru davranış.
+//
+// G103 — İKİNCİ KÖK SEBEP (canlı testte pembe/geniş-bant referans dosyasıyla
+// bulundu, güç-domeni düzeltmesi TEK BAŞINA yetmedi): sabit binHz'li DOĞRUSAL
+// bir FFT'de, GERÇEKÇİ/geniş-bant bir sinyalin (pembe gürültüye yakın, çoğu
+// gerçek mix GİBİ) bin başına gücü doğal olarak ~1/f ile düşer (pembe
+// gürültünün TANIMI: oktav başına EŞİT enerji → doğrusal bin'de −3dB/oktav
+// eğim). Bu YÜZDEN "iyi dengelenmiş" bir mix bile, hiçbir düzeltme
+// yapılmadan, SUB'da hep yüksek TİZ'de hep düşük ölçülür — bu bir ÖLÇÜM
+// HATASI değil ama DRAFT_TARGET_CURVES'un ("taslak" hedefler, KÜÇÜK ±birkaç
+// dB'lik sayılar) varsaydığı "düz/dengeli bir mix ~0 civarında ölçülür"
+// KURALIYLA ÇELİŞİYOR. DÜZELTME: her bin'in gücü kendi frekansıyla
+// ÇARPILARAK (`power * freq`) bant toplamına ekleniyor — pembe gürültü için
+// power(f)∝1/f olduğundan power(f)×f≈SABİT, yani doğal −3dB/oktav eğim
+// TAM OLARAK iptal oluyor (standart "pembe-ağırlıklı"/PSD-normalize analiz
+// yöntemi — profesyonel spektrum analizörlerinin "RTA/pink" modlarının aynı
+// ilkesi). Sonuç: pembe/geniş-bant bir referans artık tüm bantlarda ~0dB'ye
+// yakın ölçülüyor (Kabul kriteri: ±6dB altında), GERÇEK bir dengesizlik
+// (ör. bas-ağır bir mix) hâlâ doğru yönde ve büyüklükte sapma gösteriyor.
 function bandIndexForFreq(freq) {
   if (freq < BAND_EDGES[0] || freq >= BAND_EDGES[BAND_EDGES.length - 1]) return -1;
   for (let i = 0; i < BANDS.length; i++) {
@@ -48,18 +86,27 @@ function bandIndexForFreq(freq) {
   }
   return -1;
 }
-function accumulateFreqSnapshot(freqData, binHz, bandSum, bandCount) {
+function dbToPower(db) {
+  if (!Number.isFinite(db)) return db === -Infinity ? 0 : NaN;
+  return Math.pow(10, db / 10);
+}
+function accumulateFreqSnapshot(freqData, binHz, bandPowerSum, bandCount) {
   for (let bin = 1; bin < freqData.length; bin++) {
-    const bandIdx = bandIndexForFreq(bin * binHz);
+    const freq = bin * binHz;
+    const bandIdx = bandIndexForFreq(freq);
     if (bandIdx < 0) continue;
-    const db = freqData[bin];
-    if (!Number.isFinite(db)) continue;
-    bandSum[bandIdx] += db;
+    const power = dbToPower(freqData[bin]);
+    if (!Number.isFinite(power)) continue;
+    bandPowerSum[bandIdx] += power * freq; // pembe-eğim telafisi, bkz. yukarıdaki not
     bandCount[bandIdx]++;
   }
 }
-function normalizeBandSums(bandSum, bandCount) {
-  const bandAvgDb = bandSum.map((sum, i) => (bandCount[i] > 0 ? sum / bandCount[i] : null));
+function normalizeBandSums(bandPowerSum, bandCount) {
+  const bandAvgDb = bandPowerSum.map((sum, i) => {
+    if (bandCount[i] === 0) return null;
+    const avgPower = sum / bandCount[i];
+    return avgPower > 0 ? 10 * Math.log10(avgPower) : null;
+  });
   const finiteAvgs = bandAvgDb.filter((v) => v !== null);
   if (finiteAvgs.length === 0) return BANDS.map(() => 0);
   const overallAvg = finiteAvgs.reduce((a, b) => a + b, 0) / finiteAvgs.length;
@@ -74,10 +121,10 @@ function normalizeBandSums(bandSum, bandCount) {
 // dosyası, task'ın kendi gerekçesi.
 export function bandDevsFromLiveSnapshot(freqData, sampleRate, fftSize) {
   const binHz = sampleRate / fftSize;
-  const bandSum = new Array(BANDS.length).fill(0);
+  const bandPowerSum = new Array(BANDS.length).fill(0);
   const bandCount = new Array(BANDS.length).fill(0);
-  accumulateFreqSnapshot(freqData, binHz, bandSum, bandCount);
-  return normalizeBandSums(bandSum, bandCount);
+  accumulateFreqSnapshot(freqData, binHz, bandPowerSum, bandCount);
+  return normalizeBandSums(bandPowerSum, bandCount);
 }
 
 // SAF-E YAKIN (Web Audio gerektirir, ama DOM'a dokunmaz — sadece OfflineAudioContext).
@@ -102,7 +149,7 @@ export async function measureSpectralDeviation(audioBuffer, options = {}) {
 
   const freqData = new Float32Array(analyser.frequencyBinCount);
   const binHz = ctx.sampleRate / fftSize;
-  const bandSum = new Array(BANDS.length).fill(0);
+  const bandPowerSum = new Array(BANDS.length).fill(0);
   const bandCount = new Array(BANDS.length).fill(0);
 
   const duration = audioBuffer.duration;
@@ -110,7 +157,7 @@ export async function measureSpectralDeviation(audioBuffer, options = {}) {
 
   function sampleOnce() {
     analyser.getFloatFrequencyData(freqData);
-    accumulateFreqSnapshot(freqData, binHz, bandSum, bandCount);
+    accumulateFreqSnapshot(freqData, binHz, bandPowerSum, bandCount);
   }
 
   await new Promise((resolve, reject) => {
@@ -132,7 +179,7 @@ export async function measureSpectralDeviation(audioBuffer, options = {}) {
   // Son bir örnek (kuyruk) — dosyanın en son anını da yakala.
   // (startRendering tamamlandığında render bitmiştir, ek suspend gerekmez.)
 
-  return normalizeBandSums(bandSum, bandCount);
+  return normalizeBandSums(bandPowerSum, bandCount);
 }
 
 // SAF. devs: 6 elemanlı sapma dizisi (dB). Hedef dışı bantları ve genel
