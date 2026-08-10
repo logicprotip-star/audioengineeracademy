@@ -112,21 +112,26 @@
         <div id="comingGrid" class="mode-grid"></div>
       </div>
 
-      <!-- G37: kulaklık uyarı sheet'i — Dizayn/prototype.html #hpSheet'ten taşındı.
-           SADECE mode.getMeta().kulaklikGerekli===true olan bir karta (şu an sadece
-           Reverb) tıklanınca, prefs.hpWarning açıkken VE o mod için "bir daha
-           gösterme" işaretlenmemişken açılır (bkz. app.js openHeadphoneSheet). -->
+      <!-- G90 (madde 8) — Tasarim-2026-08/Prototip.dc.html "KULAKLIK UYARISI"
+           bloğu birebir — TAM EKRAN'a çevrildi (ÖNCEDEN bottom-sheet'ti, bkz.
+           git geçmişi). app.js:openHeadphoneSheet()'in AYNI .open class
+           toggle'ı KORUNDU (hpSheetOverlay artık görsel olarak gereksiz —
+           panel zaten opak/tam-ekran — ama TEK SATIR JS değişmesin diye
+           DOM'da/mekanizmada bırakıldı). "Bu modda bir daha gösterme" checkbox'ı
+           (mevcut, çalışan bir özellik — hpSkippedThisSession) tasarımda YOK
+           ama kural gereği SÖKÜLMEDİ, butonların altına eklendi. -->
       <div class="sheet-overlay" id="hpSheetOverlay"></div>
-      <div class="bottom-sheet" id="hpSheet">
-        <div class="sheet-handle"></div>
-        <div style="display:flex;justify-content:center;margin:2px 0 4px">
-          <div style="width:64px;height:64px;border-radius:20px;background:rgba(255,176,32,.14);border:1px solid rgba(255,176,32,.3);display:flex;align-items:center;justify-content:center;font-size:28px">🎧</div>
+      <div class="hp-screen" id="hpSheet">
+        <div class="hp-ring">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13a8 8 0 0 1 16 0"></path><rect x="3" y="13" width="4.5" height="7" rx="2"></rect><rect x="16.5" y="13" width="4.5" height="7" rx="2"></rect></svg>
         </div>
-        <h3 style="margin:14px 0 0;font-size:20px;font-weight:800;line-height:1.3;text-align:center">Bu egzersiz kulaklık gerektirir</h3>
-        <p id="hpSheetDesc" style="margin:8px 6px 0;font-size:15px;line-height:1.5;color:var(--tx-2);text-align:center"></p>
-        <div style="margin-top:16px;display:flex;flex-direction:column;gap:9px">
-          <button class="btn primary" id="hpSheetConfirm" type="button">Kulaklığım takılı, başla</button>
-          <button class="btn" id="hpSheetCancel" type="button">Geri dön</button>
+        <div>
+          <div class="hp-title">Bu mod kulaklık gerektirir</div>
+          <p id="hpSheetDesc" class="hp-body"></p>
+        </div>
+        <div class="hp-actions">
+          <button class="hp-accept" id="hpSheetConfirm" type="button">Taktım</button>
+          <button class="hp-back" id="hpSheetCancel" type="button">Geri</button>
         </div>
         <button class="cbrow" id="hpSheetAgain" type="button">
           <span class="cb">✓</span>
@@ -417,6 +422,23 @@
           </button>
         </div>
 
+        <!-- G90 (madde 10) — Tasarim-2026-08/Prototip.dc.html "SES DURUMLARI".
+             #audioErrorRow/#audioLoadingRow app.js:playQuestion() her
+             çağrıldığında toggle edilir (showAudioError/hideAudioError/
+             showAudioLoading/hideAudioLoading) — örnek-dosya kaynağı GERÇEKTEN
+             decode/ağ hatası verirse (audio-engine.js:buildQuestionChain'in
+             sampleLoadFailed'i) görünür, round yine de pembe gürültüyle SESSİZ
+             kalmaz. Uydurma bir gecikme/olasılık YOK. -->
+        <div class="hidden" id="audioLoadingRow">
+          <span class="audio-loading-spin"></span>
+          <span>Ses yükleniyor…</span>
+        </div>
+        <div class="hidden" id="audioErrorRow">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f87160" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6"></path><circle cx="12" cy="16.5" r="0.5" fill="#f87160"></circle></svg>
+          <div>Ses yüklenemedi</div>
+          <button type="button" id="audioErrorRetry">Tekrar dene</button>
+        </div>
+
         <!-- G86 YENİ: Motor 2'nin "Bir şık elendi · XP yarıya indi" satırı
              (Prototip.dc.html satır 787-789) — Motor 1'de İPUCU rozeti
              (#hintTag) ile AYNI bilgiyi TAŞIR ama Motor 2'de o rozet YOK
@@ -633,12 +655,18 @@
            (bant genişliği/değişim/şık sayısı/sıradaki seviye) TAMAMEN JS'ten
            (renderLevelSheet, app.js) dolduruluyor — statik metin YOK, Z1
            (difficulty-curve.js) + Z3'ün (progress.js) GERÇEK değerlerinden okunuyor. -->
+      <!-- G90 (madde 2+4) — "SHEET ORTAK YAPISI" + "SEVİYE BİLGİSİ SHEET" ölçüleri.
+           Kimlik kartı (altın pentagon + mod adı) renderLevelSheet()'in İÇİNDE,
+           #lvlSheetBody'nin başına JS'ten ekleniyor (bkz. app.js) — statik HTML
+           DEĞİL, çünkü seviye/mod adı dinamik. -->
       <div class="sheet-overlay" id="lvlSheetOverlay"></div>
       <div class="bottom-sheet" id="lvlSheet">
-        <div class="sheet-handle"></div>
-        <div class="sheet-header">
+        <div class="sheet-handle-v2"></div>
+        <div class="sheet-header-v2">
           <h3 id="lvlSheetTitle">Seviye 1</h3>
-          <button class="sheet-cancel" id="lvlSheetClose" type="button">Kapat</button>
+          <button class="sheet-cancel-v2" id="lvlSheetClose" type="button" aria-label="Kapat">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+          </button>
         </div>
         <div id="lvlSheetBody"></div>
       </div>
@@ -659,15 +687,45 @@
            gerçek tıklamayı ENGELLEMEZ, sadece görsel; gerçek oyun elementi
            deliğin altından NORMAL çalışmaya devam eder (KORUMA: mekanik
            dokunulmadı). Sadece callout (metin+butonlar) tıklanabilir. -->
+      <!-- G90 (madde 7) — Tasarim-2026-08/Prototip.dc.html "SPOTLIGHT" ölçüleri.
+           spotlightTitle YENİ: SPOTLIGHT_STEPS'in kendi target anahtarından
+           (listen/abControl/select/confirm — guide-texts.js'te ZATEN var,
+           uydurulmadı) kısa bir başlığa çevriliyor, bkz. app.js SPOTLIGHT_TARGET_
+           TITLES. spotlightDots YENİ: adım SAYISI kadar (spotlightSteps.length,
+           GERÇEK veri) nokta. -->
       <div class="hidden" id="spotlightOverlay">
         <div id="spotlightHole"></div>
         <div id="spotlightCallout">
-          <div id="spotlightStepLabel">1/3</div>
+          <div class="spotlight-meta">
+            <div id="spotlightStepLabel">ADIM 1/3</div>
+            <div id="spotlightDots"></div>
+          </div>
+          <h4 id="spotlightTitle"></h4>
           <p id="spotlightText"></p>
           <div id="spotlightActions">
             <button type="button" id="spotlightSkip">Geç</button>
             <button type="button" id="spotlightNext">İleri</button>
           </div>
+        </div>
+      </div>
+
+      <!-- G90 (madde 1) — Tasarim-2026-08/Prototip.dc.html "ÇIKIŞ ONAYI" bloğu
+           birebir, SIFIRDAN eklendi (koda hiç yoktu, #backBtn doğrudan çıkıyordu).
+           SADECE round GERÇEKTEN aktifken (activeQuestion var) gösterilir — bkz.
+           app.js askExitConfirm() notu. -->
+      <!-- G90-10 DÜZELTMESİ: "hidden" class'ı KALDIRILDI — .hidden{display:none!important}
+           .open'un opacity:1'ini HER ZAMAN eziyordu (openExitConfirm() sadece "open"
+           ekliyor, "hidden" hiç kaldırılmıyordu), dialog GERÇEKTE hiç görünmüyordu.
+           Canlı testte bulundu. Sheet'lerin AYNI deseni (.sheet-overlay/.bottom-sheet
+           de "hidden" TAŞIMAZ, kapalı durumu KENDİ opacity:0/pointer-events:none
+           taban stiliyle sağlar) — buraya da uygulandı. -->
+      <div class="exit-confirm-overlay" id="exitConfirmOverlay"></div>
+      <div class="exit-confirm-box" id="exitConfirmBox">
+        <div class="exit-confirm-title">Oyundan çık?</div>
+        <div class="exit-confirm-body">İlerlemen kaydedilir; kaldığın yerden devam edebilirsin.</div>
+        <div class="exit-confirm-actions">
+          <button type="button" class="exit-confirm-stay" id="exitConfirmStay">Devam Et</button>
+          <button type="button" class="exit-confirm-leave" id="exitConfirmLeave">Çık</button>
         </div>
       </div>
     </section>
@@ -853,25 +911,29 @@
     </section>
 
     <!-- ================= EKRAN: KALİBRASYON ================= -->
+    <!-- G90 (madde 9) — Tasarim-2026-08/Prototip.dc.html "KALİBRASYON" ölçüleri.
+         #calStep KORUNDU (hâlâ mevcut sayıyı taşır, artık calStepLabelText
+         İÇİNDE) — SADECE konumu/görünümü değişti (alt satır → üst eyebrow +
+         sağ üst pil noktaları). Donanım ses tuşu akışı (startVolumeButtonsWatch)
+         DOKUNULMADI. -->
     <section class="screen" id="screen-calib">
       <div class="ghead">
         <div class="ghead-row">
           <button class="back" id="calibBackBtn" aria-label="Geri">&#8249;</button>
           <div class="ghead-titles">
-            <div class="game-title">Kalibrasyon</div>
-            <div class="game-sub num">Adım <span id="calStep">1</span>/3</div>
+            <div class="game-title cal-title">Kalibrasyon</div>
+          </div>
+          <div class="cal-steps cal-steps-v2" id="calStepDots">
+            <span class="cal-step-dot"></span>
+            <span class="cal-step-dot"></span>
+            <span class="cal-step-dot"></span>
           </div>
         </div>
       </div>
       <div class="scroll" style="padding-top:16px;display:flex;flex-direction:column;gap:14px">
-        <div class="cal-steps" id="calStepDots">
-          <span class="cal-step-dot"></span>
-          <span class="cal-step-dot"></span>
-          <span class="cal-step-dot"></span>
-        </div>
-
         <div>
-          <h1 style="margin:6px 0 0;font-size:22px;font-weight:800;line-height:1.3" id="calHead">Kulaklığını tak, ortamı sessizleştir</h1>
+          <div class="cal-step-label" id="calStepLabelText">ADIM <span id="calStep">1</span>/3</div>
+          <h1 style="margin:8px 0 0;font-size:18px;font-weight:800;line-height:1.3" id="calHead">Kulaklığını tak, ortamı sessizleştir</h1>
           <p class="lead" style="margin:10px 0 0" id="calBody">Egzersizlerdeki dB farkları küçüktür. Seviyeyi bir kez ayarlarsan tüm sorular aynı referansla çalar; sonuçların karşılaştırılabilir olur.</p>
         </div>
 
@@ -1262,122 +1324,148 @@
        AKTİFKEN oluyordu. Çözüm: mainSettingsSheet'in AYNI deseni — TÜM
        ekranlardan erişilmesi gereken sheet'ler .app-shell KÖKÜNDE durur,
        hiçbir .screen'e bağımlı DEĞİLDİR. -->
+  <!-- G90 (madde 2+5) — "SHEET ORTAK YAPISI" + "MOD REHBERİ SHEET" ölçüleri.
+       Görsel kutusu + madde listesi guideSheetBody'nin İÇİNDE JS'ten dolduruluyor
+       (bkz. app.js openGuideSheet, guide-texts.js İÇERİĞİ DEĞİŞMEDİ). -->
   <div class="sheet-overlay" id="guideSheetOverlay"></div>
   <div class="bottom-sheet" id="guideSheet">
-    <div class="sheet-handle"></div>
-    <div class="sheet-header">
+    <div class="sheet-handle-v2"></div>
+    <div class="sheet-header-v2">
       <h3 id="guideSheetTitle">Nasıl çalışır?</h3>
-      <button class="sheet-cancel" id="guideSheetClose" type="button">Kapat</button>
+      <button class="sheet-cancel-v2" id="guideSheetClose" type="button" aria-label="Kapat">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+      </button>
     </div>
     <div id="guideSheetBody"></div>
   </div>
 
   <!-- ================= GENEL AYARLAR SHEET ================= -->
+  <!-- G90 (madde 3) — Tasarim-2026-08/Prototip.dc.html "AYARLAR SHEET" bloğu
+       birebir. Bölümler tasarımın GENEL/OYUN/SES/HESAP/DİĞER'i — mevcut satırlar
+       TAŞINDI (Geri bildirim ekranı GENEL→OYUN, Kalibrasyon GENEL→SES, DESTEK+
+       HAKKINDA DİĞER altında birleşti), TEK BİRİ silinmedi. İKİ bilinçli sapma:
+       (1) "Odak Aralığı" tasarımda OYUN altında ama bu app'te GLOBAL bir ayar
+       DEĞİL — o an oynanan moda özel, #gameSettingsSheet'te (in-game "..."
+       sheet) yaşıyor; burada UYDURULMADI, atlandı. (2) "Gizlilik / Kullanım
+       Şartları" tasarımda TEK satır ama İKİ ayrı işlev (openLegal("privacy")/
+       ("terms")) — ne yapacağı belirsiz bir "tek satır" icat etmemek için İKİ
+       satır olarak KORUNDU. "İlerlemeyi sıfırla" (tasarımda var, İlerleme
+       sekmesindeki #resetStatsBtn'in AYNI resetAllProgress() fonksiyonunu
+       çağıran YENİ bir ikinci erişim noktası — mantık TEKRARLANMADI). -->
   <div class="sheet-overlay" id="mainSettingsOverlay"></div>
-  <div class="bottom-sheet" id="mainSettingsSheet">
+  <div class="bottom-sheet settings-sheet-v2" id="mainSettingsSheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-header">
+    <div class="sheet-header settings-header-v2">
       <button class="back hidden" id="mainSettingsBack" aria-label="Geri">&#8249;</button>
       <h3 style="flex:1">Ayarlar</h3>
-      <button class="sheet-cancel" id="mainSettingsClose">✕</button>
+      <button class="sheet-cancel-v2" id="mainSettingsClose" aria-label="Kapat">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+      </button>
     </div>
 
-    <div class="group">
-      <h6>GENEL</h6>
-      <div class="list">
-        <div class="item">
+    <div class="group-v2">
+      <h6 class="group-v2-label">GENEL</h6>
+      <div class="list-v2">
+        <div class="item-v2">
           <div><h5>Dil</h5><p>Arayüz ve egzersiz metinleri</p></div>
           <div class="seg" id="langSeg">
             <button type="button" class="on" data-lang="tr">Türkçe</button>
             <button type="button" data-lang="en">English</button>
           </div>
         </div>
-        <div class="item">
+        <div class="item-v2">
           <div style="padding-right:12px"><h5>Bildirimler</h5><p>Günlük antrenman hatırlatması</p></div>
           <button type="button" class="sw" id="notifSwitch" aria-label="Bildirimler"><i></i></button>
         </div>
-        <div class="item">
+        <div class="item-v2">
           <div style="padding-right:12px"><h5>Kulaklık uyarısı</h5><p>Ana menüde kulaklık hatırlatma notunu göster</p></div>
           <button type="button" class="sw" id="hpWarnSwitch" aria-label="Kulaklık uyarısı"><i></i></button>
         </div>
-        <div class="item">
+      </div>
+    </div>
+
+    <div class="group-v2">
+      <h6 class="group-v2-label">OYUN</h6>
+      <div class="list-v2">
+        <div class="item-v2 item-v2-diff">
+          <div class="item-v2-diff-top">
+            <div><h5>Zorluk</h5><p id="diffHintV2">Önerilen · performansına göre kendini ayarlar</p></div>
+            <div class="seg" id="diffSegV2">
+              <button type="button" id="diffAutoBtn" data-mode="auto">Otomatik</button>
+              <button type="button" id="diffFixedBtn" data-mode="fixed">Sabit</button>
+            </div>
+          </div>
+          <div class="sublist sublist-v2" id="diffSublist">
+            <button class="chip-v2" data-diff="easy">Kolay</button>
+            <button class="chip-v2" data-diff="medium">Orta</button>
+            <button class="chip-v2" data-diff="hard">Zor</button>
+            <button class="chip-v2" data-diff="pro">Pro</button>
+            <button class="chip-v2" data-diff="proplus">Sınırsız</button>
+          </div>
+        </div>
+        <div class="item-v2">
           <div style="padding-right:12px"><h5>Geri bildirim ekranı</h5><p>Cevap sonrası doğru/yanlış kartını göster. Kapalıyken hemen sıradaki soruya geçilir.</p></div>
           <button type="button" class="sw" id="feedbackScreenSwitch" aria-label="Geri bildirim ekranı"><i></i></button>
         </div>
-        <button class="item" id="calibRow">
-          <div><h5>Kalibrasyon</h5><p>Referans tonla kulaklık seviyesini eşitle</p></div>
+      </div>
+    </div>
+
+    <div class="group-v2">
+      <h6 class="group-v2-label">SES</h6>
+      <div class="list-v2">
+        <button class="item-v2 item-v2-icon" id="calibRow">
+          <div class="item-v2-icon-box"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18V9M9 18V5M14 18v-7M19 18v-4"></path></svg></div>
+          <div><h5>Yeniden kalibre et</h5><p>Referans tonla kulaklık seviyesini eşitle</p></div>
           <span class="caret">&#8250;</span>
         </button>
       </div>
     </div>
 
-    <div class="group">
-      <h6>ZORLUK</h6>
-      <div class="list">
-        <button class="item pick" id="diffAutoBtn" data-mode="auto">
-          <div><h5>Otomatik</h5><p>Önerilen · performansına göre kendini ayarlar</p></div>
-          <span class="tick">✓</span>
-        </button>
-        <button class="item" id="diffFixedBtn" data-mode="fixed">
-          <div><h5>Sabit</h5><p>Hassasiyeti kendin seç</p></div>
-          <span class="tick">✓</span>
-        </button>
-        <div class="sublist" id="diffSublist">
-          <button class="item" data-diff="easy"><div><h5>Kolay</h5><p>Farklar belirgin, yeni başlayanlar için</p></div><span class="tick">✓</span></button>
-          <button class="item" data-diff="medium"><div><h5>Orta</h5><p>Dengeli, günlük antrenman</p></div><span class="tick">✓</span></button>
-          <button class="item" data-diff="hard"><div><h5>Zor</h5><p>İnce farklar, deneyimli kulak</p></div><span class="tick">✓</span></button>
-          <button class="item" data-diff="pro"><div><h5>Pro</h5><p>Stüdyo hassasiyeti</p></div><span class="tick">✓</span></button>
-          <button class="item" data-diff="proplus"><div><h5>Sınırsız</h5><p>Sınırını kendin ara</p></div><span class="tick">✓</span></button>
-        </div>
-      </div>
-    </div>
-
-    <div class="group">
-      <h6>HESAP</h6>
-      <div class="list">
-        <div class="item">
+    <div class="group-v2">
+      <h6 class="group-v2-label">HESAP</h6>
+      <div class="list-v2">
+        <div class="item-v2">
           <div><h5>Sürüm</h5><p id="accountVerLine">Ücretsiz — 1 mod, seans başına 5 soru</p></div>
           <button class="btn primary" style="width:auto;min-height:44px;border-radius:14px;padding:0 16px;font-size:14px;flex:none" id="goProBtn">Pro'ya geç</button>
         </div>
-        <button class="item" id="restoreRow">
+        <button class="item-v2" id="restoreRow">
           <div><h5>Satın alımları geri yükle</h5><p>Aynı hesapla daha önce satın aldıysan</p></div>
           <span class="caret">&#8250;</span>
         </button>
       </div>
     </div>
 
-    <div class="group">
-      <h6>DESTEK</h6>
-      <div class="list">
-        <button class="item" id="feedbackRow"><div><h5>Geri bildirim gönder</h5></div><span class="caret">&#8250;</span></button>
-        <button class="item" id="faqRow"><div><h5>Sık sorulan sorular</h5></div><span class="caret">&#8250;</span></button>
-        <button class="item" id="contactRow"><div><h5>Bize ulaşın</h5></div><span class="caret">&#8250;</span></button>
+    <div class="group-v2">
+      <h6 class="group-v2-label">DİĞER</h6>
+      <div class="list-v2">
+        <button class="item-v2" id="feedbackRow"><div><h5>Geri bildirim gönder</h5></div><span class="caret">&#8250;</span></button>
+        <button class="item-v2" id="faqRow"><div><h5>Sık sorulan sorular</h5></div><span class="caret">&#8250;</span></button>
+        <button class="item-v2" id="contactRow"><div><h5>Bize ulaşın</h5></div><span class="caret">&#8250;</span></button>
+        <button class="item-v2" id="privacyRow"><div><h5>Gizlilik politikası</h5></div><span class="caret">&#8250;</span></button>
+        <button class="item-v2" id="termsRow"><div><h5>Kullanım şartları</h5></div><span class="caret">&#8250;</span></button>
       </div>
-    </div>
-
-    <div class="group">
-      <h6>HAKKINDA</h6>
-      <div class="list">
-        <button class="item" id="privacyRow"><div><h5>Gizlilik politikası</h5></div><span class="caret">&#8250;</span></button>
-        <button class="item" id="termsRow"><div><h5>Kullanım şartları</h5></div><span class="caret">&#8250;</span></button>
+      <div class="list-v2" style="margin-top:8px">
         <!-- Gizli geliştirici anahtarı: bu satıra 7 kez üst üste dokununca #devGroup açılır
              (bkz. app.js initDevMode). Normal kullanıcı bunu bilerek aramadıkça bulamaz. -->
-        <div class="item" id="versionRow"><div><h5>Sürüm numarası</h5></div><span class="val num">v1.0.0</span></div>
+        <div class="item-v2" id="versionRow"><div><h5>Hakkında</h5></div><span class="val num">v1.0.0</span></div>
+        <button class="item-v2" id="settingsResetBtn"><div><h5 style="color:#f87160">İlerlemeyi sıfırla</h5></div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f87160" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 2.6-6.3M3 4v5h5"></path></svg>
+        </button>
       </div>
     </div>
 
-    <div class="group hidden" id="devGroup">
-      <h6>GELİŞTİRİCİ</h6>
-      <div class="list">
-        <div class="item">
+    <div class="group-v2 hidden" id="devGroup">
+      <h6 class="group-v2-label">GELİŞTİRİCİ</h6>
+      <div class="list-v2">
+        <div class="item-v2">
           <div style="padding-right:12px"><h5>Geliştirici: tam erişim</h5><p>Tüm modlar + seviye kilitleri + Pro açılır — test için, gerçek bir satın alma DEĞİL</p></div>
           <button type="button" class="sw" id="devProSwitch" aria-label="Geliştirici: tam erişim"><i></i></button>
         </div>
         <!-- G55: en basit, izole dosya seçici testi — Motor 3'ün çift-upload
              karmaşıklığından TAMAMEN AYRI, TEK butona basıp SONUCU (toast +
              konsol) doğrudan görmek için (bkz. DURUM.md G55 BİTTİ). -->
-        <button class="item" id="filePickerTestBtn"><div><h5>Dosya Seçici Testi</h5><p>window.Capacitor.Plugins.FilePicker zincirini tek adımda dener, sonucu gösterir</p></div></button>
-        <button class="item" id="devModeOffBtn"><div><h5 style="color:var(--rd)">Geliştirici modunu kapat</h5></div></button>
+        <button class="item-v2" id="filePickerTestBtn"><div><h5>Dosya Seçici Testi</h5><p>window.Capacitor.Plugins.FilePicker zincirini tek adımda dener, sonucu gösterir</p></div></button>
+        <button class="item-v2" id="devModeOffBtn"><div><h5 style="color:var(--rd)">Geliştirici modunu kapat</h5></div></button>
       </div>
     </div>
   </div>

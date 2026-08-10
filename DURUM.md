@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G89)
+Son güncelleme: 10.08.2026 (G90)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,93 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G89, tek commit) — **PAYWALL giydirildi — Prototip.dc.html PAYWALL
+Bu commit (G90, tek commit) — **SHEET'LER, TOAST'LAR, YARDIMCI EKRANLAR
+giydirildi — Prototip.dc.html'in ÇIKIŞ ONAYI/AYARLAR/SEVİYE/REHBER/TOAST/
+SPOTLIGHT/KULAKLIK/KALİBRASYON blokları birebir + canlı testte bulunan
+GERÇEK bir çıkış-onayı bug'ı düzeltildi**
+
+Kaynak: `Tasarim-2026-08/Prototip.dc.html` — KULAKLIK UYARISI/ÇIKIŞ ONAYI/
+AYARLAR SHEET/TOAST/SPOTLIGHT REHBER/KALİBRASYON/ROZET TOAST blokları
+AÇILIP birebir uygulandı. Hiçbir fonksiyon sökülmedi, `#guideSheet`/
+`#lvlSheet`/`#gameSettingsSheet`/`#menuInfoBtn`/`.mode-info-btn`/
+`#gameInfoBtn`/`#gameSettingsBtn` id'leri KORUNDU.
+
+Öğe haritası:
+
+| # | Madde | Uygulanan değişiklik |
+|---|---|---|
+| 1 | Çıkış onayı | KODDA HİÇ YOKTU, sıfırdan eklendi — `#exitConfirmOverlay`/`#exitConfirmBox`, SADECE round aktifken (`activeQuestion`) gösterilir, idle ekranda doğrudan çıkar |
+| 2 | Sheet ortak yapısı | `#lvlSheet`/`#guideSheet`'e `.sheet-handle-v2`/`.sheet-header-v2`/`.sheet-cancel-v2` (32x32 X ikonu) — `#gameSettingsSheet`/`#settingsSheet` (kapsam dışı) eski `.sheet-header`'ı KORUDU, global değiştirilmedi |
+| 3 | Ayarlar sheet | GENEL/OYUN/SES/HESAP/DİĞER'e yeniden gruplandı (Geri bildirim ekranı → OYUN, Kalibrasyon → SES), Zorluk artık inline segment+çip (eski dikey liste DEĞİL), "İlerlemeyi sıfırla" satırı YENİ (İlerleme sekmesindeki `#resetStatsBtn`'in AYNI `resetAllProgress()`'ini çağırır) |
+| 4 | Seviye bilgisi sheet | Üstte altın pentagon kimlik kartı (`renderLevelSheet()`'e eklendi) — mod adı MODE_CATALOG'dan, geri kalan içerik DEĞİŞMEDİ |
+| 5 | Mod rehberi sheet | 96px görsel kutusu (`modeVisualSvg()` — mod kartlarının AYNI kaynağı) + çip madde listesi, `guide-texts.js` İÇERİĞİ DEĞİŞMEDİ |
+| 6 | Toast | `core/fx.js:toast()` opsiyonel 3. parametre (`kind`) aldı — pro/daily/badge/soon, ~25 mevcut çağrı yeri (kind'sız) eski nötr görünümü KORUDU |
+| 7 | Spotlight | Aydınlatma kenarlığı+glow, balon artık tam genişlik (left/right:16px, hedefe göre kaydırılmıyor), "ADIM N/M" + nokta göstergesi + başlık (target anahtarından türetildi: listen/abControl/select/confirm) |
+| 8 | Kulaklık uyarısı | Eski `.bottom-sheet` yapısı → tam ekran `.hp-screen`, id'ler (`hpSheet`/`hpSheetConfirm`/vb.) KORUNDU, app.js'e TEK SATIR dokunulmadı |
+| 9 | Kalibrasyon | Adım noktaları artık header'da pil biçiminde, "ADIM N/M" eyebrow + 18px başlık — donanım ses tuşu akışı (`startVolumeButtonsWatch`) DOKUNULMADI |
+| 10 | Ses durumları | `#audioErrorRow`/`#audioLoadingRow` YENİ — `audio-engine.js:buildQuestionChain()` artık `{sampleLoadFailed}` döndürüyor (pembe gürültü fallback'i KALDIRILMADI, sadece bilgi app.js'e taşınıyor), `playQuestion()` bunu await edip satırı gösteriyor |
+
+**Bilinçli sapmalar (kod değil, tasarım/gerçek-veri uyuşmazlığı):**
+- Ayarlar'daki "Odak Aralığı" atlandı — tasarımda global bir OYUN ayarı ama
+  bu app'te GLOBAL değil, o an oynanan moda özel (`#gameSettingsSheet`'te
+  yaşıyor) — fabrik bir global ayar İCAT edilmedi.
+- "Gizlilik / Kullanım Şartları" tasarımda TEK satır, burada İKİ satır
+  olarak KORUNDU — ikisi ayrı işlev (`openLegal("privacy")`/`("terms")`),
+  birleşik satırın ne yapacağı belirsiz, uydurulmadı.
+- Kalibrasyon satırının "Son kalibrasyon: N gün önce" metni EKLENMEDİ —
+  `prefs.calibrationDone` sadece boolean, timestamp YOK; gerçek `updateCalibRowLabel()`
+  metni korundu.
+- ROZET TOAST (design'ın AYRI, alt-sabit büyük pentagon-ikonlu kutlama
+  bileşeni) sıfırdan İNŞA EDİLMEDİ — task'ın numaralı 10 maddesi "rozet"i
+  madde 6'nın (TOAST) 4 türünden biri olarak listeliyordu, o kapsamda
+  uygulandı.
+
+**Canlı testte bulunan gerçek bug (G90-1'in kendi, önceki turda yazılmış
+kodunda):** `openExitConfirm()` sadece `.open` class'ı ekliyordu, HTML'deki
+başlangıç `class="... hidden"`'ı hiç kaldırmıyordu — `.hidden{display:none
+!important}` her zaman `.open`'ın `opacity:1`'ini eziyordu, dialog GERÇEKTE
+hiçbir zaman görünmüyordu (canlı tıklamada sessizce hiçbir şey olmuyordu).
+Kök sebep: bu app'teki sheet'ler (`.sheet-overlay`/`.bottom-sheet`/`.hp-screen`)
+HİÇBİRİ `hidden` class'ı TAŞIMAZ, kapalı durumu KENDİ `opacity:0`/`pointer-
+events:none` taban stiliyle sağlar — exit-confirm bu deseni KIRMIŞTI. Düzeltme:
+`index.html`'den `hidden` class'ı kaldırıldı (aynı deseni izliyor artık).
+
+**Testler:** `createQuestion`/`evaluateAnswer` DEĞİŞMEDİ. **`npm test`:
+1043/1043.**
+
+**DOĞRULAMA (canlı tarayıcı, taze sekme, hard-reload):**
+- **Çıkış onayı:** round aktifken Geri → "Oyundan çık?" açıldı, "Devam Et"
+  round'da kaldı (BOSS round'a geçti, bozulmadı), "Çık" menüye döndü —
+  bug bulunup düzeltildikten SONRA üçü de canlı doğrulandı.
+- **4 sheet:** Ayarlar (5 bölüm, Zorluk inline çip aç/kapa, "İlerlemeyi
+  sıfırla" satırı), Seviye bilgisi (`#levelChip` → pentagon kimlik kartı +
+  gerçek bant genişliği/frekans artışı/XP), Mod rehberi (hem mod-özel hem
+  genel — 96px görsel + çip liste), hepsi aç/kapa doğru çalıştı.
+- **4 toast türü:** `core/fx.js:toast()` doğrudan çağrılarak pro/daily/
+  badge/soon renk+ikon+glow değerleri `getComputedStyle` ile ÖLÇÜLDÜ,
+  tasarımın literal rgba değerleriyle birebir eşleşti; kind'sız eski
+  çağrılar hâlâ nötr görünümde.
+- **Spotlight:** Frekans Bulma'da gerçek tur (hintRoundsShown=0'a
+  sıfırlanıp) 4 adım boyunca izlendi — "ADIM 1/4"→"ADIM 2/4", nokta
+  göstergesi ilerledi, başlık target'a göre değişti ("Önce dinle"→"A/B
+  Test"), aydınlatma gerçek elementleri (spektrum kartı, A/B butonu) sardı.
+- **Kulaklık uyarısı + Kalibrasyon:** Reverb (kulaklıkGerekli:true) kartına
+  basılınca tam ekran uyarı açıldı, "Taktım" moda soktu; Kalibrasyon 3
+  adımı da (header'da pil noktalar + "ADIM N/M" eyebrow) doğru ilerledi,
+  referans ton gerçekten çaldı/durdu, seviye metresi canlı animasyon
+  gösterdi.
+- **Ses durumları:** `audio-engine.js:buildQuestionChain()` GERÇEK bir ağ
+  hatasıyla (XHR `/audio/*.m4a` isteği bilerek 404'e yönlendirilerek) test
+  edildi — `{sampleLoadFailed:true}` döndü, `console.error` beklenen
+  "Örnek yüklenemedi" mesajını bastı; başarılı yüklemede `false`. Görsel
+  satırlar (`#audioLoadingRow`/`#audioErrorRow`) sınıf toggle'ıyla ekran
+  görüntüsünde doğrulandı — tasarımın renk/ikon/metin ölçüleriyle birebir.
+- **Konsol hatası:** 0 yeni (yalnızca kasıtlı test-hatası logları, kendi
+  forced-404 denemem — regresyon DEĞİL). **`npm test`: 1043/1043.**
+
+---
+
+Önceki commit (G89, tek commit) — **PAYWALL giydirildi — Prototip.dc.html PAYWALL
 bloğu birebir, gerçek 6 tetikleme noktasının bağlam metni + gerçek can geri
 sayımı + PRO_BENEFITS/FREE_MODE_COUNT'taki iki gerçek hata düzeltildi**
 
@@ -7308,7 +7394,21 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G89 itibarıyla):** G83 (Spektrum) + G84 (Sınav Ekranları) +
+**Tek sonraki adım (G90 itibarıyla):** G90 (Sheet'ler/Toast'lar/Yardımcı
+Ekranlar) kod/test/canlı doğrulama açısından TAM kapandı — 10 maddenin
+hepsi masaüstü Chrome'da canlı test edildi, çıkış-onayı bug'ı (bkz. G90
+BİTTİ) bulunup AYNI oturumda düzeltildi. Bu turun kendi açık işi: **hiçbiri
+GERÇEK CİHAZDA (iOS/Android) doğrulanmadı** — özellikle çıkış onayının
+`fbPopIn` animasyonu, kalibrasyonun donanım ses tuşu akışı (`startVolumeButtonsWatch`,
+sadece kod okumayla doğrulandı, gerçek tuş basışıyla DEĞİL), spotlight'ın
+tam-genişlik balonunun küçük ekranlarda taşma/kırpılma durumu ve toast'ların
+4 türünün gerçek oyun içi tetikleyicilerinde (günlük görev/rozet kazanma/
+Pro kilidi/yakında) — bu turda SADECE `core/fx.js:toast()` doğrudan
+çağrılarak (gerçek modül, ama gerçek oyun akışından DEĞİL) test edildi —
+cihazda TEKRAR denenmeli. **Kabul kriteri:** yukarıdaki maddeler gerçek
+iOS/Android cihazda gözle/elle doğrulanır.
+
+**Önceki adım (G89 itibarıyla, hâlâ geçerli):** G83 (Spektrum) + G84 (Sınav Ekranları) +
 G85 (Oyun Ekranı Düzeltmesi #1) + G86 (Oyun Ekranı — 12 madde) + G87 (İlerleme
 Sekmesi) + G88 (Araçlar Sekmesi) + G89 (Paywall) kod/test/canlı doğrulama
 açısından TAM kapandı, yeni açık iş bırakmadı — G86'nın TDZ/startBtn/

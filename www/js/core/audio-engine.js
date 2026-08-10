@@ -309,6 +309,7 @@ export function createAudioEngine() {
   // elle takip edildiği için kaldığı yerden devam eder.
   // applyProcessing: aktif modun applyProcessing(question, { audioCtx }) fonksiyonu.
   async function buildQuestionChain(question, processed, sourceType, uploadManager, applyProcessing) {
+    let sampleLoadFailed = false;
     stopAudio(); // ÖNCEKİ zincirin (varsa) upload konumunu duraklatır — bkz. activeUploadManager notu
     // Bu turun kaynağı upload İSE stopAudio()'nun bir SONRAKİ çağrısı bunu duraklatabilsin
     // diye referans burada güncelleniyor; değilse null (gömülü/sentetik kaynaklarda
@@ -374,6 +375,11 @@ export function createAudioEngine() {
         }
       } catch (err) {
         console.error(err);
+        // G90 (madde 10): fallback (pink noise) DAVRANIŞI DEĞİŞMEDİ — round
+        // sessiz kalmasın diye hâlâ bir kaynak bağlanıyor. YENİ olan sadece
+        // bu bilginin çağırana (app.js) DÖNÜLMESİ, "Ses yüklenemedi · Tekrar
+        // dene" satırını gösterebilsin diye (bkz. playQuestion).
+        sampleLoadFailed = true;
         const [noise] = buildNoiseSource("pink");
         noise.connect(sourceMix);
         currentNodes.push(noise);
@@ -388,7 +394,7 @@ export function createAudioEngine() {
     // stopAudio() başka bir tur tarafından çağrılmış olabilir. Böyle bir durumda bu
     // zincirin geri kalanını (filtre/compressor/muteGain bağlantısı) KURMA, yoksa
     // eski/öksüz bir zincir sessizce arka planda çalmaya başlar.
-    if (!currentNodes.includes(out)) return;
+    if (!currentNodes.includes(out)) return { sampleLoadFailed };
 
     // Paralel kuru/işlenmiş yollar — İKİSİ DE her zaman bağlı, aralarında SADECE
     // localDryGain/localWetGain'in değeri (0.0001 ↔ 1) geçiş yapıyor. setProcessed()
@@ -404,6 +410,7 @@ export function createAudioEngine() {
 
     compressor.connect(out);
     out.connect(muteGain);
+    return { sampleLoadFailed };
   }
 
   // A/B toggle — ARTIK grafiği yeniden kurmuyor, sadece dryGain/wetGain arasında kısa

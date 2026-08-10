@@ -685,21 +685,32 @@
     #spotlightOverlay{position:fixed;inset:0;z-index:75;pointer-events:none}
     /* Delik efekti: KLASİK CSS spotlight hilesi — devasa box-shadow spread'i
        (9999px) elementin ETRAFINI karartır, elementin KENDİSİ (arka planı
-       şeffaf) hiç boyanmaz — SVG mask'e gerek yok, hafif ve GPU-dostu. */
+       şeffaf) hiç boyanmaz — SVG mask'e gerek yok, hafif ve GPU-dostu.
+       G90 (madde 7): kenarlık + cyan glow eklendi (Prototip.dc.html'in
+       "Aydınlatma" ölçüleri birebir). */
     #spotlightHole{
-      position:fixed;border-radius:var(--r-card);box-shadow:0 0 0 9999px rgba(6,8,14,.72);
+      position:fixed;border-radius:16px;border:2px solid #22d3ee;
+      box-shadow:0 0 0 9999px rgba(4,5,7,.82), 0 0 26px rgba(34,211,238,.5);
       pointer-events:none;
       transition:top .28s cubic-bezier(.4,0,.2,1),left .28s cubic-bezier(.4,0,.2,1),
         width .28s cubic-bezier(.4,0,.2,1),height .28s cubic-bezier(.4,0,.2,1);
     }
+    /* G90 (madde 7): "Balon" artık left:16px/right:16px TAM GENİŞLİK (hedefin
+       sağına/soluna göre KAYDIRILMIYOR) — app.js:positionSpotlightCallout
+       ARTIK sadece dikey (top) konumluyor, left/right'a hiç dokunmuyor. */
     #spotlightCallout{
-      position:fixed;max-width:min(300px, calc(100vw - 24px));padding:14px 16px;
-      border-radius:var(--r-card);background:var(--bg-panel);border:1px solid rgba(34,211,238,.35);
+      position:fixed;left:16px;right:16px;padding:16px;
+      border-radius:18px;background:#16181c;border:1px solid rgba(34,211,238,.35);
       box-shadow:0 10px 30px rgba(0,0,0,.45);pointer-events:auto;
-      transition:top .28s cubic-bezier(.4,0,.2,1),left .28s cubic-bezier(.4,0,.2,1);
+      transition:top .28s cubic-bezier(.4,0,.2,1);
     }
-    #spotlightStepLabel{font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--cyan)}
-    #spotlightText{margin:6px 0 0;font-size:15px;line-height:1.45;color:var(--tx)}
+    .spotlight-meta{display:flex;align-items:center;justify-content:space-between}
+    #spotlightStepLabel{font-size:10px;font-weight:800;letter-spacing:1.2px;color:#22d3ee}
+    #spotlightDots{display:flex;gap:4px}
+    .spotlight-dot{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.2);flex:none}
+    .spotlight-dot.on{background:#22d3ee}
+    #spotlightTitle{margin:10px 0 0;font-size:16.5px;font-weight:800;color:var(--tx)}
+    #spotlightText{margin:6px 0 0;font-size:13px;line-height:1.55;color:#8f949b}
     #spotlightActions{display:flex;justify-content:flex-end;align-items:center;gap:14px;margin-top:12px}
     #spotlightActions button{font-size:14px;font-weight:700;border-radius:var(--r-btn);border:none;padding:8px 14px}
     #spotlightSkip{background:none;color:var(--tx-3);padding:8px 4px}
@@ -1199,6 +1210,25 @@
     .abholdhint{font-size:9px;font-weight:600;letter-spacing:.02em;color:var(--tx-3);line-height:1}
     .abbtn.loop .abholdhint{display:none}
 
+    /* G90 (madde 1) — Tasarim-2026-08/Prototip.dc.html "ÇIKIŞ ONAYI" bloğunun
+       literal ölçüleri. z-index bu projenin KENDİ sheet ölçeğine (.sheet-overlay
+       90/.bottom-sheet 91) göre ayarlandı — tasarımın 70/71'i doğrudan
+       kopyalanmadı, buradaki diğer overlay'lerin ÜSTÜNDE kalması gerekiyordu. */
+    .exit-confirm-overlay{position:fixed;inset:0;z-index:92;background:rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:opacity .2s ease}
+    .exit-confirm-overlay.open{opacity:1;pointer-events:auto}
+    .exit-confirm-box{
+      position:fixed;z-index:93;left:28px;right:28px;top:50%;margin-top:-92px;
+      border-radius:20px;padding:22px 20px 18px 20px;background:#1a1c20;
+      border:1px solid rgba(255,255,255,.1);box-shadow:0 20px 50px rgba(0,0,0,.6);
+      text-align:center;opacity:0;pointer-events:none;transition:opacity .2s ease;
+    }
+    .exit-confirm-box.open{opacity:1;pointer-events:auto;animation:fbPopIn 200ms cubic-bezier(.2,.8,.3,1.2) both}
+    .exit-confirm-title{font-size:18px;font-weight:800;letter-spacing:-.3px;color:#f2f3f5}
+    .exit-confirm-body{font-size:13px;line-height:1.5;color:#8f949b;margin-top:8px}
+    .exit-confirm-actions{display:flex;flex-direction:column;gap:9px;margin-top:18px}
+    .exit-confirm-stay{height:46px;border:none;border-radius:13px;background:linear-gradient(180deg,#46d968,#27a63e);color:#06230e;font-family:'Inter',sans-serif;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(46,191,70,.3),inset 0 1px 0 rgba(255,255,255,.3)}
+    .exit-confirm-leave{height:42px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.05);color:#d9a08f;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer}
+
     /* ---- ayarlar / değer seçici sheet ---- */
     .sheet-overlay{
       position:fixed;inset:0;background:rgba(2,3,5,.62);backdrop-filter:blur(3px);
@@ -1233,6 +1263,29 @@
     }
     .cbrow.on .cb{color:#04231B;background:var(--gr);border-color:var(--gr)}
     .cbrow.on{color:var(--tx-2)}
+
+    /* G90 (madde 8) — Tasarim-2026-08/Prototip.dc.html "KULAKLIK UYARISI"
+       bloğunun literal ölçüleri. position:fixed — bu artık bir sheet DEĞİL,
+       tam ekran bir ekran-üstü-ekran (tab bar/her şeyin ÜSTÜNDE). */
+    .hp-screen{
+      position:fixed;inset:0;z-index:94;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:20px;padding:62px 24px 34px 24px;
+      background:#0c0d0f;text-align:center;opacity:0;pointer-events:none;
+      transition:opacity .25s ease, transform .32s cubic-bezier(.3,.8,.3,1);
+      transform:translateX(24px);
+    }
+    .hp-screen.open{opacity:1;pointer-events:auto;transform:translateX(0)}
+    .hp-ring{
+      width:96px;height:96px;border-radius:50%;background:rgba(34,211,238,.07);
+      border:1px solid rgba(34,211,238,.28);display:flex;align-items:center;
+      justify-content:center;box-shadow:0 0 34px rgba(34,211,238,.12);
+    }
+    .hp-title{font-size:22px;font-weight:800;letter-spacing:-.4px;color:#f2f3f5}
+    .hp-body{font-size:13.5px;line-height:1.55;color:#8f949b;margin-top:10px;max-width:300px}
+    .hp-actions{width:100%;max-width:300px;display:flex;flex-direction:column;gap:10px;margin-top:6px}
+    .hp-accept{height:50px;border:none;border-radius:14px;background:linear-gradient(180deg,#46d968,#27a63e);color:#06230e;font-family:'Inter',sans-serif;font-size:16px;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(46,191,70,.35),inset 0 1px 0 rgba(255,255,255,.3)}
+    .hp-back{height:46px;border:1px solid rgba(255,255,255,.12);border-radius:13px;background:rgba(255,255,255,.05);color:#b8bdc4;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer}
+    .hp-screen .cbrow{max-width:300px;margin-top:2px}
     .sheet-options{display:flex;flex-direction:column;gap:8px}
     .sheet-option{
       display:flex;justify-content:space-between;align-items:center;min-height:54px;padding:0 16px;
@@ -1507,14 +1560,21 @@
          karşılaştırma butonlarıyla (özellikle kısa ekranlarda) çakışıyordu. Ekranın
          ÜSTÜNDE, tüm oyun içeriğinin/actionbar'ın dışında sabit — top değeri
          relayoutToasts() (fx.js) tarafından JS'ten yönetiliyor, aynı anda birden
-         fazla toast üst üste binmez. G73: kenarlık rengi --cyan'a taşındı (nötr/
-         genel bildirim vurgusu — bkz. yukarıdaki not, ödül efektleri hariç). */
+         fazla toast üst üste binmez. G90 (madde 6): ölçüler Tasarim-2026-08/
+         Prototip.dc.html "TOAST" bloğundan birebir — kenarlık/glow rengi artık
+         --toast-border/--toast-glow (kind'lı çağrılarda fx.js'ten YAZILIR,
+         kind'sız çağrılarda aşağıdaki nötr/cyan varsayılana düşer). */
       right:16px;width:min(340px, calc(100vw - 32px));
-      padding:14px 16px;border-radius:var(--r-panel);background:rgba(9,10,12,.92);border:1px solid rgba(34,211,238,.2);
-      backdrop-filter:blur(14px);animation:toastIn .32s ease;
+      display:flex;align-items:center;gap:11px;
+      padding:12px 14px;border-radius:15px;background:rgba(26,28,32,.97);
+      border:1px solid var(--toast-border, rgba(34,211,238,.2));
+      box-shadow:0 12px 30px rgba(0,0,0,.5), 0 0 22px var(--toast-glow, transparent);
+      backdrop-filter:blur(12px);animation:toastIn .32s ease;
     }
-    .toast b{display:block;margin-bottom:4px;font-size:14px}
-    .toast small{color:var(--tx-3);line-height:1.5;font-size:13px}
+    .toast-icon{width:30px;height:30px;flex:none;border-radius:9px;display:flex;align-items:center;justify-content:center}
+    .toast-text{flex:1;min-width:0}
+    .toast b{display:block;margin-bottom:2px;font-size:13.5px;font-weight:700;color:#f2f3f5}
+    .toast small{color:#8f949b;line-height:1.4;font-size:11.5px;font-weight:500}
     @keyframes toastIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}
     .particle{
       width:8px;height:8px;border-radius:50%;background:radial-gradient(circle, white, var(--gold));
@@ -1571,6 +1631,111 @@
     .sublist.on{display:block}
 
     .sheet-header .back{width:38px;height:38px;font-size:20px;margin-right:2px;border-radius:var(--r-btn)}
+
+    /* G90 (madde 2+3) — Tasarim-2026-08/Prototip.dc.html "SHEET ORTAK YAPISI" +
+       "AYARLAR SHEET" ölçüleri birebir. Eski .group/.list/.item artık HİÇBİR
+       yerde kullanılmıyor (grep ile doğrulandı) — bu yüzden SİLİNMEDİ (üstteki
+       kural), yeni -v2 sınıfları paralel eklendi. */
+    .settings-header-v2{padding-bottom:2px}
+    .settings-header-v2 h3{font-size:21px;font-weight:800}
+    /* G90 (madde 2) — #lvlSheet/#guideSheet için de kullanılan ORTAK sheet
+       tutamaç/başlık ölçüleri. #gameSettingsSheet/#settingsSheet (kapsam DIŞI)
+       hâlâ eski .sheet-handle/.sheet-header'ı kullanıyor — global DEĞİŞTİRİLMEDİ. */
+    .sheet-handle-v2{width:38px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);margin:4px auto 14px}
+    .sheet-header-v2{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .sheet-header-v2 h3{margin:0;font-size:21px;font-weight:800;color:var(--tx)}
+    .sheet-cancel-v2{
+      width:32px;height:32px;flex:none;display:flex;align-items:center;justify-content:center;
+      border-radius:9px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:var(--tx-2);
+    }
+    .group-v2{margin-top:18px}
+    .group-v2:first-child{margin-top:4px}
+    .group-v2-label{margin:0 0 8px 4px;font-size:12px;font-weight:800;letter-spacing:.1em;color:var(--tx-3)}
+    .list-v2{
+      border-radius:16px;background:linear-gradient(180deg,#17191d,#121316);
+      border:1px solid rgba(255,255,255,.07);overflow:hidden;
+    }
+    .item-v2{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;
+      text-align:left;padding:14px 16px;background:none;border:none;color:var(--tx);
+      border-bottom:1px solid rgba(255,255,255,.04);
+    }
+    .list-v2 > .item-v2:last-child{border-bottom:none}
+    button.item-v2:active{background:rgba(255,255,255,.07)}
+    .item-v2 h5{margin:0;font-size:16px;font-weight:600;line-height:1.3}
+    .item-v2 p{margin:4px 0 0;font-size:14px;line-height:1.4;color:var(--tx-3)}
+    .item-v2 .val{font-size:14px;font-weight:600;color:var(--tx-3);flex:none}
+    .item-v2-icon{gap:12px}
+    .item-v2-icon-box{
+      width:30px;height:30px;flex:none;border-radius:9px;display:flex;align-items:center;justify-content:center;
+      background:rgba(34,211,238,.12);
+    }
+    /* Zorluk satırı: üstte segmentli Otomatik/Sabit, altında (Sabit iken) inline
+       çip listesi — tasarımın "sub-page navigasyonu değil, aynı sayfada
+       genişleme" deseni (bkz. syncDiffSheetUI/.sublist.on, app.js'te DEĞİŞMEDİ). */
+    .item-v2-diff{flex-direction:column;align-items:stretch;gap:0}
+    .item-v2-diff-top{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%}
+    .sublist-v2{flex-wrap:wrap;gap:8px;margin-top:12px}
+    .sublist-v2.on{display:flex}
+    .chip-v2{
+      flex:none;padding:8px 14px;border-radius:99px;font-size:13px;font-weight:700;
+      background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--tx-2);
+    }
+    .chip-v2.pick{background:rgba(43,217,168,.16);border-color:var(--gr);color:var(--gr)}
+
+    /* G90 (madde 4) — SEVİYE BİLGİSİ SHEET'in üst kimlik kartı. Pentagon SVG'si
+       .user-card-pentagon (ana menü) ile AYNI çizim, sadece 54x54'e ölçeklendi. */
+    .lvl-sheet-id-card{
+      display:flex;gap:14px;align-items:center;margin-top:16px;padding:14px 15px;border-radius:16px;
+      background:linear-gradient(180deg, rgba(232,196,106,.08), rgba(232,196,106,.02)), #17191d;
+      border:1px solid rgba(232,196,106,.35);
+    }
+    .lvl-sheet-pentagon{position:relative;width:54px;height:54px;flex:none;filter:drop-shadow(0 3px 6px rgba(0,0,0,.5))}
+    .lvl-sheet-pentagon-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:2px}
+    .lvl-sheet-pentagon-sv{font-size:8.5px;font-weight:700;color:var(--gold);letter-spacing:.5px;line-height:1}
+    .lvl-sheet-pentagon-num{font-size:17px;font-weight:800;color:#f6d878;line-height:1.15}
+    .lvl-sheet-id-text h5{margin:0;font-size:14.5px;font-weight:700;color:#f6d878}
+    .lvl-sheet-id-text p{margin:4px 0 0;font-size:11.5px;font-weight:500;line-height:1.45;color:var(--tx-3)}
+
+    /* G90 (madde 5) — MOD REHBERİ SHEET görsel kutusu + çip madde listesi. */
+    .guide-visual-box{
+      width:100%;height:96px;border-radius:16px;background:#0a0c0e;border:1px solid rgba(255,255,255,.08);
+      display:flex;align-items:center;justify-content:center;overflow:hidden;
+    }
+    .guide-visual-box img{width:100%;height:100%;object-fit:cover}
+    .guide-point-list{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+    .guide-point{
+      display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border-radius:12px;
+      background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);
+    }
+    .guide-point i{width:6px;height:6px;flex:none;border-radius:50%;background:var(--cyan);margin-top:6px}
+    .guide-point span{font-size:12.5px;font-weight:500;line-height:1.5;color:#b8bdc4}
+
+    /* G90 (madde 10) — "SES DURUMLARI": ses yüklenemedi satırı Tasarim-2026-08/
+       Prototip.dc.html'in "audioError" bloğu birebir. Yükleniyor göstergesi
+       (#audioLoadingRow) tasarımda AYRI bir kesin blok olarak yazılı DEĞİL
+       ("yükleniyor göstergesi prototipteki görünüme getirilecek" notu) —
+       AYNI satır dilinde (nötr/cyan) yeni EKLENDİ, uydurulmadı: sadece gerçek
+       await süresi boyunca görünür. */
+    #audioErrorRow, #audioLoadingRow{
+      flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:9px;
+      padding:10px 13px;border-radius:12px;margin-top:12px;
+    }
+    #audioErrorRow{background:rgba(248,113,96,.08);border:1px solid rgba(248,113,96,.35)}
+    #audioErrorRow div{flex:1;font-size:12.5px;font-weight:600;color:#d9a08f}
+    #audioErrorRetry{
+      height:30px;padding:0 12px;border-radius:9px;border:1px solid rgba(248,113,96,.4);
+      background:rgba(248,113,96,.1);color:#f88a6e;font-family:'Inter',sans-serif;
+      font-size:12px;font-weight:700;flex:none;
+    }
+    #audioLoadingRow{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1)}
+    #audioLoadingRow span:last-child{font-size:12.5px;font-weight:600;color:var(--tx-3)}
+    .audio-loading-spin{
+      width:14px;height:14px;flex:none;border-radius:50%;
+      border:2px solid rgba(255,255,255,.18);border-top-color:var(--cyan);
+      animation:audioLoadingSpin .7s linear infinite;
+    }
+    @keyframes audioLoadingSpin{to{transform:rotate(360deg)}}
 
     /* ---- kalibrasyon ---- */
     /* G73: çalan referans tonun ölçer çubukları artık --cyan gradyanı (bu bir
@@ -1659,6 +1824,15 @@
     .cal-step-dot{width:7px;height:7px;border-radius:99px;background:rgba(255,255,255,.16);transition:background .18s ease,transform .18s ease}
     .cal-step-dot.done{background:rgba(34,211,238,.55)}
     .cal-step-dot.active{background:var(--cyan);transform:scale(1.4)}
+    /* G90 (madde 9): header'daki adım noktaları artık tasarımın "pil" biçimi
+       (height:7px; border-radius:4px) — .cal-steps'in KENDİSİ (dots'un altında,
+       ör. gelecekte yeniden kullanılırsa) DOKUNULMADI, sadece bu ekrana özel
+       -v2 varyantı EKLENDİ. */
+    .cal-steps-v2{flex:none;gap:5px}
+    .cal-steps-v2 .cal-step-dot{width:14px;height:7px;border-radius:4px}
+    .cal-steps-v2 .cal-step-dot.active{transform:none}
+    .cal-title{font-size:21px!important;font-weight:800!important}
+    .cal-step-label{font-size:10.5px;font-weight:800;letter-spacing:1.4px;color:var(--cyan);text-transform:uppercase}
 
     /* ---- seviye rozeti (ana menü) — G36, Dizayn/prototype.html .lvl/.lvl-badge'den
        taşındı. XP/seviye verisi zaten var (progress.xpProgress, İlerleme sekmesiyle AYNI

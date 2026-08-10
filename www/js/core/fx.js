@@ -29,10 +29,30 @@ function relayoutToasts() {
   });
 }
 
-export function toast(title, desc) {
+// G90 (madde 6) — Tasarim-2026-08/Prototip.dc.html "TOAST" bloğunun "toasts"
+// lookup'ından BİREBİR (path/accent/iconBg/border/glow), sadece "title/sub"
+// alanları KULLANILMIYOR — bu app'te toast() HER ZAMAN çağrı yerinden GERÇEK
+// başlık/metin alır (tasarımın kendi statik örnek metinleri buraya YAZILMADI,
+// bkz. CLAUDE.md "sayı uydurma"). `kind` opsiyonel — geçilmezse (mevcut ~25
+// çağrı yeri DEĞİŞMEDİ) eski nötr/cyan görünüm KORUNUYOR.
+const TOAST_KINDS = {
+  pro: { path: "M5 11h14v9H5zM8 11V7a4 4 0 0 1 8 0v4", accent: "#f6d878", iconBg: "rgba(240,180,66,.14)", border: "rgba(240,180,66,.45)", glow: "rgba(217,168,60,.18)" },
+  daily: { path: "M4 12.5l5 5L20 6.5", accent: "#4ade80", iconBg: "rgba(74,222,128,.14)", border: "rgba(74,222,128,.45)", glow: "rgba(74,222,128,.18)" },
+  badge: { path: "M6 3h12v18l-6-4-6 4Z", accent: "#f6d878", iconBg: "rgba(240,180,66,.14)", border: "rgba(240,180,66,.45)", glow: "rgba(217,168,60,.18)" },
+  soon: { path: "M12 8v4l3 2M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z", accent: "#22d3ee", iconBg: "rgba(34,211,238,.12)", border: "rgba(34,211,238,.4)", glow: "rgba(34,211,238,.16)" }
+};
+
+export function toast(title, desc, kind) {
   const el = document.createElement("div");
   el.className = "toast";
-  el.innerHTML = `<b>${title}</b><small>${desc}</small>`;
+  const k = kind && TOAST_KINDS[kind];
+  if (k) {
+    el.style.setProperty("--toast-border", k.border);
+    el.style.setProperty("--toast-glow", k.glow);
+    el.innerHTML = `<div class="toast-icon" style="background:${k.iconBg};color:${k.accent}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${k.path}"></path></svg></div><div class="toast-text"><b>${title}</b><small>${desc}</small></div>`;
+  } else {
+    el.innerHTML = `<div class="toast-text"><b>${title}</b><small>${desc}</small></div>`;
+  }
   document.body.appendChild(el);
   activeToasts.push(el);
   relayoutToasts();

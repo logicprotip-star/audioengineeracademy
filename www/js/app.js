@@ -87,6 +87,11 @@ const els = {
   answerFormatChipWrap: document.getElementById("answerFormatChipWrap"),
   answerFormatSettingsRow: document.getElementById("answerFormatSettingsRow"),
   backBtn: document.getElementById("backBtn"),
+  // G90 (madde 1) — Tasarim-2026-08/Prototip.dc.html "ÇIKIŞ ONAYI", SIFIRDAN.
+  exitConfirmOverlay: document.getElementById("exitConfirmOverlay"),
+  exitConfirmBox: document.getElementById("exitConfirmBox"),
+  exitConfirmStay: document.getElementById("exitConfirmStay"),
+  exitConfirmLeave: document.getElementById("exitConfirmLeave"),
   tabbar: document.getElementById("tabbar"),
   dailyTipCard: document.getElementById("dailyTipCard"),
   dailyTipClose: document.getElementById("dailyTipClose"),
@@ -114,6 +119,8 @@ const els = {
   spotlightHole: document.getElementById("spotlightHole"),
   spotlightCallout: document.getElementById("spotlightCallout"),
   spotlightStepLabel: document.getElementById("spotlightStepLabel"),
+  spotlightDots: document.getElementById("spotlightDots"),
+  spotlightTitle: document.getElementById("spotlightTitle"),
   spotlightText: document.getElementById("spotlightText"),
   spotlightSkip: document.getElementById("spotlightSkip"),
   spotlightNext: document.getElementById("spotlightNext"),
@@ -153,9 +160,11 @@ const els = {
   diffAutoBtn: document.getElementById("diffAutoBtn"),
   diffFixedBtn: document.getElementById("diffFixedBtn"),
   diffSublist: document.getElementById("diffSublist"),
+  diffHintV2: document.getElementById("diffHintV2"),
   accountVerLine: document.getElementById("accountVerLine"),
   goProBtn: document.getElementById("goProBtn"),
   versionRow: document.getElementById("versionRow"),
+  settingsResetBtn: document.getElementById("settingsResetBtn"),
   devGroup: document.getElementById("devGroup"),
   devProSwitch: document.getElementById("devProSwitch"),
   devModeOffBtn: document.getElementById("devModeOffBtn"),
@@ -325,6 +334,9 @@ const els = {
   gameLoopBadgeRow: document.getElementById("gameLoopBadgeRow"),
   gameLoopCaption: document.getElementById("gameLoopCaption"),
   gameSpectrumControls: document.getElementById("gameSpectrumControls"),
+  audioErrorRow: document.getElementById("audioErrorRow"),
+  audioErrorRetry: document.getElementById("audioErrorRetry"),
+  audioLoadingRow: document.getElementById("audioLoadingRow"),
   gameM2HintUsedRow: document.getElementById("gameM2HintUsedRow"),
   hintBtn: document.getElementById("hintBtn"),
   hintBtnLabel: document.getElementById("hintBtnLabel"),
@@ -2265,7 +2277,7 @@ function renderExerciseGrid() {
           const reasonKey = access.reason === "daily-used" ? "dailyUsed" : "modeLocked";
           if (!openPaywallReason(reasonKey)) {
             const msg = access.reason === "daily-used" ? paywall.LOCK_MESSAGES["daily-used"] : paywall.LOCK_MESSAGES.pro;
-            toast(msg.title, msg.detail);
+            toast(msg.title, msg.detail, "pro");
           }
           return;
         }
@@ -2285,7 +2297,7 @@ function renderExerciseGrid() {
         return;
       }
       if (realMode && !meetsLevel) { toast("Seviye yetersiz", `Bu egzersiz Seviye ${entry.unlockLevel}'de açılır.`); return; }
-      toast("Yakında", "Bu egzersiz yakında eklenecek.");
+      toast("Yakında", "Bu egzersiz yakında eklenecek.", "soon");
     });
     els.modeGrid.appendChild(card);
   });
@@ -2322,7 +2334,7 @@ function renderComingGrid() {
         <div class="coming-card-label">Yakında</div>
       </div>
     `;
-    card.addEventListener("click", () => toast("Yakında", "Bu egzersiz yakında eklenecek."));
+    card.addEventListener("click", () => toast("Yakında", "Bu egzersiz yakında eklenecek.", "soon"));
     els.comingGrid.appendChild(card);
   });
 }
@@ -2722,7 +2734,7 @@ function updateDaily(correct) {
     if (!task.claimed && task.value >= task.target) {
       task.claimed = true;
       diffState().xp += task.reward;
-      toast("📅 Günlük görev tamamlandı", `${task.title} · +${task.reward} XP`);
+      toast("📅 Günlük görev tamamlandı", `${task.title} · +${task.reward} XP`, "daily");
     }
   });
   renderDaily();
@@ -2730,7 +2742,10 @@ function updateDaily(correct) {
 
 function notifyNewAchievements() {
   const newly = progress.checkAchievements(stats);
-  newly.forEach(a => toast(`${a.icon} ${a.title}`, a.desc));
+  // G90 (madde 6): "badge" toast türü artık KENDİ altın rozet ikon kutusunu
+  // çiziyor — a.icon emojisi başlığa BASILMIYOR (ikili ikon görünmesin diye),
+  // ama a.icon'un KENDİSİ (achievementler listesi/İlerleme sekmesi) DEĞİŞMEDİ.
+  newly.forEach(a => toast(a.title, a.desc, "badge"));
   // G82: Seans Sonu'nun "Yeni Rozet" kartı için — bu OTURUMDA açılan HER
   // başarım (toast'la aynı, mevcut rozet sistemine bkz. progress.ACHIEVEMENTS).
   session.newBadges.push(...newly);
@@ -3856,6 +3871,16 @@ function submitProPlusGuess() {
 // Ses oynatma
 // ═══════════════════════════════════════════════════════════════════════════
 
+// G90 (madde 10) — Tasarim-2026-08/Prototip.dc.html "SES DURUMLARI" notu:
+// "Ses yüklenemedi · Tekrar dene" satırı + yükleniyor göstergesi. #gameSpectrumControls'ün
+// hemen ALTINDA (bkz. index.html) — playQuestion() her çağrıldığında (round başı, A/B,
+// vb.) senkronize edilir, KENDİ state değişkeni İCAT EDİLMEDİ.
+function showAudioError() { if (els.audioErrorRow) els.audioErrorRow.classList.remove("hidden"); }
+function hideAudioError() { if (els.audioErrorRow) els.audioErrorRow.classList.add("hidden"); }
+function showAudioLoading() { if (els.audioLoadingRow) els.audioLoadingRow.classList.remove("hidden"); }
+function hideAudioLoading() { if (els.audioLoadingRow) els.audioLoadingRow.classList.add("hidden"); }
+if (els.audioErrorRetry) els.audioErrorRetry.addEventListener("click", () => { playQuestion(currentPlayMode !== "clean"); });
+
 // Turun sesini SIFIRDAN kurar — sadece round başlangıcında (ve F2'nin karşılaştırma
 // önizleme butonlarında) çağrılmalı. A/B toggle'ı ARTIK bunu çağırmıyor (bkz. toggleAB) —
 // kaynak/filtre grafiği bir kez kurulup tur boyunca bozulmuyor.
@@ -3872,7 +3897,7 @@ function cakismaSourcesSpec(pair) {
   return { a: resolve(pair.sourceA, uploadManagerA), b: resolve(pair.sourceB, uploadManagerB) };
 }
 
-function playQuestion(processed = true) {
+async function playQuestion(processed = true) {
   if (!audioEngine.audioReady || !activeQuestion) return;
   if (audioEngine.audioCtx && audioEngine.audioCtx.state === "suspended") {
     try { audioEngine.audioCtx.resume(); } catch (e) {}
@@ -3882,10 +3907,20 @@ function playQuestion(processed = true) {
   // (bkz. audio-engine.js). Diğer sekiz modda activeQuestion.mode hiçbir zaman
   // "cakisma" olmadığı için bu dal ÇALIŞMAZ, ÖNCEKİ davranış BİREBİR aynı kalır.
   if (activeQuestion.mode === "cakisma") {
+    hideAudioError();
     audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing);
     return;
   }
-  audioEngine.buildQuestionChain(activeQuestion, processed, activeQuestion.source, uploadManager, mode.applyProcessing);
+  // G90 (madde 10): örnek-dosya kaynağı decode/ağ hatasıyla başarısız olursa
+  // (audio-engine.js buildQuestionChain'in sampleLoadFailed'i — round SESSİZ
+  // kalmasın diye motor hâlâ pembe gürültüye düşüyor, KALDIRILMADI) artık
+  // BUNU da kullanıcıya gösteriyoruz. showAudioLoading() await SIRASINDA kısa
+  // görünür (senkron kaynaklarda anlık kapanır, GERÇEK gecikme — uydurma
+  // bir minimum süre YOK).
+  showAudioLoading();
+  const result = await audioEngine.buildQuestionChain(activeQuestion, processed, activeQuestion.source, uploadManager, mode.applyProcessing);
+  hideAudioLoading();
+  if (result && result.sampleLoadFailed) showAudioError(); else hideAudioError();
   updateAbToggleUI();
 }
 
@@ -4768,7 +4803,7 @@ document.querySelectorAll(".upload-trigger-btn").forEach(btn => {
     // Oyun Ayarları'nın tekli upload satırı VE Motor 3'ün iki upload yuvası
     // AYNI TEK yolu (bu forEach) paylaşıyor, tek noktadan paywall'a açılıyor.
     if (paywall.isUploadLocked(isUserPro())) {
-      if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail);
+      if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail, "pro");
       return;
     }
     console.log(`[filepicker-diag] 0) buton tıklandı: data-file-target="${targetId}"`);
@@ -4826,7 +4861,7 @@ els.startBtn.addEventListener("click", async () => {
     if (!isUserPro() && paywall.isDailyTasteMode(mode.getMeta().id) && !paywall.canPlayDailyTaste(stats.dailyTasteLastPlayedAt, Date.now())) {
       if (!openPaywallReason("dailyUsed")) {
         const msg = paywall.LOCK_MESSAGES["daily-used"];
-        toast(msg.title, msg.detail);
+        toast(msg.title, msg.detail, "pro");
       }
       return;
     }
@@ -5006,9 +5041,31 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
 
 els.hintBtn.addEventListener("click", giveHint);
 
-els.backBtn.addEventListener("click", () => {
+// G90 (madde 1): geri butonu artık DOĞRUDAN çıkmıyor — SADECE round GERÇEKTEN
+// aktifken ("kaybedecek" bir şey varken) onay penceresi araya giriyor. Boş/
+// idle ekranda (activeQuestion yok — "Oyunu Başlat" bekleniyor) doğrudan
+// çıkış KORUNDU, orada onay istemek gereksiz sürtünme olurdu.
+function performExit() {
   if (activeQuestion && !autoStopped) pauseRound();
   goScreen("menu");
+}
+function openExitConfirm() {
+  if (els.exitConfirmOverlay) els.exitConfirmOverlay.classList.add("open");
+  if (els.exitConfirmBox) els.exitConfirmBox.classList.add("open");
+}
+function closeExitConfirm() {
+  if (els.exitConfirmOverlay) els.exitConfirmOverlay.classList.remove("open");
+  if (els.exitConfirmBox) els.exitConfirmBox.classList.remove("open");
+}
+els.backBtn.addEventListener("click", () => {
+  if (activeQuestion) openExitConfirm();
+  else performExit();
+});
+if (els.exitConfirmOverlay) els.exitConfirmOverlay.addEventListener("click", closeExitConfirm);
+if (els.exitConfirmStay) els.exitConfirmStay.addEventListener("click", closeExitConfirm);
+if (els.exitConfirmLeave) els.exitConfirmLeave.addEventListener("click", () => {
+  closeExitConfirm();
+  performExit();
 });
 
 els.mixToggle.addEventListener("click", () => {
@@ -5072,8 +5129,27 @@ function renderLevelSheet() {
   const amountRow = terms.amountLabel
     ? `<div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--tx-3)">${terms.amountLabel}</span><b>${amountVal}</b></div>`
     : "";
+  // G90 (madde 4): "Mod Adı · Seviye N" — MODE_CATALOG'un AYNI entry.ad'ı
+  // (openGuideSheet'in de kullandığı kaynak, bkz. yukarısı).
+  const catalogEntry = MODE_CATALOG.find(e => e.id === modeId);
+  const modeName = catalogEntry ? catalogEntry.ad : "Bu mod";
+  const idCard = `
+    <div class="lvl-sheet-id-card">
+      <div class="lvl-sheet-pentagon">
+        <svg width="54" height="54" viewBox="0 0 52 52">
+          <polygon points="26,3 48,19 40,46 12,46 4,19" fill="var(--gold-grad)" stroke="#fbe9a8" stroke-width="1.5"></polygon>
+          <polygon points="26,9 42.5,21 36.5,41 15.5,41 9.5,21" fill="#2a2013" stroke="#c79a33" stroke-width="1"></polygon>
+        </svg>
+        <div class="lvl-sheet-pentagon-label">
+          <div class="lvl-sheet-pentagon-sv">Sv</div>
+          <div class="lvl-sheet-pentagon-num">${level}</div>
+        </div>
+      </div>
+      <div class="lvl-sheet-id-text"><h5>${modeName} · Seviye ${level}</h5><p>${catalogEntry ? catalogEntry.aciklama : ""}</p></div>
+    </div>`;
   els.lvlSheetBody.innerHTML = `
-    <p style="margin:8px 2px 0;font-size:15px;line-height:1.5;color:var(--tx-2)">${terms.sensitivityLabel}: ${sensVal}${amountVal !== null ? ` · ${terms.amountLabel}: ${amountVal}` : ""}. Şu anki hassasiyetin bu.</p>
+    ${idCard}
+    <p style="margin:14px 2px 0;font-size:15px;line-height:1.5;color:var(--tx-2)">${terms.sensitivityLabel}: ${sensVal}${amountVal !== null ? ` · ${terms.amountLabel}: ${amountVal}` : ""}. Şu anki hassasiyetin bu.</p>
     <div class="card" style="margin-top:16px;padding:14px 16px">
       <div style="display:flex;justify-content:space-between;padding:6px 0"><span style="color:var(--tx-3)">${terms.sensitivityLabel}</span><b>${sensVal}</b></div>
       ${amountRow}
@@ -5126,24 +5202,28 @@ function openGuideSheet(modeId) {
   if (modeId && MODE_GUIDE_TEXTS[modeId]) {
     const entry = MODE_CATALOG.find(e => e.id === modeId);
     if (els.guideSheetTitle) els.guideSheetTitle.textContent = entry ? entry.ad : "Bu mod";
-    // G69: MODE_GUIDE_TEXTS'in (ne öğretir) ALTINA MODE_OPTIONS_TEXTS (oyun
-    // seçenekleri) — GENERAL_GUIDE'ın kendi bölüm-başlığı deseniyle (amber
-    // etiket + paragraf) TUTARLI, ayrı bir bileşen İCAT edilmedi.
-    const optionsBlock = MODE_OPTIONS_TEXTS[modeId]
-      ? `<div style="margin-top:16px" class="mode-guide-options">
-          <div style="font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--am)">OYUN SEÇENEKLERİ</div>
-          <p style="margin:8px 0 0;font-size:14px;line-height:1.5;color:var(--tx-3)">${MODE_OPTIONS_TEXTS[modeId]}</p>
-        </div>`
+    // G90 (madde 5): 96px görsel kutusu — o modun ana ekran kart görseli
+    // (modeVisualSvg, mode-visuals.js — mode-card-viz'in AYNI kaynağı).
+    // MODE_GUIDE_TEXTS'in (ne öğretir) ALTINA MODE_OPTIONS_TEXTS (oyun
+    // seçenekleri) artık tasarımın çip madde listesi stilinde TEK madde.
+    const visualBox = `<div class="guide-visual-box">${modeVisualSvg(modeId) || ""}</div>`;
+    const optionsPoint = MODE_OPTIONS_TEXTS[modeId]
+      ? `<div class="guide-point"><i></i><span><b style="color:var(--am);font-weight:700">Oyun seçenekleri:</b> ${MODE_OPTIONS_TEXTS[modeId]}</span></div>`
       : "";
-    els.guideSheetBody.innerHTML = `<p style="margin:8px 2px 0;font-size:15px;line-height:1.55;color:var(--tx-2)">${MODE_GUIDE_TEXTS[modeId]}</p>${optionsBlock}`;
+    els.guideSheetBody.innerHTML = `
+      ${visualBox}
+      <p style="margin:14px 2px 0;font-size:13.5px;line-height:1.6;color:#b8bdc4">${MODE_GUIDE_TEXTS[modeId]}</p>
+      <div class="guide-point-list">${optionsPoint}</div>`;
   } else {
     if (els.guideSheetTitle) els.guideSheetTitle.textContent = GENERAL_GUIDE.title;
-    els.guideSheetBody.innerHTML = GENERAL_GUIDE.sections.map(s => `
-      <div style="margin-top:16px" class="general-guide-section">
-        <div style="font-size:12px;font-weight:700;letter-spacing:.05em;color:var(--am)">${s.heading.toUpperCase()}</div>
-        <p style="margin:8px 0 0;font-size:15px;line-height:1.55;color:var(--tx-2)">${s.body}</p>
-      </div>
-    `).join("");
+    // G90 (madde 5): genel rehberde tek bir moda özel görsel YOK (visual box
+    // atlandı, uydurulmadı) — ilk bölüm (title'la aynı başlık) gövde metni,
+    // kalan 4 bölüm çip madde listesi olarak sunuluyor. guide-texts.js'in
+    // KENDİSİ değişmedi, SADECE burada nasıl render edildiği değişti.
+    const [intro, ...rest] = GENERAL_GUIDE.sections;
+    els.guideSheetBody.innerHTML = `
+      <p style="margin:8px 2px 0;font-size:13.5px;line-height:1.6;color:#b8bdc4">${intro.body}</p>
+      <div class="guide-point-list">${rest.map(s => `<div class="guide-point"><i></i><span><b style="color:var(--am);font-weight:700">${s.heading}:</b> ${s.body}</span></div>`).join("")}</div>`;
   }
   if (els.guideSheetOverlay) els.guideSheetOverlay.classList.add("open");
   if (els.guideSheet) els.guideSheet.classList.add("open");
@@ -5195,6 +5275,20 @@ let spotlightModeId = null;
 let spotlightInteractionTarget = null;
 let spotlightResizeBound = false;
 
+// G90 (madde 7): tasarımın balon başlığı (16.5px/800) — SPOTLIGHT_STEPS'in
+// KENDİSİNDE yok (sadece {target, text}), bu yüzden guide-texts.js'e YENİ bir
+// alan İCAT ETMEDEN, zaten var olan target anahtarına (4 sabit değer) kısa
+// bir Türkçe etiket eşlendi. "select"/"confirm" modların çoğunda AYNI hedefe
+// çözülüyor (resolveSpotlightTarget notu) ama BURADA hâlâ kendi target
+// string'ine göre ayrı başlıklandırılıyor — o adımlar zaten AYNI turda ardı
+// ardına gösterilmiyor (çözüm aynıysa tur tıklamayla doğrudan tamamlanıyor).
+const SPOTLIGHT_TARGET_TITLES = {
+  listen: "Önce dinle",
+  abControl: "A/B Test",
+  select: "Seç",
+  confirm: "Onayla"
+};
+
 // step.target ("listen"/"abControl"/"select"/"confirm") → GERÇEK DOM
 // elementi. guide-texts.js bu dosyaya hiç dokunmuyor (saf veri), çözüm
 // burada — isChoiceFormat/els zaten bu dosyanın kendi çalışma zamanı durumu.
@@ -5244,8 +5338,14 @@ function renderSpotlightStep() {
   // ÖNCE metni/etiketleri yaz, SONRA konumla — positionSpotlightCallout()
   // callout'un offsetHeight/offsetWidth'ini okuyor, bu YENİ metnin
   // boyutuyla ölçülmeli (önceki adımın stale boyutuyla DEĞİL).
+  if (els.spotlightTitle) els.spotlightTitle.textContent = SPOTLIGHT_TARGET_TITLES[step.target] || "";
   if (els.spotlightText) els.spotlightText.textContent = step.text;
-  if (els.spotlightStepLabel) els.spotlightStepLabel.textContent = `${spotlightIndex + 1}/${spotlightSteps.length}`;
+  if (els.spotlightStepLabel) els.spotlightStepLabel.textContent = `ADIM ${spotlightIndex + 1}/${spotlightSteps.length}`;
+  if (els.spotlightDots) {
+    els.spotlightDots.innerHTML = spotlightSteps.map((_, i) =>
+      `<div class="spotlight-dot${i === spotlightIndex ? " on" : ""}"></div>`
+    ).join("");
+  }
   if (els.spotlightNext) els.spotlightNext.textContent = spotlightIndex === spotlightSteps.length - 1 ? "Anladım" : "İleri";
   positionSpotlightHole(targetEl);
   if (!spotlightResizeBound) {
@@ -5269,18 +5369,18 @@ function positionSpotlightHole(targetEl) {
   positionSpotlightCallout(rect, pad);
 }
 
+// G90 (madde 7): balon artık left:16px/right:16px SABİT TAM GENİŞLİK (CSS,
+// tasarımın ölçüsü) — SADECE dikey konum (hedefin altı/üstü) burada JS'ten
+// hesaplanmaya devam ediyor, yatay hesap KALDIRILDI (artık gereksiz).
 function positionSpotlightCallout(rect, pad) {
   if (!els.spotlightCallout) return;
-  const vh = window.innerHeight, vw = window.innerWidth;
+  const vh = window.innerHeight;
   const calloutH = els.spotlightCallout.offsetHeight || 110;
-  const calloutW = els.spotlightCallout.offsetWidth || 280;
   const spaceBelow = vh - (rect.bottom + pad);
   const top = spaceBelow > calloutH + 16
     ? rect.bottom + pad + 12
     : Math.max(12, rect.top - pad - calloutH - 12);
-  const left = Math.min(Math.max(12, rect.left), vw - calloutW - 12);
   els.spotlightCallout.style.top = `${top}px`;
-  els.spotlightCallout.style.left = `${left}px`;
 }
 
 // GERÇEK oyun elementiyle etkileşim (dinlemek dışındaki adımlar — "select"/
@@ -5417,8 +5517,10 @@ if (els.resMenuBtn) els.resMenuBtn.addEventListener("click", () => {
   goScreen("menu");
 });
 
-els.resetStatsBtn.addEventListener("click", () => {
-  if (!confirm("Tüm istatistikler, ilerleme ve görevler sıfırlansın mı?")) return;
+// G90 (madde 3): Ayarlar sheet'indeki "İlerlemeyi sıfırla" satırı (#settingsResetBtn)
+// AYNI resetAllProgress()'i çağırır — İlerleme sekmesindeki #resetStatsBtn'in
+// (G87) mantığı burada TEKRARLANMADI, tek fonksiyona çıkarıldı.
+function resetAllProgress() {
   storage.clearStats();
   storage.clearDaily();
   // G87: İlerleme'nin AYRI "bölge verisini temizle" bağlantısı (Zayıf Bölge
@@ -5457,6 +5559,14 @@ els.resetStatsBtn.addEventListener("click", () => {
   updateTimerUI();
   setFeedback("Sıfırlandı", "Tüm ilerleme, XP, skor ve görevler temizlendi.");
   toast("🔄 Sıfırlandı", "Her şey baştan.");
+}
+els.resetStatsBtn.addEventListener("click", () => {
+  if (!confirm("Tüm istatistikler, ilerleme ve görevler sıfırlansın mı?")) return;
+  resetAllProgress();
+});
+if (els.settingsResetBtn) els.settingsResetBtn.addEventListener("click", () => {
+  if (!confirm("Tüm istatistikler, ilerleme ve görevler sıfırlansın mı?")) return;
+  resetAllProgress();
 });
 
 renderAnalysis();
@@ -5778,12 +5888,12 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
         // bir seçim olası (bkz. enforceFreeRestrictions'ın AYNI motivasyonu).
         if (select.id === 'sourceSelect' && opt.value === 'upload' && paywall.isUploadLocked(isUserPro())) {
           closeSheet();
-          if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail);
+          if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail, "pro");
           return;
         }
         if (isLockedFreePlay) {
           closeSheet();
-          if (!openPaywallReason("freePlayMode")) toast(paywall.LOCK_MESSAGES.freePlayMode.title, paywall.LOCK_MESSAGES.freePlayMode.detail);
+          if (!openPaywallReason("freePlayMode")) toast(paywall.LOCK_MESSAGES.freePlayMode.title, paywall.LOCK_MESSAGES.freePlayMode.detail, "pro");
           return;
         }
         if (isUnloadedUpload) {
@@ -5817,11 +5927,11 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
       // tetiklenmemeli, kafa karıştıran "Sabit'e geçmek ister misin?" sorusu
       // YERİNE net "Pro gerekli" mesajı gösterilir).
       if (select.id === 'difficultySelect' && !isUserPro()) {
-        toast(paywall.LOCK_MESSAGES.difficulty.title, paywall.LOCK_MESSAGES.difficulty.detail);
+        toast(paywall.LOCK_MESSAGES.difficulty.title, paywall.LOCK_MESSAGES.difficulty.detail, "pro");
         return;
       }
       if (select.id === 'focusSelect' && !isUserPro()) {
-        toast(paywall.LOCK_MESSAGES.focusRange.title, paywall.LOCK_MESSAGES.focusRange.detail);
+        toast(paywall.LOCK_MESSAGES.focusRange.title, paywall.LOCK_MESSAGES.focusRange.detail, "pro");
         return;
       }
       // Z7: Otomatik zorluk modundayken "Zorluk" satırına dokunmak seçim listesini
@@ -5847,7 +5957,7 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
     if (els.autoDiffAsk) els.autoDiffAsk.classList.add('hidden');
     // G61: bu buton normalde artık AÇILMAZ bile (yukarıdaki .setting-row gate'i
     // free'de autoDiffAsk'ı hiç göstermiyor) — savunmacı ikinci kontrol.
-    if (!isUserPro()) { toast(paywall.LOCK_MESSAGES.difficulty.title, paywall.LOCK_MESSAGES.difficulty.detail); return; }
+    if (!isUserPro()) { toast(paywall.LOCK_MESSAGES.difficulty.title, paywall.LOCK_MESSAGES.difficulty.detail, "pro"); return; }
     diffModeAuto = false;
     prefs.difficultyMode = "fixed";
     storage.savePrefs(prefs);
@@ -6003,14 +6113,17 @@ applyAutoDifficulty();
 function syncDiffSheetUI() {
   const cur = els.difficultySelect ? els.difficultySelect.value : "medium";
   if (els.diffSublist) {
-    els.diffSublist.querySelectorAll(".item").forEach(btn => {
+    els.diffSublist.querySelectorAll(".chip-v2").forEach(btn => {
       btn.classList.toggle("pick", btn.dataset.diff === cur);
     });
     els.diffSublist.classList.toggle("on", diffSublistOpen);
   }
-  if (els.diffAutoBtn) els.diffAutoBtn.classList.toggle("pick", diffModeAuto);
-  if (els.diffFixedBtn) els.diffFixedBtn.classList.toggle("pick", !diffModeAuto);
+  if (els.diffAutoBtn) els.diffAutoBtn.classList.toggle("on", diffModeAuto);
+  if (els.diffFixedBtn) els.diffFixedBtn.classList.toggle("on", !diffModeAuto);
   if (els.mainSettingsBack) els.mainSettingsBack.classList.toggle("hidden", !diffSublistOpen);
+  if (els.diffHintV2) els.diffHintV2.textContent = diffModeAuto
+    ? "Önerilen · performansına göre kendini ayarlar"
+    : "Hassasiyeti kendin seç";
 }
 if (els.diffAutoBtn) els.diffAutoBtn.addEventListener("click", () => {
   diffModeAuto = true;
@@ -6023,7 +6136,7 @@ if (els.diffAutoBtn) els.diffAutoBtn.addEventListener("click", () => {
 if (els.diffFixedBtn) els.diffFixedBtn.addEventListener("click", () => {
   // G61 (PAYWALL.md): "Sabit zorluk seçimi kilitli" — Genel Ayarlar'daki
   // Otomatik/Sabit anahtarının Sabit ucu.
-  if (!isUserPro()) { toast(paywall.LOCK_MESSAGES.difficulty.title, paywall.LOCK_MESSAGES.difficulty.detail); return; }
+  if (!isUserPro()) { toast(paywall.LOCK_MESSAGES.difficulty.title, paywall.LOCK_MESSAGES.difficulty.detail, "pro"); return; }
   diffModeAuto = false;
   diffSublistOpen = true;
   prefs.difficultyMode = "fixed";
@@ -6031,7 +6144,7 @@ if (els.diffFixedBtn) els.diffFixedBtn.addEventListener("click", () => {
   syncDiffSheetUI();
 });
 if (els.diffSublist) {
-  els.diffSublist.querySelectorAll(".item").forEach(btn => {
+  els.diffSublist.querySelectorAll(".chip-v2").forEach(btn => {
     btn.addEventListener("click", () => {
       els.difficultySelect.value = btn.dataset.diff;
       els.difficultySelect.dispatchEvent(new Event("change", { bubbles: true }));
@@ -6794,7 +6907,7 @@ if (els.toolsUploadBtn && els.toolsFileInput) {
     // dalında (toolsProContent) zaten render edilmiyor ama bu buton yine de
     // savunmacı olarak kontrol ediyor (applyProLockVisibility'nin ÜSTÜNDE).
     if (paywall.isToolsContentLocked(isUserPro())) {
-      if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail);
+      if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail, "pro");
       return;
     }
     const picked = await pickNativeAudioFile();
