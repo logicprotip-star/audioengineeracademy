@@ -916,6 +916,24 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
               <span>Dosya seç · WAV, MP3, AIFF</span>
             </button>
+            <!-- G114 — dosya yüklüyken "Dosya seç" butonunun YERİNDE dosya adı +
+                 çalar. toolsToggleFilterPlayback()/toolsFilterPlaying (Referans
+                 Filtreleri'nin ZATEN kullandığı TEK oynatma durumu) burada da
+                 kullanılıyor — iki ayrı çalar YOK, tek durum iki yerden kontrol. -->
+            <div class="tools-mix-player hidden" id="toolsMixPlayer">
+              <div class="tools-mix-player-file">
+                <div class="tools-mix-player-name" id="toolsMixPlayerName"></div>
+                <span class="tools-mix-player-change" id="toolsMixPlayerChange">değiştir</span>
+              </div>
+              <div class="tools-mix-player-controls">
+                <button class="tools-mix-player-btn" id="toolsMixPlayBtn" type="button" aria-label="Oynat / Duraklat">
+                  <span id="toolsMixPlayIcon"></span>
+                </button>
+                <button class="tools-mix-player-btn" id="toolsMixStopBtn" type="button" aria-label="Durdur">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- D) Tonal Balance — G101'de SIFIRDAN yazıldı. Dosya seçilmeden
@@ -943,7 +961,7 @@
               </button>
             </div>
             <div class="tools-tonal-legend" id="toolsTonalLegend">
-              <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:rgba(34,211,238,.35)"></div><span>Hedef bandı</span></div>
+              <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#e8c46a;opacity:.65"></div><span>Hedef bandı</span></div>
               <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#22d3ee;opacity:.4"></div><span>Ortalama</span></div>
               <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#22d3ee"></div><span>Canlı (çalarken)</span></div>
             </div>

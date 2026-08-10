@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G113)
+Son güncelleme: 11.08.2026 (G114)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,93 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G113, tek commit) — **KÖK SEBEP KESİN: G112'nin YANLIŞ mekanizması (padding) margin'e çevrildi — `.game-scroll`'un ZATEN öğrettiği ders G112'de uygulanmamıştı.**
+Bu commit (G114, tek commit) — **Araçlar → Tonal Balance: cihazda görülen eğri kırpılması + eksik dB etiketi + gösterge renk karışıklığı; Araçlar → Mixini Yükle: karta çalar eklendi.**
+
+**1) Eğriler grafikten taşıyordu — KÖK SEBEP:** `toolsTonalDy()` sabit
+`/7` bölücüyle (yani sabit ±7dB) çiziyordu — ±7dB'yi aşan HERHANGİ bir
+sapma (kullanıcının cihaz görüntüsünde SUB/ALT-ORTA'da olduğu gibi)
+grafiğin üst/alt kenarında KIRPILIYORDU. **DÜZELTME:** dikey ölçek artık
+DİNAMİK. `toolsTonalComputeRawHalfRange()` o an çizilen tüm eğrilerin
+(hedef bandı ±eşik, ortalama, canlı) gerçek mutlak en yüksek sapmasını
+bulup %15 pay ekliyor; `toolsTonalNiceHalfRange()` bunu okunaklı bir
+"nice number"a (`[2,3,4,5,6,8,10,12,15,20,25,30,40,50]`) yuvarlıyor —
+AYNI değer hem çizim ölçeği hem eksen etiketi olarak kullanıldığı için
+ikisi ASLA uyuşmazlık göstermez.
+**Titreme önleme:** taban aralık SADECE ortalama+hedeften hesaplanıyor
+(canlı veri YOK) — bu, kare-kareye SABİT, titreme kaynağı olamaz. Canlı
+veri varsa ve tabanı aşıyorsa ölçek üstel yumuşatmayla (%12/kare) YAVAŞÇA
+genişliyor; canlı yoksa ANINDA taze değere dönüyor. Böylece task'ın iki
+önerisi ("ortalama eğriye göre sabitlensin ya da yumuşak geçsin") BİRLİKTE
+uygulandı.
+
+**2) Dikey eksende dB etiketi yoktu:** `toolsTonalCurrentHalfRange`
+değeri hem ±ince/sönük yatay ızgara çizgisi (`rgba(255,255,255,.045)`)
+hem `+{hr}/0/−{hr}` metin etiketi olarak eklendi (sol üst köşe, eğrilerin
+üstünde okunaklı kalsın diye en son çiziliyor).
+
+**3) Gösterge renkleri ayırt edilmiyordu — KÖK SEBEP:** "Hedef bandı"
+lejant noktası `rgba(34,211,238,.35)` (cyan) boyanmıştı ama grafikteki
+GERÇEK hedef bandı izi `rgba(232,196,106,.35)` (altın) — "Ortalama"
+noktasıyla (aynı cyan ailesi) neredeyse ayırt edilemiyordu.
+**DÜZELTME:** "Hedef bandı" noktası `#e8c46a` (aynı temel ton, grafikle
+BİREBİR) yapıldı. "Ortalama"/"Canlı" zaten doğruydu (dokunulmadı) —
+`toolsTonalStrokeCurve()`'un kendi renk mantığı hedef-dışı segmentleri
+altın, hedef-içi segmentleri cyan çiziyor; "Ortalama" lejantı bu cyan'ın
+soluk (canlı akarken arka plana düşen) haline, "Canlı" tam parlaklığına
+karşılık geliyor.
+
+**4) Mixini Yükle kartına çalar eklendi:** dosya yüklüyken "Dosya seç"
+butonunun yerini dosya adı + "değiştir" bağlantısı (cyan, altı çizili,
+Dosyalarım sheet'ini açar) + oynat/duraklat+durdur kontrolleri alıyor.
+**TEK paylaşılan oynatma durumu** — YENİ bir ikinci çalar YOK: `renderTools
+MixPlayer()` var olan `toolsFilterPlaying` durumunu okuyor ve var olan
+`toolsToggleFilterPlayback()`'i çağırıyor (Referans Filtreleri'nin
+çalarıyla AYNI fonksiyon), `renderToolsFilterPlayer()`'ın sonuna
+`renderToolsMixPlayer()` çağrısı eklendi ki HANGİ yüzeyden tetiklenirse
+tetiklensin İKİSİ de senkron kalsın. "Durdur" için YENİ `toolsStopFilter
+Playback()` yazıldı — duraklatmadan farkı `uploadManager.startFromZero()`
+çağırıp konumu da sıfırlaması (duraklatma konumu KORUR, durdurma
+SIFIRLAR). Dosya yokken kart eski haline (`#toolsUploadBtn` görünür,
+`#toolsMixPlayer` gizli) dönüyor — `renderToolsCardsVisibility()`'e
+eklenen `renderToolsMixPlayer(entry)` çağrısı bunu her kart-durumu
+yeniden hesaplandığında garanti ediyor.
+
+**DOĞRULAMA (masaüstü Chrome, GERÇEK tarayıcı turu — sentetik, AŞIRI
+dengesiz bir WAV üretilip `#toolsFileInput`'a `DataTransfer` ile
+enjekte edildi: 18 sinüs bileşeni, 30Hz–19kHz, ~1/f²·² eğimle bas-ağır):**
+- **Kırpılma yok:** ölçülen sapmalar SUB +49.0 dB, BAS +24.1 dB,
+  ALT-ORTA +10.7 dB, ORTA −9.0 dB, ÜST-ORTA −35.0 dB, TİZ −40.5 dB —
+  ölçek OTOMATİK ±60'a genişledi, eğri grafiğin İÇİNDE (üst/alt kenara
+  değmiyor) kaldı.
+- **dB etiketleri doğru:** "+60" / "0" / "−60" üç etiket, ölçekle TUTARLI
+  (aynı `toolsTonalCurrentHalfRange` değerinden üretiliyor).
+- **Canlı akışta titreme yok:** çalma sırasında ~3 saniye boyunca birden
+  fazla ekran görüntüsü alındı, ölçek "+60/0/−60"ta SABİT kaldı (bu
+  dosyanın spektrumu zaman içinde değişmediği için beklenen davranış —
+  taban zaten canlı veriyi kapsıyordu, genişleme tetiklenmedi).
+- **Renkler eşleşiyor:** "Hedef bandı" noktası grafikteki altın dolgu/iz
+  ile, "Ortalama"/"Canlı" noktaları cyan eğri segmentleriyle AYNI temel
+  tonda (zoom ile piksel düzeyinde karşılaştırıldı).
+- **Tek çalma durumu doğrulandı (çapraz kontrol testi):** Mixini Yükle'nin
+  Oynat'ına basıldı → Tonal Balance kartında "CANLI" rozeti çıktı, Referans
+  Filtreleri akordiyonu açılınca ORADAKİ çalar da duraklat ikonunu
+  gösteriyordu (AYNI anda). Referans Filtreleri'nin duraklat düğmesine
+  basıldı → Mixini Yükle'nin düğmesi de ANINDA oynat ikonuna döndü, CANLI
+  rozeti kayboldu. Mixini Yükle'den tekrar Oynat, sonra Mixini Yükle'nin
+  Durdur'una basıldı → HER İKİ yüzey de oynat ikonuna döndü (Referans
+  Filtreleri'nin dalga formu/konumu da senkron). İki ayrı çalar YOK,
+  doğrulandı.
+- **`npm test`: 1119/1119**, 0 hata.
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chrome'da, `www/` `python3 -m
+http.server` üzerinden yapıldı — cihazda (iOS Safari/WKWebView) CANLI
+doğrulanmadı (CLAUDE.md: "Ses ve DOM davranışı kaynak koddan
+doğrulanamaz" — canvas çizimi/Web Audio state-machine cihazda AYRICA
+test edilmeli, bkz. SIRADAKİ).
+
+---
+
+Önceki commit (G113, tek commit) — **KÖK SEBEP KESİN: G112'nin YANLIŞ mekanizması (padding) margin'e çevrildi — `.game-scroll`'un ZATEN öğrettiği ders G112'de uygulanmamıştı.**
 
 **Kullanıcının cihaz kanıtı (Safari Web Inspector + CANLI DENEY):**
 `innerHeight=932`, tab bar `top=804 height=128`, `.tools-scroll h=873
@@ -9467,7 +9553,18 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G113 itibarıyla):** `npx cap sync ios` + kullanıcı
+**Tek sonraki adım (G114 itibarıyla):** `npx cap sync ios` + kullanıcı
+cihazda gerçek (aşırı dengesiz) bir mix yükleyip doğrulamalı:
+(1) Tonal Balance eğrisi hiçbir bölgede grafik kenarından taşmıyor/
+kırpılmıyor mu; (2) dikey eksende dB etiketleri (+X/0/−X) görünüyor ve
+ölçekle tutarlı mı; (3) dosya çalarken ölçek/eğri titremiyor mu; (4) üç
+gösterge rengi grafikteki karşılığıyla eşleşiyor mu; (5) Mixini Yükle
+kartındaki çalar ile Referans Filtreleri'ndeki çalar AYNI sesi kontrol
+ediyor mu (birinden başlatıp diğerinden durdurma). Bu turda masaüstü
+Chrome'da SENTETİK bir dosyayla hepsi doğrulandı (bkz. BİTTİ) — cihazda
+CANLI doğrulama HENÜZ yok.
+
+**Önceki adım (G113 itibarıyla):** `npx cap sync ios` + kullanıcı
 cihazda AYNI Safari Web Inspector yöntemiyle (bu turun kanıtını ÜRETEN
 yöntem) doğrulamalı:
 (1) `.tools-scroll`'un `getBoundingClientRect().bottom`'u artık tab bar'ın

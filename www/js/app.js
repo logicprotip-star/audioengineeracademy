@@ -140,6 +140,14 @@ const els = {
   // KALKTI (bkz. DURUM.md G101, her kaldırılan öğenin yeni karşılığı var).
   toolsGearBtn: document.getElementById("toolsGearBtn"),
   toolsUploadBtn: document.getElementById("toolsUploadBtn"),
+  // G114 — Mixini Yükle kartının çaları (Referans Filtreleri'yle AYNI tek
+  // oynatma durumunu paylaşır, bkz. renderToolsFilterPlayer/toolsToggleFilterPlayback).
+  toolsMixPlayer: document.getElementById("toolsMixPlayer"),
+  toolsMixPlayerName: document.getElementById("toolsMixPlayerName"),
+  toolsMixPlayerChange: document.getElementById("toolsMixPlayerChange"),
+  toolsMixPlayBtn: document.getElementById("toolsMixPlayBtn"),
+  toolsMixPlayIcon: document.getElementById("toolsMixPlayIcon"),
+  toolsMixStopBtn: document.getElementById("toolsMixStopBtn"),
   toolsProContent: document.getElementById("toolsProContent"),
   toolsFreeLock: document.getElementById("toolsFreeLock"),
   toolsProBtn: document.getElementById("toolsProBtn"),
@@ -8141,6 +8149,7 @@ function renderToolsCardsVisibility() {
   if (els.toolsTonalCard) els.toolsTonalCard.classList.toggle("tools-card-disabled", !hasFile);
   if (els.toolsAnalysisCard) els.toolsAnalysisCard.classList.toggle("tools-card-disabled", !hasFile);
   if (els.toolsFilterCard) els.toolsFilterCard.classList.toggle("tools-card-disabled", !hasFile);
+  renderToolsMixPlayer(entry); // G114 — dosya var/yok geçişinde Mixini Yükle kartının çaları/butonu senkron kalsın
   if (!hasFile) {
     if (els.toolsResultsStrip) els.toolsResultsStrip.classList.add("hidden");
     return;
@@ -8377,8 +8386,48 @@ async function toolsEnsureTonalMeasured() {
 const TOOLS_TONAL_W = 340, TOOLS_TONAL_H = 160;
 const TOOLS_TONAL_X0 = 12, TOOLS_TONAL_X1 = TOOLS_TONAL_W - 10;
 const TOOLS_TONAL_GY0 = 10, TOOLS_TONAL_GY1 = 112;
+// G114 — "eğriler grafikten taşıyor/kırpılıyor" (cihaz ekran görüntüsü kanıtı,
+// aşırı dengesiz bir dosyada SUB alta, ALT-ORTA üste taşıyordu). KÖK SEBEP:
+// dikey ölçek SABİT ±7dB'ydi (toolsTonalDy'nin eski `/7` böleni) — sapma bunu
+// aşınca çizgi GY0/GY1 sınırlarının DIŞINA çiziliyor, görsel olarak kırpılmış
+// gibi duruyordu. Artık DİNAMİK: toolsTonalCurrentHalfRange, drawTonalChart
+// her çağrıda o an çizilecek TÜM eğrilerin (hedef bandı dahil) gerçek en
+// uç değerine göre günceller — toolsTonalDy bunu okur, bu yüzden TÜM mevcut
+// çağıranlar (hedef bandı/segment dolgusu/eğriler/0dB çizgisi) hiçbir
+// değişiklik gerekmeden otomatik olarak yeni ölçeği kullanır.
+// TİTREME KORUMASI (task: "canlı eğri akarken ölçek titremesin — ortalama
+// eğriye göre sabitlensin ya da yumuşak geçsin"): taban ölçek SADECE avg+
+// target'tan hesaplanır (bunlar dosya/hedef değişmedikçe KARE-KAREYE
+// SABİTTİR) — canlı veri sadece bu tabanı AŞARSA ölçeği YUMUŞAKÇA
+// (üstel yumuşatma, ~%12/kare) genişletir, ASLA ANİDEN SIÇRAMAZ. Canlı
+// YOKKEN (dosya duraklatılmışken/değişiminde) ANINDA taze değere atlar —
+// o durumda zaten kare-kareye çizim yok, sıçrama riski yok.
+let toolsTonalCurrentHalfRange = 7; // toolsTonalDy() bunu okur, drawTonalChart günceller
+const TOOLS_TONAL_NICE_HALF_RANGES = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50];
+// SAF. Ham (yastıklanmamış) bir yarı-aralığı "güzel" bir dB adımına yuvarlar
+// (task: "+6/0/−6 gibi") — bu değer HEM y-ekseni ölçeği HEM eksen etiketi
+// olarak kullanılır, ikisi arasında TUTARSIZLIK riski kalmaz.
+function toolsTonalNiceHalfRange(raw) {
+  for (const s of TOOLS_TONAL_NICE_HALF_RANGES) if (s >= raw) return s;
+  return Math.ceil(raw / 10) * 10;
+}
+// SAF. avgDevs/targetDevs/liveDevs'in (varsa) gerçek uç noktalarına göre GEREKLİ
+// yarı-aralığı (dB, %15 pay dahil) hesaplar — hiçbir eğri kırpılmasın diye.
+function toolsTonalComputeRawHalfRange(avgDevs, targetDevs, liveDevs) {
+  let maxAbs = 0;
+  const consider = (v) => { const a = Math.abs(v); if (a > maxAbs) maxAbs = a; };
+  avgDevs.forEach(consider);
+  if (targetDevs) {
+    targetDevs.forEach((v) => {
+      consider(v + tonalBalance.OFF_TARGET_THRESHOLD_DB);
+      consider(v - tonalBalance.OFF_TARGET_THRESHOLD_DB);
+    });
+  }
+  if (liveDevs) liveDevs.forEach(consider);
+  return maxAbs * 1.15;
+}
 function toolsTonalFx(f) { return TOOLS_TONAL_X0 + (Math.log10(f / 20) / 3) * (TOOLS_TONAL_X1 - TOOLS_TONAL_X0); }
-function toolsTonalDy(d) { return (TOOLS_TONAL_GY0 + TOOLS_TONAL_GY1) / 2 - (d / 7) * ((TOOLS_TONAL_GY1 - TOOLS_TONAL_GY0) / 2); }
+function toolsTonalDy(d) { return (TOOLS_TONAL_GY0 + TOOLS_TONAL_GY1) / 2 - (d / toolsTonalCurrentHalfRange) * ((TOOLS_TONAL_GY1 - TOOLS_TONAL_GY0) / 2); }
 function toolsTonalCenters() {
   const e = tonalBalance.BAND_EDGES;
   return e.slice(0, 6).map((f, i) => Math.sqrt(f * e[i + 1]));
@@ -8505,6 +8554,20 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
   const targetPts = targetDevs ? toolsTonalInterp(targetDevs, centers) : null;
   const livePts = liveDevs ? toolsTonalInterp(liveDevs, centers) : null;
 
+  // G114 — dinamik dikey ölçek (bkz. dosya başı toolsTonalCurrentHalfRange
+  // notu). Taban SADECE avg+target'tan (canlı YOK) — bu, kare-kareye SABİT,
+  // titreme kaynağı olamaz. Canlı varsa ve tabanı AŞIYORSA ölçek YUMUŞAKÇA
+  // (üstel yumuşatma) genişler; canlı yoksa ANINDA taze değere döner.
+  const baseHalfRange = toolsTonalComputeRawHalfRange(avgDevs, targetDevs, null);
+  const neededRaw = liveDevs ? Math.max(baseHalfRange, toolsTonalComputeRawHalfRange(avgDevs, targetDevs, liveDevs)) : baseHalfRange;
+  const neededNice = toolsTonalNiceHalfRange(Math.max(3, neededRaw));
+  if (liveDevs) {
+    toolsTonalCurrentHalfRange += (neededNice - toolsTonalCurrentHalfRange) * 0.12;
+    if (Math.abs(toolsTonalCurrentHalfRange - neededNice) < 0.05) toolsTonalCurrentHalfRange = neededNice;
+  } else {
+    toolsTonalCurrentHalfRange = neededNice;
+  }
+
   // 0 dB referans çizgisi (düz spektrum) — kesikli, soluk.
   ctx.strokeStyle = "rgba(34,211,238,.18)";
   ctx.lineWidth = 1;
@@ -8514,6 +8577,20 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
   ctx.lineTo(TOOLS_TONAL_X1, toolsTonalDy(0));
   ctx.stroke();
   ctx.setLineDash([]);
+
+  // G114 — dikey eksen dB ızgarası — ±toolsTonalCurrentHalfRange'de ince,
+  // sönük yatay çizgiler (0 dB'nin KENDİ çizgisi yukarıda ZATEN çizildi,
+  // burada TEKRAR çizilmiyor). Etiketleri (metin) çizim SONUNDA, eğrilerin
+  // ÜSTÜNDE okunaklı kalsın diye ayrıca çiziliyor (bkz. dosya sonu).
+  ctx.strokeStyle = "rgba(255,255,255,.045)";
+  ctx.lineWidth = 1;
+  [-toolsTonalCurrentHalfRange, toolsTonalCurrentHalfRange].forEach((d) => {
+    const y = toolsTonalDy(d);
+    ctx.beginPath();
+    ctx.moveTo(TOOLS_TONAL_X0, y);
+    ctx.lineTo(TOOLS_TONAL_X1, y);
+    ctx.stroke();
+  });
 
   // Bant sınırları
   const edges = tonalBalance.BAND_EDGES.slice(1, 6);
@@ -8561,6 +8638,21 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
   [[20, "20"], [100, "100"], [500, "500"], [2000, "2k"], [8000, "8k"], [20000, "20k"]].forEach(([f, label]) => {
     const x = Math.min(Math.max(toolsTonalFx(f), TOOLS_TONAL_X0 + 6), TOOLS_TONAL_X1 - 8);
     ctx.fillText(label, x, 148);
+  });
+
+  // G114 — dikey eksen dB etiketleri (task: "hedef çizgisi 0 kabul edilip
+  // +6/0/−6 gibi, ölçeğe göre uyarlanarak"). Işıklara/eğrilere en az müdahale
+  // etmesi için sol kenara, ızgara çizgilerinin ÜSTÜNE (metin en son çiziliyor,
+  // eğrilerin de üstünde okunaklı kalır) — küçük/sönük font, dar sol boşluğa
+  // (X0=12px) sığacak şekilde 3 etiketle sınırlı tutuldu (task'ın kendi
+  // "+6/0/−6" örneğiyle TUTARLI, 5+ etiket bu genişlikte KALABALIK ederdi).
+  ctx.font = "600 7px Inter, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#4a4f56";
+  const hr = toolsTonalCurrentHalfRange;
+  [[hr, `+${hr}`], [0, "0"], [-hr, `−${hr}`]].forEach(([d, label]) => {
+    const y = toolsTonalDy(d) + (d === 0 ? 3 : d > 0 ? 6 : -1);
+    ctx.fillText(label, TOOLS_TONAL_X0 + 1, y);
   });
 }
 
@@ -8791,6 +8883,25 @@ function renderToolsFilterPlayer() {
       ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1.5"></rect><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"></rect></svg>`
       : `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-left:3px"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z"></path></svg>`;
   }
+  renderToolsMixPlayer(entry); // G114 — Mixini Yükle kartının çaları AYNI durumu yansıtır
+}
+// G114 — "Mixini Yükle" kartı: dosya YOKKEN "Dosya seç" butonu, VARKEN dosya
+// adı + değiştir + play/pause+durdur. Oynatma DURUMU (ikon/animasyon)
+// renderToolsFilterPlayer() ile AYNI kaynaktan (toolsFilterPlaying) geliyor —
+// o da HER render'ında bunu çağırıyor, tek yerden iki UI'yi senkron tutuyor.
+function renderToolsMixPlayer(entry) {
+  if (!els.toolsUploadBtn || !els.toolsMixPlayer) return;
+  const hasFile = !!entry;
+  els.toolsUploadBtn.classList.toggle("hidden", hasFile);
+  els.toolsMixPlayer.classList.toggle("hidden", !hasFile);
+  if (!hasFile) return;
+  if (els.toolsMixPlayerName) els.toolsMixPlayerName.textContent = entry.name;
+  if (els.toolsMixPlayBtn) els.toolsMixPlayBtn.classList.toggle("playing", toolsFilterPlaying);
+  if (els.toolsMixPlayIcon) {
+    els.toolsMixPlayIcon.innerHTML = toolsFilterPlaying
+      ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1.5"></rect><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"></rect></svg>`
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-left:2px"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z"></path></svg>`;
+  }
 }
 async function toolsToggleFilterPlayback() {
   if (!uploadManager.hasBuffer) return;
@@ -8813,8 +8924,22 @@ async function toolsToggleFilterPlayback() {
   }
   renderToolsFilterPlayer();
 }
+// G114 — "Durdur": duraklatmadan farklı olarak konumu da SIFIRLAR (uploadManager.startFromZero()).
+async function toolsStopFilterPlayback() {
+  if (!uploadManager.hasBuffer) return;
+  if (toolsFilterPlaying) {
+    uploadManager.pausePlayback();
+    if (toolsFilterPreviewNode) { try { toolsFilterPreviewNode.stop(); } catch (e) {} toolsFilterPreviewNode = null; }
+    toolsFilterPlaying = false;
+  }
+  uploadManager.startFromZero();
+  renderToolsFilterPlayer();
+}
 if (els.toolsFilterPlayBtn) els.toolsFilterPlayBtn.addEventListener("click", toolsToggleFilterPlayback);
 if (els.toolsFilterFileChange) els.toolsFilterFileChange.addEventListener("click", toolsOpenFilesSheet);
+if (els.toolsMixPlayBtn) els.toolsMixPlayBtn.addEventListener("click", toolsToggleFilterPlayback);
+if (els.toolsMixStopBtn) els.toolsMixStopBtn.addEventListener("click", toolsStopFilterPlayback);
+if (els.toolsMixPlayerChange) els.toolsMixPlayerChange.addEventListener("click", toolsOpenFilesSheet);
 
 // Gerçek satın alma bu sürümde yok — Araçlar sekmesi normalde her zaman
 // kilitli görünür (toolsFreeLock), dokununca paywall'a yönlendirir. isUserPro()
