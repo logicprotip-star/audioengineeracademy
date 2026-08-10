@@ -131,12 +131,34 @@ export function bandDevsFromLiveSnapshot(freqData, sampleRate, fftSize) {
 // audioBuffer: gerçek bir AudioBuffer (upload.js'in decode ettiği). Dönen:
 // 6 elemanlı dizi, her biri o bandın dosyanın KENDİ ortalamasına göre dB
 // sapması (band ortalama enerji − dosya geneli ortalama enerji).
+// G108 — "copyFile sonrası donma, hiç log yok" teşhisi için EKLENDİ (task'ın
+// kendi kuralı: SADECE günlük, düzeltme YOK). Bu fonksiyon G106'dan beri
+// GÜÇLÜ bir şüpheli: iOS Safari/WKWebView'in OfflineAudioContext suspend()/
+// resume() zincirlemesinde iyi belgelenmiş güvenilirlik sorunları var — bu
+// döngü BAŞARISIZ OLURSA (hata FIRLATMADAN sonsuza kadar askıda kalırsa) hiç
+// log/hata görünmez, "sessiz donma" ile TAM örtüşür. `[upload-diag]` önekli,
+// aynı app.js'teki desen — geçici, kök sebep bulununca kaldırılması BEKLENİR.
+function tonalDiagMem() {
+  if (typeof performance !== "undefined" && performance.memory) {
+    const m = performance.memory;
+    return ` | bellek: ${(m.usedJSHeapSize / 1048576).toFixed(1)}/${(m.jsHeapSizeLimit / 1048576).toFixed(1)} MB`;
+  }
+  return "";
+}
+function tonalDiagLog(label, phase, detail) {
+  console.log(`[upload-diag] 5a) ${label} ${phase}${detail ? ` — ${detail}` : ""}${tonalDiagMem()}`);
+}
+
 export async function measureSpectralDeviation(audioBuffer, options = {}) {
   const fftSize = options.fftSize || 8192;
   const hopSec = options.hopSec || 0.5;
   const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
   if (!OfflineCtx) throw new Error("Bu tarayıcı OfflineAudioContext desteklemiyor — Tonal Balance ölçülemedi.");
 
+  const duration = audioBuffer.duration;
+  const expectedHops = Math.max(0, Math.ceil(duration / hopSec) - 1);
+  const tSetup0 = performance.now();
+  tonalDiagLog("OfflineAudioContext kurulumu", "BAŞLIYOR", `${duration.toFixed(1)}s, beklenen hop sayısı ~${expectedHops}`);
   const ctx = new OfflineCtx(1, Math.max(1, audioBuffer.length), audioBuffer.sampleRate);
   const source = ctx.createBufferSource();
   source.buffer = audioBuffer;
@@ -146,35 +168,53 @@ export async function measureSpectralDeviation(audioBuffer, options = {}) {
   source.connect(analyser);
   analyser.connect(ctx.destination);
   source.start();
+  tonalDiagLog("OfflineAudioContext kurulumu", "BİTTİ", `${(performance.now() - tSetup0).toFixed(0)} ms`);
 
   const freqData = new Float32Array(analyser.frequencyBinCount);
   const binHz = ctx.sampleRate / fftSize;
   const bandPowerSum = new Array(BANDS.length).fill(0);
   const bandCount = new Array(BANDS.length).fill(0);
 
-  const duration = audioBuffer.duration;
   let t = hopSec;
+  let hopIndex = 0;
+  const tLoop0 = performance.now();
 
   function sampleOnce() {
     analyser.getFloatFrequencyData(freqData);
     accumulateFreqSnapshot(freqData, binHz, bandPowerSum, bandCount);
   }
 
+  tonalDiagLog("suspend/resume döngüsü (ana şüpheli — WKWebView'da bilinen güvenilirlik sorunu)", "BAŞLIYOR");
   await new Promise((resolve, reject) => {
     function scheduleNext() {
       if (t >= duration) {
+        tonalDiagLog("suspend/resume döngüsü", "BİTTİ", `${hopIndex} hop, ${(performance.now() - tLoop0).toFixed(0)} ms`);
         resolve();
         return;
       }
       ctx.suspend(t).then(() => {
+        hopIndex++;
+        // Her hop DEĞİL — dosya uzunsa yüzlerce satır olurdu. İlk 3 + her
+        // 10'da bir + SONUNCUDAN ÖNCEKİ (freeze'in TAM hangi hop'ta kaldığını
+        // görmek için — bir SONRAKİ hop hiç loglanmazsa kök sebep BURADA).
+        if (hopIndex <= 3 || hopIndex % 10 === 0) {
+          tonalDiagLog("suspend/resume döngüsü", "hop", `#${hopIndex}/${expectedHops}, t=${t.toFixed(1)}s, ${(performance.now() - tLoop0).toFixed(0)} ms geçti`);
+        }
         sampleOnce();
         t += hopSec;
         scheduleNext();
         ctx.resume();
-      }).catch(reject);
+      }).catch((err) => {
+        tonalDiagLog("suspend/resume döngüsü", "HATA", `hop #${hopIndex}, t=${t.toFixed(1)}s — ${err && err.message}`);
+        reject(err);
+      });
     }
     scheduleNext();
-    ctx.startRendering().catch(reject);
+    const tRender0 = performance.now();
+    tonalDiagLog("ctx.startRendering()", "BAŞLIYOR");
+    ctx.startRendering().then(() => {
+      tonalDiagLog("ctx.startRendering()", "BİTTİ (render tamamlandı)", `${(performance.now() - tRender0).toFixed(0)} ms`);
+    }).catch(reject);
   });
   // Son bir örnek (kuyruk) — dosyanın en son anını da yakala.
   // (startRendering tamamlandığında render bitmiştir, ek suspend gerekmez.)

@@ -4938,6 +4938,24 @@ function getFilePickerPlugin() {
 // hata zaten loglandı/feedback gösterildi, çağıran tarafın AYRICA bir şey
 // YAPMASINA gerek yok) | undefined (native plugin bu ortamda YOK — çağıran
 // taraf web fallback'ine düşmeli).
+// G108 — "copyFile sonrası donma, hiç log yok" teşhisi için EKLENDİ (task'ın
+// kendi kuralı: SADECE günlük, düzeltme YOK). `[upload-diag]` önekli,
+// her adımın BAŞLIYOR/BİTTİ satırı + (varsa) performance.memory. Bu, GEÇİCİ
+// teşhis kodu — kök sebep bulununca kaldırılması BEKLENİR, bu yüzden 4 ayrı
+// dosyada (app.js/upload.js/tonal-balance.js/file-storage.js) BİLEREK
+// KÜÇÜK, TEKRARLI bir kopya olarak tutuldu (paylaşılan bir modül EKLEMEK,
+// kalıcı bir bağımlılık yaratırdı — atılacak kod için orantısız).
+function uploadDiagMem() {
+  if (typeof performance !== "undefined" && performance.memory) {
+    const m = performance.memory;
+    return ` | bellek: ${(m.usedJSHeapSize / 1048576).toFixed(1)}/${(m.jsHeapSizeLimit / 1048576).toFixed(1)} MB`;
+  }
+  return "";
+}
+function uploadDiagLog(step, label, phase, detail) {
+  console.log(`[upload-diag] ${step}) ${label} ${phase}${detail ? ` — ${detail}` : ""}${uploadDiagMem()}`);
+}
+
 async function pickNativeAudioFile() {
   const plugin = getFilePickerPlugin();
   if (!plugin) return undefined;
@@ -4957,9 +4975,12 @@ async function pickNativeAudioFile() {
     } else if (picked.path && window.Capacitor && window.Capacitor.convertFileSrc) {
       // iOS/Android: path var, blob yok — plugin'in KENDİ önerdiği fetch+
       // convertFileSrc deseni (bkz. plugin README "Upload a picked file").
+      const t1_0 = performance.now();
+      uploadDiagLog(1, "Kopyalanan dosyanın okunması (fetch+blob)", "BAŞLIYOR", picked.name);
       const resp = await fetch(window.Capacitor.convertFileSrc(picked.path));
       blob = await resp.blob();
       nativePath = picked.path;
+      uploadDiagLog(1, "Kopyalanan dosyanın okunması (fetch+blob)", "BİTTİ", `${(performance.now() - t1_0).toFixed(0)} ms, ${(blob.size / 1048576).toFixed(1)} MB`);
     } else {
       throw new Error("dosya verisine (blob/path) erişilemedi");
     }
@@ -7191,19 +7212,30 @@ async function toolsAddFile(file) {
   const validation = validateAudioFile(file);
   if (!validation.ok) { toast(validation.title, validation.detail); return null; }
   await audioEngine.initAudio();
+  const t2_0 = performance.now();
+  uploadDiagLog(2, "ArrayBuffer'a dönüştürme + decodeAudioData (uploadManager.loadFile)", "BAŞLIYOR", `${(file.size / 1048576).toFixed(1)} MB`);
   const res = await uploadManager.loadFile(file);
+  uploadDiagLog(2, "ArrayBuffer'a dönüştürme + decodeAudioData (uploadManager.loadFile)", "BİTTİ", `${(performance.now() - t2_0).toFixed(0)} ms, ok=${res.ok}`);
   if (!res.ok) { toast(res.title, res.detail); return null; }
   const buffer = uploadManager.getBuffer();
+
+  const t4_0 = performance.now();
+  uploadDiagLog(4, "Dalga formu çıkarma (toolsWaveformPeaks)", "BAŞLIYOR", `${buffer.duration.toFixed(1)}s`);
+  const peaks = toolsWaveformPeaks(buffer, 15);
+  uploadDiagLog(4, "Dalga formu çıkarma (toolsWaveformPeaks)", "BİTTİ", `${(performance.now() - t4_0).toFixed(0)} ms`);
+
   const entry = {
     id: toolsGenerateId(),
     name: file.name,
     sizeKb: Math.max(1, Math.round(file.size / 1024)),
     durationSec: buffer.duration,
-    peaks: toolsWaveformPeaks(buffer, 15),
+    peaks,
     mimeType: file.type || "application/octet-stream",
     addedAt: Date.now(),
     file, // bellek-içi ÖNBELLEK — persist edilmiyor (JSON.stringify tarafından atlanır çünkü toolsSaveLibraryManifest bunu ayrıca seçip alıyor)
   };
+  const t6_0 = performance.now();
+  uploadDiagLog(6, "Dosya listesine ekleme ve depolama yazma (fileStorage.saveFile)", "BAŞLIYOR", file.__nativePickerPath ? "Yol B (native copyFile)" : "Yol A (base64 parçalı)");
   try {
     await fileStorage.saveFile(entry.id, file, toolsSetFileSaveProgress, file.__nativePickerPath || null);
   } catch (e) {
@@ -7212,6 +7244,7 @@ async function toolsAddFile(file) {
   } finally {
     toolsSetFileSaveProgress(null);
   }
+  uploadDiagLog(6, "Dosya listesine ekleme ve depolama yazma (fileStorage.saveFile)", "BİTTİ", `${(performance.now() - t6_0).toFixed(0)} ms`);
   toolsFiles.push(entry);
   // En fazla TOOLS_LIBRARY_MAX dosya — yenisi eklenince en eski (addedAt) düşer.
   while (toolsFiles.length > TOOLS_LIBRARY_MAX) {
@@ -7496,7 +7529,10 @@ async function toolsHandlePickNewFile() {
   const entry = await toolsAddFile(picked);
   if (entry) {
     toast("Dosya yüklendi", `${picked.name} — Dosyalarım'da listelendi.`);
+    const t7_0 = performance.now();
+    uploadDiagLog(7, "Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı)", "BAŞLIYOR");
     toolsSelectFile(entry.id, { skipReload: true });
+    uploadDiagLog(7, "Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı)", "BİTTİ", `${(performance.now() - t7_0).toFixed(0)} ms — NOT: renderToolsTonalCard() İÇİNDEKİ Tonal Balance ölçümü (adım 5) AWAIT EDİLMİYOR, ayrı bir log'da tamamlanma zamanı görünür`);
   }
 }
 if (els.toolsUploadBtn) els.toolsUploadBtn.addEventListener("click", toolsOpenFilesSheet);
@@ -7508,7 +7544,13 @@ if (els.toolsFileInput) {
     els.toolsFileInput.value = "";
     if (!file) return;
     const entry = await toolsAddFile(file);
-    if (entry) { toast("Dosya yüklendi", `${file.name} — Dosyalarım'da listelendi.`); toolsSelectFile(entry.id, { skipReload: true }); }
+    if (entry) {
+      toast("Dosya yüklendi", `${file.name} — Dosyalarım'da listelendi.`);
+      const t7_0 = performance.now();
+      uploadDiagLog(7, "Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı, web input yolu)", "BAŞLIYOR");
+      toolsSelectFile(entry.id, { skipReload: true });
+      uploadDiagLog(7, "Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı, web input yolu)", "BİTTİ", `${(performance.now() - t7_0).toFixed(0)} ms`);
+    }
   });
 }
 if (els.toolsFilesClose) els.toolsFilesClose.addEventListener("click", toolsCloseFilesSheet);
@@ -8257,12 +8299,16 @@ async function toolsEnsureTonalMeasured() {
   if (toolsTonalDevs && toolsTonalMeasuringForId === entry.id) return toolsTonalDevs;
   const buffer = uploadManager.getBuffer();
   if (!buffer) return null;
+  const t5_0 = performance.now();
+  uploadDiagLog(5, "Tonal Balance için spektrum hesabı (measureSpectralDeviation)", "BAŞLIYOR", `${buffer.duration.toFixed(1)}s, ${buffer.sampleRate}Hz`);
   try {
     const devs = await tonalBalance.measureSpectralDeviation(buffer);
+    uploadDiagLog(5, "Tonal Balance için spektrum hesabı (measureSpectralDeviation)", "BİTTİ", `${(performance.now() - t5_0).toFixed(0)} ms`);
     toolsTonalDevs = devs;
     toolsTonalMeasuringForId = entry.id;
     return devs;
   } catch (err) {
+    uploadDiagLog(5, "Tonal Balance için spektrum hesabı (measureSpectralDeviation)", "HATA", `${(performance.now() - t5_0).toFixed(0)} ms — ${err && err.message}`);
     console.error("[tonal-balance] ölçüm hatası:", err && err.message, err);
     return null;
   }

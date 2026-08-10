@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G107)
+Son güncelleme: 11.08.2026 (G108)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,68 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G107, tek commit) — **Araçlar: cihazda (iOS Safari Web Inspector) kanıtlanan ÜÇ düzeltme.**
+Bu commit (G108, tek commit) — **SADECE TEŞHİS: copyFile sonrası donma için adım adım günlükleme (task'ın kendi kuralı — düzeltme YAPILMADI).**
+
+**Kullanıcının kanıtı:** G107'nin copyFile düzeltmesi ÇALIŞIYOR (appendFile/
+base64 trafiği tamamen kalkmış, konsolda `Filesystem.mkdir → Filesystem.
+getUri → FilePicker.copyFile` sırayla görünüp copyFile SONUÇ DÖNÜYOR) AMA
+donma sürüyor ve copyFile'dan SONRA hiçbir log/hata yok.
+
+**Kod izi (`toolsAddFile`/`toolsHandlePickNewFile` sırası) çıkarıldı:**
+copyFile (adım 6, dosya SAVE'i) aslında decode+dalga formundan (adım 2-4)
+SONRA ama Tonal Balance ölçümünden (adım 5) ÖNCE çalışıyor — adım 5,
+`toolsSelectFile()`'ın `renderToolsCardsVisibility()`→`renderToolsTonalCard()`
+zincirinden AWAIT EDİLMEDEN (detached) tetikleniyor. **GÜÇLÜ ŞÜPHELİ
+bulundu:** `tonal-balance.js:measureSpectralDeviation()` — iOS Safari/
+WKWebView'in `OfflineAudioContext.suspend()`/`resume()` ZİNCİRLEMESİNDE iyi
+belgelenmiş güvenilirlik sorunları var; bu döngü BAŞARISIZ OLURSA (hata
+FIRLATMADAN sonsuza kadar askıda kalırsa) hiç log/hata görünmez — kullanıcının
+tarif ettiği "sessiz donma" ile TAM örtüşüyor. **Ama bu sadece bir HİPOTEZ —
+DOĞRULANMADI, task'ın kuralı gereği DÜZELTİLMEDİ.**
+
+**Eklenen günlükleme — `[upload-diag]` önekli, tek satır, BAŞLIYOR/BİTTİ +
+süre + (varsa) `performance.memory`, task'ın istediği format:**
+- **`app.js`** — adım 1 (`pickNativeAudioFile`'daki fetch+blob okuma), adım
+  2/4/5/6/7 sarmalayıcıları (`toolsAddFile`/`toolsEnsureTonalMeasured`/
+  `toolsHandlePickNewFile` + web `<input>` yolu için AYNI adım 7).
+- **`upload.js`** — adım 2 (file.arrayBuffer) ve adım 3'ü (decodeAudioData +
+  BAŞARISIZ olursa decodeWavPcm yedeği, createBuffer/copyToChannel dahil)
+  AYRI AYRI ölçüyor (`toolsAddFile`'daki tek sarmalayıcı bunları BİRLEŞTİRİYOR,
+  burada ayrıştırıldı).
+- **`tonal-balance.js`** — EN AYRINTILI günlükleme (ana şüpheli burada):
+  OfflineAudioContext kurulumu, `ctx.startRendering()`, ve suspend/resume
+  döngüsünün HER hop'u değil (uzun dosyada yüzlerce satır olurdu) ilk 3 +
+  her 10'da bir + BİTTİ — **eğer cihazda donma burada oluyorsa, konsolda
+  BAŞLIYOR log'u görünüp bir SONRAKİ beklenen hop hiç gelmez, bu TAM OLARAK
+  hangi saniyede (t=X.Xs) kaldığını gösterir.**
+- **`file-storage.js`** — kullanıcının kanıtının KESTİĞİ TAM NOKTA: `mkdir`/
+  `getUri`/`copyFile`'ın HER BİRİ ayrı BAŞLIYOR/BİTTİ, + copyFile'dan hemen
+  SONRAKİ `onProgress(1)` + fonksiyondan `return`'ün KENDİSİ bile ayrı
+  loglandı ("6d) saveFileNativeCopy()'den return") — eğer cihazda bu son log
+  bile GÖRÜNMÜYORSA, kök sebep `FilePicker.copyFile`'ın KENDİ native
+  tarafında (JS'e hiç dönmeyen bir native thread askısı) aranmalı.
+
+**DÜRÜSTLÜK NOTU:** hiçbir kod DAVRANIŞI değiştirilmedi (sadece `console.log`
+eklendi) — bu, geçici teşhis kodu, kök sebep bulununca KALDIRILMASI
+BEKLENİR (4 dosyada BİLEREK küçük/tekrarlı bir `uploadDiagLog` kopyası,
+paylaşılan modül EKLENMEDİ — atılacak kod için orantısız olurdu).
+
+**DOĞRULAMA:**
+- **Masaüstü Chrome'da günlüklerin çıktığı GÖSTERİLDİ** (gerçek dosya
+  yükleme akışı, `read_console_messages` ile yakalandı): 20 saniyelik test
+  dosyasında TÜM 7 adım + Tonal Balance'ın 5a alt-adımları (OfflineAudioContext
+  kurulumu, suspend/resume döngüsü 39 hop'un TAMAMI ~22ms'de BİTTİ, `ctx.
+  startRendering()`) beklenen sırada, tek satır formatında, `performance.
+  memory` değerleriyle (Chrome'da mevcut) birlikte göründü — konsol hatası 0.
+  **Masaüstünde döngü SORUNSUZ tamamlandı (22ms) — bu, cihazdaki donmanın
+  Chrome'da HİÇ ÜRETİLEMEDİĞİNİ, teşhisin SADECE cihazda anlamlı olacağını
+  DOĞRULUYOR** (task'ın kendi notuyla tutarlı).
+- **`npm test`: 1119/1119** (davranış değişmedi, sadece log eklendi —
+  hiçbir test değiştirilmedi/silinmedi).
+
+---
+
+Önceki commit (G107, tek commit) — **Araçlar: cihazda (iOS Safari Web Inspector) kanıtlanan ÜÇ düzeltme.**
 
 **1) DOSYA YÜKLEME DONMASI — Yol B (native copyFile) seçildi, Yol A (küçültülmüş
 parça) güvenlik ağı olarak korundu.** Kullanıcının konsol kanıtı (32MB WAV,
@@ -9012,7 +9073,25 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G107 itibarıyla):** `npx cap sync` (hem iOS hem Android —
+**Tek sonraki adım (G108 itibarıyla):** Kullanıcı cihazda (32MB+ dosyayla,
+donma daha önce OLUŞAN aynı senaryo) tekrar deneyip Safari/Xcode konsolunun
+TAM görüntüsünü getirmeli — özellikle:
+(1) `[upload-diag]` loglarının copyFile'dan (adım 6) SONRA hangi noktada
+KESİLDİĞİ (adım 7 mi hiç başlamıyor, adım 5 mi "BAŞLIYOR" diyip hiç "BİTTİ"
+demiyor, yoksa `5a) suspend/resume döngüsü` belirli bir hop'ta mı takılıyor);
+(2) eğer adım 5a'da belirli bir hop'ta takılıyorsa, o hop'un `t=X.Xs` değeri
+— bu, dosyanın HANGİ saniyesinde OfflineAudioContext'in tıkandığını gösterir;
+(3) `performance.memory` iOS Safari'de YOK (Chrome-only API) — bu alan
+cihazda boş/eksik görünecek, BEKLENEN bir durum, hata değil.
+Log'lar geldikten SONRA kök sebep netleşecek, o zaman DÜZELTME turu
+başlayabilir (bu turda BİLEREK yapılmadı — task'ın kendi kuralı). Kök sebep
+`measureSpectralDeviation()`'ın suspend/resume zincirlemesi çıkarsa,
+düzeltme muhtemelen bu döngüyü `AnalyserNode` tabanlı OfflineAudioContext
+yerine STREAMING bir FFT'ye (ya da `analysis.js`'in ZATEN sahip olduğu saf/
+Web-Audio-bağımsız mimarisine benzer bir yaklaşıma) taşımayı gerektirecek —
+ama bu KARAR log'lar gelmeden verilmemeli.
+
+**Önceki adım (G107 itibarıyla):** `npx cap sync` (hem iOS hem Android —
 bu turda Android tarafında `file_paths.xml` DEĞİŞTİ) + GERÇEK cihazda
 doğrulama, ÖZELLİKLE:
 (1) 32MB+ bir dosya "Mixini Yükle"den seçilince Yol B'nin (native copyFile)

@@ -25,6 +25,23 @@ function getFilePickerPlugin() {
   return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FilePicker) || null;
 }
 
+// G108 — "copyFile sonrası donma, hiç log yok" teşhisi için EKLENDİ (task'ın
+// kendi kuralı: SADECE günlük, düzeltme YOK). Kullanıcının kendi kanıtı TAM
+// OLARAK BURADA kesiliyor (copyFile sonuç dönüyor, sonrasında hiçbir kayıt
+// yok) — bu yüzden bu dosyadaki her alt-adım (mkdir/getUri/copyFile/dönüş)
+// AYRI AYRI loglanıyor, `[upload-diag]` önekli, app.js'teki AYNI desen —
+// geçici, kök sebep bulununca kaldırılması BEKLENİR.
+function uploadDiagMem() {
+  if (typeof performance !== "undefined" && performance.memory) {
+    const m = performance.memory;
+    return ` | bellek: ${(m.usedJSHeapSize / 1048576).toFixed(1)}/${(m.jsHeapSizeLimit / 1048576).toFixed(1)} MB`;
+  }
+  return "";
+}
+function uploadDiagLog(step, label, phase, detail) {
+  console.log(`[upload-diag] ${step}) ${label} ${phase}${detail ? ` — ${detail}` : ""}${uploadDiagMem()}`);
+}
+
 export function isNativeStorage() {
   return !!getFilesystemPlugin();
 }
@@ -149,20 +166,26 @@ const FS_MKDIR_PATH = FS_SUBDIR;
 // nativePath: G107 — FilePicker'ın döndürdüğü uygulama-sandbox'ı İÇİNDEKİ
 // gerçek dosya yolu (varsa). Verilirse Yol B (native copyFile) denenir.
 export async function saveFile(id, blob, onProgress, nativePath) {
+  const t6_0 = performance.now();
+  uploadDiagLog(6, "saveFile() çağrıldı", "BAŞLIYOR", `nativePath=${nativePath ? "VAR (Yol B denenecek)" : "YOK (doğrudan Yol A)"}`);
   const fs = getFilesystemPlugin();
   if (fs) {
     if (nativePath) {
       try {
         await saveFileNativeCopy(fs, id, nativePath, onProgress);
+        uploadDiagLog(6, "saveFile() Yol B ile TAMAMLANDI, return ediliyor", "BİTTİ", `${(performance.now() - t6_0).toFixed(0)} ms`);
         return;
       } catch (e) {
+        uploadDiagLog(6, "saveFile() Yol B başarısız, Yol A'ya düşülüyor", "HATA", `${(performance.now() - t6_0).toFixed(0)} ms — ${e && e.message}`);
         console.error("[file-storage] Yol B (native copyFile) başarısız, Yol A'ya (parçalı base64) düşülüyor:", e);
       }
     }
     await saveFileNativeChunked(fs, id, blob, onProgress);
+    uploadDiagLog(6, "saveFile() Yol A ile TAMAMLANDI", "BİTTİ", `${(performance.now() - t6_0).toFixed(0)} ms`);
   } else {
     await idbPut(id, blob);
     if (onProgress) onProgress(1);
+    uploadDiagLog(6, "saveFile() IndexedDB (web) ile TAMAMLANDI", "BİTTİ", `${(performance.now() - t6_0).toFixed(0)} ms`);
   }
 }
 
@@ -173,17 +196,33 @@ async function saveFileNativeCopy(fs, id, nativePath, onProgress) {
     throw new Error("FilePicker.copyFile mevcut değil");
   }
   const path = `${FS_SUBDIR}/${id}`;
+
+  const tMkdir0 = performance.now();
+  uploadDiagLog(6, "6a) Filesystem.mkdir", "BAŞLIYOR");
   try {
     await fs.mkdir({ path: FS_MKDIR_PATH, directory: FS_DIRECTORY, recursive: true });
+    uploadDiagLog(6, "6a) Filesystem.mkdir", "BİTTİ", `${(performance.now() - tMkdir0).toFixed(0)} ms`);
   } catch (e) {
     // Dizin zaten varsa (en yaygın durum, ilk dosyadan sonra) sessizce geç —
     // bu dosyanın diğer fonksiyonlarındaki (deleteFile/fileExists) AYNI
     // "yoksay ve devam et" deseni.
+    uploadDiagLog(6, "6a) Filesystem.mkdir", "HATA (yoksayıldı, muhtemelen zaten var)", `${(performance.now() - tMkdir0).toFixed(0)} ms — ${e && e.message}`);
   }
+
+  const tUri0 = performance.now();
+  uploadDiagLog(6, "6b) Filesystem.getUri", "BAŞLIYOR");
   const { uri } = await fs.getUri({ path, directory: FS_DIRECTORY });
+  uploadDiagLog(6, "6b) Filesystem.getUri", "BİTTİ", `${(performance.now() - tUri0).toFixed(0)} ms, uri=${uri}`);
+
   if (onProgress) onProgress(0);
+
+  const tCopy0 = performance.now();
+  uploadDiagLog(6, "6c) FilePicker.copyFile", "BAŞLIYOR", `from=${nativePath}`);
   await filePicker.copyFile({ from: nativePath, to: uri, overwrite: true });
+  uploadDiagLog(6, "6c) FilePicker.copyFile", "BİTTİ (await DÖNDÜ)", `${(performance.now() - tCopy0).toFixed(0)} ms`);
+
   if (onProgress) onProgress(1);
+  uploadDiagLog(6, "6d) saveFileNativeCopy() fonksiyonundan return", "BİTTİ", "onProgress(1) çağrıldı, şimdi saveFile()'a dönülüyor");
 }
 
 async function saveFileNativeChunked(fs, id, blob, onProgress) {

@@ -44,6 +44,20 @@
 
 import { decodeWavPcm } from "./wav-parser.js";
 
+// G108 — "copyFile sonrası donma, hiç log yok" teşhisi için EKLENDİ (task'ın
+// kendi kuralı: SADECE günlük, düzeltme YOK). `[upload-diag]` önekli, app.js'
+// teki AYNI desen — geçici, kök sebep bulununca kaldırılması BEKLENİR.
+function uploadDiagMem() {
+  if (typeof performance !== "undefined" && performance.memory) {
+    const m = performance.memory;
+    return ` | bellek: ${(m.usedJSHeapSize / 1048576).toFixed(1)}/${(m.jsHeapSizeLimit / 1048576).toFixed(1)} MB`;
+  }
+  return "";
+}
+function uploadDiagLog(step, label, phase, detail) {
+  console.log(`[upload-diag] ${step}) ${label} ${phase}${detail ? ` — ${detail}` : ""}${uploadDiagMem()}`);
+}
+
 export const ALLOWED_AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "aac", "aiff", "flac", "ogg"];
 const MAX_AUDIO_FILE_MB = 100; // KULLANICI KARARI (G11) — G8'de 30 MB'a çekilmişti
 // (decodeAudioData dosyayı SIKIŞTIRILMAMIŞ PCM'e açar, büyük bir mp3/m4a OOM ile
@@ -132,26 +146,34 @@ export function createUploadManager(getAudioCtx) {
     playing = false;
 
     let arrayBuffer;
+    const t2_0 = performance.now();
+    uploadDiagLog(2, "ArrayBuffer'a dönüştürme (file.arrayBuffer)", "BAŞLIYOR", `${(file.size / 1048576).toFixed(1)} MB`);
     try {
       arrayBuffer = await file.arrayBuffer();
     } catch (e) {
+      uploadDiagLog(2, "ArrayBuffer'a dönüştürme (file.arrayBuffer)", "HATA", `${(performance.now() - t2_0).toFixed(0)} ms — ${e && e.message}`);
       console.error("[upload] dosya okunamadı:", e && e.name, e && e.message, e);
       return { ok: false, title: "Dosya okunamadı", detail: "Bu dosya açılamadı. Farklı bir mp3/wav/m4a dosyası dene." };
     }
+    uploadDiagLog(2, "ArrayBuffer'a dönüştürme (file.arrayBuffer)", "BİTTİ", `${(performance.now() - t2_0).toFixed(0)} ms, ${arrayBuffer.byteLength} bayt`);
     if (arrayBuffer.byteLength === 0) {
       return { ok: false, title: "Dosya boş", detail: "Bu dosyada okunacak veri yok. Farklı bir dosya dene." };
     }
 
     const ctx = getAudioCtx();
     let decodeErr = null;
+    const t3_0 = performance.now();
+    uploadDiagLog(3, "decodeAudioData", "BAŞLIYOR");
     try {
       // Kopya üzerinde çalış — bazı motorlar decodeAudioData'ya verilen ArrayBuffer'ı
       // "neuter" edebiliyor; başarısız olursa orijinal arrayBuffer WAV yedeği için
       // sağlam kalmalı.
       buffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+      uploadDiagLog(3, "decodeAudioData", "BİTTİ (başarılı)", `${(performance.now() - t3_0).toFixed(0)} ms`);
     } catch (e) {
       decodeErr = e;
       buffer = null;
+      uploadDiagLog(3, "decodeAudioData", "BAŞARISIZ (WAV yedeğine düşülecek mi kontrol edilecek)", `${(performance.now() - t3_0).toFixed(0)} ms — ${e && e.name}: ${e && e.message}`);
     }
 
     if (!buffer) {
@@ -159,15 +181,21 @@ export function createUploadManager(getAudioCtx) {
         && String.fromCharCode(...new Uint8Array(arrayBuffer, 0, 4)) === "RIFF"
         && String.fromCharCode(...new Uint8Array(arrayBuffer, 8, 4)) === "WAVE";
       if (isRiffWave) {
+        const t3b_0 = performance.now();
+        uploadDiagLog(3, "elle WAV ayrıştırıcıya düşme (decodeWavPcm)", "BAŞLIYOR");
         try {
           // G104 — decodeWavPcm ASENKRON (bkz. wav-parser.js'in kendi G104
           // notu) — büyük dosyalarda ana iş parçacığını bloklamadan periyodik
           // nefes veriyor.
           const wav = await decodeWavPcm(arrayBuffer);
+          uploadDiagLog(3, "elle WAV ayrıştırıcıya düşme (decodeWavPcm)", "BİTTİ (ayrıştırma)", `${(performance.now() - t3b_0).toFixed(0)} ms, ${wav.numChannels}ch/${wav.sampleRate}Hz`);
+          const t3c_0 = performance.now();
           const wavBuffer = ctx.createBuffer(wav.numChannels, wav.channelData[0].length, wav.sampleRate);
           for (let ch = 0; ch < wav.numChannels; ch++) wavBuffer.copyToChannel(wav.channelData[ch], ch);
           buffer = wavBuffer;
+          uploadDiagLog(3, "elle WAV ayrıştırıcıya düşme (createBuffer+copyToChannel)", "BİTTİ", `${(performance.now() - t3c_0).toFixed(0)} ms`);
         } catch (wavErr) {
+          uploadDiagLog(3, "elle WAV ayrıştırıcıya düşme (decodeWavPcm)", "HATA", `${(performance.now() - t3b_0).toFixed(0)} ms — ${wavErr && wavErr.message}`);
           console.error("[upload] decodeAudioData hatası:", decodeErr && decodeErr.name, decodeErr && decodeErr.message, decodeErr);
           console.error("[upload] elle WAV ayrıştırma hatası:", wavErr && wavErr.message, wavErr);
           buffer = null;
