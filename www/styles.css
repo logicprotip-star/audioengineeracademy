@@ -95,6 +95,15 @@
          G73: bu değere DOKUNULMADI (task'ın kendi kuralı) — alt bar örtme
          düzeltmesi hâlâ buna bağlı. */
       --actionbar-h:168px;
+      /* G112 — alt sekme çubuğunun (.tabbar) GERÇEK içerik yüksekliği,
+         --actionbar-h ile AYNI desen (env(safe-area-inset-bottom) HARİÇ — o
+         ayrıca ekleniyor, bkz. .tools-scroll). Masaüstü Chrome'da ÖLÇÜLEN
+         gerçek yükseklik 94px (.tabbar padding-top 10 + .tabs 70 +
+         padding-bottom 14, safe-area olmadan) — --actionbar-h'ın kendi ~12%
+         güvenlik payı (150→168) emsal alınarak 106px'e yuvarlandı. iOS'ta
+         CANLI ÖLÇÜLMEDİ (DÜRÜSTLÜK notu) — cihazda hâlâ dar/geniş çıkarsa bu
+         sabit güncellenmeli. */
+      --tabbar-h:106px;
     }
 
     *,*::before,*::after{box-sizing:border-box}
@@ -1601,7 +1610,12 @@
        .zone-bars/.block/.danger-zone kartları (tasarımda YOK olan lvl-badge/
        3'lü-stat/"Şu An Neredesin"/"Canlı İstatistikler" ile birlikte) buraya
        taşındı, bkz. index.html + app.js'in AYNI G87 notu. */
-    .prog-scroll{padding:62px 16px 96px 16px !important;display:flex;flex-direction:column;gap:14px}
+    /* G112 — `.tools-scroll` ile AYNI kök sebep (task'ın kendi isteğiyle
+       kontrol edildi): sabit 96px, `.tabbar`'ın GERÇEK yüksekliğini
+       (--tabbar-h + safe-area) karşılamıyordu — İlerleme sekmesinin de son
+       kartı (Zayıf Bölgeler/geçmiş) tab bar'ın arkasında kalabilirdi. AYNI
+       düzeltme uygulandı. */
+    .prog-scroll{padding:62px 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom)) 16px !important;display:flex;flex-direction:column;gap:14px}
     .prog-head{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px}
     .prog-title{font-size:22px;font-weight:800;letter-spacing:-.4px;color:#f2f3f5}
     .prog-gear{width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.05);color:#b8bdc4;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
@@ -1711,7 +1725,21 @@
        notu) ama artık HİÇBİR HTML onları kullanmıyor. */
     /* G101: Tasarim-2026-08/Araçlar.dc.html (YENİ sürüm) — gap 15px'ten 16px'e,
        başlık satırı artık PRO rozeti + ayar çarkı içeriyor (space-between). */
-    .tools-scroll{padding:62px 16px 96px 16px !important;display:flex;flex-direction:column;gap:16px}
+    /* G112 — "Referans Filtreleri kartı tab bar'ın arkasında kalıyor, hiç
+       kaydırılamıyor" (cihaz kanıtı: Safari Web Inspector ölçümü). KÖK SEBEP:
+       `.tools-scroll` sabit 96px alt boşluk kullanıyordu — bu, `.tabbar`'ın
+       GERÇEK yüksekliğini (94px içerik + iOS güvenli alan, bkz. --tabbar-h)
+       KARŞILAMIYORDU, özellikle home-indicator'lı cihazlarda (env(safe-area-
+       inset-bottom) hiç YOKTU). `.tools-scroll` kutusunun kendisi tab bar'ın
+       ARKASINA kadar uzanıyor (position:fixed tab bar'ın z-index'i daha
+       yüksek) — kaydırma "en alta" ulaştığında bile son içerik bu ÖRTÜLÜ
+       alanda kalıyordu (scrollHeight kabın KENDİ box'ına göre hesaplanıyor,
+       tab bar'ın GÖRSEL olarak neyi kapladığını BİLMİYOR). Düzeltme: alt
+       boşluk `.game-scroll`'un AYNI deseniyle (--actionbar-h + env(safe-
+       area-inset-bottom)) --tabbar-h'a bağlandı — artık en alta
+       kaydırıldığında son kartın ALTINDA tab bar kadar BOŞLUK kalıyor, kart
+       İÇERİĞİ değil. */
+    .tools-scroll{padding:62px 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom)) 16px !important;display:flex;flex-direction:column;gap:16px}
     .tools-head{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px}
     .tools-title{font-size:22px;font-weight:800;letter-spacing:-.4px;color:#f2f3f5}
     .tools-head-right{display:flex;align-items:center;gap:8px}

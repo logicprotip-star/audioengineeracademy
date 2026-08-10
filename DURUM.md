@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G111)
+Son güncelleme: 11.08.2026 (G112)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,67 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G111, tek commit) — **Araçlar: dört kart HER ZAMAN görünür — dosya yokken üçü sönük + "Önce bir dosya yükle" ipucu.**
+Bu commit (G112, tek commit) — **KÖK SEBEP #2: son kart tab bar'ın arkasında kalıyordu — kaydırma kabının alt boşluğu tab bar yüksekliğini karşılamıyordu.**
+
+**Kullanıcının cihaz ölçümü (Safari Web Inspector, gerçek değerler):**
+`.tools-scroll sh=873 ch=873` — scrollHeight===clientHeight, ama kartların
+TOPLAMI (132+341+157+97=727px) kabın kendisinden (873px) DAHA KISA. Kök
+sebep G109/G110'un ele aldığı "kap büyümüyor" sorunu DEĞİLDİ — kap zaten
+DOĞRU yükseklikteydi, ama TAB BAR (position:fixed, z-index'i daha yüksek)
+kabın ALT kısmının ÜSTÜNÜ ÖRTÜYORDU. `.tools-scroll`'un sabit 96px alt
+boşluğu tab bar'ın GERÇEK yüksekliğini (env(safe-area-inset-bottom) HİÇ
+YOKTU) karşılamıyordu.
+
+**1) Eklenen boşluk — kaynağı ve px değeri:**
+`--tabbar-h:106px` (yeni CSS değişkeni, `--actionbar-h` ile AYNI konumda,
+`:root`). Masaüstü Chrome'da GERÇEK ÖLÇÜM: `.tabbar` toplam yüksekliği
+94px (`getBoundingClientRect()`) = padding-top 10 + `.tabs` 70 +
+padding-bottom 14 (bu ortamda `env(safe-area-inset-bottom)=0`). Bu proje
+zaten `--actionbar-h` için AYNI deseni kullanıyor (masaüstünde ölçüp iOS
+font-rendering farkına karşı ~%12 pay ile yuvarlamak, bkz. o değişkenin
+kendi yorumu: 150→168) — AYNI mantıkla 94px → **106px**'e yuvarlandı.
+`env(safe-area-inset-bottom)` AYRICA `calc()` içinde ekleniyor (--tabbar-h
+İÇİNE GÖMÜLMEDİ) — `.game-scroll`'un `--actionbar-h` ile AYNI kompozisyon
+deseni.
+
+**2) `.tools-scroll` VE `.prog-scroll` (İlerleme sekmesi, task'ın kendi
+isteğiyle kontrol edildi — AYNI hardcoded 96px'e sahipti, AYNI kök sebep):**
+```css
+/* ÖNCESİ (ikisi de): */
+padding:62px 16px 96px 16px !important;
+/* SONRASI (ikisi de): */
+padding:62px 16px calc(var(--tabbar-h) + env(safe-area-inset-bottom)) 16px !important;
+```
+
+**DOĞRULAMA (ekran görüntüsüyle, masaüstü Chrome — task'ın notu: bu sınıf
+sorunlar cihazda ANLAMLI, aşağıdakiler REGRESYON+mekanik doğrulama):**
+- `.tools-scroll` YENİ ölçüm (dosya yüklü, Referans Filtreleri kapalı):
+  `paddingBottom=106px, scrollHeight=954, clientHeight=899, overflows=true`.
+  En alta kadar kaydırıldı → Referans Filtreleri kartı TAM görünür, tab
+  bar'ın ÜSTÜNDE, örtülmüyor (ekran görüntüsü).
+- Referans Filtreleri akordiyonu açılıp TEKRAR en alta kaydırıldı → 5
+  filtre kartının (Telefon Hoparlörü/Araba/Kulaklık/Club Sistemi/Laptop
+  Hoparlörü) TAMAMI görünür ve tab bar'ın üstünde kaldı (ekran görüntüsü).
+- `.prog-scroll` (İlerleme sekmesi) YENİ ölçüm: `paddingBottom=106px,
+  scrollHeight=1203, clientHeight=899, scrollTop=304, atBottom=true` — en
+  alttaki "İstatistikleri Sıfırla" butonu TAM görünür, tab bar'ın üstünde.
+- **Kapsam notu:** ana menünün (`#screen-menu`) `.scroll`'u AYRI bir
+  taban değer kullanıyor (`calc(150px + env(safe-area-inset-bottom))`,
+  `--tabbar-h`'tan BAĞIMSIZ, önceden var) — 150px zaten 106px'ten daha
+  cömert olduğu için bu turda dokunulmadı, task da SADECE Araçlar+İlerleme
+  istemişti.
+- Konsol hatası: 0.
+- **`npm test`: 1119/1119** (SADECE CSS değişti, JS davranışı aynı).
+
+**DÜRÜSTLÜK NOTU:** `--tabbar-h:106px` masaüstü Chrome'da ÖLÇÜLEN 94px'e
+`--actionbar-h`'ın kendi emsal payıyla yuvarlanmış bir DEĞER — iOS'ta CANLI
+ÖLÇÜLMEDİ. Cihazda hâlâ dar/geniş çıkarsa (ör. Dynamic Island'lı model
+farklı tab bar boyutu üretirse) bu TEK sabit güncellenmeli, `.tools-scroll`/
+`.prog-scroll` İKİSİ de otomatik düzelir (`var()` ile bağlı).
+
+---
+
+Önceki commit (G111, tek commit) — **Araçlar: dört kart HER ZAMAN görünür — dosya yokken üçü sönük + "Önce bir dosya yükle" ipucu.**
 
 **GEREKÇE (kullanıcının kendi kararı):** (1) kullanıcı uygulamanın ne
 sunduğunu dosya yüklemeden GÖRSÜN; (2) G109'da bulunan "kartlar sonradan
@@ -9308,7 +9368,25 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G111 itibarıyla):** `npx cap sync ios` + kullanıcı
+**Tek sonraki adım (G112 itibarıyla):** `npx cap sync ios` + kullanıcı
+cihazda Safari Web Inspector'la DOĞRUDAN bu turun kendi kabul kriterini
+ölçmeli:
+(1) Referans Filtreleri kartı (ve akordiyon açıkken içindeki 5 filtre
+kartı) artık TAM görünür mü, tab bar örtüyor mu — `[scroll-diag]`'a
+benzer şekilde `.tools-scroll`'un `scrollHeight`/`clientHeight`'ı VE
+`getBoundingClientRect()` ile tab bar'ın GERÇEK üst kenarının kartın alt
+kenarını KESİP KESMEDİĞİ kontrol edilmeli;
+(2) `--tabbar-h:106px`'in cihazda YETERLİ olup olmadığı — eğer hâlâ dar
+çıkarsa (ör. Dynamic Island'lı modellerde tab bar farklı boyutlanıyorsa)
+BU TEK sabit güncellenmeli (bkz. BİTTİ'nin DÜRÜSTLÜK notu);
+(3) İlerleme sekmesinin son elemanı ("İstatistikleri Sıfırla") da AYNI
+şekilde tab bar'ın üstünde mi.
+Bu G108-G112 arası BEŞ turun HEPSİ aynı "Araçlar sekmesi cihazda tam
+çalışmıyor" şikayet ailesinden geliyordu (donma zannedilen → kaydırma
+kilidi → kap büyümüyor → kartlar sonradan görünüyor → tab bar örtüyor) —
+bu SONUNCUSU da doğrulanırsa AİLE KAPANMIŞ olur.
+
+**Önceki adım (G111 itibarıyla):** `npx cap sync ios` + kullanıcı
 cihazda ÜÇ ŞEYİ doğrulamalı:
 (1) dört kartın da baştan (dosya yüklenmeden) göründüğü, üçünün sönük/
 tıklanamaz olduğu, "Önce bir dosya yükle" ipucunun okunduğu — bu ilk kez
