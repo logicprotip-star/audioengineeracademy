@@ -7328,6 +7328,28 @@ function toolsResetSheetScroll(sheetEl) {
   const body = sheetEl && sheetEl.querySelector(".tools-sheet-body");
   if (body) body.scrollTop = 0;
 }
+// G105 — "dosya seçilince sayfa yukarı kaymıyor" (canlı iOS raporu). KÖK
+// SEBEP ADAYI: `.tools-sheet` position:fixed bir kaplama, ama G103'ün
+// eklediği overscroll-behavior:contain SADECE sheet'in KENDİ içeriğini
+// kaydırırken zincirlenmeyi engelliyor — sheet AÇIKKEN kullanıcının
+// parmağı sheet'in DIŞINDAki (görünmeyen) `.tools-scroll` arka planına
+// denk gelirse, iOS Safari'de position:fixed kaplamalar arka plan dokunmalı
+// kaydırmayı GÜVENİLİR şekilde ENGELLEMEZ (iyi belgelenmiş bir mobil Safari
+// davranışı) — arka plan görünmeden kayar, sheet kapanınca "kilitli" bir
+// konumda ortaya çıkar. Düzeltme: sheet AÇIKKEN arka plan kaydırması
+// `overflow:hidden` ile TAMAMEN kilitleniyor (kaymaya hiç FIRSAT
+// vermiyor), sheet KAPANDIĞINDA hem kilit kaldırılıyor HEM scrollTop
+// açıkça sıfırlanıyor (task'ın "içerik en üste dönsün" talimatı).
+function toolsSetBackgroundScrollLocked(locked) {
+  const scrollEl = document.querySelector(".tools-scroll");
+  if (!scrollEl) return;
+  if (locked) {
+    scrollEl.style.overflow = "hidden";
+  } else {
+    scrollEl.style.overflow = "";
+    scrollEl.scrollTop = 0;
+  }
+}
 function toolsOpenFilesSheet() {
   if (paywall.isToolsContentLocked(isUserPro())) {
     if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail, "pro");
@@ -7336,6 +7358,7 @@ function toolsOpenFilesSheet() {
   toolsCloseResultsSheet();
   renderToolsFilesSheetContent();
   toolsResetSheetScroll(els.toolsFilesSheet);
+  toolsSetBackgroundScrollLocked(true);
   if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.remove("hidden");
   if (els.toolsFilesSheet) els.toolsFilesSheet.classList.remove("hidden");
   requestAnimationFrame(() => {
@@ -7344,6 +7367,7 @@ function toolsOpenFilesSheet() {
   });
 }
 function toolsCloseFilesSheet() {
+  toolsSetBackgroundScrollLocked(false);
   if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.remove("open");
   if (els.toolsFilesSheet) els.toolsFilesSheet.classList.remove("open");
   setTimeout(() => {
@@ -7562,16 +7586,21 @@ function toolsAnalysisErrorMessage(err) {
   return `Analiz sırasında bir hata oluştu (${raw || "bilinmeyen hata"}). Dosya bozuk olabilir — farklı bir dosya dene.`;
 }
 
+// G105 — RX 11 iki ondalık gösteriyor (−4,33, −20,83); kullanıcı iki ölçümü
+// yan yana karşılaştırdığı için 1 ondalık fark ayırt etmeyi zorlaştırıyordu.
+// dB/LUFS artık 2 ondalık — DC offset (4 ondalık) ve kırpılmış örnek (tam
+// sayı) DEĞİŞMEDİ, Tonal Balance sapmaları da (ayrı format fonksiyonu,
+// app.js:renderToolsTonalSummary) 1 ondalıkta KALDI (task'ın kendi kararı).
 function fmtDb(v) {
   if (v === -Infinity) return "−∞";
   if (v === Infinity) return "+∞";
   if (!Number.isFinite(v)) return "—";
-  return (v >= 0 ? "+" : "") + v.toFixed(1);
+  return (v >= 0 ? "+" : "") + v.toFixed(2);
 }
 function fmtLufs(v) {
   if (v === -Infinity) return "−∞ LUFS";
   if (!Number.isFinite(v)) return "—";
-  return `${v.toFixed(1)} LUFS`;
+  return `${v.toFixed(2)} LUFS`;
 }
 function fmtLu(v) {
   if (!Number.isFinite(v)) return "—";
@@ -7618,7 +7647,7 @@ function renderToolsAnalysisLoudness(result) {
     <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Max short-term</div><div class="tools-analysis-lv">${fmtLufs(p.maxShortTermLufs)}</div></div>
     <div class="tools-results-integrated-row">
       <div class="tools-results-integrated-label">Integrated</div>
-      <div class="tools-results-integrated-value"><div class="tools-results-integrated-num">${Number.isFinite(p.integratedLufs) ? p.integratedLufs.toFixed(1) : "—"}</div><div class="tools-results-integrated-unit">LUFS</div></div>
+      <div class="tools-results-integrated-value"><div class="tools-results-integrated-num">${Number.isFinite(p.integratedLufs) ? p.integratedLufs.toFixed(2) : "—"}</div><div class="tools-results-integrated-unit">LUFS</div></div>
     </div>
     <div class="tools-analysis-loudness-row"><div class="tools-analysis-label">Loudness range</div><div class="tools-analysis-lv">${fmtLu(p.lra)}</div></div>`;
 }
@@ -7749,7 +7778,7 @@ function toolsAnalysisChartReadoutAt(clientX) {
   const timeLabel = `${Math.floor(tSec / 60)}:${String(tSec % 60).padStart(2, "0")}`;
   if (els.toolsAnalysisChartReadout) {
     els.toolsAnalysisChartReadout.textContent = Number.isFinite(v)
-      ? `${timeLabel} — ${v.toFixed(1)} LUFS (short-term)`
+      ? `${timeLabel} — ${v.toFixed(2)} LUFS (short-term)`
       : `${timeLabel} — sessizlik / mutlak eşik altı`;
   }
 }
@@ -7858,6 +7887,7 @@ if (els.toolsAnalyzeBtn) {
 function toolsOpenResultsSheet() {
   toolsResultsSheetOpenFlag = true;
   toolsResetSheetScroll(els.toolsResultsSheet);
+  toolsSetBackgroundScrollLocked(true);
   if (els.toolsResultsStrip) els.toolsResultsStrip.classList.add("hidden");
   if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.remove("hidden");
   if (els.toolsResultsSheet) els.toolsResultsSheet.classList.remove("hidden");
@@ -7869,6 +7899,7 @@ function toolsOpenResultsSheet() {
 }
 function toolsCloseResultsSheet() {
   toolsResultsSheetOpenFlag = false;
+  toolsSetBackgroundScrollLocked(false);
   if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.remove("open");
   if (els.toolsResultsSheet) els.toolsResultsSheet.classList.remove("open");
   setTimeout(() => {

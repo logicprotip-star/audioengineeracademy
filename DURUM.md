@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G104)
+Son güncelleme: 10.08.2026 (G105)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,82 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G104, tek commit) — **Dosya yükleyince Araçlar donuyor — KÖK SEBEP
+Bu commit (G105, tek commit) — **Araçlar: cihazda görülen ÜÇ düzeltme.**
+
+**1) Dosya seçilince sayfa yukarı kaymıyordu — KÖK SEBEP DÜZELTİLDİ.**
+`www/js/app.js`. G103'ün `overscroll-behavior:contain`'i SADECE sheet'in
+KENDİ içeriğini kaydırırken arka plana zincirlenmeyi engelliyordu — sheet
+AÇIKKEN kullanıcının parmağı sheet'in DIŞINDAki (görünmeyen) `.tools-scroll`
+arka planına denk gelirse, `position:fixed` kaplamalar iOS Safari'de arka
+plan dokunmalı kaydırmayı GÜVENİLİR şekilde engellemiyor (iyi belgelenmiş
+bir mobil Safari davranışı) — arka plan görünmeden kayıyor, sheet kapanınca
+"kilitli" bir konumda ortaya çıkıyordu. **Düzeltme:** yeni
+`toolsSetBackgroundScrollLocked()` — sheet AÇIKKEN `.tools-scroll`'a
+`overflow:hidden` uygulayıp arka plan kaydırmasına hiç FIRSAT vermiyor,
+sheet KAPANDIĞINDA hem kilidi kaldırıyor HEM `scrollTop`'u açıkça sıfırlıyor
+("içerik en üste dönsün" talimatı). Hem Dosyalarım hem Ölçüm Sonuçları
+sheet'ine (aç/kapat fonksiyonlarının DÖRDÜNE de) uygulandı.
+
+**2) Ondalık basamak — RX ile karşılaştırılabilir.** `www/js/app.js`.
+`fmtDb()`/`fmtLufs()` artık `.toFixed(2)` (eskiden 1) — Ölçüm Sonuçları'ndaki
+TÜM dB/LUFS alanları (True/Sample peak, Max/Min/Total RMS, Max momentary/
+short-term, Integrated) etkilendi. Ayrıca `renderToolsAnalysisLoudness()`'ta
+doğrudan yazılan Integrated LUFS büyük sayısı ve short-term grafiğinin
+dokunmatik okuma metni de (`toolsAnalysisChartReadoutAt`) 2 ondalığa
+çevrildi. **DEĞİŞMEDİ (task'ın kendi kararı):** DC offset 4 ondalık
+(`fmtPercent`), kırpılmış örnek tam sayı (`fmtCount`), Tonal Balance
+sapmaları 1 ondalık (`renderToolsTonalSummary`). **YORUM KARARI (açıkça
+işaretli):** Loudness range (LU) de değiştirilmedi — task'ın listesi
+sadece "dB ve LUFS" diyordu, LU farklı bir birim etiketi taşıyor ve
+kullanıcı onu ne "değişsin" ne "değişmesin" listesine koymamıştı; ürün
+kararı uydurulmadı, mevcut 1 ondalık KORUNDU.
+
+**3) Oyun ekranı çip satırı hâlâ üst üste biniyordu.** `www/styles.css`.
+KÖK SEBEP kullanıcının kendi hipoteziyle BİREBİR doğrulandı: `.chiprow > *
+{flex:1 1 0; min-width:0}` (G93) — `min-width:0`, `white-space:nowrap`
+metin taşıyan çiplerin (bkz. `.game-diff-chip`/`.srctag`/`.mixchip`, hepsi
+nowrap) flex kutusunu KENDİ metninden DAHA DAR sıkışmasına izin veriyordu;
+`flex-wrap:wrap` bu durumda yeni satıra SARMASI gerekirken satıra SIĞDIRMAYA
+çalışıp metni komşu çiplerin üstüne taşırıyordu. **Düzeltme:** `min-width:0`
+→ `min-width:fit-content` — çip artık KENDİ nowrap metninden dar
+sıkışamıyor; satırda yer varsa `flex-grow:1` (flex-basis:0 ile) hâlâ eşit
+dağıtıyor (G93'ün "eşit genişlik" kararı KORUNDU), yer yoksa artık DOĞRU
+şekilde bir sonraki satıra sarıyor. `flex-basis:0` (G93'ün Chromium
+box-sizing düzeltmesi) BİLEREK dokunulmadı — sadece `min-width` değişti.
+
+**DOĞRULAMA (ekran görüntüleriyle + programatik, canlı tarayıcı):**
+- **1:** Arka plan (`.tools-scroll`) önceden kaydırıldı (scrollTop=45,
+  maksimuma kenetlendi) → Dosyalarım sheet'i açıldı → `overflow:hidden`
+  DOĞRULANDI (arka plan kayamıyor) → sheet'ten GERÇEK bir dosya satırına
+  pointerdown/pointerup ile tıklanıp seçildi (plain "click" DEĞİL — satırın
+  KENDİ swipe-vs-seç mantığı gereği) → sheet kapandı → `scrollTop:0`,
+  `overflow:auto` — arka plan TAMAMEN serbest VE en üstte, ekran
+  görüntüsünde "Mixini Yükle"den "Referans Filtreleri"ne kadar TÜM kartlar
+  erişilebilir. Aynı doğrulama Ölçüm Sonuçları sheet'i için de (Analiz et →
+  sheet açıldı → kapatıldı → scrollTop:0/overflow:auto) yapıldı.
+- **2:** Canlı ekran görüntüsünde gerçek değerler: True peak -8.75, Sample
+  peak -9.12, Max/Min/Total RMS -10.32/-10.45/-10.38, Max momentary -14.14
+  LUFS, Max short-term -14.16 LUFS, Integrated -14.17 LUFS (hepsi 2
+  ondalık) — YANINDA DC offset +0.0005% (4 ondalık, değişmedi), Olası
+  kırpılmış örnek 0 (tam sayı, değişmedi), Loudness range 0.0 LU (1
+  ondalık, BİLEREK değişmedi).
+- **3:** 10 modun (Frekans Bulma/Kesim Noktası/Q Genişliği/Boost mu Cut mu/
+  dB Seviyesi/Kompresör/Reverb/Tonal Denge/Distortion/Frekans Çakışması)
+  HEPSİ oyun ekranında canlı gezildi, çip satırı ekran görüntüsüyle
+  incelendi — **üst üste binme sayısı: 0/10.** En kalabalık durum (Frekans
+  Bulma: OTOMATİK+Dokunmalı|Şıklı+Odak+Kaynak, 4 öğe) doğru şekilde 2
+  satıra sarıyor ("Karışık" kendi satırında); en uzun metin (Tonal Denge/
+  Distortion: "Kaynak: Davul Döngüsü") tek satırda tam okunur kalıyor;
+  çift-kaynak durumu (Frekans Çakışması: "Kick + Bas") de doğru.
+- **Konsol hatası: 0** (10 mod gezintisi + Araçlar sheet testleri boyunca,
+  `read_console_messages`).
+- **`npm test`: 1109/1109** (G104 ile aynı sayı — bu turun düzeltmeleri saf
+  CSS/format-fonksiyonu değişikliği, yeni test gerektirmedi; hiçbir eski
+  test SİLİNMEDİ/BOZULMADI).
+
+---
+
+Önceki commit (G104, tek commit) — **Dosya yükleyince Araçlar donuyor — KÖK SEBEP
 TEŞHİSİ + düzeltme.** iOS'ta canlı bildirilen "dosya yüklendiğinde arayüz
 kilitleniyor" sorunu, önce TEŞHİS SONRA DÜZELTME talimatı gereği, önce
 gerçek zamanlama ölçümleriyle (10 MB/50 MB sentetik dosyalar, `PerformanceObserver`
@@ -8703,14 +8778,25 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G104 itibarıyla):** `npx cap sync ios` çalıştırıp GERÇEK
+**Tek sonraki adım (G105 itibarıyla):** Bu üç düzeltmeyi (özellikle madde 1
+— sheet kapanınca sayfa kilitlenmesi) GERÇEK bir iOS cihazda yeniden test
+etmek. Bu turda masaüstü Chrome'da hem kök sebep TEORİSİ (fixed kaplamalar +
+arka plan dokunmalı kaydırma bleed-through) hem DÜZELTMENİN KENDİSİ
+(overflow:hidden kilidi + kapanışta scrollTop sıfırlama) programatik olarak
+doğrulandı — ama orijinal BUG'IN KENDİSİ masaüstünde hiç ÜRETİLEMEDİ (mobil
+Safari'ye özgü bir davranış olduğu için). Bu turun kendi açık işi:
+**`npx cap sync ios` + gerçek cihaz doğrulaması hâlâ YAPILMADI** — G104'ten
+kalan aynı madde (Capacitor'ın gerçek native köprü maliyeti), artık BUNA ek
+olarak G105'in scroll-kilit düzeltmesi de cihazda doğrulanmalı.
+
+**Önceki adım (G104 itibarıyla):** `npx cap sync ios` çalıştırıp GERÇEK
 bir iOS cihazda (tercihen 24-bit/32-bit float export yapan bir DAW'dan çıkmış
 büyük — 30-50MB — bir dosyayla) uçtan uca doğrulamak: dosya seç → arayüz
 donmuyor mu, ilerleme çubuğu görünüyor mu, dosya doğru kaydediliyor mu. Bu
 turun kendi açık işi: **Capacitor'ın GERÇEK native köprü maliyeti hâlâ
-ölçülmedi** (bkz. BİTTİ'nin DÜRÜSTLÜK notu — bu ortamda sadece JS tarafı
-stub'landı, parça parça yazmanın YAPISAL olarak riski azalttığı biliniyor
-ama nihai kanıt cihazda).
+ölçülmedi** (bkz. G104 BİTTİ'nin DÜRÜSTLÜK notu — bu ortamda sadece JS
+tarafı stub'landı, parça parça yazmanın YAPISAL olarak riski azalttığı
+biliniyor ama nihai kanıt cihazda) — G105'te de HÂLÂ yapılmadı.
 
 **Önceki adım (G103 itibarıyla):** Bu dört düzeltmeyi GERÇEK cihazda
 yeniden test etmek — özellikle madde 3 (Ölçüm Sonuçları sheet'i), çünkü

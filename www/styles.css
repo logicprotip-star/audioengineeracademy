@@ -643,7 +643,16 @@
        0 kendi chrome'u vs .mixchip'in 22px'i) Chromium'da EŞİT DAĞILMIYOR
        (canlı ölçümde yakalandı: 176/158/180px, aynı flex-grow:1'e rağmen).
        `flex-basis:0` (birimsiz, YÜZDE DEĞİL) bu tutarsızlığı gideriyor. */
-    .chiprow > *{flex:1 1 0;min-width:0}
+    /* G105 — KÖK SEBEP (canlı cihazda çip satırının üst üste bindiği rapor
+       edildi): `min-width:0` çiplerin flex kutusunu, İÇİNDEKİ `white-space:
+       nowrap` metinden (bkz. .game-diff-chip/.srctag/.mixchip) DAHA DAR
+       SIKIŞTIRMASINA izin veriyordu — flex-wrap:wrap bu durumda satıra
+       SIĞDIRMAYA çalışıp metni komşu çiplerin ÜSTÜNE taşırıyordu, yeni
+       satıra SARMASI gerekirken. `min-width:fit-content` çipin KENDİ nowrap
+       metninden dar sıkışmasını YASAKLAR — satırda yer varsa flex-grow:1
+       (flex-basis:0 ile) hâlâ eşit dağıtıyor (G93 KORUNDU), yer yoksa artık
+       DOĞRU şekilde bir sonraki satıra sarıyor. */
+    .chiprow > *{flex:1 1 0;min-width:fit-content}
     /* G85: zorluk çipi artık tasarımın LİTERAL cyan vurgusu (satır 532) —
        eskiden nötr gri/beyazdı. Boss'ta altın varyant (.game-diff-chip.boss,
        app.js renderGameHeader'da toggle edilir) — tasarımın diffColor/diffBg/
