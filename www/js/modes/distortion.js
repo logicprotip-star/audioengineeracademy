@@ -63,6 +63,16 @@ export const EXAM_DIFFICULTY = "pro";
 //            diğer üç Motor 2 modunun Z5 kararıyla AYNI çizgide)
 // Bir SORU İÇİNDE A/B/C ÜÇÜ DE AYNI türü kullanır (tek algısal eksen ilkesi
 // BOZULMASIN diye) — SADECE yoğunluk (k) farklıdır, Kompresör'ün AYNI deseni.
+//
+// G97 (madde 7) — KADEME SINIRINDA TÜRÜN SIÇRAMASI (clip→soft→tube→tape)
+// KASITLI, kod-tabanlı bir sınırlama DEĞİL: ZORLUK.md bu eksenin (kGap'in
+// aksine) SÜREKLİ olmadığını, tier adına (DISTORTION_TYPES[level], bir sayı
+// DEĞİL bir STRING anahtarla) sabit eşlendiğini tespit etmişti — kullanıcı
+// KARARI bunun KALMASI: gerçek bir mix'te de doygunluk TEK bir tür olarak
+// akıp gitmez (kick'te tape, vokalde tube, master'da clip — HEPSİ AYNI
+// projede bir arada olabilir), kulağın kademeler arasında tür değiştirerek
+// GEÇİŞ yapması gerçek stüdyo pratiğini yansıtıyor — pürüzsüz/sürekli bir
+// eksene ZORLAMAK burada YAPAY olurdu.
 // ═══════════════════════════════════════════════════════════════════════════
 export const DISTORTION_TYPES = { easy: "clip", medium: "soft", hard: "tube", pro: "tape", proplus: "tape" };
 
@@ -176,7 +186,11 @@ export function buildDistortionCurve(type, drive) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STATİK DIFFICULTY — diğer dokuz modla AYNI ikili rol (fallback + Sabit
-// mod çapası + proplus kaynağı). kGap: Kompresör'ün K_GAP değerleriyle
+// mod çapası + proplus kaynağı). `options` HER ZAMAN 3 (A/B/C) — G97
+// (madde 6): Kompresör/Reverb'in AYNI KASITLI kararı (bkz. kompresor.js'in
+// DIFFICULTY notu) — kulak yorgunluğu riski nedeniyle Motor 2'de şık sayısı
+// ekseni HİÇ kullanılmaz, zorluk sadece kGap'ten gelir.
+// kGap: Kompresör'ün K_GAP değerleriyle
 // BİREBİR aynı (bkz. dosya başı "iki eksen" notu — kGap KESİRLİ [0,1]
 // k-uzayında, hangi türe (drive aralığına) çevrileceğinden BAĞIMSIZ, bu
 // yüzden Kompresör'ün ZATEN kalibre edilmiş sayıları buraya DOĞRUDAN

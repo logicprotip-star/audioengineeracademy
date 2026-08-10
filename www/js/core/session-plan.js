@@ -1,3 +1,15 @@
+// ⚠️ KULLANILMIYOR (G97 — ZORLUK.md'nin bulgusu, kullanıcı kararıyla bilerek
+// bu şekilde bırakıldı): bu modülün fonksiyonları (buildSessionPlan/
+// pickWeightedDifficulty) app.js'ten YA DA herhangi bir mod dosyasından
+// HİÇ import edilmiyor — tek çağıran `test/session-plan.test.mjs`. Dosya
+// SİLİNMEDİ çünkü "3 kolay/3 orta/3 zor/1 pro" (SESSION_RAMP_WEIGHTS) fikri
+// ileride ayrı bir özellik için lazım olabilir, ama GERÇEK seans rampası
+// BU DEĞİL — asıl çalışan mekanizma core/difficulty-curve.js'teki
+// SESSION_RAMP_CONFIG + sessionRampOffset() (sürekli, ısınma→zorlaşma→boss
+// ofseti; app.js:currentDifficultyPosition tarafından TEK doğruluk kaynağı
+// olarak okunur). Buraya elle bir çağrı eklemeden önce SESSION_RAMP_CONFIG'in
+// neden yeterli olmadığını netleştirin.
+//
 // ZORLUK MİMARİSİ (Z2) — seans içi zorluk rampası. SAF fonksiyonlar, ses/DOM'a
 // dokunmaz. DIFFICULTY_CONFIG (difficulty-curve.js) gibi burada da TEK yapılandırma
 // nesnesi (SESSION_RAMP_WEIGHTS) — sabah kulakla/oranla ayarlanabilsin.

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 10.08.2026 (G96)
+Son güncelleme: 10.08.2026 (G97)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,135 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G95+G96, tek commit) — **ZORLUK.md'nin iki bulgusu düzeltildi:
+Bu commit (G97, tek commit) — **Yedi ürün kararı uygulandı: (1) ücretsizde
+seans rampası artık offset=0 (boss hariç) — 10 soruya yayılan rampa ücretsizin
+5 soruluk oturumunda hep yarım kalıyordu; (2) `session-plan.js` başına
+"kullanılmıyor" notu (dosya SİLİNMEDİ); (3) boss süresi dolunca can artık
+GİTMİYOR (combo yine sıfırlanıyor — gerekçe aşağıda); (4) sınav/bölüm-bitişi
+bastırma mantığı KASITLI olarak koda belgelendi (Pro'da ödül sınav ekranıdır);
+(5) dB Seviyesi çeldirici eğrisi daraltıldı, şık sayısı 3'te SABİTLENDİ
+(eskiden 3→6 büyüyordu); (6) Kompresör/Reverb/Distortion'da 3 kart sabiti
+KASITLI belgelendi; (7) Distortion'daki tür sıçraması KASITLI belgelendi.**
+
+Kaynak: ZORLUK.md + OYUN-DINAMIGI.md + doğrudan kod okuması. `OYUN-MANTIGI.md`
+(kullanıcının "bu oturumda üretildi" dediği dosya) görev başlangıcında repoda
+YOKTU (`ls` + `git log --all -- OYUN-MANTIGI.md` boş) — kullanıcıya soruldu,
+ZORLUK.md+OYUN-DINAMIGI.md+kod okumasıyla devam kararı alındı (bkz. AÇIK
+İŞLER/not). **Not: bu turun SONUNDA dosya sistemde göründü (`OYUN-MANTIGI.md`,
+kök dizin, 246 satır, "G94'e kadar" notu) — bu turda HİÇ oluşturulmadı/
+düzenlenmedi, provenance doğrulanamadı, commit'e DAHİL EDİLMEDİ (`git status`
+hâlâ `??` gösteriyor). Kullanıcıya raporda ayrıca soruldu.**
+
+**Madde 1 — Ücretsizde ramp offset=0:**
+
+| Değişiklik | Dosya:satır | Not |
+|---|---|---|
+| `currentDifficultyPosition()`: `ramp` artık `(isUserPro() \|\| boss) ? sessionRampOffset(...) : 0` | `app.js:971-993` | Tek koşulla hem "Pro'da tam ramp" hem "ücretsizde bile boss'ta +2.0" doğru veriliyor — boss sabiti (2.0) burada AYRICA hardcode edilmedi |
+
+**DOĞRULAMA (gerçek `continuousLevel`/`sessionRampOffset`, node ile doğrudan import, örnek kullanıcı seviye 3 + %60 XP, baseline=3.600):**
+
+| Soru | Free (ramp=0) | Pro (ramp uygulanır) | Pro ofset |
+|---|---|---|---|
+| 1 | 3.600 | 2.100 | −1.500 |
+| 2 | 3.600 | 2.378 | −1.222 |
+| 3 | 3.600 | 2.656 | −0.944 |
+| 4 | 3.600 | 2.933 | −0.667 |
+| 5 | 3.600 | 3.211 | −0.389 |
+
+Free 5 sorudur, hep düz tabanda kalıyor — rampanın SADECE ısınma yarısını bile
+görmüyor (fix öncesi de aynı sorundu, şimdi kasıtlı/tutarlı). Pro 10 soruya
+yayılan ısınma→zorlaşma eğrisinin ilk yarısında (henüz 5. soru). Boss ofseti
+(+2.0) HER İKİ tier'da da AYNI: pozisyon 5.600 (baseline 3.600 + 2.0).
+
+**Madde 2 — session-plan.js notu:**
+
+| Değişiklik | Dosya:satır | Not |
+|---|---|---|
+| Dosya başına "⚠️ KULLANILMIYOR" uyarı bloğu eklendi | `session-plan.js:1-11` (dosyanın İLK satırları) | Fonksiyonel kod DOKUNULMADI — sadece dosyayı ilk açan kişinin göreceği yere, gerçek rampanın `difficulty-curve.js:SESSION_RAMP_CONFIG` olduğunu açıkça yazan not |
+
+**Madde 3 — Boss süresi dolunca can gitmesin:**
+
+| Değişiklik | Dosya:satır | Not |
+|---|---|---|
+| `onTimeUp()`: boss sorusunda `loseLife()` yerine `setFeedback("Boss süresi doldu", ...)` — can gitmiyor, boss çarpanı/XP verilmiyor | `app.js:3154-3195` (`bossTimeout` dalı `app.js:3186-3187`) | Normal (boss olmayan) sorularda davranış DEĞİŞMEDİ — `loseLife()` hâlâ çağrılıyor |
+| `stats.combo = 0` KOŞULSUZ bırakıldı (boss'ta da sıfırlanır) | `app.js:3163` (yorum) | Gerekçe: combo "ardışık DOĞRU cevap" sayacı, süre dolması tanım gereği doğru cevap DEĞİL — combo'yu korumak boss round'u bedelsiz bir "atlama" hakkına çevirirdi, bu da boss'un "gerçek kontrol noktası" rolünü zayıflatırdı. Can esirgemek SADECE boss'un doğal olarak daha kısa/zor süresini haksız cezalandırmamak içindir, "kaçırma"yı yok saymak değildir |
+
+**DOĞRULAMA (canlı, izole tek-tur testi — localStorage `rounds:54` ile boss
+zorlandı, hard-reload sonrası taze state doğrulanarak):**
+- Round boss olarak işaretlendi, süre doldu, geri bildirim "Boss süresi doldu"
+  gösterdi.
+- Sonuç: `lives: 5` (turdan ÖNCEKİ değerle AYNI), 5 kalp de dolu
+  (`#ef4a5e`), history'de TEK kayıt: `{boss:true, detail:"Kaçırıldı · 3.70
+  kHz · Pink Noise · Boss"}` — can GİTMEDİ.
+- Combo kontrolü: `stats.combo === 0` (sıfırlandı, tasarım gereği), UI'da
+  "x1" gösterdi (G93'ün taban-1 gösterim kuralı, ayrı/önceden var olan
+  davranış) — beklenen sonuç birebir.
+
+**Madde 4 — Sınav/bölüm bastırma kasıtlı belgele:**
+
+| Değişiklik | Dosya:satır | Not |
+|---|---|---|
+| `ensureAutoNext()`'in `finishChallenge()` bastırma bloğuna "ÜRÜN KARARI, HATA DEĞİL" paragrafı eklendi | `app.js:~4237` civarı (yorum genişletmesi, mantık DEĞİŞMEDİ) | Bölüm bonusu (%50 XP, `CHALLENGE_XP_MULT`) `challenge.active && isChallenge()`'a bağlı — `examGateActive()`'DAN BAĞIMSIZ, yani Pro'da ekran bastırılsa da bonus ZATEN uygulanıyordu (kod değişikliği gerekmedi, sadece doğrulandı) |
+
+**Madde 5 — dB Seviyesi çeldirici eğrisi daraltıldı:**
+
+| Değişiklik | Dosya:satır | Not |
+|---|---|---|
+| `STEP_AT_1` 1.5→0.8, `STEP_AT_CAP` 0.28→0.18, `STEP_FLOOR` 0.22→0.15, `STEP_REDUCTION_PER_STEP` 0.01→0.005 | `db-seviyesi.js:DB_CURVE_CONFIG` (~satır 102-140) | FLOOR=0.15 seçimi: `generateChoices`'ın `Math.round(x*100)/100` yuvarlaması gerçek şık-arası mesafeyi en kötü durumda 0.01 küçültebiliyor — 0.15, DB_TOLERANCE(0.1)+0.01'in üzerinde gerçek bir marj bırakıyor |
+| `OPTIONS_AT_CAP` 6.15→3 (artık sabit) | aynı config | Kullanıcı kararı: şık sayısı ekseni BİLEREK devre dışı, TÜM zorluk STEP eksenine yükleniyor (Q Genişliği'ndeki izolasyon ilkesiyle aynı desen) |
+| Test dosyası: "options eski statikten küçük değil" → "options HER tier'da SABİT 3"; 4 yeni test (1000 denemelik tolerans invaryantı) | `test/db-seviyesi.test.mjs:123-` (yeni describe bloğu), `:368`, `:430` (güncellenen eski testler) | Eski invaryant KASITLI olarak bozuldu (kullanıcı kararı), yeni invaryant test'e kilitlendi |
+
+**DOĞRULAMA (Z1-Z20 tablosu, gerçek `paramsForDifficultyPosition()` çağrısıyla, node ile doğrudan import):**
+
+| Z | STEP (dB) | options | marj (STEP−0.1) |
+|---|---|---|---|
+| 1 | 0.8000 | 3 | 0.7000 |
+| 2 | 0.7396 | 3 | 0.6396 |
+| 3 | 0.6838 | 3 | 0.5838 |
+| 4 | 0.6321 | 3 | 0.5321 |
+| 5 | 0.5844 | 3 | 0.4844 |
+| 6 | 0.5403 | 3 | 0.4403 |
+| 7 | 0.4995 | 3 | 0.3995 |
+| 8 | 0.4618 | 3 | 0.3618 |
+| 9 | 0.4269 | 3 | 0.3269 |
+| 10 | 0.3947 | 3 | 0.2947 |
+| 11 | 0.3649 | 3 | 0.2649 |
+| 12 | 0.3373 | 3 | 0.2373 |
+| 13 | 0.3118 | 3 | 0.2118 |
+| 14 | 0.2883 | 3 | 0.1883 |
+| 15 | 0.2665 | 3 | 0.1665 |
+| 16 | 0.2464 | 3 | 0.1464 |
+| 17 | 0.2278 | 3 | 0.1278 |
+| 18 | 0.2106 | 3 | 0.1106 |
+| 19 | 0.1947 | 3 | 0.0947 |
+| 20 | 0.1800 | 3 | 0.0800 |
+
+Z1 (0.80) eski Z1'in (1.5) BELİRGİN altında — mod baştan itibaren belirgin
+zorlaşmış. En dar marj Z20'de 0.08dB — DB_TOLERANCE'ın (0.1) HİÇBİR kademede
+ALTINA düşmedi (invaryant sağlam). 1000 denemelik çarpışma-yok testleri
+(gerçek değere karşı + şıklar arası) `test/db-seviyesi.test.mjs`'te 4 yeni
+test olarak eklendi, hepsi geçiyor.
+
+**Madde 6 — Motor 2 sabit 3 kart, kasıtlı:**
+
+| Değişiklik | Dosya:satır |
+|---|---|
+| Gerekçe yorumu eklendi ("hangisi farklı" oyununda 4-5 ses dinlemek kulak yorgunluğu yaratır) | `kompresor.js:178` (Reverb/Distortion'a çapraz referans) |
+| Aynı gerekçeye çapraz referans | `reverb.js:124`, `distortion.js:189` |
+
+**Madde 7 — Distortion tür sıçraması, kasıtlı:**
+
+| Değişiklik | Dosya:satır |
+|---|---|
+| Gerekçe yorumu eklendi (gerçek mix'te tek doygunluk türü yoktur — kick'te tape, vokalde tube, master'da clip olabilir) | `distortion.js:67` (`DISTORTION_TYPES` yakını) |
+
+**Genel DOĞRULAMA:**
+- Konsol hatası: **0** (tab hard-reload sonrası `read_console_messages`, tüm oturum boyunca).
+- **`npm test`: 1057/1057** (G96 sonrası 1053, +4 yeni test — madde 5'in 1000 denemelik tolerans invaryantı — hiçbir eski test SİLİNMEDİ, 2 tanesi kasıtlı olarak yeni invaryanta güncellendi).
+
+---
+
+Önceki commit (G95+G96, tek commit) — **ZORLUK.md'nin iki bulgusu düzeltildi:
 (1) Tonal Denge artık Z16-Z20'de "hiç dokunmadan" kaybedilemiyordu — tolerans
 sabitten disturbDb'nin position'a göre küçülen bir oranına çevrildi; (2)
 seans rampası artık 10 Soruluk Bölüm'e oturuyor — CYCLE_LENGTH 5'ten 10'a
@@ -7735,18 +7863,23 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G95+G96 itibarıyla):** İkisi de kod/test/canlı doğrulama
-açısından TAM kapandı. Bu turun kendi açık işleri: (1) **hiçbiri GERÇEK
-CİHAZDA doğrulanmadı** (tekrar eden aynı eksik kalem); (2) **`session-plan.js`
-HÂLÂ ölü kod** — kullanıcı BİLEREK devreye almamayı seçti (G96), ama dosya
-kendisi silinmedi/işaretlenmedi, ileride biri "bu neden hiç çağrılmıyor"
-diye tekrar keşfedebilir — KULLANICIYA SORULMALI: dosya silinsin mi, yoksa
-başında "KULLANILMIYOR" notu mu dursun (şu an dosya başında böyle bir not
-YOK); (3) **Tonal Denge'nin TOLERANCE_RATIO_AT_1/AT_CAP (0.14/0.045) KULAKLA
-DOĞRULANMADI** — matematiksel garanti (hiç dokunmadan geçilemez) sağlam ama
-"Z1'de %98 kolay/Z20'de %39 zor" hissinin GERÇEKTEN doğru kalibre olup
-olmadığı gerçek kullanıcı testiyle doğrulanmadı, diğer 9 modun AYNI
-"KULAKLA DOĞRULANMADI" dürüstlük notuna tabi.
+**Tek sonraki adım (G97 itibarıyla):** Yedi madde de kod/test/canlı doğrulama
+açısından TAM kapandı (madde 2'nin "dosya silinsin mi" sorusu bu turda
+CEVAPLANDI: not eklendi, dosya kalıyor — bkz. BİTTİ). Bu turun kendi açık
+işleri: (1) **hiçbiri GERÇEK CİHAZDA doğrulanmadı** (tekrar eden aynı eksik
+kalem, sadece masaüstü Chrome); (2) **`OYUN-MANTIGI.md` provenance sorusu
+AÇIK** — görev başında repoda yoktu, turun sonunda kökte 246 satırlık bir
+dosya olarak belirdi ("G94'e kadar" notuyla), bu oturumda HİÇ oluşturulmadı,
+commit'e dahil edilmedi — **KULLANICIYA SORULMALI:** bu dosyayı siz mi
+oluşturdunuz (ör. başka bir araç/oturumla), yoksa beklenmedik bir üretim mi,
+ve repoya alınsın mı; (3) **Tonal Denge'nin TOLERANCE_RATIO_AT_1/AT_CAP
+(0.14/0.045) KULAKLA DOĞRULANMADI** — matematiksel garanti (hiç dokunmadan
+geçilemez) sağlam ama "Z1'de %98 kolay/Z20'de %39 zor" hissinin GERÇEKTEN
+doğru kalibre olup olmadığı gerçek kullanıcı testiyle doğrulanmadı, diğer 9
+modun AYNI "KULAKLA DOĞRULANMADI" dürüstlük notuna tabi; (4) **dB
+Seviyesi'nin yeni (daraltılmış) STEP eğrisi de KULAKLA DOĞRULANMADI** —
+matematiksel/istatistiksel invaryant (madde 5) sağlam ama "belirgin şekilde
+zorlaştı" hissinin gerçek kullanıcı kulağıyla teyidi ayrı bir adım.
 
 **Önceki adım (G94 itibarıyla, hâlâ geçerli):** G94 (`.warning` kırmızı halkasının
 TÜM 10 modda düzeltilmesi) kod/test/canlı doğrulama açısından TAM kapandı —

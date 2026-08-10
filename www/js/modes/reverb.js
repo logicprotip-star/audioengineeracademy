@@ -121,7 +121,12 @@ export function reverbAmountScore(decaySec, sizeNorm, wetMix) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // STATİK DIFFICULTY — diğer altı modla AYNI ikili rol (fallback + Sabit mod
-// çapası + proplus kaynağı). `options` HER ZAMAN 3 (A/B/C). kGap: FARKLI
+// çapası + proplus kaynağı). `options` HER ZAMAN 3 (A/B/C) — G97 (madde 6):
+// bu KASITLI, Kompresör'ün AYNI kararı/gerekçesi (bkz. o dosyanın DIFFICULTY
+// notu) — Motor 2'nin "hangisi farklı" formatında 4-5 sesi art arda dinlemek
+// kulak yorgunluğu yaratır, zorluk SADECE kGap'in (üç sesi birbirine
+// yaklaştıran) mesafesinden gelir, şık sayısı ekseni HİÇ kullanılmaz.
+// kGap: FARKLI
 // olanın k'sinin COMP_BASE_K'dan ne kadar uzakta olacağı — SADECE AYNI-tip
 // (easy/medium/hard) turlarında kullanılır; pro/proplus'ta odd varyant TİP
 // değiştirir (bkz. TYPE_SWAP_POSITION_THRESHOLD), kGap değeri o turlarda

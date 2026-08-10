@@ -174,6 +174,16 @@ export function gainReductionDb(ratio, threshold, refLevel = COMP_REF_LEVEL_DB) 
 // (c) proplus için tek kaynak (eğri proplus'a hiç uygulanmıyor, Z5 kararı).
 // `options` alan adı diğer modlarla AYNI SEBEPTEN korunuyor (app.js:
 // renderLevelSheet TÜM modların DIFFICULTY[level].options'ını GENERİK okuyor).
+//
+// G97 (madde 6) — ŞIK SAYISI (3) HİÇBİR KADEMEDE DEĞİŞMEZ, BU KASITLI: diğer
+// yedi modun "kademe arttıkça daha fazla çeldirici" deseninin AKSİNE, Motor 2
+// ("hangisi farklı" A/B/C oyunu) HER ZAMAN tam 3 kart — COMP_CURVE_CONFIG'in
+// (aşağıda) `options` alanı bile YOK, sadece `kGap`/`timeSec` üretiyor.
+// Gerekçe (kullanıcı kararı): bu formatta 4-5 sesi art arda dinleyip
+// karşılaştırmak kulak yorgunluğu yaratır — zorluk SADECE k-uzayındaki
+// mesafeyle (kGap küçüldükçe üç ses birbirine yaklaşır) geliyor, şık SAYISI
+// ekseni Reverb/Distortion'la (AYNI Motor 2 şablonu) PAYLAŞILAN, BİLİNÇLİ bir
+// yapısal fark.
 // kGap: FARKLI olanın k'sinin COMP_BASE_K'dan ne kadar UZAKTA olacağı —
 // küçük=zor (üç ses birbirine benziyor). ARAŞTIRMA DERSİ (öğretmen yöntemi):
 // kolay = EKSTREM fark (bariz ezme), zorlukla ince nüansa iniyor.

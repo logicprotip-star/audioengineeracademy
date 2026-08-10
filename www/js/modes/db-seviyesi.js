@@ -113,12 +113,21 @@ export const DB_CURVE_CONFIG = {
   DB_FLOOR: 0.25,
   DB_REDUCTION_PER_STEP: 0.01,
 
-  // Şıklar arası dB mesafesi — DB_TOLERANCE'tan (0.1) HER ZAMAN büyük kalacak şekilde
-  // (bkz. o sabitin invaryant notu) AT_CAP/FLOOR seçildi.
-  STEP_AT_1: 1.5,
-  STEP_AT_CAP: 0.28,
-  STEP_FLOOR: 0.22,
-  STEP_REDUCTION_PER_STEP: 0.01,
+  // G97 (madde 5) — ZORLUK.md bulgusu: eski eğri (1.5→0.28) 10 modun EN AZ
+  // daralanıydı (Z1→Z7 sadece %41, bkz. ZORLUK.md §2.1) — kullanıcı kararı:
+  // eğri BELİRGİN daraltılsın. Yeni AT_1 (0.8) eskisinin (1.5) ~%47 ALTINDA.
+  // AT_CAP/FLOOR, DB_TOLERANCE'tan (0.1) HER ZAMAN büyük kalacak şekilde
+  // (bkz. o sabitin invaryant notu) SEÇİLDİ — margin matematiksel olarak
+  // türetildi, tahmin değil: generateChoices'taki değerler `Math.round(x*100)
+  // /100` ile yuvarlanıyor, iki yuvarlanmış uç arasındaki EN KÖTÜ durumda
+  // gerçek mesafe (step - 0.01) kadar küçülebilir (±0.005 yuvarlama hatası
+  // her iki uçta) — FLOOR=0.15 için bile bu (0.15-0.01=0.14) DB_TOLERANCE'ın
+  // (0.1) HÂLÂ rahat üstünde kalır (0.04 pay). 1000 denemelik testle AYRICA
+  // doğrulandı (bkz. test/db-seviyesi.test.mjs).
+  STEP_AT_1: 0.8,
+  STEP_AT_CAP: 0.18,
+  STEP_FLOOR: 0.15,
+  STEP_REDUCTION_PER_STEP: 0.005,
 
   // Soru süresi (sn) — diğer iki modla AYNI kapsam kararı: HENÜZ round-timer'a
   // bağlanmadı (G21'in hizalı geçiş süresini riske atmamak için), sadece hesaplanıyor/
@@ -128,8 +137,15 @@ export const DB_CURVE_CONFIG = {
   TIME_SEC_FLOOR: 6,
   TIME_SEC_REDUCTION_PER_STEP: 0.1,
 
+  // G97 (madde 5): "Şık sayısı 3'te KALACAK, değiştirme" — kullanıcının kendi
+  // kararı. ESKİDEN 3'ten 6'ya BÜYÜYORDU (OPTIONS_AT_CAP=6.15) — artık AT_1
+  // ve AT_CAP AYNI (3), curve HER position'da SABİT 3 döner (logLerp'in iki
+  // ucu eşit olduğu için ara değerler de otomatik 3'te kalır). Bu, "hangisi
+  // doğru" seçimini TEK eksende (şıklar arası mesafe) zorlaştırma kararı —
+  // şık SAYISI eksenini bilerek DEVRE DIŞI bırakıyor (Q Genişliği'nin
+  // "İZOLASYON İLKESİ"yle AYNI felsefe: tek bilinmeyen daha net öğretir).
   OPTIONS_AT_1: 3,
-  OPTIONS_AT_CAP: 6.15 // round(logLerp(...)) hard=12'de TAM 5'e ulaşsın diye >6, çıktı yine 6'da kırpılır
+  OPTIONS_AT_CAP: 3
 };
 
 // SAF FONKSİYON. position: zorlukKonumu (continuousLevel + sessionRampOffset, bkz.

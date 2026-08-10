@@ -120,6 +120,59 @@ describe("dB Seviyesi — şık üretimi (ondalıklı, işaretli, çakışmasız
   });
 });
 
+// G97 (madde 5): EMPİRİK doğrulama — yukarıdaki test STEP_FLOOR/STEP_AT_CAP'in
+// DB_TOLERANCE'ın üstünde olduğunu ANALİTİK doğruluyor (matematiksel garanti,
+// bkz. DB_CURVE_CONFIG'in yuvarlama-payı notu); bu describe AYNI şeyi 1000
+// GERÇEK createQuestion() çağrısıyla (rastgele position/tier/yön-gizleme
+// karışımı, gerçek Math.random ile jitter'lı dbDelta) EMPİRİK olarak doğruluyor
+// — task'ın kendi kabul kriteri ("tolerans invaryantını 1000 denemelik testle
+// doğrula").
+describe("dB Seviyesi — G97: yeni (daraltılmış) STEP eğrisi — 1000 denemelik tolerans invaryantı", () => {
+  it("1000 rastgele soruda (curve aktif, position 1-20 arası) HİÇBİR yanlış şık DB_TOLERANCE içine düşmez", () => {
+    const N = 1000;
+    let minObservedGap = Infinity;
+    for (let i = 0; i < N; i++) {
+      const position = 1 + Math.random() * 19; // 1..20 arası ondalık
+      const sessionQuestionIndex = Math.floor(Math.random() * 8); // yön açık/gizli karışık
+      const boss = Math.random() < 0.2;
+      const q = mode.createQuestion("medium", { source: "pink", boss, sessionQuestionIndex, difficultyPosition: position });
+      const wrongChoices = q.choices.filter(c => !c.correct);
+      for (const c of wrongChoices) {
+        const gap = Math.abs(c.value - q.dbDelta);
+        if (gap < minObservedGap) minObservedGap = gap;
+        assert.ok(gap > mode.DB_TOLERANCE, `position ${position.toFixed(2)}: yanlış şık ${c.value}dB, doğru ${q.dbDelta}dB, fark ${gap} <= tolerans ${mode.DB_TOLERANCE}`);
+      }
+    }
+    assert.ok(Number.isFinite(minObservedGap), "hiç yanlış şık üretilmedi — testin kendisi anlamsız kalmış olabilir");
+  });
+
+  it("1000 rastgele soruda ŞIKLARIN KENDİ ARALARINDA da (ikili karşılaştırma) hiçbir çift DB_TOLERANCE içine düşmez", () => {
+    const N = 1000;
+    for (let i = 0; i < N; i++) {
+      const position = 1 + Math.random() * 19;
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, sessionQuestionIndex: Math.floor(Math.random() * 8), difficultyPosition: position });
+      for (let a = 0; a < q.choices.length; a++) {
+        for (let b = a + 1; b < q.choices.length; b++) {
+          const gap = Math.abs(q.choices[a].value - q.choices[b].value);
+          assert.ok(gap > mode.DB_TOLERANCE, `position ${position.toFixed(2)}: şık ${q.choices[a].value}dB ile ${q.choices[b].value}dB arası ${gap} <= tolerans`);
+        }
+      }
+    }
+  });
+
+  it("Z1 (position=1) yeni STEP'i eski STEP_AT_1'in (1.5dB) BELİRGİN altında — kabul kriteri", () => {
+    const z1 = mode.paramsForDifficultyPosition(1);
+    assert.ok(z1.step < 1.5 * 0.7, `Z1 step ${z1.step} eski değerin (1.5) %70'inin altında olmalıydı (belirgin daralma)`);
+  });
+
+  it("şık sayısı HER ZAMAN 3 — madde 5'in AÇIK kararı, bu turda değişmedi", () => {
+    for (let position = 1; position <= 20; position++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: position });
+      assert.equal(q.choices.length, 3, `position ${position}: ${q.choices.length} şık`);
+    }
+  });
+});
+
 describe("dB Seviyesi — seans içi yön-gizleme rampası (Kesim Noktası'ndaki AYNI desen)", () => {
   it("ilk DIRECTION_REVEAL_QUESTION_COUNT soruda yön SÖYLENİR, sonrasında GİZLENİR — tüm zorluklarda", () => {
     for (const level of Object.keys(mode.DIFFICULTY)) {
@@ -312,13 +365,13 @@ describe("dB Seviyesi — paramsForDifficultyPosition() (merkezi zorluk eğrisi)
     assert.ok(far.step >= cfg.STEP_FLOOR - 1e-9);
   });
 
-  it("options position arttıkça monoton artar, her zaman 3-6 arası tam sayı", () => {
-    let prev = 0;
+  // G97 (madde 5): ESKİDEN options position arttıkça 3'ten 6'ya BÜYÜYORDU —
+  // kullanıcının kararıyla artık HER position'da SABİT 3 (OPTIONS_AT_1 ===
+  // OPTIONS_AT_CAP, bkz. DB_CURVE_CONFIG notu).
+  it("options HER position'da SABİT 3 (şık sayısı ekseni kapalı)", () => {
     for (let p = 1; p <= 20; p += 0.5) {
       const { options } = mode.paramsForDifficultyPosition(p);
-      assert.ok(Number.isInteger(options) && options >= 3 && options <= 6);
-      assert.ok(options >= prev);
-      prev = options;
+      assert.equal(options, 3, `position ${p}'de options ${options} !== 3`);
     }
   });
 
@@ -374,12 +427,17 @@ describe("dB Seviyesi — Sabit mod eğriye bağlı ('kolaylaşma yok' invaryant
     }
   });
 
-  it("her tier'da: options eski statikten KÜÇÜK DEĞİL", () => {
+  // G97 (madde 5): ESKİDEN bu test "options eski statikten KÜÇÜK DEĞİL"
+  // derdi (şık sayısı hiç azalmasın invaryantı) — kullanıcının AÇIK kararıyla
+  // (OPTIONS_AT_1=OPTIONS_AT_CAP=3, bkz. DB_CURVE_CONFIG notu) artık BİLEREK
+  // KIRILIYOR: şık sayısı ekseni TAMAMEN devre dışı, tüm zorluk STEP
+  // eksenine (yukarıdaki test) yüklendi. Eski invaryant burada ARTIK YANLIŞ
+  // bir varsayım olurdu — YERİNE "şık sayısı HER tier'da sabit 3" doğrulanıyor.
+  it("her tier'da: options SABİT 3 (şık sayısı ekseni BİLEREK devre dışı — tüm zorluk STEP'te)", () => {
     for (const tier of TIERS) {
       const level = representativeLevelForTier(tier);
       const p = mode.paramsForDifficultyPosition(level);
-      const old = mode.DIFFICULTY[tier];
-      assert.ok(p.options >= old.options, `${tier}: options ${p.options} < eski ${old.options}`);
+      assert.equal(p.options, 3, `${tier}: options ${p.options} !== 3`);
     }
   });
 

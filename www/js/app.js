@@ -977,7 +977,20 @@ function currentDifficultyPosition(boss) {
         currentModeExamLevel()
       )
     : representativeLevelForTier(tier);
-  return baseline + sessionRampOffset(roundsInThisPlaySession, { boss });
+  // G97 (madde 1): ücretsiz oturum SADECE 5 soru (paywall.FREE_SESSION_
+  // QUESTION_LIMIT) — 10 soruya yayılan ramp (−1.5→+1.0, bkz. G96) ücretsizde
+  // HER ZAMAN yarım kalıyordu (en fazla index 0-4, yani ramp'in SADECE ısınma
+  // yarısı — hiçbir ücretsiz oturum "zorlaşma" ucunu HİÇ görmüyordu, bkz.
+  // ZORLUK.md'nin bu tespiti — kullanıcının kendi kararı). Ücretsizde
+  // artık ramp UYGULANMIYOR — zorluk konumu DÜZ tabandan gelir (offset 0).
+  // Boss ofseti (+2.0) İSTİSNA: `boss` true'ysa sessionRampOffset zaten
+  // roundsInThisPlaySession'dan BAĞIMSIZ olarak SESSION_RAMP_CONFIG.
+  // BOSS_OFFSET'i döner (bkz. o fonksiyonun `if (boss) return...` dalı) —
+  // bu yüzden `isUserPro() || boss` tek koşulu hem "Pro'da tam ramp" hem
+  // "ücretsizde bile boss'ta +2.0" davranışını AYNI satırda doğru veriyor,
+  // boss'un GERÇEK sabiti (2.0) burada AYRICA hardcode edilmedi.
+  const ramp = (isUserPro() || boss) ? sessionRampOffset(roundsInThisPlaySession, { boss }) : 0;
+  return baseline + ramp;
 }
 
 // examStatsFor()'un AYNI okuma deseni ama YAZMIYOR (lazy-init YOK) — sınav
@@ -3147,11 +3160,35 @@ function onTimeUp() {
   if (els.gainValue) els.gainValue.textContent = activeQuestion.mode === "frequency" ? formatGainDb(activeQuestion.gain) : "";
   stats.rounds++;
   stats.wrong++;
+  // G97 (madde 3): boss round'da combo YİNE sıfırlanır — bu turun kendi
+  // kararı (task "combo'yu sen değerlendir" dedi). Gerekçe: combo "art arda
+  // DOĞRU cevap" sayacı, süresi dolan bir soru DOĞRU cevaplanmadı — can
+  // BAĞIŞLANIYOR (boss orantısız zor olduğu için cezası ağır olmasın diye)
+  // ama bu, sorunun GERÇEKTEN kaçtığı gerçeğini değiştirmiyor. Combo'yu da
+  // korumak boss'u "Atla" ile ayrımsız, sıfır bedelli bir buton yapardı —
+  // boss YİNE bir meydan okuma olarak kalsın diye SADECE can ekseni
+  // yumuşatıldı, combo ekseni DOKUNULMADI (mevcut davranışla AYNI).
   stats.combo = 0;
   diffState().score = Math.max(0, diffState().score - 20); // skor 0 altına inmez
   session.wrong++;
   audioEngine.stopAudio();
-  loseLife(`Süre doldu. Doğru cevap: ${mode.correctLabel(activeQuestion)}.`);
+  // G97 (madde 3): boss sorusunda süre dolması artık can GÖTÜRMÜYOR — boss
+  // zaten ramp'in en zor noktasından (+2.0 ofset, bkz. G96) çalıyor, süre de
+  // kısalıyor (Math.max(6,...) — normal sorudan kısa) — süre yetişememe
+  // ihtimali orantısız yüksek, bunu normal bir "yanlış cevap" gibi
+  // cezalandırmak (can + combo + XP kaybı üstüne) haksız buluyordu (task'ın
+  // kendi kararı). XP zaten timeout'ta HİÇBİR ZAMAN verilmiyordu (calculateXP
+  // bu fonksiyondan hiç çağrılmıyor) — "XP verilmesin"/"boss çarpanı
+  // uygulanmasın" kriterleri bu yüzden EK bir değişiklik gerektirmeden zaten
+  // sağlanıyor, tek GERÇEK davranış değişikliği loseLife()'ın atlanması.
+  // Normal (boss olmayan) sorularda TEK SATIR değişmedi — loseLife() AYNEN
+  // çağrılmaya devam ediyor.
+  const bossTimeout = !!activeQuestion.boss;
+  if (bossTimeout) {
+    setFeedback("Boss süresi doldu", `Soru kaçtı, can gitmedi. Doğru cevap: ${mode.correctLabel(activeQuestion)}.`, true, true);
+  } else {
+    loseLife(`Süre doldu. Doğru cevap: ${mode.correctLabel(activeQuestion)}.`);
+  }
   pushHistory(false);
   updateDaily(false);
   accumulatePracticeTime();
@@ -4197,6 +4234,20 @@ function ensureAutoNext(durationMs) {
   // xpMult()'un +%50 bonusu HÂLÂ çalışıyor (kullanıcı "10 Soruluk Bölüm"ü
   // seçtiyse), SADECE otomatik bitirme bastırıldı. Diğer yedi modda
   // mode.EXAM_ENABLED undefined → bu koşul ÖNCEKİ davranışla BİREBİR aynı.
+  //
+  // G97 (madde 4) — ÜRÜN KARARI, HATA DEĞİL: `examGateActive()` SADECE
+  // `isUserPro()` iken true dönebilir (bkz. o fonksiyonun tanımı) — yani bu
+  // bastırma SADECE Pro kullanıcıyı, SADECE sınava girebilen bir moddayken
+  // etkiler. Sonuç: Pro'da (sınav aktifken) kayıpsız bir "10 Soruluk Bölüm"
+  // bitirilse bile bölüm bitiş ekranı (showSessionEnd) HİÇ tetiklenmez —
+  // ESKİDEN bu G50 REGRESYONU sanılıyordu, ARTIK KASITLI: Pro'da bir bölümü
+  // "bitirmenin" ödülü zaten SINAV EKRANIDIR (seviye atlama/kademe ilerlemesi
+  // oradan geçer) — bölüm bitiş ekranının (halka/rozet/"tekrar oyna") AYRICA
+  // gösterilmesi burada gereksiz/çakışan bir ikinci ödül olurdu. Ücretsiz
+  // kullanıcıda (`examGateActive()` HER ZAMAN false) bu bastırma HİÇ
+  // devreye girmez — bölüm bitiş ekranı ONLARDA aynen görünmeye devam eder.
+  // +%50 bölüm bonusu (yukarıdaki not) ekran gösterilmese bile Pro'da
+  // UYGULANMAYA DEVAM EDER — sadece GÖRÜNÜRLÜK kısıtlandı, KAZANIM değil.
   if (challenge.active && !examGateActive() && challenge.done >= challenge.total) {
     finishChallenge();
     return;
