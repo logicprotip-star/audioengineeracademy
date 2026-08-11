@@ -8273,6 +8273,7 @@ let toolsTonalMeasuringForId = null;
 let toolsTonalCustomRef = null; // {name, devs} — "Kendi referansım" icin secilen referans
 let toolsTonalAbMode = "B";
 let toolsTonalProcOn = false;
+let toolsSoloBandIdx = -1; // G117 madde B — bölge solo: -1 kapalı, 0-5 SUB..TİZ (toolsFilterActiveIdx ile AYNI desen, dosya değişince RESETLENMİYOR)
 const TOOLS_TONAL_PRESETS = ["Pop", "EDM", "Akustik"];
 
 // --- G102: canlı analizör durumu ---
@@ -8628,6 +8629,16 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
     ctx.stroke();
   });
 
+  // G117 madde B — solo bandı vurgusu: cyan dikey şerit + (aşağıda) bant adı
+  // cyan — kullanıcının kendi seçimi, otomatik hedef-dışı (amber) renklen-
+  // dirmesinin ÜSTÜNE geçer (daha ÖNCELİKLİ, bilinçli bir seçimi gösteriyor).
+  if (toolsSoloBandIdx >= 0) {
+    const soloLo = tonalBalance.BAND_EDGES[toolsSoloBandIdx], soloHi = tonalBalance.BAND_EDGES[toolsSoloBandIdx + 1];
+    const x0 = toolsTonalFx(soloLo), x1 = toolsTonalFx(soloHi);
+    ctx.fillStyle = "rgba(34,211,238,.12)";
+    ctx.fillRect(x0, TOOLS_TONAL_GY0, x1 - x0, TOOLS_TONAL_GY1 - TOOLS_TONAL_GY0 + 4);
+  }
+
   // Hedef bandı — HEDEF EĞRİNİN KENDİ ŞEKLİ etrafında ±1.5dB, sabit duruyor.
   if (targetPts) {
     ctx.fillStyle = "rgba(34,211,238,.10)";
@@ -8655,7 +8666,7 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
   ctx.textAlign = "center";
   tonalBalance.BANDS.forEach((name, i) => {
     const off = targetDevs ? Math.abs(avgDevs[i] - targetDevs[i]) > tonalBalance.OFF_TARGET_THRESHOLD_DB : false;
-    ctx.fillStyle = off ? "#e8c46a" : "#5a6068";
+    ctx.fillStyle = i === toolsSoloBandIdx ? "#22d3ee" : (off ? "#e8c46a" : "#5a6068");
     ctx.fillText(name, toolsTonalFx(centers[i]), 128);
   });
   // Frekans eksen etiketleri
@@ -8686,6 +8697,32 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
   [[hr, `+${hrLabel}`], [0, "0"], [-hr, `−${hrLabel}`]].forEach(([d, label]) => {
     const y = toolsTonalDy(d) + (d === 0 ? 3 : d > 0 ? 6 : -1);
     ctx.fillText(label, TOOLS_TONAL_X0 + 1, y);
+  });
+}
+
+// G117 madde B — bölge SOLO dinleme. Bant adları canvas üstünde ÇİZİLİ metin
+// (gerçek DOM elemanı DEĞİL, bkz. drawTonalChart), bu yüzden tıklama pixel-
+// hassas küçük metne değil, TÜM dikey bant genişliğine (x aralığı) hedeflenir
+// — LUFS kısa-seyir grafiğinin scrubber'ıyla (toolsAnalysisChartReadoutAt)
+// AYNI "clientX → rect → logical x" deseni.
+function toolsTonalBandIdxAt(clientX) {
+  if (!els.toolsTonalChart) return -1;
+  const rect = els.toolsTonalChart.getBoundingClientRect();
+  if (!rect.width) return -1;
+  const xLogical = ((clientX - rect.left) / rect.width) * TOOLS_TONAL_W;
+  const edges = tonalBalance.BAND_EDGES;
+  for (let i = 0; i < edges.length - 1; i++) {
+    if (xLogical >= toolsTonalFx(edges[i]) && xLogical < toolsTonalFx(edges[i + 1])) return i;
+  }
+  return -1;
+}
+if (els.toolsTonalChart) {
+  els.toolsTonalChart.addEventListener("pointerdown", (e) => {
+    const idx = toolsTonalBandIdxAt(e.clientX);
+    if (idx < 0) return;
+    toolsSoloBandIdx = toolsSoloBandIdx === idx ? -1 : idx; // tekrar dokununca solo kapanır — task'ın kendi kuralı
+    if (toolsFilterPlaying) toolsConnectFilterPreviewChain(); // G117 — çalarken solo değişince zincir CANLI güncellenir
+    if (toolsTonalLastAvgDevs) drawTonalChart(toolsTonalLastAvgDevs, toolsTonalLastTargetDevs, toolsTonalLiveDevs);
   });
 }
 
@@ -8757,101 +8794,237 @@ async function renderToolsTonalCard() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// F) Referans Filtreleri — akordiyon + çalar. GERÇEK DSP YOK (bilerek, bkz.
-// index.html'deki uyarı satırı) — filtre seçmek dinleme deneyimini
-// DEĞİŞTİRMİYOR, sadece hangi cihazın simüle edildiğini GÖSTERİYOR.
+// F) Referans Filtreleri — akordiyon + çalar + G117'de eklenen GERÇEK DSP.
+// Her filtre iki bağımsız katman: `eq` (BiquadFilterNode zinciri, seri) ve
+// `stereo` (mid/side kazanç bantları, bkz. toolsBuildMidSideStage). Değerler
+// cihazların TİPİK davranışının taklididir — GERÇEK cihaz ölçümü DEĞİL
+// (bkz. index.html'deki .tools-filter-dsp-note, aynı uyarı kart altında
+// KORUNUYOR). SEVİYE TELAFİSİ YOK (task'ın kendi kararı) — filtrelerin
+// doğal zayıflatması/yükseltmesi hiçbir yerde geri telafi edilmiyor,
+// telefon hoparlörü GERÇEKTEN kısık duyulacak.
 // ═══════════════════════════════════════════════════════════════════════════
 const TOOLS_FILTERS = [
-  { name: "Telefon Hoparlörü", range: "400 Hz – 6 kHz", kind: "phone", icon: "M7 3h10v18H7zM10 18h4" },
-  { name: "Araba", range: "60 Hz – 14 kHz", kind: "car", icon: "M4 16v-3l2-5h12l2 5v3M4 16h16M7 16v2M17 16v2" },
-  { name: "Kulaklık", range: "20 Hz – 20 kHz", kind: "head", icon: "M4 13a8 8 0 0 1 16 0M3 15h4v5H3zM17 15h4v5h-4z" },
-  { name: "Club Sistemi", range: "25 Hz – 18 kHz", kind: "club", icon: "M5 3h14v18H5zM12 8a2 2 0 1 0 .01 0M12 15a3 3 0 1 0 .01 0" },
-  { name: "Laptop Hoparlörü", range: "250 Hz – 12 kHz", kind: "laptop", icon: "M4 6h16v10H4zM2 19h20" }
+  {
+    name: "Telefon Hoparlörü", range: "400 Hz – 6 kHz", kind: "phone", icon: "M7 3h10v18H7zM10 18h4",
+    // ~500Hz altı pratikte YOK (2 kademeli highpass, ~24dB/oktav — tek
+    // kademe yeterince sert değildi), 1–3kHz orta bant öne çıkar (peaking
+    // tepe 2kHz), ~8kHz üstü söner.
+    eq: [
+      { type: "highpass", freq: 500, q: 0.9 },
+      { type: "highpass", freq: 500, q: 0.9 },
+      { type: "peaking", freq: 2000, gain: 7, q: 1.1 },
+      { type: "lowpass", freq: 8000, q: 0.8 }
+    ],
+    // Tek hoparlör — yan bileşen SIFIR (mid=1, side=0 ⇒ L'=R'=(L+R)/2, tam mono).
+    stereo: [{ lo: 20, hi: 20000, mid: 1, side: 0 }]
+  },
+  {
+    name: "Araba", range: "60 Hz – 14 kHz", kind: "car", icon: "M4 16v-3l2-5h12l2 5v3M4 16h16M7 16v2M17 16v2",
+    // ~60Hz altı kabin kazancıyla ŞİŞER (lowshelf boost), 200–500Hz yol
+    // gürültüsüyle MASKELENİR/kısılır (peaking cut, merkez 350Hz), tizler
+    // PARLAK (highshelf boost).
+    eq: [
+      { type: "lowshelf", freq: 60, gain: 5 },
+      { type: "peaking", freq: 350, gain: -4.5, q: 1.0 },
+      { type: "highshelf", freq: 6000, gain: 4 }
+    ],
+    // Hoparlörler dinleyicinin iki yanında — yan bileşen ÖNE ÇIKAR (side
+    // kazancı artırılır), merkez ZAYIFLAR (mid kazancı düşürülür). side=1.6
+    // (ilk denenen değer) doğrulama sırasında ÇOK GÜÇLÜ ADVERSARIAL bir test
+    // sinyalinde (yarı-yarıya mid/side enerjili) korelasyonu NEGATİFE
+    // düşürüyordu (faz-iptali gibi duyulabilecek aşırı bir genişleme) —
+    // 1.35'e ÇEKİLDİ, gerçek mikslerde (çok daha düşük side enerjisi) bu
+    // artık gerçekleşmeyecek kadar YUMUŞAK, hâlâ AÇIKÇA ölçülebilir bir
+    // genişleme (bkz. DURUM.md doğrulama tablosu).
+    stereo: [{ lo: 20, hi: 20000, mid: 0.85, side: 1.35 }]
+  },
+  {
+    name: "Kulaklık", range: "20 Hz – 20 kHz", kind: "head", icon: "M4 13a8 8 0 0 1 16 0M3 15h4v5H3zM17 15h4v5h-4z",
+    // Nispeten DÜZ — 100Hz altı hafif şişkin (küçük lowshelf), 8–10kHz'de
+    // tepe (peaking, merkez 9kHz). Aşırı bir kesim/genişletme YOK.
+    eq: [
+      { type: "lowshelf", freq: 100, gain: 2 },
+      { type: "peaking", freq: 9000, gain: 3, q: 1.3 }
+    ],
+    // STEREO değişmez — mid=1/side=1 tam kimlik, toolsBuildMidSideStage bu
+    // durumu tanıyıp gereksiz splitter/merger kurmadan doğrudan geçiş yapar.
+    stereo: [{ lo: 20, hi: 20000, mid: 1, side: 1 }]
+  },
+  {
+    name: "Club Sistemi", range: "25 Hz – 18 kHz", kind: "club", icon: "M5 3h14v18H5zM12 8a2 2 0 1 0 .01 0M12 15a3 3 0 1 0 .01 0",
+    // 25Hz'e kadar iner (highpass YOK — alt sınır serbest bırakıldı),
+    // 40–80Hz GÜÇLÜ (peaking tepe 60Hz + hafif lowshelf), orta bant NET
+    // (dokunulmuyor), ~16kHz üstü kesilir.
+    eq: [
+      { type: "lowshelf", freq: 40, gain: 2 },
+      { type: "peaking", freq: 60, gain: 5, q: 1.1 },
+      { type: "lowpass", freq: 16000, q: 0.8 }
+    ],
+    // Sub bas mono çalar (bas bölgede yan bileşen SIFIR, 20–120Hz — analiz
+    // motorunun SUB bandıyla AYNI sınır), orta-üst bantta stereo NORMAL.
+    stereo: [
+      { lo: 20, hi: 120, mid: 1, side: 0 },
+      { lo: 120, hi: 20000, mid: 1, side: 1 }
+    ]
+  },
+  {
+    name: "Laptop Hoparlörü", range: "250 Hz – 12 kHz", kind: "laptop", icon: "M4 6h16v10H4zM2 19h20",
+    // ~200Hz altı ZAYIF (tek kademeli highpass — telefon kadar sert DEĞİL,
+    // "yok" değil "zayıf"), 2–5kHz BELİRGİN (peaking tepe 3.5kHz), ~12kHz
+    // üstü düşer.
+    eq: [
+      { type: "highpass", freq: 200, q: 0.75 },
+      { type: "peaking", freq: 3500, gain: 4.5, q: 1.0 },
+      { type: "lowpass", freq: 12000, q: 0.8 }
+    ],
+    // Çok dar sahne — yan bileşen belirgin KISILIR (side=0.3, mono DEĞİL
+    // ama telefondan çok daha dar).
+    stereo: [{ lo: 20, hi: 20000, mid: 1, side: 0.3 }]
+  }
 ];
 let toolsFilterActiveIdx = -1;
 let toolsFilterOpen = false;
 let toolsFilterPlaying = false;
 let toolsFilterPreviewNode = null;
 let toolsFilterPreviewGain = null;
+let toolsFilterChainNodes = []; // G117 — o an bağlı filtre/stereo node'ları, temizlik için izleniyor
 
-// Cihaz illüstrasyonları — Araçlar.dc.html'in KENDİ art() üretecinden
-// BİREBİR taşındı (React.createElement çağrıları düz SVG string'e çevrildi,
-// path/gradyan verileri DEĞİŞMEDİ).
-function toolsFilterArtDefs(u, rim, rimSoft) {
-  return `<defs>
-    <linearGradient id="bd${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#464d55"></stop><stop offset="0.42" stop-color="#2b3037"></stop><stop offset="1" stop-color="#14171a"></stop></linearGradient>
-    <linearGradient id="bd2${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a4048"></stop><stop offset="1" stop-color="#1a1d21"></stop></linearGradient>
-    <linearGradient id="met${u}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8b939c"></stop><stop offset="0.3" stop-color="#d6dde4"></stop><stop offset="0.6" stop-color="#767d86"></stop><stop offset="1" stop-color="#3d434a"></stop></linearGradient>
-    <linearGradient id="gl${u}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.22"></stop><stop offset="1" stop-color="#ffffff" stop-opacity="0"></stop></linearGradient>
-    <radialGradient id="cone${u}" cx="0.5" cy="0.38" r="0.62"><stop offset="0" stop-color="#3d434b"></stop><stop offset="0.55" stop-color="#22262b"></stop><stop offset="1" stop-color="#0e1013"></stop></radialGradient>
-    <radialGradient id="cap${u}" cx="0.42" cy="0.34" r="0.7"><stop offset="0" stop-color="${rim}" stop-opacity="0.75"></stop><stop offset="0.7" stop-color="${rim}" stop-opacity="0.22"></stop><stop offset="1" stop-color="#0e1013" stop-opacity="0.9"></stop></radialGradient>
-  </defs>`;
-}
-function toolsFilterArt(kind, active) {
-  const u = kind + (active ? "a" : "p");
-  const rim = active ? "#22d3ee" : "#7b8189";
-  const rimSoft = active ? "rgba(34,211,238,.55)" : "rgba(255,255,255,.14)";
-  const F = `url(#bd${u})`, F2 = `url(#bd2${u})`, GL = `url(#gl${u})`, CONE = `url(#cone${u})`, CAP = `url(#cap${u})`, MET = `url(#met${u})`;
-  const shadow = (cx, cy, rx) => `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="2.6" fill="rgba(0,0,0,.55)"></ellipse><ellipse cx="${cx}" cy="${cy}" rx="${(rx * 0.62).toFixed(1)}" ry="1.6" fill="rgba(0,0,0,.5)"></ellipse>`;
-  const dots = (xs, y, r) => xs.map((x) => `<circle cx="${x}" cy="${y}" r="${r || 0.6}" fill="${rimSoft}"></circle>`).join("");
-  const bodies = {
-    phone: `${shadow(32, 52, 13)}
-      <rect x="20.5" y="2.5" width="23" height="47" rx="5.4" fill="${F}" stroke="${rimSoft}" stroke-width="0.9"></rect>
-      <rect x="22" y="4" width="20" height="44" rx="4.2" fill="#0a0d10"></rect>
-      <path d="M22 30 L42 8.5 v6.5 L22 37z" fill="${GL}"></path>
-      <rect x="27" y="5.4" width="10" height="1.1" rx="0.55" fill="rgba(255,255,255,.3)"></rect>
-      <line x1="21.4" y1="10" x2="21.4" y2="40" stroke="${rimSoft}" stroke-width="1.1" opacity="${active ? 0.9 : 0.5}"></line>
-      ${dots([27.5, 30, 32.5, 35, 37.5], 50.4, 0.62)}
-      <rect x="43.2" y="13" width="1.3" height="7" rx="0.65" fill="#5a6068"></rect>`,
-    car: `${shadow(32, 51, 24)}
-      <path d="M4 9h56a3 3 0 0 1 3 3v33a3 3 0 0 1-3 3H4a3 3 0 0 1-3-3V12a3 3 0 0 1 3-3z" fill="${F}"></path>
-      <rect x="2.5" y="9" width="59" height="1.6" rx="0.8" fill="rgba(255,255,255,.2)"></rect>
-      <path d="M1 22c16 5 34 6.5 62 2.5" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="1.2"></path>
-      <path d="M40 13h18a2 2 0 0 1 2 2v7H40z" fill="${F2}"></path>
-      <circle cx="22" cy="34" r="11.4" fill="${CONE}" stroke="rgba(255,255,255,.08)" stroke-width="1"></circle>
-      <circle cx="22" cy="34" r="8.4" fill="none" stroke="rgba(255,255,255,.06)" stroke-width="0.9"></circle>
-      <circle cx="22" cy="34" r="5.6" fill="${CONE}"></circle>
-      <circle cx="22" cy="34" r="2.3" fill="${CAP}"></circle>
-      <circle cx="13.4" cy="25.4" r="0.75" fill="#6b727a"></circle><circle cx="30.6" cy="25.4" r="0.75" fill="#6b727a"></circle>
-      <circle cx="13.4" cy="42.6" r="0.75" fill="#6b727a"></circle><circle cx="30.6" cy="42.6" r="0.75" fill="#6b727a"></circle>
-      <line x1="2.6" y1="14" x2="2.6" y2="44" stroke="${rimSoft}" stroke-width="1.2" opacity="${active ? 0.95 : 0.45}"></line>
-      <path d="M44 30c5 1 10 1.5 16 1" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="1.1"></path>`,
-    head: `${shadow(32, 52, 17)}
-      <path d="M11 33V23a21 21 0 0 1 42 0v10" fill="none" stroke="${MET}" stroke-width="3.6"></path>
-      <path d="M11.6 31.5V23a20 20 0 0 1 40.8 0v8.5" fill="none" stroke="rgba(255,255,255,.32)" stroke-width="0.9"></path>
-      <rect x="11.6" y="28" width="3.4" height="6" rx="1.4" fill="${F2}"></rect><rect x="49" y="28" width="3.4" height="6" rx="1.4" fill="${F2}"></rect>
-      <path d="M6 27.5h7.5a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-13a3 3 0 0 1 3-3z" fill="${F}"></path>
-      <path d="M50.5 27.5H58a3 3 0 0 1 3 3v13a3 3 0 0 1-3 3h-7.5a3 3 0 0 1-3-3v-13a3 3 0 0 1 3-3z" fill="${F}"></path>
-      <path d="M7 30h5.5a2.4 2.4 0 0 1 2.4 2.4v9.2A2.4 2.4 0 0 1 12.5 44H7a2.4 2.4 0 0 1-2.4-2.4v-9.2A2.4 2.4 0 0 1 7 30z" fill="#15181c" stroke="${rimSoft}" stroke-width="0.9"></path>
-      <path d="M51.5 30H57a2.4 2.4 0 0 1 2.4 2.4v9.2A2.4 2.4 0 0 1 57 44h-5.5a2.4 2.4 0 0 1-2.4-2.4v-9.2A2.4 2.4 0 0 1 51.5 30z" fill="#15181c" stroke="${rimSoft}" stroke-width="0.9"></path>
-      <rect x="4.4" y="28.6" width="10.6" height="1.3" rx="0.65" fill="rgba(255,255,255,.22)"></rect>
-      <rect x="49.4" y="28.6" width="10.6" height="1.3" rx="0.65" fill="rgba(255,255,255,.22)"></rect>`,
-    club: `<ellipse cx="32" cy="30" rx="27" ry="23" fill="${active ? "rgba(34,211,238,.08)" : "rgba(255,255,255,.025)"}"></ellipse>
-      ${shadow(32, 51, 20)}
-      <rect x="17.5" y="3" width="29" height="16.5" rx="2" fill="${F}"></rect>
-      <path d="M22 8h7.5l8.5-2.6v11.2L29.5 14H22z" fill="${CONE}" stroke="rgba(255,255,255,.08)" stroke-width="0.9"></path>
-      <circle cx="41.5" cy="11.4" r="2.6" fill="${CAP}"></circle>
-      <rect x="18.5" y="3.6" width="27" height="1.1" rx="0.55" fill="rgba(255,255,255,.22)"></rect>
-      <rect x="13.5" y="21.5" width="37" height="27.5" rx="2" fill="${F}"></rect>
-      <line x1="32" y1="22.5" x2="32" y2="48" stroke="rgba(0,0,0,.5)" stroke-width="1"></line>
-      <circle cx="22.6" cy="35.4" r="7.6" fill="${CONE}" stroke="rgba(255,255,255,.07)" stroke-width="0.9"></circle><circle cx="22.6" cy="35.4" r="2.5" fill="${CAP}"></circle>
-      <circle cx="41.4" cy="35.4" r="7.6" fill="${CONE}" stroke="rgba(255,255,255,.07)" stroke-width="0.9"></circle><circle cx="41.4" cy="35.4" r="2.5" fill="${CAP}"></circle>
-      <rect x="14.5" y="22.1" width="35" height="1.1" rx="0.55" fill="rgba(255,255,255,.16)"></rect>
-      <line x1="14.2" y1="24" x2="14.2" y2="47" stroke="${rimSoft}" stroke-width="1.2" opacity="${active ? 0.9 : 0.4}"></line>
-      <line x1="49.8" y1="24" x2="49.8" y2="47" stroke="${rimSoft}" stroke-width="1.2" opacity="${active ? 0.55 : 0.25}"></line>`,
-    laptop: `${shadow(32, 48, 26)}
-      <path d="M13.5 5h37l3.5 26H10z" fill="${F2}" stroke="${rimSoft}" stroke-width="0.9"></path>
-      <path d="M15.5 7h33l2.6 22H12.9z" fill="#0a0d10"></path>
-      <path d="M14 29 L33 8.4 h6.4 L20.4 29z" fill="${GL}"></path>
-      <path d="M6 31h52l6 8.5H0z" fill="${F}"></path>
-      <path d="M6.6 31.6h50.8l1 1.4H5.6z" fill="rgba(255,255,255,.18)"></path>
-      <path d="M20.5 33.5h23l1.6 4.2H18.9z" fill="#14171b"></path>
-      ${dots([9, 11.6, 14.2], 37.2, 0.55)}
-      ${dots([49.8, 52.4, 55], 35, 0.55)}
-      ${dots([50.6, 53.2, 55.8], 37.2, 0.55)}
-      <line x1="0" y1="39.5" x2="64" y2="39.5" stroke="${rimSoft}" stroke-width="1.1"></line>`
+// G117 madde A — ORTAK SES İŞLEME KATMANI. Gerçek Web Audio'da "mid/side"
+// diye tek bir node YOK — standart matris elle kuruluyor: mid=(L+R)/2,
+// side=(L−R)/2, çıkışta L'=mid·midGain+side·sideGain, R'=mid·midGain−side·
+// sideGain. `bands` bir dizi ([{lo,hi,mid,side}, ...]) olduğu için Club
+// Sistemi gibi FREKANSA BAĞLI stereo davranışlar (sadece bas altında yan
+// bileşen sıfırlanır) da desteklenir — her bant KENDİ highpass/lowpass
+// çiftiyle (L ve R kanalları AYRI AYRI) ayrılıp kendi matrisinden geçirilir,
+// sonunda GainNode'un birden fazla bağlantıyı OTOMATİK toplaması sayesinde
+// birleşir.
+function toolsBuildMidSideStage(ctx, bands) {
+  const nodes = [];
+  // Kısayol: TEK bant, tam aralık, mid=1/side=1 (Kulaklık gibi "değişmez")
+  // — gereksiz splitter/merger/4-kazanç matrisi kurmadan doğrudan geçiş.
+  if (bands.length === 1 && bands[0].lo <= 20 && bands[0].hi >= 20000 && bands[0].mid === 1 && bands[0].side === 1) {
+    const pass = ctx.createGain();
+    nodes.push(pass);
+    return { input: pass, output: pass, nodes };
+  }
+  const input = ctx.createGain();
+  const splitter = ctx.createChannelSplitter(2);
+  const merger = ctx.createChannelMerger(2);
+  const output = ctx.createGain();
+  input.connect(splitter);
+  merger.connect(output);
+  nodes.push(input, splitter, merger, output);
+
+  // splitter'ın TEK bir kanalını (0=L, 1=R) lo–hi Hz'e bant-sınırlar —
+  // analiz motorunun bant sınırlarıyla AYNI mantık (kesim noktası = edge,
+  // bkz. tonalBalance.BAND_EDGES), Q=Butterworth (düz, rezonans yok).
+  const tapChannel = (channelIdx, lo, hi) => {
+    let last = null;
+    const feed = (node) => { if (last) last.connect(node); else splitter.connect(node, channelIdx, 0); last = node; };
+    if (lo > 20) { const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = lo; hp.Q.value = Math.SQRT1_2; feed(hp); nodes.push(hp); }
+    if (hi < 20000) { const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = hi; lp.Q.value = Math.SQRT1_2; feed(lp); nodes.push(lp); }
+    if (!last) { last = ctx.createGain(); splitter.connect(last, channelIdx, 0); nodes.push(last); }
+    return last;
   };
-  return `<svg width="64" height="54" viewBox="0 0 64 56" style="display:block;overflow:visible">${toolsFilterArtDefs(u, rim, rimSoft)}${bodies[kind] || ""}</svg>`;
+
+  bands.forEach(({ lo, hi, mid, side }) => {
+    const chL = tapChannel(0, lo, hi);
+    const chR = tapChannel(1, lo, hi);
+    // 2x2 M/S matrisi: L'=a·L+b·R, R'=b·L+a·R, a=(mid+side)/2, b=(mid−side)/2.
+    // mid=1,side=1 ⇒ a=1,b=0 (aynen geçer). mid=1,side=0 ⇒ a=b=0.5 (mono
+    // çöküş — telefon). mid=0.75,side=1.6 ⇒ a=1.175,b=−0.425 (yan öne
+    // çıkar, merkez zayıflar — araba).
+    const a = (mid + side) / 2, b = (mid - side) / 2;
+    const gLtoL = ctx.createGain(); gLtoL.gain.value = a; chL.connect(gLtoL); gLtoL.connect(merger, 0, 0);
+    const gRtoL = ctx.createGain(); gRtoL.gain.value = b; chR.connect(gRtoL); gRtoL.connect(merger, 0, 0);
+    const gLtoR = ctx.createGain(); gLtoR.gain.value = b; chL.connect(gLtoR); gLtoR.connect(merger, 0, 1);
+    const gRtoR = ctx.createGain(); gRtoR.gain.value = a; chR.connect(gRtoR); gRtoR.connect(merger, 0, 1);
+    nodes.push(gLtoL, gRtoL, gLtoR, gRtoR);
+  });
+
+  return { input, output, nodes };
+}
+
+function toolsDisconnectFilterChain() {
+  toolsFilterChainNodes.forEach((n) => { try { n.disconnect(); } catch (e) {} });
+  toolsFilterChainNodes = [];
+}
+
+// G117 madde A — Referans filtresi (frekans+stereo) ve Tonal Balance'ın
+// bölge solo'su (madde B) BAĞIMSIZ açılıp kapanabilir, İKİSİ AYNI ANDA açık
+// olabilir — zincir HER ZAMAN aynı sırayla kurulur: kaynak → [referans
+// filtresi varsa] → [solo varsa] → toolsFilterPreviewGain. `toolsFilterPreview
+// Node` (kaynak) HER play'de zaten yeniden yaratılıyor (bkz. toolsToggle
+// FilterPlayback) — bu fonksiyon SADECE ondan SONRAKİ zinciri kurar, bu
+// yüzden çalarken filtre/solo DEĞİŞTİRİLDİĞİNDE (durdurup baştan başlamadan)
+// de güvenle tekrar çağrılabilir.
+function toolsConnectFilterPreviewChain() {
+  if (!toolsFilterPreviewNode || !toolsFilterPreviewGain) return;
+  const ctx = audioEngine.audioCtx;
+  try { toolsFilterPreviewNode.disconnect(); } catch (e) {}
+  toolsDisconnectFilterChain();
+
+  let node = toolsFilterPreviewNode;
+  const filterDef = toolsFilterActiveIdx >= 0 ? TOOLS_FILTERS[toolsFilterActiveIdx] : null;
+  if (filterDef) {
+    filterDef.eq.forEach((spec) => {
+      const f = ctx.createBiquadFilter();
+      f.type = spec.type;
+      f.frequency.value = spec.freq;
+      if (spec.gain !== undefined) f.gain.value = spec.gain;
+      f.Q.value = spec.q !== undefined ? spec.q : Math.SQRT1_2;
+      node.connect(f);
+      node = f;
+      toolsFilterChainNodes.push(f);
+    });
+    const stage = toolsBuildMidSideStage(ctx, filterDef.stereo);
+    node.connect(stage.input);
+    node = stage.output;
+    toolsFilterChainNodes.push(...stage.nodes);
+  }
+  if (toolsSoloBandIdx >= 0) {
+    // G117 madde B — SEVİYE TELAFİSİ YOK (bilinçli karar, task'ın kendi
+    // kuralı): bandpass'ın doğal zayıflatması KORUNUYOR, sonradan telafi
+    // kazancı EKLENMİYOR — amaç o bandın miksteki GERÇEK ağırlığını duymak,
+    // kısıksa kısık/baskınsa baskın duyulmalı, seviye eşitlenirse bu bilgi
+    // kaybolur.
+    const lo = tonalBalance.BAND_EDGES[toolsSoloBandIdx];
+    const hi = tonalBalance.BAND_EDGES[toolsSoloBandIdx + 1];
+    // 2x kademeli highpass+lowpass (~24dB/oktav, Butterworth) — kesim
+    // noktaları analiz motorunun bant sınırlarıyla (tonalBalance.BAND_EDGES)
+    // BİREBİR aynı (task'ın kendi gereksinimi).
+    const specs = [];
+    if (lo > 20) { specs.push({ type: "highpass", freq: lo }); specs.push({ type: "highpass", freq: lo }); }
+    if (hi < 20000) { specs.push({ type: "lowpass", freq: hi }); specs.push({ type: "lowpass", freq: hi }); }
+    specs.forEach((spec) => {
+      const f = ctx.createBiquadFilter();
+      f.type = spec.type;
+      f.frequency.value = spec.freq;
+      f.Q.value = Math.SQRT1_2;
+      node.connect(f);
+      node = f;
+      toolsFilterChainNodes.push(f);
+    });
+  }
+  node.connect(toolsFilterPreviewGain);
+}
+
+// G117 madde D — kullanıcı eski (gradyanlı/detaylı) illüstrasyonları
+// beğenmedi, SIFIRDAN çizildi: basit, tek renkli, ince çizgi (stroke-only,
+// fill YOK), tanınabilir siluetler. Renk artık JS parametresi DEĞİL — CSS'in
+// KENDİ `.tools-filter-illust`/`.tools-filter-card.active .tools-filter-
+// illust` kuralları `currentColor`'ı yönetiyor (bkz. styles.css), böylece
+// aktif/pasif geçişi diğer kart öğeleriyle (`.tools-filter-name` vb.) AYNI
+// mekanizmayı paylaşıyor.
+const TOOLS_FILTER_ILLUST_PATHS = {
+  phone: `<rect x="19" y="3" width="18" height="38" rx="3.5"></rect><line x1="24.5" y1="8" x2="31.5" y2="8"></line><line x1="25" y1="35" x2="31" y2="35"></line>`,
+  car: `<path d="M3 30h50"></path><path d="M9 30L12 21H18L21 13H35L38 21H44L47 30"></path><circle cx="16" cy="32" r="3.4"></circle><circle cx="40" cy="32" r="3.4"></circle>`,
+  head: `<path d="M6 25v-4a22 22 0 0 1 44 0v4"></path><rect x="2" y="23" width="9" height="15" rx="3.5"></rect><rect x="45" y="23" width="9" height="15" rx="3.5"></rect>`,
+  club: `<rect x="17" y="3" width="22" height="38" rx="2.5"></rect><circle cx="28" cy="28" r="8"></circle><circle cx="28" cy="28" r="3"></circle><circle cx="28" cy="11" r="3.4"></circle>`,
+  laptop: `<rect x="15" y="4" width="26" height="19" rx="2"></rect><path d="M9 27H47L50.5 34H5.5Z"></path>`
+};
+function toolsFilterIllustration(kind) {
+  return `<svg class="tools-filter-illust" width="48" height="37" viewBox="0 0 56 44" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${TOOLS_FILTER_ILLUST_PATHS[kind] || ""}</svg>`;
 }
 
 function renderToolsFilterGrid() {
@@ -8863,7 +9036,7 @@ function renderToolsFilterGrid() {
         <div class="tools-filter-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${f.icon}"></path></svg></div>
         ${active ? `<div class="tools-filter-on">AÇIK</div>` : ""}
       </div>
-      <div style="height:54px;display:flex;align-items:center;justify-content:center">${toolsFilterArt(f.kind, active)}</div>
+      <div style="height:44px;display:flex;align-items:center;justify-content:center">${toolsFilterIllustration(f.kind)}</div>
       <div>
         <div class="tools-filter-name">${f.name}</div>
         <div class="tools-filter-range">${f.range}</div>
@@ -8879,6 +9052,7 @@ if (els.toolsFilterGrid) {
     toolsFilterActiveIdx = toolsFilterActiveIdx === idx ? -1 : idx;
     renderToolsFilterGrid();
     renderToolsFilterHeaderBadge();
+    if (toolsFilterPlaying) toolsConnectFilterPreviewChain(); // G117 — çalarken filtre değişince zincir CANLI güncellenir
     const entry = toolsSelectedEntry();
     if (entry && toolsFilterActiveIdx >= 0) toolsLogAction(entry.name, TOOLS_FILTERS[toolsFilterActiveIdx].name);
   });
@@ -8945,6 +9119,7 @@ async function toolsToggleFilterPlayback() {
   if (toolsFilterPlaying) {
     uploadManager.pausePlayback();
     if (toolsFilterPreviewNode) { try { toolsFilterPreviewNode.stop(); } catch (e) {} toolsFilterPreviewNode = null; }
+    toolsDisconnectFilterChain(); // G117 — filtre/solo node'ları da temizlenir
     toolsFilterPlaying = false;
   } else {
     toolsFilterPreviewGain = toolsFilterPreviewGain || ctx.createGain();
@@ -8952,7 +9127,7 @@ async function toolsToggleFilterPlayback() {
     toolsFilterPreviewGain.connect(analyser);
     toolsFilterPreviewNode = uploadManager.getSourceNode();
     if (!toolsFilterPreviewNode) return;
-    toolsFilterPreviewNode.connect(toolsFilterPreviewGain);
+    toolsConnectFilterPreviewChain(); // G117 — kaynağı referans filtresi/solo zincirinden geçirip gain'e bağlar
     toolsFilterPlaying = true;
     toolsTonalSyncLiveLoop(); // G102: canlı analizör döngüsü uykudaysa uyandır
   }
@@ -8964,6 +9139,7 @@ async function toolsStopFilterPlayback() {
   if (toolsFilterPlaying) {
     uploadManager.pausePlayback();
     if (toolsFilterPreviewNode) { try { toolsFilterPreviewNode.stop(); } catch (e) {} toolsFilterPreviewNode = null; }
+    toolsDisconnectFilterChain(); // G117 — filtre/solo node'ları da temizlenir
     toolsFilterPlaying = false;
   }
   uploadManager.startFromZero();
@@ -8978,8 +9154,9 @@ if (els.toolsMixPlayerChange) els.toolsMixPlayerChange.addEventListener("click",
 // Gerçek satın alma bu sürümde yok — Araçlar sekmesi normalde her zaman
 // kilitli görünür (toolsFreeLock), dokununca paywall'a yönlendirir. isUserPro()
 // true ise (gerçek ya da geliştirici simülasyonu) toolsProContent görünür
-// olur. Referans Filtreleri hâlâ GERÇEK DSP içermiyor (bkz. F notu), sadece
-// ERİŞİM engeli kaldırılıyor.
+// olur. G117'den beri Referans Filtreleri GERÇEK DSP içeriyor (bkz. F
+// notu) — bu fonksiyon SADECE ERİŞİM engelini kaldırıyor, işleme zincirine
+// dokunmuyor.
 function applyProLockVisibility() {
   const pro = isUserPro();
   if (els.toolsProContent) els.toolsProContent.classList.toggle("hidden", !pro);
