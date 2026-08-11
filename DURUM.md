@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G125)
+Son güncelleme: 11.08.2026 (G126)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,127 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G125, `e912282`) — **kullanıcı cihaz konsolundan KANIT sundu: dosya seçimi hâlâ Araçlar'a gidiyordu. Akışın TAMAMI çıkarıldı, yükleme akışı bağlamdan tamamen ayrıştırıldı.**
+Bu commit (G126, `02e2f9f`) — **kullanıcı cihazda YENİ bir hata buldu (Kompresör'de doğrulandı): kaynak "Kendi Dosyam" seçili görünüyor ama o modun dosyası yok — Play sessizce hiçbir şey çalmıyor. Kaynak/dosya seçimi TUTARSIZLIĞI 11 modun HEPSİNDE tarandı ve kapatıldı.**
+
+**CİHAZDA GÖRÜLEN HATA:** Kompresör'de kaynak "Kendi Dosyam" olarak
+görünüyordu ama o modun seçili dosyası yoktu. Play'e basılınca ses
+çıkmıyordu, HİÇBİR uyarı da yoktu — sessiz hata, "uygulama bozuk" izlenimi.
+
+**MOD TARAMASI (task'ın istediği tam tablo — `node` ile gerçek `getMeta()`
+sonuçları okunarak, VARSAYILMADI):**
+| Mod | Upload destekliyor mu | Kaynak durumu | Dosya durumu |
+|---|---|---|---|
+| boost-mu-cut-mu, db-seviyesi, distortion, frekans-bulma, kesim-noktasi, q-genisligi | EVET (`compatibleSourceIds()` varsayılanı) | `els.sourceSelect.value` — TEK, mod-agnostik DOM state | `uploadSelections[modeId]` — mod-başına, kalıcı (G123) |
+| kompresor | EVET (`requireTransient` sadece pink/white'ı eler) | ″ | ″ |
+| pan-konumu, reverb, tonal-denge | EVET (elle seçilmiş `only` listesi) | ″ | ″ |
+| stereo-genislik | EVET (SADECE upload) | ″ | ″ |
+| frekans-cakismasi | HAYIR (`uyumluKaynaklar: []`, AYRI dual-upload sistemi) | kapsam dışı | `uploadManagerA`/`B` (ayrı, G123'ten beri KASITLI dokunulmadı) |
+
+**KÖK SEBEP (REPRODUCE EDİLDİ, varsayılmadı):** `els.sourceSelect.value`
+mod-AGNOSTİK bir DOM durumu — `populateSourceSelect()`'in "yeni mod da
+uyumluysa ÖNCEKİ seçimi KORU" mantığı (satır 556-573) bir moddan "upload"
+seçiliyken BAŞKA bir moda geçilince bu değeri AYNEN taşıyor. Ama G123'ten
+beri dosya SEÇİMİ (`uploadSelections[modeId]`) mod-BAŞINA ayrı — YENİ modun
+HİÇ dosyası olmayabilir. G122 bu boşluğu SADECE Stereo Genişlik'te
+kapatmıştı (upload-only bir mod olduğu için fark edilmesi EN KOLAY yerde),
+diğer 10 modda AÇIK kalmıştı. Playwright ile REPRODUCE edildi: Frekans
+Bulma'da "upload" + bir dosya seçilip Kompresör'e geçilince
+`sourceSelect.value` "upload" olarak TAŞINIYOR (`populateSourceSelect`'in
+davranışı DOĞRULANDI) ama Kompresör'ün `uploadSelections["kompresor"]`
+kaydı YOK.
+
+**ÇÖZÜM SEÇİMİ (task'ın sorduğu iki yoldan, gerekçeli):** "kaynak sessizce
+varsayılana dönsün" YERİNE **"kaynak seçili KALSIN + ekranda açık uyarı +
+Play basılınca dosya seçme yolu göster"** seçildi:
+1. Stereo Genişlik'te zaten fallback kaynak YOK (upload-only) — varsayılana
+   dönme YOLU tüm modlarda TUTARLI uygulanamaz.
+2. Kullanıcının AÇIKÇA seçtiği "Kendi Dosyam" tercihini onun HABERİ OLMADAN
+   başka bir kaynağa çevirmek "neden artık pembe gürültü çalıyor?" gibi YENİ
+   bir kafa karışıklığı yaratırdı.
+3. Bu YOL zaten G122'de kurulmuş, doğrulanmış bir desen — GENELLEMEK YENİDEN
+   İCAT etmekten daha güvenli/düşük riskli.
+
+**UYGULAMA:** `syncStereoUploadGate()` → `syncUploadGate()` — artık `mode.
+getMeta().uyumluKaynaklar.includes("upload")` olan TÜM modlarda çalışıyor,
+SADECE `els.sourceSelect.value==="upload"` iken (başka bir kaynak seçiliyse
+gate'in HİÇ İLGİSİ yok, normal UI). Çok-kaynaklı modlarda (Kompresör vb.)
+metin Stereo Genişlik'in "Bu mod kendi dosyanla oynanır" metninden FARKLI:
+**"Bu modda henüz dosya seçmedin... Dosyalarım'dan bir şarkı seç, yeni bir
+dosya yükle, ya da Kaynak'tan başka bir ses seç"** — kullanıcıya İKİ çıkış
+yolu (dosya seç YA DA kaynağı değiştir) açıkça sunuluyor. DOM/CSS/els
+`#stereoUploadGate` → `#uploadGate` olarak yeniden adlandırıldı (TEK
+paylaşılan panel — `#screen-game` TÜM modlarda ortak olduğu için mod-başına
+kopya GEREKMİYOR). Kaynak dropdown'u DOĞRUDAN (Dosyalarım akışından
+GEÇMEDEN) değiştirilince de gate ANINDA senkron (`[sourceSelect,
+playModeSelect].forEach` "change" dinleyicisine eklendi).
+
+**AYRICA TARANAN/DÜZELTİLEN (task'ın istediği 4 senaryo):**
+1. **Dosya SİLİNİRSE onu kullanan modun kaynak seçimi ne oluyor?**
+   ÖNCEDEN: `toolsRemoveFile`/`toolsCheckLibraryIntegrity` seçimi
+   temizliyordu (G123) ama **gate'i GÜNCELLEMİYORDU** — sheet kapanana
+   kadar (bir SONRAKİ `goScreen("game")` girişine kadar) "seçili görünüp
+   çalmıyor" penceresi vardı. Artık HER İKİ fonksiyon da `syncUploadGate()`
+   çağırıyor — G124'ün "sheet oyun ekranının üstünde açılıyor" mimarisi
+   sayesinde silme ANINDA (aynı ekranda, sheet kapanır kapanmaz) yansıyor.
+   **Playwright ile doğrulandı**: dosya silinip sheet kapanınca gate HEMEN
+   göründü (ekran görüntüsü alındı).
+2. **Beş dosya sınırında en eski düşünce onu kullanan mod ne yapıyor?**
+   ÖNCEDEN: `toolsAddFile`'ın eviction döngüsü `uploadSelections`'ı HİÇ
+   temizlemiyordu — evict edilen dosyayı kullanan modun seçimi VAR OLMAYAN
+   bir id'ye işaret etmeye devam ediyordu (bir sonraki girişte sessizce
+   temizlenirdi ama o ana kadar AYNI sessiz-hata penceresi). Artık
+   `toolsRemoveFile`'ın AYNI deseniyle (TÜM bağlamlardan temizle + `uploadManager.
+   clear()` + `syncUploadGate()`) eviction anında kapatılıyor, toast mesajı
+   HANGİ bağlamların etkilendiğini de söylüyor.
+3. **Mono dosya seçilip Stereo Genişlik'e girilirse ne oluyor?** G122'den
+   beri ÇALIŞIYOR (`mode.bufferPlayability`), bu turda GENELLENMİŞ
+   `syncUploadGate()` altında YENİDEN doğrulandı — "Bu dosya mono" mesajı
+   AYNEN korundu, davranış DEĞİŞMEDİ.
+4. **Oyun ortasında dosya değiştirilirse tur ne oluyor?** İNCELENDİ,
+   KASITLI/DOĞRU davranış olduğuna karar verildi — DÜZELTME GEREKMEDİ:
+   aktif turun sesi ZATEN kurulmuş `AudioBufferSourceNode`'a bağlı
+   (`.buffer` bir kez set edilir, DEĞİŞTİRİLEMEZ) — dosya değişse bile O
+   TURUN doğru cevabı AYNI (eski) dosyanın analiz edilmiş içeriğine göre
+   hesaplanmıştı, bu yüzden turun ESKİ dosyayla bitmesi TUTARLI/doğru;
+   YENİ dosya bir SONRAKİ turdan itibaren geçerli olur. Playwright'ta
+   doğrulandı: dosya değiştirildikten sonra aktif turun durumu
+   (`#roundChip`) BOZULMADI, sonraki soru YENİ dosyayla hatasız kuruldu.
+
+**DOĞRULAMA (Playwright, gerçek Chromium, ekran görüntüleriyle):**
+1. **Cross-mode carryover reprodüksiyonu:** Frekans Bulma'da upload+dosya
+   seçilip Kompresör'e geçildi — `sourceSelect.value==='upload'` TAŞINDI
+   (kök sebep doğrulandı), gate paneli "Bu modda henüz dosya seçmedin"
+   metniyle GÖRÜNDÜ, **`#startBtn` gate tarafından TAMAMEN GİZLENDİ**
+   (sessiz-hataya giden yol FİZİKSEL olarak kesildi — kullanıcı Play'e
+   BASAMAZ bile). Kompresör'e kendi dosyası seçilince gate KAYBOLDU, round
+   HATASIZ başladı. ✔ (ekran görüntüsü alındı)
+2. Mono dosya + Stereo Genişlik: "Bu dosya mono" gate'i, stereo seçilince
+   kayboluyor. ✔
+3. Dosya silme: aynı ekranda, sheet kapanır kapanmaz gate belirdi. ✔
+4. Oyun ortasında dosya değişimi: aktif tur bozulmadı, sonraki tur hatasız. ✔
+5. Konsol hatası: **0** (tüm senaryolar boyunca).
+6. **`npm test`: 1234/1234** (bu tur test dosyalarına dokunmadı — app.js
+   unit test kapsamı dışında, önceki turların Playwright regresyon
+   script'leri YENİDEN çalıştırıldı, ilgili kısımlar hâlâ geçiyor —
+   `#stereoUploadGate*` selector'larını kullanan ESKİ script satırları
+   rename sonrası sessizce atlanıyor, bu bir regresyon DEĞİL, sadece o
+   scratch script'lerin ismi güncel değil — YENİ script'ler `#uploadGate*`
+   ile yazıldı ve hepsi geçti).
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chrome'da yapıldı, kullanıcının
+raporunun kaynağı olan cihazda DEĞİL. `startRound()`'daki EN TEMEL guard
+(`sourceSelect.value==="upload" && !uploadManager.hasBuffer` → "Önce ses
+yükle" hatası) kod okunarak zaten DOĞRU/genel olduğu görüldü — kullanıcının
+"hiçbir uyarı yok" raporunun kesin sebebi (bu guard'ın GERÇEKTEN çalışmadığı
+mı, yoksa cihazdaki build'in G123-G125'in bir kısmını İÇERMEDİĞİ mi)
+KANITLANAMADI. Bu turun asıl katkısı, sebep NE OLURSA OLSUN sessiz-hatayı
+YAPISAL olarak İMKÂNSIZ kılan bir GÖRSEL gate — artık Play butonu gate
+kapalıyken FİZİKSEL olarak erişilemez, "arka planda bir şeyler yanlış
+gitti" durumu KALMADI.
+
+---
+
+Önceki commit (G125, `e912282`) — **kullanıcı cihaz konsolundan KANIT sundu: dosya seçimi hâlâ Araçlar'a gidiyordu. Akışın TAMAMI çıkarıldı, yükleme akışı bağlamdan tamamen ayrıştırıldı.**
 
 **KULLANICININ CİHAZ KANITI:** bir MODDAN dosya yüklendiğinde bile konsolda
 `[upload-diag] 7) Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı)
@@ -10686,20 +10806,20 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G125 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
-**YENİDEN** temiz derleme + cihaza **YENİDEN** kurulum yapmalı (bir önceki
-"temiz derleme" turu G123 ile G124 ARASINDA alınmıştı — G124/G125'i
-İÇERMİYOR olabilir, bkz. BİTTİ'nin DÜRÜSTLÜK notu) ve AYNI iki dosyayla
-(AH YALAN DÜNYA2.wav, Cankat Erdoğan Yolcu Mu Kaldı rev12.wav) tekrar
-denemeli: (1) Safari Web Inspector'dan cihaz konsoluna bağlanıp
-`[upload-context]` satırlarının HER yüklemede doğru bağlamı (mod adı,
-"tools" DEĞİL) gösterdiğini gözle teyit etmeli, (2) "Dosya seç"e basınca
-sheet'in Araçlar'a ATLAMADIĞINI (aynı ekranda kaldığını) doğrulamalı,
-(3) native `FilePicker` plugin'inin YENİ sheet konumundan (artık
-`#screen-tools` içine gömülü DEĞİL) sorunsuz açıldığını doğrulamalı,
-(4) seçilen dosyanın o modda GERÇEKTEN duyulur şekilde çaldığını
-kulaklıkla doğrulamalı (masaüstünde SADECE "hata yok" kanıtlandı, GERÇEK
-ses hiç dinlenmedi).
+**Tek sonraki adım (G126 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
+**YENİDEN** temiz derleme + cihaza **YENİDEN** kurulum yapmalı (bu turdaki
+kod DEĞİŞİKLİĞİ henüz HİÇ cihaza kurulmadı) ve şunları GERÇEK cihazda
+denemeli: (1) Kompresör'ü (ya da başka bir çok-kaynaklı modu) upload
+seçiliyken dosyasız açıp YENİ gate panelinin ("Bu modda henüz dosya
+seçmedin") göründüğünü, Play butonunun GİZLİ olduğunu doğrulamalı; (2) bir
+moddan öbürüne geçerken (Frekans Bulma → Kompresör gibi) kaynağın
+"taşındığını" ama dosyanın taşınmadığını GÖZLEMLEMELİ (bu G126'nın kapattığı
+TAM senaryo); (3) Safari Web Inspector'dan konsola bağlanıp `[upload-context]`
+satırlarının HER yüklemede doğru bağlamı gösterdiğini teyit etmeli;
+(4) "Dosya seç"e basınca sheet'in Araçlar'a ATLAMADIĞINI doğrulamalı;
+(5) seçilen dosyanın o modda GERÇEKTEN duyulur şekilde çaldığını kulaklıkla
+doğrulamalı (masaüstünde SADECE "hata yok" kanıtlandı, GERÇEK ses hiç
+dinlenmedi).
 
 **Ayrıca hâlâ açık (G124'ten):** sheet açıkken round GERÇEKTEN duraklıyor
 mu (süre/ses donuyor mu — masaüstünde timer donması doğrulandı ama GERÇEK
