@@ -98,8 +98,21 @@ export function createAudioEngine() {
       audioReady = true;
       if (onReady) onReady();
     }
-    if (audioCtx.state === "suspended") {
-      audioCtx.resume();
+    // G130 — CİHAZDA KANITLANDI ([audio-diag] günlükleri): iOS/WebKit'te
+    // AudioContext.state arka plana alınca "suspended" DEĞİL "interrupted"a
+    // düşüyor — bu SADECE "suspended" kontrol eden eski kod bunu HİÇ
+    // TANIMIYORDU, resume() hiç çağrılmıyordu. Artık "running" DIŞINDAKİ
+    // HER durumda (suspended/interrupted/gelecekte eklenebilecek başka bir
+    // durum) resume denenir — bu satır ZATEN her dokunuşta (pointerdown/
+    // touchend/click/keydown, aşağıdaki kalıcı dinleyiciler) çalıştığı için
+    // "bir sonraki dokunuşta otomatik yeniden dene" mekanizmasının KENDİSİ
+    // budur, ayrı bir dinleyiciye gerek YOK.
+    if (audioCtx.state !== "running") {
+      console.log(`[audio-diag] resume çağrılıyor (unlockAudio/dokunuş) — öncesi state=${audioCtx.state}`);
+      audioCtx.resume().then(
+        () => console.log(`[audio-diag] resume sonucu (unlockAudio/dokunuş) — state=${audioCtx.state}`),
+        (e) => console.log(`[audio-diag] resume HATA (unlockAudio/dokunuş) — ${e && e.message}`)
+      );
     }
     if (!audioUnlocked) {
       // sessiz 1 örneklik buffer — iOS kilidini kırar
@@ -117,26 +130,52 @@ export function createAudioEngine() {
     window.addEventListener(ev, unlockAudio, { once: false, passive: true });
   });
 
+  // G130 — CİHAZDA KANITLANDI: iOS'ta bir kesintiden (arka plana alma, telefon
+  // çağrısı vb.) sonra context "interrupted"a düşünce TEK bir resume()
+  // denemesi HER ZAMAN yetmiyor (cihaz günlüğünde resume() SONUCU hiç
+  // görülmemişti — eski kod "suspended" DIŞINDA hiçbir durumu tanımıyordu,
+  // resume() ÇAĞRILMIYORDU bile). Bu, üç KISA gecikmeli deneme yapan TEK,
+  // paylaşılan doğrulama fonksiyonu — `initAudio()` VE her play denemesinden
+  // ÖNCE doğrudan çağıran yerler (app.js:playQuestion, Tools/kalibrasyon play
+  // düğmeleri) TARAFINDAN kullanılır. Dönüş değeri: deneme(ler) SONUNDA
+  // context GERÇEKTEN "running" mı — çağıran taraf bunu kontrol ETMEDEN
+  // ses zinciri KURMAMALI (eski "sessiz başarısızlık" — state hâlâ
+  // interrupted'ken bile "zincir kuruldu, play başladı" yazması — buradan
+  // kapatılıyor, bkz. app.js'in KENDİ guard'ı).
+  const RESUME_RETRY_DELAYS_MS = [0, 150, 400];
+  async function ensureAudioRunning() {
+    if (!audioCtx) return false;
+    for (let i = 0; i < RESUME_RETRY_DELAYS_MS.length; i++) {
+      if (audioCtx.state === "running") return true;
+      if (RESUME_RETRY_DELAYS_MS[i] > 0) await new Promise((r) => setTimeout(r, RESUME_RETRY_DELAYS_MS[i]));
+      if (audioCtx.state === "running") return true; // gecikme sırasında statechange ile kendi kendine düzelmiş olabilir
+      const before = audioCtx.state;
+      const t0 = performance.now();
+      console.log(`[audio-diag] resume çağrılıyor (deneme ${i + 1}/${RESUME_RETRY_DELAYS_MS.length}) — öncesi state=${before}`);
+      try {
+        await audioCtx.resume();
+        console.log(`[audio-diag] resume sonucu (deneme ${i + 1}) — ${(performance.now() - t0).toFixed(0)}ms sonra state=${audioCtx.state}`);
+      } catch (e) {
+        console.log(`[audio-diag] resume HATA (deneme ${i + 1}) — ${e && e.message}`);
+      }
+    }
+    const finalOk = audioCtx.state === "running";
+    if (!finalOk) console.log(`[audio-diag] resume BAŞARISIZ (${RESUME_RETRY_DELAYS_MS.length} deneme sonrası) — son state=${audioCtx.state}`);
+    return finalOk;
+  }
+
   // [audio-diag] Araçlar/kalibrasyon/A-B önizleme dahil, `initAudio()`'dan
   // geçen HER çalma denemesi burada tek kontrol noktasından loglanır (bkz.
   // ayrıca app.js:playQuestion'ın KENDİ ayrı log'u — o bu fonksiyonu
-  // ÇAĞIRMIYOR, resume'u doğrudan kendisi yapıyor).
+  // ÇAĞIRMIYOR, ensureAudioRunning()'i doğrudan kendisi çağırıyor). Dönüş
+  // değeri (G130) — çağıran ARTIK isterse context'in GERÇEKTEN running
+  // olduğunu doğrulayabilir.
   async function initAudio() {
     unlockAudio();
     if (audioCtx) {
       console.log(`[audio-diag] play denemesi (initAudio) — state=${audioCtx.state}, currentTime=${audioCtx.currentTime.toFixed(2)}`);
     }
-    if (audioCtx && audioCtx.state === "suspended") {
-      const before = audioCtx.state;
-      const t0 = performance.now();
-      console.log(`[audio-diag] resume çağrılıyor (initAudio) — öncesi state=${before}`);
-      try {
-        await audioCtx.resume();
-        console.log(`[audio-diag] resume tamamlandı (initAudio) — ${(performance.now() - t0).toFixed(0)}ms sonra state=${audioCtx.state}`);
-      } catch (e) {
-        console.log(`[audio-diag] resume HATA (initAudio) — ${e && e.message}`);
-      }
-    }
+    return await ensureAudioRunning();
   }
 
   // --- ses efektleri: doğru = ding, yanlış = buzz ---
@@ -595,6 +634,7 @@ export function createAudioEngine() {
   return {
     unlockAudio,
     initAudio,
+    ensureAudioRunning,
     sfxDing,
     sfxBuzz,
     muteOutput,

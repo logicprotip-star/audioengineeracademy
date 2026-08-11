@@ -422,6 +422,7 @@ const els = {
   gameLoopCaption: document.getElementById("gameLoopCaption"),
   gameSpectrumControls: document.getElementById("gameSpectrumControls"),
   audioErrorRow: document.getElementById("audioErrorRow"),
+  audioErrorText: document.getElementById("audioErrorText"),
   audioErrorRetry: document.getElementById("audioErrorRetry"),
   audioLoadingRow: document.getElementById("audioLoadingRow"),
   gameM2HintUsedRow: document.getElementById("gameM2HintUsedRow"),
@@ -4547,7 +4548,13 @@ function submitProPlusGuess() {
 // cakisma dalı + normal dal, bkz. aşağıda) sampleLoadFailed'e göre
 // `#startBtn`'i de senkronize ediyor — `#audioErrorRow` banner'ıyla AYNI
 // yaşam döngüsü, ayrı bir state değişkeni İCAT EDİLMEDİ.
-function showAudioError() {
+// G130 — message parametresi EKLENDİ (varsayılan ESKİ metinle BİREBİR aynı,
+// mevcut çağıran — sampleLoadFailed dalı — davranışı DEĞİŞMEDİ). Yeni
+// çağıran (playQuestion'ın ensureAudioRunning guard'ı) KENDİ, daha doğru
+// metnini geçiyor — "Ses yüklenemedi" ile "Ses açılamadı" farklı GERÇEK
+// durumlar, aynı banner'ı paylaşmaları kullanıcıyı YANLIŞ yönlendirmesin.
+function showAudioError(message = "Ses yüklenemedi") {
+  if (els.audioErrorText) els.audioErrorText.textContent = message;
   if (els.audioErrorRow) els.audioErrorRow.classList.remove("hidden");
   if (els.startBtn) els.startBtn.classList.add("warning");
 }
@@ -4594,24 +4601,25 @@ async function playQuestion(processed = true) {
     audioDiagLog("görünür olduktan sonra İLK play denemesi", `${(performance.now() - audioVisibleSinceAt).toFixed(0)}ms geçti`);
     audioVisibleSinceAt = null;
   }
-  // Dayanıklılık taraması (kod tarafı) — ÖNCEDEN resume() burada AWAIT
-  // EDİLMİYORDU (ateşle-unut, senkron try/catch async reddi hiç yakalamazdı).
-  // iOS'ta cihazda görülen "sessiz aç/kapa sonrası ses gelmiyor" hatasının en
-  // olası kod-tarafı katkısıydı — context suspended kalırsa hiçbir yerde
-  // fark edilmiyordu, "Sonraki"ye basmak AYNI doğrulanmamış resume'u
-  // tekrarlayıp aynı sessizliği sürdürüyordu.
-  if (audioEngine.audioCtx && audioEngine.audioCtx.state === "suspended") {
-    const before = audioEngine.audioCtx.state;
-    const t0 = performance.now();
-    audioDiagLog("resume çağrılıyor (playQuestion)", `öncesi state=${before}`);
-    try {
-      await audioEngine.audioCtx.resume();
-      audioDiagLog("resume tamamlandı (playQuestion)", `${(performance.now() - t0).toFixed(0)}ms sonra state=${audioEngine.audioCtx.state}`);
-    } catch (e) {
-      console.error("[audio] resume hatası:", e);
-      audioDiagLog("resume HATA (playQuestion)", `${e && e.message}`);
-    }
+  // G130 — CİHAZDA KANITLANDI (bkz. DURUM.md): iOS'ta arka plana alınca
+  // context "interrupted"a düşüyor, TEK bir resume() denemesi HER ZAMAN
+  // yetmiyor. ÖNCEDEN burada SADECE "suspended" kontrol edilip TEK sefer
+  // resume() denenirdi ("interrupted" hiç tanınmıyordu, bkz. G128'in
+  // yarım kalan düzeltmesi) VE sonuç DOĞRULANMADAN zincir kurulurdu — bu
+  // "sessiz başarısızlık"tı: cihaz günlüğünde "zincir kuruldu, play
+  // başladı" yazıyordu ama context hâlâ interrupted'tı, ses HİÇ duyulmuyordu.
+  // Artık audioEngine.ensureAudioRunning() (kısa gecikmeli BİRKAÇ deneme,
+  // audio-engine.js) çağrılıyor VE SONUCU DOĞRULANIYOR — running değilse
+  // zincir HİÇ KURULMUYOR, kullanıcıya anlaşılır bir uyarı + "Tekrar dene"
+  // gösteriliyor (mevcut #audioErrorRow banner'ı, sampleLoadFailed'in
+  // KULLANDIĞI AYNI mekanizma).
+  const running = await audioEngine.ensureAudioRunning();
+  if (!running) {
+    audioDiagLog("play İPTAL — audioCtx running değil", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "yok"}`);
+    showAudioError("Ses açılamadı — ekrana dokunup tekrar deneyin");
+    return;
   }
+  hideAudioError();
   currentPlayMode = processed ? "filtered" : "clean";
   // G51: Motor 3 — TEK-kaynak buildQuestionChain'in YERİNE buildDualSourceChain
   // (bkz. audio-engine.js). Diğer sekiz modda activeQuestion.mode hiçbir zaman
@@ -6531,20 +6539,16 @@ document.addEventListener("visibilitychange", async () => {
     // item 4 — "görünür olduktan sonra ilk play denemesine kadar geçen
     // süre" için başlangıç damgası (playQuestion'da okunup loglanır).
     audioVisibleSinceAt = performance.now();
-    if (ctxV && ctxV.state === "suspended") {
-      // Dayanıklılık taraması — AWAIT edilmeyen resume() düzeltildi (bkz.
-      // playQuestion'daki AYNI not).
-      const before = ctxV.state;
-      const t0 = performance.now();
-      audioDiagLog("resume çağrılıyor (visibilitychange)", `öncesi state=${before}`);
-      try {
-        await ctxV.resume();
-        audioDiagLog("resume tamamlandı (visibilitychange)", `${(performance.now() - t0).toFixed(0)}ms sonra state=${ctxV.state}`);
-      } catch (e) {
-        console.error("[audio] resume hatası:", e);
-        audioDiagLog("resume HATA (visibilitychange)", `${e && e.message}`);
-      }
-    }
+    // G130 — CİHAZDA KANITLANDI: "suspended" DEĞİL "interrupted" (iOS'a
+    // özgü) olduğu için eski kontrol HİÇ ÇALIŞMIYORDU. Artık playQuestion'ın
+    // KULLANDIĞI AYNI paylaşılan/birkaç-denemeli fonksiyon çağrılıyor — bu
+    // görünür-olma anında context henüz kendini toparlamamış olabilir
+    // (WebKit'in KENDİ iç gecikmesi), kısa aralıklı tekrar denemeler bunu
+    // yakalar. Sonuç burada KULLANILMIYOR (bir sonraki play denemesi
+    // ZATEN kendi ensureAudioRunning()'ini çağırıp doğrulayacak) — bu
+    // SADECE "kullanıcı geri döner dönmez, ilk dokunuştan ÖNCE bile"
+    // context'i olabildiğince ERKEN toparlamaya çalışan bir ön-ısınma.
+    if (ctxV) audioEngine.ensureAudioRunning();
   }
   // G61 (PAYWALL.md): "30 dakikada 1 can" — ön plana HER dönüşte yeniden
   // hesaplanır (arka planda geçirilen GERÇEK süre burada devreye girer, bu
@@ -7327,8 +7331,21 @@ function calLevelToGain(pct) {
 }
 
 async function startCalibrationTone(requestId) {
-  await audioEngine.initAudio();
+  // G130 — diğer play yollarıyla AYNI doğrulama: initAudio() artık context
+  // GERÇEKTEN "running" mı diye BİRKAÇ deneme sonrası dönüş değeriyle
+  // bildiriyor — değilse ton hiç BAŞLATILMIYOR (eskiden sessizce "başladı"
+  // sanılıp hiç duyulmuyordu).
+  const running = await audioEngine.initAudio();
   if (requestId !== calRequestId) return; // bu arada durduruldu/başka istek geldi
+  if (!running) {
+    // calPlaying/düğme durumu çağıran tarafta (els.calPlayBtn'in click
+    // dinleyicisi) ÖNCEDEN "çalıyor" gibi ayarlanmıştı — stopCalibrationTone()
+    // hem bunu hem düğme metnini/animasyonunu doğru DURUMA geri döndürür
+    // (calOsc/calGain null'ken de GÜVENLİ, kendi guard'ları var).
+    stopCalibrationTone();
+    toast("Ses açılamadı", "Ekrana dokunup tekrar deneyin.");
+    return;
+  }
   const ctx = audioEngine.audioCtx;
   const analyser = audioEngine.analyser;
   if (!ctx || !analyser) return;
@@ -9291,7 +9308,13 @@ async function toolsTonalToggleRefPlayback() {
   // dosya-okuma hatası kullanıcıya HİÇBİR ŞEY göstermeden düğmeyi sessizce
   // tepkisiz bırakırdı).
   try {
-    await audioEngine.initAudio();
+    // G130 — diğer play yollarıyla AYNI doğrulama: running değilse burada
+    // dur, dosya decode/yükleme boşuna yapılmasın.
+    const running = await audioEngine.initAudio();
+    if (!running) {
+      toast("Ses açılamadı", "Ekrana dokunup tekrar deneyin.");
+      return;
+    }
     const ctx = audioEngine.audioCtx;
     if (tonalRefLoadedSourceFileId !== ref.sourceFileId) {
       let fileObj = libEntry.file;
@@ -10325,15 +10348,25 @@ function renderToolsMixPlayer(entry) {
 }
 async function toolsToggleFilterPlayback() {
   if (!uploadManager.hasBuffer) return;
-  await audioEngine.initAudio();
+  const running = await audioEngine.initAudio();
   const ctx = audioEngine.audioCtx, analyser = audioEngine.analyser;
   if (!ctx || !analyser) return;
   if (toolsFilterPlaying) {
+    // Durdurma her zaman güvenli — running olması GEREKMEZ (context zaten
+    // interrupted'sa çalan bir şey de yoktur, ama UI'ı "duraklatılmış"
+    // durumuna geri döndürmek her koşulda doğru).
     uploadManager.pausePlayback();
     if (toolsFilterPreviewNode) { try { toolsFilterPreviewNode.stop(); } catch (e) {} toolsFilterPreviewNode = null; }
     toolsDisconnectFilterChain(); // G117 — filtre/solo node'ları da temizlenir
     toolsFilterPlaying = false;
   } else {
+    // G130 — YENİ çalmaya BAŞLARKEN context running değilse (bkz.
+    // playQuestion'daki AYNI not) zincir hiç KURULMASIN.
+    if (!running) {
+      toast("Ses açılamadı", "Ekrana dokunup tekrar deneyin.");
+      renderToolsFilterPlayer();
+      return;
+    }
     toolsFilterPreviewGain = toolsFilterPreviewGain || ctx.createGain();
     toolsFilterPreviewGain.gain.value = 0.85;
     toolsFilterPreviewGain.connect(analyser);

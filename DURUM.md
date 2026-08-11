@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G129)
+Son güncelleme: 11.08.2026 (G130)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,36 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G129) — **Ses oturumu KALICI teşhis günlüğü eklendi (task'ın kendi kuralı: DÜZELTME YOK, sadece görünürlük) — G128'in `resume()`-await düzeltmesi sorunu TAM kapatmadı, cihazda hâlâ "arka plana atıp geri dönünce ses kesiliyor, bazen 'atla' düzeltmiyor" (TUTARSIZ/zamanlamaya bağlı) görülüyor.**
+Bu commit (G130) — **Ses oturumu hatasının KÖK SEBEBİ cihaz günlüğüyle KANITLANDI ve DÜZELTİLDİ: iOS/WebKit'te arka plana alınca AudioContext.state "suspended" DEĞİL "interrupted"a düşüyor, eski kod bunu hiç tanımıyordu.**
+
+**CİHAZ KANITI (G129'un [audio-diag] günlüğünden, kullanıcının verdiği ham çıktı):**
+```
+statechange — running → interrupted (currentTime=4.90)
+...
+play denemesi (playQuestion) — state=interrupted, currentTime=4.90
+zincir kuruldu, play başladı — state=interrupted, sampleLoadFailed=false
+```
+İki kök sebep: (1) `state==="suspended"` kontrolü `"interrupted"`ı hiç yakalamıyordu — resume() TEK BİR KEZ bile çağrılmıyordu (günlükte hiç "resume çağrıldı" satırı YOK); (2) resume denense bile SONUCU doğrulanmadan zincir kuruluyordu — "zincir kuruldu, play başladı" yazması bunu SESSİZCE gizliyordu, currentTime 4.90'da donmuş durumda.
+
+**DÜZELTME:**
+1. **`core/audio-engine.js`** — YENİ paylaşılan `ensureAudioRunning()`: `state !== "running"` (SADECE "suspended" değil — "interrupted" DAHİL her durumu kapsar) iken 3 kısa gecikmeli deneme yapar (0/150/400ms), HER denemeyi ve SONUCUNU loglar, sonunda `true`/`false` döner (context GERÇEKTEN running mi). `initAudio()` artık bunu kullanıyor ve dönüş değerini YUKARI iletiyor (ÖNCEDEN hiçbir şey döndürmüyordu — geriye dönük UYUMLU, önceki hiçbir çağıran dönüş değerini okumuyordu).
+2. **`unlockAudio()`'nun HER dokunuşta çalışan (pointerdown/touchend/click/keydown) inline resume kontrolü** de `!=="running"` yapıldı — bu ZATEN her dokunuşta çalıştığı için "bir sonraki dokunuşta otomatik yeniden dene" mekanizmasının KENDİSİ (ayrı bir dinleyici EKLENMEDİ, task'ın istediği davranış zaten VARDI, sadece "interrupted"ı tanımıyordu).
+3. **`app.js:playQuestion()`** — SONUCU DOĞRULANMADAN zincir kurma sorunu KAPATILDI: `ensureAudioRunning()` çağrılır, `false` dönerse `showAudioError("Ses açılamadı — ekrana dokunup tekrar deneyin")` gösterilir ve **zincir HİÇ kurulmaz** (`return`) — mevcut `#audioErrorRow`/`#audioErrorRetry` banner'ı (sampleLoadFailed'in ZATEN kullandığı, çalışan bir "Tekrar dene" düğmesi olan mekanizma) yeniden kullanıldı; banner metni artık PARAMETRELİ (`showAudioError(message)`, varsayılan ESKİ metinle aynı — sampleLoadFailed çağrısı DEĞİŞMEDİ).
+4. **`visibilitychange`** — artık `ensureAudioRunning()`'i (retry'lı) çağırıyor, SADECE tek-seferlik "suspended" kontrolü değil.
+5. **Diğer doğrudan "play" giriş noktaları** (`startCalibrationTone`, `toolsToggleFilterPlayback`'in ÇALMAYA BAŞLAMA dalı, `toolsTonalToggleRefPlayback`) — hepsi `initAudio()`'nun dönüş değerini kontrol edip `false`ken zincir/ton BAŞLATMIYOR, kullanıcıya toast gösteriyor. Kalibrasyonda `calPlaying`/düğme durumu da `stopCalibrationTone()` ile doğru "duraklatılmış" hâle geri alınıyor (ÖNCEDEN "çalıyor" gibi TAKILI kalabilirdi).
+6. **`[audio-diag]` günlükleri KORUNDU** (task'ın kendi kuralı) — artık resume denemelerinin SONUCUNU da (her deneme numarasıyla + son "BAŞARISIZ" özetiyle) yazıyorlar.
+
+**DOĞRULAMA (masaüstünde ÜRETİLEMEZ gerçek "interrupted" durumu — task'ın kendi notu — bu yüzden Playwright'ta `AudioContext.prototype.resume`'u geçici olarak "resolve eder ama GERÇEKTE resume etmez" şekilde STUB'layıp context'i `suspend()` ile GERÇEKTEN durdurarak "resume asla başarılı olmuyor" senaryosu simüle edildi — "interrupted"ın KENDİSİ değil ama "resume kalıcı olarak başarısız" davranışı BİREBİR aynı, kodun tepkisi state adından BAĞIMSIZ):**
+- Normal oynatma: `state=running`, hata banner'ı YOK. ✓
+- Simüle edilmiş kalıcı resume başarısızlığı: 3 deneme + "resume BAŞARISIZ" + "play İPTAL" günlüğe yazıldı, `state` GERÇEKTEN `suspended` KALDI (sahte "başladı" YOK), `#audioErrorRow` "Ses açılamadı — ekrana dokunup tekrar deneyin" metniyle GÖRÜNÜR oldu. ✓
+- "Tekrar dene"ye basılıp resume TEKRAR çalışır hale getirilince: `state=running`, banner KAYBOLDU, round normal devam etti. ✓
+- **Konsol hatası: 0.** `npm test`: **1245/1245 GEÇTİ.**
+
+**DOĞRULANMADI (task'ın kendi notu):** Bu senaryonun GERÇEK cihazda (gerçek `interrupted` durumu, gerçek WebKit davranışı) çözdüğü — sadece simüle edilmiş bir "resume hiç işe yaramıyor" durumuyla kod YOLUNUN doğru çalıştığı kanıtlandı. `[audio-diag]` günlükleri hâlâ KALICI — bir sonraki cihaz turunda "interrupted"tan sonra artık kaç deneme yapıldığı, hangisinin işe yaradığı (ya da hiçbirinin yaramadığıysa banner'ın GERÇEKTEN göründüğü) görülebilecek.
+
+---
+
+Önceki commit (G129) — **Ses oturumu KALICI teşhis günlüğü eklendi (task'ın kendi kuralı: DÜZELTME YOK, sadece görünürlük) — G128'in `resume()`-await düzeltmesi sorunu TAM kapatmadı, cihazda hâlâ "arka plana atıp geri dönünce ses kesiliyor, bazen 'atla' düzeltmiyor" (TUTARSIZ/zamanlamaya bağlı) görülüyor.**
 
 **EKLENEN GÜNLÜKLER (`[audio-diag]` öneki, tek satır format):**
 1. **`core/audio-engine.js:unlockAudio()`** — `audioCtx` oluşturulur oluşturulmaz `audioCtx.onstatechange` dinleyicisi eklendi: HER durum geçişinde (`suspended`/`running`/`closed`, WebKit'e özgü `interrupted` DAHİL) eski→yeni durumu + `currentTime`'ı loglar. Bu, telefon çağrısı/Siri/başka bir uygulamanın ses oturumunu ele alması gibi cihaza özgü kesintileri YAKALAYABİLECEK TEK güvenilir sinyal.
@@ -10985,14 +11014,18 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G129 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
-temiz derleme + cihaza kurulum sonrası, yukarıdaki G129 kaydının
-"TEKRARLAMA ADIMLARI" senaryosunu (moda gir → arka plana at → başka
-uygulamada ses çal → geri dön → play/atla dene) Safari Web Inspector
-konsolu BAĞLIYKEN tekrarlamalı ve `[audio-diag]` satırlarını (özellikle
-`statechange` ve `resume` çevresindeki state/süre bilgilerini) buraya
-yapıştırmalı — DÜZELTME BU TURDA YAPILMADI, sadece teşhis; kök sebep bu
-günlüklerden GÖRÜLDÜKTEN sonra bir sonraki turda düzeltilecek.
+**Tek sonraki adım (G130 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
+temiz derleme + cihaza kurulum sonrası, G129'un AYNI "TEKRARLAMA
+ADIMLARI" senaryosunu (moda gir → arka plana at → başka uygulamada ses
+çal → geri dön → play/atla dene) TEKRAR denemeli: (1) ses artık GERÇEKTEN
+geri geliyor mu (bu turun asıl hedefi); (2) gelmiyorsa, `[audio-diag]`
+günlüğünde 3 resume denemesinin HEPSİ mi başarısız oluyor yoksa hiç mi
+tetiklenmiyor (kök sebep hâlâ FARKLI bir kod yolunda olabilir);
+(3) `#audioErrorRow` banner'ı ("Ses açılamadı — ekrana dokunup tekrar
+deneyin") GERÇEKTEN görünüyor mu, "Tekrar dene" düğmesi basılınca ses
+GERÇEKTEN geri geliyor mu. Bu madde SADECE simüle edilmiş bir senaryoyla
+(masaüstü) doğrulandı — gerçek cihaz/gerçek "interrupted" durumuyla HİÇ
+denenmedi.
 
 **Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli
