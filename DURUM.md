@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G123)
+Son güncelleme: 11.08.2026 (G124)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,77 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G123, `e171e23`) — **dosya seçimi mod başına ayrıldı (kullanıcının kendi kararı) + Frekans Bulma'nın "kendi dosyam" seçim hatası kök sebebinden düzeltildi.**
+Bu commit (G124, `d1f576b`) — **Dosyalarım sheet'i moddan açılınca kullanıcıyı Araçlar sekmesine atıyordu — sheet uygulama seviyesine taşındı, artık ekran DEĞİŞMİYOR.**
+
+**SORUN (kullanıcının kendi tarifi):** G123'te bir modda "kendi dosyam"
+seçilince Dosyalarım sheet'i açılıyordu ama uygulama Araçlar sekmesine
+geçiyordu — kullanıcı oyunun içindeyken başka bir sekmeye atılıyor, akış
+bozuluyordu.
+
+**KÖK SEBEP:** Dosyalarım sheet'i (`#toolsFilesOverlay`/`#toolsFilesSheet`)
+DOM'da `#screen-tools` İÇİNE gömülüydü. `.screen{display:none}` (sadece
+`.active` olan ekran görünür) — Araçlar `.active` DEĞİLKEN (ör. bir modun
+oyun ekranındayken) sheet'in KENDİ `position:fixed`/"open" class'ı hiçbir
+işe yaramıyordu, ATASI `display:none` olduğu için eleman HİÇ render
+edilmiyordu. G122/G123'te bu YÜZDEN her mod-bağlamlı açılış (Kaynak
+sheet'inin "Dosya seç" satırı, Oyun Ayarları'nın upload satırı, Stereo
+Genişlik'in gate butonu) ÖNCE `goScreen("tools")` ile Araçlar'a geçmek
+ZORUNDAYDI — geçici bir çözümdü, kullanıcının şimdi bildirdiği "sekme
+atlaması" TAM OLARAK bunun sonucuydu.
+
+**ÇÖZÜM:** sheet, `#settingsSheet`'in (Kaynak/Zorluk sheet'i) ZATEN
+kullandığı desenle `<body>`'nin DOĞRUDAN çocuğuna taşındı (`index.html`,
+DOM/ID'ler TEK SATIR değişmedi — SADECE konumu). Artık `goScreen()` HİÇ
+ÇAĞRILMIYOR — sheet hangi ekranda olursak olalım ÜSTÜNDE açılıyor, sekme
+DEĞİŞMİYOR. `app.js`'te `openFilesSheetForContext`'in `goScreen("tools")`
+satırı kaldırıldı.
+
+**ROUND DURAKLATMA/DEVAM (task'ın açıkça istediği):** `openFilesSheetForContext`
+artık bir MOD bağlamından (Araçlar DEĞİL) açılıyorsa VE aktif bir tur
+GERÇEKTEN çalışıyorsa (kullanıcı ZATEN Durdur'a basmadıysa) `pauseRound()`'u
+(startBtn'in "Durdur" butonuyla AYNI mekanizma — sesi mute eder, zamanlayıcıyı
+durdurur, bekleyen otomatik-geçiş süresini biriktirir) çağırıyor. `resumeRound()`
+(YENİ — `startBtn`'in "Tekrar Çal" dalından ÇIKARILDI, kod TEKRARI yok)
+sheet kapanınca (`toolsCloseFilesSheet`, hem X'e basılsın hem bir dosya
+seçilsin, HER ikisi de aynı fonksiyonu çağırıyor) kaldığı yerden devam
+ettiriyor. Kullanıcı ZATEN Durdur'a basmışsa (`autoStopped` true) BU
+mekanizma HİÇ tetiklenmiyor — sheet kapanınca yine duraklatılmış kalıyor,
+kullanıcının kendi kararı EZİLMİYOR. Ayrıca: `toolsOpenFilesSheet()` artık
+gerçekten açılıp açılmadığını (paywall kilidiyle erken dönebiliyor) boolean
+döndürüyor — sheet HİÇ açılmadıysa tur HİÇ duraklatılmıyor (aksi halde
+"sonsuz duraklatma" riski olurdu).
+
+**YAN DÜZELTME:** `toolsSetBackgroundScrollLocked` (G105/G109'un iOS
+touch-scroll sızıntı önlemi) artık sabit `.tools-scroll` YERİNE O AN aktif
+olan ekranın KENDİ `.scroll` bölgesini kilitliyor — Araçlar'dan açılışta
+davranış BİREBİR AYNI kaldı, bir moddan açılışta ARTIK o modun kendi oyun
+ekranı kilitleniyor (aynı iOS bug'ına karşı aynı korumanın genellemesi).
+
+**DOĞRULAMA (Playwright, gerçek Chromium, ekran görüntüleriyle):**
+1. **Frekans Bulma'da round başlatılıp Kaynak sheet'inden "Dosya seç"e
+   basılınca:** aktif ekran `screen-game`'de KALDI (sheet açılmadan ÖNCE
+   ve açıkken AYNI), Dosyalarım sheet'i oyun ekranının (spektrum/kontroller
+   görünür, karartılmış) ÜSTÜNDE açıldı — ekran görüntüsüyle doğrulandı. ✔
+2. **Sheet açıkken süre DONDU:** 1.5sn boyunca `#timerText` DEĞİŞMEDİ
+   (12.5s → 12.5s). ✔
+3. **Sheet kapanınca (dosya seçilip):** aynı ekranda (`screen-game`) kalındı,
+   round durumu (`#roundChip`: "Soru 1/10") KORUNDU, süre TEKRAR AZALMAYA
+   başladı (9.9s → 8.3s, 3sn içinde). ✔
+4. **Pan Konumu ve Stereo Genişlik'te AYNI davranış** doğrulandı (Stereo
+   Genişlik'in gate butonundan açılışta da ekran hiç değişmedi, dosya
+   seçildikten sonra gate kayboldu/oynanabilir oldu). ✔
+5. **Araçlar'dan açıldığında ESKİSİ GİBİ çalışıyor:** ekran `screen-tools`'ta
+   kaldı (zaten oradaydı), sheet AYNI şekilde açıldı — ekran görüntüsüyle
+   doğrulandı, regresyon yok. ✔
+6. Konsol hatası: **0** (tüm senaryolar boyunca).
+7. **`npm test`: 1234/1234** (bu tur test dosyalarına DOKUNMADI — DOM
+   taşıma + app.js akış değişikliği, mevcut testlerin hiçbiri app.js'i
+   import etmiyor; G123'ün Playwright doğrulama script'leri regresyon
+   kontrolü olarak TEKRAR çalıştırıldı, hepsi hâlâ geçiyor).
+
+---
+
+Önceki commit (G123, `e171e23`) — **dosya seçimi mod başına ayrıldı (kullanıcının kendi kararı) + Frekans Bulma'nın "kendi dosyam" seçim hatası kök sebebinden düzeltildi.**
 
 **SORUN (kullanıcının kendi tarifi):** G121'de Stereo Genişlik Araçlar'ın
 dosya kütüphanesine bağlanınca, TEK bir "seçili dosya" durumu ortaya çıktı —
@@ -10506,18 +10576,25 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G123 itibarıyla):** kullanıcı Xcode'da temiz derleme +
-cihaza yeniden kurulum sonrası GERÇEK cihazda (native `FilePicker` plugin'i
-dahil) doğrulamalı: (1) Araçlar'da bir dosya seç, farklı bir modda (ör.
-Frekans Bulma) BAŞKA bir dosya seç, ikisi de korunuyor mu; (2) uygulamayı
-TAMAMEN kapat/yeniden aç, iki seçim de hatırlanıyor mu; (3) Frekans Bulma'nın
-Kaynak sheet'inden "Dosya seç"e basınca native dosya seçici (ya da Dosyalarım
-sheet'i) DÜZGÜN açılıyor mu — bu akış artık `goScreen("tools")` üzerinden
-gidiyor, masaüstünde test edildi ama cihazdaki native picker'ın Araçlar
-ekranına geçtikten SONRA açılması hiç DENENMEDİ. Bu turda SADECE masaüstü
-Chrome/Playwright'ta (gerçek WAV dosyaları, sayfa yenilemeyle simüle edilen
-"uygulama yeniden başlatma", 0 konsol hatası) doğrulama yapıldı (bkz. G123
-BİTTİ'nin DÜRÜSTLÜK notu).
+**Tek sonraki adım (G124 itibarıyla):** kullanıcı Xcode'da temiz derleme +
+cihaza yeniden kurulum sonrası GERÇEK cihazda doğrulamalı: (1) bir modda
+"Dosya seç"e basınca sheet oyun ekranının ÜSTÜNDE açılıyor mu (Araçlar
+sekmesine ATLAMADIĞINI, tab bar'ın görünmediğini gözle teyit et), (2) native
+`FilePicker` plugin'i bu YENİ konumdan (artık `#screen-tools` içine gömülü
+DEĞİL, `<body>` doğrudan çocuğu) sorunsuz açılıyor mu, (3) sheet açıkken
+round GERÇEKTEN duraklıyor mu (süre/ses donuyor mu — masaüstünde timer
+donması doğrulandı ama GERÇEK sesin cihazda duyulur şekilde susup
+susmadığı denenmedi), (4) sheet kapanınca ses/süre kaldığı yerden devam
+ediyor mu. Bu turda SADECE masaüstü Chrome/Playwright'ta (ekran
+görüntüleriyle, 0 konsol hatası) doğrulama yapıldı (bkz. G124 BİTTİ'nin
+DÜRÜSTLÜK notu — audio pause'un GERÇEKTEN duyulur olduğu kulakla hiç
+doğrulanmadı, sadece muteGain/timer durumu ölçüldü).
+
+**Ayrıca hâlâ açık (G123'ten):** kullanıcı Xcode'da temiz derleme + cihaza
+yeniden kurulum sonrası GERÇEK cihazda (native `FilePicker` plugin'i dahil)
+doğrulamalı: Araçlar'da bir dosya seç, farklı bir modda (ör. Frekans Bulma)
+BAŞKA bir dosya seç, ikisi de korunuyor mu; uygulamayı TAMAMEN kapat/yeniden
+aç, iki seçim de hatırlanıyor mu.
 
 **Ayrıca hâlâ açık (G122'den):** kullanıcı Xcode'da temiz derleme + cihaza
 yeniden kurulum sonrası GERÇEK bir şarkı dosyası yükleyip Stereo Genişlik'i
