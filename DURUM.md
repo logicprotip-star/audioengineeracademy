@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G133)
+Son güncelleme: 11.08.2026 (G134)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,33 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G133) — **CİHAZDA G132 SONRASI TEST EDİLDİ: mekanizmanın KENDİSİ DOĞRU çalışıyordu, sorun 3 spesifik sınırdı — hepsi kapatıldı.**
+Bu commit (G134) — **KÖK SEBEP BULUNDU: G132'nin AudioSessionPlugin'i HİÇ KAYITLI DEĞİLDİ. Kullanıcının kanıtı: `Capacitor.PluginHeaders` (Safari konsolu) 10 eklenti listeliyordu, AudioSessionPlugin YOKTU — temiz derleme + `cap sync` sonrası bile.**
+
+**TEŞHİS (kullanıcının kendi araştırması, doğrulandı):** proje SPM kullanıyor ve eklenti bir npm paketi DEĞİL, App target'ının İÇİNDE bir Swift dosyası. `CAPBridgedPlugin` uygunluğu (identifier/jsName/pluginMethods TAM olsa BİLE) Capacitor 6+'da TEK BAŞINA otomatik keşif SAĞLAMIYOR — Capacitor'ın KENDİ belgelediği yol: `CAPBridgeViewController`'ı alt sınıflayıp `capacitorDidLoad()` içinde `registerPluginInstance()` ile ELLE kaydetmek. AYRICA JS tarafı `window.Capacitor.Plugins.X` üzerinden okuyordu — native kayıt TEK BAŞINA bunu doldurmuyor, JS tarafında da `Capacitor.registerPlugin(jsName)` ÇAĞRILMASI gerekiyor.
+
+**UYGULANAN:**
+1. **`ios/App/App/MainViewController.swift`** (YENİ) — `CAPBridgeViewController` alt sınıfı, `capacitorDidLoad()` içinde `bridge?.registerPluginInstance(AudioSessionPlugin())`.
+2. **`ios/App/App/Base.lproj/Main.storyboard`** — view controller'ın `customClass`ı `CAPBridgeViewController`/`Capacitor` → `MainViewController`/`App`.
+3. **`project.pbxproj`** — yeni dosya elle wire edildi (aynı desen, G132'deki gibi) — `plutil -lint` ile doğrulandı.
+4. **`core/audio-engine.js`** — `getAudioSessionPlugin()` artık `window.Capacitor.Plugins.X`'i PASİF okumuyor, `window.Capacitor.registerPlugin("AudioSessionPlugin")`'i AKTİF çağırıp SONUCU saklıyor (proje bundler kullanmıyor — `@capacitor/core` import'u DEĞİL, native köprünün enjekte ettiği GLOBAL fonksiyon). SADECE `getPlatform()==="ios"` iken denenir — Android'de (plugin orada hiç yok, native kayıt da yapılmadı) eski "plugin BULUNAMADI, hiç deneme" davranışı BİREBİR korunuyor.
+
+**DOĞRULAMA — bu turda İLK KEZ gerçek bir iOS Simulator'da ÇALIŞTIRILDI (sadece `xcodebuild` derlemesi değil):**
+- `xcodebuild ... build` → **BUILD SUCCEEDED** (`override open func capacitorDidLoad()` imzası superclass'la eşleşmezse bu derleme HATASI verirdi — güçlü bir derleme-zamanı kanıt).
+- Uygulama simulator'e kurulup (`xcrun simctl install`) ÇALIŞTIRILDI (`xcrun simctl launch --console-pty`) — **konsol çıktısı GERÇEKTEN şunu gösterdi:**
+  ```
+  [audio-diag-native] AVAudioSession etkinleştirildi (load) — kategori=AVAudioSessionCategoryPlayback
+  ⚡️  Loading app at capacitor://localhost...
+  [audio-diag-native] AVAudioSession etkinleştirildi (didBecomeActive) — kategori=AVAudioSessionCategoryPlayback
+  ```
+  Bu, plugin'in GERÇEKTEN örneklendiğini, `load()`'unun ÇALIŞTIĞINI, VE `UIApplication.didBecomeActiveNotification` dinleyicisinin GERÇEKTEN tetiklendiğini KANITLIYOR — G132'de SADECE "derleniyor" biliniyordu, bu turda İLK KEZ "GERÇEKTEN çalışıyor" kanıtlandı.
+- `npm test`: **1245/1245 GEÇTİ** (test SAYISI DÜŞMEDİ — task'ın kendi kabul ölçütü).
+- Android'e SIFIR değişiklik (`git diff --stat` ile doğrulandı, `android/` klasörü yok listede).
+
+**DÜRÜSTLÜK NOTU (`Capacitor.PluginHeaders` kabul ölçütü hakkında):** Kullanıcının istediği `JSON.stringify((Capacitor.PluginHeaders||[]).map(h=>h.name))` kontrolü bu turda ÇALIŞTIRILAMADI — bu, canlı bir WKWebView'e Safari Uzak Web Denetçisi bağlanmasını gerektiriyor, sandbox'ta yok. Teknik bir çekince EKLENMELİ: `PluginHeaders` derleme-zamanında npm plugin'leri için ÜRETİLEN statik bir liste OLABİLİR — `registerPluginInstance()` (çalışma-zamanı, dinamik kayıt) bu listeyi RETROAKTİF olarak GÜNCELLEMEYEBİLİR, plugin YİNE DE `Capacitor.registerPlugin()`'in KENDİ dinamik çağrı yoluyla ÇALIŞABİLİR (bu turda kanıtlanan `[audio-diag-native]` çıktısı zaten bunu gösteriyor — plugin ÇALIŞIYOR). Kullanıcı cihazda HEM `PluginHeaders` kontrolünü HEM `[audio-diag]`/`[audio-diag-native]` günlüklerini (asıl FONKSİYONEL kanıt) birlikte okumalı — `PluginHeaders` boş çıksa BİLE plugin çalışıyor olabilir, bu ÇELİŞKİ değil.
+
+---
+
+Önceki commit (G133) — **CİHAZDA G132 SONRASI TEST EDİLDİ: mekanizmanın KENDİSİ DOĞRU çalışıyordu, sorun 3 spesifik sınırdı — hepsi kapatıldı.**
 
 **CİHAZ KANITI (kullanıcının verdiği ham çıktı):**
 ```
@@ -11118,27 +11144,25 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G133 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
-temiz derleme + cihaza kurulum sonrası, G132'nin cihazda BULDUĞU 4
-sorunun (dar sınır, çalışmayan "Tekrar dene", uyarı ekranında sıkışma,
-native günlük görünmezliği) HEPSİNİN GERÇEKTEN kapandığını doğrulamalı:
-(1) ÜÇTEN FAZLA arka-plan/kesinti döngüsü art arda denenmeli (eski sınır
-2'de tıkanıyordu, artık 20 — cihazda GERÇEKTEN 3./4./5. kesintide de ses
-geri geliyor mu); (2) "Tekrar dene" butonuna basınca GERÇEKTEN "Deneniyor…"
-yazıp SONRA ses geri geliyor mu; (3) EN ÖNEMLİSİ — bir round'u DURAKLATIP
-(Durdur), arka plana atıp geri dönüp "Tekrar Çal"a basınca ses GERÇEKTEN
-geliyor mu (bu turda bulunan YENİ kök sebep — resumeRound()'un ESKİ
-sessiz-unmute boşluğu; `[audio-diag]`'da "Tekrar Çal — context bu turdan
-SONRA yeniden oluşturulmuş, zincir yeniden kuruluyor" satırı görülmeli);
-(4) `native AVAudioSession activate()` (JS log, Safari Inspector'da) ve
-`[audio-diag-native]` (Swift print, SADECE Xcode konsolunda — Safari'de
-GÖRÜNMEYECEK, bu normal) ikisi birlikte okunup native etkinleştirmenin
-GERÇEKTEN `ok=true` döndüğü teyit edilmeli. Hâlâ ses gelmiyorsa: dört
-sorunun HEPSİ kod-tarafında kapatıldı, kalan olası açıklama WKWebView'in
-KENDİSİNİN (AVAudioSession aktif olsa BİLE) bazı iOS sürümlerinde farklı
-bir davranışı olabilir — bir sonraki turun konusu bu olur. Bu madde
-SADECE simüle edilmiş senaryolarla (masaüstü) doğrulandı, gerçek cihazda
-HİÇ denenmedi.
+**Tek sonraki adım (G134 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
+temiz derleme + cihaza kurulum sonrası, ÖNCE plugin'in cihazda da
+kayıtlı olduğunu doğrulamalı — Safari Web Inspector konsolunda:
+`JSON.stringify((Capacitor.PluginHeaders||[]).map(h=>h.name))` (boş
+çıkabilir, bkz. yukarıdaki G134 kaydının dürüstlük notu — ASIL kanıt
+BUDUR DEĞİL, aşağıdaki günlüklerdir) VE `[audio-diag-native]`
+satırlarının (Xcode konsolu, uygulama İLK açılışta) GERÇEKTEN göründüğü
+— simulator'de zaten görüldü, cihazda da görülmeli. Bu doğrulandıktan
+SONRA G133'ün 4 maddesi (3+ ardışık kesinti, "Tekrar dene", "Tekrar Çal"
+zincir-yeniden-kurma, native `activate()`'in `ok=true` dönmesi) TEKRAR
+denenmeli — ÖNCEKİ turlarda plugin HİÇ kayıtlı olmadığı için bu 4 madde
+native AVAudioSession katmanı OLMADAN test edilmişti, şimdi katman
+GERÇEKTEN devrede. Hâlâ ses gelmiyorsa: native oturum katmanı ARTIK
+GERÇEKTEN çalışıyor demektir (bu turda kanıtlandı) — kalan olası
+açıklama WKWebView'in KENDİSİNİN (AVAudioSession aktif olsa BİLE) bazı
+iOS sürümlerinde farklı bir davranışı olabilir, bir sonraki turun konusu
+bu olur. Bu madde `xcodebuild` derlemesi + iOS Simulator'de GERÇEK
+çalıştırma (native `[audio-diag-native]` çıktısı doğrulandı) ile test
+edildi — gerçek FİZİKSEL cihazda HİÇ denenmedi.
 
 **Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli

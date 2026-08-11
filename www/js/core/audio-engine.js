@@ -112,16 +112,45 @@ export function createAudioEngine() {
     if (onDeadStateChange) onDeadStateChange(dead);
   }
 
-  // G132 — iOS'a ÖZGÜ native köprü (ios/App/App/AudioSessionPlugin.swift).
-  // ARAŞTIRMA BULGUSU: Web Audio'nun resume()'u WKWebView'in ALTINDAKİ
-  // AVAudioSession'ı YÖNETMEZ — Apple'ın kendi "Responding to Interruptions"
-  // belgesi kesintiden sonra AVAudioSession.setActive(true) ile YENİDEN
-  // etkinleştirme GEREKTİRİYOR, JS'in tek başına yapamayacağı bir adım.
-  // Web/Android'de (plugin YOK) getAudioSessionPlugin() null döner, bu
-  // TÜM blok sessizce devre dışı kalır — davranış BOZULMAZ (task'ın kendi
-  // kuralı: "Android'i BOZMA").
+  // G132/G134 — iOS'a ÖZGÜ native köprü (ios/App/App/AudioSessionPlugin.swift
+  // + MainViewController.swift). ARAŞTIRMA BULGUSU: Web Audio'nun resume()'u
+  // WKWebView'in ALTINDAKİ AVAudioSession'ı YÖNETMEZ — Apple'ın kendi
+  // "Responding to Interruptions" belgesi kesintiden sonra AVAudioSession.
+  // setActive(true) ile YENİDEN etkinleştirme GEREKTİRİYOR, JS'in tek
+  // başına yapamayacağı bir adım.
+  //
+  // G134 — CİHAZDA KANITLANDI: `window.Capacitor.Plugins.AudioSessionPlugin`
+  // yolu HİÇ ÇALIŞMIYORDU — `Capacitor.PluginHeaders` (Safari konsolunda
+  // doğrulandı) bu plugin'i HİÇ İÇERMİYORDU. Kök sebep: `Plugins` nesnesi
+  // sadece `Capacitor.registerPlugin(jsName)` ÇAĞRILDIĞINDA doldurulur —
+  // native tarafta `registerPluginInstance()` ile kayıt (bkz.
+  // MainViewController.swift) SADECE bridge'in plugin'i BULMASINI sağlar,
+  // JS tarafında ÇAĞRILABİLİR bir proxy nesnesi OTOMATİK oluşturmaz. Artık
+  // `Capacitor.registerPlugin("AudioSessionPlugin")` ile JS TARAFINDA da
+  // AÇIKÇA kaydediliyor (proje bundler kullanmıyor — `@capacitor/core`'dan
+  // import YOK, native köprünün enjekte ettiği GLOBAL `window.Capacitor.
+  // registerPlugin` kullanılıyor, mevcut `window.Capacitor.convertFileSrc`/
+  // `getPlatform()` global-erişim deseniyle AYNI). SADECE iOS'ta denenir
+  // (platform kontrolü) — Android'e (plugin orada YOK, native kayıt da
+  // YAPILMADI) davranış olarak DOKUNULMAMASI için: registerPlugin() JS
+  // tarafında BAŞARIYLA bir proxy oluşturabilir ama native çağrı native'de
+  // hiç kayıtlı olmadığı için reddedilir — try/catch bunu ZATEN yakalıyordu,
+  // ama platform kontrolüyle Android'de bu denemenin KENDİSİ bile hiç
+  // yapılmıyor (eski "plugin BULUNAMADI" davranışı Android'de BİREBİR
+  // korunuyor).
+  let audioSessionPluginInstance = null;
   function getAudioSessionPlugin() {
-    return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AudioSessionPlugin) || null;
+    if (audioSessionPluginInstance) return audioSessionPluginInstance;
+    if (!window.Capacitor || typeof window.Capacitor.registerPlugin !== "function") return null;
+    const platform = window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : null;
+    if (platform !== "ios") return null;
+    try {
+      audioSessionPluginInstance = window.Capacitor.registerPlugin("AudioSessionPlugin");
+    } catch (e) {
+      console.log(`[audio-diag] Capacitor.registerPlugin('AudioSessionPlugin') HATA — ${e && e.message}`);
+      return null;
+    }
+    return audioSessionPluginInstance;
   }
   // SIRALAMA (task'ın kendi isteği): "önce native oturum, sonra Web Audio
   // resume" — bu fonksiyon ensureAudioAlive()'ın EN BAŞINDA (resume denemesi
