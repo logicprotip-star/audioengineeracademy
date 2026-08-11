@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G130)
+Son güncelleme: 11.08.2026 (G131)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,38 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G130) — **Ses oturumu hatasının KÖK SEBEBİ cihaz günlüğüyle KANITLANDI ve DÜZELTİLDİ: iOS/WebKit'te arka plana alınca AudioContext.state "suspended" DEĞİL "interrupted"a düşüyor, eski kod bunu hiç tanımıyordu.**
+Bu commit (G131) — **"resume başarılı, state=running" YETERSİZ ÇIKTI — cihaz kanıtı: currentTime 13+ saniye DONMUŞ kalıyor ("zombi context"). currentTime İLERLEME kontrolüne geçildi; jest-içi (gerçek dokunuş) kurtarma başarısız olursa context KAPATILIP YENİDEN kuruluyor (en fazla 2 kez).**
+
+**CİHAZ KANITI (G130'un günlüğünden, kullanıcının verdiği ham çıktı):**
+```
+statechange — running → interrupted (currentTime=4.96)
+resume HATA (deneme 1) — Failed to start the audio device
+resume sonucu (deneme 2) — 14ms sonra state=running
+zincir kuruldu, play başladı — state=running
+...13 saniye sonra...
+play denemesi — state=running, currentTime=4.96   ← SAAT DONMUŞ
+```
+`state==="running"` API'nin KENDİ raporu — iOS bazen bunu YANLIŞ raporluyor (context nominal açık ama ses donanımını GERÇEKTE geri devretmemiş). TEK güvenilir kanıt: `currentTime`'ın GERÇEKTEN akıp akmadığı.
+
+**UYGULANAN TASARIM (kullanıcının kendi araştırması + kararı):**
+1. **`core/audio-engine.js:checkLiveness()`** — `currentTime`'ı 120ms arayla iki kez okur, `after > before` mi diye bakar (sağlıklı context'te KESİNLİKLE ilerler, zombi context'te BİREBİR AYNI kalır — ara bir durum yok).
+2. **`ensureAudioAlive({allowRecreate})`** — (a) kısa gecikmeli birkaç resume denemesi (G130'dan), (b) `checkLiveness()`, (c) HÂLÂ ölüyse VE `allowRecreate=true` İSE `recreateContext()`. `allowRecreate=false` SADECE `visibilitychange`'den (sistem olayı, GERÇEK kullanıcı jesti DEĞİL) geçiliyor — **context yeniden oluşturma SADECE bir click/touch handler'ının İÇİNDEN** (playQuestion, Tools/kalibrasyon play düğmeleri — hepsi zaten böyle) tetiklenir; kullanıcının kendi araştırması: jest-dışı context oluşturma/resume iOS'ta GÜVENİLMEZ, hem muhtemelen İŞE YARAMAZ hem sınırlı context hakkını (Safari ~4) boşuna tüketir.
+3. **`recreateContext()`** — eski context `close()` edilir (AWAIT EDİLMEDEN — orijinal jestten mümkün olduğunca AZ async adımla ayrılmak için), `unlockAudio()`'nun context+node kurulum bloğu `audioReady=false` ile ZORLA yeniden çalıştırılır (kod TEKRARLANMADI — analyser/masterGain/muteGain YENİDEN kurulur), sonra resume+`checkLiveness()` ile doğrulanır. **En fazla 2 kez** (`MAX_CONTEXT_RECREATE`, uygulama ömrü boyunca, SIFIRLANMAZ) — Safari'nin sayfa başına sınırlı context sayısına saygı, her deneme `[audio-diag]`'a "(N/2)" olarak sayılıp loglanır.
+4. **AudioBuffer'lar** (kullanıcının kendi kararı: eski context'e bağlı kabul edildi, cross-context paylaşıma güvenilmedi): `sampleBufferCache` (gömülü örnekler) temizlenir, bir sonraki kullanımda YENİ context'le OTOMATİK yeniden decode edilir (zaten cache-miss yolu). Kullanıcının YÜKLEDİĞİ dosya — audio-engine.js'in kapsamı DIŞINDA (app.js'in `uploadManager`'ları) — YENİ `onContextRecreated` hook'uyla app.js'e bildirilir: paylaşılan `uploadManager` (Araçlar + 11 mod) aktif bağlamın dosyasını YENİDEN decode eder; dar/ikincil özellikler (Frekans Çakışması'nın çift-upload'ı, G127'nin referans A/B'si) GÜVENLİ şekilde sıfırlanır (kullanıcı yeniden seçer — mevcut "dosya yok" gate/uyarı UI'ları zaten bunu GRACEFUL karşılıyor).
+5. **Sessiz başarısızlık kapatıldı** — `playQuestion()`/Tools/kalibrasyon play yolları `ensureAudioAlive()`'ın SONUCUNU doğrulamadan zincir KURMUYOR; ölüyse `showAudioError("Ses açılamadı — ekrana dokunup tekrar deneyin")`.
+6. **YENİ — proaktif uyarı:** `visibilitychange`'de context ölü çıkarsa (`onDeadStateChange` hook), kullanıcı henüz play DENEMEDEN bile, mid-round ise HEMEN "Devam etmek için ekrana dokunun" banner'ı gösterilir (task'ın kendi isteği — otomatik çalmayı DENEMEDEN kullanıcıyı bilgilendir).
+7. **`[audio-diag]` günlükleri KORUNDU** — artık currentTime ilerleme kontrolünün sonucunu (`before → after, canlı: true/false`) ve context yeniden oluşturma sayacını (`N/2`) de yazıyor.
+
+**DOĞRULAMA (masaüstünde gerçek "zombi context" ÜRETİLEMEZ — task'ın kendi notu — bu yüzden Playwright'ta `AudioContext` bir Proxy ile sarılıp her yeni örneğin `currentTime` getter'ı `Object.defineProperty` ile İSTENİLEN anda DONDURULABİLİR hâle getirildi — cihazdaki BİREBİR aynı belirti: state="running", currentTime SABİT):**
+- **Senaryo A (zombi → yeniden oluşturma BAŞARILI):** sağlıklı bir round ortasında context'in `currentTime`'ı dondurulup play denendi. Günlük: `currentTime ilerleme kontrolü — 2.142s → 2.142s — canlı: false` → `bağlam YENİDEN OLUŞTURULUYOR (1/2)` → yeni context gerçekten sağlıklı (Chromium'un KENDİSİ, dondurulmadı) → `canlı: true` → `zincir kuruldu, play başladı`. Eski context'in **GERÇEKTEN `close()` edildiği** ve YENİ bir `AudioContext` örneğinin oluştuğu doğrulandı. Hata banner'ı GÖRÜNMEDİ (kurtarma kullanıcıya görünmeden tamamlandı). ✓
+- **Senaryo B (yeniden oluşturulan context da zombi → limit doluyor):** BÜTÜN yeni context'ler dondurulacak şekilde ayarlanıp tekrar play denendi. Günlük: `bağlam YENİDEN OLUŞTURULUYOR (2/2)` → yine `canlı: false` → **bir SONRAKİ** denemede `bağlam yeniden oluşturma İPTAL — üst sınıra (2) ulaşıldı` (3. bir context OLUŞTURULMADI, sınıra saygı doğrulandı) → `play İPTAL` → `#audioErrorRow` "Ses açılamadı — ekrana dokunup tekrar deneyin" metniyle GÖRÜNÜR. ✓
+- **Konsol hatası: 0.** `npm test`: **1245/1245 GEÇTİ** (davranış değişikliği yok — sadece kurtarma mantığı, mevcut hiçbir test bunu kapsamıyor/bozmuyor).
+
+**DOĞRULANMADI (task'ın kendi notu):** Bu senaryonun GERÇEK cihazda (gerçek iOS "zombi context" davranışı, gerçek jest-kısıtlaması) çözdüğü — sadece SİMÜLE edilmiş bir "currentTime donmuş" durumuyla kod YOLUNUN (tespit → jest-içi yeniden oluşturma → doğrulama → sınıra saygı → kullanıcı uyarısı) doğru çalıştığı kanıtlandı. `[audio-diag]` günlükleri hâlâ KALICI — bir sonraki cihaz turunda context'in GERÇEKTEN yeniden oluşup oluşmadığı, kaç kez, ve GERÇEKTEN sesi geri getirip getirmediği görülebilecek.
+
+---
+
+Önceki commit (G130) — **Ses oturumu hatasının KÖK SEBEBİ cihaz günlüğüyle KANITLANDI ve DÜZELTİLDİ: iOS/WebKit'te arka plana alınca AudioContext.state "suspended" DEĞİL "interrupted"a düşüyor, eski kod bunu hiç tanımıyordu.**
 
 **CİHAZ KANITI (G129'un [audio-diag] günlüğünden, kullanıcının verdiği ham çıktı):**
 ```
@@ -11014,18 +11045,22 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G130 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
-temiz derleme + cihaza kurulum sonrası, G129'un AYNI "TEKRARLAMA
-ADIMLARI" senaryosunu (moda gir → arka plana at → başka uygulamada ses
-çal → geri dön → play/atla dene) TEKRAR denemeli: (1) ses artık GERÇEKTEN
-geri geliyor mu (bu turun asıl hedefi); (2) gelmiyorsa, `[audio-diag]`
-günlüğünde 3 resume denemesinin HEPSİ mi başarısız oluyor yoksa hiç mi
-tetiklenmiyor (kök sebep hâlâ FARKLI bir kod yolunda olabilir);
-(3) `#audioErrorRow` banner'ı ("Ses açılamadı — ekrana dokunup tekrar
-deneyin") GERÇEKTEN görünüyor mu, "Tekrar dene" düğmesi basılınca ses
-GERÇEKTEN geri geliyor mu. Bu madde SADECE simüle edilmiş bir senaryoyla
-(masaüstü) doğrulandı — gerçek cihaz/gerçek "interrupted" durumuyla HİÇ
-denenmedi.
+**Tek sonraki adım (G131 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
+temiz derleme + cihaza kurulum sonrası, AYNI "TEKRARLAMA ADIMLARI"
+senaryosunu (moda gir → arka plana at → başka uygulamada ses çal → geri
+dön → play/atla dene) TEKRAR denemeli, `[audio-diag]` günlüğünde ÖZELLİKLE
+şunlara bakmalı: (1) `currentTime ilerleme kontrolü` satırı GERÇEKTEN
+"canlı: false" mü buluyor (G130'un "state=running ama ses yok" belirtisini
+BU turun teşhisi doğru mu açıklıyor); (2) `bağlam YENİDEN OLUŞTURULUYOR`
+satırı görülüyor mu, kaç kez (1/2, 2/2); (3) yeniden oluşturma SONRASI
+ses GERÇEKTEN geri geliyor mu (bu turun asıl hedefi — yoksa "zombi context"
+teşhisi doğru ama iOS'un KENDİSİ yeni context'i de canlandırmıyor demektir,
+FARKLI bir yaklaşım gerekir); (4) yüklü bir dosyayla (Araçlar'da bir
+şarkı) test edilirse, context yeniden oluşma sonrası dosya GERÇEKTEN
+yeniden çalınabiliyor mu (`onContextRecreated` hook'unun doğruluğu).
+Bu madde SADECE simüle edilmiş bir "currentTime donmuş" senaryosuyla
+(masaüstü, gerçek AudioContext'i Proxy'leyerek) doğrulandı — gerçek
+cihaz/gerçek iOS "zombi context" davranışıyla HİÇ denenmedi.
 
 **Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli

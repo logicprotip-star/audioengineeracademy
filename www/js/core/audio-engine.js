@@ -64,6 +64,108 @@ export function createAudioEngine() {
   // setDualSolo).
   let dualFilterA = null, dualFilterB = null, dualGainA = null, dualGainB = null;
 
+  // G131 — CİHAZDA KANITLANDI: G130'un "state==='running'" doğrulaması
+  // YETERSİZ çıktı. Cihaz günlüğü: resume() "başarılı" olup state
+  // running'e döndükten SONRA bile currentTime 13+ saniye boyunca HİÇ
+  // ilerlemedi — context nominal olarak açık ama iOS ses donanımını
+  // GERÇEKTE geri devretmemiş ("zombi" context). Tek güvenilir kanıt:
+  // currentTime'ın GERÇEKTEN ilerlediği. Ayrıca (araştırma + kullanıcının
+  // kendi kararı): iOS'ta context'i GERÇEK ANLAMDA canlandırmak/yeniden
+  // oluşturmak SADECE bir kullanıcı jesti (gerçek dokunuş/tıklama) İÇİNDE
+  // güvenilir — bu yüzden context yeniden oluşturma SADECE jest-tetikli
+  // giriş noktalarından (playQuestion, Tools/kalibrasyon play düğmeleri —
+  // hepsi bir click handler'ının İÇİNDE çalışır) izin veriliyor,
+  // visibilitychange gibi SİSTEM olaylarından DEĞİL (bkz. ensureAudioAlive'ın
+  // allowRecreate parametresi) — jest DIŞI bir yeniden oluşturma denemesi
+  // hem muhtemelen İŞE YARAMAZ hem boşuna 2 hakkımızdan birini tüketir.
+  const MAX_CONTEXT_RECREATE = 2;
+  let contextRecreateCount = 0;
+  let audioDead = false; // true = state "running" OLSA BİLE currentTime ilerlemiyor, GERÇEK dokunuş bekleniyor
+  let onDeadStateChange = null; // app.js "Devam etmek için ekrana dokunun" banner'ını göster/gizle
+  let onContextRecreated = null; // app.js'in yüklü dosyaları YENİ context'e göre yeniden decode etmesi için
+
+  function setAudioDead(dead) {
+    if (audioDead === dead) return;
+    audioDead = dead;
+    if (onDeadStateChange) onDeadStateChange(dead);
+  }
+
+  async function tryResumeOnce(label) {
+    if (!audioCtx || audioCtx.state === "running") return;
+    const before = audioCtx.state;
+    const t0 = performance.now();
+    console.log(`[audio-diag] resume çağrılıyor (${label}) — öncesi state=${before}`);
+    try {
+      await audioCtx.resume();
+      console.log(`[audio-diag] resume sonucu (${label}) — ${(performance.now() - t0).toFixed(0)}ms sonra state=${audioCtx.state}`);
+    } catch (e) {
+      console.log(`[audio-diag] resume HATA (${label}) — ${e && e.message}`);
+    }
+  }
+
+  // currentTime GERÇEKTEN ilerliyor mu — TEK güvenilir "context canlı mı"
+  // testi (bkz. dosya başı G131 notu). 120ms: sağlıklı bir context'te bu
+  // sürede currentTime KESİNLİKLE ölçülebilir şekilde ilerler (gerçek
+  // zamanlı ses saati); donuk/zombi bir context'te İKİ okuma BİREBİR AYNI
+  // kalır (yaklaşık değil, tam eşit — kısmi bir "yavaş ama ilerliyor"
+  // durumu YOK, ya akıyor ya TAMAMEN donmuş).
+  const LIVENESS_WAIT_MS = 120;
+  async function checkLiveness() {
+    if (!audioCtx) return false;
+    const before = audioCtx.currentTime;
+    await new Promise((r) => setTimeout(r, LIVENESS_WAIT_MS));
+    const after = audioCtx.currentTime;
+    const alive = after > before;
+    console.log(`[audio-diag] currentTime ilerleme kontrolü — ${before.toFixed(3)}s → ${after.toFixed(3)}s (${LIVENESS_WAIT_MS}ms bekleme) — canlı: ${alive}`);
+    return alive;
+  }
+
+  // Context'i KAPATIP YENİDEN kurar — SADECE ensureAudioAlive'ın
+  // allowRecreate=true dalından (yani bir kullanıcı jesti İÇİNDEN)
+  // çağrılır. En fazla MAX_CONTEXT_RECREATE kez (uygulama ömrü boyunca,
+  // sıfırlanmaz — Safari'nin sayfa başına sınırlı context sayısına saygı).
+  // unlockAudio()'nun context+node kurulum bloğu audioReady=false ile
+  // ZORLA yeniden çalıştırılıyor — kod TEKRARLANMADI.
+  async function recreateContext() {
+    if (contextRecreateCount >= MAX_CONTEXT_RECREATE) {
+      console.log(`[audio-diag] bağlam yeniden oluşturma İPTAL — üst sınıra (${MAX_CONTEXT_RECREATE}) ulaşıldı`);
+      return false;
+    }
+    contextRecreateCount++;
+    console.log(`[audio-diag] bağlam YENİDEN OLUŞTURULUYOR (${contextRecreateCount}/${MAX_CONTEXT_RECREATE})`);
+    const oldCtx = audioCtx;
+    // Aktif turun/önizlemenin TÜM düğümleri eski (zombi) bağlama ait —
+    // yeni bağlama TAŞINAMAZLAR (AudioNode context'e bağlıdır), sadece
+    // referansları temizlenir. Bir sonraki buildQuestionChain/play denemesi
+    // ZATEN sıfırdan kurma deseninde olduğu için (bkz. dosya başı yorumlar)
+    // bu güvenli.
+    currentNodes = [];
+    dryGain = null; wetGain = null;
+    activeUploadManager = null; activeUploadManagers = [];
+    dualFilterA = null; dualFilterB = null; dualGainA = null; dualGainB = null;
+    // AudioBuffer'lar (kullanıcının kendi araştırma kararı — WebKit'te
+    // cross-context paylaşımı GÜVENİLMEZ kabul edildi): gömülü örnek
+    // önbelleği temizlenir, bir sonraki kullanımda YENİ context'le YENİDEN
+    // decode edilir (buildSampleSource zaten cache-miss'te bunu yapıyor,
+    // kod tekrarlanmadı). Kullanıcının YÜKLEDİĞİ dosya(lar) audio-engine.js
+    // kapsamı DIŞINDA (app.js'in uploadManager'ları) — onContextRecreated
+    // hook'uyla app.js'e haber verilir (bkz. altındaki not).
+    sampleBufferCache.clear();
+    audioReady = false;
+    audioUnlocked = false;
+    // close() AWAIT EDİLMİYOR (bilerek) — orijinal kullanıcı jestinden
+    // (bu fonksiyonu çağıran click/touch handler'ı) mümkün olduğunca AZ
+    // async adımla ayrılıp hemen unlockAudio()+resume()'a geçmek için
+    // (araştırma notu: jest-dışı resume/context oluşturma GÜVENİLMEZ).
+    try { oldCtx && oldCtx.close().catch(() => {}); } catch (e) {}
+    unlockAudio(); // audioCtx/analyser/masterGain/muteGain YENİDEN kurulur (TAZE AudioContext)
+    await tryResumeOnce("bağlam yeniden oluşturma");
+    const alive = await checkLiveness();
+    console.log(`[audio-diag] bağlam yeniden oluşturma sonucu — canlı: ${alive}`);
+    if (onContextRecreated) onContextRecreated();
+    return alive;
+  }
+
   function unlockAudio() {
     // Mobil (özellikle iOS) için: ilk kullanıcı dokunuşunda context'i aç,
     // sessiz bir buffer çalıp kilidini aç, resume et.
@@ -98,15 +200,15 @@ export function createAudioEngine() {
       audioReady = true;
       if (onReady) onReady();
     }
-    // G130 — CİHAZDA KANITLANDI ([audio-diag] günlükleri): iOS/WebKit'te
-    // AudioContext.state arka plana alınca "suspended" DEĞİL "interrupted"a
-    // düşüyor — bu SADECE "suspended" kontrol eden eski kod bunu HİÇ
-    // TANIMIYORDU, resume() hiç çağrılmıyordu. Artık "running" DIŞINDAKİ
-    // HER durumda (suspended/interrupted/gelecekte eklenebilecek başka bir
-    // durum) resume denenir — bu satır ZATEN her dokunuşta (pointerdown/
-    // touchend/click/keydown, aşağıdaki kalıcı dinleyiciler) çalıştığı için
-    // "bir sonraki dokunuşta otomatik yeniden dene" mekanizmasının KENDİSİ
-    // budur, ayrı bir dinleyiciye gerek YOK.
+    // G130 — HER dokunuşta çalışan (pointerdown/touchend/click/keydown,
+    // aşağıdaki kalıcı dinleyiciler) EN UCUZ/en basit kurtarma denemesi —
+    // BİLEREK "running" DIŞINDAKİ her durumda (suspended/interrupted)
+    // tek, doğrulanmamış bir resume() dener. GERÇEK/doğrulanmış kurtarma
+    // (currentTime kontrolü + gerekirse context yeniden oluşturma,
+    // G131) BURADA DEĞİL — playQuestion/initAudio gibi GERÇEK bir play
+    // denemesine bağlı, ensureAudioAlive() üzerinden yapılır (bkz. o
+    // fonksiyonun notu — HER dokunuşta ağır bir 120ms+ doğrulama yapmak
+        // sağlıklı normal kullanımda gereksiz gecikme eklerdi).
     if (audioCtx.state !== "running") {
       console.log(`[audio-diag] resume çağrılıyor (unlockAudio/dokunuş) — öncesi state=${audioCtx.state}`);
       audioCtx.resume().then(
@@ -130,52 +232,47 @@ export function createAudioEngine() {
     window.addEventListener(ev, unlockAudio, { once: false, passive: true });
   });
 
-  // G130 — CİHAZDA KANITLANDI: iOS'ta bir kesintiden (arka plana alma, telefon
-  // çağrısı vb.) sonra context "interrupted"a düşünce TEK bir resume()
-  // denemesi HER ZAMAN yetmiyor (cihaz günlüğünde resume() SONUCU hiç
-  // görülmemişti — eski kod "suspended" DIŞINDA hiçbir durumu tanımıyordu,
-  // resume() ÇAĞRILMIYORDU bile). Bu, üç KISA gecikmeli deneme yapan TEK,
-  // paylaşılan doğrulama fonksiyonu — `initAudio()` VE her play denemesinden
-  // ÖNCE doğrudan çağıran yerler (app.js:playQuestion, Tools/kalibrasyon play
-  // düğmeleri) TARAFINDAN kullanılır. Dönüş değeri: deneme(ler) SONUNDA
-  // context GERÇEKTEN "running" mı — çağıran taraf bunu kontrol ETMEDEN
-  // ses zinciri KURMAMALI (eski "sessiz başarısızlık" — state hâlâ
-  // interrupted'ken bile "zincir kuruldu, play başladı" yazması — buradan
-  // kapatılıyor, bkz. app.js'in KENDİ guard'ı).
+  // G131 — TEK, paylaşılan "context GERÇEKTEN canlı mı" doğrulama+kurtarma
+  // giriş noktası. Sırasıyla: (1) kısa gecikmeli BİRKAÇ resume denemesi
+  // (G130'dan), (2) currentTime ilerleme kontrolü (G131 — state=running
+  // TEK BAŞINA GÜVENİLMEZ, cihazda kanıtlandı), (3) HÂLÂ ölüyse VE
+  // allowRecreate=true İSE (yani bir kullanıcı jesti İÇİNDE çağrılıyorsa —
+  // playQuestion/Tools/kalibrasyon play düğmeleri, HEPSİ click handler'ı
+  // içinde) context KAPATILIP YENİDEN kurulur (bkz. recreateContext).
+  // visibilitychange SİSTEM olayı olduğu için allowRecreate=false ile
+  // çağırır — SADECE resume dener+doğrular, context YENİDEN OLUŞTURMAZ.
+  // Dönüş değeri: çağıran taraf BUNU kontrol ETMEDEN ses zinciri
+  // KURMAMALI/başlatmamalı (eski sessiz başarısızlık — "zincir kuruldu,
+  // play başladı" yazıp context'in GERÇEKTE donuk kalması — buradan
+  // kapatılıyor).
   const RESUME_RETRY_DELAYS_MS = [0, 150, 400];
-  async function ensureAudioRunning() {
+  async function ensureAudioAlive({ allowRecreate = true } = {}) {
     if (!audioCtx) return false;
     for (let i = 0; i < RESUME_RETRY_DELAYS_MS.length; i++) {
-      if (audioCtx.state === "running") return true;
+      if (audioCtx.state === "running") break;
       if (RESUME_RETRY_DELAYS_MS[i] > 0) await new Promise((r) => setTimeout(r, RESUME_RETRY_DELAYS_MS[i]));
-      if (audioCtx.state === "running") return true; // gecikme sırasında statechange ile kendi kendine düzelmiş olabilir
-      const before = audioCtx.state;
-      const t0 = performance.now();
-      console.log(`[audio-diag] resume çağrılıyor (deneme ${i + 1}/${RESUME_RETRY_DELAYS_MS.length}) — öncesi state=${before}`);
-      try {
-        await audioCtx.resume();
-        console.log(`[audio-diag] resume sonucu (deneme ${i + 1}) — ${(performance.now() - t0).toFixed(0)}ms sonra state=${audioCtx.state}`);
-      } catch (e) {
-        console.log(`[audio-diag] resume HATA (deneme ${i + 1}) — ${e && e.message}`);
-      }
+      await tryResumeOnce(`deneme ${i + 1}/${RESUME_RETRY_DELAYS_MS.length}`);
     }
-    const finalOk = audioCtx.state === "running";
-    if (!finalOk) console.log(`[audio-diag] resume BAŞARISIZ (${RESUME_RETRY_DELAYS_MS.length} deneme sonrası) — son state=${audioCtx.state}`);
-    return finalOk;
+    let alive = await checkLiveness();
+    if (!alive && allowRecreate) {
+      alive = await recreateContext();
+    }
+    setAudioDead(!alive);
+    return alive;
   }
 
   // [audio-diag] Araçlar/kalibrasyon/A-B önizleme dahil, `initAudio()`'dan
   // geçen HER çalma denemesi burada tek kontrol noktasından loglanır (bkz.
   // ayrıca app.js:playQuestion'ın KENDİ ayrı log'u — o bu fonksiyonu
-  // ÇAĞIRMIYOR, ensureAudioRunning()'i doğrudan kendisi çağırıyor). Dönüş
-  // değeri (G130) — çağıran ARTIK isterse context'in GERÇEKTEN running
-  // olduğunu doğrulayabilir.
+  // ÇAĞIRMIYOR, ensureAudioAlive()'ı doğrudan kendisi çağırıyor). Dönüş
+  // değeri — çağıran ARTIK context'in GERÇEKTEN (currentTime'ı ilerleyerek)
+  // canlı olduğunu doğrulayabilir.
   async function initAudio() {
     unlockAudio();
     if (audioCtx) {
       console.log(`[audio-diag] play denemesi (initAudio) — state=${audioCtx.state}, currentTime=${audioCtx.currentTime.toFixed(2)}`);
     }
-    return await ensureAudioRunning();
+    return await ensureAudioAlive();
   }
 
   // --- ses efektleri: doğru = ding, yanlış = buzz ---
@@ -634,7 +731,7 @@ export function createAudioEngine() {
   return {
     unlockAudio,
     initAudio,
-    ensureAudioRunning,
+    ensureAudioAlive,
     sfxDing,
     sfxBuzz,
     muteOutput,
@@ -646,6 +743,18 @@ export function createAudioEngine() {
     setDualCut,
     setDualSolo,
     set onReady(fn) { onReady = fn; },
+    // G131 — app.js "Devam etmek için ekrana dokunun" banner'ını buradan
+    // yönetir (fn(dead: boolean)) — context'in "gerçekten canlı değil,
+    // dokunuş bekleniyor" durumu değiştiğinde SADECE bir kez çağrılır.
+    set onDeadStateChange(fn) { onDeadStateChange = fn; },
+    // G131 — context yeniden oluşturulunca (recreateContext) app.js'in
+    // KENDİ uploadManager'larındaki (eski context'e ait) AudioBuffer'ları
+    // yeni context'e göre yeniden yüklemesi için — audio-engine.js bu
+    // nesnelere erişemiyor (app.js'in sahipliğinde), bu yüzden bir
+    // BİLDİRİM/hook, doğrudan çağrı DEĞİL.
+    set onContextRecreated(fn) { onContextRecreated = fn; },
+    get audioDead() { return audioDead; },
+    get contextRecreateCount() { return contextRecreateCount; },
     get audioCtx() { return audioCtx; },
     get analyser() { return analyser; },
     get audioReady() { return audioReady; }

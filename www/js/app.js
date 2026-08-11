@@ -4601,21 +4601,20 @@ async function playQuestion(processed = true) {
     audioDiagLog("görünür olduktan sonra İLK play denemesi", `${(performance.now() - audioVisibleSinceAt).toFixed(0)}ms geçti`);
     audioVisibleSinceAt = null;
   }
-  // G130 — CİHAZDA KANITLANDI (bkz. DURUM.md): iOS'ta arka plana alınca
-  // context "interrupted"a düşüyor, TEK bir resume() denemesi HER ZAMAN
-  // yetmiyor. ÖNCEDEN burada SADECE "suspended" kontrol edilip TEK sefer
-  // resume() denenirdi ("interrupted" hiç tanınmıyordu, bkz. G128'in
-  // yarım kalan düzeltmesi) VE sonuç DOĞRULANMADAN zincir kurulurdu — bu
-  // "sessiz başarısızlık"tı: cihaz günlüğünde "zincir kuruldu, play
-  // başladı" yazıyordu ama context hâlâ interrupted'tı, ses HİÇ duyulmuyordu.
-  // Artık audioEngine.ensureAudioRunning() (kısa gecikmeli BİRKAÇ deneme,
-  // audio-engine.js) çağrılıyor VE SONUCU DOĞRULANIYOR — running değilse
-  // zincir HİÇ KURULMUYOR, kullanıcıya anlaşılır bir uyarı + "Tekrar dene"
-  // gösteriliyor (mevcut #audioErrorRow banner'ı, sampleLoadFailed'in
-  // KULLANDIĞI AYNI mekanizma).
-  const running = await audioEngine.ensureAudioRunning();
-  if (!running) {
-    audioDiagLog("play İPTAL — audioCtx running değil", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "yok"}`);
+  // G131 — CİHAZDA KANITLANDI: G130'un "state==='running'" kontrolü TEK
+  // BAŞINA YETERSİZ — resume() "başarılı" olup state running'e döndükten
+  // SONRA bile currentTime 13+ saniye donuk kalabiliyor (context nominal
+  // açık ama iOS ses donanımını GERÇEKTE geri devretmemiş, "zombi"
+  // context). audioEngine.ensureAudioAlive() artık BUNU da (currentTime
+  // ilerleme kontrolü) yapıyor, GEREKİRSE (bu bir click handler'ının
+  // İÇİNDE çalıştığı — yani gerçek bir kullanıcı jesti olduğu için)
+  // context'i KAPATIP YENİDEN kuruyor (bkz. audio-engine.js:recreateContext,
+  // en fazla 2 kez). SONUÇ (currentTime'ın GERÇEKTEN ilerlediği)
+  // DOĞRULANMADAN zincir HİÇ KURULMUYOR — eski "zincir kuruldu, play
+  // başladı ama ses hiç duyulmuyordu" sessiz başarısızlığı burada kapanıyor.
+  const alive = await audioEngine.ensureAudioAlive();
+  if (!alive) {
+    audioDiagLog("play İPTAL — audioCtx canlı değil (currentTime ilerlemiyor)", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "yok"}, yeniden oluşturma sayısı=${audioEngine.contextRecreateCount}`);
     showAudioError("Ses açılamadı — ekrana dokunup tekrar deneyin");
     return;
   }
@@ -6539,16 +6538,18 @@ document.addEventListener("visibilitychange", async () => {
     // item 4 — "görünür olduktan sonra ilk play denemesine kadar geçen
     // süre" için başlangıç damgası (playQuestion'da okunup loglanır).
     audioVisibleSinceAt = performance.now();
-    // G130 — CİHAZDA KANITLANDI: "suspended" DEĞİL "interrupted" (iOS'a
-    // özgü) olduğu için eski kontrol HİÇ ÇALIŞMIYORDU. Artık playQuestion'ın
-    // KULLANDIĞI AYNI paylaşılan/birkaç-denemeli fonksiyon çağrılıyor — bu
-    // görünür-olma anında context henüz kendini toparlamamış olabilir
-    // (WebKit'in KENDİ iç gecikmesi), kısa aralıklı tekrar denemeler bunu
-    // yakalar. Sonuç burada KULLANILMIYOR (bir sonraki play denemesi
-    // ZATEN kendi ensureAudioRunning()'ini çağırıp doğrulayacak) — bu
-    // SADECE "kullanıcı geri döner dönmez, ilk dokunuştan ÖNCE bile"
-    // context'i olabildiğince ERKEN toparlamaya çalışan bir ön-ısınma.
-    if (ctxV) audioEngine.ensureAudioRunning();
+    // G131 — allowRecreate:false — visibilitychange bir SİSTEM olayı,
+    // GERÇEK bir kullanıcı jesti DEĞİL. Sadece resume dener + currentTime
+    // ilerleme kontrolüyle DOĞRULAR (bkz. audio-engine.js'in G131 notu) —
+    // context'i KAPATIP YENİDEN OLUŞTURMAZ (jest dışı bir yeniden oluşturma
+    // hem muhtemelen İŞE YARAMAZ hem 2 hakkımızdan birini boşuna tüketirdi).
+    // Ölü çıkarsa audioEngine'in "onDeadStateChange" hook'u (aşağıda
+    // kaydedildi) "Devam etmek için ekrana dokunun" banner'ını HEMEN
+    // gösterir — kullanıcı bir play denemesi yapmayı BEKLEMEDEN, geri
+    // döner dönmez bilgilendirilir. GERÇEK kurtarma (context yeniden
+    // oluşturma dahil) bir sonraki play denemesinde (playQuestion vb.,
+    // hepsi click handler'ı İÇİNDE) devreye girer.
+    if (ctxV) audioEngine.ensureAudioAlive({ allowRecreate: false });
   }
   // G61 (PAYWALL.md): "30 dakikada 1 can" — ön plana HER dönüşte yeniden
   // hesaplanır (arka planda geçirilen GERÇEK süre burada devreye girer, bu
@@ -10413,3 +10414,46 @@ renderToolsFilterHeaderBadge();
 
 applyProLockVisibility();
 enforceFreeRestrictions(); // G61: temiz açılışta da (Pro'dan düşmüş eski bir localStorage kaydı olabilir)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// G131 — ses oturumu "zombi context" kurtarma kancaları. audio-engine.js
+// context'i KAPATIP YENİDEN OLUŞTURDUĞUNDA (recreateContext) app.js'e İKİ
+// şey bildiriyor: (1) "dead" durumu değişti → kullanıcıya görünür bir uyarı
+// göster/gizle; (2) context YENİDEN kuruldu → app.js'in KENDİ sahip olduğu
+// uploadManager'lardaki (eski context'e ait) AudioBuffer'lar YENİDEN decode
+// edilmeli (kullanıcının kendi kararı — cross-context AudioBuffer paylaşımına
+// güvenilmedi). Bu iki hook, TÜM ilgili const'lar (uploadManagerA/B,
+// tonalRefUploadManager, ensureUploadSelectionLoaded) ZATEN tanımlandıktan
+// SONRA, dosyanın en sonunda kaydediliyor — sıralama BELİRSİZLİĞİ YOK.
+// ═══════════════════════════════════════════════════════════════════════════
+audioEngine.onDeadStateChange = (dead) => {
+  audioDiagLog("audioDead durumu değişti", `dead=${dead}`);
+  // SADECE mid-round (activeQuestion VARKEN) gösterilir — #audioErrorRow
+  // oyun ekranına ait, menü/Araçlar'da anlamsız/görünmez olurdu; context
+  // yine de dahili olarak "dead" işaretli kalır, kullanıcı bir SONRAKİ
+  // play denemesinde (playQuestion) bu durum ZATEN yeniden kontrol edilip
+  // doğru tepki verilir.
+  if (!activeQuestion) return;
+  if (dead) showAudioError("Devam etmek için ekrana dokunun");
+  else hideAudioError();
+};
+audioEngine.onContextRecreated = () => {
+  audioDiagLog("context yeniden oluşturuldu — yüklü dosyalar yeniden decode ediliyor");
+  // "tools" + upload destekleyen TÜM modların PAYLAŞTIĞI uploadManager —
+  // aktif bağlamın dosyasını YENİ context'e göre yeniden yükler.
+  // uploadManagerLoadedFileId sıfırlanmadan ensureUploadSelectionLoaded
+  // "zaten doğru dosya yüklü" kısayoluna düşüp YENİDEN DECODE ETMEZDİ.
+  uploadManagerLoadedFileId = null;
+  ensureUploadSelectionLoaded(activeUploadContext).catch((e) =>
+    console.error("[audio-diag] context yeniden oluşturma sonrası ana dosya yeniden yükleme hatası:", e && e.message, e)
+  );
+  // Frekans Çakışması'nın çift-uploadManager'ı ve G127'nin referans A/B
+  // oynatıcısı — context yeniden oluşturma ZATEN nadir bir olay, bu dar/
+  // ikincil özellikler için TAM otomatik yeniden-decode yerine GÜVENLİ bir
+  // sıfırlama seçildi (mevcut "dosya seçilmedi" gate/uyarı UI'ları zaten
+  // GRACEFUL şekilde ele alıyor — kullanıcı sadece dosyayı yeniden seçer).
+  uploadManagerA.clear();
+  uploadManagerB.clear();
+  tonalRefUploadManager.clear();
+  tonalRefLoadedSourceFileId = null;
+};
