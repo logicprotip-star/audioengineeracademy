@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G114)
+Son güncelleme: 11.08.2026 (G115)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,95 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G114, tek commit) — **Araçlar → Tonal Balance: cihazda görülen eğri kırpılması + eksik dB etiketi + gösterge renk karışıklığı; Araçlar → Mixini Yükle: karta çalar eklendi.**
+Bu commit (G115, tek commit, `9d72670`) — **Araçlar → Ölçüm Sonuçları: sheet TAMAMEN kaldırıldı, Referans Filtreleri ile AYNI akordiyon desenine çevrildi.**
+
+**GEREKÇE (kullanıcının kendi kararı):** sheet iOS'ta üç turdur (G107-G114
+zinciri, bkz. SIRADAKİ'nin eski "Önceki adım" kayıtları) doğru
+konumlanmadı — cihaz ölçümü panellerin kendi yükseklikleri kadar aşağı
+itilmiş kaldığını gösterdi. Sheet yaklaşımından TAMAMEN vazgeçildi;
+sayfa kaydırması zaten çalıştığı doğrulanmış bir yüzeye (Referans
+Filtreleri'nin akordiyonu, `.tools-scroll` içinde) taşındı.
+
+**Yapılanlar:**
+1. `www/index.html` — Ölçüm Sonuçları kartı artık `.tools-filter-header`/
+   `.tools-filter-chevron`/`.tools-filter-body` sınıflarını Referans
+   Filtreleri ile AYNI şekilde kullanıyor (`toolsResultsHeader`/
+   `toolsResultsChevron`/`toolsResultsBody` id'leriyle) — 260ms
+   `cubic-bezier(.2,.8,.2,1)` geçişi bu paylaşılan sınıflardan otomatik
+   geldi, YENİ bir CSS kuralı YAZILMADI. Başlıkta `toolsFilterHeaderBadge`
+   ile AYNI rozet sınıfı (`toolsResultsHeaderBadge`) integrated LUFS
+   göstermek için eklendi. "Analiz et" butonu akordiyonun DIŞINDA
+   (kartın kendi gövdesinde) kaldı — kapalıyken de tıklanabilir.
+   Sheet+overlay (`toolsResultsSheet`/`toolsResultsOverlay`) ve kalıcı
+   şerit (`toolsResultsStrip`) markup'ı TAMAMEN silindi.
+2. `www/styles.css` — `.tools-results-strip*` kuralları (7 satır)
+   kaldırıldı. `.tools-analysis-*`/`.tools-results-*` içerik sınıfları
+   (kolon genişliği, integrated LUFS büyük rakamı, standart notu vb.)
+   AYNEN korundu — sadece artık akordiyon gövdesi içinde kullanılıyorlar.
+3. `www/js/app.js` — `toolsOpenResultsSheet`/`toolsCloseResultsSheet`
+   yerine `toolsOpenResultsAccordion`/`toolsCloseResultsAccordion`/
+   `toolsToggleResultsAccordion` (Referans Filtreleri'nin
+   `toolsToggleFilterAccordion`'uyla BİREBİR AYNI desen — toggle,
+   `.hidden`/`.open` class'ları, `toolsFilterOpen`'a karşılık
+   `toolsResultsOpen`). Analiz başarıyla bitince `renderToolsAnalysisResults`
+   + `toolsOpenResultsAccordion()` çağrılıyor (otomatik açılış). Kapatma
+   sadece `.hidden` class'ı ekliyor — DOM'dan hiçbir şey silinmiyor,
+   `toolsAnalysisResult` global'i korunuyor; tekrar açılışta `toolsAnalyzeBtn`
+   HİÇ tetiklenmiyor, sadece `drawShortTermChart`/`drawCorrelationChart`
+   (canvas `display:none` iken 0 genişlikte ölçülmesin diye rAF içinde,
+   `.tools-tonal-chart-wrap`'in G99/G101'de öğrendiği AYNI desen) mevcut
+   sonucu yeniden çiziyor. `toolsOpenSavedMeasurement()` (Dosyalarım →
+   SON ÖLÇÜMLERİM) artık `toolsAnalysisResult`'ı da güncelliyor — ÖNCEKİ
+   sheet-döneminde bu atama EKSİKTİ (chart redraw stale global'i
+   kullanabilirdi, ilk çizim doğru olduğu için gizli kalan bir bug'dı,
+   bu turda rastlanıp düzeltildi). `toolsSetBackgroundScrollLocked`/
+   `toolsResetSheetScroll` DEĞİŞMEDİ — artık SADECE Dosyalarım sheet'i
+   kullanıyor (yorum güncellendi). `toolsOpenFilesSheet()` içindeki artık
+   var olmayan `toolsCloseResultsSheet()` çağrısı kaldırıldı.
+
+**DOĞRULAMA (masaüstü Chrome, Playwright ile GERÇEK tarayıcı turu —
+`www/` `python3 -m http.server` üzerinden, sentetik 4sn'lik WAV
+`#toolsFileInput`'a `set_input_files` ile enjekte edildi, `devFlags.
+simulatePro` ile paywall bypass edildi):**
+- **Akordiyon varsayılan kapalı:** dosya yüklenince `toolsResultsBody`
+  `.hidden`, `toolsResultsChevron` `.open` DEĞİL (ekran görüntüsüyle
+  doğrulandı).
+- **Analiz bitince otomatik açılıyor:** "Analiz et"e basılınca
+  `toolsResultsBody` görünür oldu, chevron 180° döndü — ekran
+  görüntüsünde net.
+- **Başlık rozeti doğru:** analiz sonrası `toolsResultsHeaderBadge`
+  metni gerçek `fmtLufs()` çıktısıyla (`"-10.22 LUFS"`) eşleşti.
+- **Kapat→aç, analiz TEKRAR ÇALIŞMADI:** başlığa tıklayıp kapatıldı
+  (rozet KALDI, sadece gövde gizlendi), tekrar açıldı — `toolsAnalyzeBtn`
+  `.hidden`/etiket ("Analiz et", "Ölçülüyor…" DEĞİL) hiç değişmedi,
+  `toolsAnalysisChannelTable`'ın `innerHTML`'i kapatma öncesiyle
+  BİREBİR aynı kaldı (JS'ten string karşılaştırmayla doğrulandı).
+- **Kaydırma, tab bar örtmesi yok:** `.tools-scroll` en alta
+  kaydırıldığında standart notu tam görünür, `getBoundingClientRect().
+  bottom` (631px) tab bar'ın `top`'undan (750px) küçük — hiçbir içerik
+  tab bar'ın arkasında kalmıyor.
+- **Dosyalarım sheet'i BOZULMADI:** akordiyon açıkken "değiştir"e
+  basılıp Dosyalarım sheet'i açıldı, konsol hatası YOK, akordiyon
+  altta AÇIK kalmaya devam etti (iki yüzey birbirine karışmıyor).
+- **SON ÖLÇÜMLERİM'den geri dönüş çalışıyor:** kapatılmış akordiyon,
+  Dosyalarım → SON ÖLÇÜMLERİM'deki kayıttan tekrar açıldı — rozet/
+  içerik doğru, Dosyalarım sheet'i otomatik kapandı, konsol hatası YOK.
+- **`npm test`: 1119/1119**, 0 hata (bu turda saf `createQuestion`/
+  `evaluateAnswer` fonksiyonlarına DOKUNULMADI, beklenen sonuç).
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chrome'da (Playwright, 390×844
+viewport) yapıldı — cihazda (iOS Safari/WKWebView) CANLI doğrulanmadı.
+Bu turun GEREKÇESİ zaten "sheet iOS'ta cihaza özgü konumlanma hatası
+veriyordu" olduğu için, bu akordiyon yaklaşımının cihazdaki asıl sınavı
+HENÜZ verilmedi — ama akordiyon deseni (Referans Filtreleri) ZATEN
+cihazda doğrulanmış bir mekanizma (G111'de kartların baştan DOM'da
+olması, `.tools-scroll`'un G113'te margin-bottom'la düzeltilmesi) olduğu
+için, sheet'e özgü `position:fixed` konumlandırma sınıfı bir RİSK
+kategorisi olarak TAMAMEN elendi (bkz. SIRADAKİ).
+
+---
+
+Önceki commit (G114, tek commit) — **Araçlar → Tonal Balance: cihazda görülen eğri kırpılması + eksik dB etiketi + gösterge renk karışıklığı; Araçlar → Mixini Yükle: karta çalar eklendi.**
 
 **1) Eğriler grafikten taşıyordu — KÖK SEBEP:** `toolsTonalDy()` sabit
 `/7` bölücüyle (yani sabit ±7dB) çiziyordu — ±7dB'yi aşan HERHANGİ bir
@@ -9553,7 +9641,22 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G114 itibarıyla):** `npx cap sync ios` + kullanıcı
+**Tek sonraki adım (G115 itibarıyla):** `npx cap sync ios` + kullanıcı
+cihazda gerçek bir mix yükleyip Ölçüm Sonuçları akordiyonunu doğrulamalı:
+(1) kart başlığına dokununca akordiyon açılıp kapandığı, chevron'un
+döndüğü; (2) "Analiz et"e basınca akordiyonun OTOMATİK açıldığı; (3)
+başlıktaki cyan LUFS rozetinin doğru değeri gösterdiği; (4) kapat→aç
+turunda sonuçların KAYBOLMADIĞI ve "Ölçülüyor…" durumunun TEKRAR
+görünmediği (yani analiz motoru ikinci kez ÇALIŞMADIĞI); (5) akordiyon
+açıkken içeriğin (KANAL ÖLÇÜMLERİ/STEREO/LOUDNESS/iki grafik/standart
+notu) EN ALTINA kadar parmakla kaydırılabildiği, hiçbir şeyin tab bar'ın
+arkasında kalmadığı. Bu turda masaüstü Chrome'da Playwright ile hepsi
+doğrulandı (bkz. BİTTİ) — bu turun GEREKÇESİ zaten "önceki (sheet)
+yaklaşım SADECE cihazda bozuktu" olduğu için, cihaz doğrulaması bu
+madde için ÖZELLİKLE kritik (masaüstü doğrulaması sheet'in de HER
+ZAMAN "geçtiği" tur olmuştu).
+
+**Önceki adım (G114 itibarıyla):** `npx cap sync ios` + kullanıcı
 cihazda gerçek (aşırı dengesiz) bir mix yükleyip doğrulamalı:
 (1) Tonal Balance eğrisi hiçbir bölgede grafik kenarından taşmıyor/
 kırpılmıyor mu; (2) dikey eksende dB etiketleri (+X/0/−X) görünüyor ve
