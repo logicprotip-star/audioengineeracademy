@@ -5,28 +5,19 @@
 //
 // KAYNAK SORUNU YOK: Web Audio'nun kendi StereoPannerNode'u (pan: -1..1) TEK
 // bir mono kaynağı stereo alanda konumlandırmak için ZATEN yeterli — yeni ses
-// dosyası GEREKMEDİ.
+// dosyası GEREKMEDİ. (Stereo Genişlik'in AKSİNE, tek kaynaklı panlamada
+// hiçbir decorrelation/tarak-filtresi riski YOK — bkz. o dosyanın G120 notu.)
 //
-// ŞIK TASARIMI (task'ın kendi tarifi): "tam sol, sol, hafif sol, merkez,
-// hafif sağ, sağ, tam sağ gibi — kademe sayısı zorluğa göre artsın." Bu,
-// dB Seviyesi'nin "doğru değer + rastgele mesafeli çeldiriciler" desenden
-// FARKLI bir mekanik: burada şıkların KENDİSİ -100%..+100% aralığında EŞİT
-// ARALIKLI, isimlendirilmiş bir IZGARA (3, 5 ya da 7 kademe) — doğru cevap
-// HER ZAMAN ızgaranın TAM ÜZERİNDE bir nokta, hiçbir çeldirici üretme/mesafe
-// hesabı YOK. Kademe sayısı arttıkça (3→7) aynı -100%..+100% aralığına daha
-// çok nokta sığar, komşu kademeler DOĞAL olarak birbirine yaklaşır — task'ın
-// "kolayda uzak, zorda yakın" isteği bu ızgara yoğunluğuyla KARŞILANIYOR,
-// ayrı bir tolerans/mesafe eğrisi gerekmiyor. Izgara noktaları MATEMATİKSEL
-// olarak birbirinden FARKLI (kesin tam sayı, floating-point risk yok) —
-// Tonal Denge'nin (G95) "sabit tolerans, küçülen sinyal" kaybedilemezlik
-// hatasına benzer bir risk BURADA YAPISAL OLARAK YOK (bkz. test dosyası).
-//
-// ŞIKLAR KASITLI OLARAK KARIŞTIRILMIYOR (diğer modların shuffle'ının AKSİNE):
-// etiketler ZATEN uzamsal bir sıra taşıyor (Tam Sol→...→Tam Sağ) — bu sırayı
-// bozmak gerçek bir pan potunun okunuşunu taklit etmek yerine kafa karıştırırdı.
-// Sıra cevabı SIZDIRMIYOR (kullanıcı hangi ETİKETİN doğru olduğunu YİNE
-// dinleyerek bulmak zorunda), sadece HANGİ SIRADA gösterildiğini sabitliyor.
+// G120 DÜZELTMESİ — ŞIK TASARIMI YENİDEN YAPILDI: İLK sürüm (G118) sabit,
+// isimlendirilmiş bir ızgara kullanıyordu ("Tam Sol/Sol/.../Tam Sağ", 3/5/7
+// kademe). Task'ın kendi kararıyla artık dB Seviyesi'nin AYNI deseni: pan
+// değeri SÜREKLİ bir ölçekte (-100..100 arası herhangi bir tam sayı), şıklar
+// bu değerin ETRAFINDA curve-driven bir STEP mesafesinde üretiliyor — kolayda
+// şıklar arası fark büyük, zorda küçük (task'ın kendi örneği: "gerçek pan
+// %10 ise şıklar %5, %10, %18, %25 gibi"). Doğru cevap ARTIK bir ızgara
+// noktası OLMAK ZORUNDA DEĞİL — herhangi bir gerçekçi sayı.
 
+import { shuffle } from "../core/utils.js";
 import { compatibleSourceIds } from "../core/source-catalog.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
@@ -61,19 +52,28 @@ export const DIFFICULTY = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ZORLUK EĞRİSİ — merkezi kütüphaneye (difficulty-curve.js) diğer modlarla AYNI
-// mod-agnostik girdiyle (position) bağlanır. Tek eksen: ızgara KADEME sayısı
-// (3→7, tek sayı — merkez noktası her zaman olsun diye). AT_1/AT_CAP statik
-// easy/pro ile hizalı.
+// G120 — ZORLUK EĞRİSİ — dB Seviyesi'nin AYNI deseni: SÜREKLİ pan değeri +
+// curve-driven şık-mesafesi (STEP). Kademe SAYISI (options) İKİNCİL bir eksen
+// olarak KORUNDU (Stereo Genişlik'in AYNI kararı, bkz. o dosyanın notu).
 // ═══════════════════════════════════════════════════════════════════════════
 export const PAN_CURVE_CONFIG = {
   LEVEL_CAP: 20,
-  STEPS_AT_1: 3,
-  STEPS_AT_CAP: 7,
+
+  // Şıklar arası mesafe (yüzde puanı, -100..100 aralığının üzerinde) —
+  // AT_1=45 (çok belirgin), AT_CAP=8, FLOOR=6 (PAN_TOLERANCE'tan [2] HER
+  // ZAMAN büyük kalacak şekilde seçildi — bkz. aşağıdaki invaryant notu).
+  STEP_AT_1: 45,
+  STEP_AT_CAP: 8,
+  STEP_FLOOR: 6,
+  STEP_REDUCTION_PER_STEP: 0.05,
+
   TIME_SEC_AT_1: 14,
   TIME_SEC_AT_CAP: 8,
   TIME_SEC_FLOOR: 6,
-  TIME_SEC_REDUCTION_PER_STEP: 0.1
+  TIME_SEC_REDUCTION_PER_STEP: 0.1,
+
+  OPTIONS_AT_1: 3,
+  OPTIONS_AT_CAP: 7
 };
 
 // SAF FONKSİYON. position: zorlukKonumu (continuousLevel + sessionRampOffset) —
@@ -83,41 +83,42 @@ export function paramsForDifficultyPosition(position, config = PAN_CURVE_CONFIG)
   const cappedPos = Math.min(safePos, config.LEVEL_CAP);
   const t = config.LEVEL_CAP > 1 ? (cappedPos - 1) / (config.LEVEL_CAP - 1) : 1;
 
-  const stepsCurve = logLerp(config.STEPS_AT_1, config.STEPS_AT_CAP, t);
+  const stepCurve = logLerp(config.STEP_AT_1, config.STEP_AT_CAP, t);
   const timeCurve = logLerp(config.TIME_SEC_AT_1, config.TIME_SEC_AT_CAP, t);
-
-  let steps = Math.round(stepsCurve);
-  if (steps % 2 === 0) steps += 1; // her zaman TEK sayı — merkez ("Merkez") her ızgarada bulunsun
-  steps = Math.max(3, Math.min(7, steps));
+  const optionsCurve = logLerp(config.OPTIONS_AT_1, config.OPTIONS_AT_CAP, t);
 
   return {
     position: safePos,
-    steps,
-    timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP)
+    step: applyPostCapFloor(stepCurve, safePos, config.LEVEL_CAP, config.STEP_FLOOR, config.STEP_REDUCTION_PER_STEP),
+    timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP),
+    options: Math.max(3, Math.min(7, Math.round(optionsCurve)))
   };
 }
 
-// SAF. Kademe sayısına göre isim ızgarası — task'ın kendi "tam sol, sol,
-// hafif sol, merkez, hafif sağ, sağ, tam sağ" örneğiyle BİREBİR (7 kademede).
-export const PAN_LABELS_BY_STEPS = {
-  3: ["Tam Sol", "Merkez", "Tam Sağ"],
-  5: ["Tam Sol", "Sol", "Merkez", "Sağ", "Tam Sağ"],
-  7: ["Tam Sol", "Sol", "Hafif Sol", "Merkez", "Hafif Sağ", "Sağ", "Tam Sağ"]
-};
+// evaluateAnswer'da "doğru" sayılmanın toleransı — STEP_FLOOR'dan (6) HER
+// ZAMAN küçük kalacak şekilde seçildi (Kesim Noktası'nın FREQ_TOLERANCE_OCT/
+// DISTRACTOR_STEP_OCT AYNI invaryantı) — yanlış bir şıkka basmak asla
+// "doğru" sayılmaz (bkz. test dosyasının 1000 denemelik doğrulaması).
+export const PAN_TOLERANCE = 2;
 
-// SAF. steps kademeyi -100..+100 arasına EŞİT ARALIKLI, TAM SAYIYA yuvarlanmış
-// olarak yerleştirir (steps=3/5/7 için hiçbir iki nokta ÇAKIŞMAZ — bkz. test
-// dosyasının "hiçbir kademede iki şık aynı cevaba denk gelmiyor" doğrulaması).
-export function panGridPercents(steps) {
-  const arr = [];
-  for (let i = 0; i < steps; i++) {
-    const frac = steps === 1 ? 0 : (i / (steps - 1)) * 2 - 1; // -1..1
-    arr.push(Math.round(frac * 100));
+// SAF. trueValue etrafında, [min,max] içinde, k·step mesafesinde (k=1,2,...)
+// alternan sağa/sola yayılan count-1 çeldirici üretir — Boost/Cut'ın Katman
+// 3'teki frekans-havuzu deseniyle AYNI "sınıra göre kırp, taşan adımı diğer
+// yöne devret" mantığı: bir yön dolarsa fazla adım DİĞER yöne aktarılır,
+// hiçbir çeldirici [min,max] DIŞINA taşmaz. Adımlar TAM k·step mesafede —
+// Stereo Genişlik'in generateChoiceValues'ıyla BİREBİR AYNI (bilerek AYRI
+// kopya, diğer mod-çiftlerinin (dB Seviyesi/Boost-Cut) desenine UYGUN).
+export function generateChoiceValues(trueValue, step, count, min, max) {
+  const maxBelow = Math.max(0, Math.floor((trueValue - min) / step));
+  const maxAbove = Math.max(0, Math.floor((max - trueValue) / step));
+  const offsets = [];
+  let below = 1, above = 1;
+  while (offsets.length < count - 1 && (below <= maxBelow || above <= maxAbove)) {
+    if (above <= maxAbove) { offsets.push(trueValue + above * step); above++; }
+    if (offsets.length < count - 1 && below <= maxBelow) { offsets.push(trueValue - below * step); below++; }
   }
-  return arr;
+  return [trueValue, ...offsets].map(v => Math.round(v));
 }
-
-export const PAN_TOLERANCE = 0.5; // ızgara tam sayı — bu SADECE float-güvenlik payı
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MOD SÖZLEŞMESİ
@@ -134,14 +135,16 @@ export function getMeta() {
     // algılar) — G43'ün ("otomatik tek-vuruş bayrağı YANLIŞ dışlama yaptı,
     // Reverb'de snare'i haksız yere elemişti") dersiyle AYNI gerekçeyle
     // otomatik bir bayrak yerine ELLE seçilmiş bir liste (bkz. source-
-    // catalog.js compatibleSourceIds'in "only" notu).
-    // "upload" HER ZAMAN dahil — Reverb'in AYNI kararı (bkz. reverb.js
-    // getMeta): uygulama kullanıcının kendi yüklediği dosyanın süresini
-    // yargılayamaz, kısıtlama SADECE gömülü/sentetik kataloğa uygulanır.
+    // catalog.js compatibleSourceIds'in "only" notu). "upload" HER ZAMAN
+    // dahil — Reverb'in AYNI kararı: uygulama kullanıcının kendi yüklediği
+    // dosyanın süresini yargılayamaz. (Stereo Genişlik'in G120'de kaynak
+    // listesini daraltmasının AKSİNE, tek-kaynaklı panlamada decorrelation
+    // riski hiç yok — bu liste GENİŞ kalabiliyor.)
     uyumluKaynaklar: compatibleSourceIds({ only: ["pink", "white", "saw", "square", "triangle", "groove", "bass", "bass_alt", "guitar", "vocal", "upload"] }),
-    // Diğer on modun AYNI kararı — bu alan GERÇEK kilitlemede kullanılmıyor
-    // (grep ile doğrulandı, tek gerçek kaynak core/paywall.js:FREE_MODE_IDS +
-    // mode-catalog.js:tier, bkz. frekans-cakismasi.js'in AYNI notu).
+    // Diğer on bir modun AYNI kararı — bu alan GERÇEK kilitlemede
+    // kullanılmıyor (grep ile doğrulandı, tek gerçek kaynak core/paywall.js:
+    // FREE_MODE_IDS + mode-catalog.js:tier, bkz. frekans-cakismasi.js'in
+    // AYNI notu).
     ucretsiz: true,
     videoUrl: "",
     difficulty: DIFFICULTY,
@@ -152,9 +155,9 @@ export function getMeta() {
 }
 
 // SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz. settings: { source, boss,
-// difficultyPosition — verilirse steps/timeSec EĞRİDEN gelir, verilmezse
-// (mevcut testler, doğrudan çağrılar, proplus) statik DIFFICULTY[level]
-// davranışı korunur }.
+// difficultyPosition — verilirse step/options/timeSec EĞRİDEN gelir,
+// verilmezse (mevcut testler, doğrudan çağrılar, proplus) statik
+// DIFFICULTY[level] davranışı korunur }.
 export function createQuestion(level, settings = {}) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const boss = !!settings.boss;
@@ -164,29 +167,37 @@ export function createQuestion(level, settings = {}) {
     ? paramsForDifficultyPosition(settings.difficultyPosition)
     : null;
 
-  let steps = curve ? curve.steps : diff.options;
-  if (steps % 2 === 0) steps += 1;
-  steps = Math.max(3, Math.min(7, steps));
+  const step = curve ? curve.step : Math.max(8, Math.round(200 / (diff.options + 1)));
+  const options = curve ? curve.options : diff.options;
   const timeSec = curve ? curve.timeSec : diff.time;
 
-  const percents = panGridPercents(steps);
-  const labels = PAN_LABELS_BY_STEPS[steps] || PAN_LABELS_BY_STEPS[7];
-  const trueIdx = Math.floor(Math.random() * steps);
-  const panPercent = percents[trueIdx];
+  // SÜREKLİ ölçek — herhangi bir -100..100 tam sayısı (task madde 3'ün kendi
+  // örneği: "gerçek pan %10 ise şıklar %5, %10, %18, %25 gibi" — true değer
+  // YUVARLAK bir ızgara noktası OLMAK ZORUNDA DEĞİL).
+  const panPercent = Math.round(Math.random() * 200 - 100);
 
-  // KASITLI OLARAK karıştırılmadı — bkz. dosya başı notu.
-  const choices = percents.map((p, i) => ({ value: p, label: labels[i], correct: i === trueIdx }));
+  const values = generateChoiceValues(panPercent, step, Math.max(3, options), -100, 100);
+  const choices = shuffle(values.map(v => ({ value: v, correct: v === panPercent })));
+  // Yuvarlama sonrası TEORİK olarak (çok küçük step + kenar durumu) iki
+  // değer çakışabilirse diye TEK bir savunma — PRATİKTE STEP_FLOOR>PAN_
+  // TOLERANCE invaryantı bunu zaten engelliyor (bkz. test dosyası), yine de
+  // sessizce yanlış bir "iki doğru şık" durumuna düşmek yerine engellenir.
+  const seen = new Set();
+  const dedupedChoices = choices.filter(c => {
+    if (seen.has(c.value)) return false;
+    seen.add(c.value);
+    return true;
+  });
 
   return {
     mode: "pan",
     difficulty: level,
     panPercent,
-    steps,
     source,
     hintUsed: false,
     boss,
     timeSec,
-    choices
+    choices: dedupedChoices
   };
 }
 
@@ -202,7 +213,7 @@ function positionWord(panPercent) {
 export function formatPanPercent(panPercent) {
   if (panPercent === 0) return "Merkez";
   const side = panPercent < 0 ? "Sol" : "Sağ";
-  return `%${Math.abs(panPercent)} ${side}`;
+  return `%${Math.abs(Math.round(panPercent))} ${side}`;
 }
 
 export function correctLabel(q) {
@@ -289,7 +300,7 @@ export function getFeedbackData(question, answer, context = {}) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function getHintText(question) {
-  return `${question.steps} kademeden biri — ${question.panPercent < 0 ? "sol" : question.panPercent > 0 ? "sağ" : "merkez"} tarafta`;
+  return question.panPercent === 0 ? "Merkez" : question.panPercent < 0 ? "Sol taraf" : "Sağ taraf";
 }
 
 export function renderHintMask(hintMaskLayerEl) {
@@ -306,14 +317,13 @@ export function renderGuessAreaControls(freqGuessAreaEl) {
 }
 
 // Şıklı cevap grid'ini kurar — data-value app.js'in click-delegasyonunda
-// answer={value} kurmak için okunur. KASITLI SIRALAMA (shuffle YOK, bkz.
-// dosya başı notu).
+// answer={value} kurmak için okunur.
 export function renderAnswerChoices(answersEl, q) {
   if (!answersEl) return;
   if (!q.choices) { answersEl.innerHTML = ""; answersEl.classList.add("hidden"); return; }
   answersEl.className = "answers";
   answersEl.innerHTML = q.choices.map(c => {
-    return `<button type="button" class="ans" data-value="${c.value}"><b>${c.label}</b></button>`;
+    return `<button type="button" class="ans" data-value="${c.value}"><b>${formatPanPercent(c.value)}</b></button>`;
   }).join("");
 }
 

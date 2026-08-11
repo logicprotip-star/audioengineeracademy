@@ -96,22 +96,24 @@ export const LEVEL_SHEET_TERMS = {
     formatSensitivity: p => formatPercent(p.kGap),
     formatAmount: () => null
   },
-  // Pan Konumu/Stereo Genişlik'in eğrisi diğerlerinden FARKLI bir eksen
-  // kullanıyor (bkz. o modların dosya başı notu): tek bilinmeyen, ızgaranın
-  // KADEME SAYISI (3→7) — kolayda az/uzak kademe, zorda çok/yakın kademe.
-  // "amount" burada kademeler arası ORTALAMA aralık (%), sensitivityLabel'in
-  // DOĞAL sonucu — ayrı bir ikinci eksen DEĞİL, aynı sayının başka görünümü.
+  // G120 — Pan Konumu/Stereo Genişlik'in eğrisi dB Seviyesi/Boost-Cut'ın AYNI
+  // deseni: sensitivityLabel = şıklar arası MESAFE (dB Seviyesi'nin "Şıklar
+  // arası aralık"ıyla AYNI kavram, burada yön/işaret DEĞİL yüzde puanı),
+  // amountLabel = İKİNCİL eksen olarak korunan kademe SAYISI (daha fazla şık
+  // = daha zor karar). ESKİ (G118) sürümde bu ikisi TERSTİ (sensitivity =
+  // kademe sayısı, amount = ondan türetilen aralık) — artık dB Seviyesi'yle
+  // TUTARLI: birincil eksen HER ZAMAN "şıklar arası fark".
   "pan-konumu": {
-    sensitivityLabel: "Izgara kademesi",
-    amountLabel: "Kademeler arası aralık",
-    formatSensitivity: p => `${p.steps} kademe`,
-    formatAmount: p => `%${Math.round(200 / (p.steps - 1))}`
+    sensitivityLabel: "Şıklar arası aralık",
+    amountLabel: "Şık sayısı",
+    formatSensitivity: p => `%${Math.round(p.step)}`,
+    formatAmount: p => `${p.options}`
   },
   "stereo-genislik": {
-    sensitivityLabel: "Izgara kademesi",
-    amountLabel: "Kademeler arası aralık",
-    formatSensitivity: p => `${p.steps} kademe`,
-    formatAmount: p => `%${Math.round(100 / (p.steps - 1))}`
+    sensitivityLabel: "Şıklar arası aralık",
+    amountLabel: "Şık sayısı",
+    formatSensitivity: p => `%${Math.round(p.step)}`,
+    formatAmount: p => `${p.options}`
   }
 };
 

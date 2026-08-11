@@ -1,68 +1,60 @@
-// Stereo Genişlik moduna özel testler — Pan Konumu'nun (bu turun ikiz modu)
-// AYNI test iskeleti + applyProcessing'in G118'in YENİ branch mekanizmasını
-// (fan-out: doğrudan+gecikmeli iki yol, panL/panR, birleştirme) doğru kurduğunu
-// GERÇEK bir OfflineAudioContext benzeri sahte graf ile doğrulayan ek testler.
+// Stereo Genişlik moduna özel testler (G120 — sürekli ölçek, Pan Konumu'nun
+// AYNI test iskeleti + applyProcessing'in YENİ "iki bağımsız kaynak" DSP'sini
+// [gecikme YERİNE, bkz. dosya başı DÜRÜSTLÜK notu] doğru kurduğunu, hiçbir
+// DelayNode İÇERMEDİĞİNİ ve gerçek bağımsız bir ikinci kaynak ürettiğini
+// doğrulayan ek testler.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as mode from "../www/js/modes/stereo-genislik.js";
 
-describe("Stereo Genişlik — widthGridPercents() (SAF ızgara üretimi)", () => {
-  it("steps=3 → [0, 50, 100]", () => {
-    assert.deepEqual(mode.widthGridPercents(3), [0, 50, 100]);
-  });
-  it("steps=5 → [0, 25, 50, 75, 100]", () => {
-    assert.deepEqual(mode.widthGridPercents(5), [0, 25, 50, 75, 100]);
-  });
-  it("steps=7 → 7 farklı, 0 ile 100'ü İÇEREN, artan tam sayı ızgara", () => {
-    const g = mode.widthGridPercents(7);
-    assert.equal(g.length, 7);
-    assert.equal(new Set(g).size, 7, "7 kademe HEPSİ farklı olmalı");
-    assert.equal(g[0], 0);
-    assert.equal(g[g.length - 1], 100);
-    assert.deepEqual(g, [...g].sort((a, b) => a - b));
+describe("Stereo Genişlik — generateChoiceValues() (Pan Konumu'yla AYNI SAF algoritma)", () => {
+  it("trueValue etrafında count-1 çeldirici, TAM k·step mesafede, [0,100] içinde üretir", () => {
+    const values = mode.generateChoiceValues(60, 15, 5, 0, 100);
+    assert.equal(values.length, 5);
+    assert.equal(values[0], 60);
+    values.forEach(v => assert.ok(v >= 0 && v <= 100, `${v} [0,100] dışında`));
   });
 
-  it("3/5/7 kademelerin HİÇBİRİNDE iki nokta ÇAKIŞMAZ (500 tekrar sağlama)", () => {
-    for (const steps of [3, 5, 7]) {
-      for (let i = 0; i < 500; i++) {
-        const g = mode.widthGridPercents(steps);
-        assert.equal(new Set(g).size, steps, `steps=${steps}: çakışan ızgara noktası`);
-      }
+  it("500 rastgele (trueValue, step, count) kombinasyonunda üretilen değerlerin HEPSİ birbirinden FARKLI", () => {
+    for (let i = 0; i < 500; i++) {
+      const trueValue = Math.round(Math.random() * 100);
+      const step = 5 + Math.random() * 30;
+      const count = 3 + Math.floor(Math.random() * 5);
+      const values = mode.generateChoiceValues(trueValue, step, count, 0, 100);
+      assert.equal(new Set(values).size, values.length, `trueValue=${trueValue} step=${step.toFixed(1)} count=${count}: çakışan değer, values=${values}`);
     }
   });
 });
 
 describe("Stereo Genişlik — paramsForDifficultyPosition() (Pan Konumu'yla AYNI eğri şekli)", () => {
-  it("Z1'de en az kademe (3), LEVEL_CAP'te en çok kademe (7)", () => {
+  it("Z1'de en geniş şık mesafesi, LEVEL_CAP'te en dar", () => {
+    const cfg = mode.WIDTH_CURVE_CONFIG;
     const z1 = mode.paramsForDifficultyPosition(1);
-    const zCap = mode.paramsForDifficultyPosition(mode.WIDTH_CURVE_CONFIG.LEVEL_CAP);
-    assert.equal(z1.steps, 3);
-    assert.equal(zCap.steps, 7);
+    const zCap = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP);
+    assert.ok(Math.abs(z1.step - cfg.STEP_AT_1) < 1e-9);
+    assert.ok(Math.abs(zCap.step - cfg.STEP_AT_CAP) < 1e-9);
   });
 
-  it("Z1→Z20 tablosu: kademe sayısı MONOTON artar, [3,7] aralığında kalır, hep tek sayı", () => {
-    let prev = 0;
+  it("Z1→Z20 tablosu: şık mesafesi MONOTON küçülür", () => {
+    let prev = Infinity;
     const rows = [];
     for (let p = 1; p <= 20; p++) {
-      const { steps } = mode.paramsForDifficultyPosition(p);
-      rows.push([p, steps]);
-      assert.equal(steps % 2, 1, `Z${p}: steps ${steps} tek sayı değil`);
-      assert.ok(steps >= 3 && steps <= 7, `Z${p}: steps ${steps} [3,7] dışında`);
-      assert.ok(steps >= prev, `Z${p}: steps ${steps} öncekinden (${prev}) küçüldü`);
-      prev = steps;
+      const { step, options } = mode.paramsForDifficultyPosition(p);
+      rows.push([p, step.toFixed(1), options]);
+      assert.ok(step <= prev + 1e-9, `Z${p}: step ${step} öncekinden büyüdü`);
+      prev = step;
     }
-    console.log("Stereo Genişlik Z1-Z20 kademe tablosu:", rows.map(([p, s]) => `Z${p}=${s}`).join(" "));
-    assert.ok(rows[0][1] < rows[19][1]);
+    console.log("Stereo Genişlik Z1-Z20 tablosu (step %, şık sayısı):", rows.map(([p, s, o]) => `Z${p}=${s}%/${o}şık`).join(" "));
+    assert.ok(Number(rows[0][1]) > Number(rows[19][1]));
   });
 
-  it("kademeler arası ORTALAMA mesafe zorlukla KÜÇÜLÜR (%0/%50/%100'den başlayıp daralır — task'ın kendi tarifi)", () => {
-    const gapAt = p => {
-      const { steps } = mode.paramsForDifficultyPosition(p);
-      return 100 / (steps - 1);
-    };
-    assert.ok(gapAt(1) > gapAt(20));
-    assert.equal(gapAt(1), 50, "Z1'de kademe aralığı %50 olmalı (0/50/100)");
+  it("şık mesafesi HİÇBİR Z seviyesinde WIDTH_TOLERANCE'a eşit ya da altına İNMEZ", () => {
+    for (let p = 1; p <= 20; p++) {
+      const { step } = mode.paramsForDifficultyPosition(p);
+      assert.ok(step > mode.WIDTH_TOLERANCE, `Z${p}: step ${step} <= tolerans ${mode.WIDTH_TOLERANCE}`);
+    }
+    assert.ok(mode.WIDTH_CURVE_CONFIG.STEP_FLOOR > mode.WIDTH_TOLERANCE);
   });
 });
 
@@ -89,15 +81,18 @@ describe("Stereo Genişlik — createQuestion() genel sözleşme", () => {
     }
   });
 
-  it("ilk şık her zaman 'Mono (%0)', son şık her zaman 'Tam Geniş (%100)'", () => {
-    const q = mode.createQuestion("hard", { source: "pink", boss: false });
-    assert.equal(q.choices[0].label, "Mono (%0)");
-    assert.equal(q.choices[q.choices.length - 1].label, "Tam Geniş (%100)");
+  it("true değer sürekli ölçekten gelir — ızgara noktası (0/25/50/75/100) OLMAK ZORUNDA DEĞİL (500 örnekte en az bir ızgara-dışı değer)", () => {
+    let sawNonGrid = false;
+    for (let i = 0; i < 500; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false });
+      if (q.widthPercent % 25 !== 0) { sawNonGrid = true; break; }
+    }
+    assert.ok(sawNonGrid, "500 örnekte HİÇ ızgara-dışı değer çıkmadı");
   });
 
-  it("difficultyPosition VERİLİRSE üretilen kademe sayısı paramsForDifficultyPosition().steps'e eşit", () => {
+  it("difficultyPosition VERİLİRSE üretilen şık sayısı paramsForDifficultyPosition().options'a eşit", () => {
     for (const p of [1, 5, 10, 15, 20]) {
-      const expected = mode.paramsForDifficultyPosition(p).steps;
+      const expected = mode.paramsForDifficultyPosition(p).options;
       const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: p });
       assert.equal(q.choices.length, expected);
     }
@@ -127,6 +122,20 @@ describe("Stereo Genişlik — 1000 denemelik: hiçbir kademede iki şık çakı
         const gap = Math.abs(c.value - q.widthPercent);
         assert.ok(gap > mode.WIDTH_TOLERANCE, `position ${position.toFixed(2)}: yanlış şık ${c.value} doğruya (${q.widthPercent}) çok yakın`);
       });
+    }
+  });
+
+  it("1000 rastgele soruda şıkların İKİLİ karşılaştırmasında da hiçbir çift WIDTH_TOLERANCE içine düşmez", () => {
+    const N = 1000;
+    for (let i = 0; i < N; i++) {
+      const position = 1 + Math.random() * 19;
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: position });
+      for (let a = 0; a < q.choices.length; a++) {
+        for (let b = a + 1; b < q.choices.length; b++) {
+          const gap = Math.abs(q.choices[a].value - q.choices[b].value);
+          assert.ok(gap > mode.WIDTH_TOLERANCE, `position ${position.toFixed(2)}: şık ${q.choices[a].value} ile ${q.choices[b].value} arası ${gap} <= tolerans`);
+        }
+      }
     }
   });
 });
@@ -181,21 +190,20 @@ describe("Stereo Genişlik — teachingText/getFeedbackData", () => {
   });
 });
 
-// G118 — YENİ branch mekanizmasının GERÇEKTEN doğru kurulduğunu, sahte ama
+// G120 — YENİ "iki bağımsız kaynak" DSP'sinin doğru kurulduğunu, sahte ama
 // Web Audio API'nin bağlantı/parametre sözleşmesine sadık bir audioCtx ile
-// doğrular: entryTap sourceMix'ten geleni ALIR, panL/delay→panR'a FAN-OUT
-// yapar, ikisi de mergeGain'e bağlanır — hiçbir düğüm eksik/fazla değil.
-describe("Stereo Genişlik — applyProcessing (G118 branch mekanizması, sahte audioCtx ile)", () => {
+// doğrular. En kritik doğrulama: HİÇBİR DelayNode YOK (eski/hatalı G118
+// tekniği tamamen kaldırıldı) ve panL/panR GERÇEKTEN İKİ FARKLI kaynak
+// düğümünden besleniyor (aynı düğüm İKİ KEZ KULLANILMIYOR).
+describe("Stereo Genişlik — applyProcessing (G120 'iki bağımsız kaynak' DSP'si, sahte audioCtx ile)", () => {
   function makeFakeAudioCtx() {
     const created = [];
-    const connections = []; // [fromId, toId]
+    const connections = [];
     let nextId = 0;
     function makeNode(kind, extra = {}) {
       const id = nextId++;
       const node = {
-        __id: id,
-        __kind: kind,
-        ...extra,
+        __id: id, __kind: kind, ...extra,
         connect: (dest) => { connections.push([id, dest.__id]); return dest; }
       };
       created.push(node);
@@ -203,77 +211,89 @@ describe("Stereo Genişlik — applyProcessing (G118 branch mekanizması, sahte 
     }
     return {
       ctx: {
+        sampleRate: 44100,
         createGain: () => makeNode("gain", { gain: { value: 0 } }),
         createStereoPanner: () => makeNode("panner", { pan: { value: 0 } }),
-        createDelay: (max) => makeNode("delay", { delayTime: { value: 0 }, maxDelay: max })
+        createDelay: (max) => makeNode("delay", { delayTime: { value: 0 }, maxDelay: max }),
+        createBuffer: () => ({ getChannelData: () => new Float32Array(100) }),
+        createBufferSource: () => makeNode("bufferSource", { buffer: null, loop: false, start: () => {} }),
+        createOscillator: () => makeNode("oscillator", { type: "sine", frequency: { value: 0 }, detune: { value: 0 }, start: () => {} })
       },
-      created,
-      connections
+      created, connections
     };
   }
 
-  it("width=0'da panL/panR pan=0, delay=0 — iki yol SAYISAL olarak özdeş (GERÇEK mono, task'ın '%0=ikisi de merkezde' tanımı)", () => {
-    const { ctx } = makeFakeAudioCtx();
-    const { branch } = mode.applyProcessing({ widthPercent: 0 }, { audioCtx: ctx });
-    const panners = branch.nodes.filter(n => n.__kind === "panner");
-    const delays = branch.nodes.filter(n => n.__kind === "delay");
-    assert.equal(panners.length, 2);
-    assert.equal(delays.length, 1);
-    // pan.value === 0 karşılaştırması (assert.equal DEĞİL) — JS'te -widthFrac
-    // (widthFrac=0) matematiksel olarak -0 üretir, assert/strict Object.is
-    // semantiğiyle -0 !== 0 sayar (Node'un KENDİ, bilinen bir davranışı) —
-    // ama -0 === 0 (operatör) HER ZAMAN true, ses açısından da fark YOK.
-    panners.forEach(p => assert.ok(p.pan.value === 0, `pan.value ${p.pan.value} !== 0`));
-    assert.ok(delays[0].delayTime.value === 0);
-  });
-
-  it("width=100'de panL=-1/panR=+1 (tam ayrık), gecikme MAX_DELAY_SEC'e eşit", () => {
-    const { ctx } = makeFakeAudioCtx();
-    const { branch } = mode.applyProcessing({ widthPercent: 100 }, { audioCtx: ctx });
-    const panners = branch.nodes.filter(n => n.__kind === "panner");
-    const delays = branch.nodes.filter(n => n.__kind === "delay");
-    const panValues = panners.map(p => p.pan.value).sort((a, b) => a - b);
-    assert.deepEqual(panValues, [-1, 1]);
-    assert.ok(Math.abs(delays[0].delayTime.value - mode.MAX_DELAY_SEC) < 1e-9);
-  });
-
-  it("width arttıkça pan açıklığı VE gecikme MONOTON büyür", () => {
-    const { ctx } = makeFakeAudioCtx();
-    let prevPan = -1, prevDelay = -1;
-    for (const w of [0, 25, 50, 75, 100]) {
-      const { branch } = mode.applyProcessing({ widthPercent: w }, { audioCtx: ctx });
-      const panR = branch.nodes.filter(n => n.__kind === "panner").find(p => p.pan.value >= 0);
-      const delay = branch.nodes.find(n => n.__kind === "delay");
-      assert.ok(panR.pan.value >= prevPan - 1e-9, `width=${w}: pan geriledi`);
-      assert.ok(delay.delayTime.value >= prevDelay - 1e-9, `width=${w}: gecikme geriledi`);
-      prevPan = panR.pan.value;
-      prevDelay = delay.delayTime.value;
+  it("HİÇBİR DelayNode YOK — G118'in hatalı gecikme tekniği tamamen kaldırıldı", () => {
+    for (const source of ["pink", "white", "saw", "square", "triangle"]) {
+      const { ctx } = makeFakeAudioCtx();
+      const { branch } = mode.applyProcessing({ widthPercent: 50, source }, { audioCtx: ctx });
+      const delays = branch.nodes.filter(n => n.__kind === "delay");
+      assert.equal(delays.length, 0, `source=${source}: DelayNode BULUNDU, kaldırılmamış olabilir`);
     }
   });
 
-  it("branch.input/output tanımlı, nodes 5 düğüm içerir (entryTap+panL+delay+panR+mergeGain), filters BOŞ/undefined", () => {
+  it("gürültü kaynağı (pink/white) için ikinci kaynak BufferSourceNode, panL'i besleyen entryTap'ten FARKLI bir düğüm", () => {
     const { ctx } = makeFakeAudioCtx();
-    const result = mode.applyProcessing({ widthPercent: 50 }, { audioCtx: ctx });
-    assert.ok(result.branch, "branch tanımlı olmalı");
-    assert.ok(result.branch.input);
-    assert.ok(result.branch.output);
-    assert.equal(result.branch.nodes.length, 5);
-    assert.ok(!result.filters || result.filters.length === 0, "width modunda düz filters dizisi KULLANILMAMALI");
+    const { branch } = mode.applyProcessing({ widthPercent: 80, source: "pink" }, { audioCtx: ctx });
+    const bufferSources = branch.nodes.filter(n => n.__kind === "bufferSource");
+    assert.equal(bufferSources.length, 1, "TEK bağımsız BufferSourceNode (entryTap sourceMix'ten geliyor, applyProcessing İÇİNDE oluşturulmuyor)");
+    const entryTap = branch.input;
+    assert.notEqual(bufferSources[0].__id, entryTap.__id, "ikinci kaynak entryTap'İN KENDİSİ OLMAMALI — bağımsız/taze bir düğüm olmalı");
   });
 
-  it("iç bağlantılar TAM beklenen fan-out/merge topolojisini kurar: entryTap→panL, entryTap→delay, delay→panR, panL→merge, panR→merge (audio-engine'in EK bağlantısı olmadan)", () => {
+  it("osilatör kaynağı (saw/square/triangle) için ikinci kaynak OscillatorNode, KÜÇÜK bir detune taşır (sıfır DEĞİL — gerçek decorrelation için)", () => {
+    for (const source of ["saw", "square", "triangle"]) {
+      const { ctx } = makeFakeAudioCtx();
+      const { branch } = mode.applyProcessing({ widthPercent: 80, source }, { audioCtx: ctx });
+      const oscs = branch.nodes.filter(n => n.__kind === "oscillator");
+      assert.equal(oscs.length, 1, `source=${source}: TEK bağımsız OscillatorNode bekleniyordu`);
+      assert.equal(oscs[0].type, source);
+      assert.notEqual(oscs[0].detune.value, 0, `source=${source}: detune sıfırsa iki osilatör SKALER KATI olur, decorrelation OLUŞMAZ`);
+    }
+  });
+
+  it("bilinmeyen/desteklenmeyen bir source için ÇÖKMEZ, güvenli pembe-gürültü varsayılanına düşer", () => {
+    const { ctx } = makeFakeAudioCtx();
+    assert.doesNotThrow(() => {
+      const { branch } = mode.applyProcessing({ widthPercent: 50, source: "kick" }, { audioCtx: ctx });
+      const bufferSources = branch.nodes.filter(n => n.__kind === "bufferSource");
+      assert.equal(bufferSources.length, 1);
+    });
+  });
+
+  it("width=0'da panL/panR pan=0 (merkez) — width=100'de panL=-1/panR=+1 (tam ayrık)", () => {
+    const { ctx } = makeFakeAudioCtx();
+    const zero = mode.applyProcessing({ widthPercent: 0, source: "pink" }, { audioCtx: ctx });
+    const zeroPanners = zero.branch.nodes.filter(n => n.__kind === "panner");
+    zeroPanners.forEach(p => assert.ok(p.pan.value === 0, `pan.value ${p.pan.value} !== 0`));
+
+    const { ctx: ctx2 } = makeFakeAudioCtx();
+    const full = mode.applyProcessing({ widthPercent: 100, source: "pink" }, { audioCtx: ctx2 });
+    const fullPanners = full.branch.nodes.filter(n => n.__kind === "panner");
+    const panValues = fullPanners.map(p => p.pan.value).sort((a, b) => a - b);
+    assert.deepEqual(panValues, [-1, 1]);
+  });
+
+  it("iç bağlantılar TAM beklenen fan-out/merge topolojisini kurar: entryTap→panL, ikinciKaynak→ara-gain→panR, panL→merge, panR→merge (bypass sızıntısı YOK)", () => {
     const { ctx, connections } = makeFakeAudioCtx();
-    const { branch } = mode.applyProcessing({ widthPercent: 50 }, { audioCtx: ctx });
-    const [entryTap, panL, delay, panR, mergeGain] = branch.nodes;
+    const { branch } = mode.applyProcessing({ widthPercent: 50, source: "pink" }, { audioCtx: ctx });
+    const entryTap = branch.input;
+    const mergeGain = branch.output;
+    const panners = branch.nodes.filter(n => n.__kind === "panner");
     const has = (from, to) => connections.some(([f, t]) => f === from.__id && t === to.__id);
-    assert.ok(has(entryTap, panL), "entryTap→panL eksik");
-    assert.ok(has(entryTap, delay), "entryTap→delay eksik");
-    assert.ok(has(delay, panR), "delay→panR eksik");
-    assert.ok(has(panL, mergeGain), "panL→mergeGain eksik");
-    assert.ok(has(panR, mergeGain), "panR→mergeGain eksik");
-    // entryTap DOĞRUDAN mergeGain'e bağlı OLMAMALI (bypass sızıntısı olurdu —
-    // bkz. audio-engine.js'in dosya başı G118 notu, bu YÜZDEN branch mekanizması eklendi).
-    assert.ok(!has(entryTap, mergeGain), "entryTap→mergeGain DOĞRUDAN bağlantısı OLMAMALIYDI (bypass sızıntısı)");
+
+    assert.ok(panners.some(p => has(entryTap, p)), "entryTap bir panner'a bağlı değil");
+    panners.forEach(p => assert.ok(has(p, mergeGain), "her panner mergeGain'e bağlı olmalı"));
+    // entryTap DOĞRUDAN mergeGain'e bağlı OLMAMALI (bypass sızıntısı olurdu).
+    assert.ok(!has(entryTap, mergeGain), "entryTap→mergeGain DOĞRUDAN bağlantısı OLMAMALIYDI");
+  });
+
+  it("branch.nodes 6 düğüm içerir (entryTap+panL+ikinciKaynak+secondGain+panR+mergeGain), filters BOŞ/undefined", () => {
+    const { ctx } = makeFakeAudioCtx();
+    const result = mode.applyProcessing({ widthPercent: 50, source: "pink" }, { audioCtx: ctx });
+    assert.ok(result.branch);
+    assert.equal(result.branch.nodes.length, 6);
+    assert.ok(!result.filters || result.filters.length === 0, "width modunda düz filters dizisi KULLANILMAMALI");
   });
 });
 
@@ -283,10 +303,18 @@ describe("Stereo Genişlik — getMeta() sözleşme alanları", () => {
     assert.equal(meta.id, "stereo-genislik");
     assert.equal(meta.kulaklikGerekli, true);
     assert.equal(typeof meta.kulaklikMetni, "string");
-    assert.ok(!meta.uyumluKaynaklar.includes("kick"));
-    assert.ok(!meta.uyumluKaynaklar.includes("snare"));
     assert.equal(meta.choiceOnly, true);
   });
+
+  it("G120 — kaynak listesi SADECE sentetik türlere (pink/white/saw/square/triangle) daraltıldı — örnek dosyalar/upload'ta bağımsız ikinci kaynak YOK", () => {
+    const meta = mode.getMeta();
+    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["pink", "saw", "square", "triangle", "white"]);
+    assert.ok(!meta.uyumluKaynaklar.includes("upload"));
+    assert.ok(!meta.uyumluKaynaklar.includes("kick"));
+    assert.ok(!meta.uyumluKaynaklar.includes("vocal"));
+    assert.ok(!meta.uyumluKaynaklar.includes("groove"));
+  });
+
   it("ad/aciklama BİLEREK yok", () => {
     const meta = mode.getMeta();
     assert.equal(meta.ad, undefined);

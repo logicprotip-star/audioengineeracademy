@@ -1,69 +1,82 @@
-// Pan Konumu moduna özel testler: ızgara üretimi (kademe sayısı zorlukla
-// artar/daralır), createQuestion/evaluateAnswer saflığı, merkezi zorluk
-// eğrisine bağlanma, applyProcessing'in StereoPannerNode kurması, 1000
-// denemelik "hiçbir kademe çakışmıyor" invaryantı (Tonal Denge'nin G95
-// kaybedilemezlik hatasına benzer bir riskin BURADA olmadığını kanıtlar).
+// Pan Konumu moduna özel testler (G120 — sürekli ölçek + curve-driven şık
+// mesafesi, dB Seviyesi'nin AYNI deseni): createQuestion/evaluateAnswer
+// saflığı, merkezi zorluk eğrisine bağlanma, applyProcessing'in
+// StereoPannerNode kurması, 1000 denemelik "hiçbir kademede iki şık
+// çakışmıyor + yanlış şık asla tolerans içine düşmüyor" invaryantı
+// (Tonal Denge'nin G95 kaybedilemezlik hatasına benzer bir riskin BURADA
+// olmadığını kanıtlar).
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as mode from "../www/js/modes/pan-konumu.js";
 
-describe("Pan Konumu — panGridPercents() (SAF ızgara üretimi)", () => {
-  it("steps=3 → [-100, 0, 100]", () => {
-    assert.deepEqual(mode.panGridPercents(3), [-100, 0, 100]);
-  });
-  it("steps=5 → [-100, -50, 0, 50, 100]", () => {
-    assert.deepEqual(mode.panGridPercents(5), [-100, -50, 0, 50, 100]);
-  });
-  it("steps=7 → 7 farklı, simetrik, merkez=0 içeren tam sayı ızgara", () => {
-    const g = mode.panGridPercents(7);
-    assert.equal(g.length, 7);
-    assert.equal(new Set(g).size, 7, "7 kademe HEPSİ farklı olmalı");
-    assert.ok(g.includes(0), "merkez (0) ızgarada olmalı");
-    assert.deepEqual(g, [...g].sort((a, b) => a - b), "ızgara SOL→SAĞ artan sırada olmalı");
-    g.forEach(v => assert.ok(Number.isInteger(v), `${v} tam sayı değil`));
+describe("Pan Konumu — generateChoiceValues() (SAF çeldirici üretimi)", () => {
+  it("trueValue etrafında count-1 çeldirici, TAM k·step mesafede üretir", () => {
+    const values = mode.generateChoiceValues(10, 20, 5, -100, 100);
+    assert.equal(values.length, 5);
+    assert.equal(values[0], 10); // true değer her zaman ilk eleman
+    const gaps = values.slice(1).map(v => Math.abs(v - 10));
+    gaps.forEach(g => assert.ok(g % 20 === 0 || Math.abs(g % 20) < 1e-9, `${g} 20'nin katı değil`));
   });
 
-  it("3/5/7 kademelerin HİÇBİRİNDE iki nokta ÇAKIŞMAZ (matematiksel garanti + 500 tekrar sağlama)", () => {
-    for (const steps of [3, 5, 7]) {
-      for (let i = 0; i < 500; i++) {
-        const g = mode.panGridPercents(steps);
-        assert.equal(new Set(g).size, steps, `steps=${steps}: çakışan ızgara noktası`);
-      }
+  it("hiçbir çeldirici [min,max] sınırının dışına ÇIKMAZ — kenara yakın true değerlerde bile", () => {
+    for (const trueValue of [-100, -95, -50, 0, 50, 95, 100]) {
+      const values = mode.generateChoiceValues(trueValue, 15, 7, -100, 100);
+      values.forEach(v => assert.ok(v >= -100 && v <= 100, `${v}, trueValue=${trueValue} sınır dışı`));
+    }
+  });
+
+  it("bir yön sınıra dolarsa fazla adım DİĞER yöne devredilir — count-1 çeldirici HER ZAMAN üretilir (yeterli alan varsa)", () => {
+    const values = mode.generateChoiceValues(95, 15, 7, -100, 100); // sağda çok az yer var
+    assert.equal(values.length, 7, "sınıra yakın true değerde bile 7 şık üretilmeliydi");
+    assert.equal(new Set(values).size, 7, "üretilen 7 değerin hepsi FARKLI olmalıydı");
+  });
+
+  it("500 rastgele (trueValue, step, count) kombinasyonunda üretilen değerlerin HEPSİ birbirinden FARKLI", () => {
+    for (let i = 0; i < 500; i++) {
+      const trueValue = Math.round(Math.random() * 200 - 100);
+      const step = 6 + Math.random() * 40;
+      const count = 3 + Math.floor(Math.random() * 5);
+      const values = mode.generateChoiceValues(trueValue, step, count, -100, 100);
+      assert.equal(new Set(values).size, values.length, `trueValue=${trueValue} step=${step.toFixed(1)} count=${count}: çakışan değer, values=${values}`);
     }
   });
 });
 
 describe("Pan Konumu — paramsForDifficultyPosition() (merkezi zorluk eğrisi)", () => {
-  it("Z1'de en az kademe (3), LEVEL_CAP'te en çok kademe (7)", () => {
+  it("Z1'de en geniş şık mesafesi (STEP_AT_1), LEVEL_CAP'te en dar (STEP_AT_CAP)", () => {
+    const cfg = mode.PAN_CURVE_CONFIG;
     const z1 = mode.paramsForDifficultyPosition(1);
-    const zCap = mode.paramsForDifficultyPosition(mode.PAN_CURVE_CONFIG.LEVEL_CAP);
-    assert.equal(z1.steps, 3);
-    assert.equal(zCap.steps, 7);
+    const zCap = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP);
+    assert.ok(Math.abs(z1.step - cfg.STEP_AT_1) < 1e-9);
+    assert.ok(Math.abs(zCap.step - cfg.STEP_AT_CAP) < 1e-9);
   });
 
-  it("Z1→Z20 tablosu: kademe sayısı TEK sayı, MONOTON artar (asla azalmaz), hiçbir zaman aralık dışına çıkmaz", () => {
-    let prev = 0;
+  it("Z1→Z20 tablosu: şık mesafesi (step) MONOTON küçülür (kolayda uzak, zorda yakın)", () => {
+    let prev = Infinity;
     const rows = [];
     for (let p = 1; p <= 20; p++) {
-      const { steps } = mode.paramsForDifficultyPosition(p);
-      rows.push([p, steps]);
-      assert.equal(steps % 2, 1, `Z${p}: steps ${steps} tek sayı değil`);
-      assert.ok(steps >= 3 && steps <= 7, `Z${p}: steps ${steps} [3,7] dışında`);
-      assert.ok(steps >= prev, `Z${p}: steps ${steps} öncekinden (${prev}) küçüldü`);
-      prev = steps;
+      const { step, options } = mode.paramsForDifficultyPosition(p);
+      rows.push([p, step.toFixed(1), options]);
+      assert.ok(step <= prev + 1e-9, `Z${p}: step ${step} öncekinden büyüdü`);
+      prev = step;
     }
-    // Tablo kanıtı — kolayda az/uzak kademe, zorda çok/yakın kademe (task'ın kendi kabul kriteri).
-    console.log("Pan Konumu Z1-Z20 kademe tablosu:", rows.map(([p, s]) => `Z${p}=${s}`).join(" "));
-    assert.ok(rows[0][1] < rows[19][1], "Z1 kademesi Z20'den küçük olmalıydı");
+    console.log("Pan Konumu Z1-Z20 tablosu (step %, şık sayısı):", rows.map(([p, s, o]) => `Z${p}=${s}%/${o}şık`).join(" "));
+    assert.ok(Number(rows[0][1]) > Number(rows[19][1]));
   });
 
-  it("kademeler arası ORTALAMA mesafe zorlukla KÜÇÜLÜR (kolayda uzak, zorda yakın — task'ın kendi tarifi)", () => {
-    const gapAt = p => {
-      const { steps } = mode.paramsForDifficultyPosition(p);
-      return 200 / (steps - 1);
-    };
-    assert.ok(gapAt(1) > gapAt(20), `Z1 aralığı (${gapAt(1)}) Z20'den (${gapAt(20)}) büyük olmalıydı`);
+  it("şık mesafesi (step) HİÇBİR Z seviyesinde PAN_TOLERANCE'a eşit ya da altına İNMEZ (STEP_FLOOR invaryantı)", () => {
+    for (let p = 1; p <= 20; p++) {
+      const { step } = mode.paramsForDifficultyPosition(p);
+      assert.ok(step > mode.PAN_TOLERANCE, `Z${p}: step ${step} <= tolerans ${mode.PAN_TOLERANCE}`);
+    }
+    assert.ok(mode.PAN_CURVE_CONFIG.STEP_FLOOR > mode.PAN_TOLERANCE);
+  });
+
+  it("LEVEL_CAP'in ÇOK ötesinde step bir TABANIN altına inmez", () => {
+    const cfg = mode.PAN_CURVE_CONFIG;
+    const far = mode.paramsForDifficultyPosition(cfg.LEVEL_CAP + 1000);
+    assert.ok(far.step >= cfg.STEP_FLOOR - 1e-9);
   });
 
   it("position<1 ya da ondalık için düşmez, güvenli bir değere kırpar", () => {
@@ -102,15 +115,19 @@ describe("Pan Konumu — createQuestion() genel sözleşme", () => {
     }
   });
 
-  it("şıklar KASITLI OLARAK karıştırılmıyor — SOL'dan SAĞ'a artan sırada duruyor", () => {
-    const q = mode.createQuestion("hard", { source: "pink", boss: false });
-    const values = q.choices.map(c => c.value);
-    assert.deepEqual(values, [...values].sort((a, b) => a - b));
+  it("true değer HER ZAMAN yuvarlak bir ızgara noktası OLMAK ZORUNDA DEĞİL — herhangi bir -100..100 tam sayısı üretilebilir (500 örnekte en az bir 'yuvarlak olmayan' değer)", () => {
+    // "yuvarlak olmayan" = 25'in katı olmayan bir değer (eski ızgara -100/-50/0/50/100'ün DIŞINDA)
+    let sawNonGrid = false;
+    for (let i = 0; i < 500; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false });
+      if (q.panPercent % 25 !== 0) { sawNonGrid = true; break; }
+    }
+    assert.ok(sawNonGrid, "500 örnekte HİÇ ızgara-dışı değer çıkmadı — sürekli ölçek çalışmıyor olabilir");
   });
 
-  it("difficultyPosition VERİLİRSE üretilen kademe sayısı paramsForDifficultyPosition().steps'e eşit", () => {
+  it("difficultyPosition VERİLİRSE üretilen şık sayısı paramsForDifficultyPosition().options'a eşit", () => {
     for (const p of [1, 5, 10, 15, 20]) {
-      const expected = mode.paramsForDifficultyPosition(p).steps;
+      const expected = mode.paramsForDifficultyPosition(p).options;
       const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: p });
       assert.equal(q.choices.length, expected, `position ${p}: beklenen ${expected}, gelen ${q.choices.length}`);
     }
@@ -124,11 +141,11 @@ describe("Pan Konumu — createQuestion() genel sözleşme", () => {
   });
 });
 
-// task'ın kendi doğrulama kriteri: "hiçbir kademede iki şık aynı cevaba denk
-// gelmesin" — Tonal Denge'nin (G95) sabit-tolerans/küçülen-sinyal kaybedilemez-
-// lik hatasının BENZERİ oluşmasın. Burada risk YAPISAL OLARAK yok (ızgara
-// matematiksel olarak ayrık) ama task AÇIKÇA 1000 denemelik ampirik doğrulama
-// istiyor — bkz. dB Seviyesi'nin (G97) AYNI deseni.
+// task'ın kendi doğrulama kriteri: "hiçbir kademede iki şık aynı değere denk
+// gelmesin, en dar kademede bile şıklar arası fark algılanabilir sınırın
+// üstünde kalsın" — Tonal Denge'nin (G95) sabit-tolerans/küçülen-sinyal
+// kaybedilemezlik hatasının BENZERİ oluşmasın (bkz. dB Seviyesi'nin G97
+// AYNI deseni).
 describe("Pan Konumu — 1000 denemelik: hiçbir kademede iki şık çakışmıyor", () => {
   it("1000 rastgele soruda (position 1-20 arası) ŞIKLARIN KENDİ ARALARINDA hiçbir çift ÇAKIŞMAZ", () => {
     const N = 1000;
@@ -140,7 +157,7 @@ describe("Pan Konumu — 1000 denemelik: hiçbir kademede iki şık çakışmıy
     }
   });
 
-  it("1000 rastgele soruda TAM BİR doğru şık var, hiçbir yanlış şık PAN_TOLERANCE içine düşmez", () => {
+  it("1000 rastgele soruda TAM BİR doğru şık var, hiçbir yanlış şık PAN_TOLERANCE içine düşmez (en dar kademede bile fark algılanabilir sınırın üstünde)", () => {
     const N = 1000;
     for (let i = 0; i < N; i++) {
       const position = 1 + Math.random() * 19;
@@ -154,6 +171,20 @@ describe("Pan Konumu — 1000 denemelik: hiçbir kademede iki şık çakışmıy
       });
     }
   });
+
+  it("1000 rastgele soruda şıkların İKİLİ karşılaştırmasında da hiçbir çift PAN_TOLERANCE içine düşmez", () => {
+    const N = 1000;
+    for (let i = 0; i < N; i++) {
+      const position = 1 + Math.random() * 19;
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: position });
+      for (let a = 0; a < q.choices.length; a++) {
+        for (let b = a + 1; b < q.choices.length; b++) {
+          const gap = Math.abs(q.choices[a].value - q.choices[b].value);
+          assert.ok(gap > mode.PAN_TOLERANCE, `position ${position.toFixed(2)}: şık ${q.choices[a].value} ile ${q.choices[b].value} arası ${gap} <= tolerans`);
+        }
+      }
+    }
+  });
 });
 
 describe("Pan Konumu — evaluateAnswer", () => {
@@ -165,6 +196,13 @@ describe("Pan Konumu — evaluateAnswer", () => {
   it("PAN_TOLERANCE dışı: correct=false", () => {
     const r = mode.evaluateAnswer({ panPercent: 0 }, 33);
     assert.equal(r.correct, false);
+  });
+  it("PAN_TOLERANCE sınırı: içeride doğru, dışarıda yanlış", () => {
+    const q = { panPercent: 10 };
+    const justInside = mode.evaluateAnswer(q, 10 + mode.PAN_TOLERANCE * 0.99);
+    const justOutside = mode.evaluateAnswer(q, 10 + mode.PAN_TOLERANCE * 1.5);
+    assert.equal(justInside.correct, true);
+    assert.equal(justOutside.correct, false);
   });
   it("cevap {value} nesnesi olarak da gelebilir", () => {
     const r = mode.evaluateAnswer({ panPercent: -100 }, { value: -100 });
@@ -216,7 +254,7 @@ describe("Pan Konumu — teachingText/getFeedbackData", () => {
 });
 
 describe("Pan Konumu — applyProcessing (StereoPannerNode, sahte audioCtx ile)", () => {
-  it("panPercent'i -1..1 aralığına çevirip TEK StereoPannerNode döner", () => {
+  it("panPercent'i -1..1 aralığına çevirip TEK StereoPannerNode döner (düz filters dizisi — decorrelation riski yok, branch GEREKMİYOR)", () => {
     const created = [];
     const fakeAudioCtx = {
       createStereoPanner: () => {
@@ -226,9 +264,10 @@ describe("Pan Konumu — applyProcessing (StereoPannerNode, sahte audioCtx ile)"
       }
     };
     for (const panPercent of [-100, -50, 0, 50, 100]) {
-      const { filters } = mode.applyProcessing({ panPercent }, { audioCtx: fakeAudioCtx });
-      assert.equal(filters.length, 1);
-      assert.ok(Math.abs(filters[0].pan.value - panPercent / 100) < 1e-9);
+      const result = mode.applyProcessing({ panPercent }, { audioCtx: fakeAudioCtx });
+      assert.equal(result.filters.length, 1);
+      assert.ok(!result.branch, "Pan Konumu branch mekanizmasını KULLANMAMALI (tek kaynak, fan-out gerekmiyor)");
+      assert.ok(Math.abs(result.filters[0].pan.value - panPercent / 100) < 1e-9);
     }
     assert.equal(created.length, 5);
   });

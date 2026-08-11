@@ -9,23 +9,44 @@
 // açıklığı değiştiriyor. Yeni ses dosyası eklenmedi, mevcut mono kaynaklar
 // yeterli.
 //
-// DÜRÜSTLÜK NOTU — "iki mono kaynak" NEDEN aynı buffer'ın iki kopyası DEĞİL:
-// AYNI mono sinyali ikiye ayırıp bire pan=-1 birine pan=+1 vererek toplamak
-// MATEMATİKSEL olarak L=kaynak, R=kaynak (BİREBİR aynı sayı dizisi) üretir —
-// bu, bu projenin KENDİ Araçlar mono-uyum ölçümünün (bkz. core/tonal-
-// balance.js'in kardeşi, core/analysis.js'in korelasyon ölçümü) tanımıyla
-// TAM MONO'dur (korelasyon=1), yani "genişlik" hiç OLUŞMAZ (elle doğrulandı).
-// Gerçek/algılanabilir genişlik için iki yol ÇALIŞAN kopyanın ARASINDA
-// GERÇEK bir SAYISAL FARK olmalı. Burada standart bir stüdyo tekniği
-// kullanıldı ("Haas/mikro-gecikmeli genişletme" — mono kaynağı bir yol
-// DOĞRUDAN, diğer yolu KÜÇÜK bir gecikmeyle [≤22ms, füzyon eşiğinin altında
-// — hâlâ TEK bir ses gibi algılanır, YANKI gibi değil] çalıp zıt yönlere
-// panlamak): width arttıkça HEM pan açıklığı HEM gecikme büyür, width=0'da
-// gecikme=0 VE pan=0 olduğu için iki yol yine SAYISAL OLARAK özdeş (GERÇEK
-// mono, task'ın "%0 = ikisi de merkezde" tanımıyla TUTARLI), width=100'de
-// L SADECE doğrudan yolu, R SADECE gecikmeli yolu taşır (GERÇEKTEN farklı
-// sayılar, GERÇEK/ölçülebilir bir stereo görüntü — bkz. test dosyası ve
-// DURUM.md'deki korelasyon ölçümü).
+// G120 DÜZELTMESİ — İLK SÜRÜMÜN (G118) mikro-gecikme tekniği CİHAZDA
+// KULAKLA test edilince gerçek bir hata bulundu: pembe gürültüde %50
+// genişlikte FAZ SORUNU/tarak filtresi duyuluyordu. KÖK SEBEP: mikro-gecikme
+// (bkz. eski MAX_DELAY_SEC notu) sadece width=100'de (tam ayrık pan) güvenliydi
+// — width=100'ün ALTINDAKİ HER değerde, StereoPannerNode'un equal-power
+// yasası GEREĞİ her iki panner de HER İKİ kanala da KISMİ enerji gönderiyor,
+// yani her KULAK aynı anda hem doğrudan hem gecikmeli kopyayı (kısmi
+// oranlarda) ALIYORDU — bu, GENİŞ BANTLI/gürültü-benzeri içerikte KLASİK bir
+// tarak filtresi (comb filter): H(f) = 1 + k·e^(-j2πfτ), |H(f)| düzenli
+// aralıklarla f=(2n+1)/(2τ)'da SIFIRA iniyor. Matematiksel olarak "L≠R"
+// (decorrelated) doğruydu ama YANLIŞ TÜRDE bir fark — periyodik, işitilebilir
+// bir renklendirme, GERÇEK bir stereo GENİŞLİĞİ HİSSİ değil.
+//
+// YENİ TEKNİK — GERÇEKTEN İKİ BAĞIMSIZ KAYNAK (task'ın kendi önerisi,
+// SoundGym'in "two audio sources are panned to opposite sides" tarifiyle
+// BİREBİR): gecikme YERİNE, HER SORUDA taze/bağımsız üretilen İKİNCİ bir
+// jeneratör (aynı kaynak TÜRÜNDEN — pembe/pembe, kare/kare vb. — ama
+// SAYISAL olarak FARKLI) panR'ı besliyor, panL'i ise resmi/seçili kaynak
+// (audio-engine.js'in kurduğu sourceMix) besliyor. İKİ BAĞIMSIZ rastgele
+// süreç arasında GECİKME/FAZ İLİŞKİSİ YOKTUR — matematiksel olarak HİÇBİR
+// genişlikte periyodik tarak notch'u OLUŞAMAZ (bkz. dosya sonu doğrulama
+// notu + test dosyasının FFT karşılaştırması). Bu, "iki mono kaynak"ı
+// GERÇEKTEN iki AYRI, birbirinden bağımsız kaynak yapıyor — G118'in "aynı
+// buffer'ın iki kopyası DEĞİL" DÜRÜSTLÜK notunun bu kez GERÇEKTEN karşılandığı
+// yer burası (o zamanki mikro-gecikme versiyonu bunu sadece KISMEN
+// sağlıyordu, decorrelation'ı DELAY'DEN alıyordu, decorrelation'ın KENDİSİ
+// artefaktlıydı).
+//
+// KAYNAK KISITLAMASI DARALTILDI (bu YÜZDEN): "ikinci bağımsız kaynak"
+// SADECE SENTETİK türler için (gürültü/osilatör) ucuza/güvenle üretilebilir
+// — gerçek bir örnek-dosya (kick/bas/vokal/groove vb.) için "bağımsız İKİNCİ
+// bir kayıt" YOKTUR (yeni dosya eklenmeyecek, task'ın kendi kuralı), ve
+// AYNI dosyayı iki kez çalmak G118'in başındaki dejenere-mono sorununu
+// GERİ getirir. Bu yüzden uyumlu kaynaklar artık SADECE pink/white/saw/
+// square/triangle — Pan Konumu'nun geniş listesi (örnek dosyalar dahil)
+// BUNDAN ETKİLENMEDİ, tek kaynaklı panlamada decorrelation riski YOK.
+// "upload" da AYNI gerekçeyle (kullanıcının kendi dosyasının bağımsız bir
+// ikinci kopyası YOK) çıkarıldı — bkz. DURUM.md'deki BEKLEYEN KARAR notu.
 //
 // MİMARİ NOTU — audio-engine.js:buildQuestionChain'in `filters:[...]` sözleşmesi
 // SADECE düz bir seri zincir kurabiliyor, bir kaynağı İÇERDE ikiye ayırıp
@@ -34,10 +55,12 @@
 // bağlantısı da ekliyor). Bu YÜZDEN G118'de audio-engine.js'e TEK bir yeni
 // uzantı noktası eklendi: applyProcessing `{branch:{input,output,nodes}}`
 // döndürebilir — mod kendi alt-grafiğini (fan-out+birleştir dahil) TAMAMEN
-// kendi içinde kurar, SADECE giriş/çıkış uçlarını dışa verir. Diğer 10+1
-// (Pan Konumu) mod bunu hiç kullanmıyor, davranışları değişmedi.
+// kendi içinde kurar, SADECE giriş/çıkış uçlarını dışa verir. G120'de BU
+// MEKANİZMA DEĞİŞMEDİ, sadece `output`'a giden İÇ yapı (gecikme yerine
+// bağımsız ikinci kaynak) değişti.
 
 import { compatibleSourceIds } from "../core/source-catalog.js";
+import { shuffle } from "../core/utils.js";
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound } from "./frekans-bulma.js";
@@ -63,61 +86,145 @@ export const DIFFICULTY = {
   proplus: { label: "Pro Plus (Çok Bantlı)", xp: 54, options: 7, time: 8, lives: MAX_LIVES }
 };
 
-// Pan Konumu'nun PAN_CURVE_CONFIG'iyle AYNI şekil (kademe sayısı 3→7) —
-// tek fark eksen -100..100 değil 0..100 (genişlik yönsüz, bkz. widthGridPercents).
+// ═══════════════════════════════════════════════════════════════════════════
+// G120 — ZORLUK EĞRİSİ YENİDEN TASARLANDI: eskiden "kademe SAYISI" (3→7,
+// isimlendirilmiş sabit ızgara) tek eksendi. Task'ın kendi kararıyla artık
+// dB Seviyesi'nin AYNI deseni: genişlik SÜREKLİ bir değer (herhangi bir
+// 0-100 sayısı), şıklar bu değerin ETRAFINDA curve-driven bir STEP mesafesinde
+// üretiliyor — kolayda şıklar arası fark büyük, zorda küçük. Kademe SAYISI
+// (options) ayrı, İKİNCİL bir eksen olarak KORUNDU (daha fazla şık = daha
+// zor karar, dB Seviyesi'nin AKSİNE — o modun G97'de "options sabit 3"
+// kararı BURADA uygulanmadı, bu modun kendi kararı: iki eksen birlikte).
+// ═══════════════════════════════════════════════════════════════════════════
 export const WIDTH_CURVE_CONFIG = {
   LEVEL_CAP: 20,
-  STEPS_AT_1: 3,
-  STEPS_AT_CAP: 7,
+
+  // Şıklar arası mesafe (yüzde puanı) — AT_1=30 (0-100 aralığının %30'u,
+  // çok belirgin), AT_CAP=6, FLOOR=5 (WIDTH_TOLERANCE'tan [2] HER ZAMAN
+  // büyük kalacak şekilde seçildi — bkz. aşağıdaki invaryant notu).
+  STEP_AT_1: 30,
+  STEP_AT_CAP: 6,
+  STEP_FLOOR: 5,
+  STEP_REDUCTION_PER_STEP: 0.04,
+
   TIME_SEC_AT_1: 14,
   TIME_SEC_AT_CAP: 8,
   TIME_SEC_FLOOR: 6,
-  TIME_SEC_REDUCTION_PER_STEP: 0.1
+  TIME_SEC_REDUCTION_PER_STEP: 0.1,
+
+  OPTIONS_AT_1: 3,
+  OPTIONS_AT_CAP: 7
 };
 
+// SAF FONKSİYON. position: zorlukKonumu — Pan Konumu'nun (ve diğer 10 modun)
+// paramsForDifficultyPosition'ıyla AYNI mod-agnostik girdi.
 export function paramsForDifficultyPosition(position, config = WIDTH_CURVE_CONFIG) {
   const safePos = Math.max(1, position);
   const cappedPos = Math.min(safePos, config.LEVEL_CAP);
   const t = config.LEVEL_CAP > 1 ? (cappedPos - 1) / (config.LEVEL_CAP - 1) : 1;
 
-  const stepsCurve = logLerp(config.STEPS_AT_1, config.STEPS_AT_CAP, t);
+  const stepCurve = logLerp(config.STEP_AT_1, config.STEP_AT_CAP, t);
   const timeCurve = logLerp(config.TIME_SEC_AT_1, config.TIME_SEC_AT_CAP, t);
-
-  let steps = Math.round(stepsCurve);
-  if (steps % 2 === 0) steps += 1;
-  steps = Math.max(3, Math.min(7, steps));
+  const optionsCurve = logLerp(config.OPTIONS_AT_1, config.OPTIONS_AT_CAP, t);
 
   return {
     position: safePos,
-    steps,
-    timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP)
+    step: applyPostCapFloor(stepCurve, safePos, config.LEVEL_CAP, config.STEP_FLOOR, config.STEP_REDUCTION_PER_STEP),
+    timeSec: applyPostCapFloor(timeCurve, safePos, config.LEVEL_CAP, config.TIME_SEC_FLOOR, config.TIME_SEC_REDUCTION_PER_STEP),
+    options: Math.max(3, Math.min(7, Math.round(optionsCurve)))
   };
 }
 
-// SAF. steps kademeyi 0..100 arasına EŞİT ARALIKLI, TAM SAYIYA yuvarlanmış
-// yerleştirir (steps=3/5/7 için hiçbir iki nokta ÇAKIŞMAZ — bkz. test dosyası).
-export function widthGridPercents(steps) {
-  const arr = [];
-  for (let i = 0; i < steps; i++) {
-    const frac = steps === 1 ? 0 : i / (steps - 1); // 0..1
-    arr.push(Math.round(frac * 100));
+// evaluateAnswer'da "doğru" sayılmanın toleransı — STEP_FLOOR'dan (5) HER
+// ZAMAN küçük kalacak şekilde seçildi (Kesim Noktası'nın FREQ_TOLERANCE_OCT/
+// DISTRACTOR_STEP_OCT AYNI invaryantı) — yanlış bir şıkka basmak asla
+// "doğru" sayılmaz (bkz. test dosyasının 1000 denemelik doğrulaması).
+export const WIDTH_TOLERANCE = 2;
+
+// SAF. trueValue etrafında, [min,max] içinde, k·step mesafesinde (k=1,2,...)
+// alternan sağa/sola yayılan count-1 çeldirici üretir — Boost/Cut'ın Katman
+// 3'teki frekans-havuzu deseniyle AYNI "sınıra göre kırp, taşan adımı diğer
+// yöne devret" mantığı (bkz. o dosyanın notu): bir yön dolarsa fazla adım
+// DİĞER yöne aktarılır, hiçbir çeldirici [min,max] DIŞINA taşmaz. Adımlar
+// TAM k·step mesafede (dB Seviyesi'nin generateChoices'ıyla AYNI karar —
+// ekstra rastgelelik EKLENMEDİ, minimum-aralık GARANTİSİ matematiksel kalsın
+// diye, bkz. test dosyasının 1000 denemelik çakışma testi).
+export function generateChoiceValues(trueValue, step, count, min, max) {
+  const maxBelow = Math.max(0, Math.floor((trueValue - min) / step));
+  const maxAbove = Math.max(0, Math.floor((max - trueValue) / step));
+  const offsets = [];
+  let below = 1, above = 1;
+  while (offsets.length < count - 1 && (below <= maxBelow || above <= maxAbove)) {
+    if (above <= maxAbove) { offsets.push(trueValue + above * step); above++; }
+    if (offsets.length < count - 1 && below <= maxBelow) { offsets.push(trueValue - below * step); below++; }
   }
-  return arr;
+  return [trueValue, ...offsets].map(v => Math.round(v));
 }
 
-export const WIDTH_TOLERANCE = 0.5; // ızgara tam sayı — SADECE float-güvenlik payı
+// ═══════════════════════════════════════════════════════════════════════════
+// G120 — İKİ BAĞIMSIZ KAYNAK ÜRETİMİ (bkz. dosya başı DÜRÜSTLÜK notu).
+// Gürültü: audio-engine.js:buildNoiseSource'un AYNI algoritması — HER
+// ÇAĞRIDA taze Math.random() akışı kullanıldığı için doğası gereği
+// bağımsız/decorrelated (iki BAĞIMSIZ rastgele süreç arasında GECİKME/FAZ
+// ilişkisi YOK, periyodik tarak notch'u OLUŞAMAZ — bkz. test dosyasının
+// FFT kanıtı).
+// ═══════════════════════════════════════════════════════════════════════════
+function buildIndependentNoiseNode(audioCtx, sourceType) {
+  const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < data.length; i++) {
+    const white = Math.random() * 2 - 1;
+    if (sourceType === "pink") {
+      last = 0.985 * last + 0.015 * white;
+      data[i] = last * 2.5;
+    } else {
+      data[i] = white * 0.7;
+    }
+  }
+  const node = audioCtx.createBufferSource();
+  node.buffer = buffer;
+  node.loop = true;
+  node.start();
+  return node;
+}
 
-// Mikro-gecikme genişletme parametresi — bkz. dosya başı DÜRÜSTLÜK notu.
-// 22ms, klasik Haas füzyon eşiğinin (~30ms) altında — hâlâ TEK bir geniş ses
-// gibi duyulur, ayrı bir yankı/eko olarak DEĞİL. KULAKLA DOĞRULANMADI, diğer
-// tüm sayısal sabitlerle AYNI dürüstlük notu — makul bir başlangıç.
-export const MAX_DELAY_SEC = 0.022;
-// Birleştirme kazancı — width=0'da iki yol SAYISAL olarak özdeş olduğu için
-// toplamda 2x genlik oluşur (kırpılmayı önlemek için 0.5 ile dengelenir);
-// width=100'de her kanal SADECE bir yoldan geldiği için biraz daha sessiz
-// duyulur (kabul edilebilir bir basitleştirme — task'ın kendi "değerleri sen
-// belirle" izniyle, mükemmel seviye telafisi bu modun konusu DEĞİL).
-export const MERGE_GAIN = 0.5;
+// Osilatör (saw/square/triangle): iki AYNI-parametre osilatör TEK BAŞINA
+// yetmez — matematiksel olarak SKALER KATLARI (L=k1·A(t), R=k2·A(t)) olur,
+// korelasyon HER ZAMAN 1 (elle doğrulandı, bkz. dosya başı DÜRÜSTLÜK notu).
+// Küçük bir DETUNE (frekans farkı, ±7 cent) GERÇEK decorrelation sağlar —
+// bu, gecikmeden YAPISAL olarak farklı: iki farklı frekans arasındaki
+// girişim ZAMANLA YAVAŞÇA KAYAN bir "beating" deseni üretir (STATİK/sabit
+// bir frekans-domeni tarak DEĞİL — bkz. test dosyasının zaman-pencereli FFT
+// karşılaştırması, ardışık pencereler arasında notch konumunun SABİT
+// KALMADIĞI doğrulanıyor), gerçek prodüksiyonda "detuned unison/chorus
+// genişletme" olarak bilinen standart bir teknik.
+const DETUNE_CENTS = 7;
+function buildIndependentOscNode(audioCtx, sourceType) {
+  const osc = audioCtx.createOscillator();
+  osc.type = sourceType;
+  osc.frequency.value = 220;
+  osc.detune.value = DETUNE_CENTS;
+  osc.start();
+  return osc;
+}
+
+function buildSecondSourceNode(audioCtx, sourceType) {
+  if (sourceType === "pink" || sourceType === "white") return buildIndependentNoiseNode(audioCtx, sourceType);
+  if (sourceType === "saw" || sourceType === "square" || sourceType === "triangle") return buildIndependentOscNode(audioCtx, sourceType);
+  // Güvenli varsayılan — uyumluKaynaklar dışı bir tür asla buraya düşmemeli
+  // (compatibleSourceIds sınırlıyor), ama ÇÖKMEK yerine sessizce pembe
+  // gürültüye düşer (audio-engine.js'in "sample yüklenemezse pink noise'a
+  // düş" AYNI savunma deseni).
+  return buildIndependentNoiseNode(audioCtx, "pink");
+}
+
+// Birleştirme kazancı — iki BAĞIMSIZ kaynak toplandığında (güç toplamı,
+// genlik DEĞİL) beklenen RMS artışı ~√2 — 0.72 (≈1/√2) ile dengelenir,
+// kırpılma riski KALMADAN her genişlikte tutarlı bir seviye korunur (G118'in
+// eski 0.5'i, aynı-kaynak-iki-kopya matematiğine göre seçilmişti, artık
+// UYGULANAMAZ — bu değer de KULAKLA DOĞRULANMADI, makul bir başlangıç).
+export const MERGE_GAIN = 0.72;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MOD SÖZLEŞMESİ
@@ -129,11 +236,13 @@ export function getMeta() {
     motor: 1,
     kulaklikGerekli: true,
     kulaklikMetni: "Genişliği doğru duymak için kulaklık şart — hoparlörde stereo görüntü odaya karışır, fark edilmez.",
-    // Pan Konumu'yla AYNI gerekçe/liste — konum/genişlik algısı için süre
-    // gerekir, tek vuruşluk kaynaklar (kick/snare/hihat/tom) dışlandı.
-    // "upload" HER ZAMAN dahil — Reverb'in AYNI kararı (bkz. o dosyanın
-    // getMeta'sı): uygulama kullanıcının kendi dosyasının süresini yargılayamaz.
-    uyumluKaynaklar: compatibleSourceIds({ only: ["pink", "white", "saw", "square", "triangle", "groove", "bass", "bass_alt", "guitar", "vocal", "upload"] }),
+    // G120 — SADECE sentetik kaynaklar (bkz. dosya başı notu): "bağımsız
+    // ikinci kaynak" tekniği gürültü/osilatör türlerinde ucuza/güvenle
+    // üretilebiliyor, örnek-dosya (kick/bas/vokal/groove) ve upload'ta
+    // GERÇEK bir ikinci/bağımsız kayıt YOK — o kaynaklar bu moddan
+    // ÇIKARILDI (Pan Konumu'nun geniş listesi ETKİLENMEDİ, tek-kaynaklı
+    // panlamada decorrelation riski hiç yok).
+    uyumluKaynaklar: compatibleSourceIds({ only: ["pink", "white", "saw", "square", "triangle"] }),
     ucretsiz: true, // diğer on bir modun AYNI kararı — bkz. pan-konumu.js'in AYNI notu
     videoUrl: "",
     difficulty: DIFFICULTY,
@@ -141,6 +250,10 @@ export function getMeta() {
   };
 }
 
+// SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz. settings: { source, boss,
+// difficultyPosition — verilirse step/options/timeSec EĞRİDEN gelir,
+// verilmezse (mevcut testler, doğrudan çağrılar, proplus) statik
+// DIFFICULTY[level] davranışı korunur }.
 export function createQuestion(level, settings = {}) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const boss = !!settings.boss;
@@ -150,33 +263,38 @@ export function createQuestion(level, settings = {}) {
     ? paramsForDifficultyPosition(settings.difficultyPosition)
     : null;
 
-  let steps = curve ? curve.steps : diff.options;
-  if (steps % 2 === 0) steps += 1;
-  steps = Math.max(3, Math.min(7, steps));
+  const step = curve ? curve.step : Math.max(6, Math.round(100 / (diff.options + 1)));
+  const options = curve ? curve.options : diff.options;
   const timeSec = curve ? curve.timeSec : diff.time;
 
-  const percents = widthGridPercents(steps);
-  const trueIdx = Math.floor(Math.random() * steps);
-  const widthPercent = percents[trueIdx];
+  // SÜREKLİ ölçek — herhangi bir 0..100 tam sayısı (task madde 3'ün kendi
+  // örneği: "gerçek pan %10 ise şıklar %5, %10, %18, %25 gibi" — true değer
+  // YUVARLAK bir ızgara noktası OLMAK ZORUNDA DEĞİL).
+  const widthPercent = Math.round(Math.random() * 100);
 
-  // KASITLI OLARAK karıştırılmadı — Pan Konumu'yla AYNI gerekçe: %0→%100
-  // artan sırası bir "genişlik kadranı" okur gibi doğal, cevabı SIZDIRMIYOR.
-  const choices = percents.map((p, i) => ({
-    value: p,
-    label: i === 0 ? "Mono (%0)" : i === percents.length - 1 ? "Tam Geniş (%100)" : `%${p}`,
-    correct: i === trueIdx
-  }));
+  const values = generateChoiceValues(widthPercent, step, Math.max(3, options), 0, 100);
+  const choices = shuffle(values.map(v => ({ value: v, correct: v === widthPercent })));
+  // Yuvarlama sonrası TEORİK olarak (çok küçük step + kenar durumu) iki
+  // değer çakışabilirse diye TEK bir savunma: tekrarları at (STEP_FLOOR
+  // WIDTH_TOLERANCE'ın hep üstünde olduğu için PRATİKTE hiç tetiklenmez,
+  // bkz. test dosyasının 1000 denemelik doğrulaması — yine de sessizce
+  // yanlış bir "iki doğru şık" durumuna düşmek yerine açıkça engellenir).
+  const seen = new Set();
+  const dedupedChoices = choices.filter(c => {
+    if (seen.has(c.value)) return false;
+    seen.add(c.value);
+    return true;
+  });
 
   return {
     mode: "width",
     difficulty: level,
     widthPercent,
-    steps,
     source,
     hintUsed: false,
     boss,
     timeSec,
-    choices
+    choices: dedupedChoices
   };
 }
 
@@ -199,11 +317,11 @@ export function modeDescription(q) {
   return "A/B ile karşılaştır, stereo görüntünün genişliğini şıklardan seç.";
 }
 
-// G118 — audio-engine.js'in YENİ branch uzantısı (bkz. dosya başı mimari
-// notu). entryTap sourceMix'ten TEK sinyali alır, İKİ yola ayırır: doğrudan
-// (panL) ve mikro-gecikmeli (delay→panR) — width büyüdükçe HEM pan açıklığı
-// HEM gecikme büyür, width=0'da ikisi de sıfır (iki yol SAYISAL özdeş, GERÇEK
-// mono).
+// G120 — audio-engine.js'in G118'de eklenen branch uzantısı (bkz. dosya başı
+// mimari notu) — entryTap RESMİ/seçili kaynağı (sourceMix) alıp panL'e
+// besler, TAMAMEN BAĞIMSIZ (taze üretilmiş) bir ikinci kaynak panR'ı besler.
+// İki panner'ın açıklığı width'e göre büyür — width=0'da HER İKİ panner de
+// merkezde (pan=0), width=100'de tam ayrık.
 export function applyProcessing(question, { audioCtx }) {
   const widthFrac = question.widthPercent / 100;
 
@@ -213,8 +331,10 @@ export function applyProcessing(question, { audioCtx }) {
   const panL = audioCtx.createStereoPanner();
   panL.pan.value = -widthFrac;
 
-  const delayNode = audioCtx.createDelay(0.05);
-  delayNode.delayTime.value = widthFrac * MAX_DELAY_SEC;
+  const secondSourceNode = buildSecondSourceNode(audioCtx, question.source);
+  const secondGain = audioCtx.createGain();
+  secondGain.gain.value = 1;
+  secondSourceNode.connect(secondGain);
 
   const panR = audioCtx.createStereoPanner();
   panR.pan.value = widthFrac;
@@ -223,8 +343,7 @@ export function applyProcessing(question, { audioCtx }) {
   mergeGain.gain.value = MERGE_GAIN;
 
   entryTap.connect(panL);
-  entryTap.connect(delayNode);
-  delayNode.connect(panR);
+  secondGain.connect(panR);
   panL.connect(mergeGain);
   panR.connect(mergeGain);
 
@@ -232,11 +351,12 @@ export function applyProcessing(question, { audioCtx }) {
     branch: {
       input: entryTap,
       output: mergeGain,
-      nodes: [entryTap, panL, delayNode, panR, mergeGain]
+      nodes: [entryTap, panL, secondSourceNode, secondGain, panR, mergeGain]
     }
   };
 }
 
+// SAF FONKSİYON. answer: { value } ya da doğrudan sayı (genişlik yüzdesi, 0..100).
 export function evaluateAnswer(question, answer) {
   const guessValue = answer && typeof answer === "object" ? answer.value : answer;
   const diff = Math.abs(guessValue - question.widthPercent);
@@ -302,7 +422,7 @@ export function getFeedbackData(question, answer, context = {}) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function getHintText(question) {
-  return `${question.steps} kademeden biri — ${question.widthPercent === 0 ? "tamamen mono" : question.widthPercent >= 50 ? "geniş taraf" : "dar taraf"}`;
+  return question.widthPercent === 0 ? "Tamamen mono" : question.widthPercent >= 50 ? "Geniş taraf" : "Dar taraf";
 }
 
 export function renderHintMask(hintMaskLayerEl) {
@@ -318,12 +438,16 @@ export function renderGuessAreaControls(freqGuessAreaEl) {
   freqGuessAreaEl.classList.add("hidden");
 }
 
+// Şıklı cevap grid'ini kurar — data-value app.js'in click-delegasyonunda
+// answer={value} kurmak için okunur. Alt satır her zaman "Mono"/"Tam Geniş"
+// gibi bağlamsal bir ipucu YOK artık (sürekli ölçekte anlamsız) — SADECE
+// yüzde.
 export function renderAnswerChoices(answersEl, q) {
   if (!answersEl) return;
   if (!q.choices) { answersEl.innerHTML = ""; answersEl.classList.add("hidden"); return; }
   answersEl.className = "answers";
   answersEl.innerHTML = q.choices.map(c => {
-    return `<button type="button" class="ans" data-value="${c.value}"><b>${c.label}</b></button>`;
+    return `<button type="button" class="ans" data-value="${c.value}"><b>${formatWidthPercent(c.value)}</b></button>`;
   }).join("");
 }
 
