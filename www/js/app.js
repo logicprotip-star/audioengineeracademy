@@ -4628,8 +4628,19 @@ let audioVisibleSinceAt = null;
 // contextRecreateCount'la karşılaştırılıp farklıysa (bkz. chainNeedsRebuild)
 // zincir playQuestion() ile YENİDEN kurulur.
 let chainRecreateCountAtBuild = -1;
+// G136 — CİHAZDA BULUNAN GERÇEK BOŞLUK: context YENİDEN OLUŞTURULMADAN,
+// SADECE resume olduğunda (cihazda GÖZLENEN en yaygın durum — native
+// AVAudioSession katmanı G132/G135 sayesinde artık GENELLİKLE context'i
+// yeniden oluşturmaya bile GEREK KALMADAN canlandırıyor) chainRecreateCount
+// DEĞİŞMEZ — ama arka plana alınırken çalan turun zinciri visibilitychange'in
+// stopAudio() çağrısıyla YİNE DE sökülmüştü (bkz. o handler'ın G136 notu).
+// Bu bayrak o durumu AYRICA işaretler — playQuestion() BAŞARIYLA
+// tamamlanınca (chainRecreateCountAtBuild'in AYNI güncellendiği noktalar)
+// tüketilip sıfırlanır, NORMAL "Durdur"/"Tekrar Çal" döngülerini
+// ETKİLEMEZ (task'ın kendi isteği — SADECE kesinti sonrası ilk play).
+let audioChainStoppedByBackground = false;
 function chainNeedsRebuild() {
-  return audioEngine.contextRecreateCount !== chainRecreateCountAtBuild;
+  return audioEngine.contextRecreateCount !== chainRecreateCountAtBuild || audioChainStoppedByBackground;
 }
 
 async function playQuestion(processed = true) {
@@ -4670,6 +4681,7 @@ async function playQuestion(processed = true) {
     audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing)
       .then(() => {
         chainRecreateCountAtBuild = audioEngine.contextRecreateCount;
+        audioChainStoppedByBackground = false;
         audioDiagLog("dual-source zinciri kuruldu, play başladı (cakisma)", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "?"}`);
       })
       .catch((err) => audioDiagLog("dual-source zinciri HATA (cakisma)", err && err.message));
@@ -4691,6 +4703,7 @@ async function playQuestion(processed = true) {
   // durumunu damgalar.
   audioDiagLog("zincir kuruldu, play başladı", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "?"}, sampleLoadFailed=${!!(result && result.sampleLoadFailed)}`);
   chainRecreateCountAtBuild = audioEngine.contextRecreateCount;
+  audioChainStoppedByBackground = false;
   if (result && result.sampleLoadFailed) showAudioError(); else hideAudioError();
   updateAbToggleUI();
 }
@@ -5772,7 +5785,11 @@ els.startBtn.addEventListener("click", async () => {
     }
     hideAudioError();
     if (chainNeedsRebuild()) {
-      audioDiagLog("Tekrar Çal — context bu turdan SONRA yeniden oluşturulmuş, zincir yeniden kuruluyor");
+      // G136 — İKİ AYRI sebepten biri (ya da ikisi) olabilir: context
+      // GERÇEKTEN yeniden oluşturuldu (G133) VE/VEYA arka plana alınırken
+      // stopAudio() bu turun zincirini söktü (G136, context'in KENDİSİ
+      // yeniden oluşturulmadan SADECE resume olduğunda bile geçerli).
+      audioDiagLog("Tekrar Çal — zincir yeniden kuruluyor", `context yeniden oluşturuldu=${audioEngine.contextRecreateCount !== chainRecreateCountAtBuild}, arka planda söküldü=${audioChainStoppedByBackground}`);
       resumeRound();
       await playQuestion(currentPlayMode !== "clean");
     } else {
@@ -5848,7 +5865,7 @@ els.abToggle.addEventListener("click", async () => {
     // targetProcessed: toggleAB()'nin KENDİ hesapladığı AYNI hedef mod —
     // doğrudan playQuestion() ile o modda SIFIRDAN kurulur, toggleAB()
     // AYRICA çağrılmaz (aynı geçişi ikinci kez yapardı).
-    audioDiagLog("A/B geçişi — context bu turdan SONRA yeniden oluşturulmuş, zincir yeniden kuruluyor");
+    audioDiagLog("A/B geçişi — zincir yeniden kuruluyor", `context yeniden oluşturuldu=${audioEngine.contextRecreateCount !== chainRecreateCountAtBuild}, arka planda söküldü=${audioChainStoppedByBackground}`);
     await playQuestion(currentPlayMode !== "filtered");
   } else {
     toggleAB();
@@ -6615,6 +6632,24 @@ document.addEventListener("visibilitychange", async () => {
   if (document.hidden) {
     audioEngine.stopAudio();
     uploadManager.pausePlayback();
+    // G136 — CİHAZDA BULUNAN GERÇEK BOŞLUK: buradaki stopAudio() (normal
+    // "Durdur"un basit muteOutput()'undan FARKLI olarak) turun ses
+    // zincirinin düğümlerini GERÇEKTEN söküyor (bkz. audio-engine.js:
+    // stopAudio, currentNodes temizleniyor) — context'in KENDİSİ (G131/G135)
+    // canlı kalsa BİLE (yeniden oluşturmaya bile GEREK KALMADAN resume
+    // olabilir), round'un ÇALAN zinciri artık YOK. G133'ün
+    // chainNeedsRebuild()'ı SADECE "context yeniden oluşturuldu mu"
+    // (contextRecreateCount) diye bakıyordu — context YENİDEN
+    // OLUŞTURULMADAN sadece resume olduğunda (cihazda GÖZLENEN, en yaygın
+    // durum) bu sinyali KAÇIRIYORDU: "Tekrar Çal"a basılınca
+    // resumeRound()'un basit unmuteOutput()'u BOŞ bir grafiği açıyordu,
+    // ses gelmiyordu — kullanıcı "Atla"ya basmak ZORUNDA kalıyordu (o da
+    // playQuestion() üzerinden zinciri SIFIRDAN kurduğu için çalışıyordu).
+    // Artık bu bayrak, arka plana alınırken bir tur GERÇEKTEN çalıyorduysa
+    // (activeQuestion varsa) işaretlenir — chainNeedsRebuild() bunu da
+    // kontrol eder, "Tekrar Çal" bir SONRAKİ basışta zinciri playQuestion()
+    // ile doğru şekilde YENİDEN kurar (bkz. o fonksiyonun G136 notu).
+    if (activeQuestion) audioChainStoppedByBackground = true;
     // Aktif bir tur varsa zamanlayıcıyı/otomatik-geçişi duraklat — "Durdur" butonuyla
     // AYNI mekanizma (pauseRound). Arka planda tur zamanlayıcısının çalışmaya devam
     // edip biriken tikleri ön plana dönünce art arda boşaltması engellenir.

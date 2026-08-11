@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G135)
+Son güncelleme: 12.08.2026 (G136)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,38 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G135) — **G134'ün düzeltmesi TAM işlemedi — cihaz ölçümü: `Capacitor.registerPlugin` GLOBAL köprüde HİÇ YOK (`TypeError: is not a function`). Gerçek çalışan yol `Capacitor.nativePromise` — kullanıcı BUNU cihazda DOĞRUDAN ölçüp kanıtladı.**
+Bu commit (G136) — **Cihazda doğrulandı: native AVAudioSession KAYITLI ve zombi bağlam sorunu KAPANDI (G135 kanıtı). KALAN SORUN: arka plandan dönüşte bağlam canlı ama ses kendiliğinden gelmiyor, kullanıcı "Atla"ya basmak zorunda kalıyordu.**
+
+**KÖK SEBEP:** `visibilitychange`'in "hidden" dalı, arka plana geçişte `audioEngine.stopAudio()`'yu KOŞULSUZ çağırıyordu — bu, normal "Durdur" (`muteOutput()`, zincir BAĞLI kalır) değil, TAM SÖKÜM (`currentNodes` temizlenir). G133'te eklenen `chainNeedsRebuild()` SADECE `audioEngine.contextRecreateCount`'un değiştiğini (bağlamın YENİDEN OLUŞTURULDUĞUNU) kontrol ediyordu. G135'in native düzeltmesinden SONRA bağlam artık neredeyse HİÇ yeniden oluşturulmuyor — `resume()` ilk denemede tutuyor (bkz. G135 kanıtı) — yani `contextRecreateCount` DEĞİŞMİYOR, ama tur zinciri YİNE DE `stopAudio()` tarafından sökülmüş durumda. Sonuç: `chainNeedsRebuild()` yanlışlıkla `false` dönüyor, "Tekrar Çal" akışı sadece `resumeRound()`→`unmuteOutput()` çağırıyor — BOŞ (bağlantısız) bir grafı açmaya çalışıyor, ses gelmiyor.
+
+**UYGULANAN (`www/js/app.js`):**
+- Yeni bayrak: `audioChainStoppedByBackground` — `visibilitychange`'in "hidden" dalında `stopAudio()` çağrıldığında VE aktif bir tur varsa `true` yapılıyor.
+- `chainNeedsRebuild()` artık İKİ koşulu OR'luyor: `audioEngine.contextRecreateCount !== chainRecreateCountAtBuild` (G133'ün eski kontrolü) VEYA `audioChainStoppedByBackground` (bu turun yeni kontrolü — madde 3'ün istediği "tetiklenmiyorsa kesintiyi de yeniden kurma sebebi say").
+- Bayrak, zincir gerçekten YENİDEN kurulduğunda (`playQuestion()`'ın hem çakışma hem normal dalında, `chainRecreateCountAtBuild` güncellendiği HER yerde) `false`'a sıfırlanıyor.
+- `visibilitychange`'in "visible" dalı DEĞİŞTİRİLMEDİ (madde 1'in istediği gibi — mevcut `ensureAudioAlive({allowRecreate:false})` akışı korundu, bağlam canlıysa ek bir şey yapılmıyor).
+- "Tekrar Çal" ve A/B geçişi log mesajları güncellendi: artık HEM `context yeniden oluşturuldu=` HEM `arka planda söküldü=` bilgisini ayrı ayrı gösteriyor (teşhis için).
+- Kaynağa göre başlangıç noktası ayrımı (madde 2) İÇİN EK KOD GEREKMEDİ — mevcut mimari zaten bunu sağlıyor: `buildQuestionChain`'in dahili kaynak builder'ları (`buildNoiseSource`/`buildSynthSource`/`buildSampleSource`) HER çağrıda yeni node kurup pozisyonsuz `.start()` çağırıyor (doğası gereği BAŞTAN çalar); `uploadManager`'ın `getSourceNode()`'u ise `offset`'i (kesinti anında `pausePlayback()`'in modulo ile sakladığı pozisyon) kullanarak `node.start(0, offset)` çağırıyor (KALDIĞI YERDEN devam eder, `offset` doğal olarak `[0, duration)` aralığında sarılıyor — dosya süresini aşma durumu zaten `%` ile kapatılmış). `playQuestion()` HİÇBİR yerde `startFromZero()` çağırmıyor (SADECE gerçek yeni-oturum akışları — Oyunu Başlat/Tekrar Oyna — çağırıyor), bu yüzden kesinti sonrası rebuild otomatik olarak doğru kaynağa göre doğru davranıyor.
+- Kesinti sonrası ilk play başarısız olursa (madde 4): `playQuestion()`'ın kendi mevcut hata/`"Tekrar dene"` akışı DEĞİŞTİRİLMEDİ, olduğu gibi devrede.
+- Normal akıştaki "Tekrar Çal" davranışı (madde 5): `chainNeedsRebuild()` `false` döndüğünde yol AYNI (`resumeRound()` tek başına) — değişmedi.
+
+**DOĞRULAMA (Playwright, masaüstü Chromium, `visibilitychange` simülasyonu ile):**
+- **Senaryo A (Frekans Bulma, dahili kaynak) — TAM GEÇTİ.** Tur başladı → arka plana atıldı → öne alındı → SADECE `#startBtn`'e basıldı (Atla değil). Log:
+  ```
+  [audio-diag] currentTime ilerleme kontrolü — 2.972s → 3.094s (120ms bekleme) — canlı: true
+  [audio-diag] Tekrar Çal — zincir yeniden kuruluyor — context yeniden oluşturuldu=false, arka planda söküldü=true
+  [audio-diag] play denemesi (playQuestion) — state=running, currentTime=3.09
+  [audio-diag] zincir kuruldu, play başladı — state=running, sampleLoadFailed=false
+  ```
+  "YENİDEN OLUŞTURULUYOR" satırı HİÇ ÇIKMADI, konsol hatası 0. Kabul ölçütünün istediği TAM desen bu.
+- **Senaryo B (Stereo Genişlik, yüklenen dosya) — Playwright'ta CANLI DOĞRULANAMADI.** Test betiği modun ayar sheet'ine ("Kaynak" → "Kendi Dosyam" → dosya seç) girerken elemanlar defalarca "not visible" hatası verdi (4 farklı deneme: uzun bekleme, force-click, adım sırası değişikliği, taze tarayıcı oturumu) — bu, TEST BETİĞİNİN kendi navigasyon/zamanlama sorunuydu, kod değişikliğiyle İLGİSİZ (düzeltme kaynak-agnostik: `chainNeedsRebuild()` hangi mod olursa olsun aynı yolu izliyor). Bu yüzden Senaryo B SADECE kod incelemesiyle (yukarıdaki `uploadManager.getSourceNode()`/`pausePlayback()` mantığı) doğrulandı, CANLI İZLEME İLE DEĞİL — bu dürüstçe belirtilmeli, "doğrulandı" diye YAZILMAYACAK.
+- `npm test`: **1245/1245 GEÇTİ** (test SAYISI DÜŞMEDİ).
+- Android'e SIFIR değişiklik — bu turda değiştirilen kod (`app.js`'teki bayrak/koşul mantığı) platform-agnostik saf JS, `window.Capacitor` kontrolü İÇERMİYOR, native dosyalara dokunulmadı.
+
+**DOĞRULANMADI:** Gerçek fiziksel cihazda madde A/B'nin ikisi de — bu tur SADECE masaüstü Playwright (A için TAM, B için sadece kod incelemesi) ile kontrol edildi. Kullanıcının istediği asıl kabul ölçütü (cihazda, arka plana atıp gerçekten başka bir uygulamada video izleyip dönmek) bu turda ÇALIŞTIRILMADI.
+
+---
+
+Önceki commit (G135) — **G134'ün düzeltmesi TAM işlemedi — cihaz ölçümü: `Capacitor.registerPlugin` GLOBAL köprüde HİÇ YOK (`TypeError: is not a function`). Gerçek çalışan yol `Capacitor.nativePromise` — kullanıcı BUNU cihazda DOĞRUDAN ölçüp kanıtladı.**
 
 **CİHAZ KANITI (kullanıcının ölçümü):**
 ```
@@ -11169,25 +11200,24 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G135 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı cihazda
-Safari Web Inspector konsolunda ÖNCE şunu doğrulamalı: "plugin
-BULUNAMADI" satırı ARTIK ÇIKMIYOR mu, YERİNE bir oyun turu başlatınca
-`native AVAudioSession activate() ... ok=true` satırı GERÇEKTEN
-görünüyor mu (task'ın kendi kabul ölçütü — bu turda SADECE simüle
-edilmiş bir `Capacitor` nesnesiyle doğrulandı, cihazda HİÇ denenmedi).
-Bu doğrulandıktan SONRA G133'ün 4 maddesi (3+ ardışık kesinti, "Tekrar
-dene", "Tekrar Çal" zincir-yeniden-kurma) TEKRAR denenmeli — G132/G134
-turlarında native katman JS'ten HİÇ ulaşılamadığı için bu maddeler
-ASLINDA native AVAudioSession'suz test edilmişti, ŞİMDİ katman
-GERÇEKTEN devrede olmalı. Hâlâ ses gelmiyorsa: native oturum katmanı
-ARTIK GERÇEKTEN çağrılıyor demektir (bu turda `nativePromise` cihazda
-doğrudan ölçülerek kanıtlandı) — kalan olası açıklama WKWebView'in
-KENDİSİNİN (AVAudioSession aktif olsa BİLE) bazı iOS sürümlerinde farklı
-bir davranışı olabilir, ya da native'in proaktif olay bildirimi (bu
-turda BİLEREK kapsam dışı bırakıldı, `sessionActivated`/
-`interruptionBegan` — sadece JS'in KENDİ play denemesi tetiklediği
-kontroller çalışıyor) eksikliği asıl darboğaz olabilir — bir sonraki
-turun konusu bu olabilir.
+**Tek sonraki adım (G136 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı cihazda
+task'ın kendi kabul ölçütündeki İKİ senaryoyu denemeli:
+- **A)** Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
+  dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli.
+  (Masaüstünde Playwright ile TAM doğrulandı — bkz. G136 kaydı — ama
+  gerçek cihazda HENÜZ denenmedi.)
+- **B)** Yüklenen dosyayla oynanan bir mod (ör. Stereo Genişlik) → aynı
+  adımlar → SADECE play'e bas. Ses KALDIĞI YERDEN devam etmeli.
+  (Bu turda Playwright test betiği o modun ayar sheet'ine giremediği için
+  SADECE kod incelemesiyle doğrulandı — CANLI İZLENMEDİ. Cihaz testi
+  bu maddeyi İLK KEZ gerçekten sınayacak.)
+
+Konsolda "bağlam YENİDEN OLUŞTURULUYOR" çıkmamalı, hiçbir TypeError
+olmamalı (task'ın kendi kabul ölçütü). Her iki senaryo da başarısızsa
+Safari Web Inspector'daki `[audio-diag]` günlüğü (`context yeniden
+oluşturuldu=`/`arka planda söküldü=` satırları) hangi dalın
+tetiklendiğini gösterecek — bir sonraki turun teşhis başlangıç noktası
+bu olmalı.
 
 **Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli
