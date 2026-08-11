@@ -355,16 +355,22 @@
         <div class="qline hidden" id="questionTitle"></div>
         <div class="qline-sub hidden" id="questionMeta"></div>
 
-        <!-- G122 — Stereo Genişlik artık SADECE yüklenen dosyayla oynanıyor
-             (bkz. modes/stereo-genislik.js dosya başı notu). Dosya yokken/
-             mono iken normal analizör+kontroller+şıklar GİZLENİR (bkz. app.js
-             syncStereoUploadGate), bunun YERİNE bu panel gösterilir — "ikinci
-             bir dosya sistemi" KURULMADI, buton mevcut Dosyalarım sheet'ini
-             (Araçlar sekmesi) açıyor (bkz. app.js toolsOpenFilesSheet). -->
-        <div class="card stereo-upload-gate hidden" id="stereoUploadGate">
-          <div class="stereo-upload-gate-title" id="stereoUploadGateTitle">Bu mod kendi dosyanla oynanır</div>
-          <div class="stereo-upload-gate-text" id="stereoUploadGateText">Genişlik ölçümü gerçek bir mix üzerinde çalışır. Dosyalarım'dan bir şarkı seç ya da yeni bir dosya yükle.</div>
-          <button type="button" class="btn stereo-upload-gate-btn" id="stereoUploadGateBtn">Dosyalarım'ı Aç</button>
+        <!-- G126 — G122'de Stereo Genişlik'e ÖZGÜ olarak eklenmişti,
+             GENELLENDİ: "upload" destekleyen 11 modun HERHANGİ birinde
+             kaynak "Kendi Dosyam" seçiliyken O MODUN kendi dosyası yoksa
+             (ya da Stereo Genişlik'te mono ise) normal analizör/kontroller/
+             şıklar GİZLENİR (bkz. app.js syncUploadGate), bunun YERİNE bu
+             TEK/paylaşılan panel gösterilir — kaynak sessizce "seçili ama
+             çalmıyor" durumunda KALMAZ (kullanıcının kendi raporu: Kompresör'de
+             ses çıkmıyordu, hiçbir uyarı da yoktu). "İkinci bir dosya sistemi"
+             KURULMADI, buton mevcut Dosyalarım sheet'ini açıyor (bkz. app.js
+             toolsOpenFilesSheet). #screen-game TÜM modlar için TEK/paylaşılan
+             ekran olduğundan bu panel de HER modda otomatik olarak geçerli
+             (mod-başına ayrı bir kopya GEREKMİYOR). -->
+        <div class="card upload-gate hidden" id="uploadGate">
+          <div class="upload-gate-title" id="uploadGateTitle">Bu mod kendi dosyanla oynanır</div>
+          <div class="upload-gate-text" id="uploadGateText">Genişlik ölçümü gerçek bir mix üzerinde çalışır. Dosyalarım'dan bir şarkı seç ya da yeni bir dosya yükle.</div>
+          <button type="button" class="btn upload-gate-btn" id="uploadGateBtn">Dosyalarım'ı Aç</button>
         </div>
 
         <!-- G85 DÜZELTMESİ: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün

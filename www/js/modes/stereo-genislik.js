@@ -42,8 +42,9 @@
 // MONO DOSYA KORUMASI: bufferPlayability() bir AudioBuffer'ın
 // numberOfChannels'ını kontrol eder — mono bir dosyada side HER ZAMAN
 // sıfırdır (L=R matematiksel olarak), "genişlik" kavramı hiç YOK, bu yüzden
-// mono dosyalar AÇIKÇA reddedilir (bkz. app.js syncStereoUploadGate — bu
-// fonksiyonun tükettiği tarafta).
+// mono dosyalar AÇIKÇA reddedilir (bkz. app.js syncUploadGate — G126'dan
+// beri 11 upload-destekli modun HEPSİ için genellenmiş, bu fonksiyonu
+// SADECE Stereo Genişlik için ekstra mono kontrolüyle tüketen taraf).
 //
 // SEGMENT SEÇİMİ: pickPlaybackOffset() dosyanın İÇİNDE enerji eşiğini geçen
 // rastgele bir başlangıç noktası bulur (sessiz bir bölüme denk gelmesin diye)

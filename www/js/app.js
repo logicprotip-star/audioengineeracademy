@@ -373,12 +373,13 @@ const els = {
   // soru / spektrum
   questionTitle: document.getElementById("questionTitle"),
   questionMeta: document.getElementById("questionMeta"),
-  // G122 — Stereo Genişlik'in "dosya yok/mono" gate paneli, bkz. index.html
-  // #stereoUploadGate notu + app.js syncStereoUploadGate.
-  stereoUploadGate: document.getElementById("stereoUploadGate"),
-  stereoUploadGateTitle: document.getElementById("stereoUploadGateTitle"),
-  stereoUploadGateText: document.getElementById("stereoUploadGateText"),
-  stereoUploadGateBtn: document.getElementById("stereoUploadGateBtn"),
+  // G122'de Stereo Genişlik'e özgüydü, G126'da 11 upload-destekli modun
+  // HEPSİ için genellendi — bkz. index.html #uploadGate notu + app.js
+  // syncUploadGate.
+  uploadGate: document.getElementById("uploadGate"),
+  uploadGateTitle: document.getElementById("uploadGateTitle"),
+  uploadGateText: document.getElementById("uploadGateText"),
+  uploadGateBtn: document.getElementById("uploadGateBtn"),
   analyzer: document.getElementById("analyzer"),
   analyzerLabel: document.getElementById("analyzerLabel"),
   gainValue: document.getElementById("gainValue"),
@@ -758,7 +759,7 @@ function recordUploadSelection(contextId, fileId) {
 // Bir bağlama (contextId) GİRİLDİĞİNDE (Araçlar sekmesi açıldığında, bir
 // modun oyun ekranına girildiğinde) çağrılır: `uploadManager`'ın O AN
 // tuttuğu dosya bu bağlamın KALICI seçimiyle eşleşmiyorsa, ÖNCE (senkron)
-// temizlenir — böylece geçiş anında `syncStereoUploadGate()` gibi okuyucular
+// temizlenir — böylece geçiş anında `syncUploadGate()` gibi okuyucular
 // BAŞKA bir bağlamın dosyasını asla "bu bağlamınmış" gibi görmez — SONRA
 // (asenkron) doğru dosya file-storage'dan okunup decode edilir. Zaten doğru
 // dosya yüklüyse (ya da ikisi de "seçim yok") HİÇBİR ŞEY yapmaz (gereksiz
@@ -1956,21 +1957,49 @@ function updateAbToggleUI() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// G122 — Stereo Genişlik "dosya yok/mono" gate'i. mode.bufferPlayability()
-// (SAF, sadece bir AudioBuffer okur) TEK doğruluk kaynağı — burada SADECE
-// panel görünürlüğü + normal oyun UI'sinin gizlenmesi, startRound()'daki
-// AYRI guard (aşağı) da AYNI fonksiyonu okuyarak round'un fiilen
-// başlamasını engelliyor (iki nokta, TEK mantık).
+// G126 — G122'de SADECE Stereo Genişlik için kurulmuştu, BURADA 11 upload-
+// destekli modun HEPSİNE genellendi. KÖK SORUN (kullanıcının cihaz raporu,
+// Kompresör'de doğrulandı): Kaynak "Kendi Dosyam" olarak SEÇİLİ görünüyordu
+// ama O MODUN kendi dosyası yoktu — Play'e basınca ses çıkmıyordu, HİÇBİR
+// UYARI da yoktu (sessiz hata, "uygulama bozuk" izlenimi). SEBEP: `sourceSelect
+// .value` mod-agnostik bir DOM durumu — bir moddan "upload" seçili şekilde
+// başka bir moda geçince (populateSourceSelect'in "uyumluysa koru" mantığı)
+// AYNEN taşınıyor, ama G123'ten beri dosya SEÇİMİ mod-başına ayrı
+// (uploadSelections[modeId]) — YENİ modun KENDİ dosyası olmayabilir. G122
+// bu boşluğu SADECE Stereo Genişlik'te (upload-ONLY bir mod olduğu için
+// fark edilmesi en kolay yerde) kapatmıştı, diğer 10 modda AÇIK kalmıştı.
+//
+// ÇÖZÜM SEÇİMİ (task'ın sorduğu iki yoldan): "kaynak sessizce varsayılana
+// dönsün" YERİNE "kaynak seçili KALSIN, açık uyarı çıksın" seçildi —
+// gerekçe: (1) Stereo Genişlik'te zaten fallback kaynak YOK (upload-only),
+// varsayılana dönmek tüm modlarda TUTARLI uygulanamaz; (2) kullanıcının
+// AÇIKÇA seçtiği "Kendi Dosyam" tercihini onun HABERİ OLMADAN başka bir
+// kaynağa çevirmek "neden artık pembe gürültü çalıyor?" gibi YENİ bir
+// kafa karışıklığı yaratırdı; (3) bu YOL zaten G122'de kurulmuş, doğrulanmış
+// bir desen — genellemek YENİDEN İCAT etmekten daha güvenli.
+//
+// mode.bufferPlayability() varsa (SADECE Stereo Genişlik — mono kontrolü
+// GEREKİYOR) o kullanılır, YOKSA genericBufferPlayability (sadece "dosya
+// var mı") — diğer 10 mod kanal sayısını hiç UMURSAMAZ.
 // ═══════════════════════════════════════════════════════════════════════════
-function syncStereoUploadGate() {
-  if (!els.stereoUploadGate) return;
-  if (mode.MODE_ID !== "stereo-genislik" || !mode.bufferPlayability) {
-    els.stereoUploadGate.classList.add("hidden");
+function genericBufferPlayability(buffer) {
+  return buffer ? { ok: true, reason: null } : { ok: false, reason: "no-file" };
+}
+function syncUploadGate() {
+  if (!els.uploadGate) return;
+  const meta = mode.getMeta();
+  const supportsUpload = (meta.uyumluKaynaklar || []).includes("upload");
+  const sourceIsUpload = supportsUpload && els.sourceSelect && els.sourceSelect.value === "upload";
+  if (!sourceIsUpload) {
+    els.uploadGate.classList.add("hidden");
+    if (els.analyzer) els.analyzer.classList.toggle("hidden", !!mode.HIDE_ANALYZER);
+    if (els.gameSpectrumControls) els.gameSpectrumControls.classList.remove("hidden");
     return;
   }
-  const playability = mode.bufferPlayability(uploadManager.getBuffer());
+  const checkPlayability = mode.bufferPlayability || genericBufferPlayability;
+  const playability = checkPlayability(uploadManager.getBuffer());
   const needsGate = !playability.ok;
-  els.stereoUploadGate.classList.toggle("hidden", !needsGate);
+  els.uploadGate.classList.toggle("hidden", !needsGate);
   // Kapılıyken normal oyun UI'sı (analizör/kontroller/şıklar) GİZLENİR —
   // "Oynat"a basılabilir ama geçersiz bir dosyayla round BAŞLATILAMAZ
   // (aşağıdaki startRound() guard'ı zaten bunu engelliyor), bu panel o
@@ -1979,16 +2008,23 @@ function syncStereoUploadGate() {
   if (els.gameSpectrumControls) els.gameSpectrumControls.classList.toggle("hidden", needsGate);
   if (needsGate) {
     if (els.answers) { els.answers.innerHTML = ""; els.answers.classList.add("hidden"); }
+    // upload-ONLY modlar (bugün SADECE Stereo Genişlik) için "bu mod SADECE
+    // dosyanla oynanır" metni doğru; diğer (çok-kaynaklı) modlarda kullanıcı
+    // İSTERSE başka bir kaynağa da geçebileceği için metin ona göre farklı.
+    const isUploadOnlyMode = (meta.uyumluKaynaklar || []).length === 1;
     if (playability.reason === "mono") {
-      els.stereoUploadGateTitle.textContent = "Bu dosya mono";
-      els.stereoUploadGateText.textContent = "Stereo genişlik mono bir dosyada ölçülemez (side bileşeni sıfır). Dosyalarım'dan farklı, stereo bir dosya seç.";
+      els.uploadGateTitle.textContent = "Bu dosya mono";
+      els.uploadGateText.textContent = "Stereo genişlik mono bir dosyada ölçülemez (side bileşeni sıfır). Dosyalarım'dan farklı, stereo bir dosya seç.";
+    } else if (isUploadOnlyMode) {
+      els.uploadGateTitle.textContent = "Bu mod kendi dosyanla oynanır";
+      els.uploadGateText.textContent = "Gerçek bir mix üzerinde çalışır. Dosyalarım'dan bir şarkı seç ya da yeni bir dosya yükle.";
     } else {
-      els.stereoUploadGateTitle.textContent = "Bu mod kendi dosyanla oynanır";
-      els.stereoUploadGateText.textContent = "Genişlik ölçümü gerçek bir mix üzerinde çalışır. Dosyalarım'dan bir şarkı seç ya da yeni bir dosya yükle.";
+      els.uploadGateTitle.textContent = "Bu modda henüz dosya seçmedin";
+      els.uploadGateText.textContent = "Kaynak olarak \"Kendi Dosyam\" seçili ama bu mod için henüz bir dosya seçmedin. Dosyalarım'dan bir şarkı seç, yeni bir dosya yükle, ya da Kaynak'tan başka bir ses seç.";
     }
   }
 }
-if (els.stereoUploadGateBtn) els.stereoUploadGateBtn.addEventListener("click", () => {
+if (els.uploadGateBtn) els.uploadGateBtn.addEventListener("click", () => {
   openFilesSheetForContext(mode.MODE_ID);
 });
 
@@ -2021,22 +2057,22 @@ function goScreen(name) {
     resizeCanvas();
     // G123 — bu MODUN kendi kalıcı dosya seçimini (varsa) uploadManager'a
     // yükle — G122'de sadece Stereo Genişlik'e özgüydü, artık "upload"
-    // destekleyen TÜM modlarda genel. syncStereoUploadGate'in "mod DEĞİŞMEDİYSE
+    // destekleyen TÜM modlarda genel. syncUploadGate'in "mod DEĞİŞMEDİYSE
     // atla" (enterMode'un mode!==realMode bloğu) sorunundan BAĞIMSIZ kalması
     // için bu da doğrudan goScreen()'e bağlı — HER giriş yolunda (kart
     // tıklama, geri tuşu, Dosyalarım sheet'inden dönüş) çalışır.
     if ((mode.getMeta().uyumluKaynaklar || []).includes("upload")) {
-      ensureUploadSelectionLoaded(mode.MODE_ID).then(syncStereoUploadGate);
+      ensureUploadSelectionLoaded(mode.MODE_ID).then(syncUploadGate);
     }
-    // G122 — enterMode()'un "mod DEĞİŞMEDİYSE atla" bloğunun (mode !== realMode)
-    // AKSİNE, bu kontrol oyun ekranına HER giriş yolunda (kart tıklama, geri
-    // tuşu, Dosyalarım sheet'inden dönüş) çalışmalı — buraya, doğrudan
-    // goScreen()'e bağlandı (enterMode İÇİNE değil). Yukarıdaki asenkron
-    // yeniden-yükleme TAMAMLANMADAN ÖNCE de bir kez SENKRON çağrılır — geçiş
-    // anında (uploadManager.clear() az önce çalıştıysa) panel doğru "dosya
-    // yok" durumunu HEMEN yansıtsın, asenkron yükleme bitince İKİNCİ kez
-    // (yukarıdaki .then'de) gerçek sonuçla güncellenir.
-    syncStereoUploadGate();
+    // G122/G126 — enterMode()'un "mod DEĞİŞMEDİYSE atla" bloğunun (mode !==
+    // realMode) AKSİNE, bu kontrol oyun ekranına HER giriş yolunda (kart
+    // tıklama, geri tuşu, Dosyalarım sheet'inden dönüş) çalışmalı — buraya,
+    // doğrudan goScreen()'e bağlandı (enterMode İÇİNE değil). Yukarıdaki
+    // asenkron yeniden-yükleme TAMAMLANMADAN ÖNCE de bir kez SENKRON çağrılır
+    // — geçiş anında (uploadManager.clear() az önce çalıştıysa) panel doğru
+    // "dosya yok" durumunu HEMEN yansıtsın, asenkron yükleme bitince İKİNCİ
+    // kez (yukarıdaki .then'de) gerçek sonuçla güncellenir.
+    syncUploadGate();
     // E3 güvenlik ağı: cevap verilip actionbar tucked'ken kullanıcı "Geri"ye basıp
     // menüye çıkarsa (sonraki tur hiç renderQuestion() çağırmadan), bu sınıf DOM'da
     // takılı kalırdı — bir dahaki oyun ekranı girişinde "Oyunu Başlat" butonu bile
@@ -4806,10 +4842,16 @@ function startRound() {
     setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
     return;
   }
-  // G122: Stereo Genişlik — mode.bufferPlayability() (bkz. syncStereoUploadGate'in
+  // G122: Stereo Genişlik — mode.bufferPlayability() (bkz. syncUploadGate'in
   // AYNI kaynağı) round'un FİİLEN başlamasını da engeller — gate paneli normalde
   // bu duruma HİÇ gelinmeden Oynat'ı zaten gizliyor, bu SADECE ikinci bir emniyet
-  // (ör. panel bir yarış durumunda henüz güncellenmediyse).
+  // (ör. panel bir yarış durumunda henüz güncellenmediyse). G126 — YUKARIDAKİ
+  // satır (els.sourceSelect.value==="upload" && !uploadManager.hasBuffer) bu
+  // AYNI korumayı ZATEN TÜM upload-destekli modlar için genel olarak
+  // sağlıyordu (kullanıcının Kompresör raporunun BEKLENDİĞİ gibi burada
+  // yakalanması gerekirdi) — bu blok SADECE Stereo Genişlik'in EK mono
+  // kontrolü için var, "hasBuffer var ama mono" durumunu yukarıdaki satır
+  // YAKALAYAMAZ.
   if (mode.MODE_ID === "stereo-genislik" && mode.bufferPlayability) {
     const playability = mode.bufferPlayability(uploadManager.getBuffer());
     if (!playability.ok) {
@@ -6339,6 +6381,11 @@ els.difficultySelect.addEventListener("change", () => {
     } else if (activeQuestion) {
       setFeedback("Ayar değişti", "Yeni ayarlar bir sonraki turda uygulanacak.");
     }
+    // G126 — kullanıcı Kaynak'ı DOĞRUDAN dropdown'dan değiştirirse (Dosyalarım
+    // sheet'i akışından GEÇMEDEN) gate paneli ANINDA senkron kalsın — "upload"a
+    // geçince (dosya yoksa) panel HEMEN görünür, "upload"tan başka bir kaynağa
+    // geçince panel HEMEN kaybolur.
+    if (el === els.sourceSelect) syncUploadGate();
     updateStartBtnLabel();
   });
 });
@@ -7656,7 +7703,22 @@ async function toolsAddFile(file) {
     const [evicted] = toolsFiles.splice(oldestIdx, 1);
     if (evicted && evicted.id !== entry.id) {
       fileStorage.deleteFile(evicted.id).catch(() => {});
-      toast("Dosya kütüphanesi dolu", `En eski dosya (${evicted.name}) otomatik olarak kaldırıldı.`);
+      // G126 — kullanıcının raporunun kendi maddesi: "beş dosya sınırında en
+      // eski düşünce onu kullanan mod ne yapıyor?" ÖNCEDEN: hiçbir şey — o
+      // modun uploadSelections girdisi VAR OLMAYAN bir id'ye işaret etmeye
+      // devam ediyordu (ensureUploadSelectionLoaded bir SONRAKİ girişte bunu
+      // sessizce temizliyordu, ama O ANA KADAR "seçili görünüp çalmıyor"
+      // penceresi vardı — TAM bu turun kapattığı sessiz-hata deseni). Artık
+      // TÜM bağlamlardan (toolsRemoveFile'ın AYNI deseni) HEMEN temizleniyor.
+      const evictedFromContexts = Object.keys(uploadSelections).filter(c => uploadSelections[c] === evicted.id);
+      evictedFromContexts.forEach(contextId => recordUploadSelection(contextId, null));
+      if (uploadManagerLoadedFileId === evicted.id) {
+        uploadManager.clear();
+        uploadManagerLoadedFileId = null;
+      }
+      const affectedNote = evictedFromContexts.length > 0 ? ` (${evictedFromContexts.join(", ")} bağlamının seçimi de temizlendi)` : "";
+      toast("Dosya kütüphanesi dolu", `En eski dosya (${evicted.name}) otomatik olarak kaldırıldı${affectedNote}.`);
+      syncUploadGate();
     }
   }
   toolsSaveLibraryManifest();
@@ -7770,7 +7832,7 @@ function selectFileForActiveContext(id, opts = {}) {
     toolsSelectFile(id, opts);
     return;
   }
-  applyUploadSelection(activeUploadContext, id, { ...opts, onReady: syncStereoUploadGate });
+  applyUploadSelection(activeUploadContext, id, { ...opts, onReady: syncUploadGate });
   toolsCloseFilesSheet();
   renderToolsFilesSheetContent();
 }
@@ -7799,6 +7861,10 @@ function toolsRemoveFile(id, { skipStorageDelete = false } = {}) {
   if (!skipStorageDelete) fileStorage.deleteFile(id).catch(() => {});
   renderToolsFilesSheetContent();
   renderToolsCardsVisibility();
+  // G126 — silinen dosya TAM ŞU AN aktif olan modun (sheet'in ARKASINDA
+  // duran ekranın, bkz. G124) seçimiyse gate paneli HEMEN güncellenir —
+  // bir sonraki goScreen("game") girişini BEKLEMEZ.
+  syncUploadGate();
 }
 
 // Araçlar sekmesine SAYFA-YÜKLEMESİ başına TEK SEFERLİK: manifestteki her
@@ -7835,6 +7901,7 @@ async function toolsCheckLibraryIntegrity() {
   toast("Dosya bulunamadı", missing.length === 1 ? `${names} artık cihazda yok. Kütüphaneden kaldırıldı.` : `${missing.length} dosya artık cihazda yok, kütüphaneden kaldırıldı: ${names}`);
   renderToolsFilesSheetContent();
   renderToolsCardsVisibility();
+  syncUploadGate(); // G126 — bkz. toolsRemoveFile'ın AYNI notu
 }
 
 // --- Son İşlemlerim / Son Ölçümlerim — localStorage'da KALICI (dosyanın

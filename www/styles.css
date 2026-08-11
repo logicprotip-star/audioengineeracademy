@@ -213,16 +213,17 @@
     .num{font-variant-numeric:tabular-nums}
     .hidden{display:none!important}
 
-    /* G122 — Stereo Genişlik'in "dosya yok/mono" gate paneli (bkz. index.html
-       #stereoUploadGate notu, app.js syncStereoUploadGate). .tools-files-empty
-       ile AYNI dashed-border boş-durum dili (Araçlar sekmesiyle görsel
-       tutarlılık), .tools-lock-cta'nın AYNI dolgu-buton deseni ama nötr renkte
-       (bu bir paywall DEĞİL, sadece bir yönlendirme). */
-    .stereo-upload-gate{margin-top:10px;padding:28px 20px;border-radius:var(--radius);border:1px dashed rgba(255,255,255,.14);background:rgba(255,255,255,.02);text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px}
-    .stereo-upload-gate-title{font-size:15px;font-weight:700;color:#eef0f2}
-    .stereo-upload-gate-text{font-size:12.5px;font-weight:500;color:#8a8f96;line-height:1.5;max-width:320px;margin-bottom:10px}
-    .stereo-upload-gate-btn{width:100%;max-width:260px;height:46px;border-radius:12px;background:linear-gradient(180deg,#3a9de0,#2a7ec2);color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer}
-    .stereo-upload-gate-btn:active{transform:scale(.98)}
+    /* G122'de Stereo Genişlik'e özgü eklendi, G126'da 11 upload-destekli
+       modun HEPSİ için GENELLENDİ (bkz. index.html #uploadGate notu, app.js
+       syncUploadGate). .tools-files-empty ile AYNI dashed-border boş-durum
+       dili (Araçlar sekmesiyle görsel tutarlılık), .tools-lock-cta'nın AYNI
+       dolgu-buton deseni ama nötr renkte (bu bir paywall DEĞİL, sadece bir
+       yönlendirme). */
+    .upload-gate{margin-top:10px;padding:28px 20px;border-radius:var(--radius);border:1px dashed rgba(255,255,255,.14);background:rgba(255,255,255,.02);text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px}
+    .upload-gate-title{font-size:15px;font-weight:700;color:#eef0f2}
+    .upload-gate-text{font-size:12.5px;font-weight:500;color:#8a8f96;line-height:1.5;max-width:320px;margin-bottom:10px}
+    .upload-gate-btn{width:100%;max-width:260px;height:46px;border-radius:12px;background:linear-gradient(180deg,#3a9de0,#2a7ec2);color:#fff;border:none;font-size:14px;font-weight:700;cursor:pointer}
+    .upload-gate-btn:active{transform:scale(.98)}
 
     /* ---- G74: ana ekran kullanıcı kartı — Tasarim-2026-08/Ana Ekran.dc.html'den
        taşındı. "Fırçalanmış metal" zemin bu tek karta ÖZGÜ, tek-seferlik dekoratif
