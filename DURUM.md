@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G115)
+Son güncelleme: 11.08.2026 (G116)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,62 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G115, tek commit, `9d72670`) — **Araçlar → Ölçüm Sonuçları: sheet TAMAMEN kaldırıldı, Referans Filtreleri ile AYNI akordiyon desenine çevrildi.**
+Bu commit (G116, tek commit, `f8f4392`) — **Araçlar → Tonal Balance: dikey eksen dB etiketleri ondalık spam üretiyordu ("+10.3847291"), ölçek her karede yeniden hesaplanıyordu — DÜZELTİLDİ.**
+
+**KÖK SEBEP:** G114'ün "titreme koruması" yetersizdi. Canlı çalarken
+`drawTonalChart()` HER KAREDE smoothing'in kovaladığı hedefi
+(`toolsTonalComputeRawHalfRange(avg, target, liveDevs)`) `liveDevs`'ten
+YENİDEN hesaplıyordu — `liveDevs` gerçek zamanlı FFT anlık görüntüsü
+olduğu için kare-kareye DEĞİŞİYORDU, yani smoothing'in ulaşmaya çalıştığı
+hedefin KENDİSİ sürekli oynuyordu. Sonuç: ölçek (`toolsTonalCurrentHalfRange`)
+hiçbir zaman "nice" bir tam sayıya OTURAMIYORDU, dB etiketi bu ondalık
+ara-değeri doğrudan string'e çeviriyordu.
+
+**DÜZELTME (`www/js/app.js`):**
+1. Yeni `toolsTonalResetHalfRange(avgDevs, targetDevs)` (8443-8449) —
+   dosya/hedef değişince (`renderToolsTonalCard`, satır 8747) BİR KEZ
+   çağrılır, ölçeği SADECE avg+target'tan (canlı YOK, kare-kareye SABİT
+   girdi) hesaplayıp `toolsTonalCurrentHalfRange` + yeni ratchet-tabanı
+   `toolsTonalHalfRangeFloor`'u KİLİTLER.
+2. `drawTonalChart()` içindeki eski "her karede yeniden hesapla" bloğu
+   kaldırıldı (8583-8595) — yerine SADECE "canlı floor'u aşıyor mu"
+   testi kondu: aşıyorsa `toolsTonalHalfRangeFloor` büyür (ratchet,
+   SADECE büyür) ve `toolsTonalCurrentHalfRange` bu yeni floor'a
+   yumuşakça (%12/kare) yaklaşır — geri KÜÇÜLMEZ.
+3. Eksen etiketi metni artık HER ZAMAN `Math.round()` (8678-8684) — Y
+   konumu yuvarlanmamış değerden hesaplanmaya devam ediyor (animasyon
+   sırasında etiket kendi ızgara çizgisinden KOPMASIN diye), sadece
+   YAZILAN sayı tam sayıya yuvarlanıyor.
+
+**DOĞRULAMA (masaüstü Chrome, Playwright — `www/` `python3 -m
+http.server` üzerinden, `CanvasRenderingContext2D.fillText`
+`page.add_init_script` ile ELE GEÇİRİLİP her dB-etiketi çizim çağrısı
+zaman damgasıyla loglandı — görsel karşılaştırma değil, GERÇEK çizilen
+metin doğrulandı). Sentetik 9sn'lik WAV: sürekli bas-ağır taban (SUB/BAS
+frekansları) + t=3-4.5s arası yüksek frekans PATLAMASI (6/12/16kHz):**
+- **Statik (dosya yüklenip çalınmadan): `+70 / 0 / −70`** — tam sayı.
+- **t+1s, t+2s (patlamadan ÖNCE): `+70/0/−70`** — SABİT, hiç değişmiyor.
+- **t+3s (patlama BAŞLADI): `+80/0/−80`** — ölçek GENİŞLEDİ (ratchet).
+- **t+4s...t+9s (patlama t=4.5s'te BİTTİ, 4.5 saniye sessizlik geçti):
+  hep `+80/0/−80`** — ölçek GERİ DARALMADI, task'ın "genişlesin ama geri
+  daralmasın" kuralı doğrulandı.
+- **Toplam 4554 eksen-etiketi çizim çağrısı** (tüm 9 saniyelik oynatma +
+  canlı animasyon karesi başına) tarandı — **NOKTA/VİRGÜL içeren TEK BİR
+  etiket bile YOK** (`www/js/app.js`'nin `Math.round()` düzeltmesi her
+  karede doğrulandı, sadece örnek karelerde değil).
+- İki ekran görüntüsü (patlama sırasında ve patlamadan 3+ saniye sonra)
+  AYNI `+80/0/−80` değerlerini gösteriyor (task'ın kendi doğrulama
+  kriteri: "birkaç saniyelik aralıklarla alınmış iki ekran görüntüsünde
+  aynı değerler").
+- **`npm test`: 1119/1119**, 0 hata.
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chrome'da (Playwright) yapıldı,
+cihazda CANLI doğrulanmadı — G115'ten devralınan aynı açık uç (bkz.
+SIRADAKİ).
+
+---
+
+Önceki commit (G115, tek commit, `9d72670`) — **Araçlar → Ölçüm Sonuçları: sheet TAMAMEN kaldırıldı, Referans Filtreleri ile AYNI akordiyon desenine çevrildi.**
 
 **GEREKÇE (kullanıcının kendi kararı):** sheet iOS'ta üç turdur (G107-G114
 zinciri, bkz. SIRADAKİ'nin eski "Önceki adım" kayıtları) doğru
@@ -9640,6 +9695,27 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 "done" canlı yeniden denenir.
 
 ## SIRADAKİ
+
+**Tek sonraki adım (G116 itibarıyla):** `npx cap sync ios` (bu turda
+zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
+kurulum sonrası GERÇEK bir mix çalarak doğrulamalı: (1) dB eksen
+etiketlerinin HER ZAMAN tam sayı olduğu (ondalık asla görünmüyor); (2)
+dosya çalarken sakin bölümlerde ölçeğin/etiketlerin TİTREMEDEN sabit
+kaldığı; (3) gerçekten aşırı bir tiz/bas patlaması varsa ölçeğin
+GENİŞLEDİĞİ ve bir daha KÜÇÜLMEDİĞİ. Bu turda masaüstü Chrome'da
+Playwright ile (canvas `fillText` çağrıları ele geçirilerek, görsel
+karşılaştırma değil GERÇEK çizilen metin) hepsi doğrulandı (bkz. BİTTİ)
+— cihazda CANLI doğrulama HENÜZ yok. **NOT (aşağıdaki ACİL notunun
+KISMEN düzeltmesi):** bir önceki turda "kodda düzeltilecek bir şey yok"
+denmişti — bu, dB etiketi/renk/çalar maddeleri için STATİK kod okumasıyla
+doğruydu, ama Tonal Balance'ın "ölçek titriyor" maddesi için YANLIŞ
+çıktı: gerçek bir bug'dı (canlı FFT anlık görüntüsünden HER KAREDE
+yeniden hesaplanan bir smoothing hedefi, hiçbir zaman oturamıyordu),
+sadece STATİK okumayla YAKALANAMAMIŞTI (canlı oynatmayı SİMÜLE ETMEK
+gerekiyordu) — bu turda düzeltildi (bkz. BİTTİ). Diğer üç madde
+(kırpılma önleme, gösterge renkleri, Mixini Yükle çaları) hâlâ kod
+seviyesinde doğru görünüyor, aşağıdaki ACİL notu ONLAR için geçerliliğini
+KORUYOR.
 
 **ACİL — kod DEĞİŞİKLİĞİ YOK, cihazdaki eski derleme şüphesi (G114/G115
 sonrası, kod değişikliği yapılmadı):** Kullanıcı cihaz ekran görüntüsüyle
