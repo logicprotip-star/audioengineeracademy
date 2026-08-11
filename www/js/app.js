@@ -200,11 +200,12 @@ const els = {
   toolsAnalysisStereo: document.getElementById("toolsAnalysisStereo"),
   toolsAnalysisCorrelationChart: document.getElementById("toolsAnalysisCorrelationChart"),
   toolsAnalysisStandardNote: document.getElementById("toolsAnalysisStandardNote"),
-  toolsResultsOverlay: document.getElementById("toolsResultsOverlay"),
-  toolsResultsSheet: document.getElementById("toolsResultsSheet"),
-  toolsResultsClose: document.getElementById("toolsResultsClose"),
   toolsResultsTotalTime: document.getElementById("toolsResultsTotalTime"),
-  toolsResultsStrip: document.getElementById("toolsResultsStrip"),
+  // E) Ölçüm Sonuçları — akordiyon (G115, Referans Filtreleri ile AYNI desen)
+  toolsResultsHeader: document.getElementById("toolsResultsHeader"),
+  toolsResultsHeaderBadge: document.getElementById("toolsResultsHeaderBadge"),
+  toolsResultsChevron: document.getElementById("toolsResultsChevron"),
+  toolsResultsBody: document.getElementById("toolsResultsBody"),
   // F) Referans Filtreleri — akordiyon + çalar
   toolsFilterCard: document.getElementById("toolsFilterCard"),
   toolsFilterHeader: document.getElementById("toolsFilterHeader"),
@@ -1869,13 +1870,14 @@ function goScreen(name) {
   // G99/G101: "game" dalıyla AYNI zamanlama sorunu (ekran bir önceki karede
   // "display:none" idi, canvas 0 genişlikte ölçülürdü) — Tonal Balance
   // grafiği KART İÇİNDE (her zaman potansiyel olarak gizliyken ölçülmüş
-  // olabilir) bu yüzden Araçlar sekmesine HER girişte yeniden çizilir. Short-
-  // term grafiği artık sheet İÇİNDE (sheet açıkken zaten kendi rAF'ıyla
-  // doğru boyutta çiziliyor, bkz. toolsOpenResultsSheet) — yine de sheet
-  // açık kalmış olabilir diye (ör. hızlı sekme geçişi) burada da tazelenir.
+  // olabilir) bu yüzden Araçlar sekmesine HER girişte yeniden çizilir. G115 —
+  // Short-term grafiği artık akordiyon İÇİNDE (açıkken zaten kendi rAF'ıyla
+  // doğru boyutta çiziliyor, bkz. toolsOpenResultsAccordion) — yine de
+  // akordiyon açık kalmış olabilir diye (ör. hızlı sekme geçişi) burada da
+  // tazelenir.
   if (name === "tools") {
     if (toolsTonalDevs) renderToolsTonalCard();
-    if (toolsResultsSheetOpenFlag && toolsAnalysisResult) {
+    if (toolsResultsOpen && toolsAnalysisResult) {
       drawShortTermChart(toolsAnalysisResult);
       drawCorrelationChart(toolsAnalysisResult);
     }
@@ -7433,6 +7435,8 @@ function toolsResetSheetScroll(sheetEl) {
 // [scroll-diag] çıktısı hem sheet kapatıldıktan SONRA hem de (kullanıcı
 // isterse) hiç sheet açılmadan konsoldan elle çağrılabilecek şekilde AYNI
 // fonksiyonun İÇİNDE (tek yerde, tekrar yazılmadan).
+// G115 — Ölçüm Sonuçları artık sheet DEĞİL (akordiyona çevrildi), bu yüzden
+// aşağıdaki tarihsel not (G109) artık SADECE Dosyalarım sheet'i için geçerli.
 function toolsSetBackgroundScrollLocked(locked) {
   const scrollEl = document.querySelector(".tools-scroll");
   if (!scrollEl) return;
@@ -7460,7 +7464,6 @@ function toolsOpenFilesSheet() {
     if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail, "pro");
     return;
   }
-  toolsCloseResultsSheet();
   renderToolsFilesSheetContent();
   toolsResetSheetScroll(els.toolsFilesSheet);
   toolsSetBackgroundScrollLocked(true);
@@ -8096,7 +8099,7 @@ let toolsAnalysisState = "idle"; // idle | loading | success | error
 let toolsAnalysisResult = null;
 let toolsAnalysisErrorMsg = "";
 let toolsAnalyzedFileId = null; // toolsAnalysisResult HANGİ dosyaya ait
-let toolsResultsSheetOpenFlag = false;
+let toolsResultsOpen = false; // G115 — akordiyon açık/kapalı (Referans Filtreleri'ndeki toolsFilterOpen ile AYNI desen)
 
 function resetToolsAnalysis() {
   toolsAnalysisState = "idle";
@@ -8104,16 +8107,17 @@ function resetToolsAnalysis() {
   toolsAnalysisErrorMsg = "";
   toolsAnalysisChartData = null;
   toolsAnalyzedFileId = null;
+  toolsCloseResultsAccordion();
   renderToolsAnalysisCardState();
 }
 
 // Buton: dosya seçiliyken görünür, o dosya için BAŞARIYLA analiz edilmişse
-// (design: showAnalyze = analyzed!==selFile) GİZLENİR — sonuçlar artık
-// sheet+şeritte. Analiz sürerken (loading) buton disabled + "Ölçülüyor…" +
-// içindeki kozmetik ilerleme çubuğu doluyor (bkz. task madde E — çubuk GERÇEK
-// bir yüzde İZLEMİYOR, tasarımın kendi 1400ms'lik sabit animasyonu; asıl
-// "bitti mi" sinyali worker'ın GERÇEK tamamlanmasından geliyor, çubuk sadece
-// görsel aktivite göstergesi).
+// (design: showAnalyze = analyzed!==selFile) GİZLENİR — sonuçlar artık kart
+// içi akordiyonda (G115). Analiz sürerken (loading) buton disabled +
+// "Ölçülüyor…" + içindeki kozmetik ilerleme çubuğu doluyor (bkz. task madde
+// E — çubuk GERÇEK bir yüzde İZLEMİYOR, tasarımın kendi 1400ms'lik sabit
+// animasyonu; asıl "bitti mi" sinyali worker'ın GERÇEK tamamlanmasından
+// geliyor, çubuk sadece görsel aktivite göstergesi).
 function renderToolsAnalysisCardState() {
   const entry = toolsSelectedEntry();
   if (!entry) return;
@@ -8129,7 +8133,10 @@ function renderToolsAnalysisCardState() {
     els.toolsAnalysisError.classList.toggle("hidden", !error);
     if (error) els.toolsAnalysisError.textContent = toolsAnalysisErrorMsg;
   }
-  if (els.toolsResultsStrip) els.toolsResultsStrip.classList.toggle("hidden", !(success && !toolsResultsSheetOpenFlag));
+  if (els.toolsResultsHeaderBadge) {
+    els.toolsResultsHeaderBadge.classList.toggle("hidden", !success);
+    if (success && toolsAnalysisResult) els.toolsResultsHeaderBadge.textContent = fmtLufs(toolsAnalysisResult.program.integratedLufs);
+  }
 }
 
 // G111 — "kartlar her zaman görünür olacak" (kullanıcının kendi kararı,
@@ -8150,10 +8157,7 @@ function renderToolsCardsVisibility() {
   if (els.toolsAnalysisCard) els.toolsAnalysisCard.classList.toggle("tools-card-disabled", !hasFile);
   if (els.toolsFilterCard) els.toolsFilterCard.classList.toggle("tools-card-disabled", !hasFile);
   renderToolsMixPlayer(entry); // G114 — dosya var/yok geçişinde Mixini Yükle kartının çaları/butonu senkron kalsın
-  if (!hasFile) {
-    if (els.toolsResultsStrip) els.toolsResultsStrip.classList.add("hidden");
-    return;
-  }
+  if (!hasFile) return;
   renderToolsAnalysisCardState();
   renderToolsTonalCard();
 }
@@ -8187,48 +8191,53 @@ if (els.toolsAnalyzeBtn) {
     renderToolsAnalysisCardState();
     if (toolsAnalysisState === "success") {
       renderToolsAnalysisResults(toolsAnalysisResult);
-      toolsOpenResultsSheet();
+      toolsOpenResultsAccordion();
     }
   });
 }
 
-function toolsOpenResultsSheet() {
-  toolsResultsSheetOpenFlag = true;
-  toolsResetSheetScroll(els.toolsResultsSheet);
-  toolsSetBackgroundScrollLocked(true);
-  if (els.toolsResultsStrip) els.toolsResultsStrip.classList.add("hidden");
-  if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.remove("hidden");
-  if (els.toolsResultsSheet) els.toolsResultsSheet.classList.remove("hidden");
+function toolsOpenResultsAccordion() {
+  toolsResultsOpen = true;
+  if (els.toolsResultsBody) els.toolsResultsBody.classList.remove("hidden");
+  if (els.toolsResultsChevron) els.toolsResultsChevron.classList.add("open");
   requestAnimationFrame(() => {
-    if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.add("open");
-    if (els.toolsResultsSheet) els.toolsResultsSheet.classList.add("open");
     if (toolsAnalysisResult) {
       drawShortTermChart(toolsAnalysisResult);
       drawCorrelationChart(toolsAnalysisResult);
     }
   });
 }
-function toolsCloseResultsSheet() {
-  toolsResultsSheetOpenFlag = false;
-  toolsSetBackgroundScrollLocked(false);
-  if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.remove("open");
-  if (els.toolsResultsSheet) els.toolsResultsSheet.classList.remove("open");
-  setTimeout(() => {
-    if (els.toolsResultsOverlay) els.toolsResultsOverlay.classList.add("hidden");
-    if (els.toolsResultsSheet) els.toolsResultsSheet.classList.add("hidden");
-  }, 260);
-  renderToolsAnalysisCardState();
+function toolsCloseResultsAccordion() {
+  toolsResultsOpen = false;
+  if (els.toolsResultsBody) els.toolsResultsBody.classList.add("hidden");
+  if (els.toolsResultsChevron) els.toolsResultsChevron.classList.remove("open");
 }
-// Şeritten yeniden açılınca ANALİZ TEKRAR ÇALIŞMAZ — sadece zaten hesaplanmış
-// toolsAnalysisResult'ı YENİDEN gösterir (task madde E'nin kendi kuralı).
+// Başlık satırı tıklanınca aç/kapa — Referans Filtreleri'ndeki
+// toolsToggleFilterAccordion() ile AYNI desen. Kapatınca sonuçlar SİLİNMEZ
+// (sadece .hidden ile gizlenir) — tekrar açılınca ANALİZ TEKRAR ÇALIŞMAZ,
+// zaten hesaplanmış toolsAnalysisResult'ı yeniden çizer (task madde E'nin
+// kendi kuralı).
+function toolsToggleResultsAccordion() {
+  if (toolsResultsOpen) toolsCloseResultsAccordion();
+  else toolsOpenResultsAccordion();
+}
+if (els.toolsResultsHeader) els.toolsResultsHeader.addEventListener("click", toolsToggleResultsAccordion);
+
+// Dosyalarım → SON ÖLÇÜMLERİM'den geçmiş bir ölçüme dönülünce ANALİZ TEKRAR
+// ÇALIŞMAZ — sadece kaydedilmiş sonucu yeniden gösterir. toolsAnalysisResult
+// da güncellenir (rozet + akordiyon açıldığında grafik yeniden çizimi bunu
+// okuyor, ÖNCEKİ sheet-döneminde bu atama eksikti — grafikler ilk çizimde
+// doğruydu ama rAF'taki olası yeniden çizim eski/stale sonucu kullanabilirdi).
 function toolsOpenSavedMeasurement(savedEntry) {
+  toolsAnalysisResult = savedEntry.result;
   renderToolsAnalysisResults(savedEntry.result);
+  if (els.toolsResultsHeaderBadge) {
+    els.toolsResultsHeaderBadge.classList.remove("hidden");
+    els.toolsResultsHeaderBadge.textContent = fmtLufs(savedEntry.result.program.integratedLufs);
+  }
   toolsCloseFilesSheet();
-  toolsOpenResultsSheet();
+  toolsOpenResultsAccordion();
 }
-if (els.toolsResultsClose) els.toolsResultsClose.addEventListener("click", toolsCloseResultsSheet);
-if (els.toolsResultsOverlay) els.toolsResultsOverlay.addEventListener("click", toolsCloseResultsSheet);
-if (els.toolsResultsStrip) els.toolsResultsStrip.addEventListener("click", toolsOpenResultsSheet);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // D) Tonal Balance — G101'de SIFIRDAN yazıldı, G102'de gösterim MUTLAĞA

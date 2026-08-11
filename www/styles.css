@@ -1923,10 +1923,10 @@
     .tools-files-meas-time{font-size:10.5px;font-weight:500;color:#4a4f56;margin-top:2px}
     .tools-files-meas-lufs{flex-shrink:0;font-size:14px;font-weight:800;color:#22d3ee;font-variant-numeric:tabular-nums}
 
-    /* Ölçüm Sonuçları sheet — G99'un .tools-analysis-* sınıflarını YENİDEN
+    /* Ölçüm Sonuçları akordiyonu — G99'un .tools-analysis-* sınıflarını YENİDEN
        KULLANIR (aynı isimler), sadece kolon genişliği 78px→62px'e (tasarımın
-       kendi ölçüsü) çekildi ve sheet-özel integrated/standart-notu stilleri
-       eklendi. */
+       kendi ölçüsü) çekildi ve integrated/standart-notu stilleri eklendi.
+       G115 — sheet'ten akordiyona taşındı, bu sınıflar DEĞİŞMEDİ. */
     .tools-analysis-col{flex:0 0 62px}
     .tools-results-col-header{width:62px;text-align:right;font-size:10px;font-weight:800;letter-spacing:.8px;color:#6c7178;text-transform:uppercase}
     .tools-results-col-headers{display:flex;align-items:center;margin-top:9px;padding-bottom:6px}
@@ -1938,17 +1938,6 @@
     .tools-results-integrated-unit{font-size:12px;font-weight:700;color:#1aa8ba}
     .tools-results-chart-times{display:flex;justify-content:space-between;margin-top:5px;font-size:10px;font-weight:600;color:#4a4f56;font-variant-numeric:tabular-nums}
     .tools-results-standard-note{margin-top:16px;font-size:10px;font-weight:500;line-height:1.5;color:#3f444a}
-
-    /* Kalıcı şerit — sheet kapatılınca sonuçlar KAYBOLMASIN */
-    /* position:fixed — AYNI G101 düzeltmesi, bkz. .tools-sheet notu. bottom:84px
-       .tabbar'ın (position:fixed, height 84px) HEMEN ÜSTÜNE oturur. */
-    .tools-results-strip{position:fixed;left:0;right:0;bottom:84px;height:44px;z-index:58;border-radius:14px 14px 0 0;background:#16181c;border-top:1px solid rgba(255,255,255,.1);cursor:pointer;display:flex;align-items:center;padding:0 14px;box-shadow:0 -8px 22px rgba(0,0,0,.45)}
-    .tools-results-strip:active{transform:translateY(1px)}
-    .tools-results-strip-handle{position:absolute;left:0;right:0;top:6px;display:flex;justify-content:center}
-    .tools-results-strip-handle span{width:38px;height:4px;border-radius:2px;background:rgba(255,255,255,.15);display:block}
-    .tools-results-strip-label{display:flex;align-items:center;gap:8px;flex:1;min-width:0;margin-top:4px}
-    .tools-results-strip-label span{font-size:12.5px;font-weight:600;color:#d6d9dd}
-    .tools-results-strip-chevron{flex-shrink:0;margin-top:4px}
 
     /* Tonal Balance */
     .tools-tonal-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}

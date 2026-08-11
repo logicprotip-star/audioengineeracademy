@@ -980,15 +980,20 @@
           </div>
 
           <!-- E) Ölçüm Sonuçları — analysis.js/analysis-worker.js AYNEN kalıyor,
-               sonuçlar artık kart-içi DEĞİL, ayrı bir sheet'te + kapatılınca
-               kalıcı bir şeritte gösteriliyor (bkz. app.js). -->
+               sonuçlar artık sheet'te DEĞİL, Referans Filtreleri ile AYNI
+               akordiyon deseninde kart İÇİNDE gösteriliyor (bkz. app.js,
+               G115). Varsayılan kapalı, analiz bitince otomatik açılıyor. -->
           <div class="tools-card tools-card-disabled" id="toolsAnalysisCard">
-            <div class="tools-card-top">
+            <div class="tools-filter-header" id="toolsResultsHeader">
               <div class="tools-card-icon"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V8M9 20V4M14 20v-9M19 20v-5"></path><path d="M2 20h20"></path></svg></div>
               <div class="tools-card-copy">
-                <div class="tools-card-title">Ölçüm Sonuçları</div>
+                <div style="display:flex;align-items:center;gap:7px">
+                  <div class="tools-card-title">Ölçüm Sonuçları</div>
+                  <div class="tools-filter-header-badge hidden" id="toolsResultsHeaderBadge"></div>
+                </div>
                 <div class="tools-card-sub">Yüklediğin mixin teknik ölçümleri</div>
               </div>
+              <svg class="tools-filter-chevron" id="toolsResultsChevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
             </div>
             <div class="tools-card-disabled-hint" id="toolsAnalysisDisabledHint">Önce bir dosya yükle</div>
             <button class="tools-upload-btn" id="toolsAnalyzeBtn" type="button" style="position:relative;overflow:hidden">
@@ -997,6 +1002,33 @@
               <div id="toolsAnalyzeBar" style="position:absolute;left:0;bottom:0;height:2.5px;background:#22d3ee;width:0%;transition:width 1400ms linear"></div>
             </button>
             <div id="toolsAnalysisError" class="tools-analysis-error hidden"></div>
+            <div class="tools-filter-body hidden" id="toolsResultsBody">
+              <div class="tools-files-section-label" style="margin-top:0">KANAL ÖLÇÜMLERİ</div>
+              <div class="tools-analysis-table" id="toolsAnalysisChannelTable"></div>
+
+              <div class="tools-files-section-label">STEREO</div>
+              <div class="tools-analysis-stereo" id="toolsAnalysisStereo"></div>
+
+              <div class="tools-files-section-label">LOUDNESS</div>
+              <div class="tools-analysis-loudness" id="toolsAnalysisLoudness"></div>
+
+              <div class="tools-files-section-label">SHORT-TERM SEYRİ</div>
+              <div class="tools-analysis-chart-wrap" id="toolsAnalysisChartWrap">
+                <canvas id="toolsAnalysisChart" class="tools-analysis-chart"></canvas>
+              </div>
+              <div class="tools-results-chart-times">
+                <span>0:00</span>
+                <span id="toolsResultsTotalTime">0:00</span>
+              </div>
+              <div class="tools-analysis-chart-readout" id="toolsAnalysisChartReadout">Grafiğe dokun — o noktanın değeri burada görünür.</div>
+
+              <div class="tools-analysis-subchart-label">FAZ KORELASYONU SEYRİ</div>
+              <div class="tools-analysis-chart-wrap">
+                <canvas id="toolsAnalysisCorrelationChart" class="tools-analysis-chart tools-analysis-chart-sm"></canvas>
+              </div>
+
+              <div class="tools-results-standard-note" id="toolsAnalysisStandardNote"></div>
+            </div>
           </div>
 
           <!-- F) Referans Filtreleri — akordiyon (kapalı/açık), açıkken üstte
@@ -1105,54 +1137,6 @@
         </div>
       </div>
 
-      <!-- E) Ölçüm Sonuçları — kalıcı şerit (sheet kapanınca) -->
-      <div class="tools-results-strip hidden" id="toolsResultsStrip">
-        <div class="tools-results-strip-handle"><span></span></div>
-        <div class="tools-results-strip-label">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V8M9 20V4M14 20v-9M19 20v-5"></path></svg>
-          <span>Ölçüm Sonuçları</span>
-        </div>
-        <svg class="tools-results-strip-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"></path></svg>
-      </div>
-
-      <!-- E) Ölçüm Sonuçları sheet'i -->
-      <div class="tools-sheet-overlay hidden" id="toolsResultsOverlay"></div>
-      <div class="tools-sheet hidden" id="toolsResultsSheet">
-        <div class="tools-sheet-handle"><span></span></div>
-        <div class="tools-sheet-head">
-          <div class="tools-sheet-title">Ölçüm Sonuçları</div>
-          <button class="tools-sheet-close" id="toolsResultsClose" type="button" aria-label="Kapat">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
-          </button>
-        </div>
-        <div class="tools-sheet-body">
-          <div class="tools-files-section-label" style="margin-top:0">KANAL ÖLÇÜMLERİ</div>
-          <div class="tools-analysis-table" id="toolsAnalysisChannelTable"></div>
-
-          <div class="tools-files-section-label">STEREO</div>
-          <div class="tools-analysis-stereo" id="toolsAnalysisStereo"></div>
-
-          <div class="tools-files-section-label">LOUDNESS</div>
-          <div class="tools-analysis-loudness" id="toolsAnalysisLoudness"></div>
-
-          <div class="tools-files-section-label">SHORT-TERM SEYRİ</div>
-          <div class="tools-analysis-chart-wrap" id="toolsAnalysisChartWrap">
-            <canvas id="toolsAnalysisChart" class="tools-analysis-chart"></canvas>
-          </div>
-          <div class="tools-results-chart-times">
-            <span>0:00</span>
-            <span id="toolsResultsTotalTime">0:00</span>
-          </div>
-          <div class="tools-analysis-chart-readout" id="toolsAnalysisChartReadout">Grafiğe dokun — o noktanın değeri burada görünür.</div>
-
-          <div class="tools-analysis-subchart-label">FAZ KORELASYONU SEYRİ</div>
-          <div class="tools-analysis-chart-wrap">
-            <canvas id="toolsAnalysisCorrelationChart" class="tools-analysis-chart tools-analysis-chart-sm"></canvas>
-          </div>
-
-          <div class="tools-results-standard-note" id="toolsAnalysisStandardNote"></div>
-        </div>
-      </div>
     </section>
 
     <!-- ================= EKRAN: KALİBRASYON ================= -->
