@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G121)
+Son güncelleme: 11.08.2026 (G122)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,131 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G121, `ab6740f`) — **yatay yön kilidi (G120 madde 4'ün önerisi, kullanıcı onayladı).**
+Bu commit (G122, `30b073c`) — **Stereo Genişlik'in kaynağı TAMAMEN değişti: artık SADECE kullanıcının yüklediği dosyayla oynanıyor, DSP mid/side genişliğe geçti (kullanıcının kendi kararı, G120'nin sentetik-kaynak çözümünün "modu soyutlaştırdığı" gerekçesiyle).**
+
+**KARAR:** G120'nin comb-filter çözümü (iki bağımsız sentetik kaynak — gürültü/
+osilatör) matematiksel olarak sağlamdı ama "her mod gerçek bir mix
+durumundan doğmalı" ilkesine aykırıydı — gürültü/osilatör dinleterek
+"genişlik" öğretmek soyut kaldı. Kullanıcı kararı: **bu mod artık SADECE
+kullanıcının kendi yüklediği stereo dosyayla oynanıyor.**
+
+**YENİ TEKNİK — MID/SIDE GENİŞLİK:** `applyProcessing` artık
+`ChannelSplitterNode(2)` ile GERÇEK stereo upload sinyalini L/R'ye ayırıyor,
+mid=(L+R)/2 ve side=(L−R)/2 hesaplıyor, side'ı widthFrac (=widthPercent/100,
+0..1) ile ölçekleyip `ChannelMergerNode(2)` ile L'=mid+side'/R'=mid−side'
+olarak geri birleştiriyor. width=0 → side'=0 → L'=R'=mid (TAM MONO).
+width=100 → side'=side → L'=mid+side=L, R'=mid−side=R (dosyanın kendi
+orijinal genişliği BİREBİR geri kurulur). **Hiçbir gecikme elemanı YOK** —
+bu, G120'nin "iki bağımsız kaynak" (istatistiksel/korelasyonsuzluk garantili)
+çözümünden bile DAHA GÜÇLÜ bir garanti: comb filter YAPISAL olarak
+imkânsız (H(f) formülünde hiçbir z^-τ terimi yok, sadece anlık bir 2×2
+matris işlemi).
+
+**SAYISAL KANIT (GERÇEK Web Audio `OfflineAudioContext` + repodaki GERÇEK
+`applyProcessing` fonksiyonu — sahte/simüle bir DSP DEĞİL, Playwright ile
+tarayıcıda gerçek render alındı):**
+```
+width=  0%  korelasyon(L,R)=1.000000  cepstrum_oran(1-30ms)=2.89x @ 10.5ms  L-R_max_fark=0.00e+00
+width= 25%  korelasyon(L,R)=0.993413  cepstrum_oran(1-30ms)=3.08x @ 7.5ms
+width= 50%  korelasyon(L,R)=0.973911  cepstrum_oran(1-30ms)=3.18x @ 1ms
+width= 75%  korelasyon(L,R)=0.942241  cepstrum_oran(1-30ms)=3.37x @ 1ms
+width=100%  korelasyon(L,R)=0.899571  cepstrum_oran(1-30ms)=3.41x @ 26.5ms  orijinale_max_fark(L=2.98e-08,R=2.98e-08)
+```
+- **width=0'da korelasyon TAM 1.000000, L-R farkı TAM 0.0** (bit-exact) —
+  "%0 = tam mono" iddiası GERÇEK Web Audio node'larıyla, ÖRNEK BAZINDA
+  doğrulandı, yaklaşık DEĞİL.
+- **width=100'de orijinal L/R'den fark ~3×10⁻⁸** (kayan-nokta yuvarlama
+  gürültüsü SEVİYESİNDE — pratikte bit-exact) — "dosyanın kendi orijinal
+  genişliği BİREBİR" iddiası doğrulandı.
+- Korelasyon width arttıkça DÜZGÜN/monoton azalıyor (1.0→0.993→0.974→
+  0.942→0.900) — beklenen mid/side davranışı.
+- Cepstrum oranı TÜM width'lerde 2.9x-3.4x bandında (gürültü tabanı
+  dalgalanması) — G120'nin raporundaki NEGATİF KONTROL (gerçek bir comb
+  filtresi, tau=22ms'de **15.05x** tepe veriyordu) ile karşılaştırıldığında
+  HİÇBİR anormal tepe YOK, hiçbir width kademesinde.
+- Konsol hatası: **0** (gerçek `OfflineAudioContext` render'ı, gerçek
+  `ChannelSplitterNode`/`ChannelMergerNode` graf kurulumu dahil).
+
+**KAYNAK LİSTESİ:** `uyumluKaynaklar` artık SADECE `["upload"]` — sentetik
+kaynaklar (G120) ve gömülü örnek dosyalar (kick/bas/vokal/groove) TAMAMEN
+çıkarıldı (mid/side ayrıştırması GERÇEK bir stereo kayıt gerektiriyor, bkz.
+BEKLEYEN KARARLAR-L'nin bu turda ÇÖZÜLDÜĞÜ not). Pan Konumu'nun geniş
+listesi ETKİLENMEDİ.
+
+**MONO DOSYA KORUMASI:** yeni `bufferPlayability(buffer)` (SAF fonksiyon,
+sadece `numberOfChannels` okur) hem gate panelinde hem `startRound()`
+guard'ında TEK doğruluk kaynağı. Mono bir dosya (side HER ZAMAN sıfır,
+"genişlik" kavramı yok) AÇIKÇA reddediliyor: **"Bu dosya mono" + "Stereo
+genişlik mono bir dosyada ölçülemez... Dosyalarım'dan farklı, stereo bir
+dosya seç."**
+
+**SEGMENT SEÇİMİ:** yeni `pickPlaybackOffset(buffer, opts)` — dosyanın
+İÇİNDE enerji eşiğini (varsayılan RMS≥0.015, 1.5sn pencere) geçen rastgele
+bir başlangıç noktası arıyor (30 deneme, hepsi başarısız olursa — dosya
+gerçekten tamamen sessizse — en yüksek enerjili pencereyi bulan bir tarama
+GÜVENLİK AĞI). `upload.js`'e YENİ bir `seekTo(sec)` metodu eklendi
+(`startFromZero()`'nun AYNI deseni, keyfi bir saniyeye atlıyor — diğer
+modların/Araçlar'ın pause/resume/loop davranışı BİR SATIR değişmedi, bu
+SADECE Stereo Genişlik'in `startRound()`'da HER yeni turda çağırdığı ek bir
+metod). `createQuestion`'ın SAF sözleşmesi bozulmadı — offset seçimi
+`app.js`'te `createQuestion`'dan ÖNCE yapılıyor.
+
+**DOSYA YOK/MONO GATE PANELİ (`index.html` #stereoUploadGate, `app.js`
+`syncStereoUploadGate`):** oyun ekranına HER giriş yolunda (kart tıklama,
+geri tuşu, Dosyalarım'dan dönüş) — `goScreen()`'in "game" dalına bağlandı,
+`enterMode()`'un "mod değişmediyse atla" bloğunun DIŞINDA, aynı moda
+tekrar girişte de ÇALIŞIR. Panel görünürken normal analizör/kontroller/
+şıklar gizlenir. Buton **mevcut Dosyalarım sheet'ini (Araçlar sekmesi)
+açıyor** (`goScreen("tools")` + `toolsOpenFilesSheet()`) — task'ın kendi
+kuralı gereği İKİNCİN bir dosya sistemi KURULMADI, `uploadManager`/
+`toolsFiles` kütüphanesi AYNEN kullanıldı (Dosyalarım sheet DOM'da
+`#screen-tools` içine gömülü olduğu için doğrudan oyun ekranının ÜSTÜNE
+açılamıyor — bu yüzden ekran geçişi + sheet açma birlikte tetikleniyor).
+
+**DOĞRULAMA (Playwright, gerçek Chromium, `localStorage`'a `simulatePro`
+basılarak Pro kilidi test amaçlı aşıldı, gerçek WAV dosyaları üretilip
+yüklendi):**
+1. **Dosya yokken:** gate paneli görünür, başlık "Bu mod kendi dosyanla
+   oynanır", analizör gizli. ✔
+2. **"Dosyalarım'ı Aç":** Araçlar sekmesine geçiyor, Dosyalarım sheet'i
+   açıyor. ✔
+3. **Mono dosya (1 kanal, gerçek WAV) yüklenince:** gate GERİ geliyor,
+   başlık "Bu dosya mono". ✔
+4. **Stereo dosya (2 kanal, gerçek WAV) yüklenince:** gate kayboluyor,
+   normal oyun UI'sı görünüyor. ✔
+5. **Şıklar:** `%77 / %47 / %17` (sürekli-ölçek yüzdeler, G120'den
+   DEĞİŞMEYEN üretim mantığı). ✔
+6. **X butonu:** `#roundChip` "Soru 1/10" → "Soru 2/10" (round GERÇEKTEN
+   ilerledi). ✔
+7. Konsol hatası: **0** (uçtan uca — dosya yükleme, gerçek round, gerçek
+   ses grafiği kurulumu dahil).
+8. **`npm test`: 1227/1227** (G120'nin 1214'ünden +13 — yeni
+   `bufferPlayability`/`pickPlaybackOffset`/mid-side-DSP/sayısal-kanıt
+   test grupları).
+
+**Z1-Z20 tablosu (G120'den DEĞİŞMEDİ — zorluk eğrisi/şık üretimi DSP/
+kaynak katmanından bağımsız):**
+```
+Z1=30.0%/3 Z2=27.6%/3 Z3=25.3%/3 Z4=23.3%/3 Z5=21.4%/4 Z6=19.6%/4
+Z7=18.0%/4 Z8=16.6%/4 Z9=15.2%/4 Z10=14.0%/4 Z11=12.9%/5 Z12=11.8%/5
+Z13=10.9%/5 Z14=10.0%/5 Z15=9.2%/6 Z16=8.4%/6 Z17=7.7%/6 Z18=7.1%/6
+Z19=6.5%/7 Z20=6.0%/7
+```
+**1000 denemelik çakışma testi:** hiçbir kademede iki şık aynı değere denk
+gelmedi, hiçbir yanlış şık toleransa (2) girmedi — 0 hata.
+
+**DÜRÜSTLÜK NOTU:** cepstrum/korelasyon kanıtı SENTETİK (JS'te üretilmiş)
+bir stereo test sinyaliyle yapıldı, kullanıcının GERÇEK bir müzik
+dosyasıyla DEĞİL — matematiksel olarak sonucu ETKİLEMEZ (mid/side matrisi
+sinyal İÇERİĞİNDEN bağımsız, HER stereo girdide aynı davranır), ama
+gerçek bir mix'te kulakla dinleme HENÜZ yapılmadı. `pickPlaybackOffset`'in
+enerji-eşiği mantığı da sadece sentetik/sahte buffer'larla test edildi
+(bkz. test dosyası), gerçek bir şarkı dosyasında cihazda/masaüstünde
+DENENMEDİ.
+
+---
+
+Önceki commit (G121, `ab6740f`) — **yatay yön kilidi (G120 madde 4'ün önerisi, kullanıcı onayladı).**
 
 **Değişiklik:** `ios/App/App/Info.plist`: `UISupportedInterfaceOrientations`
 (iPhone) artık SADECE `UIInterfaceOrientationPortrait` — Landscape*
@@ -10250,24 +10374,25 @@ ekranı yerine YA sınav-geçti kutlama sheet'i YA "parkur baştan" görüyor.
 olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 "done" canlı yeniden denenir.
 
-**L. G120 — Stereo Genişlik'in kaynak listesi daraltıldı (upload +
-örnek dosyalar çıkarıldı), gözden geçirilmeli mi?**
-Comb-filter düzeltmesi (bkz. BİTTİ madde 1) "gerçekten bağımsız ikinci
-kaynak" gerektiriyor — bu SADECE sentetik türlerde (gürültü/osilatör)
-mümkün, gerçek bir kayıt dosyasının (kick/bas/vokal/groove) ya da
-kullanıcının kendi upload'ının bağımsız bir "ikinci kopyası" yok (yeni
-dosya eklenmeyecek kuralı, task'ın kendi kısıtı). Bu YÜZDEN
-`uyumluKaynaklar` artık SADECE pink/white/saw/square/triangle —
-Pan Konumu'nun (aynı ekranda yan yana görünen ikiz modun) geniş listesiyle
-(örnek dosyalar + upload dahil) tutarsız bir kapsam farkı yaratıyor.
-Bu, teknik bir zorunluluğun DOĞRUDAN sonucu (uydurma bir ürün kararı
-DEĞİL) — ama kullanıcı fark edip "neden Stereo Genişlik'te upload yok"
-diye sorabilir. **Olası kararlar:** (1) mevcut halde bırak, mod
-açıklamasına/yardım metnine bunu açıkça yazan bir not ekle; (2) ileride
-gerçek stereo örnek dosyaları (aynı enstrümanın iki farklı, bağımsız
-kaydı) eklenirse kaynak listesi genişletilebilir — kapsam dışı, yeni
-görev.
-**Kabul kriteri:** kullanıcı 1 ya da 2'yi seçer.
+**L. ~~G120 — Stereo Genişlik'in kaynak listesi daraltıldı, gözden geçirilmeli mi?~~ — G122'de ÇÖZÜLDÜ, `30b073c`**
+Kullanıcı kararıyla yön TAMAMEN değişti: mod artık SADECE upload'la
+oynanıyor (sentetik kaynaklar TAMAMEN çıkarıldı, "kapsam farkı" tartışması
+kendiliğinden ortadan kalktı — Stereo Genişlik ile Pan Konumu artık ZATEN
+farklı kaynak felsefeleri taşıyor: biri gerçek mix, diğeri herhangi bir
+kaynak). Bkz. BİTTİ G122.
+
+**N. G122 — mid/side genişlik tekniği GERÇEK bir mix'te kulakla
+DOĞRULANMADI**
+Sayısal kanıt (korelasyon/cepstrum) SENTETİK bir test sinyaliyle üretildi,
+matematiksel olarak sinyal içeriğinden bağımsız olsa da (mid/side matrisi
+HER stereo girdide aynı davranır) gerçek bir müzik dosyasıyla kulakla HİÇ
+dinlenmedi. `pickPlaybackOffset`'in enerji-eşiği sabitleri (RMS≥0.015,
+1.5sn pencere) de KULLANILA KULLANILA ayarlanmadı — makul bir başlangıç.
+**Kabul kriteri:** kullanıcı cihazda/masaüstünde gerçek bir şarkı dosyası
+yükleyip tüm genişlik kademelerini (özellikle %0 ve %100 uçlarını)
+kulaklıkla dinleyip "doğru hissettiriyor mu" diye onaylar; enerji-eşiği
+sabitleri gerekirse (ör. sürekli sessiz bir bölüme denk geliyorsa) revize
+edilir.
 
 **M. ~~G120 — Yatay yön (landscape) kilidi önerisi~~ — G121'de UYGULANDI, `ab6740f`**
 Kullanıcı onayladı, Info.plist + AndroidManifest.xml değişti (bkz. BİTTİ
@@ -10276,16 +10401,23 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G121 itibarıyla):** kullanıcı Xcode/Android Studio'da
-temiz derleme + cihaza yeniden kurulum sonrası GERÇEKTEN döndürerek
-doğrulamalı: (1) uygulama artık yatay yöne DÖNMÜYOR (iPhone/Android), (2)
-iPad'de baş-aşağı (upside-down) portre HÂLÂ çalışıyor (bilerek kaldırılmadı).
-Ayrıca G120'den kalan doğrulama hâlâ açık: Stereo Genişlik/Pan Konumu'nun
-YENİ ses tekniğini (iki bağımsız kaynak) gerçek cihazda kulaklıkla dinleyip
-önceki faz sorununun GERÇEKTEN gittiğini doğrulamalı — bu turda SADECE
-sayısal (cepstrum) kanıt üretildi, masaüstü Chrome'da Playwright ile
-uçtan uca oynandı (0 konsol hatası), kulakla GERÇEK doğrulama henüz yok
-(bkz. G120 BİTTİ'nin DÜRÜSTLÜK notu).
+**Tek sonraki adım (G122 itibarıyla):** kullanıcı Xcode'da temiz derleme +
+cihaza yeniden kurulum sonrası GERÇEK bir şarkı dosyası yükleyip Stereo
+Genişlik'i kulaklıkla dinlemeli: (1) %0'da GERÇEKTEN tam mono hissi var mı,
+(2) %100'de dosyanın kendi orijinal genişliği doğru duyuluyor mu, (3) ara
+kademelerde (özellikle en dar Z20 farkı, %6) fark HÂLÂ ayırt edilebilir mi,
+(4) mono bir dosya denenirse doğru uyarı çıkıyor mu, (5) "Dosyalarım'ı Aç"
+akışı cihazda (dosya seçici/izinler) sorunsuz çalışıyor mu. Bu turda SADECE
+sayısal (korelasyon/cepstrum, GERÇEK Web Audio `OfflineAudioContext` ile
+ama SENTETİK bir test sinyaliyle) ve masaüstü Chrome/Playwright uçtan-uca
+(gerçek WAV dosyaları, 0 konsol hatası) doğrulama yapıldı — kulakla GERÇEK
+bir mix üzerinde HENÜZ doğrulanmadı (bkz. G122 BİTTİ'nin DÜRÜSTLÜK notu,
+BEKLEYEN KARARLAR-N).
+
+**Ayrıca hâlâ açık (G121'den):** kullanıcı Xcode/Android Studio'da temiz
+derleme + cihaza yeniden kurulum sonrası GERÇEKTEN döndürerek doğrulamalı:
+uygulama artık yatay yöne DÖNMÜYOR (iPhone/Android), iPad'de baş-aşağı
+(upside-down) portre HÂLÂ çalışıyor.
 
 **Önceki adım (G119 itibarıyla):** `npx cap sync ios` (bu turda
 zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
