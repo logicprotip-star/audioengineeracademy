@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G116)
+Son güncelleme: 11.08.2026 (G117)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,138 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G116, tek commit, `f8f4392`) — **Araçlar → Tonal Balance: dikey eksen dB etiketleri ondalık spam üretiyordu ("+10.3847291"), ölçek her karede yeniden hesaplanıyordu — DÜZELTİLDİ.**
+Bu commit (G117, tek commit, `581d250`) — **Araçlar: ortak DSP katmanı + bölge solo dinleme + Referans Filtreleri'ne GERÇEK ses işleme + 5 cihaz illüstrasyonu yeniden çizildi.**
+
+**A) Ortak ses işleme katmanı (`www/js/app.js`):** Önizleme çalar akışı
+artık `toolsFilterPreviewNode → [referans filtresi] → [bölge solo] →
+toolsFilterPreviewGain → analyser` şeklinde. `toolsBuildMidSideStage(ctx,
+bands)` (satır ~8895) mid/side stereo matrisini elle kuruyor (Web Audio'da
+hazır bir "mid/side node" YOK) — `bands` bir dizi olduğu için Club
+Sistemi gibi frekansa bağlı stereo davranış da desteklenir. `toolsConnect
+FilterPreviewChain()`/`toolsDisconnectFilterChain()` zinciri kurup
+temizliyor; hem filtre kartı tıklamasında hem solo bant tıklamasında,
+ÇALARKEN bile (durdurmadan) canlı yeniden kuruluyor. İki işlem TAMAMEN
+bağımsız — ikisi de aynı anda açık olabiliyor (zincirde ikisi de varsa
+ikisi de sırayla eklenir).
+
+**B) Bölge solo dinleme:** Tonal Balance grafiğindeki 6 bant adı ("SUB"
+vb.) canvas üzerinde ÇİZİLİ metin (gerçek DOM elemanı değil) — tıklama
+`toolsTonalBandIdxAt()` ile `toolsTonalFx(BAND_EDGES[i])` x-aralıklarına
+karşı hit-test ediliyor (LUFS scrubber'ıyla AYNI desen). Dokununca dosya
+SADECE o bantta duyulur (2 kademeli highpass+lowpass, ~24dB/oktav,
+kesim noktaları `tonalBalance.BAND_EDGES` ile BİREBİR aynı — task'ın
+kendi gereksinimi). Tekrar dokununca kapanır. Grafikte cyan dikey şerit
++ cyan bant adıyla vurgulanır (otomatik hedef-dışı amber renklendirmesinin
+ÜSTÜNE geçer). **SEVİYE TELAFİSİ YOK** (task'ın kendi kararı, kodda
+yorum olarak belgelendi) — bandpass'ın doğal zayıflatması/yükseltmesi
+hiçbir yerde telafi edilmiyor.
+
+**C) Referans Filtrelerinin gerçek DSP'si:** Her filtre (`TOOLS_FILTERS`,
+satır ~8806) iki katmandan oluşuyor — `eq` (BiquadFilterNode zinciri,
+her filtrenin ne yaptığı kodda yorum olarak belgeli) ve `stereo` (mid/side
+kazanç bantları). Telefon: 2x highpass@500Hz + peaking@2kHz(+7dB) +
+lowpass@8kHz, stereo mid=1/side=0 (tam mono). Araba: lowshelf@60Hz(+5dB)
++ peaking@350Hz(-4.5dB) + highshelf@6kHz(+4dB), stereo mid=0.85/side=1.35
+(yan öne çıkar, merkez zayıflar — bkz. aşağıdaki DÜRÜSTLÜK notu). Kulaklık:
+lowshelf@100Hz(+2dB) + peaking@9kHz(+3dB), stereo değişmez (mid=1/side=1,
+`toolsBuildMidSideStage` bu durumu tanıyıp gereksiz node kurmuyor). Club
+Sistemi: lowshelf@40Hz(+2dB) + peaking@60Hz(+5dB) + lowpass@16kHz, stereo
+**frekansa bağlı**: 20-120Hz'de mid=1/side=0 (sub mono), 120Hz+'da
+mid=1/side=1 (normal). Laptop: highpass@200Hz + peaking@3.5kHz(+4.5dB) +
+lowpass@12kHz, stereo mid=1/side=0.3 (çok dar sahne). `index.html`'deki
+uyarı notu "DSP yok" uyarısından "tipik davranış taklidi, gerçek ölçüm
+değil" bilgi notuna çevrildi (amber "uyarı kutusu" → nötr gri metin,
+Ölçüm Sonuçları'ndaki standart notuyla AYNI ton).
+
+**D) 5 cihaz illüstrasyonu sıfırdan çizildi** (`toolsFilterIllustration`,
+eski gradyanlı/detaylı `toolsFilterArt`'ın yerine) — basit, ince çizgi
+(stroke-width 1.6, fill yok), tek renkli. Renk artık JS parametresi
+DEĞİL, CSS `.tools-filter-illust`/`.tools-filter-card.active .tools-
+filter-illust` kuralları `currentColor`'ı yönetiyor (açık #22d3ee,
+kapalı #5a6068 — task'ın kendi renk kararı).
+
+**DOĞRULAMA (masaüstü Chrome, Playwright — `www/` `python3 -m
+http.server` üzerinden, GERÇEK tarayıcı turu):**
+
+*Filtre spektrum farkı (OfflineAudioContext ile GERÇEK render, Goertzel
+algoritmasıyla 6 banttan birer prob frekansında (60/180/350/900/4000/
+12000 Hz) genlik ölçümü, baseline'a göre dB fark)* — özel bir stereo
+test WAV'ı kullanıldı (6 bant prob tonu + biri SUB'da biri ÜST-ORTA'da
+iki "side" (L/R ters fazlı) tonu, gerçekten decorrelated bir stereo
+imaj için):
+- **Telefon:** SUB −73.5dB, BAS −34.2dB (pratikte yok), ORTA +4.3dB
+  (öne çıkar), TİZ −8.7dB — hepsi task'ın tarif ettiği yönde, büyük
+  farklar.
+- **Araba:** ALT-ORTA −5.9dB, BAS −2.8dB (maskeleme), TİZ +2.5dB
+  (parlak) — SUB probu (tam 60Hz, shelf'in kendi kesim noktası) +0.95dB
+  gösterdi (beklenenden küçük ama shelf'in KENDİ kesim frekansında ölçüm
+  yapıldığı için matematiksel olarak DOĞRU — bir shelf kendi kesim
+  noktasında tam kazancın yarısını verir).
+- **Kulaklık:** en büyük fark +1.77dB (SUB, lowshelf'in 100Hz altına
+  sızması) — "nispeten düz" iddiasıyla TUTARLI, hiçbir bant 2dB'yi
+  aşmıyor.
+- **Club Sistemi:** SUB +3.9dB (güçlü), TİZ üstü kesim yönünde negatif
+  eğilim gösteriyor genel spektrumda.
+- **Laptop:** SUB −20.5dB (zayıf, telefon kadar sert DEĞİL), ÜST-ORTA
+  +4.5dB (belirgin).
+
+*Stereo korelasyon (Pearson, aynı render'lardan, ayrıca 20-120Hz ve
+2-8kHz'e ayrı ayrı bant-sınırlanmış post-hoc analiz geçişiyle)*:
+- **Baseline (filtresiz):** tam sinyal r=0.75, SUB-bant r=0.57,
+  ÜST-ORTA-bant r=0.31 (test sinyali GERÇEKTEN decorrelated, ölçüm
+  anlamlı).
+- **Telefon:** r=1.0000 — TAM ÜÇ ölçümde de (tam mono çöküş, matematiksel
+  olarak kusursuz).
+- **Club Sistemi:** SUB-bant r=0.57→0.97 (neredeyse tam mono), ÜST-ORTA-
+  bant r=0.31→0.30 (PRATİKTE DEĞİŞMEDİ) — **frekansa bağlı stereo
+  çöküşü sayısal olarak KANITLANDI** (sadece bas mono, üst bant stereo
+  kalıyor).
+- **Laptop:** r=0.75→0.98, SUB-bant r=0.57→0.999 (dar sahne doğrulandı).
+- **Kulaklık:** r küçük ölçüde değişti (0.75→0.69) — bu BEKLENEN, çünkü
+  stereo matrisi kendisi mid=1/side=1 (tam kimlik, hiçbir şey yapmıyor);
+  gözlenen fark TAMAMEN EQ katmanının (aynı filtre L/R'ye AYNI şekilde
+  uygulanıyor ama farklı frekans bileşenlerini farklı ağırlıklandırdığı
+  için toplam korelasyon sayısı bile böyle bir EQ'dan etkilenebiliyor)
+  yan etkisi — stereo katmanının kendisi bozuk DEĞİL.
+
+*Solo + Referans filtresi aynı anda:* Telefon filtresi + SUB solo ikisi
+birden seçilip çalınca zincir düğüm sayısı 14 (sadece filtre) → 16
+(filtre+solo) — ikisi de aktifken zincire İKİSİ de ekleniyor, birbirini
+İPTAL ETMİYOR (ekran görüntüsüyle de doğrulandı: SUB bandı cyan vurgulu,
+Telefon kartı "AÇIK", oynatma devam ediyor).
+
+*6 bölgenin hepsi solo çalışıyor:* her biri tek tek tıklanıp canvas
+piksel verisinden (RGB örnekleme, sadece ekran görüntüsü değil) bant
+adının GERÇEKTEN cyan'a döndüğü doğrulandı — SUB/BAS/ALT-ORTA/ORTA/
+ÜST-ORTA/TİZ hepsi `[0,204-255,255]` civarı saf cyan gösterdi. Tekrar
+tıklayınca (aynı banda ikinci dokunuş) solo kapandığı da ayrıca
+doğrulandı.
+
+*Konsol hatası:* TÜM turlarda (DSP analizi, solo+filtre eşzamanlılığı,
+6 bölge testi, illüstrasyon ekran görüntüleri) **0 hata**.
+
+**`npm test`: 1119/1119**, 0 hata (bu turda saf `createQuestion`/
+`evaluateAnswer` fonksiyonlarına DOKUNULMADI, beklenen sonuç).
+
+**DÜRÜSTLÜK NOTU (araba stereo genişletmesi):** İlk denenen değer
+(mid=0.75, side=1.6) doğrulama sırasında YAPAY OLARAK çok güçlü decorrelated
+içerik barındıran test sinyalinde tam-sinyal korelasyonunu NEGATİFE
+düşürüyordu (aşırı genişletmenin bilinen bir yan etkisi — faz-iptali gibi
+duyulabilir). mid=0.85/side=1.35'e YUMUŞATILDI ama BU DEĞERLE DE aynı
+adversarial test sinyalinde ÜST-ORTA-bant korelasyonu hâlâ hafif negatif
+çıktı (−0.32). Gerçek müzik içeriği bu test sinyali kadar yüksek side/mid
+enerji oranına SAHİP OLMAZ (bu, kasıtlı olarak AŞIRI bir stres testiydi)
+— ama bu KANITLANMADI, sadece MAKUL bir varsayım. Araba filtresinin
+stereo genişletmesi gerçek/çeşitli müzik içeriğiyle CANLI kulakla test
+EDİLMEDİ — bir sonraki turda dinleme testi önerilir (bkz. SIRADAKİ).
+
+**DÜRÜSTLÜK NOTU (genel):** doğrulama masaüstü Chrome'da (Playwright,
+OfflineAudioContext render) yapıldı — cihazda (iOS Safari/WKWebView)
+CANLI kulakla doğrulanmadı. `npx cap sync ios` çalıştırıldı.
+
+---
+
+Önceki commit (G116, tek commit, `f8f4392`) — **Araçlar → Tonal Balance: dikey eksen dB etiketleri ondalık spam üretiyordu ("+10.3847291"), ölçek her karede yeniden hesaplanıyordu — DÜZELTİLDİ.**
 
 **KÖK SEBEP:** G114'ün "titreme koruması" yetersizdi. Canlı çalarken
 `drawTonalChart()` HER KAREDE smoothing'in kovaladığı hedefi
@@ -9696,7 +9827,26 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G116 itibarıyla):** `npx cap sync ios` (bu turda
+**Tek sonraki adım (G117 itibarıyla):** `npx cap sync ios` (bu turda
+zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
+kurulum sonrası GERÇEK kulakla dinleyerek doğrulamalı: (1) her 5 referans
+filtresinin sesi GERÇEKTEN farklı duyulduğu (özellikle Telefon'un mono
+çöktüğü, kulaklıklı dinlerken net duyulmalı); (2) Club Sistemi'nde SADECE
+bas bölgesinin mono çaldığı, üst bandın hâlâ geniş stereo olduğu (kulakla
+ayırt edilebilir olmalı); (3) Araba filtresinin genişletmesinin GERÇEK
+müzikte RAHATSIZ EDİCİ/faz-iptalli duyulup duyulmadığı — bu turda SADECE
+yapay/adversarial bir test sinyaliyle negatif korelasyon riski
+gözlemlendi (bkz. BİTTİ'nin DÜRÜSTLÜK notu), gerçek müzikte muhtemelen
+sorun değil ama KANITLANMADI; (4) 6 bölgenin solo'sunun KULAKLA da
+inandırıcı/net bir "sadece bu bant" hissi verdiği (bu turda SADECE
+görsel/piksel + spektrum-genlik ölçümüyle doğrulandı, hiç DİNLENMEDİ);
+(5) solo ve referans filtresi aynı anda açıkken KULAKTA da mantıklı
+bir birleşim duyulduğu. Bu turda masaüstü Chrome'da Playwright ile
+OfflineAudioContext render + Goertzel + korelasyon ölçümüyle SAYISAL
+olarak hepsi doğrulandı (bkz. BİTTİ) — cihazda/kulakla CANLI doğrulama
+HENÜZ yok.
+
+**Önceki adım (G116 itibarıyla):** `npx cap sync ios` (bu turda
 zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
 kurulum sonrası GERÇEK bir mix çalarak doğrulamalı: (1) dB eksen
 etiketlerinin HER ZAMAN tam sayı olduğu (ondalık asla görünmüyor); (2)
