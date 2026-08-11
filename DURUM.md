@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G131)
+Son güncelleme: 11.08.2026 (G132)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,36 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G131) — **"resume başarılı, state=running" YETERSİZ ÇIKTI — cihaz kanıtı: currentTime 13+ saniye DONMUŞ kalıyor ("zombi context"). currentTime İLERLEME kontrolüne geçildi; jest-içi (gerçek dokunuş) kurtarma başarısız olursa context KAPATILIP YENİDEN kuruluyor (en fazla 2 kez).**
+Bu commit (G132) — **NATIVE KATMAN EKSİĞİ KAPATILDI: iOS'a özgü küçük bir yerel Capacitor eklentisi (Swift, `AudioSessionPlugin`) yazılıp AVAudioSession'ı yönetmeye başladı — G131'in JS-tarafı düzeltmesi TEK BAŞINA yeterli değildi, altta JS'in erişemediği bir katman vardı.**
+
+**ARAŞTIRMA (kod yazmadan önce yapıldı, task'ın kendi sırası):**
+1. `ios/App` içinde AVAudioSession'a dokunan HİÇBİR yer YOKTU (grep ile doğrulandı) — `AppDelegate.swift`'in TÜM lifecycle metodları (`applicationDidBecomeActive` DAHİL) boş şablon.
+2. Yüklü Capacitor eklentileri arasında (package.json: volume-buttons, filesystem, preferences, splash-screen, file-picker) ses oturumu yöneten YOK. `@capacitor/app` (appStateChange) da YÜKLÜ DEĞİL — ve kurulsa bile SADECE JS'e "öne geldik" bilgisini verir, AVAudioSession'ı KENDİSİ yönetmez (araştırılıp elendi).
+3. `capacitor-community/native-audio` incelendi — NATIVE dosya çalma için (Web Audio API'nin KENDİSİ için değil), bu projenin ihtiyacına UYMUYOR (elendi).
+4. **Seçim: küçük, yerel (npm paketi OLMAYAN) bir Swift Capacitor eklentisi.** Gerekçe: (a) native→JS event bildirimi (task'ın "önce native, sonra JS" sıralama isteği) SADECE bir Capacitor plugin'in `notifyListeners` mekanizmasıyla temiz şekilde yapılabilir — AppDelegate'ten doğrudan JS'e ulaşmak (WKWebView'e elle `evaluateJavaScript`) kırılgan/desteksiz bir yol olurdu; (b) proje ZATEN 2 topluluk plugin'i kullanıyor (volume-buttons, file-picker) — plugin deseni codebase'de YERLEŞİK; (c) maliyet düşük — TEK bir Swift dosyası, npm paketi/yayın GEREKMİYOR.
+
+**UYGULANAN (native, sadece iOS):**
+- **`ios/App/App/AudioSessionPlugin.swift`** (YENİ dosya) — `CAPPlugin, CAPBridgedPlugin` (mevcut volume-buttons plugin'iyle BİREBİR aynı desen, `node_modules/@capacitor-community/volume-buttons`'dan doğrulandı). `jsName="AudioSessionPlugin"` → JS'te `window.Capacitor.Plugins.AudioSessionPlugin`.
+  - `activateSession()`: `AVAudioSession.setCategory(.playback, options:[.mixWithOthers])` + `setActive(true)` — `.playback` sessiz anahtarında bile çalar, `.mixWithOthers` başka bir uygulamanın (ör. arka planda müzik) sesini KESMEZ (task'ın "kulaklık/hoparlör davranışı korunacak" isteği).
+  - `load()`'da İKİ bildirim dinlenir: `AVAudioSession.interruptionNotification` (kesinti başlayınca/bitince) VE `UIApplication.didBecomeActiveNotification` (öne gelince) — HER İKİSİNDE de kesinti/öne-geliş SONRASI oturum yeniden etkinleştirilip `notifyListeners("sessionActivated", ...)` ile JS'e haber verilir.
+  - `activate(call:)` — JS'in (audio-engine.js) KENDİ isteğiyle de çağırabildiği bir metod (Promise dönüyor).
+- **project.pbxproj** elle güncellendi (bu proje CocoaPods DEĞİL, SPM + eski-format .xcodeproj kullanıyor — `PBXFileSystemSynchronizedRootGroup` YOK, yeni dosyalar OTOMATİK derlenmiyor): yeni `PBXBuildFile`/`PBXFileReference` girdileri + `Sources` build fazına ekleme. `plutil -lint` ile sözdizimi doğrulandı.
+- **JS köprüsü (`core/audio-engine.js`)**: `getAudioSessionPlugin()` (mevcut `getVolumeButtonsPlugin`/`getPreferencesPlugin` ile AYNI `window.Capacitor.Plugins.X || null` deseni — Web/Android'de plugin YOK, TÜM blok sessizce devre dışı). `activateNativeSession(reason)` — `ensureAudioAlive()`'ın EN BAŞINDA (resume denemesi BAŞLAMADAN ÖNCE) VE `recreateContext()` içinde (ekstra güvence) çağrılır — **sıralama: önce native oturum, SONRA Web Audio resume+currentTime doğrulaması** (task'ın kendi isteği, BİREBİR). Native'in KENDİ proaktif `sessionActivated` olayı da dinleniyor — JS bir play denemesi yapmayı BEKLEMEDEN context doğrulanır (`allowRecreate:false` — bu da sistem-tetikli, GERÇEK jest DEĞİL, G131'in AYNI kuralı).
+
+**SIRALAMA NASIL KURULDU:** `ensureAudioAlive()` çağrıldığında: (1) `activateNativeSession()` await edilir (native oturum etkinleşene KADAR JS resume denemesi BAŞLAMAZ), (2) SONRA JS-tarafı resume-retry döngüsü, (3) SONRA `currentTime` ilerleme kontrolü, (4) gerekirse context yeniden oluşturma (`recreateContext` içinde de native tekrar etkinleştirilir, taze context için). Native'in KENDİ tetiklediği yönde (didBecomeActive/kesinti bitişi): native ÖNCE kendi kendine etkinleştirir, SONRA JS'e haber verir, JS haberi ALDIKTAN SONRA kendi doğrulamasını yapar — İKİ yönde de "önce native" garantisi var.
+
+**Android'in etkilenmediğinin kanıtı:** `git status`/`git diff --stat` — `android/` klasöründe SIFIR değişiklik (grep ile doğrulandı, boş sonuç). `getAudioSessionPlugin()` Android'de `window.Capacitor.Plugins.AudioSessionPlugin` HİÇ TANIMLI olmayacağı için (plugin sadece iOS hedefine eklendi) `null` döner — `activateNativeSession()`'ın TAMAMI erken çıkar, Android'in KENDİ mevcut resume/liveness akışı (G130/G131'den, platform-agnostik) BİR SATIR değişmeden çalışmaya devam eder.
+
+**DOĞRULAMA:**
+- **Xcode derlemesi:** `xcodebuild -project App.xcodeproj -scheme App -sdk iphonesimulator -destination "id=<simülatör>" -configuration Debug build` → **BUILD SUCCEEDED** (yeni Swift dosyası derlendi, hiçbir hata/uyarı yok, plugin paket grafiğine doğru dahil oldu).
+- **Masaüstü (Playwright, no-op doğrulaması):** `window.Capacitor` YOK ortamda round normal başladı, `[audio-diag]` günlüğünde `native AVAudioSession activate()` satırı HİÇ görünmedi (plugin bulunamadığı için hiç çağrılmadı — davranış BOZULMADI), **0 konsol hatası**.
+- `npm test`: **1245/1245 GEÇTİ** (JS tarafında davranış değişikliği yok — SADECE native köprü EKLENDİ, mevcut hiçbir akış bozulmadı).
+
+**DOĞRULANMADI (task'ın kendi notu):** Bu native değişikliğin GERÇEK cihazdaki "zombi context" hatasını KAPATIP kapatmadığı — masaüstünde AVAudioSession/gerçek iOS kesinti davranışı ÜRETİLEMEZ. `[audio-diag-native]` (Swift `print()`, Xcode konsolunda) VE `[audio-diag]` (JS) günlükleri birlikte cihazda okunmalı — ÖZELLİKLE `native AVAudioSession activate()` satırının `ok=true` dönüp dönmediği, `native sessionActivated` olayının kesinti bitince GERÇEKTEN ateşlenip ateşlenmediği, ve bunlardan SONRA `currentTime ilerleme kontrolü`nün `canlı: true` bulup bulmadığı.
+
+---
+
+Önceki commit (G131) — **"resume başarılı, state=running" YETERSİZ ÇIKTI — cihaz kanıtı: currentTime 13+ saniye DONMUŞ kalıyor ("zombi context"). currentTime İLERLEME kontrolüne geçildi; jest-içi (gerçek dokunuş) kurtarma başarısız olursa context KAPATILIP YENİDEN kuruluyor (en fazla 2 kez).**
 
 **CİHAZ KANITI (G130'un günlüğünden, kullanıcının verdiği ham çıktı):**
 ```
@@ -11045,22 +11074,24 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G131 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
-temiz derleme + cihaza kurulum sonrası, AYNI "TEKRARLAMA ADIMLARI"
-senaryosunu (moda gir → arka plana at → başka uygulamada ses çal → geri
-dön → play/atla dene) TEKRAR denemeli, `[audio-diag]` günlüğünde ÖZELLİKLE
-şunlara bakmalı: (1) `currentTime ilerleme kontrolü` satırı GERÇEKTEN
-"canlı: false" mü buluyor (G130'un "state=running ama ses yok" belirtisini
-BU turun teşhisi doğru mu açıklıyor); (2) `bağlam YENİDEN OLUŞTURULUYOR`
-satırı görülüyor mu, kaç kez (1/2, 2/2); (3) yeniden oluşturma SONRASI
-ses GERÇEKTEN geri geliyor mu (bu turun asıl hedefi — yoksa "zombi context"
-teşhisi doğru ama iOS'un KENDİSİ yeni context'i de canlandırmıyor demektir,
-FARKLI bir yaklaşım gerekir); (4) yüklü bir dosyayla (Araçlar'da bir
-şarkı) test edilirse, context yeniden oluşma sonrası dosya GERÇEKTEN
-yeniden çalınabiliyor mu (`onContextRecreated` hook'unun doğruluğu).
-Bu madde SADECE simüle edilmiş bir "currentTime donmuş" senaryosuyla
-(masaüstü, gerçek AudioContext'i Proxy'leyerek) doğrulandı — gerçek
-cihaz/gerçek iOS "zombi context" davranışıyla HİÇ denenmedi.
+**Tek sonraki adım (G132 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
+temiz derleme + cihaza kurulum sonrası (bu turda YENİ bir native Swift
+dosyası eklendi — derleme BAŞARILI doğrulandı ama cihaza HİÇ kurulmadı),
+AYNI "TEKRARLAMA ADIMLARI" senaryosunu (moda gir → arka plana at → başka
+uygulamada ses çal → geri dön → play/atla dene) TEKRAR denemeli. Bu sefer
+İKİ günlük kaynağına bakılmalı: (1) Xcode konsolunda `[audio-diag-native]`
+(Swift `print()`) — `AVAudioSession etkinleştirildi`/`etkinleştirme HATASI`
+satırları, kesinti başlayınca/bitince doğru tetikleniyor mu; (2) Safari Web
+Inspector'da `[audio-diag]` (JS) — `native AVAudioSession activate()`
+satırının `ok=true` dönüp dönmediği, `native sessionActivated` olayının
+GERÇEKTEN ateşlenip ateşlenmediği, ve EN ÖNEMLİSİ bunlardan SONRA
+`currentTime ilerleme kontrolü`nün artık "canlı: true" bulup bulmadığı —
+yani ses GERÇEKTEN geri geliyor mu. Gelmiyorsa: AVAudioSession katmanı
+DOĞRU çalışıyor ama sorun BAŞKA bir yerde demektir (ör. WKWebView'in
+KENDİ Web Audio motoru session aktifken bile "zombi" kalabiliyor olabilir)
+— bir sonraki turun konusu bu olur. Bu madde SADECE `xcodebuild` ile
+derleme başarısı ve masaüstünde "plugin yok → no-op" doğrulandı — gerçek
+cihaz/gerçek iOS kesinti davranışıyla HİÇ denenmedi.
 
 **Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli

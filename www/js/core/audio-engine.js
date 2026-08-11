@@ -90,6 +90,32 @@ export function createAudioEngine() {
     if (onDeadStateChange) onDeadStateChange(dead);
   }
 
+  // G132 — iOS'a ÖZGÜ native köprü (ios/App/App/AudioSessionPlugin.swift).
+  // ARAŞTIRMA BULGUSU: Web Audio'nun resume()'u WKWebView'in ALTINDAKİ
+  // AVAudioSession'ı YÖNETMEZ — Apple'ın kendi "Responding to Interruptions"
+  // belgesi kesintiden sonra AVAudioSession.setActive(true) ile YENİDEN
+  // etkinleştirme GEREKTİRİYOR, JS'in tek başına yapamayacağı bir adım.
+  // Web/Android'de (plugin YOK) getAudioSessionPlugin() null döner, bu
+  // TÜM blok sessizce devre dışı kalır — davranış BOZULMAZ (task'ın kendi
+  // kuralı: "Android'i BOZMA").
+  function getAudioSessionPlugin() {
+    return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AudioSessionPlugin) || null;
+  }
+  // SIRALAMA (task'ın kendi isteği): "önce native oturum, sonra Web Audio
+  // resume" — bu fonksiyon ensureAudioAlive()'ın EN BAŞINDA (resume denemesi
+  // BAŞLAMADAN ÖNCE) çağrılır.
+  async function activateNativeSession(reason) {
+    const plugin = getAudioSessionPlugin();
+    if (!plugin) return;
+    const t0 = performance.now();
+    try {
+      const res = await plugin.activate();
+      console.log(`[audio-diag] native AVAudioSession activate() (${reason}) — ${(performance.now() - t0).toFixed(0)}ms, ok=${res && res.ok}`);
+    } catch (e) {
+      console.log(`[audio-diag] native AVAudioSession activate() HATA (${reason}) — ${e && e.message}`);
+    }
+  }
+
   async function tryResumeOnce(label) {
     if (!audioCtx || audioCtx.state === "running") return;
     const before = audioCtx.state;
@@ -159,6 +185,11 @@ export function createAudioEngine() {
     // (araştırma notu: jest-dışı resume/context oluşturma GÜVENİLMEZ).
     try { oldCtx && oldCtx.close().catch(() => {}); } catch (e) {}
     unlockAudio(); // audioCtx/analyser/masterGain/muteGain YENİDEN kurulur (TAZE AudioContext)
+    // G132 — TAZE context için native oturumun da TAZE etkin olduğundan
+    // emin ol (ensureAudioAlive'ın kendi başındaki çağrısı bu noktaya
+    // gelmeden ÖNCE zaten bir kez denemişti — bu, ekstra bir güvence,
+    // native activate() idempotent/ucuz).
+    await activateNativeSession("recreateContext");
     await tryResumeOnce("bağlam yeniden oluşturma");
     const alive = await checkLiveness();
     console.log(`[audio-diag] bağlam yeniden oluşturma sonucu — canlı: ${alive}`);
@@ -233,7 +264,9 @@ export function createAudioEngine() {
   });
 
   // G131 — TEK, paylaşılan "context GERÇEKTEN canlı mı" doğrulama+kurtarma
-  // giriş noktası. Sırasıyla: (1) kısa gecikmeli BİRKAÇ resume denemesi
+  // giriş noktası. Sırasıyla: (0 — G132) native AVAudioSession'ı etkinleştir
+  // ("Sıralama önemli: önce native oturum, sonra Web Audio resume" —
+  // task'ın kendi kuralı), (1) kısa gecikmeli BİRKAÇ resume denemesi
   // (G130'dan), (2) currentTime ilerleme kontrolü (G131 — state=running
   // TEK BAŞINA GÜVENİLMEZ, cihazda kanıtlandı), (3) HÂLÂ ölüyse VE
   // allowRecreate=true İSE (yani bir kullanıcı jesti İÇİNDE çağrılıyorsa —
@@ -248,6 +281,7 @@ export function createAudioEngine() {
   const RESUME_RETRY_DELAYS_MS = [0, 150, 400];
   async function ensureAudioAlive({ allowRecreate = true } = {}) {
     if (!audioCtx) return false;
+    await activateNativeSession("ensureAudioAlive");
     for (let i = 0; i < RESUME_RETRY_DELAYS_MS.length; i++) {
       if (audioCtx.state === "running") break;
       if (RESUME_RETRY_DELAYS_MS[i] > 0) await new Promise((r) => setTimeout(r, RESUME_RETRY_DELAYS_MS[i]));
@@ -274,6 +308,27 @@ export function createAudioEngine() {
     }
     return await ensureAudioAlive();
   }
+
+  // G132 — native'in KENDİ proaktif bildirimleri: uygulama öne gelince
+  // (didBecomeActive) VEYA bir AVAudioSession kesintisi BİTİNCE, JS'in
+  // HERHANGİ bir play denemesi yapmasını BEKLEMEDEN context doğrulanır —
+  // kullanıcı bir play denemesi yapana kadar geçen süre kısalır (bkz.
+  // app.js'in "görünür olduktan sonra İLK play denemesi" ölçümü — bu
+  // ölçüm artık bazen çok daha kısa çıkabilir). allowRecreate:false —
+  // BURASI DA sistem-tetikli bir bildirim, GERÇEK kullanıcı jesti DEĞİL
+  // (bkz. dosya başı G131 notu, aynı kural). Web/Android'de plugin YOK —
+  // bu IIFE hiçbir şey yapmadan döner.
+  (function wireNativeAudioSessionEvents() {
+    const plugin = getAudioSessionPlugin();
+    if (!plugin || !plugin.addListener) return;
+    plugin.addListener("sessionActivated", (data) => {
+      console.log(`[audio-diag] native sessionActivated — kaynak=${data && data.source}, ok=${data && data.ok}`);
+      if (audioReady) ensureAudioAlive({ allowRecreate: false });
+    });
+    plugin.addListener("interruptionBegan", () => {
+      console.log("[audio-diag] native interruptionBegan");
+    });
+  })();
 
   // --- ses efektleri: doğru = ding, yanlış = buzz ---
   function sfxDing() {
