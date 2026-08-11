@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G120)
+Son güncelleme: 11.08.2026 (G121)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,41 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G120, `b076350`) — **kullanıcının cihazda kulakla test ettiği İKİ YENİ modda (Pan Konumu, Stereo Genişlik) dört sorun — hepsi düzeltildi.**
+Bu commit (G121, `ab6740f`) — **yatay yön kilidi (G120 madde 4'ün önerisi, kullanıcı onayladı).**
+
+**Değişiklik:** `ios/App/App/Info.plist`: `UISupportedInterfaceOrientations`
+(iPhone) artık SADECE `UIInterfaceOrientationPortrait` — Landscape*
+ikisi de çıkarıldı. `UISupportedInterfaceOrientations~ipad` Portrait +
+PortraitUpsideDown kaldı (Landscape* çıkarıldı). `android/app/src/main/
+AndroidManifest.xml`: `MainActivity`'ye `android:screenOrientation="portrait"`
+eklendi (`android:configChanges`'teki `orientation|screenSize` zaten
+vardı, dokunulmadı — configChanges Activity'nin config değişikliğinde
+YENİDEN BAŞLAMAMASINI sağlıyor, screenOrientation ise dönüşün KENDİSİNİ
+engelliyor, ikisi çakışmıyor).
+
+**Gerekçe (kullanıcının kendi kararı, verbatim):** "uygulama dikey
+tasarlandı, tab bar/kartlar/sheet'ler hep dikey düzene göre... Pan ve
+Stereo Genişlik modlarında kulaklık zaten zorunlu, kulaklıkta telefon
+yönünün stereo algısına etkisi yok."
+
+**Kapsam:** SADECE native config dosyaları (Info.plist + AndroidManifest.xml)
+— JS/CSS'e HİÇ dokunulmadı, `npm test` etkilenmedi (**1214/1214**,
+regresyon yok, beklenen sonuç).
+
+**DÜRÜSTLÜK NOTU:** bu değişiklik simülatörde/cihazda GERÇEK döndürme
+denenerek doğrulanmadı (native config-only bir değişiklik, `npm test`/
+Playwright'ın erişemeyeceği bir katman — CLAUDE.md'nin "ses/DOM davranışı
+kaynak koddan doğrulanamaz" ilkesi burada native yön kilidi için de
+geçerli). Kullanıcı Xcode/Android Studio'da temiz derleme + cihazda
+GERÇEKTEN döndürerek (uygulamanın artık dönmediğini) doğrulamalı —
+`npx cap sync ios` bu turda çalıştırıldı, `npx cap sync android`
+ÇALIŞTIRILMADI (proje SADECE iOS için sync ediliyor, önceki turların
+AYNI kararı — Android manifest değişikliği doğrudan native dosyada,
+cap sync'e bağımlı değil).
+
+---
+
+Önceki commit (G120, `b076350`) — **kullanıcının cihazda kulakla test ettiği İKİ YENİ modda (Pan Konumu, Stereo Genişlik) dört sorun — hepsi düzeltildi.**
 
 ### 1) Stereo Genişlik: FAZ SORUNU (comb filter) — kök sebep + düzeltme
 
@@ -10235,27 +10269,23 @@ kaydı) eklenirse kaynak listesi genişletilebilir — kapsam dışı, yeni
 görev.
 **Kabul kriteri:** kullanıcı 1 ya da 2'yi seçer.
 
-**M. G120 — Yatay yön (landscape) kilidi önerisi, onay bekliyor**
-Bkz. BİTTİ madde 4 (tam teşhis + gerekçe orada). Özet: iOS/Android şu an
-serbest dönüşe izin veriyor, CSS'te yatay adaptasyon SIFIR — öneri:
-Capacitor/native config'te yatayı kilitle (JS/CSS'e dokunmadan). Task'ın
-kendi talimatı gereği UYGULANMADI, kullanıcı onayı bekliyor.
-**Kabul kriteri:** kullanıcı onaylar/reddeder; onaylanırsa Info.plist +
-AndroidManifest.xml değişikliği + cihazda döndürerek doğrulama.
+**M. ~~G120 — Yatay yön (landscape) kilidi önerisi~~ — G121'de UYGULANDI, `ab6740f`**
+Kullanıcı onayladı, Info.plist + AndroidManifest.xml değişti (bkz. BİTTİ
+G121). **Cihazda GERÇEK döndürme ile HENÜZ doğrulanmadı** — bu tek kalan
+adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G120 itibarıyla):** kullanıcı yatay-yön kilidi
-önerisini (bkz. BİTTİ madde 4) onaylamalı — onaylanırsa `Info.plist`
-(`UISupportedInterfaceOrientations`'tan Landscape* çıkarılır) + Android
-`AndroidManifest.xml`'e `android:screenOrientation="portrait"` eklenir,
-`npx cap sync` sonrası cihazda döndürerek doğrulanır. Onay YOKSA bu
-madde AÇIK İŞLER'e taşınır, dokunulmaz. Ayrıca kullanıcı Stereo
-Genişlik/Pan Konumu'nun YENİ ses tekniğini (iki bağımsız kaynak) gerçek
-cihazda kulaklıkla dinleyip önceki faz sorununun GERÇEKTEN gittiğini
-doğrulamalı — bu turda SADECE sayısal (cepstrum) kanıt üretildi, masaüstü
-Chrome'da Playwright ile uçtan uca oynandı (0 konsol hatası), kulakla
-GERÇEK doğrulama henüz yok (bkz. BİTTİ'nin DÜRÜSTLÜK notu).
+**Tek sonraki adım (G121 itibarıyla):** kullanıcı Xcode/Android Studio'da
+temiz derleme + cihaza yeniden kurulum sonrası GERÇEKTEN döndürerek
+doğrulamalı: (1) uygulama artık yatay yöne DÖNMÜYOR (iPhone/Android), (2)
+iPad'de baş-aşağı (upside-down) portre HÂLÂ çalışıyor (bilerek kaldırılmadı).
+Ayrıca G120'den kalan doğrulama hâlâ açık: Stereo Genişlik/Pan Konumu'nun
+YENİ ses tekniğini (iki bağımsız kaynak) gerçek cihazda kulaklıkla dinleyip
+önceki faz sorununun GERÇEKTEN gittiğini doğrulamalı — bu turda SADECE
+sayısal (cepstrum) kanıt üretildi, masaüstü Chrome'da Playwright ile
+uçtan uca oynandı (0 konsol hatası), kulakla GERÇEK doğrulama henüz yok
+(bkz. G120 BİTTİ'nin DÜRÜSTLÜK notu).
 
 **Önceki adım (G119 itibarıyla):** `npx cap sync ios` (bu turda
 zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
