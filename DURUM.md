@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G119)
+Son güncelleme: 11.08.2026 (G120)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,199 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G119, tek commit, `361ff94`) — **Pan Konumu/Stereo Genişlik hâlâ "Yakında" rozetiyle görünüyordu (kullanıcının cihaz raporu) — gerçek kök sebep bulundu, düzeltildi.**
+Bu commit (G120, `b076350`) — **kullanıcının cihazda kulakla test ettiği İKİ YENİ modda (Pan Konumu, Stereo Genişlik) dört sorun — hepsi düzeltildi.**
+
+### 1) Stereo Genişlik: FAZ SORUNU (comb filter) — kök sebep + düzeltme
+
+**Kullanıcının cihaz raporu:** kulaklıkla pembe gürültüde %50 genişlikte
+"flanger benzeri" bir faz sorunu duyuluyordu — genişlik hissi değil.
+G118'in kendi DÜRÜSTLÜK notu bu riski ÖNCEDEN uyarmıştı ("mikro-gecikme
+sadece matematiksel doğrulandı, kulakla dinlenmedi") — kullanıcının testi
+bu uyarıyı doğruladı.
+
+**Kök sebep (matematiksel):** G118'in tekniği (bir yol doğrudan, diğeri
+≤22ms gecikmeli, zıt yönlere panlanmış) SADECE width=100'de güvenliydi
+(o zaman her kulak SADECE bir yolu alıyor). width=100'ün ALTINDAKİ HER
+değerde, `StereoPannerNode`'un equal-power yasası GEREĞİ her iki panner
+de HER İKİ kanala da kısmi enerji gönderiyor — yani her kulak aynı anda
+hem doğrudan hem gecikmeli kopyayı (kısmi oranlarda) alıyordu. Bu, geniş
+bantlı içerikte (pembe gürültü) KLASİK bir tarak filtresi (comb filter):
+H(f) = 1 + k·e^(-j2πfτ), periyodik aralıklarla f=(2n+1)/(2τ)'da sıfıra
+iniyor.
+
+**Seçilen düzeltme (task'ın önerdiği iki yoldan biri):** "iki farklı
+kaynak" — aynı ses kaynağının gecikmeli kopyası YERİNE, HER SORUDA taze
+üretilen GERÇEKTEN bağımsız bir ikinci jeneratör (gürültüde: yeni
+`Math.random()` akışlı bir buffer; osilatörde: ±7 cent detune'lu ikinci
+bir osilatör) panR'ı besliyor, panL'i resmi/seçili kaynak besliyor.
+Mid/side kazanç yöntemi DEĞERLENDİRİLDİ ama task'ın kendi notunun
+belirttiği gibi tek mono kaynakta side bileşeni sıfır olduğu için tek
+başına yetersiz kaldı — "iki bağımsız kaynak" hem SoundGym Stereohead'in
+gerçek tekniğiyle birebir örtüştüğü hem de mid/side'ın gerektirdiği ikinci
+kaynağı zaten İÇERDİĞİ için seçildi.
+
+**Neden matematiksel olarak comb OLUŞAMAZ:** comb filtresi bir sinyalin
+GECİKMELİ KENDİ KOPYASIYLA toplanmasından doğar (H(f) formülü tau'ya
+bağlı, tau=gecikme). İki BAĞIMSIZ rastgele süreç arasında hiçbir gecikme/
+faz ilişkisi YOK — toplamlarının güç spektrumu iki bağımsız spektrumun
+DOĞRUSAL toplamı (çapraz terim yok, korelasyonsuz), periyodik bir
+sıfırlanma yapısı OLUŞTURAMAZ.
+
+**Sayısal kanıt (cepstrum analizi — bkz. gerçek zaman-alanı ölçüm, script
+korunmuyor ama yöntem burada belgeleniyor):** bir tarak filtresi log-
+magnitude spektrumda periyodik bir dalgalanma yaratır, bu da CEPSTRUM'da
+(log-magnitude spektrumun ters FFT'si) quefrency=tau'da KESKİN bir tepe
+olarak görünür.
+- **ESKİ (G118) tasarım, width=50%, tau=22ms:** cepstrum tepe/taban oranı
+  **15.05x** — güçlü, anormal bir tepe VAR (beklenen negatif kontrol,
+  gerçek bir comb filtresi doğrulandı).
+- **YENİ (G120) tasarım, width∈{0,25,50,75,100}:** 1-30ms bandının
+  TAMAMI taranarak en yüksek tepe arandı (eski tasarımın notch bandını
+  kapsayacak şekilde) — oran **3.08x-3.71x** aralığında kaldı (gürültü
+  tabanı dalgalanması, GERÇEK bir tepe DEĞİL — eşik 4x'in altında, HER
+  width kademesinde).
+- İki bağımsız kaynağın (aynı pembe gürültü algoritması, farklı `Math.random()`
+  akışı) çapraz-korelasyon katsayısı: **0.0477** (0'a çok yakın — gerçekten
+  bağımsız, doğrulandı).
+
+**Kaynak listesi daraltıldı (bu YÜZDEN):** "gerçekten bağımsız ikinci
+kaynak" SADECE sentetik türlerde (gürültü/osilatör) ucuza/güvenle
+üretilebiliyor — örnek dosyalar (kick/bas/vokal/groove) ve upload için
+GERÇEK bir "ikinci/bağımsız kayıt" yok (yeni dosya eklenmeyecek kuralı
+korundu). Stereo Genişlik artık SADECE pink/white/saw/square/triangle
+destekliyor — Pan Konumu'nun geniş listesi (örnek dosyalar + upload dahil)
+ETKİLENMEDİ (tek-kaynaklı panlamada decorrelation riski hiç yok). **Bu,
+görünürde bir ürün-kapsamı daralması — kullanıcı onayı istenmiyor
+(teknik bir zorunluluk, "yeni ses dosyası yok" kuralının doğrudan
+sonucu) ama BEKLEYEN KARARLAR'a not düşüldü, gerekirse gözden geçirilsin.**
+
+### 2) X (Atla) butonu iki modda da çalışmıyordu — düzeltildi (genel CSS hatası)
+
+**Kök sebep (Playwright ile ölçülerek bulundu, tahmin YOK):**
+`.fb-result-row`'un giriş animasyonu (`dlgIn`, 320ms) elementi kendi
+stacking context'ine YÜKSELTİYOR (Chrome'un animasyon/compositing katmanı
+davranışı) — `z-index:auto` olan `position:absolute` `.fb-close`
+(X butonu) bu durumda ONUN ALTINA düşebiliyordu.
+`document.elementFromPoint()` ile `.fb-close`'un kendi ekran konumunda
+ölçüldü: `.fb-result-row` döndü, tıklamalar ORAYA gidiyordu.
+
+**Düzeltme:** `.fb .fb-close` kuralına `z-index:2` eklendi (`styles.css`).
+Bu SADECE Pan Konumu/Stereo Genişlik'e özgü DEĞİL — paylaşılan bir CSS
+kuralı, muhtemelen 12 modun HEPSİNDE var olan gizli bir hataydı (X butonu
+daha önce hiçbir modda bu şekilde ölçülerek test edilmemişti).
+
+**Doğrulama (Playwright, gerçek round oynanarak):** her iki modda da bir
+soru cevaplandı, X'e (`#feedbackClose`) tıklandı, `#roundChip` metni
+**"Soru 1/10" → "Soru 2/10"** olarak değişti (round GERÇEKTEN ilerledi,
+sadece panel kapanmadı) — hem Pan Konumu hem Stereo Genişlik'te.
+
+### 3) Pan Konumu + Stereo Genişlik: şıklar artık sürekli ölçekten
+
+**Eski davranış:** isimlendirilmiş sabit ızgara ("Tam Sol/Sol/.../Tam
+Sağ", 3/5/7 kademe). **Yeni davranış:** true değer (pan: -100..100,
+width: 0..100) SÜREKLİ bir tam sayı — ızgara noktası OLMAK ZORUNDA
+DEĞİL. Şıklar `generateChoiceValues()` ile true değerin ETRAFINDA,
+curve-driven bir STEP mesafesinde (k·step, k=1,2,...) üretiliyor — dB
+Seviyesi'nin AYNI deseni. Kolay kademede şıklar arası fark büyük,
+zorlaştıkça (Z1→Z20) daralıyor.
+
+**Test sırasında bulunan ve düzeltilen GERÇEK bir bug:** `generateChoiceValues()`'ın
+ilk yazımında `offsets.push(above * step)` satırı `trueValue`'yu HİÇ
+eklemiyordu — mutlak şık değeri yerine SADECE göreli bir ofset
+dönüyordu (ör. trueValue=60, step=15 → beklenen [60,75,45,90,30] YERİNE
+[60,15,-15,30,-30] gibi anlamsız/sınır-dışı değerler). Bu, yeniden
+yazılan test dosyaları (`test/pan-konumu.test.mjs`, `test/stereo-
+genislik.test.mjs`) İLK ÇALIŞTIRILDIĞINDA yakalandı — `npm test`
+çalıştırılmadan asla fark edilmezdi. Düzeltme: `trueValue + above*step`
+/ `trueValue - below*step`. Bu, koda ilk yazılan ama HİÇ test edilmemiş
+bir hataydı — kullanıcı raporunun kapsamında DEĞİLDİ, doğrulama sürecinde
+bulundu.
+
+**Z1→Z20 tabloları (şıklar arası mesafe % / şık sayısı, `npm test`
+çıktısından, `console.log` ile üretildi):**
+
+Pan Konumu:
+```
+Z1=45.0%/3 Z2=41.1%/3 Z3=37.5%/3 Z4=34.3%/3 Z5=31.3%/4 Z6=28.6%/4
+Z7=26.1%/4 Z8=23.8%/4 Z9=21.7%/4 Z10=19.9%/4 Z11=18.1%/5 Z12=16.6%/5
+Z13=15.1%/5 Z14=13.8%/5 Z15=12.6%/6 Z16=11.5%/6 Z17=10.5%/6 Z18=9.6%/6
+Z19=8.8%/7 Z20=8.0%/7
+```
+Stereo Genişlik:
+```
+Z1=30.0%/3 Z2=27.6%/3 Z3=25.3%/3 Z4=23.3%/3 Z5=21.4%/4 Z6=19.6%/4
+Z7=18.0%/4 Z8=16.6%/4 Z9=15.2%/4 Z10=14.0%/4 Z11=12.9%/5 Z12=11.8%/5
+Z13=10.9%/5 Z14=10.0%/5 Z15=9.2%/6 Z16=8.4%/6 Z17=7.7%/6 Z18=7.1%/6
+Z19=6.5%/7 Z20=6.0%/7
+```
+En dar kademede bile (Z20: Pan 8.0%, Genişlik 6.0%) şıklar arası mesafe
+`PAN_TOLERANCE`/`WIDTH_TOLERANCE`'ın (ikisi de 2) KESİN üstünde — kabul
+kriteri karşılandı, `STEP_FLOOR > TOLERANCE` invaryantı testle kilitlendi.
+
+**1000 denemelik çakışma testi (her iki mod, `npm test` içinde):** 1000
+rastgele zorluk pozisyonunda (1..20 arası ondalık) — (a) hiçbir turda iki
+şık aynı değere denk gelmedi, (b) hiçbir yanlış şık tolerans içine
+düşmedi, (c) şıkların TÜM ikili kombinasyonları toleransın üstünde kaldı.
+Üçü de **0 hata** ile geçti.
+
+**Doğrulama (Playwright, gerçek Chromium, gerçek round oynanarak,
+`localStorage`'a `simulatePro` bayrağı basılarak Pro kilidi aşıldı —
+SADECE test amaçlı, kalıcı bir değişiklik DEĞİL):**
+- Pan Konumu şık örneği: `%26 Sol / %64 Sağ / %19 Sağ` (yüzdelik,
+  sürekli-ölçek görünüyor, isimli ızgara YOK).
+- Stereo Genişlik şık örneği: `%50 / %20 / %80`.
+- Konsol hatası: **0** (her iki modda da tam bir round — soru üret →
+  ses çal → cevapla → X'e bas — hatasız çalıştı, gerçek Web Audio
+  `branch` mekanizması dahil).
+- `npm test`: **1214/1214** (1214 test, önceki turdan +5, iki mod
+  dosyası tamamen yeniden yazıldı).
+
+### 4) Yatay yön (landscape) — TEŞHİS (task'ın kendi talimatıyla UYGULANMADI, onay bekliyor)
+
+**Bulgu:** uygulama şu an **hem iOS hem Android'de yatay döndürmeye
+İZİN VERİYOR** (Info.plist: `UISupportedInterfaceOrientations` = Portrait
++ LandscapeLeft + LandscapeRight; Android manifest'te `screenOrientation`
+HİÇ ayarlı değil — varsayılan: serbest dönüş) — ama **CSS'te yatay yön
+için TEK BİR satır bile yok** (`grep -n "@media" styles.css` → sadece 3
+sonuç: `max-width:420px` grid ayarı, `prefers-reduced-motion`,
+`hover:none`/`pointer:coarse` — `orientation:landscape` HİÇ kullanılmıyor).
+
+Düzen tamamen dikey varsayımıyla kurulu: alt bar/tab bar/tools-sheet/
+exit-confirm/spotlight-callout gibi TÜM `position:fixed` elemanlar
+(`styles.css`'te 15+ yer) dikey (dar-genişlik, uzun-yükseklik) bir
+viewport varsayıyor — `--app-vh` (dinamik viewport yüksekliği) portre
+yüksekliğine göre hesaplanan sheet max-height'lar, sabit piksel offsetli
+diyaloglar (`margin-top:-92px` gibi) dahil. Yatay çevrilince: sheet'ler
+ekranın çoğunu kaplayabilir/taşabilir, tab bar'ın dayandığı yükseklik
+oranları bozulur, spektrum/görsel canvas'lar dar bir şeride sıkışır.
+**Hangi EKRANLARIN ne kadar bozulduğu satır satır simülatörde/cihazda
+ölçülmedi** — bu, "hiç adaptasyon kodu yok" tespitinden öteye, CSS
+okumayla kanıtlanabilecek bir sınırın dışında (CLAUDE.md: "ses/DOM
+davranışı kaynak koddan doğrulanamaz" ilkesi burada da geçerli — GERÇEK
+bozulma cihazda görülmeli).
+
+**Öneri (task'ın kendi önerdiği yönde, gerekçesiyle):** yatay yönü
+KİLİTLEMEK en temiz çözüm — bu uygulama zaten dikey kullanım için
+tasarlanmış (tab bar, kartlar, sheet'ler hiçbiri yatay düzen
+İÇERMİYOR), yatay desteği "düzgün çalışsın" diye eklemek onlarca
+`position:fixed` bloğuna media query yazmak demek — bunun karşılığında
+kullanıcıya hiçbir değer eklenmiyor (bu bir ses/kulak eğitimi uygulaması,
+yatay ekran avantajı olan bir video/oyun değil). Capacitor tarafında:
+iOS `Info.plist`'te `UISupportedInterfaceOrientations`'tan
+Landscape*'leri çıkarmak, Android'de Activity'ye
+`android:screenOrientation="portrait"` eklemek — İKİSİ de küçük,
+geri alınabilir, native-config-only değişiklikler (JS/CSS'e dokunmuyor).
+**UYGULANMADI — task'ın kendi talimatı gereği kullanıcı onayı
+bekleniyor.**
+
+**Doğrulama notu — bu commit'in DÜRÜSTLÜK notu:** yukarıdaki teşhis
+statik dosya okuma (Info.plist/AndroidManifest.xml/styles.css grep) ile
+yapıldı, simülatörde/cihazda GERÇEK döndürme denenmedi (bu turun kapsamı
+dışında — sadece TEŞHİS istenmişti, uygulama İSTENMEDİ).
+
+---
+
+Önceki commit (G119, tek commit, `361ff94`) — **Pan Konumu/Stereo Genişlik hâlâ "Yakında" rozetiyle görünüyordu (kullanıcının cihaz raporu) — gerçek kök sebep bulundu, düzeltildi.**
 
 **KÖK SEBEP:** G118'de `mode-catalog.js`'in `playable` bayrağı doğru
 açılmıştı — `renderExerciseGrid()` bunu ZATEN dinamik okuyordu, ikisi de
@@ -10024,9 +10216,48 @@ ekranı yerine YA sınav-geçti kutlama sheet'i YA "parkur baştan" görüyor.
 olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 "done" canlı yeniden denenir.
 
+**L. G120 — Stereo Genişlik'in kaynak listesi daraltıldı (upload +
+örnek dosyalar çıkarıldı), gözden geçirilmeli mi?**
+Comb-filter düzeltmesi (bkz. BİTTİ madde 1) "gerçekten bağımsız ikinci
+kaynak" gerektiriyor — bu SADECE sentetik türlerde (gürültü/osilatör)
+mümkün, gerçek bir kayıt dosyasının (kick/bas/vokal/groove) ya da
+kullanıcının kendi upload'ının bağımsız bir "ikinci kopyası" yok (yeni
+dosya eklenmeyecek kuralı, task'ın kendi kısıtı). Bu YÜZDEN
+`uyumluKaynaklar` artık SADECE pink/white/saw/square/triangle —
+Pan Konumu'nun (aynı ekranda yan yana görünen ikiz modun) geniş listesiyle
+(örnek dosyalar + upload dahil) tutarsız bir kapsam farkı yaratıyor.
+Bu, teknik bir zorunluluğun DOĞRUDAN sonucu (uydurma bir ürün kararı
+DEĞİL) — ama kullanıcı fark edip "neden Stereo Genişlik'te upload yok"
+diye sorabilir. **Olası kararlar:** (1) mevcut halde bırak, mod
+açıklamasına/yardım metnine bunu açıkça yazan bir not ekle; (2) ileride
+gerçek stereo örnek dosyaları (aynı enstrümanın iki farklı, bağımsız
+kaydı) eklenirse kaynak listesi genişletilebilir — kapsam dışı, yeni
+görev.
+**Kabul kriteri:** kullanıcı 1 ya da 2'yi seçer.
+
+**M. G120 — Yatay yön (landscape) kilidi önerisi, onay bekliyor**
+Bkz. BİTTİ madde 4 (tam teşhis + gerekçe orada). Özet: iOS/Android şu an
+serbest dönüşe izin veriyor, CSS'te yatay adaptasyon SIFIR — öneri:
+Capacitor/native config'te yatayı kilitle (JS/CSS'e dokunmadan). Task'ın
+kendi talimatı gereği UYGULANMADI, kullanıcı onayı bekliyor.
+**Kabul kriteri:** kullanıcı onaylar/reddeder; onaylanırsa Info.plist +
+AndroidManifest.xml değişikliği + cihazda döndürerek doğrulama.
+
 ## SIRADAKİ
 
-**Tek sonraki adım (G119 itibarıyla):** `npx cap sync ios` (bu turda
+**Tek sonraki adım (G120 itibarıyla):** kullanıcı yatay-yön kilidi
+önerisini (bkz. BİTTİ madde 4) onaylamalı — onaylanırsa `Info.plist`
+(`UISupportedInterfaceOrientations`'tan Landscape* çıkarılır) + Android
+`AndroidManifest.xml`'e `android:screenOrientation="portrait"` eklenir,
+`npx cap sync` sonrası cihazda döndürerek doğrulanır. Onay YOKSA bu
+madde AÇIK İŞLER'e taşınır, dokunulmaz. Ayrıca kullanıcı Stereo
+Genişlik/Pan Konumu'nun YENİ ses tekniğini (iki bağımsız kaynak) gerçek
+cihazda kulaklıkla dinleyip önceki faz sorununun GERÇEKTEN gittiğini
+doğrulamalı — bu turda SADECE sayısal (cepstrum) kanıt üretildi, masaüstü
+Chrome'da Playwright ile uçtan uca oynandı (0 konsol hatası), kulakla
+GERÇEK doğrulama henüz yok (bkz. BİTTİ'nin DÜRÜSTLÜK notu).
+
+**Önceki adım (G119 itibarıyla):** `npx cap sync ios` (bu turda
 zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
 kurulum sonrası ana ekranı KONTROL ETMELİ: (1) Pan Konumu/Stereo
 Genişlik artık normal/oynanabilir kart olarak görünüyor mu (kilitli/
