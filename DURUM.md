@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G128)
+Son güncelleme: 11.08.2026 (G129)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,27 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G128) — **Kod tarafı dayanıklılık taraması (yayın öncesi stres testinin kod ayağı) — 9 başlık taranıp raporlandı, bulunan GERÇEK sorunlar düzeltildi.** 4 arka planda çalışan araştırma ajanıyla `www/js/app.js` (+ core modülleri) tarandı.
+Bu commit (G129) — **Ses oturumu KALICI teşhis günlüğü eklendi (task'ın kendi kuralı: DÜZELTME YOK, sadece görünürlük) — G128'in `resume()`-await düzeltmesi sorunu TAM kapatmadı, cihazda hâlâ "arka plana atıp geri dönünce ses kesiliyor, bazen 'atla' düzeltmiyor" (TUTARSIZ/zamanlamaya bağlı) görülüyor.**
+
+**EKLENEN GÜNLÜKLER (`[audio-diag]` öneki, tek satır format):**
+1. **`core/audio-engine.js:unlockAudio()`** — `audioCtx` oluşturulur oluşturulmaz `audioCtx.onstatechange` dinleyicisi eklendi: HER durum geçişinde (`suspended`/`running`/`closed`, WebKit'e özgü `interrupted` DAHİL) eski→yeni durumu + `currentTime`'ı loglar. Bu, telefon çağrısı/Siri/başka bir uygulamanın ses oturumunu ele alması gibi cihaza özgü kesintileri YAKALAYABİLECEK TEK güvenilir sinyal.
+2. **`core/audio-engine.js:initAudio()`** — Araçlar/kalibrasyon/A-B önizleme dahil TÜM diğer çalma yollarının ORTAK kontrol noktası: her çağrıda state+currentTime, suspended ise resume öncesi/sonrası state + süre (ms).
+3. **`app.js:playQuestion()`** — tur başlatma/"Sonraki" akışının KENDİ ayrı resume yolu (initAudio'yu ÇAĞIRMIYOR): aynı state/resume/süre bilgisi, ARTI zincir kurulup kaynak node'u start edildiğinde ("play başladı") bir log, ARTI Frekans Çakışması'nın (await edilmeyen `buildDualSourceChain`) tamamlanma/hata logu (.then/.catch ile, ÖNCEKİ "await edilmiyor" davranışı BOZULMADI).
+4. **`app.js`'in `visibilitychange` dinleyicisi** — hidden/visible geçişinde state+currentTime; visible olunca resume denemesi/sonucu; AYRICA "görünür olduktan sonra İLK play denemesine kadar geçen süre" (`audioVisibleSinceAt` damgası, playQuestion'da okunup loglanıyor, tek seferlik).
+
+**DOĞRULAMA:** Playwright (masaüstü headless) ile TÜM günlük türlerinin GERÇEKTEN konsola yazdığı doğrulandı — bir tur başlatılıp `visibilitychange` simüle edilip (hidden→visible) tekrar "Atla" ile play tetiklenince 11 satır `[audio-diag]` çıktısı üretildi (statechange, initAudio/playQuestion play denemeleri, resume, "zincir kuruldu", "görünür olduktan sonra İLK play denemesi — 327ms geçti"), **0 konsol hatası**. `npm test`: **1245/1245 GEÇTİ** (davranış değişikliği YOK — SADECE log satırları eklendi, hiçbir kontrol akışı/karar değişmedi).
+
+**TEKRARLAMA ADIMLARI (cihazda, kullanıcının kendi tarifi — SIRADAKİ'nin okuyacağı senaryo):**
+1. Bir moda gir (ör. Frekans Bulma), turu başlat.
+2. Uygulamayı arka plana at (ör. Instagram'a geç).
+3. Arka planda BAŞKA bir uygulamada ses çal (ör. bir video/müzik).
+4. Audio Engineer Academy'e geri dön.
+5. Play/Atla dene — bazen ses geliyor, BAZEN GELMİYOR (tutarsız, zamanlamaya bağlı).
+Bu adımlar sırasında Safari Web Inspector'dan konsola bağlanıp `[audio-diag]` satırları okunmalı — ÖZELLİKLE 3. adımdan (başka uygulama ses çalarken) sonra `statechange`'in `interrupted` gibi standart-dışı bir duruma geçip geçmediği ve geri dönüşte `resume()`'un GERÇEKTEN `running`'e ulaşıp ulaşmadığı (yoksa hangi durumda TAKILI kaldığı) kritik.
+
+---
+
+Önceki commit (G128) — **Kod tarafı dayanıklılık taraması (yayın öncesi stres testinin kod ayağı) — 9 başlık taranıp raporlandı, bulunan GERÇEK sorunlar düzeltildi.** 4 arka planda çalışan araştırma ajanıyla `www/js/app.js` (+ core modülleri) tarandı.
 
 **1) SES DÜĞÜMÜ SIZINTISI**
 - Oyun turları (12 mod + `audio-engine.js`): **SIZINTI YOK** — `stopAudio()` her yeni tur başında ÖNCEKİ turun TÜM düğümlerini merkezi olarak disconnect ediyor (`currentNodes` izleme dizisi), hiçbir mod dosyası kendi `.disconnect()`'ini çağırmıyor ama ZATEN çağırması GEREKMİYOR (mimari böyle kurulu).
@@ -10965,12 +10985,14 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G128 itibarıyla) — EN ÖNEMLİSİ:** cihazda, ses sistemi
-sessizken bir moda girilip sonra ses açılıp "Sonraki"ye basarak bilinen
-"ses gelmiyor" hatasının G128'in `await`-edilen resume() düzeltmesiyle
-GERÇEKTEN kapandığı doğrulanmalı (bkz. yukarıdaki G128 kaydının madde 6'sı
-— bu SADECE statik kod analiziyle bulundu/düzeltildi, cihazda hiç
-denenmedi).
+**Tek sonraki adım (G129 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
+temiz derleme + cihaza kurulum sonrası, yukarıdaki G129 kaydının
+"TEKRARLAMA ADIMLARI" senaryosunu (moda gir → arka plana at → başka
+uygulamada ses çal → geri dön → play/atla dene) Safari Web Inspector
+konsolu BAĞLIYKEN tekrarlamalı ve `[audio-diag]` satırlarını (özellikle
+`statechange` ve `resume` çevresindeki state/süre bilgilerini) buraya
+yapıştırmalı — DÜZELTME BU TURDA YAPILMADI, sadece teşhis; kök sebep bu
+günlüklerden GÖRÜLDÜKTEN sonra bir sonraki turda düzeltilecek.
 
 **Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli

@@ -4575,8 +4575,25 @@ function cakismaSourcesSpec(pair) {
   return { a: resolve(pair.sourceA, uploadManagerA), b: resolve(pair.sourceB, uploadManagerB) };
 }
 
+// [audio-diag] KALICI TEŞHİS GÜNLÜĞÜ (task'ın kendi isteği — DÜZELTME YOK,
+// sadece görünürlük). Tek satır format: "[audio-diag] <etiket> — <detay>".
+function audioDiagLog(label, detail) {
+  console.log(`[audio-diag] ${label}${detail ? ` — ${detail}` : ""}`);
+}
+// item 4 — sayfa/uygulama YENİDEN görünür olduğu an burada damgalanır
+// (visibilitychange), bir SONRAKİ play denemesinde (playQuestion) okunup
+// "görünür olduktan sonra geçen süre" olarak loglanır, sonra sıfırlanır
+// (tek seferlik — bir SONRAKİ gizlenme/görünme döngüsüne kadar).
+let audioVisibleSinceAt = null;
+
 async function playQuestion(processed = true) {
   if (!audioEngine.audioReady || !activeQuestion) return;
+  const ctx0 = audioEngine.audioCtx;
+  audioDiagLog("play denemesi (playQuestion)", ctx0 ? `state=${ctx0.state}, currentTime=${ctx0.currentTime.toFixed(2)}` : "audioCtx yok");
+  if (audioVisibleSinceAt != null) {
+    audioDiagLog("görünür olduktan sonra İLK play denemesi", `${(performance.now() - audioVisibleSinceAt).toFixed(0)}ms geçti`);
+    audioVisibleSinceAt = null;
+  }
   // Dayanıklılık taraması (kod tarafı) — ÖNCEDEN resume() burada AWAIT
   // EDİLMİYORDU (ateşle-unut, senkron try/catch async reddi hiç yakalamazdı).
   // iOS'ta cihazda görülen "sessiz aç/kapa sonrası ses gelmiyor" hatasının en
@@ -4584,7 +4601,16 @@ async function playQuestion(processed = true) {
   // fark edilmiyordu, "Sonraki"ye basmak AYNI doğrulanmamış resume'u
   // tekrarlayıp aynı sessizliği sürdürüyordu.
   if (audioEngine.audioCtx && audioEngine.audioCtx.state === "suspended") {
-    try { await audioEngine.audioCtx.resume(); } catch (e) { console.error("[audio] resume hatası:", e); }
+    const before = audioEngine.audioCtx.state;
+    const t0 = performance.now();
+    audioDiagLog("resume çağrılıyor (playQuestion)", `öncesi state=${before}`);
+    try {
+      await audioEngine.audioCtx.resume();
+      audioDiagLog("resume tamamlandı (playQuestion)", `${(performance.now() - t0).toFixed(0)}ms sonra state=${audioEngine.audioCtx.state}`);
+    } catch (e) {
+      console.error("[audio] resume hatası:", e);
+      audioDiagLog("resume HATA (playQuestion)", `${e && e.message}`);
+    }
   }
   currentPlayMode = processed ? "filtered" : "clean";
   // G51: Motor 3 — TEK-kaynak buildQuestionChain'in YERİNE buildDualSourceChain
@@ -4592,7 +4618,12 @@ async function playQuestion(processed = true) {
   // "cakisma" olmadığı için bu dal ÇALIŞMAZ, ÖNCEKİ davranış BİREBİR aynı kalır.
   if (activeQuestion.mode === "cakisma") {
     hideAudioError();
-    audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing);
+    // [audio-diag] buildDualSourceChain BİLEREK await edilmiyor (ÖNCEKİ
+    // davranış korunuyor) — tamamlanma/hata YİNE DE .then/.catch ile
+    // (playQuestion'ın dönüşünü ETKİLEMEDEN) loglanıyor.
+    audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing)
+      .then(() => audioDiagLog("dual-source zinciri kuruldu, play başladı (cakisma)", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "?"}`))
+      .catch((err) => audioDiagLog("dual-source zinciri HATA (cakisma)", err && err.message));
     return;
   }
   // G90 (madde 10): örnek-dosya kaynağı decode/ağ hatasıyla başarısız olursa
@@ -4604,6 +4635,12 @@ async function playQuestion(processed = true) {
   showAudioLoading();
   const result = await audioEngine.buildQuestionChain(activeQuestion, processed, activeQuestion.source, uploadManager, mode.applyProcessing);
   hideAudioLoading();
+  // [audio-diag] item 1 — "çalma gerçekten başladı mı": buildQuestionChain
+  // döndüğünde kaynak node'u (upload/noise/sample/synth) ZATEN bağlanıp
+  // start edilmiş olur (bkz. audio-engine.js'in kendi source-builder'ları,
+  // hepsi senkron .start() çağırır) — bu satır o ANI/o andaki context
+  // durumunu damgalar.
+  audioDiagLog("zincir kuruldu, play başladı", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "?"}, sampleLoadFailed=${!!(result && result.sampleLoadFailed)}`);
   if (result && result.sampleLoadFailed) showAudioError(); else hideAudioError();
   updateAbToggleUI();
 }
@@ -6481,6 +6518,8 @@ if (els.focusSelect) els.focusSelect.addEventListener("change", () => {
 // neredeyse anında tüketebilir — kalp/can arayüzünün tutarsız görünmesinin ve
 // "Oyun Bitti"den sonra sayaçların artmaya devam etmesinin en olası açıklaması bu.
 document.addEventListener("visibilitychange", async () => {
+  const ctxV = audioEngine.audioCtx;
+  audioDiagLog("visibilitychange", `${document.hidden ? "hidden" : "visible"}, state=${ctxV ? ctxV.state : "yok"}, currentTime=${ctxV ? ctxV.currentTime.toFixed(2) : "?"}`);
   if (document.hidden) {
     audioEngine.stopAudio();
     uploadManager.pausePlayback();
@@ -6488,10 +6527,24 @@ document.addEventListener("visibilitychange", async () => {
     // AYNI mekanizma (pauseRound). Arka planda tur zamanlayıcısının çalışmaya devam
     // edip biriken tikleri ön plana dönünce art arda boşaltması engellenir.
     if (activeQuestion && !autoStopped) pauseRound();
-  } else if (audioEngine.audioCtx && audioEngine.audioCtx.state === "suspended") {
-    // Dayanıklılık taraması — AWAIT edilmeyen resume() düzeltildi (bkz.
-    // playQuestion'daki AYNI not).
-    try { await audioEngine.audioCtx.resume(); } catch (e) { console.error("[audio] resume hatası:", e); }
+  } else {
+    // item 4 — "görünür olduktan sonra ilk play denemesine kadar geçen
+    // süre" için başlangıç damgası (playQuestion'da okunup loglanır).
+    audioVisibleSinceAt = performance.now();
+    if (ctxV && ctxV.state === "suspended") {
+      // Dayanıklılık taraması — AWAIT edilmeyen resume() düzeltildi (bkz.
+      // playQuestion'daki AYNI not).
+      const before = ctxV.state;
+      const t0 = performance.now();
+      audioDiagLog("resume çağrılıyor (visibilitychange)", `öncesi state=${before}`);
+      try {
+        await ctxV.resume();
+        audioDiagLog("resume tamamlandı (visibilitychange)", `${(performance.now() - t0).toFixed(0)}ms sonra state=${ctxV.state}`);
+      } catch (e) {
+        console.error("[audio] resume hatası:", e);
+        audioDiagLog("resume HATA (visibilitychange)", `${e && e.message}`);
+      }
+    }
   }
   // G61 (PAYWALL.md): "30 dakikada 1 can" — ön plana HER dönüşte yeniden
   // hesaplanır (arka planda geçirilen GERÇEK süre burada devreye girer, bu

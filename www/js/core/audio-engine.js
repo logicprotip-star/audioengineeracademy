@@ -84,6 +84,17 @@ export function createAudioEngine() {
       muteGain.connect(masterGain);
       masterGain.connect(analyser);
       analyser.connect(audioCtx.destination);
+      // [audio-diag] KALICI TEŞHİS GÜNLÜĞÜ (task'ın kendi isteği — DÜZELTME
+      // YOK, sadece görünürlük). iOS/WebKit'te AudioContext.state standart
+      // "suspended/running/closed"a EK olarak "interrupted" da alabilir
+      // (telefon çağrısı/Siri/başka bir uygulamanın ses oturumunu ele
+      // alması gibi durumlarda) — statechange TEK, güvenilir sinyal, HER
+      // geçişte (kimin tetiklediğinden bağımsız) ateşlenir.
+      let audioDiagLastState = audioCtx.state;
+      audioCtx.onstatechange = () => {
+        console.log(`[audio-diag] statechange — ${audioDiagLastState} → ${audioCtx.state} (currentTime=${audioCtx.currentTime.toFixed(2)})`);
+        audioDiagLastState = audioCtx.state;
+      };
       audioReady = true;
       if (onReady) onReady();
     }
@@ -106,10 +117,25 @@ export function createAudioEngine() {
     window.addEventListener(ev, unlockAudio, { once: false, passive: true });
   });
 
+  // [audio-diag] Araçlar/kalibrasyon/A-B önizleme dahil, `initAudio()`'dan
+  // geçen HER çalma denemesi burada tek kontrol noktasından loglanır (bkz.
+  // ayrıca app.js:playQuestion'ın KENDİ ayrı log'u — o bu fonksiyonu
+  // ÇAĞIRMIYOR, resume'u doğrudan kendisi yapıyor).
   async function initAudio() {
     unlockAudio();
+    if (audioCtx) {
+      console.log(`[audio-diag] play denemesi (initAudio) — state=${audioCtx.state}, currentTime=${audioCtx.currentTime.toFixed(2)}`);
+    }
     if (audioCtx && audioCtx.state === "suspended") {
-      try { await audioCtx.resume(); } catch (e) {}
+      const before = audioCtx.state;
+      const t0 = performance.now();
+      console.log(`[audio-diag] resume çağrılıyor (initAudio) — öncesi state=${before}`);
+      try {
+        await audioCtx.resume();
+        console.log(`[audio-diag] resume tamamlandı (initAudio) — ${(performance.now() - t0).toFixed(0)}ms sonra state=${audioCtx.state}`);
+      } catch (e) {
+        console.log(`[audio-diag] resume HATA (initAudio) — ${e && e.message}`);
+      }
     }
   }
 
