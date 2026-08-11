@@ -792,20 +792,31 @@ async function ensureUploadSelectionLoaded(contextId) {
   if (res.ok) uploadManagerLoadedFileId = fileId;
 }
 
-// Dosyalarım sheet'i (`#toolsFilesSheet`) DOM'da `#screen-tools` İÇİNE gömülü
-// (bkz. index.html'in "C) Dosyalarım sheet'i" notu) — `#screen-tools`
-// `.active` DEĞİLKEN (ör. bir modun oyun ekranındayken) `display:none`
-// altında kalır, sheet'in KENDİ "open" class'ı bunu YENEMEZ (ata display:none
-// ise, position:fixed olsa bile, eleman HİÇ render edilmez). Bu yüzden bir
-// MOD bağlamından (Kaynak sheet'inin "Dosya seç" satırı, Oyun Ayarları'nın
-// upload satırı, Stereo Genişlik'in gate butonu) Dosyalarım'ı açan HER yer
-// ÖNCE `goScreen("tools")` ile Araçlar'a geçmeli — bu TEK ortak fonksiyon,
-// bu adımı unutmayı (ve az önce buradaki gibi "sheet class'ı 'open' ama
-// görünmüyor" bug'ını) İMKÂNSIZ kılıyor.
+// G124 — Dosyalarım sheet'i artık `<body>`'nin doğrudan çocuğu (bkz.
+// index.html'in AYNI notu, `#settingsSheet`'in ZATEN kullandığı desen) —
+// HER ekranın ÜSTÜNDE açılabiliyor, `goScreen()` GEREKMİYOR/ÇAĞRILMIYOR
+// (ÖNCEDEN, sheet `#screen-tools` İÇİNE gömülüyken, `.screen{display:none}`
+// yüzünden bu ZORUNLUYDU — kullanıcı oyunun İÇİNDEYKEN Araçlar sekmesine
+// "atılıyordu", kullanıcının kendi raporu).
+//
+// sheetPausedRound (module-level, aşağıda) — bir MOD bağlamından (Araçlar
+// DEĞİL) açılıyorsa VE aktif bir tur GERÇEKTEN çalışıyorsa (kullanıcı ZATEN
+// Durdur'a basmadıysa, `autoStopped` false) `pauseRound()` (startBtn'in
+// "Durdur" ile AYNI mekanizma) turu duraklatır — sheet kapanınca
+// (`toolsCloseFilesSheet`) `resumeRound()` ile kaldığı yerden devam eder.
+// Kullanıcı ZATEN Durdur'a basmışsa BURAYA dokunulmaz — sheet kapanınca
+// yine duraklatılmış kalır, kullanıcının kendi kararı EZİLMEZ.
+let sheetPausedRound = false;
 function openFilesSheetForContext(contextId) {
   activeUploadContext = contextId;
-  goScreen("tools");
-  toolsOpenFilesSheet();
+  // toolsOpenFilesSheet() paywall kilitliyse sheet'i HİÇ AÇMADAN erken
+  // dönebilir (bkz. o fonksiyonun kendi notu) — dönüş değeri kontrol
+  // edilmeden ÖNCE duraklatılsaydı, sheet HİÇ açılmayınca turu asla geri
+  // AÇMAYAN bir "sonsuz duraklatma" oluşurdu. Bu yüzden ÖNCE aç, SADECE
+  // GERÇEKTEN açıldıysa duraklat.
+  const opened = toolsOpenFilesSheet();
+  sheetPausedRound = opened && contextId !== "tools" && !!activeQuestion && !autoStopped;
+  if (sheetPausedRound) pauseRound();
 }
 
 // G51 — Motor 3 (Frekans Çakışması): "kendi dosyalarım" çifti İKİ AYRI dosya
@@ -4747,6 +4758,26 @@ function pauseRound() {
   updateStartBtnLabel();
 }
 
+// G124 — pauseRound()'un TAM tersi, startBtn'in "Tekrar Çal" dalından
+// (aşağıda) ÇIKARILDI (ÖNCEDEN o handler'ın İÇİNE gömülüydü) — böylece
+// Dosyalarım sheet'i kapanınca AYNI mekanizma (bkz. openFilesSheetForContext'in
+// sheetPausedRound notu) programatik olarak da çağrılabiliyor. Ses zaten
+// arka planda akıyordu (Durdur sadece muteGain'i kısmıştı, bkz. pauseRound),
+// burada sadece geri açılıyor.
+function resumeRound() {
+  autoStopped = false;
+  autoPlaying = true;
+  audioEngine.unmuteOutput();
+  if (pausedAutoAdvanceRemainingMs !== null) {
+    const remain = pausedAutoAdvanceRemainingMs;
+    pausedAutoAdvanceRemainingMs = null;
+    ensureAutoNext(remain);
+  } else {
+    resumeTimerRespectingSettings();
+  }
+  updateStartBtnLabel();
+}
+
 function resumeTimerRespectingSettings() {
   if (timerOff()) {
     els.timerText.textContent = "∞";
@@ -5557,19 +5588,8 @@ els.startBtn.addEventListener("click", async () => {
   }
 
   if (autoStopped) {
-    // Tekrar Çal: hiçbir şey yeniden kurulmuyor/başlatılmıyor — ses zaten arka planda
-    // akıyordu (Durdur sadece muteGain'i kısmıştı), sadece geri açılıyor.
-    autoStopped = false;
-    autoPlaying = true;
-    audioEngine.unmuteOutput();
-    if (pausedAutoAdvanceRemainingMs !== null) {
-      const remain = pausedAutoAdvanceRemainingMs;
-      pausedAutoAdvanceRemainingMs = null;
-      ensureAutoNext(remain);
-    } else {
-      resumeTimerRespectingSettings();
-    }
-    updateStartBtnLabel();
+    // Tekrar Çal — bkz. resumeRound()'un dosya başı notu.
+    resumeRound();
   } else {
     // Durdur: soruyu/otomatik geçişi ekranda/durumda BOZMADAN sadece sesi/zamanlayıcıyı duraklatır.
     pauseRound();
@@ -7842,8 +7862,15 @@ function toolsResetSheetScroll(sheetEl) {
 // fonksiyonun İÇİNDE (tek yerde, tekrar yazılmadan).
 // G115 — Ölçüm Sonuçları artık sheet DEĞİL (akordiyona çevrildi), bu yüzden
 // aşağıdaki tarihsel not (G109) artık SADECE Dosyalarım sheet'i için geçerli.
+// G124 — Dosyalarım sheet'i artık HER ekranın üstünde açılabildiği için
+// (bkz. index.html'in AYNI notu) sabit `.tools-scroll` YERİNE O AN aktif
+// olan ekranın KENDİ `.scroll` bölgesi kilitleniyor (HER ekranın TEK bir
+// `.scroll` sınıflı kabı var — menu-scroll/game-scroll/tools-scroll/vb.,
+// grep ile doğrulandı) — Araçlar'dan açılışta davranış BİREBİR AYNI kaldı
+// (o zaman aktif ekran zaten `#screen-tools`), bir moddan açılışta ARTIK o
+// modun kendi oyun ekranı kilitleniyor.
 function toolsSetBackgroundScrollLocked(locked) {
-  const scrollEl = document.querySelector(".tools-scroll");
+  const scrollEl = document.querySelector(".screen.active .scroll");
   if (!scrollEl) return;
   if (locked) {
     scrollEl.style.overflow = "hidden";
@@ -7864,10 +7891,13 @@ function toolsSetBackgroundScrollLocked(locked) {
     );
   }
 }
+// G124 — dönüş değeri: gerçekten açıldıysa true, paywall kilidiyle erken
+// döndüyse false (bkz. openFilesSheetForContext'in "önce aç, sonra
+// duraklat" notu — bu dönüş değerine dayanıyor).
 function toolsOpenFilesSheet() {
   if (paywall.isToolsContentLocked(isUserPro())) {
     if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail, "pro");
-    return;
+    return false;
   }
   renderToolsFilesSheetContent();
   toolsResetSheetScroll(els.toolsFilesSheet);
@@ -7878,8 +7908,18 @@ function toolsOpenFilesSheet() {
     if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.add("open");
     if (els.toolsFilesSheet) els.toolsFilesSheet.classList.add("open");
   });
+  return true;
 }
 function toolsCloseFilesSheet() {
+  // G124 — bkz. openFilesSheetForContext'in sheetPausedRound notu: sheet
+  // BİZİM duraklattığımız bir turu kapatıyorsa (X'e basılsın, bir dosya
+  // seçilsin, fark etmez — toolsSelectFile de bunu çağırıyor) kaldığı
+  // yerden GERİ açılır. Kullanıcı ZATEN Durdur'a basmışsa (sheetPausedRound
+  // false) BURAYA hiç dokunulmaz.
+  if (sheetPausedRound) {
+    sheetPausedRound = false;
+    resumeRound();
+  }
   toolsSetBackgroundScrollLocked(false);
   if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.remove("open");
   if (els.toolsFilesSheet) els.toolsFilesSheet.classList.remove("open");
@@ -8002,11 +8042,12 @@ async function toolsHandlePickNewFile() {
     uploadDiagLog(7, "Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı)", "BİTTİ", `${(performance.now() - t7_0).toFixed(0)} ms — NOT: renderToolsTonalCard() İÇİNDEKİ Tonal Balance ölçümü (adım 5) AWAIT EDİLMİYOR, ayrı bir log'da tamamlanma zamanı görünür`);
   }
 }
-// G123 — Araçlar'ın KENDİ giriş noktaları HER ZAMAN "tools" bağlamını
+// G123/G124 — Araçlar'ın KENDİ giriş noktaları HER ZAMAN "tools" bağlamını
 // hedefler — bir moddan bırakılmış olabilecek activeUploadContext SIZMASIN.
+// openFilesSheetForContext'in KENDİSİ kullanılıyor (contextId="tools" olduğu
+// için sheetPausedRound zaten hiç tetiklenmez, ayrı bir fonksiyona GEREK YOK).
 function toolsOpenFilesSheetFromTools() {
-  activeUploadContext = "tools";
-  toolsOpenFilesSheet();
+  openFilesSheetForContext("tools");
 }
 if (els.toolsUploadBtn) els.toolsUploadBtn.addEventListener("click", toolsOpenFilesSheetFromTools);
 if (els.toolsGearBtn) els.toolsGearBtn.addEventListener("click", toolsOpenFilesSheetFromTools);

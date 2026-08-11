@@ -1105,42 +1105,6 @@
         </div>
       </div>
 
-      <!-- C) Dosyalarım sheet'i -->
-      <div class="tools-sheet-overlay hidden" id="toolsFilesOverlay"></div>
-      <div class="tools-sheet hidden" id="toolsFilesSheet">
-        <div class="tools-sheet-handle"><span></span></div>
-        <div class="tools-sheet-head">
-          <div class="tools-sheet-title">Dosyalarım</div>
-          <button class="tools-sheet-close" id="toolsFilesClose" type="button" aria-label="Kapat">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
-          </button>
-        </div>
-        <div class="tools-sheet-body">
-          <button class="tools-files-pick-btn" id="toolsFilesPickBtn" type="button">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
-            <span id="toolsFilesPickBtnLabel">Cihazdan yeni dosya seç · WAV, MP3, AIFF</span>
-            <div id="toolsFilesPickBar" class="tools-files-pick-bar"></div>
-          </button>
-          <input type="file" id="toolsFileInput" accept="audio/*" class="hidden" />
-
-          <div class="tools-files-section-label">YÜKLEDİKLERİM</div>
-          <div class="tools-files-list" id="toolsFilesList"></div>
-          <div class="tools-files-empty hidden" id="toolsFilesEmpty">
-            <div class="tools-files-empty-title">Henüz dosya yüklemedin</div>
-            <div class="tools-files-empty-sub">WAV, MP3 veya AIFF yükle, referans filtreleriyle dinle.</div>
-          </div>
-          <div class="tools-files-total-space hidden" id="toolsFilesTotalSpace"></div>
-
-          <div class="tools-files-section-label">SON İŞLEMLERİM</div>
-          <div id="toolsActionsList"></div>
-          <div class="tools-files-plain-empty hidden" id="toolsActionsEmpty">Henüz bir dosyayla çalışmadın.</div>
-
-          <div class="tools-files-section-label">SON ÖLÇÜMLERİM</div>
-          <div id="toolsMeasurementsList"></div>
-          <div class="tools-files-plain-empty hidden" id="toolsMeasurementsEmpty">Henüz ölçüm yapmadın.</div>
-        </div>
-      </div>
-
     </section>
 
     <!-- ================= EKRAN: KALİBRASYON ================= -->
@@ -1718,6 +1682,56 @@
       <button class="sheet-cancel" id="sheetCancel" type="button">İptal</button>
     </div>
     <div class="sheet-options" id="sheetOptions"></div>
+  </div>
+
+  <!-- G124 — Dosyalarım sheet'i BURAYA taşındı (ÖNCEDEN #screen-tools İÇİNE
+       gömülüydü). KÖK SEBEP: `.screen{display:none}` — `#screen-tools`
+       `.active` DEĞİLKEN (bir modun oyun ekranındayken) sheet'in KENDİ
+       "open" class'ı hiçbir işe yaramıyordu, elemanın kendisi HİÇ render
+       edilmiyordu (bir ata `display:none` ise `position:fixed` bile
+       kurtarmaz). G122/G123'te bu YÜZDEN her mod-bağlamlı açılış ÖNCE
+       `goScreen("tools")` ile Araçlar'a geçmek ZORUNDAYDI — kullanıcı
+       oyunun İÇİNDEYKEN başka bir sekmeye "atılıyordu" (kullanıcının kendi
+       raporu). ÇÖZÜM: `#settingsSheet`'in (Kaynak/Zorluk sheet'i) KENDİSİ
+       zaten bu AYNI `<body>`'nin doğrudan çocuğu deseniyle HER ekranın
+       üstünde açılabiliyor — Dosyalarım sheet'i AYNI konuma taşındı, artık
+       `goScreen()` GEREKMİYOR (bkz. app.js openFilesSheetForContext'in G124
+       notu). DOM/ID'ler TEK SATIR değişmedi, SADECE konumu değişti — CSS'te
+       `#screen-tools .tools-sheet` gibi kapsayan bir kural olmadığı grep ile
+       doğrulandı. -->
+  <div class="tools-sheet-overlay hidden" id="toolsFilesOverlay"></div>
+  <div class="tools-sheet hidden" id="toolsFilesSheet">
+    <div class="tools-sheet-handle"><span></span></div>
+    <div class="tools-sheet-head">
+      <div class="tools-sheet-title">Dosyalarım</div>
+      <button class="tools-sheet-close" id="toolsFilesClose" type="button" aria-label="Kapat">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+      </button>
+    </div>
+    <div class="tools-sheet-body">
+      <button class="tools-files-pick-btn" id="toolsFilesPickBtn" type="button">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+        <span id="toolsFilesPickBtnLabel">Cihazdan yeni dosya seç · WAV, MP3, AIFF</span>
+        <div id="toolsFilesPickBar" class="tools-files-pick-bar"></div>
+      </button>
+      <input type="file" id="toolsFileInput" accept="audio/*" class="hidden" />
+
+      <div class="tools-files-section-label">YÜKLEDİKLERİM</div>
+      <div class="tools-files-list" id="toolsFilesList"></div>
+      <div class="tools-files-empty hidden" id="toolsFilesEmpty">
+        <div class="tools-files-empty-title">Henüz dosya yüklemedin</div>
+        <div class="tools-files-empty-sub">WAV, MP3 veya AIFF yükle, referans filtreleriyle dinle.</div>
+      </div>
+      <div class="tools-files-total-space hidden" id="toolsFilesTotalSpace"></div>
+
+      <div class="tools-files-section-label">SON İŞLEMLERİM</div>
+      <div id="toolsActionsList"></div>
+      <div class="tools-files-plain-empty hidden" id="toolsActionsEmpty">Henüz bir dosyayla çalışmadın.</div>
+
+      <div class="tools-files-section-label">SON ÖLÇÜMLERİM</div>
+      <div id="toolsMeasurementsList"></div>
+      <div class="tools-files-plain-empty hidden" id="toolsMeasurementsEmpty">Henüz ölçüm yapmadın.</div>
+    </div>
   </div>
 
   <!-- G52: yukarıdaki upload-row'lardaki proxy butonların hedeflediği GERÇEK
