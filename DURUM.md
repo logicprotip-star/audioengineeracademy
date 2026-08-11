@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G118)
+Son güncelleme: 11.08.2026 (G119)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,56 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G118, tek commit, `1c0e396`) — **İKİ YENİ MOD: Pan Konumu ve Stereo Genişlik — placeholder'dan (playable:false) gerçek moda çevrildi.**
+Bu commit (G119, tek commit, `361ff94`) — **Pan Konumu/Stereo Genişlik hâlâ "Yakında" rozetiyle görünüyordu (kullanıcının cihaz raporu) — gerçek kök sebep bulundu, düzeltildi.**
+
+**KÖK SEBEP:** G118'de `mode-catalog.js`'in `playable` bayrağı doğru
+açılmıştı — `renderExerciseGrid()` bunu ZATEN dinamik okuyordu, ikisi de
+GERÇEK kart olarak DOĞRU görünüyordu (G118'in kendi Playwright
+doğrulaması bunu kanıtlamıştı, DURUM.md'de kayıtlı). Ama `app.js`'te
+`renderComingGrid()`'in beslediği AYRI/hardcoded bir dizi —
+`COMING_MODE_ORDER = ["stereo-genislik", "pan-konumu", "hiz-modu",
+"hangisi-farkli"]` — `playable` bayrağından TAMAMEN BAĞIMSIZDI ve G118'de
+GÜNCELLENMEMİŞTİ. Sonuç: aynı iki mod aynı anda İKİ YERDE görünüyordu —
+yukarıda gerçek/oynanabilir kart olarak, aşağıda "Yakında" bölümünde
+ikinci bir sahte kart olarak. G118'in doğrulaması SADECE yukarıdaki
+gerçek kartı kontrol etmiş, aşağı kaydırıp "Yakında" bölümünde bir
+ikinci/eski kopya kalıp kalmadığını KONTROL ETMEMİŞTİ — bu turun
+dersi.
+
+**DÜZELTME (`www/js/app.js`):** `COMING_MODE_ORDER` artık sadece kalan
+İKİ gerçek placeholder'ı içeriyor: `["hiz-modu", "hangisi-farkli"]`.
+Artık kullanılmayan `COMING_ICON_PATH`'in stereo-genislik/pan-konumu
+girdileri (ölü veri) temizlendi.
+
+**Kullanıcıya görünen "10 mod" metinleri 12'ye güncellendi** (3 yer,
+grep ile TÜM kod tabanı tarandı — geri kalanlar SADECE kod yorumu,
+kullanıcı hiç görmüyor):
+- `app.js`: Pro simülasyon toast'ı ("🎉 Pro açıldı... 12 mod...")
+- `guide-texts.js`: GENERAL_GUIDE'ın "Ücretsiz ve Pro" bölümü ("i" bilgi sayfası)
+- `paywall.js`: `PRO_BENEFITS` listesinin ilk satırı ("12 modun tamamı")
+
+`#modeCount` (ana ekranın üst kısmındaki "N mod" etiketi) zaten
+`MODE_CATALOG.filter(e => e.playable).length`'ten DİNAMİK üretiliyordu
+— kod değişikliği GEREKMEDİ, playable bayrağı doğru olduğu için zaten
+"12 mod" gösteriyordu (bu turda SADECE doğrulandı).
+
+**DOĞRULAMA (masaüstü Chrome, Playwright):**
+- `.coming-card` sayısı: **2** (Hız Modu, Hangisi Farklı — SADECE bunlar).
+- `.mode-card` sayısı: **12**, `pan-konumu`/`stereo-genislik` İKİSİ de
+  gerçek/oynanabilir kart listesinde (`data-mode-id` ile doğrulandı).
+- `#modeCount` metni: **"12 mod"**.
+- Ekran görüntüsüyle doğrulandı: "YAKINDA" başlığı altında SADECE Hız
+  Modu ve Hangisi Farklı kartları var, ikisi de kesikli-kenarlıklı
+  placeholder stilinde (Pan Konumu/Stereo Genişlik ORADA DEĞİL).
+- Konsol hatası: 0.
+- **`npm test`: 1209/1209** (kod mantığı değişmedi, sadece render/metin).
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chrome'da yapıldı, cihazda CANLI
+doğrulanmadı. `npx cap sync ios` çalıştırıldı.
+
+---
+
+Önceki commit (G118, tek commit, `1c0e396`) — **İKİ YENİ MOD: Pan Konumu ve Stereo Genişlik — placeholder'dan (playable:false) gerçek moda çevrildi.**
 
 **Mod sözleşmesi diğer 10 modla BİREBİR aynı** (getMeta/createQuestion/
 applyProcessing/evaluateAnswer/calculateXP/getFeedbackData) —
@@ -9977,7 +10026,19 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G118 itibarıyla):** `npx cap sync ios` (bu turda
+**Tek sonraki adım (G119 itibarıyla):** `npx cap sync ios` (bu turda
+zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
+kurulum sonrası ana ekranı KONTROL ETMELİ: (1) Pan Konumu/Stereo
+Genişlik artık normal/oynanabilir kart olarak görünüyor mu (kilitli/
+"Yakında" DEĞİL); (2) "Yakında" bölümünde SADECE Hız Modu ve Hangisi
+Farklı var mı (ikisi de ARTIK orada OLMAMALI); (3) üst kısımdaki "N mod"
+etiketi "12 mod" mu gösteriyor. Bu turda masaüstü Chrome'da Playwright
+ile hepsi doğrulandı (bkz. BİTTİ) — cihazda CANLI doğrulama HENÜZ yok.
+Bu doğrulandıktan SONRA, G118'in SIRADAKİ'sindeki asıl kulakla-test
+maddeleri (Pan Konumu'nun 7 kademesi, Stereo Genişlik'in mikro-gecikme
+tekniği) hâlâ geçerli — aşağıya taşındı.
+
+**Önceki adım (G118 itibarıyla):** `npx cap sync ios` (bu turda
 zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
 kurulum sonrası GERÇEK kulakla doğrulamalı: (1) Pan Konumu'nda 7
 kademenin (Tam Sol...Tam Sağ) HEPSİNİN kulakla ayırt edilebildiği,
