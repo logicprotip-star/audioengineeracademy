@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G122)
+Son güncelleme: 11.08.2026 (G123)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,112 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G122, `30b073c`) — **Stereo Genişlik'in kaynağı TAMAMEN değişti: artık SADECE kullanıcının yüklediği dosyayla oynanıyor, DSP mid/side genişliğe geçti (kullanıcının kendi kararı, G120'nin sentetik-kaynak çözümünün "modu soyutlaştırdığı" gerekçesiyle).**
+Bu commit (G123, `e171e23`) — **dosya seçimi mod başına ayrıldı (kullanıcının kendi kararı) + Frekans Bulma'nın "kendi dosyam" seçim hatası kök sebebinden düzeltildi.**
+
+**SORUN (kullanıcının kendi tarifi):** G121'de Stereo Genişlik Araçlar'ın
+dosya kütüphanesine bağlanınca, TEK bir "seçili dosya" durumu ortaya çıktı —
+Araçlar'da seçilen dosya modlarda da seçili oluyordu, bir modda değiştirilince
+HEPSİ değişiyordu. Kullanıcı Araçlar'da ölçtüğü şarkıyla Frekans Bulma'da
+çalıştığı kaynağın FARKLI olabilmesini istiyordu.
+
+**KÖK SEBEP (kod incelemesiyle doğrulandı):** `app.js`'te TEK paylaşılan
+`uploadManager` (core/upload.js — aynı anda SADECE bir dosyanın decode
+edilmiş buffer'ını tutabiliyor) + TEK `toolsSelectedFileId` (SADECE Araçlar'a
+özgü bir değişken ama fiilen TÜM uygulamanın "hangi dosya aktif" durumunu
+belirliyordu). Kütüphane (`toolsFiles`, G102'den beri kalıcı) zaten
+paylaşılan/doğru bir tasarımdı — sorun SADECE "hangisi seçili" katmanındaydı.
+
+**ÇÖZÜM — bağlam başına kalıcı seçim:** `storage.js`'e yeni
+`uploadSelections` haritası (`{contextId: fileId}` — `"tools"` Araçlar için,
+her modun kendi `MODE_ID`'si diğerleri için), localStorage'da KALICI
+(`loadUploadSelections`/`saveUploadSelections`, `loadDevFlags`'ın AYNI
+dürüst try/catch deseni). `app.js`:
+- `activeUploadContext` (module-level) — Dosyalarım sheet'i AÇILMADAN HEMEN
+  ÖNCE set ediliyor (`openFilesSheetForContext(contextId)` — YENİ, TEK
+  ortak fonksiyon, HEM `activeUploadContext`'i set edip HEM `goScreen("tools")`
+  ile Araçlar'a geçiyor — bkz. aşağıdaki KÖK SEBEP #2).
+- `ensureUploadSelectionLoaded(contextId)` — bir bağlama girildiğinde
+  (`goScreen`'in `"tools"`/`"game"` dalları) `uploadManager`'ı o bağlamın
+  KENDİ kalıcı seçimine yeniden yükler. Yanlış dosya yüklüyse ÖNCE (senkron)
+  `upload.js`'e YENİ eklenen `clear()` ile boşaltılır — geçiş anında
+  `syncStereoUploadGate()` gibi okuyucular BAŞKA bir bağlamın dosyasını asla
+  "bu bağlamınmış" gibi görmez.
+- `toolsSelectFile`/`toolsAddFile`/`toolsRemoveFile`/`toolsCheckLibraryIntegrity`
+  hepsi `activeUploadContext`'e göre okuyup yazacak şekilde güncellendi —
+  Araçlar'a ÖZGÜ analiz/önizleme sıfırlaması (`resetToolsAnalysis` vb.)
+  SADECE `contextId==="tools"` iken çalışıyor (bir MOD için dosya seçmek
+  Araçlar'ın açık analiz sonucunu BOZMUYOR).
+- `renderToolsFilesSheetContent()`'in "seçili" işaretlemesi artık
+  `toolsSelectedFileId` (Araçlar'a özgü) YERİNE `uploadSelections[activeUploadContext]`
+  okuyor — sheet HANGİ bağlamdan açıldıysa O bağlamın seçimini gösteriyor.
+
+**KÖK SEBEP #2 (Frekans Bulma'nın "seçim ekranında çalışmıyor" hatası):**
+Kaynak sheet'inin "Dosya seç" satırının "yüklü mü" kontrolü ÖNCEDEN GLOBAL
+`uploadManager.hasBuffer`'a bakıyordu — bir BAŞKA modda (ya da Araçlar'da)
+ZATEN bir dosya yüklüyse, BU modun HİÇ dosyası olmasa BİLE satır "seçili"
+(✓) görünüyor, tıklanınca picker'ı AÇMADAN sessizce o YABANCI dosyayı bu
+moda uyguluyordu — kullanıcının "seçim ekranında görünmüyor/uygulanmıyor
+ama tur başlayınca dosya geliyor" raporunun TAM açıklaması. Düzeltme: satır
+artık BU MODUN kendi kalıcı seçimine (`uploadSelections[mode.MODE_ID]`)
+bakıyor, HER tıklamada (seçili olsun ya da olmasın) TEK/ortak Dosyalarım
+sheet'ini bu modun bağlamına kilitleyerek açıyor — eski
+`pickNativeAudioFile()`/`processSingleUploadFile()` doğrudan-native-picker
+yoluna BİR DAHA gidilmiyor (task'ın "ikinci bir dosya sistemi kurma" kuralı).
+Aynı düzeltme Oyun Ayarları'nın "Ses dosyası yükle" satırına da uygulandı
+(`.upload-trigger-btn` forEach'in `audioFileInput` dalı) — bu iki yol artık
+`processSingleUploadFile`/`#audioFileInput`'a hiç GİTMİYOR, o fonksiyon +
+DOM elemanı (native `<input type="file">`, dosya adı span'ı) TAMAMEN
+ölü/erişilemez hale geldiği için SİLİNDİ (grep ile doğrulandı, hiçbir çağrı
+yeri kalmamıştı).
+
+**KAPSAM DIŞI (bilinçli karar):** Frekans Çakışması'nın `uploadManagerA`/`B`
+çifti BU değişikliğin DIŞINDA bırakıldı — o mod zaten AYRI, KENDİ iki
+uploadManager örneğini kullanıyor (çakışma bu turun sorunuyla hiç
+paylaşmıyor), kaynak id'leri literal `"upload"` DEĞİL (`"upload-a"`/
+`"upload-b"`), ve "mod başına TEK seçim" modeline uymuyor (iki SLOT var,
+bir SEÇİM değil).
+
+**"Upload" destekleyen TÜM modlar kontrol edildi** (grep ile 10 modda
+`uyumluKaynaklar`'ın `"upload"` içerdiği doğrulandı: distortion, boost-mu-
+cut-mu, kompresor, frekans-bulma, db-seviyesi, q-genisligi, kesim-noktasi
+[hepsi `compatibleSourceIds()` varsayılanı üzerinden], + pan-konumu/tonal-
+denge/reverb [elle seçilmiş `only` listeleri] + stereo-genislik [SADECE
+upload]) — HEPSİ AYNI merkezi mekanizmadan (`ensureUploadSelectionLoaded`/
+`openFilesSheetForContext`) geçiyor, mod-özel kod YOK.
+
+**DOĞRULAMA (Playwright, gerçek Chromium, gerçek WAV dosyalarıyla, `localStorage`'a
+`simulatePro` basılarak Pro kilidi test amaçlı aşıldı):**
+1. **Araçlar'da FileA, Frekans Bulma'da FileB seçiliyken İKİSİ DE korundu**
+   — Araçlar'da bir stereo dosya yüklendi (`uploadSelections.tools` set
+   edildi), Frekans Bulma'nın Kaynak sheet'inden "Dosya seç" ile BAŞKA bir
+   dosya (mono) seçildi — Araçlar'ın seçimi (`uploadSelections.tools`)
+   DEĞİŞMEDİ, doğrulandı. ✔
+2. **Frekans Bulma'nın "Dosya seç" satırı seçim EKRANINDA ✓ görünüyor**
+   (eskiden global `hasBuffer`'a bakıp gerçek dışı bir durum gösterebiliyordu)
+   ve **round GERÇEKTEN o dosyayla başlıyor** ("Önce ses yükle" hatası YOK). ✔
+3. **Sayfa yeniden yüklendi (uygulama kapanıp açılmasını simüle eder) —
+   HER İKİ seçim de (Araçlar + Frekans Bulma) AYNI dosya id'leriyle geri
+   geldi**, Frekans Bulma round'u dosya hatası VERMEDEN tekrar başladı
+   (`ensureUploadSelectionLoaded`'ın oto-yeniden-yükleme yolu doğrulandı). ✔
+4. **Üç bağımsız mod (Pan Konumu/Frekans Bulma/Stereo Genişlik) AYNI ANDA
+   üç FARKLI dosya seçti, hiçbiri birbirini etkilemedi** — Pan Konumu'na iki
+   mod ARADAN geçtikten SONRA geri dönüldüğünde "Dosya seç" satırı HÂLÂ ✓
+   (seçim SIZMADI/kaybolmadı), Stereo Genişlik HÂLÂ oynanabilir durumda
+   (gate paneli görünmüyor). ✔
+5. Konsol hatası: **0** (tüm senaryolar boyunca, dosya yükleme/decode/round
+   başlatma/sayfa yenileme dahil).
+6. **`npm test`: 1234/1234** (G122'nin 1227'sinden +7 — `upload.js:clear()`
+   + `storage.js:loadUploadSelections/saveUploadSelections` için yeni testler).
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chrome/Playwright'ta yapıldı, cihazda
+CANLI doğrulanmadı — özellikle native `FilePicker` plugin'inin (iOS/Android)
+bu yeni bağlam-değiştirme akışıyla (Dosyalarım sheet'inin artık HER moddan
+`goScreen("tools")` üzerinden açılması) etkileşimi bu ortamda test
+EDİLEMEZ. `npx cap sync ios` bu turda çalıştırıldı.
+
+---
+
+Önceki commit (G122, `30b073c`) — **Stereo Genişlik'in kaynağı TAMAMEN değişti: artık SADECE kullanıcının yüklediği dosyayla oynanıyor, DSP mid/side genişliğe geçti (kullanıcının kendi kararı, G120'nin sentetik-kaynak çözümünün "modu soyutlaştırdığı" gerekçesiyle).**
 
 **KARAR:** G120'nin comb-filter çözümü (iki bağımsız sentetik kaynak — gürültü/
 osilatör) matematiksel olarak sağlamdı ama "her mod gerçek bir mix
@@ -10401,18 +10506,28 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G122 itibarıyla):** kullanıcı Xcode'da temiz derleme +
-cihaza yeniden kurulum sonrası GERÇEK bir şarkı dosyası yükleyip Stereo
-Genişlik'i kulaklıkla dinlemeli: (1) %0'da GERÇEKTEN tam mono hissi var mı,
-(2) %100'de dosyanın kendi orijinal genişliği doğru duyuluyor mu, (3) ara
-kademelerde (özellikle en dar Z20 farkı, %6) fark HÂLÂ ayırt edilebilir mi,
-(4) mono bir dosya denenirse doğru uyarı çıkıyor mu, (5) "Dosyalarım'ı Aç"
-akışı cihazda (dosya seçici/izinler) sorunsuz çalışıyor mu. Bu turda SADECE
-sayısal (korelasyon/cepstrum, GERÇEK Web Audio `OfflineAudioContext` ile
-ama SENTETİK bir test sinyaliyle) ve masaüstü Chrome/Playwright uçtan-uca
-(gerçek WAV dosyaları, 0 konsol hatası) doğrulama yapıldı — kulakla GERÇEK
-bir mix üzerinde HENÜZ doğrulanmadı (bkz. G122 BİTTİ'nin DÜRÜSTLÜK notu,
-BEKLEYEN KARARLAR-N).
+**Tek sonraki adım (G123 itibarıyla):** kullanıcı Xcode'da temiz derleme +
+cihaza yeniden kurulum sonrası GERÇEK cihazda (native `FilePicker` plugin'i
+dahil) doğrulamalı: (1) Araçlar'da bir dosya seç, farklı bir modda (ör.
+Frekans Bulma) BAŞKA bir dosya seç, ikisi de korunuyor mu; (2) uygulamayı
+TAMAMEN kapat/yeniden aç, iki seçim de hatırlanıyor mu; (3) Frekans Bulma'nın
+Kaynak sheet'inden "Dosya seç"e basınca native dosya seçici (ya da Dosyalarım
+sheet'i) DÜZGÜN açılıyor mu — bu akış artık `goScreen("tools")` üzerinden
+gidiyor, masaüstünde test edildi ama cihazdaki native picker'ın Araçlar
+ekranına geçtikten SONRA açılması hiç DENENMEDİ. Bu turda SADECE masaüstü
+Chrome/Playwright'ta (gerçek WAV dosyaları, sayfa yenilemeyle simüle edilen
+"uygulama yeniden başlatma", 0 konsol hatası) doğrulama yapıldı (bkz. G123
+BİTTİ'nin DÜRÜSTLÜK notu).
+
+**Ayrıca hâlâ açık (G122'den):** kullanıcı Xcode'da temiz derleme + cihaza
+yeniden kurulum sonrası GERÇEK bir şarkı dosyası yükleyip Stereo Genişlik'i
+kulaklıkla dinlemeli: (1) %0'da GERÇEKTEN tam mono hissi var mı, (2) %100'de
+dosyanın kendi orijinal genişliği doğru duyuluyor mu, (3) ara kademelerde
+(özellikle en dar Z20 farkı, %6) fark HÂLÂ ayırt edilebilir mi, (4) mono bir
+dosya denenirse doğru uyarı çıkıyor mu. Bu turda SADECE sayısal (korelasyon/
+cepstrum, GERÇEK Web Audio `OfflineAudioContext` ile ama SENTETİK bir test
+sinyaliyle) doğrulama yapıldı — kulakla GERÇEK bir mix üzerinde HENÜZ
+doğrulanmadı (bkz. G122 BİTTİ'nin DÜRÜSTLÜK notu, BEKLEYEN KARARLAR-N).
 
 **Ayrıca hâlâ açık (G121'den):** kullanıcı Xcode/Android Studio'da temiz
 derleme + cihaza yeniden kurulum sonrası GERÇEKTEN döndürerek doğrulamalı:
