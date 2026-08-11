@@ -373,6 +373,12 @@ const els = {
   // soru / spektrum
   questionTitle: document.getElementById("questionTitle"),
   questionMeta: document.getElementById("questionMeta"),
+  // G122 — Stereo Genişlik'in "dosya yok/mono" gate paneli, bkz. index.html
+  // #stereoUploadGate notu + app.js syncStereoUploadGate.
+  stereoUploadGate: document.getElementById("stereoUploadGate"),
+  stereoUploadGateTitle: document.getElementById("stereoUploadGateTitle"),
+  stereoUploadGateText: document.getElementById("stereoUploadGateText"),
+  stereoUploadGateBtn: document.getElementById("stereoUploadGateBtn"),
   analyzer: document.getElementById("analyzer"),
   analyzerLabel: document.getElementById("analyzerLabel"),
   gainValue: document.getElementById("gainValue"),
@@ -1839,6 +1845,44 @@ function updateAbToggleUI() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// G122 — Stereo Genişlik "dosya yok/mono" gate'i. mode.bufferPlayability()
+// (SAF, sadece bir AudioBuffer okur) TEK doğruluk kaynağı — burada SADECE
+// panel görünürlüğü + normal oyun UI'sinin gizlenmesi, startRound()'daki
+// AYRI guard (aşağı) da AYNI fonksiyonu okuyarak round'un fiilen
+// başlamasını engelliyor (iki nokta, TEK mantık).
+// ═══════════════════════════════════════════════════════════════════════════
+function syncStereoUploadGate() {
+  if (!els.stereoUploadGate) return;
+  if (mode.MODE_ID !== "stereo-genislik" || !mode.bufferPlayability) {
+    els.stereoUploadGate.classList.add("hidden");
+    return;
+  }
+  const playability = mode.bufferPlayability(uploadManager.getBuffer());
+  const needsGate = !playability.ok;
+  els.stereoUploadGate.classList.toggle("hidden", !needsGate);
+  // Kapılıyken normal oyun UI'sı (analizör/kontroller/şıklar) GİZLENİR —
+  // "Oynat"a basılabilir ama geçersiz bir dosyayla round BAŞLATILAMAZ
+  // (aşağıdaki startRound() guard'ı zaten bunu engelliyor), bu panel o
+  // durumu hiç YAŞATMADAN önden gösteriyor.
+  if (els.analyzer) els.analyzer.classList.toggle("hidden", needsGate || !!mode.HIDE_ANALYZER);
+  if (els.gameSpectrumControls) els.gameSpectrumControls.classList.toggle("hidden", needsGate);
+  if (needsGate) {
+    if (els.answers) { els.answers.innerHTML = ""; els.answers.classList.add("hidden"); }
+    if (playability.reason === "mono") {
+      els.stereoUploadGateTitle.textContent = "Bu dosya mono";
+      els.stereoUploadGateText.textContent = "Stereo genişlik mono bir dosyada ölçülemez (side bileşeni sıfır). Dosyalarım'dan farklı, stereo bir dosya seç.";
+    } else {
+      els.stereoUploadGateTitle.textContent = "Bu mod kendi dosyanla oynanır";
+      els.stereoUploadGateText.textContent = "Genişlik ölçümü gerçek bir mix üzerinde çalışır. Dosyalarım'dan bir şarkı seç ya da yeni bir dosya yükle.";
+    }
+  }
+}
+if (els.stereoUploadGateBtn) els.stereoUploadGateBtn.addEventListener("click", () => {
+  goScreen("tools");
+  toolsOpenFilesSheet();
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Ekran yönlendirme (menü / oyun / ilerleme / araçlar)
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1865,6 +1909,11 @@ function goScreen(name) {
     // okumak tarayıcıyı güncel layout'u hesaplamaya zorlar — rAF'a gerek yok (rAF arka
     // planda/pasif sekmelerde ertelenebiliyor, bu da güvenilmez ölçümlere yol açıyordu).
     resizeCanvas();
+    // G122 — enterMode()'un "mod DEĞİŞMEDİYSE atla" bloğunun (mode !== realMode)
+    // AKSİNE, bu kontrol oyun ekranına HER giriş yolunda (kart tıklama, geri
+    // tuşu, Dosyalarım sheet'inden dönüş) çalışmalı — buraya, doğrudan
+    // goScreen()'e bağlandı (enterMode İÇİNE değil).
+    syncStereoUploadGate();
     // E3 güvenlik ağı: cevap verilip actionbar tucked'ken kullanıcı "Geri"ye basıp
     // menüye çıkarsa (sonraki tur hiç renderQuestion() çağırmadan), bu sınıf DOM'da
     // takılı kalırdı — bir dahaki oyun ekranı girişinde "Oyunu Başlat" butonu bile
@@ -4606,6 +4655,22 @@ function startRound() {
     setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
     return;
   }
+  // G122: Stereo Genişlik — mode.bufferPlayability() (bkz. syncStereoUploadGate'in
+  // AYNI kaynağı) round'un FİİLEN başlamasını da engeller — gate paneli normalde
+  // bu duruma HİÇ gelinmeden Oynat'ı zaten gizliyor, bu SADECE ikinci bir emniyet
+  // (ör. panel bir yarış durumunda henüz güncellenmediyse).
+  if (mode.MODE_ID === "stereo-genislik" && mode.bufferPlayability) {
+    const playability = mode.bufferPlayability(uploadManager.getBuffer());
+    if (!playability.ok) {
+      setFeedback(
+        playability.reason === "mono" ? "Bu dosya mono" : "Önce ses yükle",
+        playability.reason === "mono"
+          ? "Stereo genişlik mono bir dosyada ölçülemez. Dosyalarım'dan farklı, stereo bir dosya seç."
+          : "Bu mod sadece kendi yüklediğin dosyayla oynanır. Dosyalarım'dan bir dosya seç."
+      );
+      return;
+    }
+  }
   // G51: Motor 3 (Frekans Çakışması) — "own" (kendi dosyalarım) çifti İKİ AYRI
   // dosya gerektirir, üstteki guard'ın AYNI mantığı ama İKİ uploadManager için.
   if (mode.MODE_ID === "frekans-cakismasi" && currentCakismaPairId() === "own" && (!uploadManagerA.hasBuffer || !uploadManagerB.hasBuffer)) {
@@ -4640,6 +4705,14 @@ function startRound() {
     ? (zoneRemedial ? "medium" : examSystem.questionTier(els.difficultySelect.value, mode.EXAM_DIFFICULTY))
     : els.difficultySelect.value;
   const boss = examActive ? false : mode.isBossRound(stats.rounds);
+  // G122 — Stereo Genişlik: HER yeni turda dosyanın enerjili/rastgele bir
+  // noktasına sıçra (bkz. upload.js seekTo notu + mode.pickPlaybackOffset'in
+  // dosya başı notu — createQuestion'ın SAF sözleşmesini bozmamak için
+  // BURADA, createQuestion'dan ÖNCE yapılıyor; buildQuestionChain playQuestion()
+  // içinde bu turun İÇİNDE, birazdan çağrılacak).
+  if (mode.MODE_ID === "stereo-genislik" && mode.pickPlaybackOffset && uploadManager.hasBuffer) {
+    uploadManager.seekTo(mode.pickPlaybackOffset(uploadManager.getBuffer()));
+  }
   activeQuestion = mode.createQuestion(examTier, {
     source: pickRoundSource(),
     // G51: Motor 3 (Frekans Çakışması) — SADECE o modun createQuestion'ı okur

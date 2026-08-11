@@ -137,6 +137,18 @@ export function createUploadManager(getAudioCtx) {
     playing = false;
   }
 
+  // G122 — Stereo Genişlik'in "her yeni turda dosyanın FARKLI/enerjili bir
+  // noktasından başla" ihtiyacı için: startFromZero()'nun AYNI deseni,
+  // sadece 0 yerine keyfi bir saniyeye atlıyor. buffer.duration'a göre
+  // sarılır (negatif/aşan bir saniye verilirse bile GEÇERSİZ bir offset'te
+  // TAKILMAZ). Diğer modlar/Araçlar bu fonksiyonu HİÇ çağırmıyor — mevcut
+  // pause/resume/loop davranışı (bkz. dosya başı notu) BİR SATIR değişmedi.
+  function seekTo(sec) {
+    if (!buffer || !Number.isFinite(sec)) return;
+    offset = ((sec % buffer.duration) + buffer.duration) % buffer.duration;
+    playing = false;
+  }
+
   async function loadFile(file) {
     if (!file) return { ok: false };
 
@@ -225,6 +237,7 @@ export function createUploadManager(getAudioCtx) {
     loadFile,
     pausePlayback,
     startFromZero,
+    seekTo,
     getSourceNode,
     getBuffer,
     get hasBuffer() { return !!buffer; },

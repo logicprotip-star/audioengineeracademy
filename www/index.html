@@ -355,6 +355,18 @@
         <div class="qline hidden" id="questionTitle"></div>
         <div class="qline-sub hidden" id="questionMeta"></div>
 
+        <!-- G122 — Stereo Genişlik artık SADECE yüklenen dosyayla oynanıyor
+             (bkz. modes/stereo-genislik.js dosya başı notu). Dosya yokken/
+             mono iken normal analizör+kontroller+şıklar GİZLENİR (bkz. app.js
+             syncStereoUploadGate), bunun YERİNE bu panel gösterilir — "ikinci
+             bir dosya sistemi" KURULMADI, buton mevcut Dosyalarım sheet'ini
+             (Araçlar sekmesi) açıyor (bkz. app.js toolsOpenFilesSheet). -->
+        <div class="card stereo-upload-gate hidden" id="stereoUploadGate">
+          <div class="stereo-upload-gate-title" id="stereoUploadGateTitle">Bu mod kendi dosyanla oynanır</div>
+          <div class="stereo-upload-gate-text" id="stereoUploadGateText">Genişlik ölçümü gerçek bir mix üzerinde çalışır. Dosyalarım'dan bir şarkı seç ya da yeni bir dosya yükle.</div>
+          <button type="button" class="btn stereo-upload-gate-btn" id="stereoUploadGateBtn">Dosyalarım'ı Aç</button>
+        </div>
+
         <!-- G85 DÜZELTMESİ: Tasarim-2026-08/Prototip.dc.html:spectrum()'ün
              analizör kartı (satır ~640-654) birebir — ızgara+alt kenar satırı
              ("20 Hz · SPEKTRUM ANALİZÖRÜ · 20 kHz", boss'ta "PRO ZORLUK ·

@@ -1,63 +1,63 @@
-// "Stereo Genişlik" — iki mono kaynak zıt yönlere yerleştirilir, kullanıcı
-// stereo görüntünün genişliğini bulur. %100 = biri tam solda biri tam sağda.
-// %0 = ikisi de merkezde (mono). Mod sözleşmesi/zorluk-eğrisi deseni Pan
-// Konumu'yla (bu turun ikiz modu) BİREBİR aynı — bkz. o dosyanın dosya başı
-// notu, burada TEKRARLANMIYOR, sadece FARKLAR belgelendi.
+// "Stereo Genişlik" — kullanıcının kendi yüklediği STEREO dosyanın mid/side
+// dengesini değiştirip kullanıcı gerçek genişliği bulmaya çalışıyor. %100 =
+// dosyanın kendi (orijinal) genişliği, %0 = tamamen mono. Mod sözleşmesi/
+// zorluk-eğrisi deseni Pan Konumu'yla (bu turun ikiz modu) BİREBİR aynı —
+// bkz. o dosyanın dosya başı notu, burada TEKRARLANMIYOR, sadece FARKLAR
+// belgelendi.
 //
-// KAYNAK SORUNU ÇÖZÜLDÜ (task'ın kendi notu): SoundGym'in Stereohead oyunu
-// stereo dosya kullanmıyor — İKİ MONO KAYNAĞI zıt yönlere yerleştirip aradaki
-// açıklığı değiştiriyor. Yeni ses dosyası eklenmedi, mevcut mono kaynaklar
-// yeterli.
+// G122 — KAYNAK TAMAMEN DEĞİŞTİ (task'ın kendi kararı, kullanıcı raporu):
+// G120'nin "iki bağımsız sentetik kaynak" tekniği comb filter'ı MATEMATİKSEL
+// olarak çözmüştü, ama bedeli modu SOYUTLAŞTIRMAK oldu — gürültü/osilatör
+// dinleterek "genişlik" öğretmek projenin "her mod gerçek bir mix
+// durumundan doğmalı" ilkesine aykırıydı (kullanıcının kendi gerekçesi).
 //
-// G120 DÜZELTMESİ — İLK SÜRÜMÜN (G118) mikro-gecikme tekniği CİHAZDA
-// KULAKLA test edilince gerçek bir hata bulundu: pembe gürültüde %50
-// genişlikte FAZ SORUNU/tarak filtresi duyuluyordu. KÖK SEBEP: mikro-gecikme
-// (bkz. eski MAX_DELAY_SEC notu) sadece width=100'de (tam ayrık pan) güvenliydi
-// — width=100'ün ALTINDAKİ HER değerde, StereoPannerNode'un equal-power
-// yasası GEREĞİ her iki panner de HER İKİ kanala da KISMİ enerji gönderiyor,
-// yani her KULAK aynı anda hem doğrudan hem gecikmeli kopyayı (kısmi
-// oranlarda) ALIYORDU — bu, GENİŞ BANTLI/gürültü-benzeri içerikte KLASİK bir
-// tarak filtresi (comb filter): H(f) = 1 + k·e^(-j2πfτ), |H(f)| düzenli
-// aralıklarla f=(2n+1)/(2τ)'da SIFIRA iniyor. Matematiksel olarak "L≠R"
-// (decorrelated) doğruydu ama YANLIŞ TÜRDE bir fark — periyodik, işitilebilir
-// bir renklendirme, GERÇEK bir stereo GENİŞLİĞİ HİSSİ değil.
+// YENİ TEKNİK — MID/SIDE GENİŞLİK, tek (gerçek, kullanıcının kendi) stereo
+// kaynak üzerinde: mid=(L+R)/2, side=(L−R)/2. side bir katsayıyla (widthFrac,
+// 0..1) ölçeklenir, sonra L'=mid+side', R'=mid−side' olarak geri birleştirilir.
+// widthFrac=0 → side'=0 → L'=R'=mid (TAM MONO, korelasyon=+1 MATEMATİKSEL
+// KESİNLİKLE — bkz. dosya sonu doğrulama notu). widthFrac=1 → side'=side →
+// L'=mid+side=L, R'=mid−side=R (dosyanın TAM KENDİ orijinal genişliği,
+// birebir geri kurulur).
 //
-// YENİ TEKNİK — GERÇEKTEN İKİ BAĞIMSIZ KAYNAK (task'ın kendi önerisi,
-// SoundGym'in "two audio sources are panned to opposite sides" tarifiyle
-// BİREBİR): gecikme YERİNE, HER SORUDA taze/bağımsız üretilen İKİNCİ bir
-// jeneratör (aynı kaynak TÜRÜNDEN — pembe/pembe, kare/kare vb. — ama
-// SAYISAL olarak FARKLI) panR'ı besliyor, panL'i ise resmi/seçili kaynak
-// (audio-engine.js'in kurduğu sourceMix) besliyor. İKİ BAĞIMSIZ rastgele
-// süreç arasında GECİKME/FAZ İLİŞKİSİ YOKTUR — matematiksel olarak HİÇBİR
-// genişlikte periyodik tarak notch'u OLUŞAMAZ (bkz. dosya sonu doğrulama
-// notu + test dosyasının FFT karşılaştırması). Bu, "iki mono kaynak"ı
-// GERÇEKTEN iki AYRI, birbirinden bağımsız kaynak yapıyor — G118'in "aynı
-// buffer'ın iki kopyası DEĞİL" DÜRÜSTLÜK notunun bu kez GERÇEKTEN karşılandığı
-// yer burası (o zamanki mikro-gecikme versiyonu bunu sadece KISMEN
-// sağlıyordu, decorrelation'ı DELAY'DEN alıyordu, decorrelation'ın KENDİSİ
-// artefaktlıydı).
+// NEDEN COMB FILTER YAPISAL OLARAK İMKÂNSIZ (G120'nin sentetik-kaynak
+// çözümünden bile daha güçlü bir garanti): bu işlem HİÇBİR GECİKME
+// ELEMANI İÇERMİYOR — sadece [L,R]'nin ANLIK (örnek-eşleşmeli, z^0) bir 2x2
+// matris dönüşümü:
+//   [L']   [ 1-k/2  ... ]   (aşağıdaki node grafiği matematiksel olarak
+//   [R'] = [ ...        ]    L'=mid+k·side, R'=mid−k·side'i üretir)
+// H(f) formülünde hiçbir z^-τ terimi YOK — dolayısıyla |H(f)|'de periyodik
+// bir sıfırlanma (comb notch) OLUŞAMAZ, herhangi bir k (=widthFrac) değerinde.
+// G120'nin "iki bağımsız kaynak" çözümü comb'u İSTATİSTİKSEL olarak
+// (korelasyonsuzluk) engelliyordu; bu çözüm YAPISAL olarak (gecikme
+// elemanının kendisi yok) engelliyor — daha güçlü, daha basit bir garanti.
 //
-// KAYNAK KISITLAMASI DARALTILDI (bu YÜZDEN): "ikinci bağımsız kaynak"
-// SADECE SENTETİK türler için (gürültü/osilatör) ucuza/güvenle üretilebilir
-// — gerçek bir örnek-dosya (kick/bas/vokal/groove vb.) için "bağımsız İKİNCİ
-// bir kayıt" YOKTUR (yeni dosya eklenmeyecek, task'ın kendi kuralı), ve
-// AYNI dosyayı iki kez çalmak G118'in başındaki dejenere-mono sorununu
-// GERİ getirir. Bu yüzden uyumlu kaynaklar artık SADECE pink/white/saw/
-// square/triangle — Pan Konumu'nun geniş listesi (örnek dosyalar dahil)
-// BUNDAN ETKİLENMEDİ, tek kaynaklı panlamada decorrelation riski YOK.
-// "upload" da AYNI gerekçeyle (kullanıcının kendi dosyasının bağımsız bir
-// ikinci kopyası YOK) çıkarıldı — bkz. DURUM.md'deki BEKLEYEN KARAR notu.
+// KAYNAK KISITLAMASI: artık SADECE "upload" — mid/side ayrıştırması ANLAMLI
+// olması için GERÇEK, kullanıcının kendi stereo kaydı gerekiyor (task'ın
+// kendi kararı: "bu mod SADECE kullanıcının yüklediği dosyayla oynanacak").
+// Sentetik kaynaklar (gürültü/osilatör, G120'nin çözümü) ve gömülü örnek
+// dosyalar (kick/bas/vokal/groove) listeden TAMAMEN ÇIKARILDI — Pan
+// Konumu'nun geniş listesi ETKİLENMEDİ (o mod StereoPannerNode kullanıyor,
+// mid/side'a hiç ihtiyacı yok).
 //
-// MİMARİ NOTU — audio-engine.js:buildQuestionChain'in `filters:[...]` sözleşmesi
-// SADECE düz bir seri zincir kurabiliyor, bir kaynağı İÇERDE ikiye ayırıp
-// (fan-out) SONRA birleştirmesi (branching) bu döngüyle KURULAMIYOR (elle
-// doğrulandı, ara elemanlar arasına audio-engine HER ZAMAN ek bir bypass
-// bağlantısı da ekliyor). Bu YÜZDEN G118'de audio-engine.js'e TEK bir yeni
-// uzantı noktası eklendi: applyProcessing `{branch:{input,output,nodes}}`
-// döndürebilir — mod kendi alt-grafiğini (fan-out+birleştir dahil) TAMAMEN
-// kendi içinde kurar, SADECE giriş/çıkış uçlarını dışa verir. G120'de BU
-// MEKANİZMA DEĞİŞMEDİ, sadece `output`'a giden İÇ yapı (gecikme yerine
-// bağımsız ikinci kaynak) değişti.
+// MONO DOSYA KORUMASI: bufferPlayability() bir AudioBuffer'ın
+// numberOfChannels'ını kontrol eder — mono bir dosyada side HER ZAMAN
+// sıfırdır (L=R matematiksel olarak), "genişlik" kavramı hiç YOK, bu yüzden
+// mono dosyalar AÇIKÇA reddedilir (bkz. app.js syncStereoUploadGate — bu
+// fonksiyonun tükettiği tarafta).
+//
+// SEGMENT SEÇİMİ: pickPlaybackOffset() dosyanın İÇİNDE enerji eşiğini geçen
+// rastgele bir başlangıç noktası bulur (sessiz bir bölüme denk gelmesin diye)
+// — app.js startRound()'da her yeni turda uploadManager.seekTo() ile
+// uygulanır (upload.js'in AYRI, kalıcı pause/resume offset takibinden
+// BAĞIMSIZ bir "yeni tur = yeni nokta" sıçraması, bkz. upload.js'in
+// seekTo() notu).
+//
+// MİMARİ NOTU — audio-engine.js:buildQuestionChain'in `filters:[...]`
+// sözleşmesi SADECE düz bir seri zincir kurabiliyor; mid/side ayrıştırması
+// (ChannelSplitterNode ile fan-out, ChannelMergerNode ile birleştirme) bu
+// döngüyle KURULAMIYOR — G118'de eklenen `branch:{input,output,nodes}`
+// uzantı noktası (mod kendi alt-grafiğini TAMAMEN kendi içinde kurar)
+// burada da kullanılıyor, mekanizma DEĞİŞMEDİ.
 
 import { compatibleSourceIds } from "../core/source-catalog.js";
 import { shuffle } from "../core/utils.js";
@@ -87,14 +87,10 @@ export const DIFFICULTY = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// G120 — ZORLUK EĞRİSİ YENİDEN TASARLANDI: eskiden "kademe SAYISI" (3→7,
-// isimlendirilmiş sabit ızgara) tek eksendi. Task'ın kendi kararıyla artık
-// dB Seviyesi'nin AYNI deseni: genişlik SÜREKLİ bir değer (herhangi bir
-// 0-100 sayısı), şıklar bu değerin ETRAFINDA curve-driven bir STEP mesafesinde
-// üretiliyor — kolayda şıklar arası fark büyük, zorda küçük. Kademe SAYISI
-// (options) ayrı, İKİNCİL bir eksen olarak KORUNDU (daha fazla şık = daha
-// zor karar, dB Seviyesi'nin AKSİNE — o modun G97'de "options sabit 3"
-// kararı BURADA uygulanmadı, bu modun kendi kararı: iki eksen birlikte).
+// ZORLUK EĞRİSİ — G120'den DEĞİŞMEDİ (kaynak/DSP değişikliği şık-üretim
+// mantığını ETKİLEMEZ, ikisi bağımsız katmanlar). dB Seviyesi'nin AYNI
+// deseni: genişlik SÜREKLİ bir değer (0-100), şıklar bu değerin ETRAFINDA
+// curve-driven bir STEP mesafesinde üretiliyor.
 // ═══════════════════════════════════════════════════════════════════════════
 export const WIDTH_CURVE_CONFIG = {
   LEVEL_CAP: 20,
@@ -162,69 +158,65 @@ export function generateChoiceValues(trueValue, step, count, min, max) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// G120 — İKİ BAĞIMSIZ KAYNAK ÜRETİMİ (bkz. dosya başı DÜRÜSTLÜK notu).
-// Gürültü: audio-engine.js:buildNoiseSource'un AYNI algoritması — HER
-// ÇAĞRIDA taze Math.random() akışı kullanıldığı için doğası gereği
-// bağımsız/decorrelated (iki BAĞIMSIZ rastgele süreç arasında GECİKME/FAZ
-// ilişkisi YOK, periyodik tarak notch'u OLUŞAMAZ — bkz. test dosyasının
-// FFT kanıtı).
+// G122 — DOSYA UYGUNLUĞU (SAF, DOM/audio bağımsız — sadece bir AudioBuffer'ın
+// alanlarını okur). app.js hem "Oynat"a basmadan ÖNCE gate panelini
+// kurmak hem de round'u fiilen engellemek için AYNI fonksiyonu okur — tek
+// doğruluk kaynağı, iki yerde farklı mantık YOK.
 // ═══════════════════════════════════════════════════════════════════════════
-function buildIndependentNoiseNode(audioCtx, sourceType) {
-  const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
-  const data = buffer.getChannelData(0);
-  let last = 0;
-  for (let i = 0; i < data.length; i++) {
-    const white = Math.random() * 2 - 1;
-    if (sourceType === "pink") {
-      last = 0.985 * last + 0.015 * white;
-      data[i] = last * 2.5;
-    } else {
-      data[i] = white * 0.7;
+export function bufferPlayability(buffer) {
+  if (!buffer) return { ok: false, reason: "no-file" };
+  if (buffer.numberOfChannels < 2) return { ok: false, reason: "mono" };
+  return { ok: true, reason: null };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// G122 — SEGMENT SEÇİMİ (buffer'ın GERÇEK PCM verisini okur — bu yüzden
+// createQuestion'ın SAF sözleşmesinin DIŞINDA, app.js startRound()'da
+// createQuestion'dan ÖNCE çağrılıyor, bkz. dosya başı notu). rng
+// enjekte edilebilir (varsayılan Math.random) — testler deterministik bir
+// üretici verip sonucu ÖNGÖRÜLEBİLİR şekilde doğrulayabiliyor.
+// ═══════════════════════════════════════════════════════════════════════════
+export function pickPlaybackOffset(buffer, opts = {}) {
+  const windowSec = opts.windowSec || 1.5;
+  const energyThreshold = opts.energyThreshold != null ? opts.energyThreshold : 0.015;
+  const maxAttempts = opts.maxAttempts || 30;
+  const scanSteps = opts.scanSteps || 40;
+  const rng = opts.rng || Math.random;
+
+  if (!buffer || !Number.isFinite(buffer.duration) || buffer.duration <= windowSec) return 0;
+
+  const windowRms = (startSec) => {
+    const startSample = Math.max(0, Math.floor(startSec * buffer.sampleRate));
+    const windowSamples = Math.max(1, Math.floor(windowSec * buffer.sampleRate));
+    let sumSq = 0, count = 0;
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+      const data = buffer.getChannelData(ch);
+      const end = Math.min(data.length, startSample + windowSamples);
+      // hop=4 — tam örnek-hassasiyeti GEREKMİYOR (sadece kaba bir enerji
+      // tahmini), büyük dosyalarda (ör. 5 dk) ana iş parçacığını gereksiz
+      // yormamak için her 4. örnek örneklenir.
+      for (let i = startSample; i < end; i += 4) { sumSq += data[i] * data[i]; count++; }
     }
+    return count > 0 ? Math.sqrt(sumSq / count) : 0;
+  };
+
+  const maxStart = buffer.duration - windowSec;
+  for (let i = 0; i < maxAttempts; i++) {
+    const candidate = rng() * maxStart;
+    if (windowRms(candidate) >= energyThreshold) return candidate;
   }
-  const node = audioCtx.createBufferSource();
-  node.buffer = buffer;
-  node.loop = true;
-  node.start();
-  return node;
+  // Hiçbir rastgele deneme eşiği geçemedi (dosyanın TAMAMI sessize yakın
+  // OLABİLİR) — güvenlik ağı: kaba bir tarama ile en yüksek enerjili
+  // pencereyi bul, "sessizliğe düşme" garantisi (dosya gerçekten TAMAMEN
+  // sessizse bile en azından en az kötü noktaya düşülür, ÇÖKMEZ).
+  let best = 0, bestRms = -1;
+  for (let i = 0; i <= scanSteps; i++) {
+    const candidate = (maxStart * i) / scanSteps;
+    const rms = windowRms(candidate);
+    if (rms > bestRms) { bestRms = rms; best = candidate; }
+  }
+  return best;
 }
-
-// Osilatör (saw/square/triangle): iki AYNI-parametre osilatör TEK BAŞINA
-// yetmez — matematiksel olarak SKALER KATLARI (L=k1·A(t), R=k2·A(t)) olur,
-// korelasyon HER ZAMAN 1 (elle doğrulandı, bkz. dosya başı DÜRÜSTLÜK notu).
-// Küçük bir DETUNE (frekans farkı, ±7 cent) GERÇEK decorrelation sağlar —
-// bu, gecikmeden YAPISAL olarak farklı: iki farklı frekans arasındaki
-// girişim ZAMANLA YAVAŞÇA KAYAN bir "beating" deseni üretir (STATİK/sabit
-// bir frekans-domeni tarak DEĞİL — bkz. test dosyasının zaman-pencereli FFT
-// karşılaştırması, ardışık pencereler arasında notch konumunun SABİT
-// KALMADIĞI doğrulanıyor), gerçek prodüksiyonda "detuned unison/chorus
-// genişletme" olarak bilinen standart bir teknik.
-const DETUNE_CENTS = 7;
-function buildIndependentOscNode(audioCtx, sourceType) {
-  const osc = audioCtx.createOscillator();
-  osc.type = sourceType;
-  osc.frequency.value = 220;
-  osc.detune.value = DETUNE_CENTS;
-  osc.start();
-  return osc;
-}
-
-function buildSecondSourceNode(audioCtx, sourceType) {
-  if (sourceType === "pink" || sourceType === "white") return buildIndependentNoiseNode(audioCtx, sourceType);
-  if (sourceType === "saw" || sourceType === "square" || sourceType === "triangle") return buildIndependentOscNode(audioCtx, sourceType);
-  // Güvenli varsayılan — uyumluKaynaklar dışı bir tür asla buraya düşmemeli
-  // (compatibleSourceIds sınırlıyor), ama ÇÖKMEK yerine sessizce pembe
-  // gürültüye düşer (audio-engine.js'in "sample yüklenemezse pink noise'a
-  // düş" AYNI savunma deseni).
-  return buildIndependentNoiseNode(audioCtx, "pink");
-}
-
-// Birleştirme kazancı — iki BAĞIMSIZ kaynak toplandığında (güç toplamı,
-// genlik DEĞİL) beklenen RMS artışı ~√2 — 0.72 (≈1/√2) ile dengelenir,
-// kırpılma riski KALMADAN her genişlikte tutarlı bir seviye korunur (G118'in
-// eski 0.5'i, aynı-kaynak-iki-kopya matematiğine göre seçilmişti, artık
-// UYGULANAMAZ — bu değer de KULAKLA DOĞRULANMADI, makul bir başlangıç).
-export const MERGE_GAIN = 0.72;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MOD SÖZLEŞMESİ
@@ -236,14 +228,14 @@ export function getMeta() {
     motor: 1,
     kulaklikGerekli: true,
     kulaklikMetni: "Genişliği doğru duymak için kulaklık şart — hoparlörde stereo görüntü odaya karışır, fark edilmez.",
-    // G120 — SADECE sentetik kaynaklar (bkz. dosya başı notu): "bağımsız
-    // ikinci kaynak" tekniği gürültü/osilatör türlerinde ucuza/güvenle
-    // üretilebiliyor, örnek-dosya (kick/bas/vokal/groove) ve upload'ta
-    // GERÇEK bir ikinci/bağımsız kayıt YOK — o kaynaklar bu moddan
-    // ÇIKARILDI (Pan Konumu'nun geniş listesi ETKİLENMEDİ, tek-kaynaklı
-    // panlamada decorrelation riski hiç yok).
-    uyumluKaynaklar: compatibleSourceIds({ only: ["pink", "white", "saw", "square", "triangle"] }),
-    ucretsiz: true, // diğer on bir modun AYNI kararı — bkz. pan-konumu.js'in AYNI notu
+    // G122 — SADECE "upload": mid/side ayrıştırması GERÇEK bir stereo
+    // kayıt gerektiriyor, sentetik kaynaklarda (G120) ya da gömülü örnek
+    // dosyalarda (mono) bu kavram anlamsız/yok. Bu YÜZDEN Pan Konumu'nun
+    // (aynı ekranda yan yana görünen ikiz modun) geniş listesiyle KASITLI
+    // bir kapsam farkı var (bkz. DURUM.md G120 BEKLEYEN KARAR-L, artık
+    // bu kararla ÇÖZÜLDÜ — task'ın kendi kararı).
+    uyumluKaynaklar: compatibleSourceIds({ only: ["upload"] }),
+    ucretsiz: true, // diğer on bir modun AYNI kararı — bkz. pan-konumu.js'in AYNI notu (mod zaten Pro tier, bkz. mode-catalog.js)
     videoUrl: "",
     difficulty: DIFFICULTY,
     choiceOnly: true
@@ -257,7 +249,9 @@ export function getMeta() {
 export function createQuestion(level, settings = {}) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const boss = !!settings.boss;
-  const source = settings.source || "pink";
+  // G122 — bu modun TEK uyumlu kaynağı "upload" (bkz. getMeta) — varsayılan
+  // da buna göre güncellendi (G120'de "pink" idi, artık geçersiz bir tür).
+  const source = settings.source || "upload";
 
   const curve = (level !== "proplus" && Number.isFinite(settings.difficultyPosition))
     ? paramsForDifficultyPosition(settings.difficultyPosition)
@@ -314,44 +308,70 @@ export function correctLabel(q) {
 }
 
 export function modeDescription(q) {
-  return "A/B ile karşılaştır, stereo görüntünün genişliğini şıklardan seç.";
+  return "Kendi dosyanla dinle, stereo görüntünün genişliğini şıklardan seç.";
 }
 
-// G120 — audio-engine.js'in G118'de eklenen branch uzantısı (bkz. dosya başı
-// mimari notu) — entryTap RESMİ/seçili kaynağı (sourceMix) alıp panL'e
-// besler, TAMAMEN BAĞIMSIZ (taze üretilmiş) bir ikinci kaynak panR'ı besler.
-// İki panner'ın açıklığı width'e göre büyür — width=0'da HER İKİ panner de
-// merkezde (pan=0), width=100'de tam ayrık.
+// G122 — MID/SIDE GENİŞLİK (bkz. dosya başı notu, tam matematiksel gerekçe
+// orada). entryTap sourceMix'i (audio-engine.js'in KURDUĞU, GERÇEK stereo
+// upload sinyali) alır, ChannelSplitterNode'la L/R'ye ayırır. mid=(L+R)/2
+// ve side=(L−R)/2 iki AYRI toplama zinciriyle hesaplanır (splitter'ın HER
+// iki çıkışı da HER iki zincire bağlanır — GainNode'a birden fazla bağlantı
+// otomatik TOPLAR, Web Audio'nun kendi "fan-in" davranışı). side widthFrac
+// (0..1) ile ölçeklenir, mid+side'/mid−side' ChannelMergerNode'la geri
+// stereo'ya birleştirilir. HİÇBİR DelayNode/gecikme YOK.
 export function applyProcessing(question, { audioCtx }) {
   const widthFrac = question.widthPercent / 100;
 
   const entryTap = audioCtx.createGain();
   entryTap.gain.value = 1;
 
-  const panL = audioCtx.createStereoPanner();
-  panL.pan.value = -widthFrac;
+  const splitter = audioCtx.createChannelSplitter(2);
+  entryTap.connect(splitter);
 
-  const secondSourceNode = buildSecondSourceNode(audioCtx, question.source);
-  const secondGain = audioCtx.createGain();
-  secondGain.gain.value = 1;
-  secondSourceNode.connect(secondGain);
+  // mid = 0.5*L + 0.5*R
+  const halfLMid = audioCtx.createGain(); halfLMid.gain.value = 0.5;
+  const halfRMid = audioCtx.createGain(); halfRMid.gain.value = 0.5;
+  splitter.connect(halfLMid, 0);
+  splitter.connect(halfRMid, 1);
+  const midSum = audioCtx.createGain(); midSum.gain.value = 1;
+  halfLMid.connect(midSum);
+  halfRMid.connect(midSum);
 
-  const panR = audioCtx.createStereoPanner();
-  panR.pan.value = widthFrac;
+  // side = 0.5*L − 0.5*R
+  const halfLSide = audioCtx.createGain(); halfLSide.gain.value = 0.5;
+  const halfRSide = audioCtx.createGain(); halfRSide.gain.value = -0.5;
+  splitter.connect(halfLSide, 0);
+  splitter.connect(halfRSide, 1);
+  const sideSum = audioCtx.createGain(); sideSum.gain.value = 1;
+  halfLSide.connect(sideSum);
+  halfRSide.connect(sideSum);
 
-  const mergeGain = audioCtx.createGain();
-  mergeGain.gain.value = MERGE_GAIN;
+  // side' = widthFrac * side
+  const sideScaled = audioCtx.createGain();
+  sideScaled.gain.value = widthFrac;
+  sideSum.connect(sideScaled);
 
-  entryTap.connect(panL);
-  secondGain.connect(panR);
-  panL.connect(mergeGain);
-  panR.connect(mergeGain);
+  // L' = mid + side'
+  const outL = audioCtx.createGain(); outL.gain.value = 1;
+  midSum.connect(outL);
+  sideScaled.connect(outL);
+
+  // R' = mid − side'
+  const sideScaledNeg = audioCtx.createGain(); sideScaledNeg.gain.value = -1;
+  sideScaled.connect(sideScaledNeg);
+  const outR = audioCtx.createGain(); outR.gain.value = 1;
+  midSum.connect(outR);
+  sideScaledNeg.connect(outR);
+
+  const merger = audioCtx.createChannelMerger(2);
+  outL.connect(merger, 0, 0);
+  outR.connect(merger, 0, 1);
 
   return {
     branch: {
       input: entryTap,
-      output: mergeGain,
-      nodes: [entryTap, panL, secondSourceNode, secondGain, panR, mergeGain]
+      output: merger,
+      nodes: [entryTap, splitter, halfLMid, halfRMid, midSum, halfLSide, halfRSide, sideSum, sideScaled, outL, sideScaledNeg, outR, merger]
     }
   };
 }
@@ -395,7 +415,7 @@ export function calculateXP(question, result, hintUsed, level, context = {}) {
 // kartı) AYNI konuyu öğretiyor — bağlantı burada AÇIKÇA kuruluyor.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const MIX_REALITY_NOTE = "Genişlik derinlik ve alan katar ama abartılırsa mono uyumu bozulur — kulüpte (sub genelde mono çalar) ve telefonda (tek hoparlör HER ŞEYİ mono çalar) fazla geniş bir mix çöker. Araçlar'daki Ölçüm Sonuçları'nın mono uyum ölçümü tam bu riski gösterir.";
+const MIX_REALITY_NOTE = "Genişlik derinlik ve alan katar ama abartılırsa mono uyumu bozulur — kulüpte (sub genelde mono çalar) ve telefonda (tek hoparlör HER ŞEYİ mono çalar) fazla geniş bir mix çöker. Araçlar'daki Ölçüm Sonuçları'nın mono uyum ölçümü tam bu riski gösterir — burada dinlediğin şey, o ölçümün kulakla karşılığı.";
 
 export function teachingText(question, answer) {
   const result = evaluateAnswer(question, answer);

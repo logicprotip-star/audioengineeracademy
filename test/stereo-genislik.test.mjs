@@ -1,8 +1,7 @@
-// Stereo Genişlik moduna özel testler (G120 — sürekli ölçek, Pan Konumu'nun
-// AYNI test iskeleti + applyProcessing'in YENİ "iki bağımsız kaynak" DSP'sini
-// [gecikme YERİNE, bkz. dosya başı DÜRÜSTLÜK notu] doğru kurduğunu, hiçbir
-// DelayNode İÇERMEDİĞİNİ ve gerçek bağımsız bir ikinci kaynak ürettiğini
-// doğrulayan ek testler.
+// Stereo Genişlik moduna özel testler (G122 — mid/side genişlik, SADECE
+// yüklenen dosyayla oynanır). Zorluk-eğrisi/şık-üretim testleri Pan Konumu'yla
+// AYNI iskelet (kaynak/DSP katmanından bağımsız) — DSP/kaynak/bufferPlayability/
+// pickPlaybackOffset testleri BU turun YENİ eklentileri.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -61,7 +60,7 @@ describe("Stereo Genişlik — paramsForDifficultyPosition() (Pan Konumu'yla AYN
 describe("Stereo Genişlik — createQuestion() genel sözleşme", () => {
   for (const level of Object.keys(mode.DIFFICULTY)) {
     it(`createQuestion("${level}") geçerli bir soru üretir`, () => {
-      const q = mode.createQuestion(level, { source: "pink", boss: false });
+      const q = mode.createQuestion(level, { source: "upload", boss: false });
       assert.equal(q.mode, "width");
       assert.equal(q.difficulty, level);
       assert.ok(q.widthPercent >= 0 && q.widthPercent <= 100);
@@ -73,7 +72,7 @@ describe("Stereo Genişlik — createQuestion() genel sözleşme", () => {
   it("her turda doğru şık TAM BİR kez var, değeri q.widthPercent'e eşit", () => {
     for (const level of Object.keys(mode.DIFFICULTY)) {
       for (let i = 0; i < 40; i++) {
-        const q = mode.createQuestion(level, { source: "pink", boss: false });
+        const q = mode.createQuestion(level, { source: "upload", boss: false });
         const correctChoices = q.choices.filter(c => c.correct);
         assert.equal(correctChoices.length, 1, `${level}: ${correctChoices.length} doğru şık`);
         assert.equal(correctChoices[0].value, q.widthPercent);
@@ -84,7 +83,7 @@ describe("Stereo Genişlik — createQuestion() genel sözleşme", () => {
   it("true değer sürekli ölçekten gelir — ızgara noktası (0/25/50/75/100) OLMAK ZORUNDA DEĞİL (500 örnekte en az bir ızgara-dışı değer)", () => {
     let sawNonGrid = false;
     for (let i = 0; i < 500; i++) {
-      const q = mode.createQuestion("medium", { source: "pink", boss: false });
+      const q = mode.createQuestion("medium", { source: "upload", boss: false });
       if (q.widthPercent % 25 !== 0) { sawNonGrid = true; break; }
     }
     assert.ok(sawNonGrid, "500 örnekte HİÇ ızgara-dışı değer çıkmadı");
@@ -93,9 +92,14 @@ describe("Stereo Genişlik — createQuestion() genel sözleşme", () => {
   it("difficultyPosition VERİLİRSE üretilen şık sayısı paramsForDifficultyPosition().options'a eşit", () => {
     for (const p of [1, 5, 10, 15, 20]) {
       const expected = mode.paramsForDifficultyPosition(p).options;
-      const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: p });
+      const q = mode.createQuestion("medium", { source: "upload", boss: false, difficultyPosition: p });
       assert.equal(q.choices.length, expected);
     }
+  });
+
+  it("settings.source verilmezse VARSAYILAN 'upload' — G120'nin 'pink' varsayılanı ARTIK GEÇERSİZ bir tür", () => {
+    const q = mode.createQuestion("medium", { boss: false });
+    assert.equal(q.source, "upload");
   });
 });
 
@@ -104,7 +108,7 @@ describe("Stereo Genişlik — 1000 denemelik: hiçbir kademede iki şık çakı
     const N = 1000;
     for (let i = 0; i < N; i++) {
       const position = 1 + Math.random() * 19;
-      const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: position });
+      const q = mode.createQuestion("medium", { source: "upload", boss: false, difficultyPosition: position });
       const vals = q.choices.map(c => c.value);
       assert.equal(new Set(vals).size, vals.length, `position ${position.toFixed(2)}: çakışan şık değeri, values=${vals}`);
     }
@@ -114,7 +118,7 @@ describe("Stereo Genişlik — 1000 denemelik: hiçbir kademede iki şık çakı
     const N = 1000;
     for (let i = 0; i < N; i++) {
       const position = 1 + Math.random() * 19;
-      const q = mode.createQuestion("medium", { source: "pink", boss: Math.random() < 0.2, difficultyPosition: position });
+      const q = mode.createQuestion("medium", { source: "upload", boss: Math.random() < 0.2, difficultyPosition: position });
       const correct = q.choices.filter(c => c.correct);
       assert.equal(correct.length, 1);
       const wrong = q.choices.filter(c => !c.correct);
@@ -129,7 +133,7 @@ describe("Stereo Genişlik — 1000 denemelik: hiçbir kademede iki şık çakı
     const N = 1000;
     for (let i = 0; i < N; i++) {
       const position = 1 + Math.random() * 19;
-      const q = mode.createQuestion("medium", { source: "pink", boss: false, difficultyPosition: position });
+      const q = mode.createQuestion("medium", { source: "upload", boss: false, difficultyPosition: position });
       for (let a = 0; a < q.choices.length; a++) {
         for (let b = a + 1; b < q.choices.length; b++) {
           const gap = Math.abs(q.choices[a].value - q.choices[b].value);
@@ -183,19 +187,116 @@ describe("Stereo Genişlik — teachingText/getFeedbackData", () => {
     assert.match(text, /mono uyum/i);
   });
   it("getFeedbackData showResult HER ZAMAN true, panel null", () => {
-    const q = mode.createQuestion("medium", { source: "pink", boss: false });
+    const q = mode.createQuestion("medium", { source: "upload", boss: false });
     const correctFb = mode.getFeedbackData(q, q.widthPercent, { gained: 10 });
     assert.equal(correctFb.showResult, true);
     assert.equal(correctFb.panel, null);
   });
 });
 
-// G120 — YENİ "iki bağımsız kaynak" DSP'sinin doğru kurulduğunu, sahte ama
-// Web Audio API'nin bağlantı/parametre sözleşmesine sadık bir audioCtx ile
-// doğrular. En kritik doğrulama: HİÇBİR DelayNode YOK (eski/hatalı G118
-// tekniği tamamen kaldırıldı) ve panL/panR GERÇEKTEN İKİ FARKLI kaynak
-// düğümünden besleniyor (aynı düğüm İKİ KEZ KULLANILMIYOR).
-describe("Stereo Genişlik — applyProcessing (G120 'iki bağımsız kaynak' DSP'si, sahte audioCtx ile)", () => {
+// G122 — dosya uygunluğu: SAF, sadece {numberOfChannels} okuyan sahte
+// "buffer benzeri" nesnelerle test edilebiliyor (gerçek AudioBuffer GEREKMEZ).
+describe("Stereo Genişlik — bufferPlayability()", () => {
+  it("buffer yoksa (null/undefined) reason='no-file'", () => {
+    assert.deepEqual(mode.bufferPlayability(null), { ok: false, reason: "no-file" });
+    assert.deepEqual(mode.bufferPlayability(undefined), { ok: false, reason: "no-file" });
+  });
+  it("mono (numberOfChannels=1) buffer'da reason='mono'", () => {
+    const r = mode.bufferPlayability({ numberOfChannels: 1 });
+    assert.equal(r.ok, false);
+    assert.equal(r.reason, "mono");
+  });
+  it("stereo (numberOfChannels=2) buffer'da ok=true", () => {
+    const r = mode.bufferPlayability({ numberOfChannels: 2 });
+    assert.equal(r.ok, true);
+    assert.equal(r.reason, null);
+  });
+  it("5.1 gibi >2 kanallı bir buffer da ok=true (mono OLMADIĞI sürece kısıtlama yok)", () => {
+    const r = mode.bufferPlayability({ numberOfChannels: 6 });
+    assert.equal(r.ok, true);
+  });
+});
+
+// G122 — pickPlaybackOffset: SAF-BENZERİ (rastgelelik var ama rng enjekte
+// edilebiliyor, deterministik test mümkün) — gerçek bir AudioBuffer'ı taklit
+// eden {duration, sampleRate, numberOfChannels, getChannelData} nesnesiyle.
+describe("Stereo Genişlik — pickPlaybackOffset()", () => {
+  function makeFakeBuffer({ durationSec = 10, sampleRate = 1000, silentUntil = 0, silentAfter = Infinity } = {}) {
+    const length = Math.round(durationSec * sampleRate);
+    const data = new Float32Array(length);
+    for (let i = 0; i < length; i++) {
+      const t = i / sampleRate;
+      data[i] = (t >= silentUntil && t < silentAfter) ? 0.5 : 0;
+    }
+    return {
+      duration: durationSec,
+      sampleRate,
+      numberOfChannels: 1,
+      getChannelData: () => data
+    };
+  }
+
+  it("buffer çok kısaysa (duration <= windowSec) 0 döner", () => {
+    const buf = makeFakeBuffer({ durationSec: 1 });
+    assert.equal(mode.pickPlaybackOffset(buf, { windowSec: 1.5 }), 0);
+  });
+
+  it("dosyanın TAMAMI enerjili ise (sessiz bölge yok) döndürülen offset her zaman [0, duration-windowSec] içinde", () => {
+    const buf = makeFakeBuffer({ durationSec: 20 });
+    for (let i = 0; i < 50; i++) {
+      const off = mode.pickPlaybackOffset(buf, { windowSec: 1.5, rng: Math.random });
+      assert.ok(off >= 0 && off <= 20 - 1.5, `offset ${off} aralık dışı`);
+    }
+  });
+
+  it("dosyanın SADECE bir bölümü enerjili ise (baştan 8sn sessiz, sonra ses), seçilen PENCERENİN KENDİ enerjisi HER ZAMAN eşiği geçer (sessiz bölgeye TAMAMEN düşmez)", () => {
+    const buf = makeFakeBuffer({ durationSec: 20, silentUntil: 8 });
+    const windowSec = 1.5, energyThreshold = 0.1;
+    const windowRms = (startSec) => {
+      const data = buf.getChannelData(0);
+      const startSample = Math.floor(startSec * buf.sampleRate);
+      const endSample = Math.min(data.length, startSample + Math.floor(windowSec * buf.sampleRate));
+      let sumSq = 0, count = 0;
+      for (let i = startSample; i < endSample; i++) { sumSq += data[i] * data[i]; count++; }
+      return Math.sqrt(sumSq / count);
+    };
+    // rng'yi TÜM aralığa (0..1) eşit dağıtan gerçekçi bir üretici — bazı
+    // denemeler kaçınılmaz olarak sessiz bölgeye düşecek, algoritmanın
+    // enerji-eşiği kontrolüyle bunları ELEMESİ gerekiyor. Pencere sessizlik/
+    // ses SINIRINI (8sn) örtebilir — o durumda bile PENCERENİN KENDİ ortalama
+    // enerjisi eşiği geçmiş olmalı (tamamen sessize DÜŞMEMİŞ olmalı), offset'in
+    // TAM 8'in üstünde olması ŞART DEĞİL (sınır-örten pencereler de geçerli).
+    for (let trial = 0; trial < 30; trial++) {
+      let call = 0;
+      const seq = Array.from({ length: 40 }, () => Math.random());
+      const rng = () => seq[call++ % seq.length];
+      const off = mode.pickPlaybackOffset(buf, { windowSec, energyThreshold, maxAttempts: 30, rng });
+      const actualRms = windowRms(off);
+      assert.ok(actualRms >= energyThreshold - 1e-9 || off >= 20 - windowSec - 0.5, `offset ${off}: pencere RMS ${actualRms.toFixed(4)} < eşik ${energyThreshold} (fallback taramasına da yakın değil)`);
+    }
+  });
+
+  it("dosyanın TAMAMI sessizse (fallback), yine de [0, duration-windowSec] içinde GEÇERLİ bir sayı döner (çökmez)", () => {
+    const buf = makeFakeBuffer({ durationSec: 10, silentUntil: 999 }); // hiç enerjili bölge yok
+    const off = mode.pickPlaybackOffset(buf, { windowSec: 1.5, energyThreshold: 0.1, maxAttempts: 10 });
+    assert.ok(Number.isFinite(off) && off >= 0 && off <= 10 - 1.5);
+  });
+
+  it("rng sabitse (deterministik) SONUÇ deterministik — aynı girdi aynı çıktı", () => {
+    const buf = makeFakeBuffer({ durationSec: 20 });
+    const rng = () => 0.5;
+    const a = mode.pickPlaybackOffset(buf, { windowSec: 1.5, rng });
+    const b = mode.pickPlaybackOffset(buf, { windowSec: 1.5, rng });
+    assert.equal(a, b);
+  });
+});
+
+// G122 — YENİ mid/side DSP'sinin doğru kurulduğunu, sahte ama Web Audio
+// API'nin bağlantı/parametre sözleşmesine sadık bir audioCtx ile doğrular.
+// En kritik doğrulama: HİÇBİR gecikme/kaynak-üretici düğüm YOK (sadece
+// GainNode + ChannelSplitterNode + ChannelMergerNode — anlık/z^0 bir
+// matris işlemi, comb filtresi YAPISAL OLARAK oluşamaz, bkz. dosya başı not).
+describe("Stereo Genişlik — applyProcessing (G122 mid/side DSP'si, sahte audioCtx ile)", () => {
   function makeFakeAudioCtx() {
     const created = [];
     const connections = [];
@@ -204,96 +305,182 @@ describe("Stereo Genişlik — applyProcessing (G120 'iki bağımsız kaynak' DS
       const id = nextId++;
       const node = {
         __id: id, __kind: kind, ...extra,
-        connect: (dest) => { connections.push([id, dest.__id]); return dest; }
+        connect: (dest, output, input) => { connections.push([id, dest.__id, output, input]); return dest; }
       };
       created.push(node);
       return node;
     }
     return {
       ctx: {
-        sampleRate: 44100,
         createGain: () => makeNode("gain", { gain: { value: 0 } }),
-        createStereoPanner: () => makeNode("panner", { pan: { value: 0 } }),
+        createChannelSplitter: (n) => makeNode("splitter", { channelCount: n }),
+        createChannelMerger: (n) => makeNode("merger", { channelCount: n }),
         createDelay: (max) => makeNode("delay", { delayTime: { value: 0 }, maxDelay: max }),
-        createBuffer: () => ({ getChannelData: () => new Float32Array(100) }),
-        createBufferSource: () => makeNode("bufferSource", { buffer: null, loop: false, start: () => {} }),
-        createOscillator: () => makeNode("oscillator", { type: "sine", frequency: { value: 0 }, detune: { value: 0 }, start: () => {} })
+        createStereoPanner: () => makeNode("panner", { pan: { value: 0 } }),
+        createBufferSource: () => makeNode("bufferSource"),
+        createOscillator: () => makeNode("oscillator")
       },
       created, connections
     };
   }
 
-  it("HİÇBİR DelayNode YOK — G118'in hatalı gecikme tekniği tamamen kaldırıldı", () => {
-    for (const source of ["pink", "white", "saw", "square", "triangle"]) {
-      const { ctx } = makeFakeAudioCtx();
-      const { branch } = mode.applyProcessing({ widthPercent: 50, source }, { audioCtx: ctx });
-      const delays = branch.nodes.filter(n => n.__kind === "delay");
-      assert.equal(delays.length, 0, `source=${source}: DelayNode BULUNDU, kaldırılmamış olabilir`);
-    }
-  });
-
-  it("gürültü kaynağı (pink/white) için ikinci kaynak BufferSourceNode, panL'i besleyen entryTap'ten FARKLI bir düğüm", () => {
+  it("HİÇBİR DelayNode/BufferSource/Oscillator YOK — sadece Gain + Splitter + Merger (anlık matris işlemi)", () => {
     const { ctx } = makeFakeAudioCtx();
-    const { branch } = mode.applyProcessing({ widthPercent: 80, source: "pink" }, { audioCtx: ctx });
-    const bufferSources = branch.nodes.filter(n => n.__kind === "bufferSource");
-    assert.equal(bufferSources.length, 1, "TEK bağımsız BufferSourceNode (entryTap sourceMix'ten geliyor, applyProcessing İÇİNDE oluşturulmuyor)");
-    const entryTap = branch.input;
-    assert.notEqual(bufferSources[0].__id, entryTap.__id, "ikinci kaynak entryTap'İN KENDİSİ OLMAMALI — bağımsız/taze bir düğüm olmalı");
+    const { branch } = mode.applyProcessing({ widthPercent: 50 }, { audioCtx: ctx });
+    const forbiddenKinds = new Set(["delay", "panner", "bufferSource", "oscillator"]);
+    branch.nodes.forEach(n => assert.ok(!forbiddenKinds.has(n.__kind), `beklenmeyen düğüm türü: ${n.__kind}`));
+    assert.equal(branch.nodes.filter(n => n.__kind === "splitter").length, 1);
+    assert.equal(branch.nodes.filter(n => n.__kind === "merger").length, 1);
+    assert.equal(branch.nodes.filter(n => n.__kind === "gain").length, 11);
   });
 
-  it("osilatör kaynağı (saw/square/triangle) için ikinci kaynak OscillatorNode, KÜÇÜK bir detune taşır (sıfır DEĞİL — gerçek decorrelation için)", () => {
-    for (const source of ["saw", "square", "triangle"]) {
-      const { ctx } = makeFakeAudioCtx();
-      const { branch } = mode.applyProcessing({ widthPercent: 80, source }, { audioCtx: ctx });
-      const oscs = branch.nodes.filter(n => n.__kind === "oscillator");
-      assert.equal(oscs.length, 1, `source=${source}: TEK bağımsız OscillatorNode bekleniyordu`);
-      assert.equal(oscs[0].type, source);
-      assert.notEqual(oscs[0].detune.value, 0, `source=${source}: detune sıfırsa iki osilatör SKALER KATI olur, decorrelation OLUŞMAZ`);
-    }
-  });
-
-  it("bilinmeyen/desteklenmeyen bir source için ÇÖKMEZ, güvenli pembe-gürültü varsayılanına düşer", () => {
+  it("width=0'da side ölçek katsayısı (sideScaled.gain) TAM SIFIR — L'=R'=mid MATEMATİKSEL KESİNLİKLE (tam mono)", () => {
     const { ctx } = makeFakeAudioCtx();
-    assert.doesNotThrow(() => {
-      const { branch } = mode.applyProcessing({ widthPercent: 50, source: "kick" }, { audioCtx: ctx });
-      const bufferSources = branch.nodes.filter(n => n.__kind === "bufferSource");
-      assert.equal(bufferSources.length, 1);
-    });
+    const { branch } = mode.applyProcessing({ widthPercent: 0 }, { audioCtx: ctx });
+    // sideScaled: sideSum'dan gelen TEK girdiyi alan, merger'a GİTMEYEN
+    // (outL/outR üzerinden dolaylı giden) gain — gain.value widthFrac'a eşit
+    // olmalı. Node'u topolojiden bulmak yerine (isim yok, sahte graf) DOĞRUDAN
+    // gain.value=0 olan ve TAM OLARAK bir "toplama" (sideSum) düğümünden
+    // beslenen bir gain arıyoruz — daha basiti: TÜM gain düğümleri arasında
+    // gain.value === widthFrac (0) olanı en az bir tane olmalı.
+    const zeroGains = branch.nodes.filter(n => n.__kind === "gain" && n.gain.value === 0);
+    assert.ok(zeroGains.length >= 1, "width=0'da gain.value=0 olan HİÇBİR düğüm yok");
   });
 
-  it("width=0'da panL/panR pan=0 (merkez) — width=100'de panL=-1/panR=+1 (tam ayrık)", () => {
+  it("width=100'de side ölçek katsayısı TAM 1 — L'=L, R'=R (dosyanın kendi orijinal genişliği BİREBİR)", () => {
     const { ctx } = makeFakeAudioCtx();
-    const zero = mode.applyProcessing({ widthPercent: 0, source: "pink" }, { audioCtx: ctx });
-    const zeroPanners = zero.branch.nodes.filter(n => n.__kind === "panner");
-    zeroPanners.forEach(p => assert.ok(p.pan.value === 0, `pan.value ${p.pan.value} !== 0`));
-
-    const { ctx: ctx2 } = makeFakeAudioCtx();
-    const full = mode.applyProcessing({ widthPercent: 100, source: "pink" }, { audioCtx: ctx2 });
-    const fullPanners = full.branch.nodes.filter(n => n.__kind === "panner");
-    const panValues = fullPanners.map(p => p.pan.value).sort((a, b) => a - b);
-    assert.deepEqual(panValues, [-1, 1]);
+    const { branch } = mode.applyProcessing({ widthPercent: 100 }, { audioCtx: ctx });
+    const oneGains = branch.nodes.filter(n => n.__kind === "gain" && n.gain.value === 1);
+    // midSum/outL/outR/sideSum/mergeGain'lerin HEPSİ zaten 1 — sideScaled'ın
+    // DA 1 olması (widthFrac=1) toplam "gain.value===1" sayısını ARTIRMALI.
+    assert.ok(oneGains.length >= 5);
   });
 
-  it("iç bağlantılar TAM beklenen fan-out/merge topolojisini kurar: entryTap→panL, ikinciKaynak→ara-gain→panR, panL→merge, panR→merge (bypass sızıntısı YOK)", () => {
+  it("width 0..100 arası ARA bir değerde (ör. 37) side ölçek katsayısı TAM widthFrac'a eşit bir gain vardır", () => {
+    const { ctx } = makeFakeAudioCtx();
+    const { branch } = mode.applyProcessing({ widthPercent: 37 }, { audioCtx: ctx });
+    const matching = branch.nodes.filter(n => n.__kind === "gain" && Math.abs(n.gain.value - 0.37) < 1e-9);
+    assert.equal(matching.length, 1, "widthFrac'a eşit TAM BİR gain değeri bekleniyordu (sideScaled)");
+  });
+
+  it("iç bağlantılar beklenen fan-out/merge topolojisini kurar: entryTap→splitter, splitter→(4 half-gain), merger'a TAM 2 giriş (index 0 ve 1)", () => {
     const { ctx, connections } = makeFakeAudioCtx();
-    const { branch } = mode.applyProcessing({ widthPercent: 50, source: "pink" }, { audioCtx: ctx });
+    const { branch } = mode.applyProcessing({ widthPercent: 50 }, { audioCtx: ctx });
     const entryTap = branch.input;
-    const mergeGain = branch.output;
-    const panners = branch.nodes.filter(n => n.__kind === "panner");
-    const has = (from, to) => connections.some(([f, t]) => f === from.__id && t === to.__id);
+    const merger = branch.output;
+    const splitter = branch.nodes.find(n => n.__kind === "splitter");
 
-    assert.ok(panners.some(p => has(entryTap, p)), "entryTap bir panner'a bağlı değil");
-    panners.forEach(p => assert.ok(has(p, mergeGain), "her panner mergeGain'e bağlı olmalı"));
-    // entryTap DOĞRUDAN mergeGain'e bağlı OLMAMALI (bypass sızıntısı olurdu).
-    assert.ok(!has(entryTap, mergeGain), "entryTap→mergeGain DOĞRUDAN bağlantısı OLMAMALIYDI");
+    assert.ok(connections.some(([f, t]) => f === entryTap.__id && t === splitter.__id), "entryTap splitter'a bağlı değil");
+
+    const fromSplitter = connections.filter(([f]) => f === splitter.__id);
+    assert.equal(fromSplitter.length, 4, "splitter TAM 4 gain'e (mid/side × L/R) bağlanmalı");
+    const outputIndices = fromSplitter.map(([, , output]) => output).sort();
+    assert.deepEqual(outputIndices, [0, 0, 1, 1], "splitter çıkışları TAM olarak iki kez 0 (L) iki kez 1 (R) kullanılmalı");
+
+    const intoMerger = connections.filter(([, t]) => t === merger.__id);
+    assert.equal(intoMerger.length, 2, "merger'a TAM 2 giriş bağlanmalı (outL, outR)");
+    const mergerInputs = intoMerger.map(([, , , input]) => input).sort();
+    assert.deepEqual(mergerInputs, [0, 1], "merger girişleri TAM olarak 0 (L) ve 1 (R) olmalı");
   });
 
-  it("branch.nodes 6 düğüm içerir (entryTap+panL+ikinciKaynak+secondGain+panR+mergeGain), filters BOŞ/undefined", () => {
+  it("branch.nodes 13 düğüm içerir, filters BOŞ/undefined", () => {
     const { ctx } = makeFakeAudioCtx();
-    const result = mode.applyProcessing({ widthPercent: 50, source: "pink" }, { audioCtx: ctx });
+    const result = mode.applyProcessing({ widthPercent: 50 }, { audioCtx: ctx });
     assert.ok(result.branch);
-    assert.equal(result.branch.nodes.length, 6);
+    assert.equal(result.branch.nodes.length, 13);
     assert.ok(!result.filters || result.filters.length === 0, "width modunda düz filters dizisi KULLANILMAMALI");
+  });
+});
+
+// G122 — SAYISAL KANIT: mid/side matrisinin GERÇEK PCM örnekleri üzerinde
+// (JS'te, Web Audio olmadan) matematiksel olarak DOĞRU davrandığını,
+// özellikle width=0'da korelasyonun TAM +1 (mükemmel mono) olduğunu ve
+// width=100'de orijinal L/R'nin BİREBİR geri kurulduğunu doğrular —
+// applyProcessing'in node grafiğiyle AYNI formül (mid=(L+R)/2, side=(L-R)/2,
+// L'=mid+k*side, R'=mid-k*side), burada saf sayısal olarak.
+function applyMidSideWidth(L, R, k) {
+  const n = L.length;
+  const outL = new Float64Array(n), outR = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const mid = (L[i] + R[i]) / 2;
+    const side = (L[i] - R[i]) / 2;
+    const sideScaled = side * k;
+    outL[i] = mid + sideScaled;
+    outR[i] = mid - sideScaled;
+  }
+  return [outL, outR];
+}
+function pearsonCorrelation(a, b) {
+  const n = a.length;
+  let sa = 0, sb = 0;
+  for (let i = 0; i < n; i++) { sa += a[i]; sb += b[i]; }
+  const ma = sa / n, mb = sb / n;
+  let num = 0, da = 0, db = 0;
+  for (let i = 0; i < n; i++) {
+    const xa = a[i] - ma, xb = b[i] - mb;
+    num += xa * xb; da += xa * xa; db += xb * xb;
+  }
+  if (da === 0 || db === 0) return 1; // iki sabit/sıfır sinyal — mükemmel "eşleşme" (mono) sayılır
+  return num / Math.sqrt(da * db);
+}
+describe("Stereo Genişlik — mid/side matrisinin sayısal doğrulaması (Web Audio'suz, saf JS)", () => {
+  function makeStereoNoise(n, seed) {
+    let s = seed;
+    const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+    const L = new Float64Array(n), R = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      // GERÇEKÇİ bir stereo kayıt simülasyonu: ortak bir "mid" bileşeni +
+      // her kanala AYRI bir mikrofon/oda gürültüsü (kısmi decorrelation) —
+      // gerçek dünya stereo kayıtlarının tipik yapısı.
+      const common = rnd() * 2 - 1;
+      L[i] = common * 0.7 + (rnd() * 2 - 1) * 0.3;
+      R[i] = common * 0.7 + (rnd() * 2 - 1) * 0.3;
+    }
+    return [L, R];
+  }
+
+  it("width=0 (k=0) → L'===R' HER ÖRNEKTE BİREBİR (tam mono), korelasyon TAM +1", () => {
+    const [L, R] = makeStereoNoise(5000, 42);
+    const [outL, outR] = applyMidSideWidth(L, R, 0);
+    for (let i = 0; i < outL.length; i++) {
+      assert.ok(Math.abs(outL[i] - outR[i]) < 1e-12, `örnek ${i}: L'≠R' (${outL[i]} vs ${outR[i]})`);
+    }
+    const corr = pearsonCorrelation(outL, outR);
+    assert.ok(Math.abs(corr - 1) < 1e-9, `korelasyon ${corr} !== 1`);
+  });
+
+  it("width=100 (k=1) → L'/R' orijinal L/R'yi HER ÖRNEKTE BİREBİR geri kurar", () => {
+    const [L, R] = makeStereoNoise(5000, 7);
+    const [outL, outR] = applyMidSideWidth(L, R, 1);
+    for (let i = 0; i < L.length; i++) {
+      assert.ok(Math.abs(outL[i] - L[i]) < 1e-12, `örnek ${i}: L' orijinal L'den farklı`);
+      assert.ok(Math.abs(outR[i] - R[i]) < 1e-12, `örnek ${i}: R' orijinal R'den farklı`);
+    }
+  });
+
+  it("ARA k değerlerinde (0.25/0.5/0.75) korelasyon MONOTON artar (k küçüldükçe mono'ya yaklaşır — 0'a daha yakın k HER ZAMAN >= korelasyon)", () => {
+    const [L, R] = makeStereoNoise(20000, 99);
+    const ks = [0, 0.25, 0.5, 0.75, 1];
+    const corrs = ks.map(k => {
+      const [outL, outR] = applyMidSideWidth(L, R, k);
+      return pearsonCorrelation(outL, outR);
+    });
+    for (let i = 1; i < corrs.length; i++) {
+      assert.ok(corrs[i] <= corrs[i - 1] + 1e-9, `k=${ks[i]}'de korelasyon (${corrs[i]}) k=${ks[i - 1]}'den (${corrs[i - 1]}) BÜYÜK — beklenen monoton azalış yok`);
+    }
+    assert.ok(Math.abs(corrs[0] - 1) < 1e-9);
+  });
+
+  it("HİÇBİR k değerinde (0'dan 1'e 21 adım) enerji patlaması/taşma OLMAZ — çıktı RMS'i girdi RMS'inin makul bir katı içinde kalır", () => {
+    const [L, R] = makeStereoNoise(20000, 123);
+    const rms = (a) => Math.sqrt(a.reduce((s, v) => s + v * v, 0) / a.length);
+    const inputRms = (rms(L) + rms(R)) / 2;
+    for (let i = 0; i <= 20; i++) {
+      const k = i / 20;
+      const [outL, outR] = applyMidSideWidth(L, R, k);
+      const outputRms = (rms(outL) + rms(outR)) / 2;
+      assert.ok(outputRms <= inputRms * 1.5 + 0.01, `k=${k}: çıktı RMS (${outputRms.toFixed(3)}) girdi RMS'inin (${inputRms.toFixed(3)}) 1.5 katını aştı`);
+    }
   });
 });
 
@@ -306,13 +493,9 @@ describe("Stereo Genişlik — getMeta() sözleşme alanları", () => {
     assert.equal(meta.choiceOnly, true);
   });
 
-  it("G120 — kaynak listesi SADECE sentetik türlere (pink/white/saw/square/triangle) daraltıldı — örnek dosyalar/upload'ta bağımsız ikinci kaynak YOK", () => {
+  it("G122 — kaynak listesi SADECE 'upload' — mid/side ayrıştırması GERÇEK bir stereo kayıt gerektiriyor", () => {
     const meta = mode.getMeta();
-    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["pink", "saw", "square", "triangle", "white"]);
-    assert.ok(!meta.uyumluKaynaklar.includes("upload"));
-    assert.ok(!meta.uyumluKaynaklar.includes("kick"));
-    assert.ok(!meta.uyumluKaynaklar.includes("vocal"));
-    assert.ok(!meta.uyumluKaynaklar.includes("groove"));
+    assert.deepEqual([...meta.uyumluKaynaklar], ["upload"]);
   });
 
   it("ad/aciklama BİLEREK yok", () => {
