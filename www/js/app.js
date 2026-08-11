@@ -8404,14 +8404,22 @@ const TOOLS_TONAL_GY0 = 10, TOOLS_TONAL_GY1 = 112;
 // uç değerine göre günceller — toolsTonalDy bunu okur, bu yüzden TÜM mevcut
 // çağıranlar (hedef bandı/segment dolgusu/eğriler/0dB çizgisi) hiçbir
 // değişiklik gerekmeden otomatik olarak yeni ölçeği kullanır.
-// TİTREME KORUMASI (task: "canlı eğri akarken ölçek titremesin — ortalama
-// eğriye göre sabitlensin ya da yumuşak geçsin"): taban ölçek SADECE avg+
-// target'tan hesaplanır (bunlar dosya/hedef değişmedikçe KARE-KAREYE
-// SABİTTİR) — canlı veri sadece bu tabanı AŞARSA ölçeği YUMUŞAKÇA
-// (üstel yumuşatma, ~%12/kare) genişletir, ASLA ANİDEN SIÇRAMAZ. Canlı
-// YOKKEN (dosya duraklatılmışken/değişiminde) ANINDA taze değere atlar —
-// o durumda zaten kare-kareye çizim yok, sıçrama riski yok.
-let toolsTonalCurrentHalfRange = 7; // toolsTonalDy() bunu okur, drawTonalChart günceller
+// G116 — G114'ün "titreme koruması" YETERSİZ çıktı (cihaz kanıtı: dB
+// etiketleri her karede değişip 7-8 haneli ondalıklı sayılara dönüşüyordu,
+// ör. "+10.3847291"). KÖK SEBEP: G114 canlı çalarken HER KAREDE smoothing'in
+// KOVALADIĞI HEDEFİ (`toolsTonalComputeRawHalfRange(avg, target, liveDevs)`)
+// liveDevs'ten YENİDEN hesaplıyordu — liveDevs gerçek zamanlı FFT anlık
+// görüntüsü olduğu için KARE-KAREYE DEĞİŞİR, yani hedefin KENDİSİ sürekli
+// oynuyordu — smoothing hiçbir zaman bir "nice" sayıya OTURAMIYORDU.
+// DÜZELTME (task'ın kendi tarifi, "dosya başına BİR KEZ hesaplansın"):
+// ölçek artık dosya/hedef değişince toolsTonalResetHalfRange() ile TEK SEFER
+// (SADECE avg+target'tan, canlı YOK — kare-kareye SABİT girdi) hesaplanıp
+// KİLİTLENİYOR. Canlı veri sadece bu kilitli tabanı (toolsTonalHalfRangeFloor)
+// AŞARSA ölçek YUMUŞAKÇA genişliyor (ratchet — floor da büyüyor) — ASLA
+// daralmıyor, bir SONRAKİ dosya/hedef değişimine kadar bu genişlemiş hâl
+// KALICI.
+let toolsTonalCurrentHalfRange = 7; // toolsTonalDy() bunu okur — kilitli/komitted değer
+let toolsTonalHalfRangeFloor = 7;   // ratchet tabanı — SADECE büyür, resetHalfRange() ile sıfırlanır
 const TOOLS_TONAL_NICE_HALF_RANGES = [2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50];
 // SAF. Ham (yastıklanmamış) bir yarı-aralığı "güzel" bir dB adımına yuvarlar
 // (task: "+6/0/−6 gibi") — bu değer HEM y-ekseni ölçeği HEM eksen etiketi
@@ -8434,6 +8442,15 @@ function toolsTonalComputeRawHalfRange(avgDevs, targetDevs, liveDevs) {
   }
   if (liveDevs) liveDevs.forEach(consider);
   return maxAbs * 1.15;
+}
+// G116 — dosya/hedef değişince (yeni ölçüm, preset/referans değişimi)
+// renderToolsTonalCard() tarafından BİR KEZ çağrılır: ölçeği SADECE
+// avg+target'tan (canlı YOK) yeniden hesaplayıp KİLİTLER. Bir SONRAKİ
+// çağrıya kadar canlı veri (drawTonalChart içinde) bunu SADECE genişletebilir.
+function toolsTonalResetHalfRange(avgDevs, targetDevs) {
+  const nice = toolsTonalNiceHalfRange(Math.max(3, toolsTonalComputeRawHalfRange(avgDevs, targetDevs, null)));
+  toolsTonalCurrentHalfRange = nice;
+  toolsTonalHalfRangeFloor = nice;
 }
 function toolsTonalFx(f) { return TOOLS_TONAL_X0 + (Math.log10(f / 20) / 3) * (TOOLS_TONAL_X1 - TOOLS_TONAL_X0); }
 function toolsTonalDy(d) { return (TOOLS_TONAL_GY0 + TOOLS_TONAL_GY1) / 2 - (d / toolsTonalCurrentHalfRange) * ((TOOLS_TONAL_GY1 - TOOLS_TONAL_GY0) / 2); }
@@ -8563,18 +8580,18 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
   const targetPts = targetDevs ? toolsTonalInterp(targetDevs, centers) : null;
   const livePts = liveDevs ? toolsTonalInterp(liveDevs, centers) : null;
 
-  // G114 — dinamik dikey ölçek (bkz. dosya başı toolsTonalCurrentHalfRange
-  // notu). Taban SADECE avg+target'tan (canlı YOK) — bu, kare-kareye SABİT,
-  // titreme kaynağı olamaz. Canlı varsa ve tabanı AŞIYORSA ölçek YUMUŞAKÇA
-  // (üstel yumuşatma) genişler; canlı yoksa ANINDA taze değere döner.
-  const baseHalfRange = toolsTonalComputeRawHalfRange(avgDevs, targetDevs, null);
-  const neededRaw = liveDevs ? Math.max(baseHalfRange, toolsTonalComputeRawHalfRange(avgDevs, targetDevs, liveDevs)) : baseHalfRange;
-  const neededNice = toolsTonalNiceHalfRange(Math.max(3, neededRaw));
+  // G116 — ölçek BURADA artık yeniden hesaplanmıyor (dosya/hedef değişince
+  // toolsTonalResetHalfRange() TEK SEFER kilitliyor, bkz. renderToolsTonalCard).
+  // Canlı veri SADECE kilitli tabanı (toolsTonalHalfRangeFloor) aşarsa ölçeği
+  // YUMUŞAKÇA genişletir — ratchet: floor da güncellenir, bir SONRAKİ karede
+  // canlı geçici olarak küçülse BİLE ölçek geri DARALMAZ.
   if (liveDevs) {
-    toolsTonalCurrentHalfRange += (neededNice - toolsTonalCurrentHalfRange) * 0.12;
-    if (Math.abs(toolsTonalCurrentHalfRange - neededNice) < 0.05) toolsTonalCurrentHalfRange = neededNice;
-  } else {
-    toolsTonalCurrentHalfRange = neededNice;
+    const liveNeededNice = toolsTonalNiceHalfRange(Math.max(3, toolsTonalComputeRawHalfRange(avgDevs, targetDevs, liveDevs)));
+    if (liveNeededNice > toolsTonalHalfRangeFloor) toolsTonalHalfRangeFloor = liveNeededNice;
+    if (toolsTonalCurrentHalfRange < toolsTonalHalfRangeFloor) {
+      toolsTonalCurrentHalfRange += (toolsTonalHalfRangeFloor - toolsTonalCurrentHalfRange) * 0.12;
+      if (toolsTonalHalfRangeFloor - toolsTonalCurrentHalfRange < 0.05) toolsTonalCurrentHalfRange = toolsTonalHalfRangeFloor;
+    }
   }
 
   // 0 dB referans çizgisi (düz spektrum) — kesikli, soluk.
@@ -8658,8 +8675,15 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
   ctx.font = "600 7px Inter, sans-serif";
   ctx.textAlign = "left";
   ctx.fillStyle = "#4a4f56";
+  // G116 — metin HER ZAMAN tam sayıya yuvarlanır (task: ölçek genişleme
+  // ANİMASYONU sırasında bile "+10.3847291" gibi ondalık spam GÖRÜNMESİN).
+  // Y konumu ise yuvarlanmamış `hr`'den hesaplanır — yuvarlanmış hr'yi
+  // kullansaydı, animasyon sırasında etiket kendi ızgara çizgisinden KOPUP
+  // ayrı hareket ederdi; bu şekilde sayı yuvarlak görünür ama çizgisiyle
+  // AYNI hizada kalır (animasyon zaten "nadiren" ve kısa sürer, bkz. task).
   const hr = toolsTonalCurrentHalfRange;
-  [[hr, `+${hr}`], [0, "0"], [-hr, `−${hr}`]].forEach(([d, label]) => {
+  const hrLabel = Math.round(hr);
+  [[hr, `+${hrLabel}`], [0, "0"], [-hr, `−${hrLabel}`]].forEach(([d, label]) => {
     const y = toolsTonalDy(d) + (d === 0 ? 3 : d > 0 ? 6 : -1);
     ctx.fillText(label, TOOLS_TONAL_X0 + 1, y);
   });
@@ -8720,6 +8744,7 @@ async function renderToolsTonalCard() {
 
   toolsTonalLastAvgDevs = devs;
   toolsTonalLastTargetDevs = targetDevs;
+  toolsTonalResetHalfRange(devs, targetDevs); // G116 — dosya/hedef değişince ölçek TEK SEFER kilitlenir
   drawTonalChart(devs, targetDevs, toolsTonalLiveDevs);
   toolsTonalSyncLiveLoop();
 
