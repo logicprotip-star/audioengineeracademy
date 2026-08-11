@@ -78,11 +78,33 @@ export function createAudioEngine() {
   // visibilitychange gibi SİSTEM olaylarından DEĞİL (bkz. ensureAudioAlive'ın
   // allowRecreate parametresi) — jest DIŞI bir yeniden oluşturma denemesi
   // hem muhtemelen İŞE YARAMAZ hem boşuna 2 hakkımızdan birini tüketir.
-  const MAX_CONTEXT_RECREATE = 2;
+  // G133 — CİHAZDA KANITLANDI: mekanizmanın KENDİSİ (tespit → yeniden
+  // oluşturma → doğrulama) DOĞRU çalışıyordu — cihaz günlüğü HER seferinde
+  // "yeniden oluşturuldu → canlı: true → ses geldi" gösteriyordu. Sorun
+  // SADECE sınırdı: MAX_CONTEXT_RECREATE=2, UYGULAMA ÖMRÜ boyunca (üçüncü
+  // kesintiden sonra kullanıcı BİR DAHA ses alamıyordu). Safari'nin sayfa
+  // başına sınırı EŞZAMANLI AÇIK context sayısıdır (~4), TOPLAM oluşturma
+  // sayısı DEĞİL — close()'un GERÇEKTEN tamamlandığı doğrulanırsa (aşağıda,
+  // artık await ediliyor) yüksek bir toplam sayı GÜVENLİDİR. 20'ye çıkarıldı
+  // (yaklaşık sınırsız — bir kullanıcı oturumunda 20 kesinti gerçekçi
+  // değil) — asıl güvenlik ağı artık RECREATE_COOLDOWN_MS (hız sınırı,
+  // sonsuz/çılgın döngüyü engeller) ve inFlightEnsure (kilit, eşzamanlı
+  // yarışı engeller).
+  const MAX_CONTEXT_RECREATE = 20;
+  const RECREATE_COOLDOWN_MS = 2000; // en fazla 2 saniyede 1 yeniden oluşturma denemesi
+  let lastRecreateAttemptAt = 0;
   let contextRecreateCount = 0;
   let audioDead = false; // true = state "running" OLSA BİLE currentTime ilerlemiyor, GERÇEK dokunuş bekleniyor
   let onDeadStateChange = null; // app.js "Devam etmek için ekrana dokunun" banner'ını göster/gizle
   let onContextRecreated = null; // app.js'in yüklü dosyaları YENİ context'e göre yeniden decode etmesi için
+  // G133 — "aynı anda birden fazla yeniden oluşturma çalışmasın" (task'ın
+  // kendi isteği): ensureAudioAlive() halihazırda DEVAM EDEN bir çağrı
+  // varken (ör. native sessionActivated olayı VE bir play denemesi neredeyse
+  // aynı anda tetiklenirse) YENİ bir tane BAŞLATMAZ, mevcut olanın SONUCUNU
+  // paylaşır — iki paralel recreateContext() birbirinin ayaklarına
+  // basmasın (ikisi de aynı anda contextRecreateCount'u artırıp aynı
+  // audioCtx'i İKİ KEZ close() etmeye çalışmasın).
+  let inFlightEnsure = null;
 
   function setAudioDead(dead) {
     if (audioDead === dead) return;
@@ -104,15 +126,35 @@ export function createAudioEngine() {
   // SIRALAMA (task'ın kendi isteği): "önce native oturum, sonra Web Audio
   // resume" — bu fonksiyon ensureAudioAlive()'ın EN BAŞINDA (resume denemesi
   // BAŞLAMADAN ÖNCE) çağrılır.
+  //
+  // G133 — "native katman görünmüyor" teşhisi: Swift'in KENDİ `print()`'i
+  // Xcode'un konsoluna gider, Safari Web Inspector'a DEĞİL (ikisi AYRI
+  // süreç/console) — `[audio-diag-native]` satırları Safari'de HİÇBİR ZAMAN
+  // görünmeyecek, bu BEKLENEN/doğru davranış, hata DEĞİL. JS tarafında
+  // plugin'in GERÇEKTEN bulunup çağrıldığının kanıtı BURADAKİ `[audio-diag]`
+  // satırları — önceden plugin BULUNAMAZSA (ör. cihaza henüz senkronlanmamış
+  // bir build) SESSİZCE dönüyordu, HİÇBİR İZ bırakmıyordu; artık "plugin
+  // BULUNAMADI" da ayrıca loglanıyor. Ayrıca native çağrı (herhangi bir
+  // sebeple) hiç yanıt vermezse (asla resolve/reject etmezse) TÜM
+  // ensureAudioAlive() zinciri SONSUZA kadar askıda kalırdı (bu, "Tekrar
+  // dene" ve tüm sonraki play denemelerinin SESSİZCE tepkisiz kalmasının
+  // olası bir açıklaması) — 2 saniyelik bir zaman aşımıyla bu artık
+  // İMKANSIZ, native yanıt vermese bile JS akışı devam eder.
   async function activateNativeSession(reason) {
     const plugin = getAudioSessionPlugin();
-    if (!plugin) return;
+    if (!plugin) {
+      console.log(`[audio-diag] native AVAudioSession plugin BULUNAMADI (${reason}) — window.Capacitor.Plugins.AudioSessionPlugin yok (Web/Android'de NORMAL; iOS'ta görüyorsan cihaza YENİ bir senkron/temiz derleme gerekebilir)`);
+      return;
+    }
     const t0 = performance.now();
     try {
-      const res = await plugin.activate();
+      const res = await Promise.race([
+        plugin.activate(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("native activate() 2000ms içinde yanıt vermedi (zaman aşımı)")), 2000))
+      ]);
       console.log(`[audio-diag] native AVAudioSession activate() (${reason}) — ${(performance.now() - t0).toFixed(0)}ms, ok=${res && res.ok}`);
     } catch (e) {
-      console.log(`[audio-diag] native AVAudioSession activate() HATA (${reason}) — ${e && e.message}`);
+      console.log(`[audio-diag] native AVAudioSession activate() HATA (${reason}) — ${(performance.now() - t0).toFixed(0)}ms — ${e && e.message}`);
     }
   }
 
@@ -149,7 +191,8 @@ export function createAudioEngine() {
   // Context'i KAPATIP YENİDEN kurar — SADECE ensureAudioAlive'ın
   // allowRecreate=true dalından (yani bir kullanıcı jesti İÇİNDEN)
   // çağrılır. En fazla MAX_CONTEXT_RECREATE kez (uygulama ömrü boyunca,
-  // sıfırlanmaz — Safari'nin sayfa başına sınırlı context sayısına saygı).
+  // sıfırlanmaz) VE en fazla RECREATE_COOLDOWN_MS'de bir (hız sınırı —
+  // task'ın kendi isteği: "sonsuz döngü oluşmasın").
   // unlockAudio()'nun context+node kurulum bloğu audioReady=false ile
   // ZORLA yeniden çalıştırılıyor — kod TEKRARLANMADI.
   async function recreateContext() {
@@ -157,6 +200,12 @@ export function createAudioEngine() {
       console.log(`[audio-diag] bağlam yeniden oluşturma İPTAL — üst sınıra (${MAX_CONTEXT_RECREATE}) ulaşıldı`);
       return false;
     }
+    const sinceLastAttempt = performance.now() - lastRecreateAttemptAt;
+    if (sinceLastAttempt < RECREATE_COOLDOWN_MS) {
+      console.log(`[audio-diag] bağlam yeniden oluşturma İPTAL — hız sınırı (son denemeden ${sinceLastAttempt.toFixed(0)}ms geçti, en az ${RECREATE_COOLDOWN_MS}ms gerekiyor)`);
+      return false;
+    }
+    lastRecreateAttemptAt = performance.now();
     contextRecreateCount++;
     console.log(`[audio-diag] bağlam YENİDEN OLUŞTURULUYOR (${contextRecreateCount}/${MAX_CONTEXT_RECREATE})`);
     const oldCtx = audioCtx;
@@ -179,11 +228,26 @@ export function createAudioEngine() {
     sampleBufferCache.clear();
     audioReady = false;
     audioUnlocked = false;
-    // close() AWAIT EDİLMİYOR (bilerek) — orijinal kullanıcı jestinden
-    // (bu fonksiyonu çağıran click/touch handler'ı) mümkün olduğunca AZ
-    // async adımla ayrılıp hemen unlockAudio()+resume()'a geçmek için
-    // (araştırma notu: jest-dışı resume/context oluşturma GÜVENİLMEZ).
-    try { oldCtx && oldCtx.close().catch(() => {}); } catch (e) {}
+    // G133 — task'ın kendi isteği: close()'un GERÇEKTEN çağrıldığı VE
+    // TAMAMLANDIĞI artık AÇIKÇA doğrulanıyor (öncesi/sonrası log + süre).
+    // ÖNCEDEN await edilmiyordu ("jest'ten mümkün olduğunca az async adımla
+    // ayrılmak için") — cihaz kanıtı bunun GEREKSİZ bir endişe olduğunu
+    // gösterdi: mekanizma fire-and-forget haliyle bile İKİ kez üst üste
+    // (1/2, 2/2) sorunsuz çalıştı. await etmek Safari'nin EŞZAMANLI açık
+    // context sınırına (~4) daha da saygılı davranır — bir SONRAKİ
+    // context'i oluşturmadan ÖNCE eskisinin GERÇEKTEN kapandığından emin
+    // oluruz, üst üste yığılan "kapanıyor" context'ler BİRİKMEZ (bu, 20'ye
+    // çıkarılan toplam sınırın GÜVENLİ olmasının ÖN KOŞULU).
+    if (oldCtx) {
+      const closeT0 = performance.now();
+      console.log("[audio-diag] eski bağlam close() çağrılıyor");
+      try {
+        await oldCtx.close();
+        console.log(`[audio-diag] eski bağlam close() TAMAMLANDI — ${(performance.now() - closeT0).toFixed(0)}ms, state=${oldCtx.state}`);
+      } catch (e) {
+        console.log(`[audio-diag] eski bağlam close() HATA — ${(performance.now() - closeT0).toFixed(0)}ms — ${e && e.message}`);
+      }
+    }
     unlockAudio(); // audioCtx/analyser/masterGain/muteGain YENİDEN kurulur (TAZE AudioContext)
     // G132 — TAZE context için native oturumun da TAZE etkin olduğundan
     // emin ol (ensureAudioAlive'ın kendi başındaki çağrısı bu noktaya
@@ -279,7 +343,18 @@ export function createAudioEngine() {
   // play başladı" yazıp context'in GERÇEKTE donuk kalması — buradan
   // kapatılıyor).
   const RESUME_RETRY_DELAYS_MS = [0, 150, 400];
-  async function ensureAudioAlive({ allowRecreate = true } = {}) {
+  // G133 — "aynı anda birden fazla yeniden oluşturma çalışmasın" (kilit):
+  // ensureAudioAlive() ZATEN DEVAM EDEN bir çağrı varken YENİ bir tane
+  // BAŞLATMAZ, aynı sonucu BEKLEYİP paylaşır. Dışa açık isim AYNI kaldı
+  // (mevcut TÜM çağıranlar — playQuestion, Tools/kalibrasyon play
+  // düğmeleri, visibilitychange, native sessionActivated dinleyicisi —
+  // değişiklik GEREKTİRMEDİ), gerçek iş ensureAudioAliveInner()'da.
+  async function ensureAudioAlive(opts = {}) {
+    if (inFlightEnsure) return inFlightEnsure;
+    inFlightEnsure = ensureAudioAliveInner(opts).finally(() => { inFlightEnsure = null; });
+    return inFlightEnsure;
+  }
+  async function ensureAudioAliveInner({ allowRecreate = true } = {}) {
     if (!audioCtx) return false;
     await activateNativeSession("ensureAudioAlive");
     for (let i = 0; i < RESUME_RETRY_DELAYS_MS.length; i++) {

@@ -4564,7 +4564,29 @@ function hideAudioError() {
 }
 function showAudioLoading() { if (els.audioLoadingRow) els.audioLoadingRow.classList.remove("hidden"); }
 function hideAudioLoading() { if (els.audioLoadingRow) els.audioLoadingRow.classList.add("hidden"); }
-if (els.audioErrorRetry) els.audioErrorRetry.addEventListener("click", () => { playQuestion(currentPlayMode !== "clean"); });
+// G133 — "Tekrar dene" basılınca GÖRÜNÜR bir tepki YOKTU (metin/durum hiç
+// değişmiyordu) — cihazda "butona basılıyor ama hiçbir şey olmuyormuş
+// gibi" algılanmasının bir nedeni buydu (asıl kök sebep audio-engine.js'in
+// eski dar yeniden-oluşturma sınırıydı, bkz. o dosyanın G133 notu — ama bu
+// buton HER durumda görünür bir "deneniyor" geri bildirimi vermeli, sonuç
+// ne olursa olsun). playQuestion() zaten kendi try/catch'e ihtiyaç
+// duymuyor (audioEngine.ensureAudioAlive() içeride hata YAKALAR, hiç
+// fırlatmaz) — burada SADECE düğmenin GEÇİCİ durumu yönetiliyor.
+if (els.audioErrorRetry) {
+  els.audioErrorRetry.addEventListener("click", async () => {
+    const originalText = els.audioErrorRetry.textContent;
+    els.audioErrorRetry.textContent = "Deneniyor…";
+    els.audioErrorRetry.disabled = true;
+    try {
+      await playQuestion(currentPlayMode !== "clean");
+    } finally {
+      els.audioErrorRetry.disabled = false;
+      // Başarılıysa hideAudioError() ZATEN banner'ı gizledi (metin görünmez
+      // oldu) — başarısızsa kullanıcı AYNI "Tekrar dene" metnini tekrar görür.
+      els.audioErrorRetry.textContent = originalText;
+    }
+  });
+}
 
 // Turun sesini SIFIRDAN kurar — sadece round başlangıcında (ve F2'nin karşılaştırma
 // önizleme butonlarında) çağrılmalı. A/B toggle'ı ARTIK bunu çağırmıyor (bkz. toggleAB) —
@@ -4592,6 +4614,23 @@ function audioDiagLog(label, detail) {
 // "görünür olduktan sonra geçen süre" olarak loglanır, sonra sıfırlanır
 // (tek seferlik — bir SONRAKİ gizlenme/görünme döngüsüne kadar).
 let audioVisibleSinceAt = null;
+// G133 — CİHAZDA BULUNAN GERÇEK BOŞLUK: turun sesi playQuestion() ile
+// SIFIRDAN kurulduktan SONRA context "zombi" çıkıp yeniden oluşturulursa
+// (bkz. audio-engine.js:recreateContext) o turun ESKİ chain node'ları
+// (currentNodes/dryGain/wetGain) audio-engine.js TARAFINDAN ZATEN
+// temizleniyor — ama resumeRound()/toggleAB() gibi "zaten kurulu zinciri
+// hafifçe değiştiren" kısayollar (unmuteOutput/setProcessed) bu durumu
+// BİLMİYORDU, artık BOŞ/geçersiz bir zincir üzerinde SESSİZCE çalışıyordu
+// (kullanıcı "Tekrar Çal"a bassa da HİÇBİR ŞEY duymuyordu — G131/G132'nin
+// KAPSAMADIĞI, farklı bir sessiz başarısızlık yolu). audioEngine.
+// contextRecreateCount'un o turun zinciri kurulduğu ANKİ değeri burada
+// saklanır — resumeRound/toggleAB çağrılmadan ÖNCE bu değer GÜNCEL
+// contextRecreateCount'la karşılaştırılıp farklıysa (bkz. chainNeedsRebuild)
+// zincir playQuestion() ile YENİDEN kurulur.
+let chainRecreateCountAtBuild = -1;
+function chainNeedsRebuild() {
+  return audioEngine.contextRecreateCount !== chainRecreateCountAtBuild;
+}
 
 async function playQuestion(processed = true) {
   if (!audioEngine.audioReady || !activeQuestion) return;
@@ -4629,7 +4668,10 @@ async function playQuestion(processed = true) {
     // davranış korunuyor) — tamamlanma/hata YİNE DE .then/.catch ile
     // (playQuestion'ın dönüşünü ETKİLEMEDEN) loglanıyor.
     audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing)
-      .then(() => audioDiagLog("dual-source zinciri kuruldu, play başladı (cakisma)", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "?"}`))
+      .then(() => {
+        chainRecreateCountAtBuild = audioEngine.contextRecreateCount;
+        audioDiagLog("dual-source zinciri kuruldu, play başladı (cakisma)", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "?"}`);
+      })
       .catch((err) => audioDiagLog("dual-source zinciri HATA (cakisma)", err && err.message));
     return;
   }
@@ -4648,6 +4690,7 @@ async function playQuestion(processed = true) {
   // hepsi senkron .start() çağırır) — bu satır o ANI/o andaki context
   // durumunu damgalar.
   audioDiagLog("zincir kuruldu, play başladı", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "?"}, sampleLoadFailed=${!!(result && result.sampleLoadFailed)}`);
+  chainRecreateCountAtBuild = audioEngine.contextRecreateCount;
   if (result && result.sampleLoadFailed) showAudioError(); else hideAudioError();
   updateAbToggleUI();
 }
@@ -5678,7 +5721,7 @@ if (els.cakismaAfter) els.cakismaAfter.addEventListener("click", () => {
 
 // startBtn duruma göre 3 iş yapar: Oyunu Başlat / Tekrar Çal / Durdur (bkz. updateStartBtnLabel)
 els.startBtn.addEventListener("click", async () => {
-  await audioEngine.initAudio();
+  const audioAlive = await audioEngine.initAudio();
   if (blockIfLivesOut()) return;
 
   if (!activeQuestion) {
@@ -5711,10 +5754,34 @@ els.startBtn.addEventListener("click", async () => {
   }
 
   if (autoStopped) {
-    // Tekrar Çal — bkz. resumeRound()'un dosya başı notu.
-    resumeRound();
+    // G133 — CİHAZDA BULUNAN GERÇEK BOŞLUK: resumeRound() SADECE
+    // unmuteOutput() (basit gain aç/kapa) yapar — context DURAKLATILMIŞKEN
+    // "zombi" olup yeniden oluşturulduysa (bkz. audio-engine.js:
+    // recreateContext, o turun chain node'ları TEMİZLENİYOR) unmuteOutput
+    // BOŞ/geçersiz bir grafiği SESSİZCE açıyordu, kullanıcı "Tekrar Çal"a
+    // bassa da hiçbir şey duymuyordu. Artık ÖNCE canlılık (initAudio'nun
+    // yukarıdaki dönüş değeri) doğrulanıyor; context bu turun zinciri
+    // kurulduktan SONRA yeniden oluşturulduysa (chainNeedsRebuild) zincir
+    // playQuestion() ile SIFIRDAN kuruluyor (aynı soru/currentPlayMode,
+    // kullanıcı fark etmez, ses geri gelir) — DEĞİLSE eski hızlı/tıklamasız
+    // unmute yolu AYNEN korunuyor (davranış BOZULMADI).
+    if (!audioAlive) {
+      audioDiagLog("Tekrar Çal İPTAL — audioCtx canlı değil", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "yok"}`);
+      showAudioError("Ses açılamadı — ekrana dokunup tekrar deneyin");
+      return;
+    }
+    hideAudioError();
+    if (chainNeedsRebuild()) {
+      audioDiagLog("Tekrar Çal — context bu turdan SONRA yeniden oluşturulmuş, zincir yeniden kuruluyor");
+      resumeRound();
+      await playQuestion(currentPlayMode !== "clean");
+    } else {
+      resumeRound();
+    }
   } else {
     // Durdur: soruyu/otomatik geçişi ekranda/durumda BOZMADAN sadece sesi/zamanlayıcıyı duraklatır.
+    // Ses ölü/canlı OLMASINDAN bağımsız HER ZAMAN çalışır — bir "durdurma"
+    // eylemi asla engellenmemeli (kullanıcının ekranda sıkışmaması için).
     pauseRound();
   }
 });
@@ -5762,12 +5829,30 @@ els.abToggle.addEventListener("click", async () => {
   if (abHeld) { abHeld = false; return; }
   // Döngü çalışırken dokunmak onu durdurur (prototype.html: abTap → stopAbLoop).
   if (abLoopTimer) { stopAbLoop(); return; }
-  await audioEngine.initAudio();
+  const audioAlive = await audioEngine.initAudio();
   if (!activeQuestion) {
     setAutoPlay(true);
     return;
   }
-  toggleAB();
+  // G133 — toggleAB() setProcessed() ile ZATEN kurulu zinciri hafifçe
+  // değiştirir (crossfade) — resumeRound'daki AYNI boşluk: context ölüyse/
+  // bu turdan SONRA yeniden oluşturulduysa (chainNeedsRebuild) BOŞ/geçersiz
+  // bir zincir üzerinde SESSİZCE çalışırdı.
+  if (!audioAlive) {
+    audioDiagLog("A/B geçişi İPTAL — audioCtx canlı değil", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "yok"}`);
+    showAudioError("Ses açılamadı — ekrana dokunup tekrar deneyin");
+    return;
+  }
+  hideAudioError();
+  if (chainNeedsRebuild()) {
+    // targetProcessed: toggleAB()'nin KENDİ hesapladığı AYNI hedef mod —
+    // doğrudan playQuestion() ile o modda SIFIRDAN kurulur, toggleAB()
+    // AYRICA çağrılmaz (aynı geçişi ikinci kez yapardı).
+    audioDiagLog("A/B geçişi — context bu turdan SONRA yeniden oluşturulmuş, zincir yeniden kuruluyor");
+    await playQuestion(currentPlayMode !== "filtered");
+  } else {
+    toggleAB();
+  }
   setFeedback(
     currentPlayMode === "clean" ? "A modu" : "B modu",
     currentPlayMode === "clean" ? "Şu an temiz referans sesi dinliyorsun." : "Şu an işlenmiş sesi dinliyorsun."

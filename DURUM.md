@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G132)
+Son güncelleme: 11.08.2026 (G133)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,51 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G132) — **NATIVE KATMAN EKSİĞİ KAPATILDI: iOS'a özgü küçük bir yerel Capacitor eklentisi (Swift, `AudioSessionPlugin`) yazılıp AVAudioSession'ı yönetmeye başladı — G131'in JS-tarafı düzeltmesi TEK BAŞINA yeterli değildi, altta JS'in erişemediği bir katman vardı.**
+Bu commit (G133) — **CİHAZDA G132 SONRASI TEST EDİLDİ: mekanizmanın KENDİSİ DOĞRU çalışıyordu, sorun 3 spesifik sınırdı — hepsi kapatıldı.**
+
+**CİHAZ KANITI (kullanıcının verdiği ham çıktı):**
+```
+bağlam YENİDEN OLUŞTURULUYOR (1/2) → canlı: true → SES GELDİ
+...ikinci kesinti...
+bağlam YENİDEN OLUŞTURULUYOR (2/2) → canlı: true → SES GELDİ
+...üçüncü kesinti...
+bağlam yeniden oluşturma İPTAL — üst sınıra (2) ulaşıldı
+play İPTAL — audioCtx canlı değil — yeniden oluşturma sayısı=2
+(sonrasında her denemede aynı iptal)
+```
+
+**1) BAĞLAM YENİDEN OLUŞTURMA SINIRI — `core/audio-engine.js`**
+- `MAX_CONTEXT_RECREATE`: 2 → **20** (Safari'nin sınırı EŞZAMANLI açık context sayısı, ~4 — TOPLAM oluşturma sayısı DEĞİL; close() GERÇEKTEN tamamlanıyorsa yüksek bir toplam GÜVENLİ).
+- `oldCtx.close()` artık **AWAIT EDİLİYOR** (önceden fire-and-forget'ti — "jestten mümkün olduğunca az adımla ayrılmak" endişesiyle, ama cihaz kanıtı bunun gereksiz olduğunu gösterdi) — öncesi/sonrası/süre `[audio-diag]`'a yazılıyor (`eski bağlam close() çağrılıyor` → `... TAMAMLANDI — Nms, state=closed`).
+- **Hız sınırı eklendi** (`RECREATE_COOLDOWN_MS=2000`) — art arda 2 saniyeden sık yeniden oluşturma denemesi reddedilir (task'ın "sonsuz döngü oluşmasın" isteği).
+- **Kilit eklendi** (`inFlightEnsure`) — `ensureAudioAlive()` ZATEN devam eden bir çağrı varken YENİ bir tane BAŞLATMAZ, aynı sonucu paylaşır (native `sessionActivated` olayı ile bir play denemesi neredeyse aynı anda tetiklenirse iki paralel `recreateContext()` birbirinin ayağına basmasın diye).
+
+**2) "TEKRAR DENE" BUTONU — `www/js/app.js`**
+- Kök sebep **1'in AYNISIYDI**: limit dolunca `recreateContext()` HER seferinde "İPTAL" ile anında dönüyordu, buton görünürde hiçbir şey YAPMIYORDU (metin/durum hiç değişmiyordu — kullanıcı "basılıyor ama tepki yok" algılıyordu). Limit kapanınca buton ZATEN çalışıyor.
+- AYRICA: buton artık tıklanınca **"Deneniyor…" metnine geçip devre dışı kalıyor**, sonuç ne olursa olsun (başarı/başarısızlık) eski metnine dönüyor — görünür geri bildirim EKLENDİ (task'ın kendi isteği).
+
+**3) UYARI EKRANINDA SIKIŞMA — GERÇEK, AYRI bir kök sebep bulundu**
+- Geri butonu/sekme değiştirme KOD OLARAK bloke DEĞİLDİ (`performExit()`/`goScreen()` audio state'ine hiç bakmıyor, `#audioErrorRow`'un CSS'i de overlay/modal DEĞİL — grep+CSS incelemesiyle doğrulandı).
+- AMA **YENİ bir sessiz başarısızlık yolu bulundu**: "Tekrar Çal" (`resumeRound()`) ve A/B geçişi (`toggleAB()`) context DURAKLATILMIŞKEN "zombi" olup yeniden oluşturulduysa (round'un ESKİ zincir düğümleri audio-engine.js tarafından temizlenmiş) **SADECE basit bir `unmuteOutput()`/`setProcessed()` (gain aç/kapa)** yapıyordu — BOŞ/geçersiz bir grafiği SESSİZCE açıyordu, kullanıcı "Tekrar Çal"a bassa da HİÇBİR ŞEY duymuyordu, hiçbir hata da göstermiyordu. Bu, G130/G131/G132'nin KAPSAMADIĞI (SADECE `playQuestion`'ın YENİ round başlatma yolunu düzeltmişlerdi), tamamen AYRI bir boşluktu — muhtemelen "kullanıcının sıkıştığı" asıl an burasıydı: duraklatıp devam ettirmeye çalışınca SESSİZCE hiçbir şey olmuyordu.
+- **Düzeltme:** `chainRecreateCountAtBuild`/`chainNeedsRebuild()` — turun zinciri kurulduğu ANDAKİ `contextRecreateCount` saklanır; "Tekrar Çal"/A-B geçişinde GÜNCEL sayı FARKLIYSA (context ARADA yeniden oluşmuş) zincir `playQuestion()` ile SIFIRDAN kurulur (basit unmute/crossfade YERİNE) — DEĞİLSE eski hızlı/tıklamasız yol AYNEN korunur (davranış BOZULMADI). Ayrıca: "Durdur" (pauseRound) ses canlı/ölü OLMASINDAN bağımsız HER ZAMAN çalışır (bir durdurma eylemi asla engellenmemeli).
+
+**4) NATIVE KATMAN GÖRÜNMÜYOR — İNCELENDİ, İKİ AYRI BULGU**
+- **`[audio-diag-native]` (Swift `print()`) YAPISAL OLARAK Safari Web Inspector'da GÖRÜNMEZ** — bu bir hata DEĞİL: native `print()` Xcode'un KENDİ konsoluna gider, Safari SADECE WKWebView'in JS ortamına bağlanır, ikisi AYRI süreç/konsol. Kod içine BUNU açıklayan bir not eklendi (kullanıcının yanlış yerde aradığından şüphelenildi).
+- **Gerçek, düzeltilebilir bir risk BULUNDU:** plugin bulunamazsa (`getAudioSessionPlugin()` null) ÖNCEDEN SESSİZCE dönüyordu, HİÇ İZ bırakmıyordu — artık "native AVAudioSession plugin BULUNAMADI" AÇIKÇA loglanıyor (Playwright'ta masaüstünde bu satırın GERÇEKTEN çıktığı doğrulandı). AYRICA: native çağrı HİÇ yanıt vermezse (hang) `ensureAudioAlive()`'ın TAMAMI sonsuza kadar askıda kalıp TÜM sonraki play denemelerini (Tekrar Dene DAHİL) SESSİZCE tepkisiz bırakabilirdi — **2 saniyelik bir zaman aşımı EKLENDİ**, native yanıt vermese bile JS akışı devam eder.
+
+**DOĞRULAMA (masaüstünde gerçek iOS zombi/kesinti ÜRETİLEMEZ — Playwright'ta `AudioContext.currentTime` dondurularak simüle edildi, G131'in AYNI yöntemi):**
+- **3 ardışık zombi/kurtarma turu** (eski sınır 2'de tıkanırdı) — ÜÇÜ DE başarıyla yeniden oluşturulup canlı çıktı, hata banner'ı hiç görünmedi. ✓
+- **Hız sınırı:** cooldown içinde (2sn'den önce) ikinci bir zombi+play denemesi `hız sınırı` logu ile reddedildi, `#audioErrorRow` doğru metinle GÖRÜNDÜ. ✓
+- **"Tekrar dene" tam akış:** cooldown geçtikten SONRA tıklanınca buton **"Deneniyor…"**ya geçip devre dışı kaldı, `[audio-diag]`'da GERÇEK bir yeniden oluşturma denemesi görüldü, SONRASINDA banner KAYBOLDU, buton metni "Tekrar dene"ye DÖNDÜ. ✓
+- **"Tekrar Çal" zincir-yeniden-kurma (madde 3'ün asıl kanıtı):** round başlatılıp DURAKLATILDI, context ZOMBİ yapıldı, "Tekrar Çal"a basıldı → günlükte SIRASIYLA: `currentTime ilerleme kontrolü — canlı: false` → `bağlam YENİDEN OLUŞTURULUYOR (1/20)` → `eski bağlam close() TAMAMLANDI — 0ms, state=closed` → `Tekrar Çal — context bu turdan SONRA yeniden oluşturulmuş, zincir yeniden kuruluyor` → `zincir kuruldu, play başladı` — YENİ bir `AudioContext` örneği GERÇEKTEN oluştu (context sayısı 1→2), hata banner'ı YOK, final context canlı. ✓
+- **Native plugin logu:** masaüstünde (`window.Capacitor` yok) `native AVAudioSession plugin BULUNAMADI` satırı GERÇEKTEN çıktı, hem `ensureAudioAlive` hem `recreateContext` çağrı noktalarından. ✓
+- **Konsol hatası: 0.** `npm test`: **1245/1245 GEÇTİ**.
+
+**DOĞRULANMADI:** Bu düzeltmelerin GERÇEK cihazdaki üçüncü/dördüncü/beşinci kesintide de sorunsuz çalıştığı, "Tekrar dene"nin cihazda GERÇEKTEN ses getirdiği, "Tekrar Çal"ın duraklatılmış bir round'da GERÇEKTEN zinciri yeniden kurup sesi geri getirdiği — SADECE simüle edilmiş senaryolarla (masaüstü) doğrulandı.
+
+---
+
+Önceki commit (G132) — **NATIVE KATMAN EKSİĞİ KAPATILDI: iOS'a özgü küçük bir yerel Capacitor eklentisi (Swift, `AudioSessionPlugin`) yazılıp AVAudioSession'ı yönetmeye başladı — G131'in JS-tarafı düzeltmesi TEK BAŞINA yeterli değildi, altta JS'in erişemediği bir katman vardı.**
 
 **ARAŞTIRMA (kod yazmadan önce yapıldı, task'ın kendi sırası):**
 1. `ios/App` içinde AVAudioSession'a dokunan HİÇBİR yer YOKTU (grep ile doğrulandı) — `AppDelegate.swift`'in TÜM lifecycle metodları (`applicationDidBecomeActive` DAHİL) boş şablon.
@@ -11074,24 +11118,27 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G132 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
-temiz derleme + cihaza kurulum sonrası (bu turda YENİ bir native Swift
-dosyası eklendi — derleme BAŞARILI doğrulandı ama cihaza HİÇ kurulmadı),
-AYNI "TEKRARLAMA ADIMLARI" senaryosunu (moda gir → arka plana at → başka
-uygulamada ses çal → geri dön → play/atla dene) TEKRAR denemeli. Bu sefer
-İKİ günlük kaynağına bakılmalı: (1) Xcode konsolunda `[audio-diag-native]`
-(Swift `print()`) — `AVAudioSession etkinleştirildi`/`etkinleştirme HATASI`
-satırları, kesinti başlayınca/bitince doğru tetikleniyor mu; (2) Safari Web
-Inspector'da `[audio-diag]` (JS) — `native AVAudioSession activate()`
-satırının `ok=true` dönüp dönmediği, `native sessionActivated` olayının
-GERÇEKTEN ateşlenip ateşlenmediği, ve EN ÖNEMLİSİ bunlardan SONRA
-`currentTime ilerleme kontrolü`nün artık "canlı: true" bulup bulmadığı —
-yani ses GERÇEKTEN geri geliyor mu. Gelmiyorsa: AVAudioSession katmanı
-DOĞRU çalışıyor ama sorun BAŞKA bir yerde demektir (ör. WKWebView'in
-KENDİ Web Audio motoru session aktifken bile "zombi" kalabiliyor olabilir)
-— bir sonraki turun konusu bu olur. Bu madde SADECE `xcodebuild` ile
-derleme başarısı ve masaüstünde "plugin yok → no-op" doğrulandı — gerçek
-cihaz/gerçek iOS kesinti davranışıyla HİÇ denenmedi.
+**Tek sonraki adım (G133 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
+temiz derleme + cihaza kurulum sonrası, G132'nin cihazda BULDUĞU 4
+sorunun (dar sınır, çalışmayan "Tekrar dene", uyarı ekranında sıkışma,
+native günlük görünmezliği) HEPSİNİN GERÇEKTEN kapandığını doğrulamalı:
+(1) ÜÇTEN FAZLA arka-plan/kesinti döngüsü art arda denenmeli (eski sınır
+2'de tıkanıyordu, artık 20 — cihazda GERÇEKTEN 3./4./5. kesintide de ses
+geri geliyor mu); (2) "Tekrar dene" butonuna basınca GERÇEKTEN "Deneniyor…"
+yazıp SONRA ses geri geliyor mu; (3) EN ÖNEMLİSİ — bir round'u DURAKLATIP
+(Durdur), arka plana atıp geri dönüp "Tekrar Çal"a basınca ses GERÇEKTEN
+geliyor mu (bu turda bulunan YENİ kök sebep — resumeRound()'un ESKİ
+sessiz-unmute boşluğu; `[audio-diag]`'da "Tekrar Çal — context bu turdan
+SONRA yeniden oluşturulmuş, zincir yeniden kuruluyor" satırı görülmeli);
+(4) `native AVAudioSession activate()` (JS log, Safari Inspector'da) ve
+`[audio-diag-native]` (Swift print, SADECE Xcode konsolunda — Safari'de
+GÖRÜNMEYECEK, bu normal) ikisi birlikte okunup native etkinleştirmenin
+GERÇEKTEN `ok=true` döndüğü teyit edilmeli. Hâlâ ses gelmiyorsa: dört
+sorunun HEPSİ kod-tarafında kapatıldı, kalan olası açıklama WKWebView'in
+KENDİSİNİN (AVAudioSession aktif olsa BİLE) bazı iOS sürümlerinde farklı
+bir davranışı olabilir — bir sonraki turun konusu bu olur. Bu madde
+SADECE simüle edilmiş senaryolarla (masaüstü) doğrulandı, gerçek cihazda
+HİÇ denenmedi.
 
 **Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli
