@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G117)
+Son güncelleme: 11.08.2026 (G118)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,157 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G117, tek commit, `581d250`) — **Araçlar: ortak DSP katmanı + bölge solo dinleme + Referans Filtreleri'ne GERÇEK ses işleme + 5 cihaz illüstrasyonu yeniden çizildi.**
+Bu commit (G118, tek commit, `1c0e396`) — **İKİ YENİ MOD: Pan Konumu ve Stereo Genişlik — placeholder'dan (playable:false) gerçek moda çevrildi.**
+
+**Mod sözleşmesi diğer 10 modla BİREBİR aynı** (getMeta/createQuestion/
+applyProcessing/evaluateAnswer/calculateXP/getFeedbackData) —
+`createQuestion`/`evaluateAnswer` SAF fonksiyon kuralı korundu (ses/DOM
+bağımsız, testle kilitlendi).
+
+**Pan Konumu** (`www/js/modes/pan-konumu.js`) — `StereoPannerNode` ile
+tek kaynak konumlandırma. Şıklar -100%..+100% arası EŞİT ARALIKLI,
+isimlendirilmiş bir ızgara (3/5/7 kademe — "Tam Sol/Sol/Hafif Sol/
+Merkez/Hafif Sağ/Sağ/Tam Sağ", task'ın kendi 7-kademe örneğiyle BİREBİR),
+kademe sayısı zorlukla ARTAR (3→7, `PAN_CURVE_CONFIG`, difficulty-
+curve.js'e diğer modlarla AYNI logLerp bağlantısıyla). Doğru cevap HER
+ZAMAN ızgaranın tam üzerinde — matematiksel olarak ayrık bir ızgara
+olduğu için "iki şık aynı cevaba denk gelme" riski YAPISAL OLARAK yok,
+yine de task'ın istediği 1000 denemelik ampirik doğrulama da yazıldı.
+
+**Stereo Genişlik** (`www/js/modes/stereo-genislik.js`) — task'ın
+SoundGym Stereohead araştırması ("iki mono kaynağı zıt yönlere
+yerleştirip açıklığı değiştirme") uygulanmaya çalışıldığında GERÇEK bir
+matematiksel engel bulundu: AYNI mono içeriği iki panner'la (-width/
++width) hard-panlamak L=R üretiyor (iki panner'ın toplamı, pan simetrik
+olduğu için HER ZAMAN özdeş) — yani "genişlik" hiç OLUŞMUYOR, bu
+projenin KENDİ mono-uyum tanımıyla (Araçlar'ın korelasyon ölçümü, bkz.
+G117) TAM MONO. **DÜZELTME:** standart bir stüdyo tekniği — mikro-
+gecikmeli genişletme (bir yol DOĞRUDAN, diğeri ≤22ms gecikmeli [Haas
+füzyon eşiğinin altında, hâlâ TEK ses gibi duyulur], ikisi zıt yönlere
+panlanır). width=0'da gecikme=0 VE pan=0 → iki yol SAYISAL özdeş
+(GERÇEK mono, task'ın "%0=ikisi de merkezde" tanımıyla TUTARLI);
+width=100'de L SADECE doğrudan yolu, R SADECE gecikmeli yolu taşır
+(GERÇEKTEN farklı sayılar, GERÇEK stereo görüntü).
+
+**Mimari uzantı (audio-engine.js):** bu genişletme mevcut
+`buildQuestionChain`'in `filters:[...]` sözleşmesine SIĞMADI — o
+sözleşme SADECE düz bir seri zincir kurabiliyor (`wetNode.connect(f);
+wetNode=f`), bir kaynağı İÇERDE ikiye ayırıp (fan-out) SONRA birleştirmek
+(branching) bu döngüyle KURULAMIYOR (elle doğrulandı: ara elemanlar
+arasına audio-engine HER ZAMAN ek bir doğrudan "bypass" bağlantısı da
+ekliyor, bu da fan-out'un İÇİNDEN geçmeyen istenmeyen bir kopya sızdırır).
+`buildQuestionChain`'e TEK yeni uzantı noktası eklendi: `applyProcessing`
+artık `{branch:{input,output,nodes}}` döndürebilir — mod kendi ALT-
+GRAFİĞİNİ (fan-out+birleştir dahil) TAMAMEN kendi içinde kurup SADECE
+giriş/çıkış uçlarını dışa verir, audio-engine SADECE `sourceMix→input`
+ve `output→localWetGain` bağlar. **Diğer 11 mod bunu hiç kullanmıyor
+(davranışları BİR SATIR değişmedi — `git diff` ile doğrulandı, bkz.
+DÜRÜSTLÜK notu).**
+
+**Ortak (madde task'ın kendi listesi):**
+- İkisi de `kulaklikGerekli:true` + kendi `kulaklikMetni` (mevcut
+  kulaklık uyarı sistemi zaten bu alanı generik okuyordu, app.js
+  değişikliği GEREKMEDİ).
+- Kaynak uyumluluğu: tek vuruşluk kaynaklar (kick/snare/hihat/tom)
+  konum/genişlik algısı için YETERSİZ — G43'ün dersiyle (Reverb'in
+  otomatik "tek-vuruş" bayrağı snare'i YANLIŞLIKLA dışlamıştı) AYNI
+  gerekçeyle otomatik bir bayrak YERİNE Reverb'in `only:[...]` deseni
+  kullanıldı (pink/white/saw/square/triangle/groove/bass/bass_alt/
+  guitar/vocal/upload — "upload" HER ZAMAN dahil, Reverb'in AYNI kararı).
+- SHOW_SPECTRUM=false + BARE_ANALYZER=true (dB Seviyesi'nin AYNI
+  deseni) — spektrum yerine KENDİ yatay stereo-alan görseli (SOL-
+  MERKEZ-SAĞ ekseni, kırmızı=senin cevabın/yeşil=doğru, feedback-
+  colors.js'in paylaşılan renkleri). Stereo Genişlik'te İKİ NOKTA çifti
+  (±genişlik, simetrik) — Pan Konumu'nun tek-nokta deseninin ikizi.
+- Ana ekran mod kartı ikonları (`mode-visuals.js`: `panBody`/`widthBody`,
+  diğer 10 gövdeyle AYNI 200×84 viewBox/renk/x:30-172 güvenli-bant stili).
+- `guide-texts.js`: MODE_GUIDE_TEXTS + MODE_OPTIONS_TEXTS + SPOTLIGHT_STEPS
+  (4 adım: listen/abControl/select/confirm, diğer choiceOnly modlarla AYNI).
+- `level-sheet-terms.js`: eğrinin tek ekseni (ızgara kademe sayısı) için
+  "Izgara kademesi" / "Kademeler arası aralık" etiketleri.
+- `mode-catalog.js`: `playable:false` → `true` (diğer tüm alanlar zaten
+  doğru pre-populated: Pro tier, unlockLevel 7/8, kulaklikGerekli).
+
+**Doğrulama sırasında bulunan ve düzeltilen 3 gerçek eksik (app.js'in
+mod-string switch zincirleri, "birebir taklit et" derken atlanmıştı):**
+1. `questionTitle` switch'i "pan"/"width" tanımıyordu — genel frekans
+   modu varsayılanına ("Hangi frekansla oynandı? Dalga üzerine tıkla.")
+   DÜŞÜYORDU (yanlış/kafa karıştırıcı). Eklendi.
+2. `pushHistory`'nin "Son Cevaplar" açıklama switch'i de tanımıyordu —
+   kodun KENDİ G22 yorumunun AÇIKÇA uyardığı AYNI hata sınıfına
+   düşecekti ("dblevel/boostcut'ın filterLabel'ı yok — ELSE dalına
+   düşselerdi 'undefined · NaN Hz · ...' üretirdi"). Eklendi.
+3. Tur-başı "Hazır mısın?" açıklama switch'i de tanımıyordu (yanlış
+   "dalgaya tıkla" metni gösterirdi). Eklendi.
+4. (Yapısal, önceden fark edildi) `frekans-bulma.js`'in ZORUNLU
+   re-export sözleşmesi (`FA_ZONES`/`isBossRound`/`recordZone`/vb.) —
+   dB Seviyesi'nin SHOW_SPECTRUM=false OLMASINA RAĞMEN taşıdığı AYNI
+   desen — ilk taslakta unutulmuştu; `app.js`'in `mode.isBossRound(...)`
+   ve `mode.FA_ZONES.map(...)`'ı HER moddan KOŞULSUZ okuduğu bulundu
+   (kodda gerçekten çökerdi), her iki mod dosyasına eklendi.
+
+**DOĞRULAMA (masaüstü Chrome, Playwright — GERÇEK tarayıcı turu, `www/`
+`python3 -m http.server` üzerinden):**
+- **Ana ekranda iki kart doğru görünüyor** — kendi ikonları, "PRO"
+  rozeti, "Sv 1" seviyesi, doğru ad/açıklama (ekran görüntüsüyle
+  doğrulandı).
+- **Kulaklık uyarısı** doğru mod-özel metinle çıkıyor ("Pan konumunu
+  doğru duymak için kulaklık şart...", "Genişliği doğru duymak için
+  kulaklık şart...") — ekran görüntüsüyle doğrulandı.
+- **4/4 senaryo uçtan uca çalıştı** (bir geçici `window.__modeTest`
+  kancasıyla `activeQuestion`'ın GERÇEK değeri okunup doğru/yanlış şık
+  BİLEREK seçildi, kanca doğrulama sonrası KALDIRILDI — G117'nin AYNI
+  yöntemi):
+  - Pan Konumu doğru: "Doğru! +22 XP ... Doğru — ses tamamen solda.
+    Kick, bas, vokal ve snare genelde merkezde kalır..."
+  - Pan Konumu yanlış: "Yakın ama kaçtı ... '%100 Sol' dedin ama ses
+    tamamen sağda (%100 Sağ)..." — kırmızı/yeşil şık işaretleme VE
+    stereo-alan görselinde kırmızı(senin)/yeşil(doğru) nokta DOĞRU
+    konumlarda (ekran görüntüsüyle doğrulandı).
+  - Stereo Genişlik doğru: "Doğru! +22 XP ... görüntü tamamen mono
+    (%0)..."
+  - Stereo Genişlik yanlış: iki-nokta-çifti görseli DOĞRU çizildi —
+    yanlış cevap (Mono/%0) iki kırmızı nokta merkezde ÇAKIŞIK, doğru
+    cevap (%100) iki yeşil halka uçlarda AYRIK (ekran görüntüsüyle
+    doğrulandı).
+- **1000 denemelik test** (her iki mod, test dosyalarında): hiçbir
+  kademede iki şık çakışmıyor, hiçbir yanlış şık TOLERANCE içine
+  düşmüyor.
+- **Zorluk eğrisi Z1→Z20 tablosu** (test dosyalarında console.log ile
+  basılı + programatik doğrulandı): kademe sayısı 3'ten 7'ye MONOTON
+  artıyor, kademeler arası ortalama mesafe (Pan: %100→%16.7, Genişlik:
+  %50→%16.7) task'ın "kolayda uzak, zorda yakın" isteğiyle TUTARLI.
+- **Stereo Genişlik'in branch mekanizması** sahte-ama-Web-Audio-
+  sözleşmesine-sadık bir audioCtx ile test edildi (test dosyasında):
+  width=0'da panL/panR pan=0 + gecikme=0 (iki yol sayısal özdeş);
+  width=100'de panL=-1/panR=+1 (tam ayrık) + gecikme=MAX_DELAY_SEC; iç
+  bağlantı grafiği TAM beklenen topoloji (entryTap→panL, entryTap→delay,
+  delay→panR, panL→merge, panR→merge) VE entryTap→mergeGain DOĞRUDAN
+  bypass bağlantısının OLMADIĞI doğrulandı (bu, branch mekanizmasının
+  var olma SEBEBİYDİ).
+- **Mevcut 10 modda regresyon YOK** — `git diff www/js/app.js` ile
+  doğrulandı: paylaşılan switch zincirlerine yapılan TÜM değişiklikler
+  SADECE yeni satır EKLEMESİ (silinen/değiştirilen tek satır
+  `isChoiceFormat`'ın kendisi, o da KATI BİR SÜPERSET — orijinal koşul
+  aynen korunup sonuna `|| "pan" || "width"` eklendi). Frekans Bulma
+  ayrıca canlı tarayıcı turunda (ekran görüntüsü) sorunsuz çalıştığı
+  doğrulandı.
+- **Konsol hatası: TÜM senaryolarda (4/4 mod turu + 2 regresyon turu) 0.**
+- **`npm test`: 1209/1209** (139 yeni test — 70 Pan Konumu/Stereo
+  Genişlik + 2 katalog-sayısı güncellemesi ile büyüyen mevcut testler).
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chrome'da (Playwright) yapıldı —
+cihazda/kulakla CANLI doğrulanmadı. Özellikle Stereo Genişlik'in mikro-
+gecikmeli genişletme tekniği (22ms) KULAKLA hiç dinlenmedi — matematiksel
+olarak L≠R (gerçek stereo fark) olduğu KANITLANDI ama bunun GERÇEKTEN
+"geniş" mi yoksa hafif "flanger/comb filtre" gibi mi duyulduğu SADECE
+kulakla anlaşılır. Gecikme miktarı (22ms) ve birleştirme kazancı (0.5)
+KULAKLA DOĞRULANMADI — diğer tüm sayısal sabitlerle AYNI dürüstlük notu,
+makul bir başlangıç noktası. `npx cap sync ios` çalıştırıldı.
+
+---
+
+Önceki commit (G117, tek commit, `581d250`) — **Araçlar: ortak DSP katmanı + bölge solo dinleme + Referans Filtreleri'ne GERÇEK ses işleme + 5 cihaz illüstrasyonu yeniden çizildi.**
 
 **A) Ortak ses işleme katmanı (`www/js/app.js`):** Önizleme çalar akışı
 artık `toolsFilterPreviewNode → [referans filtresi] → [bölge solo] →
@@ -9827,7 +9977,25 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G117 itibarıyla):** `npx cap sync ios` (bu turda
+**Tek sonraki adım (G118 itibarıyla):** `npx cap sync ios` (bu turda
+zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
+kurulum sonrası GERÇEK kulakla doğrulamalı: (1) Pan Konumu'nda 7
+kademenin (Tam Sol...Tam Sağ) HEPSİNİN kulakla ayırt edilebildiği,
+özellikle "Hafif Sol"/"Hafif Sağ" gibi ince kademelerin GERÇEKTEN
+duyulabilir olduğu; (2) Stereo Genişlik'te mikro-gecikmeli genişletme
+tekniğinin (22ms) GERÇEKTEN "geniş" bir stereo görüntü gibi mi yoksa
+hafif bir flanger/comb-filtre renk değişikliği gibi mi duyulduğu — bu
+turda SADECE matematiksel olarak (L≠R) doğrulandı, HİÇ dinlenmedi (bkz.
+BİTTİ'nin DÜRÜSTLÜK notu); (3) gecikme miktarının (22ms) ve birleştirme
+kazancının (0.5) kulakla rahatsız edici bir yapaylık (faz sorunları,
+ani ses seviyesi değişimi) yaratıp yaratmadığı; (4) iki modun da
+kulaklıkla dinlendiğinde (hoparlörle DEĞİL, getMeta().kulaklikGerekli
+zaten bunu zorunlu kılıyor) konum/genişlik algısının tutarlı ve
+öğretici olduğu. Bu turda masaüstü Chrome'da Playwright ile 4/4
+senaryo (doğru/yanlış × 2 mod) uçtan uca doğrulandı (bkz. BİTTİ) —
+cihazda/kulakla CANLI doğrulama HENÜZ yok.
+
+**Önceki adım (G117 itibarıyla):** `npx cap sync ios` (bu turda
 zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
 kurulum sonrası GERÇEK kulakla dinleyerek doğrulamalı: (1) her 5 referans
 filtresinin sesi GERÇEKTEN farklı duyulduğu (özellikle Telefon'un mono
