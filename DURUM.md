@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G126)
+Son güncelleme: 11.08.2026 (G127)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,119 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G126, `02e2f9f`) — **kullanıcı cihazda YENİ bir hata buldu (Kompresör'de doğrulandı): kaynak "Kendi Dosyam" seçili görünüyor ama o modun dosyası yok — Play sessizce hiçbir şey çalmıyor. Kaynak/dosya seçimi TUTARSIZLIĞI 11 modun HEPSİNDE tarandı ve kapatıldı.**
+Bu commit (G127) — **Tonal Balance "Kendi Referansım" özelliği TAMAMLANDI (özellik anahtarı `devFlags.customTonalRef` arkasında GİZLİ, varsayılan KAPALI). Kod G101/G102'de KISMEN iskeletlenmişti (bkz. eski BİTTİ kayıtları) — bu turda audit edilip eksik/hatalı kısımlar (dosya seçici, kalıcılık, grafik, A/B, EQ-eşleme, mono uyarı) TAMAMLANDI, GERÇEKTEN uçtan uca doğrulandı (ilk kez).**
+
+**DÜRÜSTLÜK NOTU:** Bu özelliğin arayüz iskeleti (4. çip, ref-row, AB-row DOM'u)
+G101/G102'de zaten yazılmıştı, ama o turlarda flag KAPALI kaldığı için hiç
+canlı denenmemişti (DURUM.md'nin eski kaydı: "flag açılıp bir referans
+dosyayla uçtan uca doğrulanmalı" — bu turun konusu tam olarak buydu). Audit
+sonucu bulunan 6 gerçek eksik: (1) "+ Referans parça seç" `pickNativeAudioFile()`
+(YANLIŞ, ikinci bir dosya sistemi) kullanıyordu; (2) referans TEK, bellekte,
+kalıcı DEĞİLDİ; (3) grafik preset'lerin koridor+amber şemasını kullanıyordu,
+task'ın istediği "iki gerçek eğri + kırmızı dolgu" DEĞİL; (4) A/B düğmeleri
+sadece CSS class değiştiriyordu, GERÇEK ses YOKTU; (5) "Referans eğrisiyle
+dinle" çipi de aynı şekilde stub'dı; (6) mono uyarısı hiç yoktu.
+
+**UYGULANANLAR:**
+1. **Referans seçici** — `#toolsTonalRefPick` artık `openFilesSheetForContext("tonal-ref")`
+   ile MEVCUT Dosyalarım sheet'ini açıyor (`selectFileForActiveContext`'e yeni
+   `"tonal-ref"` dalı eklendi — PAYLAŞILAN `uploadManager`'a hiç dokunmadan
+   `handleTonalReferencePicked(id)`'e gider).
+2. **Kalıcılık** — `storage.js`: `loadToolsTonalReferences()`/`saveToolsTonalReferences()`
+   (`{list:[{id,name,devs,lufs,numberOfChannels,sourceFileId,addedAt}], activeId}`,
+   localStorage `eqEarTrainerProXTonalRefs`, en fazla 5 — `TOOLS_TONAL_REF_MAX`,
+   toolsFiles kütüphanesiyle AYNI eviction deseni). "değiştir" küçük bir
+   dropdown açıyor (`#toolsTonalRefList` — kayıtlı referanslar arası geçiş +
+   "+ Yeni referans ekle"); Ayarlar sheet'inin genel `openSheet`/`closeSheet`'i
+   private (IIFE içi) olduğu için buraya AYRI, küçük bir liste UI'ı yazıldı.
+3. **Grafik** — YENİ `drawTonalChartCustomRef()` (preset'lerin `drawTonalChart()`'ına
+   DOKUNULMADI, ayrı dispatch: `toolsTonalRedraw()`): referans eğrisi ALTIN
+   `#e8c46a` 2px solid, mix eğrisi CYAN `#22d3ee` 2px solid (kimlik SABİT,
+   preset modun aksine hedef-dışına göre renk değiştirmiyor), aralarında
+   `TOOLS_THRESHOLD_RED` (`#f87160`, mevcut sabit yeniden kullanıldı) dolgu
+   ±1.5dB üstü ayrışan bölgelerde. Üst gösterge `#toolsTonalLegendCustom`
+   (altın nokta "Referans", cyan nokta "Senin mixin" — task metniyle BİREBİR),
+   preset lejantı (`#toolsTonalLegend`) o zaman gizleniyor.
+4. **A/B dinleme** — "B · Senin mixin" mevcut TEK gerçek DSP oynatıcısını
+   (Referans Filtreleri akordiyonunun `toolsToggleFilterPlayback`'ı) AYNEN
+   kullanıyor (iki ayrı motor KURULMADI). "A · Referans" YENİ, bağımsız bir
+   `tonalRefUploadManager` (frekans-cakismasi'nin `uploadManagerA/B`'siyle
+   AYNI desen) — referansın ses baytlarını `fileStorage`'dan ihtiyaç anında
+   decode ediyor. Seviye eşitlemesi: `tonalBalance.lufsMatchGainDb(refLufs,
+   mixLufs)` + `dbToLinearGain()` (SAF, testli) — A'nin kazancı `0.85 ×
+   10^(gainDb/20)` (B'nin sabit 0.85 headroom'uyla AYNI taban). A/B KARŞILIKLI
+   DIŞLAYICI (biri başlarken diğeri durur).
+5. **"Referans eğrisiyle dinle"** — `toolsConnectFilterPreviewChain()`'e
+   (B'nin ZATEN kullandığı zincir) yeni bir blok eklendi: `toolsTonalProcOn
+   && toolsTonalIsCustom()` iken 6 bantlı peaking-EQ (`computeReferenceEqGainsDb`,
+   SAF/testli) devreye giriyor. Dosya DEĞİŞTİRİLMİYOR/DIŞA AKTARILMIYOR —
+   sadece önizleme zincirinde.
+6. **Mono uyarı** — referans mono ise (`buffer.numberOfChannels<2`) toast +
+   kalıcı `#toolsTonalRefWarn` satırı gösteriliyor, kayıt ENGELLENMİYOR
+   (`measureSpectralDeviation` zaten mono'ya indirgeyerek ölçüyor, tonal
+   denge geçerli kalıyor — SADECE karşılaştırmanın "daha az anlamlı"
+   olabileceği bilgisi veriliyor).
+
+**CANLI TESTTE BULUNAN GERÇEK BİR BUG (bu turda düzeltildi):**
+`handleTonalReferencePicked` referansı KENDİ `decodeAudioData` çağrısıyla
+ölçüyordu (doğru), AMA referans dosya YENİ bir yüklemeyse Dosyalarım
+sheet'in `input=file` dinleyicisi ÖNCE `toolsAddFile()`'ı çağırıyor — o da
+(kendi işi gereği, koşulsuz) dosyayı PAYLAŞILAN "tools" `uploadManager`'ına
+decode ediyor. Yan etki: "tools" bağlamının GERÇEK dosyası (mix) sessizce
+referansın sesiyle DEĞİŞİYORDU (`uploadManagerLoadedFileId` hâlâ ESKİ/doğru
+id'yi gösterdiği için `ensureUploadSelectionLoaded`'ın "zaten doğru dosya
+yüklü" kısayolu bunu ASLA fark etmiyordu). Playwright'ta "0 kazançlı EQ
+zinciri mix'i DEĞİŞTİRMEMELİ" kontrolüyle YAKALANDI (mix'in yeniden ölçülen
+eğrisi sessizce referansınkiyle AYNI çıkıyordu). **Bu, ilk denemede "aşırı
+EQ aşımı" gibi YANLIŞ teşhis edilmişti — Q/kazanç ayarıyla "düzeltilmeye"
+çalışıldı, ama kök sebep bulununca (Q/kazanç deneyi SIFIRLANDI, gerçek
+neden `uploadManager` kirlenmesiydi) o "düzeltme" gereksiz olduğu ANLAŞILDI.**
+Düzeltme: `handleTonalReferencePicked`'in `finally` bloğunda
+`uploadManagerLoadedFileId=null` + `await ensureUploadSelectionLoaded("tools")`
+zorla "tools"u doğru dosyaya geri yüklüyor.
+
+**DOĞRULAMA (Playwright, `www/js/app.js`'e SADECE test amaçlı iki kalıcı
+kanca eklendi — `window.__tonalDebugState()`/`window.__tonalRefVerify()`,
+sıfır çağrılmazsa maliyet):**
+- **Bayrak KAPALI:** çip sayısı 3 (Pop/EDM/Akustik), "Kendi referansım" YOK,
+  `toolsTonalIsCustom()` her zaman `false` → kod yolu hiç tetiklenmiyor.
+- **Bayrak AÇIK, tam akış:** 4. çip görünür → "+ Referans parça seç" →
+  MEVCUT Dosyalarım sheet açılıyor (ikinci sistem YOK) → referans ölçülüp
+  (`devs`+`lufs`+`numberOfChannels`) kalıcı kaydediliyor → özel lejant/grafik
+  görünüyor.
+- **A/B seviye eşitlemesi (sayısal kanıt, GERÇEK ölçülen iki dosyayla):**
+  mixLufs=−11.056, refLufs=−8.777, A'ya uygulanan GainNode değeri
+  GERÇEKTEN `0.85×10^((−11.056−(−8.777))/20)=0.65379` formülüyle BİREBİR
+  eşleşti; A'nin kazanç-uygulanmış efektif LUFS'u ile B'nin doğal LUFS'u
+  arasındaki fark `0.000000 dB` (matematiksel olarak AYNI seviye). A'dan
+  B'ye geçince A durup B başladığı (karşılıklı dışlayıcılık) doğrulandı.
+- **"Referans eğrisiyle dinle" yakınsama (sayısal kanıt, offline render +
+  yeniden ölçüm):** işlem ÖNCESİ mix-referans toplam mutlak fark **17.85 dB**,
+  işlem SONRASI **0.42 dB** (**%97.6 azalma**) — Q=2.5 (Playwright'ta
+  Q=0.7→4.0 taranarak seçildi, "belirgin yakınsama" ile "aşırı dar/notch
+  gibi duyulmama" arasındaki orta nokta) ve kazanç sönümlemesi YOK (1.0 —
+  deneyde ek sönümlemeye gerek OLMADIĞI, tek sorunun yukarıdaki
+  `uploadManager` kirlenmesi olduğu ölçüldü).
+- **Mono uyarı:** mono referans seçilince toast + kalıcı uyarı satırı
+  GÖRÜNÜR doğrulandı.
+- **Konsol hatası: 0.** `npm test`: **1245/1245 GEÇTİ** (23 YENİ test —
+  `bandCenterFreqs`/`computeReferenceEqGainsDb`/`lufsMatchGainDb`/
+  `dbToLinearGain`, hepsi SAF/bayraktan bağımsız).
+
+**DOĞRULANMADI (dürüstlük notu):** Gerçek bir cihazda kulaklıkla A/B'nin
+GERÇEKTEN aynı yükseklikte duyulduğu, "Referans eğrisiyle dinle" açıkken
+farkın kulakla belirgin şekilde kapandığı — SADECE masaüstü headless
+Chrome'da (Playwright) ve matematiksel/sayısal kanıtla doğrulandı, CLAUDE.md'nin
+"ses davranışı kaynak koddan doğrulanamaz" kuralı gereği cihazda ayrıca
+dinlenmeli. Test için kullanılan iki dosya (`ref-track.wav`/`mix-track.wav`)
+sentetik/geometrik-orta-frekans tonlarından üretildi, GERÇEK müzik değil —
+gerçek bir referans şarkıyla ne kadar iyi çalıştığı da ayrıca denenmeli
+(gerçek mikslerin spektrumu bu sentetik test sinyalinden çok daha
+sürekli/geniş-bantlı, EQ-eşleme zincirinin davranışı FARKLI olabilir).
+
+---
+
+Önceki commit (G126, `02e2f9f`) — **kullanıcı cihazda YENİ bir hata buldu (Kompresör'de doğrulandı): kaynak "Kendi Dosyam" seçili görünüyor ama o modun dosyası yok — Play sessizce hiçbir şey çalmıyor. Kaynak/dosya seçimi TUTARSIZLIĞI 11 modun HEPSİNDE tarandı ve kapatıldı.**
 
 **CİHAZDA GÖRÜLEN HATA:** Kompresör'de kaynak "Kendi Dosyam" olarak
 görünüyordu ama o modun seçili dosyası yoktu. Play'e basılınca ses
@@ -10595,6 +10707,18 @@ kapatıldı.
 
 ## BEKLEYEN KARARLAR
 
+**P. G127 — "Kendi Referansım" DSP parametreleri (Q=2.5, sönümleme=1.0) kullanıcı onayı OLMADAN seçildi**
+Task bu sayıları belirtmiyordu — Playwright'ta sentetik test sinyaliyle
+taranıp ("belirgin yakınsama" ile "aşırı dar/notch gibi duyulmama" arasında)
+seçildi (bkz. BİTTİ'deki G127 kaydı). Gerçek müzikle KULAKLA hâlâ
+doğrulanmadı — cihaz testinde "çok sert/yapay" duyulursa Q düşürülmeli
+(daha yumuşak ama daha az kesin düzeltme).
+
+**Q. G127 — en fazla 5 kayıtlı referans (`TOOLS_TONAL_REF_MAX`) — kullanıcı onayı OLMADAN seçildi**
+toolsFiles kütüphanesinin (`TOOLS_LIBRARY_MAX`) AYNI sayısı, tutarlılık için
+tercih edildi — task bir sayı belirtmiyordu ("birden fazla referans
+tutulabilsin" dedi, üst sınır vermedi).
+
 **N. G106 — Ölçüm motorunun +39% süre artışı kabul edilebilir mi?**
 Bkz. AÇIK İŞLER madde 22. Worker içinde çalıştığı için arayüzü DONDURMUYOR
 ama gerçek bir artış (300s dosyada 2.61s→3.62s). Kabul edilebilirse madde
@@ -10806,20 +10930,26 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G126 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
-**YENİDEN** temiz derleme + cihaza **YENİDEN** kurulum yapmalı (bu turdaki
-kod DEĞİŞİKLİĞİ henüz HİÇ cihaza kurulmadı) ve şunları GERÇEK cihazda
-denemeli: (1) Kompresör'ü (ya da başka bir çok-kaynaklı modu) upload
-seçiliyken dosyasız açıp YENİ gate panelinin ("Bu modda henüz dosya
-seçmedin") göründüğünü, Play butonunun GİZLİ olduğunu doğrulamalı; (2) bir
-moddan öbürüne geçerken (Frekans Bulma → Kompresör gibi) kaynağın
-"taşındığını" ama dosyanın taşınmadığını GÖZLEMLEMELİ (bu G126'nın kapattığı
-TAM senaryo); (3) Safari Web Inspector'dan konsola bağlanıp `[upload-context]`
-satırlarının HER yüklemede doğru bağlamı gösterdiğini teyit etmeli;
-(4) "Dosya seç"e basınca sheet'in Araçlar'a ATLAMADIĞINI doğrulamalı;
-(5) seçilen dosyanın o modda GERÇEKTEN duyulur şekilde çaldığını kulaklıkla
-doğrulamalı (masaüstünde SADECE "hata yok" kanıtlandı, GERÇEK ses hiç
-dinlenmedi).
+**Tek sonraki adım (G127 itibarıyla) — EN ÖNEMLİSİ:** "Kendi Referansım"
+GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli
+(devFlags.customTonalRef geliştirici modundan açılarak — bkz. yukarıdaki
+G127 kaydının "DOĞRULANMADI" notu): (1) referans seç → grafik/lejant/kırmızı
+dolgu GERÇEKTEN doğru görünüyor mu; (2) A/B düğmeleri GERÇEKTEN aynı
+yükseklikte çalıyor mu (masaüstünde sadece SAYISAL/matematiksel kanıt var);
+(3) "Referans eğrisiyle dinle" açıkken fark kulakla GERÇEKTEN kapanıyor mu,
+yoksa aşırı/yapay mı duyuluyor (Q=2.5 sentetik test sinyaliyle seçildi,
+gerçek müzikte farklı davranabilir); (4) mono referans uyarısı cihazda
+doğru görünüyor mu. Bu madde henüz Xcode'da derlenip cihaza kurulmadı —
+kullanıcı "Xcode'da temiz derleme al, cihazda test et" derse önce o
+yapılmalı.
+
+**Ayrıca hâlâ açık (G126'dan, cihaz doğrulaması G127'den ÖNCE de bekliyordu):**
+kullanıcı Xcode'da temiz derleme + cihaza kurulum sonrası: (1) Kompresör'ü
+(ya da başka bir çok-kaynaklı modu) upload seçiliyken dosyasız açıp YENİ
+gate panelinin göründüğünü, Play butonunun GİZLİ olduğunu doğrulamalı;
+(2) bir moddan öbürüne geçerken kaynağın "taşındığını" ama dosyanın
+taşınmadığını GÖZLEMLEMELİ; (3) seçilen dosyanın o modda GERÇEKTEN duyulur
+şekilde çaldığını kulaklıkla doğrulamalı.
 
 **Ayrıca hâlâ açık (G124'ten):** sheet açıkken round GERÇEKTEN duraklıyor
 mu (süre/ses donuyor mu — masaüstünde timer donması doğrulandı ama GERÇEK

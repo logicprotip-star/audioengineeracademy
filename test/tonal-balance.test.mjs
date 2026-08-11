@@ -6,7 +6,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { BANDS, BAND_EDGES, DRAFT_TARGET_CURVES, OFF_TARGET_THRESHOLD_DB, summarizeDeviation, bandDevsFromLiveSnapshot } from "../www/js/core/tonal-balance.js";
+import { BANDS, BAND_EDGES, DRAFT_TARGET_CURVES, OFF_TARGET_THRESHOLD_DB, summarizeDeviation, bandDevsFromLiveSnapshot, bandCenterFreqs, computeReferenceEqGainsDb, lufsMatchGainDb, dbToLinearGain } from "../www/js/core/tonal-balance.js";
 import { FA_ZONES } from "../www/js/modes/frekans-bulma.js";
 
 describe("tonal-balance.js — BANDS/BAND_EDGES, Frekans Bulma'nın FA_ZONES'uyla TUTARLI mı", () => {
@@ -152,5 +152,75 @@ describe("tonal-balance.js — bandDevsFromLiveSnapshot() (G102, canlı kare →
     // aşırı (~−45dB mertebesinde) bir sapmaya iterdi.
     for (let i = 0; i < 5; i++) assert.ok(devs[i] > 0 && devs[i] < 5, `bant ${i} makul pozitif olmalı, geldi: ${devs[i].toFixed(2)}`);
     assert.ok(devs[5] < -3 && devs[5] > -15, `TİZ makul negatif olmalı (aşırı DEĞİL), geldi: ${devs[5].toFixed(2)}`);
+  });
+});
+
+// G127 — "Kendi referansım" (devFlags.customTonalRef arkasında gizli) için
+// eklenen SAF yardımcılar. Bu fonksiyonlar bayrak DURUMUNDAN BAĞIMSIZ HER
+// ZAMAN var/testli — bayrak SADECE app.js'in bunları ÇAĞIRIP ÇAĞIRMAYACAĞINI
+// (UI'dan erişim) kontrol eder, bkz. DURUM.md'nin bu turdaki Playwright
+// doğrulama notu (flag kapalıyken kart/çip hiç render edilmiyor, bu saf
+// fonksiyonlar hiç invoke edilmiyor).
+describe("tonal-balance.js — bandCenterFreqs() (G127, EQ-eşleme zincirinin bant merkez frekansları)", () => {
+  it("6 frekans, her biri kendi bandının [lo,hi) aralığında (geometrik ortalama)", () => {
+    const centers = bandCenterFreqs();
+    assert.equal(centers.length, 6);
+    for (let i = 0; i < 6; i++) {
+      assert.ok(centers[i] > BAND_EDGES[i] && centers[i] < BAND_EDGES[i + 1], `bant ${i} merkezi (${centers[i]}) [${BAND_EDGES[i]},${BAND_EDGES[i + 1]}) dışında`);
+    }
+  });
+  it("frekans-bulma.js'in focusIdForZone'uyla AYNI formül (geometrik ortalama, log-orta nokta) — SUB için sqrt(20*120)", () => {
+    const centers = bandCenterFreqs();
+    assert.ok(Math.abs(centers[0] - Math.sqrt(20 * 120)) < 1e-9);
+  });
+  it("artan sırada (bant sırasıyla TUTARLI)", () => {
+    const centers = bandCenterFreqs();
+    for (let i = 1; i < 6; i++) assert.ok(centers[i] > centers[i - 1]);
+  });
+});
+
+describe("tonal-balance.js — computeReferenceEqGainsDb() (G127 madde 5, 'Referans eğrisiyle dinle')", () => {
+  it("mix ref'in altındaysa (daha az enerji) pozitif kazanç (yükseltme) üretir", () => {
+    const gains = computeReferenceEqGainsDb([-2, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]);
+    assert.equal(gains[0], 2);
+    assert.deepEqual(gains.slice(1), [0, 0, 0, 0, 0]);
+  });
+  it("mix ref'in üstündeyse negatif kazanç (kısma) üretir", () => {
+    const gains = computeReferenceEqGainsDb([0, 3, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]);
+    assert.equal(gains[1], -3);
+  });
+  it("mix, ref'e UYGULANDIĞINDA (mixDevs+gains) TAM OLARAK refDevs'e eşit olur — bu, app.js'in ofline render testinin matematiksel garantisidir", () => {
+    const mixDevs = [-1.2, 0.8, -2.1, 1.5, 0.3, -0.6];
+    const refDevs = [0.4, -0.3, 1.1, -0.2, 2.0, -1.8];
+    const gains = computeReferenceEqGainsDb(mixDevs, refDevs);
+    const corrected = mixDevs.map((d, i) => d + gains[i]);
+    corrected.forEach((v, i) => assert.ok(Math.abs(v - refDevs[i]) < 1e-9, `bant ${i}: ${v} !== ${refDevs[i]}`));
+  });
+});
+
+describe("tonal-balance.js — lufsMatchGainDb() / dbToLinearGain() (G127 madde 4, A/B seviye eşitlemesi)", () => {
+  it("kaynak hedeften SESSİZSE (daha düşük LUFS) pozitif dB (yükseltme) döner", () => {
+    assert.equal(lufsMatchGainDb(-20, -14), 6);
+  });
+  it("kaynak hedeften YÜKSEKSE negatif dB (kısma) döner", () => {
+    assert.equal(lufsMatchGainDb(-10, -14), -4);
+  });
+  it("aynı LUFS → 0 dB, kazanç değişmez", () => {
+    assert.equal(lufsMatchGainDb(-16, -16), 0);
+    assert.equal(dbToLinearGain(0), 1);
+  });
+  it("+6.02dB ≈ 2x doğrusal kazanç (standart dB↔lineer dönüşüm)", () => {
+    assert.ok(Math.abs(dbToLinearGain(20 * Math.log10(2)) - 2) < 1e-9);
+  });
+  it("iki kaynağa AYNI hedefe göre hesaplanan kazanç uygulanınca AYNI seviyeye gelir — A/B'nin 'adil karşılaştırma' garantisi", () => {
+    const targetLufs = -14;
+    const aLufs = -18, bLufs = -11;
+    const aGainDb = lufsMatchGainDb(aLufs, targetLufs);
+    const bGainDb = lufsMatchGainDb(bLufs, targetLufs);
+    const aResultLufs = aLufs + aGainDb; // dB alanında kazanç eklemek LUFS'u AYNI miktarda kaydırır
+    const bResultLufs = bLufs + bGainDb;
+    assert.ok(Math.abs(aResultLufs - targetLufs) < 1e-9);
+    assert.ok(Math.abs(bResultLufs - targetLufs) < 1e-9);
+    assert.ok(Math.abs(aResultLufs - bResultLufs) < 1e-9, "A ve B AYNI hedefe eşitlendiği için birbirine de eşit olmalı");
   });
 });

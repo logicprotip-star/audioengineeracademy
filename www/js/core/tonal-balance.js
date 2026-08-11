@@ -228,3 +228,32 @@ export function summarizeDeviation(devs, threshold = OFF_TARGET_THRESHOLD_DB) {
   const offBands = BANDS.map((name, i) => ({ name, dev: devs[i] })).filter((b) => Math.abs(b.dev) > threshold);
   return { offBands, allWithinTarget: offBands.length === 0 };
 }
+
+// G127 — "Kendi referansım" (devFlags.customTonalRef arkasında gizli) için
+// SAF yardımcılar. Ses/DOM'a dokunmuyorlar — testler doğrudan bunlara dayanır.
+
+// Her bandın TEK bir temsilci Hz'i — frekans-bulma.js'in kendi focusIdForZone
+// mantığıyla AYNI (geometrik ortalama, log-ölçekte orta nokta): FA_ZONES'ta
+// ayrı bir "merkez" alanı YOK, burada TEKRAR İCAT EDİLMEDİ, aynı formül.
+export function bandCenterFreqs() {
+  return BAND_EDGES.slice(0, -1).map((lo, i) => Math.sqrt(lo * BAND_EDGES[i + 1]));
+}
+
+// "Referans eğrisiyle dinle" (madde 5) — kendi mixin, referansın eğrisine göre
+// işlenmiş HALDE duyulur: her bantta uygulanacak peaking-EQ kazancı, o bandın
+// referans-mix FARKI kadardır (mix o bandı REF'ten NE KADAR azsa o kadar
+// yükseltilir, fazlaysa o kadar kısılır) — uygulanınca mixDevs, refDevs'e
+// yaklaşır (bkz. app.js'teki offline render testi, sayısal kanıt).
+export function computeReferenceEqGainsDb(mixDevs, refDevs) {
+  return mixDevs.map((d, i) => refDevs[i] - d);
+}
+
+// A/B dinleme (madde 4) — "İKİSİ AYNI seviyede çalsın": kaynağın kazancı,
+// hedef LUFS'a ULAŞMASI için gereken dB kadar (targetLufs - sourceLufs).
+export function lufsMatchGainDb(sourceLufs, targetLufs) {
+  return targetLufs - sourceLufs;
+}
+
+export function dbToLinearGain(db) {
+  return Math.pow(10, db / 20);
+}

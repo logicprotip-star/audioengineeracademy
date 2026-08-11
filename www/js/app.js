@@ -178,7 +178,10 @@ const els = {
   toolsTonalRefName: document.getElementById("toolsTonalRefName"),
   toolsTonalRefChange: document.getElementById("toolsTonalRefChange"),
   toolsTonalRefPick: document.getElementById("toolsTonalRefPick"),
+  toolsTonalRefList: document.getElementById("toolsTonalRefList"),
+  toolsTonalRefWarn: document.getElementById("toolsTonalRefWarn"),
   toolsTonalLegend: document.getElementById("toolsTonalLegend"),
+  toolsTonalLegendCustom: document.getElementById("toolsTonalLegendCustom"),
   toolsTonalChart: document.getElementById("toolsTonalChart"),
   toolsTonalLiveBadge: document.getElementById("toolsTonalLiveBadge"),
   toolsTonalSummary: document.getElementById("toolsTonalSummary"),
@@ -7832,6 +7835,17 @@ function selectFileForActiveContext(id, opts = {}) {
     toolsSelectFile(id, opts);
     return;
   }
+  // G127 — "Kendi referansım" referans seçimi: PAYLAŞILAN uploadManager'a
+  // (dolayısıyla "tools"/mod bağlamlarının ZATEN yüklü dosyasına) HİÇ
+  // DOKUNMADAN, kendi ayrı ölçüm/decode yoluna gider (applyUploadSelection'ın
+  // genel `else` dalına DÜŞMESİ BİLEREK engellendi — bkz. o dalın kendi notu,
+  // syncUploadGate global "o an aktif mod" varsayımı taşıyor, bu bağlam için
+  // ANLAMSIZ olurdu).
+  if (activeUploadContext === "tonal-ref") {
+    toolsCloseFilesSheet();
+    handleTonalReferencePicked(id);
+    return;
+  }
   applyUploadSelection(activeUploadContext, id, { ...opts, onReady: syncUploadGate });
   toolsCloseFilesSheet();
   renderToolsFilesSheetContent();
@@ -8852,11 +8866,48 @@ function toolsOpenSavedMeasurement(savedEntry) {
 let toolsTonalTargetIdx = 0; // 0=Pop,1=EDM,2=Akustik,(3=Kendi referansım, flag açıkken)
 let toolsTonalDevs = null; // secili dosyanin OLCULEN sapmasi (6 eleman, ORTALAMA/offline), cache
 let toolsTonalMeasuringForId = null;
-let toolsTonalCustomRef = null; // {name, devs} — "Kendi referansım" icin secilen referans
-let toolsTonalAbMode = "B";
+// G127 — "Kendi referansım" (devFlags.customTonalRef): KALICI, birden fazla
+// referans ({list:[{id,name,devs,lufs,numberOfChannels,sourceFileId,addedAt}],
+// activeId}), bkz. core/storage.js:loadToolsTonalReferences notu.
+let toolsTonalReferences = storage.loadToolsTonalReferences();
+// Bozuk/eski bir kayıt activeId'si list'te YOKSA (ör. o referans silindiği
+// hâlde eski bir localStorage'dan kalmışsa) en SON eklenene düşer — liste
+// doluyken "referans seçilmedi" gibi YANLIŞ bir boş duruma düşülmesin.
+if (toolsTonalReferences.list.length && !toolsTonalReferences.list.some((r) => r.id === toolsTonalReferences.activeId)) {
+  toolsTonalReferences.activeId = toolsTonalReferences.list[toolsTonalReferences.list.length - 1].id;
+}
+let toolsTonalRefListOpen = false;
+let toolsTonalMixLufs = null;    // aktif "tools" dosyasının integrated LUFS'u — A/B seviye eşitlemesi için LAZY hesaplanır
+let toolsTonalMixLufsForId = null;
 let toolsTonalProcOn = false;
 let toolsSoloBandIdx = -1; // G117 madde B — bölge solo: -1 kapalı, 0-5 SUB..TİZ (toolsFilterActiveIdx ile AYNI desen, dosya değişince RESETLENMİYOR)
 const TOOLS_TONAL_PRESETS = ["Pop", "EDM", "Akustik"];
+const TOOLS_TONAL_REF_MAX = 5; // toolsFiles kütüphanesiyle (TOOLS_LIBRARY_MAX) AYNI sınır deseni
+// G127 madde 5 — "Referans eğrisiyle dinle" zincirinin 6 peaking filtresinin
+// Q'su. Playwright'ta OFFLINE render + yeniden ölçüm ile DENEYSEL tarandı
+// (Q=0.7→4.0, gerçek iki dosyayla — bkz. DURUM.md'nin bu turdaki doğrulama
+// notu, sayılarla): Q arttıkça (dar/cerrahi bant, komşu bantlara daha az
+// taşma) düzeltme referansa daha da yakınsıyor (Q=1→~%88, Q=4→~%99 mesafe
+// azalması) — 2.5 "belirgin biçimde referansa yaklaştırır" (~%98 azalma) ile
+// "aşırı dar/notch gibi duyulmaz, müzikal kalır" arasında seçilen orta nokta.
+const TOOLS_TONAL_EQ_Q = 2.5;
+// 1.0 = kazançlar HİÇ SÖNÜMLENMEDEN uygulanır. Playwright deneyinde EK bir
+// sönümleme GEREKMEDİĞİ (aksine gereksiz yere az düzeltme yapacağı) ölçüldü —
+// tek gerçek sorun (kazançların 2 katı gibi görünen "aşım") AYRI bir kök
+// sebepti (bkz. handleTonalReferencePicked'daki uploadManager kirlenmesi
+// notu), Q/kazanç ayarı DEĞİLDİ.
+const TOOLS_TONAL_EQ_GAIN_SCALE = 1.0;
+
+// G127 — "A · Referans" için AYRI, bağımsız bir uploadManager — "tools"
+// bağlamının PAYLAŞILAN uploadManager'ına HİÇ DOKUNMADAN referans parçanın
+// kendi ses baytlarını (fileStorage'dan, ihtiyaç anında) decode eder. Aynı
+// desen frekans-cakismasi'nin uploadManagerA/uploadManagerB'sinde ZATEN var
+// (bkz. app.js:829) — burada YENİDEN İCAT EDİLMEDİ.
+const tonalRefUploadManager = createUploadManager(() => audioEngine.audioCtx);
+let tonalRefLoadedSourceFileId = null; // tonalRefUploadManager'da şu an yüklü olan toolsFiles id'si
+let tonalRefPlaying = false;
+let tonalRefPreviewNode = null;
+let toolsTonalAbGainA = null; // A (referans) çalarken LUFS eşitleme kazancı
 
 // --- G102: canlı analizör durumu ---
 let toolsTonalLastAvgDevs = null;    // en son çizilen ORTALAMA eğri (rAF döngüsü bunu yeniden kullanır)
@@ -8878,7 +8929,7 @@ function toolsTonalLiveTick() {
     if (toolsTonalLiveDevs !== null) {
       toolsTonalLiveDevs = null;
       if (els.toolsTonalLiveBadge) els.toolsTonalLiveBadge.classList.add("hidden");
-      if (toolsTonalLastAvgDevs) drawTonalChart(toolsTonalLastAvgDevs, toolsTonalLastTargetDevs, null);
+      toolsTonalRedraw(null);
     }
     return;
   }
@@ -8890,7 +8941,7 @@ function toolsTonalLiveTick() {
     analyser.getFloatFrequencyData(toolsTonalLiveFreqData);
     toolsTonalLiveDevs = tonalBalance.bandDevsFromLiveSnapshot(toolsTonalLiveFreqData, ctx.sampleRate, analyser.fftSize);
     if (els.toolsTonalLiveBadge) els.toolsTonalLiveBadge.classList.remove("hidden");
-    if (toolsTonalLastAvgDevs) drawTonalChart(toolsTonalLastAvgDevs, toolsTonalLastTargetDevs, toolsTonalLiveDevs);
+    toolsTonalRedraw(toolsTonalLiveDevs);
   }
   toolsTonalLiveRafId = requestAnimationFrame(toolsTonalLiveTick);
 }
@@ -8910,6 +8961,12 @@ function toolsTonalTargetNames() {
 function toolsTonalIsCustom() {
   return devFlags.customTonalRef && toolsTonalTargetIdx === TOOLS_TONAL_PRESETS.length;
 }
+function toolsTonalActiveRef() {
+  return toolsTonalReferences.list.find((r) => r.id === toolsTonalReferences.activeId) || null;
+}
+function toolsTonalPersistReferences() {
+  storage.saveToolsTonalReferences(toolsTonalReferences);
+}
 
 function renderToolsTonalChips() {
   if (!els.toolsTonalChips) return;
@@ -8924,32 +8981,243 @@ if (els.toolsTonalChips) {
     renderToolsTonalCard();
   });
 }
+// G127 — "+ Referans parça seç" artık mevcut Dosyalarım sheet'ini açıyor
+// (task'ın kendi yasağı: "ikinci dosya sistemi kurma") — YENİ bir bağlam id'si
+// ("tonal-ref") ile, "tools"/mod bağlamlarından TAMAMEN AYRI: seçilen dosya
+// PAYLAŞILAN uploadManager'a hiç DOKUNMADAN handleTonalReferencePicked'a gider
+// (bkz. selectFileForActiveContext'teki "tonal-ref" dalı).
 if (els.toolsTonalRefPick) {
-  els.toolsTonalRefPick.addEventListener("click", async () => {
-    const picked = await pickNativeAudioFile();
-    const file = picked === undefined ? null : picked;
-    if (!file) return;
-    try {
-      await audioEngine.initAudio();
-      const ctx0 = audioEngine.audioCtx;
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = await ctx0.decodeAudioData(arrayBuffer.slice(0));
-      const devs = await tonalBalance.measureSpectralDeviation(buffer);
-      toolsTonalCustomRef = { name: file.name, devs };
+  els.toolsTonalRefPick.addEventListener("click", () => { openFilesSheetForContext("tonal-ref"); });
+}
+if (els.toolsTonalRefChange) {
+  els.toolsTonalRefChange.addEventListener("click", () => {
+    toolsTonalRefListOpen = !toolsTonalRefListOpen;
+    renderToolsTonalRefList();
+  });
+}
+if (els.toolsTonalRefList) {
+  els.toolsTonalRefList.addEventListener("click", (e) => {
+    const del = e.target.closest("[data-ref-del]");
+    if (del) {
+      const id = del.dataset.refDel;
+      toolsTonalReferences.list = toolsTonalReferences.list.filter((r) => r.id !== id);
+      if (toolsTonalReferences.activeId === id) {
+        const rest = toolsTonalReferences.list;
+        toolsTonalReferences.activeId = rest.length ? rest[rest.length - 1].id : null;
+      }
+      if (tonalRefLoadedSourceFileId && !toolsTonalReferences.list.some((r) => r.sourceFileId === tonalRefLoadedSourceFileId)) {
+        tonalRefLoadedSourceFileId = null;
+      }
+      toolsTonalPersistReferences();
       renderToolsTonalCard();
-    } catch (err) {
-      console.error("[tonal-balance] referans ölçüm hatası:", err && err.message, err);
-      toast("Referans ölçülemedi", "Bu dosya referans olarak analiz edilemedi.");
+      return;
+    }
+    const add = e.target.closest("[data-ref-add]");
+    if (add) {
+      toolsTonalRefListOpen = false;
+      openFilesSheetForContext("tonal-ref");
+      return;
+    }
+    const row = e.target.closest("[data-ref-id]");
+    if (row) {
+      toolsTonalReferences.activeId = row.dataset.refId;
+      toolsTonalRefListOpen = false;
+      toolsTonalPersistReferences();
+      renderToolsTonalCard();
     }
   });
 }
-if (els.toolsTonalRefChange) els.toolsTonalRefChange.addEventListener("click", () => { toolsTonalCustomRef = null; renderToolsTonalCard(); });
-if (els.toolsTonalPlayA) els.toolsTonalPlayA.addEventListener("click", () => { toolsTonalAbMode = "A"; renderToolsTonalAbUi(); });
-if (els.toolsTonalPlayB) els.toolsTonalPlayB.addEventListener("click", () => { toolsTonalAbMode = "B"; renderToolsTonalAbUi(); });
-if (els.toolsTonalProcChip) els.toolsTonalProcChip.addEventListener("click", () => { toolsTonalProcOn = !toolsTonalProcOn; renderToolsTonalAbUi(); });
+// "değiştir" açıkken KAYITLI referanslar arasında seçim + "+ Yeni referans
+// ekle" — Ayarlar sheet'inin genel openSheet/closeSheet'i (initSettingsSheet
+// IIFE'si) buradan ERİŞİLEMEZ (private) — task'ın kendi "ikinci dosya sistemi
+// kurma" yasağı zaten SADECE dosya SEÇİMİ için geçerli (bu, o değil — kayıtlı
+// referans LİSTESİ arasında geçiş, kendi küçük dropdown'ı yeterli/uygun).
+function renderToolsTonalRefList() {
+  if (!els.toolsTonalRefList) return;
+  els.toolsTonalRefList.classList.toggle("hidden", !toolsTonalRefListOpen);
+  if (!toolsTonalRefListOpen) { els.toolsTonalRefList.innerHTML = ""; return; }
+  const rows = toolsTonalReferences.list.map((r) => `
+    <div class="tools-tonal-ref-list-row${r.id === toolsTonalReferences.activeId ? " active" : ""}" data-ref-id="${r.id}">
+      <span class="tools-tonal-ref-list-name">${escapeHtml(r.name)}</span>
+      <span class="tools-tonal-ref-list-del" data-ref-del="${r.id}">Sil</span>
+    </div>`).join("");
+  els.toolsTonalRefList.innerHTML = rows + `<div class="tools-tonal-ref-list-add" data-ref-add="1">+ Yeni referans ekle</div>`;
+}
+// G127 madde 2 — referans dosya seçilince analiz motorundan geçer (spektral
+// sapma + LUFS), altı bölge ortalaması hedef eğri olarak KALICI kaydedilir
+// (storage.saveToolsTonalReferences — birden fazla referans tutulur).
+async function handleTonalReferencePicked(id) {
+  const entry = toolsFiles.find((f) => f.id === id);
+  if (!entry) return;
+  if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Referans ölçülüyor…"; els.toolsTonalSummary.style.color = "#8f949b"; }
+  try {
+    await audioEngine.initAudio();
+    const ctx0 = audioEngine.audioCtx;
+    let fileObj = entry.file;
+    if (!fileObj) {
+      const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+      if (!blob) {
+        toast("Dosya bulunamadı", `${entry.name} artık cihazda yok.`);
+        renderToolsTonalCard();
+        return;
+      }
+      fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+      entry.file = fileObj;
+    }
+    const arrayBuffer = await fileObj.arrayBuffer();
+    const buffer = await ctx0.decodeAudioData(arrayBuffer.slice(0));
+    const devs = await tonalBalance.measureSpectralDeviation(buffer);
+    let lufs = null;
+    try {
+      const analysis = await analyzeUploadedFile(buffer);
+      lufs = analysis && analysis.program ? analysis.program.integratedLufs : null;
+    } catch (err) {
+      console.error("[tonal-balance] referans LUFS ölçüm hatası:", err && err.message, err);
+    }
+    // madde 6 — mono referans: tonal denge ölçümü (measureSpectralDeviation)
+    // dosyayı ZATEN mono'ya indirgeyerek ölçtüğü için (bkz. tonal-balance.js'in
+    // kendi notu) sapma eğrisi geçerli kalır — SADECE kullanıcı UYARILIR
+    // (karşılaştırma/A-B daha az anlamlı olabilir), kayıt ENGELLENMEZ.
+    const isMono = buffer.numberOfChannels < 2;
+    const ref = {
+      id: toolsGenerateId(),
+      name: entry.name,
+      devs,
+      lufs,
+      numberOfChannels: buffer.numberOfChannels,
+      sourceFileId: entry.id,
+      addedAt: Date.now(),
+    };
+    toolsTonalReferences.list.push(ref);
+    while (toolsTonalReferences.list.length > TOOLS_TONAL_REF_MAX) toolsTonalReferences.list.shift();
+    toolsTonalReferences.activeId = ref.id;
+    toolsTonalPersistReferences();
+    toolsTonalRefListOpen = false;
+    if (isMono) toast("Mono referans", `${entry.name} tek kanallı — tonal denge yine ölçülür, ama karşılaştırma daha az anlamlı olabilir.`);
+  } catch (err) {
+    console.error("[tonal-balance] referans ölçüm hatası:", err && err.message, err);
+    toast("Referans ölçülemedi", "Bu dosya referans olarak analiz edilemedi.");
+  } finally {
+    // KÖK SEBEP (Playwright canlı testte bulundu) — referans dosya YENİ bir
+    // yüklemeyse, Dosyalarım sheet'in input="file" dinleyicisi toolsAddFile()'ı
+    // ÇAĞIRIR — o da (kendi işi gereği) dosyayı PAYLAŞILAN "tools"
+    // uploadManager'ına decode eder (bkz. toolsAddFile: `uploadManager.
+    // loadFile(file)`, koşulsuz). Burada dosyayı ZATEN kendi decodeAudioData
+    // çağrımla ölçtüğüm için uploadManager'a hiç ihtiyaç yok — ama bu YAN
+    // ETKİ "tools" bağlamının GERÇEK dosyasını sessizce referansın sesiyle
+    // DEĞİŞTİRİYORDU (uploadManagerLoadedFileId hâlâ ESKİ/doğru id'yi
+    // gösterdiği için ensureUploadSelectionLoaded'ın "zaten doğru dosya
+    // yüklü" kısayolu bunu ASLA fark etmiyordu — offline doğrulama
+    // testinde mix'in ölçülen eğrisinin sessizce referansınkiyle AYNI
+    // çıkmasıyla yakalandı). Tracking değişkeni SIFIRLANIP "tools" ZORLA
+    // yeniden yüklenir — hem başarı hem hata yolunda (contamination her
+    // ikisinde de aynı şekilde olabilir).
+    uploadManagerLoadedFileId = null;
+    await ensureUploadSelectionLoaded("tools");
+    renderToolsTonalCard();
+  }
+}
+
+// G127 madde 4 — A/B dinleme. "B · Senin mixin" projedeki TEK gerçek DSP
+// oynatıcısıyla (Referans Filtreleri akordiyonunun toolsToggleFilterPlayback'ı,
+// bkz. F bölümü) AYNI mekanizmayı kullanır — o buton neyse "B" de odur, İKİ
+// AYRI oynatma motoru KURULMADI. "A · Referans" ise YENİ, bağımsız bir motor
+// (tonalRefUploadManager) — ikisi KARŞILIKLI DIŞLAYICI (biri başlarken diğeri
+// durur, aksi halde iki kaynak ÜST ÜSTE çalar).
+async function toolsTonalStopRefPlayback() {
+  if (!tonalRefPlaying) return;
+  tonalRefUploadManager.pausePlayback();
+  if (tonalRefPreviewNode) { try { tonalRefPreviewNode.stop(); } catch (e) {} tonalRefPreviewNode = null; }
+  if (toolsTonalAbGainA) { try { toolsTonalAbGainA.disconnect(); } catch (e) {} }
+  tonalRefPlaying = false;
+}
+async function toolsTonalEnsureMixLufs() {
+  const entry = toolsSelectedEntry();
+  if (!entry) return null;
+  if (toolsTonalMixLufs != null && toolsTonalMixLufsForId === entry.id) return toolsTonalMixLufs;
+  const buffer = uploadManager.getBuffer();
+  if (!buffer) return null;
+  try {
+    const analysis = await analyzeUploadedFile(buffer);
+    toolsTonalMixLufs = analysis && analysis.program ? analysis.program.integratedLufs : null;
+    toolsTonalMixLufsForId = entry.id;
+    return toolsTonalMixLufs;
+  } catch (err) {
+    console.error("[tonal-balance] mix LUFS ölçüm hatası:", err && err.message, err);
+    return null;
+  }
+}
+async function toolsTonalToggleMixPlayback() {
+  if (tonalRefPlaying) await toolsTonalStopRefPlayback();
+  await toolsToggleFilterPlayback();
+  renderToolsTonalAbUi();
+}
+async function toolsTonalToggleRefPlayback() {
+  const ref = toolsTonalActiveRef();
+  if (!ref) return;
+  if (tonalRefPlaying) {
+    await toolsTonalStopRefPlayback();
+    renderToolsTonalAbUi();
+    return;
+  }
+  if (toolsFilterPlaying) await toolsStopFilterPlayback();
+  const libEntry = toolsFiles.find((f) => f.id === ref.sourceFileId);
+  if (!libEntry) {
+    toast("Referans sesi bulunamadı", "Kaynak dosya kütüphaneden kaldırılmış — sadece eğri karşılaştırması kullanılabilir.");
+    return;
+  }
+  await audioEngine.initAudio();
+  const ctx = audioEngine.audioCtx;
+  if (tonalRefLoadedSourceFileId !== ref.sourceFileId) {
+    let fileObj = libEntry.file;
+    if (!fileObj) {
+      const blob = await fileStorage.loadFile(libEntry.id, libEntry.mimeType);
+      if (!blob) { toast("Referans sesi bulunamadı", "Kaynak dosya artık cihazda yok."); return; }
+      fileObj = new File([blob], libEntry.name, { type: libEntry.mimeType || blob.type });
+      libEntry.file = fileObj;
+    }
+    const res = await tonalRefUploadManager.loadFile(fileObj);
+    if (!res.ok) { toast(res.title, res.detail); return; }
+    tonalRefLoadedSourceFileId = ref.sourceFileId;
+    tonalRefUploadManager.startFromZero();
+  }
+  // madde 4 — "İKİSİ AYNI seviyede çalsın": B, Referans Filtreleri'nin SABİT
+  // 0.85 headroom kazancıyla çalıyor (bkz. toolsToggleFilterPlayback) — A da
+  // AYNI tabanı kullanır, üstüne integrated LUFS FARKI kadar telafi eklenir
+  // (tonalBalance.lufsMatchGainDb) — ikisi de "0.85 × algısal olarak AYNI
+  // yükseklik" düzeyinde çalar. LUFS ölçülemezse (worker hatası vb.) telafi
+  // 0 dB'ye düşer — SESSİZCE YANLIŞ eşleme yerine dürüst "eşitlenmedi" hâli.
+  const mixLufs = await toolsTonalEnsureMixLufs();
+  const gainDb = (mixLufs != null && ref.lufs != null) ? tonalBalance.lufsMatchGainDb(ref.lufs, mixLufs) : 0;
+  toolsTonalAbGainA = toolsTonalAbGainA || ctx.createGain();
+  toolsTonalAbGainA.gain.value = 0.85 * tonalBalance.dbToLinearGain(gainDb);
+  toolsTonalAbGainA.connect(ctx.destination);
+  tonalRefPreviewNode = tonalRefUploadManager.getSourceNode();
+  if (!tonalRefPreviewNode) return;
+  tonalRefPreviewNode.connect(toolsTonalAbGainA);
+  tonalRefPlaying = true;
+  renderToolsTonalAbUi();
+}
+if (els.toolsTonalPlayA) els.toolsTonalPlayA.addEventListener("click", toolsTonalToggleRefPlayback);
+if (els.toolsTonalPlayB) els.toolsTonalPlayB.addEventListener("click", toolsTonalToggleMixPlayback);
+// G127 madde 5 — "Referans eğrisiyle dinle": AÇMA/KAPAMA durumu burada
+// tutulur, GERÇEK EQ zinciri toolsConnectFilterPreviewChain() içine eklendi
+// (bkz. F bölümündeki YENİ blok) — B ZATEN o zinciri kullandığı için, chip
+// açıkken/kapalıyken B çalıyorsa zincir CANLI güncellenir.
+if (els.toolsTonalProcChip) {
+  els.toolsTonalProcChip.addEventListener("click", () => {
+    toolsTonalProcOn = !toolsTonalProcOn;
+    if (toolsFilterPlaying) toolsConnectFilterPreviewChain();
+    renderToolsTonalAbUi();
+  });
+}
 function renderToolsTonalAbUi() {
-  if (els.toolsTonalPlayA) els.toolsTonalPlayA.classList.toggle("active-a", toolsTonalAbMode === "A");
-  if (els.toolsTonalPlayB) els.toolsTonalPlayB.classList.toggle("active-b", toolsTonalAbMode === "B");
+  const ref = toolsTonalActiveRef();
+  if (els.toolsTonalPlayA) {
+    els.toolsTonalPlayA.classList.toggle("playing", tonalRefPlaying);
+    els.toolsTonalPlayA.classList.toggle("disabled", !ref);
+  }
+  if (els.toolsTonalPlayB) els.toolsTonalPlayB.classList.toggle("playing", toolsFilterPlaying);
   if (els.toolsTonalProcChip) els.toolsTonalProcChip.classList.toggle("on", toolsTonalProcOn);
 }
 
@@ -9282,6 +9550,54 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
   });
 }
 
+// G127 — doğrulama kancası (kalıcı, ÇAĞRILMAZSA hiçbir çalışma-zamanı
+// maliyeti yok): "Referans eğrisiyle dinle" zincirinin GERÇEKTEN mixi
+// referansa yaklaştırıp yaklaştırmadığının SAYISAL kanıtı için — mixin son
+// ölçülen sapmasına EQ-fark kazançlarını uygulayıp offline render eder,
+// SONUCU yeniden ölçer, önce/sonra referansa uzaklığı döndürür.
+// G127 — doğrulama kancası: anlık Tonal Balance durumunu (referans listesi,
+// ölçülen LUFS'lar, uygulanan GERÇEK GainNode değeri, çalma durumları)
+// dışarıya okunur biçimde açar — A/B seviye eşitlemesinin sayısal kanıtı için.
+window.__tonalDebugState = () => ({
+  references: toolsTonalReferences,
+  mixLufs: toolsTonalMixLufs,
+  lastAvgDevs: toolsTonalLastAvgDevs,
+  lastTargetDevs: toolsTonalLastTargetDevs,
+  abGainA: toolsTonalAbGainA ? toolsTonalAbGainA.gain.value : null,
+  filterPreviewGain: toolsFilterPreviewGain ? toolsFilterPreviewGain.gain.value : null,
+  tonalRefPlaying,
+  toolsFilterPlaying,
+  toolsTonalProcOn,
+  isCustom: toolsTonalIsCustom(),
+});
+window.__tonalRefVerify = async function (qOverride, scaleOverride) {
+  const buffer = uploadManager.getBuffer();
+  const ref = toolsTonalActiveRef();
+  if (!buffer || !ref || !toolsTonalLastAvgDevs) return null;
+  const mixDevs = toolsTonalLastAvgDevs;
+  const refDevs = ref.devs;
+  const scale = scaleOverride != null ? scaleOverride : TOOLS_TONAL_EQ_GAIN_SCALE;
+  const gains = tonalBalance.computeReferenceEqGainsDb(mixDevs, refDevs).map((g) => g * scale);
+  const freqs = tonalBalance.bandCenterFreqs();
+  const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const ctx = new OfflineCtx(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  let node = src;
+  gains.forEach((g, i) => {
+    const f = ctx.createBiquadFilter();
+    f.type = "peaking"; f.frequency.value = freqs[i]; f.gain.value = g; f.Q.value = qOverride != null ? qOverride : TOOLS_TONAL_EQ_Q;
+    node.connect(f); node = f;
+  });
+  node.connect(ctx.destination);
+  src.start();
+  const rendered = await ctx.startRendering();
+  const afterDevs = await tonalBalance.measureSpectralDeviation(rendered);
+  const beforeDist = mixDevs.reduce((s, d, i) => s + Math.abs(d - refDevs[i]), 0);
+  const afterDist = afterDevs.reduce((s, d, i) => s + Math.abs(d - refDevs[i]), 0);
+  return { mixDevs, refDevs, gains, afterDevs, beforeDist, afterDist };
+};
+
 // G117 madde B — bölge SOLO dinleme. Bant adları canvas üstünde ÇİZİLİ metin
 // (gerçek DOM elemanı DEĞİL, bkz. drawTonalChart), bu yüzden tıklama pixel-
 // hassas küçük metne değil, TÜM dikey bant genişliğine (x aralığı) hedeflenir
@@ -9304,7 +9620,7 @@ if (els.toolsTonalChart) {
     if (idx < 0) return;
     toolsSoloBandIdx = toolsSoloBandIdx === idx ? -1 : idx; // tekrar dokununca solo kapanır — task'ın kendi kuralı
     if (toolsFilterPlaying) toolsConnectFilterPreviewChain(); // G117 — çalarken solo değişince zincir CANLI güncellenir
-    if (toolsTonalLastAvgDevs) drawTonalChart(toolsTonalLastAvgDevs, toolsTonalLastTargetDevs, toolsTonalLiveDevs);
+    toolsTonalRedraw(toolsTonalLiveDevs);
   });
 }
 
@@ -9332,19 +9648,32 @@ async function renderToolsTonalCard() {
   const myToken = ++toolsTonalRenderToken;
   renderToolsTonalChips();
   const isCustom = toolsTonalIsCustom();
+  const activeRef = isCustom ? toolsTonalActiveRef() : null;
   if (els.toolsTonalRefRow) els.toolsTonalRefRow.classList.toggle("hidden", !isCustom);
-  if (els.toolsTonalAbRow) els.toolsTonalAbRow.classList.toggle("hidden", !isCustom);
+  if (els.toolsTonalAbRow) els.toolsTonalAbRow.classList.toggle("hidden", !isCustom || !activeRef);
+  // madde 3 — üstteki gösterge: preset modda ESKİ 3'lü koridor lejantı, "Kendi
+  // referansım" + seçili referans varken altın "Referans" / cyan "Senin
+  // mixin" iki noktalı lejant (task'ın kendi metni, BİREBİR).
+  const showCustomLegend = isCustom && !!activeRef;
+  if (els.toolsTonalLegend) els.toolsTonalLegend.classList.toggle("hidden", showCustomLegend);
+  if (els.toolsTonalLegendCustom) els.toolsTonalLegendCustom.classList.toggle("hidden", !showCustomLegend);
   if (els.toolsTonalDraftNote) {
     els.toolsTonalDraftNote.textContent = isCustom
       ? ""
       : "Hedef eğri TASLAK — gerçek referans parçalardan yeniden türetilecek, kesin ölçüm değildir.";
   }
   if (isCustom) {
-    const hasRef = !!toolsTonalCustomRef;
+    const hasRef = !!activeRef;
     if (els.toolsTonalRefCurrent) els.toolsTonalRefCurrent.classList.toggle("hidden", !hasRef);
     if (els.toolsTonalRefPick) els.toolsTonalRefPick.classList.toggle("hidden", hasRef);
-    if (hasRef && els.toolsTonalRefName) els.toolsTonalRefName.textContent = toolsTonalCustomRef.name;
+    if (hasRef && els.toolsTonalRefName) els.toolsTonalRefName.textContent = activeRef.name;
+    if (els.toolsTonalRefWarn) els.toolsTonalRefWarn.classList.toggle("hidden", !hasRef || activeRef.numberOfChannels >= 2);
+    renderToolsTonalRefList();
     renderToolsTonalAbUi();
+  } else {
+    toolsTonalRefListOpen = false;
+    if (els.toolsTonalRefList) els.toolsTonalRefList.classList.add("hidden");
+    if (els.toolsTonalRefWarn) els.toolsTonalRefWarn.classList.add("hidden");
   }
 
   if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Mix ölçülüyor…"; els.toolsTonalSummary.style.color = "#8f949b"; }
@@ -9358,14 +9687,17 @@ async function renderToolsTonalCard() {
   }
 
   const targetDevs = isCustom
-    ? (toolsTonalCustomRef ? toolsTonalCustomRef.devs : null)
+    ? (activeRef ? activeRef.devs : null)
     : tonalBalance.DRAFT_TARGET_CURVES[TOOLS_TONAL_PRESETS[toolsTonalTargetIdx]];
 
   toolsTonalLastAvgDevs = devs;
   toolsTonalLastTargetDevs = targetDevs;
   toolsTonalResetHalfRange(devs, targetDevs); // G116 — dosya/hedef değişince ölçek TEK SEFER kilitlenir
-  drawTonalChart(devs, targetDevs, toolsTonalLiveDevs);
+  toolsTonalRedraw(toolsTonalLiveDevs);
   toolsTonalSyncLiveLoop();
+  // madde 5 — "Referans eğrisiyle dinle" B çalarken zaten açıksa (mod/referans
+  // değişimi sırasında), YENİ ölçülen mixDevs'e göre zincir CANLI güncellenir.
+  if (toolsFilterPlaying) toolsConnectFilterPreviewChain();
 
   if (targetDevs) {
     const diff = devs.map((d, i) => d - targetDevs[i]);
@@ -9373,6 +9705,150 @@ async function renderToolsTonalCard() {
   } else {
     if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Referans parça seçilmedi"; els.toolsTonalSummary.style.color = "#8f949b"; }
   }
+}
+// preset (koridor+amber) ve custom-referans (3-renkli) çizimleri arasında
+// TEK dispatch noktası — hem renderToolsTonalCard hem canlı-analizör döngüsü
+// (toolsTonalLiveTick) hem bant-solo tıklaması BUNU çağırır, ikisi asla
+// birbirinden BAĞIMSIZ karar vermez.
+function toolsTonalRedraw(liveDevs) {
+  if (!toolsTonalLastAvgDevs) return;
+  const isCustom = toolsTonalIsCustom();
+  const activeRef = isCustom ? toolsTonalActiveRef() : null;
+  if (isCustom && activeRef && toolsTonalLastTargetDevs) {
+    drawTonalChartCustomRef(toolsTonalLastAvgDevs, toolsTonalLastTargetDevs, liveDevs);
+  } else {
+    drawTonalChart(toolsTonalLastAvgDevs, toolsTonalLastTargetDevs, liveDevs);
+  }
+}
+// G127 madde 3 — "Kendi referansım" için PRESET modlarının koridor+amber
+// gösteriminden BİLEREK AYRI bir çizim yolu: burada TASLAK bir hedef bandı
+// değil GERÇEK bir referans PARÇA var, task'ın kendi rengi/anlamı FARKLI —
+// koridor yerine iki GERÇEK eğri doğrudan üst üste (altın=referans,
+// cyan=mix, HER ZAMAN bu renklerde — preset modun aksine "hedefte mi"ye göre
+// renk DEĞİŞTİRMEZ, kimlik sabit), aralarındaki KIRMIZI dolgu "burada
+// belirgin ayrışıyorsun" anlamına gelir.
+function drawTonalChartCustomRef(mixDevs, refDevs, liveDevs) {
+  const canvas = els.toolsTonalChart;
+  if (!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const cssW = rect.width || 300, cssH = rect.height || 160;
+  canvas.width = Math.max(1, Math.round(cssW * dpr));
+  canvas.height = Math.max(1, Math.round(cssH * dpr));
+  const ctx = canvas.getContext("2d");
+  const sx = cssW / TOOLS_TONAL_W, sy = cssH / TOOLS_TONAL_H;
+  ctx.setTransform(dpr * sx, 0, 0, dpr * sy, 0, 0);
+  ctx.clearRect(0, 0, TOOLS_TONAL_W, TOOLS_TONAL_H);
+
+  const centers = toolsTonalCenters();
+  const refPts = toolsTonalInterp(refDevs, centers);
+  const mixSourceDevs = liveDevs || mixDevs;
+  const mixPts = toolsTonalInterp(mixSourceDevs, centers);
+
+  if (liveDevs) {
+    const liveNeededNice = toolsTonalNiceHalfRange(Math.max(3, toolsTonalComputeRawHalfRange(mixDevs, refDevs, liveDevs)));
+    if (liveNeededNice > toolsTonalHalfRangeFloor) toolsTonalHalfRangeFloor = liveNeededNice;
+    if (toolsTonalCurrentHalfRange < toolsTonalHalfRangeFloor) {
+      toolsTonalCurrentHalfRange += (toolsTonalHalfRangeFloor - toolsTonalCurrentHalfRange) * 0.12;
+      if (toolsTonalHalfRangeFloor - toolsTonalCurrentHalfRange < 0.05) toolsTonalCurrentHalfRange = toolsTonalHalfRangeFloor;
+    }
+  }
+
+  ctx.strokeStyle = "rgba(255,255,255,.12)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(TOOLS_TONAL_X0, toolsTonalDy(0));
+  ctx.lineTo(TOOLS_TONAL_X1, toolsTonalDy(0));
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.strokeStyle = "rgba(255,255,255,.045)";
+  ctx.lineWidth = 1;
+  [-toolsTonalCurrentHalfRange, toolsTonalCurrentHalfRange].forEach((d) => {
+    const y = toolsTonalDy(d);
+    ctx.beginPath();
+    ctx.moveTo(TOOLS_TONAL_X0, y);
+    ctx.lineTo(TOOLS_TONAL_X1, y);
+    ctx.stroke();
+  });
+
+  const edges = tonalBalance.BAND_EDGES.slice(1, 6);
+  ctx.strokeStyle = "rgba(255,255,255,.06)";
+  edges.forEach((f) => {
+    ctx.beginPath();
+    ctx.moveTo(toolsTonalFx(f), TOOLS_TONAL_GY0);
+    ctx.lineTo(toolsTonalFx(f), TOOLS_TONAL_GY1 + 4);
+    ctx.stroke();
+  });
+
+  if (toolsSoloBandIdx >= 0) {
+    const soloLo = tonalBalance.BAND_EDGES[toolsSoloBandIdx], soloHi = tonalBalance.BAND_EDGES[toolsSoloBandIdx + 1];
+    const x0 = toolsTonalFx(soloLo), x1 = toolsTonalFx(soloHi);
+    ctx.fillStyle = "rgba(34,211,238,.12)";
+    ctx.fillRect(x0, TOOLS_TONAL_GY0, x1 - x0, TOOLS_TONAL_GY1 - TOOLS_TONAL_GY0 + 4);
+  }
+
+  // KIRMIZI dolgu — iki eğrinin belirgin (±1.5dB üstü) ayrıştığı bölgeler.
+  ctx.fillStyle = toolsTonalRgba(TOOLS_THRESHOLD_RED, 0.22);
+  let fillSeg = null;
+  const flushFill = () => {
+    if (fillSeg && fillSeg.length >= 2) {
+      ctx.beginPath();
+      fillSeg.forEach((p, i) => { const y = toolsTonalDy(p[1]); if (i === 0) ctx.moveTo(p[0], y); else ctx.lineTo(p[0], y); });
+      for (let i = fillSeg.length - 1; i >= 0; i--) ctx.lineTo(fillSeg[i][0], toolsTonalDy(fillSeg[i][2]));
+      ctx.closePath();
+      ctx.fill();
+    }
+    fillSeg = null;
+  };
+  mixPts.forEach((p, i) => {
+    const refV = refPts[i][1];
+    const diverges = Math.abs(p[1] - refV) > tonalBalance.OFF_TARGET_THRESHOLD_DB;
+    if (diverges) { (fillSeg = fillSeg || []).push([p[0], p[1], refV]); } else { flushFill(); }
+  });
+  flushFill();
+
+  // Referans eğrisi — ALTIN #e8c46a, 2px, SOLİD.
+  ctx.strokeStyle = "#e8c46a";
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  refPts.forEach((p, i) => { const y = toolsTonalDy(p[1]); if (i === 0) ctx.moveTo(p[0], y); else ctx.lineTo(p[0], y); });
+  ctx.stroke();
+
+  // Mix eğrisi — CYAN #22d3ee, 2px, SOLİD, HER ZAMAN cyan (kimlik sabit).
+  ctx.strokeStyle = "#22d3ee";
+  ctx.lineWidth = 2;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  mixPts.forEach((p, i) => { const y = toolsTonalDy(p[1]); if (i === 0) ctx.moveTo(p[0], y); else ctx.lineTo(p[0], y); });
+  ctx.stroke();
+
+  ctx.font = "800 7.5px Inter, sans-serif";
+  ctx.textAlign = "center";
+  tonalBalance.BANDS.forEach((name, i) => {
+    const off = Math.abs(mixDevs[i] - refDevs[i]) > tonalBalance.OFF_TARGET_THRESHOLD_DB;
+    ctx.fillStyle = i === toolsSoloBandIdx ? "#22d3ee" : (off ? TOOLS_THRESHOLD_RED : "#5a6068");
+    ctx.fillText(name, toolsTonalFx(centers[i]), 128);
+  });
+  ctx.font = "600 8.5px Inter, sans-serif";
+  ctx.fillStyle = "#3f444a";
+  [[20, "20"], [100, "100"], [500, "500"], [2000, "2k"], [8000, "8k"], [20000, "20k"]].forEach(([f, label]) => {
+    const x = Math.min(Math.max(toolsTonalFx(f), TOOLS_TONAL_X0 + 6), TOOLS_TONAL_X1 - 8);
+    ctx.fillText(label, x, 148);
+  });
+  ctx.font = "600 7px Inter, sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#4a4f56";
+  const hr = toolsTonalCurrentHalfRange;
+  const hrLabel = Math.round(hr);
+  [[hr, `+${hrLabel}`], [0, "0"], [-hr, `−${hrLabel}`]].forEach(([d, label]) => {
+    const y = toolsTonalDy(d) + (d === 0 ? 3 : d > 0 ? 6 : -1);
+    ctx.fillText(label, TOOLS_TONAL_X0 + 1, y);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -9588,6 +10064,30 @@ function toolsConnectFilterPreviewChain() {
       toolsFilterChainNodes.push(f);
     });
   }
+  // G127 madde 5 — "Referans eğrisiyle dinle" AÇIKKEN (SADECE "Kendi
+  // referansım" + seçili bir referansla anlamlı): mixin KENDİ son ölçülen
+  // sapması (toolsTonalLastAvgDevs) ile referansın sapması ARASINDAKİ farkı
+  // kapatan 6 bantlı peaking-EQ zinciri eklenir (tonalBalance.
+  // computeReferenceEqGainsDb — SAF, testler bunu doğrudan doğrular).
+  // Dosya DEĞİŞTİRİLMİYOR/DIŞA AKTARILMIYOR — sadece bu ÖNİZLEME zincirine
+  // (playback-only) ekleniyor, task'ın kendi kısıtı.
+  if (toolsTonalProcOn && toolsTonalIsCustom()) {
+    const ref = toolsTonalActiveRef();
+    if (ref && toolsTonalLastAvgDevs) {
+      const gains = tonalBalance.computeReferenceEqGainsDb(toolsTonalLastAvgDevs, ref.devs).map((g) => g * TOOLS_TONAL_EQ_GAIN_SCALE);
+      const freqs = tonalBalance.bandCenterFreqs();
+      gains.forEach((gainDb, i) => {
+        const f = ctx.createBiquadFilter();
+        f.type = "peaking";
+        f.frequency.value = freqs[i];
+        f.gain.value = gainDb;
+        f.Q.value = TOOLS_TONAL_EQ_Q;
+        node.connect(f);
+        node = f;
+        toolsFilterChainNodes.push(f);
+      });
+    }
+  }
   node.connect(toolsFilterPreviewGain);
 }
 
@@ -9674,6 +10174,7 @@ function renderToolsFilterPlayer() {
       : `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-left:3px"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z"></path></svg>`;
   }
   renderToolsMixPlayer(entry); // G114 — Mixini Yükle kartının çaları AYNI durumu yansıtır
+  renderToolsTonalAbUi(); // G127 — "B" oynatma HANGİ düğmeden tetiklenirse tetiklensin (AB satırı ya da akordiyonun kendi play'i) AYNI kaynaktan (toolsFilterPlaying) senkron
 }
 // G114 — "Mixini Yükle" kartı: dosya YOKKEN "Dosya seç" butonu, VARKEN dosya
 // adı + değiştir + play/pause+durdur. Oynatma DURUMU (ikon/animasyon)

@@ -969,11 +969,17 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
                 Referans parça seç
               </button>
+              <div class="tools-tonal-ref-list hidden" id="toolsTonalRefList"></div>
+              <div class="tools-tonal-ref-warn hidden" id="toolsTonalRefWarn">Bu referans mono — tonal denge yine ölçülür, ama karşılaştırma daha az anlamlı olabilir.</div>
             </div>
             <div class="tools-tonal-legend" id="toolsTonalLegend">
               <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#e8c46a;opacity:.65"></div><span>Hedef bandı</span></div>
               <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#22d3ee;opacity:.4"></div><span>Ortalama</span></div>
               <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#22d3ee"></div><span>Canlı (çalarken)</span></div>
+            </div>
+            <div class="tools-tonal-legend hidden" id="toolsTonalLegendCustom">
+              <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#e8c46a"></div><span>Referans</span></div>
+              <div class="tools-tonal-legend-item"><div class="tools-tonal-legend-dot" style="background:#22d3ee"></div><span>Senin mixin</span></div>
             </div>
             <div class="tools-tonal-chart-wrap">
               <div class="tools-tonal-live-badge hidden" id="toolsTonalLiveBadge">● CANLI</div>
@@ -981,8 +987,8 @@
             </div>
             <div class="tools-tonal-summary" id="toolsTonalSummary"></div>
             <div class="tools-tonal-ab-row hidden" id="toolsTonalAbRow">
-              <div class="tools-tonal-ab-btn" id="toolsTonalPlayA">A · Referans</div>
-              <div class="tools-tonal-ab-btn" id="toolsTonalPlayB">B · Senin mixin</div>
+              <div class="tools-tonal-ab-btn role-a" id="toolsTonalPlayA">A · Referans</div>
+              <div class="tools-tonal-ab-btn role-b" id="toolsTonalPlayB">B · Senin mixin</div>
               <div class="tools-tonal-proc-chip" id="toolsTonalProcChip">Referans eğrisiyle dinle</div>
             </div>
             <div class="tools-tonal-note">hedef aralık ±1.5 dB</div>

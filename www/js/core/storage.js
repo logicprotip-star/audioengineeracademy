@@ -10,6 +10,7 @@ const DAILY_ACC_KEY = "eqEarTrainerProXDailyAcc";
 const DAILY_ACC_KEEP_DAYS = 35; // grafik son 30 günü gösterir, birkaç gün pay bırakılır
 const DEV_KEY = "eqEarTrainerProXDev";
 const UPLOAD_SELECTIONS_KEY = "eqEarTrainerProXUploadSelections";
+const TONAL_REFS_KEY = "eqEarTrainerProXTonalRefs";
 
 // Canlar artık zorluğa göre DEĞİL — tek, global bir havuz (bkz. freshStats().lives).
 // Eskiden her zorluğun kendi canı vardı (perDiff[key].lives); bu yüzden zorluk
@@ -294,6 +295,33 @@ export function saveUploadSelections(selections) {
   const raw = JSON.stringify(selections);
   localStorage.setItem(UPLOAD_SELECTIONS_KEY, raw);
   mirrorSet(UPLOAD_SELECTIONS_KEY, raw);
+}
+
+// G127 — "Kendi referansım" (devFlags.customTonalRef arkasında gizli, bkz.
+// freshDevFlags notu). Kullanıcının ölçtüğü referans parçalar KALICI olsun
+// diye ({list, activeId} — list: [{id,name,devs,lufs,numberOfChannels,
+// sourceFileId,addedAt}]) — sourceFileId, Araçlar'ın toolsFiles kütüphanesindeki
+// dosyanın id'si (A/B dinleme için ses BAYTLARI oradan, ihtiyaç anında,
+// yeniden decode edilir — burada AudioBuffer/blob TUTULMAZ, localStorage'a
+// asla sığmaz). Dosya kütüphaneden silinirse referansın EĞRİSİ/LUFS'u hâlâ
+// kalır (grafik/karşılaştırma çalışmaya devam eder), sadece A/B'nin "A"
+// (referans sesi) çalamaz hâle gelir — app.js bu durumu ayrıca kontrol eder.
+export function loadToolsTonalReferences() {
+  try {
+    const raw = localStorage.getItem(TONAL_REFS_KEY);
+    if (!raw) return { list: [], activeId: null };
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.list)) return { list: [], activeId: null };
+    return { list: parsed.list, activeId: parsed.activeId || null };
+  } catch {
+    return { list: [], activeId: null };
+  }
+}
+
+export function saveToolsTonalReferences(state) {
+  const raw = JSON.stringify(state);
+  localStorage.setItem(TONAL_REFS_KEY, raw);
+  mirrorSet(TONAL_REFS_KEY, raw);
 }
 
 // İlerleme sekmesindeki "son 30 gün" grafiği için günlük isabet oranı. dailyKey()
