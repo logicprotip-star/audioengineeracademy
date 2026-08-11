@@ -32,18 +32,20 @@
 	<array>
 		<string>armv7</string>
 	</array>
+	<!-- G121 — dikey kilit (kullanıcı onayı): uygulama dikey tasarlandı (tab
+	     bar/kartlar/sheet'ler hiçbiri yatay düzen içermiyor, bkz. DURUM.md G120
+	     madde 4 teşhisi). Pan Konumu/Stereo Genişlik gibi yön algısı gerektiren
+	     modlarda bile kulaklık zorunlu (getMeta().kulaklikGerekli) — telefonun
+	     fiziksel yönünün stereo algısına hiçbir etkisi yok, yatay desteğin
+	     kaybettirdiği bir şey yok. -->
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
