@@ -6,7 +6,7 @@
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs } from "../www/js/core/storage.js";
+import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections } from "../www/js/core/storage.js";
 
 function installLocalStorageMock(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -173,5 +173,53 @@ describe("feedbackScreen tercihi (G13) — açık/kapalı iki durum", () => {
     const p = loadPrefs();
     assert.equal(p.feedbackScreen, true);
     assert.equal(p.notifications, false); // eski alanlar KAYBOLMADI
+  });
+});
+
+const UPLOAD_SELECTIONS_KEY = "eqEarTrainerProXUploadSelections";
+
+// G123 — "dosya seçimi mod başına ayrılacak": her bağlamın (Araçlar="tools",
+// her modun kendi MODE_ID'si) HANGİ dosyayı seçtiği artık kalıcı. mirrorSet
+// (window.Capacitor.Plugins.Preferences'a yedek yazma) çağrıldığı için diğer
+// testlerin AKSİNE (bkz. dosya başı notu — "window.Capacitor'a dokunan
+// fonksiyonlar test edilmiyor") burada MİNİMAL bir `window` stub'ı kuruluyor
+// (Capacitor YOK → mirrorSet no-op, hata fırlatmaz).
+describe("uploadSelections (G123) — bağlam başına kalıcı dosya seçimi", () => {
+  beforeEach(() => {
+    installLocalStorageMock();
+    globalThis.window = { Capacitor: null };
+  });
+
+  it("loadUploadSelections(): hiç kayıt yoksa boş obje döner, çökmez", () => {
+    assert.deepEqual(loadUploadSelections(), {});
+  });
+
+  it("loadUploadSelections(): bozuk JSON'da boş objeye düşer (çökmez)", () => {
+    installLocalStorageMock({ [UPLOAD_SELECTIONS_KEY]: "{not-json" });
+    assert.deepEqual(loadUploadSelections(), {});
+  });
+
+  it("loadUploadSelections(): bir DİZİ kayıtlıysa (beklenmeyen şekil) boş objeye düşer", () => {
+    installLocalStorageMock({ [UPLOAD_SELECTIONS_KEY]: JSON.stringify(["a", "b"]) });
+    assert.deepEqual(loadUploadSelections(), {});
+  });
+
+  it("saveUploadSelections() + loadUploadSelections(): tam round-trip, birden fazla bağlam AYNI ANDA korunur", () => {
+    saveUploadSelections({ tools: "fileA", "frekans-bulma": "fileB", "stereo-genislik": "fileC" });
+    const loaded = loadUploadSelections();
+    assert.equal(loaded.tools, "fileA");
+    assert.equal(loaded["frekans-bulma"], "fileB");
+    assert.equal(loaded["stereo-genislik"], "fileC");
+  });
+
+  it("bir bağlamın seçimini güncellemek DİĞER bağlamların seçimlerini BOZMAZ (A dosyası Araçlar'da, B dosyası Frekans Bulma'da — biri değişince diğeri korunur)", () => {
+    let selections = { tools: "fileA", "frekans-bulma": "fileB" };
+    saveUploadSelections(selections);
+    // Frekans Bulma'nın seçimi değişiyor — Araçlar'ınki DOKUNULMAMALI.
+    selections = { ...loadUploadSelections(), "frekans-bulma": "fileB2" };
+    saveUploadSelections(selections);
+    const loaded = loadUploadSelections();
+    assert.equal(loaded.tools, "fileA", "Araçlar'ın seçimi Frekans Bulma değişince BOZULMAMALI");
+    assert.equal(loaded["frekans-bulma"], "fileB2");
   });
 });

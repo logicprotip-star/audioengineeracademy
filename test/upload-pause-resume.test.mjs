@@ -113,4 +113,40 @@ describe("upload.js pause/resume offset hesabı (G12)", () => {
     const node = mgr.getSourceNode();
     assert.equal(node.startedAtOffset, 4, "ikinci pausePlayback() çağrısı playing=false olduğu için no-op olmalı, offset 4'te kalmalı");
   });
+
+  // G123 — "dosya seçimi mod başına": app.js artık TEK bir paylaşılan
+  // uploadManager'ı BAĞLAMLAR (Araçlar + her mod) arasında geçiş yaparken
+  // clear() ile boşaltıp başka bir dosyayla yeniden dolduruyor (bkz.
+  // ensureUploadSelectionLoaded). clear()'ın hasBuffer'ı GERÇEKTEN false'a
+  // çektiğini ve offset/playing durumunu sıfırladığını doğrular.
+  it("clear(): hasBuffer'ı false'a çeker, offset/playing sıfırlanır (bağlam geçişinde 'yanlış dosya' sızıntısı olmasın)", async () => {
+    const ctx = makeFakeCtx(20);
+    const mgr = createUploadManager(() => ctx);
+    await mgr.loadFile(fakeFile);
+    assert.equal(mgr.hasBuffer, true);
+
+    ctx.setTime(0);
+    mgr.getSourceNode();
+    ctx.setTime(7);
+
+    mgr.clear();
+    assert.equal(mgr.hasBuffer, false, "clear() sonrası hasBuffer false olmalı");
+    assert.equal(mgr.getBuffer(), null);
+  });
+
+  it("clear() sonrası TEKRAR loadFile() ile yeni bir dosya (BAŞKA bir bağlamınmış gibi) baştan çalar — eski offset SIZMAZ", async () => {
+    const ctx = makeFakeCtx(20);
+    const mgr = createUploadManager(() => ctx);
+    await mgr.loadFile(fakeFile);
+    ctx.setTime(0);
+    mgr.getSourceNode();
+    ctx.setTime(12);
+    mgr.clear();
+
+    const res2 = await mgr.loadFile(fakeFile);
+    assert.equal(res2.ok, true);
+    ctx.setTime(12); // zaman ilerlemiş olsa da YENİ dosya baştan başlamalı
+    const node = mgr.getSourceNode();
+    assert.equal(node.startedAtOffset, 0, "clear()+loadFile() sonrası eski offset (12) SIZMAMALI, 0'dan başlamalı");
+  });
 });

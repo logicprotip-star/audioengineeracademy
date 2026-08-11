@@ -640,27 +640,19 @@
               <span class="settings-row-value"><span class="setting-row-value-text"></span><span class="chev">&#8250;</span></span>
             </button>
           </div>
-          <!-- G52 DÜZELTMESİ — cihazda "dosya seç" hiç açılmıyordu: KÖK SEBEP,
-               `<input type="file">`'ın bu bottom-sheet'in (`.bottom-sheet{transform:
-               translateY(...)}`, her zaman AKTİF bir transform — kapalıyken de
-               100%, açıkken de 0) İÇİNDE olması. WebKit/iOS'un uzun süredir bilinen
-               hatası: transform UYGULANMIŞ (identity translateY(0) dahil, sadece
-               `none` DEĞİLSE) HERHANGİ bir atadan altındaki native dosya inputu
-               dokunmayla native seçiciyi AÇMIYOR — masaüstü Chrome'da bu hata hiç
-               yok, önceki tüm canlı doğrulamalar SADECE masaüstü tarayıcı
-               otomasyonuyla yapıldığı için (bkz. DURUM.md G51) bu hiç yakalanmadı.
-               ÇÖZÜM: gerçek `<input type="file">` DOM'da bu sheet'in dışına
-               (belgenin sonuna, `<body>`'nin doğrudan çocuğu, transformsuz)
-               taşındı — burada SADECE görünür bir proxy `<button>` kalıyor,
-               `data-file-target` ile hedef input id'sini taşıyor, app.js'te TEK
-               bir generic listener (senkron `.click()`) tüm proxy butonları
-               kapsıyor. Seçilen dosya adı artık native inputun kendi satır-içi
-               gösteriminin YERİNE `.upload-filename` span'ıyla JS'ten yazılıyor
-               (change handler'ları güncellendi). -->
+          <!-- G123 — bu satırın butonu ARTIK native dosya seçiciyi DEĞİL,
+               TEK/ortak Dosyalarım sheet'ini (bu MODUN bağlamına kilitlenmiş)
+               açıyor (bkz. app.js .upload-trigger-btn forEach'in "audioFileInput"
+               dalı) — dosya adı artık BURADA gösterilmiyor, Dosyalarım sheet'i
+               zaten seçili dosyayı işaretli gösteriyor. `data-file-target`
+               id'si SADECE app.js'teki dal-seçimi için sembolik olarak
+               KORUNDU, artık gerçek bir `<input>` elemanına karşılık gelmiyor
+               (G52'nin kurduğu ayrı `#audioFileInput` kaldırıldı, dosya başı
+               notundaki "transform altında native input açılmıyor" sorunu bu
+               satır için artık İLGİSİZ — hiç native input'a gitmiyor). -->
           <div class="upload-row" id="uploadRowSingle">
             <label>Ses dosyası yükle</label>
             <button type="button" class="btn upload-trigger-btn" data-file-target="audioFileInput">Dosya Seç</button>
-            <span class="upload-filename" id="audioFileInputName"></span>
           </div>
           <!-- G56: Motor 3'ün İKİ AYRI upload yuvası ARTIK BURADA DEĞİL — ana
                oyun ekranına, kaynak-çifti chip'inin hemen altına TAŞINDI
@@ -1734,7 +1726,6 @@
        DÜZELTMESİ notu. `.file-input-native` (styles.css) görsel olarak
        gizler ama `display:none` KULLANMAZ (bazı WebKit sürümlerinde
        display:none input'a `.click()` çağrısı çalışmayabiliyor). -->
-  <input type="file" id="audioFileInput" accept="audio/*" class="file-input-native" />
   <input type="file" id="cakismaFileInputA" accept="audio/*" class="file-input-native" />
   <input type="file" id="cakismaFileInputB" accept="audio/*" class="file-input-native" />
 

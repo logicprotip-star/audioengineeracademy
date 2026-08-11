@@ -9,6 +9,7 @@ const PREFS_KEY = "eqEarTrainerProXPrefs";
 const DAILY_ACC_KEY = "eqEarTrainerProXDailyAcc";
 const DAILY_ACC_KEEP_DAYS = 35; // grafik son 30 günü gösterir, birkaç gün pay bırakılır
 const DEV_KEY = "eqEarTrainerProXDev";
+const UPLOAD_SELECTIONS_KEY = "eqEarTrainerProXUploadSelections";
 
 // Canlar artık zorluğa göre DEĞİL — tek, global bir havuz (bkz. freshStats().lives).
 // Eskiden her zorluğun kendi canı vardı (perDiff[key].lives); bu yüzden zorluk
@@ -270,6 +271,29 @@ export function saveDevFlags(devFlags) {
   const raw = JSON.stringify(devFlags);
   localStorage.setItem(DEV_KEY, raw);
   mirrorSet(DEV_KEY, raw);
+}
+
+// G123 — "Dosya seçimi mod başına ayrılacak" (kullanıcının kendi kararı):
+// dosya KÜTÜPHANESİ (Araçlar'ın toolsFiles'ı) PAYLAŞILAN kalıyor, ama HANGİ
+// dosyanın seçili olduğu artık bağlam başına ({contextId: fileId} — "tools"
+// Araçlar için, her modun kendi MODE_ID'si diğerleri için) ayrı ve KALICI.
+// Şekil basit/düz bir obje — mod sayısı arttıkça büyümesi SORUN DEĞİL (birkaç
+// on bayt/mod). loadDevFlags'ın AYNI dürüst try/catch + "bozuksa boş obje"
+// deseni.
+export function loadUploadSelections() {
+  try {
+    const raw = localStorage.getItem(UPLOAD_SELECTIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return (parsed && typeof parsed === "object" && !Array.isArray(parsed)) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveUploadSelections(selections) {
+  const raw = JSON.stringify(selections);
+  localStorage.setItem(UPLOAD_SELECTIONS_KEY, raw);
+  mirrorSet(UPLOAD_SELECTIONS_KEY, raw);
 }
 
 // İlerleme sekmesindeki "son 30 gün" grafiği için günlük isabet oranı. dailyKey()

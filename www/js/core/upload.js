@@ -233,11 +233,25 @@ export function createUploadManager(getAudioCtx) {
     return buffer;
   }
 
+  // G123 — "dosya seçimi mod başına": bu uploadManager artık TEK bir paylaşılan
+  // buffer'ı BİRDEN FAZLA bağlam (Araçlar + her mod) arasında GEÇİŞ YAPARAK
+  // taşıyor (bkz. app.js ensureUploadSelectionLoaded) — bir bağlamın hiç
+  // seçimi yoksa ya da başka bir bağlama geçilirken eski buffer'ın YANLIŞLIKLA
+  // "bu bağlamın dosyası" gibi görünmemesi için AÇIKÇA boşaltan bir yol
+  // gerekiyordu. startFromZero()'nun AKSİNE offset'i SIFIRLAMAKLA kalmaz,
+  // buffer'ın KENDİSİNİ de null'lar (hasBuffer bundan sonra false döner).
+  function clear() {
+    buffer = null;
+    offset = 0;
+    playing = false;
+  }
+
   return {
     loadFile,
     pausePlayback,
     startFromZero,
     seekTo,
+    clear,
     getSourceNode,
     getBuffer,
     get hasBuffer() { return !!buffer; },

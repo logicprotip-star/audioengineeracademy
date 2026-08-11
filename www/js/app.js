@@ -455,7 +455,6 @@ const els = {
   timerModeSelect: document.getElementById("timerModeSelect"),
   answerFormatSelect: document.getElementById("answerFormatSelect"),
   answers: document.getElementById("answers"),
-  audioFileInput: document.getElementById("audioFileInput"),
   resetStatsBtn: document.getElementById("resetStatsBtn"),
 
   // G87: İlerleme sekmesi Prototip.dc.html'in İLERLEME bloğuna göre yeniden
@@ -708,6 +707,107 @@ function scrollFeedbackIntoView() {
 
 const audioEngine = createAudioEngine();
 const uploadManager = createUploadManager(() => audioEngine.audioCtx);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// G123 — "Dosya seçimi mod başına ayrılacak" (kullanıcının kendi kararı).
+// KÖK SORUN: `uploadManager` YUKARIDA TEK bir paylaşılan örnek — tek bir anda
+// SADECE bir dosyanın decode edilmiş buffer'ını tutabiliyor. G121'e/G122'ye
+// kadar bu "TEK seçili dosya = TÜM uygulama" anlamına geliyordu: Araçlar'da
+// bir dosya seçmek, HERHANGİ bir modun (Frekans Bulma/Pan Konumu/Stereo
+// Genişlik/vb.) "upload" kaynağını SESSİZCE değiştiriyordu (kütüphane
+// PAYLAŞILAN kalmalı ama SEÇİM mod başına ayrı olmalı — kullanıcının kendi
+// gerekçesi: "Araçlar'da ölçtüğü şarkı ile Frekans Bulma'da çalıştığı kaynak
+// farklı olabilir").
+//
+// ÇÖZÜM: kütüphane (`toolsFiles`, aşağıda TANIMLANIYOR) DEĞİŞMEDİ — hâlâ TEK,
+// paylaşılan bir dosya listesi. YENİ olan `uploadSelections`: bağlam başına
+// ({contextId: fileId} — "tools" Araçlar için, her modun kendi `MODE_ID`'si
+// diğerleri için) KALICI bir seçim haritası (bkz. storage.js). `uploadManager`
+// hâlâ TEK bir "şu an decode edilmiş buffer" önbelleği ama artık bir MOD/
+// Araçlar arasında GEÇİŞ yapan bir bağlam DEĞİŞTİKÇE (bkz. goScreen'in
+// "tools"/"game" dalları) `ensureUploadSelectionLoaded()` ile o bağlamın
+// KENDİ dosyasına YENİDEN yükleniyor — kullanıcıya SANKİ her bağlamın kendi
+// buffer'ı varmış gibi görünüyor, ama bellek/decode maliyeti TEK bir buffer'a
+// (aynı desenin `createUploadManager`'ın "tek buffer" tasarımına, bkz. o
+// dosyanın dosya başı notu, UYUMLU kalması için BİLEREK) sınırlı kalıyor.
+let uploadSelections = storage.loadUploadSelections();
+// Şu an `uploadManager`'da HANGİ dosyanın (kütüphane id'si) decode edildiği —
+// `ensureUploadSelectionLoaded`'ın "zaten doğru dosya yüklü, tekrar decode
+// etme" kısa-devresi için. `null` = uploadManager BOŞ (clear() edilmiş).
+let uploadManagerLoadedFileId = null;
+// Dosyalarım sheet'i AÇILMADAN HEMEN ÖNCE set edilir — sheet'ten bir dosya
+// SEÇİLDİĞİNDE/YÜKLENDİĞİNDE o seçim BU bağlama yazılır (bkz.
+// recordUploadSelection). "tools" varsayılan (Araçlar'ın kendi gear/upload
+// butonları + HER doğrudan `toolsOpenFilesSheet()` çağrısı bunu AÇIKÇA
+// "tools"a çeker, bir modun bıraktığı bağlam SIZMASIN diye).
+let activeUploadContext = "tools";
+
+// Bir bağlamın (contextId) seçtiği dosyayı KALICI olarak kaydeder. "tools"
+// bağlamı Araçlar'ın KENDİ `toolsSelectedFileId`'ı (aşağıda tanımlı, o
+// modülün SADECE Araçlar'a özgü UI/analiz durumunu okuduğu değişken) ile
+// SENKRON tutulur — iki ayrı "doğruluk kaynağı" YARATILMADI, sadece
+// `toolsSelectedFileId` artık `uploadSelections["tools"]`'un kalıcı bir
+// yansıması.
+function recordUploadSelection(contextId, fileId) {
+  if (fileId) uploadSelections[contextId] = fileId;
+  else delete uploadSelections[contextId];
+  storage.saveUploadSelections(uploadSelections);
+  if (contextId === "tools") toolsSelectedFileId = fileId || null;
+}
+
+// Bir bağlama (contextId) GİRİLDİĞİNDE (Araçlar sekmesi açıldığında, bir
+// modun oyun ekranına girildiğinde) çağrılır: `uploadManager`'ın O AN
+// tuttuğu dosya bu bağlamın KALICI seçimiyle eşleşmiyorsa, ÖNCE (senkron)
+// temizlenir — böylece geçiş anında `syncStereoUploadGate()` gibi okuyucular
+// BAŞKA bir bağlamın dosyasını asla "bu bağlamınmış" gibi görmez — SONRA
+// (asenkron) doğru dosya file-storage'dan okunup decode edilir. Zaten doğru
+// dosya yüklüyse (ya da ikisi de "seçim yok") HİÇBİR ŞEY yapmaz (gereksiz
+// yeniden-decode YOK).
+async function ensureUploadSelectionLoaded(contextId) {
+  const fileId = uploadSelections[contextId] || null;
+  if (uploadManagerLoadedFileId === fileId) return;
+  uploadManager.clear();
+  uploadManagerLoadedFileId = null;
+  if (!fileId) return;
+  const entry = toolsFiles.find(f => f.id === fileId);
+  if (!entry) {
+    // Kayıtlı seçim artık kütüphanede yok (silinmiş/hiç var olmamış) —
+    // sessizce temizle, bir dahaki sefere tekrar aranmasın.
+    recordUploadSelection(contextId, null);
+    return;
+  }
+  await audioEngine.initAudio();
+  let fileObj = entry.file;
+  if (!fileObj) {
+    const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+    if (!blob) {
+      recordUploadSelection(contextId, null);
+      toast("Dosya bulunamadı", `${entry.name} artık cihazda yok.`);
+      return;
+    }
+    fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+    entry.file = fileObj;
+  }
+  const res = await uploadManager.loadFile(fileObj);
+  if (res.ok) uploadManagerLoadedFileId = fileId;
+}
+
+// Dosyalarım sheet'i (`#toolsFilesSheet`) DOM'da `#screen-tools` İÇİNE gömülü
+// (bkz. index.html'in "C) Dosyalarım sheet'i" notu) — `#screen-tools`
+// `.active` DEĞİLKEN (ör. bir modun oyun ekranındayken) `display:none`
+// altında kalır, sheet'in KENDİ "open" class'ı bunu YENEMEZ (ata display:none
+// ise, position:fixed olsa bile, eleman HİÇ render edilmez). Bu yüzden bir
+// MOD bağlamından (Kaynak sheet'inin "Dosya seç" satırı, Oyun Ayarları'nın
+// upload satırı, Stereo Genişlik'in gate butonu) Dosyalarım'ı açan HER yer
+// ÖNCE `goScreen("tools")` ile Araçlar'a geçmeli — bu TEK ortak fonksiyon,
+// bu adımı unutmayı (ve az önce buradaki gibi "sheet class'ı 'open' ama
+// görünmüyor" bug'ını) İMKÂNSIZ kılıyor.
+function openFilesSheetForContext(contextId) {
+  activeUploadContext = contextId;
+  goScreen("tools");
+  toolsOpenFilesSheet();
+}
+
 // G51 — Motor 3 (Frekans Çakışması): "kendi dosyalarım" çifti İKİ AYRI dosya
 // gerektirir (task: "iki kaynak çakışma iki kaynak arası, ikisini de kendi
 // yüklesin") — createUploadManager BİR FABRİKA (modül-seviyesi paylaşılan
@@ -1878,8 +1978,7 @@ function syncStereoUploadGate() {
   }
 }
 if (els.stereoUploadGateBtn) els.stereoUploadGateBtn.addEventListener("click", () => {
-  goScreen("tools");
-  toolsOpenFilesSheet();
+  openFilesSheetForContext(mode.MODE_ID);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1909,10 +2008,23 @@ function goScreen(name) {
     // okumak tarayıcıyı güncel layout'u hesaplamaya zorlar — rAF'a gerek yok (rAF arka
     // planda/pasif sekmelerde ertelenebiliyor, bu da güvenilmez ölçümlere yol açıyordu).
     resizeCanvas();
+    // G123 — bu MODUN kendi kalıcı dosya seçimini (varsa) uploadManager'a
+    // yükle — G122'de sadece Stereo Genişlik'e özgüydü, artık "upload"
+    // destekleyen TÜM modlarda genel. syncStereoUploadGate'in "mod DEĞİŞMEDİYSE
+    // atla" (enterMode'un mode!==realMode bloğu) sorunundan BAĞIMSIZ kalması
+    // için bu da doğrudan goScreen()'e bağlı — HER giriş yolunda (kart
+    // tıklama, geri tuşu, Dosyalarım sheet'inden dönüş) çalışır.
+    if ((mode.getMeta().uyumluKaynaklar || []).includes("upload")) {
+      ensureUploadSelectionLoaded(mode.MODE_ID).then(syncStereoUploadGate);
+    }
     // G122 — enterMode()'un "mod DEĞİŞMEDİYSE atla" bloğunun (mode !== realMode)
     // AKSİNE, bu kontrol oyun ekranına HER giriş yolunda (kart tıklama, geri
     // tuşu, Dosyalarım sheet'inden dönüş) çalışmalı — buraya, doğrudan
-    // goScreen()'e bağlandı (enterMode İÇİNE değil).
+    // goScreen()'e bağlandı (enterMode İÇİNE değil). Yukarıdaki asenkron
+    // yeniden-yükleme TAMAMLANMADAN ÖNCE de bir kez SENKRON çağrılır — geçiş
+    // anında (uploadManager.clear() az önce çalıştıysa) panel doğru "dosya
+    // yok" durumunu HEMEN yansıtsın, asenkron yükleme bitince İKİNCİ kez
+    // (yukarıdaki .then'de) gerçek sonuçla güncellenir.
     syncStereoUploadGate();
     // E3 güvenlik ağı: cevap verilip actionbar tucked'ken kullanıcı "Geri"ye basıp
     // menüye çıkarsa (sonraki tur hiç renderQuestion() çağırmadan), bu sınıf DOM'da
@@ -1940,6 +2052,14 @@ function goScreen(name) {
       drawCorrelationChart(toolsAnalysisResult);
     }
     toolsCheckLibraryIntegrity();
+    // G123 — Araçlar'ın KENDİ kalıcı seçimini (varsa) uploadManager'a geri
+    // yükle — bir moddan gelindiyse (o modun kendi dosyasını yüklemiş
+    // olabilir, bkz. yukarıdaki "game" dalı) uploadManager ARTIK Araçlar'ın
+    // dosyası OLMAYABİLİR, bu satır geçişi görünmez şekilde düzeltir.
+    ensureUploadSelectionLoaded("tools").then(() => {
+      renderToolsCardsVisibility();
+      renderToolsFilterPlayer();
+    });
   }
   closeMainSettingsSheet();
   // Kalibrasyon tonu sadece o ekrandayken çalsın — başka bir ekrana geçilince arka
@@ -5136,7 +5256,6 @@ if (els.answers) els.answers.addEventListener("click", e => {
 // accept özniteliği validateAudioFile'ın kabul ettiği listeyle AYNI kaynaktan (bkz. E1) —
 // native dosya seçicinin WAV gibi formatları elemesini önlemek için MIME joker + WAV
 // MIME varyantları + uzantı listesi birleşimi kullanılıyor.
-if (els.audioFileInput) els.audioFileInput.accept = audioAcceptAttr();
 if (els.toolsFileInput) els.toolsFileInput.accept = audioAcceptAttr();
 
 // G53 — KÖK ÇÖZÜM: G52'nin "transform ataları" düzeltmesi cihazda YETMEDİ
@@ -5272,47 +5391,14 @@ async function pickNativeAudioFile() {
 // MIME varyantları + uzantı listesi birleşimi kullanılıyor. SADECE web fallback
 // input'ları için anlamlı (native FilePicker kendi UTI/tip filtresini kullanır,
 // buraya types VERİLMEDİ — task'ın "audio/*" kadar geniş serbestliği korunsun diye).
-if (els.audioFileInput) els.audioFileInput.accept = audioAcceptAttr();
+// G123 — #audioFileInput (tekli, mod-agnostik native picker yolu) BURADAN
+// KALDIRILDI: "Dosya seç" (Kaynak sheet + Oyun Ayarları satırı) artık İKİSİ
+// de TEK/ortak Dosyalarım sheet'ini açıyor (bkz. openSheet + .upload-trigger-btn
+// forEach'in AYNI notu) — processSingleUploadFile()/bu input'un "change"
+// dinleyicisi hiçbir yerden ÇAĞRILMIYORDU (grep ile doğrulandı), silindi.
+// #toolsFileInput (Dosyalarım sheet'in KENDİ "Cihazdan yeni dosya seç" web
+// fallback'i) ve Frekans Çakışması'nın cakismaFileInputA/B'si DEĞİŞMEDİ.
 if (els.toolsFileInput) els.toolsFileInput.accept = audioAcceptAttr();
-
-// Tek upload'ın (Tonal Denge dahil TÜM tek-kaynak modlar) GERÇEK işleme
-// mantığı — hem native picker hem web fallback'in `change` listener'ı BU
-// fonksiyonu çağırır, iki yol da TEK bir doğrulama/yükleme/geri-bildirim
-// kod yoluna çıkar.
-async function processSingleUploadFile(file) {
-  if (!file) return;
-  const validation = validateAudioFile(file);
-  if (!validation.ok) {
-    setFeedback(validation.title, validation.detail);
-    return;
-  }
-  try {
-    await audioEngine.initAudio();
-    const res = await uploadManager.loadFile(file);
-    if (!res.ok) {
-      setFeedback(res.title, res.detail);
-      return;
-    }
-    // Kaynağı otomatik "Yüklenen Ses Dosyası"na geçir (oyunu otomatik başlatmadan).
-    if (els.sourceSelect.value !== "upload") {
-      els.sourceSelect.value = "upload";
-      els.sourceSelect.dispatchEvent(new Event("change", { bubbles: true }));
-      const rowText = document.querySelector('.setting-row[data-sheet-select="sourceSelect"] .setting-row-value-text');
-      if (rowText) rowText.textContent = els.sourceSelect.options[els.sourceSelect.selectedIndex].text;
-    }
-    const nameEl = document.getElementById("audioFileInputName");
-    if (nameEl) nameEl.textContent = file.name;
-    setFeedback("Ses yüklendi", `${file.name} başarıyla yüklendi. "Oyunu Başlat" ile çalmaya başlar.`);
-  } catch (err) {
-    console.error("[upload] loadUploadedAudio dışında beklenmeyen hata:", err && err.name, err && err.message, err);
-    setFeedback("Yükleme hatası", "Bu ses dosyası açılamadı. Farklı bir mp3/wav dene.");
-  }
-}
-els.audioFileInput.addEventListener("change", (e) => {
-  const file = e.target.files?.[0];
-  e.target.value = ""; // aynı (geçersiz) dosya tekrar seçilirse change event'i yine tetiklensin
-  processSingleUploadFile(file);
-});
 
 // G51 — Motor 3 (Frekans Çakışması): "kendi dosyalarım" çiftinin İKİ AYRI
 // yükleme yolu — processSingleUploadFile'ın AYNI doğrulama/hata deseni,
@@ -5377,6 +5463,26 @@ document.querySelectorAll(".upload-trigger-btn").forEach(btn => {
       if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail, "pro");
       return;
     }
+    // G123 — Oyun Ayarları'nın "Ses dosyası yükle" satırı (audioSourceInput
+    // hedefi) ARTIK Kaynak sheet'inin "Dosya seç" satırıyla AYNI yola gidiyor:
+    // TEK/ortak Dosyalarım sheet'i, bu MODUN bağlamına kilitlenmiş — kaynağı
+    // "upload"a çevirip picker'ı bu üzerinden açıyor (bkz. openSheet'in AYNI
+    // notu). Frekans Çakışması'nın İKİ AYRI yuvası (cakismaFileInputA/B)
+    // BİLEREK bu değişikliğin DIŞINDA bırakıldı — o mod zaten kendi ayrı
+    // uploadManagerA/B çiftini kullanıyor, "mod başına TEK seçim" modeline
+    // uymuyor (iki SLOT var, bir SEÇİM değil) ve bu turun kapsamı dışında.
+    if (targetId === "audioFileInput") {
+      console.log(`[filepicker-diag] 0) buton tıklandı: data-file-target="${targetId}" → Dosyalarım sheet'ine yönlendiriliyor`);
+      if (els.sourceSelect.value !== "upload") {
+        els.sourceSelect.value = "upload";
+        els.sourceSelect.dispatchEvent(new Event("change", { bubbles: true }));
+        const rowText = document.querySelector('.setting-row[data-sheet-select="sourceSelect"] .setting-row-value-text');
+        if (rowText) rowText.textContent = els.sourceSelect.options[els.sourceSelect.selectedIndex].text;
+      }
+      closeMainSettingsSheet();
+      openFilesSheetForContext(mode.MODE_ID);
+      return;
+    }
     console.log(`[filepicker-diag] 0) buton tıklandı: data-file-target="${targetId}"`);
     const picked = await pickNativeAudioFile();
     if (picked === undefined) {
@@ -5385,8 +5491,7 @@ document.querySelectorAll(".upload-trigger-btn").forEach(btn => {
       return;
     }
     if (!picked) return; // iptal/hata — pickNativeAudioFile zaten loglayıp gerekirse feedback gösterdi
-    if (targetId === "audioFileInput") processSingleUploadFile(picked);
-    else if (targetId === "cakismaFileInputA") processCakismaUploadFile(picked, uploadManagerA, "cakismaFileInputA", "A");
+    if (targetId === "cakismaFileInputA") processCakismaUploadFile(picked, uploadManagerA, "cakismaFileInputA", "A");
     else if (targetId === "cakismaFileInputB") processCakismaUploadFile(picked, uploadManagerB, "cakismaFileInputB", "B");
   });
 });
@@ -6441,10 +6546,17 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
       }
       const row = document.createElement('div');
       row.className = 'sheet-option' + (opt.selected ? ' selected' : '');
-      // "Dosya seç" (upload) bir dosya seçilene kadar diğer şıklar gibi anında
-      // işaretlenemez — tıklanınca native dosya seçiciyi açar (prototype.html'de
-      // bu satır ✓ yerine › ile ayrılmıştı, aynı ayrım burada davranışa taşındı).
-      const isUnloadedUpload = select.id === 'sourceSelect' && opt.value === 'upload' && !uploadManager.hasBuffer;
+      // G123 KÖK SEBEP DÜZELTMESİ: "Dosya seç" (upload) satırının "yüklü mü"
+      // durumu ÖNCEDEN GLOBAL `uploadManager.hasBuffer`'a bakıyordu — bu, bir
+      // BAŞKA modda (ya da Araçlar'da) ZATEN bir dosya yüklüyse, BU modun HİÇ
+      // dosyası olmasa BİLE satırın "seçili" (✓) görünmesine, tıklanınca
+      // picker'ı AÇMADAN sessizce o YABANCI dosyayı bu moda uygulamasına yol
+      // açıyordu (kullanıcının bildirdiği "seçim ekranında görünmüyor/
+      // uygulanmıyor ama tur başlayınca dosya geliyor" hatasının kök sebebi).
+      // Artık BU MODUN kendi kalıcı seçimine (uploadSelections[mode.MODE_ID])
+      // bakıyor — global uploadManager durumundan TAMAMEN bağımsız.
+      const isUploadOption = select.id === 'sourceSelect' && opt.value === 'upload';
+      const isUnloadedUpload = isUploadOption && !uploadSelections[mode.MODE_ID];
       // G65 (PAYWALL.md): "Serbest (sonsuz)" ücretsizde SEÇİLEBİLİYORDU ama
       // 5-soru sınırı yüzünden pratikte 5'te duruyordu — "seçtim ama
       // çalışmıyor" karışıklığı (cihaz testinde bulundu). isUnloadedUpload'un
@@ -6456,14 +6568,12 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
       // İÇİNE, kendi mini-flex kutusuna sarılıyor.
       const proBadgeHtml = isLockedFreePlay ? '<span class="mode-chip mode-chip-pro" style="margin-left:8px">Pro</span>' : '';
       row.innerHTML = `<span style="display:flex;align-items:center">${opt.text}${proBadgeHtml}</span><span class="check"${checkStyle}>${isUnloadedUpload ? '›' : isLockedFreePlay ? '🔒' : '✓'}</span>`;
-      row.addEventListener('click', async () => {
-        // G61 (PAYWALL.md): "Kendi dosya yükleme: kilitli" — Ses Kaynağı
-        // sheet'indeki "Dosya seç" satırı, .upload-trigger-btn'in AYRI (bu
-        // dosyanın en başındaki not, bkz. isUnloadedUpload) kod yolu — DAHA
-        // ÖNCE yüklenmiş bir dosya varsa (uploadManager.hasBuffer=true) bile
-        // free kullanıcı onu seçemez, indirgeme (downgrade) sonrası kalıntı
-        // bir seçim olası (bkz. enforceFreeRestrictions'ın AYNI motivasyonu).
-        if (select.id === 'sourceSelect' && opt.value === 'upload' && paywall.isUploadLocked(isUserPro())) {
+      row.addEventListener('click', () => {
+        // G61 (PAYWALL.md): "Kendi dosya yükleme: kilitli" — DAHA ÖNCE bu mod
+        // için bir dosya seçilmiş olsa BİLE free kullanıcı onu SEÇEMEZ,
+        // indirgeme (downgrade) sonrası kalıntı bir seçim olası (bkz.
+        // enforceFreeRestrictions'ın AYNI motivasyonu).
+        if (isUploadOption && paywall.isUploadLocked(isUserPro())) {
           closeSheet();
           if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.upload.title, paywall.LOCK_MESSAGES.upload.detail, "pro");
           return;
@@ -6473,13 +6583,19 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
           if (!openPaywallReason("freePlayMode")) toast(paywall.LOCK_MESSAGES.freePlayMode.title, paywall.LOCK_MESSAGES.freePlayMode.detail, "pro");
           return;
         }
-        if (isUnloadedUpload) {
+        // G123 — "Dosya seç" ARTIK HER TIKLAMADA (daha önce seçilmiş olsun ya
+        // da olmasın) TEK/ortak Dosyalarım sheet'ini bu MODUN bağlamına
+        // (activeUploadContext=mode.MODE_ID) kilitleyerek açar — "ikinci bir
+        // dosya sistemi kurma" kuralı gereği processSingleUploadFile/
+        // pickNativeAudioFile'ın AYRI native-picker yoluna BİR DAHA gidilmiyor
+        // (o yol hâlâ Dosyalarım sheet'inin KENDİ "Cihazdan yeni dosya seç"
+        // butonunda kullanılıyor, bkz. toolsHandlePickNewFile — TEK yer).
+        if (isUploadOption) {
+          select.value = 'upload';
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          updateRowText(select);
           closeSheet();
-          // G53: AYNI native-önce/web-fallback deseni (bkz. .upload-trigger-btn
-          // wiring'i) — bu satır ARTIK doğrudan input'a değil, o ortak yola gidiyor.
-          const picked = await pickNativeAudioFile();
-          if (picked === undefined) els.audioFileInput.click();
-          else if (picked) processSingleUploadFile(picked);
+          openFilesSheetForContext(mode.MODE_ID);
           return;
         }
         select.value = opt.value;
@@ -7436,7 +7552,9 @@ function toolsSaveLibraryManifest() {
 }
 
 let toolsFiles = toolsLoadLibraryManifest();
-let toolsSelectedFileId = null;
+// G123 — artık uploadSelections["tools"]'un (KALICI) bir yansıması, bkz. o
+// değişkenin dosya başı notu + recordUploadSelection.
+let toolsSelectedFileId = uploadSelections.tools || null;
 let toolsSwipedFileId = null;
 // Araçlar sekmesine bu SAYFA-YÜKLEMESİ boyunca zaten bir kez bütünlük kontrolü
 // yapıldı mı? (task: "her açılışta DEĞİL, sadece Araçlar sekmesine ilk
@@ -7534,17 +7652,30 @@ async function toolsAddFile(file) {
 // decode+bellek ayırma turuna (ölçülen GC baskısı dahil, uzun görev
 // üretebiliyordu) girmesi ÖNLENİR. Dosyalarım sheet'inden VAR OLAN bir
 // dosyayı seçmek (asıl kullanım amacı) skipReload'suz, eskisi gibi çalışır.
+// G123 — SEÇİM artık `activeUploadContext`'e yazılıyor (Araçlar'dan açıldıysa
+// "tools", bir moddan açıldıysa o modun MODE_ID'si, bkz. toolsOpenFilesSheet
+// çağrı yerlerindeki activeUploadContext atamaları). Araçlar'a ÖZGÜ analiz/
+// önizleme sıfırlaması (resetToolsAnalysis/toolsTonalDevs/toolsFilterPlaying)
+// SADECE contextId "tools" iken çalışır — bir MOD için dosya seçmek Araçlar'ın
+// kendi açık analiz sonucunu/önizlemesini BOZMAMALI.
 function toolsSelectFile(id, { skipReload = false } = {}) {
   const entry = toolsFiles.find((f) => f.id === id);
   if (!entry) return;
-  toolsSelectedFileId = id;
+  const contextId = activeUploadContext;
+  recordUploadSelection(contextId, id);
   toolsSwipedFileId = null;
-  resetToolsAnalysis();
-  toolsTonalDevs = null;
-  toolsFilterPlaying = false;
+  const isToolsContext = contextId === "tools";
+  if (isToolsContext) {
+    resetToolsAnalysis();
+    toolsTonalDevs = null;
+    toolsFilterPlaying = false;
+  }
   if (skipReload) {
-    renderToolsCardsVisibility();
-    renderToolsFilterPlayer();
+    // toolsAddFile() bu dosyayı ZATEN uploadManager'a decode etmişti (bkz. o
+    // fonksiyonun notu) — burada SADECE takip değişkeni güncellenir.
+    uploadManagerLoadedFileId = id;
+    if (isToolsContext) { renderToolsCardsVisibility(); renderToolsFilterPlayer(); }
+    else syncStereoUploadGate();
   } else {
     (async () => {
       await audioEngine.initAudio();
@@ -7561,18 +7692,31 @@ function toolsSelectFile(id, { skipReload = false } = {}) {
       }
       const res = await uploadManager.loadFile(fileObj);
       if (!res.ok) { toast(res.title, res.detail); return; }
-      renderToolsCardsVisibility();
-      renderToolsFilterPlayer();
+      uploadManagerLoadedFileId = id;
+      if (isToolsContext) { renderToolsCardsVisibility(); renderToolsFilterPlayer(); }
+      else syncStereoUploadGate();
     })();
   }
   toolsCloseFilesSheet();
   renderToolsFilesSheetContent();
 }
 
+// G123 — kütüphane PAYLAŞILAN olduğu için bir dosya silinince SADECE Araçlar'ın
+// değil, ONU SEÇMİŞ OLABİLECEK HER bağlamın (bir modun) seçimi de temizlenmeli
+// — aksi halde o modun ensureUploadSelectionLoaded()'ı var-olmayan bir id'yi
+// aramaya devam ederdi (zararsız ama gereksiz, bkz. o fonksiyonun "entry yok"
+// dalı — YİNE de burada ÖNDEN temizlemek daha net).
 function toolsRemoveFile(id, { skipStorageDelete = false } = {}) {
   toolsFiles = toolsFiles.filter((f) => f.id !== id);
-  if (toolsSelectedFileId === id) {
-    toolsSelectedFileId = null;
+  const wasToolsSelection = toolsSelectedFileId === id;
+  Object.keys(uploadSelections).forEach(contextId => {
+    if (uploadSelections[contextId] === id) recordUploadSelection(contextId, null);
+  });
+  if (uploadManagerLoadedFileId === id) {
+    uploadManager.clear();
+    uploadManagerLoadedFileId = null;
+  }
+  if (wasToolsSelection) {
     resetToolsAnalysis();
     toolsTonalDevs = null;
   }
@@ -7598,8 +7742,17 @@ async function toolsCheckLibraryIntegrity() {
   if (missing.length === 0) return;
   const missingIds = new Set(missing.map((f) => f.id));
   toolsFiles = toolsFiles.filter((f) => !missingIds.has(f.id));
-  if (missingIds.has(toolsSelectedFileId)) {
-    toolsSelectedFileId = null;
+  const wasToolsSelection = missingIds.has(toolsSelectedFileId);
+  // G123 — bkz. toolsRemoveFile'ın AYNI notu: eksik bir dosya HERHANGİ bir
+  // bağlamın (mod) kalıcı seçimi olabilir, sadece Araçlar'ınki değil.
+  Object.keys(uploadSelections).forEach(contextId => {
+    if (missingIds.has(uploadSelections[contextId])) recordUploadSelection(contextId, null);
+  });
+  if (missingIds.has(uploadManagerLoadedFileId)) {
+    uploadManager.clear();
+    uploadManagerLoadedFileId = null;
+  }
+  if (wasToolsSelection) {
     resetToolsAnalysis();
     toolsTonalDevs = null;
   }
@@ -7743,8 +7896,12 @@ function renderToolsFilesSheetContent() {
       if (els.toolsFilesEmpty) els.toolsFilesEmpty.classList.remove("hidden");
     } else {
       if (els.toolsFilesEmpty) els.toolsFilesEmpty.classList.add("hidden");
+      // G123 — sheet HANGİ bağlamdan açıldıysa (Araçlar ya da bir mod) O
+      // bağlamın seçimi işaretlenir — toolsSelectedFileId'nin (SADECE
+      // Araçlar'a özgü) YERİNE artık genel uploadSelections haritası okunuyor.
+      const currentSelection = uploadSelections[activeUploadContext] || null;
       els.toolsFilesList.innerHTML = toolsFiles.map((f) => {
-        const selected = f.id === toolsSelectedFileId;
+        const selected = f.id === currentSelection;
         const swiped = f.id === toolsSwipedFileId;
         return `<div class="tools-files-row">
           <div class="tools-files-row-delete" data-remove="${f.id}">Sil</div>
@@ -7845,8 +8002,14 @@ async function toolsHandlePickNewFile() {
     uploadDiagLog(7, "Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı)", "BİTTİ", `${(performance.now() - t7_0).toFixed(0)} ms — NOT: renderToolsTonalCard() İÇİNDEKİ Tonal Balance ölçümü (adım 5) AWAIT EDİLMİYOR, ayrı bir log'da tamamlanma zamanı görünür`);
   }
 }
-if (els.toolsUploadBtn) els.toolsUploadBtn.addEventListener("click", toolsOpenFilesSheet);
-if (els.toolsGearBtn) els.toolsGearBtn.addEventListener("click", toolsOpenFilesSheet);
+// G123 — Araçlar'ın KENDİ giriş noktaları HER ZAMAN "tools" bağlamını
+// hedefler — bir moddan bırakılmış olabilecek activeUploadContext SIZMASIN.
+function toolsOpenFilesSheetFromTools() {
+  activeUploadContext = "tools";
+  toolsOpenFilesSheet();
+}
+if (els.toolsUploadBtn) els.toolsUploadBtn.addEventListener("click", toolsOpenFilesSheetFromTools);
+if (els.toolsGearBtn) els.toolsGearBtn.addEventListener("click", toolsOpenFilesSheetFromTools);
 if (els.toolsFilesPickBtn) els.toolsFilesPickBtn.addEventListener("click", toolsHandlePickNewFile);
 if (els.toolsFileInput) {
   els.toolsFileInput.addEventListener("change", async () => {
