@@ -4,6 +4,9 @@ export function randomBetween(min, max) {
   return Math.random() * (max - min) + min;
 }
 
+// ⚠️ KULLANILMIYOR (kod dayanıklılık taraması, ölü kod maddesi) — hiçbir
+// yerden import edilmiyor (www/js ve test/ genelinde grep ile doğrulandı).
+// Silinmedi, sadece işaretlendi.
 export function randomItem(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -28,6 +31,9 @@ export function formatHz(v) {
   return `${Math.round(v)} Hz`;
 }
 
+// ⚠️ KULLANILMIYOR (kod dayanıklılık taraması) — www/js içinde çağrılmıyor
+// (styles.css/app.js kendi renk sabitlerini/rgba() literallerini kullanıyor).
+// Silinmedi, sadece işaretlendi.
 export function hexToRgba(hex, alpha) {
   const v = hex.replace("#", "");
   const r = parseInt(v.substring(0, 2), 16);

@@ -42,6 +42,9 @@ function uploadDiagLog(step, label, phase, detail) {
   console.log(`[upload-diag] ${step}) ${label} ${phase}${detail ? ` — ${detail}` : ""}${uploadDiagMem()}`);
 }
 
+// ⚠️ KULLANILMIYOR (kod dayanıklılık taraması) — hiçbir yerden çağrılmıyor
+// (bu modülün kendi içi de dahil, `getFilesystemPlugin()`'i doğrudan
+// kullanıyor). Silinmedi, sadece işaretlendi.
 export function isNativeStorage() {
   return !!getFilesystemPlugin();
 }

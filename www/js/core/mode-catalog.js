@@ -56,6 +56,9 @@ export const MODE_CATALOG = [
 ];
 
 // Motor numarasına göre görsel kimlik — mevcut renk paletinden (styles.css :root).
+// ⚠️ KULLANILMIYOR (kod dayanıklılık taraması) — app.js sadece MODE_CATALOG'u
+// import ediyor, bu sabiti HİÇBİR YERDEN çağırmıyor. Silinmedi, sadece
+// işaretlendi.
 export const MOTOR_INFO = {
   1: { label: "Değeri bul", color: "var(--am)", bg: "rgba(255,176,32,.14)" },
   2: { label: "Hangisi farklı", color: "var(--bl)", bg: "rgba(108,140,255,.14)" },

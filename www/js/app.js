@@ -780,20 +780,31 @@ async function ensureUploadSelectionLoaded(contextId) {
     recordUploadSelection(contextId, null);
     return;
   }
-  await audioEngine.initAudio();
-  let fileObj = entry.file;
-  if (!fileObj) {
-    const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
-    if (!blob) {
-      recordUploadSelection(contextId, null);
-      toast("Dosya bulunamadı", `${entry.name} artık cihazda yok.`);
-      return;
+  // Dayanıklılık taraması — bu fonksiyonun GÖVDESİ try/catch'siz, iki çağrı
+  // yeri de (.then, catch YOK) sonucu bekliyordu: alttaki fileStorage/
+  // uploadManager çağrıları kendi içinde {ok:false}/null döndürüyor (SESSİZCE
+  // BAŞARISIZ olmuyor) ama `new File(...)`/`audioEngine.initAudio()` GERÇEKTEN
+  // fırlatırsa yakalanmamış bir promise reddi olarak kaybolurdu — kullanıcı
+  // hiçbir şey görmezdi, dosya sadece "yüklenmemiş" kalırdı.
+  try {
+    await audioEngine.initAudio();
+    let fileObj = entry.file;
+    if (!fileObj) {
+      const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+      if (!blob) {
+        recordUploadSelection(contextId, null);
+        toast("Dosya bulunamadı", `${entry.name} artık cihazda yok.`);
+        return;
+      }
+      fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+      entry.file = fileObj;
     }
-    fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
-    entry.file = fileObj;
+    const res = await uploadManager.loadFile(fileObj);
+    if (res.ok) uploadManagerLoadedFileId = fileId;
+  } catch (err) {
+    console.error("[upload] ensureUploadSelectionLoaded hatası:", err && err.message, err);
+    toast("Dosya yüklenemedi", `${entry.name} açılırken bir sorun oluştu.`);
   }
-  const res = await uploadManager.loadFile(fileObj);
-  if (res.ok) uploadManagerLoadedFileId = fileId;
 }
 
 // G124 — Dosyalarım sheet'i artık `<body>`'nin doğrudan çocuğu (bkz.
@@ -2042,6 +2053,23 @@ const TAB_TO_SCREEN = { train: "menu", progress: "progress", tools: "tools" };
 // hatırlayıp geri okuyla oraya dönmek için minik bir gezinme yığını yeterli.
 let screenStack = ["menu"];
 function goScreen(name) {
+  // Dayanıklılık taraması (kod tarafı) — ÖNCEDEN Araçlar'dan (ör. tab
+  // değiştirerek) çıkılırken Referans Filtreleri'nin çalar/EQ zinciri VE
+  // G127 "Kendi Referansım" A/B önizlemesi durdurulmuyordu; sadece kendi
+  // özel "Durdur" düğmeleri bunu yapıyordu. Kullanıcı çalarken sekme
+  // değiştirirse zincir arka planda bağlı/çalışır kalıyordu (biriken bir
+  // sızıntı değil ama kapanmayan tek bir aktif ses yolu — pil/CPU +
+  // "neden hâlâ çalıyor" karışıklığı). Ekrandan HER çıkışta (hedef "tools"
+  // DEĞİLSE) tek kontrol noktasından durduruluyor. Aynı desenle paywall'ın
+  // can-dolum sayacı da (SADECE kendi kapat düğmesine bağlıydı) güvenlik
+  // ağına alındı.
+  const prevScreenEl = document.querySelector(".screen.active");
+  const prevScreenName = prevScreenEl ? prevScreenEl.id.replace("screen-", "") : null;
+  if (prevScreenName === "tools" && name !== "tools") {
+    if (typeof toolsFilterPlaying !== "undefined" && toolsFilterPlaying) toolsStopFilterPlayback();
+    if (typeof tonalRefPlaying !== "undefined" && tonalRefPlaying) toolsTonalStopRefPlayback();
+  }
+  if (prevScreenName === "paywall" && name !== "paywall") stopPaywallLivesTicker();
   const targetId = `screen-${name}`;
   document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === targetId));
   const target = document.getElementById(targetId);
@@ -4549,8 +4577,14 @@ function cakismaSourcesSpec(pair) {
 
 async function playQuestion(processed = true) {
   if (!audioEngine.audioReady || !activeQuestion) return;
+  // Dayanıklılık taraması (kod tarafı) — ÖNCEDEN resume() burada AWAIT
+  // EDİLMİYORDU (ateşle-unut, senkron try/catch async reddi hiç yakalamazdı).
+  // iOS'ta cihazda görülen "sessiz aç/kapa sonrası ses gelmiyor" hatasının en
+  // olası kod-tarafı katkısıydı — context suspended kalırsa hiçbir yerde
+  // fark edilmiyordu, "Sonraki"ye basmak AYNI doğrulanmamış resume'u
+  // tekrarlayıp aynı sessizliği sürdürüyordu.
   if (audioEngine.audioCtx && audioEngine.audioCtx.state === "suspended") {
-    try { audioEngine.audioCtx.resume(); } catch (e) {}
+    try { await audioEngine.audioCtx.resume(); } catch (e) { console.error("[audio] resume hatası:", e); }
   }
   currentPlayMode = processed ? "filtered" : "clean";
   // G51: Motor 3 — TEK-kaynak buildQuestionChain'in YERİNE buildDualSourceChain
@@ -6446,7 +6480,7 @@ if (els.focusSelect) els.focusSelect.addEventListener("change", () => {
 // birikmiş tur zamanlayıcıları arka arkaya patlayarak birden çok "süre doldu" turunu
 // neredeyse anında tüketebilir — kalp/can arayüzünün tutarsız görünmesinin ve
 // "Oyun Bitti"den sonra sayaçların artmaya devam etmesinin en olası açıklaması bu.
-document.addEventListener("visibilitychange", () => {
+document.addEventListener("visibilitychange", async () => {
   if (document.hidden) {
     audioEngine.stopAudio();
     uploadManager.pausePlayback();
@@ -6455,7 +6489,9 @@ document.addEventListener("visibilitychange", () => {
     // edip biriken tikleri ön plana dönünce art arda boşaltması engellenir.
     if (activeQuestion && !autoStopped) pauseRound();
   } else if (audioEngine.audioCtx && audioEngine.audioCtx.state === "suspended") {
-    try { audioEngine.audioCtx.resume(); } catch (e) {}
+    // Dayanıklılık taraması — AWAIT edilmeyen resume() düzeltildi (bkz.
+    // playQuestion'daki AYNI not).
+    try { await audioEngine.audioCtx.resume(); } catch (e) { console.error("[audio] resume hatası:", e); }
   }
   // G61 (PAYWALL.md): "30 dakikada 1 can" — ön plana HER dönüşte yeniden
   // hesaplanır (arka planda geçirilen GERÇEK süre burada devreye girer, bu
@@ -7784,24 +7820,33 @@ function applyUploadSelection(contextId, id, { skipReload = false, onReady } = {
     if (onReady) onReady();
     return;
   }
+  // Dayanıklılık taraması — bu ateşle-unut IIFE try/catch'siz, çağıranlar
+  // (`toolsSelectFile`/`selectFileForActiveContext`) da hiç `.catch()`
+  // eklemiyordu — `new File(...)`/`initAudio()` GERÇEKTEN fırlatırsa
+  // yakalanmamış bir promise reddi olarak SESSİZCE kaybolurdu.
   (async () => {
-    await audioEngine.initAudio();
-    let fileObj = entry.file;
-    if (!fileObj) {
-      const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
-      if (!blob) {
-        toast("Dosya bulunamadı", `${entry.name} artık cihazda yok. Kütüphaneden kaldırıldı.`);
-        toolsRemoveFile(id, { skipStorageDelete: true });
-        return;
+    try {
+      await audioEngine.initAudio();
+      let fileObj = entry.file;
+      if (!fileObj) {
+        const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+        if (!blob) {
+          toast("Dosya bulunamadı", `${entry.name} artık cihazda yok. Kütüphaneden kaldırıldı.`);
+          toolsRemoveFile(id, { skipStorageDelete: true });
+          return;
+        }
+        fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+        entry.file = fileObj; // bu oturum için önbelleğe al
       }
-      fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
-      entry.file = fileObj; // bu oturum için önbelleğe al
+      const res = await uploadManager.loadFile(fileObj);
+      if (!res.ok) { toast(res.title, res.detail); return; }
+      uploadManagerLoadedFileId = id;
+      console.log(`[upload-context] "${contextId}" bağlamı HAZIR (yeniden decode edildi) — uploadManagerLoadedFileId=${id}`);
+      if (onReady) onReady();
+    } catch (err) {
+      console.error("[upload-context] applyUploadSelection hatası:", err && err.message, err);
+      toast("Dosya yüklenemedi", `${entry.name} açılırken bir sorun oluştu.`);
     }
-    const res = await uploadManager.loadFile(fileObj);
-    if (!res.ok) { toast(res.title, res.detail); return; }
-    uploadManagerLoadedFileId = id;
-    console.log(`[upload-context] "${contextId}" bağlamı HAZIR (yeniden decode edildi) — uploadManagerLoadedFileId=${id}`);
-    if (onReady) onReady();
   })();
 }
 
@@ -8029,11 +8074,18 @@ function toolsSetBackgroundScrollLocked(locked) {
 // G124 — dönüş değeri: gerçekten açıldıysa true, paywall kilidiyle erken
 // döndüyse false (bkz. openFilesSheetForContext'in "önce aç, sonra
 // duraklat" notu — bu dönüş değerine dayanıyor).
+// Dayanıklılık taraması — kapanış geçişinin sonunda "hidden" ekleyen
+// setTimeout'un id'si İZLENMİYORDU. Sheet 260ms içinde kapatılıp TEKRAR
+// açılırsa (hızlı çift dokunuş), eski zamanlayıcı YİNE de ateşleyip az önce
+// YENİDEN AÇILMIŞ sheet'i "hidden" yapardı — küçük bir görsel yarış. Açılışta
+// bekleyen bir kapanış zamanlayıcısı varsa iptal edilir.
+let toolsFilesSheetHideTimer = null;
 function toolsOpenFilesSheet() {
   if (paywall.isToolsContentLocked(isUserPro())) {
     if (!openPaywallReason("upload")) toast(paywall.LOCK_MESSAGES.tools.title, paywall.LOCK_MESSAGES.tools.detail, "pro");
     return false;
   }
+  if (toolsFilesSheetHideTimer) { clearTimeout(toolsFilesSheetHideTimer); toolsFilesSheetHideTimer = null; }
   renderToolsFilesSheetContent();
   toolsResetSheetScroll(els.toolsFilesSheet);
   toolsSetBackgroundScrollLocked(true);
@@ -8058,7 +8110,9 @@ function toolsCloseFilesSheet() {
   toolsSetBackgroundScrollLocked(false);
   if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.remove("open");
   if (els.toolsFilesSheet) els.toolsFilesSheet.classList.remove("open");
-  setTimeout(() => {
+  if (toolsFilesSheetHideTimer) clearTimeout(toolsFilesSheetHideTimer);
+  toolsFilesSheetHideTimer = setTimeout(() => {
+    toolsFilesSheetHideTimer = null;
     if (els.toolsFilesOverlay) els.toolsFilesOverlay.classList.add("hidden");
     if (els.toolsFilesSheet) els.toolsFilesSheet.classList.add("hidden");
   }, 260);
@@ -8259,10 +8313,19 @@ function runAnalysisInWorker(audioBuffer) {
       worker.terminate();
       reject(err instanceof Error ? err : new Error((err && err.message) || "Worker hatası"));
     };
-    worker.postMessage(
-      { sampleRate: audioBuffer.sampleRate, numberOfChannels: audioBuffer.numberOfChannels, length: audioBuffer.length, channelBuffers },
-      transferList
-    );
+    // Dayanıklılık taraması — postMessage SENKRON fırlatırsa (ör. transfer
+    // edilecek ArrayBuffer'lardan biri zaten "neuter" olmuşsa) ne onmessage
+    // ne onerror ateşlenir — worker terminate EDİLMEDEN sızardı. try/catch
+    // ile aynı temizlik burada da garanti edilir.
+    try {
+      worker.postMessage(
+        { sampleRate: audioBuffer.sampleRate, numberOfChannels: audioBuffer.numberOfChannels, length: audioBuffer.length, channelBuffers },
+        transferList
+      );
+    } catch (err) {
+      worker.terminate();
+      reject(err instanceof Error ? err : new Error((err && err.message) || "Worker'a veri gönderilemedi"));
+    }
   });
 }
 
@@ -9000,6 +9063,10 @@ if (els.toolsTonalRefList) {
     const del = e.target.closest("[data-ref-del]");
     if (del) {
       const id = del.dataset.refDel;
+      // Dayanıklılık taraması — silinen/DEĞİŞTİRİLEN referans o an "A"da
+      // ÇALIYORSA, eski ses YENİ UI durumunun ALTINDA çalmaya devam ederdi
+      // (bir sonraki dokunuşa kadar). Referans değişince A ÖNCE durdurulur.
+      if (tonalRefPlaying) toolsTonalStopRefPlayback();
       toolsTonalReferences.list = toolsTonalReferences.list.filter((r) => r.id !== id);
       if (toolsTonalReferences.activeId === id) {
         const rest = toolsTonalReferences.list;
@@ -9020,6 +9087,7 @@ if (els.toolsTonalRefList) {
     }
     const row = e.target.closest("[data-ref-id]");
     if (row) {
+      if (tonalRefPlaying) toolsTonalStopRefPlayback();
       toolsTonalReferences.activeId = row.dataset.refId;
       toolsTonalRefListOpen = false;
       toolsTonalPersistReferences();
@@ -9166,37 +9234,45 @@ async function toolsTonalToggleRefPlayback() {
     toast("Referans sesi bulunamadı", "Kaynak dosya kütüphaneden kaldırılmış — sadece eğri karşılaştırması kullanılabilir.");
     return;
   }
-  await audioEngine.initAudio();
-  const ctx = audioEngine.audioCtx;
-  if (tonalRefLoadedSourceFileId !== ref.sourceFileId) {
-    let fileObj = libEntry.file;
-    if (!fileObj) {
-      const blob = await fileStorage.loadFile(libEntry.id, libEntry.mimeType);
-      if (!blob) { toast("Referans sesi bulunamadı", "Kaynak dosya artık cihazda yok."); return; }
-      fileObj = new File([blob], libEntry.name, { type: libEntry.mimeType || blob.type });
-      libEntry.file = fileObj;
+  // Dayanıklılık taraması — try/catch'siz tıklama işleyicisiydi (decode/
+  // dosya-okuma hatası kullanıcıya HİÇBİR ŞEY göstermeden düğmeyi sessizce
+  // tepkisiz bırakırdı).
+  try {
+    await audioEngine.initAudio();
+    const ctx = audioEngine.audioCtx;
+    if (tonalRefLoadedSourceFileId !== ref.sourceFileId) {
+      let fileObj = libEntry.file;
+      if (!fileObj) {
+        const blob = await fileStorage.loadFile(libEntry.id, libEntry.mimeType);
+        if (!blob) { toast("Referans sesi bulunamadı", "Kaynak dosya artık cihazda yok."); return; }
+        fileObj = new File([blob], libEntry.name, { type: libEntry.mimeType || blob.type });
+        libEntry.file = fileObj;
+      }
+      const res = await tonalRefUploadManager.loadFile(fileObj);
+      if (!res.ok) { toast(res.title, res.detail); return; }
+      tonalRefLoadedSourceFileId = ref.sourceFileId;
+      tonalRefUploadManager.startFromZero();
     }
-    const res = await tonalRefUploadManager.loadFile(fileObj);
-    if (!res.ok) { toast(res.title, res.detail); return; }
-    tonalRefLoadedSourceFileId = ref.sourceFileId;
-    tonalRefUploadManager.startFromZero();
+    // madde 4 — "İKİSİ AYNI seviyede çalsın": B, Referans Filtreleri'nin SABİT
+    // 0.85 headroom kazancıyla çalıyor (bkz. toolsToggleFilterPlayback) — A da
+    // AYNI tabanı kullanır, üstüne integrated LUFS FARKI kadar telafi eklenir
+    // (tonalBalance.lufsMatchGainDb) — ikisi de "0.85 × algısal olarak AYNI
+    // yükseklik" düzeyinde çalar. LUFS ölçülemezse (worker hatası vb.) telafi
+    // 0 dB'ye düşer — SESSİZCE YANLIŞ eşleme yerine dürüst "eşitlenmedi" hâli.
+    const mixLufs = await toolsTonalEnsureMixLufs();
+    const gainDb = (mixLufs != null && ref.lufs != null) ? tonalBalance.lufsMatchGainDb(ref.lufs, mixLufs) : 0;
+    toolsTonalAbGainA = toolsTonalAbGainA || ctx.createGain();
+    toolsTonalAbGainA.gain.value = 0.85 * tonalBalance.dbToLinearGain(gainDb);
+    toolsTonalAbGainA.connect(ctx.destination);
+    tonalRefPreviewNode = tonalRefUploadManager.getSourceNode();
+    if (!tonalRefPreviewNode) return;
+    tonalRefPreviewNode.connect(toolsTonalAbGainA);
+    tonalRefPlaying = true;
+    renderToolsTonalAbUi();
+  } catch (err) {
+    console.error("[tonal-balance] referans çalma hatası:", err && err.message, err);
+    toast("Referans çalınamadı", "Bu referans şu an oynatılamadı.");
   }
-  // madde 4 — "İKİSİ AYNI seviyede çalsın": B, Referans Filtreleri'nin SABİT
-  // 0.85 headroom kazancıyla çalıyor (bkz. toolsToggleFilterPlayback) — A da
-  // AYNI tabanı kullanır, üstüne integrated LUFS FARKI kadar telafi eklenir
-  // (tonalBalance.lufsMatchGainDb) — ikisi de "0.85 × algısal olarak AYNI
-  // yükseklik" düzeyinde çalar. LUFS ölçülemezse (worker hatası vb.) telafi
-  // 0 dB'ye düşer — SESSİZCE YANLIŞ eşleme yerine dürüst "eşitlenmedi" hâli.
-  const mixLufs = await toolsTonalEnsureMixLufs();
-  const gainDb = (mixLufs != null && ref.lufs != null) ? tonalBalance.lufsMatchGainDb(ref.lufs, mixLufs) : 0;
-  toolsTonalAbGainA = toolsTonalAbGainA || ctx.createGain();
-  toolsTonalAbGainA.gain.value = 0.85 * tonalBalance.dbToLinearGain(gainDb);
-  toolsTonalAbGainA.connect(ctx.destination);
-  tonalRefPreviewNode = tonalRefUploadManager.getSourceNode();
-  if (!tonalRefPreviewNode) return;
-  tonalRefPreviewNode.connect(toolsTonalAbGainA);
-  tonalRefPlaying = true;
-  renderToolsTonalAbUi();
 }
 if (els.toolsTonalPlayA) els.toolsTonalPlayA.addEventListener("click", toolsTonalToggleRefPlayback);
 if (els.toolsTonalPlayB) els.toolsTonalPlayB.addEventListener("click", toolsTonalToggleMixPlayback);

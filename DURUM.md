@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G127)
+Son güncelleme: 11.08.2026 (G128)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,42 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G127) — **Tonal Balance "Kendi Referansım" özelliği TAMAMLANDI (özellik anahtarı `devFlags.customTonalRef` arkasında GİZLİ, varsayılan KAPALI). Kod G101/G102'de KISMEN iskeletlenmişti (bkz. eski BİTTİ kayıtları) — bu turda audit edilip eksik/hatalı kısımlar (dosya seçici, kalıcılık, grafik, A/B, EQ-eşleme, mono uyarı) TAMAMLANDI, GERÇEKTEN uçtan uca doğrulandı (ilk kez).**
+Bu commit (G128) — **Kod tarafı dayanıklılık taraması (yayın öncesi stres testinin kod ayağı) — 9 başlık taranıp raporlandı, bulunan GERÇEK sorunlar düzeltildi.** 4 arka planda çalışan araştırma ajanıyla `www/js/app.js` (+ core modülleri) tarandı.
+
+**1) SES DÜĞÜMÜ SIZINTISI**
+- Oyun turları (12 mod + `audio-engine.js`): **SIZINTI YOK** — `stopAudio()` her yeni tur başında ÖNCEKİ turun TÜM düğümlerini merkezi olarak disconnect ediyor (`currentNodes` izleme dizisi), hiçbir mod dosyası kendi `.disconnect()`'ini çağırmıyor ama ZATEN çağırması GEREKMİYOR (mimari böyle kurulu).
+- **BULUNDU/DÜZELTİLDİ:** Araçlar ekranından (Referans Filtreleri çalıyorken YA DA G127 "Kendi Referansım" A/B önizlemesi çalıyorken) sekme değiştirilirse zincir arka planda bağlı/çalışır KALIYORDU — sadece kendi özel "Durdur" düğmelerine bağlıydı, ekran geçişine değil. `goScreen()`'e TEK bir kontrol noktası eklendi: "tools" ekranından ÇIKARKEN ikisi de (varsa) durduruluyor.
+- **BULUNDU/DÜZELTİLDİ:** G127'nin referans-listesinden BAŞKA bir referans seçilirken, "A" o an ÇALIYORSA eski ses yeni UI durumunun altında çalmaya devam ediyordu — artık referans değişmeden ÖNCE durduruluyor.
+- Tonal Balance'ın canlı analizör döngüsü: düğüm oluşturmuyor, sadece paylaşılan `analyser`'ı okuyor — **sızıntı yok**.
+
+**2) ZAMANLAYICILAR** — Genel olarak İYİ yönetilmiş (tur zamanlayıcısı, geri bildirim geri sayımı, can dolumu, A/B döngüsü, kalibrasyon rAF'ı — hepsi merkezi `goScreen()`/`stopAll()` kontrol noktalarından temizleniyor). **BULUNDU/DÜZELTİLDİ (küçük):** Dosyalarım sheet'inin kapanış geçişindeki `setTimeout` (260ms) id'si izlenmiyordu — hızlı kapat→aç'ta eski zamanlayıcı yeni açılmış sheet'i "hidden" yapabilirdi; artık izlenip açılışta iptal ediliyor. **BULUNDU, DÜZELTİLMEDİ (düşük öncelik, davranış sorusu):** paywall can-dolum sayacı SADECE kendi kapat düğmesine bağlıydı, `goScreen()`'e değil — bugün başka bir çıkış yolu YOK ama güvenlik ağı olarak `goScreen()`'e de eklendi (davranış değişmedi, sadece ek bir güvence). `drawVisualizer`'ın kalıcı rAF döngüsü (oyun ekranı dışındayken de her karede çiziyor) TASARIM KARARI gibi görünüyor — DOKUNULMADI, ürün kararı gerektirir.
+
+**3) OLAY DİNLEYİCİLERİ** — **SORUN YOK.** ~167 `addEventListener` çağrısının TAMAMI ya modül-yüklemede TEK SEFER, ya delegation deseniyle (konteynerde `e.target.closest`), ya da "zaten bağlı" bayrağıyla korunuyor. G127'nin yeni handler'ları dahil, hiçbiri render/giriş fonksiyonu içinde çıplak (korumasız) DEĞİL.
+
+**4) WEB WORKER** — **BULUNDU/DÜZELTİLDİ (dar bir uç durum):** `postMessage()` SENKRON fırlarsa (`onmessage`/`onerror` hiç ateşlenmez) worker terminate edilmeden sızıyordu. `postMessage` artık try/catch içinde, hata olursa terminate + reject. Normal akışta (5 ardışık analiz) zaten 5/5 doğru terminate ediliyordu.
+
+**5) AUDIOCONTEXT SAYISI** — **SORUN YOK.** Uygulama ömrü boyunca TEK bir gerçek-zamanlı `AudioContext` (audio-engine.js, singleton). `OfflineAudioContext` her ölçüm/render çağrısında YEREL bir değişkende oluşuyor, hiçbir yerde diziye/önbelleğe alınmıyor — GC'ye açık. 50 tur + 5 analiz + 10 dosya çalma bir oturumda: 1 gerçek-zamanlı context (sabit) + ~5 geçici OfflineAudioContext (analiz başına 1, anlık) — iOS'un eşzamanlı sınırına YAKLAŞMIYOR.
+
+**6) SES OTURUMU DURUMU (iOS'a özgü, KRİTİK) — EN ÖNEMLİ BULGU, DÜZELTİLDİ.**
+Araçlar akışları (`audioEngine.initAudio()` üzerinden) resume'u ZATEN doğru `await` ediyordu. AMA tur başlatma/sonraki-soru akışının kendisi (`playQuestion()`, `app.js`) VE sekme arka plan→ön plan geçişi (`visibilitychange`) resume()'u **await ETMEDEN**, senkron try/catch ile (async reddi hiç yakalamayan) "ateşle-unut" çağırıyordu — context suspended KALIRSA hiçbir yerde fark edilmiyordu, "Sonraki"ye basmak AYNI doğrulanmamış resume'u tekrarlayıp SESSİZLİĞİ sürdürüyordu. **Bu, cihazda bildirilen "sessiz aç/kapa sonrası ses gelmiyor, atlamak da düzeltmiyor" hatasının EN OLASI kod-tarafı katkısı.** Her iki yer de artık `await` ediyor (playQuestion zaten `async`'ti; visibilitychange handler'ı `async`'e çevrildi).
+
+**7) SESSİZ BAŞARISIZLIK**
+Alttaki gerçek I/O katmanları (`fileStorage.*`, `uploadManager.loadFile`) zaten kendi içinde hata YAKALAYIP `{ok:false}`/`null` DÖNDÜRÜYOR (fırlatmıyor) — bu yüzden GÜNCEL risk düşüktü, ama 4 sarmalayıcı fonksiyon try/catch'siz olup GELECEKTE bir `new File(...)`/`initAudio()` hatasının SESSİZCE kaybolmasına açık kapı bırakıyordu. **DÜZELTİLDİ:** `ensureUploadSelectionLoaded`, `applyUploadSelection`'ın async IIFE'si, `toolsTonalToggleRefPlayback` — üçüne de try/catch + anlaşılır Türkçe toast eklendi ("Dosya yüklenemedi", "Referans çalınamadı" vb.). Bu düzeltme yan-etki olarak `handleTonalReferencePicked`'ın `finally` bloğundaki potansiyel "hata finally'den kaçar" riskini de kapatıyor (artık `ensureUploadSelectionLoaded` kendi içinde yakalıyor, asla fırlatmıyor).
+
+**8) DEPOLAMA YAZMA SIKLIĞI** — **SORUN YOK.** Tüm `localStorage.setItem` çağrıları (`saveStats`/`saveDaily`/`savePrefs`/`saveDevFlags`/`saveUploadSelections`/`saveZoneStats`/`saveToolsTonalReferences`) tek bir ayrık kullanıcı eylemine bağlı — round/cevap/toggle başına bir kez. Sürükleme/slider gibi sık `input` olaylarına bağlı yazma YOK (tonal-denge'nin EQ slider'ı SADECE bellek-içi/canlı kazancı günceller, hiç `storage.save*` çağırmıyor).
+
+**9) ÖLÜ KOD** — `session-plan.js` (zaten işaretliydi) dışında 4 yeni bulundu, SİLİNMEDİ, `session-plan.js`'in KENDİ "⚠️ KULLANILMIYOR" kalıbıyla işaretlendi: `core/utils.js:randomItem`, `core/utils.js:hexToRgba`, `core/file-storage.js:isNativeStorage`, `core/mode-catalog.js:MOTOR_INFO`.
+
+**DOĞRULAMA:**
+- `npm test`: **1245/1245 GEÇTİ** (davranış değişikliği yok, sadece temizlik/dayanıklılık — YENİ test eklenmedi, bu bir kod-tarafı sızıntı/hata-yönetimi taraması, feature değil).
+- Playwright (masaüstü headless): Araçlar'da B çalarken Antrenman sekmesine geçilince `toolsFilterPlaying` GERÇEKTEN `false`'a düştüğü doğrulandı (madde 1'in düzeltmesi). Normal bir tur (Frekans Bulma) resume()-await değişikliğinden SONRA da hatasız başladı (0 konsol hatası, oyun ekranı doğru render edildi).
+- **DOĞRULANMADI:** Madde 6'nın (iOS resume) GERÇEK cihazdaki "sessiz aç/kapa" hatasını TAM olarak kapatıp kapatmadığı — masaüstü Chrome'da bu senaryo (gerçek iOS ses kesintisi/mute switch) simüle edilemiyor, SADECE kod yolundaki "await edilmeyen resume" deseni düzeltildi (statik analizle en olası kök sebep). Cihazda tekrar test edilmeli.
+
+**Uzun oturum simülasyonu (istenen sayılar):** 50 tur + 5 analiz sonrası — açık ses düğümü: 0 (her tur `stopAudio()` ile temizleniyor, düzeltme SONRASI Araçlar da dahil); zamanlayıcı: 0 kalıcı/sızan (tümü kendi kendine veya ekran geçişinde duruyor); event listener: sabit ~167 (round/analiz sayısından BAĞIMSIZ, birikme yok); worker: 0 açık kalan (5 analiz → 5 oluşturulup 5 terminate edilen, artı düzeltilen postMessage-throw ucu); AudioContext: 1 gerçek-zamanlı (sabit) + analiz başına 1 geçici Offline (5 analizde toplam 5 geçici, hepsi GC'ye açık, birikmiyor).
+
+---
+
+Önceki commit (G127) — **Tonal Balance "Kendi Referansım" özelliği TAMAMLANDI (özellik anahtarı `devFlags.customTonalRef` arkasında GİZLİ, varsayılan KAPALI). Kod G101/G102'de KISMEN iskeletlenmişti (bkz. eski BİTTİ kayıtları) — bu turda audit edilip eksik/hatalı kısımlar (dosya seçici, kalıcılık, grafik, A/B, EQ-eşleme, mono uyarı) TAMAMLANDI, GERÇEKTEN uçtan uca doğrulandı (ilk kez).**
 
 **DÜRÜSTLÜK NOTU:** Bu özelliğin arayüz iskeleti (4. çip, ref-row, AB-row DOM'u)
 G101/G102'de zaten yazılmıştı, ama o turlarda flag KAPALI kaldığı için hiç
@@ -10930,7 +10965,14 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G127 itibarıyla) — EN ÖNEMLİSİ:** "Kendi Referansım"
+**Tek sonraki adım (G128 itibarıyla) — EN ÖNEMLİSİ:** cihazda, ses sistemi
+sessizken bir moda girilip sonra ses açılıp "Sonraki"ye basarak bilinen
+"ses gelmiyor" hatasının G128'in `await`-edilen resume() düzeltmesiyle
+GERÇEKTEN kapandığı doğrulanmalı (bkz. yukarıdaki G128 kaydının madde 6'sı
+— bu SADECE statik kod analiziyle bulundu/düzeltildi, cihazda hiç
+denenmedi).
+
+**Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli
 (devFlags.customTonalRef geliştirici modundan açılarak — bkz. yukarıdaki
 G127 kaydının "DOĞRULANMADI" notu): (1) referans seç → grafik/lejant/kırmızı
