@@ -119,37 +119,46 @@ export function createAudioEngine() {
   // setActive(true) ile YENİDEN etkinleştirme GEREKTİRİYOR, JS'in tek
   // başına yapamayacağı bir adım.
   //
-  // G134 — CİHAZDA KANITLANDI: `window.Capacitor.Plugins.AudioSessionPlugin`
-  // yolu HİÇ ÇALIŞMIYORDU — `Capacitor.PluginHeaders` (Safari konsolunda
-  // doğrulandı) bu plugin'i HİÇ İÇERMİYORDU. Kök sebep: `Plugins` nesnesi
-  // sadece `Capacitor.registerPlugin(jsName)` ÇAĞRILDIĞINDA doldurulur —
-  // native tarafta `registerPluginInstance()` ile kayıt (bkz.
-  // MainViewController.swift) SADECE bridge'in plugin'i BULMASINI sağlar,
-  // JS tarafında ÇAĞRILABİLİR bir proxy nesnesi OTOMATİK oluşturmaz. Artık
-  // `Capacitor.registerPlugin("AudioSessionPlugin")` ile JS TARAFINDA da
-  // AÇIKÇA kaydediliyor (proje bundler kullanmıyor — `@capacitor/core`'dan
-  // import YOK, native köprünün enjekte ettiği GLOBAL `window.Capacitor.
-  // registerPlugin` kullanılıyor, mevcut `window.Capacitor.convertFileSrc`/
-  // `getPlatform()` global-erişim deseniyle AYNI). SADECE iOS'ta denenir
-  // (platform kontrolü) — Android'e (plugin orada YOK, native kayıt da
-  // YAPILMADI) davranış olarak DOKUNULMAMASI için: registerPlugin() JS
-  // tarafında BAŞARIYLA bir proxy oluşturabilir ama native çağrı native'de
-  // hiç kayıtlı olmadığı için reddedilir — try/catch bunu ZATEN yakalıyordu,
-  // ama platform kontrolüyle Android'de bu denemenin KENDİSİ bile hiç
-  // yapılmıyor (eski "plugin BULUNAMADI" davranışı Android'de BİREBİR
-  // korunuyor).
+  // G135 — CİHAZDA KANITLANDI (G134'ün DÜZELTMESİ TAM İŞLEMEDİ): bu köprünün
+  // GLOBAL `window.Capacitor` nesnesinde `registerPlugin` DİYE BİR FONKSİYON
+  // HİÇ YOK (cihaz ölçümü — `TypeError: is not a function`). Bu köprü
+  // (bundler'sız, düz `<script>` ile yüklenen `capacitor.js`) `@capacitor/
+  // core`'un YENİ (registerPlugin tabanlı) JS API'sini DEĞİL, DAHA ALÇAK
+  // seviyeli/eski native-bridge yüzeyini (`nativePromise`/`nativeCallback`/
+  // `toNative`/`isPluginAvailable`/... — cihazda `Object.keys(Capacitor)`
+  // ile TAM listesi çıkarıldı) sunuyor. `Capacitor.nativePromise(pluginName,
+  // methodName, options)` GERÇEKTEN çalıştığı cihazda DOĞRUDAN ölçüldü:
+  // `Capacitor.nativePromise('AudioSessionPlugin','activate',{})` → `{"ok":
+  // true}`. Native taraf (AudioSessionPlugin.swift + MainViewController.swift,
+  // G132/G134) HER ZAMAN doğru çalışıyordu — Xcode konsolunda
+  // `[audio-diag-native]` satırları HEP görünüyordu; SORUN SADECE JS'in
+  // YANLIŞ (var olmayan) bir fonksiyonu çağırmaya çalışmasıydı.
   let audioSessionPluginInstance = null;
   function getAudioSessionPlugin() {
     if (audioSessionPluginInstance) return audioSessionPluginInstance;
-    if (!window.Capacitor || typeof window.Capacitor.registerPlugin !== "function") return null;
+    if (!window.Capacitor) return null;
     const platform = window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : null;
     if (platform !== "ios") return null;
-    try {
-      audioSessionPluginInstance = window.Capacitor.registerPlugin("AudioSessionPlugin");
-    } catch (e) {
-      console.log(`[audio-diag] Capacitor.registerPlugin('AudioSessionPlugin') HATA — ${e && e.message}`);
-      return null;
-    }
+    // isPluginAvailable + nativePromise'in VARLIĞI ayrı ayrı kontrol
+    // edilir — task'ın kendi isteği: "erişilebilirlik kontrolü
+    // isPluginAvailable ile yapılsın; nativePromise'in varlığı da
+    // kontrol edilsin." Native taraf (MainViewController.swift)
+    // GERÇEKTEN kayıt etmediyse isPluginAvailable false döner — bu
+    // durumda "plugin BULUNAMADI" artık GERÇEK yokluğu gösterir (eski
+    // registerPlugin() ARAMASI hep başarısız olduğu için HER ZAMAN
+    // "yok" diyordu, native'in kendisi kayıtlı olsa BİLE).
+    if (typeof window.Capacitor.nativePromise !== "function") return null;
+    if (window.Capacitor.isPluginAvailable && !window.Capacitor.isPluginAvailable("AudioSessionPlugin")) return null;
+    // registerPlugin()'in ürettiği ".activate()"/".addListener()" içeren
+    // zengin proxy'nin YERİNE, SADECE cihazda DOĞRULANMIŞ nativePromise
+    // çağrısını saran KÜÇÜK/minimal bir sarmalayıcı — olay dinleyicileri
+    // (sessionActivated/interruptionBegan) BİLEREK buraya DAHİL EDİLMEDİ
+    // (bkz. wireNativeAudioSessionEvents'in G135 notu — bu turun kapsamı
+    // DIŞINDA, native→JS proaktif bildirim AYRI/doğrulanmamış bir API
+    // yüzeyi gerektirir).
+    audioSessionPluginInstance = {
+      activate: () => window.Capacitor.nativePromise("AudioSessionPlugin", "activate", {}),
+    };
     return audioSessionPluginInstance;
   }
   // SIRALAMA (task'ın kendi isteği): "önce native oturum, sonra Web Audio
@@ -172,7 +181,7 @@ export function createAudioEngine() {
   async function activateNativeSession(reason) {
     const plugin = getAudioSessionPlugin();
     if (!plugin) {
-      console.log(`[audio-diag] native AVAudioSession plugin BULUNAMADI (${reason}) — window.Capacitor.Plugins.AudioSessionPlugin yok (Web/Android'de NORMAL; iOS'ta görüyorsan cihaza YENİ bir senkron/temiz derleme gerekebilir)`);
+      console.log(`[audio-diag] native AVAudioSession plugin BULUNAMADI (${reason}) — window.Capacitor yok/iOS değil/nativePromise yok/isPluginAvailable('AudioSessionPlugin') false (Web/Android'de NORMAL; iOS'ta görüyorsan native taraf GERÇEKTEN kayıtlı değil demektir — MainViewController.swift/registerPluginInstance'ı kontrol et)`);
       return;
     }
     const t0 = performance.now();
@@ -413,26 +422,23 @@ export function createAudioEngine() {
     return await ensureAudioAlive();
   }
 
-  // G132 — native'in KENDİ proaktif bildirimleri: uygulama öne gelince
-  // (didBecomeActive) VEYA bir AVAudioSession kesintisi BİTİNCE, JS'in
-  // HERHANGİ bir play denemesi yapmasını BEKLEMEDEN context doğrulanır —
-  // kullanıcı bir play denemesi yapana kadar geçen süre kısalır (bkz.
-  // app.js'in "görünür olduktan sonra İLK play denemesi" ölçümü — bu
-  // ölçüm artık bazen çok daha kısa çıkabilir). allowRecreate:false —
-  // BURASI DA sistem-tetikli bir bildirim, GERÇEK kullanıcı jesti DEĞİL
-  // (bkz. dosya başı G131 notu, aynı kural). Web/Android'de plugin YOK —
-  // bu IIFE hiçbir şey yapmadan döner.
-  (function wireNativeAudioSessionEvents() {
-    const plugin = getAudioSessionPlugin();
-    if (!plugin || !plugin.addListener) return;
-    plugin.addListener("sessionActivated", (data) => {
-      console.log(`[audio-diag] native sessionActivated — kaynak=${data && data.source}, ok=${data && data.ok}`);
-      if (audioReady) ensureAudioAlive({ allowRecreate: false });
-    });
-    plugin.addListener("interruptionBegan", () => {
-      console.log("[audio-diag] native interruptionBegan");
-    });
-  })();
+  // G132/G135 — native'in KENDİ proaktif bildirimlerini (uygulama öne
+  // gelince/kesinti bitince JS'i UYARMASI, "sessionActivated"/
+  // "interruptionBegan") dinlemek İÇİN G132'de `plugin.addListener(...)`
+  // kullanılmıştı — ama bu, HİÇ VAR OLMAYAN `Capacitor.registerPlugin()`'in
+  // ürettiği (varsayılan) proxy'nin bir metoduydu, cihazda BAŞTAN BERİ
+  // sessizce no-op'tu (bkz. G135'in `getAudioSessionPlugin` notu). Bu turda
+  // KAPSAM BİLEREK DAR TUTULDU (task'ın kendi "YAPILACAK" listesi SADECE
+  // activate()/erişilebilirlik/log'u kapsıyordu) — cihazda DOĞRULANMIŞ
+  // TEK yüzey `nativePromise` (tek seferlik çağrı-yanıt), olay dinleme
+  // (`addListener`/`removeListener`, üst düzey `Capacitor` nesnesinde VAR
+  // ama pluginName+eventName imzası bu turda DOĞRULANMADI) AYRI bir
+  // araştırma/turun konusu. FONKSİYONEL KAYIP YOK: JS zaten HER play
+  // denemesinde (playQuestion/Tools/kalibrasyon) VE her `visibilitychange`
+  // olayında `ensureAudioAlive()` üzerinden `activateNativeSession()`'ı
+  // ÇAĞIRIYOR — kaybedilen SADECE "native'in kendisi JS'i bir play
+  // denemesinden ÖNCE proaktif olarak uyarması" hız avantajı, doğruluk
+  // DEĞİL.
 
   // --- ses efektleri: doğru = ding, yanlış = buzz ---
   function sfxDing() {

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G134)
+Son güncelleme: 11.08.2026 (G135)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,32 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G134) — **KÖK SEBEP BULUNDU: G132'nin AudioSessionPlugin'i HİÇ KAYITLI DEĞİLDİ. Kullanıcının kanıtı: `Capacitor.PluginHeaders` (Safari konsolu) 10 eklenti listeliyordu, AudioSessionPlugin YOKTU — temiz derleme + `cap sync` sonrası bile.**
+Bu commit (G135) — **G134'ün düzeltmesi TAM işlemedi — cihaz ölçümü: `Capacitor.registerPlugin` GLOBAL köprüde HİÇ YOK (`TypeError: is not a function`). Gerçek çalışan yol `Capacitor.nativePromise` — kullanıcı BUNU cihazda DOĞRUDAN ölçüp kanıtladı.**
+
+**CİHAZ KANITI (kullanıcının ölçümü):**
+```
+Capacitor.nativePromise('AudioSessionPlugin','activate',{}) → OK {"ok":true}
+```
+`Object.keys(Capacitor)`: `getServerUrl, convertFileSrc, getPlatform, isPluginAvailable, isNativePlatform, handleWindowError, logJs, logToNative, logFromNative, handleError, toNative, fromNative, nativeCallback, nativePromise, withPlugin, Exception, addListener, removeListener, createEvent, triggerEvent` — `registerPlugin` bu listede YOK. Bu proje bundler kullanmadığı (`<script>` ile düz yüklenen `capacitor.js`) için `@capacitor/core`'un YENİ (registerPlugin tabanlı) JS API'si DEĞİL, DAHA ALÇAK seviyeli/eski native-bridge yüzeyi enjekte ediliyor. Native taraf (G132/G134) HER ZAMAN doğru çalışıyordu — Xcode konsolunda `[audio-diag-native]` satırları HEP görünüyordu; sorun SADECE JS'in yanlış (var olmayan) bir fonksiyonu çağırmaya çalışmasıydı.
+
+**UYGULANAN (`core/audio-engine.js`):**
+- `getAudioSessionPlugin()` artık `Capacitor.nativePromise("AudioSessionPlugin", "activate", {})` çağıran KÜÇÜK/minimal bir sarmalayıcı döndürüyor — `registerPlugin()`'in ürettiği zengin proxy'nin (`.activate()`+`.addListener()`) YERİNE.
+- Erişilebilirlik: `window.Capacitor.isPluginAvailable("AudioSessionPlugin")` (task'ın kendi isteği) + `typeof window.Capacitor.nativePromise === "function"` ayrı ayrı kontrol ediliyor.
+- SADECE `getPlatform()==="ios"` iken denenir — Android'de (`isPluginAvailable` zaten false döner, native taraf hiç kayıtlı değil) davranış BİREBİR korunuyor.
+- Mevcut 2sn zaman aşımı KORUNDU (Promise.race, değişmedi).
+- "plugin BULUNAMADI" log satırı KALDI, artık GERÇEK yokluğu gösteriyor (metni güncellendi — `window.Capacitor.Plugins.X` değil `nativePromise`/`isPluginAvailable` kontrolüne referans veriyor).
+- **KAPSAM DIŞI BIRAKILAN (bilinçli karar):** `wireNativeAudioSessionEvents()` (native'in KENDİ proaktif `sessionActivated`/`interruptionBegan` bildirimleri) — bu, G132'de `plugin.addListener(...)` kullanıyordu, ki O DA HİÇ VAR OLMAYAN `registerPlugin()`'in ürettiği bir metottu, cihazda BAŞTAN BERİ sessizce no-op'tu. Task'ın kendi "YAPILACAK" listesi SADECE `activate()`/erişilebilirlik/log'u kapsıyordu — üst düzey `Capacitor` nesnesinde `addListener`/`removeListener` VAR ama pluginName+eventName imzası bu turda DOĞRULANMADI, yanlış tahminle YENİDEN kırık bir kod yazmaktansa dürüstçe ÇIKARILDI (yorum olarak not edildi). **Fonksiyonel kayıp YOK** — JS zaten HER play denemesinde VE her `visibilitychange`'de `ensureAudioAlive()` üzerinden `activateNativeSession()`'ı çağırıyor; kaybedilen SADECE "native'in kendisi JS'i proaktif uyarması" hız avantajı.
+
+**DOĞRULAMA (masaüstünde `window.Capacitor`'ı CİHAZDA ÖLÇÜLEN GERÇEK yüzeyle — `nativePromise`/`isPluginAvailable`/`getPlatform`, `registerPlugin` BİLEREK YOK — taklit ederek):**
+- iOS taklidi: round başladı, `Capacitor.nativePromise('AudioSessionPlugin','activate',{})` GERÇEKTEN 2 kez çağrıldı (initAudio + playQuestion'ın ayrı `ensureAudioAlive()` çağrıları), `[audio-diag]`'da **"plugin BULUNAMADI" satırı ARTIK ÇIKMADI**, YERİNE **"native AVAudioSession activate() ... ok=true" ÇIKTI** — task'ın KENDİ kabul ölçütü BİREBİR karşılandı. ✓
+- Android taklidi (`getPlatform:"android"`, `isPluginAvailable:false`): `nativePromise` HİÇ ÇAĞRILMADI (platform kontrolü önce devrede), "plugin BULUNAMADI" logu doğru şekilde ÇIKTI — Android davranışı BİREBİR korundu. ✓
+- Konsol hatası: **0** her iki senaryoda da. `npm test`: **1245/1245 GEÇTİ** (test SAYISI DÜŞMEDİ).
+
+**DOĞRULANMADI:** Gerçek fiziksel cihazda `[audio-diag]`'da artık gerçekten "plugin BULUNAMADI" yerine "activate() ok=true" çıktığı — SADECE simüle edilmiş (masaüstünde taklit edilmiş) bir `Capacitor` nesnesiyle doğrulandı, kullanıcının GERÇEK cihaz ölçümüyle (bu turun BAŞLANGIÇ NOKTASI) TUTARLI olacak şekilde tasarlandı ama cihazda TEKRAR test edilmedi.
+
+---
+
+Önceki commit (G134) — **KÖK SEBEP BULUNDU: G132'nin AudioSessionPlugin'i HİÇ KAYITLI DEĞİLDİ. Kullanıcının kanıtı: `Capacitor.PluginHeaders` (Safari konsolu) 10 eklenti listeliyordu, AudioSessionPlugin YOKTU — temiz derleme + `cap sync` sonrası bile.**
 
 **TEŞHİS (kullanıcının kendi araştırması, doğrulandı):** proje SPM kullanıyor ve eklenti bir npm paketi DEĞİL, App target'ının İÇİNDE bir Swift dosyası. `CAPBridgedPlugin` uygunluğu (identifier/jsName/pluginMethods TAM olsa BİLE) Capacitor 6+'da TEK BAŞINA otomatik keşif SAĞLAMIYOR — Capacitor'ın KENDİ belgelediği yol: `CAPBridgeViewController`'ı alt sınıflayıp `capacitorDidLoad()` içinde `registerPluginInstance()` ile ELLE kaydetmek. AYRICA JS tarafı `window.Capacitor.Plugins.X` üzerinden okuyordu — native kayıt TEK BAŞINA bunu doldurmuyor, JS tarafında da `Capacitor.registerPlugin(jsName)` ÇAĞRILMASI gerekiyor.
 
@@ -11144,25 +11169,25 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G134 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
-temiz derleme + cihaza kurulum sonrası, ÖNCE plugin'in cihazda da
-kayıtlı olduğunu doğrulamalı — Safari Web Inspector konsolunda:
-`JSON.stringify((Capacitor.PluginHeaders||[]).map(h=>h.name))` (boş
-çıkabilir, bkz. yukarıdaki G134 kaydının dürüstlük notu — ASIL kanıt
-BUDUR DEĞİL, aşağıdaki günlüklerdir) VE `[audio-diag-native]`
-satırlarının (Xcode konsolu, uygulama İLK açılışta) GERÇEKTEN göründüğü
-— simulator'de zaten görüldü, cihazda da görülmeli. Bu doğrulandıktan
-SONRA G133'ün 4 maddesi (3+ ardışık kesinti, "Tekrar dene", "Tekrar Çal"
-zincir-yeniden-kurma, native `activate()`'in `ok=true` dönmesi) TEKRAR
-denenmeli — ÖNCEKİ turlarda plugin HİÇ kayıtlı olmadığı için bu 4 madde
-native AVAudioSession katmanı OLMADAN test edilmişti, şimdi katman
-GERÇEKTEN devrede. Hâlâ ses gelmiyorsa: native oturum katmanı ARTIK
-GERÇEKTEN çalışıyor demektir (bu turda kanıtlandı) — kalan olası
-açıklama WKWebView'in KENDİSİNİN (AVAudioSession aktif olsa BİLE) bazı
-iOS sürümlerinde farklı bir davranışı olabilir, bir sonraki turun konusu
-bu olur. Bu madde `xcodebuild` derlemesi + iOS Simulator'de GERÇEK
-çalıştırma (native `[audio-diag-native]` çıktısı doğrulandı) ile test
-edildi — gerçek FİZİKSEL cihazda HİÇ denenmedi.
+**Tek sonraki adım (G135 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı cihazda
+Safari Web Inspector konsolunda ÖNCE şunu doğrulamalı: "plugin
+BULUNAMADI" satırı ARTIK ÇIKMIYOR mu, YERİNE bir oyun turu başlatınca
+`native AVAudioSession activate() ... ok=true` satırı GERÇEKTEN
+görünüyor mu (task'ın kendi kabul ölçütü — bu turda SADECE simüle
+edilmiş bir `Capacitor` nesnesiyle doğrulandı, cihazda HİÇ denenmedi).
+Bu doğrulandıktan SONRA G133'ün 4 maddesi (3+ ardışık kesinti, "Tekrar
+dene", "Tekrar Çal" zincir-yeniden-kurma) TEKRAR denenmeli — G132/G134
+turlarında native katman JS'ten HİÇ ulaşılamadığı için bu maddeler
+ASLINDA native AVAudioSession'suz test edilmişti, ŞİMDİ katman
+GERÇEKTEN devrede olmalı. Hâlâ ses gelmiyorsa: native oturum katmanı
+ARTIK GERÇEKTEN çağrılıyor demektir (bu turda `nativePromise` cihazda
+doğrudan ölçülerek kanıtlandı) — kalan olası açıklama WKWebView'in
+KENDİSİNİN (AVAudioSession aktif olsa BİLE) bazı iOS sürümlerinde farklı
+bir davranışı olabilir, ya da native'in proaktif olay bildirimi (bu
+turda BİLEREK kapsam dışı bırakıldı, `sessionActivated`/
+`interruptionBegan` — sadece JS'in KENDİ play denemesi tetiklediği
+kontroller çalışıyor) eksikliği asıl darboğaz olabilir — bir sonraki
+turun konusu bu olabilir.
 
 **Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli
