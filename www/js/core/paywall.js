@@ -182,7 +182,7 @@ export const PRO_PRICE = "₺399";
 // isZoneHistoryBlurred'in GERÇEK Pro ayrıcalığı, İlerleme sekmesi) ÖNCEDEN
 // bu listede HİÇ yoktu — eksikti, eklendi.
 export const PRO_BENEFITS = Object.freeze([
-  "10 modun tamamı",
+  "12 modun tamamı",
   "Sınırsız soru",
   "Sınav ve seviye atlama",
   "Kendi dosyanı yükleme",

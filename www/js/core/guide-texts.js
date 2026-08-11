@@ -30,7 +30,7 @@ export const GENERAL_GUIDE = {
     },
     {
       heading: "Ücretsiz ve Pro",
-      body: "5 mod ücretsiz, sınırsız oynanır. Pro'da 10 modun tamamı, sınav ve seviye sistemi, kendi şarkını yükleyip çalışma ve analiz araçları açılır."
+      body: "5 mod ücretsiz, sınırsız oynanır. Pro'da 12 modun tamamı, sınav ve seviye sistemi, kendi şarkını yükleyip çalışma ve analiz araçları açılır."
     },
     {
       heading: "Can",

@@ -2499,15 +2499,17 @@ function renderExerciseGrid() {
   });
 }
 
-// Task'ın kendi verdiği "Yakında" sırası (mode-catalog.js'in KENDİ dizi
-// sırasından — hiz-modu/stereo-genislik/pan-konumu/hangisi-farkli — FARKLI,
-// bilerek — task madde 4'ün açık isteği). cIcon path verileri Ana
-// Ekran.dc.html'den AYNEN taşındı.
-const COMING_MODE_ORDER = ["stereo-genislik", "pan-konumu", "hiz-modu", "hangisi-farkli"];
+// G119 — Pan Konumu/Stereo Genişlik G118'de playable:true oldu (bkz.
+// mode-catalog.js) — renderExerciseGrid() zaten dinamik olarak
+// MODE_CATALOG'un playable bayrağını okuduğu için o listede DOĞRU
+// görünüyorlardı, ama BU liste ayrı/hardcoded olduğu için (playable
+// bayrağından BAĞIMSIZ) ikisi de HALA burada kalmıştı — sonuç: aynı iki
+// mod hem gerçek kart hem "Yakında" plasholder olarak İKİ KEZ görünüyordu
+// (kullanıcının cihaz raporu: "hâlâ Yakında rozetiyle görünüyor, oynanamıyor").
+// Kalan İKİ gerçek placeholder (Hız Modu/Hangisi Farklı) korunuyor.
+const COMING_MODE_ORDER = ["hiz-modu", "hangisi-farkli"];
 const COMING_ICON_PATH = {
   "hiz-modu": "M12 8v4l3 2M21 12a9 9 0 1 1-9-9 9 9 0 0 1 9 9Z",
-  "stereo-genislik": "M7 12h10M4 8v8M20 8v8M9 5v14M15 5v14",
-  "pan-konumu": "M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9ZM12 12l4-5",
   "hangisi-farkli": "M4 8h5v8H4zM10 6h5v12h-5zM16 9h4v6h-4z"
 };
 // Bu 4 kart HİÇ kodlanmadı (realMode yok) — eski tek-ızgara sürümündeki
@@ -7203,7 +7205,7 @@ if (els.buyProBtn) els.buyProBtn.addEventListener("click", () => {
   devFlags.simulatePro = true;
   storage.saveDevFlags(devFlags);
   syncDevUI();
-  toast("🎉 Pro açıldı (simülasyon)", "10 mod, sınırsız oynama, sınav, kendi mix, Araçlar — hepsi açık.");
+  toast("🎉 Pro açıldı (simülasyon)", "12 mod, sınırsız oynama, sınav, kendi mix, Araçlar — hepsi açık.");
   stopPaywallLivesTicker();
   goBackFromSubpage();
 });
