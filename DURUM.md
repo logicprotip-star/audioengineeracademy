@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 11.08.2026 (G124)
+Son güncelleme: 11.08.2026 (G125)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,117 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G124, `d1f576b`) — **Dosyalarım sheet'i moddan açılınca kullanıcıyı Araçlar sekmesine atıyordu — sheet uygulama seviyesine taşındı, artık ekran DEĞİŞMİYOR.**
+Bu commit (G125, `e912282`) — **kullanıcı cihaz konsolundan KANIT sundu: dosya seçimi hâlâ Araçlar'a gidiyordu. Akışın TAMAMI çıkarıldı, yükleme akışı bağlamdan tamamen ayrıştırıldı.**
+
+**KULLANICININ CİHAZ KANITI:** bir MODDAN dosya yüklendiğinde bile konsolda
+`[upload-diag] 7) Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı)
+BAŞLIYOR/BİTTİ` görünüyordu — iki farklı gerçek dosya adıyla (AH YALAN
+DÜNYA2.wav, Cankat Erdoğan Yolcu Mu Kaldı rev12.wav) doğrulanmış. Kullanıcı
+gözlemi: moddan dosya seçince Araçlar'a atlıyor, kaynaklar modlar arasında
+karışıyor, bazı modlarda seçilen dosya hiç çalmıyor, restart bunu düzeltmiyor.
+
+**AKIŞIN TAMAMI ÇIKARILDI (task'ın kendi talebi — "bu sefer akışın tamamını
+çıkarmadan düzeltme yapma"):**
+
+*Sheet açma çağrı yerleri — `activeUploadContext` YAZILAN TEK yer
+`openFilesSheetForContext` (`app.js:810`):*
+| Çağıran | contextId |
+|---|---|
+| Stereo Genişlik gate butonu | `mode.MODE_ID` |
+| Oyun Ayarları "Ses dosyası yükle" satırı (`.upload-trigger-btn`, `audioFileInput` dalı) | `mode.MODE_ID` |
+| Kaynak sheet'inin "Dosya seç" satırı | `mode.MODE_ID` |
+| Araçlar'ın kendi giriş noktaları (`toolsGearBtn`/`toolsUploadBtn` → `toolsOpenFilesSheetFromTools`) | `"tools"` (sabit) |
+
+*Dosya seçme/yükleme çağrı yerleri (G124'e kadar HEPSİ `toolsSelectFile`'a
+gidiyordu — bu tur `selectFileForActiveContext`'e yönlendirildi):*
+| Çağıran | Ne zaman |
+|---|---|
+| Dosyalarım sheet'in KENDİ dosya listesi satırı | kütüphaneden VAR OLAN bir dosya seçilince |
+| `toolsHandlePickNewFile` (native `FilePicker`) | "Cihazdan yeni dosya seç" — CİHAZDA gerçek yol BU (kullanıcının log'u burdan) |
+| `toolsFileInput` "change" | AYNI buton, web fallback yolu |
+
+**KÖK SEBEP TEŞHİSİ (kod okunarak, kontrol akışı izlenerek):** G123/G124'te
+`toolsSelectFile` ZATEN `activeUploadContext`'i okuyup DOĞRU bağlama
+yazıyordu (kontrol akışı doğrulandı) — mantık HATALI değildi. Ama:
+1. **İSİM/YAPI karışıklığı** — TEK fonksiyon hem "bağlamdan bağımsız olması
+   gereken iş" (seçimi kaydet, buffer'ı hazırla) hem "Araçlar'a özgü iş"
+   (analiz/önizleme UI senkronu) yapıyordu, ismi de Araçlar'a özgüydü —
+   kullanıcının cihaz logunda gördüğü "toolsSelectFile" ismi bu yüzden
+   YANLIŞ ALARM gibi okunuyordu (fonksiyon GERÇEKTEN her bağlamdan
+   çağrılıyordu, TASARLANMIŞTI, ama isim/yapı bunu şüpheli gösteriyordu).
+2. **Cihaz build'i muhtemelen ESKİYDİ** — kullanıcının bir önceki turda
+   ("Xcode'da temiz derleme al, cihazda test et") yaptırdığı build G123
+   commit'i ile G124 commit'i ARASINDA alındı — o build'de Dosyalarım sheet'i
+   HÂLÂ `goScreen("tools")` çağırıyordu (G124'ün asıl düzelttiği şey). "Araçlar'a
+   atlıyor" şikayeti büyük ihtimalle BU eski build'den — G124 zaten koda
+   girmişti ama cihaza YENİDEN kurulmamıştı.
+
+**YAPISAL AYRIŞTIRMA (kullanıcının açıkça istediği, uygulandı):**
+```
+applyUploadSelection(contextId, id, opts)  — YENİ, SAF/bağlamdan bağımsız:
+  SADECE kalıcı seçimi yazar (recordUploadSelection) + gerekiyorsa
+  uploadManager'a decode eder + bir onReady callback'i çağırır. Araçlar'a
+  özgü HİÇBİR ŞEY bilmez.
+
+toolsSelectFile(id, opts)  — ARTIK SADECE "tools" bağlamı için:
+  applyUploadSelection("tools", ...) çağırır + Araçlar'a özgü analiz/
+  önizleme senkronunu (resetToolsAnalysis/toolsTonalDevs/toolsFilterPlaying/
+  renderToolsCardsVisibility/renderToolsFilterPlayer) EKLER. TEK çağrı yeri
+  selectFileForActiveContext'in "tools" dalı (grep ile doğrulandı: `grep -n
+  "toolsSelectFile(" www/js/app.js` → sadece tanım + o TEK çağrı).
+
+selectFileForActiveContext(id, opts)  — YENİ, sheet'in satır tıklaması VE
+  yeni-yükleme sonrası oto-seçim için TEK giriş noktası: activeUploadContext
+  "tools" ise toolsSelectFile'a yönlendirir, DEĞİLSE applyUploadSelection'ı
+  doğrudan o modun bağlamıyla çağırır (Araçlar kodu HİÇ ÇALIŞMAZ).
+```
+`[upload-context]` konsol logu EKLENDİ — hangi bağlama hangi dosyanın
+uygulandığı artık cihaz konsolundan DOĞRUDAN okunabiliyor (gelecekte AYNI
+şüphe doğarsa kanıt anında elde edilir, kullanıcının bu turki "kanıt
+toplama" ihtiyacı BİR DAHA duyulmasın diye).
+
+**DOĞRULAMA (Playwright, gerçek Chromium, konsol logları YAKALANARAK):**
+1. **Frekans Bulma'dan dosya yüklenince konsolda:**
+   ```
+   [upload-context] "frekans-bulma" bağlamına dosya uygulanıyor: id=..., ad="test-stereo.wav"
+   [upload-context] "frekans-bulma" bağlamı HAZIR (skipReload) — uploadManagerLoadedFileId=...
+   ```
+   **"toolsSelectFile" STRİNGİ konsolda SIFIR KEZ geçti** (ayrı bir log
+   yakalamasıyla, tüm konsol çıktısı taranarak doğrulandı — dosya
+   `g125_result.txt`, geçici). ✔
+2. **Ekran hiç değişmedi** (`screen-game` → `screen-game`, sheet açılıp
+   kapanırken). ✔
+3. **Üç FARKLI modda (Frekans Bulma/Pan Konumu/Stereo Genişlik) üç FARKLI
+   dosya seçildi, `localStorage.eqEarTrainerProXUploadSelections`'ta ÜÇÜ DE
+   BİRBİRİNDEN FARKLI** id ile kayıtlı. ✔
+4. **Sayfa yeniden yüklenince (uygulama restart simülasyonu) ÜÇÜ DE
+   KORUNDU.** ✔
+5. **Frekans Bulma'da round GERÇEKTEN başladı** ("Önce ses yükle" hatası
+   YOK — bu hata `uploadManager.hasBuffer`'ı DOĞRUDAN kontrol ediyor, bkz.
+   `startRound()` guard'ı — geçmesi seçilen dosyanın GERÇEKTEN modun ses
+   motorunun okuduğu `uploadManager`'a yüklendiğinin dolaylı ama kesin
+   kanıtı). Stereo Genişlik'te dosya seçilince gate paneli kayboldu (aynı
+   kanıt, o modun KENDİ playability kontrolü üzerinden). ✔
+6. Konsol hatası: **0**.
+7. **`npm test`: 1234/1234** (bu tur SADECE `app.js` değişti — unit testler
+   app.js'i import etmiyor, G123/G124'ün Playwright regresyon script'leri
+   TEKRAR çalıştırıldı, hepsi hâlâ geçiyor).
+
+**DÜRÜSTLÜK NOTU:** bu doğrulama masaüstü Chrome'da yapıldı, kullanıcının
+raporunun KAYNAĞI olan cihazda DEĞİL. Kod izlenerek G123/G124'ün MANTIKSAL
+olarak zaten doğru olduğu görüldü — bu turun asıl katkısı YAPISAL netlik
+(isimlendirme + fonksiyon ayrımı, artık koddan OKUYARAK "hangi bağlama
+yazıldığı" kesin belli) ve YENİ bir konsol log kanıtı. Kullanıcının cihaz
+şikâyetinin bir kısmının (Araçlar'a atlama) ESKİ, G124-öncesi bir build'den
+kaynaklandığı DÜŞÜNÜLÜYOR ama KANITLANAMADI — kesin sonuç için kullanıcı
+YENİDEN temiz build alıp cihaza kurmalı, SONRA aynı iki dosyayla (AH YALAN
+DÜNYA2.wav, Cankat Erdoğan Yolcu Mu Kaldı rev12.wav) tekrar denemeli ve
+konsolda `[upload-context]` satırlarının doğru bağlamı gösterdiğini
+GÖZLEMLEMELİ.
+
+---
+
+Önceki commit (G124, `d1f576b`) — **Dosyalarım sheet'i moddan açılınca kullanıcıyı Araçlar sekmesine atıyordu — sheet uygulama seviyesine taşındı, artık ekran DEĞİŞMİYOR.**
 
 **SORUN (kullanıcının kendi tarifi):** G123'te bir modda "kendi dosyam"
 seçilince Dosyalarım sheet'i açılıyordu ama uygulama Araçlar sekmesine
@@ -10576,19 +10686,25 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G124 itibarıyla):** kullanıcı Xcode'da temiz derleme +
-cihaza yeniden kurulum sonrası GERÇEK cihazda doğrulamalı: (1) bir modda
-"Dosya seç"e basınca sheet oyun ekranının ÜSTÜNDE açılıyor mu (Araçlar
-sekmesine ATLAMADIĞINI, tab bar'ın görünmediğini gözle teyit et), (2) native
-`FilePicker` plugin'i bu YENİ konumdan (artık `#screen-tools` içine gömülü
-DEĞİL, `<body>` doğrudan çocuğu) sorunsuz açılıyor mu, (3) sheet açıkken
-round GERÇEKTEN duraklıyor mu (süre/ses donuyor mu — masaüstünde timer
-donması doğrulandı ama GERÇEK sesin cihazda duyulur şekilde susup
-susmadığı denenmedi), (4) sheet kapanınca ses/süre kaldığı yerden devam
-ediyor mu. Bu turda SADECE masaüstü Chrome/Playwright'ta (ekran
-görüntüleriyle, 0 konsol hatası) doğrulama yapıldı (bkz. G124 BİTTİ'nin
-DÜRÜSTLÜK notu — audio pause'un GERÇEKTEN duyulur olduğu kulakla hiç
-doğrulanmadı, sadece muteGain/timer durumu ölçüldü).
+**Tek sonraki adım (G125 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı Xcode'da
+**YENİDEN** temiz derleme + cihaza **YENİDEN** kurulum yapmalı (bir önceki
+"temiz derleme" turu G123 ile G124 ARASINDA alınmıştı — G124/G125'i
+İÇERMİYOR olabilir, bkz. BİTTİ'nin DÜRÜSTLÜK notu) ve AYNI iki dosyayla
+(AH YALAN DÜNYA2.wav, Cankat Erdoğan Yolcu Mu Kaldı rev12.wav) tekrar
+denemeli: (1) Safari Web Inspector'dan cihaz konsoluna bağlanıp
+`[upload-context]` satırlarının HER yüklemede doğru bağlamı (mod adı,
+"tools" DEĞİL) gösterdiğini gözle teyit etmeli, (2) "Dosya seç"e basınca
+sheet'in Araçlar'a ATLAMADIĞINI (aynı ekranda kaldığını) doğrulamalı,
+(3) native `FilePicker` plugin'inin YENİ sheet konumundan (artık
+`#screen-tools` içine gömülü DEĞİL) sorunsuz açıldığını doğrulamalı,
+(4) seçilen dosyanın o modda GERÇEKTEN duyulur şekilde çaldığını
+kulaklıkla doğrulamalı (masaüstünde SADECE "hata yok" kanıtlandı, GERÇEK
+ses hiç dinlenmedi).
+
+**Ayrıca hâlâ açık (G124'ten):** sheet açıkken round GERÇEKTEN duraklıyor
+mu (süre/ses donuyor mu — masaüstünde timer donması doğrulandı ama GERÇEK
+sesin cihazda duyulur şekilde susup susmadığı denenmedi), sheet kapanınca
+ses/süre kaldığı yerden devam ediyor mu.
 
 **Ayrıca hâlâ açık (G123'ten):** kullanıcı Xcode'da temiz derleme + cihaza
 yeniden kurulum sonrası GERÇEK cihazda (native `FilePicker` plugin'i dahil)
