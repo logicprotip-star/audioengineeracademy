@@ -9641,6 +9641,28 @@ olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 
 ## SIRADAKİ
 
+**ACİL — kod DEĞİŞİKLİĞİ YOK, cihazdaki eski derleme şüphesi (G114/G115
+sonrası, kod değişikliği yapılmadı):** Kullanıcı cihaz ekran görüntüsüyle
+G114'ün dört maddesinin (Tonal Balance kırpılması, dB etiketi yokluğu,
+gösterge renk karışıklığı, Mixini Yükle çalarsızlığı) HÂLÂ var olduğunu
+bildirdi. Bu turda `www/js/app.js` TEK TEK yeniden okunarak doğrulandı:
+`toolsTonalCurrentHalfRange`/`toolsTonalComputeRawHalfRange`/
+`toolsTonalNiceHalfRange` (8414-8578), dB ızgarası+etiketleri
+(8590-8602, 8652-8665), gösterge/çizgi renk eşleşmesi (index.html:963-967
+↔ app.js:8524 `#e8c46a`/`#22d3ee`, `renderToolsMixPlayer` app.js:8901-8914
++ paylaşılan `toolsFilterPlaying` durumu 8947-8951) — HEPSİ KOD SEVİYESİNDE
+DOĞRU ve `ios/App/App/public/js/app.js` ile BYTE-BIRE-BYTE aynı (bu turda
+`cap sync` tekrar çalıştırıldı, fark YOK). **Sonuç: kodda düzeltilecek bir
+şey YOK** — kullanıcı Xcode'dan native app ile test ettiğini doğruladı,
+bu yüzden en olası açıklama CİHAZDAKİ UYGULAMANIN eski bir derlemeden
+kalması (`npx cap sync ios` SADECE `ios/App/App/public`'i günceller,
+cihazdaki BINARY'yi yeniden derleyip YÜKLEMEZ). **Kabul kriteri / bir
+sonraki adım:** kullanıcı Xcode'da Product → Clean Build Folder, cihazdan
+eski uygulamayı SİL, tekrar Run et, SONRA aynı dört maddeyi yeniden
+ekran görüntüsüyle doğrulasın. Hâlâ bozuksa (temiz derleme SONRASI da),
+o zaman bu gerçekten YENİ bir bug'dır ve CLAUDE.md kuralı gereği Safari
+Web Inspector'dan GERÇEK ölçüm alınmalı (tahminle düzeltme YAPILAMAZ).
+
 **Tek sonraki adım (G115 itibarıyla):** `npx cap sync ios` + kullanıcı
 cihazda gerçek bir mix yükleyip Ölçüm Sonuçları akordiyonunu doğrulamalı:
 (1) kart başlığına dokununca akordiyon açılıp kapandığı, chevron'un
