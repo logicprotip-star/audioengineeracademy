@@ -7663,6 +7663,34 @@ async function toolsAddFile(file) {
   return entry;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// G125 — KÖK SEBEP RAPORU (task'ın kendi talebiyle akışın TAMAMI çıkarıldı,
+// bkz. DURUM.md G125): G123 bir tek fonksiyonun (o zamanki `toolsSelectFile`)
+// İÇİNDE hem "seçimi kaydet + buffer'ı hazırla" (bağlamdan BAĞIMSIZ olması
+// gereken iş) HEM "Araçlar'ın kendi analiz/önizleme UI'sini senkronla"
+// (SADECE Araçlar'a özgü iş) mantığını birleştirmişti — fonksiyon `activeUpload
+// Context`'i okuyup İÇERDE dallanıyordu. Kodun kendisi (kontrol akışı izlenerek
+// doğrulandı) mantıksal olarak DOĞRU seçim bağlamını yazıyordu, ama İSİM
+// ("toolsSelectFile" — Araçlar'a özgü bir isim) ve TEK-fonksiyon yapısı
+// "bu Araçlar'a özel bir şey mi, yoksa gerçekten HER bağlam için mi güvenli"
+// sorusunu koddan OKUYARAK cevaplamayı zorlaştırıyordu — cihazda gözlemlenen
+// "toolsSelectFile çağrılıyor" logu bu YÜZDEN yanlış bir alarm gibi
+// okunabiliyordu (fonksiyon GERÇEKTEN her bağlamdan çağrılıyordu, ama BU
+// TASARLANMIŞTI, bug değildi). Bu turda YAPISAL olarak ayrıştırıldı:
+//   applyUploadSelection(contextId, id, opts) — SAF/bağlamdan bağımsız: SADECE
+//     kalıcı seçimi yazar + gerekiyorsa uploadManager'a decode eder + bir
+//     onReady callback'i çağırır. Araçlar'a özgü HİÇBİR ŞEY bilmez.
+//   toolsSelectFile(id, opts) — ARTIK SADECE Araçlar'ın "tools" bağlamı için,
+//     applyUploadSelection("tools", ...) çağırır + Araçlar'a özgü analiz/
+//     önizleme senkronunu EKLER. Grep ile doğrulanabilir: bu fonksiyonun TEK
+//     çağrı yeri selectFileForActiveContext'in "tools" dalıdır.
+//   selectFileForActiveContext(id, opts) — sheet'in KENDİ satır tıklaması VE
+//     yeni-yükleme sonrası oto-seçim için TEK giriş noktası — activeUpload
+//     Context "tools" ise toolsSelectFile'a yönlendirir, DEĞİLSE doğrudan
+//     applyUploadSelection'ı o modun bağlamıyla çağırır (Araçlar'ın analiz/
+//     önizleme kodu HİÇ ÇALIŞMAZ).
+// ═══════════════════════════════════════════════════════════════════════════
+
 // G104 — skipReload: canlı ölçümde bulunan bir performans sorunu için
 // (bkz. DURUM.md G104). toolsAddFile() az önce eklenen dosyayı ZATEN decode
 // etmişti (buffer.duration/peaks için); onu HEMEN seçen çağrı yerleri
@@ -7672,51 +7700,77 @@ async function toolsAddFile(file) {
 // decode+bellek ayırma turuna (ölçülen GC baskısı dahil, uzun görev
 // üretebiliyordu) girmesi ÖNLENİR. Dosyalarım sheet'inden VAR OLAN bir
 // dosyayı seçmek (asıl kullanım amacı) skipReload'suz, eskisi gibi çalışır.
-// G123 — SEÇİM artık `activeUploadContext`'e yazılıyor (Araçlar'dan açıldıysa
-// "tools", bir moddan açıldıysa o modun MODE_ID'si, bkz. toolsOpenFilesSheet
-// çağrı yerlerindeki activeUploadContext atamaları). Araçlar'a ÖZGÜ analiz/
-// önizleme sıfırlaması (resetToolsAnalysis/toolsTonalDevs/toolsFilterPlaying)
-// SADECE contextId "tools" iken çalışır — bir MOD için dosya seçmek Araçlar'ın
-// kendi açık analiz sonucunu/önizlemesini BOZMAMALI.
-function toolsSelectFile(id, { skipReload = false } = {}) {
+//
+// SAF/bağlamdan BAĞIMSIZ — Araçlar'a özgü HİÇBİR ŞEY (resetToolsAnalysis/
+// toolsTonalDevs/toolsFilterPlaying/renderToolsCardsVisibility/vb.) burada
+// YOK, BİLEREK. onReady buffer HAZIR olduğunda (skipReload'da hemen,
+// değilse decode bitince) çağrılır — çağıran taraf o an neyi senkronlaması
+// gerektiğini KENDİSİ bilir (Araçlar'ın kartları mı, bir modun gate paneli mi).
+function applyUploadSelection(contextId, id, { skipReload = false, onReady } = {}) {
   const entry = toolsFiles.find((f) => f.id === id);
   if (!entry) return;
-  const contextId = activeUploadContext;
+  console.log(`[upload-context] "${contextId}" bağlamına dosya uygulanıyor: id=${id}, ad="${entry.name}"`);
   recordUploadSelection(contextId, id);
-  toolsSwipedFileId = null;
-  const isToolsContext = contextId === "tools";
-  if (isToolsContext) {
-    resetToolsAnalysis();
-    toolsTonalDevs = null;
-    toolsFilterPlaying = false;
-  }
   if (skipReload) {
     // toolsAddFile() bu dosyayı ZATEN uploadManager'a decode etmişti (bkz. o
     // fonksiyonun notu) — burada SADECE takip değişkeni güncellenir.
     uploadManagerLoadedFileId = id;
-    if (isToolsContext) { renderToolsCardsVisibility(); renderToolsFilterPlayer(); }
-    else syncStereoUploadGate();
-  } else {
-    (async () => {
-      await audioEngine.initAudio();
-      let fileObj = entry.file;
-      if (!fileObj) {
-        const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
-        if (!blob) {
-          toast("Dosya bulunamadı", `${entry.name} artık cihazda yok. Kütüphaneden kaldırıldı.`);
-          toolsRemoveFile(id, { skipStorageDelete: true });
-          return;
-        }
-        fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
-        entry.file = fileObj; // bu oturum için önbelleğe al
-      }
-      const res = await uploadManager.loadFile(fileObj);
-      if (!res.ok) { toast(res.title, res.detail); return; }
-      uploadManagerLoadedFileId = id;
-      if (isToolsContext) { renderToolsCardsVisibility(); renderToolsFilterPlayer(); }
-      else syncStereoUploadGate();
-    })();
+    console.log(`[upload-context] "${contextId}" bağlamı HAZIR (skipReload) — uploadManagerLoadedFileId=${id}`);
+    if (onReady) onReady();
+    return;
   }
+  (async () => {
+    await audioEngine.initAudio();
+    let fileObj = entry.file;
+    if (!fileObj) {
+      const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+      if (!blob) {
+        toast("Dosya bulunamadı", `${entry.name} artık cihazda yok. Kütüphaneden kaldırıldı.`);
+        toolsRemoveFile(id, { skipStorageDelete: true });
+        return;
+      }
+      fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+      entry.file = fileObj; // bu oturum için önbelleğe al
+    }
+    const res = await uploadManager.loadFile(fileObj);
+    if (!res.ok) { toast(res.title, res.detail); return; }
+    uploadManagerLoadedFileId = id;
+    console.log(`[upload-context] "${contextId}" bağlamı HAZIR (yeniden decode edildi) — uploadManagerLoadedFileId=${id}`);
+    if (onReady) onReady();
+  })();
+}
+
+// Araçlar'a ÖZGÜ — SADECE "tools" bağlamı için (bkz. yukarıdaki G125 raporu).
+// applyUploadSelection'ı "tools" ile çağırır + Araçlar'ın KENDİ analiz/
+// önizleme durumunu senkronlar. Bu fonksiyonun TEK çağrı yeri
+// selectFileForActiveContext'in "tools" dalıdır (grep ile doğrulanabilir).
+function toolsSelectFile(id, opts = {}) {
+  const entry = toolsFiles.find((f) => f.id === id);
+  if (!entry) return;
+  resetToolsAnalysis();
+  toolsTonalDevs = null;
+  toolsFilterPlaying = false;
+  applyUploadSelection("tools", id, {
+    ...opts,
+    onReady: () => { renderToolsCardsVisibility(); renderToolsFilterPlayer(); }
+  });
+  toolsCloseFilesSheet();
+  renderToolsFilesSheetContent();
+}
+
+// G125 — Dosyalarım sheet'in KENDİ satır tıklaması VE yeni-yükleme sonrası
+// oto-seçim için TEK giriş noktası. `activeUploadContext` HANGİ bağlamdan
+// açıldıysa (sheet açılırken openFilesSheetForContext'in TEK yerde yazdığı
+// değer, bkz. o fonksiyonun notu) BURADA okunur — "tools" ise Araçlar'a özgü
+// toolsSelectFile'a yönlendirir, DEĞİLSE doğrudan applyUploadSelection'ı o
+// modun bağlamıyla çağırır (Araçlar'ın analiz/önizleme kodu ÇALIŞTIRILMAZ).
+function selectFileForActiveContext(id, opts = {}) {
+  toolsSwipedFileId = null; // sheet'in KENDİ satır durumu, bağlamdan bağımsız
+  if (activeUploadContext === "tools") {
+    toolsSelectFile(id, opts);
+    return;
+  }
+  applyUploadSelection(activeUploadContext, id, { ...opts, onReady: syncStereoUploadGate });
   toolsCloseFilesSheet();
   renderToolsFilesSheetContent();
 }
@@ -8008,7 +8062,7 @@ if (els.toolsFilesList) {
     const id = row.dataset.select;
     if (dx < -24) { toolsSwipedFileId = id; renderToolsFilesSheetContent(); return; }
     if (toolsSwipedFileId === id) { toolsSwipedFileId = null; renderToolsFilesSheetContent(); return; }
-    if (id) toolsSelectFile(id);
+    if (id) selectFileForActiveContext(id);
   });
   els.toolsFilesList.addEventListener("click", (e) => {
     const del = e.target.closest("[data-remove]");
@@ -8037,9 +8091,13 @@ async function toolsHandlePickNewFile() {
   if (entry) {
     toast("Dosya yüklendi", `${picked.name} — Dosyalarım'da listelendi.`);
     const t7_0 = performance.now();
-    uploadDiagLog(7, "Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı)", "BAŞLIYOR");
-    toolsSelectFile(entry.id, { skipReload: true });
-    uploadDiagLog(7, "Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı)", "BİTTİ", `${(performance.now() - t7_0).toFixed(0)} ms — NOT: renderToolsTonalCard() İÇİNDEKİ Tonal Balance ölçümü (adım 5) AWAIT EDİLMİYOR, ayrı bir log'da tamamlanma zamanı görünür`);
+    // G125 — bu buton Dosyalarım sheet'inin İÇİNDE, HANGİ bağlamdan açıldıysa
+    // (Araçlar ya da bir mod) ORTAK — selectFileForActiveContext bunu
+    // activeUploadContext'e göre DOĞRU yere yönlendirir (bkz. o fonksiyonun
+    // notu). ARTIK doğrudan toolsSelectFile'a GİTMİYOR.
+    uploadDiagLog(7, "Arayüz güncelleme/çizim (selectFileForActiveContext senkron kısmı)", "BAŞLIYOR");
+    selectFileForActiveContext(entry.id, { skipReload: true });
+    uploadDiagLog(7, "Arayüz güncelleme/çizim (selectFileForActiveContext senkron kısmı)", "BİTTİ", `${(performance.now() - t7_0).toFixed(0)} ms — NOT: renderToolsTonalCard() İÇİNDEKİ Tonal Balance ölçümü (adım 5) AWAIT EDİLMİYOR, ayrı bir log'da tamamlanma zamanı görünür`);
   }
 }
 // G123/G124 — Araçlar'ın KENDİ giriş noktaları HER ZAMAN "tools" bağlamını
@@ -8061,9 +8119,10 @@ if (els.toolsFileInput) {
     if (entry) {
       toast("Dosya yüklendi", `${file.name} — Dosyalarım'da listelendi.`);
       const t7_0 = performance.now();
-      uploadDiagLog(7, "Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı, web input yolu)", "BAŞLIYOR");
-      toolsSelectFile(entry.id, { skipReload: true });
-      uploadDiagLog(7, "Arayüz güncelleme/çizim (toolsSelectFile senkron kısmı, web input yolu)", "BİTTİ", `${(performance.now() - t7_0).toFixed(0)} ms`);
+      // G125 — bkz. toolsHandlePickNewFile'ın AYNI notu.
+      uploadDiagLog(7, "Arayüz güncelleme/çizim (selectFileForActiveContext senkron kısmı, web input yolu)", "BAŞLIYOR");
+      selectFileForActiveContext(entry.id, { skipReload: true });
+      uploadDiagLog(7, "Arayüz güncelleme/çizim (selectFileForActiveContext senkron kısmı, web input yolu)", "BİTTİ", `${(performance.now() - t7_0).toFixed(0)} ms`);
     }
   });
 }
