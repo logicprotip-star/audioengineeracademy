@@ -95,6 +95,23 @@ export const LEVEL_SHEET_TERMS = {
     amountLabel: null,
     formatSensitivity: p => formatPercent(p.kGap),
     formatAmount: () => null
+  },
+  // Pan Konumu/Stereo Genişlik'in eğrisi diğerlerinden FARKLI bir eksen
+  // kullanıyor (bkz. o modların dosya başı notu): tek bilinmeyen, ızgaranın
+  // KADEME SAYISI (3→7) — kolayda az/uzak kademe, zorda çok/yakın kademe.
+  // "amount" burada kademeler arası ORTALAMA aralık (%), sensitivityLabel'in
+  // DOĞAL sonucu — ayrı bir ikinci eksen DEĞİL, aynı sayının başka görünümü.
+  "pan-konumu": {
+    sensitivityLabel: "Izgara kademesi",
+    amountLabel: "Kademeler arası aralık",
+    formatSensitivity: p => `${p.steps} kademe`,
+    formatAmount: p => `%${Math.round(200 / (p.steps - 1))}`
+  },
+  "stereo-genislik": {
+    sensitivityLabel: "Izgara kademesi",
+    amountLabel: "Kademeler arası aralık",
+    formatSensitivity: p => `${p.steps} kademe`,
+    formatAmount: p => `%${Math.round(100 / (p.steps - 1))}`
   }
 };
 

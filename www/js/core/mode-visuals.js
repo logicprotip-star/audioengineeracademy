@@ -175,9 +175,44 @@ function maskBody() {
     <text x="150" y="37" font-size="8" font-family="Inter" font-weight="700" fill="${AMBER}">BAS</text>`;
 }
 
+// G118 — Pan Konumu: stereo alan üzerinde konumlanmış TEK bir nokta (task'ın
+// kendi tarifi). Diğer gövdelerle AYNI stil: ince çizgi, CYAN, x:30-172 güvenli
+// bant (bkz. dosya başı G75/G76 notu — kenara yakın metin dar kartta kırpılıyor).
+function panBody() {
+  const y = 46;
+  return `
+    <line x1="14" y1="${y}" x2="186" y2="${y}" stroke="rgba(255,255,255,0.14)" stroke-width="1.5"/>
+    ${[14, 58, 100, 142, 186].map(x => `<line x1="${x}" y1="${y - 6}" x2="${x}" y2="${y + 6}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`).join("")}
+    <circle cx="100" cy="${y}" r="2.5" fill="#5a6068"/>
+    <path d="M100,${y} L140,${y}" stroke="${CYAN}" stroke-width="1.3" stroke-dasharray="3 3" opacity="0.6"/>
+    <circle cx="140" cy="${y}" r="7" fill="none" stroke="${CYAN}" stroke-width="1.4" opacity="0.5"/>
+    <circle cx="140" cy="${y}" r="4.5" fill="${CYAN}"/>
+    <text x="30" y="76" font-size="8" font-family="Inter" font-weight="700" fill="#5a6068">SOL</text>
+    <text x="100" y="76" text-anchor="middle" font-size="8" font-family="Inter" font-weight="700" fill="#5a6068">MERKEZ</text>
+    <text x="170" y="76" text-anchor="end" font-size="8" font-family="Inter" font-weight="700" fill="#5a6068">SAĞ</text>
+    <text x="140" y="26" text-anchor="middle" font-size="8" font-family="Inter" font-weight="600" fill="#7cd8e8">?</text>`;
+}
+
+// G118 — Stereo Genişlik: iki yana AÇILAN iki nokta (task'ın kendi tarifi).
+function widthBody() {
+  const y = 46;
+  return `
+    <line x1="14" y1="${y}" x2="186" y2="${y}" stroke="rgba(255,255,255,0.14)" stroke-width="1.5"/>
+    <circle cx="100" cy="${y}" r="2" fill="#5a6068"/>
+    <path d="M100,${y} L40,${y}" stroke="${CYAN}" stroke-width="1.3" stroke-dasharray="3 3" opacity="0.6"/>
+    <path d="M100,${y} L160,${y}" stroke="${CYAN}" stroke-width="1.3" stroke-dasharray="3 3" opacity="0.6"/>
+    <circle cx="40" cy="${y}" r="6" fill="${CYAN}"/>
+    <circle cx="160" cy="${y}" r="6" fill="${CYAN}"/>
+    <text x="30" y="76" font-size="8" font-family="Inter" font-weight="700" fill="#5a6068">SOL</text>
+    <text x="100" y="76" text-anchor="middle" font-size="8" font-family="Inter" font-weight="700" fill="#5a6068">MERKEZ</text>
+    <text x="170" y="76" text-anchor="end" font-size="8" font-family="Inter" font-weight="700" fill="#5a6068">SAĞ</text>
+    <text x="100" y="18" text-anchor="middle" font-size="8" font-family="Inter" font-weight="600" fill="#7cd8e8">GENİŞLİK</text>`;
+}
+
 const BODY_BY_KIND = {
   bell: bellBody, cut: cutBody, q: qBody, boostcut: boostcutBody, comp: compBody,
-  db: dbBody, reverb: reverbBody, tonal: tonalBody, dist: distBody, mask: maskBody
+  db: dbBody, reverb: reverbBody, tonal: tonalBody, dist: distBody, mask: maskBody,
+  pan: panBody, width: widthBody
 };
 
 // Gerçek mod ID'si → tasarımdaki "kind" adı (bkz. dosya başı notu).
@@ -191,7 +226,9 @@ export const MODE_VIZ_KIND = {
   reverb: "reverb",
   "tonal-denge": "tonal",
   distortion: "dist",
-  "frekans-cakismasi": "mask"
+  "frekans-cakismasi": "mask",
+  "pan-konumu": "pan",
+  "stereo-genislik": "width"
 };
 
 // SAF FONKSİYON — kayıtlı olmayan bir modId için null döner (çağıran taraf

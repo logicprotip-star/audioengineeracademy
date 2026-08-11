@@ -11,13 +11,13 @@ import { MODE_CATALOG } from "../www/js/core/mode-catalog.js";
 
 const PLAYABLE_MODE_IDS = MODE_CATALOG.filter(e => e.playable).map(e => e.id);
 
-describe("mode-visuals: MODE_VIZ_KIND 10 oynanabilir modun HEPSİNİ içerir", () => {
+describe("mode-visuals: MODE_VIZ_KIND oynanabilir modların HEPSİNİ içerir", () => {
   it("anahtar kümesi playable mod id'leriyle BİREBİR eşleşir (fazla/eksik yok)", () => {
     assert.deepEqual(Object.keys(MODE_VIZ_KIND).sort(), [...PLAYABLE_MODE_IDS].sort());
   });
 });
 
-describe("mode-visuals: modeVisualSvg() 10 modun HEPSİ için geçerli SVG üretir", () => {
+describe("mode-visuals: modeVisualSvg() oynanabilir modların HEPSİ için geçerli SVG üretir", () => {
   PLAYABLE_MODE_IDS.forEach(id => {
     it(`${id}: null DEĞİL, <svg ile başlayan bir string döner, çökmez`, () => {
       const svg = modeVisualSvg(id);

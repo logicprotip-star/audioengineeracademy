@@ -18,6 +18,8 @@ import * as reverb from "../www/js/modes/reverb.js";
 import * as tonalDenge from "../www/js/modes/tonal-denge.js";
 import * as frekansCakismasi from "../www/js/modes/frekans-cakismasi.js";
 import * as distortion from "../www/js/modes/distortion.js";
+import * as panKonumu from "../www/js/modes/pan-konumu.js";
+import * as stereoGenislik from "../www/js/modes/stereo-genislik.js";
 
 const MODE_MODULES = {
   "frekans-bulma": frekansBulma,
@@ -29,11 +31,13 @@ const MODE_MODULES = {
   reverb,
   "tonal-denge": tonalDenge,
   "frekans-cakismasi": frekansCakismasi,
-  distortion
+  distortion,
+  "pan-konumu": panKonumu,
+  "stereo-genislik": stereoGenislik
 };
 
-describe("level-sheet-terms: 10 modun HEPSİ kayıtlı, dağınık değil tek yerde", () => {
-  it("LEVEL_SHEET_TERMS tam olarak 10 mod içerir (fazla/eksik yok)", () => {
+describe("level-sheet-terms: 12 modun HEPSİ kayıtlı, dağınık değil tek yerde", () => {
+  it("LEVEL_SHEET_TERMS tam olarak 12 mod içerir (fazla/eksik yok)", () => {
     assert.deepEqual(Object.keys(LEVEL_SHEET_TERMS).sort(), Object.keys(MODE_MODULES).sort());
   });
 

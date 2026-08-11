@@ -51,7 +51,9 @@ export const MODE_GUIDE_TEXTS = {
   reverb: "Sese ne kadar reverb verildiğini ayırt edersin. Reverb derinlik ve mekan katar — ama fazlası mix'i uzaklaştırır, bulanıklaştırır. Doğru miktarı duymak alanı yönetmektir.",
   "tonal-denge": "Bozulmuş bir sesin tonal dengesini kaydırıcılarla düzeltirsin — bas mı fazla, tiz mi eksik, kulağınla nötrle. Gerçek mix işi budur: referansla karşılaştır, dengesizliği duy, düzelt. Kendi mix'ini de yükleyip çalışabilirsin.",
   "frekans-cakismasi": "İki ses aynı frekansta çakışınca mix bulanıklaşır. Nerede çakıştıklarını bul, hangisinden keseceğine karar ver, kes. Gerçek mixin en klasik problemi — kick+bas, vokal+gitar çakışmasını çözmek mix'i açar. Kendi iki sesini de yükleyebilirsin.",
-  distortion: "İki sesten hangisinin daha çok saturation/distortion taşıdığını bulursun. Saturation sıcaklık ve karakter katar (tube, tape), distortion sertlik. Türü ve miktarı duymak analog renk ile kontrolsüz bozulmayı ayırmaktır."
+  distortion: "İki sesten hangisinin daha çok saturation/distortion taşıdığını bulursun. Saturation sıcaklık ve karakter katar (tube, tape), distortion sertlik. Türü ve miktarı duymak analog renk ile kontrolsüz bozulmayı ayırmaktır.",
+  "pan-konumu": "Sesin stereo alanda nereden geldiğini bulursun. Pan kararı mix'te alan açmak içindir — iki enstrüman aynı frekans bandında çakışıyorsa biri sağa biri sola alınır. Kick, bas, vokal ve snare genelde merkezde kalır; konumu doğru duymak mix'te kimin nerede durması gerektiğini öğretir.",
+  "stereo-genislik": "İki mono kaynağın zıt yönlere yerleştirilmesiyle oluşan stereo görüntünün ne kadar geniş olduğunu bulursun. Genişlik derinlik ve alan katar ama abartılırsa mono uyumu bozulur — kulüpte ve telefonda mix çöker. Bu, Araçlar'daki mono uyum ölçümüyle AYNI konuyu kulakla öğretir."
 };
 
 // ---- 2b. Mod başına "i" — OYUN SEÇENEKLERİ (G69) ----
@@ -88,7 +90,9 @@ export const MODE_OPTIONS_TEXTS = {
   reverb: "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun.",
   distortion: "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun.",
   "tonal-denge": "Kaynağı 'Davul Döngüsü' ya da kendi yüklediğin mix arasında seçebilirsin. 'A/B Test'le düzeltmeden önceki/sonraki sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
-  "frekans-cakismasi": "Kaynak çiftini (Kick+Bas/Vokal+Gitar/Snare+Gitar) seçebilir, ya da kendi iki sesini yükleyebilirsin. Kestikten sonra 'Önce/Sonra' ile maskeyi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun."
+  "frekans-cakismasi": "Kaynak çiftini (Kick+Bas/Vokal+Gitar/Snare+Gitar) seçebilir, ya da kendi iki sesini yükleyebilirsin. Kestikten sonra 'Önce/Sonra' ile maskeyi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
+  "pan-konumu": "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı — çok kısa vuruşlar konum algısı için yetersiz), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
+  "stereo-genislik": "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı — çok kısa vuruşlar genişlik algısı için yetersiz), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun."
 };
 
 // ---- 3. SPOTLIGHT rehber turu — ilk HINT_ROUNDS_LIMIT round'da görünür ----
@@ -177,6 +181,18 @@ export const SPOTLIGHT_STEPS = {
   "frekans-cakismasi": [
     { target: "listen", text: "Çakışan iki sesi birlikte dinle." },
     { target: "select", text: "Nerede çakıştıklarını şıklardan bul. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
+  ],
+  "pan-konumu": [
+    { target: "listen", text: "Önce sesi dinle." },
+    { target: "abControl", text: "'A/B Test'e dokun: temiz ile işlenmiş sesi karşılaştır." },
+    { target: "select", text: "Sesin stereo alandaki konumunu seç." },
+    { target: "confirm", text: "Seçimin cevabını hemen onaylar. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
+  ],
+  "stereo-genislik": [
+    { target: "listen", text: "Önce sesi dinle." },
+    { target: "abControl", text: "'A/B Test'e dokun: temiz ile işlenmiş sesi karşılaştır." },
+    { target: "select", text: "Stereo görüntünün genişliğini seç." },
+    { target: "confirm", text: "Seçimin cevabını hemen onaylar. Bilemezsen 'Atla', istersen 'Durdur'a dokunabilirsin." }
   ]
 };
 

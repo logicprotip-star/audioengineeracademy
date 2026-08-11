@@ -17,8 +17,12 @@ export const MODE_CATALOG = [
   { id: "boost-mu-cut-mu", ad: "Boost mu Cut mu", aciklama: "Boost mu, cut mu?", motor: 1, kulaklikGerekli: false, unlockLevel: 4, playable: true, tier: "free" },
   { id: "hiz-modu", ad: "Hız Modu", aciklama: "60 saniyede kaç tane?", motor: 1, kulaklikGerekli: false, unlockLevel: 5, playable: false, tier: "free" },
   { id: "db-seviyesi", ad: "dB Seviyesi", aciklama: "Kaç dB değişti?", motor: 1, kulaklikGerekli: false, unlockLevel: 6, playable: true, tier: "pro" },
-  { id: "stereo-genislik", ad: "Stereo Genişlik", aciklama: "Ses ne kadar geniş?", motor: 1, kulaklikGerekli: true, unlockLevel: 7, playable: false, tier: "pro" },
-  { id: "pan-konumu", ad: "Pan Konumu", aciklama: "Ses nereden geliyor?", motor: 1, kulaklikGerekli: true, unlockLevel: 8, playable: false, tier: "pro" },
+  // G118: gerçek moda çevrildi — SoundGym'in Stereohead tekniği (iki mono
+  // kaynağı zıt yönlere yerleştirip aradaki açıklığı değiştirme), yeni ses
+  // dosyası GEREKMEDİ (bkz. modes/stereo-genislik.js dosya başı notu).
+  { id: "stereo-genislik", ad: "Stereo Genişlik", aciklama: "Ses ne kadar geniş?", motor: 1, kulaklikGerekli: true, unlockLevel: 7, playable: true, tier: "pro" },
+  // G118: gerçek moda çevrildi — StereoPannerNode ile tek kaynak konumlandırma.
+  { id: "pan-konumu", ad: "Pan Konumu", aciklama: "Ses nereden geliyor?", motor: 1, kulaklikGerekli: true, unlockLevel: 8, playable: true, tier: "pro" },
 
   // ---- Motor 2 · Hangisi farklı ----
   { id: "hangisi-farkli", ad: "Hangisi Farklı", aciklama: "Üç sesten farklı olanı bul", motor: 2, kulaklikGerekli: false, unlockLevel: 10, playable: false, tier: "pro" },

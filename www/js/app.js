@@ -31,6 +31,8 @@ import * as reverb from "./modes/reverb.js";
 import * as tonalDenge from "./modes/tonal-denge.js";
 import * as frekansCakismasi from "./modes/frekans-cakismasi.js";
 import * as distortion from "./modes/distortion.js";
+import * as panKonumu from "./modes/pan-konumu.js";
+import * as stereoGenislik from "./modes/stereo-genislik.js";
 
 registerMode(frekansBulma);
 registerMode(kesimNoktasi);
@@ -42,6 +44,8 @@ registerMode(reverb);
 registerMode(tonalDenge);
 registerMode(frekansCakismasi);
 registerMode(distortion);
+registerMode(panKonumu);
+registerMode(stereoGenislik);
 // Motor 2'nin ("A/B/C odd-one-out") HANGİ mod id'lerini kapsadığını TEK yerde
 // tutar — yeni bir Motor 2 modu (ör. Distortion) eklenince SADECE bu listeye
 // eklenir, aşağıdaki TÜM çağıranlar (toggle/döngü/submit/önizleme/overlay)
@@ -834,6 +838,11 @@ let cutoffGuess = null;
 // SAYISAL değeri (bkz. submitLevelGuess). cutoffGuess'in AYNI deseni — her yeni
 // soruda (renderQuestion) null'a döner, submitLevelGuess cevaplanınca doldurur.
 let dbGuess = null;
+// Pan Konumu/Stereo Genişlik'in cevap-sonrası yatay stereo-alan görseli için —
+// dbGuess'in AYNI deseni, her yeni soruda null'a döner, submitPanGuess/
+// submitWidthGuess cevaplanınca doldurur.
+let panGuess = null;
+let widthGuess = null;
 // Boost/Cut'ın cevap-sonrası bell-eğrisi görseli için — dbGuess/cutoffGuess'in
 // AYNI deseni, ama KATMANA göre normalize edilmiş {freq, gainDb} (bkz.
 // submitBoostCutGuess'in notu: Katman 1/2'de freq her zaman question.freq'tir,
@@ -1090,7 +1099,7 @@ function timerOff() {
 // ("cutoff") ise TERSİ: dalgaya tıklama affordance'ı yok, "Cevap biçimi" ayarından
 // BAĞIMSIZ olarak her zaman şıklı (bkz. kesim-noktasi.js dosya başı not).
 function isChoiceFormat() {
-  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth" || activeQuestion.mode === "tonal-denge" || activeQuestion.mode === "cakisma" || isThreeWayQuestion(activeQuestion))) return true;
+  if (activeQuestion && (activeQuestion.mode === "cutoff" || activeQuestion.mode === "dblevel" || activeQuestion.mode === "boostcut" || activeQuestion.mode === "qwidth" || activeQuestion.mode === "tonal-denge" || activeQuestion.mode === "cakisma" || activeQuestion.mode === "pan" || activeQuestion.mode === "width" || isThreeWayQuestion(activeQuestion))) return true;
   return !!(els.answerFormatSelect && els.answerFormatSelect.value === "choice"
     && activeQuestion && activeQuestion.mode !== "proplus");
 }
@@ -2895,6 +2904,10 @@ function pushHistory(correct) {
     ? `Distortion · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : activeQuestion.mode === "tonal-denge"
     ? `Tonal Denge · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+    : activeQuestion.mode === "pan"
+    ? `Pan Konumu · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
+    : activeQuestion.mode === "width"
+    ? `Stereo Genişlik · ${mode.correctLabel(activeQuestion)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`
     : `${activeQuestion.filterLabel} · ${formatHz(activeQuestion.freq)} · ${labelSource(activeQuestion.source)}${activeQuestion.boss ? " · Boss" : ""}`;
   // G87: desc'in KENDİSİ (yukarıdaki, her mod için AYRI test edilmiş dal
   // zinciri) DEĞİŞMEDİ — sadece "Son Cevaplar" kartının iki satırlık
@@ -3165,6 +3178,8 @@ function renderQuestion() {
     : q.mode === "qwidth" ? mode.questionTitle(q)
     : q.mode === "tonal-denge" ? `${q.bandCount} bant — kaydırıcılarla sesi nötüre getir.`
     : q.mode === "cakisma" ? mode.questionTitle(q)
+    : q.mode === "pan" ? "Ses stereo alanda nereden geliyor?"
+    : q.mode === "width" ? "Stereo görüntü ne kadar geniş?"
     : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
   if (isM2) els.questionTitle.classList.add("qline-m2"); else els.questionTitle.classList.remove("qline-m2");
 
@@ -3204,6 +3219,8 @@ function renderQuestion() {
   freqGuessHz = null; freqHoverHz = null;
   cutoffGuess = null;
   dbGuess = null;
+  panGuess = null;
+  widthGuess = null;
   boostCutGuess = null;
   qGuessLabelId = null;
   threeWayGuessLetter = null;
@@ -3240,6 +3257,8 @@ function renderQuestion() {
     : q.mode === "distortion" ? "A/B/C ile üçünü de dinle, sonra aşağıdaki şıklardan distortion'ı FARKLI olanı seç."
     : q.mode === "tonal-denge" ? "Dinle, kaydırıcılarla düzelt, sesi nötr/dengeli hale getirmeye çalış — sonra onayla."
     : q.mode === "cakisma" ? mode.modeDescription(q)
+    : q.mode === "pan" ? mode.modeDescription(q)
+    : q.mode === "width" ? mode.modeDescription(q)
     : "A/B ile karşılaştır, sonra dalga üzerine tıklayıp doğru frekansı işaretle."
   );
   renderGameHeader();
@@ -3582,6 +3601,146 @@ function submitLevelGuess(value) {
   // (#feedbackClose) de var — merkezi delegasyon, bu mod hiçbir şey eklemedi.
   const gameOver = finalizeIfGameOver();
   // G50: sınav sistemi — submitThreeWayGuess'in AYNI kablolaması.
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
+  if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+}
+
+// Pan Konumu ("pan") için submitLevelGuess'in YAPISAL PARALELİ — aynı ŞABLON
+// gerekçesi (dB Seviyesi'nin ikiz modu, bkz. pan-konumu.js dosya başı notu).
+function submitPanGuess(value) {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "pan") return;
+  if (!Number.isFinite(value)) return;
+  roundActive = false;
+  roundFlow.clearTimer();
+  setActionbarTucked(true);
+
+  const q = activeQuestion;
+  const result = mode.evaluateAnswer(q, value);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = "";
+  if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, value);
+  panGuess = value;
+
+  stats.rounds++;
+  let gained = 0;
+
+  if (result.correct) {
+    stats.correct++;
+    stats.combo++;
+    stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
+    gained = mode.calculateXP(q, result, q.hintUsed, q.difficulty, {
+      combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
+    });
+    diffState().xp += gained;
+    modeState().xp += gained;
+    diffState().score += gained * Math.max(1, stats.combo);
+    diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
+    if (q.difficulty === "pro") stats.proCorrect++;
+    if (q.boss) stats.bossWins++;
+    session.correct++; session.xp += gained;
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
+
+    const feedback = mode.getFeedbackData(q, value, { gained });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    showXpBreakdown(q, q.difficulty, gained);
+    audioEngine.sfxDing();
+    spawnXp(`+${gained} XP`, els.canvas);
+    burst(els.canvas);
+    challengeTick(true, gained);
+  } else {
+    stats.wrong++;
+    stats.combo = 0;
+    diffState().score = Math.max(0, diffState().score - 20);
+    session.wrong++;
+
+    const feedback = mode.getFeedbackData(q, value, { gained: 0 });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    audioEngine.sfxBuzz();
+    shake(els.canvas);
+    loseLife("Pan konumunu ıskaladın.", { silent: true });
+    challengeTick(false, 0);
+  }
+
+  audioEngine.stopAudio();
+  pushHistory(result.correct);
+  updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
+  notifyNewAchievements();
+  updateUI();
+  persistStats();
+  persistDaily();
+  const gameOver = finalizeIfGameOver();
+  const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
+  if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
+}
+
+// Stereo Genişlik ("width") için submitPanGuess'in YAPISAL PARALELİ — aynı
+// ŞABLON gerekçesi (bkz. stereo-genislik.js dosya başı notu).
+function submitWidthGuess(value) {
+  if (!roundActive || !activeQuestion || activeQuestion.mode !== "width") return;
+  if (!Number.isFinite(value)) return;
+  roundActive = false;
+  roundFlow.clearTimer();
+  setActionbarTucked(true);
+
+  const q = activeQuestion;
+  const result = mode.evaluateAnswer(q, value);
+  setAnalyzerPhase("done");
+  if (els.gainValue) els.gainValue.textContent = "";
+  if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, value);
+  widthGuess = value;
+
+  stats.rounds++;
+  let gained = 0;
+
+  if (result.correct) {
+    stats.correct++;
+    stats.combo++;
+    stats.bestCombo = Math.max(stats.bestCombo, stats.combo);
+    gained = mode.calculateXP(q, result, q.hintUsed, q.difficulty, {
+      combo: stats.combo, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
+    });
+    diffState().xp += gained;
+    modeState().xp += gained;
+    diffState().score += gained * Math.max(1, stats.combo);
+    diffState().bestScore = Math.max(diffState().bestScore, diffState().score);
+    if (q.difficulty === "pro") stats.proCorrect++;
+    if (q.boss) stats.bossWins++;
+    session.correct++; session.xp += gained;
+    session.xpBaseSum = (session.xpBaseSum || 0) + xpBaseFor(q, q.difficulty);
+
+    const feedback = mode.getFeedbackData(q, value, { gained });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
+    showXpBreakdown(q, q.difficulty, gained);
+    audioEngine.sfxDing();
+    spawnXp(`+${gained} XP`, els.canvas);
+    burst(els.canvas);
+    challengeTick(true, gained);
+  } else {
+    stats.wrong++;
+    stats.combo = 0;
+    diffState().score = Math.max(0, diffState().score - 20);
+    session.wrong++;
+
+    const feedback = mode.getFeedbackData(q, value, { gained: 0 });
+    setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    audioEngine.sfxBuzz();
+    shake(els.canvas);
+    loseLife("Genişliği ıskaladın.", { silent: true });
+    challengeTick(false, 0);
+  }
+
+  audioEngine.stopAudio();
+  pushHistory(result.correct);
+  updateDaily(result.correct);
+  accumulatePracticeTime();
+  recordAndPersistDailyAccuracy(result.correct);
+  notifyNewAchievements();
+  updateUI();
+  persistStats();
+  persistDaily();
+  const gameOver = finalizeIfGameOver();
   const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
   if (!gameOver && !examHandled) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
@@ -4668,6 +4827,8 @@ function drawVisualizer() {
     revealAnimator,
     cutoffGuess, // G19: bkz. Kesim Noktası'nın drawOverlay'i — diğer modlar okumuyor
     dbGuess, // bkz. dB Seviyesi'nin drawOverlay'i — diğer modlar okumuyor
+    panGuess, // bkz. Pan Konumu'nun drawOverlay'i — diğer modlar okumuyor
+    widthGuess, // bkz. Stereo Genişlik'in drawOverlay'i — diğer modlar okumuyor
     boostCutGuess, // bkz. Boost/Cut'ın drawOverlay'i — diğer modlar okumuyor
     qGuessLabelId, // bkz. Q Genişliği'nin drawOverlay'i — diğer modlar okumuyor
     guessLetter: threeWayGuessLetter, // bkz. Motor 2 modlarının (Kompresör/Reverb) drawOverlay'i — diğer modlar okumuyor
@@ -4832,6 +4993,20 @@ if (els.answers) els.answers.addEventListener("click", e => {
       : stage === 2 ? { source: btn.dataset.source }
       : { cutDb: Number(btn.dataset.cut) };
     try { submitCakismaGuess(answer); } catch (err) { console.error(err); }
+    return;
+  }
+  // Pan Konumu ("pan") — şıklar TEK bir pan yüzdesi taşır (bkz. data-value,
+  // dB Seviyesi'nin data-db'siyle AYNI desen).
+  if (activeQuestion && activeQuestion.mode === "pan") {
+    const value = Number(btn.dataset.value);
+    try { submitPanGuess(value); } catch (err) { console.error(err); }
+    return;
+  }
+  // Stereo Genişlik ("width") — şıklar TEK bir genişlik yüzdesi taşır (bkz.
+  // data-value, Pan Konumu'yla AYNI desen).
+  if (activeQuestion && activeQuestion.mode === "width") {
+    const value = Number(btn.dataset.value);
+    try { submitWidthGuess(value); } catch (err) { console.error(err); }
     return;
   }
   // Motor 2 (Kompresör/Reverb/Distortion) artık BURAYA hiç düşmüyor — kendi
@@ -5859,6 +6034,8 @@ function resetAllProgress() {
   freqGuessHz = null; freqHoverHz = null;
   cutoffGuess = null;
   dbGuess = null;
+  panGuess = null;
+  widthGuess = null;
   boostCutGuess = null;
   qGuessLabelId = null;
   threeWayGuessLetter = null;

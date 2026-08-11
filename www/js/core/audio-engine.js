@@ -338,7 +338,22 @@ export function createAudioEngine() {
 
     // Filtreler artık KOŞULSUZ kuruluyor (processed=false'ta bile) — wet yol her zaman
     // hazır bekliyor, A/B toggle'ı sadece gain crossfade ile arasında geçiyor.
-    const filters = applyProcessing(question, { audioCtx }).filters || [];
+    const processingResult = applyProcessing(question, { audioCtx });
+    const filters = processingResult.filters || [];
+    // G118 (Stereo Genişlik) — TEK EKLENTİ NOKTASI: `filters` dizisi SADECE DÜZ
+    // bir SERİ zincir kurabiliyor (`wetNode.connect(f); wetNode=f`, aşağıda AYNEN
+    // korundu) — bir modun kaynağı İÇERDE ikiye ayırıp (fan-out) farklı işleyip
+    // SONRA birleştirmesi (branching) bu döngüyle KURULAMAZ: ARA elemanlar arasına
+    // audio-engine HER ZAMAN ek bir doğrudan bağlantı da ekler, bu da fan-out'un
+    // İÇİNDEN geçmeyen istenmeyen bir "bypass" kopyası sızdırır (elle doğrulandı).
+    // `branch` bu YÜZDEN AYRI bir kanal: mod kendi ALT-GRAFİĞİNİ (fan-out+birleştir
+    // dahil) TAMAMEN kendi içinde kurup SADECE giriş/çıkış uçlarını (`input`/
+    // `output`) dışa verir — audio-engine SADECE `sourceMix→input` ve
+    // `output→localWetGain` bağlar, `filters` dizisiyle AYNI anda kullanılmaz
+    // (branch varsa filters YOK SAYILIR, bkz. aşağıdaki if). Diğer 10 mod
+    // `branch` HİÇ döndürmez (undefined) — bu blok onlar için TAMAMEN devre dışı,
+    // davranışları BİR SATIR değişmedi.
+    const branch = processingResult.branch || null;
 
     const localDryGain = audioCtx.createGain();
     const localWetGain = audioCtx.createGain();
@@ -347,7 +362,7 @@ export function createAudioEngine() {
     dryGain = localDryGain;
     wetGain = localWetGain;
 
-    currentNodes.push(out, sourceMix, compressor, localDryGain, localWetGain, ...filters);
+    currentNodes.push(out, sourceMix, compressor, localDryGain, localWetGain, ...(branch ? branch.nodes : filters));
 
     if (sourceType === "upload" && uploadManager && uploadManager.hasBuffer) {
       const node = uploadManager.getSourceNode();
@@ -403,9 +418,14 @@ export function createAudioEngine() {
     sourceMix.connect(localDryGain);
     localDryGain.connect(compressor);
 
-    let wetNode = sourceMix;
-    filters.forEach(f => { wetNode.connect(f); wetNode = f; });
-    wetNode.connect(localWetGain);
+    if (branch) {
+      sourceMix.connect(branch.input);
+      branch.output.connect(localWetGain);
+    } else {
+      let wetNode = sourceMix;
+      filters.forEach(f => { wetNode.connect(f); wetNode = f; });
+      wetNode.connect(localWetGain);
+    }
     localWetGain.connect(compressor);
 
     compressor.connect(out);
