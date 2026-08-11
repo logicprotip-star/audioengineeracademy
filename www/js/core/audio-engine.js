@@ -105,6 +105,14 @@ export function createAudioEngine() {
   // basmasın (ikisi de aynı anda contextRecreateCount'u artırıp aynı
   // audioCtx'i İKİ KEZ close() etmeye çalışmasın).
   let inFlightEnsure = null;
+  // G137 — inFlightEnsure hangi allowRecreate ile başladığını da saklar.
+  // Bunsuz, visibilitychange'in SESSİZ (allowRecreate:false) kontrolü tam o
+  // sırada devam ederken kullanıcı play'e basarsa, GERÇEK jestin kendi
+  // ensureAudioAlive(allowRecreate:true) çağrısı ESKİ (zayıf) sonucu
+  // MİRAS ALIYORDU — jestin recreateContext HAKKI sessizce harcanmadan
+  // kayboluyordu (cihazda GÖZLENEN "Atla'ya basmak zorunda kalma"nın olası
+  // bir sebebi). Aşağıdaki ensureAudioAlive() artık bunu ayırt eder.
+  let inFlightAllowRecreate = true;
 
   function setAudioDead(dead) {
     if (audioDead === dead) return;
@@ -387,12 +395,31 @@ export function createAudioEngine() {
   // (mevcut TÜM çağıranlar — playQuestion, Tools/kalibrasyon play
   // düğmeleri, visibilitychange, native sessionActivated dinleyicisi —
   // değişiklik GEREKTİRMEDİ), gerçek iş ensureAudioAliveInner()'da.
+  // G137 — `silent`: `setAudioDead()`'i (dolayısıyla "Devam etmek için
+  // ekrana dokunun" banner'ını) HİÇ tetiklemez — sadece native
+  // etkinleştirme+resume+canlılık kontrolünü SESSİZCE dener. SADECE
+  // visibilitychange'in "visible" dalından (bir kullanıcı jesti DEĞİL,
+  // banner göstermek task'ın bu turki isteğine göre YANLIŞ) kullanılır.
+  // GERÇEK bir play denemesi (playQuestion/initAudio, ikisi de silent
+  // GEÇMEZ) sonucu HER ZAMAN normal şekilde banner'a yansır.
   async function ensureAudioAlive(opts = {}) {
-    if (inFlightEnsure) return inFlightEnsure;
-    inFlightEnsure = ensureAudioAliveInner(opts).finally(() => { inFlightEnsure = null; });
+    const allowRecreate = opts.allowRecreate !== false;
+    if (inFlightEnsure) {
+      if (allowRecreate && !inFlightAllowRecreate) {
+        // Bekleyen çağrı allowRecreate:false (sessiz kontrol) — GERÇEK bir
+        // jest onun sonucunu MİRAS ALMAMALI. Önce onu bekle; hâlâ ölüyse
+        // KENDİ (allowRecreate:true, banner'a bağlı) denemesini başlat.
+        const prevAlive = await inFlightEnsure;
+        if (prevAlive) return true;
+      } else {
+        return inFlightEnsure;
+      }
+    }
+    inFlightAllowRecreate = allowRecreate;
+    inFlightEnsure = ensureAudioAliveInner({ ...opts, allowRecreate }).finally(() => { inFlightEnsure = null; });
     return inFlightEnsure;
   }
-  async function ensureAudioAliveInner({ allowRecreate = true } = {}) {
+  async function ensureAudioAliveInner({ allowRecreate = true, silent = false } = {}) {
     if (!audioCtx) return false;
     await activateNativeSession("ensureAudioAlive");
     for (let i = 0; i < RESUME_RETRY_DELAYS_MS.length; i++) {
@@ -404,7 +431,7 @@ export function createAudioEngine() {
     if (!alive && allowRecreate) {
       alive = await recreateContext();
     }
-    setAudioDead(!alive);
+    if (!silent) setAudioDead(!alive);
     return alive;
   }
 

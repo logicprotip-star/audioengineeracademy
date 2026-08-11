@@ -6663,13 +6663,18 @@ document.addEventListener("visibilitychange", async () => {
     // ilerleme kontrolüyle DOĞRULAR (bkz. audio-engine.js'in G131 notu) —
     // context'i KAPATIP YENİDEN OLUŞTURMAZ (jest dışı bir yeniden oluşturma
     // hem muhtemelen İŞE YARAMAZ hem 2 hakkımızdan birini boşuna tüketirdi).
-    // Ölü çıkarsa audioEngine'in "onDeadStateChange" hook'u (aşağıda
-    // kaydedildi) "Devam etmek için ekrana dokunun" banner'ını HEMEN
-    // gösterir — kullanıcı bir play denemesi yapmayı BEKLEMEDEN, geri
-    // döner dönmez bilgilendirilir. GERÇEK kurtarma (context yeniden
-    // oluşturma dahil) bir sonraki play denemesinde (playQuestion vb.,
-    // hepsi click handler'ı İÇİNDE) devreye girer.
-    if (ctxV) audioEngine.ensureAudioAlive({ allowRecreate: false });
+    // G137 — CİHAZDA BULUNAN GERÇEK BOŞLUK: bu SESSİZ kontrol eskiden
+    // ölü çıktığında "onDeadStateChange" hook'u üzerinden "Devam etmek için
+    // ekrana dokunun" banner'ını HEMEN gösteriyordu — kullanıcı hiçbir şeye
+    // basmadan, sırf ekrana dönmüş olmaktan dolayı bir uyarı görüyordu
+    // (task'ın bu turki isteği: "uyarı SADECE play'e basılıp kurtarma
+    // başarısız olursa çıksın"). ARTIK `silent:true` — bu çağrı NE olursa
+    // olsun banner'a DOKUNMAZ, sadece context'i "ısıtır" (native
+    // etkinleştirme + resume önceden dener, kullanıcı play'e bastığında
+    // daha hızlı/yüksek olasılıkla canlı bulunsun diye). GERÇEK kurtarma VE
+    // banner'a bağlı sonuç, bir SONRAKİ play denemesinde (playQuestion/
+    // initAudio, hepsi click handler'ı İÇİNDE, silent GEÇMEZ) devreye girer.
+    if (ctxV) audioEngine.ensureAudioAlive({ allowRecreate: false, silent: true });
   }
   // G61 (PAYWALL.md): "30 dakikada 1 can" — ön plana HER dönüşte yeniden
   // hesaplanır (arka planda geçirilen GERÇEK süre burada devreye girer, bu

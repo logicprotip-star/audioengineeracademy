@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G136)
+Son güncelleme: 12.08.2026 (G137)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,29 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G136) — **Cihazda doğrulandı: native AVAudioSession KAYITLI ve zombi bağlam sorunu KAPANDI (G135 kanıtı). KALAN SORUN: arka plandan dönüşte bağlam canlı ama ses kendiliğinden gelmiyor, kullanıcı "Atla"ya basmak zorunda kalıyordu.**
+Bu commit (G137) — **G136 cihazda TAM işlemedi: "Atla" hâlâ gerekiyordu, ÜSTELİK gereksiz bir "Tekrar dene" uyarı ekranı da çıkıyordu. Kök sebep koddan izlenerek bulundu: `ensureAudioAlive()`'ın "sessiz" (visibilitychange) ve "gerçek jest" (play tuşu) çağrıları arasında İKİ ayrı boşluk vardı.**
+
+**KÖK SEBEP (kod incelemesiyle izlendi, iki ayrı ama birbirine bağlı boşluk):**
+1. **Yanlış banner:** `visibilitychange`'in "visible" dalı `ensureAudioAlive({allowRecreate:false})`'ı çağırıyordu ve bu, İÇERİDE `setAudioDead(!alive)` çağırıp `onDeadStateChange` hook'u üzerinden "Devam etmek için ekrana dokunun" banner'ını (`showAudioError`, aynı UI `els.audioErrorRetry` "Tekrar dene" düğmesini de içeriyor) HEMEN gösteriyordu — kullanıcı HİÇBİR ŞEYE basmadan, sırf uygulamaya geri döndüğü için. Arka plandan dönüşte gerçek cihazlarda `currentTime` ilerleme kontrolünün 120ms'lik penceresi sistem-tetiklemeli (gestursuz) bir resume'da BAŞARISIZ çıkabiliyor (gerçek AVAudioSession donanımı bir jest OLMADAN tam geri gelmeyebiliyor) — bu YANLIŞ DEĞİL, ama bunu kullanıcıya UYARI olarak göstermek YANLIŞTI (task'ın bu turki isteği: uyarı SADECE play'e basılıp kurtarma da başarısız olursa çıksın).
+2. **"Atla" hâlâ gerekiyordu (yarış durumu):** `ensureAudioAlive()`'ın `inFlightEnsure` kilidi (G133) HERHANGİ bir örtüşen çağrının SONUCUNU koşulsuz paylaşıyordu — `allowRecreate` değerine BAKMADAN. Kullanıcı ekrana döner dönmez play'e basarsa (gerçek cihazda gayet olası), GERÇEK jestin kendi `ensureAudioAlive()` çağrısı (varsayılan `allowRecreate:true`) HÂLÂ DEVAM EDEN sessiz `allowRecreate:false` çağrısının SONUCUNU miras alıyordu — jestin `recreateContext()` HAKKI sessizce harcanmadan kayboluyordu. Bu, "Atla'ya basmak zorunda kalma"nın (Atla YENİ bir soru başlattığı, dolayısıyla playQuestion()'ı taze bir çağrı zinciriyle KENDİ BAŞINA tetiklediği için işe yarıyordu) olası açıklaması.
+
+**UYGULANAN:**
+- **`core/audio-engine.js`** — `ensureAudioAliveInner()`'a `silent` parametresi eklendi: `true` iken `setAudioDead()` HİÇ çağrılmıyor (banner'a asla dokunmuyor), ama native etkinleştirme+resume+`checkLiveness()` YİNE DE çalışıyor (context "ısıtılıyor", sadece SONUCU UI'a yansıtılmıyor). `ensureAudioAlive()`'ın dedup kilidi artık `inFlightAllowRecreate`'i de saklıyor — YENİ bir çağrı `allowRecreate:true` istiyorsa VE bekleyen çağrı `allowRecreate:false` idiyse, SONUCU köre körüne miras almak YERİNE önce onu bekliyor, hâlâ ölüyse KENDİ (banner'a bağlı, `recreateContext` hakkı olan) tam güçlü denemesini başlatıyor.
+- **`app.js`** — `visibilitychange`'in "visible" dalındaki çağrı artık `{ allowRecreate: false, silent: true }` — hiçbir koşulda banner tetiklemiyor, sadece context'i sessizce ısıtıyor.
+- Play tuşu/`initAudio()`/`playQuestion()` çağrıları DEĞİŞMEDİ — `silent` GEÇMİYORLAR, yani başarısız bir GERÇEK play denemesi HÂLÂ (task'ın 3. maddesi gereği) banner'ı doğru şekilde gösteriyor.
+- Kaynağa göre başlangıç noktası (madde 2) ve `chainNeedsRebuild()` (madde 3) G136'dan DEĞİŞMEDİ — bunlar zaten doğruydu, bu turun sorunu SADECE banner'ın yanlış zamanda çıkması VE jestin gücünün çalınmasıydı.
+
+**DOĞRULAMA (Playwright, masaüstü Chromium — `AudioContext.currentTime`'ı `window.__freezeCurrentTime` bayrağıyla dondurup çözen bir Proxy ile "sessiz kontrol başarısız, gerçek jest başarılı" senaryosu taklit edilerek):**
+- **Ardışık senaryo** (sessiz kontrol TAMAMEN başarısız olup bitiyor, SONRA kullanıcı play'e basıyor): sessiz kontrol sürerken VE "canlı: false" ile bittikten sonra `#audioErrorRow` banner'ı HİÇ görünmedi; ardından gerçek context (unfreeze) canlıyken play'e basılınca zincir `initAudio()` → `playQuestion()` üzerinden YENİDEN kuruldu, "YENİDEN OLUŞTURULUYOR" HİÇ çıkmadı, banner YİNE hiç görünmedi. TÜM kontroller GEÇTİ.
+- **Yarış senaryosu** (sessiz kontrol HÂLÂ sürerken — 20ms içinde — gerçek play tıklaması geliyor): kilit doğru şekilde sessiz çağrının sonucunu bekleyip paylaştı (bu çalışmada context o ana kadar zaten canlıydı), zincir SORUNSUZ kuruldu, banner hiç görünmedi, konsol hatası 0. GEÇTİ.
+- `npm test`: **1245/1245 GEÇTİ** (test SAYISI DÜŞMEDİ).
+- Android'e SIFIR değişiklik — değiştirilen iki dosya (`app.js`, `core/audio-engine.js`) platform-agnostik, `window.Capacitor` kontrolü yeni eklenmedi, native dosyalara dokunulmadı.
+
+**DOĞRULANMADI:** Gerçek fiziksel cihazda madde A/B'nin ikisi de — bu tur SADECE masaüstü Playwright ile (taklit edilmiş bir dondurma/yarış senaryosuyla) kontrol edildi, kullanıcının asıl kabul ölçütü (arka plana atıp Instagram'da video izleyip dönmek, SADECE play'e basmak) cihazda ÇALIŞTIRILMADI. Ayrıca G136'nın Senaryo B'si (yüklenen dosyayla kaldığı yerden devam) de HÂLÂ cihazda doğrulanmadı — bu turun kapsamı SADECE banner+yarış sorunuydu, upload-offset mantığına dokunulmadı.
+
+---
+
+Önceki commit (G136) — **Cihazda doğrulandı: native AVAudioSession KAYITLI ve zombi bağlam sorunu KAPANDI (G135 kanıtı). KALAN SORUN: arka plandan dönüşte bağlam canlı ama ses kendiliğinden gelmiyor, kullanıcı "Atla"ya basmak zorunda kalıyordu.**
 
 **KÖK SEBEP:** `visibilitychange`'in "hidden" dalı, arka plana geçişte `audioEngine.stopAudio()`'yu KOŞULSUZ çağırıyordu — bu, normal "Durdur" (`muteOutput()`, zincir BAĞLI kalır) değil, TAM SÖKÜM (`currentNodes` temizlenir). G133'te eklenen `chainNeedsRebuild()` SADECE `audioEngine.contextRecreateCount`'un değiştiğini (bağlamın YENİDEN OLUŞTURULDUĞUNU) kontrol ediyordu. G135'in native düzeltmesinden SONRA bağlam artık neredeyse HİÇ yeniden oluşturulmuyor — `resume()` ilk denemede tutuyor (bkz. G135 kanıtı) — yani `contextRecreateCount` DEĞİŞMİYOR, ama tur zinciri YİNE DE `stopAudio()` tarafından sökülmüş durumda. Sonuç: `chainNeedsRebuild()` yanlışlıkla `false` dönüyor, "Tekrar Çal" akışı sadece `resumeRound()`→`unmuteOutput()` çağırıyor — BOŞ (bağlantısız) bir grafı açmaya çalışıyor, ses gelmiyor.
 
@@ -11200,22 +11222,28 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G136 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı cihazda
-task'ın kendi kabul ölçütündeki İKİ senaryoyu denemeli:
+**Tek sonraki adım (G137 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı cihazda
+(Xcode'da TEMİZ derleme + gerçek cihaza kurulum sonrası — sadece `cap
+sync` YETMEZ, bu G136+G137'nin app.js değişikliklerini içeren bir
+Xcode build/install GEREKTİRİR) task'ın kendi kabul ölçütündeki İKİ
+senaryoyu denemeli:
 - **A)** Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
-  dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli.
-  (Masaüstünde Playwright ile TAM doğrulandı — bkz. G136 kaydı — ama
-  gerçek cihazda HENÜZ denenmedi.)
+  dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
+  uyarı ekranı görünmemeli. (Masaüstünde Playwright ile — hem ardışık hem
+  yarış senaryosu — TAM doğrulandı, bkz. G137 kaydı — ama gerçek cihazda
+  HENÜZ denenmedi.)
 - **B)** Yüklenen dosyayla oynanan bir mod (ör. Stereo Genişlik) → aynı
-  adımlar → SADECE play'e bas. Ses KALDIĞI YERDEN devam etmeli.
-  (Bu turda Playwright test betiği o modun ayar sheet'ine giremediği için
-  SADECE kod incelemesiyle doğrulandı — CANLI İZLENMEDİ. Cihaz testi
-  bu maddeyi İLK KEZ gerçekten sınayacak.)
+  adımlar → SADECE play'e bas. Ses KALDIĞI YERDEN devam etmeli, uyarı
+  görünmemeli. (G136'dan beri Playwright test betiği o modun ayar
+  sheet'ine giremediği için SADECE kod incelemesiyle doğrulandı — CANLI
+  İZLENMEDİ. Cihaz testi bu maddeyi İLK KEZ gerçekten sınayacak.)
 
 Konsolda "bağlam YENİDEN OLUŞTURULUYOR" çıkmamalı, hiçbir TypeError
-olmamalı (task'ın kendi kabul ölçütü). Her iki senaryo da başarısızsa
+olmamalı, "Tekrar dene" uyarı ekranı SADECE play'e basılıp kurtarma
+başarısız olursa çıkmalı (task'ın kendi kabul ölçütü). Başarısızsa
 Safari Web Inspector'daki `[audio-diag]` günlüğü (`context yeniden
-oluşturuldu=`/`arka planda söküldü=` satırları) hangi dalın
+oluşturuldu=`/`arka planda söküldü=` satırları, VE artık G137'nin
+`ensureAudioAlive` çağrılarının hangisinin `silent` olduğu) hangi dalın
 tetiklendiğini gösterecek — bir sonraki turun teşhis başlangıç noktası
 bu olmalı.
 
