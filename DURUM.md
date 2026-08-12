@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G139)
+Son güncelleme: 12.08.2026 (G140)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,28 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G140) — **CİHAZDA GÖRÜLEN "bölüm çubuğu bozuk" raporu incelendi — KOD REGRESYONU BULUNAMADI. Rapor edilen görsel durum, "Serbest" (Oyun Türü varsayılanı) modun UZUN ZAMANDIR değişmemiş, KASITLI görünümüyle bit-bit AYNI. Hiçbir kod değişikliği YAPILMADI.**
+
+**İZLENEN KANIT (task'ın kendi isteği — tahmin değil):**
+- `git log -S "gameChapterDots"`/`git log -L` ile `renderGameHeader()`'ın bölüm-nokta/etiket mantığı G84'ten (`07a2c05`, bu konuşmadaki HİÇBİR turdan ÇOK ÖNCE) beri TEK BİR KARAKTER bile değişmemiş.
+- `git log -S "startChallenge()"` / `-S "isChallenge()"` / `-S "challenge.active"` (yazma tarafı) — bu üçü de SADECE ilk `refactor` commit'inde ve G77/G78/G84'te (hepsi ÇOK ESKİ) görünüyor. **G139 (`001b19a`) bu string'i SADECE bir OKUMA satırından SİLDİ** (alt bar butonunun etiketini hesaplayan, artık kaldırılmış üç yollu koşul) — `renderGameHeader()`'a HİÇ dokunmadı, `challenge.active`'e HİÇBİR ŞEY YAZMADI. `git show 001b19a` ile tek satırlık diff doğrulandı.
+- G136/G137/G138'in dokunduğu HİÇBİR satır (`visibilitychange`, `ensureAudioAlive`, `sourceSelections`) `challenge`/`renderGameHeader`/bölüm çubuğuyla kesişmiyor (grep ile doğrulandı).
+- **KÖK SEBEP (Playwright ile üç senaryoda REPRODUCE edildi):** `playModeSelect`'in HTML varsayılanı `<option value="free" selected>` — G65'in KENDİ (çok eski) kararı gereği KALICI DEĞİL, her sayfa açılışında "Serbest"e döner (`storage.js`'e HİÇ yazılmıyor, kasıtlı). "Serbest" modda `challenge.active` HİÇBİR ZAMAN true olmaz — G78'in KENDİ kararı gereği ("Serbest'te sonsuz bir '/10' yanıltıcı olurdu") bölüm çubuğu bilerek 10 BOŞ nokta + "BÖLÜM —" gösterir, cevap sayısından/combo'dan BAĞIMSIZ. Kullanıcının "ateş çarpanı x2"si (`stats.combo`, TAMAMEN ayrı bir sistem) bu durumla ÇELİŞMİYOR — Serbest modda da combo birikir.
+
+**DOĞRULAMA (Playwright, masaüstü Chromium, ÜÇ bağımsız temiz-sayfa senaryosu):**
+1. **"10 Soruluk Bölüm" AÇIKÇA seçilip başlatıldı** — round 1: "BÖLÜM 1/10", 0 nokta dolu ✔ → cevap sonrası: "BÖLÜM 2/10", 1 nokta dolu ✔ (mekanizma ÇALIŞIYOR).
+2. **Hiçbir şey seçilmeden (HTML varsayılanı "Serbest")** — round 1: "BÖLÜM —", 10 boş nokta ✔ → BİRKAÇ cevap sonrası (combo birikmiş): HÂLÂ "BÖLÜM —", HÂLÂ 0 dolu nokta ✔ — **kullanıcının cihazda gördüğü DESENİN BİREBİR AYNISI**, kasıtlı tasarım.
+3. **Boss turu** (`stats.rounds=4` ile 5. tur zorlandı) — BÖLÜM satırı gizli ✔, SÜRE (`gameSpeedRow`) satırı gizli ✔, boss satırı görünür ✔ (madde 4 — boss'ta SÜRE çubuğu davranışı BOZULMADI).
+
+Konsol hatası: **0** (üç senaryoda da). `npm test`: **1250/1250** (kod değişmediği için zaten aynı kalması BEKLENİYORDU, YİNE DE koşulup doğrulandı).
+
+**DOKUNULAN DOSYALAR:** yok — sadece bu DURUM.md kaydı.
+**DOKUNULMAYAN DOSYALAR:** `www/js/app.js`, `www/js/core/*.js`, tüm mod dosyaları, testler — hiçbiri değiştirilmedi (bulgunun kendisi "değiştirilecek bir şey yok" olduğu için).
+
+**KULLANICIYA SORU (ürün kararı değil, sadece doğrulama):** cihazdaki testte "Oyun Türü" sheet'inden "10 Soruluk Bölüm" AÇIKÇA seçildi mi, yoksa varsayılan "Serbest" ile mi oynandı? Eğer gerçekten "10 Soruluk Bölüm" seçiliyken bu görüldüyse (yukarıdaki Senaryo 1'in TERSİ bir durum), bu turda bulunamayan BAŞKA bir tetikleyici var demektir — cihaz konsolundan (`playModeSelect.value` ve `challenge.active`'i o an okuyup) somut bir ölçüm gerekir, bu turda MASAÜSTÜNDE tekrarlanamadı.
+
+---
 
 Bu commit (G139) — **Cihazda görülen hata: Pan Konumu'nda alt bar butonu "Soru 6/10 (6) ▶" yazıyordu, Frekans Bulma'da doğru şekilde "Atla ▶". Kök sebep G48'in KENDİ kararıydı — geçersiz kılındı, buton artık HER MODDA/HER durumda sadece "Atla" öneki kullanıyor.**
 
