@@ -64,7 +64,9 @@ export function createRoundFlow({ onTimerTick, onTimeUp, onAutoAdvanceLabel, onA
   }
 
   // Cevap verildikten sonra bir sonraki soruya otomatik geçişi kurar. label, geri
-  // sayım sırasında nextBtn üzerinde gösterilecek önek (ör. "Sonraki" ya da "Soru 3/10").
+  // sayım sırasında nextBtn üzerinde gösterilecek önek — bu modül hangi metnin
+  // geçildiğini BİLMEZ/karışmaz (app.js'in kararı, bkz. G139 — artık HER
+  // ZAMAN "Atla" geçiyor, soru sayısı içeren önekler kaldırıldı).
   function ensureAutoNext(durationMs, label) {
     clearAutoAdvance();
 

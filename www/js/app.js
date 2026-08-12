@@ -4881,18 +4881,18 @@ function ensureAutoNext(durationMs) {
   }
   autoPlaying = true;
   updateStartBtnLabel();
-  // G48: "10/5 tutarsızlığı" düzeltmesi — bu buton önceden "Sonraki"
-  // (jenerik) diyordu, üstteki els.roundChip ise (G47'den beri)
-  // examSystem.label()'dan "Soru N/10"/"Sınav N/4"/"Telafi N/5" okuyordu.
-  // "Sonraki (5) ▶" görüldüğünde ("(5)" aslında SANİYE geri sayımı, soru
-  // sayacı DEĞİL) üstteki "Soru 6/10" ile YAN YANA iki farklı "5"/"10"
-  // görünüp ÇAKIŞIYORMUŞ gibi okunuyordu. Artık mode.EXAM_ENABLED bir modda
-  // (bugün Kompresör) bu buton da AYNI examSystem.label()'ı önek olarak
-  // kullanıyor — "Soru 7/10 (5) ▶" gibi, İKİ sayı da NE anlama geldiği
-  // açık. Diğer yedi modda mode.EXAM_ENABLED undefined → ÖNCEKİ davranış
-  // (challenge.active ? "Soru N/10" : "Sonraki") BİREBİR aynı kalır.
-  const label = examGateActive() ? examSystem.label() : challenge.active ? `Soru ${challenge.done + 1}/10` : "Sonraki";
-  roundFlow.ensureAutoNext(durationMs, label);
+  // G139 — G48'İN KARARI GEÇERSİZ (kullanıcının kendi kararı): G48 bu butona
+  // examSystem.label()/"Soru N/10" önekini EKLEMİŞTİ (üstteki els.roundChip'in
+  // "Soru 6/10"ıyla "Sonraki (5)"in "5"i YAN YANA çakışıyormuş gibi
+  // okunuyordu diye, bkz. o turun gerekçesi) — cihazda bu, Pan Konumu'nda
+  // "Soru 6/10 (6) ▶" gibi bir soru SAYISI göstererek YENİ bir kafa
+  // karışıklığı yarattı: soru sayacı SADECE üstteki ilerleme çubuğunda
+  // (els.roundChip, aşağıda DOKUNULMADI) görünmeli, alt bar HER MODDA
+  // sadece "Atla" (+ saniye geri sayımı, bu bir SORU sayısı DEĞİL) yazmalı.
+  // examGateActive()/examSystem.label()/challenge.active BURADA ARTIK
+  // OKUNMUYOR — ikisi de HÂLÂ els.roundChip'in KENDİ (yukarıdaki, ayrı)
+  // hesaplamasında kullanılıyor, SADECE bu butonun öneki sabitlendi.
+  roundFlow.ensureAutoNext(durationMs, "Atla");
   // G81: geri bildirim kartının otomatik-geçiş çubuğu — SADECE kart GERÇEKTEN
   // görünürken (show-result) başlatılır, tam olarak BURADA kurulan JS
   // zamanlayıcısıyla AYNI durationMs ile (örn. QUICK_ADVANCE_MS/onTimeUp gibi

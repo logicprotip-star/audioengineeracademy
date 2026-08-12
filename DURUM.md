@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G138)
+Son güncelleme: 12.08.2026 (G139)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -31,7 +31,40 @@ ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
 
-Bu commit (G138) — **KARAR DEĞİŞİKLİĞİ (kullanıcının kendi kararı): "kaynak TÜRÜ mod-agnostik kalsın" (G126'nın kararı) ARTIK GEÇERSİZ. Kaynak türü de dosya seçimi (G123) gibi mod başına ayrıldı ve kalıcı hale getirildi.**
+Bu commit (G139) — **Cihazda görülen hata: Pan Konumu'nda alt bar butonu "Soru 6/10 (6) ▶" yazıyordu, Frekans Bulma'da doğru şekilde "Atla ▶". Kök sebep G48'in KENDİ kararıydı — geçersiz kılındı, buton artık HER MODDA/HER durumda sadece "Atla" öneki kullanıyor.**
+
+**KÖK SEBEP:** Mod-özel bir kod YOKTU (tek/paylaşılan `#nextBtn`, tek/paylaşılan `ensureAutoNext()` sarmalayıcısı, `app.js:4854` — grep ile doğrulandı, 12 modun HİÇBİRİNİN kendi ayrı buton-metni kodu yok). G48 (önceki bir tur) bu fonksiyonun etiketini BİLEREK "Soru N/10"/`examSystem.label()` kullanacak şekilde değiştirmişti — gerekçesi, üstteki `els.roundChip`'in "Soru 6/10"ıyla alt bardaki eski "Sonraki (5)"in "5"inin YAN YANA farklı sayılarmış gibi okunmasını önlemekti. Kullanıcı şimdi bunun TERSİNİ istedi: soru sayısı SADECE üstte görünsün, alt bar hiçbir koşulda soru sayısı taşımasın.
+
+**UYGULANAN:**
+- **`app.js:4854` (`ensureAutoNext`)** — `examGateActive() ? examSystem.label() : challenge.active ? \`Soru ${challenge.done+1}/10\` : "Sonraki"` üç yollu koşulu SİLİNDİ, `roundFlow.ensureAutoNext(durationMs, "Atla")` — sabit, koşulsuz. `examGateActive()`/`examSystem.label()`/`challenge.active` bu SATIRDA artık okunmuyor ama HÂLÂ üstteki `els.roundChip`'in KENDİ (ayrı, `app.js:3474`, DOKUNULMADI) hesaplamasında kullanılıyor — soru sayacı ORADA görünmeye devam ediyor.
+- **`core/round-flow.js`** — `ensureAutoNext`'in `label` parametresi üzerindeki yorum güncellendi (artık HER ZAMAN "Atla" geçtiğini belirtiyor) — fonksiyonun KENDİSİ değişmedi, hâlâ generic/çağırandan bağımsız (`${label} (${remainSec}) ▶` biçimlendirmesi AYNI, sadece app.js'in geçtiği `label` sabitlendi).
+- Üç sabit `els.nextBtn.textContent = "Atla ▶"` ataması (satır 1454/4949/5209, round bitince/duraklatılınca sıfırlama) zaten doğruydu, DOKUNULMADI.
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js`, `www/js/core/round-flow.js`.
+**DOKUNULMAYAN DOSYALAR (bilinçli, kapsam dışı):** `www/js/core/exam-system.js` (examSystem.label() hâlâ üstteki chip için kullanılıyor, kod değişmedi), 12 mod dosyasının HİÇBİRİ (`www/js/modes/*.js` — buton metni zaten mod-özel değildi, dokunacak bir şey yoktu), `els.roundChip`'in kendi hesaplaması (`app.js:3474`, madde 3'ün gereği KORUNDU), Android, iOS native dosyaları, `storage.js`.
+
+**DOĞRULAMA (Playwright, masaüstü Chromium, 12 modun HEPSİNDE, "10 Soruluk Bölüm" — G48'in asıl tetikleyici koşulu challenge.active — VE Şıklı cevap biçimine zorlanarak, gerçek `.ans` butonlarından cevap verilerek):**
+```
+[frekans-bulma]      idle='Atla ▶'  cevap-sonrası='Atla (4) ▶'
+[kesim-noktasi]      idle='Atla ▶'  cevap-sonrası='Atla (6) ▶'
+[db-seviyesi]        idle='Atla ▶'  cevap-sonrası='Atla (6) ▶'
+[boost-mu-cut-mu]    idle='Atla ▶'  cevap-sonrası='Atla (4) ▶'
+[q-genisligi]        idle='Atla ▶'  cevap-sonrası='Atla (6) ▶'
+[kompresor]          idle='Atla ▶'  cevap-sonrası='Atla (4) ▶'   ← EXAM_ENABLED, AYRI kod dalı (examSystem.label()), AYRICA doğrulandı
+[reverb]             idle='Atla ▶'  cevap-sonrası='Atla (6) ▶'
+[tonal-denge]        idle='Atla ▶'  cevap-sonrası='Atla ▶'
+[frekans-cakismasi]  idle='Atla ▶'  cevap-sonrası='Atla (4) ▶'
+[distortion]         idle='Atla ▶'  cevap-sonrası='Atla (6) ▶'
+[pan-konumu]         idle='Atla ▶'  cevap-sonrası='Atla (4) ▶'   ← cihazda hatanın GÖRÜLDÜĞÜ mod, DOĞRULANDI
+[stereo-genislik]    idle='Atla ▶'  cevap-sonrası='Atla ▶'
+```
+12/12 mod: buton metni HER İKİ durumda da (idle + cevap-sonrası geri sayım) `/^Atla( \(\d+\))? ▶$/` desenine uyuyor, hiçbirinde "Soru"/"Sınav"/"Telafi" GEÇMİYOR. Konsol hatası: **0** (tüm 12 mod boyunca). `npm test`: **1250/1250** (değişmedi, düşmedi).
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chromium/Playwright'ta yapıldı, gerçek cihazda DENENMEDİ. `npx cap sync ios` bu turda ÇALIŞTIRILMADI (kullanıcı istemedi) — bir sonraki cihaz testinden ÖNCE çalıştırılmalı.
+
+---
+
+Önceki commit (G138) — **KARAR DEĞİŞİKLİĞİ (kullanıcının kendi kararı): "kaynak TÜRÜ mod-agnostik kalsın" (G126'nın kararı) ARTIK GEÇERSİZ. Kaynak türü de dosya seçimi (G123) gibi mod başına ayrıldı ve kalıcı hale getirildi.**
 
 **G126'DAKİ ESKİ KARAR NEYDİ, NEDEN DEĞİŞTİ:** G123 dosya SEÇİMİNİ (`uploadSelections[contextId]`) mod başına ayırmıştı ama kaynak TÜRÜNÜ (`els.sourceSelect.value` — "upload"/"davul-dongusu"/"pink-noise" vb.) BİLEREK mod-agnostik/paylaşılan bıraktı (`populateSourceSelect()`'in "önceki seçim yeni modda da uyumluysa korunur" mantığı). G126 bunun YOL AÇTIĞI hatayı (kaynak "upload" taşınıp dosya taşınmayınca sessiz hata) bir GATE panel ile kapattı ama kaynak türünün KENDİSİNİN taşınmasına dokunmadı. Bu turda kullanıcı KENDİSİ bu kararı tersine çevirdi: Frekans Bulma'da "Davul Döngüsü" seçmek, Kesim Noktası'nın kaynağını artık DEĞİŞTİRMEMELİ.
 
@@ -11268,12 +11301,11 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G138 itibarıyla) — EN ÖNEMLİSİ:** `npx cap sync ios`
-bu turda ÇALIŞTIRILDI (dosyalar `ios/App/App/public`'e kopyalandı) ama
-GERÇEK bir Xcode build/install YAPILMADI — bir sonraki cihaz testinden
-ÖNCE Xcode'da TEMİZ derleme + gerçek cihaza kurulum GEREKİYOR (sadece
-`cap sync` YETMEZ). O build'de, kullanıcı cihazda ÜÇ ayrı açık maddeyi
-denemeli:
+**Tek sonraki adım (G139 itibarıyla) — EN ÖNEMLİSİ:** `npx cap sync ios`
+G138'den beri ÇALIŞTIRILMADI (G139 kullanıcı istemediği için sync
+etmedi) — bir sonraki cihaz testinden ÖNCE hem `cap sync` hem Xcode'da
+TEMİZ derleme + gerçek cihaza kurulum GEREKİYOR. O build'de, kullanıcı
+cihazda DÖRT ayrı açık maddeyi denemeli:
 - **G136/G137'nin ses kurtarma senaryoları (A/B):**
   - A) Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
     dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
@@ -11294,6 +11326,14 @@ denemeli:
   Playwright ile TAM doğrulandı, bkz. G138 kaydı — cihazda HENÜZ
   denenmedi, özellikle Capacitor Preferences mirror'ının gerçek
   kapat/aç arasında GÜVENİLİR çalıştığı bu turda DOĞRULANMADI.)
+- **G139'un alt bar buton metni (YENİ):** 12 modun HEPSİNDE alt bar
+  butonu HER durumda (idle + cevap sonrası geri sayım) sadece
+  "Atla ▶"/"Atla (N) ▶" yazmalı, hiçbirinde "Soru"/"Sınav"/"Telafi"
+  geçmemeli — özellikle Pan Konumu'nda (hatanın GÖRÜLDÜĞÜ mod) ve
+  Kompresör'de (examSystem.label() kullanan AYRI kod dalı). Üstteki
+  ilerleme çubuğu (soru sayacı) DEĞİŞMEDEN görünmeye devam etmeli.
+  (Masaüstünde Playwright ile 12 modun HEPSİNDE TAM doğrulandı, bkz.
+  G139 kaydı — cihazda HENÜZ denenmedi.)
 
 Başarısızsa Safari Web Inspector'daki `[audio-diag]` günlüğü (ses
 senaryoları için) hangi dalın tetiklendiğini gösterecek — bir sonraki
