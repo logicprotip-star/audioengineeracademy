@@ -617,7 +617,25 @@
        ORİJİNAL "SADECE 10 Soruluk Bölüm'de görünür" kuralına dönüldü (bkz.
        app.js renderGameHeader) — .dim artık HİÇ UYGULANMIYOR, satır ya tam
        görünür ya HİÇ görünmez. */
-    .game-chapter-row{display:flex;align-items:center;gap:10px;margin-top:10px;transition:opacity .2s}
+    /* G144 — kullanıcının kendi kararı: G143'ün "offsetHeight ile zorlanmış
+       reflow" denemesi CİHAZDA TUTMADI (bölüm çubuğu görünür/gizli olurken
+       çip satırı hâlâ bir an kesik görünüyordu). KÖK ÇÖZÜM: `.hidden`
+       (display:none↔flex, CSS'in HİÇ animasyonlayamadığı ANİ bir sıçrama —
+       .ghead 42px'ten 80px'e TEK karede zıplıyordu) YERİNE bu İKİ satır
+       (chapter/speed) artık `max-height`+`overflow:hidden` tabanlı YUMUŞAK
+       bir geçişle açılıp kapanıyor — `.game-scroll`'un `margin-bottom`
+       geçişiyle (actionbar-tucked, AYNI dosyada birkaç satır aşağıda) BİREBİR
+       AYNI, bu kod tabanında ZATEN kanıtlanmış teknik. `.ghead-collapsed`
+       (app.js:renderGameHeader, `.hidden` YERİNE) `max-height:0` + `margin-
+       top:0` — .ghead'in yüksekliği artık ANİDEN değil ~180ms'de KADEMELİ
+       değişiyor, "ara bir yerleşim durumu" YAKALANACAK bir sıçrama anı hiç
+       OLUŞMUYOR. max-height:40px (kapalıyken de) içeriğin (~11px dots/label)
+       ÇOK ÜSTÜNDE bir tavan — normal görünüm hiç kırpılmıyor. */
+    .game-chapter-row{
+      display:flex;align-items:center;gap:10px;margin-top:10px;overflow:hidden;max-height:40px;
+      transition:max-height .2s ease,margin-top .2s ease,opacity .15s ease;
+    }
+    .game-chapter-row.ghead-collapsed{max-height:0;margin-top:0;opacity:0}
     .game-chapter-dots{display:flex;align-items:center;gap:4px;flex:1}
     .game-chapter-dot{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);transition:background .3s}
     .game-chapter-dot.on{background:var(--cyan)}
@@ -629,7 +647,13 @@
        dekoratif bir "hız bonusu" göstergesi — task'ın kendi düzeltmesi).
        .game-speed-bar > i özgüllüğü .bar > i'den YÜKSEK (2 sınıf+child vs
        1 sınıf+child) — kaynak sırasından BAĞIMSIZ kazanır. */
-    .game-speed-row{display:flex;align-items:center;gap:9px;margin-top:6px}
+    /* G144 — .game-chapter-row İLE AYNI max-height/overflow/transition deseni
+       (yukarıdaki notta gerekçesi var), .ghead-collapsed PAYLAŞILIYOR. */
+    .game-speed-row{
+      display:flex;align-items:center;gap:9px;margin-top:6px;overflow:hidden;max-height:40px;
+      transition:max-height .2s ease,margin-top .2s ease,opacity .15s ease;
+    }
+    .game-speed-row.ghead-collapsed{max-height:0;margin-top:0;opacity:0}
     .game-speed-row .bar{height:3px}
     .game-speed-row .game-speed-bar > i{background:linear-gradient(90deg,#1aa8ba,#34e0f5)}
     .game-speed-label{flex:none;font-size:9.5px;font-weight:700;color:var(--text-muted);transition:color .2s}
@@ -752,11 +776,10 @@
        DEĞİL, ayrı bir sheet'te). */
     .chiprow > .control.control-sheet{display:flex}
     /* G143 — ortak çip görünümü: Zorluk/Kaynak/Odak/Kaynak-çifti/Karışık
-       HEPSİ bunu paylaşır (tek yerden yönetim). Dokunmalı|Şıklı (.seg-toggle)
-       İKİ ayrı düğme barındırdığı için .chip-base'i DOĞRUDAN kullanmıyor
-       (tek-etiketli bir çip için tasarlı padding iç içe iki düğmeye uymuyor)
-       — ama AYNI --chip-h/--chip-radius/--chip-font değişkenlerinden
-       türediği için (aşağıda) yine de HİÇBİR ölçü farkı KALMIYOR. */
+       HEPSİ bunu paylaşır (tek yerden yönetim) — yeni bir çip eklenince bu
+       class'ı alması yeterli. G144 — Dokunmalı|Şıklı (.seg-toggle, aynı
+       gerekçeyle .chip-base kullanmıyordu) çip satırından TAMAMEN
+       KALDIRILDIĞI için o istisna da ORTADAN KALKTI. */
     .chip-base{
       height:var(--chip-h);box-sizing:border-box;
       display:flex;align-items:center;gap:4px;
@@ -804,25 +827,11 @@
     }
     .mixchip svg{flex:none}
     .mixchip.on{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.42);color:var(--cyan)}
-    /* G79: cevap biçimi — İKİLİ segmented toggle (Dokunmalı|Şıklı), NÖTR
-       taban + cyan aktif (bkz. index.html notu, JS: syncAnswerFormatToggleUI).
-       G143 — dış kapsayıcı artık .chip-base İLE AYNI --chip-h/--chip-radius
-       değişkenlerinden (satırın diğer üyeleriyle TAM aynı dış yükseklik/köşe),
-       iç düğmeler height:100% ile o alanı ARALARINDA paylaşıyor (eskiden
-       padding'ten türeyen doğal/küçük yükseklikte kalıyorlardı). */
-    .seg-toggle{
-      height:var(--chip-h);box-sizing:border-box;
-      display:flex;padding:2px;border-radius:var(--chip-radius);justify-content:center;
-      background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);
-    }
-    .seg-toggle-btn{
-      flex:1;height:100%;box-sizing:border-box;
-      display:flex;align-items:center;justify-content:center;
-      padding:0 10px;border-radius:calc(var(--chip-radius) - 2px);
-      font-size:var(--chip-font);font-weight:700;
-      color:var(--text-3);background:none;white-space:nowrap;
-    }
-    .seg-toggle-btn.active{background:rgba(34,211,238,.16);color:var(--cyan)}
+    /* G144 — G79'un çip satırındaki cevap-biçimi segmented toggle'ı
+       (.seg-toggle/.seg-toggle-btn) BURADAN KALDIRILDI — kullanıcının kendi
+       kararı, tek giriş noktası artık Oyun Ayarları sheet'indeki satır (bkz.
+       index.html/app.js'in G144 notları). Bu class'lar artık HİÇBİR HTML'de
+       kullanılmıyor, grep ile doğrulandı — ölü kural bırakılmadı. */
 
     .qline{
       padding:10px 13px;border-radius:var(--r-card);background:rgba(255,255,255,.05);

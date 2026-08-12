@@ -12,6 +12,7 @@ const DEV_KEY = "eqEarTrainerProXDev";
 const UPLOAD_SELECTIONS_KEY = "eqEarTrainerProXUploadSelections";
 const TONAL_REFS_KEY = "eqEarTrainerProXTonalRefs";
 const SOURCE_SELECTIONS_KEY = "eqEarTrainerProXSourceSelections";
+const ANSWER_FORMAT_SELECTIONS_KEY = "eqEarTrainerProXAnswerFormatSelections";
 
 // Canlar artık zorluğa göre DEĞİL — tek, global bir havuz (bkz. freshStats().lives).
 // Eskiden her zorluğun kendi canı vardı (perDiff[key].lives); bu yüzden zorluk
@@ -230,11 +231,16 @@ export function clearDaily() {
 // G141 — kullanıcının kendi kararı: G65'in "playModeSelect kalıcı bir prefs
 // alanına YAZILMIYOR, her açılışta 'free'e döner" kararı GEÇERSİZ. Oyunun ASIL
 // akışı "10 Soruluk Bölüm" (XP ile bölüm geçmek) — varsayılan "challenge",
-// Serbest artık isteyerek seçilen bir kip. answerFormat/focusRange İLE AYNI
-// desen (tek/global tercih — mod başına DEĞİL, bkz. app.js:playModeSelect'in
-// change dinleyicisindeki G141 notu, gerekçesi orada).
+// Serbest artık isteyerek seçilen bir kip. focusRange İLE AYNI desen (tek/
+// global tercih — mod başına DEĞİL, bkz. app.js:playModeSelect'in change
+// dinleyicisindeki G141 notu, gerekçesi orada).
+// G144 — `answerFormat` alanı BURADAN KALDIRILDI: Cevap Biçimi artık KÜRESEL
+// bir prefs alanı DEĞİL, `answerFormatSelections`'ta (sourceSelections İLE
+// AYNI desen) mod başına kalıcı — bkz. storage.js'in
+// loadAnswerFormatSelections notu. Eski kayıtlardaki (silinmeyen) yetim
+// `answerFormat` alanı zararsız/okunmuyor.
 export function freshPrefs() {
-  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full", difficultyMode: "auto", feedbackScreen: true, showDailyTip: true, playMode: "challenge" };
+  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, focusRange: "full", difficultyMode: "auto", feedbackScreen: true, showDailyTip: true, playMode: "challenge" };
 }
 
 export function loadPrefs() {
@@ -326,6 +332,28 @@ export function saveSourceSelections(selections) {
   const raw = JSON.stringify(selections);
   localStorage.setItem(SOURCE_SELECTIONS_KEY, raw);
   mirrorSet(SOURCE_SELECTIONS_KEY, raw);
+}
+
+// G144 — kullanıcının kendi kararı: Dokunmalı/Şıklı (Cevap Biçimi) artık
+// çip satırından kaldırılıp Oyun Ayarları sheet'ine taşındı (o satır zaten
+// vardı, G79'dan beri #answerFormatSelect'e AYNI bağlıydı — bkz. app.js
+// applyAnswerFormatForMode notu). `sourceSelections` İLE AYNI desen/bağlam
+// anahtarları (mode.MODE_ID) — eski `prefs.answerFormat` (KÜRESEL, TEK
+// değer) YERİNE geçti, o alan freshPrefs()'ten KALDIRILDI.
+export function loadAnswerFormatSelections() {
+  try {
+    const raw = localStorage.getItem(ANSWER_FORMAT_SELECTIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return (parsed && typeof parsed === "object" && !Array.isArray(parsed)) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveAnswerFormatSelections(selections) {
+  const raw = JSON.stringify(selections);
+  localStorage.setItem(ANSWER_FORMAT_SELECTIONS_KEY, raw);
+  mirrorSet(ANSWER_FORMAT_SELECTIONS_KEY, raw);
 }
 
 // G127 — "Kendi referansım" (devFlags.customTonalRef arkasında gizli, bkz.

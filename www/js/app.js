@@ -90,7 +90,6 @@ const els = {
   comingGrid: document.getElementById("comingGrid"),
   gameTitle: document.getElementById("gameTitle"),
   gameInfoBtn: document.getElementById("gameInfoBtn"),
-  answerFormatChipWrap: document.getElementById("answerFormatChipWrap"),
   answerFormatSettingsRow: document.getElementById("answerFormatSettingsRow"),
   backBtn: document.getElementById("backBtn"),
   // G90 (madde 1) — Tasarim-2026-08/Prototip.dc.html "ÇIKIŞ ONAYI", SIFIRDAN.
@@ -429,8 +428,6 @@ const els = {
   hintBtn: document.getElementById("hintBtn"),
   hintBtnLabel: document.getElementById("hintBtnLabel"),
   nextBtn: document.getElementById("nextBtn"),
-  answerFormatTouchBtn: document.getElementById("answerFormatTouchBtn"),
-  answerFormatChoiceBtn: document.getElementById("answerFormatChoiceBtn"),
 
   // oyun ayarları sheet (dots)
   gameSettingsOverlay: document.getElementById("gameSettingsOverlay"),
@@ -598,6 +595,32 @@ function populateSourceSelect() {
   }
 }
 populateSourceSelect();
+
+// G144 — kullanıcının kendi kararı: Dokunmalı/Şıklı (Cevap Biçimi) çip
+// satırından KALDIRILDI (satırı ikiye taşırıp .ghead'i büyütüyordu, bkz. bu
+// turun DURUM.md kaydı) — Oyun Ayarları sheet'inde ZATEN var olan satır
+// (G79'dan beri #answerFormatSelect'e AYNI bağlıydı, bkz. index.html
+// #answerFormatSettingsRow) artık TEK giriş noktası. Seçim `sourceSelections`
+// İLE AYNI desende mod başına kalıcı (`answerFormatSelections`, storage.js) —
+// eski küresel `prefs.answerFormat` YERİNE geçti. #answerFormatSelect'in
+// <option> listesi SABİT (mod-bağımsız, HTML'de yazılı) — populateSourceSelect()'İN
+// AKSİNE burada innerHTML YENİDEN KURULMUYOR, SADECE hangi <option>'ın
+// seçili olduğu bu MODUN kaydına göre ayarlanıp "change" tetikleniyor
+// (aşağıdaki merkezi dinleyici — bkz. o fonksiyonun G144 notu — bunu
+// otomatik KAYDEDER, burada ikinci bir yazma İCAT EDİLMEDİ).
+let answerFormatSelections = storage.loadAnswerFormatSelections();
+function recordAnswerFormatSelection(contextId, value) {
+  if (value) answerFormatSelections[contextId] = value;
+  else delete answerFormatSelections[contextId];
+  storage.saveAnswerFormatSelections(answerFormatSelections);
+}
+function applyAnswerFormatForMode() {
+  if (!els.answerFormatSelect) return;
+  const saved = answerFormatSelections[mode.MODE_ID];
+  els.answerFormatSelect.value = (saved === "touch" || saved === "choice") ? saved : "touch";
+  els.answerFormatSelect.dispatchEvent(new Event("change", { bubbles: true }));
+}
+applyAnswerFormatForMode();
 
 // focusSelect'in <option> listesi mode.FOCUS_RANGES'tan üretilir (frekans-bulma.js) —
 // odak aralığı bu modun kendine özgü bir kavramı, SOURCE_GROUPS gibi global bir
@@ -1259,12 +1282,14 @@ function isChoiceFormat() {
 // G18 bug taraması: Kesim Noktası'nda "Dokunmalı" hiçbir şeye bağlı değildi (mod
 // dalgaya tıklamayı hiç desteklemiyor, isChoiceFormat() zaten hep şıklıya zorluyor)
 // — ama toggle GÖRÜNÜR kalıyordu, seçilince sessizce hiçbir etkisi olmuyordu. Aktif
-// modun getMeta().choiceOnly bayrağına göre (bkz. kesim-noktasi.js) chip + Oyun
-// Ayarları satırının İKİSİNİ birden gizler/gösterir — Frekans Bulma'da (choiceOnly
-// yok/false) davranış DEĞİŞMEDİ.
+// modun getMeta().choiceOnly bayrağına göre (bkz. kesim-noktasi.js) satırı
+// gizler/gösterir — Frekans Bulma'da (choiceOnly yok/false) davranış DEĞİŞMEDİ.
+// G144 — çip satırındaki toggle (answerFormatChipWrap) KALDIRILDI, TEK giriş
+// noktası artık Oyun Ayarları'ndaki satır (answerFormatSettingsRow) — bu
+// fonksiyon hangi MOD choiceOnly olursa olsun (bugün SADECE Frekans Bulma
+// değil) aynı genel kuralı uygular, mod-özel bir yama İCAT EDİLMEDİ.
 function syncAnswerFormatVisibility() {
   const hide = !!mode.getMeta().choiceOnly;
-  if (els.answerFormatChipWrap) els.answerFormatChipWrap.classList.toggle("hidden", hide);
   if (els.answerFormatSettingsRow) els.answerFormatSettingsRow.classList.toggle("hidden", hide);
 }
 
@@ -2258,6 +2283,7 @@ function enterMode(entry, realMode) {
     // yeniden değerlendir" deseni burada EKSİKTİ, eklendi.
     populateFocusSelect();
     syncAnswerFormatVisibility();
+    applyAnswerFormatForMode(); // G144 — bu MODUN kendi kalıcı Cevap Biçimi seçimini yükle
     syncCakismaVisibility();
     // G46: Tonal Denge'nin altı kaydırıcıya kadar çıkabilen kart listesi spektrumun
     // altında yer sıkışıklığına yol açıyordu — mode.COMPACT_ANALYZER (SHOW_SPECTRUM'un
@@ -3390,8 +3416,28 @@ function renderGameHeader() {
     els.analyzerFootCaption.textContent = boss ? "PRO ZORLUK · Q 4.0" : "SPEKTRUM ANALİZÖRÜ";
   }
   const showChapter = !boss && !examActive && challenge.active;
-  if (els.gameChapterRow) els.gameChapterRow.classList.toggle("hidden", !showChapter);
-  if (els.gameSpeedRow) els.gameSpeedRow.classList.toggle("hidden", !showChapter);
+  // G144 — kullanıcının kendi kararı: G143'ün "offsetHeight okuyarak
+  // zorlanmış reflow" denemesi CİHAZDA TUTMADI (kullanıcı ekran görüntüsüyle
+  // doğruladı) — o yaklaşım LAYOUT'u senkron olarak kesinleştiriyordu, ama
+  // asıl sorun muhtemelen PAINT/COMPOSITE aşamasında: `.hidden` (display:
+  // none↔flex) İKİLİ/ANİ bir sıçrama, `.ghead` bir kare içinde 42px'ten
+  // 80px'e ZIPLIYOR — CSS bir `display` değişikliğini HİÇ animasyonlamaz,
+  // bu yüzden ARA bir kare YOK GİBİ görünse de WebKit'in layout→paint
+  // hattında bu ani sıçramanın kompozit edilmesi bir kare gecikebiliyor
+  // (bu kod tabanında ZATEN kabul edilen "WebKit boyut değişikliklerini her
+  // zaman aynı karede yansıtmıyor" gözlemiyle TUTARLI, bkz. G109/G143 notları
+  // — ama bu SEFER reflow zorlamak LAYOUT'u düzeltti, PAINT'i düzeltmedi).
+  // KÖK ÇÖZÜM (kullanıcının istediği: "ara bir yerleşim durumu
+  // OLUŞMASIN"): ANİ sıçrama YERİNE `max-height` tabanlı YUMUŞAK bir
+  // geçiş — bu kod tabanında ZATEN kurulu, KANITLANMIŞ bir başka desenle
+  // AYNI (`.game-scroll`'un `margin-bottom` geçişi, styles.css, actionbar-
+  // tucked). `.hidden` (`display:none!important`, animasyonlanamaz)
+  // YERİNE SADECE bu iki satır için `.ghead-collapsed` (max-height:0,
+  // `transition`li) kullanılıyor — .ghead'in yüksekliği artık ANİDEN
+  // DEĞİL, ~180ms'de KADEMELİ değişiyor, bu yüzden "yarım güncellenmiş"
+  // bir kareye YAKALANACAK bir SIÇRAMA anı hiç OLUŞMUYOR.
+  if (els.gameChapterRow) els.gameChapterRow.classList.toggle("ghead-collapsed", !showChapter);
+  if (els.gameSpeedRow) els.gameSpeedRow.classList.toggle("ghead-collapsed", !showChapter);
   if (showChapter && els.gameChapterDots && els.gameChapterLabel) {
     els.gameChapterDots.innerHTML = "";
     for (let i = 0; i < challenge.total; i++) {
@@ -3401,19 +3447,6 @@ function renderGameHeader() {
     }
     els.gameChapterLabel.textContent = `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`;
   }
-  // G143 — cihazda rapor edilen "bölüm çubuğu görününce çip satırı kırpılıyor"
-  // şikayeti. Kök sebep KANITLANAMADI (masaüstünde reprodükte edilemedi, bkz.
-  // G142 raporu) ama bu KOD TABANINDA AYNI SINIF bir sorun için ZATEN
-  // belgelenmiş bir çözüm var: iOS/WebKit bir layout değişikliğini (burada:
-  // #gameChapterRow'un hidden'ı kalkınca .ghead büyüyüp .game-scroll'un
-  // KENDİSİNİN küçülmesi/aşağı kayması) her zaman ANINDA yansıtmıyor (bkz.
-  // setActionbarTucked'ın G87 notu VE toolsResetSheetScroll'un G109 notu —
-  // ikisi de AYNI "overflow/boyut değişikliği WebKit'te bir kare gecikebiliyor"
-  // gözlemine dayanıyor, AYNI çözümü kullanıyor: offsetHeight okuyarak GERÇEK
-  // bir reflow zorlamak). Chapter/speed row'un hidden'ı DEĞİŞTİĞİ HER
-  // durumda (görünür OLSUN ya da OLMASIN — .ghead'in yüksekliği HER İKİ
-  // yönde de değişebilir) aynı zorlama uygulanıyor.
-  if (els.gameScroll) void els.gameScroll.offsetHeight;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -6623,40 +6656,23 @@ els.difficultySelect.addEventListener("change", () => {
   });
 });
 
-// G79: cevap biçimi çipi artık sheet açan bir buton DEĞİL, doğrudan görünen
-// İKİLİ segmented toggle (Dokunmalı|Şıklı) — hangisinin cyan/aktif olduğunu
-// gösterir. #answerFormatSelect'İN KENDİSİ hâlâ TEK doğruluk kaynağı (Oyun
-// Ayarları sheet'indeki satır da ONU okuyor/yazıyor) — bu fonksiyon SADECE
-// görünümü senkronlar, state TUTMAZ.
-function syncAnswerFormatToggleUI() {
-  if (!els.answerFormatSelect) return;
-  const val = els.answerFormatSelect.value;
-  if (els.answerFormatTouchBtn) els.answerFormatTouchBtn.classList.toggle("active", val === "touch");
-  if (els.answerFormatChoiceBtn) els.answerFormatChoiceBtn.classList.toggle("active", val === "choice");
-}
+// G79: cevap biçimi eskiden çip satırında doğrudan görünen İKİLİ segmented
+// toggle'dı (Dokunmalı|Şıklı). G144 — kullanıcının kendi kararı: bu toggle
+// çip satırını ikiye taşırıp .ghead'i büyütüyordu, KALDIRILDI — TEK giriş
+// noktası artık Oyun Ayarları sheet'indeki satır (#answerFormatSettingsRow,
+// initSettingsSheet'in GENERİK data-sheet-select mekanizmasıyla ZATEN
+// bağlıydı, yeni kod GEREKMEDİ). #answerFormatSelect'İN KENDİSİ hâlâ TEK
+// doğruluk kaynağı. Seçim artık `answerFormatSelections` (mod başına kalıcı,
+// sourceSelections İLE AYNI desen) İLE kaydediliyor — eski küresel
+// `prefs.answerFormat` YAZMASI KALDIRILDI.
 if (els.answerFormatSelect) els.answerFormatSelect.addEventListener("change", () => {
-  prefs.answerFormat = els.answerFormatSelect.value;
-  storage.savePrefs(prefs);
-  syncAnswerFormatToggleUI();
+  recordAnswerFormatSelection(mode.MODE_ID, els.answerFormatSelect.value);
   // Cevaplanmamış bir soru ortasında biçim değişirse görünümü hemen senkronla —
   // soru/timer/skor state'ine dokunmaz, sadece .ans grid'i gösterir/gizler.
   if (activeQuestion && roundActive) {
     syncAnswerArea();
     if (isChoiceFormat()) scrollFeedbackIntoView();
   }
-});
-// G79: iki YENİ toggle butonu — #answerFormatSelect'e yazıp AYNI "change"
-// event'ini tetikliyor (yukarıdaki listener + initSettingsSheet'in KENDİ
-// sync'i ÇALIŞMAYA devam eder, ikinci bir mekanizma İCAT EDİLMEDİ).
-if (els.answerFormatTouchBtn) els.answerFormatTouchBtn.addEventListener("click", () => {
-  if (!els.answerFormatSelect || els.answerFormatSelect.value === "touch") return;
-  els.answerFormatSelect.value = "touch";
-  els.answerFormatSelect.dispatchEvent(new Event("change", { bubbles: true }));
-});
-if (els.answerFormatChoiceBtn) els.answerFormatChoiceBtn.addEventListener("click", () => {
-  if (!els.answerFormatSelect || els.answerFormatSelect.value === "choice") return;
-  els.answerFormatSelect.value = "choice";
-  els.answerFormatSelect.dispatchEvent(new Event("change", { bubbles: true }));
 });
 
 if (els.focusSelect) els.focusSelect.addEventListener("change", () => {
@@ -7201,10 +7217,12 @@ function applyPrefs() {
   if (els.hpWarnSwitch) els.hpWarnSwitch.classList.toggle("on", prefs.hpWarning);
   if (els.feedbackScreenSwitch) els.feedbackScreenSwitch.classList.toggle("on", prefs.feedbackScreen);
   if (els.showDailyTipSwitch) els.showDailyTipSwitch.classList.toggle("on", prefs.showDailyTip);
-  if (els.answerFormatSelect && prefs.answerFormat) {
-    els.answerFormatSelect.value = prefs.answerFormat;
-    els.answerFormatSelect.dispatchEvent(new Event("change", { bubbles: true }));
-  }
+  // G144 — answerFormatSelect'in restore'u BURADAN KALDIRILDI: artık mod
+  // başına kalıcı (applyAnswerFormatForMode(), modül yüklenirken + enterMode()'da
+  // ZATEN çağrılıyor) — burada TEKRAR eski küresel prefs.answerFormat'tan
+  // okumak (varsa, eski bir kayıttan yetim kalmış olabilir) YANLIŞ değeri
+  // GERİ YÜKLERDİ (applyPrefs() bu satırdan SONRA, applyAnswerFormatForMode()'un
+  // yaptığı doğru per-mode ayarı EZERDİ).
   if (els.focusSelect && prefs.focusRange && mode.FOCUS_RANGES && mode.FOCUS_RANGES[prefs.focusRange]) {
     els.focusSelect.value = prefs.focusRange;
     els.focusSelect.dispatchEvent(new Event("change", { bubbles: true }));
@@ -7220,11 +7238,6 @@ function applyPrefs() {
   updateCalibRowLabel();
 }
 applyPrefs();
-// G79: taze kullanıcıda prefs.answerFormat HENÜZ yok — applyPrefs() o durumda
-// "change" event'ini HİÇ tetiklemiyor (bkz. yukarıdaki if), toggle butonları
-// HTML'in kendi varsayılan seçili option'ını (touch) hiç yansıtmadan kalırdı.
-// Güvenlik ağı — koşulsuz TEK çağrı.
-syncAnswerFormatToggleUI();
 if (els.notifSwitch) els.notifSwitch.addEventListener("click", () => {
   // Not: gerçek bir bildirim planlama altyapısı yok, sadece tercih saklanıyor.
   prefs.notifications = !prefs.notifications;

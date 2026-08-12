@@ -221,13 +221,17 @@
           </div>
         </div>
 
-        <!-- Bölüm göstergesi — HEP görünür (G78), boss turunda HARİÇ
-             (bkz. app.js renderGameHeader — Serbest'te .dim + "BÖLÜM —"). -->
-        <div class="game-chapter-row hidden" id="gameChapterRow">
+        <!-- Bölüm göstergesi — SADECE 10 Soruluk Bölüm'de görünür, boss
+             turunda da HARİÇ (bkz. app.js renderGameHeader). G144 —
+             görünürlük artık `.hidden` (display:none, animasyonlanamaz)
+             DEĞİL, `.ghead-collapsed` (max-height geçişli, styles.css) ile
+             kontrol ediliyor — statik başlangıç durumu da (round henüz
+             başlamadan) bunu YANSITIYOR, ilk karede de doğru. -->
+        <div class="game-chapter-row ghead-collapsed" id="gameChapterRow">
           <div class="game-chapter-dots" id="gameChapterDots"></div>
           <span class="game-chapter-label" id="gameChapterLabel">BÖLÜM 1/10</span>
         </div>
-        <div class="game-speed-row hidden" id="gameSpeedRow">
+        <div class="game-speed-row ghead-collapsed" id="gameSpeedRow">
           <div class="bar game-speed-bar"><i id="gameSpeedBarFill"></i></div>
           <span class="game-speed-label" id="gameSpeedLabel">hızlı cevap 1.2x</span>
         </div>
@@ -273,17 +277,13 @@
                oyun ortasında zorluk sabit kalır (task'ın kendi kuralı).
                "OTOMATİK"/tier adı app.js renderGameHeader'da yazılıyor. -->
           <button type="button" class="game-diff-chip chip-base" id="gameDiffChip">Orta</button>
-          <!-- G79: cevap biçimi artık sheet açan bir chip DEĞİL, İKİLİ SEGMENTED
-               TOGGLE (Dokunmalı|Şıklı) — #answerFormatSelect'İN KENDİSİNE
-               (id/JS AYNI) doğrudan yazıp "change" event'i tetikliyor (mevcut
-               change listener'ın AYNISI çalışır, sheet-tabanlı Oyun Ayarları
-               satırı da HÂLÂ ayrı bir giriş noktası olarak duruyor,
-               dokunulmadı). Görünürlük #answerFormatChipWrap id'sinde KALDI
-               (syncAnswerFormatVisibility TEK SATIR değişmedi). -->
-          <div class="seg-toggle" id="answerFormatChipWrap">
-            <button type="button" class="seg-toggle-btn" id="answerFormatTouchBtn" data-format="touch">Dokunmalı</button>
-            <button type="button" class="seg-toggle-btn" id="answerFormatChoiceBtn" data-format="choice">Şıklı</button>
-          </div>
+          <!-- G144 — kullanıcının kendi kararı: G79'un çip satırındaki İKİLİ
+               segmented toggle'ı (Dokunmalı|Şıklı) KALDIRILDI (satırı ikiye
+               taşırıp .ghead'i büyütüyordu). TEK giriş noktası artık Oyun
+               Ayarları sheet'indeki #answerFormatSettingsRow — o satır zaten
+               #answerFormatSelect'e (id/JS AYNI, DEĞİŞMEDİ) bağlıydı,
+               initSettingsSheet'in GENERİK data-sheet-select mekanizmasıyla,
+               yeni bir sheet/HTML İCAT EDİLMEDİ. -->
           <div class="control control-sheet hidden" id="focusChipWrap">
             <label class="hidden">Odak aralığı</label>
             <!-- <option> listesi app.js'te mode.FOCUS_RANGES'tan üretilir (bkz. populateFocusSelect) -->

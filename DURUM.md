@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G143)
+Son güncelleme: 12.08.2026 (G144)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,36 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G144) — **İKİ İŞ: (1) Dokunmalı/Şıklı çip satırından kaldırılıp Oyun Ayarları'na taşındı, mod başına kalıcı (G138 deseni) — 11/12 modda TEK SATIRA indi, Frekans Bulma'da İNMEDİ (matematiksel alan yetersizliği, aşağıda). (2) Bölüm çubuğu geçişindeki anlık kırpılma için G143'ün tuttmayan reflow-zorlama denemesi YERİNE `max-height` tabanlı yumuşak geçişe geçildi — cihazda HENÜZ doğrulanamadı.**
+
+**MADDE 1 — Dokunmalı/Şıklı taşındı:**
+- Çip satırındaki İKİLİ segmented toggle (`#answerFormatChipWrap`/`.seg-toggle`) TAMAMEN KALDIRILDI. TEK giriş noktası artık Oyun Ayarları sheet'indeki `#answerFormatSettingsRow` — bu satır G79'dan BERİ zaten VARDI, AYNI `#answerFormatSelect`'e bağlıydı, initSettingsSheet'in generic `data-sheet-select` mekanizmasıyla — yeni bir sheet/UI İCAT EDİLMEDİ.
+- Seçim artık `answerFormatSelections` ile mod başına KALICI (`sourceSelections`/G138 İLE BİREBİR AYNI desen — yeni `storage.js` fonksiyonları `loadAnswerFormatSelections`/`saveAnswerFormatSelections`). Eski küresel `prefs.answerFormat` KALDIRILDI (`freshPrefs()`'ten silindi, `applyPrefs()`'in restore bloğu silindi — SİLİNMESEYDİ, artık per-mode olan doğru değeri module-init sırasında SESSİZCE EZERDİ, bu potansiyel regresyon YAKALANIP önlendi).
+- Görünürlük kuralı (`syncAnswerFormatVisibility`, `mode.getMeta().choiceOnly`'e göre) DEĞİŞMEDİ — GENERİK, mod-özel yama YOK.
+- **ÖNEMLİ BULGU (koddan doğrulandı, tahmin YOK):** görev metninde örnek verilen "Q Genişliği" **ZATEN `choiceOnly:true`** — yani bu toggle Q Genişliği'nde HİÇBİR ZAMAN görünmüyordu (SADECE Frekans Bulma'da vardı, 12 moddan `frekans-bulma` DIŞINDAKİ TÜMÜ `choiceOnly:true`). Görev bu konuda YANLIŞ bir varsayıma dayanıyor olabilir — mekanizma GENERİK yazıldığı için sorun DEĞİL, ama gerçeği netleştirmek gerekiyordu.
+
+**MADDE 1'İN TAMAMLANAMAYAN KISMI — Frekans Bulma tek satıra İNMEDİ (ürün kararı BEKLİYOR):**
+Frekans Bulma'nın 4 çipi (Zorluk+Odak+Kaynak+Karışık — TEK moddur bu kadar çipi olan, diğer 11 modda 3 çip var) Playwright ile `flex` kısıtları GEÇİCİ kaldırılarak PRECISE ölçüldü: doğal (min-content) genişlikler toplamı **450px** (83+144+134+68+3×7 gap), chiprow'un GERÇEK genişliği **358px** — **92px'lik matematiksel bir açık**, Dokunmalı/Şıklı'nın kaldırılmasından TAMAMEN BAĞIMSIZ (o zaten kaldırıldı, kalan 4 çip hâlâ sığmıyor). G105'in `min-width:fit-content` kuralı (metin taşmasın/üst üste binmesin diye BİLEREK eklenmişti) bu 4 çipin 2 satıra SARMASINA sebep oluyor — bu KASITLI güvenlik ağının bir YAN ETKİSİ, bug değil. **Kod DEĞİŞTİRİLMEDİ** — üç seçenek var, hangisi tercih edilirse KOD yazılacak (bkz. BEKLEYEN KARARLAR S):
+1. Frekans Bulma'da olduğu gibi 2 satır kalsın (madde kapansın, DİĞER 11 mod zaten düzeldi).
+2. "Kaynak: "/"Odak: " önekleri kısaltılsın/kaldırılsın (ör. sadece "Pink Noise"/"Tüm spektrum") — çip BOYUTU değişmez, SADECE metin kısalır.
+3. Font-size/padding küçültülsün — TÜM 12 modun çiplerini etkiler (G142/G143'ün eşitliğini BOZMAZ, sadece --chip-h/--chip-font değerleri küçülür).
+
+**MADDE 2 — Bölüm çubuğu kırpılması (max-height geçişi, cihazda DOĞRULANAMADI):**
+- **Gerekçe:** G143'ün `offsetHeight` okuyarak zorlanmış reflow'u CİHAZDA TUTMADI (kullanıcı ekran görüntüsüyle doğruladı). Teori: o teknik LAYOUT'u senkron kesinleştiriyor ama asıl sorun muhtemelen PAINT/COMPOSITE aşamasında — `.hidden` (`display:none↔flex`) İKİLİ bir ANİ sıçrama (`.ghead` TEK karede 42px→80px), CSS `display` değişikliğini HİÇ animasyonlayamaz.
+- **Uygulanan:** `#gameChapterRow`/`#gameSpeedRow`'un görünürlüğü artık `.hidden` YERİNE yeni `.ghead-collapsed` class'ı — `max-height:0↔40px` + `margin-top:0↔orijinal` + `opacity` geçişleri (`.2s ease`/`.15s ease`). Bu, kod tabanında ZATEN KANITLANMIŞ bir başka desenle (`.game-scroll`'un `margin-bottom` geçişi, actionbar-tucked) BİREBİR AYNI teknik — yeni bir şey İCAT EDİLMEDİ. `.ghead`'in yüksekliği artık ANİDEN değil ~200ms'de KADEMELİ değişiyor — "ara bir yerleşim durumu" YAKALANACAK bir SIÇRAMA anı artık YOK.
+- **DÜRÜSTLÜK NOTU (kritik):** bu bir TEORİ — WebKit'in gerçek paint/composite zamanlamasını kaynak koddan ya da masaüstü Playwright'tan KANITLAYAMAM (G143'te de aynı sınırlama vardı, kırpılma masaüstünde HİÇ reprodükte edilemedi). CSS transition'ın bu SPESİFİK "1 karelik kesinti" hissini gerçekten ORTADAN KALDIRDIĞI cihazda İLK KEZ doğrulanacak.
+
+**DOĞRULAMA (Playwright, masaüstü Chromium, 12 modun HEPSİNDE):**
+- 12 modun 11'inde çip satırı TEK SATIR (`frekans-bulma` HARİÇ, yukarıdaki matematik nedeniyle) ✔.
+- 12 modun HEPSİNDE çip yükseklikleri HÂLÂ 44px'de eşit (`--chip-h`/`.chip-base` BOZULMADI) ✔.
+- `#answerFormatChipWrap`/`.seg-toggle` HİÇBİR modda DOM'da yok ✔.
+- Frekans Bulma'da Şıklı Oyun Ayarları'ndan seçildi → `answerFormatSelections.frekans-bulma==="choice"` kaydedildi → Kesim Noktası'na girip geri dönünce KORUNDU → sayfa (uygulama kapat/aç) yenilenince KORUNDU ✔.
+- Serbest↔10 Soruluk Bölüm geçişinde `#gameChapterRow` artık `.ghead-collapsed`/expanded arasında doğru toggle ediyor (final durumda hâlâ kırpılma yok) ✔.
+- Konsol hatası: **0** (tüm senaryolar boyunca). `npm test`: **1250/1250** (düşmedi).
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js`, `www/js/core/storage.js`, `www/styles.css`, `www/index.html`.
+**DOKUNULMAYAN DOSYALAR:** tüm mod dosyaları, `core/exam-system.js`, testler, Android, iOS native dosyaları. `gameBossRow`'un (boss SÜRE satırı) `.hidden` mekanizması BİLİNÇLİ olarak DOKUNULMADI — rapor edilen sorun SADECE bölüm/hız çubuğuydu.
 
 Bu commit (G143) — **Oyun ekranı üst çip satırı (Zorluk/Kaynak/Odak/Kaynak-çifti/Karışık/Dokunmalı-Şıklı) 12 modun HEPSİNDE 44px'de EŞİTLENDİ — yükseklik, padding, font-size, köşe yuvarlaklığı tek CSS değişken setinden (`.chiprow`'un `--chip-h`/`--chip-pad-y`/`--chip-pad-x`/`--chip-radius`/`--chip-font`) yönetiliyor. Bölüm çubuğu açılıp kapanırken çip satırının kırpılması için (G142'nin bulduğu, masaüstünde reprodükte edilemeyen bug) bu kod tabanında ZATEN var olan bir "zorlanmış reflow" deseni uygulandı.**
 
@@ -11195,6 +11225,16 @@ kapatıldı.
 
 ## BEKLEYEN KARARLAR
 
+**S. G144 — Frekans Bulma'nın çip satırı tek satıra nasıl indirilsin?**
+4 çipi (Zorluk/Odak/Kaynak/Karışık — 12 modun TEK 4-çipli olanı) Playwright'ta
+`flex` kısıtları geçici kaldırılarak PRECISE ölçüldü: doğal genişlikler
+toplamı 450px, chiprow genişliği 358px — 92px'lik matematiksel açık,
+Dokunmalı/Şıklı'nın kaldırılmasından (G144'te yapıldı) BAĞIMSIZ. Üç
+seçenek: (1) 2 satır kalsın, madde kapansın; (2) "Kaynak: "/"Odak: "
+önekleri kısaltılsın (çip boyutu SABİT kalır, sadece metin kısalır); (3)
+font-size/padding küçültülsün (12 modun HEPSİNİ etkiler, eşitlik BOZULMAZ
+sadece --chip-h/--chip-font değerleri küçülür). Kod DEĞİŞTİRİLMEDİ.
+
 **R. G142 — Stereo Genişlik'in "her zaman upload" varsayılanı — istisna kabul mü, yeni mühendislik mi?**
 Kullanıcı G141 sonrası "temiz kurulumda kaynak upload seçili geliyor,
 12 modun HEPSİNDE üretilen bir kaynak varsayılan olsun" istedi. Kod
@@ -11431,13 +11471,19 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G143 itibarıyla) — EN ÖNEMLİSİ:** G141'den SONRA
+**Tek sonraki adım (G144 itibarıyla) — EN ÖNEMLİSİ:** G143'ten SONRA
 `cap sync` + Xcode temiz derleme + cihaza kurulum YAPILDI (kullanıcının
-G142'deki iki hata raporu O build'den geldi) — ama G142/G143'ün
-düzeltmeleri HENÜZ senkronlanıp cihaza kurulmadı. Bir sonraki cihaz
-testinden ÖNCE hem `cap sync` hem Xcode'da TEMİZ derleme + gerçek cihaza
-kurulum TEKRAR gerekiyor. O build'de, kullanıcı cihazda ALTI ayrı açık
-maddeyi denemeli (ilki A/B iki alt senaryo içeriyor):
+G144'teki iki iş raporu O build'den geldi) — ama G144'ün düzeltmeleri
+HENÜZ senkronlanıp cihaza kurulmadı. Bir sonraki cihaz testinden ÖNCE hem
+`cap sync` hem Xcode'da TEMİZ derleme + gerçek cihaza kurulum TEKRAR
+gerekiyor. O build'de, **G144'ün bölüm çubuğu kırpılma düzeltmesi (max-
+height geçişi) EN ÖNCELİKLİ** — G143'ün reflow-zorlama denemesi cihazda
+TUTMAMIŞTI, bu YENİ yaklaşımın GERÇEKTEN işe yarayıp yaramadığı SADECE
+cihazda görülebilir (masaüstünde hiç reprodükte edilemedi). Ayrıca
+kullanıcı cihazda Frekans Bulma'nın 2 satırlı çip görünümünü GÖRÜP
+BEKLEYEN KARARLAR S'deki üç seçenekten birini seçmeli. Bunların
+YANI SIRA kullanıcı cihazda ALTI ayrı açık maddeyi de denemeli (ilki A/B
+iki alt senaryo içeriyor):
 - **G136/G137'nin ses kurtarma senaryoları (A/B):**
   - A) Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
     dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
@@ -11485,17 +11531,27 @@ maddeyi denemeli (ilki A/B iki alt senaryo içeriyor):
   (madde 1) kod DEĞİŞTİRMEDİ — cihazda AYRICA denenecek bir şey YOK,
   SADECE Stereo Genişlik'in istisna durumu için ürün kararı BEKLİYOR
   (bkz. BEKLEYEN KARARLAR R).
-- **G143'ün çip eşitliği/kırpılma düzeltmesi (YENİ, bu turun kendi kabul
-  ölçütü):** 12 modun HEPSİNDE Zorluk/Kaynak/Odak/Kaynak-çifti/Karışık/
-  Dokunmalı-Şıklı çipleri gözle de birebir aynı yükseklikte görünmeli
-  (masaüstünde 44px ölçüldü). Kesim Noktası'nda (ya da bölüm çubuğu
-  gösteren başka bir modda) "10 Soruluk Bölüm" seçiliyken çip satırı
-  kırpılmamalı, tam görünmeli — bu madde ÖZELLİKLE önemli çünkü
-  masaüstünde REPRODÜKTE EDİLEMEMİŞTİ, uygulanan düzeltme (zorlanmış
-  reflow) sadece kod tabanındaki BENZER bir sorunun ÇÖZÜMÜNE dayanıyor,
-  bu SPESİFİK senaryoda GERÇEKTEN işe yaradığı cihazda İLK KEZ
-  doğrulanacak. (Masaüstünde Playwright ile 12 modun HEPSİNDE ölçüldü,
-  bkz. G143 kaydı — cihazda HENÜZ denenmedi.)
+- **G143'ün çip eşitliği (YENİ, bu turun kendi kabul ölçütü, HÂLÂ geçerli):**
+  12 modun HEPSİNDE Zorluk/Kaynak/Odak/Kaynak-çifti/Karışık çipleri gözle
+  de birebir aynı yükseklikte görünmeli (masaüstünde 44px ölçüldü, G144'te
+  Dokunmalı/Şıklı kaldırıldıktan SONRA da BOZULMADIĞI TEKRAR doğrulandı).
+  (Masaüstünde Playwright ile 12 modun HEPSİNDE ölçüldü — cihazda HENÜZ
+  denenmedi.) **G143'ün "kırpılma" düzeltmesi (reflow zorlama) G144'te
+  TAMAMEN DEĞİŞTİRİLDİ** (cihazda tutmadığı için) — aşağıdaki YENİ maddeye
+  bakın.
+- **G144'ün bölüm çubuğu kırpılma düzeltmesi (max-height geçişi, YENİ — EN
+  ÖNCELİKLİ):** Serbest↔10 Soruluk Bölüm geçişinde (ya da boss turu
+  başlarken/biterken) çip satırı ARTIK HİÇ karede kesik görünmemeli —
+  G143'ün reflow-zorlama denemesi TUTMAMIŞTI (kullanıcı ekran görüntüsüyle
+  yakalamıştı), bu turda TAMAMEN FARKLI bir teknik (max-height geçişli
+  yumuşak açılma/kapanma) denendi. Bu SPESİFİK sorunun GERÇEKTEN çözülüp
+  çözülmediği masaüstünde HİÇ doğrulanamadı (kırpılma zaten masaüstünde
+  reprodükte edilemiyordu) — SADECE cihazda görülebilir.
+- **G144'ün Frekans Bulma çip satırı (BEKLEYEN KARARLAR S — ÖNCE karar,
+  SONRA kod):** kullanıcı cihazda Frekans Bulma'nın çip satırının HÂLÂ 2
+  satır olduğunu görecek (matematiksel alan yetersizliği, Dokunmalı/Şıklı
+  kaldırılmasından bağımsız) — BEKLEYEN KARARLAR S'deki üç seçenekten
+  birini seçmesi gerekiyor, bu turda kod YAZILMADI.
 
 Başarısızsa Safari Web Inspector'daki `[audio-diag]` günlüğü (ses
 senaryoları için) hangi dalın tetiklendiğini gösterecek — bir sonraki
