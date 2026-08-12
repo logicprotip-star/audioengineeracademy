@@ -334,7 +334,6 @@ const els = {
   gameQCounter: document.getElementById("gameQCounter"),
   gameQNum: document.getElementById("gameQNum"),
   levelChipValue: document.getElementById("levelChipValue"),
-  gameDiffChip: document.getElementById("gameDiffChip"),
   gameChapterRow: document.getElementById("gameChapterRow"),
   gameChapterDots: document.getElementById("gameChapterDots"),
   gameChapterLabel: document.getElementById("gameChapterLabel"),
@@ -3343,27 +3342,13 @@ function renderGameHeader() {
     els.gameQNum.textContent = Math.max(1, Math.min(roundsInThisPlaySession, paywall.FREE_SESSION_QUESTION_LIMIT));
   }
 
-  // Zorluk göstergesi — SADECE bilgi (#difficultySelect'i okur, YAZMAZ —
-  // oyun ortasında zorluk bu ÇİPTEN değiştirilemez, task'ın kendi kuralı).
-  // G79: Otomatik moddaysa tasarımdaki gibi "OTOMATİK" yazar — module-level
-  // `diffModeAuto` DEĞİL, AYNI koşulun (prefs.difficultyMode !== "fixed")
-  // KENDİSİ okunuyor: renderGameHeader() updateUI() üzerinden SAYFA
-  // AÇILIŞINDA senkron çağrılıyor, o an diffModeAuto HENÜZ TDZ'de (kendi
-  // `let`i script'in çok daha AŞAĞISINDA) — canlı test bunu YAKALADI
-  // (ReferenceError). prefs ise çok daha ERKEN (satır ~603) tanımlı, güvenli.
-  // Türkçe büyük harf İ/i dönüşümü CSS text-transform'a GÜVENİLMEDİ (bilinen
-  // hata, bkz. progress.js academyLevel yorumları), literal doğru-case string
-  // burada yazılı. Sabit zorlukta gerçek tier adı (Kolay/Orta/Zor/Pro/Pro
-  // Plus) — bu 5 metnin HİÇBİRİ noktalı küçük "i" içermediği için .toUpperCase()
-  // güvenle kullanılabiliyor.
-  if (els.gameDiffChip && els.difficultySelect && els.difficultySelect.selectedIndex >= 0) {
-    els.gameDiffChip.textContent = prefs.difficultyMode !== "fixed"
-      ? "OTOMATİK"
-      : els.difficultySelect.options[els.difficultySelect.selectedIndex].text.toUpperCase();
-    // G85: boss turunda zorluk çipi altına dönüyor (Prototip.dc.html'in genel
-    // boss altın paleti, diffColor'ın kendisi koddan görünmüyor ama TUTARLI).
-    els.gameDiffChip.classList.toggle("boss", !!(activeQuestion && activeQuestion.boss));
-  }
+  // G147 — kullanıcının kendi kararı: Zorluk göstergesi çipi (.game-diff-chip,
+  // #gameDiffChip) TAMAMEN KALDIRILDI — G145/G146'da SADECE gösterge olduğu,
+  // tıklamasının #levelChip ile AYNI openLevelSheet()'i açtığı, boss turunda
+  // zaten ÜÇ AYRI işaret (bossChip/analyzer.boss/analyzerFootCaption) olduğu
+  // doğrulandı. Zorluk kipi/kademesi artık Oyun Ayarları'nın "Zorluk"
+  // satırında (bkz. syncDifficultyRowLabel) VE Seviye Bilgisi'nde (#levelChip,
+  // HÂLÂ mevcut) görülebiliyor.
 
   // Sınav/telafi fazı — kalpler YERİNE nokta göstergesi. EXAM_CONFIG.
   // EXAM_LENGTH(4)/REMEDIAL_LENGTH(5) kullanılır — PARKUR_LENGTH(10) İLE
@@ -6164,9 +6149,9 @@ function closeLevelSheet() {
 if (els.levelChip) els.levelChip.addEventListener("click", openLevelSheet);
 if (els.lvlSheetClose) els.lvlSheetClose.addEventListener("click", closeLevelSheet);
 if (els.lvlSheetOverlay) els.lvlSheetOverlay.addEventListener("click", closeLevelSheet);
-// G77: zorluk göstergesi çipi — levelChip'İN AYNI sheet'ini açar, KENDİ
-// #difficultySelect'i DEĞİŞTİRME davranışı YOK (SADECE bilgi, bkz. index.html notu).
-if (els.gameDiffChip) els.gameDiffChip.addEventListener("click", openLevelSheet);
+// G147 — zorluk göstergesi çipinin (#gameDiffChip, levelChip'İN AYNI sheet'ini
+// açan İKİNCİ bir giriş noktasıydı) KENDİSİ KALDIRILDI, bu satır da onunla
+// gitti — #levelChip (beşgen) TEK/yeterli giriş noktası olarak KALDI.
 
 // "i" bilgi/rehber sistemi (bkz. core/guide-texts.js) — KALICI, tıkla-aç/tıkla-kapa.
 // TEK sheet (guideSheet), lvlSheet'in AYNI deseni: ana ekranın "i"si GENERAL_GUIDE'ı,
@@ -6845,6 +6830,15 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
         txt.textContent = select.options[select.selectedIndex].text;
       }
     });
+    // G147 — kullanıcının kendi kararı: difficultySelect'in satırı SADECE
+    // kademe adı (ör. "Kolay") DEĞİL, kip+kademe birlikte göstermeli
+    // ("Otomatik · Kolay"/"Sabit · Zor") — Otomatik moddayken satır
+    // Otomatik'te olduğunu GİZLİYORDU (G146'da canlı ölçüldü: Otomatik
+    // moddayken bile satır sadece "Kolay" yazıyordu). Yukarıdaki GENERİK
+    // döngü TÜM select'ler için doğru kalsın diye DOKUNULMADI — bu SADECE
+    // difficultySelect için sonradan EZİYOR (tek yerden yönetim, bkz.
+    // syncDifficultyRowLabel'ın kendi notu).
+    if (select.id === "difficultySelect") syncDifficultyRowLabel();
   }
 
   function closeSheet() {
@@ -7134,6 +7128,29 @@ function enforceFreeRestrictions() {
 // köprüsü kullanılıyor: mod seviyesi (Z3) → en yakın isimli kademe (easy/medium/
 // hard/pro) → o kademenin MEVCUT DIFFICULTY parametreleri. proplus bu merdivenin
 // dışında (tierForLevel hiç "proplus" döndürmez) — Otomatik modda asla seçilmez.
+// G147 — kullanıcının kendi kararı: Oyun Ayarları'nın "Zorluk" satırı VE
+// Genel Ayarlar'daki ipucu metni artık SADECE kademe adını (ör. "Kolay")
+// DEĞİL, kip+kademeyi BİRLİKTE gösteriyor ("Otomatik · Kolay"/"Sabit · Zor")
+// — G146'da canlı ölçüldü: Otomatik moddayken satır SADECE "Kolay" yazıyordu,
+// kullanıcının Otomatik'te olduğunu GİZLİYORDU. TEK yerden hesaplanıp HER İKİ
+// yüzeye de uygulanıyor — kip/kademe DEĞİŞEBİLECEK HER noktadan (updateRowText'in
+// difficultySelect özel dalı, applyAutoDifficulty, diffAutoBtn/diffFixedBtn
+// tıklamaları — hepsi syncDiffSheetUI üzerinden) çağrılıyor. `diffModeAuto`
+// DEĞİL `prefs.difficultyMode` okunuyor — bu fonksiyon updateRowText'in İÇİNDEN
+// (initSettingsSheet IIFE'sinin İLK/erken init geçişinde) de çağrılabiliyor,
+// o an diffModeAuto HENÜZ TDZ'de (G79'un AYNI kök sebebi, bkz. o notun eski hâli).
+function syncDifficultyRowLabel() {
+  if (!els.difficultySelect) return;
+  const opt = els.difficultySelect.options[els.difficultySelect.selectedIndex];
+  const tierName = opt ? opt.text : "";
+  const modeLabel = prefs.difficultyMode !== "fixed" ? "Otomatik" : "Sabit";
+  const label = tierName ? `${modeLabel} · ${tierName}` : modeLabel;
+  document.querySelectorAll('.setting-row[data-sheet-select="difficultySelect"] .setting-row-value-text').forEach(txt => {
+    txt.textContent = label;
+  });
+  if (els.diffHintV2) els.diffHintV2.textContent = label;
+}
+
 function applyAutoDifficulty() {
   if (!diffModeAuto || !els.difficultySelect) return;
   const level = progress.modeLevel(stats, mode.getMeta().id);
@@ -7147,12 +7164,9 @@ function applyAutoDifficulty() {
     // değişiklikte "Zorluk değişti" toast'ı gösteriyor — Otomatik'te her turda
     // spam olurdu). Ama initSettingsSheet IIFE'indeki updateRowText() de SADECE o
     // "change" event'ini dinliyor — bu yüzden Oyun Ayarları sheet'indeki "Zorluk"
-    // satırının metnini BURADA elle güncelliyoruz (aynı DOM deseni: upload.js'in
-    // change handler'ında da kullanılan .setting-row[data-sheet-select] sorgusu).
-    document.querySelectorAll('.setting-row[data-sheet-select="difficultySelect"] .setting-row-value-text').forEach(txt => {
-      const opt = els.difficultySelect.options[els.difficultySelect.selectedIndex];
-      if (opt) txt.textContent = opt.text;
-    });
+    // satırının (VE G147'den beri Genel Ayarlar'ın ipucu metninin) BURADA elle
+    // güncellenmesi gerekiyor — syncDifficultyRowLabel tek yerden ikisini de yapıyor.
+    syncDifficultyRowLabel();
   }
 }
 // Açılışta da uygula (ilk round'u beklemeden) — Otomatik varsayılan olduğu için
@@ -7171,10 +7185,19 @@ function syncDiffSheetUI() {
   if (els.diffAutoBtn) els.diffAutoBtn.classList.toggle("on", diffModeAuto);
   if (els.diffFixedBtn) els.diffFixedBtn.classList.toggle("on", !diffModeAuto);
   if (els.mainSettingsBack) els.mainSettingsBack.classList.toggle("hidden", !diffSublistOpen);
-  if (els.diffHintV2) els.diffHintV2.textContent = diffModeAuto
-    ? "Önerilen · performansına göre kendini ayarlar"
-    : "Hassasiyeti kendin seç";
+  // G147 — diffHintV2'nin eski açıklayıcı metni ("Önerilen · performansına
+  // göre kendini ayarlar"/"Hassasiyeti kendin seç") YERİNE Oyun Ayarları'nın
+  // "Zorluk" satırıyla AYNI kip+kademe formatı (task'ın kendi isteği: "aynı
+  // gösterim kullanılsın, tutarlılık için") — tek hesaplama, iki yüzey.
+  syncDifficultyRowLabel();
 }
+// G147 — açılışta da uygula: returning bir kullanıcıda difficultySelect'in
+// değeri applyAutoDifficulty()'nin İLK çağrısında DEĞİŞMEYEBİLİR (zaten doğru
+// kademedeyse) — o durumda applyAutoDifficulty() syncDiffSheetUI()'ı hiç
+// ÇAĞIRMAZ, diffHintV2 HTML'in eski statik metninde takılı kalırdı. Koşulsuz
+// tek çağrı bunu KAPATIYOR (applyAutoDifficulty();'nin AYNI "açılışta uygula"
+// deseni, bir satır üstte).
+syncDiffSheetUI();
 if (els.diffAutoBtn) els.diffAutoBtn.addEventListener("click", () => {
   diffModeAuto = true;
   diffSublistOpen = false;

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G144)
+Son güncelleme: 12.08.2026 (G147)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,36 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G147) — **ÜÇ İŞ: (1) Zorluk göstergesi çipi (.game-diff-chip) tamamen kaldırıldı — G145/G146'nın bulgularına dayanarak. (2) Oyun Ayarları'nın "Zorluk" satırı artık Otomatik moddayken bunu gizlemiyor: "Otomatik · Kolay"/"Sabit · Zor" formatında, Genel Ayarlar'da da AYNI format. (3) "Kaynak: "/"Odak: " önekleri kaldırıldı — Frekans Bulma'nın 2px'lik taşması KAPANDI, 12 modun HEPSİ artık tek satır.**
+
+**MADDE 1 — Zorluk çipi kaldırıldı:**
+- `.game-diff-chip`/`#gameDiffChip` HTML'den, `els` nesnesinden, `renderGameHeader()`'ın metin/boss-renk güncelleme bloğundan ve click dinleyicisinden TAMAMEN silindi. CSS'te `.game-diff-chip{}`/`.game-diff-chip.boss{}` kuralları kaldırıldı — artık kural bırakılmadı.
+- `#levelChip` (beşgen, `.ghead`'in üst satırında, `.chiprow`'un DIŞINDA) HÂLÂ AYNI `openLevelSheet()`'i açıyor — Seviye Bilgisi'ne erişim KORUNDU.
+- `.chip-base`/`--chip-h`/`--chip-pad-y`/`--chip-pad-x`/`--chip-radius`/`--chip-font` (G143) HİÇ DOKUNULMADI — `.srctag`/`.mixchip` bunları paylaşmaya devam ediyor.
+
+**MADDE 2 — Zorluk satırı artık kip+kademe gösteriyor:**
+- Yeni **`syncDifficultyRowLabel()`** fonksiyonu — TEK yerden hesaplayıp HEM Oyun Ayarları'nın "Zorluk" satırına HEM Genel Ayarlar'ın `#diffHintV2` ipucu metnine yazıyor: `"Otomatik · Kolay"` / `"Sabit · Zor"`. `diffModeAuto` DEĞİL `prefs.difficultyMode` okunuyor (G79'un TDZ dersi — bu fonksiyon `updateRowText`'in İÇİNDEN, modül init'inin ERKEN bir noktasında da çağrılabiliyor, o an `diffModeAuto` henüz TDZ'de olabilir).
+- Çağrıldığı noktalar: `updateRowText`'in `difficultySelect`'e özel dalı (generic mekanizma DOKUNULMADI, SADECE bu select için sonradan eziliyor), `applyAutoDifficulty()`'nin kendi (toast-spam'siz) manuel senkronu, `syncDiffSheetUI()` (kendisi `diffAutoBtn`/`diffFixedBtn`/tier-chip tıklamalarından ZATEN çağrılıyordu — YENİ bir çağrı noktası İCAT EDİLMEDİ, mevcut merkezi noktaya eklendi). Açılışta da (returning kullanıcıda `applyAutoDifficulty()` tier'ı DEĞİŞTİRMEYEBİLİR, o zaman eski koşullu senkron hiç çalışmazdı) koşulsuz bir `syncDiffSheetUI();` çağrısı eklendi.
+- **Tıklama davranışı DEĞİŞMEDİ** — Otomatik moddayken satıra dokununca hâlâ "Sabite geçmek ister misin?" (`#autoDiffAsk`) çıkıyor, bir seçici AÇILMIYOR (Playwright ile doğrulandı).
+
+**MADDE 3 — Önekler kaldırıldı, Frekans Bulma tek satıra indi:**
+- `#sourceChipLabel::before`/`#focusChipLabel::before` (G79'un "Kaynak: "/"Odak: " içerik ekleyen CSS kuralları) kaldırıldı — çipler artık SADECE değeri gösteriyor ("Pink Noise"/"Tüm spektrum").
+- **G146'nın 2px'lik açığı KAPANDI** — Playwright ile ölçüldü: Frekans Bulma'nın 3 çipi (Odak+Kaynak+Karışık) artık **44px yükseklikte, TEK SATIRDA**.
+
+**DOĞRULAMA (Playwright, masaüstü Chromium, 12 modun HEPSİNDE):**
+- 12 modun HEPSİNDE `#gameDiffChip` DOM'dan tamamen kalktı ✔, çip satırı TEK SATIR ✔ (Frekans Bulma DAHİL — daha önce sorunlu olan TEK mod), tüm görünür çipler HÂLÂ 44px'de eşit ✔ (`all_modes_44px: True`).
+- `#levelChip` hâlâ Seviye Bilgisi'ni açıyor ✔.
+- Otomatik moddayken Oyun Ayarları "Zorluk" satırı `"Otomatik · Kolay"` ✔, Genel Ayarlar'da `"Otomatik · Kolay"` ✔. Sabit+Zor seçilince İKİ yüzey de `"Sabit · Zor"`a güncelleniyor ✔ (Genel Ayarlar'dan değiştirilip Oyun Ayarları'na dönüldüğünde de doğru yansıyor). Tıklama davranışı (Otomatik'te "Sabite geçmek ister misin?" sorusu) korunuyor ✔.
+- Frekans Bulma etiketlerinde "Kaynak:"/"Odak:" öneki KALMADI ✔.
+- G144'ün mod başına Cevap Biçimi kalıcılığı (answerFormatSelections) ayrıca sınandı, BOZULMADI ✔.
+- Konsol hatası: **0** (tüm senaryolar boyunca). `npm test`: **1250/1250** (düşmedi).
+- Ekran görüntüsü alındı (Frekans Bulma) — çip satırı temiz tek satır, Zorluk çipi yok, pentagon hâlâ yerinde.
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js`, `www/styles.css`, `www/index.html`.
+**DOKUNULMAYAN DOSYALAR:** tüm mod dosyaları, `core/*.js`, testler, Android, iOS native dosyaları, `gameBossRow`/`bossChip`/`analyzer.boss` mekanizması (boss turu görselliği rapor edildiği gibi ZATEN yeterliydi, dokunulmadı), G144'ün `answerFormatSelections`/`applyAnswerFormatForMode` mekanizması.
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chromium/Playwright'ta yapıldı, gerçek cihazda DENENMEDİ.
 
 Bu commit (G144) — **İKİ İŞ: (1) Dokunmalı/Şıklı çip satırından kaldırılıp Oyun Ayarları'na taşındı, mod başına kalıcı (G138 deseni) — 11/12 modda TEK SATIRA indi, Frekans Bulma'da İNMEDİ (matematiksel alan yetersizliği, aşağıda). (2) Bölüm çubuğu geçişindeki anlık kırpılma için G143'ün tuttmayan reflow-zorlama denemesi YERİNE `max-height` tabanlı yumuşak geçişe geçildi — cihazda HENÜZ doğrulanamadı.**
 
@@ -11225,15 +11255,12 @@ kapatıldı.
 
 ## BEKLEYEN KARARLAR
 
-**S. G144 — Frekans Bulma'nın çip satırı tek satıra nasıl indirilsin?**
-4 çipi (Zorluk/Odak/Kaynak/Karışık — 12 modun TEK 4-çipli olanı) Playwright'ta
-`flex` kısıtları geçici kaldırılarak PRECISE ölçüldü: doğal genişlikler
-toplamı 450px, chiprow genişliği 358px — 92px'lik matematiksel açık,
-Dokunmalı/Şıklı'nın kaldırılmasından (G144'te yapıldı) BAĞIMSIZ. Üç
-seçenek: (1) 2 satır kalsın, madde kapansın; (2) "Kaynak: "/"Odak: "
-önekleri kısaltılsın (çip boyutu SABİT kalır, sadece metin kısalır); (3)
-font-size/padding küçültülsün (12 modun HEPSİNİ etkiler, eşitlik BOZULMAZ
-sadece --chip-h/--chip-font değerleri küçülür). Kod DEĞİŞTİRİLMEDİ.
+**S. ~~G144 — Frekans Bulma'nın çip satırı tek satıra nasıl indirilsin?~~ — G147'de ÇÖZÜLDÜ**
+Kullanıcı Zorluk çipinin (G145/G146'nın "sadece gösterge, gereksiz" bulgusuyla)
+TAMAMEN kaldırılmasına + "Kaynak: "/"Odak: " öneklerinin kaldırılmasına
+karar verdi (seçenek 2'nin bir üst kümesi) — 4 çipten 3'e indi VE önekler
+kalktı, Playwright'ta doğrulandı: Frekans Bulma artık 44px'de TEK SATIR
+(bkz. BİTTİ G147). font-size/padding küçültme (seçenek 3) GEREKMEDİ.
 
 **R. G142 — Stereo Genişlik'in "her zaman upload" varsayılanı — istisna kabul mü, yeni mühendislik mi?**
 Kullanıcı G141 sonrası "temiz kurulumda kaynak upload seçili geliyor,
@@ -11505,19 +11532,21 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G144 itibarıyla) — EN ÖNEMLİSİ:** G143'ten SONRA
-`cap sync` + Xcode temiz derleme + cihaza kurulum YAPILDI (kullanıcının
-G144'teki iki iş raporu O build'den geldi) — ama G144'ün düzeltmeleri
-HENÜZ senkronlanıp cihaza kurulmadı. Bir sonraki cihaz testinden ÖNCE hem
-`cap sync` hem Xcode'da TEMİZ derleme + gerçek cihaza kurulum TEKRAR
-gerekiyor. O build'de, **G144'ün bölüm çubuğu kırpılma düzeltmesi (max-
-height geçişi) EN ÖNCELİKLİ** — G143'ün reflow-zorlama denemesi cihazda
-TUTMAMIŞTI, bu YENİ yaklaşımın GERÇEKTEN işe yarayıp yaramadığı SADECE
-cihazda görülebilir (masaüstünde hiç reprodükte edilemedi). Ayrıca
-kullanıcı cihazda Frekans Bulma'nın 2 satırlı çip görünümünü GÖRÜP
-BEKLEYEN KARARLAR S'deki üç seçenekten birini seçmeli. Bunların
-YANI SIRA kullanıcı cihazda ALTI ayrı açık maddeyi de denemeli (ilki A/B
-iki alt senaryo içeriyor):
+**Tek sonraki adım (G147 itibarıyla) — EN ÖNEMLİSİ:** G144'ten SONRA
+`cap sync` + Xcode temiz derleme + cihaza kurulum YAPILDI — ama G147'nin
+üç değişikliği (Zorluk çipi kaldırma, Zorluk satırı kip+kademe gösterimi,
+önek kaldırma) HENÜZ senkronlanıp cihaza kurulmadı. Bir sonraki cihaz
+testinden ÖNCE hem `cap sync` hem Xcode'da TEMİZ derleme + gerçek cihaza
+kurulum TEKRAR gerekiyor. O build'de, **G144'ün bölüm çubuğu kırpılma
+düzeltmesi (max-height geçişi) HÂLÂ EN ÖNCELİKLİ ve HÂLÂ DOĞRULANMAMIŞ** —
+G143'ün reflow-zorlama denemesi cihazda TUTMAMIŞTI (bir kez zaten
+başarısız oldu), G144'te denenen YENİ yaklaşımın GERÇEKTEN işe yarayıp
+yaramadığı SADECE cihazda görülebilir (masaüstünde hiç reprodükte
+edilemedi, G147'de de değişmedi). G144'ün BEKLEYEN KARARLAR S maddesi
+(Frekans Bulma'nın 2 satırlı çip görünümü) G147'de ÇÖZÜLDÜ — kullanıcı
+artık cihazda TEK SATIR göreceğini doğrulamalı (masaüstünde Playwright ile
+doğrulandı, bkz. G147 kaydı). Bunların YANI SIRA kullanıcı cihazda YEDİ
+ayrı açık maddeyi de denemeli (ilki A/B iki alt senaryo içeriyor):
 - **G136/G137'nin ses kurtarma senaryoları (A/B):**
   - A) Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
     dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
@@ -11565,27 +11594,35 @@ iki alt senaryo içeriyor):
   (madde 1) kod DEĞİŞTİRMEDİ — cihazda AYRICA denenecek bir şey YOK,
   SADECE Stereo Genişlik'in istisna durumu için ürün kararı BEKLİYOR
   (bkz. BEKLEYEN KARARLAR R).
-- **G143'ün çip eşitliği (YENİ, bu turun kendi kabul ölçütü, HÂLÂ geçerli):**
-  12 modun HEPSİNDE Zorluk/Kaynak/Odak/Kaynak-çifti/Karışık çipleri gözle
-  de birebir aynı yükseklikte görünmeli (masaüstünde 44px ölçüldü, G144'te
-  Dokunmalı/Şıklı kaldırıldıktan SONRA da BOZULMADIĞI TEKRAR doğrulandı).
-  (Masaüstünde Playwright ile 12 modun HEPSİNDE ölçüldü — cihazda HENÜZ
-  denenmedi.) **G143'ün "kırpılma" düzeltmesi (reflow zorlama) G144'te
-  TAMAMEN DEĞİŞTİRİLDİ** (cihazda tutmadığı için) — aşağıdaki YENİ maddeye
-  bakın.
-- **G144'ün bölüm çubuğu kırpılma düzeltmesi (max-height geçişi, YENİ — EN
-  ÖNCELİKLİ):** Serbest↔10 Soruluk Bölüm geçişinde (ya da boss turu
-  başlarken/biterken) çip satırı ARTIK HİÇ karede kesik görünmemeli —
-  G143'ün reflow-zorlama denemesi TUTMAMIŞTI (kullanıcı ekran görüntüsüyle
-  yakalamıştı), bu turda TAMAMEN FARKLI bir teknik (max-height geçişli
-  yumuşak açılma/kapanma) denendi. Bu SPESİFİK sorunun GERÇEKTEN çözülüp
-  çözülmediği masaüstünde HİÇ doğrulanamadı (kırpılma zaten masaüstünde
-  reprodükte edilemiyordu) — SADECE cihazda görülebilir.
-- **G144'ün Frekans Bulma çip satırı (BEKLEYEN KARARLAR S — ÖNCE karar,
-  SONRA kod):** kullanıcı cihazda Frekans Bulma'nın çip satırının HÂLÂ 2
-  satır olduğunu görecek (matematiksel alan yetersizliği, Dokunmalı/Şıklı
-  kaldırılmasından bağımsız) — BEKLEYEN KARARLAR S'deki üç seçenekten
-  birini seçmesi gerekiyor, bu turda kod YAZILMADI.
+- **G143'ün çip eşitliği (HÂLÂ geçerli, G147'de de bozulmadığı doğrulandı):**
+  12 modun HEPSİNDE Kaynak/Odak/Kaynak-çifti/Karışık çipleri gözle de
+  birebir aynı yükseklikte görünmeli (masaüstünde 44px ölçüldü — Zorluk
+  çipi G147'de tamamen KALDIRILDI, artık ölçüme dahil değil). (Masaüstünde
+  Playwright ile 12 modun HEPSİNDE ölçüldü — cihazda HENÜZ denenmedi.)
+- **G144'ün bölüm çubuğu kırpılma düzeltmesi (max-height geçişi — HÂLÂ EN
+  ÖNCELİKLİ, HÂLÂ DOĞRULANMAMIŞ):** Serbest↔10 Soruluk Bölüm geçişinde (ya
+  da boss turu başlarken/biterken) çip satırı ARTIK HİÇ karede kesik
+  görünmemeli — G143'ün reflow-zorlama denemesi TUTMAMIŞTI (kullanıcı
+  ekran görüntüsüyle yakalamıştı), G144'te TAMAMEN FARKLI bir teknik
+  (max-height geçişli yumuşak açılma/kapanma) denendi, G147 bu mekanizmaya
+  DOKUNMADI. Bu SPESİFİK sorunun GERÇEKTEN çözülüp çözülmediği masaüstünde
+  HİÇ doğrulanamadı (kırpılma zaten masaüstünde reprodükte edilemiyordu) —
+  SADECE cihazda görülebilir. Bir önceki fix denemesi zaten bir kez
+  başarısız olduğu için bu maddeye cihaz testinde ÖZELLİKLE dikkat edilmeli.
+- **G147'nin üç değişikliği (YENİ, bu turun kendi kabul ölçütü — BEKLEYEN
+  KARARLAR S bu turda ÇÖZÜLDÜ, artık açık madde değil):** (1) Zorluk çipi
+  ("OTOMATİK" yazan altın/gri çip) çip satırından TAMAMEN kaybolmalı, boss
+  turu yine de #bossChip rozeti + analyzer altın kenarlık + "PRO ZORLUK"
+  alt yazısıyla net ayırt edilebilmeli; (2) Oyun Ayarları'ndaki "Zorluk"
+  satırı Otomatik moddayken "Otomatik · <kademe adı>" (ör. "Otomatik ·
+  Kolay"), Sabit moddayken "Sabit · <kademe adı>" (ör. "Sabit · Zor")
+  göstermeli — Genel Ayarlar'daki aynı satır da tutarlı olmalı; zorluk
+  satırına tıklayınca Otomatik'ten Sabit'e geçiş sorusu HÂLÂ eskisi gibi
+  çıkmalı (davranış değişmedi); (3) Frekans Bulma'da çip satırı ARTIK TEK
+  SATIRA sığmalı, "Kaynak: "/"Odak: " önekleri kaybolmuş olmalı (çip sadece
+  "Davul Döngüsü"/"Tüm spektrum" gibi değeri göstermeli). (Masaüstünde
+  Playwright ile 12 modun HEPSİNDE + iki ayarlar yüzeyinde TAM doğrulandı,
+  bkz. G147 kaydı — cihazda HENÜZ denenmedi.)
 
 Başarısızsa Safari Web Inspector'daki `[audio-diag]` günlüğü (ses
 senaryoları için) hangi dalın tetiklendiğini gösterecek — bir sonraki

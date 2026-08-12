@@ -272,11 +272,15 @@
              modda, cakisma'da çift-kaynak) TEK SATIR değişmedi (bkz. app.js
              syncAnswerFormatVisibility/populateFocusSelect/syncCakismaVisibility). -->
         <div class="chiprow chiprow-wrap">
-          <!-- Zorluk göstergesi — SADECE gösterge, tıklayınca #lvlSheet açılır
-               (levelChip'İN AYNI sheet'i) — #difficultySelect'i DEĞİŞTİRMEZ,
-               oyun ortasında zorluk sabit kalır (task'ın kendi kuralı).
-               "OTOMATİK"/tier adı app.js renderGameHeader'da yazılıyor. -->
-          <button type="button" class="game-diff-chip chip-base" id="gameDiffChip">Orta</button>
+          <!-- G147 — kullanıcının kendi kararı: Zorluk göstergesi (.game-diff-chip,
+               #gameDiffChip) çip satırından TAMAMEN KALDIRILDI — SADECE gösterge
+               olduğu (tıklaması #levelChip/beşgen ile AYNI openLevelSheet()'i
+               ikinci kez açıyordu), spotlight/guide/test bağlantısı olmadığı
+               (G145/G146'da doğrulandı) ve boss turunun zaten ÜÇ AYRI işaretle
+               (bossChip rozeti, .analyzer.boss altın kenarlık, "PRO ZORLUK · Q
+               4.0" alt yazısı) ayırt edildiği (çipin altın rengi FAZLADAN bir
+               işaretti) tespit edildi. Seviye Bilgisi'ne #levelChip'ten (aynı
+               satırda, .ghead'in üst kısmında, HÂLÂ mevcut) erişilebiliyor. -->
           <!-- G144 — kullanıcının kendi kararı: G79'un çip satırındaki İKİLİ
                segmented toggle'ı (Dokunmalı|Şıklı) KALDIRILDI (satırı ikiye
                taşırıp .ghead'i büyütüyordu). TEK giriş noktası artık Oyun
