@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G152)
+Son güncelleme: 12.08.2026 (G154)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,117 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+G153 (SADECE ARAŞTIRMA, kod YAZILMADI) — **Araçlar sekmesinin yayın-öncesi
+tam durum raporu.** DOM/panel envanteri (5 panel: Mixini Yükle/Tonal
+Balance/Ölçüm Sonuçları/Referans Filtreleri/Dosyalarım sheet'i), çalma
+altyapısı (3 UI noktasının — Mixini Yükle mini oynatıcı, Referans
+Filtreleri oynatıcısı, Tonal Balance'ın eski "B"si — TEK `uploadManager`/
+`toolsFilterPlaying` paylaştığı, `toolsConnectFilterPreviewChain()`'in
+cihaz-simülasyonu+bölge-solo+"Referans eğrisiyle dinle"yi AYNI zincirde
+birleştirdiği KANITLANDI), seek mekanizmasının (10 sn ileri/geri butonları)
+HİÇ YAZILMAMIŞ olduğu (id'siz, sıfır `addEventListener`), G127'nin
+BEKLEYEN KARARLAR P/Q'sunun hâlâ açık olduğu, `.tools-sheet`'in
+`--app-vh`/WKWebView etkileşiminin teorik olarak sağlam ama cihazda
+kanıtlanamamış olduğu (Playwright'ta reprodükte edilemedi, G136/G137/G143/
+G150'nin AYNI kategorisi) bulundu. Yayın-öncesi 9 maddelik öncelik
+sıralaması sunuldu — kullanıcı bunlardan (b)/(c)'nin kökü olan "playback
+paylaşımı"nı G154'te çözülmek üzere seçti.
+
+Bu commit (G154) — **Tonal Balance yeniden düzenlendi (G153'ün bulgusuna
+kullanıcı kararı): A/B anlamı değişti, playback Referans Filtreleri'nden
+TAMAMEN ayrıştırıldı, EQ hareketleri listesi eklendi.**
+
+**MADDE 1 — A/B anlamları değişti:** A artık kullanıcının mix'i,
+REFERANSA EQ İLE EŞİTLENMİŞ hâli; B artık referansın KENDİSİ (ham).
+Eşleme artık HER ZAMAN uygulanır — eski "Referans eğrisiyle dinle" aç/kapa
+çipi (`#toolsTonalProcChip`) HTML'den, CSS'ten, JS'ten TAMAMEN kaldırıldı.
+Ham mix SADECE "Mixini Yükle" kartının mini oynatıcısından dinlenir
+(DEĞİŞMEDİ).
+
+**MADDE 2 — Playback ayrıştırma:** Tonal Balance'ın A/B'si artık
+`toolsConnectFilterPreviewChain()`'e (Referans Filtreleri'nin cihaz
+simülasyonu + Tonal Balance'ın bölge-solo'sunu taşıyan PAYLAŞILAN zincir)
+HİÇ dokunmuyor — o zincirden SADECE eski "Referans eğrisiyle dinle" bloğu
+söküldü, cihaz simülasyonu/bölge-solo DEĞİŞMEDİ. G127'nin
+`tonalRefUploadManager`'ı (bağımsız, "tools" bağlamına dokunmadan referansı
+decode eden) artık B'ye bağlı (LUFS-eşitleme kaldırıldı, SABİT 0.85 taban
+kazancıyla çalıyor). A için AYNI desende (frekans-cakismasi'nin
+uploadManagerA/B'si, G127'nin tonalRefUploadManager'ı) ÜÇÜNCÜ bağımsız bir
+`tonalMixUploadManager` kuruldu — mix'in ses baytlarını PAYLAŞILAN
+`uploadManager`'a (Mixini Yükle/Referans Filtreleri'nin kullandığı,
+dokunulmadı) hiç dokunmadan ayrıca decode ediyor, üstüne HER ZAMAN 6 bantlı
+eşleme EQ'su + B'nin LUFS'una eşitleme (yön G127'den TERSİNE döndü: eskiden
+referans mix'e eşitleniyordu, şimdi mix referansa eşitleniyor — "İKİSİ AYNI
+seviyede çalsın" ilkesi AYNEN korundu).
+
+**MADDE 3 — EQ hareketleri listesi:** `computeReferenceEqGainsDb`'nin A'nın
+ses zincirinde KULLANILAN gerçek kazançlarıyla BİREBİR aynı çıktısı,
+±1 dB eşiği üstü bantlar `formatHz` (mevcut, projede zaten kullanılan
+formatlayıcı) ile "120 Hz  −2.5 dB" biçiminde listeleniyor. Eşik altındaysa
+liste yerine "Tonal dengen referansa zaten yakın — belirgin bir EQ hareketi
+gerekmiyor." Listenin üstünde SADECE satır varsa "Bu değerleri kendi
+EQ'nda deneyebilirsin:" yönlendirmesi. `renderToolsTonalSummary`'nin
+kullandığı AYNI sayı formatı (`.toFixed(1)`, "−" işareti) — yeni bir
+görsel dil İCAT EDİLMEDİ.
+
+**BEKLEYEN KARARLAR P (Q=2.5, sönümleme=1.0) BU TURDA DEĞİŞTİRİLMEDİ** —
+`TOOLS_TONAL_EQ_Q`/`TOOLS_TONAL_EQ_GAIN_SCALE` aynı sabitler, sadece
+UYGULANDIĞI yer (artık A'nın her zaman açık zinciri) değişti.
+
+**DOĞRULAMA (Playwright, GERÇEK iki farklı `.m4a` dosyasıyla — vocal.m4a
+mix, groove_090.m4a referans, `devFlags.customTonalRef` açılarak):**
+- 4. çip ("Kendi referansım") göründü, referans seçilince AB satırı
+  doğru etiketlerle ("A · Eşitlenmiş mix" / "B · Referans") göründü, eski
+  proc-chip DOM'da YOK (0 eleman).
+- EQ listesi GERÇEK sayılarla doldu (ör. "49 Hz +22.4 dB", "354 Hz
+  −10.1 dB") — ±1 dB altı bantlar (varsa) listede YOK.
+- `window.__tonalDebugState()` ile: A'ya basınca `tonalMixPlaying=true`,
+  `tonalRefPlaying=false` VE `toolsFilterPlaying=false` (Referans
+  Filtreleri'ne HİÇ dokunmadı) — B'ye basınca tam tersi, `abGainB=0.85`
+  (sabit taban, LUFS-eşitleme YOK).
+- **Bağımsızlık, doğrudan kanıtlandı:** Referans Filtreleri'nde bir cihaz
+  simülasyonu seçilip KENDİ play butonuna basıldı — `toolsFilterPlaying=
+  true` oldu ama `tonalMixPlaying`/`tonalRefPlaying` İKİSİ de `false`
+  kaldı (Tonal Balance ETKİLENMEDİ).
+- Mixini Yükle'nin mini oynatıcısı (`#toolsMixPlayBtn`) HÂLÂ
+  `toolsFilterPlaying`'i kullanıyor (DEĞİŞMEDİ) — ham mix çalmaya devam
+  ediyor.
+- `window.__tonalRefVerify()` (G127'nin kendi sayısal doğrulama kancası,
+  DOKUNULMADI) ile eşleme hâlâ mixi referansa yakınsatıyor (bu turda
+  seçilen — BİLEREK çok farklı — iki gerçek dosyada mesafe 54.7→31.4,
+  %43 azalma; G127'nin sentetik test sinyaliyle ölçtüğü %97.6'dan düşük
+  ama YÖN doğru, kaynak GERÇEK/farklı enstrümantasyon).
+- 12 modun `actionbar-compact` (G150) + `nextBtn` metni ve G143 çip
+  eşitliği (3 modda) yeniden tarandı — HİÇBİRİ bozulmadı (bu turda
+  `www/js/modes/*`, oyun ekranı CSS'i DOKUNULMADI zaten).
+- Konsol hatası: 0. `npm test`: 1250/1250 (değişmedi).
+
+**DOKUNULAN DOSYALAR:** `www/index.html` (A/B etiketleri, proc-chip
+kaldırıldı, EQ listesi markup'ı), `www/styles.css` (proc-chip kuralları
+kaldırıldı, EQ listesi kuralları eklendi), `www/js/app.js` (Tonal
+Balance'ın A/B/EQ-liste mantığı + `toolsConnectFilterPreviewChain`'in
+eski madde-5 bloğu kaldırıldı + `onContextRecreated`/`goScreen`'in
+güvenlik ağlarına yeni state eklendi).
+
+**DOKUNULMAYAN DOSYALAR:** `www/js/core/upload.js` (yeni
+`tonalMixUploadManager` SADECE `createUploadManager`'ı mevcut haliyle
+ÇAĞIRIYOR, fabrikanın kendisi değişmedi), `www/js/core/tonal-balance.js`
+(`computeReferenceEqGainsDb`/`lufsMatchGainDb`/`TOOLS_TONAL_EQ_Q`/
+`TOOLS_TONAL_EQ_GAIN_SCALE` BİREBİR aynı), Mixini Yükle/Referans
+Filtreleri'nin KENDİ cihaz-simülasyonu/bölge-solo/seek-yok davranışı
+(sadece Tonal Balance'ın onlara olan BAĞIMLILIĞI kaldırıldı), oyun ekranı
+(`www/js/modes/*`, G143/G144/G150'nin dosyaları), testler, Android/iOS
+native dosyalar.
+
+**npm test:** 1250/1250 (değişmedi).
+
+**DÜRÜSTLÜK NOTU:** Bu turda kod DEĞİŞTİ ve Playwright'ta GERÇEK ses
+dosyalarıyla (sentetik test sinyali DEĞİL) uçtan uca doğrulandı, ama HENÜZ
+cihazda kurulmadı. G127'nin kendi "cihazda hiç dinlenmedi" notu (A/B'nin
+GERÇEKTEN aynı yükseklikte duyulduğu, kulakla) burada da AYNEN geçerli —
+YÖN (hangi tarafın hangi role oynadığı) değişti ama mekanizma (LUFS
+eşitleme matematiği) DEĞİŞMEDİ, kulak testi hâlâ gerekiyor.
 
 Bu commit (G152) — **G151'in iki bulgusu ÇÖZÜLDÜ: (1) Spotlight "listen"
 adımı Motor 2'de artık A/B/C kartlarını aydınlatıyor (BEKLEYEN KARARLAR U

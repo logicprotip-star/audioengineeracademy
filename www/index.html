@@ -995,13 +995,23 @@
               <canvas id="toolsTonalChart"></canvas>
             </div>
             <div class="tools-tonal-summary" id="toolsTonalSummary"></div>
+            <!-- G154 — A/B anlamı değişti (kullanıcı kararı): A artık referansa EQ ile
+                 eşitlenmiş mix, B artık referansın kendisi (ham). Eşleme HER ZAMAN
+                 uygulanır — eski "Referans eğrisiyle dinle" aç/kapa çipi KALKTI. -->
             <div class="tools-tonal-ab-row hidden" id="toolsTonalAbRow">
-              <div class="tools-tonal-ab-btn role-a" id="toolsTonalPlayA">A · Referans</div>
-              <div class="tools-tonal-ab-btn role-b" id="toolsTonalPlayB">B · Senin mixin</div>
-              <div class="tools-tonal-proc-chip" id="toolsTonalProcChip">Referans eğrisiyle dinle</div>
+              <div class="tools-tonal-ab-btn role-a" id="toolsTonalPlayA">A · Eşitlenmiş mix</div>
+              <div class="tools-tonal-ab-btn role-b" id="toolsTonalPlayB">B · Referans</div>
             </div>
             <div class="tools-tonal-note">hedef aralık ±1.5 dB</div>
             <div class="tools-tonal-draft-note" id="toolsTonalDraftNote"></div>
+            <!-- G154 — EQ hareketleri listesi: kullanıcı bu değerleri kendi DAW'ında
+                 elle uygulayabilsin diye, eşleme için hesaplanan GERÇEK bant
+                 kazançları (A'nın ses zincirinde kullanılanla BİREBİR aynı) okunabilir
+                 satırlar hâlinde gösterilir. ±1 dB eşiği altı listelenmez. -->
+            <div class="tools-tonal-eq-list hidden" id="toolsTonalEqList">
+              <div class="tools-tonal-eq-hint" id="toolsTonalEqHint">Bu değerleri kendi EQ'nda deneyebilirsin:</div>
+              <div class="tools-tonal-eq-rows" id="toolsTonalEqRows"></div>
+            </div>
           </div>
 
           <!-- E) Ölçüm Sonuçları — analysis.js/analysis-worker.js AYNEN kalıyor,

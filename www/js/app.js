@@ -187,8 +187,10 @@ const els = {
   toolsTonalAbRow: document.getElementById("toolsTonalAbRow"),
   toolsTonalPlayA: document.getElementById("toolsTonalPlayA"),
   toolsTonalPlayB: document.getElementById("toolsTonalPlayB"),
-  toolsTonalProcChip: document.getElementById("toolsTonalProcChip"),
   toolsTonalDraftNote: document.getElementById("toolsTonalDraftNote"),
+  toolsTonalEqList: document.getElementById("toolsTonalEqList"),
+  toolsTonalEqHint: document.getElementById("toolsTonalEqHint"),
+  toolsTonalEqRows: document.getElementById("toolsTonalEqRows"),
   // E) Ölçüm Sonuçları — kart/buton + sheet + kalıcı şerit. analysis.js'e
   // DOKUNULMADI, bu yüzden içerik-render id'leri (toolsAnalysisChannelTable
   // vb.) G99'dan AYNEN korundu, sadece konumları (artık sheet içinde) değişti.
@@ -2147,6 +2149,7 @@ function goScreen(name) {
   if (prevScreenName === "tools" && name !== "tools") {
     if (typeof toolsFilterPlaying !== "undefined" && toolsFilterPlaying) toolsStopFilterPlayback();
     if (typeof tonalRefPlaying !== "undefined" && tonalRefPlaying) toolsTonalStopRefPlayback();
+    if (typeof tonalMixPlaying !== "undefined" && tonalMixPlaying) toolsTonalStopMixPlayback();
   }
   if (prevScreenName === "paywall" && name !== "paywall") stopPaywallLivesTicker();
   const targetId = `screen-${name}`;
@@ -9331,12 +9334,12 @@ if (toolsTonalReferences.list.length && !toolsTonalReferences.list.some((r) => r
 let toolsTonalRefListOpen = false;
 let toolsTonalMixLufs = null;    // aktif "tools" dosyasının integrated LUFS'u — A/B seviye eşitlemesi için LAZY hesaplanır
 let toolsTonalMixLufsForId = null;
-let toolsTonalProcOn = false;
 let toolsSoloBandIdx = -1; // G117 madde B — bölge solo: -1 kapalı, 0-5 SUB..TİZ (toolsFilterActiveIdx ile AYNI desen, dosya değişince RESETLENMİYOR)
 const TOOLS_TONAL_PRESETS = ["Pop", "EDM", "Akustik"];
 const TOOLS_TONAL_REF_MAX = 5; // toolsFiles kütüphanesiyle (TOOLS_LIBRARY_MAX) AYNI sınır deseni
-// G127 madde 5 — "Referans eğrisiyle dinle" zincirinin 6 peaking filtresinin
-// Q'su. Playwright'ta OFFLINE render + yeniden ölçüm ile DENEYSEL tarandı
+// G127 madde 5 (G154'te A'nın HER ZAMAN açık eşleme zincirine taşındı, bkz.
+// o turun notu — bu SAYI DEĞİŞMEDİ, BEKLEYEN KARARLAR P hâlâ açık) — eşleme
+// zincirinin 6 peaking filtresinin Q'su. Playwright'ta OFFLINE render + yeniden ölçüm ile DENEYSEL tarandı
 // (Q=0.7→4.0, gerçek iki dosyayla — bkz. DURUM.md'nin bu turdaki doğrulama
 // notu, sayılarla): Q arttıkça (dar/cerrahi bant, komşu bantlara daha az
 // taşma) düzeltme referansa daha da yakınsıyor (Q=1→~%88, Q=4→~%99 mesafe
@@ -9349,17 +9352,37 @@ const TOOLS_TONAL_EQ_Q = 2.5;
 // sebepti (bkz. handleTonalReferencePicked'daki uploadManager kirlenmesi
 // notu), Q/kazanç ayarı DEĞİLDİ.
 const TOOLS_TONAL_EQ_GAIN_SCALE = 1.0;
+// G154 (madde 3) — EQ hareketleri listesinde bu eşiğin ALTINDAKİ bantlar
+// gösterilmez (kullanıcının kendi kararı: "altı kulakla duyulmaz").
+const TOOLS_TONAL_EQ_LIST_THRESHOLD_DB = 1;
 
-// G127 — "A · Referans" için AYRI, bağımsız bir uploadManager — "tools"
-// bağlamının PAYLAŞILAN uploadManager'ına HİÇ DOKUNMADAN referans parçanın
-// kendi ses baytlarını (fileStorage'dan, ihtiyaç anında) decode eder. Aynı
-// desen frekans-cakismasi'nin uploadManagerA/uploadManagerB'sinde ZATEN var
-// (bkz. app.js:829) — burada YENİDEN İCAT EDİLMEDİ.
+// G127 — "B · Referans" (G154'te A'dan B'ye taşındı, bkz. o turun notu) için
+// AYRI, bağımsız bir uploadManager — "tools" bağlamının PAYLAŞILAN
+// uploadManager'ına HİÇ DOKUNMADAN referans parçanın kendi ses baytlarını
+// (fileStorage'dan, ihtiyaç anında) decode eder. Aynı desen frekans-
+// cakismasi'nin uploadManagerA/uploadManagerB'sinde ZATEN var (bkz.
+// app.js:829) — burada YENİDEN İCAT EDİLMEDİ.
 const tonalRefUploadManager = createUploadManager(() => audioEngine.audioCtx);
 let tonalRefLoadedSourceFileId = null; // tonalRefUploadManager'da şu an yüklü olan toolsFiles id'si
 let tonalRefPlaying = false;
 let tonalRefPreviewNode = null;
-let toolsTonalAbGainA = null; // A (referans) çalarken LUFS eşitleme kazancı
+let toolsTonalAbGainB = null; // B (referans) çalarken SABİT taban kazancı (0.85)
+
+// G154 — "A · Eşitlenmiş mix" için AYNI desende (frekans-cakismasi'nin
+// uploadManagerA/B'si, G127'nin tonalRefUploadManager'ı) ÜÇÜNCÜ, bağımsız
+// bir uploadManager — "tools" bağlamının PAYLAŞILAN uploadManager'ına
+// (Mixini Yükle/Referans Filtreleri'nin KULLANDIĞI, bkz. o kartların kendi
+// notu) HİÇ DOKUNMADAN mix'in kendi ses baytlarını ayrıca decode eder.
+// Böylece Tonal Balance'ın A/B'si, Referans Filtreleri'nin cihaz
+// simülasyonu/bölge-solo zincirinden (toolsConnectFilterPreviewChain)
+// TAMAMEN bağımsız kalır — G153 raporunun bulduğu paylaşım sorunu burada
+// KÖKTEN ayrıştırıldı (bkz. DURUM.md G153/G154 kayıtları).
+const tonalMixUploadManager = createUploadManager(() => audioEngine.audioCtx);
+let tonalMixLoadedSourceFileId = null; // tonalMixUploadManager'da şu an yüklü olan toolsFiles id'si
+let tonalMixPlaying = false;
+let tonalMixPreviewNode = null;
+let toolsTonalMixEqNodes = []; // A'nın eşleme EQ zinciri (6 peaking filtre) — çalmadan ÖNCE/durunca temizlenir
+let toolsTonalAbGainA = null; // A (eşitlenmiş mix) çalarken B'nin (referansın) LUFS'una eşitleme kazancı
 
 // --- G102: canlı analizör durumu ---
 let toolsTonalLastAvgDevs = null;    // en son çizilen ORTALAMA eğri (rAF döngüsü bunu yeniden kullanır)
@@ -9452,10 +9475,13 @@ if (els.toolsTonalRefList) {
     const del = e.target.closest("[data-ref-del]");
     if (del) {
       const id = del.dataset.refDel;
-      // Dayanıklılık taraması — silinen/DEĞİŞTİRİLEN referans o an "A"da
+      // Dayanıklılık taraması — silinen/DEĞİŞTİRİLEN referans o an B'de
       // ÇALIYORSA, eski ses YENİ UI durumunun ALTINDA çalmaya devam ederdi
-      // (bir sonraki dokunuşa kadar). Referans değişince A ÖNCE durdurulur.
+      // (bir sonraki dokunuşa kadar). A da (varsa) durdurulur — A'nın çaldığı
+      // EQ eşlemesi ESKİ referansa göre hesaplanmıştı, referans değişince
+      // GEÇERSİZ olur (G154).
       if (tonalRefPlaying) toolsTonalStopRefPlayback();
+      if (tonalMixPlaying) toolsTonalStopMixPlayback();
       toolsTonalReferences.list = toolsTonalReferences.list.filter((r) => r.id !== id);
       if (toolsTonalReferences.activeId === id) {
         const rest = toolsTonalReferences.list;
@@ -9477,6 +9503,7 @@ if (els.toolsTonalRefList) {
     const row = e.target.closest("[data-ref-id]");
     if (row) {
       if (tonalRefPlaying) toolsTonalStopRefPlayback();
+      if (tonalMixPlaying) toolsTonalStopMixPlayback();
       toolsTonalReferences.activeId = row.dataset.refId;
       toolsTonalRefListOpen = false;
       toolsTonalPersistReferences();
@@ -9506,6 +9533,11 @@ function renderToolsTonalRefList() {
 async function handleTonalReferencePicked(id) {
   const entry = toolsFiles.find((f) => f.id === id);
   if (!entry) return;
+  // G154 — dropdown'daki değiştir/sil akışlarıyla AYNI dayanıklılık kuralı:
+  // yeni bir referans eklenirken A/B çalıyorsa (eski referansa göre), ESKİ
+  // ses/EQ yeni durumun altında çalmaya devam etmesin diye önce durdurulur.
+  if (tonalRefPlaying) await toolsTonalStopRefPlayback();
+  if (tonalMixPlaying) await toolsTonalStopMixPlayback();
   if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Referans ölçülüyor…"; els.toolsTonalSummary.style.color = "#8f949b"; }
   try {
     await audioEngine.initAudio();
@@ -9575,18 +9607,29 @@ async function handleTonalReferencePicked(id) {
   }
 }
 
-// G127 madde 4 — A/B dinleme. "B · Senin mixin" projedeki TEK gerçek DSP
-// oynatıcısıyla (Referans Filtreleri akordiyonunun toolsToggleFilterPlayback'ı,
-// bkz. F bölümü) AYNI mekanizmayı kullanır — o buton neyse "B" de odur, İKİ
-// AYRI oynatma motoru KURULMADI. "A · Referans" ise YENİ, bağımsız bir motor
-// (tonalRefUploadManager) — ikisi KARŞILIKLI DIŞLAYICI (biri başlarken diğeri
-// durur, aksi halde iki kaynak ÜST ÜSTE çalar).
+// G154 — A/B dinleme, PLAYBACK AYRIŞTIRMASI (G153 raporunun bulgusuna göre
+// kullanıcı kararı): Tonal Balance'ın A/B'si artık Referans Filtreleri'nin
+// toolsToggleFilterPlayback()/toolsConnectFilterPreviewChain() zincirine HİÇ
+// DOKUNMUYOR — o zincir sadece Mixini Yükle'nin mini oynatıcısı ve Referans
+// Filtreleri'nin KENDİ oynatıcısı için kalıyor (cihaz simülasyonu/bölge-solo,
+// DEĞİŞMEDİ). B (referansın kendisi, tonalRefUploadManager — G127'den, SADECE
+// hangi düğmeye bağlı olduğu değişti) ve A (referansa EQ ile eşitlenmiş mix,
+// YENİ tonalMixUploadManager) KARŞILIKLI DIŞLAYICI — biri başlarken diğeri durur.
 async function toolsTonalStopRefPlayback() {
   if (!tonalRefPlaying) return;
   tonalRefUploadManager.pausePlayback();
   if (tonalRefPreviewNode) { try { tonalRefPreviewNode.stop(); } catch (e) {} tonalRefPreviewNode = null; }
-  if (toolsTonalAbGainA) { try { toolsTonalAbGainA.disconnect(); } catch (e) {} }
+  if (toolsTonalAbGainB) { try { toolsTonalAbGainB.disconnect(); } catch (e) {} }
   tonalRefPlaying = false;
+}
+async function toolsTonalStopMixPlayback() {
+  if (!tonalMixPlaying) return;
+  tonalMixUploadManager.pausePlayback();
+  if (tonalMixPreviewNode) { try { tonalMixPreviewNode.stop(); } catch (e) {} tonalMixPreviewNode = null; }
+  toolsTonalMixEqNodes.forEach((n) => { try { n.disconnect(); } catch (e) {} });
+  toolsTonalMixEqNodes = [];
+  if (toolsTonalAbGainA) { try { toolsTonalAbGainA.disconnect(); } catch (e) {} }
+  tonalMixPlaying = false;
 }
 async function toolsTonalEnsureMixLufs() {
   const entry = toolsSelectedEntry();
@@ -9604,11 +9647,9 @@ async function toolsTonalEnsureMixLufs() {
     return null;
   }
 }
-async function toolsTonalToggleMixPlayback() {
-  if (tonalRefPlaying) await toolsTonalStopRefPlayback();
-  await toolsToggleFilterPlayback();
-  renderToolsTonalAbUi();
-}
+// B · Referans — referansın HAM sesi, SABİT 0.85 taban kazancıyla (G127'nin
+// eski "A" mantığı, sadece hangi düğmeye bağlı olduğu ve LUFS-eşitleme YÖNÜ
+// değişti — bkz. toolsTonalToggleMatchedMixPlayback'in AYNI ilkesi).
 async function toolsTonalToggleRefPlayback() {
   const ref = toolsTonalActiveRef();
   if (!ref) return;
@@ -9617,7 +9658,7 @@ async function toolsTonalToggleRefPlayback() {
     renderToolsTonalAbUi();
     return;
   }
-  if (toolsFilterPlaying) await toolsStopFilterPlayback();
+  if (tonalMixPlaying) await toolsTonalStopMixPlayback();
   const libEntry = toolsFiles.find((f) => f.id === ref.sourceFileId);
   if (!libEntry) {
     toast("Referans sesi bulunamadı", "Kaynak dosya kütüphaneden kaldırılmış — sadece eğri karşılaştırması kullanılabilir.");
@@ -9648,20 +9689,12 @@ async function toolsTonalToggleRefPlayback() {
       tonalRefLoadedSourceFileId = ref.sourceFileId;
       tonalRefUploadManager.startFromZero();
     }
-    // madde 4 — "İKİSİ AYNI seviyede çalsın": B, Referans Filtreleri'nin SABİT
-    // 0.85 headroom kazancıyla çalıyor (bkz. toolsToggleFilterPlayback) — A da
-    // AYNI tabanı kullanır, üstüne integrated LUFS FARKI kadar telafi eklenir
-    // (tonalBalance.lufsMatchGainDb) — ikisi de "0.85 × algısal olarak AYNI
-    // yükseklik" düzeyinde çalar. LUFS ölçülemezse (worker hatası vb.) telafi
-    // 0 dB'ye düşer — SESSİZCE YANLIŞ eşleme yerine dürüst "eşitlenmedi" hâli.
-    const mixLufs = await toolsTonalEnsureMixLufs();
-    const gainDb = (mixLufs != null && ref.lufs != null) ? tonalBalance.lufsMatchGainDb(ref.lufs, mixLufs) : 0;
-    toolsTonalAbGainA = toolsTonalAbGainA || ctx.createGain();
-    toolsTonalAbGainA.gain.value = 0.85 * tonalBalance.dbToLinearGain(gainDb);
-    toolsTonalAbGainA.connect(ctx.destination);
+    toolsTonalAbGainB = toolsTonalAbGainB || ctx.createGain();
+    toolsTonalAbGainB.gain.value = 0.85;
+    toolsTonalAbGainB.connect(ctx.destination);
     tonalRefPreviewNode = tonalRefUploadManager.getSourceNode();
     if (!tonalRefPreviewNode) return;
-    tonalRefPreviewNode.connect(toolsTonalAbGainA);
+    tonalRefPreviewNode.connect(toolsTonalAbGainB);
     tonalRefPlaying = true;
     renderToolsTonalAbUi();
   } catch (err) {
@@ -9669,27 +9702,89 @@ async function toolsTonalToggleRefPlayback() {
     toast("Referans çalınamadı", "Bu referans şu an oynatılamadı.");
   }
 }
-if (els.toolsTonalPlayA) els.toolsTonalPlayA.addEventListener("click", toolsTonalToggleRefPlayback);
-if (els.toolsTonalPlayB) els.toolsTonalPlayB.addEventListener("click", toolsTonalToggleMixPlayback);
-// G127 madde 5 — "Referans eğrisiyle dinle": AÇMA/KAPAMA durumu burada
-// tutulur, GERÇEK EQ zinciri toolsConnectFilterPreviewChain() içine eklendi
-// (bkz. F bölümündeki YENİ blok) — B ZATEN o zinciri kullandığı için, chip
-// açıkken/kapalıyken B çalıyorsa zincir CANLI güncellenir.
-if (els.toolsTonalProcChip) {
-  els.toolsTonalProcChip.addEventListener("click", () => {
-    toolsTonalProcOn = !toolsTonalProcOn;
-    if (toolsFilterPlaying) toolsConnectFilterPreviewChain();
+// A · Eşitlenmiş mix — "tools" bağlamının mix'i, referansa EQ ile eşitlenmiş
+// HÂLDE çalar (madde 1: eşleme artık HER ZAMAN uygulanır, eski aç/kapa çipi
+// kalktı). computeReferenceEqGainsDb — EQ listesinde (renderToolsTonalEqList)
+// GÖSTERİLEN kazançlarla BİREBİR AYNI hesap, tek kaynak. LUFS eşitlemesi
+// YÖN DEĞİŞTİRDİ (eski koddan): artık MIX, REFERANSIN (B'nin) seviyesine
+// çekiliyor — "İKİSİ AYNI seviyede çalsın" ilkesi (G127 madde 4) AYNEN
+// korundu, sadece hangi tarafın hareket ettiği tersine döndü.
+async function toolsTonalToggleMatchedMixPlayback() {
+  const entry = toolsSelectedEntry();
+  const ref = toolsTonalActiveRef();
+  if (!entry || !ref) return;
+  if (tonalMixPlaying) {
+    await toolsTonalStopMixPlayback();
     renderToolsTonalAbUi();
-  });
+    return;
+  }
+  if (tonalRefPlaying) await toolsTonalStopRefPlayback();
+  try {
+    const running = await audioEngine.initAudio();
+    if (!running) {
+      toast("Ses açılamadı", "Ekrana dokunup tekrar deneyin.");
+      return;
+    }
+    const ctx = audioEngine.audioCtx;
+    if (tonalMixLoadedSourceFileId !== entry.id) {
+      let fileObj = entry.file;
+      if (!fileObj) {
+        const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+        if (!blob) { toast("Dosya bulunamadı", `${entry.name} artık cihazda yok.`); return; }
+        fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+        entry.file = fileObj;
+      }
+      const res = await tonalMixUploadManager.loadFile(fileObj);
+      if (!res.ok) { toast(res.title, res.detail); return; }
+      tonalMixLoadedSourceFileId = entry.id;
+      tonalMixUploadManager.startFromZero();
+    }
+    const mixDevs = toolsTonalLastAvgDevs || await toolsEnsureTonalMeasured();
+    if (!mixDevs) { toast("Ölçüm eksik", "Mix henüz ölçülmedi."); return; }
+    const gains = tonalBalance.computeReferenceEqGainsDb(mixDevs, ref.devs).map((g) => g * TOOLS_TONAL_EQ_GAIN_SCALE);
+    const freqs = tonalBalance.bandCenterFreqs();
+
+    const mixLufs = await toolsTonalEnsureMixLufs();
+    const gainDb = (mixLufs != null && ref.lufs != null) ? tonalBalance.lufsMatchGainDb(mixLufs, ref.lufs) : 0;
+    toolsTonalAbGainA = toolsTonalAbGainA || ctx.createGain();
+    toolsTonalAbGainA.gain.value = 0.85 * tonalBalance.dbToLinearGain(gainDb);
+    toolsTonalAbGainA.connect(ctx.destination);
+
+    tonalMixPreviewNode = tonalMixUploadManager.getSourceNode();
+    if (!tonalMixPreviewNode) return;
+    toolsTonalMixEqNodes.forEach((n) => { try { n.disconnect(); } catch (e) {} });
+    toolsTonalMixEqNodes = [];
+    let node = tonalMixPreviewNode;
+    gains.forEach((gainDbBand, i) => {
+      const f = ctx.createBiquadFilter();
+      f.type = "peaking";
+      f.frequency.value = freqs[i];
+      f.gain.value = gainDbBand;
+      f.Q.value = TOOLS_TONAL_EQ_Q;
+      node.connect(f);
+      node = f;
+      toolsTonalMixEqNodes.push(f);
+    });
+    node.connect(toolsTonalAbGainA);
+    tonalMixPlaying = true;
+    renderToolsTonalAbUi();
+  } catch (err) {
+    console.error("[tonal-balance] eşitlenmiş mix çalma hatası:", err && err.message, err);
+    toast("Mix çalınamadı", "Eşitlenmiş mix şu an oynatılamadı.");
+  }
 }
+if (els.toolsTonalPlayA) els.toolsTonalPlayA.addEventListener("click", toolsTonalToggleMatchedMixPlayback);
+if (els.toolsTonalPlayB) els.toolsTonalPlayB.addEventListener("click", toolsTonalToggleRefPlayback);
 function renderToolsTonalAbUi() {
   const ref = toolsTonalActiveRef();
   if (els.toolsTonalPlayA) {
-    els.toolsTonalPlayA.classList.toggle("playing", tonalRefPlaying);
+    els.toolsTonalPlayA.classList.toggle("playing", tonalMixPlaying);
     els.toolsTonalPlayA.classList.toggle("disabled", !ref);
   }
-  if (els.toolsTonalPlayB) els.toolsTonalPlayB.classList.toggle("playing", toolsFilterPlaying);
-  if (els.toolsTonalProcChip) els.toolsTonalProcChip.classList.toggle("on", toolsTonalProcOn);
+  if (els.toolsTonalPlayB) {
+    els.toolsTonalPlayB.classList.toggle("playing", tonalRefPlaying);
+    els.toolsTonalPlayB.classList.toggle("disabled", !ref);
+  }
 }
 
 async function toolsEnsureTonalMeasured() {
@@ -10035,10 +10130,11 @@ window.__tonalDebugState = () => ({
   lastAvgDevs: toolsTonalLastAvgDevs,
   lastTargetDevs: toolsTonalLastTargetDevs,
   abGainA: toolsTonalAbGainA ? toolsTonalAbGainA.gain.value : null,
+  abGainB: toolsTonalAbGainB ? toolsTonalAbGainB.gain.value : null,
   filterPreviewGain: toolsFilterPreviewGain ? toolsFilterPreviewGain.gain.value : null,
   tonalRefPlaying,
+  tonalMixPlaying,
   toolsFilterPlaying,
-  toolsTonalProcOn,
   isCustom: toolsTonalIsCustom(),
 });
 window.__tonalRefVerify = async function (qOverride, scaleOverride) {
@@ -10166,9 +10262,6 @@ async function renderToolsTonalCard() {
   toolsTonalResetHalfRange(devs, targetDevs); // G116 — dosya/hedef değişince ölçek TEK SEFER kilitlenir
   toolsTonalRedraw(toolsTonalLiveDevs);
   toolsTonalSyncLiveLoop();
-  // madde 5 — "Referans eğrisiyle dinle" B çalarken zaten açıksa (mod/referans
-  // değişimi sırasında), YENİ ölçülen mixDevs'e göre zincir CANLI güncellenir.
-  if (toolsFilterPlaying) toolsConnectFilterPreviewChain();
 
   if (targetDevs) {
     const diff = devs.map((d, i) => d - targetDevs[i]);
@@ -10176,6 +10269,41 @@ async function renderToolsTonalCard() {
   } else {
     if (els.toolsTonalSummary) { els.toolsTonalSummary.textContent = "Referans parça seçilmedi"; els.toolsTonalSummary.style.color = "#8f949b"; }
   }
+  // G154 (madde 3) — EQ hareketleri listesi: SADECE "Kendi referansım" + seçili
+  // bir referansla anlamlı (preset modlarda GERÇEK ses/EQ eşlemesi yok, sadece
+  // taslak hedef eğri) — AB satırıyla AYNI görünürlük koşulu.
+  if (isCustom && activeRef) {
+    renderToolsTonalEqList(devs, activeRef.devs);
+  } else if (els.toolsTonalEqList) {
+    els.toolsTonalEqList.classList.add("hidden");
+  }
+}
+// G154 (madde 3) — computeReferenceEqGainsDb'nin AYNI çıktısı (A'nın ses
+// zincirinde uygulanan GERÇEK kazançlarla BİREBİR aynı, tek kaynak) —
+// ±1 dB eşiği altındaki bantlar listelenmez (kullanıcının kendi kararı:
+// "altı kulakla duyulmaz"). Hiçbir bant eşiği aşmıyorsa liste yerine tek
+// satırlık bir mesaj gösterilir.
+function renderToolsTonalEqList(mixDevs, refDevs) {
+  if (!els.toolsTonalEqList || !els.toolsTonalEqRows) return;
+  const gains = tonalBalance.computeReferenceEqGainsDb(mixDevs, refDevs);
+  const freqs = tonalBalance.bandCenterFreqs();
+  const rows = gains
+    .map((g, i) => ({ freq: freqs[i], gain: g }))
+    .filter((r) => Math.abs(r.gain) > TOOLS_TONAL_EQ_LIST_THRESHOLD_DB);
+  els.toolsTonalEqList.classList.remove("hidden");
+  if (els.toolsTonalEqHint) els.toolsTonalEqHint.classList.toggle("hidden", rows.length === 0);
+  if (rows.length === 0) {
+    els.toolsTonalEqRows.innerHTML = `<div class="tools-tonal-eq-empty">Tonal dengen referansa zaten yakın — belirgin bir EQ hareketi gerekmiyor.</div>`;
+    return;
+  }
+  els.toolsTonalEqRows.innerHTML = rows.map((r) => {
+    const sign = r.gain > 0 ? "+" : "−";
+    const cls = r.gain > 0 ? "boost" : "cut";
+    return `<div class="tools-tonal-eq-row">
+      <span class="tools-tonal-eq-freq">${formatHz(r.freq)}</span>
+      <span class="tools-tonal-eq-gain ${cls}">${sign}${Math.abs(r.gain).toFixed(1)} dB</span>
+    </div>`;
+  }).join("");
 }
 // preset (koridor+amber) ve custom-referans (3-renkli) çizimleri arasında
 // TEK dispatch noktası — hem renderToolsTonalCard hem canlı-analizör döngüsü
@@ -10535,30 +10663,12 @@ function toolsConnectFilterPreviewChain() {
       toolsFilterChainNodes.push(f);
     });
   }
-  // G127 madde 5 — "Referans eğrisiyle dinle" AÇIKKEN (SADECE "Kendi
-  // referansım" + seçili bir referansla anlamlı): mixin KENDİ son ölçülen
-  // sapması (toolsTonalLastAvgDevs) ile referansın sapması ARASINDAKİ farkı
-  // kapatan 6 bantlı peaking-EQ zinciri eklenir (tonalBalance.
-  // computeReferenceEqGainsDb — SAF, testler bunu doğrudan doğrular).
-  // Dosya DEĞİŞTİRİLMİYOR/DIŞA AKTARILMIYOR — sadece bu ÖNİZLEME zincirine
-  // (playback-only) ekleniyor, task'ın kendi kısıtı.
-  if (toolsTonalProcOn && toolsTonalIsCustom()) {
-    const ref = toolsTonalActiveRef();
-    if (ref && toolsTonalLastAvgDevs) {
-      const gains = tonalBalance.computeReferenceEqGainsDb(toolsTonalLastAvgDevs, ref.devs).map((g) => g * TOOLS_TONAL_EQ_GAIN_SCALE);
-      const freqs = tonalBalance.bandCenterFreqs();
-      gains.forEach((gainDb, i) => {
-        const f = ctx.createBiquadFilter();
-        f.type = "peaking";
-        f.frequency.value = freqs[i];
-        f.gain.value = gainDb;
-        f.Q.value = TOOLS_TONAL_EQ_Q;
-        node.connect(f);
-        node = f;
-        toolsFilterChainNodes.push(f);
-      });
-    }
-  }
+  // G154 — "Referans eğrisiyle dinle" (eski madde 5) BURADAN TAMAMEN
+  // kaldırıldı: Tonal Balance'ın A'sı (eşitlenmiş mix) artık BAĞIMSIZ bir
+  // zincirde (tonalMixUploadManager, bkz. toolsTonalToggleMatchedMixPlayback)
+  // her zaman çalışıyor — bu PAYLAŞILAN zincir (Mixini Yükle/Referans
+  // Filtreleri) artık SADECE cihaz simülasyonu + bölge-solo taşıyor, Tonal
+  // Balance'tan TAMAMEN bağımsız (G153 raporunun bulduğu paylaşım kaldırıldı).
   node.connect(toolsFilterPreviewGain);
 }
 
@@ -10774,4 +10884,9 @@ audioEngine.onContextRecreated = () => {
   uploadManagerB.clear();
   tonalRefUploadManager.clear();
   tonalRefLoadedSourceFileId = null;
+  // G154 — Tonal Balance'ın A'sı (eşitlenmiş mix) için YENİ, bağımsız
+  // uploadManager — yukarıdaki tonalRefUploadManager ile AYNI "dar/ikincil
+  // özellik, güvenli sıfırlama" muamelesi.
+  tonalMixUploadManager.clear();
+  tonalMixLoadedSourceFileId = null;
 };

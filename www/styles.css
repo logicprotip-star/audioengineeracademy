@@ -2076,10 +2076,21 @@
     .tools-tonal-ab-btn.role-a.playing{background:rgba(232,196,106,.16);border-color:#e8c46a}
     .tools-tonal-ab-btn.role-b.playing{background:rgba(34,211,238,.14);border-color:#22d3ee}
     .tools-tonal-ab-btn.disabled{opacity:.4;pointer-events:none}
-    .tools-tonal-proc-chip{flex-shrink:0;padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:#6c7178;font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap}
-    .tools-tonal-proc-chip.on{background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.5);color:#22d3ee}
     .tools-tonal-note{margin-top:8px;font-size:10px;font-weight:500;color:#3f444a}
     .tools-tonal-draft-note{margin-top:8px;font-size:10px;font-weight:500;color:#4a4f56;line-height:1.5}
+    /* G154 — EQ hareketleri listesi (madde 3). Renk/boyut paleti Tonal Balance'ın
+       KENDİ kartındaki diğer metinlerle (.tools-tonal-summary/.tools-tonal-note)
+       AYNI — yeni bir görsel dil İCAT EDİLMEDİ. Boost/cut renkleri --gr/--rd
+       (projede zaten var olan genel yeşil/kırmızı token'ları). */
+    .tools-tonal-eq-list{margin-top:12px}
+    .tools-tonal-eq-hint{font-size:11px;font-weight:600;color:#8f949b;margin-bottom:7px}
+    .tools-tonal-eq-rows{display:flex;flex-direction:column;gap:6px}
+    .tools-tonal-eq-row{display:flex;align-items:center;justify-content:space-between;padding:8px 11px;border-radius:9px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
+    .tools-tonal-eq-freq{font-size:12px;font-weight:700;color:#c7ced5}
+    .tools-tonal-eq-gain{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+    .tools-tonal-eq-gain.boost{color:var(--gr)}
+    .tools-tonal-eq-gain.cut{color:var(--rd)}
+    .tools-tonal-eq-empty{font-size:12px;font-weight:600;color:#8f949b;line-height:1.5}
 
     /* Referans Filtreleri — akordiyon + çalar */
     .tools-filter-header{display:flex;align-items:center;gap:11px;cursor:pointer}
