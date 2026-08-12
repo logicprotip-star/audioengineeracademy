@@ -63,10 +63,18 @@ export function createRoundFlow({ onTimerTick, onTimeUp, onAutoAdvanceLabel, onA
     return remaining;
   }
 
-  // Cevap verildikten sonra bir sonraki soruya otomatik geçişi kurar. label, geri
-  // sayım sırasında nextBtn üzerinde gösterilecek önek — bu modül hangi metnin
-  // geçildiğini BİLMEZ/karışmaz (app.js'in kararı, bkz. G139 — artık HER
-  // ZAMAN "Atla" geçiyor, soru sayısı içeren önekler kaldırıldı).
+  // Cevap verildikten sonra bir sonraki soruya otomatik geçişi kurar. label
+  // artık KULLANILMIYOR (G142 — kullanıcının kendi kararı: alt bar HİÇBİR
+  // zaman geri sayım sayısı göstermesin, "Atla (5) ▶" yerine SADECE "Atla ▶").
+  // Parametre SİLİNMEDİ (app.js hâlâ "Atla" geçiyor, G139'un deseni) — İMZA
+  // değişmedi, sadece BURADA artık okunmuyor. Otomatik geçişin KENDİSİ
+  // (autoAdvanceTimer/setTimeout, zamanlama, onAdvance() tetiklenmesi)
+  // BİREBİR AYNI kaldı — SADECE metin artık değişmediği için onu HER 200ms'de
+  // yeniden yazan autoCountdownTimer/setInterval'a GEREK KALMADI (aynı sabit
+  // string'i saniyede 5 kez DOM'a yazmak gereksizdi), kaldırıldı. clearAutoAdvance()
+  // hâlâ `clearInterval(autoCountdownTimer)` çağırıyor — autoCountdownTimer artık
+  // hep null, bu çağrı zararsız no-op (captureRemainingAndClear'ın kullandığı
+  // autoAdvanceTimer/autoAdvanceArmedAt/autoAdvanceSegmentMs'e DOKUNULMADI).
   function ensureAutoNext(durationMs, label) {
     clearAutoAdvance();
 
@@ -74,16 +82,9 @@ export function createRoundFlow({ onTimerTick, onTimeUp, onAutoAdvanceLabel, onA
     autoAdvanceArmedAt = Date.now();
     autoAdvanceSegmentMs = total;
 
-    const updateCountdownLabel = () => {
-      const remainMs = Math.max(0, autoAdvanceSegmentMs - (Date.now() - autoAdvanceArmedAt));
-      const remainSec = Math.ceil(remainMs / 1000);
-      onAutoAdvanceLabel(remainMs > 0 ? `${label} (${remainSec}) ▶` : "Atla ▶");
-    };
-    updateCountdownLabel();
-    autoCountdownTimer = setInterval(updateCountdownLabel, 200);
+    onAutoAdvanceLabel("Atla ▶");
 
     autoAdvanceTimer = setTimeout(() => {
-      clearInterval(autoCountdownTimer);
       autoAdvanceTimer = null;
       onAutoAdvanceLabel("Atla ▶");
       onAdvance();

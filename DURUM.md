@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G141)
+Son güncelleme: 12.08.2026 (G142)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,31 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G142) — **Cihazda G141 sonrası bildirilen İKİ hata: (1) "temiz kurulumda kaynak upload seçili geliyor" — KOD İNCELEMESİYLE (Önce koddan doğrula, tahmin etme) YANLIŞ ÇIKTI, 10/11 modda ZATEN doğru çalışıyor, TEK istisna (Stereo Genişlik) G122'den beri BİLİNÇLİ bir tasarım — DÜZELTME YAPILMADI, bulgular raporlandı. (2) "Atla (N) ▶" geri sayım sayısı — DÜZELTİLDİ, artık her koşulda sadece "Atla ▶".**
+
+**MADDE 1 — KAYNAK VARSAYILANI (kod incelemesi + Playwright, iddia DOĞRULANAMADI):**
+- `source-catalog.js`: `SOURCE_GROUPS` sırası SENTETİK→DAVUL→ENSTRÜMAN→KENDİ DOSYAM — "own"/upload grubu HER ZAMAN SON. `populateSourceSelect()`'in `selectedIndex=0` fallback'ı bu SIRAYA göre ilk UYUMLU seçeneği alır — `sourceSelections`'ın (G138) kaydettiği/kaydetmediği hiçbir şey bu sırayı DEĞİŞTİRMEZ.
+- 12 modun `uyumluKaynaklar` tanımı tek tek okundu: 6 mod varsayılan `compatibleSourceIds()` (ilk uyumlu = **pink**), Kompresör `requireTransient:true` (ilk uyumlu = **saw**, pink/white noTransient olduğu için elenir), Reverb'ün `only` listesi (ilk uyumlu = **snare** — DAVUL grubu SENTETİK'ten SONRA ama upload'tan ÖNCE geldiği için), Tonal Denge'nin `only: ["groove","upload"]` (ilk uyumlu = **groove**), Pan Konumu'nun geniş `only` listesi (ilk uyumlu = **pink**, liste pink'i içeriyor). Frekans Çakışması `uyumluKaynaklar:[]` — bu mekanizmanın DIŞINDA (ayrı uploadManagerA/B sistemi). **SADECE Stereo Genişlik** `only:["upload"]` — matematiksel olarak TEK uyumlu seçenek upload, BAŞKA bir şey OLAMAZ.
+- **Playwright ile CANLI DOĞRULANDI** (temiz localStorage, 11 mod — cakisma hariç — tek oturumda gezildi): frekans-bulma/kesim-noktasi/db-seviyesi/boost-mu-cut-mu/q-genisligi/distortion/pan-konumu → **pink**; kompresor → **saw**; reverb → **snare**; tonal-denge → **groove**; **SADECE stereo-genislik → upload** (gate paneli SADECE bu modda görünüyor, `#startBtn` SADECE bu modda gizli). Konsol hatası 0.
+- **SONUÇ:** G138'in fallback mantığında BUG YOK — kullanıcının kendi ŞÜPHESİ (G138'in seçim mantığı upload'a düşüyor) koddan VE canlı testten DOĞRULANAMADI. Gerçek/tek istisna Stereo Genişlik — ama bu G138'DEN DEĞİL, **G122**'den geliyor ("Stereo Genişlik'in kaynağı TAMAMEN değişti: artık SADECE kullanıcının yüklediği dosyayla oynanıyor... DSP mid/side genişliğe geçti" — kullanıcının O ZAMANKİ kendi kararı). Bu modun DSP'si (mid/side stereo genişlik) doğası gereği STEREO bir sinyal gerektiriyor — pink noise/davul örnekleri gibi mono/tek-kanallı üretilmiş kaynaklarla "genişlik" kavramı GÖSTERİLEMEZ, bu YÜZDEN G122 upload-only karara vardı.
+- **BEKLEYEN ÜRÜN KARARI (kod DEĞİŞTİRİLMEDİ, karar kullanıcıya bırakıldı):** "12 modun HEPSİNDE" kabul ölçütü Stereo Genişlik için LİTERAL olarak karşılanamaz — modun ÜRETİLEN/stereo bir kaynağı YOK. Seçenekler: (a) Stereo Genişlik'i istisna kabul et (11/12 mod zaten doğru, bu mod G122'nin kendi kararı gereği hep upload-only kalacak) — HİÇBİR KOD DEĞİŞMEZ; (b) Stereo Genişlik'e YENİ bir stereo-üretilmiş kaynak (ör. iki kanala hafif faz/gecikme farkı uygulanmış sentetik bir sinyal) EKLE — bu G122'nin mimari kararını TERSİNE çeviren, DSP dahil YENİ bir mühendislik işi, bu turun kapsamının ÇOK ötesinde.
+
+**MADDE 2 — GERİ SAYIM SAYISI (DÜZELTİLDİ):**
+- **`core/round-flow.js`** — `ensureAutoNext()`'in `updateCountdownLabel`/200ms `setInterval`'ı (SADECE metni `${label} (${remainSec}) ▶` biçiminde YENİDEN yazmak için vardı) kaldırıldı — `onAutoAdvanceLabel("Atla ▶")` artık kurulumda BİR KEZ çağrılıyor, sayı ARTIK HİÇ hesaplanmıyor/gösterilmiyor. `autoAdvanceTimer`/`setTimeout` (GERÇEK otomatik geçiş zamanlayıcısı, `onAdvance()`'i süre dolunca tetikleyen) **DOKUNULMADAN** kaldı — sadece kozmetik metin güncellemesi kaldırıldı, geçişin KENDİSİ (zamanlaması, `onAdvance()` çağrısı) BİREBİR aynı.
+- `label` parametresi imzada KALDI (app.js hâlâ "Atla" geçiyor, G139'un deseni) ama artık okunmuyor — İKİNCİ bir dosyayı (app.js) gereksiz yere değiştirmemek için İMZA korundu.
+- `#feedbackClose`/`.fb-close` (geri bildirim kartındaki ✕) — bu, `goToNextRound()`'u DOĞRUDAN çağıran TAMAMEN AYRI bir kod yolu (`onAutoAdvanceLabel`'a hiç dokunmuyor) — grep ile doğrulandı, bu turda dokunulmadı, YİNE DE komşu akış olarak Playwright ile ayrıca test edildi.
+
+**DOĞRULAMA (Playwright, masaüstü Chromium):**
+- Cevap verildikten sonra geri sayım boyunca buton metni 8 kez örneklendi — **HEPSİ** `"Atla ▶"` (hiçbirinde sayı YOK) ✔.
+- Otomatik geçişin KENDİSİ GERÇEKTEN gerçekleşti (süre dolunca yeni tur başladı, `#startBtn` "⏸" ile aktif tur gösterdi) ✔ — madde 2'nin "otomatik geçişin kendisi aynen kalsın" şartı.
+- `.fb-close` (✕) hâlâ ANINDA geçiş yapıyor (feedback kartı kapandı, yeni tur başladı) — BOZULMADI ✔.
+- Konsol hatası: **0**. `npm test`: **1250/1250** (düşmedi, yeni test eklenmedi — bu turun kapsamı `round-flow.js`'in DAVRANIŞINI değiştirdi, yeni bir dışa açık fonksiyon EKLEMEDİ).
+
+**DOKUNULAN DOSYALAR:** `www/js/core/round-flow.js` (SADECE).
+**DOKUNULMAYAN DOSYALAR:** `www/js/app.js`, `www/js/core/source-catalog.js`, tüm mod dosyaları, `www/js/core/storage.js`, testler, Android, iOS native dosyaları — madde 1 için bulgu raporlandı ama KOD DEĞİŞMEDİ (yanlış teşhis olurdu), madde 2 tek dosyada, minimal.
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chromium/Playwright'ta yapıldı, gerçek cihazda DENENMEDİ. `npx cap sync ios` bu turda ÇALIŞTIRILMADI (istenmedi).
 
 Bu commit (G141) — **KARAR DEĞİŞİKLİĞİ (kullanıcının kendi kararı): oyunun ASIL akışı "10 Soruluk Bölüm" — bu artık varsayılan VE kalıcı. Serbest, isteyerek seçilen bir kip. Serbest'te üst bar bölüm satırı artık TAMAMEN gizli (G78'in "hep görünür, sönük" kararı geçersiz). G65'in "kalıcı değil" kararı da geçersiz.**
 
@@ -11145,6 +11170,19 @@ kapatıldı.
 
 ## BEKLEYEN KARARLAR
 
+**R. G142 — Stereo Genişlik'in "her zaman upload" varsayılanı — istisna kabul mü, yeni mühendislik mi?**
+Kullanıcı G141 sonrası "temiz kurulumda kaynak upload seçili geliyor,
+12 modun HEPSİNDE üretilen bir kaynak varsayılan olsun" istedi. Kod
+incelemesi + Playwright: 11/12 mod ZATEN doğru (pink/saw/snare/groove).
+SADECE Stereo Genişlik `only:["upload"]` — matematiksel olarak başka
+seçeneği YOK. Bu, G122'nin kendi kararı (mid/side stereo genişlik DSP'si,
+doğası gereği stereo bir sinyal ister — pink noise/davul örnekleri gibi
+mono kaynaklarla gösterilemez). Karar: (a) İSTİSNA kabul et, kod
+DEĞİŞMESİN (11/12 zaten doğru, bu mod hep upload-only kalsın) — ÖNERİLEN,
+sıfır ek iş; (b) Stereo Genişlik'e YENİ bir stereo-üretilmiş kaynak
+EKLE (ör. iki kanala hafif faz/gecikme farklı sentetik sinyal) — G122'nin
+mimari kararını tersine çeviren, DSP dahil YENİ bir mühendislik işi.
+
 **P. G127 — "Kendi Referansım" DSP parametreleri (Q=2.5, sönümleme=1.0) kullanıcı onayı OLMADAN seçildi**
 Task bu sayıları belirtmiyordu — Playwright'ta sentetik test sinyaliyle
 taranıp ("belirgin yakınsama" ile "aşırı dar/notch gibi duyulmama" arasında)
@@ -11368,11 +11406,13 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G141 itibarıyla) — EN ÖNEMLİSİ:** `npx cap sync ios`
-G138'den beri ÇALIŞTIRILMADI (kullanıcı istemedi) — bir sonraki cihaz
-testinden ÖNCE hem `cap sync` hem Xcode'da TEMİZ derleme + gerçek cihaza
-kurulum GEREKİYOR. O build'de, kullanıcı cihazda BEŞ ayrı açık maddeyi
-denemeli:
+**Tek sonraki adım (G142 itibarıyla) — EN ÖNEMLİSİ:** G141'den SONRA
+`cap sync` + Xcode temiz derleme + cihaza kurulum YAPILDI (kullanıcının
+G142'deki iki hata raporu O build'den geldi) — ama G142'nin
+`round-flow.js` düzeltmesi HENÜZ senkronlanıp cihaza kurulmadı. Bir
+sonraki cihaz testinden ÖNCE hem `cap sync` hem Xcode'da TEMİZ derleme +
+gerçek cihaza kurulum TEKRAR gerekiyor. O build'de, kullanıcı cihazda
+BEŞ ayrı açık maddeyi denemeli (ilki A/B iki alt senaryo içeriyor):
 - **G136/G137'nin ses kurtarma senaryoları (A/B):**
   - A) Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
     dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
@@ -11410,6 +11450,16 @@ denemeli:
   çalıştığı (G138'in aynı notu) bu turda da DOĞRULANMADI. (Masaüstünde
   Playwright ile ALTI senaryoda TAM doğrulandı, bkz. G141 kaydı — cihazda
   HENÜZ denenmedi.)
+- **G142'nin geri sayım sayısı gizleme (YENİ, bu turun kendi kabul
+  ölçütü):** cevap verildikten sonra alt bar butonu geri sayım boyunca
+  SADECE "Atla ▶" yazmalı, "Atla (N) ▶" gibi bir sayı GÖRÜNMEMELİ —
+  otomatik geçişin KENDİSİ (süre dolunca sıradaki soruya geçiş) eskisi
+  gibi çalışmalı, geri bildirim kartının ✕'iyle anında geçiş de
+  bozulmamalı. (Masaüstünde Playwright ile TAM doğrulandı, bkz. G142
+  kaydı — cihazda HENÜZ denenmedi.) G142'nin kaynak-varsayılanı bulgusu
+  (madde 1) kod DEĞİŞTİRMEDİ — cihazda AYRICA denenecek bir şey YOK,
+  SADECE Stereo Genişlik'in istisna durumu için ürün kararı BEKLİYOR
+  (bkz. BEKLEYEN KARARLAR R).
 
 Başarısızsa Safari Web Inspector'daki `[audio-diag]` günlüğü (ses
 senaryoları için) hangi dalın tetiklendiğini gösterecek — bir sonraki
