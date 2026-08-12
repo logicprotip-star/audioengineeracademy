@@ -11469,6 +11469,40 @@ Kullanıcı onayladı, Info.plist + AndroidManifest.xml değişti (bkz. BİTTİ
 G121). **Cihazda GERÇEK döndürme ile HENÜZ doğrulanmadı** — bu tek kalan
 adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
+## İLERİ SÜRÜM FİKİRLERİ
+
+Bunlar yayın öncesi YAPILMAYACAK — kullanıcı geri bildirimi sonrası
+değerlendirilecek fikirler, aktif bir görev DEĞİL.
+
+**1. Geri bildirim derinleştirme — karşılaştırmalı dinletme**
+Yanlış cevapta sadece doğruyu göstermek yerine karşılaştırmalı dinletme —
+örn. kullanıcının seçtiği 424 Hz ile doğru cevap 184 Hz arka arkaya
+çalınsın, fark kulakla duyulsun. Rakiplerin (SoundGym, TrainYourEars) zayıf
+tarafı geri bildirim; mevcut öğretim sistemi zaten fark yaratıyor, bu onu
+derinleştirir.
+
+**2. Frekans bazlı zayıflık haritası**
+Kullanıcının hangi bantlarda daha çok yanıldığını gösteren ilerleme ekranı.
+"Geçen aya göre bas bölgesinde daha iyiyim" hissi.
+
+**ÖN KOŞUL NOTU (bu turda koddan doğrulandı, tahmin YOK):** Bu ÖNKOŞUL
+şart olarak sorulmuştu ("her cevabın frekans/bant bilgisi kaydediliyor mu,
+bilinmiyor") — kod incelemesiyle netleşti: **kısmen ZATEN VAR.**
+`storage.js`'in `fa_zonestats` kaydı (`zoneStats`, `{n, ok, sumDOct,
+dOctCount}` — deneme sayısı, doğru sayısı, ortalama sapma oktav cinsinden)
+HER Frekans Bulma cevabından sonra `frekans-bulma.js`'te güncelleniyor,
+`app.js:zoneScores()` bunu `mode.FA_ZONES`'un 6 bölgesine (SUB/BAS/ALT-
+ORTA/ORTA/ÜST-ORTA/TİZ) göre bir haritaya çevirip İlerleme sekmesinde
+**"Zayıf Bölge Raporu" olarak ZATEN GÖSTERİYOR** (yüzde doğruluk +
+bölge aralığı, ör. "Bas (20–120 Hz): %64"). Yani fikir #2 Frekans
+Bulma'da SIFIRDAN inşa değil, MEVCUT bir özelliğin GENİŞLETİLMESİ/
+GÜÇLENDİRİLMESİ (ör. "geçen aya göre" trend karşılaştırması EKLEMEK,
+ya da diğer modlara YAYMAK). **DOĞRULANMAYAN kısım:** bu bant/frekans
+takibi SADECE Frekans Bulma'ya özgü görünüyor (`FA_ZONES` sadece o modun
+dosyasından dışa açılıyor) — diğer 11 modda (dB Seviyesi, Kesim Noktası
+vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
+doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
+
 ## SIRADAKİ
 
 **Tek sonraki adım (G144 itibarıyla) — EN ÖNEMLİSİ:** G143'ten SONRA
