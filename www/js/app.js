@@ -6783,6 +6783,31 @@ document.addEventListener("visibilitychange", async () => {
   if (document.hidden) {
     audioEngine.stopAudio();
     uploadManager.pausePlayback();
+    // G155 — CİHAZDA BULUNAN GERÇEK BOŞLUK: yukarıdaki audioEngine.stopAudio()
+    // SADECE audio-engine.js'in KENDİ currentNodes'unu (oyun/mod turlarının
+    // zinciri) söküyor — Araçlar'ın ÜÇ oynatıcısı (toolsFilterPreviewNode/
+    // tonalRefPreviewNode/tonalMixPreviewNode, hepsi app.js'te DOĞRUDAN
+    // ctx.createXxx() ile kurulup audio-engine.js'in currentNodes'una HİÇ
+    // eklenmiyor) bu temizliğe hiç girmiyordu — GERİ dönüşte toolsFilterPlaying/
+    // tonalRefPlaying/tonalMixPlaying HÂLÂ true kaldığı için kullanıcının
+    // İLK play basışı "zaten çalıyor, DURDUR" dalına düşüp HİÇBİR ses
+    // çalmadan sessizce "duraklatılmış" durumuna dönüyordu (cihazda görülen
+    // "kilit açılınca ses gelmedi" tam olarak buydu). Üçü de burada AYRICA
+    // duraklatılır (pozisyon KORUNUR — G147'nin "kaldığı yerden devam"
+    // kararı, "Durdur" gibi SIFIRLAMAZ) — bir SONRAKİ play basışı artık
+    // doğru şekilde BAŞLATMA dalına düşer, initAudio()/ensureAudioAlive()
+    // (zaten HER üç oynatıcının KENDİ başlatma yolunda var, bkz. o
+    // fonksiyonların initAudio() çağrısı) context'i GEREKİRSE canlandırır/
+    // yeniden kurar — YENİ bir kurtarma mekanizması İCAT EDİLMEDİ.
+    toolsPauseFilterPlayback();
+    toolsTonalStopRefPlayback();
+    toolsTonalStopMixPlayback();
+    // Bu olay Araçlar HANGİ sekmede olursa olsun tetiklenir (global
+    // dinleyici) — ikon/metin güncellemeleri (renderToolsFilterPlayer/
+    // renderToolsTonalAbUi'nin KENDİ els.xxx && kontrolleri) Araçlar açık
+    // olsun olmasın ZARARSIZ.
+    renderToolsFilterPlayer();
+    renderToolsTonalAbUi();
     // G136 — CİHAZDA BULUNAN GERÇEK BOŞLUK: buradaki stopAudio() (normal
     // "Durdur"un basit muteOutput()'undan FARKLI olarak) turun ses
     // zincirinin düğümlerini GERÇEKTEN söküyor (bkz. audio-engine.js:
@@ -10775,19 +10800,29 @@ function renderToolsMixPlayer(entry) {
       : `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-left:2px"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z"></path></svg>`;
   }
 }
+// G155 — "Durdur" (toolsStopFilterPlayback, uploadManager.startFromZero()
+// İLE pozisyonu SIFIRLAR) İLE KARIŞTIRILMASIN: bu SADECE duraklatır,
+// pozisyonu KORUR (G147'nin "yüklenen dosya kaldığı yerden devam eder"
+// kararıyla AYNI). Hem toggle'ın kendi durdurma dalı HEM arka plana
+// alınma/bağlam yeniden kurulma teardown'ı (aşağıda, visibilitychange +
+// onContextRecreated) bunu çağırır — TEK yerden, iki kopya YOK. Durdurma
+// her zaman güvenli — running olması GEREKMEZ (context zaten interrupted'sa
+// çalan bir şey de yoktur, ama UI'ı "duraklatılmış" durumuna geri
+// döndürmek/node referanslarını temizlemek her koşulda doğru).
+function toolsPauseFilterPlayback() {
+  if (!toolsFilterPlaying) return;
+  uploadManager.pausePlayback();
+  if (toolsFilterPreviewNode) { try { toolsFilterPreviewNode.stop(); } catch (e) {} toolsFilterPreviewNode = null; }
+  toolsDisconnectFilterChain(); // G117 — filtre/solo node'ları da temizlenir
+  toolsFilterPlaying = false;
+}
 async function toolsToggleFilterPlayback() {
   if (!uploadManager.hasBuffer) return;
   const running = await audioEngine.initAudio();
   const ctx = audioEngine.audioCtx, analyser = audioEngine.analyser;
   if (!ctx || !analyser) return;
   if (toolsFilterPlaying) {
-    // Durdurma her zaman güvenli — running olması GEREKMEZ (context zaten
-    // interrupted'sa çalan bir şey de yoktur, ama UI'ı "duraklatılmış"
-    // durumuna geri döndürmek her koşulda doğru).
-    uploadManager.pausePlayback();
-    if (toolsFilterPreviewNode) { try { toolsFilterPreviewNode.stop(); } catch (e) {} toolsFilterPreviewNode = null; }
-    toolsDisconnectFilterChain(); // G117 — filtre/solo node'ları da temizlenir
-    toolsFilterPlaying = false;
+    toolsPauseFilterPlayback();
   } else {
     // G130 — YENİ çalmaya BAŞLARKEN context running değilse (bkz.
     // playQuestion'daki AYNI not) zincir hiç KURULMASIN.
@@ -10889,4 +10924,18 @@ audioEngine.onContextRecreated = () => {
   // özellik, güvenli sıfırlama" muamelesi.
   tonalMixUploadManager.clear();
   tonalMixLoadedSourceFileId = null;
+  // G155 — .clear() sadece manager'ların KENDİ buffer'ını sıfırlıyor;
+  // toolsFilterPlaying/tonalRefPlaying/tonalMixPlaying VE ham node
+  // referansları (toolsFilterPreviewNode/tonalRefPreviewNode/
+  // tonalMixPreviewNode — artık KAPANMIŞ eski bağlama ait) bu satırlarla
+  // TEMİZLENMİYORDU. Context yeniden kurulması SADECE arka plandan dönüşte
+  // değil, doğrudan bir play tıklamasının KENDİSİ sırasında da
+  // (ensureAudioAlive zombi tespit ederse) tetiklenebilir — üçü de AYNI
+  // duraklatma fonksiyonlarıyla (yukarıdaki visibilitychange'in G155 notuyla
+  // AYNI mantık) güvenli hâle getirilir.
+  toolsPauseFilterPlayback();
+  toolsTonalStopRefPlayback();
+  toolsTonalStopMixPlayback();
+  renderToolsFilterPlayer();
+  renderToolsTonalAbUi();
 };

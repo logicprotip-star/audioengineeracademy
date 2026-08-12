@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G154)
+Son güncelleme: 12.08.2026 (G155)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,121 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G155) — **Araçlar'ın üç oynatıcısı (Referans Filtreleri/Mixini
+Yükle'nin paylaştığı uploadManager, tonalRefUploadManager, tonalMixUploadManager)
+G133-G137'nin arka-plan/zombi-bağlam kurtarma zincirine bağlandı — cihazda
+görülen "ekran kilitlendi, kilit açılınca ses gelmedi, başka şarkıya
+geçince de gelmedi" hatası.**
+
+**KÖK NEDEN (koddan doğrulandı, satır satır izlendi):**
+1. `document.addEventListener("visibilitychange", ...)`'ın `document.hidden`
+   dalı `audioEngine.stopAudio()` çağırıyor — ama bu fonksiyon SADECE
+   `audio-engine.js`'in KENDİ `currentNodes` dizisini (oyun/mod turlarının
+   zinciri) sökıyor. Araçlar'ın üç oynatıcısının node'ları
+   (`toolsFilterPreviewNode`/`tonalRefPreviewNode`/`tonalMixPreviewNode`)
+   app.js'te DOĞRUDAN `ctx.createXxx()` ile kurulup HİÇ o diziye
+   eklenmiyor — bu temizliğe HİÇ girmiyorlardı.
+2. Daha kritik: `toolsFilterPlaying`/`tonalRefPlaying`/`tonalMixPlaying`
+   (her oynatıcının "şu an çalıyor mu" bayrağı) arka plana alınırken HİÇ
+   `false`'a çekilmiyordu. Geri dönüşte kullanıcı play'e basınca, üç
+   toggle fonksiyonu da (`toolsToggleFilterPlayback`/
+   `toolsTonalToggleRefPlayback`/`toolsTonalToggleMatchedMixPlayback`)
+   bu bayrağın hâlâ `true` olduğunu görüp "zaten çalıyor, DURDUR" dalına
+   düşüyordu — hiçbir ses çalmadan sessizce "duraklatılmış" görünüme
+   dönüyordu. Kullanıcının "play'e bastım, ses gelmedi" algısı BUYDU.
+   `initAudio()`/`ensureAudioAlive()` her üç fonksiyonun BAŞINDA zaten
+   KOŞULSUZ çağrılıyordu (bağlamın kendisi canlanıyordu) — sorun bağlamda
+   DEĞİL, oynatıcıların KENDİ "çalıyor" durumundaydı.
+3. `audioEngine.onContextRecreated` hook'u (G127/G154'te
+   `tonalRefUploadManager`/`tonalMixUploadManager`'ı `.clear()`'lıyordu)
+   AYNI eksikliği taşıyordu — buffer'lar sıfırlanıyordu ama "çalıyor"
+   bayrakları ve ham node referansları (artık KAPANMIŞ bağlama ait)
+   temizlenmiyordu — bağlam yeniden kurulması SADECE arka plandan
+   dönüşte değil, doğrudan bir play tıklaması SIRASINDA da (zombi tespit
+   edilirse) tetiklenebildiği için bu AYRI bir risk yüzeyiydi.
+
+**Cevap (madde 1 — task'ın kendi sorusu):** EVET, üçü de `ensureAudioAlive()`
+akışını (`initAudio()` üzerinden) ÇAĞIRIYORDU — bu kısım zaten bağlıydı,
+KOPUK olan "çalıyor" durumunun geri dönüşte doğru sıfırlanmasıydı.
+
+**Cevap (madde 2):** Native taraf (`AudioSessionPlugin.swift`) ekran
+kilidinde bile çalmaya devam edecek şekilde yapılandırılmış
+(`.playback` kategorisi) VE `AVAudioSession.interruptionNotification`'ı
+dinleyip `interruptionBegan`/`sessionActivated` olayları yayınlıyor —
+AMA JS tarafında bu olaylara BAĞLI bir dinleyici YOK (G132'nin kendi
+notu: "kapsam bilerek dar tutuldu, olay dinleme AYRI bir konu" —
+DOĞRULANDI, hâlâ öyle). Uygulamanın TÜM kurtarma modeli `visibilitychange`
++ "bir sonraki play denemesinde ensureAudioAlive()" ikilisine dayanıyor —
+ekran kilidi WKWebView'de `document.hidden=true` üretir (bu proje için
+G133-137'de zaten kanıtlanmış/kabul edilmiş bir varsayım, bu turda YENİDEN
+sorgulanmadı) — oyun ekranının çözümü bu senaryoyu KAPSIYOR, sadece
+Araçlar'a hiç UYGULANMAMIŞTI.
+
+**DÜZELTME (G136/G137'nin AYNI deseni, YENİ bir mekanizma İCAT EDİLMEDİ):**
+- `toolsToggleFilterPlayback()`'in kendi "durdur" dalı `toolsPauseFilterPlayback()`
+  adıyla AYRI bir fonksiyona ÇIKARILDI (G147'nin "Durdur" — sıfırlar —
+  İLE KARIŞTIRILMAMASI için özellikle "Durdur" DEĞİL, SADECE duraklatır/
+  pozisyonu KORUR, bkz. fonksiyonun kendi notu) — hem toggle hem YENİ
+  kurtarma noktaları bunu çağırıyor, kod TEKRARLANMADI.
+  `toolsTonalStopRefPlayback()`/`toolsTonalStopMixPlayback()` zaten G154'te
+  AYRI, tekrar-kullanılabilir fonksiyonlardı — DEĞİŞMEDİ, sadece YENİ
+  noktalardan da çağrıldılar.
+- `visibilitychange`'in `document.hidden` dalına üçü de eklendi
+  (`toolsPauseFilterPlayback()`/`toolsTonalStopRefPlayback()`/
+  `toolsTonalStopMixPlayback()`) + `renderToolsFilterPlayer()`/
+  `renderToolsTonalAbUi()` ile ikon/metin ANINDA güncelleniyor.
+- `audioEngine.onContextRecreated` hook'una AYNI üç çağrı + render'lar
+  eklendi — context'in doğrudan bir play tıklaması sırasında yeniden
+  kurulduğu (arka plandan bağımsız) senaryoyu da kapsar.
+- Pozisyon KORUNUYOR (madde 4 — G147'nin kararı): hiçbir yeni kod
+  `startFromZero()`/"Durdur" çağırmıyor, SADECE `pausePlayback()`
+  (offset dondurma) + node `.stop()`/disconnect — bir SONRAKİ play
+  `getSourceNode()` ile kaldığı pozisyondan devam eder.
+
+**DOĞRULAMA (Playwright, `document.hidden`'ı `Object.defineProperty` ile
+geçici olarak override edip GERÇEK bir `visibilitychange` event'i
+dispatch ederek — ekran kilidi simülasyonu, GERÇEK bir device API'si
+sahtelenmedi, sadece bu projenin ZATEN dinlediği tarayıcı olayı tetiklendi):**
+- Referans Filtreleri çalarken kilit → `toolsFilterPlaying` ANINDA
+  `false`'a döndü → kilit açılıp TEK bir play basışıyla GERÇEKTEN
+  yeniden çalmaya başladı (`true`).
+- Tonal Balance'ın A'sı (eşitlenmiş mix) çalarken AYNI senaryo — TEK
+  basışla gerçekten devam etti.
+- Tonal Balance'ın B'si (referans) çalarken AYNI senaryo — TEK basışla
+  gerçekten devam etti.
+- Kilit senaryosu DEVREYE GİRMEDEN normal aç/kapa toggle'ı (regresyon
+  kontrolü) hâlâ eskisi gibi çalışıyor.
+- `onContextRecreated` yolu (gerçek zombi-bağlam tespiti gerektirdiği
+  için) headless Chromium'da TETİKLENEMEDİ — SADECE kod okumasıyla
+  doğrulandı (`visibilitychange`'in AYNI üç çağrısını KULLANIYOR, aynı
+  garanti) — bu, sadece cihazda kanıtlanabilecek bir sınır (CLAUDE.md'nin
+  "ses davranışı kaynak koddan doğrulanamaz" kuralı).
+- G154'ün TÜM doğrulama takımı (A/B doğru kaynak, bağımsızlık, EQ listesi)
+  yeniden çalıştırıldı — bozulmadı. 12 modun `actionbar-compact`/`nextBtn`
+  ve G143 çip eşitliği yeniden tarandı — bozulmadı (bu turda oyun ekranı
+  dosyalarına HİÇ dokunulmadı zaten).
+- Konsol hatası: 0. `npm test`: 1250/1250.
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js` (tek dosya — `visibilitychange`
+handler'ı, `onContextRecreated` hook'u, yeni `toolsPauseFilterPlayback()`).
+
+**DOKUNULMAYAN DOSYALAR:** `www/js/core/audio-engine.js` (`stopAudio`/
+`ensureAudioAlive`/`recreateContext` BİREBİR aynı — SADECE app.js'in
+onları HANGİ ek yerlerden çağırdığı değişti), `www/js/core/upload.js`,
+`ios/App/App/AudioSessionPlugin.swift` (madde 2'nin cevabı için OKUNDU,
+DEĞİŞTİRİLMEDİ), oyun ekranı dosyaları (G143/G144/G150), G154'ün Tonal
+Balance UI'ı (`index.html`/`styles.css` bu turda HİÇ dokunulmadı), diğer
+mod dosyaları, testler, Android/iOS native dosyalarının geri kalanı.
+
+**npm test:** 1250/1250 (değişmedi).
+
+**DÜRÜSTLÜK NOTU:** `visibilitychange` yolu Playwright'ta GERÇEK bir
+event dispatch'iyle tam doğrulandı. `onContextRecreated` yolu (gerçek
+"zombi bağlam" — resume() başarılı ama currentTime donuk — SADECE cihazda
+üretilebilen bir durum, G131'in kendi notu) sadece kod-okumasıyla
+doğrulandı, cihazda AYRICA test edilmeli — kabul ölçütündeki tam senaryo
+(kilitle → 5sn bekle → aç → play) cihazda KOŞULSUZ tekrar denenmeli.
 
 G153 (SADECE ARAŞTIRMA, kod YAZILMADI) — **Araçlar sekmesinin yayın-öncesi
 tam durum raporu.** DOM/panel envanteri (5 panel: Mixini Yükle/Tonal
