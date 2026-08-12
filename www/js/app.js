@@ -722,6 +722,23 @@ function setActionbarTucked(tucked, { instant = false } = {}) {
   els.gameScreen.classList.remove("actionbar-no-transition");
 }
 
+// G150 (BEKLEYEN KARARLAR T, seçenek 1): D1'in kaçındığı ResizeObserver/
+// getBoundingClientRect ölçüm zincirine GERİ DÖNÜLMEDİ — #freqGuessArea'nın
+// o anki .hidden durumu ZATEN senkron biliniyor (renderGuessAreaControls az
+// önce, AYNI çağrı yığınında yazdı), bu fonksiyon SADECE o bilgiye göre
+// .game-scroll'un margin-bottom'unu iki SABİT (--actionbar-h/--actionbar-h-
+// compact, styles.css) arasında seçen bir sınıfı setActionbarTucked'ın
+// instant deseniyle (no-transition + zorla reflow) anında uyguluyor — ilk
+// karede bile doğru, sonradan düzeltme YOK.
+function syncActionbarCompact() {
+  if (!els.gameScreen || !els.freqGuessArea) return;
+  const compact = els.freqGuessArea.classList.contains("hidden");
+  els.gameScreen.classList.add("actionbar-no-transition");
+  els.gameScreen.classList.toggle("actionbar-compact", compact);
+  void els.gameScreen.offsetHeight;
+  els.gameScreen.classList.remove("actionbar-no-transition");
+}
+
 // Cevap sonrası geri bildirim kartının TAMAMI görünür olsun diye scroll alanını
 // alta kaydırır. requestAnimationFrame: DOM içerik güncellemesi (setFeedback)
 // senkron olsa da, .game-scroll'un gerçek scrollHeight'ı ancak reflow'dan SONRA
@@ -3536,6 +3553,7 @@ function renderQuestion() {
   if (els.hintTag) els.hintTag.textContent = "";
   els.freqGuessArea.classList.remove("hidden");
   mode.renderGuessAreaControls(els.freqGuessArea, q, isChoiceFormat());
+  syncActionbarCompact();
   if (els.freqInfo) els.freqInfo.classList.add("hidden");
   syncAnswerArea();
   // Şıklı cevap modunda 4-6 şık iki satıra taşıyor (.answers: 3 sütunlu grid) — bu,
@@ -6659,6 +6677,11 @@ if (els.answerFormatSelect) els.answerFormatSelect.addEventListener("change", ()
   // soru/timer/skor state'ine dokunmaz, sadece .ans grid'i gösterir/gizler.
   if (activeQuestion && roundActive) {
     syncAnswerArea();
+    // G150: #freqGuessArea'nın kendisi burada DEĞİŞMİYOR (bkz. G148'in bilinçli
+    // sınırlaması, satır ~3555 yorumu) — bu çağrı sadece actionbar-compact
+    // sınıfını freqGuessArea'nın MEVCUT .hidden durumuyla senkron tutuyor,
+    // yeniden ölçüm/hesap YAPMIYOR.
+    syncActionbarCompact();
     if (isChoiceFormat()) scrollFeedbackIntoView();
   }
 });

@@ -95,6 +95,21 @@
          G73: bu değere DOKUNULMADI (task'ın kendi kuralı) — alt bar örtme
          düzeltmesi hâlâ buna bağlı. */
       --actionbar-h:168px;
+      /* G150 (BEKLEYEN KARARLAR T, seçenek 1) — --actionbar-h'ın KENDİSİ
+         DEĞİŞMEDİ (G73 kuralı korundu), bu İKİNCİ, KOŞULLU bir sabit:
+         #freqGuessArea boşken (8 mod hep, Frekans Bulma şıklı modda)
+         actionbar'ın GERÇEK içeriği sadece nextBtn+padding — G149/G150'de
+         Playwright'le masaüstünde ÖLÇÜLEN gerçek yükseklik 81px (3 ayrı
+         genişlikte: 375/390/430, hepsi aynı). --actionbar-h'ın kendi ~12%
+         güvenlik payı emsal alınarak (150→168) AYNI oranla yuvarlandı
+         (81×1.12≈91 → 92). Bu da SABİT bir sayı — app.js SADECE
+         #freqGuessArea'nın ZATEN bildiği .hidden durumunu okuyup bir
+         sınıf ekliyor/çıkarıyor (senkron, ölçüm YOK) — D1'in kaçındığı
+         ResizeObserver/asenkron tuzağına GERİ DÖNÜLMEDİ (bkz. app.js
+         syncActionbarCompact). Dokunmalı (124px) ve M2 onay butonu
+         (161px) durumları --actionbar-h'ın (168px) içine ZATEN sığıyor,
+         onlar için bu ikinci sabit KULLANILMIYOR. */
+      --actionbar-h-compact:92px;
       /* G112 — alt sekme çubuğunun (.tabbar) GERÇEK içerik yüksekliği,
          --actionbar-h ile AYNI desen (env(safe-area-inset-bottom) HARİÇ — o
          ayrıca ekleniyor, bkz. .tools-scroll). Masaüstü Chrome'da ÖLÇÜLEN
@@ -709,6 +724,13 @@
     .game-scroll{display:flex;flex-direction:column;gap:10px;padding-top:10px;
       padding-bottom:20px;margin-bottom:calc(var(--actionbar-h) + env(safe-area-inset-bottom));
       transition:margin-bottom .25s ease}
+    /* G150 (BEKLEYEN KARARLAR T): #freqGuessArea gizliyken (81px'lik actionbar)
+       --actionbar-h'ın (168px) tamamı israf oluyordu — Frekans Bulma şıklı
+       modda 3. şık kaydırmadan sığmıyordu (ölçüldü, bkz. G149/G150 kaydı).
+       Bu kural .actionbar-tucked'DAN ÖNCE geliyor (kaynak sırası) — ikisi
+       AYNI ANDA uygulanırsa (tucked, cevap sonrası zaten daha küçük bir alan
+       istiyor) tucked KAZANIR, bu KASITLI. */
+    #screen-game.actionbar-compact .game-scroll{margin-bottom:calc(var(--actionbar-h-compact) + env(safe-area-inset-bottom))}
     /* E3: actionbar tucked'ken onun için ayrılan alt boşluğa artık gerek yok —
        geri bildirim kartı bu alanı da kullanabilsin diye margin-bottom sadece
        safe-area'ya iner (nefes payı zaten padding-bottom'da duruyor, D1). Aynı

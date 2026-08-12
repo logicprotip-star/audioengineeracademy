@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G149)
+Son güncelleme: 12.08.2026 (G150)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,116 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G150) — **BEKLEYEN KARARLAR T, seçenek 1 uygulandı: statik ikinci
+sabit (`--actionbar-h-compact`) + sınıf-tabanlı seçim, Frekans Bulma
+Şıklı modda 3. şık artık kaydırmadan tam sığıyor.**
+
+**MİMARİ:** `--actionbar-h`'nin (168px) KENDİSİ DEĞİŞMEDİ (G73 kuralı
+korundu). `styles.css`'e G149'da ölçülen 81px'e ~12% güvenlik payıyla
+(`--actionbar-h`'ın kendi 150→168 oranıyla AYNI yöntem) yuvarlanan İKİNCİ,
+KOŞULLU bir sabit eklendi: `--actionbar-h-compact:92px`. `.game-scroll`'un
+margin-bottom'u artık `#screen-game.actionbar-compact` sınıfı varsa bu
+ikinci sabiti kullanıyor (CSS kaynak sırası: `.actionbar-tucked`'DAN ÖNCE
+tanımlı, ikisi AYNI anda uygulanırsa tucked KAZANIYOR — kasıtlı, ölçülüp
+doğrulandı).
+
+`app.js`'e yeni `syncActionbarCompact()` fonksiyonu eklendi —
+`setActionbarTucked`'ın instant deseniyle (no-transition + zorla reflow +
+sınıf toggle) BİREBİR aynı. **Hiçbir `getBoundingClientRect()`/
+`ResizeObserver` YOK** — sadece `#freqGuessArea`'nın ZATEN senkron bilinen
+`.hidden` durumunu okuyup sınıfı anında uyguluyor. İki çağrı noktası (talep
+edildiği gibi, başka yerde ÇAĞRILMADI): `renderQuestion()` (her yeni
+soru/mod girişi) ve `#answerFormatSelect`'in "change" dinleyicisi (mid-
+round senkronluk için, ama `#freqGuessArea` zaten mid-round değişmiyor —
+bkz. G148 — bu çağrı sadece DEFANSİF bir yeniden-onay).
+
+**NEDEN GÜVENLİ (G150 raporunun kendi bulgularına dayanıyor):** D1'in
+kaçındığı ÜÇ tuzağın hiçbiri burada yok — (1) asenkron ölçüm YOK (sınıf
+senkron, aynı çağrı yığınında uygulanıyor, ilk karede bile doğru), (2)
+WKWebView momentum-scroll'a bağımlı bir `scrollTop` ataması YOK, (3)
+margin (padding değil) zaten D1'den beri kullanılıyor, bu turda
+DEĞİŞMEDİ — sadece İKİ SABİT arasında hangisinin kullanılacağına karar
+veren bir sınıf eklendi.
+
+**DOĞRULAMA (Playwright, `/private/tmp/.../scratchpad/g150_verify.py`) —
+12 MOD TABLOSU (dokunmalı akış):**
+
+| Mod | actionbar yükseklik | compact sınıfı | beklenen | .game-scroll sığıyor mu |
+|---|---|---|---|---|
+| Frekans Bulma (dokunmalı) | 124px | HAYIR | HAYIR | ✓ |
+| Kesim Noktası | 81px | EVET | EVET | ✓ |
+| dB Seviyesi | 81px | EVET | EVET | ✓ |
+| Boost mu Cut mu | 81px | EVET | EVET | ✓ |
+| Q Genişliği | 81px | EVET | EVET | ✓ |
+| Kompresör (M2) | 161px | HAYIR | HAYIR | ✓ |
+| Reverb (M2) | 161px | HAYIR | HAYIR | ✓ |
+| Tonal Denge | 81px | EVET | EVET | HAYIR (bkz. not) |
+| Frekans Çakışması | 81px | EVET | EVET | ✓ |
+| Distortion (M2) | 161px | HAYIR | HAYIR | ✓ |
+| Pan Konumu | 81px | EVET | EVET | ✓ |
+| Stereo Genişlik | 81px | — | — | bkz. TEST SINIRI notu |
+| Frekans Bulma (Şıklı) | 81px | EVET | EVET | **✓ (ÖNCEDEN HAYIR'dı)** |
+
+**Tonal Denge notu:** `.game-scroll` bu modda kaydırmadan sığmıyor
+(`scrollHeight` 792 vs `clientHeight` 672) — AMA bu G150'DEN ÖNCE de
+böyleydi ve DAHA KÖTÜYDÜ (eski sabit margin'le `clientHeight` 596 olurdu,
+taşma 196px'di — şimdi 120px). G150 bunu KÖTÜLEŞTİRMEDİ, kısmen İYİLEŞTİRDİ
+— tam çözüm bu turun kapsamı DIŞINDA (mod kendi içeriği, bant sayısı
+fazla — ayrı bir konu, kod DOKUNULMADI).
+
+**Stereo Genişlik — TEST SINIRI (dürüstlük notu):** Bu mod SADECE
+yüklenen dosyayla oynanıyor (`only:["upload"]`, G122) — Playwright'te
+gerçek ses dosyası yüklenemediği için `#startBtn` hiç görünmüyor, round
+hiç BAŞLAMIYOR, `renderQuestion()`/`syncActionbarCompact()` hiç
+ÇAĞRILMIYOR (bu, G136/G137/G142'de de belgelenen AYNI test sınırı).
+Kod-kimliği ile dolaylı doğrulama: `stereo-genislik.js`'in
+`renderGuessAreaControls()`'u, doğrudan test edilip GEÇEN 7 modla
+(kesim-noktasi/db-seviyesi/boost-mu-cut-mu/q-genisligi/frekans-cakismasi/
+pan-konumu/tonal-denge) BAYT BAYT AYNI (`freqGuessAreaEl.textContent="";
+classList.add("hidden")`) — `syncActionbarCompact()`'ın kendisi mod-özel
+DEĞİL, sadece `.hidden` okuyor. Gerçek bir dosyayla cihazda ayrıca
+doğrulanmalı.
+
+**Frekans Bulma Şıklı — asıl kabul ölçütü:** 3 şık da (`getBoundingClientRect`)
+`top>=0 && bottom<=844` VE `.game-scroll.scrollHeight(672) <=
+clientHeight(672)` — kaydırmadan TAM sığıyor (G149'da 631/596 idi, 35px
+taşıyordu).
+
+**M2 (Kompresör örneği) regresyon kontrolü:** "Bir kart seç" → kart
+seçilince "A olarak onayla" — buton metni DEĞİŞTİ ama actionbar 161px'te
+SABİT kaldı, `actionbar-compact` HİÇ uygulanmadı (161px zaten
+`--actionbar-h`'ın 168px'ine sığıyor) — davranış AYNEN korundu.
+
+**E3 (`.actionbar-tucked`) regresyon kontrolü:** Frekans Bulma Şıklı modda
+bir şıkka cevap verildi — `.actionbar-tucked` VE `.actionbar-compact` AYNI
+ANDA uygulandı, ölçülen `margin-bottom:0px` (sadece safe-area, tucked'ın
+kuralı) — compact'ın 92px'i DEVREYE GİRMEDİ, kaynak sırası öngörüldüğü
+gibi çalıştı.
+
+**G143 çip eşitliği kontrolü:** 3 modda (Frekans Bulma/Kompresör/Frekans
+Çakışması) görünür `.chip-base` elemanları tekrar ölçüldü — hepsi HÂLÂ
+44px.
+
+Konsol hatası: 0.
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js` (yeni `syncActionbarCompact()` +
+iki çağrı noktası), `www/styles.css` (yeni `--actionbar-h-compact` +
+`.actionbar-compact` kuralı) — sadece EKLEME (45 satır, 0 silme),
+`--actionbar-h`'nin kendisi ve `.actionbar-tucked` kuralı DEĞİŞMEDİ.
+
+**DOKUNULMAYAN DOSYALAR:** `index.html`, tüm mod dosyaları, `core/*.js`
+(G144 kalıcılık deseni), testler, Android/iOS native dosyalar.
+
+**npm test:** 1250/1250 (değişmedi).
+
+**DÜRÜSTLÜK NOTU:** Masaüstünde 11/12 mod round-aktif durumda TAM
+doğrulandı; Stereo Genişlik SADECE kod-kimliğiyle (yukarıya bkz.) dolaylı
+doğrulandı — cihazda gerçek dosyayla AYRICA test edilmeli. Bu, ilk kez
+`--actionbar-h-compact`/`actionbar-compact` mekanizmasının cihazda
+KANITLANMASI gereken bir değişiklik — masaüstünde D1'in kaçındığı 3
+tuzağın hiçbiri teorik olarak yok ama G143/G144'ün kırpılma bulgusu gibi
+bu sınıf hâlâ SADECE cihazda kesin doğrulanabilir.
 
 Bu commit (G149) — **Frekans Bulma Şıklı modunda soru başlığı düzeltildi
 ("...Dalga üzerine tıkla" kaldırıldı); kapsayıcının GERÇEKTEN sıfır
@@ -11414,7 +11524,7 @@ kapatıldı.
 
 ## BEKLEYEN KARARLAR
 
-**T. G149 — Frekans Bulma Şıklı modda 3. şık kaydırmadan sığmıyor (35px) — çözüm `--actionbar-h` mimarisine dokunmayı gerektiriyor, hangi yol?**
+**T. ~~G149 — Frekans Bulma Şıklı modda 3. şık kaydırmadan sığmıyor (35px)~~ — G150'de seçenek 1 ile ÇÖZÜLDÜ**
 Kök neden ölçümle kanıtlandı (bkz. BİTTİ G149): `.game-scroll`'un
 `margin-bottom`'u SABİT `--actionbar-h:168px` — actionbar'ın GERÇEK anlık
 yüksekliğine (Dokunmalı 124px / Şıklı 81px, ikisi de ölçüldü) göre
@@ -11439,8 +11549,10 @@ muhtemelen bu (kaydırılabilir ama scrollTop=0'da kesik görünüyor).
    olup olmadığını doğrulasın; eğer kaydırınca görünüyorsa bu bir
    keşfedilebilirlik sorunu (seçenek 2 yeterli olabilir), hiç
    görünmüyorsa gerçek bir taşma (seçenek 1 gerekir).
-Kod bu turda YAZILMADI — kullanıcının kendi REGRESYON KORUMASI talimatı
-gereği (bkz. G149 kaydı).
+Kullanıcı G150'de seçenek 1'i (statik ikinci sabit) onayladı, uygulandı —
+`--actionbar-h-compact:92px` + `.actionbar-compact` sınıfı, Playwright'te
+12 modun 11'inde TAM doğrulandı (Stereo Genişlik kod-kimliğiyle dolaylı —
+bkz. BİTTİ G150). Cihazda HENÜZ kurulmadı.
 
 **S. ~~G144 — Frekans Bulma'nın çip satırı tek satıra nasıl indirilsin?~~ — G147'de ÇÖZÜLDÜ**
 Kullanıcı Zorluk çipinin (G145/G146'nın "sadece gösterge, gereksiz" bulgusuyla)
