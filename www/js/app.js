@@ -228,6 +228,8 @@ const els = {
   toolsFilterTotal: document.getElementById("toolsFilterTotal"),
   toolsFilterPlayBtn: document.getElementById("toolsFilterPlayBtn"),
   toolsFilterPlayIcon: document.getElementById("toolsFilterPlayIcon"),
+  toolsFilterSkipBack: document.getElementById("toolsFilterSkipBack"),
+  toolsFilterSkipFwd: document.getElementById("toolsFilterSkipFwd"),
   toolsFilterGrid: document.getElementById("toolsFilterGrid"),
   mainSettingsOverlay: document.getElementById("mainSettingsOverlay"),
   mainSettingsSheet: document.getElementById("mainSettingsSheet"),
@@ -2147,7 +2149,12 @@ function goScreen(name) {
   const prevScreenEl = document.querySelector(".screen.active");
   const prevScreenName = prevScreenEl ? prevScreenEl.id.replace("screen-", "") : null;
   if (prevScreenName === "tools" && name !== "tools") {
-    if (typeof toolsFilterPlaying !== "undefined" && toolsFilterPlaying) toolsStopFilterPlayback();
+    // G159 — Referans Filtreleri'nin kendi UI'sında "Durdur" kavramı hiç YOK
+    // (SADECE oynat/duraklat) — tab çıkışında da AYNI (pause, pozisyon
+    // KORUNUR) davranış uygulanır. Mixini Yükle'nin KENDİ "Durdur" düğmesi
+    // VAR (sıfırlar) — tab çıkışı o düğmenin AYNI semantiğini kullanır.
+    if (typeof toolsFilterPlaying !== "undefined" && toolsFilterPlaying) toolsPauseFilterPlayback();
+    if (typeof toolsRawMixPlaying !== "undefined" && toolsRawMixPlaying) toolsStopRawMixPlayback();
     if (typeof tonalRefPlaying !== "undefined" && tonalRefPlaying) toolsTonalStopRefPlayback();
     if (typeof tonalMixPlaying !== "undefined" && tonalMixPlaying) toolsTonalStopMixPlayback();
   }
@@ -6782,31 +6789,33 @@ document.addEventListener("visibilitychange", async () => {
   audioDiagLog("visibilitychange", `${document.hidden ? "hidden" : "visible"}, state=${ctxV ? ctxV.state : "yok"}, currentTime=${ctxV ? ctxV.currentTime.toFixed(2) : "?"}`);
   if (document.hidden) {
     audioEngine.stopAudio();
-    uploadManager.pausePlayback();
     // G155 — CİHAZDA BULUNAN GERÇEK BOŞLUK: yukarıdaki audioEngine.stopAudio()
     // SADECE audio-engine.js'in KENDİ currentNodes'unu (oyun/mod turlarının
-    // zinciri) söküyor — Araçlar'ın ÜÇ oynatıcısı (toolsFilterPreviewNode/
-    // tonalRefPreviewNode/tonalMixPreviewNode, hepsi app.js'te DOĞRUDAN
-    // ctx.createXxx() ile kurulup audio-engine.js'in currentNodes'una HİÇ
-    // eklenmiyor) bu temizliğe hiç girmiyordu — GERİ dönüşte toolsFilterPlaying/
-    // tonalRefPlaying/tonalMixPlaying HÂLÂ true kaldığı için kullanıcının
-    // İLK play basışı "zaten çalıyor, DURDUR" dalına düşüp HİÇBİR ses
-    // çalmadan sessizce "duraklatılmış" durumuna dönüyordu (cihazda görülen
-    // "kilit açılınca ses gelmedi" tam olarak buydu). Üçü de burada AYRICA
-    // duraklatılır (pozisyon KORUNUR — G147'nin "kaldığı yerden devam"
-    // kararı, "Durdur" gibi SIFIRLAMAZ) — bir SONRAKİ play basışı artık
-    // doğru şekilde BAŞLATMA dalına düşer, initAudio()/ensureAudioAlive()
-    // (zaten HER üç oynatıcının KENDİ başlatma yolunda var, bkz. o
-    // fonksiyonların initAudio() çağrısı) context'i GEREKİRSE canlandırır/
-    // yeniden kurar — YENİ bir kurtarma mekanizması İCAT EDİLMEDİ.
+    // zinciri) söküyor — Araçlar'ın oynatıcıları (toolsFilterPreviewNode/
+    // toolsRawMixPreviewNode/tonalRefPreviewNode/tonalMixPreviewNode, hepsi
+    // app.js'te DOĞRUDAN ctx.createXxx() ile kurulup audio-engine.js'in
+    // currentNodes'una HİÇ eklenmiyor) bu temizliğe hiç girmiyordu — GERİ
+    // dönüşte toolsFilterPlaying/toolsRawMixPlaying/tonalRefPlaying/
+    // tonalMixPlaying HÂLÂ true kaldığı için kullanıcının İLK play basışı
+    // "zaten çalıyor, DURDUR" dalına düşüp HİÇBİR ses çalmadan sessizce
+    // "duraklatılmış" durumuna dönüyordu (cihazda görülen "kilit açılınca
+    // ses gelmedi" tam olarak buydu). Hepsi burada AYRICA duraklatılır
+    // (pozisyon KORUNUR — G147'nin "kaldığı yerden devam" kararı, "Durdur"
+    // gibi SIFIRLAMAZ) — bir SONRAKİ play basışı artık doğru şekilde
+    // BAŞLATMA dalına düşer, initAudio()/ensureAudioAlive() (zaten HER
+    // oynatıcının KENDİ başlatma yolunda var, bkz. o fonksiyonların
+    // initAudio() çağrısı) context'i GEREKİRSE canlandırır/yeniden kurar —
+    // YENİ bir kurtarma mekanizması İCAT EDİLMEDİ.
     toolsPauseFilterPlayback();
+    toolsPauseRawMixPlayback(); // G159 — Mixini Yükle'nin ham-mix oynatıcısı, Referans Filtreleri'nden AYRI
     toolsTonalStopRefPlayback();
     toolsTonalStopMixPlayback();
     // Bu olay Araçlar HANGİ sekmede olursa olsun tetiklenir (global
     // dinleyici) — ikon/metin güncellemeleri (renderToolsFilterPlayer/
-    // renderToolsTonalAbUi'nin KENDİ els.xxx && kontrolleri) Araçlar açık
-    // olsun olmasın ZARARSIZ.
+    // renderToolsMixPlayer/renderToolsTonalAbUi'nin KENDİ els.xxx && kontrolleri)
+    // Araçlar açık olsun olmasın ZARARSIZ.
     renderToolsFilterPlayer();
+    renderToolsMixPlayer(toolsSelectedEntry());
     renderToolsTonalAbUi();
     // G136 — CİHAZDA BULUNAN GERÇEK BOŞLUK: buradaki stopAudio() (normal
     // "Durdur"un basit muteOutput()'undan FARKLI olarak) turun ses
@@ -9424,7 +9433,10 @@ function toolsToolsScreenActive() {
 // dosya çalarken çalışır; sekme değişince ya da duraklatılınca DURUR.
 function toolsTonalLiveTick() {
   toolsTonalLiveRafId = null;
-  const shouldRun = toolsFilterPlaying && toolsToolsScreenActive() &&
+  // G159 — Referans Filtreleri (toolsFilterPlaying) VE Mixini Yükle'nin ham
+  // mixi (toolsRawMixPlaying) İKİSİ DE analyser'a bağlanıyor; ikisinden
+  // hangisi çalarsa çalsın canlı analizör akmalı.
+  const shouldRun = (toolsFilterPlaying || toolsRawMixPlaying) && toolsToolsScreenActive() &&
     els.toolsTonalCard && !els.toolsTonalCard.classList.contains("tools-card-disabled");
   if (!shouldRun) {
     if (toolsTonalLiveDevs !== null) {
@@ -10161,6 +10173,9 @@ window.__tonalDebugState = () => ({
   tonalRefPlaying,
   tonalMixPlaying,
   toolsFilterPlaying,
+  toolsRawMixPlaying,
+  toolsRefFilterElapsed: toolsRefFilterUploadManager.elapsed,
+  toolsRefFilterDuration: toolsRefFilterUploadManager.duration,
   isCustom: toolsTonalIsCustom(),
 });
 window.__tonalRefVerify = async function (qOverride, scaleOverride) {
@@ -10571,6 +10586,12 @@ let toolsFilterPlaying = false;
 let toolsFilterPreviewNode = null;
 let toolsFilterPreviewGain = null;
 let toolsFilterChainNodes = []; // G117 — o an bağlı filtre/stereo node'ları, temizlik için izleniyor
+// G159 — Referans Filtreleri artık PAYLAŞILAN "tools" uploadManager'ını değil,
+// KENDİ bağımsız örneğini çalıyor (G154'ün tonalMixUploadManager'ıyla AYNI
+// desen) — böylece "Mixini Yükle"nin ham-mix mini oynatıcısıyla transport
+// PAYLAŞMAZ, ikisi birbirini durdurmaz/etkilemez (G153 bulgusu).
+const toolsRefFilterUploadManager = createUploadManager(() => audioEngine.audioCtx);
+let toolsRefFilterLoadedSourceFileId = null; // hangi kütüphane dosyası şu an bu manager'a decode edilmiş
 
 // G117 madde A — ORTAK SES İŞLEME KATMANI. Gerçek Web Audio'da "mid/side"
 // diye tek bir node YOK — standart matris elle kuruluyor: mid=(L+R)/2,
@@ -10763,30 +10784,34 @@ function toolsToggleFilterAccordion() {
 if (els.toolsFilterHeader) els.toolsFilterHeader.addEventListener("click", toolsToggleFilterAccordion);
 
 // Çalar — G88'in toggleToolsPreview() AYNI mekanizması (audioEngine.analyser'a
-// takılan ayrı bir gain node, uploadManager'ın GERÇEK offset/duraklatma
-// mantığı) — sadece render hedefi (artık akordiyon içindeki oynatıcı) değişti.
+// takılan ayrı bir gain node, GERÇEK offset/duraklatma mantığı) — G159'dan
+// beri KENDİ uploadManager'ı (toolsRefFilterUploadManager) var, "Mixini
+// Yükle"nin ham-mix oynatıcısıyla (paylaşılan uploadManager) transport
+// PAYLAŞMIYOR.
 function renderToolsFilterPlayer() {
   const entry = toolsSelectedEntry();
   if (!entry) return;
   if (els.toolsFilterFileName) els.toolsFilterFileName.textContent = entry.name;
   if (els.toolsFilterFileMeta) els.toolsFilterFileMeta.textContent = `${entry.sizeKb} KB · ${formatToolsDuration(entry.durationSec)}`;
   if (els.toolsFilterTotal) els.toolsFilterTotal.textContent = formatToolsDuration(entry.durationSec);
-  if (els.toolsFilterElapsed) els.toolsFilterElapsed.textContent = formatToolsDuration(uploadManager.duration ? 0 : 0);
+  if (els.toolsFilterElapsed) els.toolsFilterElapsed.textContent = formatToolsDuration(toolsRefFilterUploadManager.elapsed);
+  // Dalga formu görsel amaçlı — paylaşılan uploadManager'dan (her zaman
+  // seçili dosya için hazır) çizilir, toolsRefFilterUploadManager henüz hiç
+  // play'e basılmadıysa (lazy-load) boş kalmasın diye.
   const buffer = uploadManager.getBuffer();
-  if (buffer) toolsDrawBigWave(els.toolsFilterWave, buffer, 0);
+  const progressFrac = entry.durationSec > 0 ? toolsRefFilterUploadManager.elapsed / entry.durationSec : 0;
+  if (buffer) toolsDrawBigWave(els.toolsFilterWave, buffer, progressFrac);
   if (els.toolsFilterPlayBtn) els.toolsFilterPlayBtn.classList.toggle("playing", toolsFilterPlaying);
   if (els.toolsFilterPlayIcon) {
     els.toolsFilterPlayIcon.innerHTML = toolsFilterPlaying
       ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1.5"></rect><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"></rect></svg>`
       : `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-left:3px"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z"></path></svg>`;
   }
-  renderToolsMixPlayer(entry); // G114 — Mixini Yükle kartının çaları AYNI durumu yansıtır
-  renderToolsTonalAbUi(); // G127 — "B" oynatma HANGİ düğmeden tetiklenirse tetiklensin (AB satırı ya da akordiyonun kendi play'i) AYNI kaynaktan (toolsFilterPlaying) senkron
 }
 // G114 — "Mixini Yükle" kartı: dosya YOKKEN "Dosya seç" butonu, VARKEN dosya
-// adı + değiştir + play/pause+durdur. Oynatma DURUMU (ikon/animasyon)
-// renderToolsFilterPlayer() ile AYNI kaynaktan (toolsFilterPlaying) geliyor —
-// o da HER render'ında bunu çağırıyor, tek yerden iki UI'yi senkron tutuyor.
+// adı + değiştir + play/pause+durdur. G159'dan beri BAĞIMSIZ transport
+// (toolsRawMixPlaying, paylaşılan uploadManager, filtre zinciri YOK — ham
+// mix) — Referans Filtreleri'nin toolsFilterPlaying'inden AYRI.
 function renderToolsMixPlayer(entry) {
   if (!els.toolsUploadBtn || !els.toolsMixPlayer) return;
   const hasFile = !!entry;
@@ -10794,71 +10819,154 @@ function renderToolsMixPlayer(entry) {
   els.toolsMixPlayer.classList.toggle("hidden", !hasFile);
   if (!hasFile) return;
   if (els.toolsMixPlayerName) els.toolsMixPlayerName.textContent = entry.name;
-  if (els.toolsMixPlayBtn) els.toolsMixPlayBtn.classList.toggle("playing", toolsFilterPlaying);
+  if (els.toolsMixPlayBtn) els.toolsMixPlayBtn.classList.toggle("playing", toolsRawMixPlaying);
   if (els.toolsMixPlayIcon) {
-    els.toolsMixPlayIcon.innerHTML = toolsFilterPlaying
+    els.toolsMixPlayIcon.innerHTML = toolsRawMixPlaying
       ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1.5"></rect><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"></rect></svg>`
       : `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-left:2px"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z"></path></svg>`;
   }
 }
-// G155 — "Durdur" (toolsStopFilterPlayback, uploadManager.startFromZero()
-// İLE pozisyonu SIFIRLAR) İLE KARIŞTIRILMASIN: bu SADECE duraklatır,
-// pozisyonu KORUR (G147'nin "yüklenen dosya kaldığı yerden devam eder"
-// kararıyla AYNI). Hem toggle'ın kendi durdurma dalı HEM arka plana
-// alınma/bağlam yeniden kurulma teardown'ı (aşağıda, visibilitychange +
-// onContextRecreated) bunu çağırır — TEK yerden, iki kopya YOK. Durdurma
-// her zaman güvenli — running olması GEREKMEZ (context zaten interrupted'sa
-// çalan bir şey de yoktur, ama UI'ı "duraklatılmış" durumuna geri
-// döndürmek/node referanslarını temizlemek her koşulda doğru).
+// G155 — "Durdur" İLE KARIŞTIRILMASIN: bu SADECE duraklatır, pozisyonu KORUR
+// (G147'nin "yüklenen dosya kaldığı yerden devam eder" kararıyla AYNI). Hem
+// toggle'ın kendi durdurma dalı HEM arka plana alınma/bağlam yeniden kurulma
+// teardown'ı (aşağıda, visibilitychange + onContextRecreated) bunu çağırır —
+// TEK yerden, iki kopya YOK. Durdurma her zaman güvenli — running olması
+// GEREKMEZ.
 function toolsPauseFilterPlayback() {
   if (!toolsFilterPlaying) return;
-  uploadManager.pausePlayback();
+  toolsRefFilterUploadManager.pausePlayback();
   if (toolsFilterPreviewNode) { try { toolsFilterPreviewNode.stop(); } catch (e) {} toolsFilterPreviewNode = null; }
   toolsDisconnectFilterChain(); // G117 — filtre/solo node'ları da temizlenir
   toolsFilterPlaying = false;
 }
+// G159 — dosya kütüphanede SEÇİLİ olduğu sürece çalışır (toolsRefFilterUploadManager
+// henüz decode etmemiş OLABİLİR — ilk basışta lazy-load, tonalMixUploadManager'ın
+// AYNI deseni, bkz. toolsTonalToggleMatchedMixPlayback).
 async function toolsToggleFilterPlayback() {
-  if (!uploadManager.hasBuffer) return;
+  const entry = toolsSelectedEntry();
+  if (!entry) return;
+  if (toolsFilterPlaying) {
+    toolsPauseFilterPlayback();
+    renderToolsFilterPlayer();
+    return;
+  }
   const running = await audioEngine.initAudio();
   const ctx = audioEngine.audioCtx, analyser = audioEngine.analyser;
   if (!ctx || !analyser) return;
-  if (toolsFilterPlaying) {
-    toolsPauseFilterPlayback();
-  } else {
-    // G130 — YENİ çalmaya BAŞLARKEN context running değilse (bkz.
-    // playQuestion'daki AYNI not) zincir hiç KURULMASIN.
-    if (!running) {
-      toast("Ses açılamadı", "Ekrana dokunup tekrar deneyin.");
-      renderToolsFilterPlayer();
-      return;
+  // G130 — YENİ çalmaya BAŞLARKEN context running değilse (bkz.
+  // playQuestion'daki AYNI not) zincir hiç KURULMASIN.
+  if (!running) {
+    toast("Ses açılamadı", "Ekrana dokunup tekrar deneyin.");
+    renderToolsFilterPlayer();
+    return;
+  }
+  if (toolsRefFilterLoadedSourceFileId !== entry.id) {
+    let fileObj = entry.file;
+    if (!fileObj) {
+      const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+      if (!blob) { toast("Dosya bulunamadı", `${entry.name} artık cihazda yok.`); return; }
+      fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+      entry.file = fileObj;
     }
-    toolsFilterPreviewGain = toolsFilterPreviewGain || ctx.createGain();
-    toolsFilterPreviewGain.gain.value = 0.85;
-    toolsFilterPreviewGain.connect(analyser);
-    toolsFilterPreviewNode = uploadManager.getSourceNode();
-    if (!toolsFilterPreviewNode) return;
-    toolsConnectFilterPreviewChain(); // G117 — kaynağı referans filtresi/solo zincirinden geçirip gain'e bağlar
-    toolsFilterPlaying = true;
-    toolsTonalSyncLiveLoop(); // G102: canlı analizör döngüsü uykudaysa uyandır
+    const res = await toolsRefFilterUploadManager.loadFile(fileObj);
+    if (!res.ok) { toast(res.title, res.detail); return; }
+    toolsRefFilterLoadedSourceFileId = entry.id;
+    toolsRefFilterUploadManager.startFromZero();
+  }
+  toolsFilterPreviewGain = toolsFilterPreviewGain || ctx.createGain();
+  toolsFilterPreviewGain.gain.value = 0.85;
+  toolsFilterPreviewGain.connect(analyser);
+  toolsFilterPreviewNode = toolsRefFilterUploadManager.getSourceNode();
+  if (!toolsFilterPreviewNode) return;
+  toolsConnectFilterPreviewChain(); // G117 — kaynağı referans filtresi/solo zincirinden geçirip gain'e bağlar
+  toolsFilterPlaying = true;
+  toolsTonalSyncLiveLoop(); // G102: canlı analizör döngüsü uykudaysa uyandır
+  renderToolsFilterPlayer();
+}
+// G159 — "10 sn geri"/"10 sn ileri". Sınırlar 0..duration'a kenetlenir
+// (Math.max/min — seekTo'nun KENDİ sarma davranışı burada İSTENMİYOR, bir
+// "10 sn ileri" son saniyede dosyanın BAŞINA sarmamalı). Çalarken canlı
+// zinciri YENİ bir kaynak node ile yeniden kurar (AudioBufferSourceNode
+// ikinci kez start edilemez) — seekTo() zaten playing'i false yaptığı için
+// getSourceNode() offset'i YENİDEN hesaplamadan doğrudan yeni pozisyondan
+// başlar. Durmuşken sadece offset güncellenir, play'e basılınca oradan başlar.
+function toolsSeekFilterPlayback(deltaSec) {
+  const buffer = toolsRefFilterUploadManager.getBuffer();
+  if (!buffer) return;
+  const current = toolsRefFilterUploadManager.elapsed;
+  // seekTo(sec) sec'i buffer.duration'a göre MOD alıyor (bkz. upload.js) —
+  // next TAM OLARAK duration'a eşitse sec % duration SIFIRA sarar (dosyanın
+  // BAŞINA döner). Üst sınırı bir tık altında tutmak bu sarmayı engeller.
+  const next = Math.max(0, Math.min(buffer.duration - 0.05, current + deltaSec));
+  toolsRefFilterUploadManager.seekTo(next);
+  if (toolsFilterPlaying) {
+    if (toolsFilterPreviewNode) { try { toolsFilterPreviewNode.stop(); } catch (e) {} toolsFilterPreviewNode = null; }
+    const ctx = audioEngine.audioCtx, analyser = audioEngine.analyser;
+    if (ctx && analyser) {
+      toolsFilterPreviewGain = toolsFilterPreviewGain || ctx.createGain();
+      toolsFilterPreviewGain.gain.value = 0.85;
+      toolsFilterPreviewGain.connect(analyser);
+      toolsFilterPreviewNode = toolsRefFilterUploadManager.getSourceNode();
+      if (toolsFilterPreviewNode) toolsConnectFilterPreviewChain();
+    }
   }
   renderToolsFilterPlayer();
 }
-// G114 — "Durdur": duraklatmadan farklı olarak konumu da SIFIRLAR (uploadManager.startFromZero()).
-async function toolsStopFilterPlayback() {
+// G159 — "Mixini Yükle" mini oynatıcısı: HAM mix, filtre/solo zinciri YOK,
+// doğrudan analyser'a bağlanır. Referans Filtreleri'nden (toolsFilterPlaying)
+// TAMAMEN ayrı transport (toolsRawMixPlaying) — biri çalarken diğeri
+// ETKİLENMEZ.
+let toolsRawMixPlaying = false;
+let toolsRawMixPreviewNode = null;
+let toolsRawMixPreviewGain = null;
+function toolsPauseRawMixPlayback() {
+  if (!toolsRawMixPlaying) return;
+  uploadManager.pausePlayback();
+  if (toolsRawMixPreviewNode) { try { toolsRawMixPreviewNode.stop(); } catch (e) {} toolsRawMixPreviewNode = null; }
+  toolsRawMixPlaying = false;
+}
+async function toolsToggleRawMixPlayback() {
   if (!uploadManager.hasBuffer) return;
-  if (toolsFilterPlaying) {
+  if (toolsRawMixPlaying) {
+    toolsPauseRawMixPlayback();
+    renderToolsMixPlayer(toolsSelectedEntry());
+    return;
+  }
+  const running = await audioEngine.initAudio();
+  const ctx = audioEngine.audioCtx, analyser = audioEngine.analyser;
+  if (!ctx || !analyser) return;
+  if (!running) {
+    toast("Ses açılamadı", "Ekrana dokunup tekrar deneyin.");
+    renderToolsMixPlayer(toolsSelectedEntry());
+    return;
+  }
+  toolsRawMixPreviewGain = toolsRawMixPreviewGain || ctx.createGain();
+  toolsRawMixPreviewGain.gain.value = 0.85;
+  toolsRawMixPreviewGain.connect(analyser);
+  toolsRawMixPreviewNode = uploadManager.getSourceNode();
+  if (!toolsRawMixPreviewNode) return;
+  toolsRawMixPreviewNode.connect(toolsRawMixPreviewGain);
+  toolsRawMixPlaying = true;
+  toolsTonalSyncLiveLoop(); // G102/G159 — ham mix de analyser'a bağlı, canlı analizör onu da kapsamalı
+  renderToolsMixPlayer(toolsSelectedEntry());
+}
+// G114 — "Durdur": duraklatmadan farklı olarak konumu da SIFIRLAR (uploadManager.startFromZero()).
+async function toolsStopRawMixPlayback() {
+  if (!uploadManager.hasBuffer) return;
+  if (toolsRawMixPlaying) {
     uploadManager.pausePlayback();
-    if (toolsFilterPreviewNode) { try { toolsFilterPreviewNode.stop(); } catch (e) {} toolsFilterPreviewNode = null; }
-    toolsDisconnectFilterChain(); // G117 — filtre/solo node'ları da temizlenir
-    toolsFilterPlaying = false;
+    if (toolsRawMixPreviewNode) { try { toolsRawMixPreviewNode.stop(); } catch (e) {} toolsRawMixPreviewNode = null; }
+    toolsRawMixPlaying = false;
   }
   uploadManager.startFromZero();
-  renderToolsFilterPlayer();
+  renderToolsMixPlayer(toolsSelectedEntry());
 }
 if (els.toolsFilterPlayBtn) els.toolsFilterPlayBtn.addEventListener("click", toolsToggleFilterPlayback);
 if (els.toolsFilterFileChange) els.toolsFilterFileChange.addEventListener("click", toolsOpenFilesSheet);
-if (els.toolsMixPlayBtn) els.toolsMixPlayBtn.addEventListener("click", toolsToggleFilterPlayback);
-if (els.toolsMixStopBtn) els.toolsMixStopBtn.addEventListener("click", toolsStopFilterPlayback);
+if (els.toolsFilterSkipBack) els.toolsFilterSkipBack.addEventListener("click", () => toolsSeekFilterPlayback(-10));
+if (els.toolsFilterSkipFwd) els.toolsFilterSkipFwd.addEventListener("click", () => toolsSeekFilterPlayback(10));
+if (els.toolsMixPlayBtn) els.toolsMixPlayBtn.addEventListener("click", toolsToggleRawMixPlayback);
+if (els.toolsMixStopBtn) els.toolsMixStopBtn.addEventListener("click", toolsStopRawMixPlayback);
 if (els.toolsMixPlayerChange) els.toolsMixPlayerChange.addEventListener("click", toolsOpenFilesSheet);
 
 // Gerçek satın alma bu sürümde yok — Araçlar sekmesi normalde her zaman
@@ -10925,18 +11033,24 @@ audioEngine.onContextRecreated = () => {
   // özellik, güvenli sıfırlama" muamelesi.
   tonalMixUploadManager.clear();
   tonalMixLoadedSourceFileId = null;
+  // G159 — Referans Filtreleri'nin kendi bağımsız manager'ı, AYNI "dar/
+  // ikincil özellik, güvenli sıfırlama" muamelesi.
+  toolsRefFilterUploadManager.clear();
+  toolsRefFilterLoadedSourceFileId = null;
   // G155 — .clear() sadece manager'ların KENDİ buffer'ını sıfırlıyor;
-  // toolsFilterPlaying/tonalRefPlaying/tonalMixPlaying VE ham node
-  // referansları (toolsFilterPreviewNode/tonalRefPreviewNode/
-  // tonalMixPreviewNode — artık KAPANMIŞ eski bağlama ait) bu satırlarla
-  // TEMİZLENMİYORDU. Context yeniden kurulması SADECE arka plandan dönüşte
-  // değil, doğrudan bir play tıklamasının KENDİSİ sırasında da
-  // (ensureAudioAlive zombi tespit ederse) tetiklenebilir — üçü de AYNI
-  // duraklatma fonksiyonlarıyla (yukarıdaki visibilitychange'in G155 notuyla
-  // AYNI mantık) güvenli hâle getirilir.
+  // toolsFilterPlaying/toolsRawMixPlaying/tonalRefPlaying/tonalMixPlaying VE
+  // ham node referansları (toolsFilterPreviewNode/toolsRawMixPreviewNode/
+  // tonalRefPreviewNode/tonalMixPreviewNode — artık KAPANMIŞ eski bağlama
+  // ait) bu satırlarla TEMİZLENMİYORDU. Context yeniden kurulması SADECE
+  // arka plandan dönüşte değil, doğrudan bir play tıklamasının KENDİSİ
+  // sırasında da (ensureAudioAlive zombi tespit ederse) tetiklenebilir —
+  // hepsi AYNI duraklatma fonksiyonlarıyla (yukarıdaki visibilitychange'in
+  // G155 notuyla AYNI mantık) güvenli hâle getirilir.
   toolsPauseFilterPlayback();
+  toolsPauseRawMixPlayback(); // G159
   toolsTonalStopRefPlayback();
   toolsTonalStopMixPlayback();
   renderToolsFilterPlayer();
+  renderToolsMixPlayer(toolsSelectedEntry());
   renderToolsTonalAbUi();
 };

@@ -258,6 +258,15 @@ export function createUploadManager(getAudioCtx) {
     // G88: Araçlar sekmesinin "Son yüklenenler" satırı gerçek dosya süresini
     // gösteriyor (bkz. app.js processToolsUploadFile) — hasBuffer'ın AYNI
     // deseni, buffer'ı dışarı SIZDIRMADAN (sadece türetilmiş bir sayı).
-    get duration() { return buffer ? buffer.duration : 0; }
+    get duration() { return buffer ? buffer.duration : 0; },
+    // G159 — Araçlar'ın seek/süre göstergesi için: playing ise startedAt'tan
+    // beri geçen süreyi offset'e ekleyip sarar (getSourceNode ile AYNI
+    // hesap), durmuşsa doğrudan offset'i döner.
+    get elapsed() {
+      if (!buffer) return 0;
+      if (!playing) return offset;
+      const ctx = getAudioCtx();
+      return (offset + (ctx.currentTime - startedAt)) % buffer.duration;
+    }
   };
 }

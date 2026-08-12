@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G158)
+Son güncelleme: 12.08.2026 (G159)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,131 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+G159 — **Araçlar / Referans Filtreleri: kendi bağımsız oynatıcısını aldı + seek butonları bağlandı.**
+
+G153'ün bulguları: (1) "tools" bağlamının paylaşılan `uploadManager`'ı hem
+Mixini Yükle'nin mini oynatıcısı HEM Referans Filtreleri'nin oynatıcısı
+tarafından KULLANILIYORDU — tek transport, `toolsFilterPlaying` her ikisini
+BİRDEN sürüyordu (G154 Tonal Balance'ı bu paylaşımdan AYIRMIŞTI ama
+Referans Filtreleri'ne hiç dokunmamıştı). (2) "10 sn geri"/"10 sn ileri"
+butonları (`index.html`) hiç bağlanmamıştı — id yoktu, `addEventListener`
+yoktu, saf dekorasyondu; `upload.js`'in `seekTo(sec)`'i zaten vardı (G122'de
+kullanılıyor) ama Araçlar tarafında hiç çağrılmıyordu.
+
+**UYGULANAN — 1) bağımsız oynatıcı:**
+- `app.js`: G154'ün `tonalMixUploadManager` deseninin AYNISI — YENİ
+  `toolsRefFilterUploadManager` + `toolsRefFilterLoadedSourceFileId`.
+  Referans Filtreleri'nin `toolsToggleFilterPlayback()`/
+  `toolsPauseFilterPlayback()`'i artık paylaşılan `uploadManager` yerine bu
+  YENİ manager'ı kullanıyor, dosya seçili olduğu sürece (henüz play'e
+  basılmamışsa lazy-load) çalışabiliyor (`toolsSelectedEntry()` guard'ı,
+  `uploadManager.hasBuffer` DEĞİL).
+- Mixini Yükle'nin mini oynatıcısı için YENİ, tamamen ayrı durum/fonksiyon
+  seti: `toolsRawMixPlaying`/`toolsRawMixPreviewNode`/
+  `toolsRawMixPreviewGain` + `toolsToggleRawMixPlayback()`/
+  `toolsPauseRawMixPlayback()`/`toolsStopRawMixPlayback()` — PAYLAŞILAN
+  `uploadManager`'ı kullanmaya devam ediyor (bu zaten "tools" bağlamının
+  kanonik/her-zaman-hazır kaynağı) ama HİÇBİR filtre/solo zincirinden
+  geçmeden doğrudan `analyser`'a bağlanıyor (ham mix). `#toolsMixPlayBtn`/
+  `#toolsMixStopBtn` bu yeni fonksiyonlara yeniden bağlandı.
+- Eski `toolsStopFilterPlayback()` (Referans Filtreleri'nin UI'sında hiç
+  "Durdur" kavramı olmadığı, sadece oynat/duraklat olduğu için) SİLİNDİ —
+  kalan tek çağıranı (`#toolsMixStopBtn`) zaten `toolsStopRawMixPlayback`'e
+  taşındı, kullanılmayan kod bırakılmadı.
+- `renderToolsFilterPlayer()`'dan STALE `renderToolsMixPlayer(entry)` ve
+  `renderToolsTonalAbUi()` çağırıları KALDIRILDI (G154 sonrası zaten
+  yanlıştı) — Mixini Yükle'nin görünürlüğü `renderToolsCardsVisibility()`
+  üzerinden (zaten kendi başına `renderToolsMixPlayer` çağırıyordu) ayrı
+  akıyor.
+- Canlı Tonal Balance analizörü (`toolsTonalLiveTick`'in `shouldRun`'ı)
+  ARTIK `toolsFilterPlaying || toolsRawMixPlaying`'e bakıyor — ikisi de
+  AYNI `analyser`'a bağlandığı için hangisi çalarsa çalsın canlı overlay
+  akmalı (bölünmeden ÖNCE tek bayrak ikisini de kapsıyordu, bölünme
+  BAŞLI BAŞINA bu ikinci bir regresyon yaratıyordu, fark edilip düzeltildi).
+- `visibilitychange`'in `document.hidden` dalı VE `audioEngine.
+  onContextRecreated` (G155'in kurtarma zinciri): ikisi de artık
+  `toolsRefFilterUploadManager.clear()`/`toolsRefFilterLoadedSourceFileId
+  = null` (G154 deseniyle AYNI) VE `toolsPauseRawMixPlayback()`'i de
+  çağırıyor — Mixini Yükle'nin YENİ transportu da arka plan/zombi-context
+  kurtarmasına dahil.
+- `goScreen()`'in Araçlar'dan çıkış güvenlik ağı: Referans Filtreleri artık
+  `toolsPauseFilterPlayback()` (kendi UI'sının "Durdur" kavramı hiç
+  olmadığı için pozisyon KORUNUR, "Durdur" gibi sıfırlanmaz), Mixini Yükle
+  `toolsStopRawMixPlayback()` (kendi "Durdur" düğmesiyle AYNI semantik).
+
+**UYGULANAN — 2) seek butonları:**
+- `upload.js`: `createUploadManager()`'ın döndürdüğü nesneye YENİ, salt-
+  okunur `get elapsed()` eklendi (playing ise `getSourceNode()`'la AYNI
+  hesap, durmuşsa doğrudan `offset`) — TÜM manager örnekleri (Referans
+  Filtreleri, Frekans Çakışması, Tonal Balance vb.) bunu bedavaya kazandı,
+  sadece Referans Filtreleri kullanıyor.
+- `index.html`: iki "10 sn" butonuna `id="toolsFilterSkipBack"`/
+  `id="toolsFilterSkipFwd"` eklendi (önceden id YOKTU).
+- `app.js`: YENİ `toolsSeekFilterPlayback(deltaSec)` — `Math.max(0,
+  Math.min(duration-0.05, current+delta))` ile kenetler. **Bulunan bug:**
+  üst sınırı TAM `duration`'a kenetlemek `seekTo()`'nun KENDİ mod-alma
+  sarmasını (`sec % duration`) tetikleyip dosyanın BAŞINA (0) sarıyordu —
+  `duration - 0.05` epsilon'u ile düzeltildi (Playwright'ta yakalandı, bkz.
+  aşağıki doğrulama). Çalarken (`toolsFilterPlaying`) canlı zinciri YENİ
+  bir kaynak node'la yeniden kurar (AudioBufferSourceNode ikinci kez
+  start edilemez) — durmuşken sadece offset güncellenir, play'e basılınca
+  oradan başlar (ayrı bir "kaydedilmiş pozisyon" mekanizması İCAT
+  EDİLMEDİ, `seekTo()`'nun zaten `playing=false` yapması yeterli).
+- `renderToolsFilterPlayer()`: elapsed span'i artık gerçek
+  `toolsRefFilterUploadManager.elapsed`'i gösteriyor (önce HER İKİ dalı da
+  `0` dönen bir stub'du); dalga formu görseli gerçek `progressFrac` ile
+  çiziliyor (önce hep `0` sabitti).
+
+**DOĞRULAMA (Playwright, `http://localhost:8000`, gerçek `.m4a` dosyaları):**
+- Referans Filtreleri'nde cihaz filtresi seçip oynatınca `toolsFilterPlaying
+  =true, toolsRawMixPlaying=false` VE Mixini Yükle'nin play düğmesinde
+  `.playing` sınıfı YOK — ikisi karışmıyor.
+- İkisi AYNI ANDA başlatılınca ikisi de `true`; Referans Filtreleri
+  duraklatılınca Mixini Yükle ETKİLENMİYOR (hâlâ `true`).
+- Alt sınır: art arda geri sarma `elapsed`'i `0`'da kenetliyor, negatife
+  DÜŞMÜYOR. Üst sınır: art arda ileri sarma `duration`'a YAKIN kenetliyor,
+  BAŞA SARMIYOR (yukarıdaki bug düzeltildikten SONRA doğrulandı — düzeltme
+  ÖNCESİ bu test 0'a sardığını YAKALAMIŞTI).
+- Süre göstergesi (`#toolsFilterElapsed`) seek sonrası doğru güncelleniyor.
+- Durmuşken seek: pozisyon kaydediliyor, play'e basılınca TAM O
+  pozisyondan devam ediyor (sıfırdan BAŞLAMIYOR) — kısa/loop'lu test
+  dosyasında (vocal.m4a, ~5.67sn) dosya sonuna YAKIN bir pozisyondan
+  devam edilince birkaç yüz milisaniye içinde loop'un DOĞAL olarak
+  başa sarması AYRICA gözlemlendi ve BEKLENEN davranış olarak
+  doğrulandı (bug DEĞİL).
+- G155'in kilit/kurtarma senaryosu Referans Filtreleri + Mixini Yükle
+  AYNI ANDA çalar durumdayken tekrarlandı: kilitte İKİ bayrak da
+  temizleniyor, kilit açılıp İLK basışta İKİSİ de gerçekten yeniden
+  BAŞLIYOR (sessizce "duraklatıldı" durumuna düşme YOK).
+- G154'ün TÜM Tonal Balance doğrulama takımı (4 çip, "Kendi Referansım",
+  AB satırı, EQ listesi, A'nın gerçek eşleşmesi) yeniden çalıştırıldı —
+  bozulmadı.
+- 12 modun `actionbar-compact`/G143 çip eşitliği taraması tekrar
+  çalıştırıldı: `tonal-denge` ve `stereo-genislik` modlarında İKİ
+  ÖNCEDEN VAR OLAN başarısızlık görüldü — bunlar bu turda dokunulmayan
+  oyun modu dosyalarına ait olduğu için, değişikliklerim `git worktree`
+  ile AYRI bir HEAD-öncesi kopyaya alınıp AYNI testler o kopyaya karşı
+  TEKRAR çalıştırılarak aynı iki başarısızlığın DEĞİŞİKLİKTEN ÖNCE DE
+  var olduğu doğrulandı (regresyon DEĞİL, önceden var olan/kayıtsız bir
+  durum — bu turda düzeltilmedi, kapsam dışı).
+- Konsol hatası: 0 (tüm senaryolarda). `npm test`: 1250/1250 (değişmedi —
+  saf fonksiyonlara dokunulmadı).
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js`, `www/index.html`,
+`www/js/core/upload.js`.
+
+**DOKUNULMAYAN DOSYALAR:** `styles.css`, `www/js/core/audio-engine.js`,
+`www/js/core/tonal-balance.js`, `www/js/core/storage.js`, oyun ekranı/mod
+dosyaları (`www/js/modes/*`), testler, Android/iOS native dosyalar.
+
+**npm test:** 1250/1250 (değişmedi).
+
+**NOT — masaüstünde doğrulanamayan tek şey:** cihazda gerçek bir kilit/
+arka plana alma senaryosu (Playwright'ın `document.hidden` simülasyonu
+gerçek iOS AudioContext kesintisiyle BİREBİR aynı değil) — G155'in kendi
+notu bu turda da geçerli, cihaz testi kullanıcı tarafından ayrıca
+yapılmalı.
 
 G157 (SADECE ARAŞTIRMA, kod YAZILMADI) — **"Kendi Referansım" cihazda
 görünmüyor şikayeti araştırıldı.** `devFlags.customTonalRef` (varsayılan
