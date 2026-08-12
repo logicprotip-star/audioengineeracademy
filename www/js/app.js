@@ -1072,6 +1072,12 @@ let threeWaySelectedLetter = null;
 // (renderQuestion/enterMode) İKİSİ de sıfırlanır — bkz. o iki nokta.
 let threeWayPreviewPaused = false;
 let threeWayPreviewOffsets = {};
+// G152: pause anında döngü (abLoopTimer) çalışıyorsa true — SADECE aynı harf
+// duraklatılıp TEKRAR o harfe basılınca döngü de kaldığı yerden başlatılır
+// (stopAbLoop/startAbLoop'un KENDİ aç/kapa mantığına dokunulmuyor, sadece
+// programatik olarak çağrılıyor). Farklı bir harfe geçişte KULLANILMAZ —
+// döngünün kendi davranışı o durumda ETKİLENMİYOR.
+let threeWayLoopWasRunningBeforePause = false;
 
 // G45: Tonal Denge'nin CANLI EQ kaydırıcı durumu — {bandId: correctionDb}.
 // dbGuess/boostCutGuess gibi bu modun KENDİ değişkeni (three-way'in paylaşılan
@@ -3558,6 +3564,7 @@ function renderQuestion() {
   threeWaySelectedLetter = null;
   threeWayPreviewPaused = false;
   threeWayPreviewOffsets = {};
+  threeWayLoopWasRunningBeforePause = false;
   tonalDengeCorrections = {};
   cakismaGuess = null;
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
@@ -4862,6 +4869,13 @@ function cycleThreeWayPreview() {
 // pausePreview() o durumda 0 döner, "resume" fiilen baştan başlar (dürüstlük
 // notu: bu KAYNAK TÜRÜNÜN doğal bir sınırı, sürekli/rastgele bir sinyalde
 // "kaldığı yer" kulakla ayırt edilemez).
+// G152 EKLENDİ: pause artık döngüyü (abLoopTimer) DE durduruyor — aksi halde
+// döngü ≤2sn içinde bir sonraki tikte sesi kendiliğinden geri başlatıyordu
+// (kullanıcının istemediği davranış). stopAbLoop()/startAbLoop() KENDİ
+// aç/kapa mantığına dokunulmuyor, sadece programatik çağrılıyor — SADECE
+// aynı harf duraklatılıp TEKRAR ona basılınca (isResumingSameLetter)
+// döngü de geri başlatılıyor; FARKLI bir harfe geçişte döngü davranışı
+// (açık/kapalı ne ise) HİÇ etkilenmiyor (task'ın kendi kuralı).
 function playThreeWaySpecific(letter) {
   if (!roundActive || !isThreeWayQuestion(activeQuestion)) return;
   const q = activeQuestion;
@@ -4869,13 +4883,20 @@ function playThreeWaySpecific(letter) {
   if (letter === threeWayPlayLetter && !threeWayPreviewPaused) {
     threeWayPreviewOffsets[letter] = audioEngine.pausePreview();
     threeWayPreviewPaused = true;
+    threeWayLoopWasRunningBeforePause = !!abLoopTimer;
+    if (abLoopTimer) stopAbLoop();
     updateAbToggleUI();
     return;
   }
+  const isResumingSameLetter = letter === threeWayPlayLetter && threeWayPreviewPaused;
   threeWayPlayLetter = letter;
   threeWayPreviewPaused = false;
   const resumeOffset = threeWayPreviewOffsets[letter] || 0;
   audioEngine.buildQuestionChain({ ...q, previewLetter: letter }, true, q.source, uploadManager, mode.applyProcessing, resumeOffset);
+  if (isResumingSameLetter && threeWayLoopWasRunningBeforePause) {
+    threeWayLoopWasRunningBeforePause = false;
+    startAbLoop();
+  }
   updateAbToggleUI();
 }
 
@@ -6321,7 +6342,16 @@ const SPOTLIGHT_TARGET_TITLES = {
 // elementi. guide-texts.js bu dosyaya hiç dokunmuyor (saf veri), çözüm
 // burada — isChoiceFormat/els zaten bu dosyanın kendi çalışma zamanı durumu.
 function resolveSpotlightTarget(targetKey, modeId) {
-  if (targetKey === "listen") return els.analyzer;
+  // G152 DÜZELTMESİ: Motor 2'de (Kompresör/Reverb/Distortion) els.analyzer
+  // HIDE_ANALYZER ile gizli (bkz. o dosyaların getMeta() notu) —
+  // getBoundingClientRect() {0,0,0,0} dönüyor, delik ekranın köşesine
+  // 16x16px'e küçülüp geri kalan HER YERİ karartıyordu (G86'dan beri açık
+  // regresyon — G86 "select"/"confirm" dallarını M2'ye göre güncellemişti,
+  // "listen" dalı UNUTULMUŞTU, bkz. DURUM.md G151/G152). Kullanıcının
+  // kararı: bu üç modda "listen" A/B/C kartlarını (els.answers) göstersin
+  // — dinleme zaten oradan yapılıyor. Diğer dokuz modda els.analyzer HİÇ
+  // gizlenmiyor, davranış DEĞİŞMEDİ.
+  if (targetKey === "listen") return THREE_WAY_MODE_IDS.includes(modeId) ? els.answers : els.analyzer;
   // G69: "abControl" — #abToggle'ın KENDİSİ (updateAbToggleUI'ın AYNI mantığı):
   // three-way 3 modda A/B/C döngü, diğerlerinde dry/işlenmiş A/B karşılaştırma.
   // Frekans Çakışması'nda #abToggle GİZLİ (syncCakismaVisibility) — o modun
@@ -6575,6 +6605,7 @@ function resetAllProgress() {
   threeWaySelectedLetter = null;
   threeWayPreviewPaused = false;
   threeWayPreviewOffsets = {};
+  threeWayLoopWasRunningBeforePause = false;
   tonalDengeCorrections = {};
   cakismaGuess = null;
   syncLives();

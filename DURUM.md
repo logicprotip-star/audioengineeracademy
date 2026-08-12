@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G151)
+Son güncelleme: 12.08.2026 (G152)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,80 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G152) — **G151'in iki bulgusu ÇÖZÜLDÜ: (1) Spotlight "listen"
+adımı Motor 2'de artık A/B/C kartlarını aydınlatıyor (BEKLEYEN KARARLAR U
+kullanıcı kararıyla uygulandı). (2) Kart pause artık döngüyü de
+duraklatıyor — ses tamamen susuyor, tekrar basınca hem ses hem döngü
+kaldığı yerden devam ediyor.**
+
+**MADDE 1 — Spotlight "listen" düzeltmesi:**
+`resolveSpotlightTarget()`'ın `"listen"` dalı artık `THREE_WAY_MODE_IDS`
+(Kompresör/Reverb/Distortion) için `els.answers` (A/B/C kart satırı),
+diğer dokuz modda eskisi gibi `els.analyzer` döndürüyor — "select"/
+"confirm" dallarının G86'dan beri kullandığı `isChoiceFormat() ?
+els.answers : els.analyzer` deseniyle AYNI aile, YENİ bir mimari İCAT
+EDİLMEDİ.
+- **12 modun TAMAMI tarandı** (task'ın 3. maddesi): SADECE M2'nin
+  `"listen"` adımı bozuktu — diğer dokuz modda `els.analyzer` hiç
+  gizlenmiyor (`HIDE_ANALYZER` sadece M2'de `true`), `"select"`/`"confirm"`
+  hiçbir modda gizli bir elemana çözülmüyor (frekans-bulma'nın dokunmalı
+  modunda bile `els.analyzer` GÖRÜNÜR — orada dalgaya dokunuluyor).
+  `"abControl"` (`els.abToggle`) hiçbir modda gizli değil (Frekans
+  Çakışması'nda bu adım zaten YOK, syncCakismaVisibility'nin gizlediği
+  #abToggle'a hiç ulaşılmıyor). **Başka bozuk adım BULUNAMADI.**
+- Playwright ile 11 modda (Stereo Genişlik dosya gerektirdiği için round
+  başlamadı, spotlight hiç açılmadı — G150/G151'deki AYNI test sınırı)
+  "listen" adımının delik dikdörtgeni ölçüldü: M2'nin üçünde artık delik
+  kart alanını kaplıyor (~374×286px, ÖNCEDEN 16×16px köşede), diğer
+  sekizinde analizör alanını kaplamaya (değişmeden) devam ediyor.
+
+**MADDE 2 — Pause artık döngüyü de duraklatıyor:**
+`playThreeWaySpecific()`'in pause dalı artık `abLoopTimer` çalışıyorsa
+`stopAbLoop()`'u ÇAĞIRIYOR (döngünün KENDİ aç/kapa fonksiyonu, yeniden
+İCAT EDİLMEDİ) — hem ses hem 2sn'lik tik tamamen duruyor. Resume dalı,
+SADECE aynı harf duraklatılıp TEKRAR ona basıldığında (`isResumingSameLetter`)
+ve döngü pause ÖNCESİNDE çalışıyorduysa, `startAbLoop()`'u çağırıp döngüyü
+yeniden başlatıyor. **Farklı bir harfe geçişte döngü davranışı hiç
+etkilenmiyor** — task'ın "döngü düğmesinin kendi aç/kapa davranışı
+DEĞİŞMESİN" kuralı birebir uygulandı, sadece PROGRAMATİK olarak mevcut
+fonksiyonlar çağrılıyor.
+
+**DOĞRULAMA (Playwright):**
+- 12 modun `"listen"` adımı tek tek açılıp delik dikdörtgeni ölçüldü —
+  M2'nin üçü kartları kaplıyor, diğer dokuzu analizörü (değişmeden).
+- Reverb/Kompresör/Distortion'ın ÜÇÜNDE de: round başında döngü açık ve A
+  otomatik çalıyor → A'ya basınca HEM ses HEM döngü aynı anda duruyor
+  (`abToggle`'ın `"loop"` sınıfı kalkıyor) → 2.5sn (bir döngü tikinden
+  fazla) beklenip HÂLÂ sessiz/döngüsüz olduğu doğrulandı → A'ya tekrar
+  basınca HEM ses HEM döngü geri geliyor → 2.5sn sonra döngü NORMAL
+  şekilde B'ye geçiyor (mekanizma bozulmadı, sadece pause sırasında
+  askıya alındı).
+- G151'in kart-gövdesi-seçim / farklı-harfe-geçiş davranışları yeniden
+  test edildi, bozulmadı.
+- 12 modun `actionbar-compact` (G150) durumu ve `nextBtn` metni yeniden
+  tarandı — hepsi doğru, konsol hatası: 0.
+- G143 çip eşitliği ve G144 kalıcılığı bu turda dokunulmayan dosyalarda
+  (`styles.css`/`index.html`/`storage.js`) olduğu için etkilenmedi.
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js` (`resolveSpotlightTarget`,
+`playThreeWaySpecific`, yeni state: `threeWayLoopWasRunningBeforePause`).
+
+**DOKUNULMAYAN DOSYALAR:** `www/js/core/audio-engine.js`,
+`www/js/core/three-way-cards.js` (G151'de eklenen pause/resume altyapısı
+BOZULMADI, bu turda dokunulmadı), `styles.css`, `index.html`,
+`core/guide-texts.js` (spotlight METİNLERİ değişmedi, sadece HEDEF
+çözümü), `core/storage.js`, diğer 9 mod dosyası, testler, Android/iOS
+native dosyalar.
+
+**npm test:** 1250/1250 (değişmedi).
+
+**DÜRÜSTLÜK NOTU:** Her iki düzeltme de masaüstünde Playwright ile TAM
+doğrulandı ama HENÜZ cihazda kurulmadı — özellikle Madde 1'in "İleri
+butonuna basınca takılı kalma" gözlemi (G151'de koddan doğrulanamamıştı)
+cihazda AYRICA kontrol edilmeli, delik artık doğru göründüğü için o
+gözlemin kendisinin de (kullanıcı artık turu bozuk sanmayacağı için)
+kendiliğinden çözülmüş olması BEKLENİYOR ama KANITLANMADI.
 
 Bu commit (G151) — **İKİ İŞ: (1) Spotlight delik efekti regresyonunun kök
 nedeni bulundu (koddan kanıtlandı, KOD DEĞİŞTİRİLMEDİ, sadece rapor).
@@ -11636,7 +11710,7 @@ kapatıldı.
 
 ## BEKLEYEN KARARLAR
 
-**U. G151 — Spotlight "listen" hedefi Motor 2'de `els.analyzer`e (gizli) çözülüyor, delik efekti çalışmıyor — düzeltilsin mi?**
+**U. ~~G151 — Spotlight "listen" hedefi Motor 2'de `els.analyzer`e (gizli) çözülüyor, delik efekti çalışmıyor~~ — G152'de ÇÖZÜLDÜ**
 Kök neden G151'de KANITLANDI (bkz. BİTTİ G151, madde 1): `resolveSpotlightTarget()`'ın
 `"listen"` dalı Kompresör/Reverb/Distortion'da (`HIDE_ANALYZER:true`)
 gizli/0×0 `els.analyzer`'ı döndürüyor — G86'da `"select"`/`"confirm"`
