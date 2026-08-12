@@ -2339,8 +2339,12 @@ function enterMode(entry, realMode) {
     if (els.analyzer) els.analyzer.classList.toggle("analyzer-compact", !!mode.COMPACT_ANALYZER);
     // G83: alt kenar satırı (20Hz/caption/kHz) SADECE SHOW_SPECTRUM!==false
     // modlarda anlamlı — dB Seviyesi/Frekans Çakışması kendi görsellerini
-    // kullanıyor (bkz. updateAnalyzerFoot).
-    if (els.analyzer) els.analyzer.classList.toggle("analyzer-no-foot", mode.SHOW_SPECTRUM === false);
+    // kullanıyor (bkz. updateAnalyzerFoot). G160 — Tonal Denge
+    // (COMPACT_ANALYZER) SHOW_SPECTRUM'u false YAPMIYOR (gerçek spektrumu
+    // gösteriyor) ama .game-scroll taşmasını azaltmak için bu satır da
+    // KALDIRILDI — kaydırıcı listesine ayrılan yer büyüyor, spektrum
+    // çubukları/eksen ETKİLENMİYOR (bkz. styles.css .analyzer-compact notu).
+    if (els.analyzer) els.analyzer.classList.toggle("analyzer-no-foot", mode.SHOW_SPECTRUM === false || !!mode.COMPACT_ANALYZER);
     // G91 (madde 9): dB Seviyesi'nin "SPEKTRUM · B İŞLENMİŞ" kart çerçevesi
     // (bg/border/gölge/başlık) kaldırılıyor — SADECE canvas/barlar kalıyor
     // (bkz. mode.BARE_ANALYZER, db-seviyesi.js + styles.css #analyzer.analyzer-bare).
@@ -3102,10 +3106,21 @@ function renderZonePanel() {
   return { scores, enough };
 }
 
+// G160 — "Bugünün Önerisi"nin ZAYIF BÖLGE tespiti için istatistiksel eşik.
+// ÖNCEDEN n>=2'ydi — cihazda 32 XP'lik (2-3 soruluk) yeni bir kullanıcıda
+// "Üst-orta — isabet %0" gösteriyordu: 1-2 denemede %0/%100 rastgele
+// gürültüden ibaret, hem YANILTICI hem yeni kullanıcı için MOTIVASYON KIRICI.
+// n>=10 (mode.zoneScores'ın AYNI hesabı hem burada hem dailyTipStartBtn'in
+// click handler'ında OKUNUYOR — ikisi de bu sabiti kullanır, elle
+// SENKRONİZE tutulan iki ayrı sayı YOK).
+const DAILY_TIP_MIN_ATTEMPTS = 10;
+
 // Ana menüdeki "Bugünün Önerisi" kartı — en zayıf bölgeyi zoneScores()'tan (İlerleme
-// sekmesiyle aynı hesap) okuyup tek cümlelik öneri üretir. Yeterli veri yoksa
-// (en az 1 bölgede n>=2) kart hiç gösterilmez — genel bir karşılama mesajı YAZMADIK,
-// çünkü "Başla" butonu odak-aralığı özelliği olmadan anlamsız bir vaat olurdu.
+// sekmesiyle aynı hesap) okuyup tek cümlelik öneri üretir. Hiçbir bölge eşiği
+// aşmıyorsa (DAILY_TIP_MIN_ATTEMPTS'ten az deneme) kart GİZLENMEZ — G160 ÖNCESİ
+// (n>=2 eşiğiyle) kart genelde görünür olduğu ve "Başla" zaten genel bir set
+// başlattığı için, veri YETERSİZKEN de kart görünür kalıp kullanıcıyı genel bir
+// sete yönlendirir (aşağıdaki else dalı) — boş kart ya da yanıltıcı %0 YOK.
 function renderDailyTip() {
   if (!els.dailyTipCard) return;
   // G91 (madde 1): Ayarlar'daki "Bugünün önerisini göster" kapalıysa kart
@@ -3113,15 +3128,22 @@ function renderDailyTip() {
   // KALICI bir tercih.
   if (!prefs.showDailyTip) { els.dailyTipCard.classList.add("hidden"); return; }
   if (daily.tipDismissed) { els.dailyTipCard.classList.add("hidden"); return; }
-  const enough = zoneScores().filter(s => s.n >= 2);
-  if (!enough.length) { els.dailyTipCard.classList.add("hidden"); return; }
-  const weakest = enough.slice().sort((a, b) => a.pct - b.pct)[0];
-  // G74: metin İÇERİĞİ/verisi DEĞİŞMEDİ (aynı weakest.label/pct) — SADECE
-  // zayıf bölge adı tasarımın kendi vurgu rengiyle (--red) işaretlendi
-  // (Ana Ekran.dc.html'in "ÜST-ORTA" örneğiyle AYNI görsel dil). textContent
-  // yerine innerHTML kullanılıyor ama tek enjekte edilen değer BU fonksiyonun
-  // kendi hesapladığı weakest.label/pct — dışarıdan gelen serbest metin YOK.
-  if (els.dailyTipText) els.dailyTipText.innerHTML = `Zayıf bölgen <b style="color:var(--red)">${weakest.label}</b> — isabet %${weakest.pct}. Bugün oraya odaklanmayı dene.`;
+  const enough = zoneScores().filter(s => s.n >= DAILY_TIP_MIN_ATTEMPTS);
+  if (enough.length) {
+    const weakest = enough.slice().sort((a, b) => a.pct - b.pct)[0];
+    // G74/G160: metin İÇERİĞİ weakest.label'dan geliyor (dışarıdan serbest
+    // metin YOK, innerHTML güvenli). G160 — sert "%X isabet" yüzdesi
+    // KALDIRILDI (kullanıcının kendi talebi: "daha yumuşak bir dil"), yerine
+    // yüzde göstermeyen bir çerçeveleme kullanılıyor.
+    if (els.dailyTipText) els.dailyTipText.innerHTML = `En çok zorlandığın bölge <b style="color:var(--red)">${weakest.label}</b>. Bugün oraya odaklanmayı dene.`;
+  } else {
+    // G160 — yeterli veri YOKKEN (yeni kullanıcı ya da az deneme): boş kart/
+    // "%0" yerine oynamaya yönlendiren genel bir mesaj. "Başla" butonu bu
+    // durumda ZATEN odak-aralığı ayarlamadan genel bir set başlatıyor (bkz.
+    // dailyTipStartBtn click handler — mode.FOCUS_RANGES bloğu enough.length
+    // boşsa hiç girmiyor), yani buton davranışı BU metinle tutarlı.
+    if (els.dailyTipText) els.dailyTipText.textContent = "Henüz yeterli verin yok. Bugün bir set yaparak ilerlemeye başla.";
+  }
   // G58: buton artık GERÇEKTEN challenge.total kadar soruda duruyor (bkz.
   // dailyTipStartBtn click handler) — etiket challenge.total'dan OKUNUYOR
   // (sabit "10" yazıp unutmak yerine tek doğruluk kaynağından), böylece sayı
@@ -6929,7 +6951,7 @@ if (els.dailyTipSkipBtn) els.dailyTipSkipBtn.addEventListener("click", () => {
 // KESMEMEK için BİLİNÇLİ bir tercih (task: "sınav... DOKUNULMAZ").
 if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async () => {
   if (mode.FOCUS_RANGES && mode.focusIdForZone && els.focusSelect) {
-    const enough = zoneScores().filter(s => s.n >= 2);
+    const enough = zoneScores().filter(s => s.n >= DAILY_TIP_MIN_ATTEMPTS); // G160 — renderDailyTip() ile AYNI eşik
     if (enough.length) {
       const weakest = enough.slice().sort((a, b) => a.pct - b.pct)[0];
       const focusId = mode.focusIdForZone(weakest.key);

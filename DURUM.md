@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G159)
+Son güncelleme: 12.08.2026 (G160)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,124 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+G160 — **Tonal Denge'nin .game-scroll taşması düzeltildi + "Bugünün Önerisi" yetersiz-veri/sert-yüzde sorunu giderildi.**
+
+**1) TONAL DENGE İÇERİK TAŞMASI — kök sebep + düzeltme:**
+
+Kök sebep koddan tespit edildi (ölçüm bazlı/runtime düzeltme DEĞİL — Playwright
+SADECE benim geliştirme sürecimde doğrulama için kullanıldı, uygulamanın
+KENDİSİ hâlâ tamamen statik CSS/mode-bayrağı desenini kullanıyor):
+- `.tonal-slider` (`<input type=range>`) `display:inline-block` (varsayılan)
+  kalmıştı — "normal" satır yüksekliğine göre baseline hizalanınca
+  `height:6px`'e RAĞMEN satırda ~12px hayalet boşluk bırakıyordu (bant
+  başına). `display:block` eklenince bu boşluk TAMAMEN gitti — kaydırıcının
+  görünür/dokunma boyutu (22px thumb dahil) TEK PİKSEL değişmedi.
+- `.analyzer-compact`'ın (G46, SADECE Tonal Denge kullanıyor —
+  `mode.COMPACT_ANALYZER`, başka hiçbir moda etkisi yok) kart baş/alt
+  boşluğu gereğinden fazlaydı; `analyzer-no-foot` (20Hz/kHz alt satırı)
+  ÖNCEDEN sadece `SHOW_SPECTRUM===false` modlarda tetikleniyordu, Tonal
+  Denge'de tetiklenmiyordu — artık `COMPACT_ANALYZER` de bu satırı
+  tetikliyor (app.js tek satır, TÜM diğer modların `SHOW_SPECTRUM`
+  davranışı BİREBİR korunur, sadece `||` ile bir koşul EKLENDİ).
+- `#visualizer`'ın 140px'ine (G46'nın kendi compact değeri) BİLEREK
+  DOKUNULMADI — tonal-denge.js'in kendi yorumu bunun frekans-bulma.js ile
+  PAYLAŞILAN `CURVE_TOP=88px` sabitine bağlı bir TABAN olduğunu, daha
+  küçültülürse spektrum çubuklarının negatif yüksekliğe düşüp görünmez
+  olacağını söylüyor — bu ayrı/paylaşılan koda dokunmak riski haklı
+  çıkarmadığı için o dosyaya dokunulmadı.
+- `.tonal-band` padding (9→7px), `.tonal-band-head` margin-bottom (6→4px),
+  `.tonal-bands`/`.answers-tonal` gap (8→6px, 14→10px) sıkıştırıldı —
+  22px'lik thumb için hâlâ rahat dokunma alanı bırakıyor.
+
+**SONUÇ (Playwright'ta `createQuestion({sessionQuestionIndex})` ile 4/5/6
+bant sorguları doğrudan render edilip ölçüldü):**
+- **4 bant (varsayılan, her oturumun ilk 4 sorusu — cihazda/G150'de
+  RAPORLANAN durum): 120px taşma → 0px. TAM DÜZELDİ.**
+- 5 bant (soru 5-8): 189px taşma → 38px. %80 azaldı, TAM sıfırlanmadı.
+- 6 bant (soru 9+, "Serbest"in doğal uzantısı ve sınav zorlaştırması): 258px
+  taşma → 87px. %66 azaldı, TAM sıfırlanmadı.
+
+**DÜRÜSTLÜK NOTU:** 5/6 bantlı sorularda hâlâ KÜÇÜK bir kaydırma payı var
+— tamamen sıfırlamak ya paylaşılan `CURVE_TOP` sabitine (frekans-bulma.js,
+başka modları etkiler) ya da `gameSpectrumControls`/soru başlığı gibi
+TÜM 12 modun paylaştığı satırlara dokunmayı gerektirirdi, ikisi de bu
+turun kapsamı dışında tutuldu (risk/kazanç dengesi). Raporlanan asıl
+şikayet (varsayılan 4 bant durumu) TAM çözüldü.
+
+**Stereo Genişlik — "aynı sınıf sorun var mı" kontrolü: BULGU YOK, GERÇEK
+BİR BUG DEĞİL.** G150/G158'in "stereo-genislik touch: compact=false"
+başarısızlığı araştırıldı: bu mod round başlamadan ÖNCE "Bu mod kendi
+dosyanla oynanır" upload-gate'i gösteriyor (kendi dosyasını YÜKLEMEDEN
+oynanamıyor) — G150'nin test betiğinin genel `enter_mode()` yardımcısı bu
+gate'i HİÇ ele almıyordu, yani ölçüm HER ZAMAN round hiç başlamamışken
+(freqGuessArea hidden ama `renderQuestion()`/`syncActionbarCompact()` hiç
+çalışmamışken) alınıyordu — TEST HARNESS EKSİĞİ, uygulama hatası değil.
+Kanıt: `www/audio/`'daki TÜM fixture dosyaları MONO (`ffprobe` ile
+doğrulandı, Stereo Genişlik mono dosyayı reddediyor) — bu yüzden bu mod
+daha önce HİÇ gerçek Playwright oynanışıyla test edilememişti. Sadece bu
+kontrol için (repoya EKLENMEDİ, sadece scratchpad'te) sentetik 6 saniyelik
+stereo bir WAV üretilip yüklendi — GERÇEK round'da: `compactClass=true`,
+`overflow=0`, `actionbarHeight=81` — TAMAMEN doğru çalışıyor. Koda
+dokunulmadı.
+
+**2) "BUGÜNÜN ÖNERİSİ" — yetersiz veri eşiği + sert yüzde dili:**
+
+Cihazda görülen "32 XP'lik yeni kullanıcı → Üst-orta — isabet %0" kök
+sebebi: `renderDailyTip()`'in zayıf-bölge eşiği `n>=2`'ydi (2 denemede
+0/2 doğru = pct=0, istatistiksel gürültü, "gerçek zayıflık" değil).
+
+**UYGULANAN:**
+- Yeni `DAILY_TIP_MIN_ATTEMPTS=10` sabiti — hem `renderDailyTip()` hem
+  "Seti başlat" tıklama işleyicisinin (odak-aralığı ayarlayan AYNI
+  hesap) eşiği bu TEK sabitten okunuyor, iki yerde elle senkron tutulan
+  iki ayrı sayı YOK.
+- Hiçbir bölge eşiği aşmıyorsa (yeni kullanıcı ya da az deneme) kart
+  ARTIK GİZLENMİYOR — "Henüz yeterli verin yok. Bugün bir set yaparak
+  ilerlemeye başla." gösteriyor, buton (`dailyTipStartBtn`) GENEL bir
+  10 soruluk set başlatıyor (odak-aralığı ayarlama kodu `enough.length`
+  boşsa zaten hiç çalışmıyordu — buton davranışı YENİ metinle zaten
+  tutarlıydı, değişmedi).
+- Eşiği aşan bir bölge varsa: "Zayıf bölgen X — isabet %Y" yerine "En
+  çok zorlandığın bölge X." — sert yüzde tamamen kaldırıldı (kullanıcının
+  kendi talebi).
+
+**DOĞRULAMA (Playwright, `fa_zonestats` localStorage'a doğrudan
+seed'lenerek üç senaryo):** (A) cihazdaki AYNEN senaryo (Üst-orta n=2,
+ok=0) → kart görünür, metin "%" içermiyor, "set" başlatmaya yönlendiriyor.
+(B) bir bölgede n=12 (yeterli) + başka bölgede n=3/ok=3 (%100 ama
+YETERSİZ) → SADECE yeterli bölge ("Üst-orta") anılıyor, yüzde YOK, az
+veri bölgesi hesaba KATILMIYOR. (C) sıfır XP/hiç kayıt yok → kart yine
+görünür, genel mesaj. Üçünde de konsol hatası: 0.
+
+**REGRESYON TARAMASI:** 12 modun actionbar-compact/G143 çip eşitliği
+sweep'i tekrar çalıştırıldı — `tonal-denge` ARTIK GEÇİYOR (önceki
+başarısızlık DÜZELDİ), diğer 10 mod bozulmadı, `stereo-genislik` yukarıda
+açıklanan test-harness nedeniyle hâlâ "başarısız" görünüyor (uygulama
+hatası değil). G154/G155/G157/G159'un TÜM Araçlar doğrulama takımları
+(Tonal Balance A/B, Referans Filtreleri bağımsızlığı+seek, kilit/kurtarma
+senaryosu) yeniden çalıştırıldı — HİÇBİRİ bozulmadı (bu turda Araçlar
+koduna hiç dokunulmadı, sadece app.js'in PAYLAŞILAN olması nedeniyle
+önlem amaçlı tekrar koşuldu).
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js` (renderDailyTip + dailyTipStartBtn
+click handler + `analyzer-no-foot` toggle koşulu), `www/styles.css`
+(`.tonal-slider`, `.tonal-band*`, `.answers-tonal`, `.analyzer-compact`
+kuralları).
+
+**DOKUNULMAYAN DOSYALAR:** `index.html`, `www/js/modes/*` (hiçbir mod
+dosyası — tonal-denge.js'in `CURVE_TOP` bağımlılığı YÜZÜNDEN BİLEREK
+dokunulmadı), `www/js/core/*` (upload.js, audio-engine.js, tonal-balance.js,
+storage.js), testler, Android/iOS native dosyalar.
+
+**npm test:** 1250/1250 (değişmedi — saf fonksiyonlara dokunulmadı, sadece
+CSS + render/eşik mantığı).
+
+**BEKLEYEN (kod DEĞİL, bilgi notu):** 5/6 bantlı Tonal Denge sorularında
+küçük bir kaydırma payı kalıcı olarak devam ediyor — cihazda "hâlâ hafif
+kaydırma var" bildirilirse, sonraki adım paylaşılan `CURVE_TOP` sabitine
+(frekans-bulma.js) dokunmak ya da soru başlığı/chiprow gibi TÜM 12 modun
+paylaştığı satırları küçültmek olur — ikisi de bu turda BİLEREK ertelendi.
 
 G159 — **Araçlar / Referans Filtreleri: kendi bağımsız oynatıcısını aldı + seek butonları bağlandı.**
 
