@@ -552,6 +552,23 @@ const els = {
 // Boş gruplar (sources:[]) hiç render edilmez — bugün için hepsi dolu ama yeni
 // bir motor/grup boş eklenirse yine otomatik gizlenir.
 //
+// G138 — kullanıcının kendi kararı: G126'nın "kaynak TÜRÜ (bu select'in
+// value'su — 'upload'/'davul-dongusu'/'pink-noise' vb.) mod-agnostik kalsın,
+// sadece HANGİ DOSYA seçili olduğu (uploadSelections, G123) mod başına
+// ayrılsın" kararı GEÇERSİZ. Artık kaynak TÜRÜ de `uploadSelections` İLE AYNI
+// desende (bağlam anahtarı: mode.MODE_ID / "tools" / "tonal-ref"), AYRI bir
+// kalıcı harita (`sourceSelections`, storage.js:loadSourceSelections/
+// saveSourceSelections) — `uploadSelections` İLE KARIŞTIRILMADI, çünkü ikisi
+// farklı kavramlar (biri "hangi dosya", biri "hangi kaynak TÜRÜ" — kaynak
+// upload OLMASA bile anlamlı). `populateSourceSelect()`'ten ÖNCE (o, ilk
+// çağrısını hemen aşağıda modül yüklenirken yapıyor) tanımlanmalı.
+let sourceSelections = storage.loadSourceSelections();
+function recordSourceSelection(contextId, sourceId) {
+  if (sourceId) sourceSelections[contextId] = sourceId;
+  else delete sourceSelections[contextId];
+  storage.saveSourceSelections(sourceSelections);
+}
+
 // AKTİF MODUN kaynak uyumluluğu (getMeta().uyumluKaynaklar, bkz. source-catalog.js
 // compatibleSourceIds) listeyi süzer — bir modda anlamsız bir kaynak (Reverb'de
 // kick gibi tek-vuruşlar, Kompresör'de pembe/beyaz gürültü gibi transient'sız
@@ -560,19 +577,21 @@ const els = {
 function populateSourceSelect() {
   if (!els.sourceSelect) return;
   const compatible = new Set(mode.getMeta().uyumluKaynaklar);
-  const previousValue = els.sourceSelect.value;
   els.sourceSelect.innerHTML = SOURCE_GROUPS
     .map(g => ({ label: g.label, sources: g.sources.filter(s => compatible.has(s.id)) }))
     .filter(g => g.sources.length > 0)
     .map(g => `<optgroup label="${g.label}">${g.sources.map(s => `<option value="${s.id}">${s.label}</option>`).join("")}</optgroup>`)
     .join("");
-  // Önceki seçim yeni modda da uyumluysa korunur; değilse (ör. Reverb'den
-  // Kompresör'e geçilirken seçili kaynak gürültüydü) listedeki İLK uyumlu kaynağa
-  // düşülür — kullanıcı hiç var olmayan bir <option>'da "takılı" kalmaz. "change"
-  // event'i elle tetiklenir ki Ayarlar sheet'indeki satır metni (updateRowText)
-  // senkron kalsın.
-  if (compatible.has(previousValue)) {
-    els.sourceSelect.value = previousValue;
+  // G138 — bu MODUN (mode.MODE_ID) kendi kalıcı kaynak-türü seçimi VARSA VE
+  // hâlâ uyumluysa YÜKLENİR (moddan moda TAŞINMAZ artık — G126'nın "önceki
+  // seçim korunur" mantığı KALDIRILDI). Kayıt YOKSA (mod ilk kez açılıyor)
+  // YA DA kayıtlı seçim artık uyumlu DEĞİLSE (mod tanımı değişmiş olabilir)
+  // listedeki İLK uyumlu kaynağa düşülür VE "change" event'i elle tetiklenir
+  // — aşağıdaki merkezi dinleyici (bkz. [els.sourceSelect,...].forEach) bunu
+  // otomatik KAYDEDER, burada ikinci bir yazma İCAT EDİLMEDİ.
+  const saved = sourceSelections[mode.MODE_ID];
+  if (saved && compatible.has(saved)) {
+    els.sourceSelect.value = saved;
   } else if (els.sourceSelect.options.length > 0) {
     els.sourceSelect.selectedIndex = 0;
     els.sourceSelect.dispatchEvent(new Event("change", { bubbles: true }));
@@ -6568,7 +6587,13 @@ els.difficultySelect.addEventListener("change", () => {
     // sheet'i akışından GEÇMEDEN) gate paneli ANINDA senkron kalsın — "upload"a
     // geçince (dosya yoksa) panel HEMEN görünür, "upload"tan başka bir kaynağa
     // geçince panel HEMEN kaybolur.
-    if (el === els.sourceSelect) syncUploadGate();
+    if (el === els.sourceSelect) {
+      // G138 — HER "change" (kullanıcının elle seçimi YA DA populateSourceSelect()'in
+      // "kayıt yok/artık uyumlu değil" fallback dalının kendi tetiklediği event)
+      // bu MODUN (mode.MODE_ID) kalıcı seçimine YAZILIR — moddan moda ayrı, TAŞINMAZ.
+      recordSourceSelection(mode.MODE_ID, el.value);
+      syncUploadGate();
+    }
     updateStartBtnLabel();
   });
 });

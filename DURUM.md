@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G137)
+Son güncelleme: 12.08.2026 (G138)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -16,7 +16,32 @@ sidechain, delay.
 
 ## BİTTİ
 
-Bu commit (G137) — **G136 cihazda TAM işlemedi: "Atla" hâlâ gerekiyordu, ÜSTELİK gereksiz bir "Tekrar dene" uyarı ekranı da çıkıyordu. Kök sebep koddan izlenerek bulundu: `ensureAudioAlive()`'ın "sessiz" (visibilitychange) ve "gerçek jest" (play tuşu) çağrıları arasında İKİ ayrı boşluk vardı.**
+Bu commit (G138) — **KARAR DEĞİŞİKLİĞİ (kullanıcının kendi kararı): "kaynak TÜRÜ mod-agnostik kalsın" (G126'nın kararı) ARTIK GEÇERSİZ. Kaynak türü de dosya seçimi (G123) gibi mod başına ayrıldı ve kalıcı hale getirildi.**
+
+**G126'DAKİ ESKİ KARAR NEYDİ, NEDEN DEĞİŞTİ:** G123 dosya SEÇİMİNİ (`uploadSelections[contextId]`) mod başına ayırmıştı ama kaynak TÜRÜNÜ (`els.sourceSelect.value` — "upload"/"davul-dongusu"/"pink-noise" vb.) BİLEREK mod-agnostik/paylaşılan bıraktı (`populateSourceSelect()`'in "önceki seçim yeni modda da uyumluysa korunur" mantığı). G126 bunun YOL AÇTIĞI hatayı (kaynak "upload" taşınıp dosya taşınmayınca sessiz hata) bir GATE panel ile kapattı ama kaynak türünün KENDİSİNİN taşınmasına dokunmadı. Bu turda kullanıcı KENDİSİ bu kararı tersine çevirdi: Frekans Bulma'da "Davul Döngüsü" seçmek, Kesim Noktası'nın kaynağını artık DEĞİŞTİRMEMELİ.
+
+**UYGULANAN:**
+- **`storage.js`** — `uploadSelections` İLE AYNI desende, AYRI bir kalıcı harita: `loadSourceSelections()`/`saveSourceSelections()` (`SOURCE_SELECTIONS_KEY = "eqEarTrainerProXSourceSelections"`, aynı try/catch + "bozuksa/dizi ise boş obje" deseni, aynı `mirrorSet` Preferences yedeği). Bilinçli olarak `uploadSelections`'tan AYRI bir localStorage anahtarı/obje — biri "hangi DOSYA", diğeri "hangi kaynak TÜRÜ" (upload olmasa bile anlamlı), iki farklı kavram karıştırılmadı.
+- **`app.js`** — `sourceSelections` (module-level, `populateSourceSelect()`'ten HEMEN ÖNCE tanımlandı — TDZ hatası olmasın diye, bu fonksiyon modül yüklenirken satır 581'de bir kez SENKRON çağrılıyor) + `recordSourceSelection(contextId, sourceId)` (uploadSelections İLE AYNI desende).
+  - `populateSourceSelect()` artık "önceki seçim korunur" YERİNE `sourceSelections[mode.MODE_ID]`'i okuyor: kayıt VARSA VE hâlâ uyumluysa YÜKLENİR; kayıt YOKSA (ilk kez açılış) YA DA artık uyumlu DEĞİLSE (mod tanımı değişmişse) listedeki İLK uyumlu kaynağa düşülüp "change" event'i elle tetiklenir (madde 3/4 — eski ilk-uyumlu-kaynak mantığı DEĞİŞMEDİ, sadece fallback KAYNAĞI değişti: "önceki mod" yerine "bu modun kaydı").
+  - `[els.sourceSelect, els.playModeSelect].forEach` içindeki merkezi "change" dinleyicisi artık HER kaynak değişikliğinde (kullanıcının elle seçimi YA DA populateSourceSelect()'in fallback dalının kendi tetiklediği event) `recordSourceSelection(mode.MODE_ID, el.value)` çağırıyor — hem Kaynak sheet'inden seçim hem Oyun Ayarları'nın "Ses dosyası yükle" satırı hem de dropdown'un doğrudan değiştirilmesi AYNI merkezi noktadan geçtiği için TEK yerde kalıcılaştırma yeterli, mod-özel kod İCAT EDİLMEDİ.
+- **`syncUploadGate()`/gate paneli mantığı DOKUNULMADI** (madde 5) — o zaten `uploadSelections[mode.MODE_ID]`'e bakıyor, kaynak "upload" ama dosya yoksa gate hâlâ görünüyor (Playwright ile ayrıca doğrulandı, aşağıda).
+- **Frekans Çakışması'na (`uploadManagerA`/`B`, `cakismaPairSelect`) DOKUNULMADI** (madde 6) — o zaten TAMAMEN ayrı bir seçici kullanıyor (`els.sourceSelect` DEĞİL), `uyumluKaynaklar:[]` olduğu için `populateSourceSelect()`'in ürettiği liste zaten BOŞ, bu turun kodu o moda hiç değmiyor.
+- **"tools"/"tonal-ref" bağlamları** (madde 7) — `sourceSelections` haritası `uploadSelections` İLE AYNI bağlam-anahtarı şemasını (herhangi bir contextId string'i) kullandığı için YAPISAL olarak destekleniyor, ama **DÜRÜSTLÜK NOTU:** şu an Araçlar'da ya da "Kendi Referansım"da `els.sourceSelect`'e benzer bir "kaynak TÜRÜ" dropdown'u YOK (ikisi de SADECE dosya seçimi yapıyor, "hangi kaynak türü" kavramı yalnızca oyun modlarında var) — yani bu iki bağlam için ŞU AN okunan/yazılan bir kod yolu yok, uydurma bir UI eklenmedi. İleride böyle bir seçici eklenirse aynı haritaya aynı desenle takılabilir.
+
+**DOĞRULAMA (Playwright, masaüstü Chromium, gerçek mod kartları/Kaynak sheet'i üzerinden, `simulatePro` ile Pro kilidi aşılarak):**
+1. **Ana senaryo (task'ın kendi kabul ölçütü, birebir):** Frekans Bulma'da "Davul Döngüsü" seçildi (`sourceSelect.value` → `"groove"`) → Kesim Noktası'na girildi → kaynak `"groove"` DEĞİL, kendi varsayılanı (`"pink"`) geldi ✔ → Kesim Noktası'nda "Kendi Dosyam" seçildi (`"upload"`) → Frekans Bulma'ya dönüldü → HÂLÂ `"groove"` ✔ → sayfa TAMAMEN yeniden yüklendi (uygulamayı kapat/aç simülasyonu) → Frekans Bulma HÂLÂ `"groove"`, Kesim Noktası HÂLÂ `"upload"` ✔. TÜM kontroller GEÇTİ.
+2. **Fallback senaryosu (madde 3/4):** `localStorage`'a Stereo Genişlik (upload-only mod) için UYUMSUZ bir kayıt (`"groove"`) elle yazıldı → moda girilince GERÇEK değer sessizce `"upload"`a (tek uyumlu kaynağa) düştü VE bu yeni değer localStorage'a KAYDEDİLDİ (bir sonraki girişte tekrar "groove" denenmiyor) ✔.
+3. **Gate paneli (madde 5):** Aynı senaryoda dosya SEÇİLMEDEN (kaynak "upload" ama `uploadSelections["stereo-genislik"]` boş) `#uploadGate` HÂLÂ görünüyor ✔ — kaynak-türü kalıcılığı gate mantığını bozmadı.
+4. Konsol hatası: **0** (üç senaryonun hepsinde).
+5. **`npm test`: 1250/1250** (1245'ten +5 — `test/storage.test.mjs`'e `uploadSelections` testleriyle AYNI desende `sourceSelections` round-trip/bozuk-JSON/çoklu-bağlam testleri eklendi, G123'ün kendi testlerini eklerken izlediği AYNI yöntem).
+6. Android'e SIFIR değişiklik — değiştirilen üç dosya (`app.js`, `core/storage.js`, `test/storage.test.mjs`) platform-agnostik, native dosyalara dokunulmadı.
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chromium/Playwright'ta yapıldı, gerçek cihazda DENENMEDİ. `npx cap sync ios` bu turda ÇALIŞTIRILMADI (kullanıcı henüz istemedi) — bir sonraki cihaz testinden ÖNCE çalıştırılmalı.
+
+---
+
+Önceki commit (G137) — **G136 cihazda TAM işlemedi: "Atla" hâlâ gerekiyordu, ÜSTELİK gereksiz bir "Tekrar dene" uyarı ekranı da çıkıyordu. Kök sebep koddan izlenerek bulundu: `ensureAudioAlive()`'ın "sessiz" (visibilitychange) ve "gerçek jest" (play tuşu) çağrıları arasında İKİ ayrı boşluk vardı.**
 
 **KÖK SEBEP (kod incelemesiyle izlendi, iki ayrı ama birbirine bağlı boşluk):**
 1. **Yanlış banner:** `visibilitychange`'in "visible" dalı `ensureAudioAlive({allowRecreate:false})`'ı çağırıyordu ve bu, İÇERİDE `setAudioDead(!alive)` çağırıp `onDeadStateChange` hook'u üzerinden "Devam etmek için ekrana dokunun" banner'ını (`showAudioError`, aynı UI `els.audioErrorRetry` "Tekrar dene" düğmesini de içeriyor) HEMEN gösteriyordu — kullanıcı HİÇBİR ŞEYE basmadan, sırf uygulamaya geri döndüğü için. Arka plandan dönüşte gerçek cihazlarda `currentTime` ilerleme kontrolünün 120ms'lik penceresi sistem-tetiklemeli (gestursuz) bir resume'da BAŞARISIZ çıkabiliyor (gerçek AVAudioSession donanımı bir jest OLMADAN tam geri gelmeyebiliyor) — bu YANLIŞ DEĞİL, ama bunu kullanıcıya UYARI olarak göstermek YANLIŞTI (task'ın bu turki isteği: uyarı SADECE play'e basılıp kurtarma da başarısız olursa çıksın).
@@ -421,6 +446,12 @@ sürekli/geniş-bantlı, EQ-eşleme zincirinin davranışı FARKLI olabilir).
 ---
 
 Önceki commit (G126, `02e2f9f`) — **kullanıcı cihazda YENİ bir hata buldu (Kompresör'de doğrulandı): kaynak "Kendi Dosyam" seçili görünüyor ama o modun dosyası yok — Play sessizce hiçbir şey çalmıyor. Kaynak/dosya seçimi TUTARSIZLIĞI 11 modun HEPSİNDE tarandı ve kapatıldı.**
+
+> **G138 NOTU (bu kaydı okuyan gelecekteki sohbetler için):** bu kaydın "kaynak
+> TÜRÜ mod-agnostik/paylaşılan kalsın" kararı **G138'de kullanıcının kendi
+> kararıyla GEÇERSİZ KILINDI** — kaynak türü artık `sourceSelections` ile mod
+> başına ayrı ve kalıcı. Aşağıdaki `syncUploadGate()`/gate paneli açıklaması
+> HÂLÂ doğru/değişmedi — SADECE "kaynak türü taşınır" varsayımı artık YANLIŞ.
 
 **CİHAZDA GÖRÜLEN HATA:** Kompresör'de kaynak "Kendi Dosyam" olarak
 görünüyordu ama o modun seçili dosyası yoktu. Play'e basılınca ses
@@ -11222,30 +11253,35 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G137 itibarıyla) — EN ÖNEMLİSİ:** kullanıcı cihazda
-(Xcode'da TEMİZ derleme + gerçek cihaza kurulum sonrası — sadece `cap
-sync` YETMEZ, bu G136+G137'nin app.js değişikliklerini içeren bir
-Xcode build/install GEREKTİRİR) task'ın kendi kabul ölçütündeki İKİ
-senaryoyu denemeli:
-- **A)** Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
-  dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
-  uyarı ekranı görünmemeli. (Masaüstünde Playwright ile — hem ardışık hem
-  yarış senaryosu — TAM doğrulandı, bkz. G137 kaydı — ama gerçek cihazda
-  HENÜZ denenmedi.)
-- **B)** Yüklenen dosyayla oynanan bir mod (ör. Stereo Genişlik) → aynı
-  adımlar → SADECE play'e bas. Ses KALDIĞI YERDEN devam etmeli, uyarı
-  görünmemeli. (G136'dan beri Playwright test betiği o modun ayar
-  sheet'ine giremediği için SADECE kod incelemesiyle doğrulandı — CANLI
-  İZLENMEDİ. Cihaz testi bu maddeyi İLK KEZ gerçekten sınayacak.)
+**Tek sonraki adım (G138 itibarıyla) — EN ÖNEMLİSİ:** `npx cap sync ios`
+ÇALIŞTIRILMADI bu turda (G138 SADECE web tarafında, kullanıcı henüz
+istemedi) — bir sonraki cihaz testinden ÖNCE bu ÇALIŞTIRILMALI, sonra
+Xcode'da TEMİZ derleme + gerçek cihaza kurulum (sadece `cap sync` YETMEZ).
+O build'de, kullanıcı cihazda ÜÇ ayrı açık maddeyi denemeli:
+- **G136/G137'nin ses kurtarma senaryoları (A/B):**
+  - A) Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
+    dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
+    uyarı ekranı görünmemeli. (Masaüstünde Playwright ile TAM doğrulandı,
+    bkz. G137 kaydı — cihazda HENÜZ denenmedi.)
+  - B) Yüklenen dosyayla oynanan bir mod (ör. Stereo Genişlik) → aynı
+    adımlar → SADECE play'e bas. Ses KALDIĞI YERDEN devam etmeli, uyarı
+    görünmemeli. (Playwright test betiği o modun ayar sheet'ine giremediği
+    için SADECE kod incelemesiyle doğrulandı — CANLI İZLENMEDİ.)
+  Konsolda "bağlam YENİDEN OLUŞTURULUYOR" çıkmamalı, hiçbir TypeError
+  olmamalı, "Tekrar dene" SADECE play'e basılıp kurtarma başarısız olursa
+  çıkmalı.
+- **G138'in kaynak-türü kalıcılığı (YENİ, bu turun kendi kabul ölçütü):**
+  Frekans Bulma'da "Davul Döngüsü" seç → Kesim Noktası'na gir → kaynak
+  Davul Döngüsü OLMAYACAK → Kesim Noktası'nda "Kendi Dosyam" seç →
+  Frekans Bulma'ya dön → hâlâ Davul Döngüsü'nde olacak → uygulamayı
+  tamamen kapat/aç → ikisi de kendi seçimini hatırlayacak. (Masaüstünde
+  Playwright ile TAM doğrulandı, bkz. G138 kaydı — cihazda HENÜZ
+  denenmedi, özellikle Capacitor Preferences mirror'ının gerçek
+  kapat/aç arasında GÜVENİLİR çalıştığı bu turda DOĞRULANMADI.)
 
-Konsolda "bağlam YENİDEN OLUŞTURULUYOR" çıkmamalı, hiçbir TypeError
-olmamalı, "Tekrar dene" uyarı ekranı SADECE play'e basılıp kurtarma
-başarısız olursa çıkmalı (task'ın kendi kabul ölçütü). Başarısızsa
-Safari Web Inspector'daki `[audio-diag]` günlüğü (`context yeniden
-oluşturuldu=`/`arka planda söküldü=` satırları, VE artık G137'nin
-`ensureAudioAlive` çağrılarının hangisinin `silent` olduğu) hangi dalın
-tetiklendiğini gösterecek — bir sonraki turun teşhis başlangıç noktası
-bu olmalı.
+Başarısızsa Safari Web Inspector'daki `[audio-diag]` günlüğü (ses
+senaryoları için) hangi dalın tetiklendiğini gösterecek — bir sonraki
+turun teşhis başlangıç noktası bu olmalı.
 
 **Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli

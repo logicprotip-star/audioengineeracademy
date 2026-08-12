@@ -6,7 +6,7 @@
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections } from "../www/js/core/storage.js";
+import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections } from "../www/js/core/storage.js";
 
 function installLocalStorageMock(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -221,5 +221,50 @@ describe("uploadSelections (G123) — bağlam başına kalıcı dosya seçimi", 
     const loaded = loadUploadSelections();
     assert.equal(loaded.tools, "fileA", "Araçlar'ın seçimi Frekans Bulma değişince BOZULMAMALI");
     assert.equal(loaded["frekans-bulma"], "fileB2");
+  });
+});
+
+const SOURCE_SELECTIONS_KEY = "eqEarTrainerProXSourceSelections";
+
+// G138 — "kaynak TÜRÜ de mod başına ayrılsın" (kullanıcının kendi kararı,
+// G126'nın "kaynak türü mod-agnostik kalsın" kararını GEÇERSİZ kılıyor).
+// uploadSelections İLE AYNI desen/testler — ayrı bir localStorage anahtarı
+// olduğu için ayrı test grubu.
+describe("sourceSelections (G138) — bağlam başına kalıcı kaynak-türü seçimi", () => {
+  beforeEach(() => {
+    installLocalStorageMock();
+    globalThis.window = { Capacitor: null };
+  });
+
+  it("loadSourceSelections(): hiç kayıt yoksa boş obje döner, çökmez", () => {
+    assert.deepEqual(loadSourceSelections(), {});
+  });
+
+  it("loadSourceSelections(): bozuk JSON'da boş objeye düşer (çökmez)", () => {
+    installLocalStorageMock({ [SOURCE_SELECTIONS_KEY]: "{not-json" });
+    assert.deepEqual(loadSourceSelections(), {});
+  });
+
+  it("loadSourceSelections(): bir DİZİ kayıtlıysa (beklenmeyen şekil) boş objeye düşer", () => {
+    installLocalStorageMock({ [SOURCE_SELECTIONS_KEY]: JSON.stringify(["a", "b"]) });
+    assert.deepEqual(loadSourceSelections(), {});
+  });
+
+  it("saveSourceSelections() + loadSourceSelections(): tam round-trip, birden fazla mod AYNI ANDA korunur", () => {
+    saveSourceSelections({ "frekans-bulma": "davul-dongusu", "kesim-noktasi": "upload" });
+    const loaded = loadSourceSelections();
+    assert.equal(loaded["frekans-bulma"], "davul-dongusu");
+    assert.equal(loaded["kesim-noktasi"], "upload");
+  });
+
+  it("bir modun kaynak-türü seçimini güncellemek DİĞER modun seçimini BOZMAZ (Frekans Bulma davul döngüsünde, Kesim Noktası kendi dosyasında — biri değişince diğeri korunur)", () => {
+    let selections = { "frekans-bulma": "davul-dongusu", "kesim-noktasi": "upload" };
+    saveSourceSelections(selections);
+    // Frekans Bulma'nın kaynağı değişiyor — Kesim Noktası'nınki DOKUNULMAMALI.
+    selections = { ...loadSourceSelections(), "frekans-bulma": "pink-noise" };
+    saveSourceSelections(selections);
+    const loaded = loadSourceSelections();
+    assert.equal(loaded["kesim-noktasi"], "upload", "Kesim Noktası'nın kaynağı Frekans Bulma değişince BOZULMAMALI");
+    assert.equal(loaded["frekans-bulma"], "pink-noise");
   });
 });

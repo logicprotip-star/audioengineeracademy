@@ -11,6 +11,7 @@ const DAILY_ACC_KEEP_DAYS = 35; // grafik son 30 günü gösterir, birkaç gün 
 const DEV_KEY = "eqEarTrainerProXDev";
 const UPLOAD_SELECTIONS_KEY = "eqEarTrainerProXUploadSelections";
 const TONAL_REFS_KEY = "eqEarTrainerProXTonalRefs";
+const SOURCE_SELECTIONS_KEY = "eqEarTrainerProXSourceSelections";
 
 // Canlar artık zorluğa göre DEĞİL — tek, global bir havuz (bkz. freshStats().lives).
 // Eskiden her zorluğun kendi canı vardı (perDiff[key].lives); bu yüzden zorluk
@@ -295,6 +296,30 @@ export function saveUploadSelections(selections) {
   const raw = JSON.stringify(selections);
   localStorage.setItem(UPLOAD_SELECTIONS_KEY, raw);
   mirrorSet(UPLOAD_SELECTIONS_KEY, raw);
+}
+
+// G138 — kullanıcının kendi kararı: G126'nın "kaynak TÜRÜ mod-agnostik kalsın"
+// kararı GEÇERSİZ — kaynak türü de (ör. "upload"/"davul-dongusu"/"pink-noise")
+// artık `uploadSelections` İLE AYNI desende, AYNI bağlam anahtarlarıyla
+// (MODE_ID / "tools" / "tonal-ref") mod başına kalıcı. Bilinçli olarak AYRI
+// bir localStorage anahtarı/obje — `uploadSelections` SADECE upload
+// modundayken hangi DOSYA seçili olduğunu tutar (kaynak "upload" DEĞİLSE
+// anlamsız), bu ise HER bağlamın kaynak TÜRÜNÜN kendisini tutar (upload
+// olsun olmasın) — ikisi farklı kavramlar, aynı objede karıştırılmadı.
+export function loadSourceSelections() {
+  try {
+    const raw = localStorage.getItem(SOURCE_SELECTIONS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return (parsed && typeof parsed === "object" && !Array.isArray(parsed)) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveSourceSelections(selections) {
+  const raw = JSON.stringify(selections);
+  localStorage.setItem(SOURCE_SELECTIONS_KEY, raw);
+  mirrorSet(SOURCE_SELECTIONS_KEY, raw);
 }
 
 // G127 — "Kendi referansım" (devFlags.customTonalRef arkasında gizli, bkz.
