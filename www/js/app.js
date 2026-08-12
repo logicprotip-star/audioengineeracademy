@@ -9343,11 +9343,12 @@ function toolsOpenSavedMeasurement(savedEntry) {
 // kontrol. "Kendi referansım" modu da AYNI mutlak+koridor gösterimine
 // TAŞINDI (eskiden mix+referans HAM ayrı ayrı çiziliyordu) — tutarlılık için,
 // iki farklı görsel dil bir arada tutulmadı.
-let toolsTonalTargetIdx = 0; // 0=Pop,1=EDM,2=Akustik,(3=Kendi referansım, flag açıkken)
+let toolsTonalTargetIdx = 0; // 0=Pop,1=EDM,2=Akustik,3=Kendi referansım
 let toolsTonalDevs = null; // secili dosyanin OLCULEN sapmasi (6 eleman, ORTALAMA/offline), cache
 let toolsTonalMeasuringForId = null;
-// G127 — "Kendi referansım" (devFlags.customTonalRef): KALICI, birden fazla
-// referans ({list:[{id,name,devs,lufs,numberOfChannels,sourceFileId,addedAt}],
+// G127 — "Kendi referansım" (G157'de yayına açıldı, eskiden devFlags.
+// customTonalRef arkasında gizliydi): KALICI, birden fazla referans
+// ({list:[{id,name,devs,lufs,numberOfChannels,sourceFileId,addedAt}],
 // activeId}), bkz. core/storage.js:loadToolsTonalReferences notu.
 let toolsTonalReferences = storage.loadToolsTonalReferences();
 // Bozuk/eski bir kayıt activeId'si list'te YOKSA (ör. o referans silindiği
@@ -9453,13 +9454,13 @@ function toolsTonalSyncLiveLoop() {
   toolsTonalLiveRafId = requestAnimationFrame(toolsTonalLiveTick);
 }
 
+// G157 — "Kendi referansım" bayrak arkasından çıkarılıp yayına açıldı
+// (kullanıcı kararı) — dördüncü seçenek artık HERKESE, koşulsuz görünür.
 function toolsTonalTargetNames() {
-  const names = [...TOOLS_TONAL_PRESETS];
-  if (devFlags.customTonalRef) names.push("Kendi referansım");
-  return names;
+  return [...TOOLS_TONAL_PRESETS, "Kendi referansım"];
 }
 function toolsTonalIsCustom() {
-  return devFlags.customTonalRef && toolsTonalTargetIdx === TOOLS_TONAL_PRESETS.length;
+  return toolsTonalTargetIdx === TOOLS_TONAL_PRESETS.length;
 }
 function toolsTonalActiveRef() {
   return toolsTonalReferences.list.find((r) => r.id === toolsTonalReferences.activeId) || null;

@@ -229,8 +229,8 @@ export function summarizeDeviation(devs, threshold = OFF_TARGET_THRESHOLD_DB) {
   return { offBands, allWithinTarget: offBands.length === 0 };
 }
 
-// G127 — "Kendi referansım" (devFlags.customTonalRef arkasında gizli) için
-// SAF yardımcılar. Ses/DOM'a dokunmuyorlar — testler doğrudan bunlara dayanır.
+// G127 — "Kendi referansım" (G157'de yayına açıldı) için SAF yardımcılar.
+// Ses/DOM'a dokunmuyorlar — testler doğrudan bunlara dayanır.
 
 // Her bandın TEK bir temsilci Hz'i — frekans-bulma.js'in kendi focusIdForZone
 // mantığıyla AYNI (geometrik ortalama, log-ölçekte orta nokta): FA_ZONES'ta

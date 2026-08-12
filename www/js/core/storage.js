@@ -265,11 +265,7 @@ export function savePrefs(prefs) {
 // dışa aktar gibi bir işlem eklenirse geliştirici bayrakları yanlışlıkla kullanıcı
 // tercihiymiş gibi görünmesin.
 export function freshDevFlags() {
-  // G101: customTonalRef — Tonal Balance'ın "Kendi referansım" çipi (dördüncü
-  // hedef, kullanıcı kendi referans parçasını yükleyip mixiyle karşılaştırır)
-  // ÖZELLİK ANAHTARI arkasında — task'ın kendi kararı: kod yazılsın, varsayılan
-  // KAPALI, test grubunda tek bayrakla açılabilsin. simulatePro'nun AYNI deseni.
-  return { unlocked: false, simulatePro: false, customTonalRef: false };
+  return { unlocked: false, simulatePro: false };
 }
 
 export function loadDevFlags() {
@@ -356,8 +352,9 @@ export function saveAnswerFormatSelections(selections) {
   mirrorSet(ANSWER_FORMAT_SELECTIONS_KEY, raw);
 }
 
-// G127 — "Kendi referansım" (devFlags.customTonalRef arkasında gizli, bkz.
-// freshDevFlags notu). Kullanıcının ölçtüğü referans parçalar KALICI olsun
+// G127 — "Kendi referansım" (G157'de bayrak arkasından çıkarılıp yayına
+// açıldı — bkz. app.js toolsTonalTargetNames notu). Kullanıcının ölçtüğü
+// referans parçalar KALICI olsun
 // diye ({list, activeId} — list: [{id,name,devs,lufs,numberOfChannels,
 // sourceFileId,addedAt}]) — sourceFileId, Araçlar'ın toolsFiles kütüphanesindeki
 // dosyanın id'si (A/B dinleme için ses BAYTLARI oradan, ihtiyaç anında,

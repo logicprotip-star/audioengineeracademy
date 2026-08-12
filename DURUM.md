@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G155)
+Son güncelleme: 12.08.2026 (G158)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,82 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+G157 (SADECE ARAŞTIRMA, kod YAZILMADI) — **"Kendi Referansım" cihazda
+görünmüyor şikayeti araştırıldı.** `devFlags.customTonalRef` (varsayılan
+`false`) kod tabanında SADECE İKİ yerde OKUNUYOR (`app.js`
+`toolsTonalTargetNames`/`toolsTonalIsCustom`) — bunu `true` yapan HİÇBİR
+UI yolu YOK (`#devGroup`'un tek kontrolü `#devProSwitch`/`simulatePro`,
+`customTonalRef`'e bağlı bir switch hiç yazılmamış). Bu, sadece Playwright
+testlerinde (localStorage'a elle yazılarak) açılabiliyordu — cihazda
+GERÇEKTEN açılamaz bir bayraktı. Özellik (G127 tamamladı, G154 A/B'yi
+düzenledi, G155 arka plan kurtarmasını bağladı) kod tarafında TAMAMLANMIŞ,
+tek engel bu bayraktı.
+
+Bu commit (G158) — **"Kendi Referansım" bayrak arkasından çıkarıldı,
+yayına açıldı (kullanıcı kararı).**
+
+**KARAR — bayrak KALDIRILDI (varsayılanı `true` yapmak DEĞİL):**
+`customTonalRef`'in `simulatePro`'nun aksine gerçek bir UI kontrolü hiç
+yoktu — sadece geliştirme sırasında "kod yazılsın, kapalı başlasın" için
+vardı (G101/G127'nin kendi notu). Rollout kararı artık verildiği için
+bayrak bundan böyle SÜREKLİ `true` olarak KALACAK bir değişkeni taşımanın
+hiçbir faydası yok — projedeki diğer "işi bitince kaldır" örnekleriyle
+(G143/G144/G148/G152'nin çip/toggle temizlikleri) AYNI ilke: kullanılmayan
+kod/bayrak bırakılmadı.
+
+**UYGULANAN:**
+- `storage.js`: `freshDevFlags()`'ten `customTonalRef` alanı ve onu
+  açıklayan G101 yorumu SİLİNDİ — artık sadece `{unlocked, simulatePro}`
+  döndürüyor.
+- `app.js`: `toolsTonalTargetNames()` artık KOŞULSUZ dördüncü ismi
+  (`"Kendi referansım"`) döndürüyor; `toolsTonalIsCustom()` artık SADECE
+  `toolsTonalTargetIdx === TOOLS_TONAL_PRESETS.length`'e bakıyor,
+  `devFlags.customTonalRef &&` koşulu kaldırıldı.
+- Kalan iki dosyadaki (`tonal-balance.js`, `storage.js`'in referans-
+  kalıcılığı yorumu) `devFlags.customTonalRef arkasında gizli` ifadeleri
+  "G157'de yayına açıldı" diye GÜNCELLENDİ — yanıltıcı, artık YANLIŞ olan
+  eski açıklamalar bırakılmadı.
+- `devFlags`/`storage.js`'te `customTonalRef`'e dair BAŞKA kod YOK —
+  `grep -rn "customTonalRef" www/js/` sonucu artık SADECE bir tarihsel
+  yorum satırı ("eskiden ... gizliydi").
+
+**DOĞRULAMA (Playwright, localStorage'da `customTonalRef` HİÇ
+YAZILMADAN — sadece Araçlar'ın AYRI/önceden var olan Pro kilidini açmak
+için `simulatePro:true`):**
+- 4 çip GÖRÜNDÜ (`["Pop","EDM","Akustik","Kendi referansım"]`) —
+  bayrak seed'lenmeden.
+- "Kendi Referansım" seçilip GERÇEK bir dosya (`groove_090.m4a`) referans
+  olarak yüklenince: AB satırı doğru etiketlerle ("A · Eşitlenmiş mix" /
+  "B · Referans") göründü, EQ listesi GERÇEK sayılarla doldu, A'ya
+  basınca `tonalMixPlaying=true` (gerçek eşleme çalıyor) doğrulandı.
+- Geliştirici modu (7 dokunuş → `#devGroup` → `#devProSwitch`) AYRI/
+  DOKUNULMAMIŞ akış olarak yeniden test edildi — hâlâ eskisi gibi
+  çalışıyor, `localStorage`'a artık SADECE `{unlocked,simulatePro}`
+  yazılıyor (eski `customTonalRef:false` kalıntısı YOK).
+- G155'in kilit/kurtarma senaryoları (3 oynatıcı, tek basışla yeniden
+  çalma) ve G154'ün TÜM doğrulama takımı yeniden çalıştırıldı — bozulmadı.
+- 12 modun `actionbar-compact`/`nextBtn` ve G143 çip eşitliği yeniden
+  tarandı — bozulmadı (bu turda oyun ekranı dosyalarına HİÇ dokunulmadı).
+- Konsol hatası: 0. `npm test`: 1250/1250 (değişmedi — bu bir davranış/
+  bayrak temizliği, yeni saf fonksiyon eklenmedi).
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js`, `www/js/core/storage.js`,
+`www/js/core/tonal-balance.js` (SADECE yorum satırı güncellendi, hiçbir
+fonksiyon gövdesi değişmedi).
+
+**DOKUNULMAYAN DOSYALAR:** `index.html`, `styles.css` (G154'ün A/B/EQ-
+liste arayüzü DEĞİŞMEDİ, sadece hangi KOŞULLA göründüğü değişti),
+`www/js/core/audio-engine.js`, `www/js/core/upload.js` (G155'in kurtarma
+zinciri DEĞİŞMEDİ), oyun ekranı dosyaları, testler, Android/iOS native
+dosyalar.
+
+**npm test:** 1250/1250 (değişmedi).
+
+**NOT (kullanıcının kendi kararı, bu turda BİLEREK dokunulmadı):**
+BEKLEYEN KARARLAR P (Q=2.5, sönümleme=1.0) AÇIK KALDI — kullanıcı bunu
+TestFlight geri bildirimiyle değerlendirecek. Pop/EDM/Akustik'in taslak
+hedef eğrileri de AYRI bir iş, bu turda dokunulmadı.
 
 Bu commit (G155) — **Araçlar'ın üç oynatıcısı (Referans Filtreleri/Mixini
 Yükle'nin paylaştığı uploadManager, tonalRefUploadManager, tonalMixUploadManager)
@@ -12005,6 +12081,10 @@ taranıp ("belirgin yakınsama" ile "aşırı dar/notch gibi duyulmama" arasınd
 seçildi (bkz. BİTTİ'deki G127 kaydı). Gerçek müzikle KULAKLA hâlâ
 doğrulanmadı — cihaz testinde "çok sert/yapay" duyulursa Q düşürülmeli
 (daha yumuşak ama daha az kesin düzeltme).
+**G158 NOTU:** özellik bayrak arkasından çıkarılıp yayına açıldı (bkz.
+BİTTİ G158) AMA bu madde BİLEREK dokunulmadan AÇIK bırakıldı — kullanıcının
+kendi kararı: Q/sönümleme TestFlight geri bildirimiyle değerlendirilecek,
+şimdilik DEĞİŞTİRİLMEYECEK.
 
 **Q. G127 — en fazla 5 kayıtlı referans (`TOOLS_TONAL_REF_MAX`) — kullanıcı onayı OLMADAN seçildi**
 toolsFiles kütüphanesinin (`TOOLS_LIBRARY_MAX`) AYNI sayısı, tutarlılık için
