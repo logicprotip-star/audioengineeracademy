@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G148)
+Son güncelleme: 12.08.2026 (G149)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,89 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G149) — **Frekans Bulma Şıklı modunda soru başlığı düzeltildi
+("...Dalga üzerine tıkla" kaldırıldı); kapsayıcının GERÇEKTEN sıfır
+yükseklikte olduğu doğrulandı; 3. şıkkın HÂLÂ (35px) taşdığı ÖLÇÜLDÜ ve
+KÖK NEDENİ bulundu — kod değişikliği yapılmadı, kullanıcıya bildiriliyor.**
+
+**MADDE 1 — "Boş kapsayıcı yer kaplıyor" iddiası ÖLÇÜLEREK doğrulandı/
+çürütüldü:** `#freqGuessArea`'nın kendisi G148'den beri GERÇEKTEN
+`display:none` + `height:0` + boş `innerHTML` (Playwright'le doğrudan
+`getBoundingClientRect()` ve `getComputedStyle()` ile ölçüldü, varsayım
+YAPILMADI) — kod TARAFINDAN hiçbir ek değişikliğe gerek YOK, bu madde
+zaten G148'de çözülmüştü. AMA kullanıcının hissettiği "yer kaplama" gerçek
+— sadece kaynağı `#freqGuessArea`'nın kendisi DEĞİL (aşağıya bkz.).
+
+**MADDE 2 — Soru başlığı düzeltildi:** `q.mode==="frequency"` için
+`renderQuestion()`'daki metin zinciri incelendi — "Hangi frekansla oynandı?
+Dalga üzerine tıkla." dizesi, `isFreqTouch` (dokunmalı) dalı ZATEN ayrı
+ele alındığı için (boş metin döner) SADECE `isChoiceFormat()===true`
+olduğunda erişilebilir bir dal — yani ek bir koşul İCAT ETMEYE gerek
+yoktu, dize doğrudan "Hangi frekansla oynandı?" olarak değiştirildi
+("Dalga üzerine tıkla" kaldırıldı). Dokunmalı modda bu dal hiç
+çalışmadığı için davranış DEĞİŞMEDİ (Playwright'le doğrulandı).
+
+**MADDE 3 — 3. şık HÂLÂ (35px) taşıyor, KÖK NEDEN bulundu, kod
+DEĞİŞTİRİLMEDİ (kullanıcının kendi talimatı: "Hâlâ sığmıyorsa DUR ve
+bildir, kendi başına spektrum/boşluk küçültme yapma"):**
+- `.game-scroll`'un `margin-bottom`'u (`calc(var(--actionbar-h) + ...)`)
+  SABİT bir değer (`--actionbar-h:168px`) — actionbar'ın GERÇEK/ANLIK
+  render yüksekliğine göre DEĞİŞMİYOR. Bu, styles.css'in KENDİ yorumunda
+  (satır ~699-708) AÇIKÇA belgeli: `.game-scroll` `.scroll`'dan `flex:1`
+  devralıyor ve ekranın TÜM artan alanını (actionbar'ın kapladığı ~168px
+  DAHİL) kendi kutusu sayıyor — `margin-bottom` bu kutunun görünür alanını
+  actionbar'ın ÜST kenarında durdurmak için var, ama SABİT bir sayı,
+  actionbar'ın o anki GERÇEK içeriğine göre ölçülmüyor.
+- Playwright'le DOĞRUDAN kanıtlandı (tahmin DEĞİL): Dokunmalı modda
+  (`#freqGuessArea` görünür, actionbar 124px) VE Şıklı modda
+  (`#freqGuessArea` gizli, actionbar 81px) `.game-scroll`'un
+  `margin-bottom`'u AYNI (168px), `clientHeight`'ı (görünür viewport) AYNI
+  (596px) — yani `#freqGuessArea`'yı gizlemek `.game-scroll`'un görünür
+  alanını HİÇ BÜYÜTMÜYOR, çünkü o alan zaten actionbar'ın en KALABALIK
+  hâline göre SABİT ayrılmıştı.
+- Sonuç: Şıklı moddaki içerik (soru başlığı + 3 şıklık grid), Dokunmalı
+  moddaki içerikten DAHA FAZLA yer kaplıyor (`scrollHeight` 631px vs
+  `clientHeight` 596px = 35px fazla) — kaydırmadan sığmıyor. `.answers`
+  içindeki her 3 kart da (`getBoundingClientRect`) viewport SINIRLARI
+  içinde ölçülüyor (`bottom<=844`) AMA `.game-scroll`'un GÖRÜNÜR
+  penceresinden (596px) taşıyor — kaydırmadan 3. kartın alt kısmı/etiketi
+  görünmüyor, TAM bu kullanıcının tarif ettiği "kesilme".
+- Bu, G143/G144'ün kırpılma bulgusuyla AYNI kategoriden bir kısıt:
+  masaüstünde REPRODÜKTE edilemeyen değil, tam tersi — masaüstünde
+  KANITLANDI (35px fazla, ölçüldü) ama düzeltmesi `--actionbar-h`
+  mimarisine (G73'ün "bu değere DOKUNULMADI" kuralı) veya `.game-scroll`
+  boşluğuna dokunmayı gerektiriyor — kullanıcının BU turun kendi talimatı
+  gereği ("kendi başına ... küçültme yapma") KOD YAZILMADI, karar
+  BEKLİYOR (aşağıya, BEKLEYEN KARARLAR'a eklendi).
+
+**DOĞRULAMA (Playwright, `/private/tmp/.../scratchpad/g149_verify.py`):**
+- 12 modun HEPSİNDE dokunmalı akış test edildi — hiçbiri BOZULMADI
+  (Atla butonu her modda yerinde ve "Atla ▶").
+- Frekans Bulma dokunmalı modda: metin/başlık AYNEN eskisi gibi
+  (`fgaHidden=False`, başlık boş/gizli) — regresyon YOK.
+- Frekans Bulma şıklı modda: `#freqGuessArea` `height:0`/`display:none`/
+  boş (kapsayıcı GERÇEKTEN sıfır), başlık "Hangi frekansla oynandı?"
+  ("tıkla" YOK), Atla yerinde, 3 şık render ediliyor — AMA
+  `.game-scroll.scrollHeight (631) > clientHeight (596)`, yani
+  kaydırmadan TAM sığmıyor (35px).
+- Konsol hatası: 0.
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js` (tek satır — soru başlığı dizesi).
+
+**DOKUNULMAYAN DOSYALAR:** `www/js/modes/frekans-bulma.js` (G148'de zaten
+doğruydu, bu turda dokunulmadı), `styles.css`, `index.html` (G143 çip
+eşitliği/`--chip-*` bu yüzden KESİNLİKLE bozulmadı), `core/*.js` (G144
+kalıcılık deseni dokunulmadı), diğer 11 mod dosyası, testler, Android/iOS
+native dosyalar.
+
+**npm test:** 1250/1250 (değişmedi).
+
+**DÜRÜSTLÜK NOTU:** Madde 1 ve 2 masaüstünde TAM doğrulandı ama HENÜZ
+cihazda kurulmadı. Madde 3 kasıtlı olarak KOD YAZILMADI — kullanıcının
+kendi REGRESYON KORUMASI talimatı ("Hâlâ sığmıyorsa DUR ve bildir, kendi
+başına spektrum/boşluk küçültme yapma") burada BİREBİR uygulandı; kök
+neden ölçümle kanıtlandı ama çözüm kullanıcının onayını bekliyor.
 
 Bu commit (G148) — **Frekans Bulma ŞIKLI moddaki yanlış "spektruma dokun"
 metni düzeltildi (cihazda görülen hata: 3. şık kesiliyordu).**
@@ -11330,6 +11413,34 @@ src/main/res/drawable-*/splash.png` altında platforma özel boyutlar da
 kapatıldı.
 
 ## BEKLEYEN KARARLAR
+
+**T. G149 — Frekans Bulma Şıklı modda 3. şık kaydırmadan sığmıyor (35px) — çözüm `--actionbar-h` mimarisine dokunmayı gerektiriyor, hangi yol?**
+Kök neden ölçümle kanıtlandı (bkz. BİTTİ G149): `.game-scroll`'un
+`margin-bottom`'u SABİT `--actionbar-h:168px` — actionbar'ın GERÇEK anlık
+yüksekliğine (Dokunmalı 124px / Şıklı 81px, ikisi de ölçüldü) göre
+DEĞİŞMİYOR, bu yüzden `#freqGuessArea`'yı gizlemek görünür alanı
+BÜYÜTMÜYOR. Şıklı moddaki içerik (başlık+3 şıklık grid) `clientHeight`'ı
+35px aşıyor, kaydırmadan sığmıyor — kullanıcının cihazda gördüğü "kesilme"
+muhtemelen bu (kaydırılabilir ama scrollTop=0'da kesik görünüyor).
+Üç seçenek:
+1. **Statik "kompakt" ikinci sabit** — `--actionbar-h-compact` gibi YENİ
+   bir CSS değişkeni (81px ölçüldü + güvenlik payı, ör. ~92-100px),
+   `#freqGuessArea` boşken (JS'te zaten bilinen bir durum) `.game-scroll`a
+   ayrı bir sınıf üzerinden uygulanır. `--actionbar-h`'ın KENDİSİ
+   DEĞİŞMEZ (G73 kuralı korunur), SADECE koşullu bir İKİNCİ sabit eklenir.
+   `.actionbar-tucked` (E3) TAM OLARAK aynı deseni zaten kullanıyor — riski
+   düşük ama yine de "boşluk küçültme" kategorisinde, kullanıcı onayı
+   istendi.
+2. **Hiçbir şey yapma, kaydırmaya güven** — `.game-scroll` zaten
+   `overflow-y:auto`, 3. şık BİR kaydırmayla görünür. Sorun sadece
+   keşfedilebilirlik (kullanıcı kaydırması gerektiğini bilmiyor).
+3. **Cihazda GERÇEKTEN kesiliyor mu yoksa sadece kaydırma mı gerekiyor
+   netleştir** — kullanıcı cihazda bir kez aşağı kaydırıp 3. şıkkın ORADA
+   olup olmadığını doğrulasın; eğer kaydırınca görünüyorsa bu bir
+   keşfedilebilirlik sorunu (seçenek 2 yeterli olabilir), hiç
+   görünmüyorsa gerçek bir taşma (seçenek 1 gerekir).
+Kod bu turda YAZILMADI — kullanıcının kendi REGRESYON KORUMASI talimatı
+gereği (bkz. G149 kaydı).
 
 **S. ~~G144 — Frekans Bulma'nın çip satırı tek satıra nasıl indirilsin?~~ — G147'de ÇÖZÜLDÜ**
 Kullanıcı Zorluk çipinin (G145/G146'nın "sadece gösterge, gereksiz" bulgusuyla)

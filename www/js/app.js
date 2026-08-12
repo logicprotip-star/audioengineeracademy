@@ -3478,7 +3478,10 @@ function renderQuestion() {
     : q.mode === "cakisma" ? mode.questionTitle(q)
     : q.mode === "pan" ? "Ses stereo alanda nereden geliyor?"
     : q.mode === "width" ? "Stereo görüntü ne kadar geniş?"
-    : "Hangi frekansla oynandı? Dalga üzerine tıkla.";
+    // G149: bu dal SADECE q.mode==="frequency" && isChoiceFormat() (yukarıdaki
+    // isFreqTouch dalı zaten dokunmalıyı "" ile ayırıyor) — "Dalga üzerine
+    // tıkla" şıklı modda YANLIŞTI (dalgaya değil şıklara tıklanıyor), kaldırıldı.
+    : "Hangi frekansla oynandı?";
   if (isM2) els.questionTitle.classList.add("qline-m2"); else els.questionTitle.classList.remove("qline-m2");
 
   els.questionMeta.textContent = isFreqTouch || isM2 ? "" : mode.modeDescription(q);
