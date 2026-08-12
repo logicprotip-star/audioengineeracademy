@@ -3401,6 +3401,19 @@ function renderGameHeader() {
     }
     els.gameChapterLabel.textContent = `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`;
   }
+  // G143 — cihazda rapor edilen "bölüm çubuğu görününce çip satırı kırpılıyor"
+  // şikayeti. Kök sebep KANITLANAMADI (masaüstünde reprodükte edilemedi, bkz.
+  // G142 raporu) ama bu KOD TABANINDA AYNI SINIF bir sorun için ZATEN
+  // belgelenmiş bir çözüm var: iOS/WebKit bir layout değişikliğini (burada:
+  // #gameChapterRow'un hidden'ı kalkınca .ghead büyüyüp .game-scroll'un
+  // KENDİSİNİN küçülmesi/aşağı kayması) her zaman ANINDA yansıtmıyor (bkz.
+  // setActionbarTucked'ın G87 notu VE toolsResetSheetScroll'un G109 notu —
+  // ikisi de AYNI "overflow/boyut değişikliği WebKit'te bir kare gecikebiliyor"
+  // gözlemine dayanıyor, AYNI çözümü kullanıyor: offsetHeight okuyarak GERÇEK
+  // bir reflow zorlamak). Chapter/speed row'un hidden'ı DEĞİŞTİĞİ HER
+  // durumda (görünür OLSUN ya da OLMASIN — .ghead'in yüksekliği HER İKİ
+  // yönde de değişebilir) aynı zorlama uygulanıyor.
+  if (els.gameScroll) void els.gameScroll.offsetHeight;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

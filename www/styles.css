@@ -605,12 +605,12 @@
 
     /* G77/G78: zorluk göstergesi — SADECE bilgi, tıklayınca lvlSheet (bkz.
        index.html notu). G78: .ghead'den .chiprow'a taşındı (B maddesi — tek
-       satırda birleştirme), flex:none diğer çiplerle AYNI (bkz. .chiprow>*). */
-    .game-diff-chip{
-      flex:none;min-height:44px;display:flex;align-items:center;font-size:10px;font-weight:700;
-      letter-spacing:.6px;white-space:nowrap;color:var(--text-2);background:rgba(255,255,255,.05);
-      border:1px solid var(--border-strong);border-radius:var(--r-chip);padding:0 9px;cursor:pointer;
-    }
+       satırda birleştirme). G143 — burada duran ESKİ/ÇİFT tanım (min-height:
+       44px dahil) KALDIRILDI, gerçek kural artık AŞAĞIDA (.chiprow bölümünde,
+       .chip-base ile) TEK yerde — bu ikinci/geç tanım G91'den beri rengi/
+       padding'i EZİYORDU ama min-height:44px'i HİÇ silmemişti, .srctag/
+       .mixchip'in min-height'ı hiç OLMADIĞI için Zorluk çipi tek başına
+       neredeyse İKİ katı yüksekti (canlı ölçüm: 44px'e karşı 24px). */
 
     /* G77/G141: bölüm göstergesi — challenge.done/total. G141 — G78'in "Serbest'te
        de HEP görünür (.dim + 'BÖLÜM —')" kararı GEÇERSİZ kılındı, G77'nin
@@ -696,9 +696,7 @@
     /* G85 DÜZELTMESİ — Tasarim-2026-08/Prototip.dc.html satır 531: TEK
        kapsayıcı, `display:flex;flex-wrap:wrap;gap:7px`. G79'un "iki sabit
        satır" kararı YANLIŞ okumaydı (bu notun ESKİ hali) — dosya AÇILIP
-       yeniden karşılaştırıldı, kod GERÇEKTEN tek satır. .chiprow>*{flex:none}
-       KORUNDU (çipler kendi doğal genişliğinde, satıra sığmayan alt satıra
-       SARAR — taşma/kesilme YOK, kaydırma YOK, tasarımla AYNI güvenlik ağı). */
+       yeniden karşılaştırıldı, kod GERÇEKTEN tek satır. */
     /* G93 (madde 3): G91'in `justify-content:space-between` çözümü (çipleri
        kendi doğal genişliğinde bırakıp FAZLA alanı aralarına dağıtma) YETERSİZ
        bulundu — çipler hâlâ FARKLI genişlikteydi. Task'ın YENİ, AÇIK talimatı:
@@ -706,7 +704,26 @@
        html satır 531/532: `flex-shrink:0`, DOĞAL genişlik) BİR KEZ DAHA BİLEREK
        tersine çevrilmesi — kullanıcı G91'de zaten aynı satırın "dolgunluk"
        kararını tasarımdan SAPTIRMIŞTI, bu tur onu netleştiriyor. */
-    .chiprow{display:flex;gap:7px;flex-wrap:wrap}
+    /* G143 — kullanıcı raporu: "kimisi ince kimisi büyük, yükseklikleri/
+       genişlikleri tutarsız". G93/G105 SADECE GENİŞLİĞİ ele almıştı (bkz.
+       G93'ün KENDİ commit mesajı: "çip satırları... eşit GENİŞLİK") —
+       YÜKSEKLİK/padding/font/köşe hiç ele alınmamıştı. Kanıt (canlı ölçüm,
+       Kesim Noktası): .game-diff-chip 44px (styles.css'te İKİ KEZ tanımlıydı,
+       G91'in geç gelen override'ı min-height:44px'i HİÇ silmemişti), .srctag
+       SADECE 24px (min-height hiç yoktu + .control-sheet sarmalayıcısı
+       display:block olduğu için satırın 44px'e gerilen payını DOLDURMUYORDU,
+       kendi doğal yüksekliğinde üstte asılı kalıyordu). Tek doğruluk kaynağı
+       artık BURADAKİ CSS değişkenleri — yeni bir çip eklenirken bunları (ya
+       da aşağıdaki .chip-base'i) kullanmak yeterli, G93'ün yarım kalması BİR
+       DAHA yaşanmasın. */
+    .chiprow{
+      display:flex;gap:7px;flex-wrap:wrap;
+      --chip-h:44px;
+      --chip-pad-y:5px;
+      --chip-pad-x:8px;
+      --chip-radius:8px;
+      --chip-font:10px;
+    }
     /* `flex:1` kısayolu flex-basis'i "0%" yapıyor — box-sizing:border-box +
        farklı padding/border'a sahip kardeşlerde (örn. #sourceChipWrap'ın
        0 kendi chrome'u vs .mixchip'in 22px'i) Chromium'da EŞİT DAĞILMIYOR
@@ -722,26 +739,49 @@
        (flex-basis:0 ile) hâlâ eşit dağıtıyor (G93 KORUNDU), yer yoksa artık
        DOĞRU şekilde bir sonraki satıra sarıyor. */
     .chiprow > *{flex:1 1 0;min-width:fit-content}
-    /* G85: zorluk çipi artık tasarımın LİTERAL cyan vurgusu (satır 532) —
-       eskiden nötr gri/beyazdı. Boss'ta altın varyant (.game-diff-chip.boss,
-       app.js renderGameHeader'da toggle edilir) — tasarımın diffColor/diffBg/
+    /* G143 — Kaynak/Odak/Kaynak-çifti sarmalayıcıları (.control.control-sheet,
+       SADECE gizli <select> + görünen .srctag düğmesi taşır) KENDİSİ
+       display:block (stilsiz) kalıyordu — satırın 44px'lik payına gerilse
+       bile İÇİNDEKİ .srctag kendi doğal/küçük boyutunda kalıp bu payı
+       doldurmuyordu (yukarıdaki not). display:flex ile sarmalayıcı bir flex
+       konteynerine çevrilip TÜM alanı .srctag'a (aşağıda flex:1 aldı)
+       devrediyor. SADECE .chiprow'un DOĞRUDAN çocukları hedeflendi (`>` ile)
+       — Oyun Ayarları sheet'indeki AYNI .control.control-sheet'ler (4 farklı
+       satır, .setting-row/.settings-row-label yapısı TAMAMEN farklı) BİLEREK
+       ETKİLENMEDİ, grep ile doğrulandı (o dört satır .chiprow'un İÇİNDE
+       DEĞİL, ayrı bir sheet'te). */
+    .chiprow > .control.control-sheet{display:flex}
+    /* G143 — ortak çip görünümü: Zorluk/Kaynak/Odak/Kaynak-çifti/Karışık
+       HEPSİ bunu paylaşır (tek yerden yönetim). Dokunmalı|Şıklı (.seg-toggle)
+       İKİ ayrı düğme barındırdığı için .chip-base'i DOĞRUDAN kullanmıyor
+       (tek-etiketli bir çip için tasarlı padding iç içe iki düğmeye uymuyor)
+       — ama AYNI --chip-h/--chip-radius/--chip-font değişkenlerinden
+       türediği için (aşağıda) yine de HİÇBİR ölçü farkı KALMIYOR. */
+    .chip-base{
+      height:var(--chip-h);box-sizing:border-box;
+      display:flex;align-items:center;gap:4px;
+      padding:var(--chip-pad-y) var(--chip-pad-x);
+      border-radius:var(--chip-radius);
+      font-size:var(--chip-font);font-weight:700;white-space:nowrap;
+    }
+    /* G85: zorluk çipi tasarımın LİTERAL cyan vurgusu (satır 532) — eskiden
+       nötr gri/beyazdı. Boss'ta altın varyant (.game-diff-chip.boss, app.js
+       renderGameHeader'da toggle edilir) — tasarımın diffColor/diffBg/
        diffBorder'ın boss dalı, koddan DOĞRUDAN görünmüyor ama Prototip'in
        genel boss altın paleti (#f6d878/rgba(240,180,66,..)) ile TUTARLI. */
     .game-diff-chip{
-      display:flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:1.2px;
-      text-transform:uppercase;border-radius:8px;padding:5px 8px;color:var(--cyan);
-      background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.3);white-space:nowrap;
+      letter-spacing:1.2px;text-transform:uppercase;color:var(--cyan);
+      background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.3);
     }
     .game-diff-chip.boss{color:#f6d878;background:rgba(240,180,66,.12);border-color:rgba(240,180,66,.4)}
     /* G91 (madde 2+3): Odak/Kaynak çipleri artık .game-diff-chip'İN AYNI cyan
        vurgusu — task'ın kendi kararı, G85'in "çipler nötr" okumasının YERİNE
        geçti (kullanıcı BİLEREK Otomatik/Dokunmalı|Şıklı ile GÖRSEL olarak
-       birleştirilmesini istedi). Ölçüler (padding/radius/font) .game-diff-chip
-       ile BİREBİR, sadece chevron ikonu için SAĞ tarafta ekstra boşluk var. */
+       birleştirilmesini istedi). Ölçüler artık .chip-base'ten geliyor
+       (G143), burada SADECE renk/hizalama/chevron boşluğu kalıyor. */
     .srctag{
-      display:flex;align-items:center;gap:4px;padding:5px 8px;
-      border-radius:8px;background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.3);
-      font-size:10px;font-weight:700;letter-spacing:.3px;color:var(--cyan);text-align:left;white-space:nowrap;
+      letter-spacing:.3px;color:var(--cyan);text-align:left;
+      background:rgba(34,211,238,.1);border:1px solid rgba(34,211,238,.3);
     }
     .srctag:active{background:rgba(34,211,238,.18)}
     .srctag b{font-weight:700;color:var(--cyan);white-space:nowrap}
@@ -754,32 +794,35 @@
     /* G73: "Karıştır" (kaynağı rastgele seçme) aç/kapa göstergesi artık --cyan.
        G85: tasarımın LİTERAL ölçüsüne küçültüldü (satır 551-553) — nokta LED
        yerine 11x11 çapraz-ok ikonu (design'ın KENDİ path'i), metin "Karışık"
-       (öneki YOK, tasarımda "⇄" yok, düz ikon+metin). G93 (madde 3): eskiden
-       burada `flex:none` vardı — `.chiprow > *`'ın (G93'te flex:1'e çevrilen)
-       kuralıyla AYNI özgüllükte (tek class) olduğu ve DOSYADA SONRA geldiği
-       için onu EZİYORDU (canlı testte yakalandı: "Karışık" hep küçük kaldı,
-       chip satırının geri kalanı eşit genişlemedi). Şimdi flex ÖZELLİĞİ HİÇ
-       bildirilmiyor, `.chiprow > *`'ın flex:1'i doğrudan geçerli oluyor —
-       .seg-toggle'da (Dokunmalı|Şıklı sarmalayıcı) AYNI kök sebep/düzeltme. */
+       (öneki YOK, tasarımda "⇄" yok, düz ikon+metin). Ölçüler artık
+       .chip-base'ten geliyor (G143), burada SADECE renk + ikon+metnin
+       ORTALANMASI (justify-content:center — .srctag'in sol-hizalı etiketinden
+       BİLEREK farklı, .chip-base bunu VARSAYILAN bırakıyor). */
     .mixchip{
-      padding:5px 10px;border-radius:9px;display:flex;align-items:center;justify-content:center;gap:5px;
-      font-size:10.5px;font-weight:700;white-space:nowrap;background:rgba(255,255,255,.05);
-      border:1px solid rgba(255,255,255,.08);color:#b8bdc4;
+      justify-content:center;color:#b8bdc4;
+      background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
     }
     .mixchip svg{flex:none}
+    .mixchip.on{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.42);color:var(--cyan)}
     /* G79: cevap biçimi — İKİLİ segmented toggle (Dokunmalı|Şıklı), NÖTR
        taban + cyan aktif (bkz. index.html notu, JS: syncAnswerFormatToggleUI).
-       G85: tasarımın LİTERAL ölçüsü (satır 537-539). */
+       G143 — dış kapsayıcı artık .chip-base İLE AYNI --chip-h/--chip-radius
+       değişkenlerinden (satırın diğer üyeleriyle TAM aynı dış yükseklik/köşe),
+       iç düğmeler height:100% ile o alanı ARALARINDA paylaşıyor (eskiden
+       padding'ten türeyen doğal/küçük yükseklikte kalıyorlardı). */
     .seg-toggle{
-      display:flex;padding:2px;border-radius:9px;justify-content:center;
+      height:var(--chip-h);box-sizing:border-box;
+      display:flex;padding:2px;border-radius:var(--chip-radius);justify-content:center;
       background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);
     }
     .seg-toggle-btn{
-      padding:4px 10px;border-radius:6px;font-size:10.5px;font-weight:700;
+      flex:1;height:100%;box-sizing:border-box;
+      display:flex;align-items:center;justify-content:center;
+      padding:0 10px;border-radius:calc(var(--chip-radius) - 2px);
+      font-size:var(--chip-font);font-weight:700;
       color:var(--text-3);background:none;white-space:nowrap;
     }
     .seg-toggle-btn.active{background:rgba(34,211,238,.16);color:var(--cyan)}
-    .mixchip.on{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.42);color:var(--cyan)}
 
     .qline{
       padding:10px 13px;border-radius:var(--r-card);background:rgba(255,255,255,.05);

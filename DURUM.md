@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G142)
+Son güncelleme: 12.08.2026 (G143)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,31 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G143) — **Oyun ekranı üst çip satırı (Zorluk/Kaynak/Odak/Kaynak-çifti/Karışık/Dokunmalı-Şıklı) 12 modun HEPSİNDE 44px'de EŞİTLENDİ — yükseklik, padding, font-size, köşe yuvarlaklığı tek CSS değişken setinden (`.chiprow`'un `--chip-h`/`--chip-pad-y`/`--chip-pad-x`/`--chip-radius`/`--chip-font`) yönetiliyor. Bölüm çubuğu açılıp kapanırken çip satırının kırpılması için (G142'nin bulduğu, masaüstünde reprodükte edilemeyen bug) bu kod tabanında ZATEN var olan bir "zorlanmış reflow" deseni uygulandı.**
+
+**KÖK SEBEP (G142 raporunun DOĞRULANMASI, tahmin YOK):**
+- `.game-diff-chip` `styles.css`'te İKİ KEZ tanımlıydı (G78'in orijinali + G91'in geç gelen override'ı) — G91'in bloğu rengi/padding'i eziyordu ama G78'in `min-height:44px`'ini HİÇ silmemişti, cascade'de property-property birleşip hâlâ yürürlükteydi.
+- `.srctag`/`.mixchip`'in hiçbirinde `min-height` yoktu — doğal içerik yüksekliğine (~24px) düşüyorlardı.
+- `#sourceChipWrap`/`#focusChipWrap`/`#cakismaPairChipWrap` (`.control.control-sheet`, SADECE gizli `<select>` + görünen `.srctag` düğmesi taşıyan sarmalayıcılar) `display:block` kalıyordu — `.chiprow`'un satırına (varsayılan `align-items:stretch`) 44px'e gerilse bile İÇİNDEKİ `.srctag` kendi doğal 24px'inde kalıp bu payı doldurmuyordu.
+- `git log`: G93 ("çip eşitliği") kendi commit mesajında SADECE "eşit **genişlik**" diyor — yükseklik hiçbir commit'te (G78/G79/G85/G91/G93/G105) ele alınmamış.
+
+**UYGULANAN:**
+- **`styles.css`** — `.game-diff-chip`'in ÇİFT tanımı TEK bloğa indirildi. `.chiprow`'a beş CSS değişkeni eklendi (`--chip-h:44px`, `--chip-pad-y:5px`, `--chip-pad-x:8px`, `--chip-radius:8px`, `--chip-font:10px`) — TEK doğruluk kaynağı, yeni bir çip eklenince bu değişkenleri (ya da `.chip-base`'i) kullanması yeterli. Yeni paylaşılan `.chip-base` class'ı (height/box-sizing/display/align-items/padding/border-radius/font-size/font-weight/white-space) — `.game-diff-chip`/`.srctag`/`.mixchip` HTML'de bunu alıyor, kendi CSS'lerinde SADECE renk/hizalama kaldı. `.chiprow > .control.control-sheet{display:flex}` (SADECE `.chiprow`'un DOĞRUDAN çocukları, `>` ile — Oyun Ayarları sheet'indeki AYNI `.control.control-sheet` class'lı 4 farklı satır BİLİNÇLİ olarak ETKİLENMEDİ) — sarmalayıcı artık `.srctag`'a TÜM alanı devrediyor. `.seg-toggle`/`.seg-toggle-btn` (Dokunmalı\|Şıklı) `.chip-base`'i DOĞRUDAN kullanmıyor (iki iç içe düğme, farklı padding ihtiyacı) ama AYNI `--chip-h`/`--chip-radius`/`--chip-font` değişkenlerinden türüyor — dış kapsayıcı artık tam 44px, iç düğmeler `height:100%` ile o alanı paylaşıyor.
+- **`index.html`** — `.game-diff-chip`, üç `.srctag` (Odak/Kaynak/Kaynak-çifti), `.mixchip` düğmelerine `chip-base` class'ı eklendi. Başka bir HTML değişikliği YOK.
+- **`app.js` (`renderGameHeader()`)** — kırpılma için: chapter/speed row'un `hidden` class'ı DEĞİŞTİĞİ her durumda (görünür OLSUN ya da OLMASIN) `void els.gameScroll.offsetHeight;` eklendi — bu kod tabanında AYNI sınıf bir sorun (iOS/WebKit bir layout değişikliğini her zaman ANINDA yansıtmıyor) için ZATEN İKİ yerde (`setActionbarTucked`'ın G87 notu, `toolsResetSheetScroll`'un G109 notu) kullanılan, kanıtlanmış bir deseni BİREBİR uyguluyor — yeni bir teknik İCAT EDİLMEDİ.
+
+**DOĞRULAMA (Playwright, masaüstü Chromium, 12 modun HEPSİNDE gerçek `getBoundingClientRect()`/`getComputedStyle()` ölçümü):**
+- **12 modun HEPSİNDE**, görünür TÜM çipler (Zorluk + görünür `.srctag`'lar + Karışık + varsa Dokunmalı\|Şıklı) TAM `44px` yükseklik, `5px 8px` padding, `10px` font-size, `8px` border-radius — **hiçbir istisna yok**. Tüm 12 mod boyunca ölçülen TEK yükseklik kümesi: `{44}`.
+- Genişlik eşitliği (G93/G105'in flex:1/min-width:fit-content mekanizması) DOKUNULMADAN korundu — aynı satırdaki çipler eşit BÜYÜME oranıyla dağılıyor (G105'in "içerik daha genişse taşar/sarar" güvenlik ağı da AYNEN duruyor).
+- Kırpılma testi: Kesim Noktası'nda Serbest→10 Soruluk Bölüm geçişinde (`.ghead` 42px→80px büyüyor, `.game-scroll` 634px→596px küçülüyor) çip satırı reflow SONRASI tamamen görünür alanda ölçüldü — masaüstünde zaten kırpılma REPRODÜKTE EDİLEMEMİŞTİ (G142), bu turda EKLENEN zorlanmış reflow bu ölçümü BOZMADI (regresyon yok), cihazdaki asıl WebKit-timing senaryosunu (bu ortamda hâlâ üretilemiyor) artık İKİ kanıtlanmış önceki düzeltmeyle AYNI teknikle ele alıyor.
+- Konsol hatası: **0** (12 mod + kırpılma testi boyunca). `npm test`: **1250/1250** (düşmedi).
+- Ekran görüntüsü alındı (Kesim Noktası, bölüm çubuğu görünürken) — OTOMATİK/Kaynak/Karışık çipleri gözle de birebir aynı yükseklikte, çip satırı bölüm çubuğunun hemen altında TAM görünür.
+
+**DOKUNULAN DOSYALAR:** `www/styles.css`, `www/index.html`, `www/js/app.js` (SADECE `renderGameHeader()`'ın son satırı).
+**DOKUNULMAYAN DOSYALAR:** Oyun Ayarları sheet'inin `.control.control-sheet` satırları (4 tanesi, `.chiprow > ` seçiciyle bilinçli olarak dışarıda bırakıldı), tüm mod dosyaları, `core/*.js`, testler, Android, iOS native dosyaları.
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chromium/Playwright'ta yapıldı, gerçek cihazda DENENMEDİ. Kırpılma düzeltmesi özellikle — masaüstünde ZATEN reprodükte edilemeyen bir bug için, kod tabanındaki KANITLANMIŞ bir desenle (tahminle değil) uygulandı; bu deseni bu SPESİFİK senaryoda cihazın GERÇEKTEN düzelttiğini doğrulamanın TEK yolu cihaz testi. `npx cap sync ios` bu turda ÇALIŞTIRILMADI (istenmedi).
 
 Bu commit (G142) — **Cihazda G141 sonrası bildirilen İKİ hata: (1) "temiz kurulumda kaynak upload seçili geliyor" — KOD İNCELEMESİYLE (Önce koddan doğrula, tahmin etme) YANLIŞ ÇIKTI, 10/11 modda ZATEN doğru çalışıyor, TEK istisna (Stereo Genişlik) G122'den beri BİLİNÇLİ bir tasarım — DÜZELTME YAPILMADI, bulgular raporlandı. (2) "Atla (N) ▶" geri sayım sayısı — DÜZELTİLDİ, artık her koşulda sadece "Atla ▶".**
 
@@ -11406,13 +11431,13 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G142 itibarıyla) — EN ÖNEMLİSİ:** G141'den SONRA
+**Tek sonraki adım (G143 itibarıyla) — EN ÖNEMLİSİ:** G141'den SONRA
 `cap sync` + Xcode temiz derleme + cihaza kurulum YAPILDI (kullanıcının
-G142'deki iki hata raporu O build'den geldi) — ama G142'nin
-`round-flow.js` düzeltmesi HENÜZ senkronlanıp cihaza kurulmadı. Bir
-sonraki cihaz testinden ÖNCE hem `cap sync` hem Xcode'da TEMİZ derleme +
-gerçek cihaza kurulum TEKRAR gerekiyor. O build'de, kullanıcı cihazda
-BEŞ ayrı açık maddeyi denemeli (ilki A/B iki alt senaryo içeriyor):
+G142'deki iki hata raporu O build'den geldi) — ama G142/G143'ün
+düzeltmeleri HENÜZ senkronlanıp cihaza kurulmadı. Bir sonraki cihaz
+testinden ÖNCE hem `cap sync` hem Xcode'da TEMİZ derleme + gerçek cihaza
+kurulum TEKRAR gerekiyor. O build'de, kullanıcı cihazda ALTI ayrı açık
+maddeyi denemeli (ilki A/B iki alt senaryo içeriyor):
 - **G136/G137'nin ses kurtarma senaryoları (A/B):**
   - A) Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
     dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
@@ -11460,6 +11485,17 @@ BEŞ ayrı açık maddeyi denemeli (ilki A/B iki alt senaryo içeriyor):
   (madde 1) kod DEĞİŞTİRMEDİ — cihazda AYRICA denenecek bir şey YOK,
   SADECE Stereo Genişlik'in istisna durumu için ürün kararı BEKLİYOR
   (bkz. BEKLEYEN KARARLAR R).
+- **G143'ün çip eşitliği/kırpılma düzeltmesi (YENİ, bu turun kendi kabul
+  ölçütü):** 12 modun HEPSİNDE Zorluk/Kaynak/Odak/Kaynak-çifti/Karışık/
+  Dokunmalı-Şıklı çipleri gözle de birebir aynı yükseklikte görünmeli
+  (masaüstünde 44px ölçüldü). Kesim Noktası'nda (ya da bölüm çubuğu
+  gösteren başka bir modda) "10 Soruluk Bölüm" seçiliyken çip satırı
+  kırpılmamalı, tam görünmeli — bu madde ÖZELLİKLE önemli çünkü
+  masaüstünde REPRODÜKTE EDİLEMEMİŞTİ, uygulanan düzeltme (zorlanmış
+  reflow) sadece kod tabanındaki BENZER bir sorunun ÇÖZÜMÜNE dayanıyor,
+  bu SPESİFİK senaryoda GERÇEKTEN işe yaradığı cihazda İLK KEZ
+  doğrulanacak. (Masaüstünde Playwright ile 12 modun HEPSİNDE ölçüldü,
+  bkz. G143 kaydı — cihazda HENÜZ denenmedi.)
 
 Başarısızsa Safari Web Inspector'daki `[audio-diag]` günlüğü (ses
 senaryoları için) hangi dalın tetiklendiğini gösterecek — bir sonraki

@@ -272,7 +272,7 @@
                (levelChip'İN AYNI sheet'i) — #difficultySelect'i DEĞİŞTİRMEZ,
                oyun ortasında zorluk sabit kalır (task'ın kendi kuralı).
                "OTOMATİK"/tier adı app.js renderGameHeader'da yazılıyor. -->
-          <button type="button" class="game-diff-chip" id="gameDiffChip">Orta</button>
+          <button type="button" class="game-diff-chip chip-base" id="gameDiffChip">Orta</button>
           <!-- G79: cevap biçimi artık sheet açan bir chip DEĞİL, İKİLİ SEGMENTED
                TOGGLE (Dokunmalı|Şıklı) — #answerFormatSelect'İN KENDİSİNE
                (id/JS AYNI) doğrudan yazıp "change" event'i tetikliyor (mevcut
@@ -288,7 +288,7 @@
             <label class="hidden">Odak aralığı</label>
             <!-- <option> listesi app.js'te mode.FOCUS_RANGES'tan üretilir (bkz. populateFocusSelect) -->
             <select id="focusSelect" class="hidden"></select>
-            <button class="srctag setting-row" data-sheet-select="focusSelect" data-sheet-title="Odak aralığı">
+            <button class="srctag chip-base setting-row" data-sheet-select="focusSelect" data-sheet-title="Odak aralığı">
               <b class="setting-row-value-text" id="focusChipLabel">Tüm spektrum</b><span class="chev"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
             </button>
           </div>
@@ -296,7 +296,7 @@
             <label class="hidden">Kaynak</label>
             <!-- <option>/<optgroup> listesi app.js'te SOURCE_GROUPS'tan üretilir (bkz. populateSourceSelect) -->
             <select id="sourceSelect" class="hidden"></select>
-            <button class="srctag setting-row" data-sheet-select="sourceSelect" data-sheet-title="Kaynak">
+            <button class="srctag chip-base setting-row" data-sheet-select="sourceSelect" data-sheet-title="Kaynak">
               <b class="setting-row-value-text" id="sourceChipLabel">Pink Noise</b><span class="chev"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
             </button>
           </div>
@@ -314,7 +314,7 @@
               <option value="snare-gitar">Snare + Gitar</option>
               <option value="own">Kendi dosyalarım</option>
             </select>
-            <button class="srctag setting-row" data-sheet-select="cakismaPairSelect" data-sheet-title="Kaynak çifti">
+            <button class="srctag chip-base setting-row" data-sheet-select="cakismaPairSelect" data-sheet-title="Kaynak çifti">
               <b class="setting-row-value-text" id="cakismaPairChipLabel">Kick + Bas</b><span class="chev"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></span>
             </button>
           </div>
@@ -322,7 +322,7 @@
                satır 552'nin AYNI path'i) — eski nokta LED KALDIRILDI, tasarımda
                yok. .mixchip.on hâlâ AYNI aç/kapa vurgusunu (cyan) veriyor,
                SVG currentColor kullandığı için ayrı bir renk kuralı gerekmedi. -->
-          <button class="mixchip" id="mixToggle" aria-label="Karıştır" title="Karıştır"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7M21 16v5h-5M14 14l7 7"></path></svg><span>Karışık</span></button>
+          <button class="mixchip chip-base" id="mixToggle" aria-label="Karıştır" title="Karıştır"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7M21 16v5h-5M14 14l7 7"></path></svg><span>Karışık</span></button>
         </div>
 
         <!-- G56: "Kendi dosyalarım" seçilince İKİ GENEL yükleme yuvası ("Ses 1"/
