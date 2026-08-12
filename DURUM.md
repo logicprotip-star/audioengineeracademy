@@ -37,7 +37,7 @@ Bu commit (G138) — **KARAR DEĞİŞİKLİĞİ (kullanıcının kendi kararı):
 5. **`npm test`: 1250/1250** (1245'ten +5 — `test/storage.test.mjs`'e `uploadSelections` testleriyle AYNI desende `sourceSelections` round-trip/bozuk-JSON/çoklu-bağlam testleri eklendi, G123'ün kendi testlerini eklerken izlediği AYNI yöntem).
 6. Android'e SIFIR değişiklik — değiştirilen üç dosya (`app.js`, `core/storage.js`, `test/storage.test.mjs`) platform-agnostik, native dosyalara dokunulmadı.
 
-**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chromium/Playwright'ta yapıldı, gerçek cihazda DENENMEDİ. `npx cap sync ios` bu turda ÇALIŞTIRILMADI (kullanıcı henüz istemedi) — bir sonraki cihaz testinden ÖNCE çalıştırılmalı.
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chromium/Playwright'ta yapıldı, gerçek cihazda DENENMEDİ. `npx cap sync ios` commit SONRASINDA bu turda çalıştırıldı — bir sonraki cihaz testi için Xcode'da TEMİZ derleme + kuruluma hazır (sadece `cap sync` ile dosyalar kopyalandı, GERÇEK bir Xcode build/install bu turda YAPILMADI).
 
 ---
 
@@ -11254,10 +11254,11 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 ## SIRADAKİ
 
 **Tek sonraki adım (G138 itibarıyla) — EN ÖNEMLİSİ:** `npx cap sync ios`
-ÇALIŞTIRILMADI bu turda (G138 SADECE web tarafında, kullanıcı henüz
-istemedi) — bir sonraki cihaz testinden ÖNCE bu ÇALIŞTIRILMALI, sonra
-Xcode'da TEMİZ derleme + gerçek cihaza kurulum (sadece `cap sync` YETMEZ).
-O build'de, kullanıcı cihazda ÜÇ ayrı açık maddeyi denemeli:
+bu turda ÇALIŞTIRILDI (dosyalar `ios/App/App/public`'e kopyalandı) ama
+GERÇEK bir Xcode build/install YAPILMADI — bir sonraki cihaz testinden
+ÖNCE Xcode'da TEMİZ derleme + gerçek cihaza kurulum GEREKİYOR (sadece
+`cap sync` YETMEZ). O build'de, kullanıcı cihazda ÜÇ ayrı açık maddeyi
+denemeli:
 - **G136/G137'nin ses kurtarma senaryoları (A/B):**
   - A) Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
     dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
