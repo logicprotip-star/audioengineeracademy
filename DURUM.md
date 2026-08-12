@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G150)
+Son güncelleme: 12.08.2026 (G151)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,118 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G151) — **İKİ İŞ: (1) Spotlight delik efekti regresyonunun kök
+nedeni bulundu (koddan kanıtlandı, KOD DEĞİŞTİRİLMEDİ, sadece rapor).
+(2) Motor 2 kartlarında (Kompresör/Reverb/Distortion) GERÇEK pause/resume
+eklendi — kart-üstü çalma özelliği olan TÜM modlar tarandı, SADECE bu üçü
+bulundu, paylaşılan altyapı (`three-way-cards.js`) üzerinden hepsi kapsandı.**
+
+**MADDE 1 — Spotlight delik efekti (SADECE RAPOR, kod YAZILMADI):**
+`resolveSpotlightTarget()`'ın `"listen"` dalı (`app.js`) `els.analyzer`'ı
+KOŞULSUZ döndürüyor — ama Motor 2 modlarında (`HIDE_ANALYZER:true`)
+`els.analyzer` `.hidden` (`display:none`). `git log -S`/`git show` ile
+kesin tarih sırası kanıtlandı: `resolveSpotlightTarget` G68'de (spotlight
+sistemi) oluşturuldu, o an M2'nin analizörü HENÜZ gizli DEĞİLDİ.
+`HIDE_ANALYZER` İLK KEZ G86'da (Motor 2'nin kart-tabanlı yeniden tasarımı)
+eklendi — G86'nın AYNI fonksiyonu `"select"`/`"confirm"` dallarını
+`isChoiceFormat() ? els.answers : els.analyzer` ile M2'ye göre DOĞRU
+güncelledi, ama `"listen"` dalını UNUTTU (G68'den G86'ya kadar BYTE BYTE
+DEĞİŞMEDİĞİ doğrulandı) — **G86'da açılan, o zamandan beri hiç
+kapanmamış bir regresyon.** Playwright'le ölçüldü: gizli `els.analyzer`'ın
+`getBoundingClientRect()`'i `{0,0,0,0}` — `positionSpotlightHole()` bunu
+16×16px'lik, ekranın sol-üst köşesine sabitlenmiş görünmez bir "delik"e
+çeviriyor, 9999px'lik box-shadow ekranın GERİ KALANINI tamamen karartıyor
+— kullanıcının tarif ettiği "arka plan tamamen karartılmış, kartlar hiç
+vurgulanmıyor" BİREBİR bu. "İleri" butonunun kendisi (test edildi, İleri'ye
+basınca 1/4→2/4 gerçekten ilerliyor, konsol hatası yok) ÇALIŞIYOR — "1/4'te
+takılı kalma" gözlemi AYRI, koddan doğrulanamayan bir gözlem (masaüstünde
+tıklanabilir/işlevsel çıktı) — muhtemel açıklama (KANITLANMADI): delikin
+köşede kaybolması kullanıcının tur GERÇEKTEN bozuk sanıp "İleri"yi hiç
+aramamış/basmamış olması. Düzeltme YAPILMADI (task'ın kendi kuralı, "Bu
+maddede kod değişikliği YAPMA") — çözüm net: `"listen"` dalı da
+`"select"`/`"confirm"` gibi `isChoiceFormat()`'a göre M2'de `els.answers`
+döndürmeli, karar/uygulama SONRAKİ tura bırakıldı.
+
+**MADDE 2 — Kart pause/resume:**
+- **Tarama sonucu:** Kart-üstü play butonu (`.ans-m2-play`, PLAY/PAUSE
+  ikonlu) SADECE `three-way-cards.js`'de var — bu, Motor 2'nin PAYLAŞILAN
+  bileşeni (Kompresör/Reverb/Distortion, `THREE_WAY_MODE_IDS`). Başka
+  HİÇBİR moda ait başka bir "kart-üstü çal" mekanizması bulunamadı
+  (`Frekans Çakışması`'nın `#cakismaCompare`'i "Önce/Sonra" crossfade
+  TOGGLE'ı — play/pause DEĞİL, ayrı bir mekanizma, DOKUNULMADI).
+- **Kök neden:** `playThreeWaySpecific(letter)` her basışta KOŞULSUZ
+  `audioEngine.buildQuestionChain(...)` çağırıyordu — aynı harfe tekrar
+  basmak (görsel olarak PAUSE ikonu göstermesine RAĞMEN) sesi BAŞTAN
+  başlatıyordu, hiç durdurmuyordu.
+- **Düzeltme:** `playThreeWaySpecific` artık aynı harf ZATEN çalarken
+  basılırsa `audioEngine.pausePreview()` çağırıp DURAKLATIYOR; farklı
+  harfe ya da duraklatılmış AYNI harfe basılırsa kaldığı yerden devam
+  ediyor. `audio-engine.js`'e uploadManager'ın offset/startedAt deseninin
+  AYNISı (SADECE `kind:"sample"` kaynaklar — kick/snare/vocal/guitar/
+  groove — için, `currentPreview` + yeni `pausePreview()`) eklendi;
+  `buildSampleSource` artık `start(0, offset)` ile kaldığı yerden
+  başlıyor. Harf başına (`threeWayPreviewOffsets`) pozisyon saklanıyor —
+  A'dan B'ye geçip A'ya dönünce A KENDİ pozisyonundan devam ediyor.
+  Upload kaynağı zaten KENDİ `uploadManager`'ıyla bu deseni taşıyordu —
+  DOKUNULMADI. Sentetik kaynaklarda (pink/white/saw/square/triangle,
+  Kompresör/Distortion'da erişilebilir) buffer/pozisyon kavramı yok —
+  `pausePreview()` 0 döner, "resume" fiilen baştan başlar (dürüstlük notu:
+  sürekli/rastgele bir sinyalde pozisyon kulakla ayırt edilemez, bu
+  KAYNAK TÜRÜNÜN doğal sınırı).
+- **Kart gövdesi vs play butonu:** `#answers` click delegasyonu ZATEN
+  `e.target.closest(".ans-m2-play")`'i ÖNCE kontrol edip erken dönüyordu
+  (G86'dan beri) — SEÇİM davranışına dokunulmadı, test edildi (kart
+  gövdesine tıklamak hâlâ seçiyor, çalan sesi durdurmuyor).
+- **DÖNGÜ modu (task'ın 4. sorusu, belirlenip raporlandı):** M2 modlarında
+  döngü (otomatik A/B/C, `#abToggle`) HER TURUN BAŞINDA VARSAYILAN AÇIK
+  (`app.js`: `if (isThreeWayModule(mode)) startAbLoop();`, ÖNCEDEN VAR,
+  bu turda keşfedildi/dokunulmadı). `cycleThreeWayPreview()` (döngünün her
+  ~2sn'lik tikinde çağrılır) BİLİNÇLİ olarak DEĞİŞTİRİLMEDİ — sıradaki
+  harfi HER ZAMAN sıfırdan çalar, `threeWayPreviewPaused`'ı sıfırlar.
+  Sonuç: döngü AÇIKKEN bir karta pause basmak SADECE bir sonraki tike
+  (≤2sn) kadar geçerli — döngü kaldığı yerden "haklı" şekilde devam eder.
+  Kalıcı bir pause isteniyorsa kullanıcı ÖNCE döngüyü durdurmalı
+  (`#abToggle`'a basıp kapatmak) — bu, uygulamanın MEVCUT/öğretilmiş
+  etkileşim deseni, YENİ bir şey İCAT EDİLMEDİ.
+
+**DOĞRULAMA (Playwright):**
+- Reverb'de: round başında A otomatik çalıyor → play butonuna basınca
+  DURAKLIYOR (ikon PLAY'e döner, "duraklatıldı") → 1500ms STABİL kalıyor
+  (döngü kapatıldıktan sonra) → tekrar basınca "çalıyor"a dönüyor. B'ye
+  geçip A'ya dönünce A kaldığı pozisyondan devam ediyor. Kart gövdesine
+  tıklamak seçimi değiştiriyor, çalmayı DURDURMUYOR.
+- Kompresör ve Distortion'da AYNI senaryo (paylaşılan altyapı) TEK TEK
+  tekrarlandı — ikisi de aynı sonucu verdi.
+- Döngü açıkken pause denemesi doğrulandı: ~2sn'lik tikten sonra döngü
+  normal şekilde devam ediyor (tasarım gereği, bkz. yukarı).
+- 12 modun HEPSİNDE dokunmalı akış + G150'nin `actionbar-compact`
+  mekanizması yeniden tarandı — HİÇBİRİ bozulmadı (12/12 "Atla ▶" doğru,
+  compact sınıfı beklenen modlarda doğru, konsol hatası: 0).
+- Konsol hatası (kart etkileşimleri boyunca, 3 modda ayrı ayrı): 0.
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js` (`playThreeWaySpecific`,
+`cycleThreeWayPreview`, `updateAbToggleUI`, yeni state:
+`threeWayPreviewPaused`/`threeWayPreviewOffsets`), `www/js/core/
+audio-engine.js` (`buildSampleSource`, `buildQuestionChain`'e opsiyonel
+`previewOffsetSec` parametresi, yeni `pausePreview()`), `www/js/core/
+three-way-cards.js` (`updateThreeWayCardsPlayState`'e opsiyonel `paused`
+parametresi).
+
+**DOKUNULMAYAN DOSYALAR:** `styles.css`, `index.html` (G143 çip eşitliği/
+G150 `actionbar-compact` KESİNLİKLE bozulmadı), `upload.js` (upload'ın
+KENDİ offset/pause deseni hiç değişmedi), diğer 9 mod dosyası, `core/
+audio-engine.js`'in `buildDualSourceChain`/Frekans Çakışması yolu (AYRI
+`buildSampleSource` çağrısı, offset PARAMETRESİZ/varsayılan 0 — davranış
+BİREBİR aynı), testler, Android/iOS native dosyalar.
+
+**npm test:** 1250/1250 (değişmedi).
+
+**DÜRÜSTLÜK NOTU:** Madde 2 masaüstünde Playwright ile TAM doğrulandı
+(gerçek `.m4a` örnek dosyaları decode edilip GERÇEK pozisyon takibiyle
+test edildi — sentetik bir taklit DEĞİL) ama HENÜZ cihazda kurulmadı.
+Madde 1 kasıtlı olarak koddan ÇÖZÜLMEDİ — sadece kök neden raporlandı,
+kullanıcının kararını bekliyor.
 
 Bu commit (G150) — **BEKLEYEN KARARLAR T, seçenek 1 uygulandı: statik ikinci
 sabit (`--actionbar-h-compact`) + sınıf-tabanlı seçim, Frekans Bulma
@@ -11523,6 +11635,19 @@ src/main/res/drawable-*/splash.png` altında platforma özel boyutlar da
 kapatıldı.
 
 ## BEKLEYEN KARARLAR
+
+**U. G151 — Spotlight "listen" hedefi Motor 2'de `els.analyzer`e (gizli) çözülüyor, delik efekti çalışmıyor — düzeltilsin mi?**
+Kök neden G151'de KANITLANDI (bkz. BİTTİ G151, madde 1): `resolveSpotlightTarget()`'ın
+`"listen"` dalı Kompresör/Reverb/Distortion'da (`HIDE_ANALYZER:true`)
+gizli/0×0 `els.analyzer`'ı döndürüyor — G86'da `"select"`/`"confirm"`
+dalları M2'ye göre düzeltilmiş ama `"listen"` UNUTULMUŞ, o zamandan beri
+regresyon. Önerilen düzeltme (kod YAZILMADI, onay bekliyor): `"listen"`
+dalı da `isChoiceFormat() ? els.answers : els.analyzer` desenine (aynı
+fonksiyonun `"select"`/`"confirm"` dallarıyla AYNI) geçsin — M2'de artık
+kartların TAMAMINI (ya da ilk kartı) kapsayan bir delik gösterir, metin
+("Üç sesi (A/B/C) dinle") zaten kartlara işaret ediyor, tutarlı olur.
+Karar: bu düzeltme uygulansın mı, yoksa farklı bir hedef mi (ör. sadece
+A kartı) tercih edilsin?
 
 **T. ~~G149 — Frekans Bulma Şıklı modda 3. şık kaydırmadan sığmıyor (35px)~~ — G150'de seçenek 1 ile ÇÖZÜLDÜ**
 Kök neden ölçümle kanıtlandı (bkz. BİTTİ G149): `.game-scroll`'un

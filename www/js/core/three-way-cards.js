@@ -79,14 +79,22 @@ export function markThreeWayCards(answersEl, q, picked) {
 // otomatik döngünün her tık'ı + manuel A/B/C basışı + kart play butonu) çağırır — o an
 // çalan kartı diğerlerinden ayırt edilir kılar. Cevap verildikten SONRA (ans-m2-disabled)
 // dokunmuyor — markThreeWayCards zaten üzerine yazdı.
-export function updateThreeWayCardsPlayState(answersEl, playLetter) {
+// G151: üçüncü parametre `paused` — playLetter'ın kartı GERÇEKTEN çalıyor mu yoksa
+// duraklatıldı mı (app.js'teki threeWayPreviewPaused). paused=true iken PLAY ikonu
+// (tekrar basınca devam eder) gösterilir — ÖNCEDEN playLetter'a eşit olan kart HER
+// ZAMAN "çalıyor" sayılıp PAUSE ikonu basıyordu, bu ikon GERÇEKTE duraklatma
+// YAPMAYAN bir butonu duraklatabilirmiş gibi gösteriyordu (bkz. app.js
+// playThreeWaySpecific'in G151 notu — asıl düzeltme).
+export function updateThreeWayCardsPlayState(answersEl, playLetter, paused = false) {
   if (!answersEl) return;
   Array.from(answersEl.querySelectorAll(".ans")).forEach(card => {
     if (card.classList.contains("ans-m2-disabled")) return;
-    const isPlaying = card.dataset.letter === playLetter;
+    const isTarget = card.dataset.letter === playLetter;
+    const isPlaying = isTarget && !paused;
+    const isPaused = isTarget && paused;
     card.classList.toggle("ans-m2-playing", isPlaying);
     const stateEl = card.querySelector(".ans-m2-state");
-    if (stateEl) stateEl.textContent = isPlaying ? "çalıyor" : "dinlemek için bas";
+    if (stateEl) stateEl.textContent = isPlaying ? "çalıyor" : isPaused ? "duraklatıldı" : "dinlemek için bas";
     const playBtn = card.querySelector(".ans-m2-play");
     if (playBtn) playBtn.innerHTML = isPlaying ? PAUSE_ICON : PLAY_ICON;
   });

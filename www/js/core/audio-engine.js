@@ -53,6 +53,16 @@ export function createAudioEngine() {
   // stopAudio). Kaynak upload DEĞİLSE null'a çekilir; böylece stopAudio() gömülü/
   // sentetik kaynaklarda hiçbir şey yapmaz (davranışları BOZULMAZ).
   let activeUploadManager = null;
+  // G151 — kart-üstü pause/resume (Motor 2: Kompresör/Reverb/Distortion'ın
+  // A/B/C önizleme butonları): uploadManager'ın offset/startedAt deseninin
+  // AYNISI, TEK farkla — burada mod başına DEĞİL, buildQuestionChain'in EN
+  // SON kurduğu örnek-tabanlı (kind:"sample") kaynağa ait, tek bir "o an
+  // çalan önizleme" kaydı. Upload zaten KENDİ uploadManager'ında pozisyonunu
+  // takip ediyor (bu değişkene DOKUNULMADI) — burası SADECE kick/snare/vocal/
+  // guitar/groove gibi gömülü örnekler İÇİN. Sentetik (noise/synth) kaynaklarda
+  // buffer/pozisyon kavramı olmadığı için null kalır — pausePreview() o
+  // durumda 0 döner (bkz. fonksiyonun kendi notu).
+  let currentPreview = null;
   // G51 — Motor 3 (Frekans Çakışması): buildDualSourceChain'in kullandığı İKİ
   // (opsiyonel) uploadManager referansı — activeUploadManager'ın (TEKİL,
   // diğer sekiz modun kullandığı) AYNI amaçla ama ÇOĞUL hali. Diğer sekiz
@@ -558,6 +568,31 @@ export function createAudioEngine() {
     wetGain = null;
   }
 
+  // G151 — kart-üstü play/pause (Motor 2: Kompresör/Reverb/Distortion'ın A/B/C
+  // önizlemesi, bkz. app.js playThreeWaySpecific): stopAudio()'nun AYNI ses
+  // durdurma mekanizmasını kullanır (ayrı bir "pause" yolu İCAT EDİLMEDİ,
+  // AudioBufferSourceNode zaten pause DESTEKLEMEZ — bkz. upload.js dosya başı
+  // notu, AYNI kısıt burada da geçerli) — TEK fark, durdurmadan ÖNCE geçerli
+  // örnek-tabanlı önizlemenin (currentPreview, SADECE kind:"sample" kaynaklarda
+  // dolu) o ana kadar çaldığı saniyeyi hesaplayıp DÖNDÜRMESİ, çağıran taraf
+  // (app.js) bunu harf başına saklayıp bir sonraki buildQuestionChain
+  // çağrısına previewOffsetSec olarak geçiyor. Sentetik (noise/synth) veya
+  // hiç önizleme çalmıyorsa (currentPreview null) 0 döner — "resume" o
+  // durumda fiilen baştan başlar (dürüstlük notu: bu kaynak türünün doğal
+  // sınırı, sürekli/rastgele bir sinyalde pozisyon kavramı YOK).
+  function pausePreview() {
+    let resumeOffset = 0;
+    if (currentPreview && audioCtx) {
+      const elapsed = audioCtx.currentTime - currentPreview.startedAt;
+      resumeOffset = currentPreview.buffer.duration > 0
+        ? (currentPreview.baseOffset + elapsed) % currentPreview.buffer.duration
+        : 0;
+    }
+    stopAudio();
+    currentPreview = null;
+    return resumeOffset;
+  }
+
   function buildNoiseSource(sourceType) {
     const buffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
@@ -618,13 +653,20 @@ export function createAudioEngine() {
     sampleBufferCache.set(path, promise);
     return promise;
   }
-  async function buildSampleSource(path) {
+  // G151: offsetSec — YENİ, opsiyonel (varsayılan 0, ESKİ tüm çağrı yerleri
+  // DAVRANIŞ DEĞİŞTİRMEDEN çalışmaya devam eder). uploadManager.getSourceNode()'un
+  // AYNI deseni: `start(0, offset)` ile o saniyeden başlar (kaldığı yerden
+  // devam — bkz. buildQuestionChain'in pausePreview/currentPreview notu).
+  // Buffer'ı da döndürüyor (ÖNCEDEN sadece [src]) — çağıran taraf süresini
+  // (buffer.duration) bilmeden pozisyonu % ile sarmalayamaz.
+  async function buildSampleSource(path, offsetSec = 0) {
     const buffer = await loadSampleBuffer(path);
     const src = audioCtx.createBufferSource();
     src.buffer = buffer;
     src.loop = true;
-    src.start();
-    return [src];
+    const safeOffset = buffer.duration > 0 ? offsetSec % buffer.duration : 0;
+    src.start(0, safeOffset);
+    return [src, buffer];
   }
 
   function buildSynthSource(sourceType) {
@@ -662,13 +704,21 @@ export function createAudioEngine() {
   // tipinin karışması iOS'ta ses motorunu kilitliyordu). Pozisyon upload.js içinde
   // elle takip edildiği için kaldığı yerden devam eder.
   // applyProcessing: aktif modun applyProcessing(question, { audioCtx }) fonksiyonu.
-  async function buildQuestionChain(question, processed, sourceType, uploadManager, applyProcessing) {
+  // previewOffsetSec: G151 — YENİ, opsiyonel (varsayılan 0, ESKİ tüm çağrı yerleri
+  // davranış değiştirmeden çalışır). SADECE kind:"sample" kaynaklarda (kick/snare/
+  // vocal/guitar/groove) kullanılır — pausePreview()'ın döndürdüğü, kaldığı yerden
+  // devam etmesi istenen saniye pozisyonu (bkz. app.js playThreeWaySpecific).
+  async function buildQuestionChain(question, processed, sourceType, uploadManager, applyProcessing, previewOffsetSec = 0) {
     let sampleLoadFailed = false;
     stopAudio(); // ÖNCEKİ zincirin (varsa) upload konumunu duraklatır — bkz. activeUploadManager notu
     // Bu turun kaynağı upload İSE stopAudio()'nun bir SONRAKİ çağrısı bunu duraklatabilsin
     // diye referans burada güncelleniyor; değilse null (gömülü/sentetik kaynaklarda
     // stopAudio() hiçbir şey yapmaz).
     activeUploadManager = sourceType === "upload" ? uploadManager : null;
+    // G151: bu YENİ zincirin kendi örnek-önizleme kaydı henüz yok — aşağıdaki
+    // "sample" dalı KURARSA doldurur, kurmazsa (upload/pink/white/synth) null
+    // kalır (pausePreview() o durumda 0 döner, bkz. fonksiyonun notu).
+    currentPreview = null;
 
     // Güvenlik: bir önceki durum (Durdur) muteGain'i 0'da bırakmış olabilir; yeni bir
     // soru/round zinciri kuruluyorsa duyulabilir olmalı.
@@ -731,7 +781,7 @@ export function createAudioEngine() {
     } else if (findSource(sourceType)?.kind === "sample") {
       const samplePath = findSource(sourceType).samplePath;
       try {
-        const [sample] = await buildSampleSource(samplePath);
+        const [sample, sampleBuffer] = await buildSampleSource(samplePath, previewOffsetSec);
         // stopAudio() bu zincirin kurulumu sırasında (decode beklerken) başka bir
         // soru/tur başladıysa currentNodes'u zaten temizlemiş olabilir — o zaman bu
         // node'u YİNE DE bağlamak eski bir zinciri diriltir. Zincirin hâlâ güncel
@@ -739,6 +789,13 @@ export function createAudioEngine() {
         if (currentNodes.includes(out)) {
           sample.connect(sourceMix);
           currentNodes.push(sample);
+          // G151: pausePreview()'ın offset hesaplayabilmesi için bu zincirin
+          // BAŞLADIĞI an + baz offset kaydediliyor (uploadManager'ın AYNI deseni).
+          currentPreview = {
+            buffer: sampleBuffer,
+            startedAt: audioCtx.currentTime,
+            baseOffset: sampleBuffer.duration > 0 ? previewOffsetSec % sampleBuffer.duration : 0
+          };
         } else {
           sample.stop();
         }
@@ -929,6 +986,7 @@ export function createAudioEngine() {
     muteOutput,
     unmuteOutput,
     stopAudio,
+    pausePreview,
     buildQuestionChain,
     setProcessed,
     buildDualSourceChain,

@@ -1063,6 +1063,15 @@ let threeWayPlayLetter = "A";
 // onay butonuyla olur (kompresor.js/reverb.js/distortion.js
 // renderGuessAreaControls). Her yeni turda null'a döner.
 let threeWaySelectedLetter = null;
+// G151: kart play butonunun GERÇEK pause/resume durumu. threeWayPreviewPaused
+// true iken threeWayPlayLetter'ın gösterdiği harf ÇALMIYOR, DURAKLATILMIŞ
+// (updateThreeWayCardsPlayState buna göre play/pause ikonunu seçer).
+// threeWayPreviewOffsets — harf başına (A/B/C) audioEngine.pausePreview()'ın
+// döndürdüğü, o harfin kaldığı saniye pozisyonu (uploadManager'ın offset/
+// startedAt desenindeki AYNI fikir, burada harf başına). Her yeni turda
+// (renderQuestion/enterMode) İKİSİ de sıfırlanır — bkz. o iki nokta.
+let threeWayPreviewPaused = false;
+let threeWayPreviewOffsets = {};
 
 // G45: Tonal Denge'nin CANLI EQ kaydırıcı durumu — {bandId: correctionDb}.
 // dbGuess/boostCutGuess gibi bu modun KENDİ değişkeni (three-way'in paylaşılan
@@ -2019,11 +2028,14 @@ function updateAbToggleUI() {
   if (!abLoopTimer && els.abTitle) els.abTitle.textContent = isThreeWay ? "A/B/C Test" : "A/B Test";
   if (isThreeWay) {
     els.abToggle.dataset.ab = threeWayPlayLetter;
-    if (els.analyzerLabel) els.analyzerLabel.textContent = `SPEKTRUM · ${threeWayPlayLetter} DİNLENİYOR`;
+    if (els.analyzerLabel) els.analyzerLabel.textContent = threeWayPreviewPaused
+      ? `SPEKTRUM · ${threeWayPlayLetter} DURAKLATILDI`
+      : `SPEKTRUM · ${threeWayPlayLetter} DİNLENİYOR`;
     // G41: o an çalan büyük kartı vurgular (bkz. core/three-way-cards.js) — bu
     // fonksiyon HER threeWayPlayLetter değişiminde çağrıldığı için (round başlangıcı +
     // döngü + manuel A/B/C) ayrı bir çağrı noktası eklemeye GEREK yok.
-    if (mode.updateAnswerPlayState) mode.updateAnswerPlayState(els.answers, threeWayPlayLetter);
+    // G151: üçüncü parametre (paused) — kart play/pause ikonunu doğru seçsin.
+    if (mode.updateAnswerPlayState) mode.updateAnswerPlayState(els.answers, threeWayPlayLetter, threeWayPreviewPaused);
     return;
   }
   const ab = currentPlayMode === "clean" ? "A" : "B";
@@ -3544,6 +3556,8 @@ function renderQuestion() {
   threeWayGuessLetter = null;
   threeWayPlayLetter = "A";
   threeWaySelectedLetter = null;
+  threeWayPreviewPaused = false;
+  threeWayPreviewOffsets = {};
   tonalDengeCorrections = {};
   cakismaGuess = null;
   if (q.mode === "proplus") { q.guesses = []; q._result = null; }
@@ -4823,6 +4837,11 @@ function cycleThreeWayPreview() {
   const idx = q.variants.findIndex(v => v.letter === threeWayPlayLetter);
   const next = q.variants[(idx + 1) % q.variants.length];
   threeWayPlayLetter = next.letter;
+  // G151: döngü (otomatik A/B/C) HER ZAMAN sıradaki harfi SIFIRDAN çalar —
+  // manuel pause/resume ile karışmaz, task'ın kendi kararı ("döngü modu
+  // davranışı DEĞİŞMESİN"). Duraklatılmış bir harf varsa bile döngü onu
+  // ATLAMAZ/DEVAM ETTİRMEZ, sırası gelince eskisi gibi baştan çalar.
+  threeWayPreviewPaused = false;
   audioEngine.buildQuestionChain({ ...q, previewLetter: next.letter }, true, q.source, uploadManager, mode.applyProcessing);
   updateAbToggleUI();
 }
@@ -4832,12 +4851,31 @@ function cycleThreeWayPreview() {
 // hangi harf isteniyorsa O çalar, Tasarim-2026-08/Prototip.dc.html'in
 // card.play'i ile AYNI: play: ev => { ev.stopPropagation();
 // this.setState({playingCard:i}) }).
+//
+// G151 EKLENDİ: aynı harfe (zaten çalarken) tekrar basılırsa artık BAŞTAN
+// çalmak yerine DURAKLATIYOR — audioEngine.pausePreview() geçerli örnek-
+// tabanlı (kick/snare/vocal/guitar/groove/upload) kaynağın o ana kadar
+// çaldığı saniyeyi döndürür, harf başına (threeWayPreviewOffsets) saklanır.
+// Aynı harfe BİR DAHA basılınca o offset'ten devam eder (uploadManager'ın
+// offset/startedAt deseninin AYNISI, burada harf başına). Sentetik kaynaklarda
+// (pink/white/saw/square/triangle) buffer/pozisyon kavramı YOK —
+// pausePreview() o durumda 0 döner, "resume" fiilen baştan başlar (dürüstlük
+// notu: bu KAYNAK TÜRÜNÜN doğal bir sınırı, sürekli/rastgele bir sinyalde
+// "kaldığı yer" kulakla ayırt edilemez).
 function playThreeWaySpecific(letter) {
   if (!roundActive || !isThreeWayQuestion(activeQuestion)) return;
   const q = activeQuestion;
   if (!q.variants.some(v => v.letter === letter)) return;
+  if (letter === threeWayPlayLetter && !threeWayPreviewPaused) {
+    threeWayPreviewOffsets[letter] = audioEngine.pausePreview();
+    threeWayPreviewPaused = true;
+    updateAbToggleUI();
+    return;
+  }
   threeWayPlayLetter = letter;
-  audioEngine.buildQuestionChain({ ...q, previewLetter: letter }, true, q.source, uploadManager, mode.applyProcessing);
+  threeWayPreviewPaused = false;
+  const resumeOffset = threeWayPreviewOffsets[letter] || 0;
+  audioEngine.buildQuestionChain({ ...q, previewLetter: letter }, true, q.source, uploadManager, mode.applyProcessing, resumeOffset);
   updateAbToggleUI();
 }
 
@@ -6535,6 +6573,8 @@ function resetAllProgress() {
   threeWayGuessLetter = null;
   threeWayPlayLetter = "A";
   threeWaySelectedLetter = null;
+  threeWayPreviewPaused = false;
+  threeWayPreviewOffsets = {};
   tonalDengeCorrections = {};
   cakismaGuess = null;
   syncLives();
