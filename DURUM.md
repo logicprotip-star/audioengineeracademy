@@ -29,6 +29,48 @@ düzeltmesi yüzünden sessizce devre dışı kaldı (G136'da bulundu) — iki
 düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
+## GÜNCEL DURUM (G133-G163 özeti — yeni bir sohbet için hızlı yön bulma)
+
+Ayrıntı için BİTTİ bölümündeki ilgili G-kaydına bkz.; bu SADECE bir özettir.
+
+- **G133-G137:** Arka plana atılan/native ses akışı kaybeden uygulamanın
+  "zombi bağlam" kurtarma zinciri kuruldu ve bir regresyon (G133'ün
+  düzeltmesinin G135 tarafından sessizce iptal edilmesi) bulunup kapatıldı
+  — bu regresyon REGRESYON KORUMASI kuralının doğrudan gerekçesi oldu.
+- **G138-G148:** Kaynak-türü kalıcılığı, Oyun Türü varsayılanı, alt bar
+  buton metni tutarlılığı, çip satırı eşitliği/kırpılma, Zorluk
+  gösterimi ve Frekans Bulma Şıklı-mod düzeltmesi gibi bir dizi UI
+  cilası turu — hepsi masaüstünde Playwright ile doğrulandı, GERÇEK
+  cihazda HENÜZ hiçbiri doğrulanmadı (bkz. SIRADAKİ).
+- **G150-G161:** Araçlar sekmesi odaklı çalışma zinciri — yayın-öncesi
+  denetim (G153), "Kendi Referansım" araştırması (G157), Referans
+  Filtreleri'nin bağımsız oynatıcı+seek alması (G159), Tonal Denge'nin
+  taşma/"Bugünün Önerisi" düzeltmesi (G160), A/B düğme durumu netliği +
+  "i" bilgilendirmesi (G161).
+- **G162:** SADECE denetim (kod yazılmadı) — "Sınırsız"/"Pro Plus"
+  karışıklığı, seviye kilidi, saat manipülasyonu açıkları, rozet seti
+  uyuşmazlığı, isimlendirme tutarsızlıkları, Pro Plus geri bildirim
+  ayarı bug'ı, DURUM.md arşiv ihtiyacı — hepsi git log + kod okunarak
+  doğrulandı ve raporlandı.
+- **G163/G164:** G162'nin bulgularından üçü ağır (Sınırsız→Pro Plus
+  birleşimi, Pro'da seviye kilidinin TAMAMEN kaldırılması, saat
+  manipülasyonu TASARLANDI ama koda YAZILMADI) üçü hafif (Pro Plus
+  geri bildirim ayarı düzeltmesi, can bitişinde çift/üçlü mesajın teke
+  indirilmesi, dosya format listesi/buton metninin tek kaynaktan
+  türetilmesi) düzeltildi. npm test 1250/1250, düşmedi.
+- **Bu turda (DURUM.md temizliği):** BEKLEYEN KARARLAR'daki 8, AÇIK
+  İŞLER'deki 10 çözülmüş madde fiziksel olarak silindi (bilgi BİTTİ'de
+  kalıcı duruyor); G90-G127 arası tekil cihaz-turu kayıtları
+  `GECMIS-SIRADAKI.md`'ye taşındı; saat manipülasyonu için mimari yön
+  SUNUCU ZAMANI olarak kararlaştırıldı (reklam entegrasyonuyla birlikte
+  ayrı bir işte yapılacak, bkz. BEKLEYEN KARARLAR D); rozet seti kararı
+  (BEKLEYEN KARARLAR C) hâlâ bilinçli olarak açık bırakıldı. Kod
+  DEĞİŞMEDİ, sadece DURUM.md düzenlendi.
+
+**Şu an bilinen en büyük açık iş:** hiçbir G136-G164 değişikliği GERÇEK
+cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
+temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
+
 ## BİTTİ
 
 G162 (SADECE DENETİM, kod YAZILMADI) — **Kapsamlı denetim: "Sınırsız"/"Pro Plus"
@@ -163,11 +205,12 @@ Android/iOS native dosyalar.
 **npm test:** 1250/1250 (değişmedi — `paywall.test.mjs`'in 2 testi
 GÜNCELLENDİ, sayı düşmedi).
 
-**SIRADAKİ (bu oturumun kendi kararı bekleyen tek maddesi):** saat
-manipülasyonu düzeltmesinin (`reconcileClock`, `www/js/core/trusted-clock.js`
-YENİ dosya + `storage.js`'e opsiyonel `now` parametreleri) uygulanıp
-uygulanmayacağı — tasarım kullanıcıya sunuldu, onay/tolerans-değeri
-netleşince kodlanacak.
+**GÜNCELLEME (aynı gün, DURUM.md temizliği sırasında):** yukarıdaki
+`performance.now()`-tabanlı `reconcileClock` önerisi kullanıcı tarafından
+ONAYLANMADI — YERİNE mimari yön SUNUCU ZAMANI olarak kararlaştırıldı (bkz.
+BEKLEYEN KARARLAR madde D). Bu client-side tasarım artık GEÇERSİZ/YERİNE
+GEÇİLDİ, uygulanmayacak — kod hâlâ yazılmadı, gelecekte reklam
+entegrasyonuyla BİRLİKTE server-time mimarisiyle yapılacak.
 
 G161 — **Araçlar / Tonal Balance: A/B düğmelerinin görsel durumu netleşti + kart "i" bilgilendirmesi eklendi.**
 
@@ -12199,15 +12242,6 @@ güncellenmemiş) — aşağıda işaretlendi.
 
 ### Bug'lar
 
-**1. ~~Geri bildirim kartı ilk saniyelerde alt bar'ın altında~~ — D1'de düzeltildi, `a1c837a`**
-Üç kez ölçüm-tabanlı çözüm denenmiş, tutmamıştı. D1'de mimari değişti: padding
-yerine CSS `--actionbar-h` değişkeninden margin-bottom (`styles.css:51`) —
-ölçüme hiç bağlı değil, ilk boyamadan itibaren doğru; kod hâlâ bu şekilde
-(doğrulandı). Aynı turda şıklı cevap modundaki 4-6 şıklık grid'in altbar
-arkasında kalması da (aynı kökten) düzeltildi. Simülatör/cihazda gerçek
-render henüz KONTROL EDİLMEDİ — sadece masaüstü Chrome'da gerçek DOM
-ölçümüyle doğrulandı (bkz. commit mesajı).
-
 **2. Pause sonrası ilk play'de duraksama — TEŞHİS ARTIK GEÇERSİZ, YENİDEN test edilmeli**
 Orijinal not "canplay/waiting event'leri, preload ayarı" bakılmasını
 öneriyordu — bu, o zamanki HTMLAudioElement tabanlı çalma yoluna aitti.
@@ -12236,73 +12270,11 @@ bulgu güçlü ama "temiz localStorage'da can göstergesi gerçekten 5 ile açı
 iddiası henüz gözle görülmedi.
 **Kabul kriteri:** temiz `localStorage` ile açılışta can = tanımlı başlangıç değeri (canlı doğrulanmalı)
 
-**4. ~~`loseLife()` zengin geri bildirimi eziyor~~ — F1'de düzeltildi, `a377d80`**
-Yanlış cevapta artık TEK kartta hem "Kalan can: N" hem doğru frekans/bölge bilgisi
-görünüyor (`appendFreqInfoNote`). Aynı kökten (feedbackBox + freqInfo aynı anda
-görünür kalması) doğru cevap tarafındaki DUPLIKE kart bug'ı da düzeldi.
-
 ### Eksik özellikler
-
-**10. ~~Gerçek ses dosyaları (DAVUL/ENSTRÜMAN) katalogda tanımlı ama dosyaların kendisi yok~~ — TAMAMEN KAPANDI**
-G4 ile `source-catalog.js`'e 9 `kind:"sample"` girdisi eklendi, G5 ile
-uzantı `.m4a`'ya çevrildi, G6 ile yükleme yolu değişti. **Bu turda `git
-ls-files www/audio/` ile doğrulandı: 9 m4a dosyası artık TAKİPLİ** (en son
-`1c86464` / G51'de commit'lenmiş) — önceki notun "henüz git'e commit'lenmedi"
-iddiası STALE, kalan tek adım da kapanmış. iOS cihazda gerçek doğrulama
-(HTTP 0'ın kalkması) hâlâ kullanıcıda.
-
-**5. ~~A/B Test gerçek bypass değil~~ — bir kullanıcı raporuyla birlikte düzeltildi, bkz. BİTTİ**
-Kullanıcı (14 yıllık müzik prodüktörü) A/B döngüsünde pitch kayması bildirdi
-("44.100'den 48.000 olmuş gibi"). Teşhis: konsol düzeyinde (audioCtx.sampleRate/
-audioEl.playbackRate, 44 ölçüm, eşleşen+uyuşmayan sample rate'ler, upload+sentetik)
-hiçbir fark kanıtlanamadı — ama A/B döngüsünün her 2sn'de bir CANLI ÇALAN
-uploadedMediaSource'u (MediaElementAudioSourceNode) disconnect/reconnect ettiği
-kod incelemesiyle doğrulandı; bu WebKit'te JS'ten hiç gözlemlenemeyen bir motor
-davranışı olabilir. Kullanıcı onayıyla asıl mimari eksiklik (bu madde) çözüldü:
-artık paralel kuru/işlenmiş yol + gain crossfade (`audioEngine.setProcessed`) var,
-`buildQuestionChain` A/B toggle'ında BİR DAHA hiç çağrılmıyor.
-
-**6. ~~Kalibrasyon — sarı seviye çizgisi dokunmatik olmalı~~ — ÇOKTAN kodlanmış, STALE madde**
-`app.js:4789-4801`: `calLevelTrack` üzerinde `pointerdown`/`pointermove`/
-`pointerup`/`pointercancel` ile sürükleme kodlanmış (Pointer Events, mouse+touch
-+kalemi TEK API'de birleştirir). `git log -S"calLevelTrack"` bu kodun proje
-tarihindeki EN İLK commit'ten (`f0e144a`) beri var olduğunu gösteriyor — yani
-bu madde muhtemelen dosyaya hiç güncel kalmadan miras kalmış. Gerçek dokunmatik
-cihazda son doğrulama bu oturumdan yapılamadı (tarayıcı eklentisi bağlı değildi)
-ama kod açıkça touch-uyumlu bir API kullanıyor.
-
-**7. ~~Odak aralığı özelliği kodda yok~~ — M1-4'te eklendi, `5c608f4`; "öneri kartı" notu da G58 ile KAPANDI**
-Önceki not "seans sonu ekranındaki öneri kartı (resSug) HÂLÂ eklenmedi"
-diyordu — `resSug` id'si kod tabanında artık hiç yok. Bunun yerine G58
-(`250c622`) ana menüye `dailyTipCard`/`dailyTipStartBtn` ekledi: en zayıf
-bölgeyi `zoneScores()`'tan okuyup tek cümlelik öneri gösteriyor, "Başla"
-butonu GERÇEK `challenge.total` sorudan oluşan bir set başlatıyor
-(`app.js:1726-1738`, `renderDailyTip`). Konum "seans sonu" değil "ana menü"
-ama işlevsel istek (zayıf bölgeye odaklı öneri + gerçek başlat butonu)
-karşılanmış görünüyor — madde kapatıldı.
 
 **8. İlerleme sekmesi prototiple örtüşmüyor**
 Bölümler var, düzen farklı. `Dizayn/prototype.html` referans. Bu turda
 yeniden gözden geçirilmedi (kapsam dışı bırakıldı) — hâlâ açık kabul ediliyor.
-
-**12. "Geri bildirim ekranı" ayarı Pro Plus zorluğunda etkisiz**
-Kod okunarak DOĞRULANDI, hâlâ true: `submitProPlusGuess` (`app.js:2735`)
-`mode.showProPlusInfoPanel`'i KOŞULSUZ çağırıyor ve `scheduleNext(result.correct
-? 4000 : 6000)`'ı (`app.js:2810`) `prefs.feedbackScreen` kontrolü OLMADAN
-çalıştırıyor — diğer tüm submit fonksiyonlarındaki `prefs.feedbackScreen ?
-(...) : QUICK_ADVANCE_MS` deseni burada YOK. Kullanıcı Pro Plus'ta ayarı
-kapatırsa panel yine de açılır.
-**Kabul kriteri:** Pro Plus'ta cevap verilince, ayar kapalıyken de panel
-açılmadan hızlı ilerleniyor, `revealAnimator` animasyonu düzgün tamamlanıyor
-(yarıda kesilmiyor).
-
-**13. ~~Uzun yüklenen dosyada karşılaştırma sonrası otomatik geçiş hâlâ çok geç gelebilir~~ — G15'te KAPANDI, `77278b8`**
-Kök sebep (`loopAwarePreviewMs`'in geçiş beklemesini kaynağın TAM DÖNGÜ
-uzunluğuna yuvarlaması) çözüldü — fonksiyon tamamen kaldırıldı, geçiş
-beklemesi artık kaynak uzunluğundan bağımsız sabit `CMP_PREVIEW_RESUME_MS`
-(3000ms). Bu mekanizma artık Kompresör'e özgü değil — G35'ten beri
-`three-way-cards.js` üzerinden Reverb/Distortion'ın önizlemesi de AYNI yolu
-kullanıyor (paylaşılan altyapı, ayrı ayrı yeniden yazılmadı).
 
 **11. AÇIK ÖZELLİK — Odaklı pratik modu**
 Kullanıcı raporu (G9 teşhisi, kod değişikliği YAPILMADI — bkz. BİTTİ):
@@ -12369,21 +12341,6 @@ Safari/Xcode konsolunda GERÇEKTEN beklenen sırada çıkıyor mu.
 elle denenip doğrulandı, taslak metinler (`MODE_GUIDE_TEXTS`,
 `MODE_OPTIONS_TEXTS`, `SPOTLIGHT_STEPS`) kullanıcı tarafından gözden
 geçirilip gerekiyorsa `guide-texts.js`'te düzeltildi.
-
-**15. ~~G74 — Ana Menü'nün "Sv" rozeti ile İlerleme sekmesinin rozeti artık
-FARKLI sayı gösteriyor~~ — G75'te KAPANDI**
-`updateUI()`'da İlerleme'nin `#progLevelValue`/`#progXpText`/`#progXpBar`/
-`#progNextLevelText` ARTIK Ana Menü'yle AYNI kaynağı (`progress.
-academyXpProgress(academyTotalXp(...))`) okuyor — canlı doğrulandı, ikisi
-de taze kullanıcıda "1" / "0/600 XP" (bkz. BİTTİ G75).
-
-**16. ~~G78 — Frekans Bulma'da cevap sonrası dikey kayma (201px) hâlâ var~~ — G81'de KAPANDI**
-Kök sebep `#freqInfo`'nun `display:none` (`.hidden` class'ı) ile aç/
-kapanmasıydı. G81'de Frekans Bulma'nın "frequency" sorusu `#feedbackBox`'a
-taşındı (G58'in visibility+min-height mekanizmasını zaten taşıyan yüzey) —
-canlı ölçüldü, kayma **0px** (bkz. BİTTİ G81 tablosu). `#freqInfo`'nun
-KENDİSİ hâlâ var ama SADECE Pro Plus kullanıyor artık (o akış bu maddenin
-kapsamı DIŞINDA, hiç şikayet konusu değildi).
 
 **17. G78 — Tonal Denge'nin kaydırıcıları tasarımdaki gibi DİKEY DEĞİL**
 Tasarım (Tasarim-2026-08/Prototip.dc.html) sürükle-bırak DİKEY fader
@@ -12458,69 +12415,7 @@ kanal) + mono K-weighting için 2 biquad, örnek başına — bkz. BİTTİ'nin
 kullanıcı bu artışı kabul edilebilir bulmuyorsa bant sayısı azaltılmalı ya
 da daha ucuz bir filtre yöntemine geçilmeli.
 
-### Yayın öncesi
-
-**9. ~~Logo / uygulama ikonu yapılmadı~~ — STALE, zaten yapılmış**
-`resources/icon.png` (1254×1254) ve `resources/splash.png` (2732×2732)
-gerçek, tasarlanmış bir marka logosu içeriyor (kulaklık+spektrum çubukları+
-dalga formu, "Audio Engineer Academy" yazısıyla — bu turda görsel olarak
-açılıp doğrulandı) — placeholder DEĞİL. `git log` bu dosyaların projenin EN
-İLK commit'lerinden (`9230d8e`) beri var olduğunu gösteriyor; `android/app/
-src/main/res/drawable-*/splash.png` altında platforma özel boyutlar da
-ÜRETİLMİŞ. Madde muhtemelen dosyaya hiç güncel kalmadan miras kalmış,
-kapatıldı.
-
 ## BEKLEYEN KARARLAR
-
-**U. ~~G151 — Spotlight "listen" hedefi Motor 2'de `els.analyzer`e (gizli) çözülüyor, delik efekti çalışmıyor~~ — G152'de ÇÖZÜLDÜ**
-Kök neden G151'de KANITLANDI (bkz. BİTTİ G151, madde 1): `resolveSpotlightTarget()`'ın
-`"listen"` dalı Kompresör/Reverb/Distortion'da (`HIDE_ANALYZER:true`)
-gizli/0×0 `els.analyzer`'ı döndürüyor — G86'da `"select"`/`"confirm"`
-dalları M2'ye göre düzeltilmiş ama `"listen"` UNUTULMUŞ, o zamandan beri
-regresyon. Önerilen düzeltme (kod YAZILMADI, onay bekliyor): `"listen"`
-dalı da `isChoiceFormat() ? els.answers : els.analyzer` desenine (aynı
-fonksiyonun `"select"`/`"confirm"` dallarıyla AYNI) geçsin — M2'de artık
-kartların TAMAMINI (ya da ilk kartı) kapsayan bir delik gösterir, metin
-("Üç sesi (A/B/C) dinle") zaten kartlara işaret ediyor, tutarlı olur.
-Karar: bu düzeltme uygulansın mı, yoksa farklı bir hedef mi (ör. sadece
-A kartı) tercih edilsin?
-
-**T. ~~G149 — Frekans Bulma Şıklı modda 3. şık kaydırmadan sığmıyor (35px)~~ — G150'de seçenek 1 ile ÇÖZÜLDÜ**
-Kök neden ölçümle kanıtlandı (bkz. BİTTİ G149): `.game-scroll`'un
-`margin-bottom`'u SABİT `--actionbar-h:168px` — actionbar'ın GERÇEK anlık
-yüksekliğine (Dokunmalı 124px / Şıklı 81px, ikisi de ölçüldü) göre
-DEĞİŞMİYOR, bu yüzden `#freqGuessArea`'yı gizlemek görünür alanı
-BÜYÜTMÜYOR. Şıklı moddaki içerik (başlık+3 şıklık grid) `clientHeight`'ı
-35px aşıyor, kaydırmadan sığmıyor — kullanıcının cihazda gördüğü "kesilme"
-muhtemelen bu (kaydırılabilir ama scrollTop=0'da kesik görünüyor).
-Üç seçenek:
-1. **Statik "kompakt" ikinci sabit** — `--actionbar-h-compact` gibi YENİ
-   bir CSS değişkeni (81px ölçüldü + güvenlik payı, ör. ~92-100px),
-   `#freqGuessArea` boşken (JS'te zaten bilinen bir durum) `.game-scroll`a
-   ayrı bir sınıf üzerinden uygulanır. `--actionbar-h`'ın KENDİSİ
-   DEĞİŞMEZ (G73 kuralı korunur), SADECE koşullu bir İKİNCİ sabit eklenir.
-   `.actionbar-tucked` (E3) TAM OLARAK aynı deseni zaten kullanıyor — riski
-   düşük ama yine de "boşluk küçültme" kategorisinde, kullanıcı onayı
-   istendi.
-2. **Hiçbir şey yapma, kaydırmaya güven** — `.game-scroll` zaten
-   `overflow-y:auto`, 3. şık BİR kaydırmayla görünür. Sorun sadece
-   keşfedilebilirlik (kullanıcı kaydırması gerektiğini bilmiyor).
-3. **Cihazda GERÇEKTEN kesiliyor mu yoksa sadece kaydırma mı gerekiyor
-   netleştir** — kullanıcı cihazda bir kez aşağı kaydırıp 3. şıkkın ORADA
-   olup olmadığını doğrulasın; eğer kaydırınca görünüyorsa bu bir
-   keşfedilebilirlik sorunu (seçenek 2 yeterli olabilir), hiç
-   görünmüyorsa gerçek bir taşma (seçenek 1 gerekir).
-Kullanıcı G150'de seçenek 1'i (statik ikinci sabit) onayladı, uygulandı —
-`--actionbar-h-compact:92px` + `.actionbar-compact` sınıfı, Playwright'te
-12 modun 11'inde TAM doğrulandı (Stereo Genişlik kod-kimliğiyle dolaylı —
-bkz. BİTTİ G150). Cihazda HENÜZ kurulmadı.
-
-**S. ~~G144 — Frekans Bulma'nın çip satırı tek satıra nasıl indirilsin?~~ — G147'de ÇÖZÜLDÜ**
-Kullanıcı Zorluk çipinin (G145/G146'nın "sadece gösterge, gereksiz" bulgusuyla)
-TAMAMEN kaldırılmasına + "Kaynak: "/"Odak: " öneklerinin kaldırılmasına
-karar verdi (seçenek 2'nin bir üst kümesi) — 4 çipten 3'e indi VE önekler
-kalktı, Playwright'ta doğrulandı: Frekans Bulma artık 44px'de TEK SATIR
-(bkz. BİTTİ G147). font-size/padding küçültme (seçenek 3) GEREKMEDİ.
 
 **R. G142 — Stereo Genişlik'in "her zaman upload" varsayılanı — istisna kabul mü, yeni mühendislik mi?**
 Kullanıcı G141 sonrası "temiz kurulumda kaynak upload seçili geliyor,
@@ -12564,15 +12459,6 @@ Bkz. AÇIK İŞLER madde 21. Daha dik filtre işlem maliyetini ARTIRIR (madde
 N'yle çelişen bir yönde) — kullanıcı önce "doğruluk mu, hız mı" önceliğini
 netleştirmeli.
 
-**L. ~~G101 — "Dosyalarım" kalıcı (IndexedDB) mı, oturum-kapsamlı mı kalsın?~~
-— ÇÖZÜLDÜ, G102: kalıcı yapıldı**
-Kullanıcı kararı: dosyalar kalıcı. `core/file-storage.js` (native Capacitor
-Filesystem + web IndexedDB) + localStorage manifest ile uygulandı, en fazla
-5 dosya + en-eski-önce tahliye + tek seferlik bütünlük kontrolü dahil (bkz.
-BİTTİ). **Native taraf (iOS/Android) hâlâ gerçek cihazda doğrulanmadı** —
-`npx cap sync` sonrası bir sonraki oturumda kontrol edilmeli, tek açık kalan
-uç bu.
-
 **M. G101 — "Referans Filtreleri"nin GERÇEK DSP'si ne zaman eklenecek?**
 Filtre seçmek hâlâ sesi DEĞİŞTİRMİYOR (sadece hangi cihazın simüle edildiğini
 gösteriyor) — bu G53'ten beri KASITLI bir kapsam sınırı, bu turda da
@@ -12585,69 +12471,27 @@ kullanıcı önceliklendirirse ayrı bir tur — her filtrenin `range` metnindek
 frekans aralığına karşılık gelen bir EQ eğrisi (BiquadFilterNode zinciri)
 gerekir.
 
-**(Kaynak koda karşı doğrulandı, G59 sonrası.)** Karar **A** bu turda kod incelemesiyle
-zaten KODLANMIŞ bulundu (aşağıda) — DURUM.md hiç güncellenmemiş. Diğer
-maddeler tek tek yeniden `grep`'lendi; hâlâ hepsi gerçek, açık kararlar.
+**C. Rozet sayısı ve seti — HÂLÂ AÇIK (G163 sonrası doğrulandı)**
+`progress.js:82-90`: kod hâlâ TAM 9 rozet tanımlıyor (first_blood/combo_5/
+combo_10/round_25/round_100/accuracy_70/level_5/pro_clear/boss_win), anlık
+eşik felsefesiyle. TASARIM.md'de 6 kavram, süreklilik/ustalık felsefesiyle —
+isimler örtüşmüyor. Rozetlerin şu an bir işlevi/ödülü YOK, sadece liste
+olarak görünüyor. Kullanıcı kararı: **karar bilinçli olarak ertelendi**
+("yarına bırakıldı") — hangi setin kalacağı (6, 9, birleşim) ve
+rozetlere işlev/ödül eklenip eklenmeyeceği ürün kararı, kodlanmadı.
 
-**A. ~~Kart metni tek kaynağa inecek mi?~~ — ÇOKTAN kodlanmış, STALE madde**
-`app.js:renderModeGrid` (satır 1507) kendi yorumunda AÇIKÇA söylüyor:
-"Kart başlığı/açıklaması YALNIZCA katalogdan okunur — getMeta() artık bunları
-döndürmüyor". `frekans-bulma.js:278-280`'in kendi yorumu da aynı kararı
-doğruluyor: `getMeta()` artık SADECE oyun-mantığı meta'sını (id/motor/
-kulaklikGerekli/vb.) döndürüyor, ad/aciklama YOK. Öneri zaten uygulanmış —
-katalog tek görüntü kaynağı. Bu madde kapatıldı.
-
-**B. ~~Kilit tipleri~~ — "seviye yetersiz" dalı G163'te TAMAMEN KALDIRILDI**
-Üç ayrı durum tek state'e sıkışmıştı: (1) henüz kodlanmadı, (2) seviye yetersiz,
-(3) Pro gerektiriyor. Kullanıcı kararı (G163): "Pro alan kullanıcı seviye ile
-uğraşmasın" — `paywall.meetsLevelRequirement()` artık koşulsuz `true` dönüyor,
-(2) durumu tamamen ORTADAN KALKTI. Geriye (1) "Yakında" (henüz kodlanmayan
-2 mod, ayrı `renderComingGrid()`) ve (3) "Pro gerekiyor" (paywall ekranı) kaldı
-— bu ikisi ZATEN farklı, kendi içinde tutarlı UI'lara sahip (bkz. G162'nin
-denetim bulgusu), AYRIŞTIRMA sorunu sadece (2)'nin silinmesiyle kendiliğinden
-küçüldü. `unlockLevel` alanları mode-catalog.js'te SİLİNMEDİ (ileride geri
-açılabilsin) ama artık hiçbir yerde OKUNMUYOR.
-Katalog artık (G59 sonrası) **14 giriş** — `mode-catalog.js`'ten sayıldı:
-**5'i `tier:"free"`** (Frekans Bulma/Kesim Noktası/Q Genişliği/Boost mu Cut
-mu/Hız Modu — sonuncusu henüz `playable:false`), **9'u `tier:"pro"`** (dB
-Seviyesi/Stereo Genişlik/Pan Konumu/Hangisi Farklı/Kompresör/Reverb/Tonal
-Denge/Distortion/Frekans Çakışması — dördü henüz `playable:false`).
-Mevcut `unlockLevel` değerleri kullanıcı tarafından hâlâ belirlenmedi.
-**Kısmen ilerledi (Z3):** "seviye" kilidi HANGİ seviye sayısına bakacak sorusu
-karara bağlandı (akademi/toplam seviyesi — `progress.academyLevel()`) ve KODLANDI
-(`app.js` renderModeGrid, `meetsLevel` kontrolü). Ama bu, üç durumun (kodlanmadı/
-seviye-yetersiz/Pro) UI'da AYRIŞTIRILMASI sorununu ÇÖZMEDİ. Bu madde AÇIK kalıyor.
-**G17 ile SOMUTLAŞMIŞTI, artık ON kat daha somut:** "yeni bir mod eklenince
-academyLevel otomatik yükselip önceki kilitleri de açabiliyor" ödünü — G59
-itibarıyla ON oynanabilir mod var, altısı zaten `tier:"pro"` zincirinde
-(unlockLevel 6→12→14→15→16→20) — her yeni mod kaydı bu zinciri YİNE
-etkileyebilir. Karar hâlâ verilmedi: davranış kabul mü, yoksa academyLevel
-formülü (ya da unlockLevel değerleri) yeniden mi tasarlanmalı?
-
-**C. Rozet sayısı ve seti**
-`progress.js:82-90`'da bu turda sayıldı: kod hâlâ TAM 9 rozet tanımlıyor
-(first_blood/combo_5/combo_10/round_25/round_100/accuracy_70/level_5/
-pro_clear/boss_win), değişmemiş. TASARIM.md'de tasarımda 6 rozet olduğu ve
-isimlerin örtüşmediği kayıtlı (bu turda TASARIM.md yeniden okunmadı, kod
-tarafı doğrulandı). Hangi setin kalacağı (6, 9, yoksa birleşim mi) ürün
-kararı — kodlanmadı.
-
-**D. Can dolumu**
-`www/js/core/storage.js:129` (satır numarası kaydırıldı, önceki not `:91`
-diyordu — güncellendi) — uygulama yeniden açıldığında can 0 ise otomatik
-`TOTAL_LIVES`'a (5) çekiliyor (bilinçli ödün, seans içinde dolum YOK, bkz.
-AÇIK İŞLER madde 3). Gerçek bir "30 dakikada dolum" mekanizması hâlâ kodda
-yok (`grep` ile yeniden doğrulandı — kod tabanında dakika-bazlı bir dolum
-zamanlayıcısı yok). Gerçek dolum özelliği ayrı bir iş.
-
-**E. ~~Seviye → hassasiyet formülü (lvlSheet için gerekli)~~ — Z1/Z6 ile çözüldü**
-`core/difficulty-curve.js: difficultyParams(level)` artık SÜREKLİ (logaritmik)
-bir formülle her seviye için gainDb/Q/tolerans/süre üretiyor; `lvlSheet` (Z6)
-bunu GERÇEKTEN okuyor (`app.js:renderLevelSheet`, bu turda da doğrulandı —
-bkz. SIRADAKİ madde 3, ama o maddenin açık kaldığı nokta FARKLI: dilin TEK bir
-mod diline kilitli olması, formülün kendisi değil). Buradaki sayısal değerler
-(GAIN_DB_AT_LEVEL_1/CAP, Q_AT_LEVEL_1/CAP vb.) OTOMATİK/varsayılan seçildi,
-kulakla hâlâ doğrulanmadı (bkz. SIRADAKİ madde 1).
+**D. Can dolumu — YÖN KARARLAŞTIRILDI (saat manipülasyonu ile birlikte), henüz kodlanmadı**
+Eski not stale idi ("kodda yok" G61 öncesine ait bir varsayımdı, o zamandan
+beri `storage.js:129`'daki yeniden-açılışta 0→5 çekme ödünü zaten vardı).
+Kullanıcı kararı (bu turda netleşti): reklam entegrasyonu geldiğinde
+ücretsiz sürümde internet BAĞLANTISI ZORUNLU olacak, can dolumu SUNUCU
+ZAMANINA dayanacak (client `Date.now()`/`performance.now()` ile DEĞİL).
+İnternet yokken dolum DURUR ama geçen süre KAYBOLMAZ — bağlantı gelince son
+doğrulanmış sunucu zamanıyla fark hesaplanıp TOPLU dolum yapılır. Pro
+çevrimdışı çalışmaya devam eder — Pro'da can sistemi olmadığı için bu, hile
+yüzeyi de açmaz. Bu, aynı zamanda saat manipülasyonu açığının (ileri/geri
+alma) kalıcı çözümü — bkz. AÇIK İŞLER'deki ilgili not. **Uygulama AYRI bir
+işte, reklam entegrasyon zinciriyle BİRLİKTE yapılacak** — şimdi kodlanmayacak.
 
 **F. "Tekrar Çal" butonu kapsamı**
 Sentetik kaynaklarda (gürültü/synth) anlamsız — sürekli sinyaller, "başı" yok.
@@ -12659,14 +12503,6 @@ DEĞİL. `uploadManager.startFromZero` hâlâ sadece tur/seans başında çağr�
 (`app.js:3178-3184`). Karar gereken: sadece upload kaynağında görünen küçük
 bir "baştan çal" ikonu mı eklensin, yoksa madde tamamen atlansın mı?
 
-**G. ~~Otomatik zorluk modu~~ — Z5/Z7 ile çözüldü**
-"Otomatik" artık gerçek: `applyAutoDifficulty()` (app.js) her round başında
-Z1+Z3'ten türetilen zorluğu uyguluyor, `autoDiffAsk` (Z7) prototipteki gibi
-DOKUNMA-tetiklemeli. KAPSAM SINIRI (bkz. Z5 commit mesajı): Z1'in TAM sürekli
-eğrisi değil, `tierForLevel()` köprüsüyle en yakın isimli kademe (easy/medium/
-hard/pro) kullanılıyor — evaluateAnswer'ın sabit tolerans sınırını parametrik
-hale getirmek AYRI bir iş.
-
 **H. Dar odak aralığında Pro Plus bant sayısı**
 M1-4 ile gelen odak aralığı (Bas/Orta ~2.3 oktav) Pro Plus'ın istediği 4 ayrık
 bandı (gereken ~2.7 oktav) her zaman sığdıramıyor. `test/frekans-bulma.test.mjs:
@@ -12677,47 +12513,21 @@ rakamı önceki bir oturumun canlı ölçümüydü, bu turda yeniden ölçülmed
 mekanizma değişmemiş, karar hâlâ açık: Pro Plus dar odakta kısıtlansın mı (o
 kombinasyon seçilemesin), yoksa az bantla mı devam etsin?
 
-**J. ~~G75 — ACADEMY_XP_MULTIPLIER (=5, taslak) Pro seviye kilidinin (madde B)
-açılma hızını da yavaşlattı~~ — G163'te KENDİLİĞİNDEN KAPANDI**
-Madde B'deki seviye kilidi G163'te TAMAMEN kaldırıldığı için (`meetsLevelRequirement()`
-artık koşulsuz `true`), bu maddenin sorduğu "çarpan mı düşürülsün, unlockLevel mi
-yeniden ayarlansın" sorusu ANLAMSIZLAŞTI — kilit yok, hızının bir önemi kalmadı.
-Aşağıdaki eski analiz sadece TARİHSEL referans için tutuluyor:
-`academyLevel()` artık TOPLAM XP'den, mod eğrisinden 5 kat yavaş bir
-eğriyle hesaplanıyor (bkz. BİTTİ G75) — AYNI fonksiyon `paywall.
-meetsLevelRequirement`'ın Pro seviye kilidinde (`unlockLevel`, madde B'nin
-konusu) de kullanılıyor. Örnek: `unlockLevel:20` (frekans-cakismasi) artık
-TOPLAM ~142.500 XP gerektiriyor (5×xpNeeded'in kümülatif toplamı,
-seviye 20'ye kadar) — eski "sum of levels" ölçeğinde çok daha kolay
-erişilen bir eşikti. Bu YAVAŞLAMA task'ın G75 isteğinin (Sv rozetinin
-DOĞRU görünmesi) DOĞAL bir yan etkisi ama AYRI bir ürün kararı: çarpan
-(5) düşürülsün mü, yoksa `unlockLevel` değerleri (madde B'nin KENDİ konusu,
-zaten "hâlâ belirlenmedi" diyor) yeni ölçeğe göre YENİDEN mi ayarlansın?
-Bugün SADECE Pro kullanıcıları etkiliyor (G62: ücretsizde kilit hiç
-tetiklenmiyor).
-
-**I. İsimlendirme tutarsızlıkları (D6 denetimi — düzeltilmedi, sadece raporlandı)**
-Beşi de bu turda `grep` ile TEK TEK yeniden doğrulandı, hepsi hâlâ true:
-1. Zorluk `proplus` değeri iki yerde iki farklı isimle: `index.html:272`
-   "Pro Plus (Çok Bantlı)", `index.html:885` (`data-diff="proplus"`)
-   "Sınırsız" / "Sınırını kendin ara". Aynı seçenek, iki ayrı kavram.
-2. Can bitişi iki farklı başlıkla art arda gösteriliyor: `loseLife()` içindeki
-   feedback+toast (`app.js:942-943`) "Oyun bitti" diyor, hemen ardından açılan
-   seans-sonu tam ekranı (`app.js:992`) "CANLARIN BİTTİ" diyor.
-3. Desteklenen ses formatları tutarsız anlatılıyor: `validateAudioFile`'ın
-   (`upload.js:75`) kendi hata mesajı `ALLOWED_AUDIO_EXTENSIONS`'tan 7 formatı
-   doğru listeliyor (wav/mp3/m4a/aac/aiff/flac/ogg), ama `app.js:3036/3623/3658`
-   "Ses oynatılamadı"/"Yükleme hatası" mesajları sadece "mp3/wav" öneriyor,
-   `upload.js:139`'daki AYRI bir mesaj ise "mp3/wav/m4a" diyor — üç farklı liste.
+**I. İsimlendirme tutarsızlıkları (D6 denetimi — kısmen çözüldü)**
+Beş madde G162'de raporlanmıştı; ilk üçü G163/G164'te çözüldü, kalan ikisi açık:
+1. ~~Zorluk `proplus` değeri iki yerde iki farklı isimle~~ — G163'te "Pro Plus"
+   olarak birleştirildi (`data-diff="proplus"` değeri değişmedi).
+2. ~~Can bitişinde çift mesaj~~ — G164'te çözüldü, tek mesaj (Seans Sonu ekranı) kaldı.
+3. ~~Desteklenen ses formatları üç farklı listede tutarsız anlatılıyordu~~ — G164'te
+   `ALLOWED_AUDIO_EXTENSIONS`'tan türetilen tek kaynağa (`SHORT_AUDIO_FORMAT_LIST`/
+   `FULL_AUDIO_FORMAT_LIST`) indirgendi.
 4. Paywall'daki `index.html:717/731` "Seans başına 5 soru" (Ücretsiz) /
    "Seans başına 10 soru" (Pro) iddiası kodda YOK — `grep` ile doğrulandı,
    `roundsInThisPlaySession`/`isUserPro()` etrafında böyle bir sayaç/limit yok;
    `10 Soruluk Bölüm` (challenge) Pro'ya bağlı değil, herkes seçebiliyor.
-5. "Ses dosyası yükle" (`index.html:337`, Oyun Ayarları) / "Dosya yükle"
-   (`index.html:523`, `toolsUploadBtn`, Araçlar) — aynı eylem için iki farklı
-   buton metni.
-Hangisinin düzeltileceği/nasıl birleştirileceği ürün kararı — kod tarafında
-hazır, sadece onay bekliyor.
+5. "Ses dosyası yükle" / "Dosya yükle" ayrımı G164'te "Dosya Seç"e birleştirildi,
+   ancak paywall'daki madde 4 hâlâ açık — kod tarafında hazır değil, ürün kararı
+   bekliyor (sayaç eklensin mi, yoksa vaat mi düzeltilsin).
 
 **K. G82 — Pro kullanıcı için "done" (kayıpsız 10 Soruluk Bölüm) Seans Sonu
 durumu HİÇ tetiklenemiyor, kasıtlı mı?**
@@ -12744,13 +12554,6 @@ ekranı yerine YA sınav-geçti kutlama sheet'i YA "parkur baştan" görüyor.
 olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 "done" canlı yeniden denenir.
 
-**L. ~~G120 — Stereo Genişlik'in kaynak listesi daraltıldı, gözden geçirilmeli mi?~~ — G122'de ÇÖZÜLDÜ, `30b073c`**
-Kullanıcı kararıyla yön TAMAMEN değişti: mod artık SADECE upload'la
-oynanıyor (sentetik kaynaklar TAMAMEN çıkarıldı, "kapsam farkı" tartışması
-kendiliğinden ortadan kalktı — Stereo Genişlik ile Pan Konumu artık ZATEN
-farklı kaynak felsefeleri taşıyor: biri gerçek mix, diğeri herhangi bir
-kaynak). Bkz. BİTTİ G122.
-
 **N. G122 — mid/side genişlik tekniği GERÇEK bir mix'te kulakla
 DOĞRULANMADI**
 Sayısal kanıt (korelasyon/cepstrum) SENTETİK bir test sinyaliyle üretildi,
@@ -12763,11 +12566,6 @@ yükleyip tüm genişlik kademelerini (özellikle %0 ve %100 uçlarını)
 kulaklıkla dinleyip "doğru hissettiriyor mu" diye onaylar; enerji-eşiği
 sabitleri gerekirse (ör. sürekli sessiz bir bölüme denk geliyorsa) revize
 edilir.
-
-**M. ~~G120 — Yatay yön (landscape) kilidi önerisi~~ — G121'de UYGULANDI, `ab6740f`**
-Kullanıcı onayladı, Info.plist + AndroidManifest.xml değişti (bkz. BİTTİ
-G121). **Cihazda GERÇEK döndürme ile HENÜZ doğrulanmadı** — bu tek kalan
-adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## İLERİ SÜRÜM FİKİRLERİ
 
@@ -12916,6 +12714,15 @@ Başarısızsa Safari Web Inspector'daki `[audio-diag]` günlüğü (ses
 senaryoları için) hangi dalın tetiklendiğini gösterecek — bir sonraki
 turun teşhis başlangıç noktası bu olmalı.
 
+**GÜNCELLEME (G163/G164 itibarıyla):** yukarıdaki G136-G148 checklist'i
+HÂLÂ geçerli — aradan geçen G149-G164 turları sadece masaüstünde/Playwright'ta
+doğrulandı, kod DEĞİŞMEDEN cihaz doğrulaması bekleyen madde sayısı azalmadı.
+Aynı zamanda bir sonraki `cap sync`+temiz derleme+cihaz turunda G163/G164'ün
+kendi değişiklikleri de (Pro Plus'ta seviye kilidi kalkması, Pro Plus geri
+bildirim ayarının artık çalışması, can bitişinde tek mesaj, "Dosya Seç"
+buton metinleri) gözle doğrulanmalı — hepsi masaüstü Chrome'da Playwright ile
+doğrulandı (bkz. BİTTİ), cihazda HENÜZ denenmedi.
+
 **Ayrıca (G127'den, hâlâ açık):** "Kendi Referansım"
 GERÇEK cihazda, GERÇEK bir referans şarkıyla, kulaklıkla denenmeli
 (devFlags.customTonalRef geliştirici modundan açılarak — bkz. yukarıdaki
@@ -12963,523 +12770,9 @@ derleme + cihaza yeniden kurulum sonrası GERÇEKTEN döndürerek doğrulamalı:
 uygulama artık yatay yöne DÖNMÜYOR (iPhone/Android), iPad'de baş-aşağı
 (upside-down) portre HÂLÂ çalışıyor.
 
-**Önceki adım (G119 itibarıyla):** `npx cap sync ios` (bu turda
-zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
-kurulum sonrası ana ekranı KONTROL ETMELİ: (1) Pan Konumu/Stereo
-Genişlik artık normal/oynanabilir kart olarak görünüyor mu (kilitli/
-"Yakında" DEĞİL); (2) "Yakında" bölümünde SADECE Hız Modu ve Hangisi
-Farklı var mı (ikisi de ARTIK orada OLMAMALI); (3) üst kısımdaki "N mod"
-etiketi "12 mod" mu gösteriyor. Bu turda masaüstü Chrome'da Playwright
-ile hepsi doğrulandı (bkz. BİTTİ) — cihazda CANLI doğrulama HENÜZ yok.
-Bu doğrulandıktan SONRA, G118'in SIRADAKİ'sindeki asıl kulakla-test
-maddeleri (Pan Konumu'nun 7 kademesi, Stereo Genişlik'in mikro-gecikme
-tekniği) hâlâ geçerli — aşağıya taşındı.
+Eski SIRADAKİ kayıtları (G90-G127 arası tekil cihaz turu notları) GECMIS-SIRADAKI.md'de.
 
-**Önceki adım (G118 itibarıyla):** `npx cap sync ios` (bu turda
-zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
-kurulum sonrası GERÇEK kulakla doğrulamalı: (1) Pan Konumu'nda 7
-kademenin (Tam Sol...Tam Sağ) HEPSİNİN kulakla ayırt edilebildiği,
-özellikle "Hafif Sol"/"Hafif Sağ" gibi ince kademelerin GERÇEKTEN
-duyulabilir olduğu; (2) Stereo Genişlik'te mikro-gecikmeli genişletme
-tekniğinin (22ms) GERÇEKTEN "geniş" bir stereo görüntü gibi mi yoksa
-hafif bir flanger/comb-filtre renk değişikliği gibi mi duyulduğu — bu
-turda SADECE matematiksel olarak (L≠R) doğrulandı, HİÇ dinlenmedi (bkz.
-BİTTİ'nin DÜRÜSTLÜK notu); (3) gecikme miktarının (22ms) ve birleştirme
-kazancının (0.5) kulakla rahatsız edici bir yapaylık (faz sorunları,
-ani ses seviyesi değişimi) yaratıp yaratmadığı; (4) iki modun da
-kulaklıkla dinlendiğinde (hoparlörle DEĞİL, getMeta().kulaklikGerekli
-zaten bunu zorunlu kılıyor) konum/genişlik algısının tutarlı ve
-öğretici olduğu. Bu turda masaüstü Chrome'da Playwright ile 4/4
-senaryo (doğru/yanlış × 2 mod) uçtan uca doğrulandı (bkz. BİTTİ) —
-cihazda/kulakla CANLI doğrulama HENÜZ yok.
-
-**Önceki adım (G117 itibarıyla):** `npx cap sync ios` (bu turda
-zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
-kurulum sonrası GERÇEK kulakla dinleyerek doğrulamalı: (1) her 5 referans
-filtresinin sesi GERÇEKTEN farklı duyulduğu (özellikle Telefon'un mono
-çöktüğü, kulaklıklı dinlerken net duyulmalı); (2) Club Sistemi'nde SADECE
-bas bölgesinin mono çaldığı, üst bandın hâlâ geniş stereo olduğu (kulakla
-ayırt edilebilir olmalı); (3) Araba filtresinin genişletmesinin GERÇEK
-müzikte RAHATSIZ EDİCİ/faz-iptalli duyulup duyulmadığı — bu turda SADECE
-yapay/adversarial bir test sinyaliyle negatif korelasyon riski
-gözlemlendi (bkz. BİTTİ'nin DÜRÜSTLÜK notu), gerçek müzikte muhtemelen
-sorun değil ama KANITLANMADI; (4) 6 bölgenin solo'sunun KULAKLA da
-inandırıcı/net bir "sadece bu bant" hissi verdiği (bu turda SADECE
-görsel/piksel + spektrum-genlik ölçümüyle doğrulandı, hiç DİNLENMEDİ);
-(5) solo ve referans filtresi aynı anda açıkken KULAKTA da mantıklı
-bir birleşim duyulduğu. Bu turda masaüstü Chrome'da Playwright ile
-OfflineAudioContext render + Goertzel + korelasyon ölçümüyle SAYISAL
-olarak hepsi doğrulandı (bkz. BİTTİ) — cihazda/kulakla CANLI doğrulama
-HENÜZ yok.
-
-**Önceki adım (G116 itibarıyla):** `npx cap sync ios` (bu turda
-zaten çalıştırıldı) + kullanıcı Xcode'da temiz derleme/cihaza yeniden
-kurulum sonrası GERÇEK bir mix çalarak doğrulamalı: (1) dB eksen
-etiketlerinin HER ZAMAN tam sayı olduğu (ondalık asla görünmüyor); (2)
-dosya çalarken sakin bölümlerde ölçeğin/etiketlerin TİTREMEDEN sabit
-kaldığı; (3) gerçekten aşırı bir tiz/bas patlaması varsa ölçeğin
-GENİŞLEDİĞİ ve bir daha KÜÇÜLMEDİĞİ. Bu turda masaüstü Chrome'da
-Playwright ile (canvas `fillText` çağrıları ele geçirilerek, görsel
-karşılaştırma değil GERÇEK çizilen metin) hepsi doğrulandı (bkz. BİTTİ)
-— cihazda CANLI doğrulama HENÜZ yok. **NOT (aşağıdaki ACİL notunun
-KISMEN düzeltmesi):** bir önceki turda "kodda düzeltilecek bir şey yok"
-denmişti — bu, dB etiketi/renk/çalar maddeleri için STATİK kod okumasıyla
-doğruydu, ama Tonal Balance'ın "ölçek titriyor" maddesi için YANLIŞ
-çıktı: gerçek bir bug'dı (canlı FFT anlık görüntüsünden HER KAREDE
-yeniden hesaplanan bir smoothing hedefi, hiçbir zaman oturamıyordu),
-sadece STATİK okumayla YAKALANAMAMIŞTI (canlı oynatmayı SİMÜLE ETMEK
-gerekiyordu) — bu turda düzeltildi (bkz. BİTTİ). Diğer üç madde
-(kırpılma önleme, gösterge renkleri, Mixini Yükle çaları) hâlâ kod
-seviyesinde doğru görünüyor, aşağıdaki ACİL notu ONLAR için geçerliliğini
-KORUYOR.
-
-**ACİL — kod DEĞİŞİKLİĞİ YOK, cihazdaki eski derleme şüphesi (G114/G115
-sonrası, kod değişikliği yapılmadı):** Kullanıcı cihaz ekran görüntüsüyle
-G114'ün dört maddesinin (Tonal Balance kırpılması, dB etiketi yokluğu,
-gösterge renk karışıklığı, Mixini Yükle çalarsızlığı) HÂLÂ var olduğunu
-bildirdi. Bu turda `www/js/app.js` TEK TEK yeniden okunarak doğrulandı:
-`toolsTonalCurrentHalfRange`/`toolsTonalComputeRawHalfRange`/
-`toolsTonalNiceHalfRange` (8414-8578), dB ızgarası+etiketleri
-(8590-8602, 8652-8665), gösterge/çizgi renk eşleşmesi (index.html:963-967
-↔ app.js:8524 `#e8c46a`/`#22d3ee`, `renderToolsMixPlayer` app.js:8901-8914
-+ paylaşılan `toolsFilterPlaying` durumu 8947-8951) — HEPSİ KOD SEVİYESİNDE
-DOĞRU ve `ios/App/App/public/js/app.js` ile BYTE-BIRE-BYTE aynı (bu turda
-`cap sync` tekrar çalıştırıldı, fark YOK). **Sonuç: kodda düzeltilecek bir
-şey YOK** — kullanıcı Xcode'dan native app ile test ettiğini doğruladı,
-bu yüzden en olası açıklama CİHAZDAKİ UYGULAMANIN eski bir derlemeden
-kalması (`npx cap sync ios` SADECE `ios/App/App/public`'i günceller,
-cihazdaki BINARY'yi yeniden derleyip YÜKLEMEZ). **Kabul kriteri / bir
-sonraki adım:** kullanıcı Xcode'da Product → Clean Build Folder, cihazdan
-eski uygulamayı SİL, tekrar Run et, SONRA aynı dört maddeyi yeniden
-ekran görüntüsüyle doğrulasın. Hâlâ bozuksa (temiz derleme SONRASI da),
-o zaman bu gerçekten YENİ bir bug'dır ve CLAUDE.md kuralı gereği Safari
-Web Inspector'dan GERÇEK ölçüm alınmalı (tahminle düzeltme YAPILAMAZ).
-
-**Tek sonraki adım (G115 itibarıyla):** `npx cap sync ios` + kullanıcı
-cihazda gerçek bir mix yükleyip Ölçüm Sonuçları akordiyonunu doğrulamalı:
-(1) kart başlığına dokununca akordiyon açılıp kapandığı, chevron'un
-döndüğü; (2) "Analiz et"e basınca akordiyonun OTOMATİK açıldığı; (3)
-başlıktaki cyan LUFS rozetinin doğru değeri gösterdiği; (4) kapat→aç
-turunda sonuçların KAYBOLMADIĞI ve "Ölçülüyor…" durumunun TEKRAR
-görünmediği (yani analiz motoru ikinci kez ÇALIŞMADIĞI); (5) akordiyon
-açıkken içeriğin (KANAL ÖLÇÜMLERİ/STEREO/LOUDNESS/iki grafik/standart
-notu) EN ALTINA kadar parmakla kaydırılabildiği, hiçbir şeyin tab bar'ın
-arkasında kalmadığı. Bu turda masaüstü Chrome'da Playwright ile hepsi
-doğrulandı (bkz. BİTTİ) — bu turun GEREKÇESİ zaten "önceki (sheet)
-yaklaşım SADECE cihazda bozuktu" olduğu için, cihaz doğrulaması bu
-madde için ÖZELLİKLE kritik (masaüstü doğrulaması sheet'in de HER
-ZAMAN "geçtiği" tur olmuştu).
-
-**Önceki adım (G114 itibarıyla):** `npx cap sync ios` + kullanıcı
-cihazda gerçek (aşırı dengesiz) bir mix yükleyip doğrulamalı:
-(1) Tonal Balance eğrisi hiçbir bölgede grafik kenarından taşmıyor/
-kırpılmıyor mu; (2) dikey eksende dB etiketleri (+X/0/−X) görünüyor ve
-ölçekle tutarlı mı; (3) dosya çalarken ölçek/eğri titremiyor mu; (4) üç
-gösterge rengi grafikteki karşılığıyla eşleşiyor mu; (5) Mixini Yükle
-kartındaki çalar ile Referans Filtreleri'ndeki çalar AYNI sesi kontrol
-ediyor mu (birinden başlatıp diğerinden durdurma). Bu turda masaüstü
-Chrome'da SENTETİK bir dosyayla hepsi doğrulandı (bkz. BİTTİ) — cihazda
-CANLI doğrulama HENÜZ yok.
-
-**Önceki adım (G113 itibarıyla):** `npx cap sync ios` + kullanıcı
-cihazda AYNI Safari Web Inspector yöntemiyle (bu turun kanıtını ÜRETEN
-yöntem) doğrulamalı:
-(1) `.tools-scroll`'un `getBoundingClientRect().bottom`'u artık tab bar'ın
-`top`'undan KÜÇÜK mü (bu turda Chrome'da `793 ≤ 805` ölçüldü — cihazda
-KENDİ gerçek sayılarıyla AYNI ilişki doğrulanmalı, mutlak px değerleri
-FARKLI olacaktır);
-(2) `sc.style.height`/`flex` ile elle müdahale ARTIK GEREKMİYOR mu — yani
-sayfa YÜKLENİR YÜKLENMEZ (hiçbir konsol komutu çalıştırmadan)
-`kaydırılabilir=true` çıkıyor mu;
-(3) Referans Filtreleri kartına GERÇEKTEN parmakla kaydırılıp
-ulaşılabiliyor mu, akordiyon içindeki 5 filtre kartı da AYNI şekilde;
-(4) Ölçüm Sonuçları VE Dosyalarım sheet'lerinin ikisinde de en alttaki
-içerik (standart notu / dosya listesinin sonu) tab bar'ın/home-
-indicator'ın gerisinde KALMIYOR mu;
-(5) Ana Menü'nün EN ALTINDAKİ kart/bölüm de AYNI şekilde erişilebilir mi.
-Bu G108'den beri SÜREN "Araçlar sekmesi cihazda tam çalışmıyor" şikayet
-zincirinin EN TEMEL kök sebebi bu turda bulundu (kullanıcının kendi canlı
-deneyiyle KANITLANDI) — eğer BU doğrulama da geçerse zincir GERÇEKTEN
-kapanmış olur; geçmezse artık "hangi mekanizma" sorusu değil, "--tabbar-h
-değeri cihazda yanlış mı" sorusuna daralmış olur (tek bir sabit,
-kolayca ayarlanabilir).
-
-**Önceki adım (G112 itibarıyla):** `npx cap sync ios` + kullanıcı
-cihazda Safari Web Inspector'la DOĞRUDAN bu turun kendi kabul kriterini
-ölçmeli:
-(1) Referans Filtreleri kartı (ve akordiyon açıkken içindeki 5 filtre
-kartı) artık TAM görünür mü, tab bar örtüyor mu — `[scroll-diag]`'a
-benzer şekilde `.tools-scroll`'un `scrollHeight`/`clientHeight`'ı VE
-`getBoundingClientRect()` ile tab bar'ın GERÇEK üst kenarının kartın alt
-kenarını KESİP KESMEDİĞİ kontrol edilmeli;
-(2) `--tabbar-h:106px`'in cihazda YETERLİ olup olmadığı — eğer hâlâ dar
-çıkarsa (ör. Dynamic Island'lı modellerde tab bar farklı boyutlanıyorsa)
-BU TEK sabit güncellenmeli (bkz. BİTTİ'nin DÜRÜSTLÜK notu);
-(3) İlerleme sekmesinin son elemanı ("İstatistikleri Sıfırla") da AYNI
-şekilde tab bar'ın üstünde mi.
-Bu G108-G112 arası BEŞ turun HEPSİ aynı "Araçlar sekmesi cihazda tam
-çalışmıyor" şikayet ailesinden geliyordu (donma zannedilen → kaydırma
-kilidi → kap büyümüyor → kartlar sonradan görünüyor → tab bar örtüyor) —
-bu SONUNCUSU da doğrulanırsa AİLE KAPANMIŞ olur.
-
-**Önceki adım (G111 itibarıyla):** `npx cap sync ios` + kullanıcı
-cihazda ÜÇ ŞEYİ doğrulamalı:
-(1) dört kartın da baştan (dosya yüklenmeden) göründüğü, üçünün sönük/
-tıklanamaz olduğu, "Önce bir dosya yükle" ipucunun okunduğu — bu ilk kez
-CİHAZDA görülüyor;
-(2) dosya yüklenince üçünün de tam işlevsel hâle döndüğü;
-(3) EN ÖNEMLİSİ — G109'un asıl bulduğu "Dosyalarım sheet'i kapanınca Araçlar
-kaydırılamıyor" sorunu ARTIK cihazda da düzeldi mi — kartlar artık BAŞTAN
-DOM'da olduğu için `.tools-scroll` hiçbir zaman "sonradan yeniden ölçülmesi
-gereken" bir duruma girmiyor, teoride bu G109/G110'un ele aldığı sorunu
-TAMAMEN farklı bir açıdan (semptomu değil, kaynağı) kapatıyor olmalı — ama
-BU DA cihazda hiç doğrulanmadı.
-G107'nin ASIL amacı (Ölçüm Sonuçları sheet'inin ekranın altında kalmaması)
-da HÂLÂ ayrıca doğrulanmalı (G110'dan kalan açık soru, DEĞİŞMEDİ).
-
-**Önceki adım (G110 itibarıyla):** `npx cap sync ios` + kullanıcı
-cihazda İKİ ŞEYİ AYRI AYRI doğrulamalı:
-(1) `.tools-scroll` artık DOĞRU mu — Dosyalarım sheet'i açılıp kapatıldıktan
-sonra `[scroll-diag]` çıktısında `scrollHeight > clientHeight` (kartlar
-viewport'u aşıyorsa) ve GERÇEK parmak kaydırma çalışıyor mu;
-(2) G107'nin ASIL amacı (Ölçüm Sonuçları sheet'inin ekranın altında
-kalmaması) HÂLÂ karşılanıyor mu — `position:fixed;inset:0` kaldırıldığı
-için bu YENİDEN bozulmuş OLABİLİR (bu ihtimal G110'da AÇIKÇA işaretlendi,
-bkz. BİTTİ'nin DÜRÜSTLÜK notu).
-Eğer (1) düzelip (2) YENİDEN bozulursa: `overflow:hidden`'ın TEK BAŞINA
-yeterli olmadığı, ama `position:fixed;inset:0`'ın (varsa) YALNIZCA Ölçüm
-Sonuçları sheet'i AÇIKKEN aktif olacak şekilde (G109'daki
-`toolsSetBackgroundScrollLocked`'a benzer, DİNAMİK bir kilit — `.tools-
-scroll`'u SÜREKLİ DEĞİL, SADECE sheet açıkken etkileyecek) yeniden
-eklenmesi gerekebilir — bu, BU turda TASARLANMADI (zaman/kapsam), bir
-SONRAKİ tur için bir seçenek olarak not edildi.
-
-**Önceki adım (G109 itibarıyla):** Kullanıcı cihazda (Dosyalarım
-sheet'ini açıp kapatarak, aynı "Araçlar artık kaydırılamıyor" senaryosu)
-tekrar denemeli ve konsoldaki `[scroll-diag]` satırını getirmeli —
-özellikle:
-(1) `overflow-y`/`touch-action` gerçekten "auto"/"auto" mu dönüyor (yoksa
-hâlâ "hidden"/"none" gibi TAKILI bir değer mi — bu, kilit kalkma
-mekanizmasının KENDİSİNİN cihazda çalışmadığını gösterir);
-(2) `kaydırılabilir=true` olduğu bir durumda (içerik viewport'u aşıyorken)
-BİLE parmakla kaydırma GERÇEKTEN çalışıyor mu (JS tarafı "doğru" diyor
-olsa da iOS'un touch-event işleme katmanı AYRI bir sorun olabilir — bu,
-statik günlükle KANITLANAMAZ, sadece elle denenerek görülür);
-(3) sheet HİÇ AÇILMADAN `.tools-scroll`'un `overflow-y` değeri (Safari
-Web Inspector konsolundan elle: `getComputedStyle(document.querySelector(
-'.tools-scroll')).overflowY`) — eğer bu BİLE "auto" değilse, sorun kilit
-mekanizmasında DEĞİL, G107'nin html/body kalıcı kilidinde aranmalı (bkz.
-BİTTİ'nin DÜRÜSTLÜK notu, henüz ELENMEDİ).
-Eğer (2) hâlâ başarısızsa (JS durumu doğru ama parmak kaydırmıyor), bir
-SONRAKİ turda G107'nin `html,body{position:fixed;inset:0;overflow:hidden}`
-kuralının KENDİSİ sorgulanmalı — belki TAMAMEN kaldırıp Ölçüm Sonuçları
-sheet'inin "ekranın altında kalma" sorununa (G107'nin asıl amacı) FARKLI
-bir çözüm aranmalı, çünkü bu kalıcı kilit `.tools-scroll`'u BOZUYOR
-olabilir.
-
-**Önceki adım (G108 itibarıyla):** Kullanıcı cihazda (32MB+ dosyayla,
-donma daha önce OLUŞAN aynı senaryo) tekrar deneyip Safari/Xcode konsolunun
-TAM görüntüsünü getirmeli — özellikle:
-(1) `[upload-diag]` loglarının copyFile'dan (adım 6) SONRA hangi noktada
-KESİLDİĞİ (adım 7 mi hiç başlamıyor, adım 5 mi "BAŞLIYOR" diyip hiç "BİTTİ"
-demiyor, yoksa `5a) suspend/resume döngüsü` belirli bir hop'ta mı takılıyor);
-(2) eğer adım 5a'da belirli bir hop'ta takılıyorsa, o hop'un `t=X.Xs` değeri
-— bu, dosyanın HANGİ saniyesinde OfflineAudioContext'in tıkandığını gösterir;
-(3) `performance.memory` iOS Safari'de YOK (Chrome-only API) — bu alan
-cihazda boş/eksik görünecek, BEKLENEN bir durum, hata değil.
-Log'lar geldikten SONRA kök sebep netleşecek, o zaman DÜZELTME turu
-başlayabilir (bu turda BİLEREK yapılmadı — task'ın kendi kuralı). Kök sebep
-`measureSpectralDeviation()`'ın suspend/resume zincirlemesi çıkarsa,
-düzeltme muhtemelen bu döngüyü `AnalyserNode` tabanlı OfflineAudioContext
-yerine STREAMING bir FFT'ye (ya da `analysis.js`'in ZATEN sahip olduğu saf/
-Web-Audio-bağımsız mimarisine benzer bir yaklaşıma) taşımayı gerektirecek —
-ama bu KARAR log'lar gelmeden verilmemeli.
-
-**Önceki adım (G107 itibarıyla):** `npx cap sync` (hem iOS hem Android —
-bu turda Android tarafında `file_paths.xml` DEĞİŞTİ) + GERÇEK cihazda
-doğrulama, ÖZELLİKLE:
-(1) 32MB+ bir dosya "Mixini Yükle"den seçilince Yol B'nin (native copyFile)
-GERÇEKTEN devreye girdiği — Safari/Android konsolunda ARTIK `writeFile`/
-`appendFile` çağrılarının base64 dizeleri GÖRÜNMEMELİ, sadece `mkdir`/
-`getUri`/`copyFile` (bkz. BİTTİ'nin DÜRÜSTLÜK notu — Chrome'da SADECE kod
-yolu doğrulandı, cihazdaki gerçek süre/tıklama-yanıtı HİÇ ölçülmedi);
-(2) Android'de `file_paths.xml`'e eklenen `<files-path>` girdisinin
-GERÇEKTEN "Failed to find configured root" hatasını önlediği (bu G107'de
-sadece KAYNAK OKUNARAK çıkarıldı, cihazda hiç denenmedi);
-(3) Ölçüm Sonuçları sheet'inin GERÇEKTEN tam yükselip göründüğü, sürüklenip
-kapatılabildiği (bu, üçüncü bildirimdi — G103/G105 çözmemişti, bu turun
-`html,body` kilidi FARKLI bir katmana odaklandı ama YİNE cihazda
-doğrulanmadı);
-(4) `scrollToAnalyzer()`'ın (oyun ekranı, `window.scrollTo` kullanıyor)
-`html,body{position:fixed}` sonrası hâlâ beklenen (zaten no-op) davranışta
-olduğu — G107'de BİLEREK dokunulmadı ama regresyon riski TAM sıfır
-değerlendirilmedi, gözle kontrol edilmeli.
-Eğer (1)-(2) cihazda YİNE başarısız olursa: Yol A (1MB parça) otomatik
-devreye giriyor olmalı (`saveFile`'ın try/catch'i) — bu durumda bile ESKİ
-G104 davranışından (4MB parça) daha iyi olması BEKLENİR, ama bu da HENÜZ
-cihazda ölçülmedi.
-
-**Önceki adım (G106 itibarıyla):** Kullanıcı BEKLEYEN KARARLAR N/O'yu
-netleştirmeli (süre artışı kabul edilebilir mi, bant sızıntısı düzeltilsin
-mi — ikisi birbirine ters yönde). Ayrıca bu turun kendi ölçümleri SADECE
-sentetik/masaüstü Chrome'da yapıldı — `npx cap sync ios` + gerçek cihazda
-(1) yeni STEREO bölümünün/ikinci grafiğin küçük ekranda taşmadan
-göründüğü, (2) 300s+ gerçek bir dosyada analiz süresinin GERÇEK cihazda
-(masaüstünden çok daha yavaş olabilir) ne kadar sürdüğü hâlâ
-doğrulanmadı.
-
-**Önceki adım (G105 itibarıyla):** Bu üç düzeltmeyi (özellikle madde 1
-— sheet kapanınca sayfa kilitlenmesi) GERÇEK bir iOS cihazda yeniden test
-etmek. Bu turda masaüstü Chrome'da hem kök sebep TEORİSİ (fixed kaplamalar +
-arka plan dokunmalı kaydırma bleed-through) hem DÜZELTMENİN KENDİSİ
-(overflow:hidden kilidi + kapanışta scrollTop sıfırlama) programatik olarak
-doğrulandı — ama orijinal BUG'IN KENDİSİ masaüstünde hiç ÜRETİLEMEDİ (mobil
-Safari'ye özgü bir davranış olduğu için). Bu turun kendi açık işi:
-**`npx cap sync ios` + gerçek cihaz doğrulaması hâlâ YAPILMADI** — G104'ten
-kalan aynı madde (Capacitor'ın gerçek native köprü maliyeti), artık BUNA ek
-olarak G105'in scroll-kilit düzeltmesi de cihazda doğrulanmalı.
-
-**Önceki adım (G104 itibarıyla):** `npx cap sync ios` çalıştırıp GERÇEK
-bir iOS cihazda (tercihen 24-bit/32-bit float export yapan bir DAW'dan çıkmış
-büyük — 30-50MB — bir dosyayla) uçtan uca doğrulamak: dosya seç → arayüz
-donmuyor mu, ilerleme çubuğu görünüyor mu, dosya doğru kaydediliyor mu. Bu
-turun kendi açık işi: **Capacitor'ın GERÇEK native köprü maliyeti hâlâ
-ölçülmedi** (bkz. G104 BİTTİ'nin DÜRÜSTLÜK notu — bu ortamda sadece JS
-tarafı stub'landı, parça parça yazmanın YAPISAL olarak riski azalttığı
-biliniyor ama nihai kanıt cihazda) — G105'te de HÂLÂ yapılmadı.
-
-**Önceki adım (G103 itibarıyla):** Bu dört düzeltmeyi GERÇEK cihazda
-yeniden test etmek — özellikle madde 3 (Ölçüm Sonuçları sheet'i), çünkü
-masaüstü Chrome'da hiç ÜRETİLEMEDİ, sadece bu kod tabanının kendi belgelediği
-WKWebView bug kategorisine göre gerekçeli düzeltmeler uygulandı (bkz. BİTTİ'nin
-DÜRÜSTLÜK notu) — `overscroll-behavior:contain`/`--app-vh` düzeltmesinin
-GERÇEKTEN sorunu çözdüğü henüz kanıtlanmadı. Bu turun kendi açık işleri:
-(1) **madde 3 gerçek cihazda doğrulanmadı** (yukarıdaki madde); (2) **Tonal
-Balance'ın pembe-eğim telafisi SADECE sentetik dosyalarla (Node'da üretilen
-pembe gürültü + düşük-frekans-vurgulu gürültü) test edildi** — gerçek bir
-ticari/mastered müzik parçasında ±6dB kabul kriterinin tutup tutmadığı
-DOĞRULANMADI; (3) **DRAFT_TARGET_CURVES hâlâ taslak** (G101'den kalan aynı
-madde, değişmedi — artık ÖLÇÜM YÖNTEMİ doğru domende olduğu için gerçek
-referans parçalardan türetilecek sayılar daha ANLAMLI olacak).
-
-**Önceki adım (G102 itibarıyla):** `npx cap sync ios` bu turda ÇALIŞTIRILDI
-(ayrı commit, `1e03cbb`) — `Package.swift`/`Package.resolved` güncellendi,
-`@capacitor/filesystem` iOS tarafına kaydoldu. Ama gerçek bir cihazda (ya da
-simülatörde) Dosyalarım'ın NATIVE Filesystem yolunu (bu turda SADECE tip
-tanımlarına göre yazıldı, hiç canlı denenmedi) uçtan uca doğrulamak hâlâ
-YAPILMADI: dosya seç → uygulama kapat/aç → dosya hâlâ duruyor mu,
-`Directory.Data`'ya gerçekten yazılıyor mu. Bu turun
-kendi açık işleri: (1) **native Filesystem canlı doğrulanmadı** (yukarıdaki
-madde); (2) **TASLAK hedef eğriler (Pop/EDM/Akustik) hâlâ gerçek referans
-parçalardan türetilmedi** — değişmedi, G101'den kalan aynı madde; (3)
-**Tonal Balance'ın canlı analizörü SADECE tek bir sentetik test dosyasıyla
-denendi** — gerçek bir müzik parçasında (kick/cymbal gibi belirgin geçici
-olaylarla) canlı eğrinin ortalamadan GÖRÜLÜR şekilde ayrıldığı henüz
-gözlemlenmedi (test dosyası durağan gürültüydü, canlı≈ortalama çıktı,
-mekanizma çalıştığı KANITLANDI ama görsel etkisi gerçek müzikte daha
-belirgin olacaktır); (4) **"Kendi referansım" akışı bu turda da CANLI
-denenmedi** (flag varsayılan kapalı, G101'den kalan aynı madde).
-
-**Önceki adım (G101 itibarıyla):** Araçlar ekranının TAM giydirmesi
-kod/canlı doğrulama açısından TAM kapandı (7 bölümün hepsi ekran görüntüsüyle
-kanıtlandı, 2 gerçek CSS bugı AYNI turda bulunup düzeltildi) — bu ARADA
-G100'ün SIRADAKİ (1) maddesi de ("AES17/100ms/8x'in ekranda göründüğü
-doğrulanmalı") KAPANDI, standart notu canlı ekran görüntüsünde doğru
-değerlerle görüldü. Bu turun kendi açık işleri: (1) **BEKLEYEN KARARLAR L (G102'de KAPANDI,
-kalıcı yapıldı) / M (hâlâ açık)**
-— Referans Filtreleri'nin gerçek DSP'sinin ne zaman ekleneceği kullanıcı
-kararı bekliyor;
-(2) ~~**Tonal Balance'ın "mix eksi hedef" yorumu KULLANICI ONAYI bekliyor**~~
-— **G102'de KAPANDI:** kullanıcı farklı bir yorum istedi (mutlak gösterim +
-hedef eğri şekilli koridor + canlı analizör), bkz. yukarıdaki BİTTİ;
-(3) **TASLAK hedef eğriler (Pop/EDM/Akustik) hâlâ gerçek referans
-parçalardan türetilmedi** — tasarımın kendi taslak sayıları kullanılıyor,
-kod+UI'da AÇIKÇA "taslak" diye işaretli, gerçek veri kaynağı belirlenince
-`tonal-balance.js:DRAFT_TARGET_CURVES` güncellenmeli; (4) **"Kendi
-referansım" akışı SINIRLI test edildi** — referans dosya seçme/ölçme kodu
-yazıldı ama flag varsayılan kapalı olduğu için bu turda CANLI denenmedi
-(flag açılıp bir referans dosyayla uçtan uca doğrulanmalı); (5) **çoklu-dosya
-kütüphanesinde "seç" YENİDEN DECODE ediyor** (upload.js'in tek-buffer
-mimarisi korunduğu için) — çok sayıda büyük dosya arasında sık geçiş yapan
-bir kullanıcı için performans etkisi henüz GERÇEK cihazda ölçülmedi.
-
-**Önceki adım (G100 itibarıyla):** RX 11 karşılaştırmasının 5 maddesi
-de kod/test seviyesinde TAM uygulandı (bkz. BİTTİ). Bu turun kendi açık
-işleri: (1) **TAM canlı doğrulama YAPILAMADI** — tarayıcı otomasyon eklentisi
-bu turda kararsızdı, değişiklikler node seviyesinde doğrulandı ama gerçek
-DOM ekran görüntüsü alınamadı — bir sonraki oturumda MUTLAKA kısa bir tur
-(dosya yükle→analiz et→AES17 değerlerin/DC 4-ondalık hassasiyetin/güncellenmiş
-standart notunun ekranda GÖRÜNDÜĞÜNÜ doğrula) yapılmalı; (2) **LRA'daki 0.8
-LU'luk farkın TAMAMI kapanmadı** (sadece ~0.1 LU'luk kısmı, algoritmik
-düzeltmelerle) — kullanıcının orijinal test dosyası elde edilebilirse (ya da
-kullanıcı RX'te farklı dosyalarla birkaç ölçüm daha yaparsa) kalan farkın
-sistematik mi (düzeltilebilir) yoksa RX'in kendi uygulama farkı mı (kabul
-edilmesi gereken bir sınır) olduğu netleştirilebilir; (3) **RMS penceresinin
-(100ms) gerçek dosyada RX'e ne kadar yaklaştığı DOĞRULANMADI** — seçim
-sentetik bir temsili sinyalle yapıldı, kullanıcı gerçek dosyasıyla YENİDEN
-ölçüp Max/Min RMS'in artık RX'e ne kadar yakın olduğunu bildirirse pencere
-değeri gerekirse İNCE AYAR yapılabilir; (4) **True Peak'in yeni ~0.04dB'lik
-sınırı kullanıcıya arayüzde GÖRÜNÜR değil** (sadece standart notunda metin
-olarak var) — ürün kararı, verilmedi.
-
-**Önceki adım (G99 itibarıyla):** Araçlar ölçüm motoru İKİ bölümü de
-(çekirdek + arayüz) kod/test/canlı doğrulama açısından TAM kapandı, canlı
-testte bulunan gerçek bir bug (rAF sonsuz askıda kalma + hata sınıflandırma
-karışıklığı) AYNI turda düzeltildi. Bu turun kendi açık işleri: (1) **gerçek
-cihazda (özellikle iOS/WKWebView) hiç doğrulanmadı** — module Worker desteği
-WKWebView'de teorik olarak var ama CANLI denenmedi, bir sonraki cihaz
-turunda MUTLAKA kontrol edilmeli (worker oluşturma başarısız olursa ana
-thread fallback'i devreye giriyor — bu da test edilmeli, ör. eski bir
-WebView'de); (2) **True Peak'in ~0.55dB'lik ölçülen sapma sınırı** standart
-notunda YAZIYOR ama kullanıcıya "yaklaşık" gibi ayrı bir görsel uyarı
-verilmiyor — ürün kararı, bu turda verilmedi; (3) **RMS konvansiyonu şu an
-SADECE HAM gösteriliyor** (standart notunda belirtiliyor) — kullanıcı RX ile
-karşılaştırıp AES17'nin daha uygun olduğuna karar verirse, `meta`'da her iki
-değer de zaten hesaplı (`maxRmsDb.aes17` vb.), sadece render fonksiyonunda
-hangi alanın okunacağını değiştirmek yeterli, bu turun kapsamı dışında
-bırakıldı; (4) test ortamı sınırlaması nedeniyle SON "temiz tekrar" koşusu
-tamamlanamadı (bkz. BİTTİ'nin son notu) — kanıtlar önceki temiz koşulardan,
-ama bir sonraki oturumda tekrar hızlı bir canlı doğrulama turu (5 dakika)
-YARARLI olur.
-
-**Önceki adım (G97 itibarıyla):** Yedi madde de kod/test/canlı doğrulama
-açısından TAM kapandı (madde 2'nin "dosya silinsin mi" sorusu bu turda
-CEVAPLANDI: not eklendi, dosya kalıyor — bkz. BİTTİ). Bu turun kendi açık
-işleri: (1) **hiçbiri GERÇEK CİHAZDA doğrulanmadı** (tekrar eden aynı eksik
-kalem, sadece masaüstü Chrome); (2) **`OYUN-MANTIGI.md` provenance sorusu
-AÇIK** — görev başında repoda yoktu, turun sonunda kökte 246 satırlık bir
-dosya olarak belirdi ("G94'e kadar" notuyla), bu oturumda HİÇ oluşturulmadı,
-commit'e dahil edilmedi — **KULLANICIYA SORULMALI:** bu dosyayı siz mi
-oluşturdunuz (ör. başka bir araç/oturumla), yoksa beklenmedik bir üretim mi,
-ve repoya alınsın mı; (3) **Tonal Denge'nin TOLERANCE_RATIO_AT_1/AT_CAP
-(0.14/0.045) KULAKLA DOĞRULANMADI** — matematiksel garanti (hiç dokunmadan
-geçilemez) sağlam ama "Z1'de %98 kolay/Z20'de %39 zor" hissinin GERÇEKTEN
-doğru kalibre olup olmadığı gerçek kullanıcı testiyle doğrulanmadı, diğer 9
-modun AYNI "KULAKLA DOĞRULANMADI" dürüstlük notuna tabi; (4) **dB
-Seviyesi'nin yeni (daraltılmış) STEP eğrisi de KULAKLA DOĞRULANMADI** —
-matematiksel/istatistiksel invaryant (madde 5) sağlam ama "belirgin şekilde
-zorlaştı" hissinin gerçek kullanıcı kulağıyla teyidi ayrı bir adım.
-
-**Önceki adım (G94 itibarıyla, hâlâ geçerli):** G94 (`.warning` kırmızı halkasının
-TÜM 10 modda düzeltilmesi) kod/test/canlı doğrulama açısından TAM kapandı —
-G93'ün SIRADAKİ'sinde bırakılan (1) numaralı açık madde ("diğer 9 modda da
-düzeltilsin mi?") bu turda kapatıldı, kullanıcı kararına gerek kalmadı. Bu
-turun kendi açık işi: **hiçbiri GERÇEK CİHAZDA doğrulanmadı** (G90'dan beri
-tekrar eden AYNI eksik kalem). G93'ün (2) numaralı maddesi (çip satırı
-eşitliğinin matematiksel olarak TAM olmaması, ~%12-19 kalan fark) HÂLÂ
-GEÇERLİ, bu turda dokunulmadı. **Kabul kriteri:** gerçek cihazda hem normal
-hem gerçek ses hatası senaryosu gözle doğrulanır.
-
-**Önceki adım (G93 itibarıyla, hâlâ geçerli — madde 2 dışında kapandı):** G93 (9 madde: dB arka planı/bar
-renkleri/çip eşitliği/combo x0/Atla altın/akordiyon tıklama alanı/dB play
-butonu) kod/test/canlı doğrulama açısından TAM kapandı. Bu turun kendi açık
-işleri: (1) **`.game-ctrl-play.warning` (kırmızı halka) kök sebebi TÜM
-modları etkiliyor** — Prototip.dc.html'de bu SADECE gerçek ses yükleme
-hatasında (`s.audio==='error'`) çıkması gereken bir durumken, uygulamada
-round aktifken KOŞULSUZ ekleniyor; bu tur SADECE dB Seviyesi'nde
-(`mode.NEUTRAL_PLAY_BTN`) düzeltildi, kapsam dışı bırakıldı — KULLANICIYA
-SORULMALI: diğer 9 modda da (Frekans Bulma dahil) aynı kırmızı halka duruyor,
-bunun GERÇEKTEN "hata durumu" anlamına gelecek şekilde yeniden bağlanması mı
-(prototipin kendi mantığı) yoksa hepsinde nötr yapılması mı isteniyor; (2)
-**çip satırı eşitliği matematiksel olarak TAM DEĞİL** (~%12-19 kalan fark,
-`<button>`/`<div>` karışık flex item'ların padding-bağlı intrinsic minimum
-boyutu — izole testte kök sebebi doğrulandı) — görsel olarak yeterli
-bulundu ama pixel-perfect eşitlik için padding'in flex item'ın kendisinden
-bir iç sarmalayıcıya taşınması (HTML restrüktürü, birden fazla dosya)
-gerekir, İSTENİRSE ayrı bir tur; (3) **hiçbiri GERÇEK CİHAZDA doğrulanmadı**
-(G90/G91/G92'nin AYNI eksik kalemi hâlâ geçerli). **Kabul kriteri:** (1) ve
-(2) için kullanıcı kararı + gerçek cihazda gözle doğrulama.
-
-**Önceki adım (G92 itibarıyla, hâlâ geçerli):** G92 (madde 11 Altın Vurgular + madde
-12 Animasyonlar) kod/test/canlı doğrulama açısından TAM kapandı, canlı testte
-bulunan `heartOut` bug'ı AYNI oturumda düzeltildi. Bu turun kendi açık işi:
-(1) **prefers-reduced-motion GERÇEK OS/DevTools emülasyonuyla hiç test
-edilmedi** (sadece CSS cascade statik analiziyle) — cihazda "Hareketi Azalt"
-açıkken TÜM ekranlar gözle tekrar denenmeli; (2) **bossPulse/flameGlow GERÇEK
-oyun akışında (RNG'ye bağlı boss round/combo artışı) yakalanamadı**, sadece
-class'lar elle uygulanıp computed style ile doğrulandı — bir sonraki turda
-gerçek bir boss round'a/combo artışına rastlanırsa ekran görüntüsüyle teyit
-edilmeli; (3) **Seans özeti (ringDraw/barGrow) GERÇEK 10-soruluk bölüm sonunda
-yakalanamadı** (doğru cevap RNG'sine bağlı), üretilen markup'ın kendisi
-üzerinden doğrulandı — bir sonraki turda gerçek bir "normal" (kayıpsız)
-tamamlanmış bölümde ekran görüntüsüyle teyit edilmeli; (4) reduced-motion
-kuralı `transition:`'a dokunmuyor (sadece `animation:`) — "sadece opaklık
-geçişleri kalsın" talimatının opaklık-dışı transition'ları da kısıtlamayı
-gerektirip gerektirmediği KULLANICIYA sorulmalı; (5) **hiçbiri GERÇEK
-CİHAZDA doğrulanmadı** (G90/G91'in AYNI eksik kalemi hâlâ geçerli). **Kabul
-kriteri:** yukarıdaki 4 madde gerçek cihazda/gerçek oyun akışında gözle
-doğrulanır.
-
-**Önceki adım (G91 itibarıyla, hâlâ geçerli):** G91 (DENETIM.md'den çıkan 10 madde)
-kod/test/canlı doğrulama açısından TAM kapandı — 10 maddenin hepsi masaüstü
-Chrome'da canlı test edildi, konsol hatası 0. Bu turun kendi açık işi:
-**hiçbiri GERÇEK CİHAZDA doğrulanmadı** (G90'ın AYNI eksik kalemi hâlâ
-geçerli) — özellikle çip satırının `justify-content:space-between` ile
-tam-genişlik doldurması dar/gerçek mobil ekranlarda TEKRAR denenmeli (masaüstü
-Chrome'da doğru göründü ama chip sayısı/genişlik oranı cihazda farklı
-sarabilir), spektrumun artırılmış hareket miktarının (madde 7) gerçek
-performansta (düşük FPS cihazlarda) göze batıp batmadığı ölçülmedi. 7 modlu
-çip satırı listesinin sadece 2'si (dB Seviyesi/Kompresör) tek tek açılıp
-canlı doğrulandı, kalan 5'i (Kesim Noktası/Q Genişliği/Reverb/Frekans
-Çakışması/Distortion/Tonal Denge) PAYLAŞILAN `.chiprow` CSS kuralına
-dayanılarak doğrulanmadı — bir sonraki turda tek tek açılıp gözle
-kontrol edilebilir. **Kabul kriteri:** yukarıdaki maddeler gerçek
-iOS/Android cihazda + kalan 5 mod masaüstünde gözle doğrulanır.
-
-**Önceki adım (G90 itibarıyla, hâlâ geçerli):** G90 (Sheet'ler/Toast'lar/Yardımcı
-Ekranlar) kod/test/canlı doğrulama açısından TAM kapandı — 10 maddenin
-hepsi masaüstü Chrome'da canlı test edildi, çıkış-onayı bug'ı (bkz. G90
-BİTTİ) bulunup AYNI oturumda düzeltildi. Bu turun kendi açık işi: **hiçbiri
-GERÇEK CİHAZDA (iOS/Android) doğrulanmadı** — özellikle çıkış onayının
-`fbPopIn` animasyonu, kalibrasyonun donanım ses tuşu akışı (`startVolumeButtonsWatch`,
-sadece kod okumayla doğrulandı, gerçek tuş basışıyla DEĞİL), spotlight'ın
-tam-genişlik balonunun küçük ekranlarda taşma/kırpılma durumu ve toast'ların
-4 türünün gerçek oyun içi tetikleyicilerinde (günlük görev/rozet kazanma/
-Pro kilidi/yakında) — bu turda SADECE `core/fx.js:toast()` doğrudan
-çağrılarak (gerçek modül, ama gerçek oyun akışından DEĞİL) test edildi —
-cihazda TEKRAR denenmeli. **Kabul kriteri:** yukarıdaki maddeler gerçek
-iOS/Android cihazda gözle/elle doğrulanır.
-
-**Önceki adım (G89 itibarıyla, hâlâ geçerli):** G83 (Spektrum) + G84 (Sınav Ekranları) +
-G85 (Oyun Ekranı Düzeltmesi #1) + G86 (Oyun Ekranı — 12 madde) + G87 (İlerleme
-Sekmesi) + G88 (Araçlar Sekmesi) + G89 (Paywall) kod/test/canlı doğrulama
-açısından TAM kapandı, yeni açık iş bırakmadı — G86'nın TDZ/startBtn/
-freqGuessArea (3 regresyon), G87'nin accChartFilterWrap/zoneList blur (2
-regresyon) ve G88'in tanı sırasında yakalanan tarayıcı-önbellek yanıltmacası
-(kod hatası DEĞİL, bkz. BİTTİ) kendi canlı testlerinde bulunup AYNI oturumda
-düzeltildi/doğrulandı. G89'da kullanıcı kararıyla "sınav" paywall tetikleyicisi
-GERÇEK bir kod yolu olmadığı için 6'lık listeden çıkarıldı (bkz. G89 BİTTİ) —
-bu, ilerideki bir turda "sınav Pro'da açılır" mesajının GERÇEKTEN gösterilmesi
-istenirse ayrı bir ürün kararı/iş olarak ele alınabilir, bu tur onu YAPMADI
-(dokunulmadı). ÖNCELİKLE BEKLEYEN KARARLAR madde K
-(Pro'da "done" Seans Sonu durumu hiç tetiklenemiyor — kasıtlı mı, regresyon
-mu) kullanıcı kararı bekliyor; karar netleşmeden AÇIK İŞLER madde 20
-kapatılamaz/"done" canlı doğrulanamaz. Bunun dışında AÇIK İŞLER madde 14 —
-G67-G82'nin TAMAMI (kalıcı "i" + SPOTLIGHT + oyun seçenekleri + "basılı tut"
-ipucu + G74'ün yeni ana ekranı + G75'in 5 düzeltmesi + G76'nın kart
-yükseklik/SVG slice düzeltmesi + G77'nin yeni üst barı + G78'in soru alanı/
-alt bar düzeltmeleri + G79'un düzen yeniden kurulumu + G80'in `updateUI()`
-düzeltmesi + G81'in geri bildirim ekranı giydirmesi + G82'nin Seans Sonu
-giydirmesi) GERÇEK CİHAZDA (bu turda da SADECE masaüstü Chrome'da
-doğrulandı, iOS WKWebView'de HENÜZ değil — font rendering/safe-area
-farkları VE özellikle şunlar Safari'de YENİDEN doğrulanmalı: G75 madde
-4'ün grid-stretch savunması, G76'nın SVG `preserveAspectRatio="xMidYMid
-slice"` kırpma matematiği [kenar-güvenlik marjı x:~30-172], G77'nin sınav/
-telafi nokta göstergesi [DOM proxy'siyle doğrulandı, gerçek akışla DEĞİL],
-G78/G79'un Frekans Bulma işaretle→onayla akışı [dokunma/tıklama davranışı
-Safari'de FARKLI olabilir], G79'un YENİ #abLoopBtn'i [uzun-basma ile
-GERÇEKTEN çakışmadığı, ikisinin de aynı startAbLoop/stopAbLoop'u doğru
-tetiklediği cihazda TEKRAR denenmeli], G81'in YENİ "kulak" omuz butonları
-[dokunma alanı 40px masaüstünde ölçüldü, gerçek parmak dokunuşuyla cihazda
-TEKRAR denenmeli] ve otomatik-geçiş çubuğunun `animation-play-state`
-pause/resume'u [cmp-önizlemesiyle Safari'de de senkron kaldığı TEKRAR
-denenmeli], G82'nin SVG halka animasyonu/canlı can geri sayımı [Safari'de
-`setInterval` arka planda/kilitli ekranda TEKRAR denenmeli]) elle
-denenmeli. Ayrıca AÇIK İŞLER madde 17 (Tonal Denge'nin yatay/dikey fader
-farkı), madde 18 (3 modda 4px kayma), madde 19 (Tonal Denge'nin yakınlık
-faktörü canlı doğrulanamadı) ile BEKLEYEN KARARLAR madde J
-(ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini yavaşlatması) kullanıcı
-onayı/kararı bekliyor. Aşağıdaki liste (G59 itibarıyla güncellendi) bu
+Aşağıdaki liste (G59 itibarıyla güncellendi) bu
 adımdan BAĞIMSIZ, daha eski/büyük zorluk-mimarisi işlerini kapsıyor.
 
 **(G59 itibarıyla güncellendi.)** **ON oynanabilir mod var:** Frekans Bulma
@@ -13529,13 +12822,11 @@ tarafında engelleyici yok:
    kalacak, yoksa TAMAMEN eğriye mi devredilecek? İkili sistem (statik+eğri,
    opt-in) artık ON moddan geçen, tekrarlanan bir desen — bilinçli bir
    seçim olarak teyit edilmeli.
-5. **unlockLevel/tier zinciri ürün kararı olarak hâlâ DOKUNULMADI**
-   (BEKLEYEN KARARLAR **B**): dB Seviyesi(6)→Kompresör(12)→Reverb(14)→
-   Tonal Denge(15)→Distortion(16)→Frekans Çakışması(20), hepsi tier:"pro".
-   academyLevel yeni bir mod kaydolunca otomatik yükseliyor — artık ON
-   modun altısı zaten oynanabilirken her yeni mod kaydı önceki kilitleri de
-   etkileyebilir, kullanıcıya sorulmalı. G23'ün geliştirici-modu atlaması
-   SADECE test kolaylığı, kalıcı ürün kararının yerine geçmiyor.
+5. ~~**unlockLevel/tier zinciri ürün kararı olarak hâlâ DOKUNULMADI**~~ —
+   **G163'te ÇÖZÜLDÜ:** seviye tabanlı kilit Pro için TAMAMEN kaldırıldı
+   (`meetsLevelRequirement()` koşulsuz `true`), `unlockLevel` alanları
+   `mode-catalog.js`'te BİLEREK silinmedi ama artık okunmuyor — "her yeni
+   mod kaydı önceki kilitleri etkiler mi" sorusu bu kararla ANLAMSIZLAŞTI.
 6. **ÜRÜN SORUSU (G24): seans rampasının genliği (`SESSION_RAMP_CONFIG`:
    MIN_OFFSET=-1.5/MAX_OFFSET=+1.0/BOSS_OFFSET=+2.0) yeterince BÜYÜK mü?**
    Taze/düşük seviyeli bir oyuncuda rampanın mutlak genliği küçük (bkz. G24
@@ -13580,9 +12871,9 @@ ortamdan doğrulanamıyor):
 - **F2**'nin karşılaştırma-önizlemesi duraklat/devam davranışı — masaüstünde
   sağlamlaştırıldı, hâlâ cihaz doğrulaması bekliyor.
 
-Kod tarafında bekleyen karar yok; A/B/C/D/F/H/I (BEKLEYEN KARARLAR — E ve G
-Z1/Z6/Z5/Z7 ile çözüldü) kullanıcıya sorulmayı bekliyor ama hiçbiri şu an
-engelleyici değil.
+Kod tarafında bekleyen karar yok; C/D/F/H/I/K (BEKLEYEN KARARLAR — A/B/E/G/J
+şimdiye kadar çözüldü/kapandı, bkz. BİTTİ) kullanıcıya sorulmayı bekliyor ama
+hiçbiri şu an engelleyici değil.
 
 ## ÜRÜN NOTLARI (önceki sohbetlerden)
 
