@@ -11,18 +11,21 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 const MIN_MS = 60 * 1000;
 
-describe("paywall: seviye kilidi (G62 düzeltmesi)", () => {
+describe("paywall: seviye kilidi (G62'de kısmen, G163'te TAMAMEN kaldırıldı)", () => {
   it("ücretsizde (isPro=false) seviye kilidi HER ZAMAN açık — academyLevel unlockLevel'ın ÇOK altında olsa bile", () => {
     assert.equal(paywall.meetsLevelRequirement(false, 1, 12), true); // Kompresör vakası: academyLevel 1, unlockLevel 12
     assert.equal(paywall.meetsLevelRequirement(false, 0, 20), true);
     assert.equal(paywall.meetsLevelRequirement(false, 999, 1), true);
   });
 
-  it("Pro'da (isPro=true) seviye kilidi GERÇEK academyLevel/unlockLevel karşılaştırmasına bakar", () => {
+  // G163 — kullanıcı kararı: Pro'da da seviye kilidi kalktı, academyLevel/
+  // unlockLevel'a artık HİÇ bakılmıyor — eşiğin ÇOK altında/üstünde olması
+  // fark etmiyor, sonuç her zaman true.
+  it("Pro'da (isPro=true) da seviye kilidi HER ZAMAN açık — academyLevel unlockLevel'ın altında olsa bile", () => {
     assert.equal(paywall.meetsLevelRequirement(true, 12, 12), true); // tam eşik
     assert.equal(paywall.meetsLevelRequirement(true, 15, 12), true); // eşiği aşmış
-    assert.equal(paywall.meetsLevelRequirement(true, 11, 12), false); // eşiğin altında — HÂLÂ kilitli
-    assert.equal(paywall.meetsLevelRequirement(true, 0, 1), false);
+    assert.equal(paywall.meetsLevelRequirement(true, 11, 12), true); // eşiğin altında — ARTIK YİNE DE açık
+    assert.equal(paywall.meetsLevelRequirement(true, 0, 1), true);
   });
 });
 

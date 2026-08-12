@@ -3,7 +3,7 @@
 // mantık (ses zinciri, soru üretimi/puanlama, kalıcılık) core/ ve modes/ içindedir.
 
 import { createAudioEngine } from "./core/audio-engine.js";
-import { createUploadManager, validateAudioFile, audioAcceptAttr } from "./core/upload.js";
+import { createUploadManager, validateAudioFile, audioAcceptAttr, SHORT_AUDIO_FORMAT_LIST, FULL_AUDIO_FORMAT_LIST } from "./core/upload.js";
 import { createRoundFlow } from "./core/round-flow.js";
 import { createExamSystem, getWeakTier, recordTierResult, EXAM_CONFIG } from "./core/exam-system.js";
 import * as storage from "./core/storage.js";
@@ -143,6 +143,7 @@ const els = {
   // KALKTI (bkz. DURUM.md G101, her kaldırılan öğenin yeni karşılığı var).
   toolsGearBtn: document.getElementById("toolsGearBtn"),
   toolsUploadBtn: document.getElementById("toolsUploadBtn"),
+  toolsUploadBtnLabel: document.getElementById("toolsUploadBtnLabel"),
   // G114 — Mixini Yükle kartının çaları (Referans Filtreleri'yle AYNI tek
   // oynatma durumunu paylaşır, bkz. renderToolsFilterPlayer/toolsToggleFilterPlayback).
   toolsMixPlayer: document.getElementById("toolsMixPlayer"),
@@ -164,6 +165,7 @@ const els = {
   toolsFileInput: document.getElementById("toolsFileInput"),
   toolsFilesList: document.getElementById("toolsFilesList"),
   toolsFilesEmpty: document.getElementById("toolsFilesEmpty"),
+  toolsFilesEmptySub: document.getElementById("toolsFilesEmptySub"),
   toolsFilesTotalSpace: document.getElementById("toolsFilesTotalSpace"),
   toolsActionsList: document.getElementById("toolsActionsList"),
   toolsActionsEmpty: document.getElementById("toolsActionsEmpty"),
@@ -1480,9 +1482,16 @@ function loseLife(reasonText, { silent = false } = {}) {
   // G92 (madde 12a): kaybedilen kalp (prevLives-1 index'i — az önce dolu→boş
   // geçen kalp) heartOut ile oynasın.
   renderHearts(prevLives - 1);
+  // G164 — kullanıcı raporu: son can biterken kullanıcı AYNI "Oyun bitti"
+  // mesajını iki kez okuyordu — ÖNCE burada (hem #feedbackBox kartı HEM
+  // document.body'e eklenen, 2.8sn boyunca EKRANDAN BAĞIMSIZ yüzen bir
+  // toast() — Seans Sonu ekranı açıldıktan SONRA da üstte kalmaya devam
+  // ediyordu), SONRA Seans Sonu ekranının kendi "CANLARIN BİTTİ" başlığında.
+  // Ara can kayıplarındaki ("Kalan can: N") geri bildirim DEĞİŞMEDİ — SADECE
+  // son canın bitişindeki bu ikisi kaldırıldı, tek doğruluk kaynağı artık
+  // Seans Sonu ekranı (sebep + geri sayım + seçenekler zaten orada).
   if (currentLives <= 0) {
-    if (!silent) setFeedback("Oyun bitti", `${reasonText} Canların tükendi.`, true, true);
-    toast("💔 Oyun Bitti", "Canların tükendi.");
+    // kasıtlı olarak boş — mesaj Seans Sonu ekranına bırakıldı
   } else if (!silent) {
     setFeedback("Can kaybettin", `${reasonText} Kalan can: ${currentLives}`, true, true);
   }
@@ -2117,10 +2126,10 @@ function syncUploadGate() {
       els.uploadGateText.textContent = "Stereo genişlik mono bir dosyada ölçülemez (side bileşeni sıfır). Dosyalarım'dan farklı, stereo bir dosya seç.";
     } else if (isUploadOnlyMode) {
       els.uploadGateTitle.textContent = "Bu mod kendi dosyanla oynanır";
-      els.uploadGateText.textContent = "Gerçek bir mix üzerinde çalışır. Dosyalarım'dan bir şarkı seç ya da yeni bir dosya yükle.";
+      els.uploadGateText.textContent = "Gerçek bir mix üzerinde çalışır. Dosyalarım'dan bir şarkı seç ya da cihazından yeni bir dosya seç.";
     } else {
       els.uploadGateTitle.textContent = "Bu modda henüz dosya seçmedin";
-      els.uploadGateText.textContent = "Kaynak olarak \"Kendi Dosyam\" seçili ama bu mod için henüz bir dosya seçmedin. Dosyalarım'dan bir şarkı seç, yeni bir dosya yükle, ya da Kaynak'tan başka bir ses seç.";
+      els.uploadGateText.textContent = "Kaynak olarak \"Kendi Dosyam\" seçili ama bu mod için henüz bir dosya seçmedin. Dosyalarım'dan bir şarkı seç, cihazından yeni bir dosya seç, ya da Kaynak'tan başka bir ses seç.";
     }
   }
 }
@@ -2742,11 +2751,11 @@ function renderExerciseGrid() {
   els.modeGrid.innerHTML = "";
   exerciseEntries.forEach(entry => {
     const realMode = registeredModes.find(m => m.getMeta().id === entry.id);
-    // Z3/G62 KARARI — DEĞİŞMEDİ: bkz. önceki sürümün AYNI yorumu (git geçmişi) —
-    // "Sv N'de açılır" akademi-seviyesi kilidi ücretsizde hiç tetiklenmiyor
-    // (meetsLevelRequirement free'de her zaman true döner), Pro'da bile bu 10
-    // mod için pratikte neredeyse hiç ulaşılmayan bir kenar durum. Mantık
-    // KORUNDU, SADECE görsel rozeti (aşağıda) artık render EDİLMİYOR.
+    // G163 — kullanıcı kararı: "Pro alan kullanıcı seviye ile uğraşmasın."
+    // paywall.meetsLevelRequirement() artık HER ZAMAN true dönüyor (Z3/G62'nin
+    // akademi-seviyesi kilidi TAMAMEN kaldırıldı, ücretsizde zaten hiç
+    // yoktu). Çağrı KORUNDU (unlockLevel alanı mode-catalog.js'te SİLİNMEDİ,
+    // ileride geri açılabilir) ama sonucu artık DAİMA true.
     const meetsLevel = devFlags.simulatePro || paywall.meetsLevelRequirement(isUserPro(), progress.academyLevel(stats, playableModeIds()), entry.unlockLevel);
     const playable = !!realMode && meetsLevel;
     const access = playable
@@ -2836,7 +2845,10 @@ function renderExerciseGrid() {
         enterMode(entry, realMode);
         return;
       }
-      if (realMode && !meetsLevel) { toast("Seviye yetersiz", `Bu egzersiz Seviye ${entry.unlockLevel}'de açılır.`); return; }
+      // G163 — "Seviye yetersiz" dalı KALDIRILDI: meetsLevelRequirement()
+      // artık koşulsuz true döndüğü için (kullanıcı kararı: "Pro alan
+      // kullanıcı seviye ile uğraşmasın") bu dal hiçbir zaman tetiklenmiyordu
+      // — ölü kod bırakılmadı.
       toast("Yakında", "Bu egzersiz yakında eklenecek.", "soon");
     });
     els.modeGrid.appendChild(card);
@@ -4650,8 +4662,10 @@ function submitProPlusGuess() {
   updateUI();
   persistStats();
   persistDaily();
-  // F2 (kullanıcı kararı): doğru cevapta 4sn, yanlışta 6sn.
-  if (!finalizeIfGameOver()) scheduleNext(result.correct ? 4000 : 6000);
+  // F2 (kullanıcı kararı): doğru cevapta 4sn, yanlışta 6sn — diğer 10 submit
+  // fonksiyonuyla AYNI desen (G164 — ÖNCEDEN prefs.feedbackScreen hiç
+  // okunmuyordu, kapalıyken de tam süre bekliyordu).
+  if (!finalizeIfGameOver()) scheduleNext(prefs.feedbackScreen ? (result.correct ? 4000 : 6000) : QUICK_ADVANCE_MS);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5139,7 +5153,7 @@ function startRound() {
   if (sessionEndVisible) return; // seans sonu ekranı açıkken hiçbir tetikleyici yeni tur başlatamaz
   if (blockIfLivesOut()) return;
   if (els.sourceSelect.value === "upload" && !uploadManager.hasBuffer) {
-    setFeedback("Önce ses yükle", "Kaynak olarak yüklenen ses seçiliyse bir mp3/wav dosyası seçmelisin.");
+    setFeedback("Önce ses yükle", `Kaynak olarak yüklenen ses seçiliyse desteklenen bir dosya seçmelisin: ${FULL_AUDIO_FORMAT_LIST}.`);
     return;
   }
   // G122: Stereo Genişlik — mode.bufferPlayability() (bkz. syncUploadGate'in
@@ -5799,7 +5813,7 @@ async function processCakismaUploadFile(file, uploadMgr, inputId, slotLabel) {
     setFeedback(`Kaynak ${slotLabel} yüklendi`, `${file.name} başarıyla yüklendi. "Oyunu Başlat" ile çalmaya başlar.`);
   } catch (err) {
     console.error(`[cakisma-upload-${slotLabel}] beklenmeyen hata:`, err && err.name, err && err.message, err);
-    setFeedback("Yükleme hatası", "Bu ses dosyası açılamadı. Farklı bir mp3/wav dene.");
+    setFeedback("Yükleme hatası", `Bu ses dosyası açılamadı. Farklı bir dosya dene — desteklenenler: ${FULL_AUDIO_FORMAT_LIST}.`);
   }
 }
 function wireCakismaUpload(inputEl, uploadMgr, slotLabel) {
@@ -7911,7 +7925,7 @@ updateCalibRowLabel();
 // ---- Sık sorulan sorular (uygulamanın GERÇEK davranışına göre yazıldı) ----
 const FAQ = [
   ["İpucu puanımı düşürür mü?", "Evet — ipucu kullandığın sorularda kazanılan XP yarıya iner. Doğru/yanlış değerlendirmeni ya da isabet oranını etkilemez."],
-  ["Zorluk seviyeleri birbirinden nasıl farklı?", "Kolay'dan Sınırsız'a gittikçe frekans/bant farkları daralır ve süre kısalır. Ayarlar → Zorluk → Sabit'ten istediğin seviyeyi seçebilirsin; oyun ekranındaki zorluk göstergesiyle her zaman senkrondur."],
+  ["Zorluk seviyeleri birbirinden nasıl farklı?", "Kolay'dan Pro Plus'a gittikçe frekans/bant farkları daralır ve süre kısalır. Ayarlar → Zorluk → Sabit'ten istediğin seviyeyi seçebilirsin; oyun ekranındaki zorluk göstergesiyle her zaman senkrondur."],
   ["Canlar neye yarıyor, nasıl dolar?", "Her zorluğun kendi can hakkı var. Canların biterse o zorlukta 'Oyun Bitti' kartı çıkar; otomatik dolma yoktur, 'Tekrar Oyna' ile yeniden dolar."],
   ["Kendi ses dosyamı yükleyince ne oluyor?", "Dosya yalnızca cihazında kalır, hiçbir sunucuya gönderilmez. Kaynak olarak seçili kaldığı sürece sorularda o dosya çalar; Karıştır (⇄) açıksa her turda rastgele bir kaynağa geçilir."],
   ["Neden kulaklık öneriliyor?", "Filtre/frekans farkları genelde incedir; telefon hoparlörü bunu kolayca maskeleyebilir. Kulaklık zorunlu değil ama çok daha güvenilir ve tutarlı sonuç verir."]
@@ -7937,6 +7951,18 @@ function renderFaq() {
   });
 }
 renderFaq();
+
+// G164 — kullanıcı raporu: dosya seçme butonlarının format listesi 3 farklı
+// yerde ELLE yazılmıştı (biri "WAV, MP3, AIFF" diyordu, gerçek liste M4A da
+// içeriyor — AIFF listede ama M4A'dan SONRA geliyor). Artık HTML'deki statik
+// metin sadece ilk-boyama yedeği, GERÇEK metin burada upload.js:
+// SHORT_AUDIO_FORMAT_LIST'ten (ALLOWED_AUDIO_EXTENSIONS'ın TEK kaynağından
+// türetilmiş) YENİDEN yazılıyor — bir daha elle ayrışamaz.
+(function applyAudioFormatLabels() {
+  if (els.toolsUploadBtnLabel) els.toolsUploadBtnLabel.textContent = `Dosya Seç · ${SHORT_AUDIO_FORMAT_LIST}`;
+  if (els.toolsFilesPickBtnLabel) els.toolsFilesPickBtnLabel.textContent = `Dosya Seç · ${SHORT_AUDIO_FORMAT_LIST}`;
+  if (els.toolsFilesEmptySub) els.toolsFilesEmptySub.textContent = `${SHORT_AUDIO_FORMAT_LIST} seç, referans filtreleriyle dinle.`;
+})();
 
 // ---- Geri bildirim gönder (backend yok — yerel onay + temizleme) ----
 if (els.feedbackSendBtn) els.feedbackSendBtn.addEventListener("click", () => {

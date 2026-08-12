@@ -59,6 +59,13 @@ function uploadDiagLog(step, label, phase, detail) {
 }
 
 export const ALLOWED_AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "aac", "aiff", "flac", "ogg"];
+// G164 — kullanıcı raporu: format listesi 3 farklı yerde 3 farklı elle
+// yazılmış metin olarak duruyordu ("mp3/wav", "mp3/wav/m4a", TAM 7'li liste)
+// — biri değişince diğerleri sessizce ESKİ kalıyordu. Artık TEK kaynak:
+// kullanıcıya görünen HER liste (kısa buton alt yazısı, uzun hata mesajı)
+// ALLOWED_AUDIO_EXTENSIONS'tan TÜRETİLİYOR, elle bir daha yazılmıyor.
+export const SHORT_AUDIO_FORMAT_LIST = ALLOWED_AUDIO_EXTENSIONS.slice(0, 3).map(e => e.toUpperCase()).join(", "); // "WAV, MP3, M4A"
+export const FULL_AUDIO_FORMAT_LIST = ALLOWED_AUDIO_EXTENSIONS.map(e => e.toUpperCase()).join("/"); // "WAV/MP3/M4A/AAC/AIFF/FLAC/OGG"
 const MAX_AUDIO_FILE_MB = 100; // KULLANICI KARARI (G11) — G8'de 30 MB'a çekilmişti
 // (decodeAudioData dosyayı SIKIŞTIRILMAMIŞ PCM'e açar, büyük bir mp3/m4a OOM ile
 // iOS WKWebView'ı çökertebilir — try/catch bunu YAKALAYAMAZ, motor seviyesinde çöker).
@@ -165,7 +172,7 @@ export function createUploadManager(getAudioCtx) {
     } catch (e) {
       uploadDiagLog(2, "ArrayBuffer'a dönüştürme (file.arrayBuffer)", "HATA", `${(performance.now() - t2_0).toFixed(0)} ms — ${e && e.message}`);
       console.error("[upload] dosya okunamadı:", e && e.name, e && e.message, e);
-      return { ok: false, title: "Dosya okunamadı", detail: "Bu dosya açılamadı. Farklı bir mp3/wav/m4a dosyası dene." };
+      return { ok: false, title: "Dosya okunamadı", detail: `Bu dosya açılamadı. Farklı bir dosya dene — desteklenenler: ${FULL_AUDIO_FORMAT_LIST}.` };
     }
     uploadDiagLog(2, "ArrayBuffer'a dönüştürme (file.arrayBuffer)", "BİTTİ", `${(performance.now() - t2_0).toFixed(0)} ms, ${arrayBuffer.byteLength} bayt`);
     if (arrayBuffer.byteLength === 0) {
@@ -218,7 +225,7 @@ export function createUploadManager(getAudioCtx) {
     }
 
     if (!buffer) {
-      return { ok: false, title: "Bu dosya açılamadı", detail: "Lütfen mp3, m4a veya WAV formatında bir dosya dene." };
+      return { ok: false, title: "Bu dosya açılamadı", detail: `Lütfen desteklenen bir formatta dosya dene: ${FULL_AUDIO_FORMAT_LIST}.` };
     }
 
     return { ok: true };

@@ -9,17 +9,21 @@
 // app.js'te (gerçek IAP sonraki parça); burada sadece "isPro true/false iken
 // ne olmalı" sorusunun cevabı var. Kaynak: PAYWALL.md.
 
-// ---- Seviye kilidi (G62 düzeltmesi) ----
+// ---- Seviye kilidi (G62 düzeltmesi, G163'te TAMAMEN KALDIRILDI) ----
 
-// Seviye/sınav kilidi SADECE Pro'da anlamlı — free'de sınav hiç devreye
-// GİRMİYOR (bkz. isExamLocked), dolayısıyla seviye de hiç İLERLEMİYOR.
-// Ücretsiz kullanıcının hiç ulaşamayacağı bir seviye eşiğine takılması
-// ANLAMSIZDI (cihaz testinde bulundu — Kompresör unlockLevel:12 ama tier
-// "free", ücretsiz kullanıcı "Seviye yetersiz" diyordu). isPro=false ise
-// kilit HER ZAMAN açık (true) — academyLevel/unlockLevel'a hiç bakılmaz.
-export function meetsLevelRequirement(isPro, academyLevel, unlockLevel) {
-  if (!isPro) return true;
-  return academyLevel >= unlockLevel;
+// G62: Seviye/sınav kilidi SADECE Pro'da anlamlıydı (free'de sınav hiç
+// devreye girmediği için seviye de hiç ilerlemiyordu) — ücretsiz kullanıcının
+// hiç ulaşamayacağı bir eşiğe takılması ANLAMSIZDI, isPro=false'ta kilit
+// HER ZAMAN açıktı.
+// G163 — kullanıcı kararı: "Pro alan kullanıcı seviye ile uğraşmasın."
+// Ücretsizde zaten kilit yoktu, artık Pro'da da yok — kilit KOŞULSUZ açık.
+// mode-catalog.js'teki unlockLevel alanları SİLİNMEDİ (ileride geri
+// açılabilsin diye, task'ın kendi kararı) ama artık HİÇBİR yerde okunmuyor
+// (bkz. app.js renderExerciseGrid — "Seviye yetersiz" toast dalı kaldırıldı).
+// İmza (isPro/academyLevel/unlockLevel) ÇAĞIRAN tarafta (app.js) kod
+// churn'ü azaltmak için KORUNDU — üçü de artık kullanılmıyor.
+export function meetsLevelRequirement() {
+  return true;
 }
 
 // ---- Mod erişimi ----

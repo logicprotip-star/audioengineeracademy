@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G161)
+Son güncelleme: 13.08.2026 (G164)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,144 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+G162 (SADECE DENETİM, kod YAZILMADI) — **Kapsamlı denetim: "Sınırsız"/"Pro Plus"
+karışıklığı, seviye kilidi, saat manipülasyonu açıkları, format listesi
+tutarsızlığı, Pro Plus geri bildirim ayarı, can bitişinde çift mesaj,
+DURUM.md arşiv temizliği — hepsi git log + kod okunarak DOĞRULANDI.**
+Bu turda tek satır kod değişmedi — bulgular G163/G164'e girdi oldu, ayrıntı
+için o kayıtlara bkz.
+
+G163/G164 — **Denetim bulgularının üçü ağır, üçü hafif düzeltildi: "Sınırsız"→"Pro
+Plus" birleştirildi, Pro'da seviye kilidi TAMAMEN kaldırıldı, Pro Plus'ın
+geri bildirim ayarı düzeldi, can bitişinde çift mesaj kalktı, dosya format
+listesi/buton metni TEK kaynaktan türetilir oldu. Saat manipülasyonu (üçüncü
+ağır madde) TASARLANDI ama kullanıcı onayı bekliyor — kod YAZILMADI.**
+
+**1) "SINIRSIZ" → "PRO PLUS" (kullanıcı kararı: Pro Plus kalsın):**
+- `index.html`: `.chip-v2[data-diff="proplus"]` "Sınırsız" → **"Pro Plus"**;
+  `#difficultySelect`'in `proplus` seçeneği "Pro Plus (Çok Bantlı)" →
+  **"Pro Plus"** — "(Çok Bantlı)" kaldırıldı çünkü SADECE Frekans Bulma'da
+  doğru (proplus orada 4-bant eşzamanlı işaretlemeye geçiyor, diğer 11 modda
+  sadece bir tık daha zor bir kademe — `db-seviyesi.js`'in kendi yorumu:
+  "proplus BURADA çok-bantlı bir varyant DEĞİL"), genelleme YANLIŞTI.
+  `syncDifficultyRowLabel()` bu option'ın `.text`'ini hem Oyun Ayarları
+  satırına hem Genel Ayarlar'ın `#diffHintV2` satırına yazdığı için TEK
+  değişiklik HER İKİ yüzeyi de düzeltti.
+- `app.js`'in SSS'sindeki ("Zorluk seviyeleri birbirinden nasıl farklı?")
+  "Kolay'dan Sınırsız'a" ifadesi de "Kolay'dan Pro Plus'a" oldu.
+- Paywall'ın "Sınırsız soru" vaadi (`paywall.js:186/204`, OYUN TÜRÜNÜ
+  anlatıyor — proplus'la İLGİSİZ) BİLEREK DOKUNULMADI.
+- `data-diff="proplus"` DEĞERİ değişmedi, `canPlayDailyTaste`/testler
+  etkilenmedi.
+
+**2) SEVİYE TABANLI KİLİT TAMAMEN KALDIRILDI (kullanıcı kararı):**
+- `paywall.js:meetsLevelRequirement()` artık parametrelerine BAKMADAN
+  koşulsuz `true` dönüyor (imza KORUNDU — çağıran taraf değişmesin diye).
+- `app.js:renderExerciseGrid()`'in artık hiç tetiklenemeyen "Seviye
+  yetersiz" toast dalı (`if (realMode && !meetsLevel) {...}`) SİLİNDİ —
+  ölü kod bırakılmadı.
+- `mode-catalog.js`'teki `unlockLevel` alanları BİLEREK SİLİNMEDİ (ileride
+  geri açılabilsin) — artık sadece OKUNMUYORLAR.
+- "Kart üzerindeki seviye rozeti/'Sv N'de açılır' etiketi" zaten ÖNCEDEN
+  (ayrı bir sessizce yapılmış görsel değişiklikte) kaldırılmış bulundu —
+  bu turda temizlenecek ek bir UI parçası YOKTU.
+- `test/paywall.test.mjs`: `meetsLevelRequirement`'ın Pro dalı testi
+  YENİ beklenen değere (hep `true`) güncellendi — test SAYISI DÜŞMEDİ (aynı
+  2 test, sadece assertion'lar).
+- **BEKLEYEN KARARLAR J (ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidini
+  yavaşlatması) bu değişiklikle KENDİLİĞİNDEN KAPANDI** — kilit artık hiç
+  yok, hızını sorgulamak anlamsızlaştı.
+- **DOĞRULAMA:** düşük academyLevel'lı (taze/0 XP) bir Pro kullanıcı,
+  unlockLevel'ı EN YÜKSEK modu (Frekans Çakışması, 20) `locked` sınıfı
+  OLMADAN kartından tıklayıp GERÇEKTEN açabildi (kulaklık uyarı sheet'ine
+  ulaştı, "Seviye yetersiz" toast'ı hiç çıkmadı) — Playwright'ta doğrulandı.
+
+**3) SAAT MANİPÜLASYONU — TASARLANDI, KOD YAZILMADI, ONAY BEKLİYOR:**
+Can dolumunda (ileri alma korumasız, ~4 can birden kazanılabiliyor) ve
+günlük görevlerde (hiç koruma yok, sınırsız tekrar ödül) iki açık bulundu.
+Önerilen çözüm: `performance.now()` (sistem saati değişikliğinden ETKİLENMEYEN
+monotonik saat) ile `Date.now()`'u OTURUM başlangıcından beri karşılaştırıp
+büyük sapmada (>2dk tolerans) monotonik-türetilmiş değere SESSİZCE düşen bir
+`reconcileClock()` — sunucu gerektirmiyor, saat dilimi/yaz saati/gerçek uzun
+yokluğu ETKİLEMİYOR (epoch ms zaten saat dilimi bağımsız, cold-launch'ta
+karşılaştıracak bir önceki oturum referansı olmadığı için o senaryo eski
+davranışta kalıyor — dürüstçe açıklandı, bu KABUL EDİLEN tek kalan boşluk).
+Kullanıcı onayı BEKLİYOR — hiçbir dosyaya dokunulmadı.
+
+**4) PRO PLUS'TA GERİ BİLDİRİM EKRANI AYARI DÜZELDİ (G164, AÇIK İŞLER 12):**
+`submitProPlusGuess`'in `scheduleNext(result.correct?4000:6000)` satırı
+diğer 10 submit fonksiyonuyla BİREBİR AYNI desene (`prefs.feedbackScreen ?
+(...) : QUICK_ADVANCE_MS`) çevrildi — TEK SATIR. `showProPlusInfoPanel`/
+`appendFreqInfoNote` çağrılarına DOKUNULMADI (diğer modlarda da koşulsuz,
+tutarlı). **DOĞRULAMA:** Pro Plus'ta feedbackScreen kapalıyken 4 nokta
+işaretlenip gönderildikten SONRA yeni sorunun ipucu ~880ms'de geri geldi
+(QUICK_ADVANCE_MS=700 civarı — eski davranış 4000-6000ms olurdu).
+
+**5) CAN BİTİŞİNDE ÇİFT (aslında ÜÇLÜ) MESAJ — TEKE İNDİRİLDİ (G164):**
+Kod okunurken raporun işaret ettiğinden BİR FAZLASI bulundu:
+`loseLife()`'ın `currentLives<=0` dalında HEM `setFeedback("Oyun bitti",...)`
+(oyun-ekranı kartı) HEM `toast("💔 Oyun Bitti",...)` (document.body'e
+eklenen, 2.8sn EKRANDAN BAĞIMSIZ yüzen gerçek bir toast — Seans Sonu
+ekranı AÇILDIKTAN SONRA bile üstte kalmaya devam ediyordu) vardı — rapor
+sadece ilkini (setFeedback) işaret etmişti ama SADECE onu kaldırmak "tek
+mesaj" kabul ölçütünü GERÇEKTEN sağlamazdı (toast Seans Sonu'nun üstünde
+kalmaya devam ederdi). İkisi de kaldırıldı — ara can kayıplarındaki
+("Kalan can: N") geri bildirim TEK SATIR değişmedi. **DOĞRULAMA:** son
+canı bitiren bir yanlış cevaptan sonra ekranda "Oyun bitti"/"Canların
+tükendi" içerikli hiçbir toast kalmadı (Playwright'ta doğrulandı — tesadüfen
+AYNI anda tetiklenen alakasız bir "günlük görev tamamlandı" toast'ı
+GÖRÜLDÜ, bu test verisinin kendi seed'inden kaynaklanan bir yan etki,
+regresyon DEĞİL).
+
+**6) FORMAT LİSTESİ VE BUTON METNİ — TEK KAYNAKTAN TÜRETİLİYOR (G164):**
+- `upload.js`'e `SHORT_AUDIO_FORMAT_LIST` ("WAV, MP3, M4A", ilk 3) ve
+  `FULL_AUDIO_FORMAT_LIST` ("WAV/MP3/M4A/AAC/AIFF/FLAC/OGG", hepsi) eklendi
+  — ikisi de `ALLOWED_AUDIO_EXTENSIONS`'tan TÜRETİLİYOR, elle yazılmıyor.
+- 4 hata mesajı (`upload.js` içinde 2, `app.js` içinde 2) artık TAM listeyi
+  bu sabitten gösteriyor — önceden "mp3/wav" (2 format) ve "mp3/wav/m4a"
+  (3 format) gibi EKSİK/ELLE yazılmış listelerdi.
+- TÜM dosya seçme butonları artık **"Dosya Seç"** (Araçlar'ın "Mixini
+  Yükle" kartı, Dosyalarım sheet'inin "yeni dosya" butonu, Oyun Ayarları,
+  Frekans Çakışması'nın iki upload butonu zaten aynıydı) — "yükle" fiili
+  bu buton/etiket/ipucu metinlerinden kaldırıldı (Oyun Ayarları'nın
+  "Ses dosyası yükle" etiketi → "Ses dosyası"; Araçlar'ın 3 "Önce bir
+  dosya yükle" ipucu → "Önce bir dosya seç"; boş-durum başlığı "Henüz
+  dosya yüklemedin" → "Henüz dosya seçmedin"; upload-gate metinleri).
+  "Mixini Yükle" kart BAŞLIĞI (bölüm adı, buton değil) BİLİNÇLİ OLARAK
+  DEĞİŞMEDİ.
+- Araçlar'ın 2 buton alt yazısı ("Dosya Seç · WAV, MP3, M4A") ve boş-durum
+  alt metni artık STATİK HTML DEĞİL — `app.js`'te sayfa yüklenince
+  `SHORT_AUDIO_FORMAT_LIST`'ten YENİDEN yazılıyor (HTML'deki metin sadece
+  ilk-boyama yedeği), bir daha elle ayrışamaz.
+- **DOĞRULAMA:** Araçlar/Dosyalarım/Oyun Ayarları/boş-durum yüzeylerinin
+  HEPSİ Playwright'ta tek tek okunup "Dosya Seç · WAV, MP3, M4A"yla
+  BİREBİR eşleştiği, "Sınırsız"/"mp3/wav"/"AIFF" kalıntısı KALMADIĞI
+  doğrulandı.
+
+**REGRESYON TARAMASI:** G150'nin 12-mod actionbar-compact taraması,
+G154/G157'nin Tonal Balance takımı, G161'in A/B toggle+"i" paneli takımı
+yeniden çalıştırıldı — hiçbiri bozulmadı (`stereo-genislik` "başarısızlığı"
+G160'ta ZATEN test-betiği kaynaklı olduğu kanıtlanmış eski bir bulgu,
+YENİ değil).
+
+**DOKUNULAN DOSYALAR:** `www/index.html`, `www/js/app.js`,
+`www/js/core/paywall.js`, `www/js/core/upload.js`, `test/paywall.test.mjs`.
+
+**DOKUNULMAYAN DOSYALAR:** `www/js/core/storage.js` (saat manipülasyonu
+düzeltmesi İÇİN gerekiyor ama HENÜZ ONAY BEKLİYOR, bu turda dokunulmadı),
+`www/js/core/mode-catalog.js` (unlockLevel alanları BİLEREK silinmedi),
+`www/js/modes/*`, `www/js/core/audio-engine.js`, `www/js/core/tonal-balance.js`,
+Android/iOS native dosyalar.
+
+**npm test:** 1250/1250 (değişmedi — `paywall.test.mjs`'in 2 testi
+GÜNCELLENDİ, sayı düşmedi).
+
+**SIRADAKİ (bu oturumun kendi kararı bekleyen tek maddesi):** saat
+manipülasyonu düzeltmesinin (`reconcileClock`, `www/js/core/trusted-clock.js`
+YENİ dosya + `storage.js`'e opsiyonel `now` parametreleri) uygulanıp
+uygulanmayacağı — tasarım kullanıcıya sunuldu, onay/tolerans-değeri
+netleşince kodlanacak.
 
 G161 — **Araçlar / Tonal Balance: A/B düğmelerinin görsel durumu netleşti + kart "i" bilgilendirmesi eklendi.**
 
@@ -12459,11 +12597,16 @@ doğruluyor: `getMeta()` artık SADECE oyun-mantığı meta'sını (id/motor/
 kulaklikGerekli/vb.) döndürüyor, ad/aciklama YOK. Öneri zaten uygulanmış —
 katalog tek görüntü kaynağı. Bu madde kapatıldı.
 
-**B. Kilit tipleri**
-Üç ayrı durum tek state'e sıkışmış: (1) henüz kodlanmadı, (2) seviye yetersiz,
-(3) Pro gerektiriyor. Kart "Seviye 5'te açılır" derken tıklayınca "Yakında" toast'ı
-çıkıyor — çelişkili vaat. **Hâlâ açık, kod değişmedi** (bu turda `renderModeGrid`
-yeniden okunarak doğrulandı).
+**B. ~~Kilit tipleri~~ — "seviye yetersiz" dalı G163'te TAMAMEN KALDIRILDI**
+Üç ayrı durum tek state'e sıkışmıştı: (1) henüz kodlanmadı, (2) seviye yetersiz,
+(3) Pro gerektiriyor. Kullanıcı kararı (G163): "Pro alan kullanıcı seviye ile
+uğraşmasın" — `paywall.meetsLevelRequirement()` artık koşulsuz `true` dönüyor,
+(2) durumu tamamen ORTADAN KALKTI. Geriye (1) "Yakında" (henüz kodlanmayan
+2 mod, ayrı `renderComingGrid()`) ve (3) "Pro gerekiyor" (paywall ekranı) kaldı
+— bu ikisi ZATEN farklı, kendi içinde tutarlı UI'lara sahip (bkz. G162'nin
+denetim bulgusu), AYRIŞTIRMA sorunu sadece (2)'nin silinmesiyle kendiliğinden
+küçüldü. `unlockLevel` alanları mode-catalog.js'te SİLİNMEDİ (ileride geri
+açılabilsin) ama artık hiçbir yerde OKUNMUYOR.
 Katalog artık (G59 sonrası) **14 giriş** — `mode-catalog.js`'ten sayıldı:
 **5'i `tier:"free"`** (Frekans Bulma/Kesim Noktası/Q Genişliği/Boost mu Cut
 mu/Hız Modu — sonuncusu henüz `playable:false`), **9'u `tier:"pro"`** (dB
@@ -12534,8 +12677,12 @@ rakamı önceki bir oturumun canlı ölçümüydü, bu turda yeniden ölçülmed
 mekanizma değişmemiş, karar hâlâ açık: Pro Plus dar odakta kısıtlansın mı (o
 kombinasyon seçilemesin), yoksa az bantla mı devam etsin?
 
-**J. G75 — ACADEMY_XP_MULTIPLIER (=5, taslak) Pro seviye kilidinin (madde B)
-açılma hızını da yavaşlattı, kod bunu ÇÖZMEDİ**
+**J. ~~G75 — ACADEMY_XP_MULTIPLIER (=5, taslak) Pro seviye kilidinin (madde B)
+açılma hızını da yavaşlattı~~ — G163'te KENDİLİĞİNDEN KAPANDI**
+Madde B'deki seviye kilidi G163'te TAMAMEN kaldırıldığı için (`meetsLevelRequirement()`
+artık koşulsuz `true`), bu maddenin sorduğu "çarpan mı düşürülsün, unlockLevel mi
+yeniden ayarlansın" sorusu ANLAMSIZLAŞTI — kilit yok, hızının bir önemi kalmadı.
+Aşağıdaki eski analiz sadece TARİHSEL referans için tutuluyor:
 `academyLevel()` artık TOPLAM XP'den, mod eğrisinden 5 kat yavaş bir
 eğriyle hesaplanıyor (bkz. BİTTİ G75) — AYNI fonksiyon `paywall.
 meetsLevelRequirement`'ın Pro seviye kilidinde (`unlockLevel`, madde B'nin
