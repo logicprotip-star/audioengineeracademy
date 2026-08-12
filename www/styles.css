@@ -2094,6 +2094,11 @@
     .tools-tonal-ab-btn.role-a.playing{background:rgba(232,196,106,.16);border-color:#e8c46a}
     .tools-tonal-ab-btn.role-b.playing{background:rgba(34,211,238,.14);border-color:#22d3ee}
     .tools-tonal-ab-btn.disabled{opacity:.4;pointer-events:none}
+    /* G161 — A/B düğmelerinin "çalıyor/durdu" durumu ÖNCEDEN sadece zayıf bir
+       zemin/kenarlık tonu değişikliğiyle belliydi (kabul ölçütü: "düğme durumu
+       görsel olarak belli olsun") — Referans Filtreleri/Mixini Yükle'nin AYNI
+       play/pause ikon deseni (bkz. renderToolsFilterPlayer) buraya da eklendi. */
+    .tools-tonal-ab-icon{display:flex;align-items:center;justify-content:center;flex:none;width:12px;height:12px}
     .tools-tonal-note{margin-top:8px;font-size:10px;font-weight:500;color:#3f444a}
     .tools-tonal-draft-note{margin-top:8px;font-size:10px;font-weight:500;color:#4a4f56;line-height:1.5}
     /* G154 — EQ hareketleri listesi (madde 3). Renk/boyut paleti Tonal Balance'ın

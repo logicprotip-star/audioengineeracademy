@@ -17,7 +17,7 @@ import { modeVisualSvg } from "./core/mode-visuals.js";
 import { SOURCE_GROUPS, findSource, findSourcePair } from "./core/source-catalog.js";
 import { tierForLevel, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
 import { levelSheetTermsFor } from "./core/level-sheet-terms.js";
-import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
+import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS, TOOLS_TONAL_GUIDE, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
 import { getWeakZone } from "./core/personalization.js";
 import * as tonalBalance from "./core/tonal-balance.js";
 import * as fileStorage from "./core/file-storage.js";
@@ -171,6 +171,7 @@ const els = {
   toolsMeasurementsEmpty: document.getElementById("toolsMeasurementsEmpty"),
   // D) Tonal Balance
   toolsTonalCard: document.getElementById("toolsTonalCard"),
+  toolsTonalInfoBtn: document.getElementById("toolsTonalInfoBtn"),
   toolsTonalChips: document.getElementById("toolsTonalChips"),
   toolsTonalRefRow: document.getElementById("toolsTonalRefRow"),
   toolsTonalRefCurrent: document.getElementById("toolsTonalRefCurrent"),
@@ -186,7 +187,9 @@ const els = {
   toolsTonalSummary: document.getElementById("toolsTonalSummary"),
   toolsTonalAbRow: document.getElementById("toolsTonalAbRow"),
   toolsTonalPlayA: document.getElementById("toolsTonalPlayA"),
+  toolsTonalPlayAIcon: document.getElementById("toolsTonalPlayAIcon"),
   toolsTonalPlayB: document.getElementById("toolsTonalPlayB"),
+  toolsTonalPlayBIcon: document.getElementById("toolsTonalPlayBIcon"),
   toolsTonalDraftNote: document.getElementById("toolsTonalDraftNote"),
   toolsTonalEqList: document.getElementById("toolsTonalEqList"),
   toolsTonalEqHint: document.getElementById("toolsTonalEqHint"),
@@ -6280,7 +6283,17 @@ function openGuideSheet(modeId) {
   // sorun guideSheet'in DOM konumunda/CSS'inde.
   console.log(`[guide-i-diag] openGuideSheet çağrıldı — modeId: ${modeId || "(null, genel rehber)"}, guideSheetBody bulundu: ${!!els.guideSheetBody}`);
   if (!els.guideSheetBody) return;
-  if (modeId && MODE_GUIDE_TEXTS[modeId]) {
+  // G161 — Araçlar/Tonal Balance kartının "i"si: bir MOD DEĞİL (MODE_GUIDE_TEXTS'in
+  // anahtar uzayında yok), bu yüzden özel bir sentinel ("tools-tonal-balance",
+  // gerçek bir modeId ile ÇAKIŞMAZ) — GENERAL_GUIDE'ın AYNI "intro + madde
+  // listesi" render şekli, YENİ bir sheet/DOM İCAT EDİLMEDİ.
+  if (modeId === "tools-tonal-balance") {
+    if (els.guideSheetTitle) els.guideSheetTitle.textContent = TOOLS_TONAL_GUIDE.title;
+    const [intro, ...rest] = TOOLS_TONAL_GUIDE.sections;
+    els.guideSheetBody.innerHTML = `
+      <p style="margin:8px 2px 0;font-size:13.5px;line-height:1.6;color:#b8bdc4">${intro.body}</p>
+      <div class="guide-point-list">${rest.map(s => `<div class="guide-point"><i></i><span><b style="color:var(--am);font-weight:700">${s.heading}:</b> ${s.body}</span></div>`).join("")}</div>`;
+  } else if (modeId && MODE_GUIDE_TEXTS[modeId]) {
     const entry = MODE_CATALOG.find(e => e.id === modeId);
     if (els.guideSheetTitle) els.guideSheetTitle.textContent = entry ? entry.ad : "Bu mod";
     // G90 (madde 5): 96px görsel kutusu — o modun ana ekran kart görseli
@@ -6330,6 +6343,9 @@ if (els.gameInfoBtn) {
   // yerine görünür bir sinyal.
   console.warn("[guide-i-diag] #gameInfoBtn DOM'da bulunamadı — click dinleyicisi bağlanamadı.");
 }
+// G161 — Araçlar/Tonal Balance kartının "i"si — menuInfoBtn/gameInfoBtn'in
+// AYNI openGuideSheet() çağrısı, sadece özel sentinel'le.
+if (els.toolsTonalInfoBtn) els.toolsTonalInfoBtn.addEventListener("click", () => openGuideSheet("tools-tonal-balance"));
 if (els.guideSheetClose) els.guideSheetClose.addEventListener("click", closeGuideSheet);
 if (els.guideSheetOverlay) els.guideSheetOverlay.addEventListener("click", closeGuideSheet);
 
@@ -9835,16 +9851,23 @@ async function toolsTonalToggleMatchedMixPlayback() {
 }
 if (els.toolsTonalPlayA) els.toolsTonalPlayA.addEventListener("click", toolsTonalToggleMatchedMixPlayback);
 if (els.toolsTonalPlayB) els.toolsTonalPlayB.addEventListener("click", toolsTonalToggleRefPlayback);
+// G161 — Referans Filtreleri'nin play/pause SVG'leriyle AYNI iki şekil
+// (bkz. renderToolsFilterPlayer), sadece A/B'nin 12px ikon kutusuna göre
+// küçültülmüş — yeni bir görsel dil İCAT EDİLMEDİ.
+const TOOLS_TONAL_AB_PLAY_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="margin-left:1px"><path d="M7 4.8v14.4c0 .9 1 1.5 1.8 1L20 13c.8-.5.8-1.6 0-2.1L8.8 3.8C8 3.3 7 3.9 7 4.8Z"></path></svg>`;
+const TOOLS_TONAL_AB_PAUSE_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4.5" height="14" rx="1.5"></rect><rect x="13.5" y="5" width="4.5" height="14" rx="1.5"></rect></svg>`;
 function renderToolsTonalAbUi() {
   const ref = toolsTonalActiveRef();
   if (els.toolsTonalPlayA) {
     els.toolsTonalPlayA.classList.toggle("playing", tonalMixPlaying);
     els.toolsTonalPlayA.classList.toggle("disabled", !ref);
   }
+  if (els.toolsTonalPlayAIcon) els.toolsTonalPlayAIcon.innerHTML = tonalMixPlaying ? TOOLS_TONAL_AB_PAUSE_ICON : TOOLS_TONAL_AB_PLAY_ICON;
   if (els.toolsTonalPlayB) {
     els.toolsTonalPlayB.classList.toggle("playing", tonalRefPlaying);
     els.toolsTonalPlayB.classList.toggle("disabled", !ref);
   }
+  if (els.toolsTonalPlayBIcon) els.toolsTonalPlayBIcon.innerHTML = tonalRefPlaying ? TOOLS_TONAL_AB_PAUSE_ICON : TOOLS_TONAL_AB_PLAY_ICON;
 }
 
 async function toolsEnsureTonalMeasured() {

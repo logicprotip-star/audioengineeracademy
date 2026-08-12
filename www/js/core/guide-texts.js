@@ -39,6 +39,45 @@ export const GENERAL_GUIDE = {
   ]
 };
 
+// ---- 1b. Araçlar → Tonal Balance kartının "i"si — GENERAL_GUIDE'ın AYNI
+// {title, sections} şekli, openGuideSheet() AYNI "intro + madde listesi"
+// render yolunu kullanır (bkz. app.js). Bu bir MOD değil (MODE_GUIDE_TEXTS'in
+// anahtar uzayında değil), Araçlar sekmesinin kendi kartı — o yüzden ayrı bir
+// sabit, MODE_GUIDE_TEXTS'e KARIŞTIRILMADI.
+export const TOOLS_TONAL_GUIDE = {
+  title: "Tonal Balance",
+  sections: [
+    {
+      heading: "Tonal Balance ne işe yarar?",
+      body: "Mixinin frekans dengesini (bas/orta/tiz oranını) bir hedef eğriyle karşılaştırır. Sapma listesi hangi bölgenin fazla ya da eksik olduğunu, ne kadarlık bir düzeltme gerektiğini gösterir."
+    },
+    {
+      heading: "Pop / EDM / Akustik",
+      body: "Bu üç hazır hedef eğri şu an TASLAK — gerçek referans parçalardan yeniden türetilecek, kesin ölçüm değil. Kabaca bir fikir verir, kesin hedef olarak kullanma."
+    },
+    {
+      heading: "Kendi Referansım",
+      body: "Hazır eğriler yerine kendi beğendiğin bir referans şarkıyı yükleyip mixini ONUNLA karşılaştırmanı sağlar. 'Referans parça seç' ile kütüphaneden bir dosya seç ya da cihazdan yeni bir dosya yükle."
+    },
+    {
+      heading: "A · Eşitlenmiş mix",
+      body: "Senin mixin, referansın tonal dengesine EQ ile benzetilmiş hâlde çalar — sapma listesindeki düzeltmeler burada gerçek zamanlı uygulanmış olarak duyulur."
+    },
+    {
+      heading: "B · Referans",
+      body: "Seçtiğin referans dosyasının kendisi, hiç işlenmeden çalar — A ile karşılaştırıp kulağınla farkı değerlendirebilirsin."
+    },
+    {
+      heading: "Ham mix",
+      body: "İşlenmemiş, orijinal mixini dinlemek istersen 'Mixini Yükle' kartındaki oynatıcıyı kullan — buradaki A/B sadece işlenmiş/referans karşılaştırması içindir."
+    },
+    {
+      heading: "Sapma listesi",
+      body: "Her bandın yanındaki dB değeri, o bandı referansa yaklaştırmak için gereken düzeltmeyi gösterir — kendi DAW'ındaki EQ'da aynı frekansa aynı yönde (boost/cut) uygulayabilirsin."
+    }
+  ]
+};
+
 // ---- 2. Mod başına "i" — ne öğretir + nasıl oynanır + mix anlamı ----
 // Anahtarlar mode-catalog.js'in id'leriyle BİREBİR aynı (10 oynanabilir mod).
 export const MODE_GUIDE_TEXTS = {

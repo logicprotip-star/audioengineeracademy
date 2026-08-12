@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G160)
+Son güncelleme: 12.08.2026 (G161)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,85 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+G161 — **Araçlar / Tonal Balance: A/B düğmelerinin görsel durumu netleşti + kart "i" bilgilendirmesi eklendi.**
+
+**1) A/B DÜĞMELERİ — DÜRÜSTLÜK NOTU (önce):** Kod okunup Playwright'ta test
+edilince, `toolsTonalToggleMatchedMixPlayback()`/`toolsTonalToggleRefPlayback()`
+(G154'te yazıldı) ZATEN tekrar-dokununca-durdurma + karşılıklı dışlama
+mantığını doğru uyguluyordu — tek tıklama başlatıyor, AYNI düğmeye ikinci
+tıklama durduruyor (pozisyon korunarak), A çalarken B'ye basınca A duruyor
+B başlıyor. Bu davranış Playwright'ta ART ARDA hızlı çift tıklama (yarış
+durumu ihtimaline karşı) DAHİL test edildi — hepsi doğru çalıştı,
+raporlanan "durdurulamıyor" belirtisi BURADA TEKRARLANAMADI. **Tahminle
+kod değiştirilmedi** (CLAUDE.md) — bulunan TEK somut eksik, A/B
+düğmelerinin "çalıyor" durumunun SADECE zayıf bir zemin/kenarlık ton
+değişikliğiyle belli olması (ikon YOK) — kabul ölçütünün kendisi zaten
+"düğme durumu görsel olarak belli olsun" diye AYRICA istiyordu. Bu net
+eksiklik giderildi; cihazda sorun DEVAM EDERSE bu artık ya (a) test
+edilen build G154'ten ESKİ bir sürümdü, ya da (b) burada
+tekrarlanamayan cihaza özgü bir zamanlama sorunu — ikinci ihtimal
+netleşirse ayrıca araştırılmalı.
+
+**UYGULANAN:** Referans Filtreleri'nin play/pause SVG ikon deseniyle
+(`renderToolsFilterPlayer`) AYNI iki şekil, A/B düğmelerine 12px'lik yeni
+`.tools-tonal-ab-icon` kutusunda eklendi — `renderToolsTonalAbUi()` artık
+`tonalMixPlaying`/`tonalRefPlaying`'e göre ikonu (▶/⏸) da güncelliyor,
+ESKİ `.playing` sınıf-tabanlı zemin rengi DEĞİŞMEDİ (ikisi birlikte).
+Yeni bir çalma/durdurma MEKANİZMASI icat edilmedi — sadece var olan
+duruma GÖRÜNÜR bir işaret eklendi.
+
+**2) TONAL BALANCE KARTINA "i" BİLGİLENDİRMESİ:**
+
+Oyun ekranlarındaki `guide-texts.js`/`openGuideSheet()` sistemiyle BİREBİR
+AYNI mekanizma (`#guideSheet`/`#guideSheetOverlay`, YENİ bir sheet/DOM
+İCAT EDİLMEDİ) — `openGuideSheet()`'e yeni bir dal eklendi:
+`modeId === "tools-tonal-balance"` (gerçek bir mod id'siyle ÇAKIŞMAYAN
+sentinel), `GENERAL_GUIDE`'ın AYNI "intro paragraf + madde listesi"
+render şeklini kullanıyor. İçerik `guide-texts.js`'e YENİ `TOOLS_TONAL_GUIDE`
+sabiti olarak eklendi (7 madde: ne işe yarar, Pop/EDM/Akustik'in TASLAK
+olduğu — kartın kendi "Hedef eğri TASLAK..." uyarı metniyle AYNI dil,
+çelişmiyor —, Kendi Referansım, A'nın anlamı, B'nin anlamı, ham mix'in
+Mixini Yükle'den dinlendiği, sapma listesinin kendi EQ'da uygulanabilirliği).
+"i" ikonu `.mode-info-btn` (mevcut, oyun ekranı/mod kartlarıyla AYNI
+sınıf) kullanılarak kart başlığının sağına eklendi — `.tools-card-copy`
+zaten `flex:1` olduğu için ekstra CSS gerekmeden kartın sağına yaslanıyor,
+kart YÜKSEKLİĞİ değişmedi (aynı tek satırlık başlık satırı).
+
+**DOĞRULAMA (Playwright, gerçek dosyalarla):**
+- "i" ikonu her zaman görünür (referans seçilmeden önce de), tıklanınca
+  sheet açılıyor, başlık "Tonal Balance", gövdede İSTENEN 7 konunun
+  HEPSİ (Pop/EDM/Akustik, TASLAK ifadesi, Kendi Referansım, Eşitlenmiş
+  mix, Referans, Mixini Yükle, Sapma) geçiyor, kapatma çalışıyor.
+- Kart başlık satırı yüksekliği 40px (icon'un kendi boyutu) — "i"
+  eklenmeden önceki YÜKSEKLİKLE aynı, ekstra alan kaplamıyor.
+- A'ya basınca `tonalMixPlaying=true` + `.playing` sınıfı + ikon ▶→⏸
+  değişiyor; TEKRAR basınca `tonalMixPlaying=false` + sınıf kalkıyor +
+  ikon ⏸→▶ dönüyor. B çalarken A'ya basınca B duruyor (`tonalRefPlaying=
+  false`, `.playing` sınıfı kalkıyor), A başlıyor.
+- Ekran görüntüsüyle GÖRSEL olarak da doğrulandı (kart + açık sheet).
+- Konsol hatası: 0.
+
+**REGRESYON TARAMASI:** G154/G157'nin Tonal Balance A/B/EQ-listesi takımı,
+G159'un Referans Filtreleri bağımsızlığı+seek+kilit-kurtarma takımı,
+G160'ın Tonal Denge/actionbar-compact taraması ve Bugünün Önerisi
+senaryoları yeniden çalıştırıldı — hiçbiri bozulmadı (`stereo-genislik`
+ve `B_mentions_weak_zone` "başarısızlıkları" G160'ta ZATEN test-betiği
+kaynaklı olduğu kanıtlanmış eski bulgular, bu turda YENİ bir şey değil).
+
+**DOKUNULAN DOSYALAR:** `www/index.html` ("i" butonu + A/B ikon span'leri),
+`www/js/app.js` (`openGuideSheet`, `renderToolsTonalAbUi`, `els` girdileri,
+yeni import), `www/js/core/guide-texts.js` (`TOOLS_TONAL_GUIDE` eklendi),
+`www/styles.css` (`.tools-tonal-ab-icon`).
+
+**DOKUNULMAYAN DOSYALAR:** `www/js/core/upload.js`, `audio-engine.js`,
+`tonal-balance.js`, `storage.js`, oyun ekranı/mod dosyaları, testler,
+Android/iOS native dosyalar. A/B'nin ÇALMA/DURDURMA mantığının KENDİSİ
+(`toolsTonalToggleMatchedMixPlayback`/`toolsTonalToggleRefPlayback`/
+`toolsTonalStopMixPlayback`/`toolsTonalStopRefPlayback`) BİLEREK
+DEĞİŞTİRİLMEDİ — yukarıdaki dürüstlük notuna bkz.
+
+**npm test:** 1250/1250 (değişmedi).
 
 G160 — **Tonal Denge'nin .game-scroll taşması düzeltildi + "Bugünün Önerisi" yetersiz-veri/sert-yüzde sorunu giderildi.**
 
