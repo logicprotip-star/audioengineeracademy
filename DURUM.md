@@ -14,6 +14,21 @@ threshold, attack, release, reverb, saturation, distortion, dB, Hz, kHz,
 LUFS, EQ, compressor, boost, cut, pan, stereo, mono, peak, transient,
 sidechain, delay.
 
+## REGRESYON KORUMASI — her turda zorunlu (kullanıcı kararı, G138 sonrası eklendi)
+
+- Değişikliğin kapsamı dışındaki sistemlere dokunma.
+- Raporda dokunulan ve dokunulmayan dosyalar AYRI AYRI yazılır.
+- npm test sayısı düşmez.
+- Değişikliğe komşu akışlar Playwright ile Claude Code tarafından test edilir,
+  kullanıcıdan cihaz testi istenmeden ÖNCE.
+- Bir düzeltme başka bir yeri bozuyorsa DURULUR ve bildirilir, kendi başına
+  telafi edilmeye çalışılmaz.
+
+**Gerekçe:** G133'ün zincir yeniden kurma tetikleyicisi, G135'in native ses
+düzeltmesi yüzünden sessizce devre dışı kaldı (G136'da bulundu) — iki
+düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
+ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
+
 ## BİTTİ
 
 Bu commit (G138) — **KARAR DEĞİŞİKLİĞİ (kullanıcının kendi kararı): "kaynak TÜRÜ mod-agnostik kalsın" (G126'nın kararı) ARTIK GEÇERSİZ. Kaynak türü de dosya seçimi (G123) gibi mod başına ayrıldı ve kalıcı hale getirildi.**
