@@ -612,11 +612,12 @@
       border:1px solid var(--border-strong);border-radius:var(--r-chip);padding:0 9px;cursor:pointer;
     }
 
-    /* G77/G78: bölüm göstergesi — challenge.done/total. G78: artık challenge
-       AKTİF OLMASA da HEP görünür (Serbest'te .dim + "BÖLÜM —", bkz. app.js
-       renderGameHeader) — tasarımın kendi kararı. */
+    /* G77/G141: bölüm göstergesi — challenge.done/total. G141 — G78'in "Serbest'te
+       de HEP görünür (.dim + 'BÖLÜM —')" kararı GEÇERSİZ kılındı, G77'nin
+       ORİJİNAL "SADECE 10 Soruluk Bölüm'de görünür" kuralına dönüldü (bkz.
+       app.js renderGameHeader) — .dim artık HİÇ UYGULANMIYOR, satır ya tam
+       görünür ya HİÇ görünmez. */
     .game-chapter-row{display:flex;align-items:center;gap:10px;margin-top:10px;transition:opacity .2s}
-    .game-chapter-row.dim{opacity:.45}
     .game-chapter-dots{display:flex;align-items:center;gap:4px;flex:1}
     .game-chapter-dot{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);transition:background .3s}
     .game-chapter-dot.on{background:var(--cyan)}

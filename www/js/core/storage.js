@@ -227,8 +227,14 @@ export function clearDaily() {
 // difficultyMode — "auto" (VARSAYILAN, Z1+Z3'ten türetilir, kullanıcı müdahale
 // etmez) | "fixed" (kullanıcının difficultySelect'ten kendi seçtiği zorluk
 // geçerli).
+// G141 — kullanıcının kendi kararı: G65'in "playModeSelect kalıcı bir prefs
+// alanına YAZILMIYOR, her açılışta 'free'e döner" kararı GEÇERSİZ. Oyunun ASIL
+// akışı "10 Soruluk Bölüm" (XP ile bölüm geçmek) — varsayılan "challenge",
+// Serbest artık isteyerek seçilen bir kip. answerFormat/focusRange İLE AYNI
+// desen (tek/global tercih — mod başına DEĞİL, bkz. app.js:playModeSelect'in
+// change dinleyicisindeki G141 notu, gerekçesi orada).
 export function freshPrefs() {
-  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full", difficultyMode: "auto", feedbackScreen: true, showDailyTip: true };
+  return { notifications: true, hpWarning: true, calibrationDone: false, calibrationLevel: 35, answerFormat: "touch", focusRange: "full", difficultyMode: "auto", feedbackScreen: true, showDailyTip: true, playMode: "challenge" };
 }
 
 export function loadPrefs() {

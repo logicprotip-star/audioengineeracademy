@@ -3367,15 +3367,17 @@ function renderGameHeader() {
   // İkinci satır — boss SÜRE satırı > bölüm göstergesi. boss
   // activeQuestion.boss'tan okunur (startRound()'un ZATEN hesapladığı GERÇEK
   // değer, burada YENİDEN hesaplanmıyor).
-  // G78: bölüm göstergesi artık challenge.active'e BAĞLI DEĞİL — tasarımda
-  // HEP görünür (task'ın kendi kararı, G77'nin "sadece 10 Soruluk Bölüm'de"
-  // kuralını DEĞİŞTİRİYOR). challenge PASİFKEN (Serbest) noktalar sönük
-  // (.dim) + "BÖLÜM —"; AKTİFKEN normal challenge.done/total.
-  // G84 DÜZELTMESİ: tasarımın showChapter'ı (`!boss && s.exam !== 'run'`,
-  // Prototip.dc.html satır 2373) sınav/telafi fazında bölüm satırını da
-  // GİZLİYOR — G77/G78 sadece `!boss` uyguluyordu, sınav/telafi sırasında
-  // "BÖLÜM 10/10" ile "SINAV 2/4" ÇAKIŞIYORDU (aynı satırın altında,
-  // ikisi de görünür kalıyordu). examActive eklendi.
+  // G141 — kullanıcının kendi kararı: G78'in "bölüm göstergesi HEP görünür,
+  // Serbest'te sönük + 'BÖLÜM —'" kararı GEÇERSİZ (G77'nin ORİJİNAL "SADECE
+  // 10 Soruluk Bölüm'de görünür" kuralına DÖNÜLDÜ). Serbest modda ilerlenecek
+  // bir bölüm YOK — boş/sönük bir çubuk göstermek "bozuk" izlenimi veriyordu
+  // (cihazda rapor edildi, G140'ta koddan izlenip "Serbest'in KASITLI
+  // görünümü" olduğu doğrulanmıştı — o zamanki teşhis DEĞİŞMEDİ, SADECE
+  // kullanıcı artık bu görünümün KENDİSİNİ istemiyor). `.dim` class'ı ve
+  // "BÖLÜM —" metni ARTIK GEREKSİZ (satır ya TAM görünür TAM dolu ya da HİÇ
+  // görünmez) — kaldırıldı.
+  // G84 DÜZELTMESİ (KORUNDU): sınav/telafi fazında bölüm satırı GİZLENMELİ
+  // ("BÖLÜM 10/10" ile "SINAV 2/4" ÇAKIŞMASIN) — examActive KORUNDU.
   const boss = !!(activeQuestion && activeQuestion.boss);
   if (els.gameBossRow) els.gameBossRow.classList.toggle("hidden", !boss);
   // G85: spektrum kartının boss altın kenarlığı + alt şerit ortası
@@ -3387,21 +3389,17 @@ function renderGameHeader() {
   if (els.analyzerFootCaption && mode.SHOW_SPECTRUM !== false) {
     els.analyzerFootCaption.textContent = boss ? "PRO ZORLUK · Q 4.0" : "SPEKTRUM ANALİZÖRÜ";
   }
-  const showChapter = !boss && !examActive;
+  const showChapter = !boss && !examActive && challenge.active;
   if (els.gameChapterRow) els.gameChapterRow.classList.toggle("hidden", !showChapter);
   if (els.gameSpeedRow) els.gameSpeedRow.classList.toggle("hidden", !showChapter);
   if (showChapter && els.gameChapterDots && els.gameChapterLabel) {
-    els.gameChapterRow.classList.toggle("dim", !challenge.active);
     els.gameChapterDots.innerHTML = "";
-    const total = challenge.active ? challenge.total : 10;
-    for (let i = 0; i < total; i++) {
+    for (let i = 0; i < challenge.total; i++) {
       const dot = document.createElement("div");
-      dot.className = `game-chapter-dot${challenge.active && i < challenge.done ? " on" : ""}`;
+      dot.className = `game-chapter-dot${i < challenge.done ? " on" : ""}`;
       els.gameChapterDots.appendChild(dot);
     }
-    els.gameChapterLabel.textContent = challenge.active
-      ? `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`
-      : "BÖLÜM —";
+    els.gameChapterLabel.textContent = `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`;
   }
 }
 
@@ -6577,6 +6575,20 @@ els.difficultySelect.addEventListener("change", () => {
 [els.sourceSelect, els.playModeSelect].forEach(el => {
   el.addEventListener("change", () => {
     if (el === els.playModeSelect) {
+      // G141 — kullanıcının kendi kararı: G65'in "kalıcı değil" kararı
+      // GEÇERSİZ. Oyun Türü artık `prefs.playMode` ile KALICI —
+      // answerFormat/focusRange'İN AYNI (prefs, TEK/global) deseni, mod
+      // BAŞINA DEĞİL (`sourceSelections`/`uploadSelections`'ın G123/G138
+      // deseninin AKSİNE). GEREKÇE: kaynak TÜRÜ/dosya seçimi mod-özeldir
+      // (hangi ses kaynağı BU modun sorularını üretecek — Frekans Bulma'da
+      // davul döngüsü Kesim Noktası'nı ilgilendirmez), ama "Oyun Türü"
+      // (Serbest/10 Soruluk Bölüm) mod-bağımsız bir OYUN AKIŞI tercihidir —
+      // `challenge` durumu ZATEN module-level/global (mod başına AYRI bir
+      // `challenge` nesnesi hiç olmadı, grep ile doğrulandı), kullanıcı
+      // "10 Soruluk Bölüm"ü seçtiğinde TÜM modlarda bunu bekler, moddan
+      // moda TEKRAR TEKRAR seçmek istemez.
+      prefs.playMode = el.value;
+      storage.savePrefs(prefs);
       challenge.active = false;
       setAutoPlay(false);
       setFeedback("Oyun türü değişti", isChallenge() ? "10 Soruluk Bölüm seçili. 'Oyunu Başlat' ile bölümü başlat." : "Serbest oyun seçili. 'Oyunu Başlat' ile sınırsız akış.");
@@ -7069,15 +7081,17 @@ function enforceFreeRestrictions() {
     storage.savePrefs(prefs);
     els.focusSelect.dispatchEvent(new Event("change", { bubbles: true }));
   }
-  // G65: playModeSelect kalıcı bir prefs alanına YAZILMIYOR (HTML'deki
-  // <option selected> her sayfa açılışında "free"e döner) — o yüzden
-  // downgrade riski difficulty/focusRange kadar büyük DEĞİL, ama Pro'dan
-  // düşen bir kullanıcı bu OTURUM içinde "Serbest" seçili KALABİLİR (artık
-  // sheet'te yeniden SEÇİLEMEZ ama halihazırda seçiliyse dokunulmamış olur).
-  // "Kilitli göster" niyetiyle TUTARLI kalsın diye burada da 10 Soruluk
-  // Bölüm'e zorlanıyor.
+  // G141 DÜZELTMESİ: G65'in "playModeSelect kalıcı DEĞİL" varsayımı artık
+  // GEÇERSİZ (bkz. o G'nin app.js:freshPrefs notu — artık prefs.playMode
+  // İLE kalıcı). Bu satır DEĞİŞMEDEN kalsaydı, Pro'dan düşen kullanıcı
+  // burada "challenge"a ZORLANIR ama prefs'e YAZILMAZDI — bir SONRAKİ
+  // açılışta applyPrefs() eski "free" değerini GERİ YÜKLERDİ (enforcement
+  // sessizce BOŞA çıkardı). difficultyMode/focusRange İLE AYNI desen:
+  // prefs de burada güncellenip kaydediliyor.
   if (els.playModeSelect && els.playModeSelect.value === "free") {
     els.playModeSelect.value = "challenge";
+    prefs.playMode = "challenge";
+    storage.savePrefs(prefs);
     els.playModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
   }
 }
@@ -7181,6 +7195,14 @@ function applyPrefs() {
   if (els.focusSelect && prefs.focusRange && mode.FOCUS_RANGES && mode.FOCUS_RANGES[prefs.focusRange]) {
     els.focusSelect.value = prefs.focusRange;
     els.focusSelect.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  // G141 — answerFormat/focusRange İLE AYNI desen: kalıcı tercih geri yüklenir,
+  // "change" elle tetiklenir (aşağıdaki [els.sourceSelect, els.playModeSelect]
+  // dinleyicisi zaten kayıtlı — bu satır ONDAN SONRA çalışır, satır sırası
+  // doğrulandı).
+  if (els.playModeSelect && prefs.playMode) {
+    els.playModeSelect.value = prefs.playMode;
+    els.playModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
   }
   updateCalibRowLabel();
 }

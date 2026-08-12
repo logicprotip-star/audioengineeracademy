@@ -617,9 +617,14 @@
             </div>
           </div>
           <div class="control control-sheet">
+            <!-- G141 — kullanıcının kendi kararı: asıl akış "10 Soruluk Bölüm",
+                 Serbest artık isteyerek seçilen bir kip. Bu HTML varsayılanı
+                 SADECE app.js henüz çalışmadan ÖNCEKİ an için — gerçek kalıcı
+                 değer prefs.playMode'dan (storage.js) geliyor, bkz. app.js
+                 applyPrefs(). -->
             <select id="playModeSelect" class="hidden">
-              <option value="free" selected>Serbest (sonsuz)</option>
-              <option value="challenge">10 Soruluk Bölüm (+%50 XP)</option>
+              <option value="free">Serbest (sonsuz)</option>
+              <option value="challenge" selected>10 Soruluk Bölüm (+%50 XP)</option>
             </select>
             <button class="setting-row" data-sheet-select="playModeSelect" data-sheet-title="Oyun Türü">
               <span class="settings-row-label">Oyun Türü</span>

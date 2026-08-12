@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G140)
+Son güncelleme: 12.08.2026 (G141)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,39 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G141) — **KARAR DEĞİŞİKLİĞİ (kullanıcının kendi kararı): oyunun ASIL akışı "10 Soruluk Bölüm" — bu artık varsayılan VE kalıcı. Serbest, isteyerek seçilen bir kip. Serbest'te üst bar bölüm satırı artık TAMAMEN gizli (G78'in "hep görünür, sönük" kararı geçersiz). G65'in "kalıcı değil" kararı da geçersiz.**
+
+**GEÇERSİZ KILINAN İKİ ESKİ KARAR (ikisi de DURUM.md'de kendi kayıtlarında işaretlendi, geriye dönük iz bırakıldı):**
+- **G65** — "playModeSelect kalıcı bir prefs alanına yazılmıyor, her açılışta 'free'e döner." Artık `prefs.playMode` ile kalıcı.
+- **G78** — "bölüm göstergesi challenge.active'e bağlı değil, Serbest'te de HEP görünür (.dim + 'BÖLÜM —')." G77'nin ORİJİNAL "sadece 10 Soruluk Bölüm'de görünür" kuralına dönüldü.
+
+**UYGULANAN:**
+- **`storage.js`** — `freshPrefs()`'e `playMode: "challenge"` eklendi (answerFormat/focusRange İLE AYNI mekanizma — `loadPrefs()`'in `{...freshPrefs(), ...JSON.parse(raw)}` deseni sayesinde eski kayıtlarda bu alan hiç olmasa bile YENİ varsayılana düşer, göç GEREKMEDİ).
+- **`app.js`**:
+  - `applyPrefs()`'e `answerFormat`/`focusRange` İLE AYNI kalıp eklendi: `els.playModeSelect.value = prefs.playMode` + elle "change" tetikleme (modül yüklenirken BİR KEZ).
+  - `[els.sourceSelect, els.playModeSelect].forEach` dinleyicisi artık HER değişiklikte `prefs.playMode = el.value; storage.savePrefs(prefs);` yapıyor.
+  - `enforceFreeRestrictions()` (Pro'dan düşme durumunda "Serbest"i "10 Soruluk Bölüm"e zorlayan ESKİ mekanizma, DEĞİŞMEDİ) artık zorladığı değeri de `prefs`'e YAZIYOR — YAZMASAYDI, artık kalıcı olan `prefs.playMode` bir SONRAKİ açılışta eski "free" değerini GERİ getirir, enforcement'ı SESSİZCE boşa çıkarırdı (bu, G65'in "kalıcı değil" öncülüne dayanan bir kod parçasıydı — öncül değişince BULUNUP güncellendi, atlanmadı).
+  - `renderGameHeader()`'ın `showChapter` koşulu `!boss && !examActive` → `!boss && !examActive && challenge.active` oldu; `.dim`/"BÖLÜM —" dalları (artık erişilemez kod) kaldırıldı.
+- **`styles.css`** — `.game-chapter-row.dim` kuralı (artık HİÇ uygulanmıyor) + stale G77/G78 yorumu kaldırıldı/güncellendi.
+- **`index.html`** — `playModeSelect`'in `<option selected>`'ı "free"den "challenge"a taşındı (gerçek kalıcı değer `prefs.playMode`'dan geliyor, bu SADECE JS çalışmadan önceki an için).
+
+**GEREKÇE — mod başına mı, küresel mi (task'ın istediği madde 3):** **Küresel** (`prefs`, `sourceSelections`/`uploadSelections`'ın G123/G138 mod-başına desenİNİN AKSİNE). Sebep: kaynak TÜRÜ/dosya seçimi mod-ÖZELDİR (Frekans Bulma'da davul döngüsü Kesim Noktası'nı hiç ilgilendirmez) — ama "Oyun Türü" mod-BAĞIMSIZ bir OYUN AKIŞI tercihi; `challenge` durumunun kendisi ZATEN module-level/global (mod başına ayrı bir `challenge` nesnesi hiç olmadı, grep ile doğrulandı) ve `answerFormat`/`focusRange` (aynı küresel `prefs` deseni) İLE aynı kategoriye giriyor — kullanıcı "10 Soruluk Bölüm"ü seçtiğinde bunu TÜM modlarda bekler.
+
+**DOĞRULAMA (Playwright, masaüstü Chromium, ALTI bağımsız senaryo, temiz-sayfa):**
+1. **İlk açılış, hiçbir şey seçilmeden:** `playModeSelect.value==="challenge"` ✔, "BÖLÜM 1/10" ✔, cevap sonrası nokta doluyor + "BÖLÜM 2/10" ✔.
+2. **Serbest seçilince:** üst bar (`gameChapterRow` + `gameSpeedRow`) TAMAMEN gizli ✔, birkaç cevap sonrası da HÂLÂ gizli ✔ (task'ın kendi kabul ölçütü, birebir).
+3. **Serbest kalıcı mı:** seçim ANINDA `prefs.playMode` localStorage'a yazılıyor ✔ → sayfa (uygulama kapat/aç simülasyonu) yenilenince değer korunuyor ✔ → üst bar hâlâ gizli ✔.
+4. **Ters yön de kalıcı mı:** önceden "free" kayıtlıyken doğru yükleniyor ✔ → "challenge" seçilip yenilenince O da kalıcı ✔.
+5. **Boss turu (madde 4'ün "değişmesin" şartı):** BÖLÜM/SÜRE satırları doğru gizli/görünür — G140'ta doğrulanan davranış BOZULMADI ✔.
+6. **Pro'dan düşme:** önceden "free" kayıtlıyken Pro OLMAYAN bir kullanıcı sayfayı açınca `enforceFreeRestrictions()` "challenge"a zorluyor VE bunu kalıcı olarak KAYDEDİYOR (yazılmasaydı bir sonraki açılışta bozulurdu — bu regresyon YAKALANIP düzeltildi, bkz. yukarıdaki not) ✔.
+
+Konsol hatası: **0** (altı senaryoda da). `npm test`: **1250/1250** (düşmedi).
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js`, `www/js/core/storage.js`, `www/styles.css`, `www/index.html`.
+**DOKUNULMAYAN DOSYALAR:** `www/js/core/exam-system.js` (sınav/telafi fazının KENDİ satırı — `gameExamRow`/`examActive` — hiç değişmedi), tüm mod dosyaları, Frekans Çakışması, Android, iOS native dosyaları, testler (mevcut testler zaten yeterliydi, yeni test eklenmedi — bu turun kapsamı `storage.js`'e yeni bir fonksiyon DEĞİL, mevcut `freshPrefs()`'e bir alan ekledi).
+
+**DÜRÜSTLÜK NOTU:** doğrulama masaüstü Chromium/Playwright'ta yapıldı, gerçek cihazda DENENMEDİ. `npx cap sync ios` bu turda ÇALIŞTIRILMADI (istenmedi).
 
 Bu commit (G140) — **CİHAZDA GÖRÜLEN "bölüm çubuğu bozuk" raporu incelendi — KOD REGRESYONU BULUNAMADI. Rapor edilen görsel durum, "Serbest" (Oyun Türü varsayılanı) modun UZUN ZAMANDIR değişmemiş, KASITLI görünümüyle bit-bit AYNI. Hiçbir kod değişikliği YAPILMADI.**
 
@@ -5056,6 +5089,10 @@ sistemi/ses-zorluk/spotlight TEK SATIR değişmedi.
 Önceki commit (G78, tek commit) — **Oyun Ekranı 2. bölüm: üst bar düzeltmeleri
 + çip satırı + soru alanı + alt bar**
 
+> **G141 NOTU:** bu kaydın "bölüm göstergesi Serbest'te de HEP görünür (.dim +
+> 'BÖLÜM —')" kararı G141'de kullanıcının kendi kararıyla GEÇERSİZ KILINDI —
+> G77'nin ORİJİNAL "sadece 10 Soruluk Bölüm'de görünür" kuralına dönüldü.
+
 Tasarım kaynağı: `Tasarim-2026-08/Oyun Ekranı Varyantları.dc.html` (3
 varyant) + `Soru Ekranı.dc.html` (şıklı) + `Prototip.dc.html` (5 soru tipi
 + sheet'ler). Bu tur öncekinden (G77, "1. bölüm") DEVAM ediyor — orada
@@ -6341,7 +6378,15 @@ eğrileri/COMPRESSION_TIERS'ın `max` sınırları vb. hiçbiri dokunulmadı.
 ---
 
 Önceki commit (G65, tek commit) — **"Serbest" (sonsuz) Oyun Türü ücretsizde
-KİLİTLİ görünüyor (Pro rozeti + 🔒), basınca paywall açılıyor.** Cihaz
+KİLİTLİ görünüyor (Pro rozeti + 🔒), basınca paywall açılıyor.**
+
+> **G141 NOTU:** bu kaydın "playModeSelect kalıcı bir prefs alanına
+> yazılmıyor, her açılışta 'free'e döner" kararı G141'de kullanıcının kendi
+> kararıyla GEÇERSİZ KILINDI — artık `prefs.playMode` ile kalıcı, varsayılan
+> da "free" değil "challenge". Bu kaydın paywall/kilit mantığı (aşağıda)
+> DEĞİŞMEDEN doğru kalıyor.
+
+Cihaz
 testinde bulunan kafa karışıklığı: G61'de "Serbest" ücretsizde SEÇİLEBİLİR
 bırakılmıştı ("ekran değil sadece kural" kararı, bkz. PAYWALL.md) — kullanıcı
 seçebiliyordu ama 5-soru sınırı yüzünden pratikte 5'te duruyordu, "seçtim
@@ -11323,11 +11368,11 @@ adım AÇIK İŞLER'e taşınmadı, doğrudan SIRADAKİ'de.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G139 itibarıyla) — EN ÖNEMLİSİ:** `npx cap sync ios`
-G138'den beri ÇALIŞTIRILMADI (G139 kullanıcı istemediği için sync
-etmedi) — bir sonraki cihaz testinden ÖNCE hem `cap sync` hem Xcode'da
-TEMİZ derleme + gerçek cihaza kurulum GEREKİYOR. O build'de, kullanıcı
-cihazda DÖRT ayrı açık maddeyi denemeli:
+**Tek sonraki adım (G141 itibarıyla) — EN ÖNEMLİSİ:** `npx cap sync ios`
+G138'den beri ÇALIŞTIRILMADI (kullanıcı istemedi) — bir sonraki cihaz
+testinden ÖNCE hem `cap sync` hem Xcode'da TEMİZ derleme + gerçek cihaza
+kurulum GEREKİYOR. O build'de, kullanıcı cihazda BEŞ ayrı açık maddeyi
+denemeli:
 - **G136/G137'nin ses kurtarma senaryoları (A/B):**
   - A) Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
     dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
@@ -11356,6 +11401,15 @@ cihazda DÖRT ayrı açık maddeyi denemeli:
   ilerleme çubuğu (soru sayacı) DEĞİŞMEDEN görünmeye devam etmeli.
   (Masaüstünde Playwright ile 12 modun HEPSİNDE TAM doğrulandı, bkz.
   G139 kaydı — cihazda HENÜZ denenmedi.)
+- **G141'in Oyun Türü varsayılanı/kalıcılığı (YENİ, bu turun kendi kabul
+  ölçütü):** uygulama ilk açıldığında "10 Soruluk Bölüm" seçili olacak,
+  üst barda "BÖLÜM 1/10" görünecek, her cevapta bir nokta dolacak. Serbest
+  seçilirse üst bar bölüm satırı TAMAMEN kaybolacak. Uygulama kapatılıp
+  açıldığında son seçim (hangisi olursa olsun) hatırlanacak — özellikle
+  Capacitor Preferences mirror'ının gerçek kapat/aç arasında GÜVENİLİR
+  çalıştığı (G138'in aynı notu) bu turda da DOĞRULANMADI. (Masaüstünde
+  Playwright ile ALTI senaryoda TAM doğrulandı, bkz. G141 kaydı — cihazda
+  HENÜZ denenmedi.)
 
 Başarısızsa Safari Web Inspector'daki `[audio-diag]` günlüğü (ses
 senaryoları için) hangi dalın tetiklendiğini gösterecek — bir sonraki
