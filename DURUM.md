@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 12.08.2026 (G147)
+Son güncelleme: 12.08.2026 (G148)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -30,6 +30,82 @@ düzeltme birbirini iptal etti, kullanıcı bunu cihazda fark etti. Playwright
 ile komşu akış testi bunu ÖNCEDEN yakalayabilirdi.
 
 ## BİTTİ
+
+Bu commit (G148) — **Frekans Bulma ŞIKLI moddaki yanlış "spektruma dokun"
+metni düzeltildi (cihazda görülen hata: 3. şık kesiliyordu).**
+
+**KÖK NEDEN (koddan doğrulandı, tahmin YAPILMADI):**
+`frekans-bulma.js`'nin `renderGuessAreaControls(freqGuessAreaEl, q)`
+fonksiyonu `q.mode` değerine bakıyordu ("proplus" mı değil mi) — cevap
+BİÇİMİNE (dokunmalı/şıklı, `isChoiceFormat()`) HİÇ bakmıyordu. G144'te
+Dokunmalı/Şıklı toggle'ı çip satırından Oyun Ayarları'na taşınırken bu
+fonksiyon HİÇ güncellenmemiş — metin, mod "frequency" olduğu sürece
+(hem dokunmalı HEM şıklı) her zaman basılıyordu. Diğer 11 modun
+`renderGuessAreaControls`'u zaten bu alanı kullanmıyor (ya tamamen
+gizliyor ya M2 modlarında onay butonu basıyor) — SADECE Frekans Bulma'da
+vardı, tek moda özel bir yama GEREKMEDİ (12 mod tarandı, doğrulandı).
+
+**DÜZELTME:**
+- `renderGuessAreaControls(freqGuessAreaEl, q, isChoice)` — yeni üçüncü
+  parametre. `q.mode !== "proplus"` dalında artık `isChoice` true ise
+  `#freqGuessArea`'yı TAMAMEN boşaltıp `.hidden` ekliyor (diğer 11 modun
+  ZATEN kullandığı AYNI desen), false ise (dokunmalı) eskisi gibi
+  "Cevabını vermek için spektruma dokun" basıyor. Fonksiyon hâlâ DOM/ses
+  bağımsız — `isChoice` DIŞARIDAN parametre olarak geliyor, fonksiyonun
+  kendisi hiçbir global duruma bakmıyor.
+- `app.js`'teki TEK çağrı noktası (`renderQuestion()`) artık
+  `mode.renderGuessAreaControls(els.freqGuessArea, q, isChoiceFormat())`
+  — `isChoiceFormat()` zaten aynı fonksiyonda birkaç satır önce (satır
+  3459) kullanılıyordu, YENİ bir hesaplama İCAT EDİLMEDİ.
+- `#nextBtn` ("Atla") `#freqGuessArea` ile ZATEN ayrı kardeş DOM
+  elemanlarıydı (`#gameActionbar` içinde iki ayrı `<div>`/`<button>`) —
+  ayırma İÇİN ekstra bir değişikliğe gerek KALMADI, `.hidden` (`display:
+  none`) SADECE `#freqGuessArea`'yı etkiliyor, Atla butonu YERİNDE kalıyor.
+- BİLİNÇLİ SINIRLAMA: soru ORTASINDA (`roundActive`) cevap biçimi
+  Oyun Ayarları'ndan değiştirilirse (`#answerFormatSelect`'in "change"
+  dinleyicisi) bu metin ANINDA güncellenmiyor — SADECE `syncAnswerArea()`
+  (`.answers` grid'i) tetikleniyor, `renderGuessAreaControls` ÇAĞRILMIYOR.
+  Sebep: proplus modunda bu fonksiyon "kalan: N" sayacını SIFIRLAR —
+  round ortasında yeniden çağırmak canlı ilerlemeyi görsel olarak
+  resetlerdi (proplus asla `isChoiceFormat()` olamaz ama fonksiyon PAY-
+  LAŞILAN, ayrım eklemek gereksiz risk olurdu). Kullanıcının bildirdiği
+  gerçek senaryo (KALICI seçimle TAZE açılış) bu sınırlamadan ETKİLENMİYOR
+  — sadece "round ortasında canlı değiştir" gibi nadir bir kullanım
+  ETKİLENİR, ve bu davranış DÜZELTMEDEN ÖNCE de aynı derecede yanlıştı
+  (metin hiç güncellenmiyordu), yani REGRESYON değil.
+
+**DOĞRULAMA (Playwright, `/private/tmp/.../scratchpad/g148_verify.py`):**
+- 12 modun HEPSİNDE dokunmalı (varsayılan/kalıcı) akış TEK TEK test
+  edildi — sadece Frekans Bulma'da metin görünüyor ve DOĞRU ("Cevabını
+  vermek için spektruma dokun"), diğer 11 modda `#freqGuessArea`
+  ÖNCEKİ gibi davranıyor (ya gizli ya M2'nin "Bir kart seç" butonu) —
+  hiçbiri BOZULMADI.
+- Frekans Bulma'da ŞIKLI seçimi KALICI olarak kaydedilip sayfa TAZE
+  açıldığında (gerçek cihaz senaryosunun birebir aynısı): `#freqGuessArea`
+  `hidden`+`display:none`+boş metin, `#nextBtn` YERİNDE ve "Atla ▶"
+  yazıyor.
+- 3 şık da (`.answers` içindeki kartlar) `getBoundingClientRect()` ile
+  ölçüldü: `top>=0 && bottom<=viewportHeight` HEPSİ İÇİN true, üçünün de
+  etiket metni (frekans + bölge adı) BOŞ DEĞİL — kesilme YOK.
+- Sonra DOKUNMALIYA geri dönülüp TAZE açılınca metin eskisi gibi doğru
+  geldi (regresyon yok).
+- Konsol hatası: 0. `TUMU GECTI: True`.
+
+**DOKUNULAN DOSYALAR:** `www/js/modes/frekans-bulma.js`,
+`www/js/app.js` (tek satır: çağrı noktasına üçüncü parametre eklendi).
+
+**DOKUNULMAYAN DOSYALAR:** diğer 11 mod dosyası, `core/*.js`
+(`answerFormatSelections`/G144 kalıcılık mekanizması dahil — SADECE
+OKUNDU, yazma tarafına dokunulmadı), `styles.css`, `index.html`, testler,
+Android/iOS native dosyalar.
+
+**npm test:** 1250/1250 (değişmedi).
+
+**DÜRÜSTLÜK NOTU:** Bu düzeltme masaüstünde Playwright ile TAM
+doğrulandı (metin doğru, 3. şık artık tam görünüyor, Atla yerinde) —
+ama kullanıcının bildirdiği kesme/kırpma cihazda (daha küçük ekranda,
+farklı font render'ıyla) GÖRÜLMÜŞTÜ; bu turda kod DEĞİŞTİ ama gerçek
+cihazda HENÜZ doğrulanmadı.
 
 Bu commit (G147) — **ÜÇ İŞ: (1) Zorluk göstergesi çipi (.game-diff-chip) tamamen kaldırıldı — G145/G146'nın bulgularına dayanarak. (2) Oyun Ayarları'nın "Zorluk" satırı artık Otomatik moddayken bunu gizlemiyor: "Otomatik · Kolay"/"Sabit · Zor" formatında, Genel Ayarlar'da da AYNI format. (3) "Kaynak: "/"Odak: " önekleri kaldırıldı — Frekans Bulma'nın 2px'lik taşması KAPANDI, 12 modun HEPSİ artık tek satır.**
 
@@ -11532,21 +11608,23 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**Tek sonraki adım (G147 itibarıyla) — EN ÖNEMLİSİ:** G144'ten SONRA
-`cap sync` + Xcode temiz derleme + cihaza kurulum YAPILDI — ama G147'nin
-üç değişikliği (Zorluk çipi kaldırma, Zorluk satırı kip+kademe gösterimi,
-önek kaldırma) HENÜZ senkronlanıp cihaza kurulmadı. Bir sonraki cihaz
-testinden ÖNCE hem `cap sync` hem Xcode'da TEMİZ derleme + gerçek cihaza
-kurulum TEKRAR gerekiyor. O build'de, **G144'ün bölüm çubuğu kırpılma
-düzeltmesi (max-height geçişi) HÂLÂ EN ÖNCELİKLİ ve HÂLÂ DOĞRULANMAMIŞ** —
-G143'ün reflow-zorlama denemesi cihazda TUTMAMIŞTI (bir kez zaten
-başarısız oldu), G144'te denenen YENİ yaklaşımın GERÇEKTEN işe yarayıp
-yaramadığı SADECE cihazda görülebilir (masaüstünde hiç reprodükte
-edilemedi, G147'de de değişmedi). G144'ün BEKLEYEN KARARLAR S maddesi
-(Frekans Bulma'nın 2 satırlı çip görünümü) G147'de ÇÖZÜLDÜ — kullanıcı
-artık cihazda TEK SATIR göreceğini doğrulamalı (masaüstünde Playwright ile
-doğrulandı, bkz. G147 kaydı). Bunların YANI SIRA kullanıcı cihazda YEDİ
-ayrı açık maddeyi de denemeli (ilki A/B iki alt senaryo içeriyor):
+**Tek sonraki adım (G148 itibarıyla) — EN ÖNEMLİSİ:** G147'den SONRA
+`cap sync` + Xcode temiz derleme + cihaza kurulum YAPILDI (kullanıcının
+G148'i bildirdiği build BUYDU) — ama G148'in düzeltmesi (Frekans
+Bulma'nın Şıklı modunda yanlış "spektruma dokun" metni/3. şık kesilmesi)
+HENÜZ senkronlanıp cihaza kurulmadı. Bir sonraki cihaz testinden ÖNCE hem
+`cap sync` hem Xcode'da TEMİZ derleme + gerçek cihaza kurulum TEKRAR
+gerekiyor. O build'de, **G144'ün bölüm çubuğu kırpılma düzeltmesi
+(max-height geçişi) HÂLÂ EN ÖNCELİKLİ ve HÂLÂ DOĞRULANMAMIŞ** — G143'ün
+reflow-zorlama denemesi cihazda TUTMAMIŞTI (bir kez zaten başarısız
+oldu), G144'te denenen YENİ yaklaşımın GERÇEKTEN işe yarayıp yaramadığı
+SADECE cihazda görülebilir (masaüstünde hiç reprodükte edilemedi, G147/
+G148'de de değişmedi). G147'nin üç değişikliği (Zorluk çipi kaldırma,
+Zorluk satırı kip+kademe gösterimi, önek kaldırma — hepsi bu build'de
+kuruldu) VE G148'in Şıklı-mod metin/3. şık düzeltmesi (bu build'de
+kod YAZILDI ama HENÜZ kurulmadı, bkz. aşağıdaki yeni madde) kullanıcı
+tarafından cihazda doğrulanmalı. Bunların YANI SIRA kullanıcı cihazda
+SEKİZ ayrı açık maddeyi de denemeli (ilki A/B iki alt senaryo içeriyor):
 - **G136/G137'nin ses kurtarma senaryoları (A/B):**
   - A) Frekans Bulma → arka plana at → başka uygulamada sesli video izle →
     dön → SADECE play'e bas. Ses BAŞTAN çalmalı, "Atla" gerekmemeli, HİÇBİR
@@ -11623,6 +11701,19 @@ ayrı açık maddeyi de denemeli (ilki A/B iki alt senaryo içeriyor):
   "Davul Döngüsü"/"Tüm spektrum" gibi değeri göstermeli). (Masaüstünde
   Playwright ile 12 modun HEPSİNDE + iki ayarlar yüzeyinde TAM doğrulandı,
   bkz. G147 kaydı — cihazda HENÜZ denenmedi.)
+- **G148'in Frekans Bulma Şıklı-mod düzeltmesi (YENİ, cihazda BİLDİRİLEN
+  hatanın kendisi bu):** Frekans Bulma'da Cevap Biçimi "Şıklı" seçiliyken
+  alt barın üstünde "Cevabını vermek için spektruma dokun" metni ARTIK HİÇ
+  görünmemeli (o metin SADECE Dokunmalı modda anlamlı), "Atla ▶" butonu
+  YERİNDE kalmalı, ve üç şıkkın ÜÇÜ de (91 Hz / 209 Hz / 480 Hz gibi)
+  ekranın altında KESİLMEDEN, etiketiyle birlikte TAM görünmeli — kullanıcı
+  cihazda tam bu senaryoyu (Frekans Bulma, Şıklı mod) tekrar deneyip 3.
+  şıkkın artık kesilmediğini doğrulamalı. Dokunmalı moddaki metin eskisi
+  gibi görünmeye devam etmeli (regresyon kontrolü). (Masaüstünde Playwright
+  ile hem KALICI ayar senaryosuyla — kullanıcının cihazda yaşadığı akışın
+  BİREBİR aynısı — hem 12 modun dokunmalı akışında TAM doğrulandı, bkz.
+  G148 kaydı — cihazda HENÜZ denenmedi, bir önceki cihaz build'i bu
+  düzeltmeyi İÇERMİYORDU.)
 
 Başarısızsa Safari Web Inspector'daki `[audio-diag]` günlüğü (ses
 senaryoları için) hangi dalın tetiklendiğini gösterecek — bir sonraki

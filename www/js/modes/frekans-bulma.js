@@ -694,8 +694,20 @@ export function clearHintMask(hintMaskLayerEl) {
 // (bkz. app.js pointerdown + renderFreqConfirmButton) bu içeriğin YERİNE bir
 // onay butonu geçiyor — bu fonksiyon SADECE tur BAŞINDA çağrıldığı için o
 // geçiş app.js'in runtime state'inde (freqGuessHz) yönetiliyor, burada değil.
-export function renderGuessAreaControls(freqGuessAreaEl, q) {
+//
+// G148 DÜZELTMESİ: "spektruma dokun" ipucu SADECE dokunmalı biçimde anlamlı —
+// şıklı biçimde (isChoice) şıklar kendini anlatıyor, metin YANLIŞ ve gereksiz
+// yer kaplıyordu (cihazda 3. şıkkı kesiyordu). isChoice, app.js'teki
+// isChoiceFormat()'tan geliyor (DOM/select'e bağlı olduğu için burada değil,
+// çağrı noktasında hesaplanıyor — bu fonksiyon hâlâ DOM DIŞI bilgiye
+// bağımlı değil, sadece parametre olarak alıyor).
+export function renderGuessAreaControls(freqGuessAreaEl, q, isChoice) {
   if (q.mode !== "proplus") {
+    if (isChoice) {
+      freqGuessAreaEl.innerHTML = "";
+      freqGuessAreaEl.classList.add("hidden");
+      return;
+    }
     freqGuessAreaEl.classList.remove("hidden");
     freqGuessAreaEl.innerHTML = `<span class="tap-hint-text">Cevabını vermek için spektruma dokun</span>`;
     return;

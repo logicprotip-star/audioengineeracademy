@@ -3532,7 +3532,7 @@ function renderQuestion() {
   if (els.gainValue) els.gainValue.textContent = "";
   if (els.hintTag) els.hintTag.textContent = "";
   els.freqGuessArea.classList.remove("hidden");
-  mode.renderGuessAreaControls(els.freqGuessArea, q);
+  mode.renderGuessAreaControls(els.freqGuessArea, q, isChoiceFormat());
   if (els.freqInfo) els.freqInfo.classList.add("hidden");
   syncAnswerArea();
   // Şıklı cevap modunda 4-6 şık iki satıra taşıyor (.answers: 3 sütunlu grid) — bu,
