@@ -41,4 +41,8 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- G168 — StoreKit/Google Play Billing (@capgo/native-purchases'ın
+         resmi kurulum talimatı) — bu izin olmadan Google Play Billing
+         hiç başlatılamaz. -->
+    <uses-permission android:name="com.android.vending.BILLING" />
 </manifest>

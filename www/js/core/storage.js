@@ -13,6 +13,7 @@ const UPLOAD_SELECTIONS_KEY = "eqEarTrainerProXUploadSelections";
 const TONAL_REFS_KEY = "eqEarTrainerProXTonalRefs";
 const SOURCE_SELECTIONS_KEY = "eqEarTrainerProXSourceSelections";
 const ANSWER_FORMAT_SELECTIONS_KEY = "eqEarTrainerProXAnswerFormatSelections";
+const PURCHASE_KEY = "eqEarTrainerProXPurchase";
 
 // Canlar artık zorluğa göre DEĞİL — tek, global bir havuz (bkz. freshStats().lives).
 // Eskiden her zorluğun kendi canı vardı (perDiff[key].lives); bu yüzden zorluk
@@ -281,6 +282,37 @@ export function saveDevFlags(devFlags) {
   const raw = JSON.stringify(devFlags);
   localStorage.setItem(DEV_KEY, raw);
   mirrorSet(DEV_KEY, raw);
+}
+
+// G168 — GERÇEK satın alma durumu (StoreKit/Play Billing) — devFlags'ten
+// BİLEREK AYRI: devFlags SADECE geliştirici test anahtarı (simulatePro),
+// bu GERÇEK kullanıcı verisi. isUserPro() = proPurchased || devFlags.
+// simulatePro (app.js) — simülasyon katmanı gerçek satın almanın ÜZERİNE
+// eklendi, yerine geçmedi (PAYWALL.md'nin Parça 3 tarifiyle AYNI).
+// proPurchased TEK YÖNLÜ bir bayrak: bir kez true olduktan sonra arka
+// planda yapılan sessiz mülkiyet kontrolleri (core/iap.js:checkProOwnership)
+// bunu ASLA false'a ÇEVİRMEZ — geçici bir ağ/hesap sorunu yüzünden
+// GERÇEKTEN parasını ödemiş bir kullanıcının Pro'sunun rastgele
+// kaybolmasını önler. Sadece EXPLICIT bir "geri yükleme bulamadı" durumu
+// (kullanıcı kendi isteğiyle) mevcut değeri DEĞİŞTİRMEZ (false'a da
+// çekmez) — bkz. app.js:handleRestorePurchase.
+export function freshPurchase() {
+  return { proPurchased: false };
+}
+
+export function loadPurchase() {
+  try {
+    const raw = localStorage.getItem(PURCHASE_KEY);
+    return raw ? { ...freshPurchase(), ...JSON.parse(raw) } : freshPurchase();
+  } catch {
+    return freshPurchase();
+  }
+}
+
+export function savePurchase(purchase) {
+  const raw = JSON.stringify(purchase);
+  localStorage.setItem(PURCHASE_KEY, raw);
+  mirrorSet(PURCHASE_KEY, raw);
 }
 
 // G123 — "Dosya seçimi mod başına ayrılacak" (kullanıcının kendi kararı):

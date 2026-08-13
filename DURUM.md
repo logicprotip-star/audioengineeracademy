@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G167)
+Son güncelleme: 13.08.2026 (G168)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,129 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G168 — **StoreKit entegrasyonu: "Pro'ya Geç" artık GERÇEK satın alma,
+@capgo/native-purchases ile — G167'de bulunan "herkese bedava Pro" açığı
+kapandı.**
+
+**1) PLUGIN KURULUMU:** `@capgo/native-purchases@8.6.5` npm'e eklendi
+(Capacitor 8 ile resmi uyumlu, npm registry'den doğrudan doğrulandı — plugin
+major sürümü Capacitor major sürümüyle KİLİTLİ, "sadece son major bakımda"
+kendi dokümantasyonunda AÇIKÇA belirtiliyor, ileride Capacitor 9'a
+geçilirse hatırlanmalı). Native bağlama (Package.swift/capacitor.build.gradle)
+G165'teki AYNI ilkeyle bu turda ÇALIŞTIRILMADI — `npx cap sync ios`/
+`android` AYRI bir istekle yapılacak.
+- `android/app/src/main/AndroidManifest.xml`: `com.android.vending.BILLING`
+  izni eklendi (plugin'in resmi kurulum talimatı).
+- **iOS "In-App Purchase" capability'si Xcode'da MANUEL eklenmeli** —
+  plugin'in kendi dokümantasyonu bunun Signing & Capabilities sekmesinden
+  yapılması gerektiğini söylüyor, `project.pbxproj`'un capability listesi
+  KÖR bir dosya düzenlemesiyle GÜVENLE değiştirilemez (Xcode'un kendi
+  proje-metadata senkronizasyonuna bağlı) — bu turda YAPILMADI, kullanıcı
+  Xcode'da elle eklemeli.
+
+**2) ÜRÜN KİMLİĞİ TEK KAYNAK:** `core/iap.js:PRODUCT_ID =
+"com.logicprotrick.audioengineeracademy.pro"` — App Store Connect'te
+tanımlanan kimlikle BİREBİR (kullanıcının verdiği ID, test/ads.iap.mjs'de
+doğrulandı). Koda DAĞITILMADI, tek yerden okunuyor.
+
+**3) GERÇEK SATIN ALMA AKIŞI:** `isUserPro()`'nun `realPro` dalı artık
+`purchaseState.proPurchased`'a bağlı (`storage.js`'in YENİ `PURCHASE_KEY`
+alanı, devFlags'ten BİLEREK AYRI — dev bayrağı/gerçek kullanıcı verisi
+karışmasın). "Pro'ya Geç" tıklanınca `iap.purchasePro()` →
+`purchaseProduct({productIdentifier, productType:"inapp"})` çağırıyor:
+- **Başarılı** → `grantRealPro()` (storage.js'e KALICI yazar, `syncDevUI()`
+  ile TÜM uygulamayı senkronlar) + "🎉 Pro açıldı" toastı.
+- **Kullanıcı iptal etti** (`error.message.includes('User cancelled')` —
+  plugin'in KENDİ resmi README'sindeki hata-ayrıştırma örneğinden alındı,
+  TAHMİN edilmedi) → SESSİZCE hiçbir şey değişmez, hata toastı YOK.
+- **Ağ hatası** (`error.message.includes('Network')`) → "Bağlantı hatası"
+  toastı.
+- **Diğer hatalar** → genel "Satın alma başarısız" toastı.
+- Buton tıklamada "İşleniyor…"a döner + `disabled` olur, paylaşılan
+  `buyProBusy` kilidi çift basışı engeller (G165'in `handleWatchAd()`
+  deseniyle BİREBİR AYNI).
+
+**4) FİYAT MAĞAZADAN:** `iap.fetchProPrice()` açılışta arka planda BİR KEZ
+çağrılır (`getProducts({productIdentifiers:[PRODUCT_ID]})` →
+`product.priceString`) — başarılıysa `liveProPrice` güncellenir,
+`syncAccountLine()` yeniden çizilir. Plugin yoksa/ürün yüklenemezse
+`liveProPrice` `null` KALIR, `paywall.PRO_PRICE` ("₺399", sabit) YEDEK
+olarak gösterilmeye devam eder — App Store'un "hardcoded fiyat ret
+sebebidir" kuralına uyulmuş oldu, `paywall.js`'in KENDİSİ değişmedi.
+
+**5) GERİ YÜKLEME:** `iap.restorePro()` `restorePurchases()` (Promise<void>,
+HANGİ ürünün geri yüklendiğini SÖYLEMİYOR) + ardından `getPurchases()` ile
+`PRODUCT_ID` sahipliğini AYRICA sorguluyor (plugin'in dokümante ettiği
+iki-adımlı akış — tahmin edilmedi). Bulunursa `grantRealPro()` + "🎉 Pro
+geri yüklendi" toastı; bulunmazsa ESKİ statik mesaj ("bu cihazda
+bulunamadı") KORUNDU. İki AYRI giriş noktası aynı `handleRestorePurchase()`'ı
+çağırıyor: `restorePurchaseBtn` (paywall, düz metin — "Kontrol ediliyor…"
+durumu gösterir) ve `restoreRow` (Ayarlar, zengin `<h5>/<p>` iç yapılı satır
+— SADECE `disabled` toggle edilir, `textContent`'e DOKUNULMAZ, Playwright'ta
+satırın iç HTML'inin BOZULMADIĞI doğrulandı).
+
+**6) SESSİZ MÜLKİYET KONTROLÜ (YENİ, task'ta İSTENMEDİ ama App Store'un
+"restore olmadan ret" kuralını GÜÇLENDİREN bir ek):** açılışta arka planda
+`iap.checkProOwnership()` (`getPurchases()`, HİÇBİR onay/satın alma ekranı
+AÇMAZ, yerel/önbellek sorgusu) `purchaseState.proPurchased` HENÜZ false'sa
+çağrılır — `true` dönerse `grantRealPro()`, `false` dönerse HİÇBİR ŞEY
+DEĞİŞMEZ. `proPurchased` TEK YÖNLÜ bir bayrak: bir kez `true` olduktan
+sonra hiçbir arka plan kontrolü onu tekrar `false`'a ÇEVİRMEZ — geçici bir
+ağ/hesap sorunu yüzünden parasını ödemiş bir kullanıcının Pro'sunun rastgele
+kaybolmaması için BİLİNÇLİ bir tasarım kararı (kod yorumunda AÇIKÇA
+belirtildi, sessizce karar VERİLMEDİ).
+
+**7) devFlags.simulatePro KORUNDU, AYRILDI:** `buyProBtn` artık
+`devFlags.simulatePro`'ya HİÇ yazmıyor — SADECE `purchaseState.proPurchased`'a
+yazıyor. `isUserPro() = purchaseState.proPurchased || devFlags.simulatePro`
+— simülasyon bayrağı SADECE 7-dokunuşluk gizli geliştirici menüsünden
+(`devProSwitch`) erişilebilir kalıyor, gerçek satın almanın YERİNE değil
+ÜZERİNE ekleniyor (PAYWALL.md'nin Parça 3 tarifiyle AYNI).
+
+**8) ÖLÜ KOD — DOKUNULMADI (task'ın kendi talimatı):** `isFixedDifficultyLocked`/
+`isExamLocked` (G167'de bulunan çağrılmayan paywall fonksiyonları) BİLEREK
+AYNEN bırakıldı.
+
+**DÜRÜSTLÜK NOTU — DOĞRULANAMAYANLAR:** gerçek StoreKit/Play Billing bu
+ortamda (tarayıcı/Playwright) ÇALIŞTIRILAMAZ — kabul ölçütünün "Sandbox
+hesabıyla gerçek satın alma akışı çalışıyor" maddesi SADECE gerçek cihazda
+doğrulanabilir. Bu turda doğrulanan: (a) saf fonksiyonlar
+(`isUserCancelledError`/`isNetworkError`/`PRODUCT_ID`, test/iap.test.mjs, 6
+yeni test); (b) JS akış mantığı Playwright'ta `window.Capacitor.Plugins.
+NativePurchases`'ın TAM bir MOCK'u (plugin'in dokümante edilmiş
+Transaction/Product/hata sözleşmesine göre yazıldı) enjekte edilerek — 22
+ayrı senaryo: plugin yokken anlaşılır mesaj + Pro VERİLMEZ, dev modu KAPALI
++ plugin yokken "Pro'ya Geç" BEDAVA Pro VERMEDİĞİ (kabul ölçütü), başarılı
+satın almada Pro açılıp KALICI kaldığı (sayfa yeniden yüklense BİLE),
+iptalde SESSİZCE hiçbir şey değişmediği, ağ/genel hatalarda doğru mesajlar,
+çift tıklamada satın alma TEK KEZ tetiklendiği, geri yüklemenin bulma/
+bulamama dallarının İKİSİ de, fiyatın mağazadan okunduğu VE yokken yedeğe
+düştüğü, Ayarlar'daki zengin satırın HTML'inin bozulmadığı, sessiz mülkiyet
+kontrolünün hiçbir UI açmadan Pro'yu açtığı. G165/G166'nın TÜM AdMob
+Playwright senaryoları da YENİDEN koşuldu, hiçbiri bozulmadı. 0 konsol
+hatası. **Bu, GERÇEK native SDK'nın doğrulanması DEĞİL — MOCK'un
+sözleşmeye uyduğu varsayımı üzerine kurulu.**
+
+**REGRESYON TARAMASI:** `openPaywallReason`/`PAYWALL_REASONS`'a (paywall'ın
+7 tetik noktası) TEK SATIR dokunulmadı — SADECE `buyProBtn`/
+`restorePurchaseBtn`/`restoreRow`'un click handler'ları ve `isUserPro()`/
+`syncAccountLine()`'ın İÇİ değişti. G165/G166'nın AdMob akışları (watchAdBtn/
+resCta/adPrivacyRow) Playwright'ta YENİDEN doğrulandı, regresyon YOK.
+
+**DOKUNULAN DOSYALAR:** `package.json`, `package-lock.json` (npm install),
+`android/app/src/main/AndroidManifest.xml`, `www/js/app.js`,
+`www/js/core/storage.js`, YENİ `www/js/core/iap.js`, YENİ `test/iap.test.mjs`.
+
+**DOKUNULMAYAN DOSYALAR:** `www/js/core/paywall.js` (kilit mantığı, 7
+tetik noktası, `isFixedDifficultyLocked`/`isExamLocked` ölü kod — HİÇBİRİ),
+`www/js/core/ads.js`, `www/index.html`, iOS Info.plist/proje dosyaları
+(capability MANUEL eklenmeli, bkz. madde 1), `www/js/modes/*`,
+`audio-engine.js`, native `Package.swift`/`capacitor.build.gradle` (`cap
+sync` bekliyor).
+
+**npm test:** 1261/1261 (1255'ten +6 — `test/iap.test.mjs` YENİ, hiçbir
+mevcut test bozulmadı/silinmedi).
 
 G167 — **StoreKit ön inceleme (SADECE OKUMA, kod YAZILMADI) + kullanıcının
 AdMob hesap/GDPR/cihaz kurulumu TAMAMLANDI + altyapı (domain/hosting/mail/
@@ -12697,17 +12820,17 @@ kod tarafında EK bir şey gerekmiyor — `core/ads.js`'in `doInitFlow()`'u
 zaten platformdan bağımsız `requestConsentInfo()`/`showConsentForm()`
 çağırıyor).
 
-**26. StoreKit/Google Play Billing entegrasyonu — "Pro Al" şu an GERÇEK
-DEĞİL, herkes ücretsiz Pro alabiliyor**
-`app.js:8013`'teki `buyProBtn` dinleyicisi doğrudan `devFlags.
-simulatePro=true` yazıyor — geliştirici modu AÇIK OLMASA BİLE bu buton
-HERKESE çalışıyor (7-dokunuşluk gizli menü şartı YOK). Apple bunu ret
-sebebi sayar. G167'de ön inceleme YAPILDI (kod yolu/plugin karşılaştırması
-— bkz. yukarıdaki BİTTİ kaydı), entegrasyon PLANLANMADI/KODLANMADI.
-**Kabul kriteri:** yayın öncesi gerçek IAP bağlanmalı, `devFlags.
-simulatePro` SADECE geliştirici test anahtarı olarak kalmalı (gerçek
-satın alma durumunun ÜZERİNE eklenen bir simülasyon, PAYWALL.md'nin
-Parça 3 tarifiyle AYNI).
+**26. ~~StoreKit/Google Play Billing entegrasyonu — "Pro Al" GERÇEK
+DEĞİLDİ~~ — G168'de KODLANDI, cihaz doğrulaması + 2 manuel adım kaldı**
+`@capgo/native-purchases` ile gerçek satın alma/geri yükleme/fiyat akışı
+yazıldı (bkz. BİTTİ G168) — `devFlags.simulatePro` artık `buyProBtn`'den
+HİÇ yazılmıyor, SADECE 7-dokunuşluk gizli menüden erişilebiliyor. **Kalan
+işler (kod DEĞİL):** (1) `npx cap sync ios`/`android` AYRI bir istekle
+çalıştırılmalı; (2) iOS'ta Xcode'da "In-App Purchase" capability'si
+Signing & Capabilities'ten MANUEL eklenmeli (dosya düzenlemesiyle
+YAPILAMADI, bkz. G168 madde 1); (3) Sandbox hesabıyla GERÇEK cihazda
+satın alma/iptal/geri yükleme/fiyat gösterimi test edilmeli — bu turda
+SADECE mock plugin'le doğrulandı (bkz. G168'in DÜRÜSTLÜK notu).
 
 **27. App Store veri beyanı — reklam eklendiği için "veri toplanmıyor"
 DENEMEZ**
@@ -12918,6 +13041,22 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G168 itibarıyla):** StoreKit/Google Play Billing
+entegrasyonu KODLANDI (bkz. BİTTİ G168) — kalan üç adım:
+1. Kullanıcı `npx cap sync ios` VE `npx cap sync android`'i AYRI bir
+   mesajda çalıştırmalı (`@capgo/native-purchases` henüz native tarafa
+   bağlanmadı).
+2. **Xcode'da "In-App Purchase" capability'si MANUEL eklenmeli**
+   (Signing & Capabilities → "+" → "In-App Purchase") — bu, dosya
+   düzenlemesiyle YAPILAMAYAN tek adım, App Store Connect'teki "Prepare
+   for Submission" durumundaki ürünle eşleşmesi için GEREKLİ.
+3. Sandbox test hesabıyla GERÇEK cihazda doğrulanmalı: satın alma akışı
+   çalışıyor mu, iptalde hiçbir şey değişmiyor mu, "Satın alımı geri
+   yükle" gerçek bir çağrı yapıp buluyor mu, paywall'daki fiyat App Store
+   Connect'in GERÇEK (₺399,99 civarı, ülkeye göre değişebilir) fiyatını mı
+   gösteriyor — bu turda SADECE mock plugin'le doğrulandı (bkz. G168'in
+   DÜRÜSTLÜK notu), gerçek StoreKit bu ortamda ÇALIŞTIRILAMAZ.
 
 **EN GÜNCEL/EN ÖNCELİKLİ SIRADAKİ ADIM (G167 itibarıyla):** AdMob ödüllü
 reklam entegrasyonu koda yazıldı, Pro'da SDK'nın hiç başlatılmadığı

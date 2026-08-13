@@ -22,6 +22,7 @@ import { getWeakZone } from "./core/personalization.js";
 import * as tonalBalance from "./core/tonal-balance.js";
 import * as fileStorage from "./core/file-storage.js";
 import * as ads from "./core/ads.js";
+import * as iap from "./core/iap.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
@@ -967,6 +968,9 @@ let zoneStats = storage.loadZoneStats();
 let prefs = storage.loadPrefs();
 let dailyAcc = storage.loadDailyAcc();
 let devFlags = storage.loadDevFlags();
+// G168 — GERÇEK satın alma durumu, devFlags'ten AYRI (bkz. storage.js'in
+// G168 notu) — isUserPro() ikisini de okur.
+let purchaseState = storage.loadPurchase();
 // G63 (PAYWALL.md Parça 2): "İlk oturumda paywall yok" — stats.rounds'ın BU
 // runtime BAŞLARKENKİ (henüz hiçbir tur bu çalıştırmada sayılmadan) değeri
 // "hiç oynamamış" mı sorusuna cevap veriyor. BİLEREK const — bu runtime'ın
@@ -1158,14 +1162,14 @@ const CMP_PREVIEW_RESUME_MS = 3000;
 // eski gameOverGuardActive()/GAMEOVER_CLICK_GUARD_MS koruması tamamen kaldırıldı.
 let sessionEndVisible = false;
 
-// "Kullanıcı Pro mu?" — TEK cevap noktası. Gerçek bir satın alma/IAP altyapısı
-// henüz yok (bkz. buyProBtn — sadece "Yakında" toast'ı gösteriyor), bu yüzden
-// gerçekPro her zaman false. devFlags.simulatePro — gizli geliştirici anahtarı
-// (Hakkında/Sürüm numarasına 7 dokunuş, bkz. initDevMode) — SADECE test için,
-// IAP yazılınca `gerçekPro || devFlags.simulatePro` deseni KORUNMALI (simülasyon
-// katmanı gerçek satın alma mantığının ÜZERİNE eklendi, yerine geçmedi).
+// "Kullanıcı Pro mu?" — TEK cevap noktası. G168'den beri GERÇEK: realPro
+// artık storage.js'de kalıcı, StoreKit/Play Billing'den gelen proPurchased
+// bayrağı (bkz. purchaseState/core/iap.js:purchasePro/restorePro). devFlags.
+// simulatePro — gizli geliştirici anahtarı (Hakkında/Sürüm numarasına 7
+// dokunuş, bkz. initDevMode) — SADECE test için, gerçek satın almanın
+// ÜZERİNE eklendi, yerine GEÇMEDİ (PAYWALL.md'nin Parça 3 tarifiyle AYNI).
 function isUserPro() {
-  const realPro = false; // gerçek satın alma durumu — IAP yazılınca buraya bağlanacak
+  const realPro = purchaseState.proPurchased;
   return realPro || devFlags.simulatePro;
 }
 
@@ -7576,6 +7580,10 @@ function openPaywallReason(reasonKey) {
   return true;
 }
 
+// G168 — mağazadan okunan GERÇEK fiyat metni (App Store kuralı: hardcoded
+// fiyat gösterimi ret sebebi). null = HENÜZ yüklenmedi/plugin yok — bu
+// durumda paywall.PRO_PRICE YEDEK olarak kullanılır (aşağıya bkz.).
+let liveProPrice = null;
 function syncAccountLine() {
   // Pro vaadi TÜM katalog (14) içindir — kaçının şu an kodlandığı/oynanabilir
   // olduğu (listModes()) ayrı bir şey, paywall metnine karışmaz.
@@ -7585,10 +7593,29 @@ function syncAccountLine() {
       ? `Pro${devFlags.simulatePro ? " (simüle)" : ""} — ${total} mod, seans başına 10 soru, can sınırsız`
       : `Ücretsiz — ${FREE_MODE_COUNT} mod, seans başına 5 soru`;
   }
-  if (els.proPrice) els.proPrice.textContent = paywall.PRO_PRICE;
+  if (els.proPrice) els.proPrice.textContent = liveProPrice || paywall.PRO_PRICE;
   renderProBenefits();
 }
 syncAccountLine();
+// G168 — açılışta arka planda BİR KEZ denenir (plugin yoksa/ürün
+// yüklenemezse liveProPrice null KALIR, syncAccountLine() zaten
+// paywall.PRO_PRICE'a düşüyor — hiçbir ekran/akış BURAYA bağımlı değil,
+// sonuç geldiğinde SADECE yeniden çizilir).
+iap.fetchProPrice().then((price) => {
+  if (price) {
+    liveProPrice = price;
+    syncAccountLine();
+  }
+});
+// G168 — sessiz mülkiyet kontrolü (bkz. core/iap.js:checkProOwnership) —
+// HİÇBİR UI/onay ekranı açmaz, SADECE true dönerse (kullanıcı GERÇEKTEN
+// sahipse) purchaseState'i kalıcı işaretler. false dönmesi HİÇBİR ŞEYİ
+// DEĞİŞTİRMEZ (proPurchased TEK YÖNLÜ, bkz. storage.js'in G168 notu).
+if (!purchaseState.proPurchased) {
+  iap.checkProOwnership().then((owned) => {
+    if (owned) grantRealPro();
+  });
+}
 
 // ---- Geliştirici modu (gizli Pro test anahtarı) ----
 // "Hakkında" → "Sürüm numarası" satırına 7 kez ÜST ÜSTE (art arda 1.2sn içinde)
@@ -7665,9 +7692,11 @@ if (els.feedbackRow) els.feedbackRow.addEventListener("click", () => goToSetting
 if (els.faqRow) els.faqRow.addEventListener("click", () => goToSettingsSubpage("faq"));
 if (els.contactRow) els.contactRow.addEventListener("click", () => goToSettingsSubpage("contact"));
 if (els.goProBtn) els.goProBtn.addEventListener("click", () => { resetPaywallToGeneric(); goToSettingsSubpage("paywall"); });
-if (els.restoreRow) els.restoreRow.addEventListener("click", () => {
-  toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
-});
+// G168 — GERÇEK restore çağrısı (bkz. handleRestorePurchase, aşağıda
+// tanımlı — function declaration hoisting sayesinde burada çağrılabilir,
+// G165'in handleWatchAd'ıyla AYNI desen). isRichRow:true — bu satırın
+// h5/p/caret iç yapısı textContent ile EZİLMEZ.
+if (els.restoreRow) els.restoreRow.addEventListener("click", () => handleRestorePurchase(els.restoreRow, { isRichRow: true }));
 
 function openLegal(kind) {
   const privacy = kind === "privacy";
@@ -8000,27 +8029,78 @@ if (els.feedbackSendBtn) els.feedbackSendBtn.addEventListener("click", () => {
   goBackFromSubpage();
 });
 
-// ---- Satın alma (gerçek IAP Parça 3 — "Pro Al" şimdilik SİMÜLASYON) ----
+// ---- Satın alma (GERÇEK IAP, G168 — @capgo/native-purchases) ----
 syncAccountLine();
-// G63 (PAYWALL.md Parça 2): "Pro Al" → devFlags.simulatePro=true (task'ın
-// kendi tarifi, harfiyen) — GERÇEK bir satın alma DEĞİL, sadece isUserPro()'nun
-// okuduğu simülasyon bayrağını (bkz. isUserPro tanımı) AÇIYOR. devFlags.unlocked
-// (gizli geliştirici menüsünün GÖRÜNÜRLÜĞÜ) BİLEREK dokunulmuyor — isUserPro()
-// SADECE simulatePro'ya bakıyor, menünün görünür olması GEREKMİYOR. syncDevUI()
-// zaten var olan TEK yeniden-senkron noktasını (renderModeGrid/
-// enforceFreeRestrictions/applyProLockVisibility/syncAccountLine) tetikliyor —
-// Pro'nun etkisi UYGULAMANIN HER YERİNDE anında görünür.
-if (els.buyProBtn) els.buyProBtn.addEventListener("click", () => {
-  devFlags.simulatePro = true;
-  storage.saveDevFlags(devFlags);
+// G168 — devFlags.simulatePro İLE KARIŞTIRILMASIN: bu GERÇEK satın alma
+// sonucu, storage.js'e KALICI yazılıyor (purchaseState.proPurchased) —
+// devFlags.unlocked (gizli geliştirici menüsünün GÖRÜNÜRLÜĞÜ) BİLEREK
+// dokunulmuyor. syncDevUI() zaten var olan TEK yeniden-senkron noktasını
+// (renderModeGrid/enforceFreeRestrictions/applyProLockVisibility/
+// syncAccountLine) tetikliyor — Pro'nun etkisi UYGULAMANIN HER YERİNDE
+// anında görünür, G63'ün simülasyon çağrısıyla AYNI mekanizma.
+function grantRealPro() {
+  purchaseState.proPurchased = true;
+  storage.savePurchase(purchaseState);
   syncDevUI();
-  toast("🎉 Pro açıldı (simülasyon)", "12 mod, sınırsız oynama, sınav, kendi mix, Araçlar — hepsi açık.");
-  stopPaywallLivesTicker();
-  goBackFromSubpage();
+}
+// G168 — "Pro'ya Geç" → GERÇEK StoreKit/Play Billing satın alma akışı.
+// buyProBusy: çift basış kilidi (G165'in handleWatchAd'ıyla AYNI desen).
+// Kullanıcı iptal ederse iap.purchasePro() SESSİZCE { ok:false } döner
+// (title YOK) — hiçbir şey DEĞİŞMEZ, hata mesajı ÇIKMAZ (kabul ölçütü).
+let buyProBusy = false;
+if (els.buyProBtn) els.buyProBtn.addEventListener("click", async () => {
+  if (buyProBusy) return;
+  buyProBusy = true;
+  const originalLabel = els.buyProBtn.textContent;
+  els.buyProBtn.disabled = true;
+  els.buyProBtn.textContent = "İşleniyor…";
+  try {
+    const result = await iap.purchasePro();
+    if (result.ok) {
+      grantRealPro();
+      toast("🎉 Pro açıldı", "12 mod, sınırsız oynama, sınav, kendi mix, Araçlar — hepsi açık.");
+      stopPaywallLivesTicker();
+      goBackFromSubpage();
+    } else if (result.title) {
+      toast(result.title, result.detail);
+    }
+    // result.ok===false && !result.title → kullanıcı satın almayı iptal
+    // etti, bu bir HATA değil — sessizce ekranda kalınır.
+  } finally {
+    buyProBusy = false;
+    els.buyProBtn.disabled = false;
+    els.buyProBtn.textContent = originalLabel;
+  }
 });
-if (els.restorePurchaseBtn) els.restorePurchaseBtn.addEventListener("click", () => {
-  toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
-});
+// G168 — GERÇEK restore çağrısı, hem paywall'daki restorePurchaseBtn (düz
+// metin buton — textContent değiştirilebilir) hem Ayarlar'daki restoreRow
+// (zengin iç içe HTML — SADECE disabled toggle edilir, textContent'e
+// DOKUNULMAZ) bunu çağırır. isRichRow: true olduğunda "Kontrol ediliyor…"
+// metni GÖSTERİLMEZ (satırın kendi h5/p yapısını BOZMAMAK için).
+let restoreBusy = false;
+async function handleRestorePurchase(btn, { isRichRow = false } = {}) {
+  if (restoreBusy) return;
+  restoreBusy = true;
+  const originalLabel = isRichRow ? null : btn.textContent;
+  btn.disabled = true;
+  if (!isRichRow) btn.textContent = "Kontrol ediliyor…";
+  try {
+    const result = await iap.restorePro();
+    if (result.restored) {
+      grantRealPro();
+      toast("🎉 Pro geri yüklendi", "Bu cihazda önceki satın alımın bulundu.");
+    } else if (result.ok) {
+      toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
+    } else if (result.title) {
+      toast(result.title, result.detail);
+    }
+  } finally {
+    restoreBusy = false;
+    btn.disabled = false;
+    if (!isRichRow) btn.textContent = originalLabel;
+  }
+}
+if (els.restorePurchaseBtn) els.restorePurchaseBtn.addEventListener("click", () => handleRestorePurchase(els.restorePurchaseBtn));
 // G63/G165: "Reklam İzle" → SADECE "livesOut" tetiklemesinde görünür (bkz.
 // openPaywallReason). +1 can (TOTAL_LIVES'ı aşmaz), paywall.onLifeLost'un
 // TERSİ bir "can kazanıldı" olayı: tam dolarsa dolum referansı da "şimdi"ye
