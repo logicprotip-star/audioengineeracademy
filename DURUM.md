@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G177)
+Son güncelleme: 14.08.2026 (G178)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,110 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G178 — **Bug 22 (EN ÖNCELİKLİ): Pro kullanıcı canları bitmişse oynayamıyordu
+— 4 AYRI kapıda `isUserPro()` eksik/yanlış sıradaydı, hepsi düzeltildi.**
+
+**ÖLÇÜLENLER (düzeltmeden önce):**
+- `currentLives` (`stats.lives`), Pro'ya geçişte SIFIRLANMIYOR/dolmuyor —
+  bir kullanıcı ücretsizken 0'a düşüp SONRA Pro alırsa (gerçek veya
+  geliştirici simülasyonu), değer localStorage'da 0 olarak KALIYOR.
+  Playwright: `simulatePro:false, lives:0` → dev switch'ten `simulatePro:true`ya
+  geçildi → `stats.lives` HÂLÂ `0`. Bu KASITLI/beklenen bir tasarım (Pro
+  "sınırsız can"ı bir SAYIYA değil, KONTROLÜN ATLANMASINA dayanıyor —
+  `loseLife()` zaten böyle çalışıyor) — sorun buradaki DEĞER değil, bu
+  değeri okuyan kapıların Pro'yu doğru kontrol etmemesiydi.
+- Can göstergesi (kalpler, `#hearts`) Pro'da GİZLENMİYOR — `stats.lives=0`
+  iken Pro kullanıcıya da 0/5 dolu kalp gösteriyor (paywall'ın "can sınırı
+  TAMAMEN kalkar" vaadiyle görsel olarak çelişiyor). Bu bir KAPI/engelleme
+  değil, SADECE görsel — bu turun kapsamı dışında bırakıldı (aşağıya bkz.).
+- `currentLives`'ı okuyan TÜM yerler tarandı (`app.js`, 7 "kapı" — G61'in
+  kendi yorumunun saydığı sayı) — İKİSİ (istenen "üçüncü örnek" araması)
+  YERİNE **DÖRT** ayrı kapıda hata bulundu:
+
+**DÜZELTME 1 — `blockIfLivesOut()` (`app.js`, "Oyunu Başlat"ın ana kapısı):**
+`isUserPro()`'yu okuyordu ama SADECE paywall'ın açılıp açılmayacağına bakarken
+— fonksiyonun SONUNDAKİ `return true` KOŞULSUZDU, Pro'da bile round'u
+engelliyordu (ne paywall ne hata mesajı, SESSİZCE). `isUserPro() || currentLives>0`
+en başa alındı, ikinci satırdaki artık gereksiz `!isUserPro()` kontrolü
+kaldırıldı (loseLife()'ın İLK-SATIRDA-KONTROL deseniyle AYNI).
+
+**DÜZELTME 2 — `startFreshAttempt()` (`app.js`, Seans Sonu'nun "Tekrar
+oyna"/"10 soru daha" kapısı):** `isUserPro()`'ya HİÇ bakmıyordu — Pro
+kullanıcıya "Canların bitti... X dakikada 1 can dolacak" gösterip round'u
+hiç başlatmıyordu. `if (!isUserPro() && currentLives<=0)` yapıldı.
+
+**DÜZELTME 3 — `ensureAutoNext()` (`app.js`, İSTENEN "üçüncü örnek" arandı,
+BULUNDU) — HER cevaptan sonra `scheduleNext()` üzerinden çağrılan, sıradaki
+soruya otomatik geçişi kuran fonksiyon:** `isUserPro()`'ya bakmıyordu — Fix
+1/2 düzeltilse bile, Pro kullanıcı İLK soruyu cevaplayınca otomatik geçiş
+HİÇ kurulmuyordu (round görünürde "donuyordu"). `if (!isUserPro() && currentLives<=0) return;` yapıldı.
+
+**DÜZELTME 4 — `finalizeIfGameOver()` (`app.js`, DÖRDÜNCÜ örnek — Fix 3'ü
+doğrularken Playwright'ta YAKALANDI, kodda AYRICA aranmamıştı) — HER submit
+handler'ının (12 mod) sonunda çağrılan, "round bitti mi" karar verici:**
+`livesOut = currentLives<=0` hesaplaması `isUserPro()`'ya HİÇ bakmıyordu —
+`if (!isUserPro())` bloğu SADECE paywall/session-end'in GÖRÜNMESİNİ
+engelliyordu, ama fonksiyon YİNE DE round'u TAMAMEN teardown ediyordu
+(`autoStopped=true`, `activeQuestion=null`, `roundFlow.clearAutoAdvance()`).
+Bu, ÖLÇÜLEN asıl "Pro cevap verince round sessizce ölüyor" davranışının kök
+sebebiydi — Fix 3 tek başına YETERSİZDİ, çünkü `finalizeIfGameOver()` zaten
+`scheduleNext()`'in (ve dolayısıyla `ensureAutoNext()`'in) ÇAĞRILMASINI
+`if (!gameOver) scheduleNext(...)` ile engelliyordu. `livesOut = !isUserPro() && currentLives<=0`
+yapıldı — eski kodun kendi yorumu ("Pro'da pratikte hiç tetiklenmez") bu
+SPESİFİK senaryoyu (Pro OLMADAN ÖNCE zaten 0 kaydedilmiş can) göz ardı
+ediyordu, düzeltildi.
+
+**Ölçüm (Playwright, düzeltme sonrası, uçtan uca):** Pro/simüle + `lives:0` →
+Play → round GERÇEKTEN başladı (`freqGuessArea` "Cevabını vermek için
+spektruma dokun" gösterdi, paywall AÇILMADI) → spektruma dokunup cevap
+verildi (feedback "Kaçtı — ama öğren:" göründü) → 7sn beklendi → **feedback
+kartı KAPANDI, YENİ bir soru otomatik kuruldu** (`show-result:false`) — tur
+sonsuza kadar devam edebiliyor. Ücretsiz kullanıcı (`simulatePro:false`,
+`lives:0`) için REGRESYON YOK: Play'e basınca paywall YİNE AÇILIYOR
+(`aktif ekran: paywall`, DEĞİŞMEDİ).
+
+**Doğrulanamayan tek alt-akış (dürüstlük notu):** Düzeltme 2'nin
+(`startFreshAttempt`, "Tekrar oyna" butonu) tam bir uçtan-uca Playwright
+tıklamasıyla doğrulanması, Pro kullanıcının Seans Sonu ekranına ulaşmasının
+TEK gerçek yolunun (canlar/oturum-sınırı artık Pro'yu hiç durdurmadığı için)
+GERÇEK bir "10 Soruluk Bölüm"ü rastgele-tıklamayla tamamlamayı gerektirmesi
+yüzünden başarısız oldu — Pro'nun sınav/telafi sistemi (`examGateActive()`)
+düşük isabetli rastgele tıklamalarda devreye girip "exam" ekranına
+yönlendirdi (Bug 22'den BAĞIMSIZ, ayrı bir sistem). Bu tek fonksiyon,
+DİĞER ÜÇÜNÜN (aynı `isUserPro()` deseni, aynı satırda değiştirilen kod)
+uçtan uca DOĞRULANMIŞ olmasına dayanarak KOD-SEVİYESİ eşdeğerlikle kabul
+edildi — canlı cihazda AYRICA doğrulanmalı (bkz. SIRADAKİ).
+
+**Kapsam dışı bırakılan, İLİŞKİLİ bir bulgu (kod YAZILMADI):** `#hearts`
+(can göstergesi) Pro'da `stats.lives=0` iken 0/5 dolu kalp göstermeye devam
+ediyor — `renderHearts()` bir KAPI değil, SADECE görsel, `isUserPro()`'ya
+hiç bakmıyor. "Can sınırı tamamen kalkar" mesajıyla görsel çelişki ama
+OYNANMAYI ENGELLEMİYOR — bu turun kapsamı "oynayamıyor" idi, kozmetik bir
+takip maddesi olarak bırakıldı.
+
+**DOKUNULAN dosyalar:** `www/js/app.js` (SADECE 4 fonksiyon:
+`blockIfLivesOut`, `startFreshAttempt`, `ensureAutoNext`, `finalizeIfGameOver`).
+**DOKUNULMAYAN dosyalar:** `loseLife()` (zaten doğruydu, dokunulmadı),
+`www/js/core/paywall.js`, `renderHearts()`/can göstergesi, mod dosyalarının
+hiçbiri, `styles.css`, Bug 20/17/19'un kendi kodu (`app.js`'te FARKLI
+fonksiyonlar).
+
+**LOCKED çapraz kontrol (Playwright'la yeniden koşuldu, regresyon YOK):** çip
+genişliği (581f798) 115/115/115 ve 176/176/176; Bug 20'nin livesOut X butonu
+(1765a49) hâlâ "menu"ya dönüyor; normal paywall akışı hâlâ "progress"a
+dönüyor; kaynak çipi senkronu + BARE_ANALYZER idle boşluğu (a4efb42)
+DEĞİŞMEDİ; ücretsiz kullanıcı için TÜM can akışı (paywall açılması dahil)
+AYNEN çalışıyor.
+
+**npm test: 1275 → 1275 (değişmedi).** **DÜRÜSTLÜK NOTU:** Bu düzeltme için
+YENİ bir birim testi EKLENMEDİ — 4 fonksiyonun 4'ü de tamamen `app.js`-içi,
+dışa AKTARILMAMIŞ (test edilebilir saf bir modüle çıkarılmadı,
+`isUserPro()`/`currentLives` modül-kapsamlı durum) — sahte/anlamsız bir test
+UYDURULMADI, SADECE Playwright ölçümüyle (3'ü uçtan uca, 1'i kod-seviyesi
+eşdeğerlikle) doğrulandı. Bu, `test/bare-analyzer-idle.test.mjs`'in (G175)
+tersine — o fonksiyonlar `www/js/modes/*.js`'te EXPORT edilmiş SAF
+fonksiyonlardı, bunlar değil.
 
 G177 — **Bug 20 (öncelikli): Canlar bitince açılan paywall'ın X butonu artık
 ana ekrana dönüyor — App Store inceleme riski kapatıldı.**
@@ -13500,6 +13604,20 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G178 itibarıyla, EN ÖNCELİKLİ):** Bug 22 (Pro
+kullanıcı canları bitmişse oynayamıyordu) 4 kapıda düzeltildi, 3'ü uçtan uca
+Playwright'la doğrulandı, 1'i (`startFreshAttempt`/"Tekrar oyna") SADECE
+kod-seviyesi eşdeğerlikle kabul edildi (bkz. BİTTİ G178'in "doğrulanamayan
+alt-akış" notu — Pro'nun sınav sistemi otomasyonu engelledi). Bir sonraki
+oturumun ÖNCELİĞİ, GERÇEK cihazda: (1) ücretsizken canları bitir, (2) Pro
+satın al (ya da geliştirici modunda simüle et), (3) HEMEN oyna — round
+başlamalı, cevap verince sıradaki soruya otomatik geçmeli, bu SÜREKLİ devam
+etmeli (sadece ilk soru değil); (4) AYRICA bir "10 Soruluk Bölüm"ü GERÇEKTEN
+bitirip Seans Sonu ekranından "Tekrar oyna"ya basarak `startFreshAttempt()`
+yolunu da doğrula (bu, otomasyonla doğrulanamayan TEK alt-akıştı). Ücretsiz
+kullanıcı akışının (canlar bitince paywall) HÂLÂ doğru çalıştığını da
+kontrol et — regresyon olmamalı.
 
 **EN YENİ SIRADAKİ ADIM (G177 itibarıyla, ÖNCELİKLİ):** Bug 20 (canlar
 bitince paywall'dan çıkış) sadece Playwright/masaüstünde doğrulandı, GERÇEK

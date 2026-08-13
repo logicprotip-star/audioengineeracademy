@@ -1513,9 +1513,22 @@ function loseLife(reasonText, { silent = false } = {}) {
 // paywall'ı kapatıp (reklam izlemeden/Pro almadan) tekrar denerse burası
 // tetiklenir. Tek noktadan: paywall'ı YENİDEN aç (ilk oturumda değilsek),
 // olmazsa ESKİ sade "lost" ekranına düş.
+// G178 DÜZELTMESİ (canlı cihazda bulundu, Bug 22): loseLife()'ın
+// `if (isUserPro()) return;` DESENİYLE AYNI kontrol EKSİKTİ — `currentLives`
+// (bir kullanıcı ÜCRETSİZKEN 0'a düşüp SONRA Pro alırsa) Pro'ya geçişte
+// SIFIRLANMIYOR/YENİDEN DOLMUYOR (ölçüldü: stats.lives Pro sonrası da 0
+// kalıyor — bu KASITLI, loseLife() zaten Pro'da hiç azaltmıyor, "sınırsız"
+// bir SAYIYA değil KONTROLÜN KENDİSİNİN atlanmasına dayanıyor). Eski kod
+// `isUserPro()`'yu SADECE paywall açılıp açılmayacağına bakarken okuyordu,
+// ama fonksiyonun SONUNDAKİ `return true` KOŞULSUZDU — Pro kullanıcı için
+// ne paywall ne hata mesajı açılıyordu, round yine de SESSİZCE
+// başlamıyordu (ölçüldü: aktif ekran "game" kalıyor, questionTitle boş,
+// paywall AÇILMIYOR). isUserPro() artık `currentLives>0` İLE AYNI
+// SATIRDA, en başta kontrol ediliyor — Pro/simüle iken fonksiyon HER ZAMAN
+// false (engelleme) döner, currentLives'ın DEĞERİ ne olursa olsun.
 function blockIfLivesOut() {
-  if (currentLives > 0) return false;
-  if (!isUserPro() && !openPaywallReason("livesOut")) showSessionEnd("lost");
+  if (isUserPro() || currentLives > 0) return false;
+  if (!openPaywallReason("livesOut")) showSessionEnd("lost");
   return true;
 }
 
@@ -1527,7 +1540,22 @@ function freeSessionLimitReached() {
   return paywall.isFreeSessionLimitReached(roundsInThisPlaySession, isUserPro());
 }
 function finalizeIfGameOver() {
-  const livesOut = currentLives <= 0;
+  // G178 DÜZELTMESİ (Bug 22, DÖRDÜNCÜ örnek): ÖNCEKİ kod `livesOut`u SADECE
+  // `currentLives<=0`'a bakarak hesaplıyordu, `isUserPro()`'ya BURADA hiç
+  // bakmıyordu — sadece aşağıdaki `if (!isUserPro())` bloğu paywall/session-
+  // end'in GÖRÜNMESİNİ engelliyordu, ama fonksiyon YİNE DE round'u tamamen
+  // TEARDOWN ediyordu (autoStopped=true, activeQuestion=null,
+  // roundFlow.clearAutoAdvance() vb.) — currentLives ÖNCEDEN (ücretsizken)
+  // 0'a düşüp SONRA Pro alınmışsa, Pro kullanıcı İLK soruyu cevaplar
+  // cevaplamaz round SESSİZCE (hiçbir ekran/mesaj olmadan) sona eriyordu
+  // (ölçüldü: cevap sonrası feedbackBox 7sn+ "show-result" durumunda kalıp
+  // hiç yeni soru kurulmuyordu). Aşağıdaki eski yorum ("Pro'da pratikte hiç
+  // tetiklenmez") bu senaryoyu GÖZ ARDI ediyordu — `loseLife()`'ın ASLA 0'a
+  // düşürmeme garantisi, `currentLives`in ÖNCEDEN (Pro OLMADAN) zaten 0
+  // KAYDEDİLMİŞ olma ihtimalini kapsamıyordu. `livesOut` artık
+  // `blockIfLivesOut()`'un AYNI deseniyle isUserPro()'yu EN BAŞTA
+  // içeriyor — Pro/simüle iken bu blok HİÇBİR ZAMAN round'u sonlandırmaz.
+  const livesOut = !isUserPro() && currentLives <= 0;
   const sessionLimitOut = !livesOut && freeSessionLimitReached();
   if (!livesOut && !sessionLimitOut) return false;
   autoPlaying = false;
@@ -5078,7 +5106,16 @@ function stopAbLoop() {
 
 function ensureAutoNext(durationMs) {
   if (autoStopped) return;
-  if (currentLives <= 0) return;
+  // G178 DÜZELTMESİ (Bug 22, ÜÇÜNCÜ örnek — raporda istenen arama sonucu
+  // bulundu): scheduleNext() → ensureAutoNext() HER cevaptan SONRA çağrılır
+  // (12 modun submit handler'ının ortak sonu) — bu kontrol de isUserPro()'ya
+  // bakmıyordu. blockIfLivesOut()/startFreshAttempt() düzeltilse bile,
+  // currentLives ÖNCEDEN 0'a düşmüş bir Pro kullanıcı İLK soruyu
+  // cevaplayınca burada TAKILIP kalırdı — otomatik sıradaki soruya geçiş
+  // hiç kurulmazdı (autoPlaying=true/roundFlow.ensureAutoNext() hiç
+  // çalışmaz), ama round zaten BAŞLAMIŞ olduğu için hiçbir hata/paywall da
+  // görünmezdi.
+  if (!isUserPro() && currentLives <= 0) return;
   // G47: mode.EXAM_ENABLED bir modda (bugün Kompresör) "10 Soruluk Bölüm"ün
   // KENDİ "10 soru bitti → seansı kapat" mantığı DEVRE DIŞI — parkur/sınav/telafi
   // akışı 10'un ÖTESİNE geçebiliyor (erken sınav + telafi turları), bunu
@@ -6653,7 +6690,14 @@ if (els.quitGameBtn) els.quitGameBtn.addEventListener("click", () => {
 function startFreshAttempt({ forceChallenge }) {
   hideSessionEnd();
   syncLives();
-  if (currentLives <= 0) {
+  // G178 DÜZELTMESİ (Bug 22): bu kontrol `blockIfLivesOut()`/`loseLife()`'ın
+  // AKSİNE `isUserPro()`'ya HİÇ bakmıyordu — currentLives ÖNCEDEN (ücretsizken)
+  // 0'a düşüp SONRA Pro alınmışsa (ölçüldü: Pro'ya geçişte currentLives
+  // SIFIRLANMIYOR/dolmuyor, "sınırsız" kontrolün ATLANMASINA dayanıyor, bkz.
+  // blockIfLivesOut'un G178 notu), "Tekrar oyna"/"10 soru daha" butonlarına
+  // basan bir Pro kullanıcıya "Canların bitti... X dakikada 1 can dolacak"
+  // gösterip round'u HİÇ başlatmıyordu.
+  if (!isUserPro() && currentLives <= 0) {
     resetSession();
     // Önceki turun kalıntı UI'ı (soru başlığı + sonuç kartı) startRound()
     // çağrılmadığı için burada temizlenmezse ekranda "canların bitti" mesajı
