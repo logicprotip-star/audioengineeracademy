@@ -5447,6 +5447,20 @@ function setAutoPlay(on) {
     }
     startRound();
   } else {
+    // G180 DÜZELTMESİ (canlı cihazda bulundu, Bug 23): `pauseRound()`
+    // (Durdur butonu/arka plana alma) `abLoopTimer`ı ZATEN durduruyordu
+    // (G31'in kendi kök-sebep düzeltmesi: "hâlâ dönen bir A/B döngüsü...
+    // döngü zamanlayıcısı roundActive/actionbar durumuna hiç bakmadan 2sn'de
+    // bir tetiklenmeye devam ederse... yeni ses duyulabiliyordu") — ama bu
+    // fonksiyonun (SADECE Oyun Türü değişince çağrılan, TEK çağrı noktası)
+    // KENDİ ayrı teardown'ı bunu HİÇ yapmıyordu. Ölçüldü: Oyun Türü
+    // değiştirilince ikon "▶"ye dönüyor ama `abLoopTimer` (varsa) canlı
+    // kalıyor — `toggleAB()` 2sn'de bir HÂLÂ tetiklenip `audioEngine.
+    // setProcessed()`/`cycleThreeWayPreview()`'ı çağırmaya, `analyzerLabel`'ı
+    // flip-flop ettirmeye devam ediyor (Playwright: `abToggle.loop` class
+    // değişimden SONRA da `true` kaldı) — G31'in AYNI kök sebep ailesi,
+    // SADECE farklı bir çağrı noktasından eksikti.
+    if (abLoopTimer) stopAbLoop();
     roundFlow.clearTimer();
     audioEngine.stopAudio();
     uploadManager.pausePlayback();

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G179)
+Son güncelleme: 14.08.2026 (G180)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,77 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G180 — **Bug 23: Oyun Türü değiştirilince A/B döngüsü (`abLoopTimer`)
+temizlenmiyordu — ikon "▶" derken döngü zamanlayıcısı 2sn'de bir HÂLÂ
+tetikleniyordu (G31'in AYNI kök sebep ailesi, sadece eksik bir çağrı
+noktası).**
+
+**ÖLÇÜLENLER:**
+1. İkonu yöneten fonksiyon: `updateStartBtnLabel()` (`app.js`) — `activeQuestion`/
+   `currentLives`/`autoStopped` okuyor, `audioEngine`'in GERÇEK çalma
+   durumuna DOĞRUDAN bakmıyor (proxy: `autoStopped`).
+2. `playModeSelect`'in `change` handler'ı `setAutoPlay(false)` çağırıyor —
+   bu fonksiyon `audioEngine.stopAudio()` + `updateStartBtnLabel()`'ı
+   SENKRON ve DOĞRU sırada çağırıyordu (kod-seviyesi izleme + Playwright'ın
+   Web Audio `start`/`stop`/`connect()` enstrümantasyonu: değişim SONRASI
+   `stop-called` olayı doğru ateşleniyor, ikon doğru "▶" gösteriyor) —
+   **BU KISIM zaten DOĞRU çalışıyordu, bir hata YOKTU.**
+3. **Asıl bulunan hata:** `setAutoPlay(false)` — Oyun Türü değişiminin TEK
+   çağrı noktası — `pauseRound()`'un (Durdur butonu/arka plana alma)
+   ZATEN sahip olduğu `if (abLoopTimer) stopAbLoop();` satırına SAHİP
+   DEĞİLDİ. Ölçüldü (Playwright): A/B döngüsünü başlat (`abLoopBtn`) →
+   Oyun Türü'nü değiştir → `#abToggle`'ın `.loop` class'ı **`true` olarak
+   KALDI** — `abLoopTimer`'ın 2000ms'lik `setInterval`'i hâlâ canlı,
+   `toggleAB()` periyodik tetiklenmeye devam ediyor (`analyzerLabel`'ı "A
+   TEMİZ"/"B İŞLENMİŞ" arasında flip-flop ettiriyor, `audioEngine.
+   setProcessed()`/Motor 2'de `cycleThreeWayPreview()`'ı çağırıyor) — ikon
+   "durduruldu" derken arka planda BAŞKA bir state hâlâ aktif.
+4. **AYNI DESYNC BAŞKA NEREDE ARANDI (item 4, hepsi ayrı ayrı ölçüldü):**
+   - **Mod değişimi:** GÜVENLİ — mod seçimi SADECE menüden yapılabildiği
+     için (kart menü ekranında), `enterMode()`'a ulaşmadan ÖNCE
+     `goScreen()`'in KENDİ "s-game1 dışına çıkınca stopAbLoop" temizliği
+     (satır ~2253) zaten tetikleniyor. Ölçüldü: döngü başlat → Geri → döngü
+     `false`.
+   - **Kaynak değişimi:** GÜVENLİ — `sourceSelect`'in `change` handler'ı
+     TASARIM GEREĞİ hiçbir şeyi durdurmuyor ("yeni ayarlar bir sonraki
+     turda uygulanacak") — durduracak bir şey yok, desync oluşamaz.
+   - **Arka plana alma:** GÜVENLİ — `visibilitychange`'in `hidden` dalı,
+     `activeQuestion && !autoStopped` iken `pauseRound()`'u çağırıyor, O
+     DA `abLoopTimer`ı zaten durduruyor (G152'nin kendi düzeltmesi).
+   - **Ayarlar paneli açıp kapama:** GÜVENLİ — `openGameSettingsSheet`/
+     `closeGameSettingsSheet` ses/döngüye HİÇ dokunmuyor.
+   - **Feedback panelinden çıkma:** GÜVENLİ — `setActionbarTucked(true)`
+     (HER modun HER cevap-sonrası yolunun TEK ortak noktası) `abLoopTimer`ı
+     CEVAP VERİLİR VERİLMEZ zaten durduruyor (G31) — feedback'e ulaşıldığında
+     döngü ZATEN kapalı.
+   **Sonuç: TEK eksik nokta `setAutoPlay(false)`'ın kendi teardown'ıydı.**
+
+**Fix:** `setAutoPlay(false)`'ın `else` bloğuna, `pauseRound()`'daki AYNI
+`if (abLoopTimer) stopAbLoop();` satırı eklendi (`app.js`, tek satır +
+yorum).
+
+**Ölçüm (Playwright, önce/sonra):** A/B döngüsünü başlat → Oyun Türü'nü
+değiştir → `abToggle.loop` class'ı DÜZELTME ÖNCESİ `true` kalıyordu,
+DÜZELTME SONRASI `false` (ikonla senkron).
+
+**DOKUNULAN dosyalar:** `www/js/app.js` (SADECE `setAutoPlay()`, tek satır).
+**DOKUNULMAYAN dosyalar:** `pauseRound()`/`stopAbLoop()`'un KENDİSİ
+(zaten doğruydu, SADECE çağrıldı), `updateStartBtnLabel()`, Bug 17/19/20/
+22/24'ün kendi kodu, mod dosyalarının hiçbiri, `styles.css`, `audio-engine.js`.
+
+**LOCKED çapraz kontrol (Playwright'la yeniden koşuldu, regresyon YOK):** çip
+genişliği (581f798) 115/115/115 ve 176/176/176; Bug 17 (664f1f1) idle
+görünürlüğü DEĞİŞMEDİ; Bug 19'un süre sıfırlaması DEĞİŞMEDİ; Bug 20'nin
+livesOut X butonu (1765a49) hâlâ "menu"ya dönüyor; Bug 22'nin Pro/lives=0
+akışı (c960ce8) DEĞİŞMEDİ; kaynak çipi senkronu (a4efb42) DEĞİŞMEDİ; aynı
+modda "Tekrar Çal" süre devamlılığı (round-flow.js:36) dokunulmadı.
+
+**npm test: 1275 → 1275 (değişmedi).** Yeni bir birim testi EKLENMEDİ —
+`setAutoPlay()` tamamen `app.js`-içi, dışa aktarılmamış bir fonksiyon
+(diğer önceki turlarla AYNI dürüstlük gerekçesi) — SADECE Playwright'ın
+gerçek Web Audio API enstrümantasyonuyla (start/stop/connect çağrılarını
+izleyen sayfa-öncesi script) doğrulandı.
 
 G179 — **Bug 24: Oyun Türü değişimi Bölüm çubuğuna artık ANINDA yansıyor.**
 
@@ -13651,6 +13722,17 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G180 itibarıyla):** Bug 23 (Oyun Türü değişince A/B
+döngüsünün artık düzgün durması) sadece Playwright'la (Web Audio API
+enstrümantasyonu + `abToggle.loop` class ölçümü) doğrulandı, GERÇEK cihazda
+HENÜZ görülmedi — bu, GERÇEK SES duyularak doğrulanması gereken bir düzeltme
+(CLAUDE.md: "ses davranışı kaynak koddan doğrulanamaz"). Bir sonraki
+oturumda kontrol edilecek: bir modda Play'e bas, A/B döngüsünü başlat
+(döngü ikonuna bas/uzun bas), döngü sesi duyulurken Oyun Ayarları'ndan
+Oyun Türü'nü değiştir — ses ANINDA kesilmeli, 2 saniyede bir tekrar
+başlamamalı (önceden, cihazda, sesin arka planda tekrar tekrar tetiklendiği
+gözlenmişti).
 
 **EN YENİ SIRADAKİ ADIM (G179 itibarıyla):** Bug 24 (Oyun Türü değişiminin
 Bölüm çubuğuna anında yansıması) sadece Playwright'la doğrulandı, GERÇEK
