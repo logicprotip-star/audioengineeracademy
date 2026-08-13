@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G170)
+Son güncelleme: 13.08.2026 (G171)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,36 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G171 — **Ana ekranda görünen ad kısaltıldı: `CFBundleDisplayName`
+"Audio Engineer Academy" → "AE Academy" — G60'ın kararı cihaz
+gözlemiyle GERİ ALINDI (sadece bu TEK alan).**
+
+Gerekçe: gerçek cihazda ana ekranda "AudioEngineerA…" diye KESİLDİĞİ
+gözlemlendi. G60'ta (bkz. o kayıt, satır ~8570 civarı) uygulama görünen
+adı BİLEREK "AE Academy"den "Audio Engineer Academy"ye değiştirilmiş ve
+gerçek derlemeyle (`xcodebuild`/`aapt2`) doğrulanmıştı — o karar şimdi
+SADECE `Info.plist:CFBundleDisplayName` alanı için tersine çevrildi,
+G60'ın KENDİSİ (Bundle ID birleştirmesi, `CFBundleName`/Android
+`app_name`/`application-label`) İPTAL EDİLMEDİ. **Kasıtlı olarak
+dokunulmayanlar** (task'ın kendi talimatı): `CFBundleName`
+(`$(PRODUCT_NAME)`, build değişkeni — "App"a çözümleniyor, hiç
+değişmedi), App Store Connect'teki uygulama adı (ayrı bir alan, mağaza
+kaydını etkilemiyor), uygulama İÇİNDEKİ başlık metinleri ("Audio
+Engineer Academy" yazan ana menü başlığı vb. — `www/index.html`/`app.js`
+HİÇ dokunulmadı, bu SADECE ana ekran ikonunun altındaki isim).
+
+**DOKUNULAN DOSYALAR:** `ios/App/App/Info.plist` (TEK satır),
+`DURUM.md` (bu kayıt).
+
+**DOKUNULMAYAN DOSYALAR:** TÜM diğer kod tabanı — `www/js/*`,
+`www/index.html`, `android/*` (Android tarafı bu görev kapsamı DIŞINDA
+— sadece iOS `Info.plist` istendi, Android'in `app_name`/
+`title_activity_main`/`application-label`'ı HÂLÂ "Audio Engineer
+Academy" — kısa isim SADECE iOS'a uygulandı, platformlar arası
+TUTARSIZLIK bilerek/görev kapsamınca bırakıldı), `test/*`, `CLAUDE.md`.
+
+**npm test:** 1261/1261 (değişmedi — kod dokunulmadı).
 
 G170 (SADECE BELGE, kod YAZILMADI) — **App Store Connect kurulumunda
 tamamlanan işler kaydedildi (13.08.2026 akşam oturumu).**

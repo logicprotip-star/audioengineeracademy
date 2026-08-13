@@ -6,8 +6,12 @@
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<!-- G171 — ana ekranda "AudioEngineerA…" diye kesildiği cihazda gözlemlendi,
+	     G60'ın "Audio Engineer Academy" kararı BU TEK ALAN için geri alındı —
+	     CFBundleName/uygulama içi başlıklar/App Store Connect adı DEĞİŞMEDİ,
+	     bkz. DURUM.md. -->
 	<key>CFBundleDisplayName</key>
-	<string>Audio Engineer Academy</string>
+	<string>AE Academy</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
