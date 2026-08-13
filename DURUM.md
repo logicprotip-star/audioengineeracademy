@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G174)
+Son güncelleme: 14.08.2026 (G175)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,82 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G175 — **12-mod mimari raporunun (rapor-only tur) bulduğu 3 hata ÖLÇÜLEREK
+düzeltildi — Bug 7 (kaynak çipi/menü uyuşmazlığı, "EN CİDDİ"), Bug 5 (Reverb
+kontrol satırı taşması), Bug 6 (BARE_ANALYZER idle boşluğu). Bug 8 zaten
+"hata değil" olarak kapatılmıştı (önceki turun raporu).**
+
+**DÜZELTME 1 — Bug 7 (kaynak çipi/menü uyuşmazlığı):**
+Kök sebep (önceki turda ölçülüp raporlandı): çip `activeQuestion.source`'tan
+(`app.js:5278`, sadece round-kurma kodunda) okunuyordu, menü
+`sourceSelect.value`'dan — `enterMode()` menüyü güncelliyor ama çipe hiç
+dokunmuyordu. **Fix:** `enterMode()`'da `populateSourceSelect()`'ten hemen
+sonra `els.sourceChipLabel.textContent = labelSource(els.sourceSelect.value)`
+eklendi (`app.js`, mod değişimi bloğu). **Ölçüm (Playwright, önce/sonra):**
+Frekans Bulma'da "Triangle" seçiliyken dB Seviyesi'ne (kendi kayıtlı kaynağı
+"Akustik Gitar") geçildiğinde — DÜZELTME ÖNCESİ çip "Triangle" / menü
+"Akustik Gitar" (uyuşmuyor); DÜZELTME SONRASI ikisi de "Akustik Gitar"
+(`selectValue`/`selectedOptionText`/`chipText` ÜÇÜ eşit).
+
+**DÜZELTME 2 — Bug 5 (Reverb/Motor 2 kontrol satırı taşması):**
+Kök sebep: metinli İpucu butonu (96px, `.controls-m2 #hintBtn`) + A/B/C
+pilli (136px) aynı satırda 14px'lik varsayılan `gap` ile 390px cihazda
+358px'lik satırı 382px'e taşırıyordu (`#abLoopBtn` sağ kenarı satır
+sınırının 12px dışında, ÖLÇÜLDÜ). **Fix:** `.game-spectrum-controls.controls-m2{gap:4px}`
+eklendi (`styles.css`) — SADECE Motor 2 satırında, hiçbir butonun kendi
+genişliği/dolgusu/metni değişmedi (talimatın "İpucu butonundaki metin farkı
+KASITLI, dokunma" kısıtı korundu). **Ölçüm:** taşma 12px → **-3px** (satır
+sınırının İÇİNDE).
+
+**DÜZELTME 3 — Bug 6 (BARE_ANALYZER idle boşluğu):**
+Kök sebep: dB Seviyesi/Pan Konumu/Stereo Genişlik'in ÜÇÜNÜN de kendi
+`drawOverlay()`'i `if (!activeQuestion) return` ile başlıyor — Play'DEN ÖNCE
+canvas'a HİÇ piksel çizilmiyor (ölçüldü: `nonEmptyAlphaPixels=0`) ama
+`#visualizer`'ın 252px'lik yüksekliği layout'ta yer tutmaya devam ediyor.
+**Kapsam netleştirmesi (kod okumayla bulundu, kullanıcıya soruldu):** talimat
+"#analyzer layout'tan KALICI olarak kalksın" diyordu ama bu 3 modun AYNI
+canvas'ı round SIRASINDA da kullandığı (dB bar/pan iğnesi/genişlik göstergesi)
+doğrulandı — kalıcı `display:none` bu görselleri round sırasında da
+öldürürdü. Kullanıcı "sadece idle'da kalksın" seçeneğini onayladı. **Fix:**
+`enterMode()`'da (idle, mod değişiminde) `#analyzer`'a `analyzer-bare-idle`
+class'ı eklenir (`display:none`), `renderQuestion()`'da (her yeni soru,
+`activeQuestion` artık dolu) kaldırılır (`app.js`); `#analyzer.analyzer-bare-idle{display:none}`
+(`styles.css`). **Ölçüm (Playwright, önce/sonra, dB Seviyesi + Pan Konumu):**
+idle yükseklik 252px→**0px**, chip-kontrol boşluğu 272px→**10px** (Reverb/
+HIDE_ANALYZER referansıyla BİREBİR eşleşiyor); round AKTİFKEN yükseklik
+188px, `nonEmptyAlphaPixels` dB Seviyesi'nde 27693, Pan Konumu'nda 1282 —
+modun kendi görseli ETKİLENMEDİ.
+**Yan not (regresyon DEĞİL, önceden vardı):** Stereo Genişlik'in dosya
+yüklenmemiş idle ekranında (`#uploadGate` görünür) chip-kontrol boşluğu
+ölçümü -96 çıkıyor — `git stash` ile düzeltme ÖNCESİ aynı senaryo ölçüldü,
+AYNI -96 değeri zaten vardı (uploadGate panelinin kendi layout etkisi,
+Fix 3'le İLGİSİZ, kapsam dışı bırakıldı).
+
+**DOKUNULAN dosyalar:** `www/js/app.js` (enterMode + renderQuestion),
+`www/styles.css` (.controls-m2 gap + .analyzer-bare-idle), `test/bare-analyzer-idle.test.mjs`
+(YENİ, 9 test).
+**DOKUNULMAYAN dosyalar:** mod dosyalarının HİÇBİRİ (`kompresor.js`,
+`reverb.js`, `distortion.js`, `db-seviyesi.js`, `pan-konumu.js`,
+`stereo-genislik.js`) — üç düzeltme de ORTAK bileşende (app.js/styles.css),
+mod-özel kod yazılmadı (raporun "kaç dosya etkilenir" öngörüsüyle tutarlı).
+
+**LOCKED çapraz kontrol (hepsi Playwright'la yeniden koşuldu, regresyon YOK):**
+- Çip genişlik eşitliği (581f798): `measure_chips2.py` yeniden çalıştırıldı —
+  115/115/115 ve 176/176/176 AYNI kaldı.
+- Mod geçişinde ilerleme sıfırlaması (freshChallenge, G174): `g174_verify2.py`
+  yeniden çalıştırıldı — 5/5 senaryo geçti, 0 konsol hatası.
+- İpucu butonundaki Motor1/Motor2 metin ayrımı (G85/G86): dokunulmadı (sadece
+  `gap` değişti, buton kendisi/metni/genişliği aynı).
+- Frekans Bulma kulak simgeleri, alt bar "Atla" metni, feedback X butonu,
+  bölüm çubuğu kırpılmaması: bu 3 düzeltmenin hiçbiri bu elemanlara dokunmadı.
+
+**npm test: 1264 → 1273** (9 yeni test, `bare-analyzer-idle.test.mjs` — Bug 6'nın
+dayandığı SAF önkoşulu, "activeQuestion=null iken drawOverlay() ctx2d'ye HİÇ
+dokunmaz", bir Proxy-trap ile doğruluyor). **DÜRÜSTLÜK NOTU:** Bug 5/7 SAF
+mantık İÇERMİYOR (DOM state senkronu / CSS boşluk ayarı) — CLAUDE.md'nin kendi
+kuralı gereği ("DOM davranışı kaynak koddan doğrulanamaz") bunlar için birim
+testi UYDURULMADI, SADECE yukarıdaki Playwright ölçümleriyle doğrulandı.
 
 G174 — **İki cihaz hatası: (1) çip genişlikleri eşitlendi, (2) mod
 geçişinde ilerleme göstergesi artık ÖNCEKİ modun verisini sızdırmıyor —
@@ -13281,6 +13357,16 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G175 itibarıyla):** 3 hata da (Bug 5/6/7) sadece
+Playwright/masaüstünde doğrulandı, GERÇEK cihazda HENÜZ görülmedi — bir
+sonraki oturumda öncelik bu üçünün cihazda kontrolü: Reverb/Kompresör/
+Distortion'da kontrol satırı artık taşmıyor mu, dB Seviyesi/Pan Konumu/
+Stereo Genişlik'e geçince Play'den önce boşluk kalktı mı (Reverb'inkiyle
+aynı görünüyor mu), farklı bir moddan kaynak değiştirip başka moda geçince
+çip artık menüyle eşleşiyor mu. Bu, App Store Connect Privacy formu işini
+(aşağıdaki G170 maddesi) ERTELEMİYOR — ikisi bağımsız, hangisi önce
+yapılırsa yapılsın.
 
 **EN YENİ SIRADAKİ ADIM (G170 itibarıyla):** App Store Connect'te **App
 Privacy formu** doldurulmalı — yaş derecelendirmesi/mağaza metinleri/destek

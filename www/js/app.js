@@ -2341,6 +2341,14 @@ function enterMode(entry, realMode) {
     autoStopped = true;
     mode = realMode;
     populateSourceSelect(); // yeni modun kaynak uyumluluğuna göre kaynak listesini süz
+    // G175 DÜZELTMESİ (canlı cihazda bulundu): çip (#sourceChipLabel) SADECE
+    // round-kurma kodunda (activeQuestion.source'tan, ~satır 5278) yazılıyordu —
+    // enterMode() menüyü (sourceSelect.value) güncelliyordu ama çipe hiç
+    // dokunmuyordu. Sonuç: mod değişince Play'e basılana kadar çip ESKİ modun
+    // kaynağını göstermeye devam ediyordu, menüyse YENİ modun kayıtlı kaynağını
+    // gösteriyordu — G174'ün challenge/freshChallenge'ıyla AYNI kök neden ailesi
+    // ("updateUI() ÇAĞRILIYOR ama ALTINDAKİ VERİ sıfırlanmıyor").
+    if (els.sourceChipLabel && els.sourceSelect) els.sourceChipLabel.textContent = labelSource(els.sourceSelect.value);
     // G79 DÜZELTMESİ (canlı testte bulundu, ÖNCEDEN VARDI): populateFocusSelect()
     // SADECE modül yüklenirken (satır ~440) BİR KEZ çağrılıyordu — o an varsayılan
     // mod frekans-bulma olduğu için (bkz. dosya başı `let mode = getMode(...)`)
@@ -2372,6 +2380,17 @@ function enterMode(entry, realMode) {
     // (bg/border/gölge/başlık) kaldırılıyor — SADECE canvas/barlar kalıyor
     // (bkz. mode.BARE_ANALYZER, db-seviyesi.js + styles.css #analyzer.analyzer-bare).
     if (els.analyzer) els.analyzer.classList.toggle("analyzer-bare", !!mode.BARE_ANALYZER);
+    // G175 DÜZELTMESİ (ölçüldü): BARE_ANALYZER modlarının (dB Seviyesi/Pan
+    // Konumu/Stereo Genişlik) ÜÇÜNÜN de drawOverlay()'i `if (!activeQuestion)
+    // return` ile başlıyor — yani bu satırın çalıştığı an (activeQuestion
+    // henüz null, Play'DEN ÖNCE) canvas'ta HİÇBİR piksel çizilmiyor
+    // (Playwright: nonEmptyAlphaPixels=0), ama #visualizer'ın kendi 252px'lik
+    // yüksekliği layout'ta yer tutmaya devam ediyor — chip-kontrol arasında
+    // 272px'lik boş alanın kaynağı buydu. Play'e basılınca (renderQuestion(),
+    // bkz. o fonksiyondaki KARŞI satır) bu class hemen kaldırılıyor — round
+    // SIRASINDA modun kendi bar/iğne/gösterge çizimi ETKİLENMİYOR, SADECE
+    // "hiç Play'e basılmamış" idle görünümdeki boşluk kalkıyor.
+    if (els.analyzer) els.analyzer.classList.toggle("analyzer-bare-idle", !!mode.BARE_ANALYZER);
     // G86: Motor 2'de (Kompresör/Reverb/Distortion) spektrum kartı HİÇ YOK
     // (Tasarim-2026-08/Prototip.dc.html isCompMode, task'ın kendi talimatı) —
     // SHOW_SPECTRUM'dan (grid çizimi, dB Seviyesi/Frekans Çakışması'nda hâlâ
@@ -3539,6 +3558,10 @@ function renderGameHeader() {
 function renderQuestion() {
   const q = activeQuestion;
   roundActive = true;
+  // G175: enterMode()'un idle-only "analyzer-bare-idle" kısaltması (bkz. o
+  // satırdaki not) — her yeni soruda (activeQuestion artık dolu) kaldırılır,
+  // BARE_ANALYZER modlarının kendi çizimi round boyunca hiç engellenmez.
+  if (els.analyzer) els.analyzer.classList.remove("analyzer-bare-idle");
   // instant:true — bkz. setActionbarTucked tanımı: birazdan aynı fonksiyon içinde
   // şıklı modda scrollFeedbackIntoView senkron scrollHeight okuyacak, margin geçişi
   // yarıda yakalanmasın diye bu tek çağrı animasyonsuz.
