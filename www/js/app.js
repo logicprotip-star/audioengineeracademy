@@ -6895,6 +6895,17 @@ els.difficultySelect.addEventListener("change", () => {
       storage.savePrefs(prefs);
       challenge.active = false;
       setAutoPlay(false);
+      // G179 DÜZELTMESİ (canlı cihazda bulundu, Bug 24): bu handler
+      // `challenge.active`i sıfırlıyordu ama `renderGameHeader()`'ı (Bug
+      // 17'nin `showChapter = isChallenge()` okuduğu TEK yer) HİÇ
+      // çağırmıyordu — "BÖLÜM x/10" satırı yeni seçime göre değil, bir
+      // SONRAKİ round-geçişine (Play/enterMode) kadar ESKİ görünümde asılı
+      // kalıyordu (ölçüldü: 'free' seçilince rowCollapsed hâlâ False).
+      // enterMode()'un G175/G176'daki AYNI "state değişti, UI'ya hemen
+      // yansıt" deseni — showChapter'ın KENDİ koşulu (isChallenge(),
+      // 664f1f1) DEĞİŞMEDİ, SADECE bu değişimden hemen SONRA yeniden
+      // değerlendirilmesi sağlandı.
+      renderGameHeader();
       setFeedback("Oyun türü değişti", isChallenge() ? "10 Soruluk Bölüm seçili. 'Oyunu Başlat' ile bölümü başlat." : "Serbest oyun seçili. 'Oyunu Başlat' ile sınırsız akış.");
     } else if (activeQuestion) {
       setFeedback("Ayar değişti", "Yeni ayarlar bir sonraki turda uygulanacak.");

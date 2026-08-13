@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G178)
+Son güncelleme: 14.08.2026 (G179)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,53 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G179 — **Bug 24: Oyun Türü değişimi Bölüm çubuğuna artık ANINDA yansıyor.**
+
+**Kök sebep (ÖLÇÜLDÜ, sonra düzeltildi):** `playModeSelect`'in `change`
+handler'ı (`app.js:6879-6915`, `[els.sourceSelect, els.playModeSelect].forEach`)
+zaten VARDI ve `prefs.playMode`/`challenge.active`/feedback metnini
+güncelliyordu — ama `renderGameHeader()`'ı (Bug 17'nin `showChapter =
+isChallenge()` okuduğu TEK yer, 664f1f1) HİÇ çağırmıyordu. Sonuç: "BÖLÜM
+x/10" satırı yeni seçime göre değil, bir SONRAKİ round-geçişine (Play/
+`enterMode()`) kadar ESKİ görünümde kalıyordu. Playwright ile ölçüldü:
+`playModeSelect`'i `'free'`e çevirip `change` event'i dispatch edince
+(Play'e BASILMADAN) — DÜZELTME ÖNCESİ `rowCollapsed` hâlâ `false` (satır
+görünür kalıyor); DÜZELTME SONRASI `rowCollapsed:true` (anında gizleniyor).
+Tersi yön (`'free'`→`'challenge'`) de aynı şekilde ölçüldü, anında geliyor.
+
+**Fix:** `playModeSelect`'in `change` handler'ına, `challenge.active=false`
+satırından hemen sonra `renderGameHeader()` çağrısı eklendi (`app.js`,
+tek satır). `showChapter`'ın kendi koşulu (`isChallenge()`, 664f1f1) HİÇ
+DEĞİŞMEDİ — SADECE bu değişimden hemen sonra yeniden değerlendirilmesi
+sağlandı.
+
+**Yan iyileşme (istenmemişti ama fix'in doğal sonucu):** G176/G177'de
+"regresyon değil, önceden vardı" olarak işaretlenen bir bulgu — round
+SIRASINDA Oyun Türü'nü değiştirince satırın anında güncellenmemesi — bu
+fix'le KENDİLİĞİNDEN düzeldi (aynı `change` handler, aynı kök sebep).
+Playwright ile doğrulandı: `audit_bug17.py`'nin ADIM 3 senaryosu (round
+aktifken Serbest'e geçmek) artık `rowCollapsed:true` gösteriyor (önceden
+`false` kalıyordu).
+
+**DOKUNULAN dosyalar:** `www/js/app.js` (SADECE `playModeSelect`'in `change`
+handler'ı, 1 satır eklendi).
+**DOKUNULMAYAN dosyalar:** `showChapter`'ın kendi koşulu/`renderGameHeader()`'ın
+GÖVDESİ (Bug 17, 664f1f1 — okunmadı, sadece ÇAĞRILDI), Bug 19/20/22'nin
+kendi kodu, mod dosyalarının hiçbiri, `styles.css`.
+
+**LOCKED çapraz kontrol (Playwright'la yeniden koşuldu, regresyon YOK):** çip
+genişliği (581f798) 115/115/115 ve 176/176/176; Bug 17'nin idle-görünürlük
+davranışı (664f1f1) DEĞİŞMEDİ (challenge modunda idle'da hâlâ görünür); Bug
+19'un süre sıfırlaması (664f1f1) DEĞİŞMEDİ; Bug 20'nin livesOut X butonu
+(1765a49) hâlâ "menu"ya dönüyor; Bug 22'nin Pro/lives=0 akışı (c960ce8)
+DEĞİŞMEDİ, ücretsiz akış da regresyonsuz; kaynak çipi senkronu (a4efb42)
+DEĞİŞMEDİ.
+
+**npm test: 1275 → 1275 (değişmedi).** Bu düzeltme için yeni bir test
+İSTENMEDİ (görevin kendi kural listesinde bu turda "test ekle" maddesi
+YOKTU) — DOM-içi bir olay-dinleyici çağrısı olduğu için zaten pure-logic
+testi yoktu, Playwright ölçümüyle doğrulandı.
 
 G178 — **Bug 22 (EN ÖNCELİKLİ): Pro kullanıcı canları bitmişse oynayamıyordu
 — 4 AYRI kapıda `isUserPro()` eksik/yanlış sıradaydı, hepsi düzeltildi.**
@@ -13604,6 +13651,15 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G179 itibarıyla):** Bug 24 (Oyun Türü değişiminin
+Bölüm çubuğuna anında yansıması) sadece Playwright'la doğrulandı, GERÇEK
+cihazda HENÜZ görülmedi. Bir sonraki oturumda kontrol edilecek: bir moda gir,
+"10 Soruluk Bölüm" seçiliyken idle'da çubuk görünür olmalı, Oyun Ayarları'ndan
+"Serbest"e geçince Play'e BASMADAN çubuk ANINDA kaybolmalı, tekrar "10 Soruluk
+Bölüm"e çevirince ANINDA geri gelmeli. Bu, G178'in (Bug 22, Pro can akışı)
+kendi cihaz-doğrulama maddesini ERTELEMİYOR — ikisi bağımsız, aynı cihaz
+turunda birlikte kontrol edilebilir (bkz. bir alttaki not).
 
 **EN YENİ SIRADAKİ ADIM (G178 itibarıyla, EN ÖNCELİKLİ):** Bug 22 (Pro
 kullanıcı canları bitmişse oynayamıyordu) 4 kapıda düzeltildi, 3'ü uçtan uca
