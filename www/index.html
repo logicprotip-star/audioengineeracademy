@@ -955,9 +955,13 @@
               <span id="toolsUploadBtnLabel">Dosya Seç · WAV, MP3, M4A</span>
             </button>
             <!-- G114 — dosya yüklüyken "Dosya seç" butonunun YERİNDE dosya adı +
-                 çalar. toolsToggleFilterPlayback()/toolsFilterPlaying (Referans
-                 Filtreleri'nin ZATEN kullandığı TEK oynatma durumu) burada da
-                 kullanılıyor — iki ayrı çalar YOK, tek durum iki yerden kontrol. -->
+                 çalar. G114'ün ORİJİNAL notu ("iki ayrı çalar YOK, tek durum iki
+                 yerden kontrol") G159'dan beri GEÇERSİZ — Referans Filtreleri o
+                 turdan beri KENDİ transport'unu (toolsFilterPlaying, kendi
+                 uploadManager'ı) kullanıyor. G182'de (Bug 13/14) bu ikisi TAM
+                 bağımsız hale getirildi (kendi dosyaları, kendi oynatıcıları) —
+                 SADECE kullanıcı kararıyla (bkz. app.js'in G182 notu) biri
+                 çalarken diğeri BİLEREK susturuluyor, transport PAYLAŞMIYORLAR. -->
             <div class="tools-mix-player hidden" id="toolsMixPlayer">
               <div class="tools-mix-player-file">
                 <div class="tools-mix-player-name" id="toolsMixPlayerName"></div>

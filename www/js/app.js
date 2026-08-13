@@ -833,6 +833,10 @@ function recordUploadSelection(contextId, fileId) {
   else delete uploadSelections[contextId];
   storage.saveUploadSelections(uploadSelections);
   if (contextId === "tools") toolsSelectedFileId = fileId || null;
+  // G182 — "tools-filter" (Referans Filtreleri'nin KENDİ bağlamı) "tools" İLE
+  // AYNI ayna deseni — bkz. yukarıdaki dal + toolsFilterSelectedFileId'in
+  // dosya başı notu.
+  if (contextId === "tools-filter") toolsFilterSelectedFileId = fileId || null;
 }
 
 // Bir bağlama (contextId) GİRİLDİĞİNDE (Araçlar sekmesi açıldığında, bir
@@ -8527,6 +8531,13 @@ let toolsFiles = toolsLoadLibraryManifest();
 // G123 — artık uploadSelections["tools"]'un (KALICI) bir yansıması, bkz. o
 // değişkenin dosya başı notu + recordUploadSelection.
 let toolsSelectedFileId = uploadSelections.tools || null;
+// G182 DÜZELTMESİ (Bug 13/14): Referans Filtreleri'nin KENDİ, "tools"tan
+// (Mixini Yükle) TAMAMEN BAĞIMSIZ dosya seçimi — YENİ bir bağlam id'si
+// ("tools-filter"), `toolsSelectedFileId`'İN AYNI deseni (bkz. yukarısı +
+// recordUploadSelection). Tonal Balance/Ölçüm Sonuçları BİLEREK bu
+// değişkene DOKUNMUYOR, ikisi de hâlâ "tools"u (toolsSelectedFileId) okuyor
+// — SADECE Referans Filtreleri ayrıldı.
+let toolsFilterSelectedFileId = uploadSelections["tools-filter"] || null;
 let toolsSwipedFileId = null;
 // Araçlar sekmesine bu SAYFA-YÜKLEMESİ boyunca zaten bir kez bütünlük kontrolü
 // yapıldı mı? (task: "her açılışta DEĞİL, sadece Araçlar sekmesine ilk
@@ -8543,6 +8554,23 @@ function formatToolsSpace(kb) {
 
 function toolsSelectedEntry() {
   return toolsFiles.find((f) => f.id === toolsSelectedFileId) || null;
+}
+// G182 — Referans Filtreleri'nin KENDİ seçimi (bkz. toolsFilterSelectedFileId).
+// G182 — 3 kademeli öncelik: (1) kullanıcının KENDİ AÇIKÇA seçtiği bir dosya
+// varsa (toolsFilterSelectedFileId, "değiştir"le set edilir) o kullanılır —
+// TAM bağımsızlık. (2) HENÜZ açıkça seçilmemiş ama toolsRefFilterUploadManager'a
+// ZATEN bir şey decode edilmişse (toolsRefFilterLoadedSourceFileId — ör.
+// aşağıdaki (3) dalıyla çalınmış) O kilitlenir — "Mixini Yükle" SONRADAN
+// başka bir dosyaya geçse bile GÖSTERİLEN isim GERÇEKTEN ÇALAN sesle
+// UYUŞMAZLIĞA düşmesin (bu turun BÜTÜN kapsamı olan "state/ses ayrı
+// yönetiliyor" ailesine YENİ bir örnek EKLEMEMEK için BİLEREK). (3) hiçbiri
+// yoksa (kart YENİ, henüz hiç dokunulmamış) "Mixini Yükle"nin O ANKİ
+// dosyasına düşülür — SADECE bunun İÇİN: kart `.tools-card-disabled`
+// (pointer-events:none) olduğunda İÇİNDEKİ "değiştir" butonuna hiç
+// erişilemez, bu düşme OLMASA kart hiçbir zaman İLK kez açılamazdı.
+function toolsFilterSelectedEntry() {
+  const id = toolsFilterSelectedFileId || toolsRefFilterLoadedSourceFileId || toolsSelectedFileId;
+  return toolsFiles.find((f) => f.id === id) || null;
 }
 
 // G104 — "Kullanıcıya ilerleme göstergesi gösterilsin" (task'ın kendi kuralı).
@@ -8725,10 +8753,20 @@ function toolsSelectFile(id, opts = {}) {
   if (!entry) return;
   resetToolsAnalysis();
   toolsTonalDevs = null;
-  toolsFilterPlaying = false;
+  // G182 DÜZELTMESİ (Bug 13): burada ESKİDEN `toolsFilterPlaying = false;`
+  // vardı — bayrağı YALANCI olarak sıfırlıyordu, `toolsRefFilterUploadManager`/
+  // `toolsFilterPreviewNode` HİÇ durdurulmuyordu (ses çalmaya devam ediyordu
+  // ama "Durdur"un kendi koruması `if (!toolsFilterPlaying) return;` artık
+  // bir şey yapmıyordu — ses "yetim" kalıyordu). Referans Filtreleri artık
+  // KENDİ dosya seçimine sahip (bkz. toolsFilterSelectFile) — bu fonksiyon
+  // SADECE "Mixini Yükle"nin ("tools" bağlamı) dosyasını değiştiriyor,
+  // Referans Filtreleri'ne ARTIK hiç dokunmuyor. Bunun YERİNE, kendi
+  // oynatıcısını (toolsRawMixPlaying) GERÇEKTEN durduruyoruz — aynı "dosya
+  // değişirken kendi çalan sesini bırakma" ilkesi, ama artık DOĞRU hedefte.
+  if (toolsRawMixPlaying) { toolsPauseRawMixPlayback(); renderToolsMixPlayer(toolsSelectedEntry()); }
   applyUploadSelection("tools", id, {
     ...opts,
-    onReady: () => { renderToolsCardsVisibility(); renderToolsFilterPlayer(); }
+    onReady: renderToolsCardsVisibility
   });
   toolsCloseFilesSheet();
   renderToolsFilesSheetContent();
@@ -8744,6 +8782,15 @@ function selectFileForActiveContext(id, opts = {}) {
   toolsSwipedFileId = null; // sheet'in KENDİ satır durumu, bağlamdan bağımsız
   if (activeUploadContext === "tools") {
     toolsSelectFile(id, opts);
+    return;
+  }
+  // G182 — Referans Filtreleri'nin KENDİ bağlamı: "tonal-ref"in AYNI deseni
+  // (PAYLAŞILAN uploadManager'a hiç dokunmadan kendi ayrı yoluna gider) —
+  // applyUploadSelection'ın genel `else` dalına DÜŞMESİ BİLEREK engellendi
+  // (o dal syncUploadGate çağırır, "o an aktif mod" varsayımı taşır — Araçlar
+  // bağlamı için ANLAMSIZ).
+  if (activeUploadContext === "tools-filter") {
+    toolsFilterSelectFile(id);
     return;
   }
   // G127 — "Kendi referansım" referans seçimi: PAYLAŞILAN uploadManager'a
@@ -9678,10 +9725,17 @@ function renderToolsAnalysisCardState() {
 function renderToolsCardsVisibility() {
   const entry = toolsSelectedEntry();
   const hasFile = !!entry;
+  // G182 (Bug 14) — Referans Filtreleri'nin kart/aktif durumu artık "Mixini
+  // Yükle"nin (hasFile) DEĞİL, KENDİ bağımsız seçiminin varlığına bağlı —
+  // ikisi birbirinden bağımsız çalışabilir (kullanıcının kendi senaryosu:
+  // Tonal Balance'ta kendi mixini analiz ederken Referans Filtreleri'nde
+  // BAŞKA bir parçayı dinlemek).
+  const filterEntry = toolsFilterSelectedEntry();
   if (els.toolsTonalCard) els.toolsTonalCard.classList.toggle("tools-card-disabled", !hasFile);
   if (els.toolsAnalysisCard) els.toolsAnalysisCard.classList.toggle("tools-card-disabled", !hasFile);
-  if (els.toolsFilterCard) els.toolsFilterCard.classList.toggle("tools-card-disabled", !hasFile);
+  if (els.toolsFilterCard) els.toolsFilterCard.classList.toggle("tools-card-disabled", !filterEntry);
   renderToolsMixPlayer(entry); // G114 — dosya var/yok geçişinde Mixini Yükle kartının çaları/butonu senkron kalsın
+  renderToolsFilterPlayer(); // G182 — Referans Filtreleri KENDİ seçimiyle bağımsız senkron kalsın
   if (!hasFile) return;
   renderToolsAnalysisCardState();
   renderToolsTonalCard();
@@ -11036,7 +11090,13 @@ let toolsFilterChainNodes = []; // G117 — o an bağlı filtre/stereo node'lar�
 // G159 — Referans Filtreleri artık PAYLAŞILAN "tools" uploadManager'ını değil,
 // KENDİ bağımsız örneğini çalıyor (G154'ün tonalMixUploadManager'ıyla AYNI
 // desen) — böylece "Mixini Yükle"nin ham-mix mini oynatıcısıyla transport
-// PAYLAŞMAZ, ikisi birbirini durdurmaz/etkilemez (G153 bulgusu).
+// PAYLAŞMAZ (G153 bulgusu). G182 GÜNCELLEMESİ (Bug 13/14): "ikisi birbirini
+// durdurmaz/etkilemez" artık YANLIŞ — dosya seçimleri de TAM bağımsız oldu
+// (toolsFilterSelectedFileId, "tools-filter" bağlamı), AMA kullanıcı kararıyla
+// (BİLEREK) biri çalmaya başlayınca diğeri durduruluyor (bkz.
+// toolsToggleFilterPlayback/toolsToggleRawMixPlayback'in G182 notu) —
+// transport'ları hâlâ ayrı, SADECE aynı anda İKİSİ BİRDEN çalmasın diye
+// karşılıklı susturuyorlar.
 const toolsRefFilterUploadManager = createUploadManager(() => audioEngine.audioCtx);
 let toolsRefFilterLoadedSourceFileId = null; // hangi kütüphane dosyası şu an bu manager'a decode edilmiş
 
@@ -11236,16 +11296,19 @@ if (els.toolsFilterHeader) els.toolsFilterHeader.addEventListener("click", tools
 // Yükle"nin ham-mix oynatıcısıyla (paylaşılan uploadManager) transport
 // PAYLAŞMIYOR.
 function renderToolsFilterPlayer() {
-  const entry = toolsSelectedEntry();
+  // G182 (Bug 14) — artık toolsSelectedEntry() ("Mixini Yükle") DEĞİL, KENDİ
+  // bağımsız seçimi.
+  const entry = toolsFilterSelectedEntry();
   if (!entry) return;
   if (els.toolsFilterFileName) els.toolsFilterFileName.textContent = entry.name;
   if (els.toolsFilterFileMeta) els.toolsFilterFileMeta.textContent = `${entry.sizeKb} KB · ${formatToolsDuration(entry.durationSec)}`;
   if (els.toolsFilterTotal) els.toolsFilterTotal.textContent = formatToolsDuration(entry.durationSec);
   if (els.toolsFilterElapsed) els.toolsFilterElapsed.textContent = formatToolsDuration(toolsRefFilterUploadManager.elapsed);
-  // Dalga formu görsel amaçlı — paylaşılan uploadManager'dan (her zaman
-  // seçili dosya için hazır) çizilir, toolsRefFilterUploadManager henüz hiç
-  // play'e basılmadıysa (lazy-load) boş kalmasın diye.
-  const buffer = uploadManager.getBuffer();
+  // Dalga formu görsel amaçlı — G182'den beri KENDİ toolsRefFilterUploadManager'ından
+  // çizilir (toolsFilterSelectFile artık EAGER decode ediyor, "Mixini Yükle"nin
+  // paylaşılan uploadManager'ıyla AYNI "her zaman hazır" garantisi — ESKİDEN
+  // o paylaşılan manager'dan ödünç alınıyordu, artık kendi kaynağı var).
+  const buffer = toolsRefFilterUploadManager.getBuffer();
   const progressFrac = entry.durationSec > 0 ? toolsRefFilterUploadManager.elapsed / entry.durationSec : 0;
   if (buffer) toolsDrawBigWave(els.toolsFilterWave, buffer, progressFrac);
   if (els.toolsFilterPlayBtn) els.toolsFilterPlayBtn.classList.toggle("playing", toolsFilterPlaying);
@@ -11289,14 +11352,20 @@ function toolsPauseFilterPlayback() {
 // G159 — dosya kütüphanede SEÇİLİ olduğu sürece çalışır (toolsRefFilterUploadManager
 // henüz decode etmemiş OLABİLİR — ilk basışta lazy-load, tonalMixUploadManager'ın
 // AYNI deseni, bkz. toolsTonalToggleMatchedMixPlayback).
+// G182 — artık toolsSelectedEntry() ("Mixini Yükle") DEĞİL, KENDİ bağımsız
+// seçimini (toolsFilterSelectedEntry) çalıyor (Bug 14).
 async function toolsToggleFilterPlayback() {
-  const entry = toolsSelectedEntry();
+  const entry = toolsFilterSelectedEntry();
   if (!entry) return;
   if (toolsFilterPlaying) {
     toolsPauseFilterPlayback();
     renderToolsFilterPlayer();
     return;
   }
+  // G182 KARARI (kullanıcı onaylı, Bug 14): iki oynatıcı AYNI ANDA
+  // çalmasın — biri başlarsa diğeri sussun (dosyalar artık bağımsız olsa
+  // bile, ikisi de AYNI kulakta/analyser'a bağlı, aynı anda çalarsa karışır).
+  if (toolsRawMixPlaying) { toolsPauseRawMixPlayback(); renderToolsMixPlayer(toolsSelectedEntry()); }
   const running = await audioEngine.initAudio();
   const ctx = audioEngine.audioCtx, analyser = audioEngine.analyser;
   if (!ctx || !analyser) return;
@@ -11329,6 +11398,45 @@ async function toolsToggleFilterPlayback() {
   toolsFilterPlaying = true;
   toolsTonalSyncLiveLoop(); // G102: canlı analizör döngüsü uykudaysa uyandır
   renderToolsFilterPlayer();
+}
+// G182 (Bug 14) — Referans Filtreleri'nin KENDİ "değiştir" akışı, toolsSelectFile()'ın
+// ("Mixini Yükle") AYNI yapısı ama HEDEFİ toolsRefFilterUploadManager (G159'dan
+// beri zaten bağımsız transport). tonalMixUploadManager'ın (G154) EAGER decode
+// deseniyle AYNI — Mixini Yükle'nin dalga formu HER ZAMAN hazır olduğu gibi,
+// Referans Filtreleri'ninki de (toolsDrawBigWave GERÇEK bir AudioBuffer
+// gerektirir) ilk Play basışını BEKLEMEDEN görünür kalsın diye lazy DEĞİL.
+async function toolsFilterSelectFile(id) {
+  const entry = toolsFiles.find((f) => f.id === id);
+  if (!entry) return;
+  // Bug 13'ün AYNI ilkesi: kendi dosyası değişmeden ÖNCE kendi oynatıcısını
+  // GERÇEKTEN durdur (bayrağı elle sıfırlamak DEĞİL).
+  if (toolsFilterPlaying) toolsPauseFilterPlayback();
+  recordUploadSelection("tools-filter", id);
+  toolsCloseFilesSheet();
+  renderToolsFilesSheetContent();
+  renderToolsCardsVisibility();
+  try {
+    await audioEngine.initAudio();
+    let fileObj = entry.file;
+    if (!fileObj) {
+      const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+      if (!blob) {
+        toast("Dosya bulunamadı", `${entry.name} artık cihazda yok. Kütüphaneden kaldırıldı.`);
+        toolsRemoveFile(id, { skipStorageDelete: true });
+        return;
+      }
+      fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+      entry.file = fileObj;
+    }
+    const res = await toolsRefFilterUploadManager.loadFile(fileObj);
+    if (!res.ok) { toast(res.title, res.detail); return; }
+    toolsRefFilterLoadedSourceFileId = id;
+    toolsRefFilterUploadManager.startFromZero();
+    renderToolsFilterPlayer();
+  } catch (err) {
+    console.error("[upload-context] toolsFilterSelectFile hatası:", err && err.message, err);
+    toast("Dosya yüklenemedi", `${entry.name} açılırken bir sorun oluştu.`);
+  }
 }
 // G159 — "10 sn geri"/"10 sn ileri". Sınırlar 0..duration'a kenetlenir
 // (Math.max/min — seekTo'nun KENDİ sarma davranışı burada İSTENMİYOR, bir
@@ -11379,6 +11487,9 @@ async function toolsToggleRawMixPlayback() {
     renderToolsMixPlayer(toolsSelectedEntry());
     return;
   }
+  // G182 KARARI (Bug 14) — toolsToggleFilterPlayback()'ın KARŞIT yönü: iki
+  // oynatıcı aynı anda çalmasın.
+  if (toolsFilterPlaying) { toolsPauseFilterPlayback(); renderToolsFilterPlayer(); }
   const running = await audioEngine.initAudio();
   const ctx = audioEngine.audioCtx, analyser = audioEngine.analyser;
   if (!ctx || !analyser) return;
@@ -11409,7 +11520,11 @@ async function toolsStopRawMixPlayback() {
   renderToolsMixPlayer(toolsSelectedEntry());
 }
 if (els.toolsFilterPlayBtn) els.toolsFilterPlayBtn.addEventListener("click", toolsToggleFilterPlayback);
-if (els.toolsFilterFileChange) els.toolsFilterFileChange.addEventListener("click", toolsOpenFilesSheet);
+// G182 (Bug 14) — ESKİDEN "Mixini Yükle"nin `toolsOpenFilesSheet`'iyle AYNI
+// (paylaşılan "tools" bağlamı) çağrıydı. Artık `openFilesSheetForContext`'in
+// GENEL deseniyle KENDİ bağımsız bağlamını ("tools-filter") açıyor —
+// `tonal-ref`in AYNI mekanizması (bkz. selectFileForActiveContext'in yeni dalı).
+if (els.toolsFilterFileChange) els.toolsFilterFileChange.addEventListener("click", () => openFilesSheetForContext("tools-filter"));
 if (els.toolsFilterSkipBack) els.toolsFilterSkipBack.addEventListener("click", () => toolsSeekFilterPlayback(-10));
 if (els.toolsFilterSkipFwd) els.toolsFilterSkipFwd.addEventListener("click", () => toolsSeekFilterPlayback(10));
 if (els.toolsMixPlayBtn) els.toolsMixPlayBtn.addEventListener("click", toolsToggleRawMixPlayback);

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G181)
+Son güncelleme: 14.08.2026 (G182)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,104 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G182 — **Bug 13 + 14: Referans Filtreleri artık "Mixini Yükle"den TAM
+BAĞIMSIZ — kendi dosyası, kendi oynatıcısı (transport zaten G159'dan beri
+ayrıydı, dosya seçimi ARTIK da ayrıldı). Kullanıcı kararıyla ikisi aynı anda
+çalmıyor.**
+
+**DÜZELTME 1 (#13 — yetim ses):** `toolsSelectFile()` (`app.js`, "Mixini
+Yükle"nin dosya değiştirme yolu), satır 8728'deki `toolsFilterPlaying = false;`
+KALDIRILDI — bu satır bayrağı YALANCI sıfırlıyordu, `toolsRefFilterUploadManager`/
+`toolsFilterPreviewNode` hiç durdurulmuyordu. Ayırma (Düzeltme 2) sonrası bu
+satırın Referans Filtreleri'ne ARTIK hiç dokunmaması GEREKİYORDU (iki bölüm
+farklı dosyalara bakıyor) — YERİNE kendi oynatıcısını (`toolsRawMixPlaying`)
+GERÇEKTEN durduran bir çağrı eklendi (aynı ilke, doğru hedef). Referans
+Filtreleri'nin KENDİ yeni dosya-değiştirme yolu (`toolsFilterSelectFile`,
+aşağı bkz.) da AYNI ilkeyle (`toolsPauseFilterPlayback()` GERÇEKTEN çağrılır)
+yazıldı.
+
+**DÜZELTME 2 (#14 — bağımsız dosya seçimi):**
+- YENİ bağımsız state: `toolsFilterSelectedFileId`/`toolsFilterSelectedEntry()`
+  (`toolsSelectedFileId`'ın AYNI deseni, YENİ "tools-filter" bağlamı —
+  `openFilesSheetForContext`/`selectFileForActiveContext`'in ZATEN var olan
+  genel mekanizmasına, "tonal-ref" ile AYNI şekilde, eklendi).
+- YENİ `toolsFilterSelectFile(id)`: `toolsRefFilterUploadManager`'a EAGER
+  decode eder (tonalMixUploadManager'ın G154 deseni — "Mixini Yükle"nin
+  dalga formu HER ZAMAN hazır olduğu gibi, Referans Filtreleri'ninki de ilk
+  Play'i BEKLEMESİN diye).
+- `#toolsFilterFileChange` ("değiştir" butonu, ZATEN VARDI) artık paylaşılan
+  `toolsOpenFilesSheet` YERİNE `openFilesSheetForContext("tools-filter")`
+  çağırıyor.
+- `renderToolsFilterPlayer()`/`renderToolsCardsVisibility()` artık
+  `toolsSelectedEntry()` DEĞİL `toolsFilterSelectedEntry()` okuyor.
+- **UYGULAMA SIRASINDA BULUNAN GERÇEK BOŞLUK (kendi tasarımımdaki, kod
+  yazmadan ÖNCE yakalandı):** `toolsFilterCard`'ın `.tools-card-disabled`
+  (pointer-events:none) durumu SADECE kendi seçimine bağlansaydı, kart
+  Referans Filtreleri HİÇ bir dosya seçmemişken KALICI OLARAK tıklanamaz
+  kalırdı — "değiştir" butonunun KENDİSİ o disabled kartın İÇİNDE olduğu
+  için hiçbir zaman İLK seçim yapılamazdı (çıkmaz sokak). Çözüm:
+  `toolsFilterSelectedEntry()` 3 kademeli önceliğe sahip: (1) kullanıcının
+  AÇIKÇA seçtiği dosya, (2) HENÜZ decode edilmiş/ÇALINMIŞ bir dosya varsa O
+  (`toolsRefFilterLoadedSourceFileId` — round SIRASINDA "Mixini Yükle"
+  değişse bile GÖSTERİLEN isim GERÇEK sesle uyuşmaya devam etsin diye
+  KİLİTLENİR), (3) hiçbiri yoksa "Mixini Yükle"nin O ANKİ dosyası (kart İLK
+  kez açılabilsin diye).
+
+**KARAR (kullanıcı onaylı): iki oynatıcı AYNI ANDA çalmasın.**
+`toolsToggleFilterPlayback()`/`toolsToggleRawMixPlayback()`'in HER İKİSİNE
+de, çalmaya BAŞLARKEN diğerini durduran bir satır eklendi (dosyalar bağımsız
+olsa da ikisi de AYNI analyser'a bağlı — aynı anda çalarsa karışır).
+
+**Ölçüm (Playwright, 8 adım, TAMAMI geçti):**
+1. Mixini Yükle'ye ref-track.wav yüklendi.
+2. Referans Filtreleri kartı KİLİTLİ DEĞİL, fallback'le ref-track gösteriyor
+   (çıkmaz sokak YOK — doğrulandı).
+3. Referans Filtreleri Play → çalıyor (fallback dosyasıyla).
+4. Mixini Yükle Play → Referans Filtreleri SUSTU (mutual exclusion, yön 1).
+5. Mixini Yükle ÇALARKEN dosyasını test-tone.wav'a değiştirdi → GERÇEKTEN
+   durdu (yalancı DEĞİL) — Fix 1 doğrulandı.
+6. Referans Filtreleri HÂLÂ ref-track gösteriyor — Mixini Yükle'nin
+   değişiminden ETKİLENMEDİ (bağımsızlık doğrulandı).
+7. Referans Filtreleri'nin KENDİ "değiştir"inden mix-track.wav seçildi →
+   Referans Filtreleri=mix-track, Mixini Yükle HÂLÂ=test-tone (İKİ FARKLI
+   dosya AYNI ANDA, tam bağımsızlık kanıtlandı).
+8. Mixini Yükle Play, SONRA Referans Filtreleri Play → Mixini Yükle SUSTU
+   (mutual exclusion, yön 2).
+
+**EK: index.html'in G114 yorumu ("iki ayrı çalar YOK, tek durum") ve app.js'in
+G159 yorumu ("ikisi birbirini durdurmaz/etkilemez") — ikisi de G159/G182
+sonrası GEÇERSİZDİ, güncellendi.**
+
+**DOKUNULAN dosyalar:** `www/js/app.js` (`toolsSelectFile`,
+`selectFileForActiveContext`, `recordUploadSelection`, YENİ
+`toolsFilterSelectedFileId`/`toolsFilterSelectedEntry`/`toolsFilterSelectFile`,
+`renderToolsFilterPlayer`, `renderToolsCardsVisibility`,
+`toolsToggleFilterPlayback`, `toolsToggleRawMixPlayback`,
+`#toolsFilterFileChange`'in handler'ı), `www/index.html` (SADECE G114
+yorumu).
+**DOKUNULMAYAN dosyalar:** Referans filtrelerinin GERÇEK DSP kodu
+(`toolsConnectFilterPreviewChain`/`toolsDisconnectFilterChain`/filtre
+katsayıları — HİÇ okunmadı/değiştirilmedi), Tonal Balance'ın kendi iki
+upload manager'ı (`tonalRefUploadManager`/`tonalMixUploadManager`, G154),
+Stereo Genişlik'in `pickPlaybackOffset()`'i (G122), Bug 10/17/19/20/22/23/24'ün
+kendi kodu, mod dosyalarının hiçbiri, `styles.css`, `round-flow.js`.
+
+**Bilinen, düşük öncelikli bir kalıntı (kod YAZILMADI, flag edildi):**
+`toolsRefFilterLoadedSourceFileId` (tier-2 kilit) `uploadSelections`'ın
+PARÇASI DEĞİL — bir dosya kütüphaneden silinirse (`toolsRemoveFile`) bu
+değişken NULL'A ÇEKİLMİYOR (sadece `uploadSelections`-tabanlı tier-1 temizleniyor).
+Pratik etkisi: silinen dosya ZATEN decode edilmiş/çalınmışsa ses/oynatma
+etkilenmez (bayt'lar bellekte), sadece ÇOK nadir bir sonraki-render'da stale
+bir referans kısa süreliğine kalabilir — kendini bir sonraki seçimde
+düzeltir. Mevcut `uploadManagerLoadedFileId` için de AYNI sınıf davranış
+zaten var (pre-existing, bu turun kapsamı dışı).
+
+**npm test: 1275 → 1275 (değişmedi).** Yeni bir birim testi EKLENMEDİ — TÜM
+değişiklikler `app.js`-içi, dışa aktarılmamış (Tools sekmesinin TAMAMI bu
+dosyada, `core/*.js`'e hiç DOKUNULMADI) — SADECE Playwright'ın GERÇEK dosya
+yükleme + oynatma DOM ölçümüyle (8 adım, yukarı bkz.) doğrulandı, önceki
+turların AYNI dürüstlük gerekçesi.
 
 G181 — **Bug 10: Oyun ekranından açılan paneller (Ayarlar/Bilgi/Kaynak/
 Çıkış diyaloğu) artık turu duraklatıp ses susturuyor, kapanınca kaldığı
@@ -13813,6 +13911,18 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G182 itibarıyla):** Bug 13+14 (Referans
+Filtreleri'nin bağımsız dosya seçimi) sadece Playwright'la (gerçek dosya
+yükleme + DOM ölçümü) doğrulandı, GERÇEK cihazda GERÇEK SESLE HENÜZ
+görülmedi. Bir sonraki oturumda kontrol edilecek: Araçlar'da bir dosya
+yükle (Mixini Yükle), Referans Filtreleri'ni aç ve GERÇEKTEN dinle
+(kulakla), Referans Filtreleri ÇALARKEN "değiştir"le BAŞKA bir dosya seç —
+ESKİ ses ANINDA kesilmeli, YENİ dosya doğru çalmalı; Mixini Yükle'nin KENDİ
+dosyasının bundan ETKİLENMEDİĞİNİ (hâlâ İLK dosyayı gösterdiğini/çaldığını)
+doğrula; ikisini de sırayla çal, biri başlayınca diğerinin GERÇEKTEN
+sustuğunu kulakla onayla (Playwright sadece ikon/flag ölçtü, gerçek sesi
+duyamaz).
 
 **EN YENİ SIRADAKİ ADIM (G181 itibarıyla):** Bug 10 (panel açılınca duraklama)
 sadece Playwright'la (süre metni + ikon ölçümü) doğrulandı, GERÇEK cihazda
