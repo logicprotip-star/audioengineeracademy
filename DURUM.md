@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G171)
+Son güncelleme: 13.08.2026 (G172)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,24 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G172 — **Android'de ana ekran adı iOS'la EŞİTLENDİ: `app_name`/
+`title_activity_main` "Audio Engineer Academy" → "AE Academy" —
+G171'in iOS-only bırakılan platform tutarsızlığı KAPANDI.**
+
+`android/app/src/main/res/values/strings.xml`'de SADECE bu iki alan
+değişti — `package_name`/`custom_url_scheme`/`admob_app_id`'ye
+DOKUNULMADI. Artık her iki platform da "AE Academy" gösteriyor (G171'in
+commit `0b20124`'ünün AYNI gerekçesi/kararı, iOS'tan sonra Android'e de
+uygulandı).
+
+**DOKUNULAN DOSYALAR:** `android/app/src/main/res/values/strings.xml`
+(2 satır), `DURUM.md` (bu kayıt).
+
+**DOKUNULMAYAN DOSYALAR:** TÜM diğer kod tabanı — `www/js/*`,
+`www/index.html`, `ios/*`, `test/*`, `CLAUDE.md`.
+
+**npm test:** 1261/1261 (değişmedi — kod dokunulmadı).
 
 G171 — **Ana ekranda görünen ad kısaltıldı: `CFBundleDisplayName`
 "Audio Engineer Academy" → "AE Academy" — G60'ın kararı cihaz
