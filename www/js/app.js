@@ -7803,8 +7803,27 @@ if (els.adPrivacyRow) els.adPrivacyRow.addEventListener("click", async () => {
   .forEach(btn => { if (btn) btn.addEventListener("click", () => goBackFromSubpage()); });
 // G89: paywallCloseBtn AYRI tutuluyor — kapanışta can-bitti sayacı da dursun
 // diye (arka planda sonsuza dek dönmesin).
+// G177 DÜZELTMESİ (canlı cihazda bulundu, Bug 20): "Canların bitti" paywall'ı
+// (openPaywallReason("livesOut")) `blockIfLivesOut()` ÜZERİNDEN, kullanıcı
+// HÂLÂ "game" ekranındayken açılıyor — normal ("Pro ile aç") akışların
+// AKSİNE, screenStack ["menu","game","paywall"] oluyor. goBackFromSubpage()
+// → goBack() İKİ KEZ pop() yapıp (üstteki subpage deseni İÇİN tasarlanmış,
+// bkz. o fonksiyonun kendi yorumu) SONUCU "menu" DEĞİL "game"e dönüyordu —
+// #tabbar "game" ekranında HER ZAMAN gizli (bkz. goScreen), kullanıcı ne
+// menüye ne başka bir sekmeye geçemiyordu (ölçüldü: X sonrası aktif ekran
+// "game", tabbar.hide=true). Diğer TÜM paywall girişleri (Progress/Araçlar
+// kilitleri) "menu" DIŞINDA bir ekrandan açılsa bile o ekranın KENDİ
+// tab-bar'ı görünür kalıyor — kullanıcı ORADA gerçekten "sıkışmıyor", bu
+// yüzden bu iki akış AYNI ölçülemedi/AYNI muamele görmemeli (task'ın kendi
+// ayrımı: "Normal paywall akışı BOZULMAYACAK").
+// Ayrım sinyali: `els.paywallLivesStrip`'in görünürlüğü — SADECE
+// openPaywallReason()'ın "livesOut" dalında açılıyor (bkz. o fonksiyon +
+// resetPaywallToGeneric()'in HER genel girişte onu gizlemesi), yeni bir
+// state DEĞİŞKENİ eklemeden mevcut tek-kaynak DOM durumunu okuyor.
 if (els.paywallCloseBtn) els.paywallCloseBtn.addEventListener("click", () => {
   stopPaywallLivesTicker();
+  const wasLivesOut = !!(els.paywallLivesStrip && !els.paywallLivesStrip.classList.contains("hidden"));
+  if (wasLivesOut) { goScreen("menu"); return; }
   goBackFromSubpage();
 });
 

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G176)
+Son güncelleme: 14.08.2026 (G177)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,72 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G177 — **Bug 20 (öncelikli): Canlar bitince açılan paywall'ın X butonu artık
+ana ekrana dönüyor — App Store inceleme riski kapatıldı.**
+
+**Kök sebep (ÖLÇÜLDÜ, sonra düzeltildi):**
+- Paywall'ın X butonu (`paywallCloseBtn`) `goBackFromSubpage()` → `goBack()`
+  çağırıyor; `goBack()` `screenStack`'ten İKİ KEZ pop() yapıp SONUCU
+  navigasyon hedefi olarak kullanıyor (Ayarlar sheet'inin "alt sayfadan
+  sheet'in açıldığı ekrana dön" deseni İÇİN tasarlanmış).
+- "Canların bitti" paywall'ı (`openPaywallReason("livesOut")`,
+  `blockIfLivesOut()` üzerinden) kullanıcı HÂLÂ "game" ekranındayken açılıyor
+  → `screenStack=["menu","game","paywall"]`.
+- X'e basılınca: pop() "paywall"ı atar, pop() "game"i döndürür ve `goScreen("game")`
+  çağrılır — **"menu" DEĞİL, "game"**. `#tabbar` "game" ekranında HER ZAMAN
+  gizli (`goScreen`'in `data-tab` mantığı) — kullanıcı ne menüye ne başka bir
+  sekmeye geçemiyordu. Playwright ile ölçüldü: DÜZELTME ÖNCESİ X sonrası
+  aktif ekran `"game"`, `tabbar.hide=true`.
+- Normal ("Pro ile aç") paywall akışları (Progress/Araçlar kilitleri) AYNI
+  `goBack()` mekanizmasını kullanıyor ama "menu" DIŞINDA bir ekrandan
+  (ör. "progress") açılıyor — o ekranın KENDİ tab-bar'ı görünür kaldığı için
+  kullanıcı orada GERÇEKTEN sıkışmıyordu, X zaten "doğru" hissettiriyordu
+  (aslında AYNI çift-pop mekanizması ama zararsız sonuç).
+
+**Fix:** `paywallCloseBtn`'in click handler'ına (`app.js`), `els.paywallLivesStrip`'in
+görünürlüğünü (SADECE `livesOut` nedeninde açık, `PAYWALL_REASONS.livesOut.buttons==="livesOut"`
+— bu invaryant zaten `paywall.test.mjs`'te test ediliyor) okuyan bir dal
+eklendi: `livesOut` iken doğrudan `goScreen("menu")`, aksi halde ÖNCEKİ
+`goBackFromSubpage()` davranışı AYNEN korunuyor. Yeni bir state değişkeni
+EKLENMEDİ, mevcut tek-kaynak DOM durumu okundu.
+
+**Ölçüm (Playwright, önce/sonra):**
+- Canlar=0 → paywall aç → X: DÜZELTME ÖNCESİ aktif ekran `"game"`
+  (tabbar gizli) → DÜZELTME SONRASI aktif ekran `"menu"` (tabbar görünür).
+- Normal akış (İlerleme sekmesi → "Zayıf bölge geçmişi" Pro kilidi → X):
+  DÜZELTME ÖNCESİ VE SONRASI aynı — aktif ekran `"progress"`, DEĞİŞMEDİ.
+
+**Kapsam dışı bırakılan, İLİŞKİLİ bir bulgu (kullanıcıya bildiriliyor, kod
+YAZILMADI):** `sessionLimit` (ücretsiz oturumun 5-soru sınırı) paywall'ı da
+`blockIfLivesOut()`'un AYNI kod yolundan, "game" ekranındayken açılıyor —
+teorik olarak AYNI çift-pop sorununa sahip OLABİLİR (ölçülmedi, bu turun
+kapsamı SADECE "Canlar bitince" idi). Kullanıcı isterse ayrı bir turda
+ölçülüp aynı düzeltme uygulanabilir.
+
+**DOKUNULAN dosyalar:** `www/js/app.js` (SADECE `paywallCloseBtn`'in click
+handler'ı).
+**DOKUNULMAYAN dosyalar:** `www/js/core/paywall.js` (PAYWALL_REASONS/
+buttons şeması zaten doğru, dokunulmadı), paywall ekranının içeriği (₺399,
+7 madde, yasal bağlantılar, can sayacı — hiçbiri değişmedi), reklam izleme
+akışı, `goBack()`/`goBackFromSubpage()`'in KENDİSİ (genel Ayarlar-subpage
+deseni İÇİN hâlâ kullanılıyor, dokunulmadı), mod dosyalarının hiçbiri.
+
+**LOCKED çapraz kontrol (Playwright'la yeniden koşuldu):** çip genişlik
+eşitliği (581f798) 115/115/115 ve 176/176/176 AYNI; kaynak çipi senkronu
+(a4efb42) doğru; freshChallenge/G174'ün veri-tazeliği hâlâ doğru (test
+scriptinin KENDİ eski "collapsed" beklentisi G176'dan beri zaten geçersiz,
+bu turda YENİDEN bozulmadı — aynı bilinen durum). Paywall içeriği/reklam
+akışı bu turda dokunulmadığı için TEKRAR ölçülmedi (kod değişmedi).
+
+**npm test: 1275 → 1275 (değişmedi).** **DÜRÜSTLÜK NOTU:** Bu düzeltme için
+YENİ bir saf-mantık testi EKLENMEDİ — fix'in dayandığı TEK gerçek invaryant
+(`PAYWALL_REASONS.livesOut.buttons==="livesOut"`, diğer TÜM nedenlerin
+`"pro"` olduğu) `test/paywall.test.mjs:207-222`'de ZATEN tam kapsamlı test
+ediliyor; fix'in kendisi (`goScreen("menu")` dalı) tamamen DOM-içi bir
+navigasyon dalı, saf fonksiyon değil — SADECE Playwright ölçümüyle
+doğrulandı (livesOut yolu + normal yolun regresyonsuz kaldığı, iki ayrı
+script).
 
 G176 — **enterMode()/idle-state raporunun (rapor-only tur) bulduğu 2 hata
 ÖLÇÜLEREK düzeltildi — Bug 19 (Süre göstergesi önceki modu taşıyor), Bug 17
@@ -13434,6 +13500,17 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G177 itibarıyla, ÖNCELİKLİ):** Bug 20 (canlar
+bitince paywall'dan çıkış) sadece Playwright/masaüstünde doğrulandı, GERÇEK
+cihazda HENÜZ görülmedi — App Store inceleme riskiyle ilgili olduğu için bir
+sonraki oturumun ÖNCELİĞİ bu: canlar tükenince paywall aç, X'e bas, ana
+ekrana (mod seçimi) döndüğünü VE tab bar'ın çalıştığını doğrula; ayrıca
+normal ("Pro ile aç") paywall akışlarının X'inin HÂLÂ eskisi gibi çalıştığını
+kontrol et (Progress/Araçlar kilitleri). Ayrıca bkz. BİTTİ G177'deki
+"kapsam dışı bırakılan ilişkili bulgu" — `sessionLimit` paywall'ının AYNI
+sorunu taşıyıp taşımadığı henüz ölçülmedi, istenirse ayrı bir turda ele
+alınabilir.
 
 **EN YENİ SIRADAKİ ADIM (G176 itibarıyla):** Bug 19 (Süre göstergesi) + Bug
 17 (Bölüm çubuğu artık idle'da görünüyor) sadece Playwright/masaüstünde
