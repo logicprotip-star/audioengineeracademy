@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G165)
+Son güncelleme: 13.08.2026 (G166)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,75 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G166 — **`npx cap sync ios`/`android` çalıştırıldı + Pro kullanıcıda AdMob
+SDK'sının HİÇ başlatılmadığı doğrulandı, bir gerçek gap bulunup kapatıldı.**
+
+**1) CAP SYNC:** Kullanıcının ayrı isteğiyle `npx cap sync ios` ve
+`npx cap sync android` çalıştırıldı — G165'te bilerek atlanmıştı.
+Otomatik üretilen değişiklikler: `ios/App/CapApp-SPM/Package.swift`
+(+`CapacitorCommunityAdmob` paketi), `android/capacitor.settings.gradle` +
+`android/app/capacitor.build.gradle` (+`capacitor-community-admob` projesi;
+`capacitor-filesystem` de bu turda EKLENDİ — @capacitor/filesystem daha
+ÖNCEDEN package.json'daydı ama Android tarafı hiç senkronlanmamıştı, bu
+G165'in DEĞİL, ESKİ bir eksik senkronun düzeltmesi), `ios/App/App.xcodeproj/
+.../Package.resolved`. Bu dört dosyanın HİÇBİRİNE elle dokunulmadı (hepsi
+"DO NOT MODIFY/EDIT" uyarılı, Capacitor CLI'nin kendi çıktısı).
+
+**2) PRO'DA ADMOB DENETİMİ — GERÇEK BİR GAP BULUNDU VE KAPATILDI:**
+Kod TEK TEK izlendi: `ads.js`'in İKİ giriş noktası (`watchRewardedAd()`,
+`showPrivacyOptions()`) SADECE `handleWatchAd()` (watchAdBtn+resCta) ve
+`adPrivacyRow`'un click listener'ından çağrılıyor — `ads.js`'in KENDİSİ
+hiçbir yerde otomatik/arka planda çalışmıyor, SDK sadece bu iki noktadan
+tetiklenebilir.
+- `handleWatchAd()`'ın İKİ çağıranı (`watchAdBtn`, `resCta`'nın "lost"
+  dalı) ZATEN Pro'da erişilemezdi — `blockIfLivesOut()`
+  (`!isUserPro() && !openPaywallReason("livesOut")`) ve `loseLife()`'ın
+  seans-sonu dalı (`if (!isUserPro()) { ... openPaywallReason/showSessionEnd
+  ... }`) İKİSİ de zaten `isUserPro()` ile korunuyordu — kodun kendi
+  yorumu bunu "Pro'da pratikte hiç tetiklenmez... savunmacı, tek kaynak"
+  diye AÇIKÇA belirtiyordu (G165'ten ÖNCEKİ bir tasarım kararı).
+- **`adPrivacyRow` ("Ayarlar → Reklam tercihleri") KORUMASIZDI** — Pro/
+  ücretsiz ayrımı olmadan HER ZAMAN görünürdü, tıklanınca doğrudan
+  `ads.showPrivacyOptions()`'ı (→ `AdMob.initialize()` + `requestConsentInfo()`)
+  çağırıyordu. Bu, gizlilik politikasının "Pro'da reklam sistemi hiç
+  başlatılmaz" vaadini İHLAL EDEN GERÇEK bir gap'ti — Playwright'ta mock
+  plugin'le DOĞRULANDI (Pro simülasyonuyla satıra tıklanınca
+  `window.__admobCalls` dolduğu görüldü, düzeltmeden ÖNCE).
+- **Düzeltme (iki bağımsız katman, "savunmacı, tek kaynak" — bu dosyanın
+  KENDİ mevcut deseni):** (a) `applyProLockVisibility()`'e (`toolsFreeLock`
+  İLE AYNI mekanizma) `adPrivacyRow`'un Pro'da gizlenmesi eklendi — hem
+  açılışta hem dev-Pro anahtarı her değiştiğinde (`syncDevUI()` zaten
+  çağırıyor) senkronlanıyor; (b) `adPrivacyRow`'un click listener'ına VE
+  `handleWatchAd()`'a AYRI, BAĞIMSIZ birer `if (isUserPro()) return;`
+  koruması eklendi — satır CSS ile gizli olsa BİLE, zorla/programatik bir
+  tıklama gelse bile `ads.*` HİÇ ÇAĞRILMAZ (Playwright'ta `classList.remove
+  ("hidden")` + `force:true` tıklamayla test edildi — `window.__admobCalls`
+  BOŞ kaldı).
+- **DOĞRULAMA (Playwright, mock plugin):** Pro'da satır gizli; satır zorla
+  görünür yapılıp tıklansa BİLE `AdMob.initialize()` DAHİL hiçbir plugin
+  çağrısı YAPILMIYOR; ücretsizde satır görünür ve tıklanınca
+  `showPrivacyOptionsForm()` doğru çalışıyor (regresyon yok); G165'in TÜM
+  önceki senaryoları (watchAdBtn/resCta — başarı/yarıda kapatma/yükleme
+  hatası/çift tıklama) YENİDEN çalıştırıldı, hiçbiri bozulmadı. 0 konsol
+  hatası.
+
+**REGRESYON TARAMASI:** G165'in tüm Playwright senaryoları (watchAdBtn 5
+madde + resCta 1 madde) bu turda YENİDEN koşuldu, hepsi hâlâ geçiyor.
+`visibilitychange` zincirine/G155'e dokunulmadı.
+
+**DOKUNULAN DOSYALAR:** `www/js/app.js` (SADECE `applyProLockVisibility()`,
+`adPrivacyRow` listener, `handleWatchAd()` — üç küçük ekleme), + cap
+sync'in ürettiği 4 native/auto-generated dosya (madde 1).
+
+**DOKUNULMAYAN DOSYALAR:** `www/js/core/ads.js` (değişmedi — Pro kontrolü
+BİLEREK app.js'te tutuldu, ads.js Pro kavramını BİLMİYOR, core modülünün
+app.js'e reach-in yapmama prensibi KORUNDU), `test/ads.test.mjs`,
+`www/index.html`, iOS/Android Info.plist/AndroidManifest/strings.xml,
+paywall.js, storage.js, audio-engine.js, `www/js/modes/*`.
+
+**npm test:** 1255/1255 (değişmedi — bu turun düzeltmesi UI/davranış
+seviyesinde, yeni saf fonksiyon eklenmedi).
 
 G165 — **AdMob ödüllü reklam entegrasyonu: `grantAdLife()` artık GERÇEK
 ödül olayına bağlı, test modu zorunlu, UMP/ATT bağlandı, G155'in ses
@@ -12726,13 +12795,13 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN GÜNCEL/EN ÖNCELİKLİ SIRADAKİ ADIM (G165 itibarıyla):** AdMob ödüllü
-reklam entegrasyonu koda yazıldı ama native taraf HENÜZ senkronlanmadı —
-bir sonraki adım kullanıcının AYRI bir mesajda `npx cap sync ios` VE
-`npx cap sync android` çalıştırması (CLAUDE.md'nin yerleşik kuralı: cap
-sync sadece açık, ayrı bir istekle). Ardından cihazda GERÇEKTEN
-doğrulanması gereken (bu ortamda İMKANSIZ, sadece mock ile test edildi,
-bkz. BİTTİ'nin DÜRÜSTLÜK notu):
+**EN GÜNCEL/EN ÖNCELİKLİ SIRADAKİ ADIM (G166 itibarıyla):** AdMob ödüllü
+reklam entegrasyonu koda yazıldı, Pro'da SDK'nın hiç başlatılmadığı
+doğrulandı, native taraf `npx cap sync ios`/`android` ile senkronlandı
+(bkz. BİTTİ G166) — **kod tarafı TAMAMLANDI.** Bir sonraki adım kullanıcının
+Xcode'da/Android Studio'da TEMİZ derleme alıp GERÇEK cihaza kurması,
+ardından cihazda GERÇEKTEN doğrulanması gereken (bu ortamda İMKANSIZ,
+sadece mock ile test edildi, bkz. G165 BİTTİ'nin DÜRÜSTLÜK notu):
 1. Test modunda (AD_TEST_MODE=true, varsayılan) canlar bitince "Reklam
    İzle"ye basınca GERÇEKTEN Google'ın test reklamı açılıyor mu (kendi
    reklamına YANLIŞLIKLA tıklanmamalı — hesap riski).
@@ -12750,6 +12819,10 @@ bkz. BİTTİ'nin DÜRÜSTLÜK notu):
    mu (uygulama açılışında DEĞİL).
 7. `AD_TEST_MODE=false` yapılmadan App Store/Play Store'a YÜKLENMEMELİ —
    yayın öncesi kontrol listesine eklenmeli.
+8. Pro simülasyonu açıkken cihazda Ayarlar'da "Reklam tercihleri"
+   satırının GERÇEKTEN görünmediği, Safari/Android Studio ağ logunda
+   AdMob'a giden HİÇBİR istek olmadığı doğrulanmalı (bu turda SADECE mock
+   plugin'le, GERÇEK ağ trafiği görülmeden doğrulandı).
 
 **Tek sonraki adım (G148 itibarıyla) — EN ÖNEMLİSİ:** G147'den SONRA
 `cap sync` + Xcode temiz derleme + cihaza kurulum YAPILDI (kullanıcının

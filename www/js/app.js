@@ -7677,9 +7677,15 @@ function openLegal(kind) {
 }
 if (els.privacyRow) els.privacyRow.addEventListener("click", () => openLegal("privacy"));
 if (els.termsRow) els.termsRow.addEventListener("click", () => openLegal("terms"));
-// G165 — madde 4: kullanıcı UMP onay tercihini sonradan değiştirebilsin.
+// G165/G166 — madde 4: kullanıcı UMP onay tercihini sonradan değiştirebilsin.
+// Pro'da satır zaten applyProLockVisibility() ile gizli — bu isUserPro()
+// kontrolü İKİNCİ, BAĞIMSIZ bir koruma katmanı (savunmacı, tek kaynak —
+// isUserPro() İLE AYNI desen bu dosyada başka yerlerde de kullanılıyor):
+// ads.showPrivacyOptions() (dolayısıyla AdMob.initialize()) Pro'da HİÇBİR
+// koşulda çağrılmaz, satır görünür kalsa BİLE.
 let adPrivacyRowBusy = false;
 if (els.adPrivacyRow) els.adPrivacyRow.addEventListener("click", async () => {
+  if (isUserPro()) return;
   if (adPrivacyRowBusy) return;
   adPrivacyRowBusy = true;
   try {
@@ -8061,8 +8067,14 @@ function resumeAudioAfterAdInterruption() {
 // adWatchBusy paylaşılan bir kilit: reklam yüklenirken çift basış (aynı
 // butona ya da teorik olarak ikisine art arda) engellenir. btn/labelEl
 // null olabilir (resCta'nın kendi span'ı yok, textContent doğrudan yazılır).
+// G166 — isUserPro() koruması: bu iki çağıran zaten Pro'da HİÇ tetiklenmiyor
+// (bkz. blockIfLivesOut/showSessionEnd'in KENDİ isUserPro() kontrolleri —
+// "Pro'da pratikte hiç tetiklenmez" yorumu) — burası İKİNCİ, BAĞIMSIZ bir
+// koruma katmanı (adPrivacyRow'daki AYNI desen): ads.watchRewardedAd()
+// (dolayısıyla AdMob.initialize()) Pro'da HİÇBİR koşulda çağrılmaz.
 let adWatchBusy = false;
 async function handleWatchAd(btn, labelEl, restoreLabel, onSuccess) {
+  if (isUserPro()) return;
   if (adWatchBusy) return;
   adWatchBusy = true;
   if (btn) btn.disabled = true;
@@ -11124,6 +11136,10 @@ function applyProLockVisibility() {
   const pro = isUserPro();
   if (els.toolsProContent) els.toolsProContent.classList.toggle("hidden", !pro);
   if (els.toolsFreeLock) els.toolsFreeLock.classList.toggle("hidden", pro);
+  // G166 — Pro'da reklam sistemi hiç başlatılmıyor (gizlilik politikası vaadi,
+  // bkz. handleWatchAd/adPrivacyRow'un KENDİ isUserPro() koruması) — bu satırın
+  // Pro'da hiç GÖRÜNMEMESİ o vaadin görsel karşılığı, TEK koruma katmanı DEĞİL.
+  if (els.adPrivacyRow) els.adPrivacyRow.classList.toggle("hidden", pro);
 }
 renderToolsCardsVisibility();
 renderToolsFilterGrid();
