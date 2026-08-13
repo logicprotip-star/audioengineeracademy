@@ -2440,6 +2440,19 @@ function enterMode(entry, realMode) {
     // (examSystem.setMode'un G47 kararıyla AYNI ilke — bu blok zaten
     // sadece mode!==realMode'da çalışıyor).
     challenge = freshChallenge();
+    // G176 DÜZELTMESİ (canlı cihazda bulundu, Bug 19): Süre göstergesi
+    // (#timerText/#timerBar) SADECE roundFlow'un kendi tick callback'i/round-
+    // başlangıcı fonksiyonlarında güncelleniyordu — roundFlow.stopAll()
+    // (yukarıda) SADECE zamanlayıcıyı DURDURUR, timeLeft/roundDuration'ı
+    // SIFIRLAMAZ ("Tekrar Çal'da kaldığı saniyeden devam eder", bkz. round-
+    // flow.js:36 — AYNI moddaki bu davranış BİLEREK korunuyor, burada
+    // DOKUNULMADI). Sonuç: mod değişince ÖNCEKİ modun kalan süresi (ör.
+    // "12.6s"/%78.75) Play'e basılana kadar ekranda asılı kalıyordu — G174/
+    // G175'le AYNI kök neden ailesi. updateTimerUI(0,0) statik/idle
+    // varsayılanla (index.html: "0.0s", %0 çubuk) BİREBİR aynı görünümü
+    // üretir; roundFlow'un KENDİ timeLeft/roundDuration'ına dokunmuyoruz —
+    // bir sonraki GERÇEK round zaten startTimer()'la bunları baştan yazacak.
+    updateTimerUI(0, 0);
     updateUI();
   }
   goScreen("game");
@@ -3517,7 +3530,22 @@ function renderGameHeader() {
   if (els.analyzerFootCaption && mode.SHOW_SPECTRUM !== false) {
     els.analyzerFootCaption.textContent = boss ? "PRO ZORLUK · Q 4.0" : "SPEKTRUM ANALİZÖRÜ";
   }
-  const showChapter = !boss && !examActive && challenge.active;
+  // G176 DÜZELTMESİ (kullanıcı kararı — G144'ün "idle'da kapalı kalsın" notu
+  // GEÇERSİZ, bkz. index.html'in bu turdaki notu): ÖNCEDEN `challenge.active`
+  // (SADECE startChallenge() — yani Play'e basılınca — true olan bir ROUND
+  // yaşam-döngüsü bayrağı) okunuyordu, bu yüzden "10 Soruluk Bölüm" MOD
+  // olarak seçiliyken bile Play'DEN ÖNCE satır hep gizli kalıyordu (Bug 17,
+  // ölçüldü). `isChallenge()` (SADECE `playModeSelect.value==="challenge"`
+  // okuyan, round'dan bağımsız bir MOD-seçim sinyali) ile değiştirildi —
+  // freshChallenge()'ın varsayılanları (total:10,done:0) zaten idle'da doğru
+  // "BÖLÜM 1/10, 0 dolu nokta" görünümünü üretiyor, ekstra veri hazırlığı
+  // gerekmedi. xpMult()/ensureAutoNext()'in bitirme eşiği/startChallenge()'ın
+  // toast'ı HÂLÂ `challenge.active`'e bakıyor (bu satır DIŞINDA hiçbir yer
+  // değişmedi) — SADECE bu satırın okuduğu sinyal değişti, "10 Soruluk
+  // Bölüm"ün round-mantığı (ne zaman biter, XP çarpanı ne zaman uygulanır)
+  // AYNEN KALDI. Serbest'te isChallenge() zaten hep false — o modda satır
+  // YİNE hiç görünmez (değişmedi).
+  const showChapter = !boss && !examActive && isChallenge();
   // G144 — kullanıcının kendi kararı: G143'ün "offsetHeight okuyarak
   // zorlanmış reflow" denemesi CİHAZDA TUTMADI (kullanıcı ekran görüntüsüyle
   // doğruladı) — o yaklaşım LAYOUT'u senkron olarak kesinleştiriyordu, ama

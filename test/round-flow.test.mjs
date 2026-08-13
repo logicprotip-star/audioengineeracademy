@@ -122,3 +122,46 @@ describe("round-flow.js — otomatik geçişin karşılaştırma dinletmesi sonr
     }
   });
 });
+
+describe("round-flow.js — stopAll() timeLeft/roundDuration'ı SIFIRLAMAZ (G176, Bug 19)", () => {
+  // app.js:enterMode() SADECE mod DEĞİŞTİĞİNDE roundFlow.stopAll() çağırıp
+  // ardından updateTimerUI(0,0) ile EKRANI idle değerine döndürür (bkz. o
+  // fonksiyondaki G176 notu) — roundFlow'un KENDİ timeLeft/roundDuration'ına
+  // BİLEREK dokunmaz, çünkü AYNI modda "Tekrar Çal" (autoStopped akışı)
+  // kaldığı saniyeden devam etmeyi bu değerlerin KORUNMASINA borçlu (bkz.
+  // round-flow.js:36 yorumu, DURUM.md'nin LOCKED listesindeki "Aynı modda
+  // Tekrar Çal süre devamlılığı"). Bu test o davranışı SAF motor seviyesinde
+  // doğruluyor — biri stopAll()'a bir reset eklerse (timeLeft=0 gibi), hem
+  // bu test hem "Tekrar Çal" özelliği aynı anda kırılır.
+  it("startTimer() sonrası stopAll() çağrılınca timeLeft/roundDuration AYNEN kalır", () => {
+    mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+    try {
+      const flow = makeFlow();
+      flow.startTimer(15);
+      mock.timers.tick(2500); // 2.5sn geçti — timeLeft ~12.5
+      const timeLeftBefore = flow.timeLeft;
+      const durationBefore = flow.roundDuration;
+      assert.ok(timeLeftBefore > 0 && timeLeftBefore < 15, "süre gerçekten azalmış olmalı (sahte veri değil)");
+      flow.stopAll();
+      assert.equal(flow.timeLeft, timeLeftBefore, "stopAll() timeLeft'i DEĞİŞTİRMEMELİ (Tekrar Çal bunu okuyor)");
+      assert.equal(flow.roundDuration, durationBefore, "stopAll() roundDuration'ı DEĞİŞTİRMEMELİ");
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  it("stopAll() sonrası interval GERÇEKTEN durur (timeLeft korunuyor OLMASI, hâlâ AZALIYOR anlamına gelmez)", () => {
+    mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+    try {
+      const flow = makeFlow();
+      flow.startTimer(10);
+      mock.timers.tick(1000);
+      flow.stopAll();
+      const frozen = flow.timeLeft;
+      mock.timers.tick(5000); // stopAll sonrası zaman geçse de artık tetiklenen interval yok
+      assert.equal(flow.timeLeft, frozen, "stopAll() sonrası timeLeft artık AKMAMALI");
+    } finally {
+      mock.timers.reset();
+    }
+  });
+});

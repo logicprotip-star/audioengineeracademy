@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G175)
+Son güncelleme: 14.08.2026 (G176)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,83 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G176 — **enterMode()/idle-state raporunun (rapor-only tur) bulduğu 2 hata
+ÖLÇÜLEREK düzeltildi — Bug 19 (Süre göstergesi önceki modu taşıyor), Bug 17
+(Bölüm çubuğu artık idle'da görünüyor — ÜRÜN KARARI DEĞİŞTİ, G144 geçersiz).**
+
+**DÜZELTME 1 — Bug 19 (Süre göstergesi önceki modu taşıyor):**
+Kök sebep (önceki turda ölçülüp raporlandı): `roundFlow.stopAll()` sadece
+zamanlayıcıyı DURDURUYOR, `timeLeft`/`roundDuration`'ı SIFIRLAMIYOR ("Tekrar
+Çal'da kaldığı saniyeden devam eder", `round-flow.js:36`) — `updateTimerUI()`
+`enterMode()`'da hiç çağrılmıyordu. **Fix:** `enterMode()`'un mod-değişimi
+bloğunda, `updateUI()`'den hemen önce `updateTimerUI(0, 0)` eklendi
+(`app.js`) — `roundFlow`'un KENDİ `timeLeft`/`roundDuration`'ına dokunulmadı
+(AYNI moddaki "Tekrar Çal" davranışı bu değerlerin korunmasına bağlı, LOCKED
+madde). **Ölçüm (Playwright, önce/sonra):** Frekans Bulma'da 2.5sn oynanıp
+başka moda geçildiğinde — DÜZELTME ÖNCESİ "12.6s"/%78.75 (önceki modun
+kalıntısı); DÜZELTME SONRASI "0.0s"/%0 (statik idle varsayılanıyla birebir).
+
+**DÜZELTME 2 — Bug 17 (Bölüm çubuğu idle'da görünmüyordu):**
+**ÜRÜN KARARI DEĞİŞTİ:** G144'ün "idle'da kapalı kalsın, bu KASITLI" kararı
+(eski `index.html:225-229` yorumu) geri alındı — "10 Soruluk Bölüm" MOD
+olarak seçiliyken artık Play'DEN ÖNCE de "BÖLÜM 1/10" (0 dolu nokta)
+görünmeli. Kök sebep: `renderGameHeader()`'daki `showChapter` koşulu
+`challenge.active` (SADECE `startChallenge()` — yani Play'e basılınca — true
+olan bir ROUND-yaşam-döngüsü bayrağı) okuyordu; `isChallenge()`
+(`playModeSelect.value==="challenge"` okuyan, round'dan bağımsız bir
+MOD-seçim sinyali) ile değiştirildi (`app.js:showChapter`, tek satır).
+`index.html`'deki eski G144 yorumu da güncellendi (artık geçersiz olduğu
+açıkça yazıldı). **Çakışma kontrolü (kullanıcının istediği):** `xpMult()`,
+`ensureAutoNext()`'in bitirme eşiği, `startChallenge()`'ın toast'ı — ÜÇÜ DE
+HÂLÂ `challenge.active`'e bakıyor, DEĞİŞMEDİ — sadece `showChapter`'ın
+okuduğu sinyal değişti, "10 Soruluk Bölüm"ün round-mantığı (ne zaman biter,
+XP çarpanı ne zaman uygulanır) AYNEN KALDI. **Ölçüm (Playwright):** idle'da
+(Frekans Bulma, Play'den önce, varsayılan "challenge" modunda) satır artık
+görünür, `dotCount:10` (0 dolu), `label:"BÖLÜM 1/10"` — Play sonrasıyla
+BİREBİR aynı. Serbest modda YİNE hiç görünmüyor (`isChallenge()` zaten bu
+ayrımı koruyor, ölçüldü).
+**Yan not (regresyon DEĞİL, önceden vardı):** round SIRASINDA "Oyun Türü"nü
+Serbest'e çeviren kullanıcı için satır ANINDA gizlenmiyor (`playModeSelect`
+change handler'ı `renderGameHeader()`'ı yeniden çağırmıyor) — `git stash` ile
+düzeltme ÖNCESİ AYNI senaryo ölçüldü, AYNI davranış zaten vardı. Bu turun
+kapsamı dışında (mod-GİRİŞİ idle durumu, mid-round tip değişimi değil).
+
+**DOKUNULAN dosyalar:** `www/js/app.js` (enterMode + renderGameHeader),
+`www/index.html` (G144 yorumu güncellendi), `test/round-flow.test.mjs`
+(YENİ 2 test).
+**DOKUNULMAYAN dosyalar:** mod dosyalarının HİÇBİRİ, `www/js/core/round-flow.js`
+(sadece OKUNDU — `stopAll()`'un timeLeft/roundDuration'ı koruma davranışı
+BİLEREK değiştirilmedi), `www/js/core/challenge.js` (freshChallenge zaten
+Bug 17'nin ihtiyacı olan `total:10,done:0` şeklini üretiyor, dokunmaya gerek
+kalmadı), `styles.css`.
+
+**LOCKED çapraz kontrol (Playwright'la yeniden koşuldu):**
+- Çip genişlik eşitliği (581f798): 115/115/115, 176/176/176 AYNI kaldı.
+- Mod geçişinde ilerleme sıfırlaması (freshChallenge/G174): **veri hâlâ
+  taze** (`onCount:0`, `label:"BÖLÜM 1/10"` idle'da doğru) — eski scriptin
+  KENDİ "collapsed===True" beklentisi Bug 17'nin onaylanan ürün kararıyla
+  ARTIK GEÇERSİZ (satır artık BİLEREK görünür), bu bir veri-sızıntısı
+  regresyonu DEĞİL, sadece test oracle'ının eski varsayımı güncelliğini
+  yitirdi.
+- Kaynak çipi senkronu / BARE_ANALYZER idle boşluğu / kontrol satırı gap
+  (a4efb42): analyzerHeight/display hâlâ 0/none, round'da modun kendi çizimi
+  hâlâ korunuyor (27693/1282 piksel) — stereo-genislik'in zaten "önceden var,
+  kapsam dışı" olarak işaretlenmiş -96'lık garip boşluğu -134'e kaydı (Bug
+  17 düzeltmesinin doğal/beklenen yan etkisi — bölüm satırı artık TÜM
+  modlarda idle'da yer kaplıyor, uploadGate'in kendi bozuk hesaplamasını
+  ETKİLİYOR ama analyzerHeight/display'in KENDİSİ hâlâ 0/none).
+- İpucu buton metin ayrımı, "Atla" metni, feedback X butonu, kulak
+  simgeleri: bu 2 düzeltmenin hiçbiri bu elemanlara dokunmadı.
+
+**npm test: 1273 → 1275** (2 yeni test, `round-flow.test.mjs` — `stopAll()`
+`timeLeft`/`roundDuration`'ı SIFIRLAMAZ invaryantını doğruluyor, hem Bug
+19'un dayandığı önkoşulu hem LOCKED "Tekrar Çal süre devamlılığı"nı
+koruyor). **DÜRÜSTLÜK NOTU:** Bug 17 için YENİ bir saf-mantık testi
+EKLENMEDİ — `freshChallenge()`'ın `total:10,done:0` şekli zaten
+`challenge.test.mjs`'te tam kapsamlı test ediliyor, asıl değişiklik
+(`showChapter`'ın okuduğu sinyal) tamamen DOM-içi bir koşul, uydurma bir
+test eklemek yerine SADECE Playwright ölçümüyle doğrulandı.
 
 G175 — **12-mod mimari raporunun (rapor-only tur) bulduğu 3 hata ÖLÇÜLEREK
 düzeltildi — Bug 7 (kaynak çipi/menü uyuşmazlığı, "EN CİDDİ"), Bug 5 (Reverb
@@ -13357,6 +13434,16 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G176 itibarıyla):** Bug 19 (Süre göstergesi) + Bug
+17 (Bölüm çubuğu artık idle'da görünüyor) sadece Playwright/masaüstünde
+doğrulandı, GERÇEK cihazda HENÜZ görülmedi. Cihazda kontrol edilecekler: bir
+moddan diğerine geçince Süre göstergesi "0.0s"/boş çubukla mı açılıyor
+(önceki modun kalıntısı YOK), "10 Soruluk Bölüm" seçiliyken herhangi bir
+moda girildiğinde Play'e basmadan "BÖLÜM 1/10" + 10 boş nokta görünüyor mu,
+Serbest modda hâlâ hiç görünmüyor mu. Bu, G175'in kendi cihaz-doğrulama
+maddesini (bkz. hemen aşağıdaki not) ERTELEMİYOR — ikisi BİRLİKTE, aynı
+cihaz turunda kontrol edilebilir.
 
 **EN YENİ SIRADAKİ ADIM (G175 itibarıyla):** 3 hata da (Bug 5/6/7) sadece
 Playwright/masaüstünde doğrulandı, GERÇEK cihazda HENÜZ görülmedi — bir

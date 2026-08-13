@@ -221,12 +221,21 @@
           </div>
         </div>
 
-        <!-- Bölüm göstergesi — SADECE 10 Soruluk Bölüm'de görünür, boss
-             turunda da HARİÇ (bkz. app.js renderGameHeader). G144 —
-             görünürlük artık `.hidden` (display:none, animasyonlanamaz)
+        <!-- Bölüm göstergesi — SADECE 10 Soruluk Bölüm MODU seçiliyken
+             görünür, boss turunda da HARİÇ (bkz. app.js renderGameHeader).
+             G144 — görünürlük `.hidden` (display:none, animasyonlanamaz)
              DEĞİL, `.ghead-collapsed` (max-height geçişli, styles.css) ile
-             kontrol ediliyor — statik başlangıç durumu da (round henüz
-             başlamadan) bunu YANSITIYOR, ilk karede de doğru. -->
+             kontrol ediliyor.
+             G176 DÜZELTMESİ: G144'ün "statik başlangıç durumu (round henüz
+             başlamadan) da bunu YANSITIYOR, ilk karede de doğru" notu ARTIK
+             GEÇERSİZ — o zaman görünürlük BİLEREK round'un (challenge.active)
+             başlamasına bağlanmıştı. Kullanıcı kararı değişti: "10 Soruluk
+             Bölüm" MOD olarak seçiliyken Play'DEN ÖNCE de "BÖLÜM 1/10" (0
+             dolu nokta) görünmeli — renderGameHeader() artık challenge.active
+             YERİNE isChallenge()'a bakıyor. Buradaki `ghead-collapsed` SADECE
+             ilk JS çalışana kadarki (varsayılan mod "challenge" OLDUĞU için
+             çoğunlukla milisaniyeler süren) ilk karenin güvenli/nötr
+             varsayılanı — JS her zaman senkron olarak DÜZELTİYOR. -->
         <div class="game-chapter-row ghead-collapsed" id="gameChapterRow">
           <div class="game-chapter-dots" id="gameChapterDots"></div>
           <span class="game-chapter-label" id="gameChapterLabel">BÖLÜM 1/10</span>
