@@ -294,6 +294,7 @@ const els = {
   legalBackBtn: document.getElementById("legalBackBtn"),
   legalTitle: document.getElementById("legalTitle"),
   legalKicker: document.getElementById("legalKicker"),
+  legalLinkBtn: document.getElementById("legalLinkBtn"),
 
   // G89: Paywall Prototip.dc.html'in PAYWALL bloğuna göre yeniden giydirildi
   // (bkz. index.html + core/paywall.js'in AYNI G89 notu) — eski payFreeModes/
@@ -310,6 +311,8 @@ const els = {
   restorePurchaseBtn: document.getElementById("restorePurchaseBtn"),
   paywallReasonTitle: document.getElementById("paywallReasonTitle"),
   paywallReasonDetail: document.getElementById("paywallReasonDetail"),
+  paywallPrivacyLink: document.getElementById("paywallPrivacyLink"),
+  paywallTermsLink: document.getElementById("paywallTermsLink"),
   paywallBadgeWrap: document.getElementById("paywallBadgeWrap"),
   paywallLivesStrip: document.getElementById("paywallLivesStrip"),
   paywallLivesCountdown: document.getElementById("paywallLivesCountdown"),
@@ -7698,14 +7701,21 @@ if (els.goProBtn) els.goProBtn.addEventListener("click", () => { resetPaywallToG
 // h5/p/caret iç yapısı textContent ile EZİLMEZ.
 if (els.restoreRow) els.restoreRow.addEventListener("click", () => handleRestorePurchase(els.restoreRow, { isRichRow: true }));
 
+// G169 — legalLinkBtn'in href'i core/paywall.js:LEGAL_URLS'ten (tek kaynak)
+// okunur, kind'e göre swap edilir — legalTitle/legalKicker İLE AYNI desen.
 function openLegal(kind) {
   const privacy = kind === "privacy";
   if (els.legalTitle) els.legalTitle.textContent = privacy ? "Gizlilik politikası" : "Kullanım şartları";
   if (els.legalKicker) els.legalKicker.textContent = privacy ? "GİZLİLİK" : "KULLANIM ŞARTLARI";
+  if (els.legalLinkBtn) els.legalLinkBtn.href = privacy ? paywall.LEGAL_URLS.privacy : paywall.LEGAL_URLS.terms;
   goToSettingsSubpage("legal");
 }
 if (els.privacyRow) els.privacyRow.addEventListener("click", () => openLegal("privacy"));
 if (els.termsRow) els.termsRow.addEventListener("click", () => openLegal("terms"));
+// G169 — paywall'daki iki bağlantı SABİT (kind'e göre değişmiyor, ikisi de
+// HER paywall ekranında görünür) — tek seferlik, açılışta set edilir.
+if (els.paywallPrivacyLink) els.paywallPrivacyLink.href = paywall.LEGAL_URLS.privacy;
+if (els.paywallTermsLink) els.paywallTermsLink.href = paywall.LEGAL_URLS.terms;
 // G165/G166 — madde 4: kullanıcı UMP onay tercihini sonradan değiştirebilsin.
 // Pro'da satır zaten applyProLockVisibility() ile gizli — bu isUserPro()
 // kontrolü İKİNCİ, BAĞIMSIZ bir koruma katmanı (savunmacı, tek kaynak —

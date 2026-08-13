@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G168)
+Son güncelleme: 13.08.2026 (G169)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,57 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G169 — **Uygulama içi yasal metin bağlantıları: `#screen-legal`'in
+placeholder'ı kaldırıldı, paywall'a Apple'ın zorunlu kıldığı bağlantılar
+eklendi.**
+
+**1) `#screen-legal` — placeholder kaldırıldı:** "İçerik yakında eklenecek"
+metni silindi, yerine `id="legalLinkBtn"` bir `<a href target="_blank"
+rel="noopener noreferrer">` ("Tarayıcıda aç") eklendi — `openLegal(kind)`
+`href`'i `kind`'e göre `paywall.LEGAL_URLS.privacy`/`.terms`'e ayarlıyor
+(legalTitle/legalKicker İLE AYNI swap deseni).
+
+**2) HARİCİ TARAYICI — YENİ PLUGIN GEREKMEDİ:** `target="_blank"` +
+düz `<a href>` yeterli — Capacitor'ın kendi native köprüsü (WKWebView'in
+navigasyon delegate'i/Android'in WebViewClient'ı), uygulamanın kendi
+origin'i DIŞINDAKİ navigasyonları VARSAYILAN olarak sistem tarayıcısına
+yönlendiriyor (bu, `@capacitor/browser` gibi bir plugin GEREKTİRMEYEN,
+Capacitor'ın belgelenmiş çekirdek davranışı — bu turda web araması ile
+DOĞRULANDI, ezbere yazılmadı; `window.open(url,"_system")` Cordova'ya
+özgü bir kalıntı olduğu, Capacitor'da bu şekilde ÇALIŞMADIĞI da AYRICA
+doğrulandı — o yola GİDİLMEDİ).
+
+**3) PAYWALL EKRANINA BAĞLANTI EKLENDİ:** mevcut "Ödeme App Store
+hesabınızdan tahsil edilir" satırının hemen altına, AYNI `.pw-legal`
+(küçük/sade) stiliyle ikinci bir satır — "Gizlilik Politikası · Kullanım
+Koşulları", ikisi de `target="_blank"`. Paywall'ın 7 tetikleme
+noktasına/`PAYWALL_REASONS`'a TEK SATIR dokunulmadı — bu satır HER
+paywall varyantında (reason'dan bağımsız) sabit görünür.
+
+**4) TEK KAYNAK:** `core/paywall.js:LEGAL_URLS` — `{privacy, terms}`,
+`#screen-legal` VE paywall İKİSİ de buradan okuyor, adres iki yerde elle
+TEKRARLANMADI.
+
+**DOĞRULAMA (Playwright, gerçek popup navigasyonu yakalanarak):** hem
+Ayarlar → Gizlilik/Kullanım Şartları hem paywall'daki 4 bağlantının
+(2+2) HEPSİ tıklanınca doğru URL'ye `target="_blank"` ile açıldığı
+(`page.expect_popup()` ile yakalanan popup'ın `.url`'i tam eşleşme),
+placeholder metninin HİÇBİR ekranda kalmadığı, paywall ekranının
+bağlantı tıklamalarından ETKİLENMEDİĞİ (hâlâ aynı ekranda kalındığı)
+doğrulandı — 0 konsol hatası. G165/G166/G168'in TÜM Playwright
+senaryoları YENİDEN koşuldu, regresyon YOK.
+
+**DOKUNULAN DOSYALAR:** `www/index.html`, `www/js/app.js`,
+`www/js/core/paywall.js`.
+
+**DOKUNULMAYAN DOSYALAR:** `core/ads.js`, `core/iap.js`, `storage.js`,
+`openPaywallReason`/`PAYWALL_REASONS` (paywall'ın 7 tetik noktası),
+`buyProBtn`/`restorePurchaseBtn`/`restoreRow`'un satın alma mantığı
+(G168), native proje dosyaları, `www/js/modes/*`.
+
+**npm test:** 1261/1261 (değişmedi — yeni saf fonksiyon eklenmedi, sadece
+sabit + DOM wiring).
 
 G168 — **StoreKit entegrasyonu: "Pro'ya Geç" artık GERÇEK satın alma,
 @capgo/native-purchases ile — G167'de bulunan "herkese bedava Pro" açığı

@@ -177,6 +177,15 @@ export function isFirstSession(totalRoundsEver) {
 // gösterilen metin (mağaza fiyatı GERÇEK satın alma bağlanınca oradan gelir).
 export const PRO_PRICE = "₺399";
 
+// G169 — yayınlanan yasal metinlerin GERÇEK adresleri, tek kaynak. Ayarlar'ın
+// #screen-legal'i (bkz. app.js:openLegal) VE paywall ekranı (Apple'ın
+// zorunlu kıldığı, satın alma öncesi görünür olma şartı) İKİSİ de buradan
+// okur — adres elle iki yerde TEKRAR yazılmaz.
+export const LEGAL_URLS = Object.freeze({
+  privacy: "https://audioengineeracademy.com/gizlilik.html",
+  terms: "https://audioengineeracademy.com/kullanim-kosullari.html",
+});
+
 // Pro'nun sunduğu — paywall ekranının Pro kartı BU listeden üretilir (tek
 // kaynak, task'ın kendi maddeleri, abartısız/sade).
 // G89: Tasarim-2026-08/Prototip.dc.html "PAYWALL" bloğunun (satır 1384) 7

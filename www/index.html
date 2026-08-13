@@ -1255,8 +1255,13 @@
       <div class="scroll" style="padding-top:14px;display:flex;flex-direction:column;gap:12px">
         <div class="card" style="padding:18px">
           <div class="kicker" id="legalKicker">GİZLİLİK</div>
-          <h1 style="margin:10px 0 0;font-size:20px;font-weight:800;line-height:1.3">İçerik yakında eklenecek</h1>
-          <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:var(--tx-2)">Bu metin yayın öncesi hukuk kontrolünden geçtikten sonra eklenecek. Şimdilik yalnızca yerleşim görünüyor.</p>
+          <h1 style="margin:10px 0 0;font-size:20px;font-weight:800;line-height:1.3">Tam metni görüntüle</h1>
+          <p style="margin:10px 0 16px;font-size:14px;line-height:1.5;color:var(--tx-2)">Bu metin cihazının tarayıcısında açılır.</p>
+          <!-- href/target/rel JS'ten set edilir (bkz. app.js:openLegal, core/paywall.js:LEGAL_URLS
+               tek kaynak) — harici tarayıcıda açılması için target="_blank" ZORUNLU
+               (Capacitor'ın kendi native köprüsü, uygulamanın kendi origin'i
+               DIŞINDAKİ navigasyonları varsayılan olarak sistem tarayıcısına yönlendirir). -->
+          <a id="legalLinkBtn" class="btn primary" href="#" target="_blank" rel="noopener noreferrer" style="text-decoration:none">Tarayıcıda aç</a>
         </div>
       </div>
     </section>
@@ -1327,6 +1332,14 @@
           </button>
           <button class="pw-restore-btn" id="restorePurchaseBtn">Satın alımı geri yükle</button>
           <div class="pw-legal">Ödeme App Store hesabınızdan tahsil edilir. Tek seferlik satın alma; otomatik yenileme yoktur.</div>
+          <!-- G169 — Apple'ın satın alma öncesi zorunlu kıldığı bağlantılar.
+               href/target/rel JS'ten set edilir (core/paywall.js:LEGAL_URLS
+               tek kaynak) — #screen-legal'deki legalLinkBtn İLE AYNI adresler. -->
+          <div class="pw-legal">
+            <a id="paywallPrivacyLink" href="#" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">Gizlilik Politikası</a>
+            ·
+            <a id="paywallTermsLink" href="#" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline">Kullanım Koşulları</a>
+          </div>
         </div>
       </div>
     </section>
