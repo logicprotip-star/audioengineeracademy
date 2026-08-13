@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G166)
+Son güncelleme: 13.08.2026 (G167)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,76 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G167 — **StoreKit ön inceleme (SADECE OKUMA, kod YAZILMADI) + kullanıcının
+AdMob hesap/GDPR/cihaz kurulumu TAMAMLANDI + altyapı (domain/hosting/mail/
+SSL/yasal metinler) canlıya alındı.**
+
+**1) STOREKIT ÖN İNCELEMESİ (SADECE OKUMA):** IAP entegrasyonundan önce 8
+soruluk bir denetim yapıldı — "Pro Al" butonunun kod yolu (`devFlags.
+simulatePro=true`, GERÇEK satın alma YOK), "Satın alımı geri yükle"nin
+statik toast olduğu, `isUserPro()`'nun `realPro` dalının sabit `false`
+olduğu, Pro durumunun `eqEarTrainerProXDev` (localStorage+Preferences
+mirror) altında saklandığı, paywall kilidinin 8 saf fonksiyondan (2'si —
+`isFixedDifficultyLocked`/`isExamLocked` — HİÇ ÇAĞRILMIYOR, ölü kod) ve
+app.js'te ~24 `isUserPro()` çağrı noktasından oluştuğu, StoreKit
+bağlanınca değişecek dosyaların (`app.js:isUserPro/buyProBtn/restoreRow`,
+`paywall.js:PRO_PRICE`, YENİ bir `core/iap.js`) tahmin edildiği, Capacitor
+IAP eklentilerinin (`@revenuecat/purchases-capacitor`,
+`@capgo/native-purchases`, `capacitor-plugin-cdv-purchase`) npm'den
+DOĞRUDAN doğrulanarak karşılaştırıldığı, kod tarafında HİÇBİR ürün kimliği
+sabitinin olmadığı — hepsi raporlandı, TEK SATIR kod değişmedi.
+
+**2) KULLANICI TARAFINDAN TAMAMLANAN ADMOB KURULUMU (bu oturumun DIŞINDA,
+AdMob paneli/cihaz üzerinden yapıldı — Claude Code'un görmediği/yapmadığı
+işler, sadece KAYDEDİLİYOR):**
+- AdMob hesabı açıldı, iOS ve Android uygulamaları AdMob panelinde
+  kaydedildi.
+- Ödüllü reklam birimleri (platform başına AYRI) oluşturuldu — G165'te
+  koda yazılan ID'lerin karşılığı artık panelde de GERÇEK.
+- **GDPR (AB) mesajı AdMob panelinde oluşturulup YAYINLANDI** — bu
+  yapılmadan önce `requestConsentInfo()` "Request consent info failed"
+  hatası veriyordu; **kök sebep panelde mesaj TANIMLI OLMAMASIYMIŞ**, kod
+  tarafında bir hata DEĞİLDİ (G165/G166'nın UMP kodu doğruydu, panel
+  tarafı eksikti — DÜRÜSTLÜK: bu ayrım bu turda netleşti).
+- GDPR mesajında "İzin vermeyin" seçeneği TÜM AB ülkelerinde AÇIK
+  bırakıldı — kullanıcı kararı: reddetme hakkı olmadan alınan rıza
+  GDPR'da geçersiz sayılabiliyor.
+- **CİHAZDA TEST EDİLDİ VE GEÇTİ** — G165/166'nın BİTTİ kayıtlarındaki
+  "DÜRÜSTLÜK NOTU — DOĞRULANAMAYANLAR" (gerçek native SDK bu ortamda
+  çalıştırılamaz) artık KISMEN KAPANDI: test reklamı GERÇEK cihazda
+  görünüyor, reklam TAMAMLANINCA 1 can veriyor, YARIDA kapatılınca
+  vermiyor, bağlantı yokken anlaşılır hata veriyor, reklam sonrası oyun
+  sesi normal devam ediyor (G155 zinciri cihazda da bozulmadı). **Hâlâ
+  cihazda doğrulanmayan (SIRADAKİ'nin 8 maddesinden kalan):** Pro'da
+  "Reklam tercihleri" satırının GERÇEKTEN görünmediği/ağ isteği
+  atmadığı, iOS ATT diyaloğunun tam beklenen anda çıktığı, `AD_TEST_
+  MODE=false`'a geçiş provası.
+
+**3) ALTYAPI — YAYIN DOMAIN'İ/HOSTING/MAIL/SSL/YASAL METİNLER CANLI:**
+- Domain: `audioengineeracademy.com` (Natro).
+- Hosting: Süper Başlangıç paketi, cPanel.
+- Mail: `info@audioengineeracademy.com` (+ `destek@`/`admin@` takma adları,
+  kişisel Gmail'e yönlendirmeli).
+- SSL: PositiveSSL (Sectigo), satın alınıp kuruldu — **28.02.2027'ye kadar
+  geçerli** (Natro ücretsiz Let's Encrypt SAĞLAMIYOR — yenileme takvimine
+  eklenmeli).
+- Yayınlanan yasal metinler (uygulama içindeki `#screen-legal`'in HÂLÂ
+  "İçerik yakında eklenecek" placeholder'ı olduğu G165'te doğrulanmıştı —
+  bu turda DIŞARIDA, gerçek URL'lerde YAYINLANDI, uygulama içi metin
+  HENÜZ bu URL'lere BAĞLANMADI, aşağıya bkz.):
+  - https://audioengineeracademy.com/gizlilik.html
+  - https://audioengineeracademy.com/kullanim-kosullari.html
+
+**REGRESYON TARAMASI:** Bu turda kod değişmedi — regresyon taraması
+YAPILMADI/GEREKMEDİ (sadece dokümantasyon).
+
+**DOKUNULAN DOSYALAR:** `DURUM.md` (bu kayıt).
+
+**DOKUNULMAYAN DOSYALAR:** TÜM kod tabanı — `www/js/*`, `test/*`,
+native proje dosyaları.
+
+**npm test:** 1255/1255 (değişmedi, kod dokunulmadı).
 
 G166 — **`npx cap sync ios`/`android` çalıştırıldı + Pro kullanıcıda AdMob
 SDK'sının HİÇ başlatılmadığı doğrulandı, bir gerçek gap bulunup kapatıldı.**
@@ -12607,6 +12677,60 @@ kanal) + mono K-weighting için 2 biquad, örnek başına — bkz. BİTTİ'nin
 kullanıcı bu artışı kabul edilebilir bulmuyorsa bant sayısı azaltılmalı ya
 da daha ucuz bir filtre yöntemine geçilmeli.
 
+### Yayın öncesi (G167'de eklendi)
+
+**23. `AD_TEST_MODE` (core/ads.js) yayın anında `false` yapılmalı**
+Şu an (bilerek) `true` — kendi reklamına tıklamak AdMob hesabının
+kapatılma sebebi, bu yüzden **ŞU AN AÇIK KALMALI**, App Store/Play
+Store'a yüklemeden HEMEN ÖNCE tek satır değiştirilmeli (bkz. G165 BİTTİ).
+**Kabul kriteri:** yayın build'inden önce `AD_TEST_MODE=false` + gerçek
+cihazda GERÇEK (test değil) bir reklamın göründüğü teyit edilir.
+
+**24. AdMob ödeme bilgisi (vergi + banka) girilmeli**
+İlk ödeme eşiğinden ÖNCE zorunlu — kullanıcı tarafında AdMob paneli
+üzerinden yapılacak, kod tarafını etkilemiyor.
+
+**25. ABD eyalet yönetmelikleri (US states) mesajı — opsiyonel**
+ABD'ye açılacaksa gerekli, ücretsiz, GDPR mesajıyla AYNI UMP akışını
+kullanıyor (AdMob panelinde ayrı bir mesaj daha oluşturulması yeterli,
+kod tarafında EK bir şey gerekmiyor — `core/ads.js`'in `doInitFlow()`'u
+zaten platformdan bağımsız `requestConsentInfo()`/`showConsentForm()`
+çağırıyor).
+
+**26. StoreKit/Google Play Billing entegrasyonu — "Pro Al" şu an GERÇEK
+DEĞİL, herkes ücretsiz Pro alabiliyor**
+`app.js:8013`'teki `buyProBtn` dinleyicisi doğrudan `devFlags.
+simulatePro=true` yazıyor — geliştirici modu AÇIK OLMASA BİLE bu buton
+HERKESE çalışıyor (7-dokunuşluk gizli menü şartı YOK). Apple bunu ret
+sebebi sayar. G167'de ön inceleme YAPILDI (kod yolu/plugin karşılaştırması
+— bkz. yukarıdaki BİTTİ kaydı), entegrasyon PLANLANMADI/KODLANMADI.
+**Kabul kriteri:** yayın öncesi gerçek IAP bağlanmalı, `devFlags.
+simulatePro` SADECE geliştirici test anahtarı olarak kalmalı (gerçek
+satın alma durumunun ÜZERİNE eklenen bir simülasyon, PAYWALL.md'nin
+Parça 3 tarifiyle AYNI).
+
+**27. App Store veri beyanı — reklam eklendiği için "veri toplanmıyor"
+DENEMEZ**
+AdMob'un topladığı veriler (reklam kimliği, cihaz bilgisi, kullanım
+verisi) App Store Connect'in "Privacy Nutrition Label"ında beyan
+edilmeli — kod tarafını etkilemiyor, App Store Connect'te yapılacak.
+
+**28. Vergi durumu — mali müşavire sorulacak**
+Mobil uygulama satış geliri VE uygulama içi reklam gelirinin sosyal
+içerik üreticiliği kazanç istisnası kapsamına girip girmediği netleşmeli
+— ürün/iş kararı, kod tarafı YOK.
+
+**29. Stereo Genişlik'in yerleşik kaynak dosyası eksik**
+G122'nin kararıyla (bkz. BEKLEYEN KARARLAR'ın eski R maddesi, G163'te
+temizlendi) bu mod artık SADECE upload'la oynanıyor — 12 modun içinde
+GERÇEK stereo yerleşik bir kaynak dosyası OLMAYAN TEK mod. Kullanıcı
+kendi dosyasını yüklemeden mod hiç oynanamıyor — stres testi/kulak turu
+bu yüzden burada YAPILAMIYOR.
+**Kabul kriteri:** yayın öncesi gerçek stereo bir örnek dosya (ör. kısa
+bir müzik/mix parçası, telifsiz) eklenip mod dosyasız da en az bir
+demo/örnek kaynakla açılabilmeli — ya da kullanıcı bu SINIRI bilerek
+kabul edip madde kapatılır.
+
 ## BEKLEYEN KARARLAR
 
 **R. G142 — Stereo Genişlik'in "her zaman upload" varsayılanı — istisna kabul mü, yeni mühendislik mi?**
@@ -12795,34 +12919,36 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN GÜNCEL/EN ÖNCELİKLİ SIRADAKİ ADIM (G166 itibarıyla):** AdMob ödüllü
+**EN GÜNCEL/EN ÖNCELİKLİ SIRADAKİ ADIM (G167 itibarıyla):** AdMob ödüllü
 reklam entegrasyonu koda yazıldı, Pro'da SDK'nın hiç başlatılmadığı
-doğrulandı, native taraf `npx cap sync ios`/`android` ile senkronlandı
-(bkz. BİTTİ G166) — **kod tarafı TAMAMLANDI.** Bir sonraki adım kullanıcının
-Xcode'da/Android Studio'da TEMİZ derleme alıp GERÇEK cihaza kurması,
-ardından cihazda GERÇEKTEN doğrulanması gereken (bu ortamda İMKANSIZ,
-sadece mock ile test edildi, bkz. G165 BİTTİ'nin DÜRÜSTLÜK notu):
-1. Test modunda (AD_TEST_MODE=true, varsayılan) canlar bitince "Reklam
-   İzle"ye basınca GERÇEKTEN Google'ın test reklamı açılıyor mu (kendi
-   reklamına YANLIŞLIKLA tıklanmamalı — hesap riski).
-2. Reklam TAMAMLANINCA +1 can, YARIDA kapatılınca can VERİLMİYOR mu.
-3. Uçak modunda/bağlantısız "Reklam yüklenemedi" mesajı çıkıp uygulama
-   KİLİTLENMİYOR mu.
-4. Reklam bitince oyun/Araçlar sesi GERÇEKTEN kaldığı yerden devam ediyor
-   mu (G155 zincirinin reklam kesintisinde de çalıştığı — bu turda SADECE
-   kod seviyesinde AYNI fonksiyonlar çağrıldığı doğrulandı, kulakla HİÇ
-   denenmedi).
-5. Avrupa bölgesi simülasyonuyla (ör. VPN/AdMob'un debugGeography'si)
-   GERÇEK UMP onay ekranı çıkıyor mu, Ayarlar'daki "Reklam tercihleri"
-   satırı gerçek formu açıyor mu.
+doğrulandı, native taraf senkronlandı, kullanıcı AdMob hesabını/GDPR
+mesajını kurup **GERÇEK cihazda test etti ve GEÇTİ** (bkz. BİTTİ G167) —
+**AdMob entegrasyonu artık FİİLEN TAMAMLANDI.** Kalan cihaz-doğrulama
+maddeleri (5-8) küçük/tamamlayıcı, engelleyici DEĞİL:
+1. ~~Test modunda test reklamı GERÇEKTEN açılıyor mu~~ — **CİHAZDA GEÇTİ
+   (G167).**
+2. ~~Reklam TAMAMLANINCA +1 can, YARIDA kapatılınca can VERİLMİYOR mu~~ —
+   **CİHAZDA GEÇTİ (G167).**
+3. ~~Bağlantısız "Reklam yüklenemedi" mesajı çıkıp uygulama KİLİTLENMİYOR
+   mu~~ — **CİHAZDA GEÇTİ (G167).**
+4. ~~Reklam bitince oyun sesi kaldığı yerden devam ediyor mu (G155
+   zinciri)~~ — **CİHAZDA GEÇTİ (G167), ses kesilmedi.**
+5. **YENİ BULGU (G167):** GDPR mesajı AdMob panelinde TANIMLI OLMADIĞINDA
+   `requestConsentInfo()` "Request consent info failed" hatası veriyordu
+   — kök sebep panelde mesaj eksikliğiydi, kod DEĞİL. Kullanıcı mesajı
+   panelde oluşturup YAYINLADI, "İzin vermeyin" seçeneği TÜM AB
+   ülkelerinde AÇIK. **Hâlâ cihazda AYRICA doğrulanmamış:** Ayarlar'daki
+   "Reklam tercihleri" satırının `showPrivacyOptionsForm()`'u GERÇEKTEN
+   açtığı (G167'de SADECE genel UMP akışının çalıştığı doğrulandı, bu
+   SPESİFİK giriş noktası ayrıca denenmedi).
 6. iOS'ta ATT izin diyaloğu GERÇEKTEN "ilk reklam izleme" anında çıkıyor
-   mu (uygulama açılışında DEĞİL).
+   mu (uygulama açılışında DEĞİL) — HENÜZ ayrıca doğrulanmadı.
 7. `AD_TEST_MODE=false` yapılmadan App Store/Play Store'a YÜKLENMEMELİ —
-   yayın öncesi kontrol listesine eklenmeli.
+   bkz. AÇIK İŞLER madde 23 (Yayın öncesi), ŞU AN bilerek `true`.
 8. Pro simülasyonu açıkken cihazda Ayarlar'da "Reklam tercihleri"
-   satırının GERÇEKTEN görünmediği, Safari/Android Studio ağ logunda
-   AdMob'a giden HİÇBİR istek olmadığı doğrulanmalı (bu turda SADECE mock
-   plugin'le, GERÇEK ağ trafiği görülmeden doğrulandı).
+   satırının GERÇEKTEN görünmediği, ağ logunda AdMob'a giden HİÇBİR istek
+   olmadığı — bu turda SADECE mock plugin'le doğrulandı, GERÇEK cihazda
+   HENÜZ denenmedi.
 
 **Tek sonraki adım (G148 itibarıyla) — EN ÖNEMLİSİ:** G147'den SONRA
 `cap sync` + Xcode temiz derleme + cihaza kurulum YAPILDI (kullanıcının
