@@ -6265,13 +6265,26 @@ function performExit() {
   if (activeQuestion && !autoStopped) pauseRound();
   goScreen("menu");
 }
+// G181 DÜZELTMESİ (canlı cihazda bulundu, Bug 10): açılışta pauseRound()
+// ÇAĞRILMIYORDU — sadece GERÇEK çıkış (performExit/exitConfirmLeave) ÇIKARKEN
+// duraklatıyordu, dialog AÇIKKEN (kullanıcı henüz karar vermemişken) süre/ses
+// işlemeye devam ediyordu (ölçüldü). `sheetPausedRound`'un (Dosyalarım
+// sheet'i, satır ~899) AYNI deseni: pause SADECE BU panel gerçekten
+// duraklattıysa (activeQuestion vardı VE zaten duraklatılmamıştı) resume
+// eder — iç içe panellerde (ör. bu dialog başka bir duraklatılmış panelin
+// İÇİNDEN açılsaydı) yanlışlıkla ERKEN resume ETMEZ.
+let exitConfirmPausedRound = false;
 function openExitConfirm() {
+  exitConfirmPausedRound = !!activeQuestion && !autoStopped;
+  if (exitConfirmPausedRound) pauseRound();
   if (els.exitConfirmOverlay) els.exitConfirmOverlay.classList.add("open");
   if (els.exitConfirmBox) els.exitConfirmBox.classList.add("open");
 }
 function closeExitConfirm() {
   if (els.exitConfirmOverlay) els.exitConfirmOverlay.classList.remove("open");
   if (els.exitConfirmBox) els.exitConfirmBox.classList.remove("open");
+  if (exitConfirmPausedRound) resumeRound();
+  exitConfirmPausedRound = false;
 }
 els.backBtn.addEventListener("click", () => {
   if (activeQuestion) openExitConfirm();
@@ -6294,7 +6307,17 @@ els.mixToggle.addEventListener("click", () => {
   if (inner) inner.classList.toggle("on", mixSources);
 });
 
+// G181 DÜZELTMESİ (canlı cihazda bulundu, Bug 10 — asıl rapor edilen panel):
+// Ayarlar sheet'i AÇIKKEN süre/ses işlemeye devam ediyordu (ölçüldü: 2sn'de
+// timerText 15.2s→13.2s, ikon hâlâ "Durdur" gösteriyordu) — `quitGameBtn`
+// (sheet'İN İÇİNDEKİ "Oyundan çık" butonu) turu ÇIKARKEN ZATEN doğru
+// duraklatıyordu ama sheet'in KENDİSİ açılırken/SADECE görüntülenirken hiç
+// duraklatmıyordu. `exitConfirmPausedRound`/`sheetPausedRound` İLE AYNI
+// izole-bayrak deseni.
+let gameSettingsPausedRound = false;
 function openGameSettingsSheet() {
+  gameSettingsPausedRound = !!activeQuestion && !autoStopped;
+  if (gameSettingsPausedRound) pauseRound();
   els.gameSettingsOverlay.classList.add("open");
   els.gameSettingsSheet.classList.add("open");
 }
@@ -6304,6 +6327,8 @@ function closeGameSettingsSheet() {
   // Z7: sheet kapanınca autoDiffAsk'ı da sıfırla — bir sonraki açılışta stale
   // (önceki oturumdan açık kalmış) görünmesin.
   if (els.autoDiffAsk) els.autoDiffAsk.classList.add("hidden");
+  if (gameSettingsPausedRound) resumeRound();
+  gameSettingsPausedRound = false;
 }
 els.gameSettingsBtn.addEventListener("click", openGameSettingsSheet);
 els.gameSettingsCancel.addEventListener("click", closeGameSettingsSheet);
@@ -6409,6 +6434,7 @@ if (els.lvlSheetOverlay) els.lvlSheetOverlay.addEventListener("click", closeLeve
 // TEK sheet (guideSheet), lvlSheet'in AYNI deseni: ana ekranın "i"si GENERAL_GUIDE'ı,
 // her mod kartının "i"si o modun MODE_GUIDE_TEXTS[modeId]'ini doldurur. modeId=null
 // ise genel rehber gösterilir.
+let guideSheetPausedRound = false;
 function openGuideSheet(modeId) {
   // [guide-i-diag] G71: mod içi "i" cihazda tepkisiz görünüyordu (kök sebep:
   // guideSheet DOM'da #screen-menu'nün İÇİNDEYDİ, .screen{display:none}
@@ -6420,6 +6446,14 @@ function openGuideSheet(modeId) {
   // sorun guideSheet'in DOM konumunda/CSS'inde.
   console.log(`[guide-i-diag] openGuideSheet çağrıldı — modeId: ${modeId || "(null, genel rehber)"}, guideSheetBody bulundu: ${!!els.guideSheetBody}`);
   if (!els.guideSheetBody) return;
+  // G181 DÜZELTMESİ (Bug 10): "i" (Bilgi) paneli AÇIKKEN de süre/ses işlemeye
+  // devam ediyordu (ölçüldü) — ana menüden açıldığında (`menuInfoBtn`,
+  // modeId=null) activeQuestion zaten null olduğu için bu satır orada hiçbir
+  // şey YAPMAZ (güvenli) — SADECE oyun ekranından (`gameInfoBtn`) round
+  // aktifken açıldığında devreye girer. Files sheet'in `sheetPausedRound`
+  // İLE AYNI izole-bayrak deseni.
+  guideSheetPausedRound = !!activeQuestion && !autoStopped;
+  if (guideSheetPausedRound) pauseRound();
   // G161 — Araçlar/Tonal Balance kartının "i"si: bir MOD DEĞİL (MODE_GUIDE_TEXTS'in
   // anahtar uzayında yok), bu yüzden özel bir sentinel ("tools-tonal-balance",
   // gerçek bir modeId ile ÇAKIŞMAZ) — GENERAL_GUIDE'ın AYNI "intro + madde
@@ -6462,6 +6496,8 @@ function openGuideSheet(modeId) {
 function closeGuideSheet() {
   if (els.guideSheetOverlay) els.guideSheetOverlay.classList.remove("open");
   if (els.guideSheet) els.guideSheet.classList.remove("open");
+  if (guideSheetPausedRound) resumeRound();
+  guideSheetPausedRound = false;
 }
 if (els.menuInfoBtn) els.menuInfoBtn.addEventListener("click", () => openGuideSheet(null));
 // G70: mod İÇİ (oyun ekranı) "i" — mod kartındaki .mode-info-btn'in AYNI
@@ -7171,9 +7207,21 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
     if (select.id === "difficultySelect") syncDifficultyRowLabel();
   }
 
+  // G181 DÜZELTMESİ (Bug 10): bu sheet, oyun ekranındaki "Kaynak" çipinden
+  // (Ayarlar'a HİÇ girmeden) DOĞRUDAN da açılabiliyor — ölçüldü, o yolda da
+  // süre/ses işlemeye devam ediyordu. `gameSettingsPausedRound`/
+  // `exitConfirmPausedRound` İLE AYNI izole-bayrak deseni, AMA AYRI bir
+  // değişken adıyla (bu IIFE'nin kendi kapsamında) — Ayarlar'ın İÇİNDEN
+  // açılırsa (iç içe: Ayarlar ZATEN duraklattı, autoStopped ZATEN true)
+  // aşağıdaki `!autoStopped` koşulu false olur, bu sheet KENDİ bayrağını
+  // false bırakır — kapanınca YANLIŞLIKLA (dış Ayarlar hâlâ açıkken) resume
+  // ETMEZ, sadece GERÇEKTEN kendisi duraklattıysa geri açar.
+  let optionSheetPausedRound = false;
   function closeSheet() {
     overlay.classList.remove('open');
     sheet.classList.remove('open');
+    if (optionSheetPausedRound) resumeRound();
+    optionSheetPausedRound = false;
   }
 
   // Bir grup açılınca (tek açık kuralı) diğer açık grupları kapatır — grup
@@ -7188,6 +7236,8 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
   }
 
   function openSheet(select, title) {
+    optionSheetPausedRound = !!activeQuestion && !autoStopped;
+    if (optionSheetPausedRound) pauseRound();
     sheetTitle.textContent = title;
     sheetOptions.innerHTML = '';
     // Kaynak sheet'i gibi <optgroup> ile gruplanmış select'lerde her grup

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G180)
+Son güncelleme: 14.08.2026 (G181)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,97 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G181 — **Bug 10: Oyun ekranından açılan paneller (Ayarlar/Bilgi/Kaynak/
+Çıkış diyaloğu) artık turu duraklatıp ses susturuyor, kapanınca kaldığı
+yerden devam ettiriyor — 4 panelde AYNI eksik, tek bir mekanizma
+kullanılarak düzeltildi.**
+
+**ÖLÇÜLENLER:**
+1. **Ortak mekanizma zaten VAR:** `pauseRound()`/`resumeRound()` (`app.js`)
+   — Play/Pause butonunun "Durdur" dalı, arka plana alma
+   (`visibilitychange`), reklam kesintisi, GERÇEK çıkış (`performExit`/
+   `quitGameBtn`) ve Dosyalarım sheet'i (`openFilesSheetForContext`,
+   `sheetPausedRound` bayrağıyla) ZATEN bunu doğru kullanıyordu — "her panel
+   kendi başına davranıyor" DEĞİL, "bazı yerler ortak mekanizmayı
+   kullanıyor, bazıları hiç ÇAĞIRMIYOR" durumu.
+2. **Playwright ile 4 panel AYRI AYRI ölçüldü** (Frekans Bulma, Play'e
+   basılıp 2sn beklenip panel açıldı, süre/ikon karşılaştırıldı):
+
+   | Panel | DÜZELTME ÖNCESİ | Kök sebep |
+   |---|---|---|
+   | Ayarlar ("...") | süre 15.2s→13.2s (akıyor), ikon "Durdur" kalıyor | `openGameSettingsSheet()` `pauseRound()` çağırmıyordu |
+   | Bilgi ("i") | AYNI | `openGuideSheet()` çağırmıyordu |
+   | Kaynak seçim menüsü | AYNI | `openSheet()` (genel sheet-seçici) çağırmıyordu |
+   | Oyundan çık diyaloğu | AYNI | `openExitConfirm()` (dialogun KENDİSİ, GERÇEK çıkış değil) çağırmıyordu |
+
+   Dördünde de: süre gerçekten akıyor, ikon yanlışlıkla "Durdur" gösteriyor
+   (aslında duraklamamış).
+3. **Ses hangi kaynak?** `pauseRound()` `audioEngine.muteOutput()` çağırır
+   (ses düğümleri SÖKÜLMEZ, sadece çıkış kısılır — "Tekrar Çal"da gecikmesiz
+   devam edebilsin diye, mevcut tasarım) + `abLoopTimer`ı durdurur (G31/G180
+   ile AYNI). Panel AÇIKKEN bu HİÇ ÇAĞRILMADIĞI için ses (varsa) SUSMUYORDU.
+4. **Panel KAPANDIĞINDA ne oluyordu (düzeltmeden önce)?** Hiçbir şey — round
+   zaten hiç duraklamamıştı, "devam" diye bir olay da yoktu (sadece süre
+   akmaya devam etmiş oluyordu, tur mantığı bozulmuyordu ama kullanıcı
+   panelde okurken soruyu/süreyi kaçırıyordu — raporun kendi tarifi).
+
+**Fix — TEK mekanizma, `sheetPausedRound`'un (Dosyalarım sheet'i) AYNI
+izole-bayrak deseniyle 4 yere uygulandı** (her panel kendi bağımsız bayrağını
+tutuyor — `gameSettingsPausedRound`, `guideSheetPausedRound`,
+`optionSheetPausedRound`, `exitConfirmPausedRound` — İÇ İÇE panellerde
+(ör. Ayarlar'ın İÇİNDEN "Oyun Türü" sheet'i açmak) YANLIŞLIKLA ERKEN resume
+ETMEMESİ için, ayrı ayrı):
+- `openGameSettingsSheet()`/`closeGameSettingsSheet()`
+- `openGuideSheet()`/`closeGuideSheet()`
+- `openSheet()`/`closeSheet()` (`initSettingsSheet()` IIFE'si — Kaynak/Oyun
+  Türü/Zorluk/Süre/Cevap Biçimi'nin HEPSİNİ kapsıyor, TEK yerden)
+- `openExitConfirm()`/`closeExitConfirm()`
+
+**Ölçüm (Playwright, düzeltme sonrası):** 4 panelin 4'ü de artık: açılınca
+süre DONUYOR + ikon "Oynat"a dönüyor, kapanınca süre KALDIĞI YERDEN devam
+ediyor + ikon "Durdur"a dönüyor.
+**İç içe panel testi (kritik, AYRICA doğrulandı):** Ayarlar açıp İÇİNDEN
+"Oyun Türü" sheet'ini açtım, İPTAL ile SADECE iç sheet'i kapattım — ikon
+HÂLÂ "Oynat" kaldı (Ayarlar hâlâ açık, YANLIŞLIKLA resume OLMADI) — SONRA
+Ayarlar'ı da kapattım, ANCAK O ZAMAN ikon "Durdur"a döndü. Erken-resume
+hatası YOK.
+
+**Kapsam dışı bırakılan, ÖLÇÜLEN bir panel (kod YAZILMADI, ürün kararı
+gerektiriyor):** **Paywall.** Kod okundu — `openPaywallReason()` de
+`pauseRound()` çağırmıyor, aynı eksiklik teorik olarak orada da var. Ama
+paywall'ın kapanış yolları ÇOK (X butonu/Bug 20, satın alma başarılı,
+reklam izlendi, "Geri yükle") ve HANGİSİNDE round'un AYNEN devam etmesi
+GEREKTİĞİ (özellikle satın alma SONRASI — aynı soruya mı dönülmeli, yoksa
+TAZE bir "Oyunu Başlat" durumuna mı?) bir ürün kararı, koddan çıkarılamaz.
+Sadece X butonuna (Bug 20, 1765a49) pause/resume eklemek YARIM bir çözüm
+olurdu (diğer yollarda round SONSUZA dek "duraklatılmış" kalabilirdi) — bu
+yüzden paywall'a HİÇ dokunulmadı, LOCKED kalan Bug 20 davranışı AYNEN
+korundu.
+
+**DOKUNULAN dosyalar:** `www/js/app.js` (SADECE 4 fonksiyon çifti:
+`openGameSettingsSheet`/`closeGameSettingsSheet`, `openGuideSheet`/
+`closeGuideSheet`, `openSheet`/`closeSheet`, `openExitConfirm`/
+`closeExitConfirm` — hepsi SADECE EKLEME, mevcut satır DEĞİŞMEDİ, 50 satır
+ekleme/0 silme).
+**DOKUNULMAYAN dosyalar:** `pauseRound()`/`resumeRound()`'un KENDİSİ (zaten
+doğruydu, SADECE çağrıldı), `openFilesSheetForContext()`/`sheetPausedRound`
+(Dosyalarım sheet'i zaten doğruydu, dokunulmadı), `openPaywallReason()`
+(kasıtlı olarak dokunulmadı, yukarı bkz.), mod dosyalarının hiçbiri,
+`styles.css`, `round-flow.js`.
+
+**LOCKED çapraz kontrol (Playwright'la yeniden koşuldu, regresyon YOK):** çip
+genişliği (581f798); Bug 17 idle görünürlüğü DEĞİŞMEDİ; Bug 20'nin livesOut
+X butonu (1765a49) hâlâ "menu"ya dönüyor; Bug 22'nin Pro/lives=0 akışı
+(c960ce8) DEĞİŞMEDİ; Bug 23'ün A/B döngü temizliği (9f61003) DEĞİŞMEDİ;
+kaynak çipi senkronu (a4efb42) DEĞİŞMEDİ; Stereo Genişlik'in
+`pickPlaybackOffset()`'ine (G122) dokunulmadı; "Tekrar Çal" süre
+devamlılığına (round-flow.js:36) dokunulmadı.
+
+**npm test: 1275 → 1275 (değişmedi).** Yeni bir birim testi EKLENMEDİ — 4
+fonksiyon çifti de tamamen `app.js`-içi, dışa aktarılmamış (bazıları bir
+IIFE'nin İÇİNDE) — SADECE Playwright ölçümüyle (4 panel + iç-içe senaryo)
+doğrulandı, önceki turların AYNI dürüstlük gerekçesi.
 
 G180 — **Bug 23: Oyun Türü değiştirilince A/B döngüsü (`abLoopTimer`)
 temizlenmiyordu — ikon "▶" derken döngü zamanlayıcısı 2sn'de bir HÂLÂ
@@ -13722,6 +13813,19 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G181 itibarıyla):** Bug 10 (panel açılınca duraklama)
+sadece Playwright'la (süre metni + ikon ölçümü) doğrulandı, GERÇEK cihazda
+GERÇEK SESLE HENÜZ görülmedi. Bir sonraki oturumda kontrol edilecek: bir
+modda Play'e bas, ses/spektrum aktifken sırayla Ayarlar/Bilgi("i")/Kaynak
+çipi/Geri (çıkış diyaloğu) aç — HER birinde ses ANINDA susmalı, süre
+donmalı, panel kapanınca kaldığı yerden (aynı süre/aynı ses) devam etmeli.
+Ayrıca iç içe senaryo: Ayarlar'ı aç, İÇİNDEN bir alt-seçim (ör. Oyun Türü)
+aç, SADECE alt-seçimi kapat — ses HÂLÂ susuk kalmalı (Ayarlar hâlâ açık).
+**BEKLEYEN KARAR (ürün):** Paywall'ın da AYNI eksiği var (ölçüldü, kod
+YAZILMADI) — ama kapanış yolları (satın alma/reklam/geri yükle/X) birden
+fazla ve satın alma SONRASI round'un aynen devam mı etmesi yoksa TAZE mi
+başlaması gerektiği bir ürün kararı. İstenirse ayrı bir turda ele alınabilir.
 
 **EN YENİ SIRADAKİ ADIM (G180 itibarıyla):** Bug 23 (Oyun Türü değişince A/B
 döngüsünün artık düzgün durması) sadece Playwright'la (Web Audio API
