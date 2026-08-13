@@ -1323,7 +1323,7 @@
           <!-- SADECE "livesOut" tetiklemesinde görünür (app.js:openPaywallReason). -->
           <button class="pw-ad-btn hidden" id="watchAdBtn">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5-11-6.5Z"></path></svg>
-            veya reklam izle, canları doldur
+            <span id="watchAdBtnLabel">veya reklam izle, canları doldur</span>
           </button>
           <button class="pw-restore-btn" id="restorePurchaseBtn">Satın alımı geri yükle</button>
           <div class="pw-legal">Ödeme App Store hesabınızdan tahsil edilir. Tek seferlik satın alma; otomatik yenileme yoktur.</div>
@@ -1679,6 +1679,10 @@
         <button class="item-v2" id="contactRow"><div><h5>Bize ulaşın</h5></div><span class="caret">&#8250;</span></button>
         <button class="item-v2" id="privacyRow"><div><h5>Gizlilik politikası</h5></div><span class="caret">&#8250;</span></button>
         <button class="item-v2" id="termsRow"><div><h5>Kullanım şartları</h5></div><span class="caret">&#8250;</span></button>
+        <!-- G165 — UMP'nin showPrivacyOptionsForm()'u SADECE bölgesine göre
+             gerekiyorsa (privacyOptionsRequirementStatus==="REQUIRED") bir şey
+             yapar, aksi halde anlaşılır bir mesaj gösterir (bkz. core/ads.js). -->
+        <button class="item-v2" id="adPrivacyRow"><div><h5>Reklam tercihleri</h5><p>Kişiselleştirilmiş reklam onayını değiştir</p></div><span class="caret">&#8250;</span></button>
       </div>
       <div class="list-v2" style="margin-top:8px">
         <!-- Gizli geliştirici anahtarı: bu satıra 7 kez üst üste dokununca #devGroup açılır

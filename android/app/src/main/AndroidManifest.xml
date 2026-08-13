@@ -29,6 +29,13 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- G165 — AdMob ödüllü reklam. App ID (ad unit ID'den FARKLI, SDK
+             başlatma için ZORUNLU) — test/canlı ayrımı burada DEĞİL,
+             core/ads.js:AD_TEST_MODE'da. -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="@string/admob_app_id"/>
     </application>
 
     <!-- Permissions -->

@@ -21,6 +21,7 @@ import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS, TOOLS_TONAL_GUIDE,
 import { getWeakZone } from "./core/personalization.js";
 import * as tonalBalance from "./core/tonal-balance.js";
 import * as fileStorage from "./core/file-storage.js";
+import * as ads from "./core/ads.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
@@ -263,6 +264,7 @@ const els = {
   contactRow: document.getElementById("contactRow"),
   privacyRow: document.getElementById("privacyRow"),
   termsRow: document.getElementById("termsRow"),
+  adPrivacyRow: document.getElementById("adPrivacyRow"),
 
   calibBackBtn: document.getElementById("calibBackBtn"),
   calStep: document.getElementById("calStep"),
@@ -303,6 +305,7 @@ const els = {
   proPrice: document.getElementById("proPrice"),
   buyProBtn: document.getElementById("buyProBtn"),
   watchAdBtn: document.getElementById("watchAdBtn"),
+  watchAdBtnLabel: document.getElementById("watchAdBtnLabel"),
   restorePurchaseBtn: document.getElementById("restorePurchaseBtn"),
   paywallReasonTitle: document.getElementById("paywallReasonTitle"),
   paywallReasonDetail: document.getElementById("paywallReasonDetail"),
@@ -6606,16 +6609,19 @@ function startFreshAttempt({ forceChallenge }) {
   goScreen("game");
   setAutoPlay(true);
 }
-// G82: birincil buton artık DURUMA göre üç farklı gerçek eylem — tasarımın
+// G82/G165: birincil buton artık DURUMA göre üç farklı gerçek eylem — tasarımın
 // "Yeni Seans"/"Reklam izle, +1 can"/"Pro ile sınırsız devam et" ayrımı,
-// sessionEndKind (bkz. showSessionEnd) üzerinden. "lives" dalı grantAdLife()'ı
-// (G63'ün KENDİ simüle reklam mekaniği, bkz. watchAdBtn) ÇAĞIRIYOR — YENİ bir
-// ödül sistemi İCAT EDİLMEDİ. "free" dalı openPaywallReason("sessionLimit")
-// (mevcut, GERÇEK paywall giriş noktalarından biri) açıyor.
+// sessionEndKind (bkz. showSessionEnd) üzerinden. "lost" dalı handleWatchAd()'ı
+// (bkz. watchAdBtn'in AYNI fonksiyonu) ÇAĞIRIYOR — YENİ bir ödül sistemi İCAT
+// EDİLMEDİ. "free" dalı openPaywallReason("sessionLimit") (mevcut, GERÇEK
+// paywall giriş noktalarından biri) açıyor.
 if (els.resCta) els.resCta.addEventListener("click", async () => {
   if (sessionEndKind === "lost") {
-    grantAdLife();
-    if (els.resWaitRow && currentLives > 0) { els.resWaitRow.classList.add("hidden"); stopResWaitTicker(); }
+    // resCta çok amaçlı bir buton — kendi span'ı yok, textContent'i
+    // showSessionEnd()'in yazdığı "Reklam izle, +1 can" metnine geri döner.
+    handleWatchAd(els.resCta, null, "Reklam izle, +1 can", () => {
+      if (els.resWaitRow && currentLives > 0) { els.resWaitRow.classList.add("hidden"); stopResWaitTicker(); }
+    });
     return;
   }
   if (sessionEndKind === "freeLimit") {
@@ -7671,6 +7677,18 @@ function openLegal(kind) {
 }
 if (els.privacyRow) els.privacyRow.addEventListener("click", () => openLegal("privacy"));
 if (els.termsRow) els.termsRow.addEventListener("click", () => openLegal("terms"));
+// G165 — madde 4: kullanıcı UMP onay tercihini sonradan değiştirebilsin.
+let adPrivacyRowBusy = false;
+if (els.adPrivacyRow) els.adPrivacyRow.addEventListener("click", async () => {
+  if (adPrivacyRowBusy) return;
+  adPrivacyRowBusy = true;
+  try {
+    const result = await ads.showPrivacyOptions();
+    if (!result.ok && result.title) toast(result.title, result.detail);
+  } finally {
+    adPrivacyRowBusy = false;
+  }
+});
 
 // Ayarlar sheet'inden açılan yardım ekranlarının geri okları/kapatma düğmeleri —
 // goBackFromSubpage() sheet'i tekrar açar (bkz. goToSettingsSubpage tanımı).
@@ -7997,15 +8015,18 @@ if (els.buyProBtn) els.buyProBtn.addEventListener("click", () => {
 if (els.restorePurchaseBtn) els.restorePurchaseBtn.addEventListener("click", () => {
   toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
 });
-// G63: "Reklam İzle" → SADECE "livesOut" tetiklemesinde görünür (bkz.
-// openPaywallReason). Gerçek ödüllü reklam Parça 4 — burada +1 can (TOTAL_
-// LIVES'ı aşmaz), paywall.onLifeLost'un TERSİ bir "can kazanıldı" olayı: tam
-// dolarsa dolum referansı da "şimdi"ye çekilir (applyLivesRefill'in kendi
-// "tam doluyken referans sabit" kuralıyla TUTARLI kalsın diye).
-// G82: aynı gerçek (simüle) mekanik Seans Sonu'nun "lives" durumundaki
-// birincil butonundan da (bkz. showSessionEnd/resCta) çağrılabilsin diye
-// paylaşılan bir fonksiyona çıkarıldı — davranış TEK SATIR değişmedi, SADECE
-// iki çağıran arasında tekrar etmesin diye.
+// G63/G165: "Reklam İzle" → SADECE "livesOut" tetiklemesinde görünür (bkz.
+// openPaywallReason). +1 can (TOTAL_LIVES'ı aşmaz), paywall.onLifeLost'un
+// TERSİ bir "can kazanıldı" olayı: tam dolarsa dolum referansı da "şimdi"ye
+// çekilir (applyLivesRefill'in kendi "tam doluyken referans sabit" kuralıyla
+// TUTARLI kalsın diye).
+// G82: aynı mekanik Seans Sonu'nun "lives" durumundaki birincil butonundan da
+// (bkz. showSessionEnd/resCta) çağrılabilsin diye paylaşılan bir fonksiyona
+// çıkarıldı — davranış TEK SATIR değişmedi, SADECE iki çağıran arasında
+// tekrar etmesin diye.
+// G165: artık grantAdLife() DOĞRUDAN çağrılmıyor — GERÇEK ödül SADECE
+// ads.watchRewardedAd()'ın { ok:true } dönmesiyle (core/ads.js'in kendi
+// "Rewarded" olay dinleyicisi) tetiklenir, bkz. handleWatchAd.
 function grantAdLife() {
   const now = Date.now();
   if (typeof stats.lives !== "number") stats.lives = 0;
@@ -8013,12 +8034,65 @@ function grantAdLife() {
   if (stats.lives >= storage.TOTAL_LIVES) stats.livesLastRefillAt = now;
   persistStats();
   syncLives();
-  toast("🎬 Reklam izlendi (simülasyon)", "+1 can");
+  toast("🎬 Reklam izlendi", "+1 can");
+}
+// G165 — reklam ses akışını kesiyor (native tam ekran overlay, AVAudioSession'ı
+// etkiliyor). onBeforeShow/onAfterShow, visibilitychange'in G155/G136
+// zincirindeki AYNI fonksiyonları çağırır (bkz. document.addEventListener
+// "visibilitychange" handler'ının hidden/visible dalları) — YENİ bir kurtarma
+// mekanizması İCAT EDİLMEDİ, mevcut zincir aynen tekrar kullanıldı.
+function pauseAudioForAdInterruption() {
+  audioEngine.stopAudio();
+  toolsPauseFilterPlayback();
+  toolsPauseRawMixPlayback();
+  toolsTonalStopRefPlayback();
+  toolsTonalStopMixPlayback();
+  renderToolsFilterPlayer();
+  renderToolsMixPlayer(toolsSelectedEntry());
+  renderToolsTonalAbUi();
+  if (activeQuestion) audioChainStoppedByBackground = true;
+  if (activeQuestion && !autoStopped) pauseRound();
+}
+function resumeAudioAfterAdInterruption() {
+  audioVisibleSinceAt = performance.now();
+  if (audioEngine.audioCtx) audioEngine.ensureAudioAlive({ allowRecreate: false, silent: true });
+}
+// G165 — hem watchAdBtn (paywall) hem resCta'nın "lost" dalı bunu çağırır.
+// adWatchBusy paylaşılan bir kilit: reklam yüklenirken çift basış (aynı
+// butona ya da teorik olarak ikisine art arda) engellenir. btn/labelEl
+// null olabilir (resCta'nın kendi span'ı yok, textContent doğrudan yazılır).
+let adWatchBusy = false;
+async function handleWatchAd(btn, labelEl, restoreLabel, onSuccess) {
+  if (adWatchBusy) return;
+  adWatchBusy = true;
+  if (btn) btn.disabled = true;
+  if (labelEl) labelEl.textContent = "Yükleniyor…";
+  else if (btn) btn.textContent = "Yükleniyor…";
+  try {
+    const result = await ads.watchRewardedAd({
+      onBeforeShow: pauseAudioForAdInterruption,
+      onAfterShow: resumeAudioAfterAdInterruption,
+    });
+    if (result.ok) {
+      grantAdLife();
+      onSuccess();
+    } else if (result.title) {
+      toast(result.title, result.detail);
+    }
+    // result.ok===false && !result.title → kullanıcı reklamı yarıda kapattı,
+    // bu bir HATA değil — sessizce ekranda kalınır, can VERİLMEZ.
+  } finally {
+    adWatchBusy = false;
+    if (btn) btn.disabled = false;
+    if (labelEl) labelEl.textContent = restoreLabel;
+    else if (btn) btn.textContent = restoreLabel;
+  }
 }
 if (els.watchAdBtn) els.watchAdBtn.addEventListener("click", () => {
-  grantAdLife();
-  stopPaywallLivesTicker();
-  goBackFromSubpage();
+  handleWatchAd(els.watchAdBtn, els.watchAdBtnLabel, "veya reklam izle, canları doldur", () => {
+    stopPaywallLivesTicker();
+    goBackFromSubpage();
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

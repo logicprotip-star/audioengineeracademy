@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G164)
+Son güncelleme: 13.08.2026 (G165)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,129 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G165 — **AdMob ödüllü reklam entegrasyonu: `grantAdLife()` artık GERÇEK
+ödül olayına bağlı, test modu zorunlu, UMP/ATT bağlandı, G155'in ses
+kurtarma zinciri yeniden kullanıldı.**
+
+**1) PLUGIN KURULUMU:** `@capacitor-community/admob@8.0.0` npm'e eklendi
+(Capacitor 8 ile resmi olarak uyumlu, `npm view` ile doğrulandı). Native
+bağlama (`ios/App/CapApp-SPM/Package.swift`, `android/app/capacitor.build.gradle`
++ `capacitor.settings.gradle`) "DO NOT MODIFY/EDIT" uyarılı, `capacitor
+update`/`cap sync` tarafından OTOMATİK üretiliyor — CLAUDE.md'nin yerleşik
+kuralı gereği (`cap sync` SADECE ayrı, açık bir kullanıcı isteğiyle) bu
+turda ÇALIŞTIRILMADI. **Yani native taraf HENÜZ derlenebilir durumda
+DEĞİL** — kullanıcı `npx cap sync ios` VE `npx cap sync android`'i AYRI
+bir mesajda çalıştırmadan Xcode/Android Studio projeleri plugin'i
+görmez.
+- `ios/App/App/Info.plist`: `GADApplicationIdentifier` (verilen GERÇEK iOS
+  App ID), `SKAdNetworkItems` (plugin'in resmi kurulum talimatındaki TEK
+  Google/AdMob ağı — mediation istenmediği için daha uzun mediation
+  listesi eklenmedi), `NSUserTrackingUsageDescription` (task'ın verdiği
+  BİREBİR metin).
+- `android/app/src/main/AndroidManifest.xml`: `com.google.android.gms.ads.
+  APPLICATION_ID` meta-data, `@string/admob_app_id`'ye işaret ediyor.
+- `android/app/src/main/res/values/strings.xml`: `admob_app_id` (verilen
+  GERÇEK Android App ID).
+- **App ID'ler (GADApplicationIdentifier/APPLICATION_ID) HER ZAMAN
+  GERÇEK** — bunlar SDK başlatma için, reklam SUNMUYOR; test/canlı
+  ayrımı SADECE ad unit ID seçiminde (aşağıya bkz.).
+
+**2) TEST MODU — TEK BAYRAK:** `www/js/core/ads.js:AD_TEST_MODE` (varsayılan
+`true`). Açıkken Google'ın resmi, hesaptan bağımsız test ödüllü birim
+ID'leri kullanılıyor (`developers.google.com/admob/ios(android)/test-ads`'ten
+bu turda DOĞRUDAN doğrulandı, ezbere yazılmadı): iOS
+`ca-app-pub-3940256099942544/1712485313`, Android
+`ca-app-pub-3940256099942544/5224354917`. Kapalıyken (yayın öncesi TEK
+satır) kullanıcının verdiği GERÇEK birim ID'leri (`ca-app-pub-4668080539411473/
+5501723169` iOS, `.../1562478152` Android) okunuyor — ikisi ASLA aynı anda
+karışmıyor (bkz. test/ads.test.mjs'in "hiç karışmaz" testi).
+
+**3) MEVCUT AKIŞA BAĞLANDI:** `grantAdLife()` artık HİÇBİR yerden doğrudan
+çağrılmıyor — SADECE `ads.watchRewardedAd()`'ın `{ ok:true }` dönmesiyle
+(core/ads.js'in KENDİ "Rewarded" olay dinleyicisi — plugin'in derlenmiş
+kaynağı [`npm pack` ile indirilip okundu] `Dismissed`'in ödülle İLGİSİZ
+olduğunu AÇIKÇA belirttiği için ödül SADECE bu olaydan okunuyor, showRewardVideoAd()'ın
+kendi promise çözünürlüğüne GÜVENİLMEDİ). Hem `watchAdBtn` (paywall'ın
+"livesOut" ekranı) hem `resCta`'nın "lost" dalı (Seans Sonu) AYNI paylaşılan
+`handleWatchAd()`'ı çağırıyor — G82'nin "tek fonksiyon, iki çağıran" deseni
+KORUNDU. Reklam yüklenirken buton "Yükleniyor…"a döner + `disabled` olur,
+paylaşılan `adWatchBusy` kilidi çift basışı engeller. Kullanıcı reklamı
+yarıda kapatırsa (`Dismissed`, ödül YOK) can VERİLMEZ, ekranda sessizce
+kalınır (hata değil). Yüklenemezse (prepare/show reddi ya da
+`FailedToLoad`/`FailedToShow` olayı) "Reklam yüklenemedi" toastı gösterilir,
+uygulama KİLİTLENMEZ.
+
+**4) UMP (GDPR):** `requestConsentInfo()`→gerekiyorsa `showConsentForm()`
+akışı, kullanıcının UYGULAMA HER AÇILIŞINDA DEĞİL, **kullanıcı ilk kez
+reklamla etkileşime geçtiğinde** (ilk `watchRewardedAd()` ya da ilk
+`showPrivacyOptions()` çağrısı) tetiklenir — bu BİLİNÇLİ bir kapsam kararı
+(task'ta açıkça istenmedi, ATT'nin "bağlamsal zamanlama" ilkesinin UMP'ye
+de uzatılması): reklamı hiç izlemeyen bir kullanıcı UMP formunu/AdMob
+SDK'sını hiç görmez/başlatmaz. Onay durumu UMP SDK'sının KENDİ native
+kalıcılığında tutuluyor — ayrı bir localStorage alanı EKLENMEDİ (task'ın
+"her açılışta tekrar sorulmasın" isteği zaten SDK'nın kendi davranışı).
+Ayarlar'a YENİ bir "Reklam tercihleri" satırı eklendi (`adPrivacyRow`) —
+`showPrivacyOptionsForm()`'u SADECE `privacyOptionsRequirementStatus===
+"REQUIRED"` iken çağırıyor, aksi halde "Şu an değiştirilebilecek bir
+tercih yok" diye AÇIKÇA bildiriyor (plugin'i sessizce no-op ETMİYOR).
+
+**5) ATT (iOS):** `trackingAuthorizationStatus()` `notDetermined` ise
+`requestTrackingAuthorization()` — AYNI ilk-etkileşim anında (UMP ile
+birlikte), uygulama açılışında DEĞİL. Reddedilirse akış BOZULMUYOR
+(consentInfo.canRequestAds zaten kişiselleştirilmemiş reklam senaryosunu
+kapsıyor, plugin tarafı).
+
+**6) SES ÇAKIŞMASI — G155'in zinciri YENİDEN KULLANILDI, YENİ mekanizma
+İCAT EDİLMEDİ:** `onBeforeShow`/`onAfterShow` hook'ları (core/ads.js,
+`audio-engine.js:onContextRecreated` İLE AYNI desen — core modülü app.js'e
+reach-in YAPMIYOR) app.js'in `pauseAudioForAdInterruption()`/
+`resumeAudioAfterAdInterruption()`'ına bağlandı — bunlar
+`visibilitychange`'in `hidden`/`visible` dallarındaki AYNI fonksiyon
+çağrılarının (`audioEngine.stopAudio()`, `toolsPauseFilterPlayback()`,
+`toolsPauseRawMixPlayback()`, `toolsTonalStopRefPlayback()`,
+`toolsTonalStopMixPlayback()`, `pauseRound()`, `ensureAudioAlive({allowRecreate:
+false, silent:true})`) BİREBİR TEKRARI — `visibilitychange`'in KENDİSİNE
+TEK SATIR dokunulmadı.
+
+**DÜRÜSTLÜK NOTU — DOĞRULANAMAYANLAR:** gerçek AdMob native SDK'sı bu
+ortamda (tarayıcı/Playwright) ÇALIŞTIRILAMAZ — kabul ölçütünün 4 maddesi
+(gerçek TEST reklamı görünmesi, reklam bitince gerçek ses davranışı,
+gerçek "bağlantı yok" senaryosu, App Store/Play Store inceleme koşulları)
+SADECE gerçek cihazda doğrulanabilir. Bu turda doğrulanan: (a) saf
+`pickRewardedAdUnitId()` fonksiyonu (test/ads.test.mjs, 5 yeni test); (b)
+JS akış mantığı Playwright'ta `window.Capacitor.Plugins.AdMob`'un TAM bir
+MOCK'u (native plugin'in dokümante edilmiş event/promise sözleşmesine göre
+yazıldı) enjekte edilerek — hem `watchAdBtn` hem `resCta` yolu için: plugin
+yokken (gerçek tarayıcı) anlaşılır mesaj + can verilmiyor; ödül kazanınca
++1 can + buton normale dönüyor + doğru çağrı sırası (initialize→
+requestConsentInfo→prepareRewardVideoAd→showRewardVideoAd); yarıda
+kapatınca can verilmiyor, hata toastı YOK, ekranda kalınıyor; yüklenemeyince
+anlaşılır hata + buton normale dönüyor; çift tıklamada TAM +1 can (2 değil)
++ showRewardVideoAd TEK kez çağrılıyor; Ayarlar'daki "Reklam tercihleri"
+satırı `showPrivacyOptionsForm()`'u doğru koşulda çağırıyor. 0 konsol
+hatası. **Bu, GERÇEK native SDK'nın doğrulanması DEĞİL — MOCK'un
+sözleşmeye uyduğu varsayımı üzerine kurulu.**
+
+**REGRESYON TARAMASI:** menü→mod kartı→startBtn→paywall (livesOut) ve
+menü→mod kartı→startBtn→yanlış cevap→Seans Sonu (lost) akışlarının İKİSİ
+de baştan sona test edildi, `visibilitychange` zincirinin KENDİSİNE
+dokunulmadı (sadece AYNI fonksiyonlar yeni bir çağıran noktasından
+çağrılıyor).
+
+**DOKUNULAN DOSYALAR:** `package.json`, `package-lock.json` (npm install),
+`ios/App/App/Info.plist`, `android/app/src/main/AndroidManifest.xml`,
+`android/app/src/main/res/values/strings.xml`, `www/index.html`,
+`www/js/app.js`, YENİ `www/js/core/ads.js`, YENİ `test/ads.test.mjs`.
+
+**DOKUNULMAYAN DOSYALAR:** `www/js/core/audio-engine.js`,
+`www/js/core/storage.js`, `www/js/core/paywall.js`, `www/js/modes/*`,
+`visibilitychange` handler'ının KENDİSİ (app.js), iOS/Android native
+proje dosyaları (Package.swift/capacitor.build.gradle — "DO NOT MODIFY",
+`cap sync` bekliyor).
+
+**npm test:** 1255/1255 (1250'den +5 — `test/ads.test.mjs` YENİ, hiçbir
+mevcut test bozulmadı/silinmedi).
 
 G162 (SADECE DENETİM, kod YAZILMADI) — **Kapsamlı denetim: "Sınırsız"/"Pro Plus"
 karışıklığı, seviye kilidi, saat manipülasyonu açıkları, format listesi
@@ -12602,6 +12725,31 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN GÜNCEL/EN ÖNCELİKLİ SIRADAKİ ADIM (G165 itibarıyla):** AdMob ödüllü
+reklam entegrasyonu koda yazıldı ama native taraf HENÜZ senkronlanmadı —
+bir sonraki adım kullanıcının AYRI bir mesajda `npx cap sync ios` VE
+`npx cap sync android` çalıştırması (CLAUDE.md'nin yerleşik kuralı: cap
+sync sadece açık, ayrı bir istekle). Ardından cihazda GERÇEKTEN
+doğrulanması gereken (bu ortamda İMKANSIZ, sadece mock ile test edildi,
+bkz. BİTTİ'nin DÜRÜSTLÜK notu):
+1. Test modunda (AD_TEST_MODE=true, varsayılan) canlar bitince "Reklam
+   İzle"ye basınca GERÇEKTEN Google'ın test reklamı açılıyor mu (kendi
+   reklamına YANLIŞLIKLA tıklanmamalı — hesap riski).
+2. Reklam TAMAMLANINCA +1 can, YARIDA kapatılınca can VERİLMİYOR mu.
+3. Uçak modunda/bağlantısız "Reklam yüklenemedi" mesajı çıkıp uygulama
+   KİLİTLENMİYOR mu.
+4. Reklam bitince oyun/Araçlar sesi GERÇEKTEN kaldığı yerden devam ediyor
+   mu (G155 zincirinin reklam kesintisinde de çalıştığı — bu turda SADECE
+   kod seviyesinde AYNI fonksiyonlar çağrıldığı doğrulandı, kulakla HİÇ
+   denenmedi).
+5. Avrupa bölgesi simülasyonuyla (ör. VPN/AdMob'un debugGeography'si)
+   GERÇEK UMP onay ekranı çıkıyor mu, Ayarlar'daki "Reklam tercihleri"
+   satırı gerçek formu açıyor mu.
+6. iOS'ta ATT izin diyaloğu GERÇEKTEN "ilk reklam izleme" anında çıkıyor
+   mu (uygulama açılışında DEĞİL).
+7. `AD_TEST_MODE=false` yapılmadan App Store/Play Store'a YÜKLENMEMELİ —
+   yayın öncesi kontrol listesine eklenmeli.
 
 **Tek sonraki adım (G148 itibarıyla) — EN ÖNEMLİSİ:** G147'den SONRA
 `cap sync` + Xcode temiz derleme + cihaza kurulum YAPILDI (kullanıcının

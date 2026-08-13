@@ -49,5 +49,27 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<!-- G165 — AdMob ödüllü reklam. GADApplicationIdentifier SDK başlatma için
+	     ZORUNLU (App ID, ad unit ID'den FARKLI — test/canlı ayrımı burada
+	     DEĞİL, core/ads.js:AD_TEST_MODE'da). SKAdNetworkIdentifier, AdMob'un
+	     KENDİ ağının iOS attribution kimliği (plugin'in resmi kurulum
+	     talimatındaki minimum liste) — mediation ağları eklenirse Google'ın
+	     daha uzun SKAdNetworkItems listesi AYRICA gerekir, bu turda
+	     eklenmedi (mediation İSTENMEDİ). -->
+	<key>GADApplicationIdentifier</key>
+	<string>ca-app-pub-4668080539411473~4515944558</string>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+	</array>
+	<!-- G165 — ATT (App Tracking Transparency). İzin isteme ZAMANLAMASI
+	     burada değil, core/ads.js:doInitFlow()'da kontrol edilir — ilk
+	     açılışta DEĞİL, kullanıcı ilk kez reklam izlemeye karar verdiğinde
+	     (Apple'ın önerdiği bağlamsal yaklaşım). -->
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Reklamların sana daha uygun olması için kullanılır. İzin vermezsen reklamlar yine gösterilir, sadece kişiselleştirilmez.</string>
 </dict>
 </plist>

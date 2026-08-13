@@ -4,4 +4,6 @@
     <string name="title_activity_main">Audio Engineer Academy</string>
     <string name="package_name">com.logicprotrick.audioengineeracademy</string>
     <string name="custom_url_scheme">com.logicprotrick.audioengineeracademy</string>
+    <!-- G165 — AdMob App ID (ad unit ID'den FARKLI, SDK başlatma için ZORUNLU). -->
+    <string name="admob_app_id">ca-app-pub-4668080539411473~4188641492</string>
 </resources>
