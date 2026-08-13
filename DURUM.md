@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G172)
+Son güncelleme: 13.08.2026 (G173)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,8 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G173 — **iPhone-only yapıldı (`TARGETED_DEVICE_FAMILY` "1,2"→"1", Debug+Release) — Apple'ın 90474 iPad çok görevlilik yön reddine yanıt; ilk sürüm iPhone-only, iPad ileri sürüme bırakıldı (yatay mod tasarımı gerektiriyor); `Info.plist`'in dikey kilidine dokunulmadı.**
 
 G172 — **Android'de ana ekran adı iOS'la EŞİTLENDİ: `app_name`/
 `title_activity_main` "Audio Engineer Academy" → "AE Academy" —
