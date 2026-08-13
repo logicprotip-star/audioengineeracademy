@@ -783,8 +783,24 @@
        satıra SARMASI gerekirken. `min-width:fit-content` çipin KENDİ nowrap
        metninden dar sıkışmasını YASAKLAR — satırda yer varsa flex-grow:1
        (flex-basis:0 ile) hâlâ eşit dağıtıyor (G93 KORUNDU), yer yoksa artık
-       DOĞRU şekilde bir sonraki satıra sarıyor. */
-    .chiprow > *{flex:1 1 0;min-width:fit-content}
+       DOĞRU şekilde bir sonraki satıra sarıyor.
+       G174 — KÖK SEBEP (canlı cihazda çiplerin EŞİT genişlikte olmadığı
+       rapor edildi, Playwright'ta ÖLÇÜLEREK doğrulandı: 3 çipte 109/108/126px,
+       2 çipte 167/185px): `min-width:fit-content` HER çipe KENDİ içeriğine
+       göre AYRI bir taban veriyordu — .mixchip'in ikon+"Karışık" metni+dolgu
+       toplamı .srctag sarmalayıcılarının kendi tabanından BÜYÜK olduğu için
+       .mixchip bu tabanda DONUYOR, flex-grow:1 kalan alanı SADECE diğer
+       kardeşlere dağıtıyordu (matematiksel olarak flex-basis:0+flex-grow:1
+       "eşit dağıtır" AMA per-item min-width farklı tabanlar koyunca eşitlik
+       BOZULUYOR — G93'ün "eşit dağıtır" notu bu min-width'siz haliyle
+       doğruydu, G105'in EKLEMESİ bu yan etkiyi FARK ETTİRMEDEN geri getirdi).
+       ÇÖZÜM: `min-width:0` (G105'ten ÖNCEKİ değer) + `overflow:hidden` —
+       eşit dağıtım G93'teki gibi GERİ GELİYOR, G105'in önlediği "komşu
+       çipin ÜSTÜNE taşma" da `overflow:hidden` ile HÂLÂ önleniyor (metin
+       artık taşarsa KOMŞUYA binmek yerine kendi kutusunda kırpılır — bu
+       uygulamanın kısa/sabit Türkçe etiketleriyle pratikte hiç tetiklenmez,
+       bkz. .srctag b'nin AYRICA eklenen text-overflow:ellipsis'i). */
+    .chiprow > *{flex:1 1 0;min-width:0;overflow:hidden}
     /* G143 — Kaynak/Odak/Kaynak-çifti sarmalayıcıları (.control.control-sheet,
        SADECE gizli <select> + görünen .srctag düğmesi taşır) KENDİSİ
        display:block (stilsiz) kalıyordu — satırın 44px'lik payına gerilse
@@ -796,7 +812,27 @@
        satır, .setting-row/.settings-row-label yapısı TAMAMEN farklı) BİLEREK
        ETKİLENMEDİ, grep ile doğrulandı (o dört satır .chiprow'un İÇİNDE
        DEĞİL, ayrı bir sheet'te). */
+    /* G174 — DÜRÜSTLÜK: yukarıdaki G143 notu ".srctag'a (aşağıda flex:1
+       aldı)" diyordu ama Playwright'ta ÖLÇÜLDÜ: .srctag HİÇBİR ZAMAN flex:1
+       ALMAMIŞ — wrapper 167px'e büyürken .srctag kendi 89px'lik doğal
+       boyutunda KALIYORDU, wrapper'ın sağında 78px BOŞ/görünmez alan
+       bırakıyordu (kullanıcının "Pink Noise dar" gözlemiyle TUTARLI —
+       gördüğü GERÇEKTEN dar). `.control.control-sheet > .srctag{flex:1}`
+       artık EKLENDİ, yorum artık doğru.
+       İKİNCİ KÖK SEBEP (ayrıca ölçüldü, .mixchip'in kendi kural bloğunda
+       çözüldü — bkz. o notu): `.chiprow`'un DOĞRUDAN çocukları arasında
+       chrome (padding+border) FARKLIYDI — wrapper'ın 0px'ine karşı
+       .mixchip'in (o zaman DOĞRUDAN chip-base olan #mixToggle) 18px'i.
+       `min-width` bunu ÇÖZMEDİ (denendi, Playwright'ta ÖLÇÜLDÜ: hiç etki
+       etmedi — min-width flex-grow dağıtımından SONRA bir kelepçe, dağıtımın
+       KENDİSİ zaten min-width'ten BAĞIMSIZ olarak "her öğenin kendi
+       padding+border'ı payın ÜSTÜNE eklenir" şeklinde çalışıyor, bu CSS
+       flex çözümlemesinin doğası). GERÇEK çözüm: #mixToggle'ı da AYNI
+       "chrome'suz dış kutu + chrome'lu iç kutu" kalıbına taşımak (aşağıya
+       bkz.) — index.html'de TEK saran <span> eklendi, app.js'in
+       `.on` toggle hedefi değişti. */
     .chiprow > .control.control-sheet{display:flex}
+    .chiprow > .control.control-sheet > .srctag{flex:1;min-width:0}
     /* G143 — ortak çip görünümü: Zorluk/Kaynak/Odak/Kaynak-çifti/Karışık
        HEPSİ bunu paylaşır (tek yerden yönetim) — yeni bir çip eklenince bu
        class'ı alması yeterli. G144 — Dokunmalı|Şıklı (.seg-toggle, aynı
@@ -842,11 +878,33 @@
        .chip-base'ten geliyor (G143), burada SADECE renk + ikon+metnin
        ORTALANMASI (justify-content:center — .srctag'in sol-hizalı etiketinden
        BİLEREK farklı, .chip-base bunu VARSAYILAN bırakıyor). */
+    /* G174 — #mixToggle'ın DIŞ butonu (.mix-outer) artık .control.control-sheet
+       İLE AYNI "chrome'suz .chiprow katılımcısı" kalıbını izliyor — GERÇEK
+       görsel çip stili (padding/border/renk, .chip-base'ten) İÇ .mixchip
+       span'inde, flex:1 ile dış butonu TAM dolduruyor. Bu, iki DOĞRUDAN
+       .chiprow çocuğunun (bu ve .control.control-sheet) İKİSİNİN de kendi
+       chrome'u SIFIR olmasını sağlıyor — flex-basis:0 dağıtımı artık
+       gerçekten eşit (bkz. styles.css'in .chiprow > .control.control-sheet
+       yanındaki G174 notu, aynı kök sebep).
+       DÜRÜSTLÜK (ilk deneme buraya kadar YETMEDİ, Playwright'ta ÖLÇÜLDÜ):
+       .control.control-sheet bir <div>, tarayıcı varsayılan chrome'u YOK —
+       ama .mix-outer BİR <button>, `.chip-base`/`.mixchip` class'ları
+       kaldırılınca tarayıcının KENDİ varsayılan buton stili (Chromium'da
+       ÖLÇÜLDÜ: padding 6px+6px, border 2px+2px = 16px) ORTAYA ÇIKTI —
+       AYNI asimetriyi FARKLI bir kaynaktan yeniden üretti. `button{...}`
+       genel kuralı (bu dosyanın başı) SADECE font/color/cursor sıfırlıyor,
+       padding/border/background'a DOKUNMUYOR — bu yüzden burada AYRICA
+       sıfırlanması gerekiyor. */
+    .chiprow > .mix-outer{display:flex;padding:0;border:none;background:none;margin:0}
     .mixchip{
+      flex:1;min-width:0;
       justify-content:center;color:#b8bdc4;
       background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
     }
     .mixchip svg{flex:none}
+    /* G174 — `.on` artık İÇ .mixchip span'inde toggle ediliyor (bkz. app.js),
+       dış .mix-outer butonunda DEĞİL — selector değişmedi, hedef eleman
+       değişti. */
     .mixchip.on{background:rgba(34,211,238,.16);border-color:rgba(34,211,238,.42);color:var(--cyan)}
     /* G144 — G79'un çip satırındaki cevap-biçimi segmented toggle'ı
        (.seg-toggle/.seg-toggle-btn) BURADAN KALDIRILDI — kullanıcının kendi

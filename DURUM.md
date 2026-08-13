@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G173)
+Son güncelleme: 13.08.2026 (G174)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,107 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G174 — **İki cihaz hatası: (1) çip genişlikleri eşitlendi, (2) mod
+geçişinde ilerleme göstergesi artık ÖNCEKİ modun verisini sızdırmıyor —
+İKİSİ de ÖLÇÜLDÜ, SONRA düzeltildi (task'ın kendi sırası).**
+
+**HATA 1 — ÇİP GENİŞLİKLERİ (ÖLÇÜM → DÜZELTME):**
+Playwright'ta `getBoundingClientRect()` ile ÖLÇÜLDÜ (tahmin edilmedi):
+Frekans Bulma'da 3 çip 109/108/126px (eşit olmalıydı ~115/115/115),
+Kesim Noktası'nda 2 çip 167/185px (eşit olmalıydı ~176/176) — kullanıcının
+"Karışık geniş, diğerleri dar" gözlemiyle BİREBİR TUTARLI. `.chiprow`
+flexbox kullanıyor (`display:flex`, `styles.css:765`).
+**KÖK SEBEP (üç KATMAN, hepsi ölçülerek bulundu):**
+1. `.chiprow > *{min-width:fit-content}` (G105'in eklediği) her çipe
+   KENDİ içeriğine göre AYRI bir taban veriyordu — .mixchip'in
+   ikon+metin+dolgu toplamı diğerlerinden BÜYÜK olduğu için o tabanda
+   DONUYOR, flex-grow kalanı SADECE kardeşlere dağıtıyordu.
+2. `.control.control-sheet` (Kaynak/Odak sarmalayıcısı) DOĞRU genişliğe
+   büyüyordu ama İÇİNDEKİ görünen `.srctag` çip'i hiç `flex:1` ALMAMIŞTI
+   (G143'ün kendi yorumu ".srctag'a flex:1 aldı" diyordu ama kural HİÇ
+   YAZILMAMIŞ) — çip kendi küçük doğal boyutunda kalıp wrapper'ın sağında
+   görünmez boşluk bırakıyordu (görünen çip GERÇEKTEN dardı).
+3. `min-width:0`'a geçilince BİLE (1. maddeyi çözdükten sonra) 16-18px'lik
+   bir fark İNATLA kaldı — `.mixchip` (`#mixToggle`) DOĞRUDAN `.chiprow`
+   çocuğu OLDUĞU için flex-basis:0 dağıtımında KENDİ padding+border'ı
+   payın ÜSTÜNE ekleniyordu (`.control.control-sheet` wrapper'ının 0
+   chrome'una karşı). Restructure denemesinde (#mixToggle'ı chrome'suz
+   dış+chrome'lu iç span kalıbına taşımak) AYNI fark YİNE çıktı — bu SEFER
+   nedeni tarayıcının KENDİ varsayılan `<button>` stiliydi (padding
+   6px+6px, border 2px+2px — ÖLÇÜLDÜ), `.chip-base`/`.mixchip` class'ları
+   dış butondan kaldırılınca AÇIĞA ÇIKTI.
+**DÜZELTME (3 katman, hepsi styles.css/index.html/app.js'te):**
+1. `.chiprow > *`'in `min-width:fit-content`'i `min-width:0` + `overflow:
+   hidden` oldu (G105'in önlediği "komşuya taşma" artık overflow:hidden
+   ile önleniyor, kırpma metni KOMŞUYA BİNDİRMEZ).
+2. `.control.control-sheet > .srctag{flex:1;min-width:0}` eklendi —
+   görünen çip artık wrapper'ını GERÇEKTEN dolduruyor.
+3. `#mixToggle` yeniden yapılandırıldı: dış `<button>` artık chrome'suz
+   (`padding:0;border:none;background:none`, `.control.control-sheet`
+   İLE AYNI kalıp), görsel çip stili (chip-base/mixchip) YENİ bir iç
+   `<span class="mixchip chip-base">`'e taşındı, `flex:1` ile dışını
+   dolduruyor. `.on` toggle hedefi app.js'te DIŞ butondan İÇ span'e
+   taşındı (`els.mixToggle.querySelector(".mixchip")`) — click/aria-label
+   dış butonda DEĞİŞMEDİ.
+**SONUÇ (Playwright'ta YENİDEN ölçüldü):** Frekans Bulma 115/115/115px,
+Kesim Noktası 176/176px, Frekans Çakışması 176/176px — TAM EŞİT. Ekran
+görüntüsüyle de görsel doğrulandı. `mixToggle`'ın kendi tıklama/açık-kapa
+(`.on`) davranışı AYRICA test edildi, bozulmadı.
+
+**HATA 2 — MOD GEÇİŞİNDE İLERLEME SIFIRLANMASI (ÖLÇÜM → DÜZELTME):**
+Kod okunarak ÖLÇÜLDÜ: gösterge `updateUI()`'nin chiprow bloğu tarafından
+(`app.js`, `challenge.done`/`challenge.total` okuyarak) çiziliyor.
+`challenge` (modül-seviyesi obje, `let challenge = {...}`) SADECE
+`startChallenge()` içinde `done:0`'a sıfırlanıyordu — `startChallenge()`
+ise SADECE "Oyunu Başlat" tıklanınca (2 çağrı noktası:
+`onStartBtnClick`'in fresh-start dalı + `startFreshAttempt()`) çağrılıyor,
+`enterMode()`'da HİÇ çağrılmıyordu. `enterMode()` `mode!==realMode`
+dalında `updateUI()`'yi ZATEN çağırıyordu (G80'in AYNI kalıbı, o zaman
+"seviye pentagonu" bug'ı için eklenmişti) ama ALTINDAKİ `challenge`
+verisini sıfırlamıyordu — SONUÇ: yeni moda girilince gösterge, Play'e
+basılana kadar ÖNCEKİ modun `challenge.done` değerini göstermeye devam
+ediyordu (kullanıcının "Play'e basıldığında doğru değere sıfırlanıyor"
+gözlemiyle BİREBİR TUTARLI).
+**DÜZELTME:** YENİ `www/js/core/challenge.js:freshChallenge()` (saf
+fonksiyon, `{active:false,total:10,done:0,correct:0,xp:0}` döner) —
+`enterMode()`'un `mode!==realMode` dalına `challenge = freshChallenge();`
+eklendi (`updateUI()`'den HEMEN ÖNCE, examSystem.setMode'un "sadece GERÇEK
+mod değişiminde sıfırla, aynı moda dönüşte KORU" ilkesiyle AYNI konumda).
+`let challenge = {...}` (ilk tanım) ve `startChallenge()`
+(`{...freshChallenge(), active:true}`) da AYNI tek kaynağı kullanacak
+şekilde güncellendi — üç yerde elle tekrar yazılan obje kaldırıldı.
+**DOĞRULAMA (Playwright, 4 senaryo):** Frekans Bulma'da Play'e basılıp
+"BÖLÜM 1/10" görününce başka bir moda (Play'DEN ÖNCE) geçildi — gösterge
+artık TAMAMEN gizli (önceki modun "BÖLÜM 1/10"u SIZMIYOR); o modda Play'e
+basılınca KENDİ taze "BÖLÜM 1/10"una dönüyor; AYNI moda (menüden çıkıp
+aynı karta basarak) geri dönüş ise aktif `challenge`'ı KORUYOR (regresyon
+kontrolü — G47'nin examSystem.setMode ilkesiyle TUTARLI).
+
+**TEST EKLENDİ:** `test/challenge.test.mjs` (3 test, `freshChallenge()`
+saf fonksiyonu — şekli/yeni-referans-döndürmesi/`startChallenge()`
+deseniyle uyumu). Çip eşitliği için saf/testable bir fonksiyon YOK (100%
+CSS layout davranışı, JS mantığı içermiyor) — Playwright'taki 3-mod ölçüm
+scripti kalıcı bir DOĞRULAMA, ama `node --test`'e uydurulacak bir "iş
+mantığı" yok, CLAUDE.md'nin "ses/DOM davranışı kaynak koddan
+doğrulanamaz" ilkesiyle TUTARLI bir karar (zorlama unit test yerine
+Playwright'ta 3 farklı mod/çip-sayısı kombinasyonuyla doğrulandı).
+
+**REGRESYON TARAMASI:** G165/G166/G168/G169'un TÜM Playwright senaryoları
+YENİDEN koşuldu (AdMob/StoreKit/yasal bağlantılar) — hiçbiri bozulmadı, 0
+konsol hatası. `.chiprow`'un `www/index.html`'de TEK bir kullanımı var
+(grep ile doğrulandı) — başka bir ekranda regresyon riski YOK.
+
+**DOKUNULAN DOSYALAR:** `www/styles.css`, `www/index.html`, `www/js/app.js`,
+YENİ `www/js/core/challenge.js`, YENİ `test/challenge.test.mjs`,
+`DURUM.md`.
+
+**DOKUNULMAYAN DOSYALAR:** `core/ads.js`, `core/iap.js`, `core/paywall.js`,
+`core/storage.js`, `www/js/modes/*`, native proje dosyaları, diğer TÜM
+`.md` dosyaları.
+
+**npm test:** 1264/1264 (1261'den +3 — `test/challenge.test.mjs` YENİ,
+hiçbir mevcut test bozulmadı/silinmedi).
 
 G173 — **iPhone-only yapıldı (`TARGETED_DEVICE_FAMILY` "1,2"→"1", Debug+Release) — Apple'ın 90474 iPad çok görevlilik yön reddine yanıt; ilk sürüm iPhone-only, iPad ileri sürüme bırakıldı (yatay mod tasarımı gerektiriyor); `Info.plist`'in dikey kilidine dokunulmadı.**
 

@@ -23,6 +23,7 @@ import * as tonalBalance from "./core/tonal-balance.js";
 import * as fileStorage from "./core/file-storage.js";
 import * as ads from "./core/ads.js";
 import * as iap from "./core/iap.js";
+import { freshChallenge } from "./core/challenge.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
@@ -1194,7 +1195,7 @@ function examGateActive() {
 let mixSources = false;
 
 // 10 soruluk bölüm (challenge) durumu
-let challenge = { active: false, total: 10, done: 0, correct: 0, xp: 0 };
+let challenge = freshChallenge();
 const CHALLENGE_XP_MULT = 1.5;
 function isChallenge() { return els.playModeSelect && els.playModeSelect.value === "challenge"; }
 function xpMult() { return (challenge.active && isChallenge()) ? CHALLENGE_XP_MULT : 1; }
@@ -2408,13 +2409,18 @@ function enterMode(entry, realMode) {
     if (els.freqGuessArea) { els.freqGuessArea.innerHTML = ""; els.freqGuessArea.classList.add("hidden"); }
     updateStartBtnLabel();
     updateAbToggleUI();
-    // G80 DÜZELTMESİ (populateFocusSelect ile AYNI desen taranırken bulundu):
-    // #levelChipValue (üst bar seviye pentagonu) SADECE updateUI() içinde yazılıyor
-    // (satır ~1836, mode.getMeta().id okur) — updateUI() ise SADECE açılışta VE
-    // submit-sonrası noktalarda çağrılıyordu, enterMode()'da YOKTU. Sonuç: bir moddan
-    // diğerine geçilince pentagon YENİ modun değil ESKİ modun seviyesini göstermeye
-    // devam ediyordu (ilk soru cevaplanana kadar). updateUI() activeQuestion'a
-    // BAĞIMLI değil (yukarıda null'landı, güvenli) — burada çağrılması yeterli.
+    // G174 DÜZELTMESİ (G80'in AYNI kalıbı — canlı cihazda bulundu): "BÖLÜM
+    // x/10" göstergesi (updateUI()'nin chiprow bloğu, challenge.done/total
+    // okur) SADECE startChallenge()'da sıfırlanıyordu (bkz. o fonksiyon) —
+    // startChallenge() ise "Oyunu Başlat"a BASILDIĞINDA çağrılıyor,
+    // enterMode()'da DEĞİL. Sonuç: bir moddan diğerine geçilince gösterge
+    // Play'e basılana kadar ÖNCEKİ modun ilerlemesini göstermeye devam
+    // ediyordu (G80'in pentagon bug'ıyla BİREBİR AYNI kök sebep ailesi —
+    // "updateUI() ÇAĞRILIYOR ama ALTINDAKİ VERİ sıfırlanmıyor"). challenge
+    // aynı moda dönüşte DEĞİL, SADECE GERÇEK mod değişiminde sıfırlanır
+    // (examSystem.setMode'un G47 kararıyla AYNI ilke — bu blok zaten
+    // sadece mode!==realMode'da çalışıyor).
+    challenge = freshChallenge();
     updateUI();
   }
   goScreen("game");
@@ -5364,7 +5370,7 @@ function setAutoPlay(on) {
 }
 
 function startChallenge() {
-  challenge = { active: true, total: 10, done: 0, correct: 0, xp: 0 };
+  challenge = { ...freshChallenge(), active: true };
   setFeedback("10 Soruluk Bölüm başladı", "10 soru, +%50 XP. Bol şans!");
 }
 function finishChallenge() {
@@ -6176,9 +6182,14 @@ if (els.exitConfirmLeave) els.exitConfirmLeave.addEventListener("click", () => {
   performExit();
 });
 
+// G174 — `.on` artık #mixToggle'ın KENDİSİNDE değil, İÇİNDEKİ .mixchip
+// span'inde toggle ediliyor (dış buton artık chrome'suz bir .chiprow
+// katılımcısı, görsel çip stili içeri taşındı — bkz. index.html/styles.css'in
+// AYNI G174 notu, çip eşitliği düzeltmesinin bir parçası).
 els.mixToggle.addEventListener("click", () => {
   mixSources = !mixSources;
-  els.mixToggle.classList.toggle("on", mixSources);
+  const inner = els.mixToggle.querySelector(".mixchip");
+  if (inner) inner.classList.toggle("on", mixSources);
 });
 
 function openGameSettingsSheet() {
