@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 13.08.2026 (G169)
+Son güncelleme: 13.08.2026 (G170)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,37 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G170 (SADECE BELGE, kod YAZILMADI) — **App Store Connect kurulumunda
+tamamlanan işler kaydedildi (13.08.2026 akşam oturumu).**
+
+- **Destek sayfası yayında:** `/destek.html` — kullanıcının kendi altyapısında
+  (bkz. G167'nin ALTYAPI kaydı: `audioengineeracademy.com`, Natro/cPanel).
+- **Uygulama Bilgileri sayfası tamam** — altyazı "Mix senaryosuyla kulak
+  eğitimi", kategori Music + Education, İçerik Hakları: üçüncü taraf içerik
+  YOK.
+- **Yaş derecelendirmesi 4+ · 172 ülke** — Reklam=EVET (AdMob, G165/G166'yla
+  TUTARLI), Contests=NONE, Made for Kids İŞARETLENMEDİ.
+- **Sürüm 1.0 mağaza metinleri girildi** — promo metni, açıklama, anahtar
+  kelimeler, Support URL, copyright.
+
+Bu turda `DEVIR-13-08-2026.md` diye bir dosya İSTENDİ ama repoda
+BULUNAMADI (`find`/`git status` ile doğrulandı, untracked bile değil) —
+o dosyadaki Apple ID düzeltmesi (6795851904→6801169094) bu yüzden
+YAPILAMADI, kullanıcıya AYRICA bildirildi. DURUM.md'de `6795851904`/
+`6801169094` hiç GEÇMİYORDU (grep ile doğrulandı) — düzeltilecek bir şey
+yoktu. DURUM.md'deki Pro fiyatı zaten HER YERDE ₺399 (G72'de bir kez
+tam taranıp düzeltilmişti, bkz. o kayıt) — obsolet ₺249/₺199 değeri
+kalan bir CANLI alan bulunamadı, değişiklik GEREKMEDİ.
+
+**DOKUNULAN DOSYALAR:** `DURUM.md` (bu kayıt + aşağıdaki SIRADAKİ/BEKLEYEN
+KARARLAR eklemeleri).
+
+**DOKUNULMAYAN DOSYALAR:** `CLAUDE.md` (Pro fiyatı zaten ₺399, değişiklik
+GEREKMEDİ — kontrol edildi, dokunulmadı), `DEVIR-13-08-2026.md` (repoda
+YOK), TÜM kod tabanı.
+
+**npm test:** çalıştırılmadı (kod değişmedi, gerekmedi).
 
 G169 — **Uygulama içi yasal metin bağlantıları: `#screen-legal`'in
 placeholder'ı kaldırıldı, paywall'a Apple'ın zorunlu kıldığı bağlantılar
@@ -13057,6 +13088,13 @@ kulaklıkla dinleyip "doğru hissettiriyor mu" diye onaylar; enerji-eşiği
 sabitleri gerekirse (ör. sürekli sessiz bir bölüme denk geliyorsa) revize
 edilir.
 
+**V. İlk sürümün dil kapsamı (G170 — kullanıcı kararı)**
+İngilizce sürüm 1.1/1.2'ye BIRAKILDI — ilk sürüm (1.0) SADECE Türkçe
+yayınlanacak. Ayarlar'daki `#langSeg` (Türkçe/English seçici) kod
+tarafında hâlâ İKİ seçenek gösteriyor (bu turda dokunulmadı, kod
+değişikliği İSTENMEDİ) — mağaza metinleri/App Store Connect kaydı
+SADECE Türkçe için hazırlandı.
+
 ## İLERİ SÜRÜM FİKİRLERİ
 
 Bunlar yayın öncesi YAPILMAYACAK — kullanıcı geri bildirimi sonrası
@@ -13092,6 +13130,13 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G170 itibarıyla):** App Store Connect'te **App
+Privacy formu** doldurulmalı — yaş derecelendirmesi/mağaza metinleri/destek
+sayfası tamamlandı (bkz. BİTTİ G170) ama gizlilik veri beyanı (Privacy
+Nutrition Label) HENÜZ girilmedi. AdMob eklendiği için "veri toplanmıyor"
+DENEMEZ — AdMob'un topladığı veriler (reklam kimliği, cihaz bilgisi,
+kullanım verisi) beyan edilmeli (bkz. AÇIK İŞLER madde 27, aynı konu).
 
 **EN YENİ SIRADAKİ ADIM (G168 itibarıyla):** StoreKit/Google Play Billing
 entegrasyonu KODLANDI (bkz. BİTTİ G168) — kalan üç adım:
