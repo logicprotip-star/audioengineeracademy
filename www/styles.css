@@ -1416,10 +1416,24 @@
     /* G184 DÜZELTMESİ (Bug 9, kullanıcı kararı — "gerçekten tıklanabilir yap"):
        app.js'te .fb-advance-head artık #feedbackClose ile aynı goToNextRound()
        delegasyonunu tetikliyor; burada sadece bunun görsel karşılığı — cursor +
-       dokunma geri bildirimi (.fb-close'un aynı deseni, satır ~1086-1087). */
+       dokunma geri bildirimi (.fb-close'un aynı deseni, satır ~1086-1087).
+       G186 DÜZELTMESİ (#21, cihazda/Playwright'ta ÖLÇÜLDÜ): geri bildirim
+       kartı (.fb, z-index:91) YUKARI kayarken (.3s) alttaki #gameActionbar
+       (z-index:60, "Atla ▶") AYNI ANDA aşağı/dışarı kayıyor (.actionbar-tucked,
+       .25s) — z-index DOĞRU (panel üstte) ama .fb'nin KENDİ arka planı
+       ÇOK SAYDAM (rgba(43,217,168,.13)), bu yüzden geçiş ORTASINDA (frame-
+       frame ölçüldü: t=210-240ms'de #gameActionbar/.fb-advance-head DIKEY
+       olarak GERÇEKTEN 16px çakışıyor) alttaki koyu çubuk BU satırın
+       ARKASINDAN SIZIYOR, "SONRAKİ SORU"/"ATLAMAK İÇİN ✕" OKUNMUYOR. Geçiş
+       süreleri KASITLI (bkz. app.js setActionbarTucked — "cevap verilince
+       gizlenme HER ZAMAN animasyonlu kalır" notu, DOKUNULMADI) — bunun
+       yerine SADECE bu satıra, panelin geri kalanından BAĞIMSIZ, neredeyse
+       opak bir arka plan verildi — geçiş ne zaman çakışırsa çakışsın metin
+       HER ZAMAN okunur kalır. */
     .fb-advance-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;
       font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-muted);text-transform:uppercase;
-      cursor:pointer;border-radius:6px;padding:2px 4px;margin-left:-4px;margin-right:-4px}
+      cursor:pointer;border-radius:6px;padding:2px 4px;margin-left:-4px;margin-right:-4px;
+      background:rgba(8,9,11,.55)}
     .fb-advance-head:active{background:rgba(255,255,255,.08)}
     .fb-advance-track{height:2px;border-radius:1px;background:rgba(255,255,255,.08);overflow:hidden}
     #fbAdvanceBar{display:block;height:100%;border-radius:1px;background:linear-gradient(90deg,#2fbf46,#4ade80)}
