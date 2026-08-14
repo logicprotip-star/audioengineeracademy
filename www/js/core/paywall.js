@@ -92,10 +92,41 @@ export const FREE_SESSION_QUESTION_LIMIT = 5;
 // roundsPlayed: bu oturumda POSE EDİLMİŞ soru sayısı (app.js: roundsInThisPlaySession,
 // her yeni soru kurulduğunda +1 — bkz. o değişkenin dosya başı notu). Free'de bu
 // sayı limite ULAŞTIĞINDA (5. soru zaten posedilmiş/cevaplanmış) true döner —
-// bir 6. soru KURULMADAN oturum kapanır.
+// bir 6. soru KURULMADAN oturum kapanır. `limit` çağıran tarafta (app.js)
+// reklamla kazanılan ek soru hakkını (bkz. SESSION_EXTENSION_QUESTIONS) da
+// içerecek şekilde büyütülerek geçirilebilir — bu fonksiyon SADECE karşılaştırma
+// yapar, uzatma MİKTARINI bilmez (saf kalması için).
 export function isFreeSessionLimitReached(roundsPlayed, isPro, limit = FREE_SESSION_QUESTION_LIMIT) {
   if (isPro) return false;
   return roundsPlayed >= limit;
+}
+
+// ---- Bug 25 (G185) — sessionLimit'te reklamla oturum uzatma ----
+// Kullanıcı kararı: "bu bir öğrenme uygulaması, oyun değil" — ücretsiz
+// kullanıcı 5 soruda duvara toslarsa uygulamayı silmesin. Reklam Pro'yu
+// İKAME ETMİYOR (12 modun 5'i, Araçlar, ilerleme geçmişi hâlâ kapalı) —
+// SADECE "bugün biraz daha çalışayım" hakkı, günde en fazla 3 reklamla
+// sınırlı (aksi hâlde "ücretsiz + reklam = sınırsız" Pro'yu anlamsızlaştırırdı).
+export const SESSION_EXTENSION_QUESTIONS = 5;
+export const MAX_SESSION_EXTENSION_ADS_PER_DAY = 3;
+
+// watchesToday/watchesDate: stats.sessionAdWatchesToday/stats.sessionAdWatchesDate
+// (kalıcı, app.js persistStats() ile yazılır). watchesDate bugünün takvim
+// günüyle (localDateKey) EŞLEŞMİYORSA sayaç DÜNKÜ/eski bir güne ait demektir —
+// 0'dan başlar (canPlayDailyTaste'in AYNI "yerel takvim günü" mantığı).
+export function sessionAdWatchesRemainingToday(watchesToday, watchesDate, now, maxPerDay = MAX_SESSION_EXTENSION_ADS_PER_DAY) {
+  const today = localDateKey(now);
+  const countToday = watchesDate === today ? (watchesToday || 0) : 0;
+  return Math.max(0, maxPerDay - countToday);
+}
+
+// SAF hesaplayıcı (applyLivesRefill'in AYNI deseni) — bir reklam izlemenin
+// YENİ {sessionAdWatchesToday, sessionAdWatchesDate} çiftini döndürür, hiçbir
+// yan etkisi yok (persistStats() çağıran tarafın işi).
+export function recordSessionAdWatch(watchesToday, watchesDate, now) {
+  const today = localDateKey(now);
+  const countToday = watchesDate === today ? (watchesToday || 0) : 0;
+  return { sessionAdWatchesToday: countToday + 1, sessionAdWatchesDate: today };
 }
 
 // ---- Can dolumu (gerçek zaman tabanlı, 30 dakikada 1) ----
@@ -204,48 +235,67 @@ export const PRO_BENEFITS = Object.freeze([
   "Reklamsız"
 ]);
 
-// 6 tetikleme noktası (PAYWALL.md) — her biri kicker/title/detail (paywall
+// 7 tetikleme noktası (PAYWALL.md) — her biri kicker/title/detail (paywall
 // ekranının üstündeki "neden buradasın" bandı) + hangi buton setinin
 // gösterileceği (`buttons`): "pro" = Pro Al + Kapat, "livesOut" = Reklam
-// İzle + Pro Al + Şimdi değil (task'ın kendi ayrımı — SADECE can bitince
-// reklam seçeneği anlamlı, diğer 5 tetiklemede bir reklam izlemek sorunu
-// çözmez).
+// İzle + Pro Al + Şimdi değil.
+//
+// G185 (Bug 25) — İKİ YENİ alan:
+// - `endsRound`: bu sebep açılırken round ZATEN bitirilmiş miydi (finalizeIfGameOver()
+//   üzerinden mi tetiklendi) — app.js paywallCloseBtn'in X'te "menu"ye mi
+//   dönüleceğini, `openPaywallReason()`'ın round'u duraklatıp duraklatmayacağını
+//   BUNDAN okur (Bug 20/25'in kök sebebi: eskiden SADECE `livesOut`'a özel bir
+//   DOM-görünürlük kontrolüydü, artık HER sebep için doğru tanımlı).
+// - `adGrant`: reklamın NE kazandırdığı — "life" (livesOut, +1 can, kotasız,
+//   G165'ten beri VAR, DEĞİŞMEDİ) | "sessionExtension" (sessionLimit, +5 soru,
+//   günde en fazla 3 — YENİ, bkz. SESSION_EXTENSION_QUESTIONS) | yoksa reklam
+//   seçeneği YOK. Kullanıcı kararı: "reklam Pro'yu ikame etmiyor" — bu yüzden
+//   sessionLimit'in reklamı SADECE soru sayısını uzatır, kilitli 5 modu/
+//   Araçlar'ı/geçmişi AÇMAZ.
 export const PAYWALL_REASONS = Object.freeze({
   sessionLimit: {
     kicker: "OTURUM SINIRI",
     title: "Ücretsiz oturumun bitti",
-    detail: "Ücretsizde oturum başına 5 soru. Sınırsız oynamak için Pro'ya geç.",
-    buttons: "pro"
+    detail: "Ücretsizde oturum başına 5 soru. Reklam izleyip 5 soru daha kazanabilir (günde en fazla 3) ya da Pro'yla sınırsız oynayabilirsin.",
+    buttons: "pro",
+    endsRound: true,
+    adGrant: "sessionExtension"
   },
   livesOut: {
     kicker: "CANLARIN BİTTİ",
     title: "Devam etmek için bir yol seç",
     detail: "Bir can izleyeceğin reklamla hemen dolar, ya da Pro'yla can sınırı tamamen kalkar.",
-    buttons: "livesOut"
+    buttons: "livesOut",
+    endsRound: true,
+    adGrant: "life"
   },
   modeLocked: {
     kicker: "PRO MOD",
     title: "Bu mod Pro'da açılır",
     detail: "dB Seviyesi, Reverb, Tonal Denge ve Distortion — dördü de Pro'nun bir parçası.",
-    buttons: "pro"
+    buttons: "pro",
+    endsRound: false
   },
   upload: {
     kicker: "PRO ÖZELLİĞİ",
     title: "Kendi dosyanı yükle",
     detail: "Kendi mix'ini/referansını yükleyip onunla çalışmak Pro'da açılır.",
-    buttons: "pro"
+    buttons: "pro",
+    endsRound: false
   },
   dailyUsed: {
     kicker: "GÜNLÜK HAK",
     title: "Bugün Frekans Çakışması'nı oynadın",
     detail: "Ücretsizde günde 1 kez — yarın tekrar gel, ya da Pro'yla sınırsız oyna.",
-    buttons: "pro"
+    buttons: "pro",
+    endsRound: false
   },
   zoneHistory: {
     kicker: "PRO RAPORU",
     title: "Zayıf bölge geçmişini gör",
     detail: "6 bölgenin detaylı isabet analizi ve zayıf bölge raporu Pro'da açılır.",
-    buttons: "pro"
+    buttons: "pro",
+    endsRound: false
   },
   // G65: "Serbest/süresiz oynama YOK" (bkz. isFreePlayModeLocked, G61'de
   // TANIMLANMIŞ ama HİÇ BAĞLANMAMIŞTI — cihaz testinde kafa karıştırdığı
@@ -256,6 +306,7 @@ export const PAYWALL_REASONS = Object.freeze({
     kicker: "SINIRSIZ OYNAMA",
     title: "Serbest (sonsuz) mod Pro'da açılır",
     detail: "Ücretsizde oturum başına 5 soru — sınırsız akış için Pro gerekli.",
-    buttons: "pro"
+    buttons: "pro",
+    endsRound: false
   }
 });

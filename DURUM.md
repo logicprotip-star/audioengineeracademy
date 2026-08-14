@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G184)
+Son güncelleme: 14.08.2026 (G185)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,101 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G185 — **Bug 25: Paywall'ın "iki farklı ekran" sorunu — analiz + 4 kararın
+tamamı uygulandı.**
+
+Önceki turun (analiz-only) bulduğu kök sebep: `finalizeIfGameOver()` iki farklı
+sebeple (`livesOut`/`sessionLimit`) AYNI ["menu","game","paywall"] yığınından
+paywall açıyordu, ama Bug 20'nin (1765a49) X→menu düzeltmesi SADECE `livesOut`'a
+özel bir DOM-görünürlük kontrolüydü (`paywallLivesStrip`) — `sessionLimit` bu
+dala hiç girmiyordu, X'te `goBack()`'in çift-pop'uyla "game"e (menü yerine)
+dönüyordu. Ayrıca `goToNextRound()` ("Atla") `finalizeIfGameOver()`'ı HİÇ
+çağırmadığı için 5 soruluk oturum sınırı "Atla" ile sınırsız atlanabiliyordu
+(ölçüldü: 8 ardışık Atla, paywall hiç açılmadı).
+
+**Karar 1 — sessionLimit'te de reklam seçeneği (kotalı):** `core/paywall.js`'e
+`PAYWALL_REASONS[key].adGrant` alanı eklendi (`livesOut`→`"life"`, kotasız,
+DEĞİŞMEDİ; `sessionLimit`→`"sessionExtension"`, YENİ) — `SESSION_EXTENSION_QUESTIONS=5`,
+`MAX_SESSION_EXTENSION_ADS_PER_DAY=3`, `sessionAdWatchesRemainingToday()`/
+`recordSessionAdWatch()` (saf, `localDateKey`'in AYNI takvim-günü deseni).
+Kalıcı kota `stats.sessionAdWatchesToday`/`stats.sessionAdWatchesDate`
+(`core/storage.js`, `dailyTasteLastPlayedAt`'ın AYNI init/migrasyon deseni).
+`app.js`: `grantSessionExtension()` (`grantAdLife()`'ın AYNI şekli, FARKLI
+sayaç — can DEĞİL, `sessionExtraQuestionsGranted` — `freeSessionLimitReached()`
+artık `FREE_SESSION_QUESTION_LIMIT + sessionExtraQuestionsGranted`'e bakıyor).
+`watchAdBtn`'in ödülü artık SABİT DEĞİL, `openPaywallReasonKey`'in `adGrant`'ına
+göre seçiliyor; `syncWatchAdButtonForReason()` kota 0'a inince butonu GİZLİYOR.
+Ölçüm: sessionLimit paywall'ında kota 3/3 iken buton görünür + "bugün 3 hakkın
+kaldı" etiketi; kota 3 kullanılmışsa (seed) buton GİZLİ, "0 hakkın kaldı"
+(kontrol amaçlı, buton zaten gizliyken erişilmiyor).
+
+**Karar 2 — sessionLimit'te X→menü:** `PAYWALL_REASONS`e `endsRound` bayrağı
+eklendi (SADECE `livesOut`+`sessionLimit` true — ikisi de round zaten
+finalize edilmiş durumda açılıyor). `paywallCloseBtn`'in kontrolü
+`paywallLivesStrip` DOM-görünürlüğünden `openPaywallReasonKey`'in `cfg.endsRound`'ına
+taşındı — `livesOut` AYNI davranışı (menu) koruyor (Bug 20 regresyon testi
+tekrar koşuldu, DEĞİŞMEDİ), `sessionLimit` ARTIK aynı dala giriyor. Ölçüm:
+"Atla" ile sessionLimit paywall'ı açtırılıp X'e basıldı → aktif ekran
+`screen-menu` (ÖNCEDEN `screen-game`).
+
+**Karar 3 — "Atla" kaçağı kapatıldı:** `blockIfLivesOut()`'un AYNI çağrı
+noktasına (`startRound()` — TEK gerçek tur kurma fonksiyonu, "Atla"/Play/sınav
+yeniden deneme dahil HER yolun üstünden geçiyor) YENİ `blockIfSessionLimitReached()`
+eklendi. `finalizeIfGameOver()`'ın teardown bloğu (`autoPlaying=false`, ses
+durdurma, `activeQuestion=null` vb.) `teardownActiveRound()`'a çıkarıldı (SAF
+refactor, davranış değişmedi) — YENİ fonksiyon bunu paywall açılmadan ÖNCE de
+çağırıyor ("Atla"yla yarıda bırakılan bir round'un sesi paywall'ın ARKASINDA
+çalmaya devam etmesin diye). Ölçüm: "Atla" 5. kez tıklanınca paywall OTOMATİK
+açılıyor (`reasonTitle: "Ücretsiz oturumun bitti"`), ÖNCEDEN (bu turdan önce)
+8 tıklamada bile açılmıyordu.
+
+**Karar 4 — paywall açıkken round duraklama:** Bug 10'un 4-panel deseniyle
+(`gameSettingsPausedRound` vb.) AYNI izole-bayrak: `paywallPausedRound`,
+`openPaywallReason()` içinde `!cfg.endsRound && activeQuestion && !autoStopped`
+ise `pauseRound()` çağırıyor; `paywallCloseBtn`'in endsRound:false dalı +
+`buyProBtn`'in başarı yolu `resumePausedRoundForPaywall()` çağırıyor (reklam
+başarı yolu da çağırıyor, ama `adGrant` SADECE endsRound:true sebeplerde VAR
+olduğu için orada her zaman no-op — savunmacı simetri). Ölçüm: Oyun Ayarları
+İÇİNDEN (nested) upload-kilit paywall'ı açtırıldı — süre paywall AÇIKKEN 2sn
+sabit kaldı (15.4s→15.4s); X'e basılıp SADECE paywall kapatılınca (Oyun
+Ayarları hâlâ açık) süre YİNE sabit kaldı — bu BEKLENEN (G181'in kendi "iç
+içe panel" kuralı: en dıştaki panel kapanana kadar duraklama sürer); Oyun
+Ayarları da kapatılınca süre GERÇEKTEN azaldı (15.2s→13.2s, 2sn'de).
+
+**DOKUNULAN dosyalar:** `www/js/core/paywall.js` (PAYWALL_REASONS'a `endsRound`/
+`adGrant`, YENİ `SESSION_EXTENSION_QUESTIONS`/`MAX_SESSION_EXTENSION_ADS_PER_DAY`/
+`sessionAdWatchesRemainingToday`/`recordSessionAdWatch`, sessionLimit'in detay
+metni güncellendi), `www/js/core/storage.js` (`sessionAdWatchesToday`/
+`sessionAdWatchesDate` — `freshStats()`+`loadStats()` init/migrasyon),
+`www/js/app.js` (`openPaywallReasonKey`/`paywallPausedRound` state, `openPaywallReason()`/
+`resetPaywallToGeneric()`/`paywallCloseBtn`/`buyProBtn`/`watchAdBtn`/`grantAdLife`/
+YENİ `grantSessionExtension`/`teardownActiveRound`/`blockIfSessionLimitReached`/
+`syncWatchAdButtonForReason`/`resumePausedRoundForPaywall`, `freeSessionLimitReached()`
+uzatma miktarını okuyor, `resetSession()`+`startBtn`'in fresh-start dalına
+`sessionExtraQuestionsGranted=0` eklendi), `test/paywall.test.mjs` (YENİ 12
+test: kota hesaplayıcıları + `endsRound`/`adGrant` alan doğrulaması).
+**DOKUNULMAYAN dosyalar:** `www/index.html`, `www/styles.css` (paywall
+içeriği — ₺399/7 madde/yasal bağlantılar — HİÇ değişmedi, karar 4'ün notuna
+bkz.), diğer 5 sebebin (modeLocked/dailyUsed/upload/zoneHistory/freePlayMode)
+kapatma davranışı (zaten doğruydu, ölçülüp DOKUNULMADI), Bug 10/13/14/17/20/
+22/23/24/9/18'in kendi kodu.
+
+**BİLİNEN, BİLEREK BIRAKILAN KÜÇÜK EKSİK:** `#gameQNum`'ün yanındaki "/ 5"
+(`index.html`, `gameQCounter`) SABİT — reklamla oturum sınırı 10'a (ya da
+15/20...) çıksa bile ekranda hâlâ "N / 5" yazıyor. `els.gameQNum`'ın sayısı
+(pay) doğru büyüyen limite göre KIRPILIYOR ama payda hiç güncellenmiyor —
+kullanıcı 6. soruda "6/5" gibi tutarsız bir şey GÖRMEZ (kırpma sayesinde),
+ama reklamla kazanılan hakkı da GÖREMEZ (sayaç "5/5"de donmuş görünür, oysa
+gerçekte devam edilebilir). Bu turun kararlarında GEÇMİYORDU, kod
+YAZILMADI — istenirse ayrı, küçük bir HTML+JS turu (payda için de bir id +
+`updateUI()`'de bir satır).
+
+**npm test: 1275 → 1285 (+10, sadece EKLENDİ, düşmedi).** YENİ testler SAF
+fonksiyonlar için (`sessionAdWatchesRemainingToday`/`recordSessionAdWatch`/
+`endsRound`/`adGrant` alan doğrulaması) — `openPaywallReason()`/`paywallCloseBtn`/
+pause mekaniği `app.js`-içi DOM/state, Playwright ile doğrulandı (CLAUDE.md:
+"Ses ve DOM davranışı kaynak koddan doğrulanamaz").
 
 G184 — **G183'te ölçülüp karar bekleyen #9 ve #18, kullanıcının
 AskUserQuestion kararlarıyla düzeltildi. #21 hâlâ açık (BEKLEYEN KARARLAR W).**
@@ -14087,6 +14182,21 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G185 itibarıyla):** Bug 25'in 4 kararı (reklam+kota,
+X→menu, "Atla" kaçağı, duraklama) uygulandı, Playwright'la doğrulandı, GERÇEK
+cihazda HENÜZ görülmedi. Kontrol edilecek: (1) ücretsiz oturumda 5 soruyu
+BİTİR (cevaplayarak, "Atla" değil) — sessionLimit paywall'ı reklam seçeneğiyle
+açılmalı, "bugün 3 hakkın kaldı" yazmalı; reklamı GERÇEKTEN izle (test-mod
+AdMob birimi, `AD_TEST_MODE=true`) — kapanınca +5 soru hakkı ile oyuna devam
+edebilmeli; AYNI reklamı 3 kez izle — 4.'de buton kaybolmalı, sadece "Pro'ya
+Geç" kalmalı. (2) sessionLimit paywall'ında X'e bas — ana menüye dönmeli
+(ÖNCEDEN oyun ekranına dönüyordu). (3) "Atla"ya arka arkaya bas (hiç cevap
+vermeden) — 5. tıklamada paywall açılmalı (ÖNCEDEN sınırsız atlanabiliyordu).
+(4) Oyun Ayarları'ndan kilitli "Dosya Seç"e bas — paywall açılırken ses
+GERÇEKTEN kesilmeli (kulakla), Oyun Ayarları'nı da kapatınca kaldığı yerden
+GERÇEKTEN devam etmeli. BİLİNEN küçük eksik: soru sayacının paydası ("/ 5")
+reklamla kazanılan hakkı yansıtmıyor, bkz. BİTTİ'deki not.
 
 **EN YENİ SIRADAKİ ADIM (G184 itibarıyla):** #9 (feedback panelinin
 "SONRAKİ SORU"/"ATLAMAK İÇİN ✕" başlığı) ve #18 (Reverb/Kompresör/

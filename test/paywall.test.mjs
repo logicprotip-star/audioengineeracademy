@@ -101,6 +101,64 @@ describe("paywall: oturum soru limiti", () => {
     assert.equal(paywall.isFreeSessionLimitReached(5, true), false);
     assert.equal(paywall.isFreeSessionLimitReached(500, true), false);
   });
+
+  // G185 (Bug 25) — reklamla kazanılan ek soru hakkı, çağıran tarafın (app.js)
+  // BÜYÜTTÜĞÜ bir limit parametresiyle test ediliyor (bu fonksiyon uzatma
+  // MİKTARINI bilmiyor, saf kalıyor).
+  it("limit parametresi büyütülünce (reklamla kazanılan ek soru) 5. soruda DOLMAZ", () => {
+    assert.equal(paywall.isFreeSessionLimitReached(5, false, 10), false);
+    assert.equal(paywall.isFreeSessionLimitReached(9, false, 10), false);
+    assert.equal(paywall.isFreeSessionLimitReached(10, false, 10), true);
+  });
+});
+
+describe("paywall: sessionLimit reklam kotası (Bug 25, G185) — günde en fazla 3", () => {
+  it("hiç izlenmemişse (watchesDate=null) 3 hak vardır", () => {
+    assert.equal(paywall.sessionAdWatchesRemainingToday(0, null, 1000), 3);
+  });
+
+  it("bugün 2 kez izlenmişse 1 hak kalır", () => {
+    const now = new Date(2026, 7, 8, 12, 0, 0).getTime();
+    const today = paywall.localDateKey(now);
+    assert.equal(paywall.sessionAdWatchesRemainingToday(2, today, now), 1);
+  });
+
+  it("bugün 3 kez izlenmişse (kota dolu) 0 hak kalır, negatife inmez", () => {
+    const now = new Date(2026, 7, 8, 12, 0, 0).getTime();
+    const today = paywall.localDateKey(now);
+    assert.equal(paywall.sessionAdWatchesRemainingToday(3, today, now), 0);
+    assert.equal(paywall.sessionAdWatchesRemainingToday(5, today, now), 0);
+  });
+
+  it("sayaç DÜNKÜ bir güne aitse (watchesDate farklı) bugün YENİDEN 3 hak", () => {
+    const yesterday = new Date(2026, 7, 7, 23, 0, 0).getTime();
+    const today = new Date(2026, 7, 8, 1, 0, 0).getTime();
+    const yesterdayKey = paywall.localDateKey(yesterday);
+    assert.equal(paywall.sessionAdWatchesRemainingToday(3, yesterdayKey, today), 3);
+  });
+
+  it("recordSessionAdWatch: ilk izlemede 1'e çıkar, bugünün tarihini yazar", () => {
+    const now = new Date(2026, 7, 8, 12, 0, 0).getTime();
+    const r = paywall.recordSessionAdWatch(0, null, now);
+    assert.equal(r.sessionAdWatchesToday, 1);
+    assert.equal(r.sessionAdWatchesDate, paywall.localDateKey(now));
+  });
+
+  it("recordSessionAdWatch: aynı gün İKİNCİ izlemede 2'ye çıkar (sıfırlanmaz)", () => {
+    const now = new Date(2026, 7, 8, 15, 0, 0).getTime();
+    const today = paywall.localDateKey(now);
+    const r = paywall.recordSessionAdWatch(1, today, now);
+    assert.equal(r.sessionAdWatchesToday, 2);
+    assert.equal(r.sessionAdWatchesDate, today);
+  });
+
+  it("recordSessionAdWatch: YENİ günde (eski watchesDate farklı) 1'den başlar", () => {
+    const yesterday = new Date(2026, 7, 7, 23, 0, 0).getTime();
+    const today = new Date(2026, 7, 8, 1, 0, 0).getTime();
+    const r = paywall.recordSessionAdWatch(3, paywall.localDateKey(yesterday), today);
+    assert.equal(r.sessionAdWatchesToday, 1);
+    assert.equal(r.sessionAdWatchesDate, paywall.localDateKey(today));
+  });
 });
 
 describe("paywall: can dolumu (gerçek zaman tabanlı, 30 dakikada 1)", () => {
@@ -220,6 +278,29 @@ describe("paywall: paywall ekranı içeriği (Parça 2)", () => {
     assert.equal(paywall.PAYWALL_REASONS.livesOut.buttons, "livesOut");
     ["sessionLimit", "modeLocked", "upload", "dailyUsed", "zoneHistory", "freePlayMode"].forEach(key => {
       assert.equal(paywall.PAYWALL_REASONS[key].buttons, "pro", `${key} 'pro' buton setini kullanmalı`);
+    });
+  });
+
+  // G185 (Bug 25) — endsRound: paywall açılırken round ZATEN bitirilmiş miydi
+  // (X'te "menu"ye dönülmeli mi). SADECE livesOut+sessionLimit true — ikisi de
+  // finalizeIfGameOver()/blockIfSessionLimitReached() üzerinden, round
+  // TEARDOWN edildikten SONRA açılıyor.
+  it("SADECE livesOut ve sessionLimit endsRound:true — diğer 5 sebep endsRound:false", () => {
+    assert.equal(paywall.PAYWALL_REASONS.livesOut.endsRound, true);
+    assert.equal(paywall.PAYWALL_REASONS.sessionLimit.endsRound, true);
+    ["modeLocked", "upload", "dailyUsed", "zoneHistory", "freePlayMode"].forEach(key => {
+      assert.equal(paywall.PAYWALL_REASONS[key].endsRound, false, `${key} endsRound:false olmalı`);
+    });
+  });
+
+  // G185 (Bug 25, karar 1) — adGrant: reklamın NE kazandırdığı. livesOut→"life"
+  // (kotasız, DEĞİŞMEDİ), sessionLimit→"sessionExtension" (YENİ, günde 3
+  // kotalı), diğer 5 sebepte reklam seçeneği YOK.
+  it("livesOut adGrant='life', sessionLimit adGrant='sessionExtension', diğerlerinde YOK", () => {
+    assert.equal(paywall.PAYWALL_REASONS.livesOut.adGrant, "life");
+    assert.equal(paywall.PAYWALL_REASONS.sessionLimit.adGrant, "sessionExtension");
+    ["modeLocked", "upload", "dailyUsed", "zoneHistory", "freePlayMode"].forEach(key => {
+      assert.equal(paywall.PAYWALL_REASONS[key].adGrant, undefined, `${key} adGrant taşımamalı`);
     });
   });
 

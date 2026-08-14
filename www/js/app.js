@@ -1024,6 +1024,7 @@ function resetSession() {
   session = { correct: 0, wrong: 0, xp: 0, hints: 0, log: [], xpBaseSum: 0, newBadges: [] };
   sessionStartLevel = progress.xpProgress(diffState().xp).level;
   roundsInThisPlaySession = 0;
+  sessionExtraQuestionsGranted = 0;
 }
 
 // G18 bug taraması bulgusu: `session` (yukarıda) sadece Seans Sonu ekranının 3
@@ -1039,6 +1040,12 @@ function resetSession() {
 // bkz. aşağıdaki startBtn click handler'ı) sıfırlanır, her startRound()'da 1 artar.
 // `session`'ın kendisine (Seans Sonu ekranı istatistikleri) DOKUNULMADI.
 let roundsInThisPlaySession = 0;
+// G185 (Bug 25) — sessionLimit paywall'ında reklam izleyip kazanılan ek soru
+// hakkı (bkz. grantSessionExtension) — freeSessionLimitReached()'ın limitini
+// büyütür. roundsInThisPlaySession İLE AYNI iki noktada (resetSession() +
+// startBtn'in fresh-start dalı) sıfırlanır — bir SONRAKİ oturuma taşınmaz,
+// SADECE günlük reklam kotası (stats.sessionAdWatchesToday) kalıcı.
+let sessionExtraQuestionsGranted = 0;
 
 let freqGuessHz = null;
 let freqHoverHz = null;
@@ -1540,8 +1547,32 @@ function blockIfLivesOut() {
 // bitti) ile AYNI ÇIKIŞ NOKTASI, farklı bir SEBEP. roundsInThisPlaySession
 // (bkz. tanımındaki not) her YENİ soru KURULDUĞUNDA +1 olur — 5. soru zaten
 // posedildikten SONRA true'ya döner, bir 6. soru HİÇ kurulmaz.
+// G185 (Bug 25, kullanıcı kararı — sessionLimit'te reklamla +5 soru): limit
+// artık sabit paywall.FREE_SESSION_QUESTION_LIMIT DEĞİL, reklamla kazanılan
+// (sessionExtraQuestionsGranted, bkz. tanımı) eklenmiş hâli — paywall.js'in
+// KENDİSİ bu uzatma miktarını bilmiyor (saf kalsın diye), sadece karşılaştırıyor.
 function freeSessionLimitReached() {
-  return paywall.isFreeSessionLimitReached(roundsInThisPlaySession, isUserPro());
+  return paywall.isFreeSessionLimitReached(
+    roundsInThisPlaySession,
+    isUserPro(),
+    paywall.FREE_SESSION_QUESTION_LIMIT + sessionExtraQuestionsGranted
+  );
+}
+// G185 — finalizeIfGameOver() (cevap/timeout sonrası) İLE blockIfSessionLimitReached()
+// (YENİ, "Atla" kaçağı kapatmak için startRound()'da) AYNI teardown'ı
+// paylaşıyor — tek kontrol noktası, davranış TEK SATIR değişmeden ayrıldı.
+function teardownActiveRound() {
+  autoPlaying = false;
+  autoStopped = true;
+  roundFlow.clearAutoAdvance();
+  pausedAutoAdvanceRemainingMs = null;
+  if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
+  roundActive = false;
+  roundFlow.clearTimer();
+  audioEngine.stopAudio();
+  uploadManager.pausePlayback();
+  activeQuestion = null;
+  updateStartBtnLabel();
 }
 function finalizeIfGameOver() {
   // G178 DÜZELTMESİ (Bug 22, DÖRDÜNCÜ örnek): ÖNCEKİ kod `livesOut`u SADECE
@@ -1562,17 +1593,7 @@ function finalizeIfGameOver() {
   const livesOut = !isUserPro() && currentLives <= 0;
   const sessionLimitOut = !livesOut && freeSessionLimitReached();
   if (!livesOut && !sessionLimitOut) return false;
-  autoPlaying = false;
-  autoStopped = true;
-  roundFlow.clearAutoAdvance();
-  pausedAutoAdvanceRemainingMs = null;
-  if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
-  roundActive = false;
-  roundFlow.clearTimer();
-  audioEngine.stopAudio();
-  uploadManager.pausePlayback();
-  activeQuestion = null;
-  updateStartBtnLabel();
+  teardownActiveRound();
   // G63 (PAYWALL.md Parça 2): tetikleme #1 (5. soru bitince) ve #2 (canlar
   // bitince) — ARTIK toast/sade session-end DEĞİL, paywall ekranı DOĞRUDAN
   // açılır. openPaywallReason() "ilk oturumda paywall yok" kuralını KENDİSİ
@@ -1588,6 +1609,25 @@ function finalizeIfGameOver() {
     const reasonKey = livesOut ? "livesOut" : "sessionLimit";
     if (!openPaywallReason(reasonKey)) showSessionEnd(livesOut ? "lost" : "freeLimit");
   }
+  return true;
+}
+// G185 (Bug 25, kullanıcı kararı — "Atla" kaçağı kapansın): goToNextRound()
+// finalizeIfGameOver()'ı HİÇ çağırmıyordu (SADECE cevap/timeout sonrası
+// çağrılıyordu) — "Atla" ile cevapsız geçilen turlar roundsInThisPlaySession'ı
+// arkada artırmaya devam ediyordu (startRound()'un KENDİ satırı, bkz. o
+// fonksiyon) ama limit HİÇBİR ZAMAN tekrar kontrol edilmiyordu (ölçüldü: 8
+// ardışık "Atla", can 5'te sabit, paywall hiç açılmadı, gerçek sayaç sınırsız
+// arttı). blockIfLivesOut()'un AYNI çağrı noktası — startRound() TEK gerçek
+// tur kurma fonksiyonu, "Atla"/Play/sınav yeniden deneme dahil HER YOLUN
+// üstünden buradan geçiyor. activeQuestion hâlâ set olabilir (round YARIDA
+// atlanmış, hiç finalize edilmemiş) — paywall açılmadan ÖNCE AYNI teardown
+// (ses durur) uygulanıyor, "Atla"yla açılan paywall'ın ARKASINDA ses
+// çalmaya devam etmesin diye.
+function blockIfSessionLimitReached() {
+  if (isUserPro()) return false;
+  if (!freeSessionLimitReached()) return false;
+  teardownActiveRound();
+  if (!openPaywallReason("sessionLimit")) showSessionEnd("freeLimit");
   return true;
 }
 
@@ -5260,6 +5300,7 @@ function startTimerForCurrentQuestion() {
 function startRound() {
   if (sessionEndVisible) return; // seans sonu ekranı açıkken hiçbir tetikleyici yeni tur başlatamaz
   if (blockIfLivesOut()) return;
+  if (blockIfSessionLimitReached()) return;
   if (els.sourceSelect.value === "upload" && !uploadManager.hasBuffer) {
     setFeedback("Önce ses yükle", `Kaynak olarak yüklenen ses seçiliyse desteklenen bir dosya seçmelisin: ${FULL_AUDIO_FORMAT_LIST}.`);
     return;
@@ -6053,6 +6094,7 @@ els.startBtn.addEventListener("click", async () => {
     // Gerçek bir fresh-start (bkz. roundsInThisPlaySession tanımındaki not) —
     // Tekrar Çal (autoStopped dalı, aşağıda) BUNU sıfırlamaz, sadece burası.
     roundsInThisPlaySession = 0;
+    sessionExtraQuestionsGranted = 0;
     // G61: günlük tadımlık BURADA (gerçek round başlarken), mod kartına
     // dokunulduğu anda DEĞİL işaretleniyor — yanlışlıkla karta basıp geri
     // çıkan bir kullanıcı günün hakkını KAYBETMESİN diye.
@@ -6795,6 +6837,7 @@ if (els.resCta) els.resCta.addEventListener("click", async () => {
     // resCta çok amaçlı bir buton — kendi span'ı yok, textContent'i
     // showSessionEnd()'in yazdığı "Reklam izle, +1 can" metnine geri döner.
     handleWatchAd(els.resCta, null, "Reklam izle, +1 can", () => {
+      grantAdLife();
       if (els.resWaitRow && currentLives > 0) { els.resWaitRow.classList.add("hidden"); stopResWaitTicker(); }
     });
     return;
@@ -7721,6 +7764,10 @@ function resetPaywallToGeneric() {
   setPaywallLivesVariant(false);
   if (els.watchAdBtn) els.watchAdBtn.classList.add("hidden");
   if (els.restorePurchaseBtn) els.restorePurchaseBtn.classList.remove("hidden");
+  // G185 — genel giriş bir "sebep"e bağlı DEĞİL (openPaywallReason() üzerinden
+  // AÇILMADI), bir önceki bağlamsal çağrının reasonKey'i BURAYA SIZMASIN
+  // (paywallCloseBtn'in endsRound kontrolü + duraklatma bunu okuyor).
+  openPaywallReasonKey = null;
 }
 
 // G89: can geri sayımı — startResWaitTicker()'ın (Seans Sonu ekranı) AYNI
@@ -7751,6 +7798,45 @@ function startPaywallLivesTicker() {
   paywallLivesTimer = setInterval(tick, 1000);
 }
 
+// G185 (Bug 25) — o an AÇIK olan paywall'ın sebebi. paywallCloseBtn'in
+// endsRound kontrolü + openPaywallReason()'ın round'u duraklatıp
+// duraklatmayacağı BURADAN okunuyor (eskiden SADECE paywallLivesStrip'in
+// DOM görünürlüğüne bakılıyordu — Bug 20'nin dar kapsamı, bkz. Bug 25
+// analizi). resetPaywallToGeneric() bunu null'a çeker (genel giriş bir
+// "sebep"e bağlı değil).
+let openPaywallReasonKey = null;
+// G185 — Bug 10'un 4-panel deseniyle (gameSettingsPausedRound vb.) AYNI
+// izole-bayrak: paywall AÇILIRKEN round CANLIYSA (endsRound:false — upload/
+// freePlayMode/dailyUsed'in game-ekranından tetiklenen dalları) duraklatılır,
+// X'te kaldığı yerden devam eder. endsRound:true (livesOut/sessionLimit) hiç
+// duraklatmaz — round zaten finalizeIfGameOver()/blockIfSessionLimitReached()
+// ile TEARDOWN edilmiş oluyor, duraklatacak bir şey yok.
+let paywallPausedRound = false;
+function resumePausedRoundForPaywall() {
+  if (paywallPausedRound) resumeRound();
+  paywallPausedRound = false;
+}
+// G185 — sessionLimit'in "reklam izle, +5 soru" butonu GÜNLÜK KOTAYA bağlı
+// (bkz. paywall.sessionAdWatchesRemainingToday) — livesOut'un "+1 can"ı
+// KOTASIZ (G165'ten beri, DEĞİŞMEDİ). Reklam butonunun görünürlüğü/etiketi
+// BU fonksiyondan, o anki reasonKey'e göre kurulur.
+function syncWatchAdButtonForReason(cfg) {
+  if (!els.watchAdBtn) return;
+  if (cfg.adGrant === "life") {
+    els.watchAdBtn.classList.remove("hidden");
+    if (els.watchAdBtnLabel) els.watchAdBtnLabel.textContent = "veya reklam izle, canları doldur";
+    return;
+  }
+  if (cfg.adGrant === "sessionExtension") {
+    const remaining = paywall.sessionAdWatchesRemainingToday(stats.sessionAdWatchesToday, stats.sessionAdWatchesDate, Date.now());
+    els.watchAdBtn.classList.toggle("hidden", remaining <= 0);
+    if (els.watchAdBtnLabel) {
+      els.watchAdBtnLabel.textContent = `veya reklam izle, +${paywall.SESSION_EXTENSION_QUESTIONS} soru hakkı kazan (bugün ${remaining} hakkın kaldı)`;
+    }
+    return;
+  }
+  els.watchAdBtn.classList.add("hidden");
+}
 // G63: 7 kilit tetikleme noktasının (PAYWALL.md) TEK ortak giriş kapısı —
 // core/paywall.js:PAYWALL_REASONS'tan bağlam başlığını + buton setini kurup
 // paywall ekranını DOĞRUDAN açar (toast YOK). "İlk oturumda paywall yok"
@@ -7761,17 +7847,21 @@ function openPaywallReason(reasonKey) {
   if (paywallSuppressedFirstSession) return false;
   const cfg = paywall.PAYWALL_REASONS[reasonKey];
   if (!cfg) return false;
+  openPaywallReasonKey = reasonKey;
   if (els.paywallReasonTitle) els.paywallReasonTitle.textContent = cfg.title;
   if (els.paywallReasonDetail) els.paywallReasonDetail.textContent = cfg.detail;
   const isLivesOut = cfg.buttons === "livesOut";
   setPaywallLivesVariant(isLivesOut);
   if (els.paywallLivesStrip) els.paywallLivesStrip.classList.toggle("hidden", !isLivesOut);
   if (isLivesOut) startPaywallLivesTicker(); else stopPaywallLivesTicker();
-  if (els.watchAdBtn) els.watchAdBtn.classList.toggle("hidden", !isLivesOut);
+  syncWatchAdButtonForReason(cfg);
   // Bağlamsal (bir kilitten gelen) ekranda "Geri yükle" gürültü — o an satın
   // almayı GERİ YÜKLEMEK değil, YENİ bir kilidi AŞMAK istiyor (task: "sade,
   // abartısız").
   if (els.restorePurchaseBtn) els.restorePurchaseBtn.classList.add("hidden");
+  // G185 (Bug 25, karar 4) — endsRound:false ise (round hâlâ canlı) duraklat.
+  paywallPausedRound = !cfg.endsRound && !!activeQuestion && !autoStopped;
+  if (paywallPausedRound) pauseRound();
   goScreen("paywall");
   return true;
 }
@@ -7942,19 +8032,26 @@ if (els.adPrivacyRow) els.adPrivacyRow.addEventListener("click", async () => {
 // bkz. o fonksiyonun kendi yorumu) SONUCU "menu" DEĞİL "game"e dönüyordu —
 // #tabbar "game" ekranında HER ZAMAN gizli (bkz. goScreen), kullanıcı ne
 // menüye ne başka bir sekmeye geçemiyordu (ölçüldü: X sonrası aktif ekran
-// "game", tabbar.hide=true). Diğer TÜM paywall girişleri (Progress/Araçlar
-// kilitleri) "menu" DIŞINDA bir ekrandan açılsa bile o ekranın KENDİ
-// tab-bar'ı görünür kalıyor — kullanıcı ORADA gerçekten "sıkışmıyor", bu
-// yüzden bu iki akış AYNI ölçülemedi/AYNI muamele görmemeli (task'ın kendi
-// ayrımı: "Normal paywall akışı BOZULMAYACAK").
-// Ayrım sinyali: `els.paywallLivesStrip`'in görünürlüğü — SADECE
-// openPaywallReason()'ın "livesOut" dalında açılıyor (bkz. o fonksiyon +
-// resetPaywallToGeneric()'in HER genel girişte onu gizlemesi), yeni bir
-// state DEĞİŞKENİ eklemeden mevcut tek-kaynak DOM durumunu okuyor.
+// "game", tabbar.hide=true).
+// G185 DÜZELTMESİ (Bug 25): AYRIM SİNYALİ artık `els.paywallLivesStrip`'in
+// DOM görünürlüğü DEĞİL (o SADECE livesOut'a özel bir yan etkiydi) —
+// `openPaywallReasonKey`'in PAYWALL_REASONS'taki `endsRound` bayrağı. Bug 20
+// SADECE livesOut'u kapsıyordu; `sessionLimit` de AYNI ["menu","game","paywall"]
+// yığınından (finalizeIfGameOver()/blockIfSessionLimitReached() üzerinden)
+// açılıyor ama Bug 20'nin dar kontrolüne hiç girmiyordu, "game"e dönüyordu
+// (ölçüldü, Bug 25 analizi). endsRound:true olan İKİ sebep (livesOut +
+// sessionLimit) round'u ZATEN bitirmiş durumda — X'te "menu"ye dönmek DOĞRU.
+// Diğer 5 sebep (modeLocked/upload/dailyUsed/zoneHistory/freePlayMode)
+// endsRound:false — round CANLI olabilir (openPaywallReason() az önce
+// duraklattıysa, bkz. paywallPausedRound), X'te KALDIĞI YERDEN devam etmeli
+// — goBackFromSubpage()'in "game"e dönen davranışı BU sebepler için ZATEN
+// doğruydu (Playwright'la ölçüldü, Bug 25 analizi), SADECE resumePausedRoundForPaywall()
+// eklendi.
 if (els.paywallCloseBtn) els.paywallCloseBtn.addEventListener("click", () => {
   stopPaywallLivesTicker();
-  const wasLivesOut = !!(els.paywallLivesStrip && !els.paywallLivesStrip.classList.contains("hidden"));
-  if (wasLivesOut) { goScreen("menu"); return; }
+  const cfg = paywall.PAYWALL_REASONS[openPaywallReasonKey];
+  if (cfg && cfg.endsRound) { goScreen("menu"); return; }
+  resumePausedRoundForPaywall();
   goBackFromSubpage();
 });
 
@@ -8282,6 +8379,11 @@ if (els.buyProBtn) els.buyProBtn.addEventListener("click", async () => {
       grantRealPro();
       toast("🎉 Pro açıldı", "12 mod, sınırsız oynama, sınav, kendi mix, Araçlar — hepsi açık.");
       stopPaywallLivesTicker();
+      // G185 (karar 4) — round CANLIYKEN duraklatılmış olabilir (endsRound:false
+      // bir sebepten, ör. upload kilidi) — Pro artık kilidi kaldırdığı için
+      // kaldığı yerden devam etmeli. endsRound:true'da paywallPausedRound zaten
+      // false (hiç duraklatılmadı) — no-op.
+      resumePausedRoundForPaywall();
       goBackFromSubpage();
     } else if (result.title) {
       toast(result.title, result.detail);
@@ -8332,9 +8434,10 @@ if (els.restorePurchaseBtn) els.restorePurchaseBtn.addEventListener("click", () 
 // (bkz. showSessionEnd/resCta) çağrılabilsin diye paylaşılan bir fonksiyona
 // çıkarıldı — davranış TEK SATIR değişmedi, SADECE iki çağıran arasında
 // tekrar etmesin diye.
-// G165: artık grantAdLife() DOĞRUDAN çağrılmıyor — GERÇEK ödül SADECE
-// ads.watchRewardedAd()'ın { ok:true } dönmesiyle (core/ads.js'in kendi
-// "Rewarded" olay dinleyicisi) tetiklenir, bkz. handleWatchAd.
+// G165: GERÇEK ödül SADECE ads.watchRewardedAd()'ın { ok:true } dönmesiyle
+// (core/ads.js'in kendi "Rewarded" olay dinleyicisi) tetiklenir — bu fonksiyon
+// çağıranın (resCta'nın "lost" dalı + watchAdBtn) KENDİ onSuccess'inden
+// çağrılır (bkz. handleWatchAd).
 function grantAdLife() {
   const now = Date.now();
   if (typeof stats.lives !== "number") stats.lives = 0;
@@ -8343,6 +8446,20 @@ function grantAdLife() {
   persistStats();
   syncLives();
   toast("🎬 Reklam izlendi", "+1 can");
+}
+// G185 (Bug 25, karar 1) — sessionLimit'in "reklam izle, +5 soru" ödülü.
+// grantAdLife()'ın AYNI şekli (persist + toast) ama FARKLI bir sayaç
+// büyütüyor (can DEĞİL, oturumun soru limiti) VE günlük kotayı (en fazla 3)
+// işliyor — core/paywall.js:recordSessionAdWatch SAF hesaplayıcı, yan etkisi
+// (persistStats()) burada.
+function grantSessionExtension() {
+  const now = Date.now();
+  sessionExtraQuestionsGranted += paywall.SESSION_EXTENSION_QUESTIONS;
+  const rec = paywall.recordSessionAdWatch(stats.sessionAdWatchesToday, stats.sessionAdWatchesDate, now);
+  stats.sessionAdWatchesToday = rec.sessionAdWatchesToday;
+  stats.sessionAdWatchesDate = rec.sessionAdWatchesDate;
+  persistStats();
+  toast("🎬 Reklam izlendi", `+${paywall.SESSION_EXTENSION_QUESTIONS} soru hakkı`);
 }
 // G165 — reklam ses akışını kesiyor (native tam ekran overlay, AVAudioSession'ı
 // etkiliyor). onBeforeShow/onAfterShow, visibilitychange'in G155/G136
@@ -8388,7 +8505,6 @@ async function handleWatchAd(btn, labelEl, restoreLabel, onSuccess) {
       onAfterShow: resumeAudioAfterAdInterruption,
     });
     if (result.ok) {
-      grantAdLife();
       onSuccess();
     } else if (result.title) {
       toast(result.title, result.detail);
@@ -8402,9 +8518,22 @@ async function handleWatchAd(btn, labelEl, restoreLabel, onSuccess) {
     else if (btn) btn.textContent = restoreLabel;
   }
 }
+// G185 (Bug 25, karar 1) — hangi ödülün verileceği artık SABİT DEĞİL, o an
+// açık paywall'ın reasonKey'inden (openPaywallReasonKey) okunuyor —
+// livesOut→grantAdLife (kotasız, DEĞİŞMEDİ), sessionLimit→grantSessionExtension
+// (günde en fazla 3, syncWatchAdButtonForReason zaten kota dolunca butonu
+// GİZLİYOR — buraya SIFIR kalan ihtimaliyle asla ulaşılmamalı, yine de
+// isUserPro() gibi savunmacı bir ikinci katman değil, tek kaynak `cfg.adGrant`).
 if (els.watchAdBtn) els.watchAdBtn.addEventListener("click", () => {
-  handleWatchAd(els.watchAdBtn, els.watchAdBtnLabel, "veya reklam izle, canları doldur", () => {
+  const cfg = paywall.PAYWALL_REASONS[openPaywallReasonKey];
+  const isSessionExtension = !!(cfg && cfg.adGrant === "sessionExtension");
+  const restoreLabel = isSessionExtension
+    ? els.watchAdBtnLabel.textContent
+    : "veya reklam izle, canları doldur";
+  handleWatchAd(els.watchAdBtn, els.watchAdBtnLabel, restoreLabel, () => {
+    if (isSessionExtension) grantSessionExtension(); else grantAdLife();
     stopPaywallLivesTicker();
+    resumePausedRoundForPaywall();
     goBackFromSubpage();
   });
 });

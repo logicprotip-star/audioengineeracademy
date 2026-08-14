@@ -99,7 +99,14 @@ export function freshStats(difficultyLives, hintsPerGame, modeIds = []) {
     livesLastRefillAt: Date.now(),
     // Frekans Çakışması'nın "günde 1 tadımlık" kilidi için son oynama zamanı —
     // core/paywall.js:canPlayDailyTaste. null = hiç oynanmadı (her zaman açık).
-    dailyTasteLastPlayedAt: null
+    dailyTasteLastPlayedAt: null,
+    // G185 (Bug 25) — sessionLimit paywall'ının "reklam izle, +5 soru" kotası
+    // (günde en fazla 3, core/paywall.js:sessionAdWatchesRemainingToday) —
+    // dailyTasteLastPlayedAt'ın AYNI "yerel takvim günü" deseni, ama TARİH
+    // (sessionAdWatchesDate, YYYY-MM-DD) + SAYAÇ (sessionAdWatchesToday) ayrı
+    // tutuluyor çünkü günde 1 DEĞİL günde 3 hak var.
+    sessionAdWatchesToday: 0,
+    sessionAdWatchesDate: null
   };
 }
 
@@ -153,6 +160,11 @@ export function loadStats(difficultyLives, hintsPerGame, modeIds = [], legacyMod
     // geçmişse can dolar, anında değil.
     if (typeof s.livesLastRefillAt !== "number") s.livesLastRefillAt = Date.now();
     if (typeof s.dailyTasteLastPlayedAt !== "number") s.dailyTasteLastPlayedAt = null;
+    // G185 — eski kayıtlarda (bu alan eklenmeden önce) hiç yoktu, "hiç reklam
+    // izlenmemiş" varsayılanına düşer (canPlayDailyTaste'in null=her zaman açık
+    // deseniyle TUTARLI — eksik veri asla bir hakkı SİLMEZ).
+    if (typeof s.sessionAdWatchesToday !== "number") s.sessionAdWatchesToday = 0;
+    if (typeof s.sessionAdWatchesDate !== "string") s.sessionAdWatchesDate = null;
     return s;
   } catch {
     return freshStats(difficultyLives, hintsPerGame, modeIds);
