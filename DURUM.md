@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G183)
+Son güncelleme: 14.08.2026 (G184)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,67 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G184 — **G183'te ölçülüp karar bekleyen #9 ve #18, kullanıcının
+AskUserQuestion kararlarıyla düzeltildi. #21 hâlâ açık (BEKLEYEN KARARLAR W).**
+
+**#9 (feedback panelindeki "SONRAKİ SORU"/"ATLAMAK İÇİN ✕" basılamıyor) —
+KARAR: "Gerçekten tıklanabilir yap".** `app.js`'teki `#feedbackBox` click
+delegasyonuna `.fb-advance-head`'in KENDİSİ eklendi — `.fb-close` ile AYNI
+dala düşüp `goToNextRound()`'u çağırıyor (ikinci bir "atla" mekanizması
+İCAT EDİLMEDİ, `#feedbackClose`'un deseni AYNEN tekrarlandı). `styles.css`'te
+`.fb-advance-head`'e görsel karşılığı eklendi: `cursor:pointer` +
+`:active{background:rgba(255,255,255,.08)}` (`.fb-close:active`'in AYNI
+deseni). Ölçüm: tıklamadan ÖNCE `cursor:pointer` doğrulandı, tıklamadan
+SONRA `feedbackBox`'ın `show-result` class'ı `true→false` (round GERÇEKTEN
+ilerledi, sadece görsel değil).
+
+**#18 (Reverb/Kompresör/Distortion'da Play ortalanmamış) — KARAR: "A/B/C/
+döngüyü hafifçe küçült, Play'i tam ortala (Önerilen)".** G183'te
+`position:absolute` TEK BAŞINA denenmiş, A/B/C'yi (konumu satırın akışında
+SABİT kalan) 40px kapattığı için geri alınmıştı (`playRight=227,
+abLeft=187`, ölçüldü). Bu turda AYNI `position:absolute` + görünmez slot
+(`#startBtnSlot`, `index.html`, `.controls-m2`'de akışta 64×64'lük yer
+tutuyor, Motor1'de `display:none`) YENİDEN kuruldu, AMA A/B/C+döngü'nün
+KENDİSİ de küçültülüp sağa kaydırıldı:
+- `.controls-m2 #abToggle.game-ctrl-ab .abside{min-width:25px;padding:0 6px;
+  font-size:12.5px}` (önceki: 38px/12px/13.5px) — ayrıca bu kural
+  `#abToggle.game-ctrl-ab` ID'siyle özgüllüğü YÜKSELTİYOR, Bug 15
+  araştırmasında bulunan `.game-ctrl-ab .abside`'ın (satır ~1597) kaynak
+  sırasıyla EZME sorununu de KESİN olarak çözüyor.
+- `.controls-m2 #abToggle.game-ctrl-ab{margin-left:40px}` — A/B/C kutusunu
+  TAM 40px sağa kaydırıyor (Play'in yeni true-center konumunun sağ kenarıyla
+  buluşacak kadar).
+- `.controls-m2 #abLoopBtn.game-ctrl-loop{width:40px;height:40px}` (önceki:
+  44×44) — kullanıcının "döngü" için istediği hafif küçültme.
+Ölçüm (3 Motor2 modunda da, Kompresör/Reverb/Distortion AYRI AYRI): `centerOffset:0`
+(Play TAM merkezde), `startBtnRight=227` / `abLeft=229` (2px boşluk, ÖRTÜŞME
+YOK). Ekran görüntüsüyle DOĞRULANDI (Play tam ortada, A/B/C okunaklı, boşluk
+temiz). Motor1 (Frekans Bulma ile kontrol edildi) TAMAMEN ETKİLENMEDİ:
+`#startBtn` `position:static` kaldı, `#startBtnSlot` `display:none`, 64×64
+play boyutu DEĞİŞMEDİ (`.controls-m2` class'ı Motor1'de hiç yok).
+
+**DOKUNULAN dosyalar:** `www/js/app.js` (SADECE `#feedbackBox` click
+delegasyonuna bir `closest()` dalı eklendi, #9), `www/styles.css` (#9'un
+`cursor`/`:active` görseli + #18'in `.controls-m2` altındaki YENİ
+`position`/boyut/margin kuralları), `www/index.html` (SADECE `#startBtnSlot`
+span'i eklendi + iki yorum güncellendi — YENİ bir buton/JS bağlantısı YOK).
+**DOKUNULMAYAN dosyalar:** Bug 10/13/14/17/20/22/23/24'ün kendi kodu, çip
+genişliği (581f798), kaynak çipi + BARE_ANALYZER (a4efb42), İpucu buton
+metin ayrımı (G85/G86, dokunulmadı — SADECE A/B/C/döngü küçüldü), gap
+(4px, a4efb42, DEĞİŞMEDİ), #15'in `.abside-c{display:flex}` fix'i (G183,
+DOKUNULMADI, yeniden ölçülüp DOĞRULANDI).
+
+**LOCKED çapraz kontrol (Playwright'la yeniden koşuldu, regresyon YOK):**
+Bug 10'un 4 paneli hâlâ duraklıyor; Bug 17/20/22/23 DEĞİŞMEDİ; Bug 13/14'ün
+8 adımlık senaryosu (bağımsız dosya + mutual exclusion) DEĞİŞMEDİ; #15'in
+C butonu hâlâ `display:flex`, A/B ile AYNI boyutta (25×34, küçülmüş ölçekte
+ama üçü de ÖZDEŞ).
+
+**npm test: 1275 → 1275 (değişmedi).** Bu turda YENİ bir birim testi
+EKLENMEDİ — her iki fix de `app.js`-içi DOM state/CSS (saf fonksiyonlara
+`createQuestion`/`evaluateAnswer`'a dokunulmadı), Playwright ile doğrulandı
+(CLAUDE.md: "Ses ve DOM davranışı kaynak koddan doğrulanamaz").
 
 G183 — **4 görsel sorun ölçüldü. Biri (#15) düzeltildi. Üçü (#9/#18/#21)
 ürün kararı gerektiriyor — kod YAZILMADI, bekliyor.**
@@ -13827,17 +13888,8 @@ kabul edip madde kapatılır.
 
 ## BEKLEYEN KARARLAR
 
-**W. G183 — 3 görsel sorun (#9/#18/#21), kod YAZILMADI, karar bekliyor.**
-- **#18 (Play ortalanmamış, Motor2):** Kontrol satırı piksel-piksel dolu
-  (boş alan sıfır, ölçüldü) — Play'i TAM ortalamanın TEK yolu (denendi,
-  geri alındı) A/B/C/döngü'yü 40px küçültmek. Seçenekler: (a) A/B/C/döngü
-  küçültülsün (ne kadar?), (b) Play kısmen (overlap olmayacak kadar) kaydırılsın,
-  (c) böyle kalsın.
-- **#9 (feedback panelindeki "SONRAKİ SORU"/"ATLAMAK İÇİN ✕" basılamıyor):**
-  İkisi de hiç buton OLARAK tasarlanmamış düz metin (JS/CSS'te hiçbir
-  tıklanabilirlik izi yok) — "atlamak için ✕" kullanıcıyı GERÇEK X butonuna
-  yönlendiren bir ipucu, kendisi değil. Seçenekler: (a) gerçekten
-  tıklanabilir yap, (b) metni netleştir (buton gibi durmasın), (c) dokunma.
+**W. G183/G184 — 3 görsel sorun (#9/#18/#21). #9/#18 G184'te kullanıcı
+kararıyla düzeltildi (bkz. BİTTİ). #21 hâlâ açık.**
 - **#21 (Atla barı feedback panelindeki yazıların üstüne biniyor):**
   Headless ölçümde TEKRARLANAMADI (actionbar doğru tucked, viewport dışına
   itiliyor, örtüşme YOK) — GERÇEK cihazda (safe-area-inset dahil)
@@ -14036,12 +14088,20 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G183 itibarıyla):** #15 (Reverb'de C butonu)
-düzeltildi, GERÇEK cihazda henüz görülmedi — kontrol edilecek: Kompresör/
-Reverb/Distortion'da A/B/C'nin ÜÇÜ de aynı görünmeli. Kalan 3 madde
-(BEKLEYEN KARARLAR W) kod yazılmadan ÖNCE kullanıcı kararı bekliyor —
-özellikle #21 (Atla barı örtüşmesi) GERÇEK cihazda (Safari Web Inspector'dan)
-ölçülmeli, headless'te tekrarlanamadı.
+**EN YENİ SIRADAKİ ADIM (G184 itibarıyla):** #9 (feedback panelinin
+"SONRAKİ SORU"/"ATLAMAK İÇİN ✕" başlığı) ve #18 (Reverb/Kompresör/
+Distortion'da Play ortalanması) kullanıcı kararıyla düzeltildi, İKİSİ DE
+GERÇEK cihazda henüz görülmedi — kontrol edilecek: (1) feedback panelinde
+üst başlığa dokun, sonraki soruya GERÇEKTEN geçmeli (dokunma hissi/`:active`
+rengi de görülmeli); (2) Kompresör/Reverb/Distortion'un ÜÇÜNDE de Play
+butonu satırın TAM ortasında olmalı, A/B/C ve döngü ikonu daha dar ama
+HÂLÂ rahat dokunulabilir görünmeli, hiçbir yerde örtüşme OLMAMALI. Kalan
+tek madde (BEKLEYEN KARARLAR W, #21 — Atla barı örtüşmesi) GERÇEK cihazda
+(Safari Web Inspector'dan) ölçülmeli, headless'te tekrarlanamadı.
+
+**EN YENİ SIRADAKİ ADIM (G183 itibarıyla, hâlâ geçerli):** #15 (Reverb'de C
+butonu) düzeltildi, GERÇEK cihazda henüz görülmedi — kontrol edilecek:
+Kompresör/Reverb/Distortion'da A/B/C'nin ÜÇÜ de aynı görünmeli.
 
 **EN YENİ SIRADAKİ ADIM (G182 itibarıyla):** Bug 13+14 (Referans
 Filtreleri'nin bağımsız dosya seçimi) sadece Playwright'la (gerçek dosya

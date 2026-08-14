@@ -457,16 +457,18 @@
                kalır. Bu yorumun eski "CSS'te display:none" iddiası ARTIK
                GEÇERSİZ (o kural styles.css'te yok, JS'in .hidden class'ı
                devraldı) — güncellendi.
-               G183 — Bug 18 (Play ortalanmamış) İÇİN bir position:absolute +
-               görünmez-slot denemesi yapıldı, ÖLÇÜLDÜ, GERİ ALINDI: satırda
-               boş piksel YOK (before=103, after=191, toplam=358=satır
-               genişliği TAM) — Play'i satırın gerçek merkezine (position:
-               absolute) taşımak, A/B/C kutusunu (satırın MEVCUT konumunda
-               sabit kalan) 40px KAPATIYORDU (ölçüldü) — orijinal "off-center
-               ama örtüşmesiz" durumdan DAHA KÖTÜ. Kod yazılmadan ÖNCE fark
-               edilip GERİ ALINDI (bkz. DURUM.md G183 notu, "doğrudan düzelt"
-               ölçüm net çıkmayınca durulur ilkesi) — SADECE RAPOR edildi. -->
+               G184 — Bug 18 (Play ortalanmamış, kullanıcı kararı: A/B/C/
+               döngü küçültülüp Play tam ortalandı). G183'te position:
+               absolute TEK BAŞINA denenip A/B/C'yi 40px kapattığı için geri
+               alınmıştı (bkz. DURUM.md G183). Bu turda #startBtn YİNE
+               position:absolute (styles.css .controls-m2 #startBtn) İLE
+               satırın GERÇEK merkezine taşınıyor — #startBtnSlot (aşağıda,
+               görünmez, SADECE .controls-m2'de akışta yer tutar) kardeşlerin
+               (İpucu/A-B-C/döngü) Play'in ESKİ konumuna göre kaymasını
+               önlüyor; A/B/C+döngü'nün KENDİSİ küçültülüp sağa kaydırıldığı
+               için artık örtüşme YOK (bkz. styles.css'teki ölçüm notu). -->
           <button class="game-ctrl-play" id="startBtn" aria-label="Oynat/Durdur">▶</button>
+          <span class="game-ctrl-play-slot" id="startBtnSlot" aria-hidden="true"></span>
           <button class="btn abbtn game-ctrl-ab" id="abToggle" data-ab="B">
             <span class="abtitle" id="abTitle">A/B Test</span>
             <span class="abpair"><span class="abside" data-side="A">A</span><span class="abside" data-side="B">B</span><span class="abside abside-c" data-side="C">C</span></span>

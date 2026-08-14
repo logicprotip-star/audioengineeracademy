@@ -6201,8 +6201,16 @@ if (els.freqInfo) els.freqInfo.addEventListener("click", (e) => {
 // .fb-ear) değişti. Butonlar #feedbackBox'ın SABİT çocukları (showFrequencyFeedback
 // innerHTML'i YENİDEN KURMAZ, SADECE textContent/dataset günceller) — yine de
 // delegasyon kullanılıyor (diğer .fb-close deseniyle TUTARLI).
+// G184 DÜZELTMESİ (Bug 9, kullanıcı kararı — "gerçekten tıklanabilir yap"):
+// ".fb-advance-head" ("Sonraki soru" / "atlamak için ✕") HİÇ tıklanabilir
+// DEĞİLDİ (ölçüldü — cursor:auto, onclick yok, hiçbir event-listener yok)
+// — SADECE #fbAdvanceBar'ın (otomatik-geçiş sayacı) başlığı + kullanıcıyı
+// panelin sağ üstündeki GERÇEK X'e (#feedbackClose) yönlendiren bir metin
+// ipucuydu. Kullanıcı buna BASMAYA çalışıyordu, hiçbir şey olmuyordu.
+// #feedbackClose'un (".fb-close") AYNI delegasyon deseni + AYNI eylem
+// (goToNextRound()) — ikinci bir "atla" mekanizması İCAT EDİLMEDİ.
 if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
-  if (e.target.closest(".fb-close")) {
+  if (e.target.closest(".fb-close") || e.target.closest(".fb-advance-head")) {
     goToNextRound();
     return;
   }

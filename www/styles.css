@@ -1218,17 +1218,26 @@
        butonun kendi genişliği/dolgusu DEĞİŞMEDİ — sadece bu satırın kendi
        aralığı (gap) daraltıldı, sadece Motor 2 (.controls-m2) satırında. */
     .game-spectrum-controls.controls-m2{gap:4px}
-    /* G183 (Bug 18 — Play ortalanmamış) ÖLÇÜLDÜ: satır ZATEN tam dolu
-       (before=103px, after=191px, toplam=358=satır genişliği, BOŞ ALAN
-       SIFIR) — İpucu'nun genişliğine (G85/G86, KASITLI) DOKUNMADAN ve gap'i
-       (4px, a4efb42, KASITLI) DEĞİŞTİRMEDEN Play'i TRUE-CENTER etmenin tek
-       yolu (position:absolute, satırın geometrik merkezi) DENENDİ, GERİ
-       ALINDI — A/B/C kutusunu (konumu SABİT kalan) 40px KAPATIYORDU
-       (ölçüldü: playRight=227, abLeft=187). "after" içeriği (A/B/C+döngü,
-       187px) satırın Play-merkezi SONRASI kalan alandan (147px) 40px daha
-       geniş — bu SADECE A/B/C/döngü'nün KENDİ boyutunu küçülterek
-       kapanabilir, o da AYRI bir ürün kararı (bkz. DURUM.md'nin bu turdaki
-       raporu). Kod YAZILMADI, index.html'in AYNI notuna bkz. */
+    /* G184 (Bug 18 — Play ortalanmamış, kullanıcı kararı: "A/B/C/döngüyü
+       hafifçe küçült, Play'i tam ortala"). G183'te position:absolute TEK
+       BAŞINA denenmiş, A/B/C'nin (konumu satırın akışında SABİT kalan)
+       40px KAPANMASINA yol açmıştı (playRight=227, abLeft=187, ölçüldü).
+       Bu turda AYNI position:absolute + görünmez slot (index.html'deki
+       #startBtnSlot) YENİDEN kuruldu, AMA bu sefer A/B/C+döngü de
+       küçültülüp satırın kalan boşluğuna göre ölçülerek yeniden konumlandı
+       — aşağıdaki .controls-m2 #abToggle/.abside/#abLoopBtn kuralları. */
+    .controls-m2{position:relative}
+    .game-ctrl-play-slot{display:none}
+    .controls-m2 .game-ctrl-play-slot{display:inline-block;width:64px;height:64px;flex:none;visibility:hidden}
+    .controls-m2 #startBtn{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);margin:0}
+    /* .controls-m2 .abside (satır 1214, min-width:34px) .game-ctrl-ab .abside
+       (satır ~1597, min-width:38px) tarafından kaynak sırası yüzünden
+       EZİLİYORDU (Bug 15 araştırmasında bulunan aynı özgüllük çakışması) —
+       burada #abToggle.game-ctrl-ab ile ÖZGÜLLÜĞÜ kasıtlı yükseltilip
+       KESİN kazanması sağlandı, ayrıca küçültme + sağa kaydırma da BURADA. */
+    .controls-m2 #abToggle.game-ctrl-ab .abside{min-width:25px;padding:0 6px;font-size:12.5px}
+    .controls-m2 #abToggle.game-ctrl-ab{margin-left:40px}
+    .controls-m2 #abLoopBtn.game-ctrl-loop{width:40px;height:40px}
 
     /* ---- Tonal Denge (G45) — canlı EQ kaydırıcıları. .answers/.ans'ın grid
        düzeninden BAĞIMSIZ (bkz. .answers-tonal) — bu bir "şık seç" ekranı
@@ -1404,8 +1413,14 @@
        karşılaştırma önizlemesi sırasında (cmpPreview duraklatması) JS ile
        AYNI anda paused. */
     .fb-advance{margin-top:11px}
+    /* G184 DÜZELTMESİ (Bug 9, kullanıcı kararı — "gerçekten tıklanabilir yap"):
+       app.js'te .fb-advance-head artık #feedbackClose ile aynı goToNextRound()
+       delegasyonunu tetikliyor; burada sadece bunun görsel karşılığı — cursor +
+       dokunma geri bildirimi (.fb-close'un aynı deseni, satır ~1086-1087). */
     .fb-advance-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;
-      font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-muted);text-transform:uppercase}
+      font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--text-muted);text-transform:uppercase;
+      cursor:pointer;border-radius:6px;padding:2px 4px;margin-left:-4px;margin-right:-4px}
+    .fb-advance-head:active{background:rgba(255,255,255,.08)}
     .fb-advance-track{height:2px;border-radius:1px;background:rgba(255,255,255,.08);overflow:hidden}
     #fbAdvanceBar{display:block;height:100%;border-radius:1px;background:linear-gradient(90deg,#2fbf46,#4ade80)}
     .fb.bad #fbAdvanceBar{background:linear-gradient(90deg,#d9553e,#f88a6e)}
