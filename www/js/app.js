@@ -2253,6 +2253,16 @@ function goScreen(name) {
     if (typeof toolsRawMixPlaying !== "undefined" && toolsRawMixPlaying) toolsStopRawMixPlayback();
     if (typeof tonalRefPlaying !== "undefined" && tonalRefPlaying) toolsTonalStopRefPlayback();
     if (typeof tonalMixPlaying !== "undefined" && tonalMixPlaying) toolsTonalStopMixPlayback();
+    // G186 DÜZELTMESİ (#30) — toolsSoloBandIdx (Tonal Balance grafiği +
+    // Referans Filtreleri önizlemesinin PAYLAŞTIĞI "hangi bant soloda"
+    // seçimi) sekme değişiminde SIFIRLANMIYORDU (ölçüldü: Araçlar'dan çıkıp
+    // geri dönünce TİZ hâlâ cyan/"basılı" görünüyordu) — dosyanın kendi
+    // yorumu ("dosya değişince RESETLENMİYOR") bunu KASITLI bırakmıştı ama
+    // sekme DEĞİŞİMİNİ kapsamıyordu. Ses zaten üstteki satırlarda durdu
+    // (toolsPauseFilterPlayback) — bu SADECE bir sonraki dinlemenin
+    // SIFIRDAN (tüm spektrum) başlamasını sağlıyor, play/pause mantığına
+    // dokunmuyor.
+    if (typeof toolsSoloBandIdx !== "undefined") toolsSoloBandIdx = -1;
   }
   if (prevScreenName === "paywall" && name !== "paywall") stopPaywallLivesTicker();
   const targetId = `screen-${name}`;
@@ -9940,6 +9950,10 @@ if (els.toolsAnalyzeBtn) {
 }
 
 function toolsOpenResultsAccordion() {
+  // G186 DÜZELTMESİ (#31): Referans Filtreleri AÇIKKEN Ölçüm Sonuçları da
+  // açılırsa ikisi AYNI ANDA açık kalıyordu (ölçüldü) — task'ın "akordiyon"
+  // beklentisi (tek seferde SADECE biri açık) karşılanmıyordu.
+  if (toolsFilterOpen) toolsToggleFilterAccordion();
   toolsResultsOpen = true;
   if (els.toolsResultsBody) els.toolsResultsBody.classList.remove("hidden");
   if (els.toolsResultsChevron) els.toolsResultsChevron.classList.add("open");
@@ -11450,7 +11464,14 @@ function toolsToggleFilterAccordion() {
   toolsFilterOpen = !toolsFilterOpen;
   if (els.toolsFilterBody) els.toolsFilterBody.classList.toggle("hidden", !toolsFilterOpen);
   if (els.toolsFilterChevron) els.toolsFilterChevron.classList.toggle("open", toolsFilterOpen);
-  if (toolsFilterOpen) { renderToolsFilterGrid(); renderToolsFilterPlayer(); }
+  if (toolsFilterOpen) {
+    renderToolsFilterGrid();
+    renderToolsFilterPlayer();
+    // G186 DÜZELTMESİ (#31) — toolsOpenResultsAccordion()'ın AYNI tersi:
+    // Ölçüm Sonuçları AÇIKKEN Referans Filtreleri açılırsa o da kapanmalı,
+    // her zaman tek akordiyon açık kalmalı.
+    if (toolsResultsOpen) toolsCloseResultsAccordion();
+  }
 }
 if (els.toolsFilterHeader) els.toolsFilterHeader.addEventListener("click", toolsToggleFilterAccordion);
 
