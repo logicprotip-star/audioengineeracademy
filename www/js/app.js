@@ -11906,6 +11906,21 @@ function renderToolsFilterPlayer() {
   // G182 (Bug 14) — artık toolsSelectedEntry() ("Mixini Yükle") DEĞİL, KENDİ
   // bağımsız seçimi.
   const entry = toolsFilterSelectedEntry();
+  // #58 DÜZELTMESİ (ölçüldü) — kart İLK GÖRÜNTÜLENDİĞİNDE (entry tier-2/
+  // tier-3'ten geldi, kullanıcı HENÜZ "değiştir"e hiç basmadı —
+  // toolsFilterSelectedFileId hâlâ boş) bu dosyayı KENDİ seçimi olarak
+  // SAHİPLENİR. G182'nin "kart ilk açılışta dolu olsun, 'değiştir'e
+  // erişilebilsin" amacı KORUNUYOR — SADECE artık o dosya ÖDÜNÇ değil,
+  // sahiplenilmiş oluyor: Mixini Yükle'nin dosyası SONRADAN kaldırılsa bile
+  // bu kart artık ETKİLENMEZ (tier-1 tier-3'ten ÖNCELİKLİ, bkz.
+  // toolsFilterSelectedEntry). toolsFilterExplicitlyCleared true iken BU DAL
+  // zaten ÇALIŞMAZ — entry NULL döner (toolsFilterSelectedEntry'nin kendi
+  // erken-return'ü, bkz. #49b/G202) — "×" ile temizlenmiş bir kart tier-3'ten
+  // YENİDEN DOLMAZ, sahiplenme tetiklenmez.
+  if (entry && !toolsFilterSelectedFileId) {
+    recordUploadSelection("tools-filter", entry.id);
+    toolsFilterExplicitlyCleared = false; // toolsFilterSelectFile()'ın AYNI netleştirmesi
+  }
   if (!entry) {
     // #49a DÜZELTMESİ — ÖNCEDEN burada erken return vardı: kart zaten
     // .tools-card-disabled (opacity:.45, "Önce bir dosya seç" ipucu) olduğu
