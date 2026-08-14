@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G203)
+Son güncelleme: 14.08.2026 (G206)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,94 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G206 — **#55: Pro'da BÖLÜM göstergesi artık her yeni parkurda sıfırlanıyor.**
+
+Önceki oturumun (G ölçüm turu) bulgusu uygulandı — SEÇENEK (B): examSystem
+YENİ bir parkur başlattığı HER an (`exam-failed`/`remedial-passed`/
+`remedial-failed`, core/exam-system.js'in KENDİ `resetParkur()` çağırdığı
+anlar + `exam-passed` kutlaması onaylandığında) YENİ `resetChallengeForNewParkur()`
+`challenge`'ın sayaçlarını (done/correct/xp) sıfırlıyor, `active` değerini
+KORUYOR (Serbest moddaki Pro kullanıcıyı yanlışlıkla "10 Soruluk Bölüm"e
+sokmaz). `core/exam-system.js`'e TEK SATIR dokunulmadı (saf kaldı) — hook
+tamamen `app.js` tarafında, `handleExamOutcome()`'ın üç case'i + "passed"
+ekranının iki handler'ı. `ensureAutoNext()`'teki `!examGateActive()` şartı
+DEĞİŞMEDİ — G97'nin "Pro'da bölüm ekranı sınavla çakışmasın" kararı korunuyor.
+
+**Ölçüm (Playwright):** 150 turluk parkur/telafi döngüsünde (boost-mu-cut-mu,
+Pro, "10 Soruluk Bölüm") BÖLÜM ÖNCEDEN round 10'dan itibaren "BÖLÜM 10/10"da
+donuk kalıyordu (150 tur boyunca TEK bir kez bile değişmedi) — düzeltmeden
+SONRA round 16'da (telafi bitip yeni parkur başlar başlamaz) doğru şekilde
+"BÖLÜM 2/10"e döndü, sonraki döngülerde de (round 31) aynı doğru davranış
+tekrarlandı.
+
+**BİLİNEN, KAPSAM DIŞI BIRAKILAN AÇIK (ölçüldü, DÜZELTİLMEDİ):** Frekans
+Bulma'nın Pro Plus zorluğu (`submitProPlusGuess`) `handleExamOutcome()`'u
+HİÇ ÇAĞIRMIYOR — bu yüzden `resetChallengeForNewParkur()`'un hiçbir tetik
+noktasına ULAŞMIYOR. Playwright'ta doğrulandı: Pro Plus'ta BÖLÜM 9. turda
+"10/10"a ulaşıp test sınırı olan 15. tura kadar (6 tur boyunca) hiç
+sıfırlanmadan donuk kaldı, `#gameExamRow` de hiç açılmadı (examSystem.phase
+Pro Plus cevaplarından hiç etkilenmediği için "parkur"da donuk kalıyor).
+Bu, mevcut düzeltmenin kapsamı DIŞINDA — Pro Plus'ın sınav/parkur sistemine
+HİÇ dahil olmaması mı yoksa dahil edilmesi mi gerektiği ayrı bir ÜRÜN
+KARARI (bkz. BEKLEYEN KARARLAR).
+
+**Dokunulan:** `www/js/app.js` (YENİ `resetChallengeForNewParkur()`,
+`handleExamOutcome()`'ın exam-failed/remedial-passed/remedial-failed case'leri,
+`showExamScreen()`'in "passed" dalının ctaHandler/secondaryHandler'ı).
+**Dokunulmayan:** `core/exam-system.js` (saf kaldı), `core/challenge.js`,
+G203/G204/G205'in düzeltmeleri, ensureAutoNext()'teki examGateActive() şartı.
+
+npm test: 1311/1311.
+
+G205 — **#58: Referans Filtreleri ilk görüntülemede dosyayı sahiplenir.**
+
+Ölçüm turunun bulgusu: kart Mixini Yükle'nin dosyası kaldırılınca devre
+dışı kalıyordu — AMA SADECE kullanıcı Referans Filtreleri'ne HİÇ dokunmamış
+(ne "değiştir" ne play) durumdaysa. Kart tier-3 fallback'ten (Mixini
+Yükle'nin dosyası) bir dosya GÖSTERİYOR ama `toolsFilterSelectedFileId`
+(tier-1) hâlâ boşken, `renderToolsFilterPlayer()` artık o dosyayı KENDİ
+seçimi olarak kaydediyor (`recordUploadSelection("tools-filter", entry.id)`)
+— SEÇENEK (C). G182'nin "kart ilk açılışta dolu olsun, değiştir'e
+erişilebilsin" amacı korundu, sadece o dosya artık ödünç değil sahiplenilmiş
+oluyor. G202'nin `toolsFilterExplicitlyCleared` bayrağı bozulmadı — "×" ile
+temizlenmiş bir kartta `toolsFilterSelectedEntry()` zaten `null` döndüğü
+için sahiplenme dalı hiç çalışmıyor.
+
+**Ölçüm (Playwright, 3 senaryo):** (1) ilk görüntüleme (play'e basılmadan) +
+Mixini Yükle "kaldır" → Referans Filtreleri ENABLED KALDI (ÖNCEDEN disabled
+oluyordu); (2) "×" ile temizleyip kartı TEKRAR görüntüleme → kart BOŞ kaldı
+(tier-3'ten yeniden dolmadı); (3) Mixini Yükle'de hiç dosya yokken kart yine
+boş/disabled açıldı (regresyon yok).
+
+**Dokunulan:** `www/js/app.js` (`renderToolsFilterPlayer()`'ın başı).
+**Dokunulmayan:** G202'nin diğer tüm #49b/#52 kodu, G203, G204.
+
+npm test: 1311/1311.
+
+G204 — **#56: sekmeden çıkış Mixini Yükle'yi artık DURAKLATIYOR, durdurmuyor.**
+
+`goScreen()`'in tab-exit temizliği (satır ~2275) `toolsStopRawMixPlayback()`'i
+(GERÇEK "Durdur" düğmesiyle AYNI fonksiyon — `toolsRawMixUploadManager.
+startFromZero()` içeriyor) çağırıyordu. Referans Filtreleri bir satır üstte
+zaten `toolsPauseFilterPlayback()` kullanıyordu (pozisyon korunur) —
+asimetri buradaydı, G201'in `toolsRawMixUploadManager`'ı (paylaşılan
+manager çakışmasını çözen) bu YOLA hiç dokunmuyordu (kapsam dışıydı).
+`toolsStopRawMixPlayback()` → `toolsPauseRawMixPlayback()`.
+
+**Ölçüm (Playwright, manager.elapsed doğrudan okunarak — geçici
+`window.__DEBUG_toolsRawMixUploadManager`, commit ÖNCESİ silindi — Mixini
+Yükle'nin mini oynatıcısında DOM'da geçen-süre göstergesi yok):** sekme
+değişip geri dönünce `elapsed` 1.35s→1.38s (KORUNDU, ÖNCEDEN 0'a dönerdi).
+Gerçek "Durdur" butonu (`toolsMixStopBtn`) hâlâ `toolsStopRawMixPlayback()`'i
+çağırıyor, hâlâ `elapsed`'i 0'a sıfırlıyor (2.26s→0, doğrulandı) — o davranış
+tek satır değişmedi.
+
+**Dokunulan:** `www/js/app.js` (`goScreen()`'in tab-exit bloğu, tek satır +
+yorum güncellemesi). **Dokunulmayan:** `toolsStopRawMixPlayback()`'in
+kendisi, `toolsMixStopBtn`'in click handler'ı, G201/G203.
+
+npm test: 1311/1311.
 
 G203 — **#50 (kulaklık çıkınca tur durmuyor) + #51 (hızlı tak/çıkarda %20 tam sessizlik) + #53 (10dk arka plan sonrası tur sıfırlanıyor) — ÜÇÜ DE ÖLÇÜLEREK bulunup düzeltildi, kullanıcı kararlarıyla.**
 
@@ -15270,6 +15358,24 @@ VARDI**, sadece bu turda YENİ fark edildi. Kod YAZILMADI (bu turun kapsamı
 
 ## BEKLEYEN KARARLAR
 
+**W. G206 — Pro Plus, sınav/parkur sistemine hiç DAHİL DEĞİL — dahil edilsin mi?**
+Ölçüldü: Frekans Bulma'nın Pro Plus zorluğu (`submitProPlusGuess`)
+`handleExamOutcome()`'u hiç çağırmıyor — bu yüzden Pro+exam-enabled bir
+oturumda Pro Plus'ta cevap verildikçe `examSystem.phase` hiç değişmiyor
+("parkur"da donuk kalıyor, sınav/telafi hiç tetiklenmiyor) VE `challenge`
+(BÖLÜM göstergesi) G206'nın YENİ `resetChallengeForNewParkur()`'una hiç
+ULAŞMIYOR — sınırsız büyümeye devam ediyor (Playwright'ta doğrulandı: 9.
+turda "10/10"a ulaşıp 6 tur boyunca sıfırlanmadan donuk kaldı). Karar
+gereken: (a) Pro Plus da diğer 11 mod gibi `handleExamOutcome()`'u
+çağırsın — Pro Plus soruları da parkur/sınav/telafi akışına DAHİL olur
+(exam-system.js'in TIER_ORDER'ı proplus'ı zaten BİLEREK dışlıyor, bu YENİ
+bir mühendislik kararı gerektirir — bkz. o dosyanın G50 notu); (b) Pro
+Plus BİLEREK dışarıda kalsın, SADECE `challengeTick()`'in Pro Plus'ta hiç
+çağrılmaması/`challenge.done`'ı Pro Plus cevaplarında saymaması gibi DAHA
+DAR bir düzeltme (BÖLÜM göstergesi Pro Plus'ta hiç ilerlemesin, en azından
+YANLIŞ/donuk görünmesin); (c) şimdilik dokunma, TestFlight geri bildirimini
+bekle (Pro Plus zaten az kullanılan bir zorluk kademesi olabilir).
+
 **R. G142 — Stereo Genişlik'in "her zaman upload" varsayılanı — istisna kabul mü, yeni mühendislik mi?**
 Kullanıcı G141 sonrası "temiz kurulumda kaynak upload seçili geliyor,
 12 modun HEPSİNDE üretilen bir kaynak varsayılan olsun" istedi. Kod
@@ -15463,7 +15569,27 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G203 itibarıyla):** #50 (kulaklık çıkınca tur
+**EN YENİ SIRADAKİ ADIM (G206 itibarıyla):** #56 (sekme değişiminde Mixini
+Yükle baştan alıyordu) + #58 (Referans Filtreleri Mixini Yükle silinince
+devre dışı kalıyordu) + #55 (Pro'da BÖLÜM sayacı sıfırlanmıyordu) — ÜÇÜ DE
+düzeltildi, `npm test` (1311/1311) ve Playwright'la (sayılarla) doğrulandı,
+GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: (1) Mixini Yükle'de bir
+dosya çal, DURDURMADAN Antrenman'a geç, Araçlar'a geri dön — şarkı
+KALDIĞI YERDEN devam etmeli (BAŞTAN başlamamalı); GERÇEK "Durdur" düğmesi
+hâlâ baştan almalı; (2) Mixini Yükle'de bir dosya seç, Araçlar'a girip
+Referans Filtreleri'ni AÇ (play'e basmadan), sonra Mixini Yükle'nin
+dosyasını "×" ile kaldır — Referans Filtreleri ENABLED kalmalı (kendi
+dosyasını göstermeye devam etmeli); (3) Referans Filtreleri'nde "×" ile
+AÇIKÇA temizlenmiş bir kart, Mixini Yükle'de dosya değişse bile BOŞ
+kalmalı; (4) Pro simülasyonuyla (Ayarlar → Geliştirici) sınav-etkin bir
+modda "10 Soruluk Bölüm" seç, bir parkuru bilerek kaybet (telafiye düş) —
+telafi bitip yeni parkur başlayınca BÖLÜM göstergesi "BÖLÜM 1/10"e (veya
+ilk cevaptan sonra 2/10'a) dönmeli, ESKİ turun şişkin sayısında donuk
+KALMAMALI. Bilinen, kapsam dışı bırakılan açık: Pro Plus zorluğunda BÖLÜM
+göstergesi hâlâ sıfırlanmıyor (bkz. BEKLEYEN KARARLAR **W**) — ayrı bir
+ürün kararı bekliyor.
+
+**EN YENİ SIRADAKİ ADIM (G203 itibarıyla, ARTIK ESKİ):** #50 (kulaklık çıkınca tur
 durmuyordu) + #51 (hızlı tak/çıkarda %20 sessizlik) + #53 (uzun arka plan
 sonrası tur sıfırlanıyordu) düzeltildi — İKİSİ (#50/#51) native Swift
 değişikliği içeriyor, `npm test` (1311/1311) ve Playwright'la (JS tarafı
