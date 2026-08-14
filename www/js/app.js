@@ -11366,6 +11366,25 @@ let toolsFilterChainNodes = []; // G117 — o an bağlı filtre/stereo node'lar�
 const toolsRefFilterUploadManager = createUploadManager(() => audioEngine.audioCtx);
 let toolsRefFilterLoadedSourceFileId = null; // hangi kütüphane dosyası şu an bu manager'a decode edilmiş
 
+// Bug 38 DÜZELTMESİ — renderToolsFilterPlayer() (dalga formu dolgusu + geçen
+// süre metni) ESKİDEN sadece ayrık olaylarda (play/pause, 10sn atlama, dosya
+// seçimi) çağrılıyordu; çalarken HİÇ tekrar çağrılmadığı için dalga formu
+// çalma boyunca donuk kalıyor, Pause'a basılınca render() GERÇEK elapsed'i
+// okuyup BİRDEN doluyordu ("ilerleme ters çalışıyor" izlenimi). toolsTonalLiveTick'in
+// (G102) AYNI rAF deseni — ama KENDİ döngüsü, Tonal Balance'ın canlı analizör
+// koşuluna (tonal kart kilit/disabled durumu) BAĞLI DEĞİL, o koda dokunulmadı.
+let toolsFilterUiRafId = null;
+function toolsFilterUiTick() {
+  toolsFilterUiRafId = null;
+  if (!toolsFilterPlaying || !toolsToolsScreenActive()) return;
+  renderToolsFilterPlayer();
+  toolsFilterUiRafId = requestAnimationFrame(toolsFilterUiTick);
+}
+function toolsFilterSyncUiLoop() {
+  if (toolsFilterUiRafId) return; // zaten planlı
+  toolsFilterUiRafId = requestAnimationFrame(toolsFilterUiTick);
+}
+
 // G117 madde A — ORTAK SES İŞLEME KATMANI. Gerçek Web Audio'da "mid/side"
 // diye tek bir node YOK — standart matris elle kuruluyor: mid=(L+R)/2,
 // side=(L−R)/2, çıkışta L'=mid·midGain+side·sideGain, R'=mid·midGain−side·
@@ -11670,6 +11689,7 @@ async function toolsToggleFilterPlayback() {
   toolsConnectFilterPreviewChain(); // G117 — kaynağı referans filtresi/solo zincirinden geçirip gain'e bağlar
   toolsFilterPlaying = true;
   toolsTonalSyncLiveLoop(); // G102: canlı analizör döngüsü uykudaysa uyandır
+  toolsFilterSyncUiLoop(); // Bug 38: dalga formu/geçen süre çalarken de akmalı
   renderToolsFilterPlayer();
 }
 // G182 (Bug 14) — Referans Filtreleri'nin KENDİ "değiştir" akışı, toolsSelectFile()'ın
@@ -11800,6 +11820,18 @@ if (els.toolsFilterPlayBtn) els.toolsFilterPlayBtn.addEventListener("click", too
 if (els.toolsFilterFileChange) els.toolsFilterFileChange.addEventListener("click", () => openFilesSheetForContext("tools-filter"));
 if (els.toolsFilterSkipBack) els.toolsFilterSkipBack.addEventListener("click", () => toolsSeekFilterPlayback(-10));
 if (els.toolsFilterSkipFwd) els.toolsFilterSkipFwd.addEventListener("click", () => toolsSeekFilterPlayback(10));
+// Bug 38 (b) — dalga formuna dokununca o noktaya atla. toolsSeekFilterPlayback
+// GÖRECELİ (delta) bir saniye bekliyor, mutlak bir hedefe çevirmek için
+// GERÇEK geçen süreden fark hesaplanıyor — seekTo/pausePlayback'in KENDİSİNE
+// dokunulmadı, sadece var olan toolsSeekFilterPlayback'in üstünden çağrıldı.
+if (els.toolsFilterWave) els.toolsFilterWave.addEventListener("click", (e) => {
+  const buffer = toolsRefFilterUploadManager.getBuffer();
+  if (!buffer) return;
+  const rect = els.toolsFilterWave.getBoundingClientRect();
+  const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  const targetSec = frac * buffer.duration;
+  toolsSeekFilterPlayback(targetSec - toolsRefFilterUploadManager.elapsed);
+});
 if (els.toolsMixPlayBtn) els.toolsMixPlayBtn.addEventListener("click", toolsToggleRawMixPlayback);
 if (els.toolsMixStopBtn) els.toolsMixStopBtn.addEventListener("click", toolsStopRawMixPlayback);
 if (els.toolsMixPlayerChange) els.toolsMixPlayerChange.addEventListener("click", toolsOpenFilesSheet);

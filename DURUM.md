@@ -73,6 +73,68 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G192 — **Bug 38: Referans Filtreleri'nde waveform bozuk (dolgu + seek).**
+
+**ÖLÇÜM (Playwright, `tonal-stress.wav`, 9s):**
+- Dalga formu `<canvas id="toolsFilterWave">`de çiziliyor; `toolsDrawBigWave()`
+  UYGULAMADA BAŞKA HİÇBİR YERDE kullanılmıyor (grep'le doğrulandı) — "Mixini
+  Yükle"nin waveform'u YOK, Tonal Balance kendi bant grafiğini çiziyor, bu
+  bug'la karşılaştırılacak başka bir örnek yok.
+- Dolgu `toolsRefFilterUploadManager.elapsed / duration` oranından hesaplanıyor
+  (`renderToolsFilterPlayer()`); formül DOĞRU, `upload.js`'in `elapsed`
+  getter'ı da doğru (playing ise `offset + geçen süre`, duruyorsa `offset`).
+- Dokunma olayı `#toolsFilterWave` üzerinde HİÇ YOKTU — grep'le doğrulandı
+  (sadece çizim/referans kullanımları vardı, listener yoktu).
+- **Kök sebep ölçüldü:** `renderToolsFilterPlayer()` (dolgu+süre metnini
+  güncelleyen TEK fonksiyon) sadece AYRIK olaylarda çağrılıyordu (play/pause,
+  10sn atlama, dosya seçimi, akordiyon açma) — çalarken PERİYODİK YENİDEN
+  ÇAĞRI yoktu. Playwright ölçümü: play'e basıp 3 saniye HİÇBİR ŞEYE
+  dokunmadan bekleyince elapsed metni "0:00"da DONUK kaldı, canvas
+  dataURL'i DEĞİŞMEDİ; Pause'a basılınca birden "0:03"e ATLADI (gerçek
+  konumu o an ilk kez okuduğu için) — kullanıcının tarif ettiği "pause'da
+  doluyor" izlenimi BİREBİR bu.
+- `git show 8f476fc` (Bug 13/14) diff'i incelendi: `renderToolsFilterPlayer()`
+  ve içindeki elapsed/progressFrac/draw satırları o commit'te DEĞİŞMEMİŞ
+  (context olarak duruyor, +/- yok) — bug Bug 13/14'ten ÖNCE de vardı, o
+  düzeltme bunu YARATMADI.
+
+**Düzeltme (a) — dolgu:** `toolsTonalLiveTick`in (G102) AYNI rAF deseninde,
+ama TAMAMEN AYRI ve BAĞIMSIZ yeni bir döngü (`toolsFilterUiTick`/
+`toolsFilterSyncUiLoop`) eklendi — Tonal Balance'ın canlı analizör koşuluna
+(tonal kart kilitli/disabled olma durumu) BAĞLI DEĞİL, o kod hiç
+değiştirilmedi. `toolsFilterPlaying=true` olduğu sürece her karede
+`renderToolsFilterPlayer()`i çağırıp kendini yeniden planlıyor; `toolsFilterPlaying`
+false olunca bir sonraki karede kendiliğinden duruyor (aynı `toolsTonalLiveTick`
+deseni — dışarıdan iptal GEREKMİYOR).
+
+**Düzeltme (b) — dokununca seek (YENİ özellik, ölçüm küçük çıktığı için (a)
+ile birlikte yapıldı):** `#toolsFilterWave`e click listener eklendi; tıklanan
+x-oranı × `buffer.duration` = hedef saniye, var olan (DOKUNULMAYAN)
+`toolsSeekFilterPlayback(delta)`e `hedef - mevcut elapsed` farkı geçirilerek
+çağrılıyor — `seekTo()`/`pausePlayback()`in KENDİSİ hiç değişmedi, sadece
+üstünden yeni bir çağrı eklendi.
+
+**Ölçüm (düzeltme sonrası, Playwright):** 3 saniye dokunmadan bekleyince
+elapsed "0:00"→"0:03" doğru aktı, canvas görsel olarak değişti. Waveform'un
+%75'ine (paused halde) dokununca elapsed "0:03"→"0:07" atladı (9s × 0.75 =
+6.75s, doğru). ÇALARKEN (play'den 0.6s sonra) waveform'un %50'sine dokununca
+elapsed hemen "0:05"e sıçradı, çalma KESİNTİSİZ devam etti (`playing` sınıfı
+hep `true` kaldı), 1.5s sonra "0:06"ya (İLERİ, geri sarmadan) ilerledi.
+
+**Dokunulan:** `www/js/app.js` (SADECE bu dosya — yeni rAF döngüsü + yeni
+click listener, ~25 satır ekleme; mevcut hiçbir fonksiyonun GÖVDESİ
+değiştirilmedi, sadece 2 yeni çağrı eklendi: `toolsFilterSyncUiLoop()` play
+başlarken, click listener skip-butonlarının yanına).
+
+**Dokunulmayan:** `www/js/core/upload.js` (DSP/transport — `seekTo`/
+`pausePlayback`/`elapsed` getter'ı BİREBİR aynı kaldı), Referans
+filtrelerinin DSP zinciri, Bug 13/14'ün bağımsız dosya seçimi/karşılıklı
+susturma mantığı, akordiyon davranışı (b368f51), Tonal Balance'ın iki
+upload manager'ı (G154) ve `toolsTonalLiveTick`in kendisi (sadece yanına
+YENİ ve ayrı bir döngü eklendi, İÇİ değişmedi).
+
+**Ölçüm:** `npm test` → **1291/1291** geçti (regresyon yok).
+
 G191 — **Bant etiketi düzeltmesi: "TİZ / HAVA" → "TİZ".**
 
 Gerekçe (kullanıcı kararı): iZotope Tonal Balance Control (uygulamanın görsel
@@ -14498,6 +14560,19 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G192 itibarıyla):** Bug 38 (Referans Filtreleri
+waveform'u) düzeltildi — dolgu artık çalarken canlı akıyor, dokununca seek
+çalışıyor — `npm test` (1291/1291) ve Playwright'la doğrulandı, GERÇEK
+cihazda HENÜZ görülmedi. Kontrol edilecek: (1) Araçlar → Referans
+Filtreleri'nde bir dosya seçip Play'e bas — dalga formu ÇALARKEN gerçek
+zamanlı dolmalı (donuk kalmamalı); (2) Pause'a bas — dolgu o anki GERÇEK
+konumda durmalı, birden sıçramamalı; (3) dalga formunun herhangi bir
+noktasına dokun — hem çalarken hem duraklatılmışken o saniyeye atlamalı,
+ses kesintisiz devam etmeli; ÖZELLİKLE gerçek cihazda (iOS/Android)
+dokunma hassasiyeti/gecikmesi kontrol edilmeli (Playwright mouse.click
+tıklama koordinatını simüle ediyor, gerçek parmak dokunuşuyla BİREBİR AYNI
+olmayabilir).
 
 **EN YENİ SIRADAKİ ADIM (G191 itibarıyla):** "TİZ / HAVA" → "TİZ" bant etiketi
 düzeltmesi tamamlandı, `npm test` (1291/1291) ve Playwright'la doğrulandı,
