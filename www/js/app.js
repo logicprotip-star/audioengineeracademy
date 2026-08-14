@@ -2269,10 +2269,19 @@ function goScreen(name) {
   if (prevScreenName === "tools" && name !== "tools") {
     // G159 — Referans Filtreleri'nin kendi UI'sında "Durdur" kavramı hiç YOK
     // (SADECE oynat/duraklat) — tab çıkışında da AYNI (pause, pozisyon
-    // KORUNUR) davranış uygulanır. Mixini Yükle'nin KENDİ "Durdur" düğmesi
-    // VAR (sıfırlar) — tab çıkışı o düğmenin AYNI semantiğini kullanır.
+    // KORUNUR) davranış uygulanır.
+    // #56 DÜZELTMESİ (ölçüldü): Mixini Yükle tarafı ÖNCEDEN burada
+    // toolsStopRawMixPlayback()'i (GERÇEK "Durdur" düğmesiyle AYNI fonksiyon
+    // — toolsRawMixUploadManager.startFromZero() İÇERİYOR) çağırıyordu —
+    // "tab çıkışı = Durdur'a basmış gibi" gerekçesiyle BİLEREK seçilmişti,
+    // ama sekmeden çıkmak kullanıcının "durdur" DEMESİ değil — Playwright'ta
+    // doğrulandı: Referans Filtreleri pozisyonu KORUYORDU (0:01→0:01), Mixini
+    // Yükle FİİLEN sıfırlanıyordu (playing durumu true→false + startFromZero).
+    // Artık toolsPauseFilterPlayback'in AYNI deseni: SADECE duraklat, pozisyon
+    // KORUNUR. toolsMixStopBtn'in KENDİSİ (gerçek "Durdur" düğmesi) HÂLÂ
+    // toolsStopRawMixPlayback()'i çağırıyor — o davranış TEK SATIR değişmedi.
     if (typeof toolsFilterPlaying !== "undefined" && toolsFilterPlaying) toolsPauseFilterPlayback();
-    if (typeof toolsRawMixPlaying !== "undefined" && toolsRawMixPlaying) toolsStopRawMixPlayback();
+    if (typeof toolsRawMixPlaying !== "undefined" && toolsRawMixPlaying) toolsPauseRawMixPlayback();
     if (typeof tonalRefPlaying !== "undefined" && tonalRefPlaying) toolsTonalStopRefPlayback();
     if (typeof tonalMixPlaying !== "undefined" && tonalMixPlaying) toolsTonalStopMixPlayback();
     // G186 DÜZELTMESİ (#30) — toolsSoloBandIdx (Tonal Balance grafiği +
