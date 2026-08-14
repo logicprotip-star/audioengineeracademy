@@ -73,6 +73,69 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G193 — **Kesim Noktası (+3 diğer mod) geri bildirim paneli: blur eğrileri örtüyordu.**
+
+**Kök durum:** G189 (ac92e9a) `.fb`'ye `backdrop-filter:blur(14px)` eklemişti — metin
+okunur oldu ama panel #analyzer'ın (eğri grafiği) üstüne taştığında ARTIK eğriyi/
+lejantı ("Senin cevabın" kırmızı/"Doğru" yeşil) da bulanıklaştırıyordu.
+
+**ÖLÇÜM (375×667, kod yazmadan önce, Playwright):**
+- Eğri `#visualizer` canvas'ında çiziliyor (Kesim Noktası/Q Genişliği/Boost-Cut AYNI
+  paylaşılan `drawCurveLegend`/`GUESS_COLOR`/`CORRECT_COLOR` desenini kullanıyor —
+  mimari olarak özdeş 3 mod; Frekans Bulma FARKLI, karşılaştırma orada DOM buton
+  çifti `.cmp`, canvas eğrisi değil).
+- Panel `#analyzer`'ı ÖRTMÜYOR, backdrop-filter'ı sayesinde arkasındaki gerçek
+  piksel içeriğini BULANIKLAŞTIRIP kendi kutusunda render ediyor — z-index doğru,
+  sorun kompozisyon.
+- Panel yüksekliği İÇERİĞE göre büyüyor (`bottom:0` sabit + `height:auto`), ölçülen
+  221–282px (viewport'un %33-42'si).
+- 4 modda çoklu deneme: en kötü ölçülen panel×CANVAS (`#visualizer`, sadece
+  analyzer-foot etiket şeridi değil, gerçek eğri pikselleri) çakışması — Frekans
+  Bulma 57px, Boost/Cut 50px. Boost/Cut'ın 93px'lik #analyzer-genelinde çakışma
+  örneğinin ekran görüntüsü zum'landı: eğri+lejant NEREDEYSE TAMAMEN kayboluyordu
+  (pixel örneklemesiyle doğrulandı, siyaha yakın bulanık leke).
+
+**Seçenekler değerlendirildi, kullanıcıya sunuldu:** (a) blur azalt+opaklık artır
+— iki yönde regresyon riski (az blur→G189'un sızması geri gelir, çok opaklık→eğri
+tamamen görünmez). (c) sadece metin kutusuna opak zemin — düşük çakışmada (6-47px)
+işe yarar ama YÜKSEK çakışmada (50-93px) panelin EN ÜSTÜNDEKİ başlık satırı da
+metin taşıdığı için aynı ikilem geri gelir. **(b) seçildi (kullanıcı onayı):**
+panelin `max-height`'i sabitlenip taşan metin panel İÇİNDE kaydırılsın — blur(14px)
+DEĞERİNE hiç dokunulmadan (G189'un çözdüğü sızma sıfır riskle korunur), panel
+geometrik olarak canvas'a ulaşamaz hale getirildi.
+
+**Uygulama:** `.fb` → `display:flex;flex-direction:column;max-height:29vh` (375×667'de
+ölçülen en kötü panel-üstü/canvas-altı konumlara göre güvenli pay bırakılarak
+seçildi — TÜM 4 modda canvas-örtüşmesi 93px/57px/50px/47px'ten **0px**'e indi,
+yeniden ölçülüp doğrulandı). Sabit satırlar (`.fb-result-row`/`.fb-combo-row`/
+`.fb-advance`) `flex:none` ile KORUNUYOR — SADECE `#feedbackDetail` (`.fb p`,
+değişken uzunluklu metin) `flex:1;overflow-y:auto` ile kayan tek öğe.
+
+**Kaydırma AÇIKÇA belli olsun (kullanıcının ek şartı):** ince/görünür scrollbar
+(`::-webkit-scrollbar`) + JS'siz "scroll shadow" (klasik `background-attachment:
+local/scroll` ikilisi — içerik başındaysa üst gölge, sonundaysa alt gölge otomatik
+gizlenir) — İLK denemede gölge rengi siyahtı, koyu temada GÖRÜNMÜYORDU (pixel
+örneklemesiyle YAKALANDI, siyah-üstüne-siyah kontrastsızlık), `rgba(255,255,255,.4)`
+açık tonuna DÜZELTİLDİ. Playwright'ta `scrollTop`'u elle değiştirip pixel
+örneklemesiyle doğrulandı: başlangıçta (scrollTop=0) üst kenar DÜZ (gölge yok),
+alt kenar gölgeli (81→96, artan) — sona kaydırılınca (scrollTop=max) TERSİ: üst
+kenar gölgeli (112→76, azalan), alt kenar DÜZ — gölge GERÇEKTEN kayma pozisyonuna
+göre doğru yönde tepki veriyor.
+
+**Ölçüm:** `npm test` → **1291/1291** (SADECE CSS, hiçbir JS/mod dosyası dokunulmadı,
+değişiklik beklenmiyordu, doğrulandı). 4 modda ekran görüntüsüyle: eğri+lejant artık
+NET okunuyor (önce/sonra karşılaştırıldı, Boost/Cut'ın 93px'lik en kötü durumu
+dahil).
+
+**Dokunulan:** `www/styles.css` (SADECE `.fb`/`.fb-result-row`/`.fb-combo-row`/
+`.fb p`/`.fb-advance` kuralları — blur DEĞERİ/opaklık DEĞİŞMEDİ, sadece
+max-height+flex+scroll eklendi).
+
+**Dokunulmayan:** G189'un blur(14px) DEĞERİ (regresyon riski sıfırlandı), C2/#21'in
+`.fb-advance-head` opak zemini (10af86e, farklı katman), Referans filtrelerinin
+DSP'si, akordiyon davranışı, Bug 38 (G192), diğer TÜM kilitli düzeltmeler — hiçbiri
+yeniden çalıştırılmadı çünkü bu tur SADECE `.fb`'nin CSS'i içinde kaldı.
+
 G192 — **Bug 38: Referans Filtreleri'nde waveform bozuk (dolgu + seek).**
 
 **ÖLÇÜM (Playwright, `tonal-stress.wav`, 9s):**
@@ -14560,6 +14623,21 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G193 itibarıyla):** Kesim Noktası/Frekans Bulma/Q
+Genişliği/Boost-Cut'ta geri bildirim panelinin eğri/lejantı bulanıklaştırma
+sorunu düzeltildi (panel artık max-height'li, taşan metin panel içinde
+kayıyor) — `npm test` (1291/1291) ve Playwright'la (pixel örneklemesi dahil)
+doğrulandı, GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: (1) 4 modun
+HERBİRİNDE yanlış bir cevap ver — eğri (kırmızı "Senin cevabın"/yeşil
+"Doğru") NET görünmeli, önceki gibi bulanık/kaybolmuş OLMAMALI; (2) uzun bir
+geri bildirim metni yakala (ör. Frekans Bulma'da uzak bir tahmin) — panel
+İÇİNDE kayan bir metin kutusu görünmeli, kaydırma çubuğu + üstte/altta
+GERÇEKTEN belirgin bir gölge/parlama ile "devamı var" hissi vermeli — ÖZELLİKLE
+gerçek cihazda (headless ölçümde pixel farkı doğrulandı ama gerçek ekranda
+göz kararı da GEREKLİ, bu görsel bir eşik meselesi); (3) panelin geri kalanı
+(ikon/başlık/XP/combo/"Sonraki soru" çubuğu) hiç kırpılmadan/taşmadan normal
+görünmeli, sadece açıklama metni kayıyor olmalı.
 
 **EN YENİ SIRADAKİ ADIM (G192 itibarıyla):** Bug 38 (Referans Filtreleri
 waveform'u) düzeltildi — dolgu artık çalarken canlı akıyor, dokununca seek

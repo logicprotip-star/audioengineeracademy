@@ -1358,6 +1358,18 @@
       border-radius:22px 22px 0 0;background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);border-bottom:0;
       box-shadow:0 -12px 40px rgba(0,0,0,.6);
       transform:translateY(100%);transition:transform .3s cubic-bezier(.3,.8,.3,1);pointer-events:none;
+      /* Bug (Kesim Noktası eğri okunabilirliği, G189'un ARDINDAN) — G189'un blur(14px)'i
+         METNİ okunur yaptı ama panel #analyzer'ın (eğri grafiği) üstüne taştığında ARTIK
+         eğriyi/lejantı da bulanıklaştırıyordu (4 modda ölçüldü: en kötü örtüşme #visualizer
+         canvas'ıyla 50-57px, ekran görüntüsüyle eğrinin okunamaz hale geldiği doğrulandı).
+         blur(14px)'e DOKUNULMADI (G189'un çözdüğü sızma sorunu geri gelmesin diye) — bunun
+         yerine panelin YÜKSEKLİĞİ sınırlandı, taşan metin AŞAĞIDA (.fb p) kendi içinde
+         kayar. max-height 375×667'de ÖLÇÜLEN en kötü panel-üstü/canvas-altı konumlara göre
+         (Boost/Cut: canvas altı 452px, panel üstü 402px — ÖRTÜŞÜYORDU) güvenli pay
+         bırakılarak seçildi — panel artık canvas'a ulaşamıyor, TÜM sabit satırlar (ikon/
+         başlık/combo/"sonraki soru") flex:none ile korunuyor, SADECE #feedbackDetail
+         (.fb p, değişken uzunluklu metin) kayar. */
+      display:flex;flex-direction:column;max-height:29vh;overflow:hidden;
       /* G189 DÜZELTMESİ (Kesim Noktası geri bildirim okunabilirliği) — .fb'nin arka planı
          SADECE %12-13 opak (ölçüldü, DEĞİŞTİRİLMEDİ — G81'in kendi rengi,
          bu turun kapsamı DIŞINDA) — kısa viewport'ta (375×667 ölçüldü)
@@ -1386,7 +1398,7 @@
        yerine İÇ satıra (.fb-result-row, kendi transform'u YOK, çakışma yok)
        ek bir "içeri düşme" hissi olarak uygulandı. */
     .fb.show-result .fb-result-row{animation:dlgIn 320ms cubic-bezier(.2,.8,.2,1) both}
-    .fb-result-row{display:flex;align-items:center;gap:12px;padding-right:26px}
+    .fb-result-row{display:flex;align-items:center;gap:12px;padding-right:26px;flex:none}
     /* G92 (madde 12a): "doğruda ikon popIn" — fbPopIn → popIn (isim
        birleştirildi, değer AYNI). */
     .fb-icon{width:40px;height:40px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -1406,7 +1418,7 @@
     .fb-xp-label{font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:.3px}
 
     .fb-combo-row{display:flex;align-items:center;gap:8px;margin-top:11px;padding:8px 11px;border-radius:11px;
-      background:rgba(240,180,66,.08);border:1px solid rgba(240,180,66,.28)}
+      background:rgba(240,180,66,.08);border:1px solid rgba(240,180,66,.28);flex:none}
     .fb-combo-row svg{flex:none}
     #fbComboText{font-size:12.5px;font-weight:700;color:var(--tx-2);font-variant-numeric:tabular-nums}
     #fbComboText b{color:var(--amber);font-weight:700}
@@ -1415,9 +1427,33 @@
        (satır başına 40ms gecikme)" — .fb p birden fazla olabilir
        (appendFreqInfoNote vb. ile eklenen ek notlar), :nth-of-type ile
        KADEMELİ gecikme — JS'e HİÇ dokunulmadı, saf CSS. */
-    .fb p{margin:11px 0 0;padding:11px 12px;border-radius:12px;background:var(--card-grad);
+    /* Bug (eğri okunabilirliği) — .fb artık max-height'li (yukarı bkz.), taşan
+       metin BURADA (tek büyüyen flex öğesi) kendi içinde kayıyor. Kaydırılabilir
+       olduğu BELLİ olsun diye (kullanıcı kararı — "yarısını okuyup geçmesin"):
+       ince/görünür bir scrollbar + SADECE gerçekten taşan içerikte görünen bir
+       alt gölge (klasik "scroll shadow" CSS hilesi — background-attachment:
+       local/scroll ikilisi, JS'siz; local katman içerikle birlikte kayar ve
+       en altta/üstteyken gölgeyi kendi rengiyle maskeler, ortadayken gölge
+       görünür). var(--card-grad)'in iki durağı (#17191d/#121316) birbirine
+       çok yakın olduğu için maskeleme katmanında #15171a (aradaki ton) tek
+       renk olarak kullanıldı — gözle fark edilmiyor. */
+    .fb p{margin:11px 0 0;padding:11px 12px;border-radius:12px;
       border:1px solid var(--border);font-size:13px;line-height:1.55;color:var(--tx-2);
-      animation:fadeSlide 220ms cubic-bezier(.2,.8,.2,1) both}
+      animation:fadeSlide 220ms cubic-bezier(.2,.8,.2,1) both;
+      flex:1 1 auto;min-height:32px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+      background-color:#15171a;
+      background-image:
+        linear-gradient(#15171a 55%, rgba(21,23,26,0)),
+        linear-gradient(rgba(21,23,26,0), #15171a 45%),
+        linear-gradient(rgba(255,255,255,.4), rgba(255,255,255,0)),
+        linear-gradient(rgba(255,255,255,0), rgba(255,255,255,.4));
+      background-repeat:no-repeat;
+      background-size:100% 20px, 100% 20px, 100% 18px, 100% 18px;
+      background-position:0 0, 0 100%, 0 0, 0 100%;
+      background-attachment:local, local, scroll, scroll}
+    .fb p::-webkit-scrollbar{width:4px}
+    .fb p::-webkit-scrollbar-track{background:transparent}
+    .fb p::-webkit-scrollbar-thumb{background:rgba(255,255,255,.28);border-radius:2px}
     .fb p:nth-of-type(1){animation-delay:40ms}
     .fb p:nth-of-type(2){animation-delay:80ms}
     .fb p:nth-of-type(3){animation-delay:120ms}
@@ -1428,7 +1464,7 @@
        scheduleNext'e VERİLEN gerçek süreyle app.js'te senkron başlatılıyor;
        karşılaştırma önizlemesi sırasında (cmpPreview duraklatması) JS ile
        AYNI anda paused. */
-    .fb-advance{margin-top:11px}
+    .fb-advance{margin-top:11px;flex:none}
     /* G184 DÜZELTMESİ (Bug 9, kullanıcı kararı — "gerçekten tıklanabilir yap"):
        app.js'te .fb-advance-head artık #feedbackClose ile aynı goToNextRound()
        delegasyonunu tetikliyor; burada sadece bunun görsel karşılığı — cursor +
