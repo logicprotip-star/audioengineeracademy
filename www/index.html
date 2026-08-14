@@ -200,9 +200,11 @@
               <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 4-4 5.5-4 9.5a4 4 0 0 0 8 .3c1.2 1 2 2.6 2 4.2a6 6 0 1 1-12 0C6 10 12 8 12 2Z"></path></svg>
               <span id="gameComboLabel">x1.00</span>
             </div>
-            <!-- Soru sayacı — ücretsiz oturum limiti (paywall.FREE_SESSION_QUESTION_LIMIT).
-                 Pro'da sınır yok, app.js gizler. -->
-            <div class="game-qcounter" id="gameQCounter"><b id="gameQNum">1</b><span> / 5</span></div>
+            <!-- Soru sayacı — ücretsiz oturum limiti (paywall.FREE_SESSION_QUESTION_LIMIT
+                 + reklamla kazanılan sessionExtraQuestionsGranted, bkz. app.js updateUI).
+                 Pro'da sınır yok, app.js gizler. Payda (#gameQMax) G185'te SABİTTİ
+                 (her zaman "/ 5"), G186'da (#26 civarı) dinamikleştirildi. -->
+            <div class="game-qcounter" id="gameQCounter"><b id="gameQNum">1</b><span> / <b id="gameQMax">5</b></span></div>
             <!-- Seviye pentagon — #levelChip'İN KENDİSİ, id/click AYNI (Z6 lvlSheet). -->
             <button class="game-level-pentagon" id="levelChip" type="button" aria-label="Seviye bilgisi">
               <svg width="30" height="30" viewBox="0 0 52 52">

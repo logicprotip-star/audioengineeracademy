@@ -350,6 +350,7 @@ const els = {
   gameComboLabel: document.getElementById("gameComboLabel"),
   gameQCounter: document.getElementById("gameQCounter"),
   gameQNum: document.getElementById("gameQNum"),
+  gameQMax: document.getElementById("gameQMax"),
   levelChipValue: document.getElementById("levelChipValue"),
   gameChapterRow: document.getElementById("gameChapterRow"),
   gameChapterDots: document.getElementById("gameChapterDots"),
@@ -3536,13 +3537,21 @@ function renderGameHeader() {
     lastRenderedCombo = combo;
   }
 
-  // Soru sayacı — ücretsiz oturum limiti (paywall.FREE_SESSION_QUESTION_LIMIT=5).
-  // Pro'da anlamsız (sınır yok) — gizlenir.
+  // Soru sayacı — ücretsiz oturum limiti (paywall.FREE_SESSION_QUESTION_LIMIT=5
+  // + reklamla kazanılan sessionExtraQuestionsGranted, bkz. freeSessionLimitReached()'ın
+  // AYNI toplamı). Pro'da anlamsız (sınır yok) — gizlenir.
+  // G186 DÜZELTMESİ (#26 civarı, G185'in kendi notu): payda ("/ 5") ÖNCEDEN
+  // SABİTTİ — reklam izleyip +5 soru kazanan kullanıcı hâlâ "3/5" görüyordu,
+  // limit ARTIK 10 olsa bile. #gameQMax (YENİ, index.html) ARTIK BU toplamdan
+  // yazılıyor — pay zaten bu SINIRA göre kırpılıyordu (Math.min), payda da
+  // AYNI sınırı göstermeli.
   const pro = isUserPro();
   if (els.gameQCounter) els.gameQCounter.classList.toggle("hidden", pro);
+  const effectiveQuestionLimit = paywall.FREE_SESSION_QUESTION_LIMIT + sessionExtraQuestionsGranted;
   if (els.gameQNum) {
-    els.gameQNum.textContent = Math.max(1, Math.min(roundsInThisPlaySession, paywall.FREE_SESSION_QUESTION_LIMIT));
+    els.gameQNum.textContent = Math.max(1, Math.min(roundsInThisPlaySession, effectiveQuestionLimit));
   }
+  if (els.gameQMax) els.gameQMax.textContent = effectiveQuestionLimit;
 
   // G147 — kullanıcının kendi kararı: Zorluk göstergesi çipi (.game-diff-chip,
   // #gameDiffChip) TAMAMEN KALDIRILDI — G145/G146'da SADECE gösterge olduğu,
@@ -3556,7 +3565,13 @@ function renderGameHeader() {
   // EXAM_LENGTH(4)/REMEDIAL_LENGTH(5) kullanılır — PARKUR_LENGTH(10) İLE
   // KARIŞTIRILMAZ (o AYRI bir sistem, task'ın kendi uyarısı).
   const examActive = examGateActive() && examSystem.phase !== "parkur";
-  if (els.hearts) els.hearts.classList.toggle("hidden", examActive);
+  // G186 DÜZELTMESİ (#26): Pro'da can sistemi YOK (loseLife() Pro'yu hiç
+  // azaltmıyor, blockIfLivesOut() her zaman false — bkz. o fonksiyonların
+  // KENDİ G178 notu) ama gösterge (5 kalp) hâlâ görünüyordu — G178'de
+  // bulunmuş, o turun kapsamı "Pro'da round'un GERÇEKTEN başlaması" olduğu
+  // için BİLEREK dışarıda bırakılmıştı. `pro` zaten YUKARIDA hesaplandı
+  // (aynı fonksiyon kapsamı, gameQCounter'ın AYNI değişkeni).
+  if (els.hearts) els.hearts.classList.toggle("hidden", examActive || pro);
   if (els.gameExamRow) els.gameExamRow.classList.toggle("hidden", !examActive);
   if (examActive && els.gameExamDots && els.gameExamProgress) {
     const isRemedial = examSystem.phase === "remedial";
@@ -7915,6 +7930,18 @@ function syncDevUI() {
   enforceFreeRestrictions(); // G61: isUserPro() burada değişmiş OLABİLİR, state'i senkronla
   syncAccountLine();
   renderExerciseGrid();
+  // G186 DÜZELTMESİ (#27): renderChartLock()/renderZonePanel() (İkisi de
+  // isUserPro()'YA DOĞRU bakıyordu — kontrol EKSİK/YANLIŞ DEĞİLDİ) SADECE
+  // renderAnalysis() (İlerleme sekmesi) üzerinden çağrılıyordu — bu fonksiyon
+  // module-load'da BİR KEZ + birkaç veri-değişikliği noktasında (pushHistory
+  // vb.) çalışıyordu, "Pro durumu DEĞİŞTİ" hiçbir zaman bu listede DEĞİLDİ.
+  // Sonuç: geliştirici modu AÇILIP İlerleme sekmesine (tekrar girilse bile,
+  // ölçüldü — sekmeden çıkıp geri dönmek de yetmiyordu) gidildiğinde İsabet
+  // Grafiği/Zayıf Bölge Raporu HÂLÂ "Pro ile aç" gösteriyordu — applyProLockVisibility()
+  // SADECE Araçlar'ı kapsıyordu, İlerleme'yi hiç bilmiyordu. GERÇEK satın
+  // alma (grantRealPro()) de AYNI syncDevUI()'yi çağırdığı için AYNI eksiği
+  // taşıyordu — SADECE geliştirici modu değil.
+  renderAnalysis();
 }
 let versionTapCount = 0;
 let versionTapTimer = null;
