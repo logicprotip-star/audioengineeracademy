@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G185)
+Son güncelleme: 14.08.2026 (G186)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,85 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G186 — **Yedi düşük riskli düzeltme, İSTENDİĞİ GİBİ üç ayrı commit'te
+(Grup A/B/C) — her grup kendi başına doğrulandı, kendi commit'ine gitti.**
+
+**GRUP A — Sayaç/gösterge (commit 136a7b0):**
+- **A1 (G185'in kendi notu):** Soru sayacının paydası ("/ 5") artık
+  `#gameQMax` (YENİ, `index.html`) ile dinamik — reklamla kazanılan
+  `sessionExtraQuestionsGranted` `updateUI()`'de payda hesabına da giriyor.
+  Ölçüm: GERÇEK (mock'lanmış) AdMob reklam akışıyla uçtan uca doğrulandı —
+  reklamdan ÖNCE "1 / 5", reklam SONRASI "6 / 10".
+- **A2 (#26):** Pro'da can göstergesi (`#hearts`) artık gizleniyor —
+  `updateUI()`'deki `examActive || pro` koşuluna eklendi (`pro` zaten AYNI
+  fonksiyonda hesaplı duruyordu, `gameQCounter`'ın kullandığı DEĞİŞKENİN
+  AYNISI). Ölçüm: ücretsizde görünür, Pro'da gizli.
+- **A3 (#27):** Geliştirici modu (`devFlags.simulatePro`) açılınca İsabet
+  Grafiği/Zayıf Bölge Raporu kilidi artık kalkıyor. **Kök sebep task'ın
+  varsaydığından FARKLIYDI** — `renderChartLock()`/`renderZonePanel()`
+  İKİSİ de zaten DOĞRU `isUserPro()`'ya bakıyordu (yanlış kontrol YOKTU);
+  gerçek sorun, bu ikisini çizen `renderAnalysis()`'in Pro durumu
+  DEĞİŞTİĞİNDE hiç yeniden çağrılmamasıydı — `syncDevUI()` (TEK
+  yeniden-senkron noktası) SADECE Araçlar'ı (`applyProLockVisibility()`)
+  kapsıyordu, İlerleme sekmesini hiç bilmiyordu. Ölçüm: dev-mod AÇILMADAN
+  ÖNCE kilitli, AÇILINCA (sekme değiştirilmeden bile) kilit HEMEN kalkıyor.
+  **Aynı hatanın başka örneği tarandı ve bulundu:** `renderZonePanel()`
+  (Zayıf Bölge Raporu) AYNI kalıbı taşıyordu — TEK düzeltmeyle (renderAnalysis()'i
+  syncDevUI()'ye eklemek) ikisi de kapandı. GERÇEK satın alma (`grantRealPro()`)
+  de AYNI `syncDevUI()`'yi çağırdığı için aynı eksiği taşıyordu — o da
+  düzeldi. **DOKUNULMADI:** başka bir "isUserPro() yerine farklı kontrol"
+  örneği bulunmadı (`applyProLockVisibility()`/`enforceFreeRestrictions()`
+  okundu, ikisi de doğru).
+
+**GRUP B — Araçlar sekmesi (commit b368f51):**
+- **B1 (#31):** Ölçüm Sonuçları ve Referans Filtreleri artık akordiyon gibi
+  karşılıklı dışlıyor — `toolsOpenResultsAccordion()` açılırken
+  `toolsFilterOpen` ise `toolsToggleFilterAccordion()` ile kapatıyor, tersi
+  de (`toolsToggleFilterAccordion()`'ın açma dalı `toolsResultsOpen`'ı
+  kapatıyor). Ölçüm: 4 adımda (aç/aç/tekrar aç/kendi kendine kapat) HER
+  ADIMDA sadece TEK akordiyon açık.
+- **B2 (#30):** Tonal Balance grafiğindeki bölge-solo seçimi (`toolsSoloBandIdx`
+  — TİZ dahil 6 bölge) artık Araçlar sekmesinden çıkılınca sıfırlanıyor.
+  Bu değişken Referans Filtreleri'nin dinleme önizlemesiyle PAYLAŞILIYOR
+  (`toolsConnectFilterPreviewChain()`), ses zaten AYNI satırda duruyordu
+  (`toolsPauseFilterPlayback()`, `goScreen()`'in tools-çıkış bloğu) — SADECE
+  seçim state'i sıfırlandı, **Play/pause mantığına dokunulmadı** (KİLİT).
+  Ölçüm: `CanvasRenderingContext2D.fillRect`'e monkey-patch — solo-highlight
+  çizim çağrısı tıklama sonrası 1, sekme değişip geri dönünce 0.
+
+**GRUP C — Görsel (commit 10af88e):**
+- **C1 (#15):** G183'te (1cd7dc3) zaten düzeltilmişti — Kompresör/Reverb/
+  Distortion'ın ÜÇÜNDE de yeniden ölçüldü (A/B/C hâlâ `display:flex`, 25px,
+  özdeş). **Kod DEĞİŞMEDİ**, sadece doğrulandı.
+- **C2 (#21):** Önceki turda (G183) headless'te tekrarlanamamıştı — BU
+  turda frame-frame (30ms adım) ölçümle YAKALANDI: geri bildirim kartı
+  (`.fb`, yukarı kayan .3s) ile `#gameActionbar` ("Atla ▶", aşağı/dışarı
+  kayan .25s) AYNI ANDA animasyonlanıyor, geçişin ortasında (~t=150-210ms)
+  GERÇEKTEN 10-16px dikey çakışıyorlar. z-index DOĞRUYDU (`.fb`:91 >
+  `.actionbar`:60, panel üstte) ama panelin arka planı çok SAYDAM
+  (`rgba(43,217,168,.13)`) — altındaki koyu çubuk sızıp "SONRAKİ SORU"/
+  "ATLAMAK İÇİN ✕" yazısını okunmaz kılıyordu. Geçiş süreleri KASITLI
+  (`app.js`'in kendi "cevap verilince gizlenme HER ZAMAN animasyonlu kalır"
+  notu, G31) — **dokunulmadı**, SADECE `.fb-advance-head`'e (panelin geri
+  kalanından bağımsız) neredeyse opak (`rgba(8,9,11,.55)`) bir arka plan
+  eklendi. Ölçüm: aynı frame-frame ölçüm + ekran görüntüsüyle doğrulandı —
+  geometrik çakışma AYNEN duruyor (beklenen, zamanlamaya dokunulmadı),
+  metin artık HER ZAMAN okunur.
+
+**Ortak DOKUNULAN dosyalar (3 commit toplamı):** `www/index.html` (SADECE
+A1, `#gameQMax`), `www/js/app.js` (A1/A2/A3/B1/B2), `www/styles.css` (SADECE
+C2, `.fb-advance-head`).
+**DOKUNULMAYAN dosyalar:** `www/js/core/*.js` (hiçbiri — 7 düzeltmenin hiçbiri
+saf fonksiyon gerektirmedi), Bug 25/20/10/13/14/9/18/17/19/22/23/24'ün kendi
+kodu, çip genişliği, kaynak çipi + BARE_ANALYZER, İpucu buton metin ayrımı,
+Play butonunun ortalanması (548927c, C1'de dokunulmadı, yeniden ölçülüp
+DOĞRULANDI), Play/pause mantığı (#29, B2'de KASITLI dokunulmadı).
+
+**npm test: 1285 → 1285 (3 commit boyunca DEĞİŞMEDİ).** 7 düzeltmenin
+hiçbiri `core/*.js`'e saf fonksiyon eklemedi/değiştirmedi — hepsi `app.js`-içi
+DOM/state ya da SADECE CSS, Playwright ile doğrulandı (ekran görüntüleri +
+frame-frame zamanlama ölçümleri dahil).
 
 G185 — **Bug 25: Paywall'ın "iki farklı ekran" sorunu — analiz + 4 kararın
 tamamı uygulandı.**
@@ -13983,13 +14062,6 @@ kabul edip madde kapatılır.
 
 ## BEKLEYEN KARARLAR
 
-**W. G183/G184 — 3 görsel sorun (#9/#18/#21). #9/#18 G184'te kullanıcı
-kararıyla düzeltildi (bkz. BİTTİ). #21 hâlâ açık.**
-- **#21 (Atla barı feedback panelindeki yazıların üstüne biniyor):**
-  Headless ölçümde TEKRARLANAMADI (actionbar doğru tucked, viewport dışına
-  itiliyor, örtüşme YOK) — GERÇEK cihazda (safe-area-inset dahil)
-  doğrulanmalı, headless Chromium bunu simüle edemiyor.
-
 **R. G142 — Stereo Genişlik'in "her zaman upload" varsayılanı — istisna kabul mü, yeni mühendislik mi?**
 Kullanıcı G141 sonrası "temiz kurulumda kaynak upload seçili geliyor,
 12 modun HEPSİNDE üretilen bir kaynak varsayılan olsun" istedi. Kod
@@ -14183,7 +14255,23 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G185 itibarıyla):** Bug 25'in 4 kararı (reklam+kota,
+**EN YENİ SIRADAKİ ADIM (G186 itibarıyla):** 7 düzeltme (A1-A3/B1-B2/C1-C2),
+3 ayrı commit'te, Playwright'la doğrulandı, GERÇEK cihazda HENÜZ görülmedi.
+Kontrol edilecek: (1) reklam izleyip +5 soru kazan — sayaç payda GERÇEKTEN
+büyümeli ("N / 10"); (2) Pro'ya geç (ya da geliştirici modunu aç) — can
+göstergesi GERÇEKTEN kaybolmalı; (3) geliştirici modunu aç, İlerleme
+sekmesine git — İsabet Grafiği/Zayıf Bölge Raporu kilidi GERÇEKTEN
+kalkmalı (sekme değiştirmeye bile gerek yok); (4) Araçlar'da bir dosya
+analiz et (Ölçüm Sonuçları açılır), SONRA Referans Filtreleri'ni aç —
+Ölçüm Sonuçları GERÇEKTEN kapanmalı, tersi de; (5) Tonal Balance
+grafiğinde bir bölgeye (TİZ) dokun, İlerleme'ye gidip Araçlar'a dön —
+seçim GERÇEKTEN sıfırlanmış görünmeli; (6) Kompresör/Reverb/Distortion'da
+C harfinin kutusu GERÇEKTEN var mı (regresyon kontrolü); (7) Frekans
+Bulma'da bir soruyu cevapla, geri bildirim kartının altındaki "SONRAKİ
+SORU"/"ATLAMAK İÇİN ✕" yazılarını TAM o anda (kart yukarı kayarken) izle —
+altındaki "Atla ▶" barının koyu gölgesi ARTIK sızıp yazıyı bozmamalı.
+
+**EN YENİ SIRADAKİ ADIM (G185 itibarıyla, hâlâ geçerli):** Bug 25'in 4 kararı (reklam+kota,
 X→menu, "Atla" kaçağı, duraklama) uygulandı, Playwright'la doğrulandı, GERÇEK
 cihazda HENÜZ görülmedi. Kontrol edilecek: (1) ücretsiz oturumda 5 soruyu
 BİTİR (cevaplayarak, "Atla" değil) — sessionLimit paywall'ı reklam seçeneğiyle
