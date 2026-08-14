@@ -107,6 +107,19 @@ export function createAudioEngine() {
   let audioDead = false; // true = state "running" OLSA BİLE currentTime ilerlemiyor, GERÇEK dokunuş bekleniyor
   let onDeadStateChange = null; // app.js "Devam etmek için ekrana dokunun" banner'ını göster/gizle
   let onContextRecreated = null; // app.js'in yüklü dosyaları YENİ context'e göre yeniden decode etmesi için
+  // #50/#51 — iOS'a özgü: AVAudioSession route değişimi (kulaklık çıktı/takıldı).
+  // AudioSessionPlugin.swift'in interruption/sessionActivated olaylarıyla AYNI
+  // "native → JS bildirimi" ihtiyacı, ama G135'in notuna göre bu app'te Capacitor'ın
+  // addListener/notifyListeners YÜZEYİ (pluginName+eventName imzası) HİÇ
+  // doğrulanmamış — o BELİRSİZLİĞE güvenmek yerine (tahminle düzeltme yapma),
+  // Swift tarafı doğrudan bridge?.webView?.evaluateJavaScript(...) ile BU global
+  // fonksiyonu çağırıyor: WKWebView'e JS enjekte etmek Capacitor'ın plugin proxy
+  // katmanından TAMAMEN bağımsız, standart/her zaman çalışan bir API — aynı
+  // "önce ölç, varsayılan native köprü katmanına güvenme" dersi (bkz. G134/G135).
+  let onRouteChanged = null; // app.js: reason'a göre pauseRound()/tools-pause tetikler
+  window.__aeaNativeRouteChanged = (reason) => {
+    if (onRouteChanged) onRouteChanged(reason);
+  };
   // G133 — "aynı anda birden fazla yeniden oluşturma çalışmasın" (task'ın
   // kendi isteği): ensureAudioAlive() halihazırda DEVAM EDEN bir çağrı
   // varken (ör. native sessionActivated olayı VE bir play denemesi neredeyse
@@ -1003,6 +1016,8 @@ export function createAudioEngine() {
     // nesnelere erişemiyor (app.js'in sahipliğinde), bu yüzden bir
     // BİLDİRİM/hook, doğrudan çağrı DEĞİL.
     set onContextRecreated(fn) { onContextRecreated = fn; },
+    // #50/#51 — bkz. dosya başındaki window.__aeaNativeRouteChanged notu.
+    set onRouteChanged(fn) { onRouteChanged = fn; },
     get audioDead() { return audioDead; },
     get contextRecreateCount() { return contextRecreateCount; },
     get audioCtx() { return audioCtx; },

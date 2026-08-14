@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G202)
+Son güncelleme: 14.08.2026 (G203)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,142 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G203 — **#50 (kulaklık çıkınca tur durmuyor) + #51 (hızlı tak/çıkarda %20 tam sessizlik) + #53 (10dk arka plan sonrası tur sıfırlanıyor) — ÜÇÜ DE ÖLÇÜLEREK bulunup düzeltildi, kullanıcı kararlarıyla.**
+
+**#50/#51 — ORTAK KÖK SEBEP (kod okunarak ÖLÇÜLDÜ):** `AVAudioSession.
+routeChangeNotification` (kulaklık tak/çıkar sinyali) NE native (Swift) NE
+JS tarafında dinlenmiyordu — sadece `interruptionNotification` (telefon
+çağrısı vb.) ve `didBecomeActiveNotification` vardı (`AudioSessionPlugin.
+swift`, G132/G134). Bu, #50'nin "route change bildirimi dinleniyor mu"
+sorusunun DOĞRUDAN cevabı: HAYIR. #51'in "debounce ediliyor mu" sorusunun
+cevabı da aynı sebepten HAYIR — dinleyen hiçbir şey olmadığı için debounce
+edilecek bir şey de yoktu; rapor edilen %20 tam sessizlik, hiçbir kurtarma
+mekanizmasının (G131-G137'nin zombi-bağlam ailesi) route change'den HABERİ
+OLMAMASINDAN kaynaklanıyordu.
+
+**#50 — DÜZELTME:** `AudioSessionPlugin.swift`'e `routeChangeNotification`
+gözlemcisi eklendi — G135'in kanıtladığı "bu app'te Capacitor'ın addListener/
+notifyListeners yüzeyi HİÇ doğrulanmadı" dersine göre (tahminle düzeltme
+yapma), native→JS köprüsü Capacitor'ın plugin proxy'sinden TAMAMEN bağımsız,
+standart bir mekanizmayla kuruldu: Swift doğrudan
+`bridge?.webView?.evaluateJavaScript(...)` ile `window.__aeaNativeRouteChanged
+(reason)` global fonksiyonunu çağırıyor (audio-engine.js'te tanımlı,
+`onRouteChanged` hook'una yönlendiriyor). `oldDeviceUnavailable` (çıkış
+rotası kayboldu) geldiğinde: aktif round varsa `pauseRound()` (Bug 10'un AYNI
+"Tekrar Çal" mekanizması), Araçlar'ın 4 bağımsız oynatıcısı da (visibility-
+change'in hidden dalıyla AYNI çağrı seti) duraklatılıyor.
+
+**Kullanıcı kararı (b) — kulaklık geri takılınca hiçbir şey OTOMATİK
+olmuyor:** kullanıcı kendi "Tekrar Çal"a basana kadar bekleniyor — bu seçim
+(b) EK KOD gerektirmedi (round zaten pauseRound()'un durumunda bekliyor).
+Gerekçe (kullanıcının kendi onayladığı): dinlemeye hazır olmadan otomatik
+çalma riski + "yeni cihaz" sinyalinin güvenilir ayırt edilememesi (ör.
+otomatik bağlanan araç Bluetooth'u).
+
+**#51 — DÜZELTME:** JS tarafında 200ms'lik bir debounce eklendi (art arda
+gelen route event'lerinde SADECE son reason işlenir). Ayrıca G136'nın AYNI
+bayrağı (`audioChainStoppedByBackground`) route change'de de set ediliyor —
+DİKKAT notunun "G134/G135'in zombi bağlam sorununun akrabası" uyarısı
+DOĞRU çıktı: route change de (arka plana alınma gibi) ses donanımını/
+AudioContext'i GERÇEKTEN bozabiliyor, bu bayrak olmadan bir SONRAKİ "Tekrar
+Çal" sadece unmuteOutput() yapıp SESSİZ bir grafiği açardı. Her rota
+değişiminde (yön fark etmeksizin) `ensureAudioAlive({allowRecreate:false,
+silent:true})` de çağrılıyor — visibilitychange'in "visible" dalıyla AYNI
+G131 kuralı (sistem olayı context'i YENİDEN OLUŞTURAMAZ, sadece resume
+dener/doğrular) — erken, sessiz bir "ısınma" denemesi.
+
+**#51 — DÜRÜST SINIR:** Bu düzeltme Chromium/WebKit'te Playwright ile
+simüle edilerek (window.__aeaNativeRouteChanged doğrudan çağrılarak) JS
+tarafının DOĞRU tepki verdiği doğrulandı — GERÇEK cihazda hızlı tak/çıkarın
+%20 sessizlik oranını GERÇEKTEN sıfıra indirip indirmediği bu turda
+ÖLÇÜLEMEDİ (AVAudioSession simüle edilemez). Mekanizma artık doğru
+tasarlanmış durumda ama sayı iddiası yapılmıyor — GERÇEK cihazda tekrar
+ölçülmeli.
+
+**#53 — ÖLÇÜM:** `stats` (can/XP/combo) her cevaptan sonra ZATEN kalıcı
+diske yazılıyordu (`persistStats`) — kaybolan SADECE aktif/yarım kalan soru
++ geri sayım (`activeQuestion`/`roundFlow.timeLeft`, ikisi de SADECE
+bellekte, hiçbir yerde persist edilmiyordu). `Info.plist`'te
+`UIBackgroundModes` YOK — bu app arka planda çalışma hakkı OLMAYAN standart
+bir iOS uygulaması; "kısa arka plan dönüşü çalışıyor ama uzun sürede
+farklı" raporu, iOS'un askıya aldığı/bellek baskısı altında SONLANDIRDIĞI
+bir sürecin BELİRTİSİYLE tutarlı (kesin cihaz kanıtı bu turda YOK — genel
+iOS platform davranışı + rapor edilen semptomun kendisi bu teşhisi
+destekliyor). `createQuestion` zaten SAF/JSON-serileştirilebilir (mod
+sözleşmesi) — persist+restore mimarisi UYGULANABİLİR bulundu, KOD
+YAZMADAN önce kullanıcıya (üç ayrı soru: devam UX'i, bayatlık sınırı, bayat
+davranışı) soruldu.
+
+**#53 — DÜZELTME (kullanıcı kararlarına göre):** `pauseRound()`'a (Durdur/
+arka plana alınma/sheet açılışı/#50'nin YENİ duraklatması — HEPSİ buradan
+geçiyor) `persistInProgressRound()` eklendi — sınav fazı, Frekans
+Çakışması'nın "own" çifti, ve "upload" kaynağı BİLİNÇLİ olarak kapsam
+dışı bırakıldı (bu senaryolarda dosya/sınav state'i cold-restart sonrası
+güvenilir şekilde geri getirilemez — o durumlarda "session sona erdi"nin
+mevcut davranışıyla karşılaşılır). Açılışta (`applyPrefs()`'ten SONRA — bkz.
+aşağıdaki İKİ ayrı hata) 3 saatten TAZE bir kayıt varsa `enterMode()`
+(TÜM mod-değişim yan etkileri TEKRAR YAZILMADAN kullanıldı) + `activeQuestion`/
+`roundFlow` restore edilip `renderQuestion()` çağrılıyor — round
+pauseRound()'un AYNI "Tekrar Çal" durumunda, ses OTOMATİK BAŞLAMIYOR
+(zaten iOS bir jest olmadan çalamaz, kullanıcının "sessizce devam" tercihi
+teknik olarak da doğru seçim). 3 saatten eskiyse (kullanıcı kararı: 3 saat
++ SESSİZCE silinmesin) kayıt temizlenir, "Önceki oturum sona erdi" toast'ı
+gösterilir, CAN KESİLMEZ (canlar bu mekanizmaya hiç dokunmadı).
+
+**#53 — Playwright'ta İKİ ayrı, art arda bulunan hata (regresyon koruması
+gereği burada da kayıtlı):**
+1. `enterMode()`'un "mod DEĞİŞTİ" dalı `activeQuestion=null`'un YANINA
+   eklediğimiz `clearInProgressRound()`'u kendi kendine tetikliyordu
+   (restore SIRASINDA, activeQuestion henüz atanmamışken) — ekrandaki
+   gösterim etkilenmiyordu (yerel `saved` değişkeninden geliyordu) ama
+   localStorage'daki kopya kayboluyordu.
+2. `applyPrefs()` kendi İÇİNDE `els.playModeSelect`'e sentetik bir "change"
+   event'i dispatch ediyor (ÖNCEDEN de vardı, Oyun Türü tercihini
+   uygulamak için) — bu da AYNI `clearInProgressRound()`'u (bu kez
+   `setAutoPlay()` üzerinden) tetikliyordu.
+   Kök sebep Playwright'ta `Storage.prototype.setItem/removeItem`'i
+   saran bir stack-trace tuzağıyla KESİN olarak izlendi (tahmin değil).
+   Düzeltme: restore artık İKİ AŞAMALI — `storage.loadInProgressRound()`
+   boot dizisinin EN BAŞINDA bir JS değişkenine (`savedRoundAtBoot`)
+   yakalanıyor, TÜM prefs-senkronizasyonu (dolayısıyla yukarıdaki İKİ
+   müdahale) bittikten SONRA o yakalanmış değer kullanılıyor (storage
+   YENİDEN OKUNMUYOR) — sonda `persistInProgressRound()` ile storage'a
+   YENİDEN yazılıyor (round ikinci kez sonlanırsa da devam ettirilebilir
+   kalsın diye).
+
+**Ölçüm (Playwright, sayılarla):**
+- #50/#51: `window.__aeaNativeRouteChanged('oldDeviceUnavailable')`
+  simülasyonu → startBtn aria-label "Durdur"→"Oynat" (round duraklatıldı),
+  routeChanged log'u doğru reason'la göründü, round ANINDA persist edildi
+  (#53 ile entegrasyon da doğrulandı), konsol hatası YOK.
+- #53 taze restore: gerçek bir Kesim Noktası round'u başlatılıp duraklatıldı
+  (timeLeft=13.1s) → SAYFA YENİDEN YÜKLENDİ (localStorage korunarak) →
+  gameTitle="Kesim Noktası", timerText="13.1s", aktif ekran="screen-game",
+  canlar DEĞİŞMEDİ (5→5), toast sayısı 0 (sessiz).
+- #53 bayat restore: 4 saat önce kaydedilmiş bir round enjekte edildi →
+  kayıt silindi, aktif ekran="screen-menu", canlar DEĞİŞMEDİ (5→5), toast
+  başlığı "Önceki oturum sona erdi" (görüldü).
+- Regresyon: temiz açılış hâlâ menüde başlıyor; round duraklatılmadan mod
+  değiştirmek hâlâ TEMİZ (yarım-tur kaydı oluşturmuyor); `npm test` →
+  **1311/1311**, hiçbir aşamada düşmedi.
+
+**Dokunulan:** `ios/App/App/AudioSessionPlugin.swift` (routeChangeNotification
+gözlemcisi + handleRouteChange), `www/js/core/audio-engine.js`
+(onRouteChanged hook + window.__aeaNativeRouteChanged), `www/js/core/
+round-flow.js` (roundDuration setter — SADECE #53'ün restore'u için), `www/
+js/core/storage.js` (loadInProgressRound/saveInProgressRound/
+clearInProgressRound), `www/js/app.js` (pauseRound → persistInProgressRound,
+6 activeQuestion=null sitesine clearInProgressRound, applyRestoredRoundIfAny/
+savedRoundAtBoot, applyPrefs() sonrası boot çağrısı, dosya sonuna #50/#51'in
+onRouteChanged handler'ı).
+
+**Dokunulmayan:** G201'in #47/#48 düzeltmesi, G202'nin #49b/#52 düzeltmesi,
+G197'nin `.fb-overlay` düzeltmesi, G198'in rozet seti, G199'un e-posta
+düzeltmesi, G200'ün rozet testleri, G190-G194, Bug 17-29, Grup A/B/C —
+hiçbiri yeniden koşulmadı. `AudioSessionPlugin.swift`'in interruption/
+sessionActivated akışı (G132/G134) TEK SATIR değişmedi, SADECE yanına YENİ
+bir gözlemci eklendi.
 
 G202 — **#49b (Referans Filtreleri/Mixini Yükle'de seçimi kaldırma) + #52 (.aif reddi) düzeltildi; #49a (Dosyalarım'ı temizleme) ölçülüp kullanıcı kararı ALINDIKTAN SONRA uygulandı.**
 
@@ -15327,7 +15463,29 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G202 itibarıyla):** #49b (Referans Filtreleri/
+**EN YENİ SIRADAKİ ADIM (G203 itibarıyla):** #50 (kulaklık çıkınca tur
+durmuyordu) + #51 (hızlı tak/çıkarda %20 sessizlik) + #53 (uzun arka plan
+sonrası tur sıfırlanıyordu) düzeltildi — İKİSİ (#50/#51) native Swift
+değişikliği içeriyor, `npm test` (1311/1311) ve Playwright'la (JS tarafı
+simüle edilerek) doğrulandı, **GERÇEK cihazda HİÇ görülmedi — bu turun en
+kritik açık işi.** Kontrol edilecek: (1) kulaklık takılıyken bir round
+başlat, kulaklığı ÇIKAR — round ANINDA duraklamalı (ses hoparlörden
+DEVAM ETMEMELİ), "Oynat"a basınca kaldığı yerden devam etmeli (OTOMATİK
+devam ETMEMELİ, bu kullanıcının kendi kararı); (2) kulaklığı hızlı art
+arda birkaç kez tak/çıkar yap — ses HİÇBİR ZAMAN tam sessiz kalmamalı
+(bu turun ASIL doğrulanamayan iddiası — #51'in %20 rakamı GERÇEK cihazda
+YENİDEN ölçülmeli); (3) Araçlar sekmesinde bir dosya çalarken kulaklığı
+çıkar — O DA duraklamalı; (4) bir round'u duraklat (Durdur'a bas),
+uygulamayı TAMAMEN kapat (arka plan listesinden sil), birkaç dakika
+sonra yeniden aç — SESSİZCE kaldığı sorudan/süreden devam etmeli, can
+gitmemeli; (5) AYNI senaryoyu 3+ saat bekleyerek dene — bu kez "Önceki
+oturum sona erdi" bilgisi görünmeli, can YİNE gitmemeli, normal menü
+açılmalı. `npx cap sync ios` bu turda ÇALIŞTIRILMADI (task'ın kendi
+kuralı: sadece açık bir kullanıcı isteğiyle) — Xcode'da native tarafın
+(AudioSessionPlugin.swift) derlenmesi için BİR SONRAKİ oturumda ayrıca
+`cap sync` + temiz derleme gerekecek.
+
+**EN YENİ SIRADAKİ ADIM (G202 itibarıyla, ARTIK ESKİ):** #49b (Referans Filtreleri/
 Mixini Yükle'de "kaldır") ve #52 (.aif reddi) düzeltildi; #49a (Dosyalarım'ı
 temizleme — trash ikonu + "Tümünü temizle") kullanıcının (b)/(c) kararı
 ALINDIKTAN SONRA kodlandı. `npm test` (1311/1311) ve Playwright'la

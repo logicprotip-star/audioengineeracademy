@@ -1587,6 +1587,7 @@ function teardownActiveRound() {
   audioEngine.stopAudio();
   uploadManager.pausePlayback();
   activeQuestion = null;
+  storage.clearInProgressRound(); // #53 — round GERÇEKTEN bitti, yarım-tur kaydı da geçersiz
   updateStartBtnLabel();
 }
 function finalizeIfGameOver() {
@@ -2446,6 +2447,7 @@ function enterMode(entry, realMode) {
     clearTimeout(freqTapTimer);
     freqTapTimer = null;
     activeQuestion = null;
+    storage.clearInProgressRound(); // #53 — başka bir moda geçiliyor, eski modun yarım-tur kaydı SIZMASIN
     roundActive = false;
     autoStopped = true;
     mode = realMode;
@@ -5351,6 +5353,34 @@ function pauseRound() {
   if (els.feedbackOverlay) els.feedbackOverlay.classList.remove("open");
   if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
   updateStartBtnLabel();
+  // #53 — pauseRound() HER duraklatma sebebini kapsayan TEK kontrol noktası
+  // (Durdur butonu, arka plana alınma, sheet açılışları, #50'nin YENİ rota-
+  // değişimi duraklatması — hepsi burayı çağırıyor) — yarım kalan turun
+  // anlık görüntüsünü de BURADAN almak, her çağıranın kendi başına
+  // kaydetmesini İCAT ETMEK yerine tek/doğru yer.
+  persistInProgressRound();
+}
+
+// #53 — bkz. pauseRound()'un çağrısı. Bilinçli DAR kapsam (ürün kararı
+// GEREKTİRMEYEN bir güvenlik sınırlaması, bkz. DURUM.md): sınav/telafi fazı
+// (examSystem'in KENDİ, bu turun DOKUNMADIĞI ayrı state makinesi) VEYA
+// Frekans Çakışması'nın "own" (iki AYRI kullanıcı dosyası) çifti VEYA aktif
+// kaynak "upload" (uploadManager'ın DECODE EDİLMİŞ hali oturuma özel — dosya
+// fileStorage'da kalıcı ama cold-restart sonrası YENİDEN decode edilmeden
+// geri getirilemez) kaydedilmez — bu senaryolarda kaldığı yerden devam
+// TEKLİF EDİLMEZ, mevcut "session sona erdi" davranışıyla karşılaşılır.
+function persistInProgressRound() {
+  if (!activeQuestion) { storage.clearInProgressRound(); return; }
+  if (examGateActive() && examSystem.phase !== "parkur") return;
+  if (activeQuestion.mode === "cakisma" && currentCakismaPairId() === "own") return;
+  if (els.sourceSelect && els.sourceSelect.value === "upload") return;
+  storage.saveInProgressRound({
+    modeId: mode.MODE_ID,
+    activeQuestion,
+    timeLeft: roundFlow.timeLeft,
+    roundDuration: roundFlow.roundDuration,
+    savedAt: Date.now()
+  });
 }
 
 // G124 — pauseRound()'un TAM tersi, startBtn'in "Tekrar Çal" dalından
@@ -5499,6 +5529,11 @@ function startRound() {
     // DIFFICULTY[examTier]'ını kullanır (bkz. examTier notu).
     difficultyPosition: examActive ? undefined : currentDifficultyPosition(boss)
   });
+  // #53 — YENİ bir round başladı, ÖNCEKİ (varsa) yarım-tur kaydı artık STALE
+  // (farklı bir soruya ait) — bir sonraki pauseRound() BU round'u kaydedecek,
+  // ama ARADA (henüz hiç duraklatılmadan) uygulama sonlanırsa restore ESKİ
+  // (bitmiş) round'u YANLIŞLIKLA geri getirmesin diye burada da temizleniyor.
+  storage.clearInProgressRound();
   roundsInThisPlaySession++;
   // Karıştır açıkken çalan kaynak sourceSelect'ten farklı olabilir — chip her zaman
   // o turda GERÇEKTEN çalan kaynağın adını göstersin. Frekans Çakışması'nda
@@ -5613,6 +5648,7 @@ function setAutoPlay(on) {
     audioEngine.stopAudio();
     uploadManager.pausePlayback();
     activeQuestion = null;
+    storage.clearInProgressRound(); // #53 — bu SORU bitti (farklı bir "Oyunu Başlat" kavramı, aşağıdaki mesaj ONA işaret ediyor)
     roundActive = false;
     updateStartBtnLabel();
     setFeedback("Durduruldu", "Kaldığın yerden 'Oyunu Başlat' ile devam edebilirsin.");
@@ -5629,6 +5665,7 @@ function finishChallenge() {
   roundFlow.clearAutoAdvance();
   audioEngine.stopAudio();
   activeQuestion = null;
+  storage.clearInProgressRound(); // #53 — bölüm tamamlandı, yarım-tur kaydı da geçersiz
   updateStartBtnLabel();
   if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
   // "Normal" (kaybetmeden biten) Seans Sonu SADECE burada, 10 Soruluk Bölüm
@@ -7003,6 +7040,7 @@ function resetAllProgress() {
   history = [];
   daily = storage.freshDaily();
   activeQuestion = null;
+  storage.clearInProgressRound(); // #53 — "tüm istatistikleri temizle" yarım-tur kaydını da kapsamalı
   roundActive = false;
   freqGuessHz = null; freqHoverHz = null;
   cutoffGuess = null;
@@ -7302,8 +7340,80 @@ updateHintChipLabel();
 updateAbToggleUI();
 renderExerciseGrid();
 renderComingGrid();
-goScreen("menu");
-resizeCanvas();
+// #53 — uzun arka plan/uygulama sonlandırma sonrası kaldığı yerden devam.
+// Kullanıcı kararı: 3 saatten TAZE bir kayıt SESSİZCE (ekstra popup/onay YOK)
+// geri yüklenir — pauseRound()'un AYNI "Tekrar Çal" duraklamış durumunda (ses
+// OTOMATİK BAŞLAMAZ; zaten iOS bir kullanıcı jesti OLMADAN çalamaz, bu yüzden
+// "sessiz" seçimi teknik olarak da doğru — otomatik çalma DENENSE bile
+// başarısız olurdu). 3 saatten ESKİYSE kayıt silinir + kısa bir bilgi + normal
+// menü, CAN KESİLMEDEN (canlar bu mekanizmaya hiç dokunulmuyor).
+//
+// İKİ AYRI ADIMA BÖLÜNMESİNİN SEBEBİ (Playwright'ta ÖLÇÜLDÜ, İKİ AYRI kök
+// sebep bulundu):
+// (1) enterMode()'un "mod DEĞİŞTİ" dalı activeQuestion=null'un YANINA
+//     eklediğimiz clearInProgressRound()'u BİLE tetikliyor (activeQuestion
+//     henüz null'ken, restore'un KENDİ activeQuestion atamasından ÖNCE).
+// (2) applyPrefs() KENDİ İÇİNDE els.playModeSelect'e "change" event'i
+//     SENTETİK dispatch ediyor (kalıcı Oyun Türü tercihini uygulamak için,
+//     BU turdan ÖNCE de vardı) — bu da setAutoPlay()'in "Oyun Türü değişti"
+//     dalını (AYNI clearInProgressRound çağrısı) tetikliyor.
+// İkisi de storage'ı SİLEBİLİR — restore mantığı bu yüzden BAŞTA (bu iki
+// müdahaleden ÖNCE) storage.loadInProgressRound()'u BİR JS DEĞİŞKENİNE
+// yakalıyor (aşağıdaki savedRoundAtBoot), sonra applyPrefs() TAMAMEN
+// bittikten SONRA o YAKALANMIŞ değeri kullanıyor — storage'ı YENİDEN
+// OKUMUYOR, arada kaç kez silinirse silinsin ETKİLENMİYOR. En sonda
+// persistInProgressRound() ile storage'a YENİDEN yazılıyor (kullanıcı hiç
+// dokunmadan uygulama İKİNCİ kez sonlanırsa BİLE round devam ettirilebilir
+// kalsın diye).
+const IN_PROGRESS_ROUND_STALE_MS = 3 * 60 * 60 * 1000; // 3 saat — kullanıcı kararı
+const savedRoundAtBoot = storage.loadInProgressRound();
+function applyRestoredRoundIfAny(saved) {
+  if (!saved) { goScreen("menu"); return; }
+  const ageMs = Date.now() - (saved.savedAt || 0);
+  if (!(ageMs >= 0) || ageMs > IN_PROGRESS_ROUND_STALE_MS) {
+    storage.clearInProgressRound();
+    goScreen("menu");
+    toast("Önceki oturum sona erdi", "Uzun süre uzak kaldığın için yarım kalan tur kapatıldı.");
+    return;
+  }
+  const entry = MODE_CATALOG.find(e => e.id === saved.modeId);
+  const realMode = listModes().find(m => m.getMeta().id === saved.modeId);
+  if (!entry || !realMode || !saved.activeQuestion) {
+    storage.clearInProgressRound();
+    goScreen("menu");
+    return;
+  }
+  // enterMode()'un TÜM mod-değişim yan etkilerini (source/focus/difficulty
+  // select'leri, examSystem.setMode, analyzer sınıfları — bkz. o fonksiyonun
+  // dosya başı notu) burada TEKRAR YAZMAK yerine AYNEN kullanıyoruz — kendi
+  // "Kulaklık gerekli" kapısı BİLEREK ATLANDI (openHeadphoneSheet çağrılmadı):
+  // bu YENİ bir mod girişi değil, kullanıcının BU OTURUMDA zaten başlamış
+  // olduğu bir turun devamı.
+  enterMode(entry, realMode);
+  activeQuestion = saved.activeQuestion;
+  roundActive = true;
+  autoStopped = true;
+  autoPlaying = false;
+  roundFlow.roundDuration = saved.roundDuration;
+  roundFlow.timeLeft = saved.timeLeft;
+  updateTimerUI(saved.timeLeft, saved.roundDuration);
+  if (els.sourceChipLabel && activeQuestion.mode !== "cakisma") els.sourceChipLabel.textContent = labelSource(activeQuestion.source);
+  if (els.cakismaPairChipLabel && activeQuestion.mode === "cakisma") els.cakismaPairChipLabel.textContent = `${activeQuestion.pair.labelA} + ${activeQuestion.pair.labelB}`;
+  renderQuestion();
+  if (els.nextBtn) els.nextBtn.textContent = "Atla ▶";
+  // #51'in AYNI ilkesi (bkz. o bölümdeki not) — bu oturumda BU round için hiç
+  // ses zinciri kurulmadı, bir SONRAKİ "Tekrar Çal" playQuestion()'la
+  // SIFIRDAN (ensureAudioAlive/gerekirse recreateContext dahil) kursun.
+  audioChainStoppedByBackground = true;
+  updateStartBtnLabel();
+  // enterMode()'un "mod DEĞİŞTİ" dalı (activeQuestion HENÜZ null iken,
+  // yukarıdaki satırlardan ÖNCE çalışır) KENDİ activeQuestion=null satırının
+  // yanındaki storage.clearInProgressRound()'u tetikliyor — activeQuestion/
+  // mode/roundFlow artık DOĞRU değerlere sahip olduğu için burada YENİDEN
+  // kaydediyoruz, kullanıcı hiç dokunmadan uygulama İKİNCİ kez sonlanırsa
+  // BİLE round hâlâ devam ettirilebilir kalsın.
+  persistInProgressRound();
+}
 
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => goScreen(TAB_TO_SCREEN[btn.dataset.tab] || "menu"));
@@ -7824,6 +7934,12 @@ function applyPrefs() {
   updateCalibRowLabel();
 }
 applyPrefs();
+// #53 — bkz. savedRoundAtBoot'un dosya başındaki YER notu: applyPrefs()
+// BİLEREK BURADAN ÖNCE tamamlanıyor (kendi sentetik "change" tetiklemesi
+// storage'ı silebiliyordu) — savedRoundAtBoot ZATEN EN BAŞTA yakalandığı
+// için bu sıralamadan ETKİLENMİYOR.
+applyRestoredRoundIfAny(savedRoundAtBoot);
+resizeCanvas();
 if (els.notifSwitch) els.notifSwitch.addEventListener("click", () => {
   // Not: gerçek bir bildirim planlama altyapısı yok, sadece tercih saklanıyor.
   prefs.notifications = !prefs.notifications;
@@ -12232,4 +12348,64 @@ audioEngine.onContextRecreated = () => {
   renderToolsFilterPlayer();
   renderToolsMixPlayer(toolsSelectedEntry());
   renderToolsTonalAbUi();
+};
+
+// #50/#51 — kulaklık/harici çıkış rotası değişimi (bkz. audio-engine.js'in
+// window.__aeaNativeRouteChanged notu — SADECE iOS'ta, AudioSessionPlugin.
+// swift'in routeChangeNotification köprüsü). Android/Web'de audioEngine.
+// onRouteChanged HİÇ ÇAĞRILMAZ (window.__aeaNativeRouteChanged sadece native
+// Swift tarafından invoke ediliyor) — bu blok o platformlarda TAMAMEN
+// etkisiz, mevcut davranış BİR SATIR değişmedi.
+//
+// #51 ÖLÇÜMÜ: rota değişimini debounce eden HİÇBİR mekanizma YOKTU — çünkü
+// dinleyen HİÇBİR kod yoktu (ne native ne JS tarafında). Hızlı tak/çıkarda
+// native taraf çok kısa aralıklarla art arda bildirim gönderebilir — SADECE
+// en SON reason işlenir, aradaki flapping'ler pauseRound()'u/liveness
+// kontrolünü GEREKSİZ yere tekrar tekrar tetiklemez.
+const ROUTE_CHANGE_DEBOUNCE_MS = 200;
+let routeChangeDebounceTimer = null;
+audioEngine.onRouteChanged = (reason) => {
+  clearTimeout(routeChangeDebounceTimer);
+  routeChangeDebounceTimer = setTimeout(() => {
+    audioDiagLog("routeChanged", reason);
+    if (reason === "oldDeviceUnavailable") {
+      // #50 — iOS standardı: çıkış rotası (kulaklık/harici hoparlör) kaybolunca
+      // hoparlörden SESSİZCE devam ETMESİN. pauseRound()'un AYNI "Tekrar Çal"
+      // duraklatma mekanizması (Bug 10) — YENİ bir duraklatma yolu İCAT EDİLMEDİ.
+      if (activeQuestion && !autoStopped) pauseRound();
+      // Araçlar'ın DÖRT bağımsız oynatıcısı — visibilitychange'in hidden
+      // dalıyla AYNI çağrı seti (bkz. o bloğun G155 notu): round olsun olmasın,
+      // Araçlar sekmesinde bir dosya çalıyor olabilir, O DA hoparlöre kaçmasın.
+      toolsPauseFilterPlayback();
+      toolsPauseRawMixPlayback();
+      toolsTonalStopRefPlayback();
+      toolsTonalStopMixPlayback();
+      renderToolsFilterPlayer();
+      renderToolsMixPlayer(toolsSelectedEntry());
+      renderToolsTonalAbUi();
+      // #51 — G136'nın AYNI bayrağı: rota değişimi de (arka plana alınma
+      // gibi) altta yatan ses donanımını/AudioContext'i GERÇEKTEN
+      // bozabilir (DİKKAT notu: "G134/G135'te çözülen zombi bağlam
+      // sorununun akrabası") — bir SONRAKİ "Tekrar Çal" SADECE
+      // unmuteOutput() yapıp SESSİZ bir grafiği açmasın diye, zincir bir
+      // SONRAKİ basışta playQuestion() ile SIFIRDAN (ensureAudioAlive/
+      // recreateContext dahil) kurulsun diye işaretleniyor.
+      if (activeQuestion) audioChainStoppedByBackground = true;
+    }
+    // reason === "newDeviceAvailable" (kulaklık GERİ takıldı) — kullanıcı
+    // kararı (b): hiçbir şey OTOMATİK olmaz, round zaten yukarıdaki
+    // pauseRound()'un "Tekrar Çal" durumunda bekliyor — kullanıcı kendi
+    // basana kadar EK kod GEREKMİYOR (gerekçe: dinlemeye HAZIR olmadan
+    // otomatik çalma riski + "yeni cihaz" sinyalinin GÜVENİLİR ayırt
+    // edilememesi, ör. otomatik bağlanan araç Bluetooth'u).
+    //
+    // #51 — HER İKİ rota değişiminde de (yön fark etmeksizin) context'i
+    // SESSİZCE "ısıt": allowRecreate:false (visibilitychange'in G131
+    // kuralıyla AYNI — rota değişimi bir SİSTEM olayı, kullanıcı jesti
+    // DEĞİL, context'i KAPATIP YENİDEN KURMAYA bu olaydan İZİN VERİLMEZ) +
+    // silent:true (banner TETİKLENMEZ, sadece context erken doğrulanır/
+    // canlandırılır — kullanıcının bir SONRAKİ GERÇEK jesti daha hızlı/
+    // güvenilir sonuç alır).
+    audioEngine.ensureAudioAlive({ allowRecreate: false, silent: true });
+  }, ROUTE_CHANGE_DEBOUNCE_MS);
 };

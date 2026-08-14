@@ -106,6 +106,11 @@ export function createRoundFlow({ onTimerTick, onTimeUp, onAutoAdvanceLabel, onA
     stopAll,
     get timeLeft() { return timeLeft; },
     set timeLeft(v) { timeLeft = v; },
-    get roundDuration() { return roundDuration; }
+    get roundDuration() { return roundDuration; },
+    // #53 — kaydedilmiş bir yarım tur geri yüklenirken (Tur ARALIKSIZ zamanlayıcı
+    // olmadan, DONMUŞ bir süreyle gösterilecek) roundDuration'ı da (timeLeft'in
+    // AYNI deseni) doğrudan yazabilmek için — startTimer() ÇAĞRILMADAN (o interval'i
+    // de kurardı, geri yüklenen tur PAUSED başlamalı).
+    set roundDuration(v) { roundDuration = v; }
   };
 }

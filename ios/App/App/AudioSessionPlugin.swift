@@ -46,6 +46,17 @@ public class AudioSessionPlugin: CAPPlugin, CAPBridgedPlugin {
             name: UIApplication.didBecomeActiveNotification,
             object: nil
         )
+        // #50/#51 — kulaklık çıkarma/takma (ve genel olarak çıkış rotası
+        // değişimi — Bluetooth hoparlör de dahil, hepsi AYNI "hoparlörden
+        // sessizce devam etme" riskini taşıyor). Bu bildirim ÖNCEDEN HİÇ
+        // dinlenmiyordu (ölçüldü) — G132/G134'ün interruptionNotification'ıyla
+        // AYNI NotificationCenter deseni.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleRouteChange(_:)),
+            name: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance()
+        )
         // Uygulama İLK açıldığında (kullanıcı henüz hiç dokunmadan) da bir
         // kez denenir — başarısız olması NORMAL olabilir (henüz kullanıcı
         // etkileşimi yok, sistem izin vermeyebilir); JS kendi unlockAudio
@@ -100,6 +111,35 @@ public class AudioSessionPlugin: CAPPlugin, CAPBridgedPlugin {
             notifyListeners("sessionActivated", data: ["ok": ok, "source": "interruptionEnded"])
         @unknown default:
             break
+        }
+    }
+
+    // #50/#51 — G135'in notuna göre Capacitor'ın addListener/notifyListeners
+    // YÜZEYİ bu app'te (nativePromise tabanlı, düz-script bridge) HİÇ
+    // doğrulanmadı — o BELİRSİZLİĞE güvenmek yerine (tahminle düzeltme
+    // yapma), WKWebView'e DOĞRUDAN JS enjekte ediyoruz: bu, Capacitor'ın
+    // plugin proxy katmanından TAMAMEN bağımsız, standart bir WKWebView
+    // API'si — audio-engine.js'in window.__aeaNativeRouteChanged'ı (bkz. o
+    // dosyanın G135 notuyla AYNI ilke) çağrılıyor. reasonName SADECE JS'in
+    // hangi durumda ne yapacağına karar vermesi için — bu dosyada BİLEREK
+    // bir eylem (pause vb.) YOK, "native SADECE bildirir, POLİTİKA JS'te
+    // kalır" ilkesi (audio-diag'ın tüm diğer bildirimleriyle AYNI).
+    @objc private func handleRouteChange(_ notification: Notification) {
+        guard let info = notification.userInfo,
+              let reasonValue = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+        let reasonName: String
+        switch reason {
+        case .oldDeviceUnavailable: reasonName = "oldDeviceUnavailable"
+        case .newDeviceAvailable: reasonName = "newDeviceAvailable"
+        default: reasonName = "other"
+        }
+        print("[audio-diag-native] route değişti — reason=\(reasonName)")
+        DispatchQueue.main.async {
+            self.bridge?.webView?.evaluateJavaScript(
+                "window.__aeaNativeRouteChanged && window.__aeaNativeRouteChanged('\(reasonName)')",
+                completionHandler: nil
+            )
         }
     }
 }

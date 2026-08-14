@@ -14,6 +14,13 @@ const TONAL_REFS_KEY = "eqEarTrainerProXTonalRefs";
 const SOURCE_SELECTIONS_KEY = "eqEarTrainerProXSourceSelections";
 const ANSWER_FORMAT_SELECTIONS_KEY = "eqEarTrainerProXAnswerFormatSelections";
 const PURCHASE_KEY = "eqEarTrainerProXPurchase";
+// #53 — yarım kalan tur (uzun arka plan/uygulama sonlandırma sonrası "kaldığı
+// yerden devam" için). Diğer kalıcı anahtarlarla AYNI localStorage deseni —
+// stats/daily/zoneStats/prefs'in AKSİNE (bkz. mirrorSet/reconcileFromPreferences)
+// Preferences'a YANSITILMIYOR: bu veri EPHEMERAL/düşük risk (kaybedilirse en
+// kötü ihtimalle bir devam fırsatı kaçar, kalıcı ilerleme değil) — 4 kritik
+// anahtarın "yedeklemeye değer" muamelesi burada BİLİNÇLİ olarak uygulanmadı.
+const IN_PROGRESS_ROUND_KEY = "eqEarTrainerProXInProgressRound";
 
 // Canlar artık zorluğa göre DEĞİL — tek, global bir havuz (bkz. freshStats().lives).
 // Eskiden her zorluğun kendi canı vardı (perDiff[key].lives); bu yüzden zorluk
@@ -515,4 +522,32 @@ export async function reconcileFromPreferences() {
     }
   } catch (e) {}
   return recovered;
+}
+
+// #53 — yarım kalan tur. Şekil: { modeId, examTier, source, activeQuestion,
+// timeLeft, roundDuration, savedAt }. savedAt (Date.now()) çağıran tarafın
+// (app.js) "3 saatten eskiyse bayat say" kararını uygulayabilmesi için —
+// bayatlık EŞİĞİ bilerek BURADA değil, çağıran tarafta (ürün kararı, bkz.
+// DURUM.md) tutuluyor; bu modül SADECE ham veriyi taşır.
+export function loadInProgressRound() {
+  try {
+    const raw = localStorage.getItem(IN_PROGRESS_ROUND_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return (parsed && typeof parsed === "object") ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveInProgressRound(snapshot) {
+  try {
+    localStorage.setItem(IN_PROGRESS_ROUND_KEY, JSON.stringify(snapshot));
+  } catch (e) {}
+}
+
+export function clearInProgressRound() {
+  try {
+    localStorage.removeItem(IN_PROGRESS_ROUND_KEY);
+  } catch (e) {}
 }
