@@ -1358,6 +1358,22 @@
       border-radius:22px 22px 0 0;background:rgba(43,217,168,.13);border:1px solid rgba(43,217,168,.3);border-bottom:0;
       box-shadow:0 -12px 40px rgba(0,0,0,.6);
       transform:translateY(100%);transition:transform .3s cubic-bezier(.3,.8,.3,1);pointer-events:none;
+      /* G189 DÜZELTMESİ (Kesim Noktası geri bildirim okunabilirliği) — .fb'nin arka planı
+         SADECE %12-13 opak (ölçüldü, DEĞİŞTİRİLMEDİ — G81'in kendi rengi,
+         bu turun kapsamı DIŞINDA) — kısa viewport'ta (375×667 ölçüldü)
+         panelin YÜKSEKLİĞİ İÇERİĞE göre büyüdüğünde (bottom:0 sabit, height
+         auto) üst kenarı oyun kontrol satırını (#gameSpectrumControls,
+         56-58px çakışma ÖLÇÜLDÜ) ve daha uzun metinlerde eğri grafiğini
+         (#analyzer) da kapsayabiliyor — z-index DOĞRU (panel üstte, 91>60)
+         ama ARKA PLAN saydam olduğu için altındaki şekiller sızıp metni
+         okunmaz kılıyordu. C2/#21'in (10af88e) çözümünden (SADECE
+         .fb-advance-head'e opak backdrop) FARKLI bir katman — o çözüm BU
+         sorunu kapsamıyordu (.fb-advance-head panelin EN ALT satırı, burada
+         asıl ÇAKIŞMA panelin ÜST kenarında). .fb-overlay'in (tam ekran
+         karartma) backdrop-filter:none'ı (G85, "tasarımın LİTERAL rengi")
+         KASITLI/DOKUNULMADI — burası TAMAMEN AYRI bir element (.fb'nin
+         KENDİSİ, panelin İÇERİK kartı), o kararla ÇELİŞMİYOR. */
+      backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
     }
     .fb.show-result{transform:translateY(0);pointer-events:auto}
     .fb.show-result.bad{animation:shakeX 300ms ease-in-out}
