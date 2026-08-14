@@ -73,6 +73,32 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G199 — **Yanlış destek e-postası düzeltildi: `.academy` → `.com`.**
+
+Ayarlar → "Bize ulaşın" ekranında `destek@audioengineer.academy` yazıyordu
+— YANLIŞ alan adı, kullanıcının yazdığı mail hiçbir yere ulaşmıyordu.
+Doğrusu `destek@audioengineeracademy.com` (paywall.js'in gizlilik/kullanım
+koşulları linklerinde ZATEN doğru kullanılan alan adıyla AYNI).
+
+**TARANDI (kullanıcının istediği 5 kategori):** `www/` genelinde
+`audioengineer.academy` ve `audioengineeracademy.com` için grep — TEK bir
+yanlış eşleşme bulundu (`index.html:1293`, hem `mailto:` href'inde hem
+görünen metinde, AYNI satırda iki kopya). `mailto:`/`@` içeren TÜM
+satırlar ayrıca taranıp başka e-posta adresi bulunamadı. `gizlilik.html`/
+`kullanim-kosullari.html` (yasal metinler) e-posta içermiyor. `www/js/`
+genelinde başka bir email/domain referansı yok. Üst düzey `.md`
+dosyalarında da (bilgi amaçlı, kapsam dışı ama kontrol edildi) aynı yanlış
+alan adı geçmiyor. **Başka yanlış bir şey bulunmadı.**
+
+**Ölçüm:** `npm test` → **1291/1291**. Playwright ile canlı doğrulandı:
+Ayarlar → Bize ulaşın ekranında hem `mailto:` href'i hem görünen metin
+`destek@audioengineeracademy.com`.
+
+**Dokunulan:** `www/index.html` (SADECE satır 1293, iki kopya — href +
+görünen metin).
+**Dokunulmayan:** `www/js/core/paywall.js` (zaten doğruydu, dokunulmadı),
+tüm diğer dosyalar — bu tek satırlık, tek dosyalık bir düzeltmeydi.
+
 G198 — **Rozet seti revizyonu: 9 → 6, isimler/ikonlar yenilendi.**
 
 **ÖNCE ÖLÇÜLDÜ (kod yazmadan):**
@@ -15013,7 +15039,14 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G198 itibarıyla):** Rozet seti 9→6 revizyonu
+**EN YENİ SIRADAKİ ADIM (G199 itibarıyla):** Yanlış destek e-postası
+(`destek@audioengineer.academy` → `destek@audioengineeracademy.com`)
+düzeltildi, `npm test` (1291/1291) ve Playwright'la doğrulandı, GERÇEK
+cihazda HENÜZ görülmedi. Tek kontrol: Ayarlar → Bize ulaşın'a git, e-posta
+linkine dokun — cihazın mail uygulaması `destek@audioengineeracademy.com`
+adresiyle açılmalı.
+
+**EN YENİ SIRADAKİ ADIM (G198 itibarıyla, ARTIK ESKİ):** Rozet seti 9→6 revizyonu
 tamamlandı (isim/ikon değişti, koşullar/id'ler AYNI kaldı), `npm test`
 (1291/1291) ve Playwright'la (temiz kullanıcı + eski-veri senaryoları)
 doğrulandı, GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: (1) İlerleme
