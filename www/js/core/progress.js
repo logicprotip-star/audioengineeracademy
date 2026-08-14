@@ -170,3 +170,15 @@ export function checkAchievements(stats) {
   });
   return newlyUnlocked;
 }
+
+// G199 DÜZELTMESİ (test edilebilirlik, kullanıcı onayı) — app.js:
+// renderAchievements()'ın sayaç hesabı ("N/6") BURAYA saf fonksiyon olarak
+// çıkarıldı. ÖNCEDEN app.js içinde inline'dı (`stats.unlocked`'ın HAM
+// `.size`'ı kullanılıyordu — G198'de düzeltilen "9/6" hatası, bkz. o
+// rapor); SADECE güncel ACHIEVEMENTS'taki id'lerle KESİŞİMİ sayar, eski
+// (silinmiş) rozet id'leri stats.unlocked'ta kalsa bile saymaz — orphaned
+// id'ler yüzünden sayı ACHIEVEMENTS.length'i AŞAMAZ.
+export function unlockedAchievementCount(stats) {
+  const unlocked = new Set((stats && stats.unlocked) || []);
+  return ACHIEVEMENTS.filter(a => unlocked.has(a.id)).length;
+}

@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { levelFromXp, modeXp, modeLevel, academyLevel, academyXpNeeded, academyXpProgress, academyTotalXp, xpNeeded, LEVEL_TITLES, levelTitle } from "../www/js/core/progress.js";
+import { levelFromXp, modeXp, modeLevel, academyLevel, academyXpNeeded, academyXpProgress, academyTotalXp, xpNeeded, LEVEL_TITLES, levelTitle, ACHIEVEMENTS, checkAchievements, unlockedAchievementCount, accuracy } from "../www/js/core/progress.js";
 
 function statsWithPerMode(perMode) {
   return { perMode };
@@ -171,5 +171,101 @@ describe("LEVEL_TITLES / levelTitle() — G74/G75 (taslak)", () => {
     assert.equal(levelTitle(0), LEVEL_TITLES[0].title);
     assert.equal(levelTitle(undefined), LEVEL_TITLES[0].title);
     assert.equal(levelTitle(-5), LEVEL_TITLES[0].title);
+  });
+});
+
+// G199 — rozet sistemi (G198'in 9→6 revizyonundan sonra) hiç birim testi
+// yoktu — bu, "ileride biri koşulu değiştirirse fark edilmez" açığıydı
+// (kullanıcının kendi tespiti). checkAchievements()/ACHIEVEMENTS saf mantık,
+// DOM'a bağımlı DEĞİL — burada test edilir. unlockedAchievementCount() bu
+// turda app.js'in inline sayaç hesabından (G198'in düzelttiği "9/6" hatası)
+// SAF fonksiyona ÇIKARILDI (kullanıcı onayı) — app.js:renderAchievements()
+// artık BUNU çağırıyor, davranış AYNI kaldı.
+describe("ACHIEVEMENTS — id kalıcılığı", () => {
+  it("id'ler beklenen 6 değerle BİREBİR (sırayla) eşleşir — biri değişirse/silinirse kazanılmış rozetler (stats.unlocked id-bazlı) bozulur, bu test YAKALAR", () => {
+    assert.deepEqual(ACHIEVEMENTS.map(a => a.id), ["first_blood", "combo_5", "round_25", "accuracy_70", "pro_clear", "boss_win"]);
+  });
+});
+
+describe("checkAchievements() — her rozetin koşulu + sınır değerleri (G198'in 6 rozeti)", () => {
+  it("first_blood: ilk doğru cevaptan ÖNCE kazanılmaz, cevap verilince kazanılır", () => {
+    assert.deepEqual(checkAchievements({ correct: 0 }).map(a => a.id), []);
+    assert.deepEqual(checkAchievements({ correct: 1 }).map(a => a.id), ["first_blood"]);
+  });
+
+  it("combo_5: 4 combo'da kazanılmaz, 5 combo'da kazanılır (sınır değer)", () => {
+    assert.deepEqual(checkAchievements({ bestCombo: 4 }).map(a => a.id), []);
+    assert.deepEqual(checkAchievements({ bestCombo: 5 }).map(a => a.id), ["combo_5"]);
+  });
+
+  it("round_25: 24 turda kazanılmaz, 25 turda kazanılır (sınır değer)", () => {
+    assert.deepEqual(checkAchievements({ rounds: 24 }).map(a => a.id), []);
+    assert.deepEqual(checkAchievements({ rounds: 25 }).map(a => a.id), ["round_25"]);
+  });
+
+  // NOT: accuracy_70'i tetiklemek için gereken `correct`/`rounds` alanları
+  // first_blood'un (`correct>=1`) ve/ya round_25'in (`rounds>=25`) koşulunu
+  // da İSTEMEDEN sağlayabiliyor — checkAchievements TÜM rozetleri AYNI
+  // stats'a karşı değerlendirir, bu YAN ETKİ bir hata DEĞİL. Bu yüzden bu
+  // iki testte TAM DİZİ eşitliği yerine SADECE accuracy_70'in üyeliği
+  // kontrol ediliyor (`.includes`).
+  it("accuracy_70: 19 turda (isabet %100 olsa BİLE) min-tur şartı yüzünden kazanılmaz — 20 turda %100 ile kazanılır", () => {
+    assert.ok(!checkAchievements({ rounds: 19, correct: 19 }).map(a => a.id).includes("accuracy_70"), "19 tur, min-tur eşiğinin (20) ALTINDA — kazanılmamalı");
+    assert.ok(checkAchievements({ rounds: 20, correct: 20 }).map(a => a.id).includes("accuracy_70"));
+  });
+
+  it("accuracy_70: %69 isabette kazanılmaz, %70'te kazanılır (accuracy()'nin KENDİ Math.round'una göre sınır — 100 tur kullanıldı, 20 turda tam %69 üretecek bir tamsayı YOK, hepsi 5'in katı)", () => {
+    assert.equal(accuracy({ rounds: 100, correct: 69 }), 69, "test önkoşulu: 69/100 gerçekten %69'a yuvarlanıyor");
+    assert.ok(!checkAchievements({ rounds: 100, correct: 69 }).map(a => a.id).includes("accuracy_70"), "%69, %70 eşiğinin ALTINDA — kazanılmamalı");
+    assert.equal(accuracy({ rounds: 100, correct: 70 }), 70, "test önkoşulu: 70/100 gerçekten %70'e yuvarlanıyor");
+    assert.ok(checkAchievements({ rounds: 100, correct: 70 }).map(a => a.id).includes("accuracy_70"));
+  });
+
+  it("pro_clear: Pro zorlukta 7 doğruda kazanılmaz, 8 doğruda kazanılır (sınır değer)", () => {
+    assert.deepEqual(checkAchievements({ proCorrect: 7 }).map(a => a.id), []);
+    assert.deepEqual(checkAchievements({ proCorrect: 8 }).map(a => a.id), ["pro_clear"]);
+  });
+
+  it("boss_win: boss turu kazanılmadan ÖNCE kazanılmaz, kazanılınca kazanılır", () => {
+    assert.deepEqual(checkAchievements({ bossWins: 0 }).map(a => a.id), []);
+    assert.deepEqual(checkAchievements({ bossWins: 1 }).map(a => a.id), ["boss_win"]);
+  });
+});
+
+describe("checkAchievements() — tekrar kazanma", () => {
+  it("zaten kazanılmış bir rozet İKİNCİ çağrıda newlyUnlocked'a TEKRAR düşmez, stats.unlocked'ta YİNELENMEZ", () => {
+    const stats = { correct: 1 };
+    const first = checkAchievements(stats);
+    assert.deepEqual(first.map(a => a.id), ["first_blood"]);
+    assert.deepEqual(stats.unlocked, ["first_blood"]);
+    const second = checkAchievements(stats);
+    assert.deepEqual(second, [], "koşul HÂLÂ sağlansa bile aynı rozet ikinci kez newlyUnlocked'da ÇIKMAMALI");
+    assert.deepEqual(stats.unlocked, ["first_blood"], "unlocked dizisinde yinelenen kayıt OLMAMALI");
+  });
+});
+
+// G198'in kendi raporunda bulup düzelttiği hata — Playwright'ta manuel
+// doğrulanan 3 senaryonun birim testine çevrilmiş hâli (kullanıcının
+// kendi talebi).
+describe("unlockedAchievementCount() — G198'in düzelttiği sayaç hatası", () => {
+  it("temiz kullanıcı (hiç rozet yok) → 0", () => {
+    assert.equal(unlockedAchievementCount({ unlocked: [] }), 0);
+    assert.equal(unlockedAchievementCount({}), 0, "stats.unlocked hiç yoksa da çökmez, 0 döner");
+  });
+
+  it("eski 9 id'nin TAMAMINI (silinen combo_10/round_100/level_5 DAHİL) kazanmış bir kullanıcı → 6 (9 DEĞİL)", () => {
+    const legacyStats = { unlocked: ["first_blood", "combo_5", "combo_10", "round_25", "round_100", "level_5", "accuracy_70", "pro_clear", "boss_win"] };
+    assert.equal(unlockedAchievementCount(legacyStats), 6, "silinen 3 id sayıma KATILMAMALI, ACHIEVEMENTS.length'i (6) AŞMAMALI");
+  });
+
+  it("kısmi eski veri — SADECE güncel listedeki id'lerle kesişim sayılır", () => {
+    // first_blood + round_25 GÜNCEL listede var (2 sayılmalı); combo_10 SİLİNMİŞ (sayılmamalı)
+    const partialStats = { unlocked: ["first_blood", "combo_10", "round_25"] };
+    assert.equal(unlockedAchievementCount(partialStats), 2);
+  });
+
+  it("TÜM 6 güncel rozet kazanılmışsa → 6 (ACHIEVEMENTS.length ile birebir)", () => {
+    const fullStats = { unlocked: ACHIEVEMENTS.map(a => a.id) };
+    assert.equal(unlockedAchievementCount(fullStats), ACHIEVEMENTS.length);
   });
 });

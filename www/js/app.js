@@ -3153,9 +3153,9 @@ function renderAchievements() {
   // round_100/level_5) ESKİDEN bunları kazanmış bir kullanıcının
   // stats.unlocked'ında hâlâ DURUYOR (localStorage geçmişi silinmedi) —
   // ham `.size` kullanılsaydı "9/6" gibi anlamsız bir sayaç çıkabilirdi.
-  // Artık SADECE güncel ACHIEVEMENTS listesindeki id'lerle kesişim sayılıyor.
-  const unlockedCount = progress.ACHIEVEMENTS.filter(a => unlocked.has(a.id)).length;
-  if (els.achievementCount) els.achievementCount.textContent = `${unlockedCount}/${progress.ACHIEVEMENTS.length}`;
+  // G199 — bu hesap test edilebilirlik için progress.unlockedAchievementCount'a
+  // ÇIKARILDI (davranış AYNI, sadece yeri değişti) — bkz. test/progress.test.mjs.
+  if (els.achievementCount) els.achievementCount.textContent = `${progress.unlockedAchievementCount(stats)}/${progress.ACHIEVEMENTS.length}`;
   els.achievementList.innerHTML = progress.ACHIEVEMENTS.map(a => {
     const won = unlocked.has(a.id);
     const outerFill = won ? "var(--gold-grad)" : "rgba(255,255,255,.05)";

@@ -73,6 +73,64 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G200 — **Rozet sistemine ilk birim testleri (G198'in kendi raporunda bulduğu açık kapatıldı).**
+
+G198'in raporu "sistem hiç test edilmiyordu" demişti — bu turda kapatıldı.
+`checkAchievements()`/`ACHIEVEMENTS` zaten saf mantıktı, DOM'a bağımlı
+DEĞİLDİ — sadece test EKSİKTİ.
+
+**KULLANICIYA SORULDU, ONAYLANDI (İş 3, sayaç testi için tek gerekli
+karar):** sayaç formülü (`ACHIEVEMENTS.filter(a => unlocked.has(a.id))
+.length`) app.js'in `renderAchievements()`'ı içinde inline'dı, ayrı bir
+fonksiyon DEĞİLDİ — test edebilmek için ya (a) saf fonksiyona çıkarılıp
+app.js onu çağırmalıydı, ya (b) test içinde formül yeniden yazılmalıydı
+(drift riski), ya da (c) atlanmalıydı. Kullanıcı (a)'yı seçti.
+**Uygulama:** `progress.js`'e `unlockedAchievementCount(stats)` (saf
+fonksiyon) eklendi; `app.js:renderAchievements()` artık BUNU çağırıyor —
+davranış BİREBİR AYNI (Playwright'la ÖNCESİ/SONRASI karşılaştırıldı,
+G198'in kendi doğrulama script'i yeniden koşuldu, sonuç birebir aynı
+çıktı).
+
+**Uygulama sırasında bulunup düzeltilen bir test-tasarım hatası:**
+accuracy_70'i tetiklemek için gereken `correct`/`rounds` alanları
+İSTEMEDEN first_blood'un (`correct>=1`) ve/ya round_25'in (`rounds>=25`)
+koşulunu da sağlıyordu — `checkAchievements()` TÜM rozetleri AYNI stats'a
+karşı değerlendirdiği için bu bir YAN ETKİ, gerçek kodda hata DEĞİL. İlk
+yazımda `deepEqual` ile TAM DİZİ eşitliği test ediliyordu, bu yüzden testler
+kırmızıydı (`['first_blood','round_25']` beklenmedik biçimde döndü) —
+node --test'in KENDİ çıktısıyla YAKALANDI, iki testte `.includes()` üyelik
+kontrolüne çevrilip düzeltildi (yorum eklendi, açıklandı).
+
+**Kapsanan 5 kategori (task'ın kendi listesi):**
+1. Her rozetin koşulu — 6 rozetin HEPSİ, koşul sağlanmadan/sağlanınca.
+2. Sınır değerleri — combo 4/5, tur 24/25, isabet %69/%70 (100 turda,
+   çünkü 20 turda tam %69 üreten bir tamsayı YOK — hepsi 5'in katı,
+   yoruma yazıldı), 19/20 tur (min-tur şartı izole edildi).
+3. Sayaç hesabı — G198'in Playwright'ta manuel doğruladığı 3 senaryo
+   (temiz kullanıcı, eski-9-id, kısmi eski veri) birim testine çevrildi.
+4. ID kalıcılığı — 6 id'nin tam listeyle eşleştiği tek test.
+5. Tekrar kazanma — aynı rozet ikinci `checkAchievements()` çağrısında
+   ne `newlyUnlocked`'a ne `stats.unlocked`'a tekrar eklenmiyor.
+
+**Ölçüm:** `npm test` → **1291 → 1304** (+13 yeni test, HİÇBİRİ
+DÜŞMEDİ/kırılmadı). Playwright ile `app.js`'in refactor sonrası davranışı
+DEĞİŞMEDİĞİ doğrulandı (G198'in script'i birebir aynı çıktı verdi).
+
+**Dokunulan:** `test/progress.test.mjs` (yeni import'lar + 4 yeni
+`describe` bloğu), `www/js/core/progress.js` (SADECE yeni
+`unlockedAchievementCount(stats)` eklendi, mevcut hiçbir fonksiyon
+değişmedi), `www/js/app.js` (SADECE `renderAchievements()`'taki sayaç
+satırı yeni fonksiyonu çağıracak şekilde güncellendi, davranış AYNI).
+
+**Dokunulmayan:** `ACHIEVEMENTS` dizisinin içeriği (G198'de son hâlini
+almıştı, bu turda hiç değişmedi), `checkAchievements()`'ın mantığı
+(SADECE okundu/test edildi, satır değişmedi), G199'un e-posta düzeltmesi,
+G197'nin `.fb-overlay` düzeltmesi, G193/G194/G192/G190/G191, Bug 17/19/
+20/22/23/24/25/29, Grup A/B/C, çip genişliği (581f798), kaynak
+çipi+BARE_ANALYZER (a4efb42), Stereo Genişlik `pickPlaybackOffset`
+(G122), İpucu Motor1/Motor2 ayrımı (G85/G86) — hiçbiri yeniden koşulmadı,
+bu turun kapsamı SADECE rozet testleriydi.
+
 G199 — **Yanlış destek e-postası düzeltildi: `.academy` → `.com`.**
 
 Ayarlar → "Bize ulaşın" ekranında `destek@audioengineer.academy` yazıyordu
@@ -15039,7 +15097,14 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G199 itibarıyla):** Yanlış destek e-postası
+**EN YENİ SIRADAKİ ADIM (G200 itibarıyla):** Rozet sistemine 13 yeni birim
+testi eklendi (`npm test` 1291→1304), `progress.js`'e küçük bir saf
+fonksiyon (`unlockedAchievementCount`) eklenip `app.js` ona yönlendirildi
+(davranış aynı, Playwright'la doğrulandı). Bu SADECE test/refactor turu —
+gerçek cihazda AYRICA görülecek bir davranış DEĞİŞİKLİĞİ yok (rozet
+kazanma/sayaç davranışı G198'deki hâliyle birebir aynı kaldı).
+
+**EN YENİ SIRADAKİ ADIM (G199 itibarıyla, ARTIK ESKİ):** Yanlış destek e-postası
 (`destek@audioengineer.academy` → `destek@audioengineeracademy.com`)
 düzeltildi, `npm test` (1291/1291) ve Playwright'la doğrulandı, GERÇEK
 cihazda HENÜZ görülmedi. Tek kontrol: Ayarlar → Bize ulaşın'a git, e-posta
