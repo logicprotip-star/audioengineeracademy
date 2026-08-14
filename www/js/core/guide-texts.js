@@ -33,11 +33,22 @@ export const GENERAL_GUIDE = {
       // oynanır" YANLIŞTI: mod ERİŞİMİ sınırsız (istediğin zaman bu 5 modu
       // açabilirsin) ama OTURUM UZUNLUĞU sınırlı (5 soru sonra durur, Bug 25/
       // G185) — ikisi KARIŞTIRILMIŞTI. Artık ayrı ayrı, doğru anlatılıyor.
+      // Bug #40 (kullanıcı kararı: "Pro kullanıcı zaten Pro'yu kullanıyor,
+      // 'Pro'da neler var' listesini okumasına gerek yok, ücretsiz kısıtlar
+      // da anlamsız") — hideForPro:true, app.js:openGuideSheet bu bayrağa
+      // göre Pro'da bu bölümü ATLAR. Metnin KENDİSİ değişmedi, ücretsiz
+      // kullanıcı aynen görmeye devam ediyor.
       heading: "Ücretsiz ve Pro",
+      hideForPro: true,
       body: "12 modun 5'i ücretsiz — istediğin zaman oynayabilirsin, ama her oturum 5 soru sonra durur. Reklam izleyip aynı oturuma 5 soru daha ekleyebilirsin (günde en fazla 3 kez), ya da Pro'ya geçip oturum sınırı olmadan oynayabilirsin. Pro'da ayrıca 12 modun tamamı, sınav ve seviye sistemi, kendi şarkını yükleyip çalışma ve analiz araçları açılır."
     },
     {
+      // Bug #40 — Pro'da can sistemi hiç işlemiyor (app.js:loseLife
+      // "if (isUserPro()) return" — can hiç azalmıyor), bu metin Pro'da
+      // anlamsız. hideForPro:true, yukarıdaki "Ücretsiz ve Pro" ile AYNI
+      // mekanizma.
       heading: "Can",
+      hideForPro: true,
       body: "5 canın var. Biterse 30 dakikada bir dolar, ya da video izleyip hemen doldurabilirsin."
     }
   ]
@@ -63,6 +74,21 @@ export const TOOLS_TONAL_GUIDE = {
       heading: "Kendi Referansım",
       body: "Hazır eğriler yerine kendi beğendiğin bir referans şarkıyı yükleyip mixini ONUNLA karşılaştırmanı sağlar. 'Referans parça seç' ile kütüphaneden bir dosya seç ya da cihazdan yeni bir dosya yükle."
     },
+    // #41 DÜZELTMESİ (kullanıcı kararı) — "Sapma listesi" ve "Bir bandı tek
+    // başına dinle" AYNI grafikle ilgili (biri okumayı, diğeri dokunarak
+    // etkileşimi anlatıyor) — hedef seçimi (yukarısı) hemen sonrasına
+    // taşındı, çünkü kart açılır açılmaz (referans yüklemeden, varsayılan
+    // hedefle) grafik zaten görünür oluyor. A/B/Ham mix dinleme kontrolleri
+    // (aşağısı) referans yüklemeyi gerektiren daha ileri bir adım, sona
+    // kaydı. İÇERİK değişmedi, SADECE sıra.
+    {
+      heading: "Sapma listesi",
+      body: "Her bandın yanındaki dB değeri, o bandı referansa yaklaştırmak için gereken düzeltmeyi gösterir — kendi DAW'ındaki EQ'da aynı frekansa aynı yönde (boost/cut) uygulayabilirsin."
+    },
+    {
+      heading: "Bir bandı tek başına dinle",
+      body: "Grafikteki herhangi bir banda dokun — o bölge solo çalar, bandın miksteki gerçek ağırlığını (seviye telafisi olmadan, kısıksa kısık, baskınsa baskın) duyarsın. Tekrar dokununca solo kapanır."
+    },
     {
       heading: "A · Eşitlenmiş mix",
       body: "Senin mixin, referansın tonal dengesine EQ ile benzetilmiş hâlde çalar — sapma listesindeki düzeltmeler burada gerçek zamanlı uygulanmış olarak duyulur."
@@ -74,14 +100,6 @@ export const TOOLS_TONAL_GUIDE = {
     {
       heading: "Ham mix",
       body: "İşlenmemiş, orijinal mixini dinlemek istersen 'Mixini Yükle' kartındaki oynatıcıyı kullan — buradaki A/B sadece işlenmiş/referans karşılaştırması içindir."
-    },
-    {
-      heading: "Sapma listesi",
-      body: "Her bandın yanındaki dB değeri, o bandı referansa yaklaştırmak için gereken düzeltmeyi gösterir — kendi DAW'ındaki EQ'da aynı frekansa aynı yönde (boost/cut) uygulayabilirsin."
-    },
-    {
-      heading: "Bir bandı tek başına dinle",
-      body: "Grafikteki herhangi bir banda dokun — o bölge solo çalar, bandın miksteki gerçek ağırlığını (seviye telafisi olmadan, kısıksa kısık, baskınsa baskın) duyarsın. Tekrar dokununca solo kapanır."
     }
   ]
 };

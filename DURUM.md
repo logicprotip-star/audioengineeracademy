@@ -73,6 +73,98 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G194 — **Bug #40 (Pro'da ücretsiz sürüm metinleri) + #41 (Tonal Balance "i" sıralaması).**
+
+**#40 TARAMA (kod yazmadan önce) — bilinen 2 yerin dışında 2 YENİ yer bulundu:**
+1. `GENERAL_GUIDE` "Ücretsiz ve Pro" (guide-texts.js) — Pro'da da görünüyordu.
+2. `GENERAL_GUIDE` "Can" (guide-texts.js) — Pro'da da görünüyordu.
+3. **YENİ** — Ayarlar → SSS "Canlar neye yarıyor, nasıl dolar?" (`app.js`
+   `FAQ`/`renderFaq()`) — hiç Pro kontrolü yoktu, herkese görünüyordu.
+4. **YENİ** — Ana ekran, Frekans Çakışması kartındaki "günde 1 ücretsiz"
+   rozeti — `dailyBadge` SADECE `access.reason==="daily-used"`a bakıyordu;
+   Pro'da `checkModeAccess` her zaman `reason:null` döner (sınırsız erişim)
+   ama rozet mantığı bunu kontrol etmiyordu, Pro'da da yanlış kısıt
+   iması yapıyordu.
+
+**Kontrol edilip GÜVENLİ bulunan (dokunulmadı):** `exFactRow("Can", "Sınavda
+can harcanmaz")` — sınav ekranı `examGateActive()` üzerinden zaten
+`isUserPro()` gerektiriyor, bu satırın TEK izleyicisi Pro, gizlemek özelliği
+silmek olurdu. "Reklam izle, +1 can" (Seans Sonu CTA'sı, paywall "canları
+doldur" butonu) — `loseLife()`'ın `if (isUserPro()) return` satırı yüzünden
+Pro'da `currentLives` hiç 0'a inmiyor, bu yollar yapısal olarak
+tetiklenmiyor. Mod "i" metinleri (`MODE_GUIDE_TEXTS`/`MODE_OPTIONS_TEXTS`/
+`TOOLS_TONAL_GUIDE`/`SPOTLIGHT_STEPS`) — hiçbirinde ücretsiz/can/oturum
+sınırı yok. Ayarlar → "Reklam tercihleri" — gizlilik/onay ayarı, kapsam dışı.
+
+**BEKLENMEDİK BULGU (DUR ve soruldu) — SSS'nin can açıklaması KODLA
+ÇELİŞİYORDU:** eski metin "her zorluğun kendi can hakkı var, otomatik dolma
+yok, 'Tekrar Oyna' ile dolar" diyordu; `app.js`'in `syncLives()`/`loseLife()`
+yorumu ise açıkça "Canlar GLOBAL ve TEK bir havuz — zorluktan, seanstan
+BAĞIMSIZ" + `paywall.applyLivesRefill` ile GERÇEKTEN 30 dakikada bir (
+`LIVES_REFILL_INTERVAL_MS`) otomatik dolduğunu gösteriyor. Kullanıcı kararı:
+bu turda da düzeltildi ("aynı aile, aynı risk" — G190'ın "5 mod sınırsız"
+düzeltmesiyle aynı sınıf yanlış bilgi). Yeni metin: "Canlar TEK bir havuzda
+tutulur, zorluk seviyesinden bağımsız. 5 canın var; biri biterse 30 dakikada
+bir otomatik dolar, ya da video izleyip anında doldurabilirsin. Canların
+biterse Seans Sonu ekranı açılır." (kaynak: app.js:1465 yorumu +
+`applyLivesRefill` + `showSessionEnd`'in "eski adı Oyun Bitti, güncel adı
+Seans Sonu" notu — tahmin YOK, koddan doğrulandı).
+
+**Düzeltme (kullanıcı kararı: "Ücretsiz ve Pro" TAMAMEN gizlensin, "Pro'da
+neler var" listesini Pro kullanıcı zaten biliyor):**
+- `guide-texts.js` — "Ücretsiz ve Pro"/"Can" bölümlerine `hideForPro:true`
+  eklendi (metin DEĞİŞMEDİ). `app.js:openGuideSheet()` artık
+  `isUserPro()` iken `rest.filter(s => !s.hideForPro)` ile bu bölümleri
+  listeden ÇIKARIYOR.
+- `app.js` — `FAQ` dizisi 3'lü hâle geldi (`[soru, cevap, hideForPro?]`),
+  "Canlar" maddesi `hideForPro:true` + düzeltilmiş metin taşıyor.
+  `renderFaq()` artık `isUserPro()` iken bu maddeyi filtreliyor.
+- `app.js` — `dailyBadge` artık `entry.dailyTaste && !isUserPro()` şartına
+  bağlı — Pro'da rozet hiç render edilmiyor. Mekanizmanın kendisi
+  (ücretsizde günde 1, tadımlık) DEĞİŞMEDİ (kullanıcı kararı: "bu tasarım
+  doğru ve kalacak").
+- Üçü de `syncDevUI()`'ye bağlandı (`renderFaq()` eklendi, `renderExerciseGrid()`
+  zaten oradaydı) — geliştirici modu/gerçek satın alma ANINDA, sayfa
+  yenilenmeden doğru görünüme geçiyor (G186/#36'nın AYNI "tek
+  yeniden-senkron noktası" deseni).
+
+**Uygulama sırasında bulunup düzeltilen bir hata:** `renderFaq()`'ı
+`syncDevUI()`'ye bağlarken `const FAQ` dosyanın ÇOK ALTINDA tanımlıydı,
+`syncDevUI()` ise modül yüklenirken KOŞULSUZ bir kez çağrılıyordu (satır
+~8114) — bu, `FAQ` henüz initialize OLMADAN `renderFaq()`'ın çalışmasına
+yol açtı, "Cannot access 'FAQ' before initialization" (TDZ) hatası verdi
+(Playwright konsol dinleyicisiyle YAKALANDI). `const FAQ` bloğu
+`syncDevUI()`'nin TANIMINDAN ÖNCEye taşınarak düzeltildi.
+
+**#41 — TOOLS_TONAL_GUIDE sıralaması:** Eski sıra: Ne işe yarar → Pop/EDM/
+Akustik → Kendi Referansım → A·Eşitlenmiş mix → B·Referans → Ham mix →
+Sapma listesi → **Bir bandı tek başına dinle** (G190, en altta, keşfi zor).
+Yeni sıra: Ne işe yarar → Pop/EDM/Akustik → Kendi Referansım → **Sapma
+listesi → Bir bandı tek başına dinle** → A·Eşitlenmiş mix → B·Referans →
+Ham mix. Gerekçe (kullanıcı onaylı): Sapma listesi ve bölge-solo dinleme
+AYNI grafikle ilgili (biri okumayı, diğeri dokunmayı anlatıyor) — kart
+açılır açılmaz (referans yüklemeden) grafik zaten görünür, bu ikisi hemen
+hedef-seçiminin ardına taşındı. A/B/Ham mix referans yüklemeyi gerektiren
+daha ileri bir adım, sona kaydı. İÇERİK değişmedi, SADECE sıra.
+
+**Ölçüm:** `npm test` → **1291/1291**. Playwright ile 2 durumda (ücretsiz/
+Pro) doğrulandı: ana menü "i"de iki bölüm de ücretsizde var/Pro'da yok;
+SSS'de "Canlar" maddesi ücretsizde var (metin TAM olarak yeni haliyle
+okundu) / Pro'da yok; Frekans Çakışması kartının rozeti ücretsizde "günde 1
+ücretsiz" / Pro'da hiç yok; Tonal Balance "i"sinin bölüm sırası önerilen
+sırayla BİREBİR eşleşti (canlı okunarak doğrulandı).
+
+**Dokunulan:** `www/js/app.js`, `www/js/core/guide-texts.js` (SADECE bu
+ikisi).
+
+**Dokunulmayan:** G190'ın eklediği metinlerin İÇERİĞİ (sadece TOOLS_TONAL_GUIDE
+sırası değişti, hiçbir `body` metni düzenlenmedi — SSS'nin can metni
+G190'ın DEĞİL, bu turun kapsamındaydı), G191 (TİZ), G192 (waveform), G193
+(blur/max-height/scroll-shadow), Bug 25/20/10/13/14/9/18/17/19/22/23/24,
+çip genişliği, `a4efb42`, Bug 26'nın can göstergesi gizlemesi (136a7b0) —
+hiçbiri yeniden koşulmadı, bu tur SADECE guide-texts.js + app.js'in
+belirtilen 4 noktasıyla sınırlı kaldı.
+
 G193 — **Kesim Noktası (+3 diğer mod) geri bildirim paneli: blur eğrileri örtüyordu.**
 
 **Kök durum:** G189 (ac92e9a) `.fb`'ye `backdrop-filter:blur(14px)` eklemişti — metin
@@ -14623,6 +14715,21 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G194 itibarıyla):** Bug #40 (Pro'da ücretsiz sürüm
+metinleri — GENERAL_GUIDE'ın 2 bölümü, SSS'nin can maddesi, günlük-tadımlık
+rozeti) + #41 (Tonal Balance "i" sıralaması) düzeltildi, `npm test`
+(1291/1291) ve Playwright'la (2 durum: ücretsiz/Pro) doğrulandı, GERÇEK
+cihazda HENÜZ görülmedi. Kontrol edilecek: (1) geliştirici modunu aç/kapa
+(gerçek 7-dokunuşla, Playwright'ta simüle edilmedi) — ana menü "i"sindeki
+"Ücretsiz ve Pro"/"Can" bölümleri VE Ayarlar → SSS'deki can maddesi VE
+Frekans Çakışması kartının rozeti Pro AÇILIR AÇILMAZ (sayfa yenilenmeden)
+kaybolmalı, Pro KAPANINCA geri gelmeli; (2) ücretsiz hesapta SSS'yi aç,
+"Canlar neye yarıyor" sorusunu genişlet — yeni metin ("TEK bir havuzda...
+30 dakikada bir otomatik dolar...") gerçek can davranışıyla EŞLEŞMELİ,
+canı bitirip bekleyerek doğrula; (3) Araçlar → Tonal Balance "i"sini aç —
+"Sapma listesi"/"Bir bandı tek başına dinle" artık hedef-seçiminin hemen
+altında, A/B/Ham mix'in ÜSTÜNDE görünmeli.
 
 **EN YENİ SIRADAKİ ADIM (G193 itibarıyla):** Kesim Noktası/Frekans Bulma/Q
 Genişliği/Boost-Cut'ta geri bildirim panelinin eğri/lejantı bulanıklaştırma

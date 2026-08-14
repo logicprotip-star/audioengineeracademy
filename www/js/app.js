@@ -2941,7 +2941,14 @@ function renderExerciseGrid() {
     // "Bugün oynadın"a çevirir — aynı rozet slotu, dinamik metin (eski
     // .mode-lock-row'un "Bugün oynadın" bilgisini KAYBETMEDEN, yeni tasarımın
     // rozet diline taşınmış hali).
-    const dailyBadge = entry.dailyTaste
+    // Bug #40 (3) — Pro'da checkModeAccess HER ZAMAN {allowed:true,
+    // reason:null} dönüyor (günlük sınır SADECE ücretsizde var, bkz.
+    // paywall.checkModeAccess'in "if (isPro) return..." satırı) — rozet
+    // ESKİDEN reason'a bakılmaksızın "günde 1 ücretsiz" yazıyordu, Pro'da da
+    // (sınırsız erişimi olduğu hâlde) YANLIŞ bir kısıt iması yapıyordu.
+    // Tasarımın kendisi/mekanizma DEĞİŞMEDİ (kullanıcı kararı: "bu tasarım
+    // doğru ve kalacak") — SADECE Pro'da rozet hiç render edilmiyor.
+    const dailyBadge = (entry.dailyTaste && !isUserPro())
       ? `<div class="mode-card-daily">${access.reason === "daily-used" ? "Bugün oynadın" : "günde 1 ücretsiz"}</div>`
       : "";
     // "Sv N" rozeti — progress.modeLevel (Z3/Z6'dan beri var, oyun içi
@@ -6641,12 +6648,16 @@ function openGuideSheet(modeId) {
     if (els.guideSheetTitle) els.guideSheetTitle.textContent = GENERAL_GUIDE.title;
     // G90 (madde 5): genel rehberde tek bir moda özel görsel YOK (visual box
     // atlandı, uydurulmadı) — ilk bölüm (title'la aynı başlık) gövde metni,
-    // kalan 4 bölüm çip madde listesi olarak sunuluyor. guide-texts.js'in
+    // kalan bölümler çip madde listesi olarak sunuluyor. guide-texts.js'in
     // KENDİSİ değişmedi, SADECE burada nasıl render edildiği değişti.
+    // Bug #40 — hideForPro:true taşıyan bölümler ("Ücretsiz ve Pro"/"Can")
+    // Pro'da (gerçek ya da geliştirici simülasyonu) listeden ÇIKARILIYOR;
+    // ücretsiz kullanıcı metni aynen görmeye devam ediyor, içerik değişmedi.
     const [intro, ...rest] = GENERAL_GUIDE.sections;
+    const visibleSections = isUserPro() ? rest.filter(s => !s.hideForPro) : rest;
     els.guideSheetBody.innerHTML = `
       <p style="margin:8px 2px 0;font-size:13.5px;line-height:1.6;color:#b8bdc4">${intro.body}</p>
-      <div class="guide-point-list">${rest.map(s => `<div class="guide-point"><i></i><span><b style="color:var(--am);font-weight:700">${s.heading}:</b> ${s.body}</span></div>`).join("")}</div>`;
+      <div class="guide-point-list">${visibleSections.map(s => `<div class="guide-point"><i></i><span><b style="color:var(--am);font-weight:700">${s.heading}:</b> ${s.body}</span></div>`).join("")}</div>`;
   }
   if (els.guideSheetOverlay) els.guideSheetOverlay.classList.add("open");
   if (els.guideSheet) els.guideSheet.classList.add("open");
@@ -8010,6 +8021,29 @@ if (!purchaseState.proPurchased) {
   });
 }
 
+// Bug #40 DÜZELTMESİ — "Canlar" maddesinin metni kodla ÇELİŞİYORDU ("her
+// zorluğun kendi can hakkı var, otomatik dolma yok") — gerçek davranış
+// loseLife()/syncLives()'ın kendi notunda AÇIKÇA yazıyor: "Canlar GLOBAL ve
+// TEK bir havuz (stats.lives) — zorluktan, seanstan bağımsız" +
+// paywall.applyLivesRefill (LIVES_REFILL_INTERVAL_MS=30dk, her tık +1 can,
+// storage.TOTAL_LIVES=5'e kadar) — otomatik dolum GERÇEKTEN var, "Tekrar
+// Oyna" ile ilgisi yok. Metin koddan doğrulanarak düzeltildi. "Oyun Bitti"
+// de eski isim (bkz. showSessionEnd'in kendi notu) — güncel adı "Seans Sonu".
+// hideForPro:true — can sistemi Pro'da hiç işlemiyor (loseLife: "if
+// (isUserPro()) return", can hiç azalmıyor), soru Pro'da anlamsız.
+// BURAYA (syncDevUI()'DEN ÖNCE) taşındı — syncDevUI() modül yüklenirken bir
+// kez KOŞULSUZ çağrılıyor (aşağıda) ve artık renderFaq()'ı da çağırıyor;
+// FAQ eskiden dosyanın çok daha altında (const, TDZ) tanımlıydı, o çağrı
+// FAQ'ın KENDİSİ henüz initialize OLMADAN tetikleniyor, "Cannot access
+// 'FAQ' before initialization" hatası veriyordu (Playwright'ta yakalandı).
+const FAQ = [
+  ["İpucu puanımı düşürür mü?", "Evet — ipucu kullandığın sorularda kazanılan XP yarıya iner. Doğru/yanlış değerlendirmeni ya da isabet oranını etkilemez."],
+  ["Zorluk seviyeleri birbirinden nasıl farklı?", "Kolay'dan Pro Plus'a gittikçe frekans/bant farkları daralır ve süre kısalır. Ayarlar → Zorluk → Sabit'ten istediğin seviyeyi seçebilirsin; oyun ekranındaki zorluk göstergesiyle her zaman senkrondur."],
+  ["Canlar neye yarıyor, nasıl dolar?", "Canlar TEK bir havuzda tutulur, zorluk seviyesinden bağımsız. 5 canın var; biri biterse 30 dakikada bir otomatik dolar, ya da video izleyip anında doldurabilirsin. Canların biterse Seans Sonu ekranı açılır.", true],
+  ["Kendi ses dosyamı yükleyince ne oluyor?", "Dosya yalnızca cihazında kalır, hiçbir sunucuya gönderilmez. Kaynak olarak seçili kaldığı sürece sorularda o dosya çalar; Karıştır (⇄) açıksa her turda rastgele bir kaynağa geçilir."],
+  ["Neden kulaklık öneriliyor?", "Filtre/frekans farkları genelde incedir; telefon hoparlörü bunu kolayca maskeleyebilir. Kulaklık zorunlu değil ama çok daha güvenilir ve tutarlı sonuç verir."]
+];
+
 // ---- Geliştirici modu (gizli Pro test anahtarı) ----
 // "Hakkında" → "Sürüm numarası" satırına 7 kez ÜST ÜSTE (art arda 1.2sn içinde)
 // dokununca açılır. Amaç: Pro özelliklerini (Araçlar kilidi, can sınırsız) yayın
@@ -8040,6 +8074,10 @@ function syncDevUI() {
   // Pro durumu değişince bu kart da G186'daki AYNI gecikmeyi (bir sonraki
   // veri-değişikliğine kadar bayat kalma) yaşardı.
   renderDailyTip();
+  // Bug #40 — FAQ'daki "Canlar" maddesi hideForPro:true taşıyor, Pro
+  // durumu değişince (geliştirici modu/gerçek satın alma) AYNI G186/#36
+  // eksiğine düşmesin diye burada da yeniden çiziliyor.
+  renderFaq();
 }
 let versionTapCount = 0;
 let versionTapTimer = null;
@@ -8420,17 +8458,11 @@ renderCalStep();
 updateCalibRowLabel();
 
 // ---- Sık sorulan sorular (uygulamanın GERÇEK davranışına göre yazıldı) ----
-const FAQ = [
-  ["İpucu puanımı düşürür mü?", "Evet — ipucu kullandığın sorularda kazanılan XP yarıya iner. Doğru/yanlış değerlendirmeni ya da isabet oranını etkilemez."],
-  ["Zorluk seviyeleri birbirinden nasıl farklı?", "Kolay'dan Pro Plus'a gittikçe frekans/bant farkları daralır ve süre kısalır. Ayarlar → Zorluk → Sabit'ten istediğin seviyeyi seçebilirsin; oyun ekranındaki zorluk göstergesiyle her zaman senkrondur."],
-  ["Canlar neye yarıyor, nasıl dolar?", "Her zorluğun kendi can hakkı var. Canların biterse o zorlukta 'Oyun Bitti' kartı çıkar; otomatik dolma yoktur, 'Tekrar Oyna' ile yeniden dolar."],
-  ["Kendi ses dosyamı yükleyince ne oluyor?", "Dosya yalnızca cihazında kalır, hiçbir sunucuya gönderilmez. Kaynak olarak seçili kaldığı sürece sorularda o dosya çalar; Karıştır (⇄) açıksa her turda rastgele bir kaynağa geçilir."],
-  ["Neden kulaklık öneriliyor?", "Filtre/frekans farkları genelde incedir; telefon hoparlörü bunu kolayca maskeleyebilir. Kulaklık zorunlu değil ama çok daha güvenilir ve tutarlı sonuç verir."]
-];
 function renderFaq() {
   if (!els.faqList) return;
   els.faqList.innerHTML = "";
-  FAQ.forEach(([q, a]) => {
+  const visibleFaq = isUserPro() ? FAQ.filter(([, , hideForPro]) => !hideForPro) : FAQ;
+  visibleFaq.forEach(([q, a]) => {
     const card = document.createElement("div");
     card.className = "card faq-item";
     card.innerHTML = `
