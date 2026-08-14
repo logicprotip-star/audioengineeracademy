@@ -73,6 +73,94 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G201 — **#47 (Mixini Yükle duraklat→başlat baştan alıyor) + #48 (bölge solo Mixini Yükle'de çalışmıyor) — İKİSİ DE ÖLÇÜLEREK bulunup düzeltildi.**
+
+**#47 — KÖK SEBEP (Playwright'ta AudioBufferSourceNode.start() argümanları +
+stack trace ile ÖLÇÜLDÜ):** Basit bir duraklat→devam et testinde (headless'ta
+tek başına) hiç sorun YOKTU — bu YANILTICIYDI. Gerçek tetikleyici bulundu:
+kullanıcı Mixini Yükle'yi duraklattıktan SONRA HERHANGİ bir mod ekranına
+girerse (`goScreen("game")`, o mod "upload" kaynağı destekliyor mu diye
+BAKMAKSIZIN), `ensureUploadSelectionLoaded(mode.MODE_ID)` tetikleniyor —
+o modun kendi seçimi Araçlar'ınkinden FARKLI (genelde boş) olduğu için
+PAYLAŞILAN `uploadManager.clear()` çağrılıyor. Araçlar'a dönülüp "devam"a
+basılınca dosya YENİDEN yükleniyor ama `loadFile()` offset'i SIFIRLIYOR.
+Ölçüm: duraklamada elapsed 1.90s iken, SADECE Kesim Noktası/Frekans Bulma
+ekranına girip GERİ dönmek (hiçbir dosya seçmeden) elapsed'i 0'a düşürüyordu.
+**Referans Filtreleri G159'dan beri (bkz. o commit) KENDİ, HİÇBİR modla
+PAYLAŞMAYAN uploadManager'ını kullandığı için bu senaryodan ETKİLENMİYORDU**
+— kullanıcının sorduğu "iki bölümün mantığı neden farklı" sorusunun cevabı
+bu. Kullanıcının önerisi ("Referans Filtreleri'ndeki doğru davranış buraya
+uygulanabilir mi") AYNEN uygulandı: Mixini Yükle artık KENDİ, hiçbir modla
+paylaşmayan `toolsRawMixUploadManager`'ını kullanıyor (G159'un Referans
+Filtreleri'ne yaptığının BİREBİR aynısı, lazy-load — waveform olmadığı için
+Referans Filtreleri'nin eager-decode'una GEREK YOK). Analiz/Tonal Balance'ın
+kullandığı PAYLAŞILAN `uploadManager` (G123'ün bellek tasarrufu) HİÇ
+DEĞİŞMEDİ — SADECE bu oynatıcının SES ÇALMA yolu ayrıldı.
+
+**#48 — KÖK SEBEP (git log ile ÖLÇÜLDÜ, task'ın "G182'de mi ortaya çıktı"
+sorusuna DOĞRU/DÜZELTİLMİŞ cevap):** Bölge solo (`toolsSoloBandIdx`) G117'de
+tanıtıldığında Mixini Yükle ve Referans Filtreleri TEK bir paylaşılan
+transport kullanıyordu — solo o zaman İKİSİNE de uygulanıyordu. **G182
+DEĞİL, G159** ("Referans Filtreleri kendi oynatıcısını aldı") ikisini
+ayırdı — G159'un KENDİ commit mesajı AÇIKÇA yazıyor: "Mixini Yükle'nin mini
+oynatıcısı için ayrı durum/fonksiyon seti eklendi, **paylaşılan uploadManager'ı
+filtre zincirinden geçirmeden doğrudan analyser'a bağlıyor**." O ayrımda
+bölge-solo (filtre zincirinin BİR PARÇASI) Mixini Yükle'nin YENİ, bypass
+eden yoluna hiç genişletilmedi — kullanıcının G182 tahmini yön olarak
+DOĞRUYDU (aynı "bağımsızlık" ailesi), kesin commit G159. **Mimari engel
+YOKTU** (KOD YAZMADAN bildirme şartı tetiklenmedi) — düzeltme: solo-bandpass
+inşası `toolsApplySoloBandFilter(ctx, node, chainNodesArray)` adında TEK bir
+paylaşılan fonksiyona çıkarıldı (Referans Filtresi'nin cihaz simülasyonu
+BİLEREK dışarıda bırakıldı — o özellik Mixini Yükle'de hiç yok), hem
+`toolsConnectFilterPreviewChain()` (Referans Filtreleri) hem YENİ
+`toolsConnectRawMixSoloChain()` (Mixini Yükle) bunu çağırıyor. Bant sekmesi
+tıklama handler'ı artık HANGİ oynatıcı çalıyorsa (`toolsFilterPlaying` VEYA
+`toolsRawMixPlaying`) ONUN zincirini güncelliyor.
+
+**Ölçüm (Playwright, sayılarla):**
+- #47: duraklama noktası 1.877s → Kesim Noktası/Frekans Bulma ekranına
+  girip GERİ dönüldükten sonra elapsed HÂLÂ 1.877s (DEĞİŞMEDİ) → devam
+  edilince `start()` çağrısı `offset=1.877` ile GERÇEKLEŞTİ (önceden: 0).
+- #48: Mixini Yükle çalarken banda dokunmadan önce `toolsRawMixChainNodes`
+  uzunluğu 0 → dokununca 2 (bandpass düğümleri GERÇEKTEN bağlandı) → tekrar
+  dokununca 0'a döndü (solo kapandı, temiz söküldü). Duraklatma sırasında da
+  düğümler doğru temizleniyor, devam edilince solo hâlâ aktifse YENİDEN
+  kuruluyor (2).
+- Regresyon: Referans Filtreleri'nin KENDİ bölge-solo'su (refactor sonrası)
+  AYNEN çalışıyor (0→2, ayrı ölçüldü), İKİ oynatıcının zincir düğüm dizileri
+  BİRBİRİNE KARIŞMIYOR (biri çalarken diğerinin dizisi 0 kalıyor). G182'nin
+  karşılıklı susturması ve G192'nin waveform-tap seek'i (ORİJİNAL doğrulama
+  script'i YENİDEN koşuldu) AYNEN çalışıyor.
+- `npm test` → **1304/1304** (davranışsal saf fonksiyon değişmedi, sayı
+  değişmedi).
+
+**BEKLENMEDİK BULGU (bu turun kapsamı DIŞINDA, DÜZELTİLMEDİ, sadece not
+edildi):** Referans Filtreleri'nin "10 sn ileri/geri" BUTONLARI (waveform'a
+DOKUNARAK seek'ten FARKLI bir yol) elapsed metnini GÜNCELLEMİYOR gibi
+görünüyor (`0:00`'da donuk kalıyor) — `git stash` ile ÖNCEKİ (bu turun HİÇ
+dokunmadığı) koda karşı da AYNEN üretildi, yani REGRESYON DEĞİL, ÖNCEDEN
+VARDI. İki farklı dosyayla (`ref-track.wav`/`tonal-stress.wav`) tekrarlandı,
+dosyaya özgü değil. Bu turun kapsamı #47/#48 olduğu için KOD YAZILMADI —
+ayrı bir görev olarak ele alınmalı.
+
+**Dokunulan:** `www/js/app.js` (SADECE Araçlar'ın oynatıcı fonksiyonları:
+`toolsToggleRawMixPlayback`/`toolsPauseRawMixPlayback`/`toolsStopRawMixPlayback`,
+YENİ `toolsRawMixUploadManager`/`toolsRawMixLoadedSourceFileId`/
+`toolsRawMixChainNodes`/`toolsConnectRawMixSoloChain`/`toolsDisconnectRawMixChain`,
+YENİ paylaşılan `toolsApplySoloBandFilter`, `toolsConnectFilterPreviewChain`
+[solo bloğu helper'a taşındı, davranış AYNI], bant-tıklama handler'ı [Mixini
+Yükle dalı eklendi], `onContextRecreated` [yeni manager'ın temizlik satırı
+eklendi]).
+
+**Dokunulmayan:** PAYLAŞILAN `uploadManager` (analiz/oyun modları, G123'ün
+bellek tasarrufu), `toolsRefFilterUploadManager`/Referans Filtreleri'nin
+KENDİ dosya-seçim/eager-decode akışı, G192'nin rAF döngüsü/seek/pause/dolgu
+mantığı, G197'nin `.fb-overlay` düzeltmesi, G198'in rozet seti, G199'un
+e-posta düzeltmesi, G200'ün rozet testleri, G190/G191/G193/G194, Bug
+17/19/20/22/23/24/25/29, Grup A/B/C, çip genişliği (581f798), a4efb42 —
+hiçbiri yeniden koşulmadı, bu turun kapsamı SADECE Araçlar'ın iki oynatıcı
+fonksiyonuydu.
+
 G200 — **Rozet sistemine ilk birim testleri (G198'in kendi raporunda bulduğu açık kapatıldı).**
 
 G198'in raporu "sistem hiç test edilmiyordu" demişti — bu turda kapatıldı.
@@ -14902,6 +14990,20 @@ gerçek bir kullanıcı raporu gelirse Bug 29'un ÇÖZDÜĞÜ AYNI desen (round
 sonlanan HER yolda `clearTimeout(abPressTimer)` eklemek) burada da
 uygulanabilir.
 
+**2. Referans Filtreleri'nin "10 sn ileri/geri" BUTONLARI elapsed metnini
+güncellemiyor gibi görünüyor (G201'de bulundu)**
+`www/js/app.js:toolsSeekFilterPlayback()` (`#toolsFilterSkipFwd`/
+`#toolsFilterSkipBack`'e bağlı) — Playwright'ta ÖLÇÜLDÜ: play'e basıp "10 sn
+ileri"ye basınca `#toolsFilterElapsed` metni `0:00`'da DONUK kalıyor (hem
+`ref-track.wav` hem `tonal-stress.wav` ile tekrarlandı, dosyaya özgü
+DEĞİL). Waveform'a DOKUNARAK seek (aynı fonksiyonun farklı bir giriş yolu
+DEĞİL — `toolsDrawBigWave`'in click listener'ı) DOĞRU çalışıyor (G192'nin
+kendi doğrulama script'i G201'de yeniden koşulup teyit edildi) — sadece
+BUTON yolu şüpheli. `git stash` ile G201'in HİÇ dokunmadığı ÖNCEKİ koda
+karşı da AYNEN üretildi — **G201'in bir regresyonu DEĞİL, ÖNCEDEN
+VARDI**, sadece bu turda YENİ fark edildi. Kod YAZILMADI (bu turun kapsamı
+#47/#48'di) — ayrı bir görev.
+
 ## BEKLEYEN KARARLAR
 
 **R. G142 — Stereo Genişlik'in "her zaman upload" varsayılanı — istisna kabul mü, yeni mühendislik mi?**
@@ -15097,7 +15199,23 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G200 itibarıyla):** Rozet sistemine 13 yeni birim
+**EN YENİ SIRADAKİ ADIM (G201 itibarıyla):** #47 (Mixini Yükle duraklat→
+başlat baştan alıyor — kök sebep: mod ekranına girip çıkmak paylaşılan
+uploadManager'ı sıfırlıyordu) ve #48 (bölge solo Mixini Yükle'de hiç
+çalışmıyordu — kök sebep: G159'un ayrımında solo yeni yola hiç
+genişletilmemişti) düzeltildi, `npm test` (1304/1304) ve Playwright'la
+(sayılarla) doğrulandı, GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek:
+(1) Mixini Yükle'de bir dosya çal, duraklat, HERHANGİ bir moda gir/çık,
+Araçlar'a dön, devam et — şarkı kaldığı yerden GERÇEKTEN devam etmeli,
+BAŞTAN başlamamalı; (2) Mixini Yükle çalarken Tonal Balance grafiğinde bir
+banda dokun — o bölge SOLO duyulmalı (SUB'a dokunursan sadece bas
+kalmalı), tekrar dokununca normale dönmeli; (3) İKİ oynatıcı arasında
+geçiş yaparken (Referans Filtreleri↔Mixini Yükle) solo seçimi/davranışı
+KARIŞMAMALI, ikisi de bağımsız doğru çalışmalı. AYRICA yeni bulunan
+(bu turda dokunulmayan) "10 sn ileri/geri" buton sorunu var — bkz. BİLİNEN
+AÇIKLAR madde 2, ayrı bir görev olarak ele alınmalı.
+
+**EN YENİ SIRADAKİ ADIM (G200 itibarıyla, ARTIK ESKİ):** Rozet sistemine 13 yeni birim
 testi eklendi (`npm test` 1291→1304), `progress.js`'e küçük bir saf
 fonksiyon (`unlockedAchievementCount`) eklenip `app.js` ona yönlendirildi
 (davranış aynı, Playwright'la doğrulandı). Bu SADECE test/refactor turu —

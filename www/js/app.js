@@ -11088,6 +11088,14 @@ if (els.toolsTonalChart) {
     if (idx < 0) return;
     toolsSoloBandIdx = toolsSoloBandIdx === idx ? -1 : idx; // tekrar dokununca solo kapanır — task'ın kendi kuralı
     if (toolsFilterPlaying) toolsConnectFilterPreviewChain(); // G117 — çalarken solo değişince zincir CANLI güncellenir
+    // #48 DÜZELTMESİ — bölge solo ÖNCEDEN SADECE Referans Filtreleri çalarken
+    // işliyordu (toolsFilterPlaying) — Mixini Yükle'den çalarken dokunma
+    // HİÇBİR ŞEY yapmıyordu (kök sebep: G159'da Referans Filtreleri kendi
+    // oynatıcısını alırken Mixini Yükle'nin ham-mix yolu BİLEREK "filtre/solo
+    // zincirinden geçirmeden doğrudan analyser'a" bağlanmıştı — o turda
+    // bölge-solo henüz bu ikinci oynatıcıya hiç genişletilmemişti). Artık
+    // HANGİ oynatıcı çalıyorsa ONUN zinciri güncelleniyor.
+    if (toolsRawMixPlaying) toolsConnectRawMixSoloChain();
     toolsTonalRedraw(toolsTonalLiveDevs);
   });
 }
@@ -11539,6 +11547,42 @@ function toolsDisconnectFilterChain() {
   toolsFilterChainNodes = [];
 }
 
+// #48 DÜZELTMESİ — G117 madde B'nin bölge-solo bandpass'ı ÖNCEDEN SADECE
+// toolsConnectFilterPreviewChain() içinde, Referans Filtreleri'ne ÖZGÜ inline
+// kod olarak vardı. Mixini Yükle'ye de UYGULANABİLMESİ için (kullanıcının
+// isteği: "Hangi oynatıcı çalıyorsa bölge solo ONA uygulansın") TEK bir
+// paylaşılan fonksiyona çıkarıldı — bant sınırları/Q değerleri TEK kaynaktan
+// geliyor, iki çağıran arasında SAPMA riski yok. Referans filtresinin (cihaz
+// simülasyonu) KENDİSİ BİLEREK burada DEĞİL — o özellik Mixini Yükle'de HİÇ
+// yok (seçim arayüzü sadece Referans Filtreleri kartında), bu fonksiyon
+// SADECE bölge-solo'yu (ikisinde de anlamlı olan tek ortak özellik) taşıyor.
+function toolsApplySoloBandFilter(ctx, node, chainNodesArray) {
+  if (toolsSoloBandIdx < 0) return node;
+  // G117 madde B — SEVİYE TELAFİSİ YOK (bilinçli karar, task'ın kendi
+  // kuralı): bandpass'ın doğal zayıflatması KORUNUYOR, sonradan telafi
+  // kazancı EKLENMİYOR — amaç o bandın miksteki GERÇEK ağırlığını duymak,
+  // kısıksa kısık/baskınsa baskın duyulmalı, seviye eşitlenirse bu bilgi
+  // kaybolur.
+  const lo = tonalBalance.BAND_EDGES[toolsSoloBandIdx];
+  const hi = tonalBalance.BAND_EDGES[toolsSoloBandIdx + 1];
+  // 2x kademeli highpass+lowpass (~24dB/oktav, Butterworth) — kesim
+  // noktaları analiz motorunun bant sınırlarıyla (tonalBalance.BAND_EDGES)
+  // BİREBİR aynı (task'ın kendi gereksinimi).
+  const specs = [];
+  if (lo > 20) { specs.push({ type: "highpass", freq: lo }); specs.push({ type: "highpass", freq: lo }); }
+  if (hi < 20000) { specs.push({ type: "lowpass", freq: hi }); specs.push({ type: "lowpass", freq: hi }); }
+  specs.forEach((spec) => {
+    const f = ctx.createBiquadFilter();
+    f.type = spec.type;
+    f.frequency.value = spec.freq;
+    f.Q.value = Math.SQRT1_2;
+    node.connect(f);
+    node = f;
+    chainNodesArray.push(f);
+  });
+  return node;
+}
+
 // G117 madde A — Referans filtresi (frekans+stereo) ve Tonal Balance'ın
 // bölge solo'su (madde B) BAĞIMSIZ açılıp kapanabilir, İKİSİ AYNI ANDA açık
 // olabilir — zincir HER ZAMAN aynı sırayla kurulur: kaynak → [referans
@@ -11571,30 +11615,11 @@ function toolsConnectFilterPreviewChain() {
     node = stage.output;
     toolsFilterChainNodes.push(...stage.nodes);
   }
-  if (toolsSoloBandIdx >= 0) {
-    // G117 madde B — SEVİYE TELAFİSİ YOK (bilinçli karar, task'ın kendi
-    // kuralı): bandpass'ın doğal zayıflatması KORUNUYOR, sonradan telafi
-    // kazancı EKLENMİYOR — amaç o bandın miksteki GERÇEK ağırlığını duymak,
-    // kısıksa kısık/baskınsa baskın duyulmalı, seviye eşitlenirse bu bilgi
-    // kaybolur.
-    const lo = tonalBalance.BAND_EDGES[toolsSoloBandIdx];
-    const hi = tonalBalance.BAND_EDGES[toolsSoloBandIdx + 1];
-    // 2x kademeli highpass+lowpass (~24dB/oktav, Butterworth) — kesim
-    // noktaları analiz motorunun bant sınırlarıyla (tonalBalance.BAND_EDGES)
-    // BİREBİR aynı (task'ın kendi gereksinimi).
-    const specs = [];
-    if (lo > 20) { specs.push({ type: "highpass", freq: lo }); specs.push({ type: "highpass", freq: lo }); }
-    if (hi < 20000) { specs.push({ type: "lowpass", freq: hi }); specs.push({ type: "lowpass", freq: hi }); }
-    specs.forEach((spec) => {
-      const f = ctx.createBiquadFilter();
-      f.type = spec.type;
-      f.frequency.value = spec.freq;
-      f.Q.value = Math.SQRT1_2;
-      node.connect(f);
-      node = f;
-      toolsFilterChainNodes.push(f);
-    });
-  }
+  // #48 DÜZELTMESİ — solo bandpass artık PAYLAŞILAN toolsApplySoloBandFilter()'dan
+  // (bkz. yukarısı, toolsDisconnectFilterChain'in hemen ardı) geliyor, inline
+  // kod BURADAN kaldırıldı — Mixini Yükle'nin toolsConnectRawMixSoloChain()'i
+  // AYNI fonksiyonu çağırıyor, bant sınırları TEK kaynaktan.
+  node = toolsApplySoloBandFilter(ctx, node, toolsFilterChainNodes);
   // G154 — "Referans eğrisiyle dinle" (eski madde 5) BURADAN TAMAMEN
   // kaldırıldı: Tonal Balance'ın A'sı (eşitlenmiş mix) artık BAĞIMSIZ bir
   // zincirde (tonalMixUploadManager, bkz. toolsTonalToggleMatchedMixPlayback)
@@ -11853,21 +11878,65 @@ function toolsSeekFilterPlayback(deltaSec) {
   }
   renderToolsFilterPlayer();
 }
-// G159 — "Mixini Yükle" mini oynatıcısı: HAM mix, filtre/solo zinciri YOK,
-// doğrudan analyser'a bağlanır. Referans Filtreleri'nden (toolsFilterPlaying)
-// TAMAMEN ayrı transport (toolsRawMixPlaying) — biri çalarken diğeri
-// ETKİLENMEZ.
+// G159 — "Mixini Yükle" mini oynatıcısı: Referans Filtreleri'nden
+// (toolsFilterPlaying) TAMAMEN ayrı transport (toolsRawMixPlaying) — biri
+// çalarken diğeri ETKİLENMEZ.
+// #47 DÜZELTMESİ — ÖNCEDEN bu oynatıcı SES ÇALMAK için PAYLAŞILAN `uploadManager`'ı
+// (Ölçüm Sonuçları/Tonal Balance analizi + HER "upload" destekleyen MOD'un
+// "kendi dosyanı yükle" kaynağıyla ORTAK) kullanıyordu — G123'ün BİLEREK
+// tasarladığı "tek anda tek decode edilmiş buffer" bellek tasarrufu. Kök
+// sebep ÖLÇÜLDÜ (Playwright, AudioBufferSourceNode.start() argümanları +
+// stack trace ile): kullanıcı Mixini Yükle'yi DURAKLATIP bir MOD ekranına
+// girdiğinde (`goScreen("game")`, o modun "upload" kaynağını destekleyip
+// desteklemediğine BAKMAKSIZIN) `ensureUploadSelectionLoaded(mode.MODE_ID)`
+// tetikleniyor — o modun KENDİ seçimi "tools"unkinden FARKLI (genelde boş)
+// olduğu için PAYLAŞILAN `uploadManager.clear()` çağrılıyor, offset SIFIRLANIYOR.
+// Araçlar'a GERİ dönülüp "devam"a basılınca `ensureUploadSelectionLoaded("tools")`
+// dosyayı YENİDEN yüklüyor ama `loadFile()` offset'i 0'dan BAŞLATIYOR — "duraklat,
+// bir moda gir/çık, devam et" akışı SESSİZCE baştan başlıyordu (canlı ölçüm:
+// elapsed duraklamada 1.90s iken, mod ziyaretinden SONRA 0'a düşüyordu).
+// Referans Filtreleri G159'dan beri (bkz. o commit) KENDİ, HİÇBİR modla
+// PAYLAŞMAYAN uploadManager'ını kullandığı için bu senaryodan hiç etkilenmiyordu
+// — kullanıcının önerdiği "Referans Filtreleri'ndeki doğru davranış" AYNEN
+// buraya, KENDİ bağımsız (toolsRawMixUploadManager) örneğiyle uygulandı.
+// Analiz/Tonal Balance'ın PAYLAŞILAN `uploadManager`'ı (ve onun G123 bellek
+// tasarrufu) HİÇ DEĞİŞMEDİ — SADECE bu oynatıcının SES ÇALMA yolu ayrıldı.
+const toolsRawMixUploadManager = createUploadManager(() => audioEngine.audioCtx);
+let toolsRawMixLoadedSourceFileId = null; // toolsRefFilterLoadedSourceFileId'in AYNI deseni
 let toolsRawMixPlaying = false;
 let toolsRawMixPreviewNode = null;
 let toolsRawMixPreviewGain = null;
+// #48 DÜZELTMESİ — Mixini Yükle'nin KENDİ bölge-solo düğümleri, Referans
+// Filtreleri'nin toolsFilterChainNodes'undan AYRI izleniyor (ikisi de aynı
+// anda solo taşıyabilir — Referans Filtreleri'nin cihaz filtresi gibi
+// "tek seferde biri çalar" kısıtı solo için YOK, sadece HANGİSİ çalıyorsa
+// onun zincirine uygulanıyor).
+let toolsRawMixChainNodes = [];
+function toolsDisconnectRawMixChain() {
+  toolsRawMixChainNodes.forEach((n) => { try { n.disconnect(); } catch (e) {} });
+  toolsRawMixChainNodes = [];
+}
+// toolsConnectFilterPreviewChain()'in AYNI deseni — SADECE bölge-solo
+// (toolsApplySoloBandFilter, PAYLAŞILAN) taşır, Referans Filtreleri'nin
+// cihaz simülasyonu BİLEREK YOK (Mixini Yükle'de o seçim arayüzü hiç yok).
+function toolsConnectRawMixSoloChain() {
+  if (!toolsRawMixPreviewNode || !toolsRawMixPreviewGain) return;
+  const ctx = audioEngine.audioCtx;
+  try { toolsRawMixPreviewNode.disconnect(); } catch (e) {}
+  toolsDisconnectRawMixChain();
+  const node = toolsApplySoloBandFilter(ctx, toolsRawMixPreviewNode, toolsRawMixChainNodes);
+  node.connect(toolsRawMixPreviewGain);
+}
 function toolsPauseRawMixPlayback() {
   if (!toolsRawMixPlaying) return;
-  uploadManager.pausePlayback();
+  toolsRawMixUploadManager.pausePlayback();
   if (toolsRawMixPreviewNode) { try { toolsRawMixPreviewNode.stop(); } catch (e) {} toolsRawMixPreviewNode = null; }
+  toolsDisconnectRawMixChain(); // #48 — solo açıkken duraklatılırsa düğümler de temizlenir (toolsPauseFilterPlayback'in AYNI deseni)
   toolsRawMixPlaying = false;
 }
 async function toolsToggleRawMixPlayback() {
-  if (!uploadManager.hasBuffer) return;
+  const entry = toolsSelectedEntry();
+  if (!entry) return;
   if (toolsRawMixPlaying) {
     toolsPauseRawMixPlayback();
     renderToolsMixPlayer(toolsSelectedEntry());
@@ -11884,25 +11953,44 @@ async function toolsToggleRawMixPlayback() {
     renderToolsMixPlayer(toolsSelectedEntry());
     return;
   }
+  // #47 — toolsFilterSelectFile()'ın AYNI "zaten doğru dosya yüklü mü" kısa
+  // yolu — Mixini Yükle'nin waveform'u OLMADIĞI için (Referans Filtreleri'nin
+  // aksine) eager decode'a gerek yok, LAZY (ilk play'de) yeterli.
+  if (toolsRawMixLoadedSourceFileId !== entry.id) {
+    let fileObj = entry.file;
+    if (!fileObj) {
+      const blob = await fileStorage.loadFile(entry.id, entry.mimeType);
+      if (!blob) { toast("Dosya bulunamadı", `${entry.name} artık cihazda yok.`); return; }
+      fileObj = new File([blob], entry.name, { type: entry.mimeType || blob.type });
+      entry.file = fileObj;
+    }
+    const res = await toolsRawMixUploadManager.loadFile(fileObj);
+    if (!res.ok) { toast(res.title, res.detail); return; }
+    toolsRawMixLoadedSourceFileId = entry.id;
+    toolsRawMixUploadManager.startFromZero();
+  }
   toolsRawMixPreviewGain = toolsRawMixPreviewGain || ctx.createGain();
   toolsRawMixPreviewGain.gain.value = 0.85;
   toolsRawMixPreviewGain.connect(analyser);
-  toolsRawMixPreviewNode = uploadManager.getSourceNode();
+  toolsRawMixPreviewNode = toolsRawMixUploadManager.getSourceNode();
   if (!toolsRawMixPreviewNode) return;
-  toolsRawMixPreviewNode.connect(toolsRawMixPreviewGain);
+  toolsConnectRawMixSoloChain(); // #48 — node.connect(gain) yerine: solo aktifse ondan geçirip gain'e bağlar
   toolsRawMixPlaying = true;
   toolsTonalSyncLiveLoop(); // G102/G159 — ham mix de analyser'a bağlı, canlı analizör onu da kapsamalı
   renderToolsMixPlayer(toolsSelectedEntry());
 }
-// G114 — "Durdur": duraklatmadan farklı olarak konumu da SIFIRLAR (uploadManager.startFromZero()).
+// G114 — "Durdur": duraklatmadan farklı olarak konumu da SIFIRLAR
+// (toolsRawMixUploadManager.startFromZero()). #47 — artık KENDİ (paylaşılan
+// DEĞİL) manager'ına bakıyor, bkz. toolsToggleRawMixPlayback'in dosya başı notu.
 async function toolsStopRawMixPlayback() {
-  if (!uploadManager.hasBuffer) return;
+  if (!toolsRawMixUploadManager.hasBuffer) return;
   if (toolsRawMixPlaying) {
-    uploadManager.pausePlayback();
+    toolsRawMixUploadManager.pausePlayback();
     if (toolsRawMixPreviewNode) { try { toolsRawMixPreviewNode.stop(); } catch (e) {} toolsRawMixPreviewNode = null; }
+    toolsDisconnectRawMixChain(); // #48
     toolsRawMixPlaying = false;
   }
-  uploadManager.startFromZero();
+  toolsRawMixUploadManager.startFromZero();
   renderToolsMixPlayer(toolsSelectedEntry());
 }
 if (els.toolsFilterPlayBtn) els.toolsFilterPlayBtn.addEventListener("click", toolsToggleFilterPlayback);
@@ -12001,6 +12089,12 @@ audioEngine.onContextRecreated = () => {
   // ikincil özellik, güvenli sıfırlama" muamelesi.
   toolsRefFilterUploadManager.clear();
   toolsRefFilterLoadedSourceFileId = null;
+  // #47 — Mixini Yükle'nin YENİ bağımsız manager'ı, AYNI "dar/ikincil
+  // özellik, güvenli sıfırlama" muamelesi (toolsRefFilterUploadManager'ın
+  // BİREBİR aynı deseni) — bir sonraki play tıklaması toolsToggleRawMixPlayback'in
+  // kendi lazy-load kısa yolundan doğru dosyayı yeniden yükler.
+  toolsRawMixUploadManager.clear();
+  toolsRawMixLoadedSourceFileId = null;
   // G155 — .clear() sadece manager'ların KENDİ buffer'ını sıfırlıyor;
   // toolsFilterPlaying/toolsRawMixPlaying/tonalRefPlaying/tonalMixPlaying VE
   // ham node referansları (toolsFilterPreviewNode/toolsRawMixPreviewNode/
