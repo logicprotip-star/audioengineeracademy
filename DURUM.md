@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G190)
+Son güncelleme: 14.08.2026 (G202)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,134 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G202 — **#49b (Referans Filtreleri/Mixini Yükle'de seçimi kaldırma) + #52 (.aif reddi) düzeltildi; #49a (Dosyalarım'ı temizleme) ölçülüp kullanıcı kararı ALINDIKTAN SONRA uygulandı.**
+
+**#49b — Mixini Yükle:** "değiştir"in yanına "kaldır" eklendi
+(`toolsClearMixSelection`), `recordUploadSelection("tools", null)` +
+`renderToolsCardsVisibility()` yeterliydi — Playwright'ta İLK denemede
+doğru çalıştı (oynatıcı gizlendi, "Dosya Seç" butonu ilk haliyle geri
+geldi, dosya kütüphaneden SİLİNMEDİ).
+
+**#49b — Referans Filtreleri (asıl zorluk, İKİ ayrı deneme gerekti):**
+İlk yazılan `toolsClearFilterSelection` Playwright'ta BAŞARISIZ çıktı —
+"kaldır" sonrası kart disabled'a DÖNMÜYORDU. KÖK SEBEP ölçüldü:
+`toolsFilterSelectedEntry()`'nin G182'den beri var olan 3 kademeli
+fallback'i (`toolsFilterSelectedFileId || toolsRefFilterLoadedSourceFileId
+|| toolsSelectedFileId`) — sadece 1. kademeyi temizlemek yetmiyor, kart
+Mixini Yükle'nin O ANKİ dosyasına (3. kademe) ANINDA geri düşüyordu.
+Düzeltme: `toolsRefFilterUploadManager.clear()` + `toolsRefFilterLoadedSourceFileId
+= null` (2. kademeyi de boşalt) + YENİ `toolsFilterExplicitlyCleared`
+bayrağı ("henüz hiç seçilmemiş" ile "BİLEREK boşaltıldı" durumunu ayırt
+eder, `toolsFilterSelectedEntry()`'nin başına eklendi) — dosya YENİDEN
+`toolsFilterSelectFile()` ile seçilince bayrak otomatik false'a düşer.
+Playwright'ta İKİNCİ denemede doğru çalıştığı doğrulandı.
+
+**#52 — AIF reddi:** `validateAudioFile()`'ın kanonik `ALLOWED_AUDIO_EXTENSIONS`
+listesi "aiff" içeriyordu, "aif" (Logic Pro/macOS'un yaygın kısa uzantısı)
+içermiyordu — mimari engel YOKTU. `EXTENSION_ALIASES = { aif: "aiff" }`
+eklendi (ayrı bir liste girdisi DEĞİL, kullanıcıya gösterilen format
+listesinde "AIFF/AIF" gibi yanıltıcı bir tekrar oluşmasın diye) —
+`audioAcceptAttr()` ve `validateAudioFile()` bunu kullanacak şekilde
+güncellendi. 7 yeni birim testi eklendi (`test/upload-validation.test.mjs`).
+**Ek ÖLÇÜM (task'ın "iOS AVAudioFile destekliyor mu" sorusuna cevap):**
+Playwright'ta HEM Chromium HEM WebKit motoruyla, İKİ farklı gerçek AIFF
+dosyasıyla (Python `aifc` modülünün AIFC-konteynerli çıktısı VE macOS
+`ffmpeg`in kurallara uygun FORM/AIFF çıktısı) test edildi — Chromium'da
+`decodeAudioData` HER İKİSİNDE de `EncodingError` ile başarısız oluyor
+(tarayıcı motoru seviyesinde bir SINIRLAMA, uygulama kodunun düzeltebileceği
+bir şey DEĞİL), WebKit'te (Safari/iOS'un motoru) AYNI gerçek AIFF dosyası
+32ms'de BAŞARIYLA decode edildi ve kütüphaneye eklendi. Yani: uzantı
+düzeltmesi iOS'ta (hedef kitlenin asıl platformu) AIF dosyalarını TAM
+olarak çalışır hale getiriyor; Android/masaüstü Chrome'da AIFF decode'u
+tarayıcı motoru YÜZÜNDEN başarısız kalabilir — bu durumda da kullanıcı
+SESSİZ bir başarısızlık DEĞİL, zaten var olan anlaşılır hata toast'ını
+görüyor ("Bu dosya açılamadı... Lütfen desteklenen bir formatta dosya
+dene..."). Bir JS/WASM tabanlı Android-özel AIFF çözücü YAZILMADI —
+bu, task'ın kapsamının (uzantı reddini düzeltmek) ötesinde, ayrı bir
+ürün kararı gerektirir.
+
+**#49a — Dosyalarım'dan silme (ÖNCE ölçüldü, SONRA kullanıcıya (a)/(b)/(c)
+soruldu, kullanıcı (b)/(c)'yi seçti, ANCAK O ZAMAN kod yazıldı):**
+Ölçüldü: dosyalar `fileStorage`'a KOPYALANIYOR (cihazdaki orijinal dosyaya
+hiçbir zaman canlı referans tutulmuyor) — bu yüzden HANGİ seçenek
+seçilirse seçilsin "CİHAZDAN SİLME DEĞİL" şartı mimari olarak zaten
+sağlanıyordu. Sola-kaydır-sil (`toolsSwipedFileId`, −24px eşik) MEKANİK
+olarak çalışıyordu (Playwright'ta doğrulandı) ama kullanıcının şikâyeti
+DOĞRULANDI: görünür bir ipucu yok, dikey kaydırmayla çakışıyor —
+keşfedilebilirlik sorunu. `toolsRemoveFile()` ÖLÇÜLDÜ: genel
+`uploadSelections` haritası (tier-1) HER bağlam için ZATEN otomatik
+temizleniyordu (satır 9186-9188, ÖNCEDEN de doğruydu) — GERÇEK eksik
+SADECE 4 özel "şu an hangi dosya decode edilmiş" izleyicisiydi
+(`toolsRefFilterUploadManager`/`toolsRawMixUploadManager`/
+`tonalRefUploadManager`/`tonalMixUploadManager` + LoadedSourceFileId'leri)
+— silinen dosya aktif çalıyorsa/yüklüyse bunlar SIFIRLANMIYORDU
+(Playwright'ta doğrulandı: silme sonrası Referans Filtreleri kartı doğru
+disabled oluyordu AMA `toolsFilterFileName` ESKİ dosya adını göstermeye
+DEVAM ediyordu — `.tools-card-disabled`'ın opacity:.45'i metni GİZLEMİYOR,
+sadece soluklaştırıyor, bu yüzden kozmetik değil GERÇEK bir tutarsızlıktı).
+Kullanıcı (b)/(c)'yi ("Temizle, kullanan yerleri boşalt/varsayılana
+döndür" — bu mimaride ikisi AYNI şey, dönülecek başka bir varsayılan
+dosya yok) seçtikten SONRA: (1) YENİ paylaşılan `toolsResetDedicatedManagersIfMatch(id)`
+— silinen dosya 4 izleyiciden HERHANGİ birine yüklüyse o oynatıcıyı
+durdurur + manager'ı temizler + (Referans Filtreleri özelinde)
+`toolsFilterExplicitlyCleared`'ı set eder (#49b'nin AYNI bayrağı, tier-3
+fallback'e düşülmesin diye) — `toolsRemoveFile()`'ın içine eklendi, HEM
+tek-tek silmeyi HEM toplu temizlemeyi kapsar. (2) `renderToolsFilterPlayer()`'ın
+"entry yok" dalı ARTIK erken return etmiyor, adı/süre metinlerini
+index.html'in statik başlangıç değerlerine (boş / "0:00") sıfırlıyor —
+stale-metin bulgusunun doğrudan düzeltmesi. (3) HER satırda HER ZAMAN
+görünür bir çöp kutusu ikonu eklendi (`.tools-files-row-trash`,
+`data-remove-row`, mevcut sola-kaydır-sil'in AYNI `toolsRemoveFile`
+çağrısı — kaydırmayı DEĞİŞTİRMEDİ, YANINA eklendi; tıklaması satırı
+SEÇMESİN diye pointerup/click handler'larına `[data-remove-row]` koruması
+eklendi). (4) "YÜKLEDİKLERİM" başlığının yanına, İlerleme'nin
+`clearRecentBtn`'iyle AYNI görsel dilde (`.prog-clear-btn` sınıfı
+DOĞRUDAN yeniden kullanıldı, native `confirm()` YOK — İlerleme'nin
+kendi emsali de onaysız) "Tümünü temizle" eklendi (`toolsClearAllFiles`,
+liste boşken gizli).
+
+**Ölçüm (Playwright, sayılarla):**
+- #49b Mixini Yükle: kaldır sonrası oynatıcı gizli, buton metni "Dosya
+  Seç · WAV, MP3, M4A" (ilk hal), kütüphanede dosya sayısı DEĞİŞMEDİ (1).
+- #49b Referans Filtreleri: kaldır ÖNCESİ disabled=False, SONRASI
+  disabled=True (düzeltmeden ÖNCE: SONRASI da False kalıyordu).
+- #52: aynı genuine AIFF dosyası → Chromium'da decodeAudioData BAŞARISIZ
+  (EncodingError, 1-9ms), WebKit'te BAŞARILI (32ms) — iki motor da AYNI
+  bayt dizisiyle test edildi.
+- #49a: 2 dosya yükle → trash ikonu her ikisi için de swipe YAPMADAN
+  görünür/tıklanabilir → biriyle sil → kütüphanede 1 kalır → "Tümünü
+  temizle" görünür → tıkla → kütüphanede 0, boş-durum mesajı görünür,
+  "Tümünü temizle" kendini gizler. Ayrı senaryo: dosya Referans
+  Filtreleri'nde SEÇİLİ+ÇALARKEN silindi → kart disabled=True VE
+  gösterilen isim boş (düzeltmeden ÖNCE: disabled=True ama isim ESKİ
+  değerde donuk kalıyordu).
+- `npm test` → **1311/1311** (1304 taban + G200'ün öncesinde eklenmiş
+  7 rozet testi + bu turda eklenen 7 AIFF testi = 1311; hiçbir aşamada
+  düşmedi).
+
+**Dokunulan:** `www/js/core/upload.js` (`EXTENSION_ALIASES`,
+`audioAcceptAttr`, `validateAudioFile`), `test/upload-validation.test.mjs`
+(YENİ, 7 test), `www/index.html` (Mixini Yükle "kaldır" span'i, Referans
+Filtreleri "kaldır" span'i, "Tümünü temizle" başlık satırı), `www/styles.css`
+(`.tools-mix-player-actions`/`-remove`, `.tools-filter-player-remove`,
+`.tools-files-section-label-row`, `.tools-files-row-trash`), `www/js/app.js`
+(`toolsClearMixSelection`/`toolsClearFilterSelection` + YENİ
+`toolsFilterExplicitlyCleared` bayrağı + `toolsFilterSelectedEntry()`'nin
+kontrolü + `toolsFilterSelectFile()`'ın bayrak sıfırlaması, YENİ
+`toolsResetDedicatedManagersIfMatch`/`toolsClearAllFiles`, `toolsRemoveFile`
+[çağrı eklendi], `renderToolsFilesSheetContent` [trash ikonu markup'ı +
+"Tümünü temizle" görünürlüğü], satır listesi pointerup/click handler'ları
+[`data-remove-row` koruması/işleyicisi], `renderToolsFilterPlayer`'ın
+"entry yok" dalı, `els` haritasına `toolsClearAllBtn`).
+
+**Dokunulmayan:** G201'in #47/#48 düzeltmesi (`toolsRawMixUploadManager`/
+`toolsApplySoloBandFilter`), PAYLAŞILAN `uploadManager` (analiz/oyun
+modları), G197'nin `.fb-overlay` düzeltmesi, G198'in rozet seti, G199'un
+e-posta düzeltmesi, G200'ün rozet testleri, G190/G191/G193/G194, Bug
+17/19/20/22/23/24/25/29, Grup A/B/C, oyun modlarının `sourceSelections`ı
+(zaten `toolsRemoveFile`'ın tier-1 temizliği tarafından kapsanıyordu,
+AYRICA dokunulmadı) — hiçbiri yeniden koşulmadı.
 
 G201 — **#47 (Mixini Yükle duraklat→başlat baştan alıyor) + #48 (bölge solo Mixini Yükle'de çalışmıyor) — İKİSİ DE ÖLÇÜLEREK bulunup düzeltildi.**
 
@@ -15199,7 +15327,27 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G201 itibarıyla):** #47 (Mixini Yükle duraklat→
+**EN YENİ SIRADAKİ ADIM (G202 itibarıyla):** #49b (Referans Filtreleri/
+Mixini Yükle'de "kaldır") ve #52 (.aif reddi) düzeltildi; #49a (Dosyalarım'ı
+temizleme — trash ikonu + "Tümünü temizle") kullanıcının (b)/(c) kararı
+ALINDIKTAN SONRA kodlandı. `npm test` (1311/1311) ve Playwright'la
+(Chromium + WebKit, sayılarla) doğrulandı, GERÇEK cihazda HENÜZ görülmedi.
+Kontrol edilecek: (1) Referans Filtreleri'nde bir dosya seç, çal, "kaldır"a
+bas — bölüm "Dosyalarım'ı Aç" ilk haline dönmeli (Mixini Yükle'nin dosyasını
+MİRAS ALMAMALI); (2) Mixini Yükle'de AYNI şekilde "kaldır" — buton "Dosya
+Seç" ilk haline dönmeli; (3) Dosyalarım listesinde HER satırda kaydırmadan
+görünen bir çöp kutusu ikonu olmalı, dokununca o satır silinmeli (cihazdaki
+orijinal dosyaya DOKUNULMAZ, sadece uygulamanın kopyası/referansı gider);
+(4) "Tümünü temizle" listeyi boşaltmalı, boş-durum mesajı görünmeli; (5) bir
+dosya Referans Filtreleri'nde SEÇİLİYKEN Dosyalarım'dan silinirse o bölüm
+temiz bir şekilde boşalmalı (eski dosya adı/süre DONUK kalmamalı); (6)
+iPhone'da gerçek bir .aif dosyası (ör. Logic Pro bounce) yüklenmeli VE
+ÇALMALI — bu turda SADECE Safari'nin motoru (WebKit) test edilebildi,
+GERÇEK iOS cihazda henüz doğrulanmadı; Android/masaüstü Chrome'da AIFF
+decode'unun tarayıcı motoru sınırlaması yüzünden başarısız KALABİLECEĞİ
+(anlaşılır hata toast'ıyla, sessiz DEĞİL) bilinen ve kabul edilen bir durum.
+
+**EN YENİ SIRADAKİ ADIM (G201 itibarıyla, ARTIK ESKİ):** #47 (Mixini Yükle duraklat→
 başlat baştan alıyor — kök sebep: mod ekranına girip çıkmak paylaşılan
 uploadManager'ı sıfırlıyordu) ve #48 (bölge solo Mixini Yükle'de hiç
 çalışmıyordu — kök sebep: G159'un ayrımında solo yeni yola hiç

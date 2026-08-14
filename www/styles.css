@@ -2109,7 +2109,12 @@
     .tools-mix-player{margin-top:14px;display:flex;flex-direction:column;gap:10px}
     .tools-mix-player-file{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
     .tools-mix-player-name{flex:1;min-width:0;font-size:13.5px;font-weight:700;color:#d6d9dd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* #49b — "değiştir"in YANINA, aynı satırda "kaldır" (seçimi TEMİZLER,
+       kütüphaneden SİLMEZ — dosya Dosyalarım'da kalır). flex-shrink:0
+       ikisi de, gap:10px sarmalayıcıdan (tools-mix-player-actions) gelir. */
+    .tools-mix-player-actions{flex-shrink:0;display:flex;align-items:baseline;gap:10px}
     .tools-mix-player-change{flex-shrink:0;font-size:11px;font-weight:700;color:#22d3ee;text-decoration:underline;cursor:pointer}
+    .tools-mix-player-remove{flex-shrink:0;font-size:11px;font-weight:700;color:#8a8f96;text-decoration:underline;text-decoration-color:rgba(138,143,150,.4);cursor:pointer}
     .tools-mix-player-controls{display:flex;gap:8px}
     .tools-mix-player-btn{flex:1;height:40px;border-radius:10px;border:1px solid rgba(34,211,238,.3);background:rgba(34,211,238,.06);color:#22d3ee;display:flex;align-items:center;justify-content:center;cursor:pointer}
     .tools-mix-player-btn:active{transform:scale(.96)}
@@ -2204,6 +2209,10 @@
        güncellenir, bkz. app.js toolsSetFileSaveProgress). */
     .tools-files-pick-bar{position:absolute;left:0;bottom:0;height:2.5px;background:#22d3ee;width:0%;transition:width 120ms linear}
     .tools-files-section-label{margin-top:20px;font-size:9.5px;font-weight:800;letter-spacing:1.1px;color:#4a4f56;text-transform:uppercase}
+    /* #49a — "Tümünü temizle" (prog-clear-btn'ün AYNI görsel dili, madde 5'in
+       İlerleme'deki karşılığı) YÜKLEDİKLERİM etiketiyle AYNI satırda. */
+    .tools-files-section-label-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:20px}
+    .tools-files-section-label-row .tools-files-section-label{margin-top:0}
     .tools-files-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
     .tools-files-row{position:relative;border-radius:12px;overflow:hidden;background:#131519}
     .tools-files-row-delete{position:absolute;top:0;right:0;bottom:0;width:76px;display:flex;align-items:center;justify-content:center;background:#b3372f;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer}
@@ -2223,6 +2232,11 @@
     .tools-files-row-meta{font-size:10.5px;font-weight:500;color:#4a4f56;margin-top:1px;font-variant-numeric:tabular-nums}
     .tools-files-row-body{flex:1;min-width:0}
     .tools-files-row-wave{flex-shrink:0;width:54px;height:22px}
+    /* #49a — sola-kaydır-sil (mevcut, ÇALIŞIYOR) keşfedilebilir DEĞİL diye
+       eklenen HER ZAMAN görünür çöp kutusu ikonu — swipe'ı DEĞİŞTİRMİYOR,
+       yanına EKLENİYOR. */
+    .tools-files-row-trash{flex-shrink:0;width:28px;height:28px;display:flex;align-items:center;justify-content:center;color:#5a5f66;border-radius:8px;cursor:pointer}
+    .tools-files-row-trash:active{background:rgba(179,55,47,.16);color:#e05a4f}
     .tools-files-empty{margin-top:10px;padding:18px 14px;border-radius:12px;background:rgba(255,255,255,.025);border:1px dashed rgba(255,255,255,.09);text-align:center}
     .tools-files-empty-title{font-size:13px;font-weight:700;color:#b8bdc4}
     .tools-files-empty-sub{font-size:11.5px;font-weight:500;color:#6c7178;margin-top:4px}
@@ -2320,8 +2334,10 @@
     .tools-filter-player{padding:13px 13px 12px 13px;border-radius:14px;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.06)}
     .tools-filter-player-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
     .tools-filter-player-file{display:flex;align-items:center;gap:8px;min-width:0}
-    .tools-filter-player-name{font-size:13px;font-weight:600;color:#d6d9dd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .tools-filter-player-name{flex:1;min-width:0;font-size:13px;font-weight:600;color:#d6d9dd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .tools-filter-player-change{flex-shrink:0;font-size:11px;font-weight:700;color:#22d3ee;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(34,211,238,.4)}
+    /* #49b — "değiştir"in yanına "kaldır" (seçimi TEMİZLER, kütüphaneden SİLMEZ). */
+    .tools-filter-player-remove{flex-shrink:0;font-size:11px;font-weight:700;color:#8a8f96;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(138,143,150,.4)}
     .tools-filter-player-meta{flex-shrink:0;font-size:10.5px;font-weight:500;color:#4a4f56}
     .tools-filter-player-wave{margin-top:10px;height:56px}
     .tools-filter-player-times{display:flex;align-items:center;justify-content:space-between;margin-top:5px;font-size:11px;font-weight:600;color:#6c7178;font-variant-numeric:tabular-nums}

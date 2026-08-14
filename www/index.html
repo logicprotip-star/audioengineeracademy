@@ -995,7 +995,10 @@
             <div class="tools-mix-player hidden" id="toolsMixPlayer">
               <div class="tools-mix-player-file">
                 <div class="tools-mix-player-name" id="toolsMixPlayerName"></div>
-                <span class="tools-mix-player-change" id="toolsMixPlayerChange">değiştir</span>
+                <div class="tools-mix-player-actions">
+                  <span class="tools-mix-player-change" id="toolsMixPlayerChange">değiştir</span>
+                  <span class="tools-mix-player-remove" id="toolsMixPlayerRemove">kaldır</span>
+                </div>
               </div>
               <div class="tools-mix-player-controls">
                 <button class="tools-mix-player-btn" id="toolsMixPlayBtn" type="button" aria-label="Oynat / Duraklat">
@@ -1141,6 +1144,7 @@
                   <div class="tools-filter-player-file">
                     <div class="tools-filter-player-name" id="toolsFilterFileName"></div>
                     <span class="tools-filter-player-change" id="toolsFilterFileChange">değiştir</span>
+                    <span class="tools-filter-player-remove" id="toolsFilterFileRemove">kaldır</span>
                   </div>
                   <div class="tools-filter-player-meta" id="toolsFilterFileMeta"></div>
                 </div>
@@ -1818,7 +1822,10 @@
       </button>
       <input type="file" id="toolsFileInput" accept="audio/*" class="hidden" />
 
-      <div class="tools-files-section-label">YÜKLEDİKLERİM</div>
+      <div class="tools-files-section-label-row">
+        <div class="tools-files-section-label">YÜKLEDİKLERİM</div>
+        <div class="prog-clear-btn hidden" id="toolsClearAllBtn">Tümünü temizle</div>
+      </div>
       <div class="tools-files-list" id="toolsFilesList"></div>
       <div class="tools-files-empty hidden" id="toolsFilesEmpty">
         <div class="tools-files-empty-title">Henüz dosya seçmedin</div>

@@ -154,6 +154,7 @@ const els = {
   toolsMixPlayer: document.getElementById("toolsMixPlayer"),
   toolsMixPlayerName: document.getElementById("toolsMixPlayerName"),
   toolsMixPlayerChange: document.getElementById("toolsMixPlayerChange"),
+  toolsMixPlayerRemove: document.getElementById("toolsMixPlayerRemove"), // #49b
   toolsMixPlayBtn: document.getElementById("toolsMixPlayBtn"),
   toolsMixPlayIcon: document.getElementById("toolsMixPlayIcon"),
   toolsMixStopBtn: document.getElementById("toolsMixStopBtn"),
@@ -169,6 +170,7 @@ const els = {
   toolsFilesPickBar: document.getElementById("toolsFilesPickBar"),
   toolsFileInput: document.getElementById("toolsFileInput"),
   toolsFilesList: document.getElementById("toolsFilesList"),
+  toolsClearAllBtn: document.getElementById("toolsClearAllBtn"), // #49a
   toolsFilesEmpty: document.getElementById("toolsFilesEmpty"),
   toolsFilesEmptySub: document.getElementById("toolsFilesEmptySub"),
   toolsFilesTotalSpace: document.getElementById("toolsFilesTotalSpace"),
@@ -232,6 +234,7 @@ const els = {
   toolsFilterBody: document.getElementById("toolsFilterBody"),
   toolsFilterFileName: document.getElementById("toolsFilterFileName"),
   toolsFilterFileChange: document.getElementById("toolsFilterFileChange"),
+  toolsFilterFileRemove: document.getElementById("toolsFilterFileRemove"), // #49b
   toolsFilterFileMeta: document.getElementById("toolsFilterFileMeta"),
   toolsFilterWave: document.getElementById("toolsFilterWave"),
   toolsFilterElapsed: document.getElementById("toolsFilterElapsed"),
@@ -8893,6 +8896,14 @@ let toolsSelectedFileId = uploadSelections.tools || null;
 // değişkene DOKUNMUYOR, ikisi de hâlâ "tools"u (toolsSelectedFileId) okuyor
 // — SADECE Referans Filtreleri ayrıldı.
 let toolsFilterSelectedFileId = uploadSelections["tools-filter"] || null;
+// #49b — kullanıcı "kaldır"a BİLEREK bastığında true olur; aşağıdaki
+// toolsFilterSelectedEntry()'nin tier-2/3 fallback'ine (toolsRefFilterLoadedSourceFileId/
+// toolsSelectedFileId) YENİDEN düşülmesin diye — "henüz HİÇ seçilmemiş" (fallback
+// UYGUN) durumundan "BİLEREK boşaltıldı" (fallback UYGUNSUZ) durumunu AYIRT eder.
+// toolsFilterSelectFile() tier-1'i gerçek bir id'ye set ettiği anda bu bayrak
+// zaten ANLAMSIZLAŞIR (entry fonksiyonu ÖNCE tier-1'e bakıyor) — yine de o
+// fonksiyonda AÇIKÇA false'a çekiliyor, gelecekte bu sıraya güvenilmesin diye.
+let toolsFilterExplicitlyCleared = false;
 let toolsSwipedFileId = null;
 // Araçlar sekmesine bu SAYFA-YÜKLEMESİ boyunca zaten bir kez bütünlük kontrolü
 // yapıldı mı? (task: "her açılışta DEĞİL, sadece Araçlar sekmesine ilk
@@ -8924,6 +8935,7 @@ function toolsSelectedEntry() {
 // (pointer-events:none) olduğunda İÇİNDEKİ "değiştir" butonuna hiç
 // erişilemez, bu düşme OLMASA kart hiçbir zaman İLK kez açılamazdı.
 function toolsFilterSelectedEntry() {
+  if (!toolsFilterSelectedFileId && toolsFilterExplicitlyCleared) return null;
   const id = toolsFilterSelectedFileId || toolsRefFilterLoadedSourceFileId || toolsSelectedFileId;
   return toolsFiles.find((f) => f.id === id) || null;
 }
@@ -9169,6 +9181,41 @@ function selectFileForActiveContext(id, opts = {}) {
 // — aksi halde o modun ensureUploadSelectionLoaded()'ı var-olmayan bir id'yi
 // aramaya devam ederdi (zararsız ama gereksiz, bkz. o fonksiyonun "entry yok"
 // dalı — YİNE de burada ÖNDEN temizlemek daha net).
+// #49a DÜZELTMESİ — yukarıdaki uploadSelections temizliği SADECE genel
+// (tier-1) seçim haritasını kapsıyor. Referans Filtreleri/Mixini Yükle/Tonal
+// Balance'ın KENDİ "şu an decode edilmiş dosya" izleyicileri (dedicated
+// manager + LoadedSourceFileId) AYRI bir katman — ölçüldü: bunlar temizlenmezse
+// silinen dosya o bölümde "hayalet" biçimde çalmaya/görünmeye devam edebiliyordu
+// (#49b'nin Referans Filtreleri "kaldır" bulgusuyla AYNI kök neden). Kullanıcı
+// kararı (b)/(c): silme HER ZAMAN çalışır, kullanan yerler boşalır — bu yüzden
+// forward-reference'lar (toolsRefFilterUploadManager vb. bu fonksiyonun
+// ALTINDA tanımlı, ama BURADA sadece ÇAĞRILDIĞI an — modül init'i bittikten
+// SONRA bir kullanıcı etkileşimiyle — bu değişkenler zaten hazır, dosyanın
+// başındaki toolsFilterSelectedEntry() ile AYNI, halihazırda çalışan desen).
+function toolsResetDedicatedManagersIfMatch(id) {
+  if (toolsRefFilterLoadedSourceFileId === id) {
+    if (toolsFilterPlaying) toolsPauseFilterPlayback();
+    toolsRefFilterUploadManager.clear();
+    toolsRefFilterLoadedSourceFileId = null;
+    toolsFilterExplicitlyCleared = true; // #49b'nin AYNI bayrağı — tier-3 fallback'e düşülmesin
+  }
+  if (toolsRawMixLoadedSourceFileId === id) {
+    if (toolsRawMixPlaying) toolsPauseRawMixPlayback();
+    toolsRawMixUploadManager.clear();
+    toolsRawMixLoadedSourceFileId = null;
+  }
+  if (tonalRefLoadedSourceFileId === id) {
+    toolsTonalStopRefPlayback();
+    tonalRefUploadManager.clear();
+    tonalRefLoadedSourceFileId = null;
+  }
+  if (tonalMixLoadedSourceFileId === id) {
+    toolsTonalStopMixPlayback();
+    tonalMixUploadManager.clear();
+    tonalMixLoadedSourceFileId = null;
+  }
+}
+
 function toolsRemoveFile(id, { skipStorageDelete = false } = {}) {
   toolsFiles = toolsFiles.filter((f) => f.id !== id);
   const wasToolsSelection = toolsSelectedFileId === id;
@@ -9179,6 +9226,7 @@ function toolsRemoveFile(id, { skipStorageDelete = false } = {}) {
     uploadManager.clear();
     uploadManagerLoadedFileId = null;
   }
+  toolsResetDedicatedManagersIfMatch(id);
   if (wasToolsSelection) {
     resetToolsAnalysis();
     toolsTonalDevs = null;
@@ -9188,10 +9236,20 @@ function toolsRemoveFile(id, { skipStorageDelete = false } = {}) {
   if (!skipStorageDelete) fileStorage.deleteFile(id).catch(() => {});
   renderToolsFilesSheetContent();
   renderToolsCardsVisibility();
+  renderToolsFilterPlayer(); // #49a — Referans Filtreleri'nin oynatıcı DOM'u (isim/dalga formu) da HEMEN tazelensin
   // G126 — silinen dosya TAM ŞU AN aktif olan modun (sheet'in ARKASINDA
   // duran ekranın, bkz. G124) seçimiyse gate paneli HEMEN güncellenir —
   // bir sonraki goScreen("game") girişini BEKLEMEZ.
   syncUploadGate();
+}
+
+// #49a — "Tümünü temizle": İlerleme'nin clearRecentBtn'iyle AYNI ilke
+// (kullanıcının kendi kararı, KOD YAZMADAN önce soruldu — bkz. konuşma
+// geçmişi (b)/(c) kararı). toolsRemoveFile'ı TEK TEK çağırıyor ki her
+// dosyanın kendi uploadSelections/dedicated-manager temizliği DOĞRU
+// çalışsın — bu satırların İKİNCİ bir kopyasını yazmak yerine.
+function toolsClearAllFiles() {
+  [...toolsFiles].forEach((f) => toolsRemoveFile(f.id));
 }
 
 // Araçlar sekmesine SAYFA-YÜKLEMESİ başına TEK SEFERLİK: manifestteki her
@@ -9408,11 +9466,15 @@ function renderToolsFilesSheetContent() {
               <div class="tools-files-row-meta">${f.sizeKb} KB · ${formatToolsDuration(f.durationSec)}</div>
             </div>
             <div class="tools-files-row-wave">${toolsWaveSvg(f.peaks, "#3a3f45")}</div>
+            <div class="tools-files-row-trash" data-remove-row="${f.id}" title="Sil" aria-label="Sil">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+            </div>
           </div>
         </div>`;
       }).join("");
     }
   }
+  if (els.toolsClearAllBtn) els.toolsClearAllBtn.classList.toggle("hidden", toolsFiles.length === 0);
   if (els.toolsFilesTotalSpace) {
     if (toolsFiles.length === 0) {
       els.toolsFilesTotalSpace.classList.add("hidden");
@@ -9458,6 +9520,9 @@ if (els.toolsFilesList) {
     toolsFilesSwipeStartX = e.clientX;
   });
   els.toolsFilesList.addEventListener("pointerup", (e) => {
+    // #49a — çöp kutusu ikonuna dokunuş, ALTINDAKİ satırı SEÇMESİN (aşağıdaki
+    // click listener'ı zaten siler — burada sadece "seçim" yan etkisini engelliyoruz).
+    if (e.target.closest("[data-remove-row]")) return;
     const row = e.target.closest(".tools-files-row-main");
     if (!row || toolsFilesSwipeStartX === null) return;
     const dx = e.clientX - toolsFilesSwipeStartX;
@@ -9469,9 +9534,16 @@ if (els.toolsFilesList) {
   });
   els.toolsFilesList.addEventListener("click", (e) => {
     const del = e.target.closest("[data-remove]");
-    if (del) toolsRemoveFile(del.dataset.remove);
+    if (del) { toolsRemoveFile(del.dataset.remove); return; }
+    // #49a — HER ZAMAN görünür çöp kutusu ikonu, sola-kaydır-sil'in AYNI
+    // toolsRemoveFile çağrısı — kaydırmayı KEŞFETMEYEN kullanıcı için.
+    const delRow = e.target.closest("[data-remove-row]");
+    if (delRow) toolsRemoveFile(delRow.dataset.removeRow);
   });
 }
+// #49a — İlerleme'nin clearRecentBtn'iyle AYNI ilke: native confirm() YOK
+// (dialog'lar ajanın KENDİ kısıtı + İlerleme'nin kendi emsali de onaysız).
+if (els.toolsClearAllBtn) els.toolsClearAllBtn.addEventListener("click", toolsClearAllFiles);
 if (els.toolsMeasurementsList) {
   els.toolsMeasurementsList.addEventListener("click", (e) => {
     const row = e.target.closest("[data-open-measurement]");
@@ -11709,7 +11781,19 @@ function renderToolsFilterPlayer() {
   // G182 (Bug 14) — artık toolsSelectedEntry() ("Mixini Yükle") DEĞİL, KENDİ
   // bağımsız seçimi.
   const entry = toolsFilterSelectedEntry();
-  if (!entry) return;
+  if (!entry) {
+    // #49a DÜZELTMESİ — ÖNCEDEN burada erken return vardı: kart zaten
+    // .tools-card-disabled (opacity:.45, "Önce bir dosya seç" ipucu) olduğu
+    // İÇİN metin temizlenmiyordu, ama ÖLÇÜLDÜ: opacity .45 metni GİZLEMİYOR,
+    // SADECE soluklaştırıyor — silinen/kaldırılan dosyanın ESKİ adı ipucun
+    // YANINDA hâlâ okunabilir kalıyordu (Playwright'ta doğrulandı). index.html'in
+    // KENDİ statik başlangıç durumu (boş metin) buraya GERİ yükleniyor.
+    if (els.toolsFilterFileName) els.toolsFilterFileName.textContent = "";
+    if (els.toolsFilterFileMeta) els.toolsFilterFileMeta.textContent = "";
+    if (els.toolsFilterElapsed) els.toolsFilterElapsed.textContent = "0:00"; // index.html'in statik başlangıç değeri
+    if (els.toolsFilterTotal) els.toolsFilterTotal.textContent = "0:00";
+    return;
+  }
   if (els.toolsFilterFileName) els.toolsFilterFileName.textContent = entry.name;
   if (els.toolsFilterFileMeta) els.toolsFilterFileMeta.textContent = `${entry.sizeKb} KB · ${formatToolsDuration(entry.durationSec)}`;
   if (els.toolsFilterTotal) els.toolsFilterTotal.textContent = formatToolsDuration(entry.durationSec);
@@ -11823,6 +11907,7 @@ async function toolsFilterSelectFile(id) {
   // GERÇEKTEN durdur (bayrağı elle sıfırlamak DEĞİL).
   if (toolsFilterPlaying) toolsPauseFilterPlayback();
   recordUploadSelection("tools-filter", id);
+  toolsFilterExplicitlyCleared = false; // #49b — gerçek bir dosya AÇIKÇA seçildi, "kaldır" bayrağı artık geçersiz
   toolsCloseFilesSheet();
   renderToolsFilesSheetContent();
   renderToolsCardsVisibility();
@@ -11999,6 +12084,32 @@ if (els.toolsFilterPlayBtn) els.toolsFilterPlayBtn.addEventListener("click", too
 // GENEL deseniyle KENDİ bağımsız bağlamını ("tools-filter") açıyor —
 // `tonal-ref`in AYNI mekanizması (bkz. selectFileForActiveContext'in yeni dalı).
 if (els.toolsFilterFileChange) els.toolsFilterFileChange.addEventListener("click", () => openFilesSheetForContext("tools-filter"));
+// #49b — "değiştir" (başka dosya seç) İLE KARIŞTIRILMASIN: bu SADECE
+// seçimi temizler, kütüphaneden dosyayı SİLMEZ (toolsRemoveFile'ın AKSİ —
+// o kütüphaneden siler, bu SADECE bu bölümün "hangi dosya" işaretini
+// kaldırır). Kart, hiç dosya seçilmemiş İLK haline döner (`toolsFilter
+// SelectedEntry()` artık null döner → renderToolsFilterPlayer'ın "disabled"
+// dalı devreye girer, index.html'in KENDİ statik "Önce bir dosya seç"
+// durumu — YENİ bir DOM/metin İCAT EDİLMEDİ).
+function toolsClearFilterSelection() {
+  if (toolsFilterPlaying) { toolsPauseFilterPlayback(); }
+  recordUploadSelection("tools-filter", null);
+  // #49b DÜZELTMESİ — SADECE tier-1'i (toolsFilterSelectedFileId) temizlemek
+  // YETMEZ: toolsFilterSelectedEntry()'nin tier-2 (toolsRefFilterLoadedSourceFileId)
+  // ve tier-3 (toolsSelectedFileId, Mixini Yükle'nin O ANKİ dosyası) fallback'i
+  // ANINDA devreye girip kartı YENİDEN doldururdu ("kaldır" hiçbir şey
+  // yapmamış GİBİ görünürdü — Playwright'ta ÖLÇÜLDÜ). Bu yüzden decode edilmiş
+  // buffer'ı da bırakıyoruz (tier-2'nin KENDİSİ kalksın) VE toolsFilterExplicitlyCleared
+  // bayrağıyla tier-3'e düşmeyi de BİLEREK engelliyoruz — "İSTENEN: ... bölüm
+  // 'Dosyalarım'ı Aç' başlangıç hâline dönsün" (görev metni) tam olarak bunu
+  // gerektiriyor, Mixini Yükle'nin dosyasını MİRAS ALMAK değil.
+  toolsRefFilterUploadManager.clear();
+  toolsRefFilterLoadedSourceFileId = null;
+  toolsFilterExplicitlyCleared = true;
+  renderToolsFilterPlayer();
+  renderToolsCardsVisibility();
+}
+if (els.toolsFilterFileRemove) els.toolsFilterFileRemove.addEventListener("click", toolsClearFilterSelection);
 if (els.toolsFilterSkipBack) els.toolsFilterSkipBack.addEventListener("click", () => toolsSeekFilterPlayback(-10));
 if (els.toolsFilterSkipFwd) els.toolsFilterSkipFwd.addEventListener("click", () => toolsSeekFilterPlayback(10));
 // Bug 38 (b) — dalga formuna dokununca o noktaya atla. toolsSeekFilterPlayback
@@ -12016,6 +12127,16 @@ if (els.toolsFilterWave) els.toolsFilterWave.addEventListener("click", (e) => {
 if (els.toolsMixPlayBtn) els.toolsMixPlayBtn.addEventListener("click", toolsToggleRawMixPlayback);
 if (els.toolsMixStopBtn) els.toolsMixStopBtn.addEventListener("click", toolsStopRawMixPlayback);
 if (els.toolsMixPlayerChange) els.toolsMixPlayerChange.addEventListener("click", toolsOpenFilesSheet);
+// #49b — toolsClearFilterSelection()'ın AYNI deseni: "değiştir"den FARKLI,
+// SADECE seçimi temizler (kütüphaneden SİLMEZ). renderToolsCardsVisibility()
+// kendi İÇİNDE renderToolsMixPlayer(null) çağırıyor — kart "Dosya Seç"
+// butonuna (index.html'in statik başlangıç durumu) geri döner.
+function toolsClearMixSelection() {
+  if (toolsRawMixPlaying) { toolsPauseRawMixPlayback(); }
+  recordUploadSelection("tools", null);
+  renderToolsCardsVisibility();
+}
+if (els.toolsMixPlayerRemove) els.toolsMixPlayerRemove.addEventListener("click", toolsClearMixSelection);
 
 // Gerçek satın alma bu sürümde yok — Araçlar sekmesi normalde her zaman
 // kilitli görünür (toolsFreeLock), dokununca paywall'a yönlendirir. isUserPro()

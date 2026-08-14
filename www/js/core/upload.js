@@ -59,6 +59,17 @@ function uploadDiagLog(step, label, phase, detail) {
 }
 
 export const ALLOWED_AUDIO_EXTENSIONS = ["wav", "mp3", "m4a", "aac", "aiff", "flac", "ogg"];
+// #52 DÜZELTMESİ — ".aif" reddediliyordu: "aiff" listede vardı ama uzantı
+// KARŞILAŞTIRMASI TAM EŞLEŞME arıyordu, ".aif" (Logic Pro/macOS'un
+// YAYGIN kısa AIFF uzantısı — Finder/Logic bounce'ları genelde BUNU
+// üretir, ".aiff" değil) string olarak "aiff"e EŞİT DEĞİL. decodeAudioData
+// dosyanın BAYTLARINI çözer, uzantıya hiç bakmaz — teknik bir engel YOKTU,
+// SADECE string karşılaştırması eksikti. ".aif" AYRI bir format olarak
+// EKLENMEDİ (ALLOWED_AUDIO_EXTENSIONS'a "aif" eklemek FULL_AUDIO_FORMAT_LIST'i
+// "AIFF/AIF" gibi YANILTICI/tekrar eden gösterirdi) — bunun yerine
+// validateAudioFile() ".aif"i doğrulama ÖNCESİ "aiff"e normalize ediyor,
+// kullanıcıya görünen liste TEK "AIFF" olarak kalıyor.
+const EXTENSION_ALIASES = { aif: "aiff" };
 // G164 — kullanıcı raporu: format listesi 3 farklı yerde 3 farklı elle
 // yazılmış metin olarak duruyordu ("mp3/wav", "mp3/wav/m4a", TAM 7'li liste)
 // — biri değişince diğerleri sessizce ESKİ kalıyordu. Artık TEK kaynak:
@@ -86,14 +97,22 @@ export function audioAcceptAttr() {
   return [
     "audio/*",
     "audio/wav", "audio/x-wav", "audio/wave", "audio/vnd.wave",
-    ...ALLOWED_AUDIO_EXTENSIONS.map(ext => `.${ext}`)
+    ...ALLOWED_AUDIO_EXTENSIONS.map(ext => `.${ext}`),
+    // #52 — ".aif" (EXTENSION_ALIASES) picker'ın KENDİSİNDE de kabul
+    // edilmeli, yoksa iOS'un native seçicisi dosyayı hiç GÖSTERMEYEBİLİR
+    // (bkz. yukarıdaki WKWebView notu — validateAudioFile'a hiç ulaşmadan
+    // seçilemez kalırdı).
+    ...Object.keys(EXTENSION_ALIASES).map(ext => `.${ext}`)
   ].join(",");
 }
 
 export function validateAudioFile(file) {
-  const ext = (file.name.split(".").pop() || "").toLowerCase();
+  const rawExt = (file.name.split(".").pop() || "").toLowerCase();
+  // #52 — ".aif" ".aiff"e normalize edilir (AYNI format, iki yazım) —
+  // hata mesajında kullanıcının GERÇEKTEN yazdığı uzantı (rawExt) gösterilir.
+  const ext = EXTENSION_ALIASES[rawExt] || rawExt;
   if (!ALLOWED_AUDIO_EXTENSIONS.includes(ext)) {
-    return { ok: false, title: "Desteklenmeyen dosya türü", detail: `".${ext || "?"}" uzantılı dosyalar desteklenmiyor. Desteklenenler: ${ALLOWED_AUDIO_EXTENSIONS.join(", ")}.` };
+    return { ok: false, title: "Desteklenmeyen dosya türü", detail: `".${rawExt || "?"}" uzantılı dosyalar desteklenmiyor. Desteklenenler: ${ALLOWED_AUDIO_EXTENSIONS.join(", ")}.` };
   }
   if (file.size > MAX_AUDIO_FILE_MB * 1024 * 1024) {
     return { ok: false, title: "Dosya çok büyük", detail: `Dosya ${MAX_AUDIO_FILE_MB} MB sınırını aşıyor. Lütfen daha kısa bir ses dosyası seç.` };
