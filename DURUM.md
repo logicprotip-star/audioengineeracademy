@@ -73,6 +73,93 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G196 — **#44 eğri görünürlüğü (İKİNCİ DENEME) — ölçüldü, gerçek kök sebep BULUNDU, DÜZELTME İÇİN ONAY BEKLİYOR. #45 waveform akıcılığı ve #42 Pro'da "Pro'ya geç" DÜZELTİLDİ.**
+
+**İŞ 1 — #44, KOD YAZILMADI, sadece ölçüldü (task'ın kendi kuralı).** G193
+panel×canvas çakışmasını GERÇEKTEN sıfıra indirmişti (yeniden ölçüldü, 4
+modda hâlâ 0px) — ama eğriler yine de bulanık çıkıyordu, çünkü SORUN HİÇ
+`.fb`'nin blur(14px)'inde DEĞİLDİ. Gerçek kök sebep: `#feedbackOverlay`
+(`class="sheet-overlay fb-overlay"`) İKİ class taşıyor — `.fb-overlay`
+(satır 1350) `backdrop-filter:none` diyor (G85'in "tasarımın LİTERAL
+rengi" kararı) ama `.sheet-overlay` (satır 1721, TÜM sheet'lerin PAYLAŞTIĞI
+genel kural) `backdrop-filter:blur(3px)` diyor — İKİSİ DE tek-class
+selector, AYNI özgüllük, dosyada SONRA gelen (`.sheet-overlay`) kazanıyor.
+`getComputedStyle` ile DOĞRULANDI: overlay'in gerçek backdrop-filter'ı
+`blur(3px)`, `.fb-overlay`'in kendi `none`'ı HİÇ uygulanmıyor. Bu overlay
+`position:fixed;inset:0` — TÜM EKRANI kaplıyor, `.fb`'nin kendi konumundan/
+yüksekliğinden TAMAMEN BAĞIMSIZ olarak eğri grafiğinin ÜSTÜNÜ blur'luyor —
+G189/G193'ün ele aldığı `.fb`'nin KENDİ blur'u ile hiç ilgisi yok, TAMAMEN
+AYRI bir katman. **Canlı deneyle DOĞRULANDI:** Playwright'ta SADECE
+`#feedbackOverlay.style.backdropFilter='none'` uygulanıp `.fb`'ye HİÇ
+DOKUNMADAN önce/sonra ekran görüntüsü alındı — öncesinde eğri+lejant+eksen
+etiketleri bulanık, SONRASINDA hepsi TAM NET (ekran görüntüsüyle
+karşılaştırıldı, dramatik fark). Metin okunabilirliği de bu deneyde
+ETKİLENMEDİ (`.fb`'nin kendi blur'u dokunulmadığı için beklenen sonuç).
+**Kullanıcının önerisi (`.fb`'nin blur'unu kaldırıp `#feedbackDetail`'e
+opak zemin vermek) YANLIŞ HEDEFİ düzeltirdi** — `.fb`'nin blur'u zaten
+canvas'a ulaşmıyor (0px çakışma), o yüzden kaldırılması eğriyi
+ETKİLEMEZDİ; gerçek suçlu `.fb-overlay`'in ezilen kuralı. **Önerilen
+düzeltme:** `.fb-overlay` selector'ını `.sheet-overlay.fb-overlay` gibi
+İKİ class'lı (daha özgül) bir seçiciye çevirmek — dosya sırasından
+BAĞIMSIZ olarak kazanır, `.sheet-overlay`'in KENDİSİ (diğer TÜM sheet'ler
+paylaşıyor) hiç değişmez. `.fb`'nin blur(14px)'i BÜTÜN OLARAK dokunulmadan
+kalır (G189/G193'ün metin-okunabilirliği kazanımı sıfır riskle korunur).
+**ONAY BEKLİYOR** — kullanıcıya rapor sunuldu, cevap gelince uygulanacak.
+
+**İŞ 2 — #45 waveform akıcılığı DÜZELTİLDİ.** Ölçüldü (Playwright,
+`ctx.fillRect`/`clearRect` enstrümantasyonu): tek bir `toolsDrawBigWave()`
+çağrısı UCUZ (ort. 0.047ms, en kötü 0.3ms), kare aralıkları DÜZENLİ
+(stddev 0.47ms) — yani "atlamalı" görünüm bir PERFORMANS sorunu DEĞİLDİ.
+Gerçek sebep: dolgu her bar'ı İKİLİ (açık/kapalı) boyuyordu — 9sn'lik bir
+dosyada ~74 bar varsa her bar ~120ms'lik dilimi temsil ediyor, dolgu
+sınırı o kadar aralıklarla TEK BARLIK adım atlıyordu. **Düzeltme:**
+sınırdaki barın ORANSAL/kısmi dolumu çizilir artık (`toolsDrawBigWave`,
+`www/js/app.js`) — dolgu artık bar-genişliği değil piksel çözünürlüğünde
+ilerliyor (Playwright'ta ardışık karelerde geçiş pikseli örneklendi:
+5,6,9,11,13,15,17,19,22,23,26,28,30,32,34 — pürüzsüz artan, sabit-kalıp-
+sıçrayan DEĞİL). Ayrıca (ölçümde asıl darboğaz OLMASA da fark edilen
+gereksiz iş): `toolsWaveformPeaks()` HER karede TÜM buffer'ı yeniden
+tarıyordu — peaks dosya/genişlik değişmediği sürece SABİT, `WeakMap`'te
+önbelleğe alındı (`toolsWaveformPeaksCached`, buffer referansı doğal
+anahtar — yeni dosya = yeni buffer = doğal cache-miss, elle geçersiz
+kılma GEREKMİYOR); `canvas.width/height` de artık SADECE gerçekten
+değiştiyse atanıyor (her atama context'i resetler). **Ölçüm:** G192'nin
+KENDİ seek/pause doğrulama script'i YENİDEN koşuldu — elapsed akışı,
+canvas görsel değişimi, seek (%75→0:07), çalarken seek kesintisiz devam —
+HEPSİ AYNEN korundu, regresyon yok.
+
+**İŞ 3 — #42 Pro'da "Pro'ya geç" butonu DÜZELTİLDİ.** Ayarlar → Hesap
+satırındaki `#goProBtn`, `syncAccountLine()` metni doğru güncellerken
+BUTONUN GÖRÜNÜRLÜĞÜNÜ hiç kontrol etmiyordu — Pro'da da "Pro'ya geç"
+gösteriyordu (#40 ailesiyle AYNI sınıf hata). **Düzeltme:**
+`syncAccountLine()`'a `els.goProBtn.classList.toggle("hidden",
+isUserPro())` eklendi — zaten `syncDevUI()` içinden çağrıldığı için
+geliştirici modu AÇILIP KAPANDIKÇA anında (sayfa yenilenmeden) doğru
+görünüme geçiyor. **TARANDI:** aynı metni taşıyan 5 KOPYA daha var
+(`dailyTipProBtn`/`accChartProBtn`/`zoneProBtn`/`toolsProBtn`/
+`buyProBtn`) — hepsi kendi kilit-overlay KAPSAYICISI (`.prog-lock-overlay`/
+`toolsFreeLock`) üzerinden ZATEN doğru gizleniyor (Playwright'ta 4'ü
+CANLI test edildi, hepsi Pro'da `görünür=False`), SADECE `#goProBtn`
+kapsayıcısız/tek başına duruyordu. **Ölçüm:** ücretsizde buton görünür +
+doğru metin ("Ücretsiz — 5 mod..."), Pro'da buton YOK + doğru metin
+("Pro (simüle) — 14 mod...").
+
+**Ölçüm (genel):** `npm test` → **1291/1291**. LOCKED çapraz kontrol
+(kısmi, İş 2/3'ün dokunduğu koda göre hedeflendi): konsol hatası yok,
+G192'nin seek/pause'u AYNEN korunuyor, G194'ün 4 Pro-gizleme yeri hâlâ
+doğru çalışıyor.
+
+**Dokunulan:** `www/js/app.js` (SADECE `toolsDrawBigWave`/YENİ
+`toolsWaveformPeaksCached` — İş 2; `syncAccountLine` — İş 3), `DURUM.md`.
+**Dokunulmayan (İş 1 onay bekliyor, KOD YAZILMADI):** `www/styles.css`
+(`.fb`/`.fb-overlay` kuralları — İş 1'in önerilen düzeltmesi HENÜZ
+uygulanmadı), G192'nin rAF döngüsü/seek-mantığı (SADECE çizim fonksiyonu
+değişti, döngünün KENDİSİ dokunulmadı), G193'ün max-height/flex/scroll-
+shadow'u, G190/G191, Bug 17/19/20/22/23/24/25/29, Grup A/B/C, çip
+genişliği (581f798), kaynak çipi+BARE_ANALYZER (a4efb42), Stereo Genişlik
+`pickPlaybackOffset` (G122), İpucu Motor1/Motor2 ayrımı (G85/G86) —
+hiçbiri yeniden koşulmadı, İş 2/3'ün kapsamı bunlarla kesişmiyor.
+
 G195 — **Üç küçük temizlik: kırılmış test notu, ölü dosya, abPressTimer belgelemesi.**
 
 **İŞ 1 — "freshChallenge/G174 testi" araştırıldı, GERÇEK bir dosya olarak
@@ -14818,6 +14905,21 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G196 itibarıyla):** **#44'ün düzeltmesi kullanıcı
+onayı BEKLİYOR** — kök sebep ölçüldü (`#feedbackOverlay`'in `.sheet-overlay`
+class'ından miras aldığı `blur(3px)`, `.fb-overlay`'in kendi `none`'ını
+eziyor), önerilen düzeltme (`.fb-overlay` → `.sheet-overlay.fb-overlay`
+iki-class'lı seçici) rapor edildi, henüz UYGULANMADI. Onay gelince: CSS
+tek satır değişecek, Playwright'la 4 modda (önceki oturumun ekran
+görüntüsü karşılaştırma yöntemiyle) doğrulanacak, ayrıca metin
+okunabilirliğinin BOZULMADIĞI (asıl risk) teyit edilecek. #45 (waveform
+akıcılığı) ve #42 (Pro'da Pro'ya geç butonu) tamamlandı, `npm test`
+(1291/1291) ve Playwright'la doğrulandı, GERÇEK cihazda HENÜZ görülmedi.
+Kontrol edilecek: (1) Referans Filtreleri'nde bir dosya çal — dalga formu
+dolgusu artık PÜRÜZSÜZ ilerlemeli, bar-bar sıçramamalı; (2) Ayarlar →
+Hesap satırını Pro'da (gerçek 7-dokunuşla) aç — "Pro'ya geç" butonu
+GÖRÜNMEMELİ, metin "Pro (simüle)/Pro — N mod..." doğru okunmalı.
 
 **EN YENİ SIRADAKİ ADIM (G195 itibarıyla):** Üç küçük temizlik tamamlandı
 (test yorumu, ölü dosya silme, abPressTimer belgelemesi) — hiçbiri canlı

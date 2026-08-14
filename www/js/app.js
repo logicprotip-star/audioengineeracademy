@@ -7997,6 +7997,13 @@ function syncAccountLine() {
       ? `Pro${devFlags.simulatePro ? " (simüle)" : ""} — ${total} mod, seans başına 10 soru, can sınırsız`
       : `Ücretsiz — ${FREE_MODE_COUNT} mod, seans başına 5 soru`;
   }
+  // Bug #42 — metin doğru güncelleniyordu ama yanındaki "Pro'ya geç" (#goProBtn)
+  // hiç gizlenmiyordu, Pro kullanıcıya Pro satmaya çalışıyordu (#40 ailesi).
+  // Diğer 5 "Pro'ya geç/Pro ile aç" kopyası (dailyTipProBtn/accChartProBtn/
+  // zoneProBtn/toolsProBtn/buyProBtn) TARANDI — hepsi kendi kilit-overlay
+  // KAPSAYICISI (.prog-lock-overlay/toolsFreeLock) üzerinden zaten doğru
+  // gizleniyor, SADECE bu buton kendi başına, kapsayıcısız duruyordu.
+  if (els.goProBtn) els.goProBtn.classList.toggle("hidden", isUserPro());
   if (els.proPrice) els.proPrice.textContent = liveProPrice || paywall.PRO_PRICE;
   renderProBenefits();
 }
@@ -8758,6 +8765,32 @@ function toolsWaveSvg(peaks, color) {
   }).join("");
   return `<svg viewBox="0 0 ${w.toFixed(1)} 26" width="100%" height="100%" preserveAspectRatio="none">${bars}</svg>`;
 }
+// Bug #45 ÖLÇÜMÜ — G192'nin rAF döngüsü (toolsFilterUiTick) her karede
+// renderToolsFilterPlayer()→toolsDrawBigWave() çağırıyor; Playwright'ta
+// ÖLÇÜLDÜ: tek bir çağrının kendisi UCUZ (ortalama 0.047ms, en kötü 0.3ms —
+// 60fps bütçesinin (16.67ms) yaklaşık %0.3'ü), kare aralıkları da DÜZENLİ
+// (stddev 0.47ms, ani "patlama"/duraklama YOK) — yani "atlamalı" görünüm bir
+// PERFORMANS sorunu DEĞİL. Gerçek sebep: dolgu her BAR'ı ayrı bir açık/kapalı
+// renk olarak boyuyor (`active = i/n < progressFrac`, ikili) — 9sn'lik bir
+// dosyada ~74 bar varsa her bar ~120ms'lik bir dilimi temsil ediyor, yani
+// dolgu sınırı yaklaşık her 120ms'de bir TEK barlık ADIM atlıyor ("sıçrama"
+// hissi BURADAN geliyor). Düzeltme: sınırdaki barın KISMİ (oransal) dolumu
+// çizilir — dolgu artık bar-genişliği çözünürlüğünde değil, sürekli/akıcı
+// ilerliyormuş gibi görünür. AYRICA (ölçümde fark edilen, performansı
+// SORUN yaratmasa da gereksiz iş): toolsWaveformPeaks() her karede TÜM
+// buffer'ı YENİDEN tarıyordu — peaks dosya/genişlik değişmediği sürece HİÇ
+// değişmez, WeakMap'te önbelleğe alındı; canvas.width/height de HER karede
+// yeniden atanıyordu (context'i resetler) — boyut GERÇEKTEN değişmediyse
+// artık atlanıyor. İkisi de düşük-uçlu gerçek cihazlarda ileride paye
+// çıkarabilecek gereksiz iş kalıntısıydı, ölçülen darboğaz OLMASA da.
+const toolsWavePeaksCache = new WeakMap(); // AudioBuffer -> Map(n -> peaks)
+function toolsWaveformPeaksCached(buffer, n) {
+  let byN = toolsWavePeaksCache.get(buffer);
+  if (!byN) { byN = new Map(); toolsWavePeaksCache.set(buffer, byN); }
+  let peaks = byN.get(n);
+  if (!peaks) { peaks = toolsWaveformPeaks(buffer, n); byN.set(n, peaks); }
+  return peaks;
+}
 // Referans Filtreleri çaların büyük (56px) dalga formu — GERÇEK örneklerden,
 // AYNI mantık, daha çok bar (78) ile.
 function toolsDrawBigWave(canvas, buffer, progressFrac) {
@@ -8765,20 +8798,41 @@ function toolsDrawBigWave(canvas, buffer, progressFrac) {
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.getBoundingClientRect();
   const cssW = rect.width || 300, cssH = 56;
-  canvas.width = Math.max(1, Math.round(cssW * dpr));
-  canvas.height = Math.max(1, Math.round(cssH * dpr));
+  const pxW = Math.max(1, Math.round(cssW * dpr)), pxH = Math.max(1, Math.round(cssH * dpr));
+  if (canvas.width !== pxW) canvas.width = pxW;
+  if (canvas.height !== pxH) canvas.height = pxH;
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
   const n = Math.max(20, Math.floor(cssW / 4));
-  const peaks = toolsWaveformPeaks(buffer, n);
+  const peaks = toolsWaveformPeaksCached(buffer, n);
   const barW = cssW / n;
   peaks.forEach((p, i) => {
     const h = Math.max(2, Math.min(cssH - 4, 4 + p * (cssH - 6)));
-    const x = i * barW;
-    const active = progressFrac != null && i / n < progressFrac;
-    ctx.fillStyle = active ? "#22d3ee" : "#3a3f45";
-    ctx.fillRect(x + 0.6, (cssH - h) / 2, Math.max(1, barW - 1.4), h);
+    const x = i * barW + 0.6;
+    const y = (cssH - h) / 2;
+    const w = Math.max(1, barW - 1.4);
+    // Bar-genişliği çözünürlüğünde ikili (açık/kapalı) yerine sınırdaki barın
+    // ORANSAL dolumu — dolgu sınırı artık her karede pürüzsüz ilerliyor.
+    const barLeftFrac = i / n, barRightFrac = (i + 1) / n;
+    let fillFrac = 0;
+    if (progressFrac != null) {
+      if (progressFrac >= barRightFrac) fillFrac = 1;
+      else if (progressFrac > barLeftFrac) fillFrac = (progressFrac - barLeftFrac) / (barRightFrac - barLeftFrac);
+    }
+    if (fillFrac <= 0) {
+      ctx.fillStyle = "#3a3f45";
+      ctx.fillRect(x, y, w, h);
+    } else if (fillFrac >= 1) {
+      ctx.fillStyle = "#22d3ee";
+      ctx.fillRect(x, y, w, h);
+    } else {
+      const activeW = w * fillFrac;
+      ctx.fillStyle = "#22d3ee";
+      ctx.fillRect(x, y, activeW, h);
+      ctx.fillStyle = "#3a3f45";
+      ctx.fillRect(x + activeW, y, w - activeW, h);
+    }
   });
 }
 
