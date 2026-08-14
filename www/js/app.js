@@ -2739,9 +2739,12 @@ function showExamScreen(kind, ctx = {}) {
     const badge = session.newBadges.length ? session.newBadges[session.newBadges.length - 1] : null;
     if (badge) facts.push(exFactRow("Yeni rozet", badge.title, GOLD));
     ctaLabel = "Devam";
-    ctaHandler = () => { examSystem.acknowledgePassed(); goScreen("game"); goToNextRound(); };
+    // #55 — acknowledgePassed() examSystem'i YENİ bir parkura sıfırlıyor
+    // (resetParkur), challenge'ı da AYNI anda sıfırlıyoruz (bkz.
+    // resetChallengeForNewParkur'un dosya başı notu).
+    ctaHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
-    secondaryHandler = () => { examSystem.acknowledgePassed(); goScreen("home"); };
+    secondaryHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); goScreen("home"); };
   } else if (kind === "failed") {
     accent = RED; pillBg = "rgba(248,113,96,.1)"; pillBorder = "rgba(248,113,96,.4)";
     pillIconD = "M6 6l12 12M18 6L6 18"; kicker = "SINAV GEÇİLEMEDİ";
@@ -2871,15 +2874,18 @@ function handleExamOutcome(q, result, gained) {
     // telafi YOK, doğrudan parkur baştan (core/exam-system.js resetParkur'u
     // ZATEN çağırdı).
     case "exam-failed":
+      resetChallengeForNewParkur(); // #55 — resetParkur() ZATEN çalıştı (core/exam-system.js), YENİ parkur burada başlıyor
       showExamScreen("failed", { examCorrect: examCorrectSnapshot });
       return true;
     // G84: remedial-passed/remedial-failed'ın kendi bir tam ekranı YOK —
     // task'ın "beş durum" listesi bunları KAPSAMIYOR (announce/run/passed/
     // failed/makeup) — mevcut appendExamNote deseni KORUNDU.
     case "remedial-passed":
+      resetChallengeForNewParkur(); // #55 — AYNI: resetParkur() ZATEN çalıştı
       appendExamNote("Telafiyi geçtin — parkura devam.");
       return false;
     case "remedial-failed":
+      resetChallengeForNewParkur(); // #55 — AYNI: resetParkur() ZATEN çalıştı
       appendExamNote("Telafiyi geçemedin — parkur baştan başlıyor.");
       return false;
     default:
@@ -5687,6 +5693,36 @@ function challengeTick(wasCorrect, gainedXp) {
   challenge.done++;
   if (wasCorrect) challenge.correct++;
   challenge.xp += Math.max(0, gainedXp || 0);
+}
+// #55 DÜZELTMESİ (ölçüldü — Ölçüm 1, madde 6) — examSystem.recordAnswer()'ın
+// KENDİ resetParkur() çağırdığı HER an (exam-failed/remedial-passed/
+// remedial-failed, core/exam-system.js:212-266) VE "exam-passed" kutlaması
+// onaylandığında (examSystem.acknowledgePassed(), YENİ bir parkurun
+// BAŞLANGICI — bkz. showExamScreen "passed" dalının iki handler'ı), challenge
+// (BÖLÜM göstergesi) da SIFIRLANIR. ÖNCEDEN: challenge SADECE startChallenge()
+// ile (yeni bir OYUN OTURUMU başında) sıfırlanıyordu — finishChallenge()
+// (challenge.done>=10'da tetiklenen TEK reset yolu) ensureAutoNext()'in
+// !examGateActive() şartına bağlıydı (Pro+sınav-etkin modda HİÇ tetiklenmezdi,
+// bkz. o satırın G97 notu) — challenge.done SINIRSIZ büyüyor, "BÖLÜM"
+// göstergesi (examActive iken zaten .ghead-collapsed ile gizli) parkura
+// dönüldüğünde ESKİ/ŞİŞKİN değerde donuk kalıyordu.
+//
+// G97'NİN "Pro'da bölüm ekranı sınavla çakışmasın" KARARI KORUNUYOR: bu
+// fonksiyon finishChallenge()'ı ÇAĞIRMIYOR (showSessionEnd tetiklenmiyor),
+// SADECE challenge'ın SAYAÇLARINI (done/correct/xp) sıfırlıyor —
+// ensureAutoNext()'teki !examGateActive() şartına TEK SATIR dokunulmadı.
+//
+// active DEĞERİ KORUNUR, zorla true YAPILMAZ — Serbest moddaki bir Pro
+// kullanıcıda challenge.active zaten false'tur (startChallenge() hiç
+// çağrılmamıştır), bu sıfırlama onu YANLIŞLIKLA "10 Soruluk Bölüm" moduna
+// SOKMAZ (isChallenge()/showChapter zaten Serbest'te bu göstergeyi hiç
+// göstermiyor, bkz. Ölçüm 1 madde 2 — bu durumda sıfırlama SADECE görünmez/
+// zararsız sayaçları etkiler).
+//
+// core/exam-system.js'e TEK SATIR dokunulmadı (SAF kaldı) — hook TAMAMEN
+// burada, app.js tarafında.
+function resetChallengeForNewParkur() {
+  challenge = { ...freshChallenge(), active: challenge.active };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
