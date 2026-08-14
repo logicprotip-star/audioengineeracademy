@@ -73,6 +73,74 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G198 — **Rozet seti revizyonu: 9 → 6, isimler/ikonlar yenilendi.**
+
+**ÖNCE ÖLÇÜLDÜ (kod yazmadan):**
+1. Rozet kaydı `stats.unlocked` — bir string-id DİZİSİ (`progress.js:
+   checkAchievements`, `stats.unlocked.push(a.id)`), İSİM DEĞİL. 6 kalan
+   rozetin id'si (`first_blood`/`combo_5`/`round_25`/`accuracy_70`/
+   `pro_clear`/`boss_win`) DEĞİŞMEDİ — kazanılmış rozetler BOZULMUYOR.
+2. "N/9" sayacı `app.js:renderAchievements()`'ta `progress.ACHIEVEMENTS.length`'ten
+   DİNAMİK türetiliyor — dizi 6 öğeye inince otomatik "N/6" oluyor, ayrı
+   bir kod değişikliği GEREKMEDİ.
+3. Silinen 3 id'ye (`combo_10`/`round_100`/`level_5`) ve eski başlıklarına
+   (Şimşek Kulak/EQ Beyni/Yükseliş) `progress.js`'in KENDİ tanımı DIŞINDA
+   hiçbir referans yok (grep'le doğrulandı) — silmek güvenli. Test dosyası
+   (`test/progress.test.mjs`) ACHIEVEMENTS'a hiç değinmiyor — `npm test`
+   sayısı bu turda DEĞİŞMEDİ.
+
+**BEKLENMEDİK BULGU (ölçümde ortaya çıktı, KOD İLE düzeltildi — ayrı bir
+onay gerektirmeyecek kadar tek-doğru-cevaplı):** sayaç ÖNCEDEN
+`stats.unlocked`'ın HAM `.size`'ını kullanıyordu — silinen 3 id ESKİDEN bu
+rozetleri kazanmış bir kullanıcının localStorage'ında hâlâ DURUYOR
+(geçmiş veri silinmedi), ham `.size` kullanılsaydı "9/6" gibi anlamsız
+bir sayaç çıkardı. `renderAchievements()`'ta sayaç artık `progress.
+ACHIEVEMENTS.filter(a => unlocked.has(a.id)).length` — SADECE güncel
+listedeki id'lerle kesişim sayılıyor.
+
+**Uygulama:** `www/js/core/progress.js`'teki `ACHIEVEMENTS` dizisi 9'dan
+6'ya indi, kalan 6'nın `title`/`icon`'u (id'ler AYNI) güncellendi:
+
+| id (DEĞİŞMEDİ) | eski başlık | yeni başlık | yeni ikon | titleEn (1.1 hazırlığı, KULLANILMIYOR) |
+|---|---|---|---|---|
+| first_blood | İlk Kulak | Dinleyici | 🎧 | Listener |
+| combo_5 | Alev Zinciri | Ses Kaşifi | 🧭 | Sound Explorer |
+| round_25 | Dayanıklılık | Miksçi | 🎚️ | Mixer |
+| accuracy_70 | Keskin Hedef | Ses Mühendisi | 🎛️ | Engineer |
+| pro_clear | Pro Kulak | Mastering Mühendisi | 🔊 | Mastering Engineer |
+| boss_win | Boss Avcısı | Altın Kulak | 👂 | Golden Ear |
+
+Silinen 3 (`combo_10`/`round_100`/`level_5`) tamamen dizi dışı bırakıldı.
+`titleEn` alanı EKLENDİ ama HİÇBİR yerde okunmuyor (1.1'in İngilizce
+çeviri turu için hazırlık, task'ın kendi talimatı). Seviye unvanları
+(`LEVEL_TITLES`, ana ekranın "Çırak Kulak" vb.) TAMAMEN AYRI bir sistem —
+BİLEREK dokunulmadı.
+
+**Ölçüm (Playwright):** temiz kullanıcıda İlerleme sekmesi → 6 rozet
+kartı, sayaç "0/6", isim/ikon/açıklama TABLODAKİ ile birebir. Eski
+kullanıcı simülasyonu — TÜM 9 eski id (silinenler DAHİL) `stats.unlocked`'a
+elle yazılıp yüklendi: sayaç "9/6" DEĞİL, doğru şekilde "6/6" gösterdi.
+Kısmi eski veri (`first_blood`+`combo_10`[silinmiş]+`round_25`
+kazanılmış) — sayaç "2/6" (combo_10 sayılmadı), "Dinleyici"/"Miksçi"
+DOĞRU şekilde unlocked, "Ses Kaşifi" (combo_5, hiç kazanılmamış) DOĞRU
+şekilde locked kaldı — id-bazlı eşleşme birebir çalışıyor.
+
+**Ölçüm:** `npm test` → **1291/1291** (test dosyası bu sistemi hiç test
+etmiyordu, sayı değişmedi).
+
+**Dokunulan:** `www/js/core/progress.js` (SADECE `ACHIEVEMENTS` dizisi),
+`www/js/app.js` (SADECE `renderAchievements()`'taki sayaç hesaplaması).
+
+**Dokunulmayan:** `LEVEL_TITLES`/`levelTitle()` (seviye unvanları, ayrı
+sistem, task'ın kendi talimatı), `checkAchievements()`'ın kendisi (mantık
+DEĞİŞMEDİ, sadece hangi id'lerin var olduğu değişti), `session.newBadges`/
+`notifyNewAchievements()` (generic, id/isim hardcode etmiyor), G197'nin
+`.fb-overlay` düzeltmesi, G193/G194/G192/G190/G191, Bug 17/19/20/22/23/
+24/25/29, Grup A/B/C, çip genişliği (581f798), kaynak çipi+BARE_ANALYZER
+(a4efb42), Stereo Genişlik `pickPlaybackOffset` (G122), İpucu Motor1/
+Motor2 ayrımı (G85/G86) — hiçbiri yeniden koşulmadı, bu turun kapsamı
+SADECE rozet sistemiydi.
+
 G197 — **#44 eğri görünürlüğü (İKİNCİ DENEME) — ONAYLANDI VE UYGULANDI.**
 
 G196'da ölçülen kök sebep (`#feedbackOverlay`'in `.fb-overlay` class'ının
@@ -14945,7 +15013,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G197 itibarıyla):** #44 ÇÖZÜLDÜ (`.fb-overlay` →
+**EN YENİ SIRADAKİ ADIM (G198 itibarıyla):** Rozet seti 9→6 revizyonu
+tamamlandı (isim/ikon değişti, koşullar/id'ler AYNI kaldı), `npm test`
+(1291/1291) ve Playwright'la (temiz kullanıcı + eski-veri senaryoları)
+doğrulandı, GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: (1) İlerleme
+sekmesinde 6 rozet kartı görünmeli, sayaç "N/6"; (2) DAHA ÖNCE (bu
+sürümden önce) rozet kazanmış GERÇEK bir kullanıcı hesabı varsa (App
+Store'da canlı sürüm) — sayaç ANLAMSIZ bir şey göstermemeli, önceden
+kazanılmış first_blood/combo_5/round_25/accuracy_70/pro_clear/boss_win
+rozetleri YENİ isimleriyle unlocked görünmeli; (3) yeni bir rozet
+kazanma anını (ör. ilk doğru cevap) canlı tetikleyip toast/Seans Sonu
+kartının YENİ ismi ("Dinleyici" vb.) doğru gösterdiğini doğrula.
+
+**EN YENİ SIRADAKİ ADIM (G197 itibarıyla, ARTIK ESKİ):** #44 ÇÖZÜLDÜ (`.fb-overlay` →
 `.sheet-overlay.fb-overlay`), `npm test` (1291/1291) ve Playwright'la 4
 modda (375×667) doğrulandı, GERÇEK cihazda HENÜZ görülmedi. Bu, #44'ün
 İKİNCİ deneme sonrası GERÇEKTEN kök sebebe inen düzeltmesi — kontrol

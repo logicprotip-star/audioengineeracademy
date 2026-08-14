@@ -140,16 +140,22 @@ export function levelTitle(academyLvl) {
   return current;
 }
 
+// G198 DÜZELTMESİ (rozet revizyonu, kullanıcı kararı) — 9 rozet 6'ya indi.
+// Silinen 3'ü (combo_10/round_100/level_5) KENDİ koşulları zaten kalan
+// bir rozetle (sırasıyla combo_5/round_25) AYNIYDI, sadece eşik sayısı
+// farklıydı — level_5 de ana ekranda ZATEN görünen seviye bilgisini
+// tekrar ediyordu. id'LER DEĞİŞMEDİ (first_blood/combo_5/round_25/
+// accuracy_70/pro_clear/boss_win) — kazanılmış rozetler (stats.unlocked,
+// id bazlı) bu yüzden BOZULMADI, sadece isim/ikon güncellendi. `titleEn`
+// alanı 1.1'in (İngilizce çeviri) HAZIRLIĞI — şu an HİÇBİR YERDE
+// OKUNMUYOR, kod bilerek önden yazıldı.
 export const ACHIEVEMENTS = [
-  { id: "first_blood", icon: "🎧", title: "İlk Kulak", desc: "İlk doğru cevabı ver.", check: s => s.correct >= 1 },
-  { id: "combo_5", icon: "🔥", title: "Alev Zinciri", desc: "5 combo yap.", check: s => s.bestCombo >= 5 },
-  { id: "combo_10", icon: "⚡", title: "Şimşek Kulak", desc: "10 combo yap.", check: s => s.bestCombo >= 10 },
-  { id: "round_25", icon: "🏁", title: "Dayanıklılık", desc: "25 tur tamamla.", check: s => s.rounds >= 25 },
-  { id: "round_100", icon: "🧠", title: "EQ Beyni", desc: "100 tur tamamla.", check: s => s.rounds >= 100 },
-  { id: "accuracy_70", icon: "🎯", title: "Keskin Hedef", desc: "En az 20 turda %70 doğruluk yakala.", check: s => s.rounds >= 20 && accuracy(s) >= 70 },
-  { id: "level_5", icon: "🚀", title: "Yükseliş", desc: "Level 5 ol.", check: s => levelFromXp(totalXp(s)) >= 5 },
-  { id: "pro_clear", icon: "👑", title: "Pro Kulak", desc: "Pro zorlukta 8 doğru yap.", check: s => s.proCorrect >= 8 },
-  { id: "boss_win", icon: "💀", title: "Boss Avcısı", desc: "Bir boss round kazan.", check: s => s.bossWins >= 1 }
+  { id: "first_blood", icon: "🎧", title: "Dinleyici", titleEn: "Listener", desc: "İlk doğru cevabı ver.", check: s => s.correct >= 1 },
+  { id: "combo_5", icon: "🧭", title: "Ses Kaşifi", titleEn: "Sound Explorer", desc: "5 combo yap.", check: s => s.bestCombo >= 5 },
+  { id: "round_25", icon: "🎚️", title: "Miksçi", titleEn: "Mixer", desc: "25 tur tamamla.", check: s => s.rounds >= 25 },
+  { id: "accuracy_70", icon: "🎛️", title: "Ses Mühendisi", titleEn: "Engineer", desc: "En az 20 turda %70 doğruluk yakala.", check: s => s.rounds >= 20 && accuracy(s) >= 70 },
+  { id: "pro_clear", icon: "🔊", title: "Mastering Mühendisi", titleEn: "Mastering Engineer", desc: "Pro zorlukta 8 doğru yap.", check: s => s.proCorrect >= 8 },
+  { id: "boss_win", icon: "👂", title: "Altın Kulak", titleEn: "Golden Ear", desc: "Bir boss round kazan.", check: s => s.bossWins >= 1 }
 ];
 
 // stats üzerinde mutasyon yapar (unlocked listesine ekler), yeni açılan başarımları döndürür.
