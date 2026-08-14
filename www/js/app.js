@@ -3240,7 +3240,7 @@ function renderHistory() {
 // SADECE zoneStats'ı bu bölge tanımına göre bir "harita"ya çeviriyoruz.
 // ═══════════════════════════════════════════════════════════════════════════
 
-const ZONE_SHORT_LABEL = { "SUB": "Sub", "BAS": "Bas", "ALT-ORTA": "Alt-orta", "ORTA": "Orta", "ÜST-ORTA": "Üst-orta", "TİZ / HAVA": "Tiz" };
+const ZONE_SHORT_LABEL = { "SUB": "Sub", "BAS": "Bas", "ALT-ORTA": "Alt-orta", "ORTA": "Orta", "ÜST-ORTA": "Üst-orta", "TİZ": "Tiz" };
 
 function zoneScores() {
   return mode.FA_ZONES.map(z => {

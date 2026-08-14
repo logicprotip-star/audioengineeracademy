@@ -137,12 +137,12 @@ describe("getWeakZone() — G50: sınav telafisi için DETERMİNİSTİK en zayı
     const zoneStats = {};
     FA_ZONES.forEach(z => {
       const key = z.t.split(" (")[0];
-      zoneStats[key] = key === "TİZ / HAVA"
+      zoneStats[key] = key === "TİZ"
         ? { n: 10, ok: 1, sumDOct: 9, dOctCount: 9 }  // en zayıf
         : { n: 10, ok: 9, sumDOct: 0.2, dOctCount: 1 }; // güçlü
     });
     const weak = getWeakZone(zoneStats, FA_ZONES);
-    assert.equal(weak.zone.t.split(" (")[0], "TİZ / HAVA");
+    assert.equal(weak.zone.t.split(" (")[0], "TİZ");
     assert.ok(weak.weakness > 0.5, `weakness beklenenden düşük: ${weak.weakness}`);
   });
 

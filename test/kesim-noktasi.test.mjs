@@ -381,11 +381,11 @@ describe("Kesim Noktası — öğretici metin (G20, teachingText/getFeedbackData
 // TAMAMI — hiçbiri boş/kısa/bozuk (undefined, NaN, [object) metin üretmemeli.
 // Bölge temsilcisi frekanslar FA_ZONES'un (frekans-bulma.js) her bölgesinden
 // birer örnek — CUTOFF_MIN–CUTOFF_MAX havuzunun dışında kalan bölgeler
-// (SUB'ın alt ucu, TİZ/HAVA) bile burada taranıyor çünkü teachingText'in
+// (SUB'ın alt ucu, TİZ) bile burada taranıyor çünkü teachingText'in
 // KENDİSİ (createQuestion'ın aksine) frekansı hiçbir havuza kırpmıyor —
 // havuz sınırları ileride değişirse bu tarama hâlâ geçerli kalsın diye.
 describe("Kesim Noktası — G21 sert test: öğretici metin 6 bölge × 2 tip × 3 durum TAMAMI", () => {
-  const ZONE_SAMPLES = { "SUB": 60, "BAS": 180, "ALT-ORTA": 350, "ORTA": 1000, "ÜST-ORTA": 4000, "TİZ / HAVA": 12000 };
+  const ZONE_SAMPLES = { "SUB": 60, "BAS": 180, "ALT-ORTA": 350, "ORTA": 1000, "ÜST-ORTA": 4000, "TİZ": 12000 };
 
   for (const [zoneKey, freq] of Object.entries(ZONE_SAMPLES)) {
     for (const filterType of ["highpass", "lowpass"]) {

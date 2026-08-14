@@ -425,7 +425,7 @@ export function calculateXP(question, result, hintUsed, level, context = {}) {
 // split(" (")[0]) BİREBİR AYNI — frekans-bulma.js'e yeni bir bölge eklenirse
 // burası da güncellenmeli (bu modun havuzu CUTOFF_MIN–CUTOFF_MAX olduğu için
 // pratikte SUB'ın üst kısmından ÜST-ORTA'nın alt kısmına kadar kullanılıyor,
-// TİZ/HAVA ve SUB'ın tamamı CUTOFF_MAX/MIN dışında kaldığı için nadiren/hiç
+// TİZ ve SUB'ın tamamı CUTOFF_MAX/MIN dışında kaldığı için nadiren/hiç
 // tetiklenmez — yine de havuz sınırları ilerde genişlerse diye TÜM 6 bölge
 // dolduruldu, boş bırakılmadı).
 const ZONE_EFFECT = {
@@ -435,7 +435,7 @@ const ZONE_EFFECT = {
     "ALT-ORTA": "gövdeyi ciddi inceltir, ses zayıflamaya başlar",
     "ORTA": "sesin gövdesinin çoğu gider, ince/telefon gibi bir ton kalır",
     "ÜST-ORTA": "neredeyse her şeyi keser, sadece en tiz kısım kalır",
-    "TİZ / HAVA": "sesin neredeyse tamamını keser, çok az bir tıslama kalır"
+    "TİZ": "sesin neredeyse tamamını keser, çok az bir tıslama kalır"
   },
   lowpass: {
     "SUB": "neredeyse her şeyi keser, sadece en pes uğultu kalır",
@@ -443,7 +443,7 @@ const ZONE_EFFECT = {
     "ALT-ORTA": "netlik ve tizlik gider, ses kalınlaşıp boğuklaşır",
     "ORTA": "sesi boğar, netlik gider",
     "ÜST-ORTA": "tiz sertliğini/parlaklığı alır, ses yumuşar",
-    "TİZ / HAVA": "sadece en tepedeki havayı/parlaklığı alır, ses neredeyse aynı kalır"
+    "TİZ": "sadece en tepedeki havayı/parlaklığı alır, ses neredeyse aynı kalır"
   }
 };
 const ZONE_EFFECT_FALLBACK = "sesi belirgin şekilde değiştirir";

@@ -23,7 +23,7 @@
 
 import { FA_ZONES } from "../modes/frekans-bulma.js";
 
-export const BANDS = FA_ZONES.map((z) => z.t.split(" (")[0].replace(" / HAVA", ""));
+export const BANDS = FA_ZONES.map((z) => z.t.split(" (")[0]);
 export const BAND_EDGES = [FA_ZONES[0].a, ...FA_ZONES.map((z) => z.b)];
 
 // TASLAK hedef eğriler — Tasarim-2026-08/Araçlar.dc.html'in kendi TB

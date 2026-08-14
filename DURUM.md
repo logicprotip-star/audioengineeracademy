@@ -73,6 +73,60 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G191 — **Bant etiketi düzeltmesi: "TİZ / HAVA" → "TİZ".**
+
+Gerekçe (kullanıcı kararı): iZotope Tonal Balance Control (uygulamanın görsel
+referansı) bu bandı sadece "High" diye adlandırıyor; "Air Band" Maag Audio'nun
+tescilli markası; klasik terminolojide "air" 10 kHz üstü için kullanılıyor, bu
+bant 8 kHz'den başlıyor. Açıklama metinlerindeki "hava" kelimesi (nitelik
+olarak, ör. "Vokale hava burada eklenir") DOKUNULMADAN kaldı — sadece bant
+ETİKETİ değişti.
+
+**Kaynak mekanizma doğrulandı önce:** `frekans-bulma.js`'in `FA_ZONES[].t`
+alanı TEK kaynak. Diğer TÜM anahtar haritaları (`HINT_ZONE_SHORT`,
+`app.js:ZONE_SHORT_LABEL`, `kesim-noktasi.js:ZONE_EFFECT`,
+`tonal-balance.js:BANDS`) bu `t` metnini `.split(" (")[0]` ile bölüp anahtar
+üretiyor — yani "TİZ / HAVA" anahtarı elle 4 ayrı yerde SENKRON tutuluyordu,
+tek bir `t:` değişikliği hepsini KIRABİLİRDİ. Bu yüzden `t:` değişikliğiyle
+BİRLİKTE, her haritanın anahtarı da "TİZ" yapıldı.
+
+**Dokunulan dosyalar (6):**
+- `www/js/modes/frekans-bulma.js` — `FA_ZONES`'taki `t: "TİZ / HAVA (8–20 kHz)"`
+  → `t: "TİZ (8–20 kHz)"` (tip metni AYNEN kaldı); `HINT_ZONE_SHORT` anahtarı
+  `"TİZ / HAVA"` → `"TİZ"`.
+- `www/js/app.js` — `ZONE_SHORT_LABEL` anahtarı `"TİZ / HAVA"` → `"TİZ"`
+  (İlerleme'nin Zayıf Bölge Raporu'nda kullanılıyor).
+- `www/js/modes/kesim-noktasi.js` — `ZONE_EFFECT.highpass`/`ZONE_EFFECT.lowpass`
+  anahtarları `"TİZ / HAVA"` → `"TİZ"` (AÇIKLAMA METİNLERİ AYNEN kaldı); bir
+  yorum satırı ("TİZ/HAVA ve SUB'ın tamamı...") tutarlılık için güncellendi.
+- `www/js/core/tonal-balance.js` — `BANDS` üretimindeki
+  `.replace(" / HAVA", "")` artık NO-OP olacağından (split zaten "TİZ"
+  üretiyor) kaldırıldı, kod sadeleşti.
+- `test/personalization.test.mjs`, `test/kesim-noktasi.test.mjs` — testlerdeki
+  `"TİZ / HAVA"` literalleri `"TİZ"`e güncellendi (2'şer yer); yorum
+  satırları da güncellendi.
+
+**Dokunulmayan (bilinçli):**
+- `www/app.js` (üst düzey, `www/js/app.js`'ten FARKLI dosya) — İÇİNDE de aynı
+  "TİZ / HAVA" metni var ama bu dosya ÖLÜ KOD: `www/index.html`'in TEK
+  `<script>` etiketi `js/app.js`'i yüklüyor (`www/app.js` hiçbir yerden
+  import/script edilmiyor — grep'le doğrulandı), boyutu/tarihi de uyuşmuyor
+  (109 KB / 28 Tem vs. `js/app.js`'in 666 KB / bugün) ve git geçmişi bu
+  oturumun G-numaralı kuralından ÖNCEKİ bir döneme ait commit mesajları
+  taşıyor. Canlı davranışı etkilemediği için DOKUNULMADI — silinmesi ayrı bir
+  ürün/temizlik kararı, burada yapılmadı.
+- Açıklama metinlerindeki "hava" kelimesi (nitelik), "kompresyon" kelimesi,
+  `index.html`'deki "1 mod" placeholder'ı, `www/js/core/analysis.js`'in
+  `STEREO_BAND_LABELS`i ve `tonal-denge.js`'in `"tiz"`/`"TİZ"` id/label'ları
+  — bunlar zaten "TİZ / HAVA" İÇERMİYORDU (halihazırda kısa/doğru), rename
+  kapsamı dışında kaldı.
+
+**Ölçüm:** `npm test` → **1291/1291** geçti (regresyon yok, baseline korundu).
+Playwright'la canlı doğrulama: `frekans-bulma.js`'in `faZoneOf(15000).t` →
+`"TİZ (8–20 kHz)"`, `hintZoneLabel(15000)` → `"Tiz"`; İlerleme'nin Zayıf Bölge
+Raporu'nda "Tiz" doğru render ediliyor (eski "HAVA" izi YOK);
+`tonal-balance.js`'in `BANDS` çıktısı `["SUB","BAS","ALT-ORTA","ORTA","ÜST-ORTA","TİZ"]`.
+
 G190 — **"i" (bilgi) metinleri — tarama + ekleme + tutarlılık taraması.**
 
 **Tutarlılık taraması (AŞAMA 2 öncesi, kullanıcı onayıyla genişletildi):**
@@ -14444,6 +14498,16 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G191 itibarıyla):** "TİZ / HAVA" → "TİZ" bant etiketi
+düzeltmesi tamamlandı, `npm test` (1291/1291) ve Playwright'la doğrulandı,
+GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: (1) Frekans Bulma'da bir
+soruyu TİZ bandında (8–20 kHz) cevapla — ipucu chip'i "Tiz" yazmalı, "HAVA"
+izi OLMAMALI; (2) İlerleme sekmesinin Zayıf Bölge Raporu'nda TİZ satırı
+"Tiz (8–20 kHz)" gibi doğru görünmeli; (3) Kesim Noktası'nda TİZ bandında
+(ör. 12 kHz) bir highpass/lowpass sorusu cevapla — öğretici geri bildirim
+metni ("sesin neredeyse tamamını keser..." / "sadece en tepedeki havayı...")
+DEĞİŞMEDEN, doğru bantla eşleşerek görünmeli (fallback metne düşmemeli).
 
 **EN YENİ SIRADAKİ ADIM (G190 itibarıyla):** "i" metinleri taraması +
 tutarlılık taraması + AŞAMA 2'nin 5 maddesi tamamlandı, Playwright'la

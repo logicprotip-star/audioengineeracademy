@@ -203,7 +203,7 @@ export const FA_ZONES = [
   { a: 250, b: 500, t: "ALT-ORTA (250–500 Hz)", tip: "Doluluk ve gövde. Birikirse 'çamur' hissi verir; mix'te en çok kesilen aralıklardan biri. Yükseltmek sesi kalınlaştırır, kesmek temizler ve açar." },
   { a: 500, b: 2000, t: "ORTA (500 Hz–2 kHz)", tip: "Enstrümanların gövdesi ve vokal netliği. 800 Hz–1 kHz fazlaysa 'kutu / telefon' sesi olur. Kesmek açar, yükseltmek öne çıkarır ama abartısı burun sesi yapar." },
   { a: 2000, b: 8000, t: "ÜST-ORTA (2–8 kHz)", tip: "Netlik, atak, sertlik. Kulağın en hassas bölgesi (2–4 kHz). Yükseltmek anlaşılırlık ve parlaklık katar; fazlası yorucu ve batıcı olur, tıslama artar." },
-  { a: 8000, b: 20000, t: "TİZ / HAVA (8–20 kHz)", tip: "Parlaklık ve hava. Yükseltmek açıklık ve 'pahalı' his verir; azı boğuk, fazlası tiz ve cırtlak. Vokale hava burada eklenir." }
+  { a: 8000, b: 20000, t: "TİZ (8–20 kHz)", tip: "Parlaklık ve hava. Yükseltmek açıklık ve 'pahalı' his verir; azı boğuk, fazlası tiz ve cırtlak. Vokale hava burada eklenir." }
 ];
 
 export function faZoneOf(f) {
@@ -211,7 +211,7 @@ export function faZoneOf(f) {
 }
 
 // İpucu chip'inde gösterilecek kısa bölge adı (FA_ZONES'un uzun tip metninden bağımsız).
-const HINT_ZONE_SHORT = { SUB: "Sub bas", BAS: "Bas", "ALT-ORTA": "Alt-orta", ORTA: "Orta", "ÜST-ORTA": "Üst-orta", "TİZ / HAVA": "Tiz" };
+const HINT_ZONE_SHORT = { SUB: "Sub bas", BAS: "Bas", "ALT-ORTA": "Alt-orta", ORTA: "Orta", "ÜST-ORTA": "Üst-orta", "TİZ": "Tiz" };
 export function hintZoneLabel(freq) {
   const zone = faZoneOf(freq);
   return HINT_ZONE_SHORT[zone.t.split(" (")[0]] || zone.t.split(" (")[0];
