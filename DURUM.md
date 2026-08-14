@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G187)
+Son güncelleme: 14.08.2026 (G188)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,58 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G188 — **İki düzeltme, iki ayrı commit'te (#36 + Kesim Noktası okunabilirliği).**
+
+**COMMIT 1 (4d0a50d) — #36: "Bugünün Önerisi" Pro'ya taşındı.** Ana
+menüdeki kart `zoneScores()`'un (Zayıf Bölge Raporu'yla BİREBİR aynı hesap)
+verisinden üretiliyordu ama o rapor Pro'da kilitliydi — ücretsiz kullanıcı
+veriyi göremiyor, öneriyi görüyordu, tutarsızdı. İsabet Grafiği/Zayıf Bölge
+Raporu'nun AYNI kilit deseni (`.prog-lock-overlay`/`.prog-blurred`,
+`paywall.isWeakZoneReportLocked`) uygulandı — kart başlığı ("BUGÜNÜN
+ÖNERİSİ") görünür kalıyor, SADECE içerik (`#dailyTipWrap`) bulanıp kilit
+ikonu + "Pro ile aç" (`openPaywallReason("zoneHistory")`, İKİ mevcut
+butonla AYNI neden) ile örtülüyor. Veri yeterli/yetersiz FARK ETMEKSİZİN
+kilitleniyor (diğer iki kilit de veri miktarına bakmıyor — tutarlılık için
+kasıtlı). `syncDevUI()`'ye (G186/#27'nin AYNI "tek yeniden-senkron noktası"
+deseni) `renderDailyTip()` de eklendi — dev-mod açılınca menüye HİÇ
+dönmeden bile anında güncelleniyor (aynı staleness sınıfını PROAKTİF önledi).
+Ölçüldü: ücretsizde (veri var/yok) kilitli, Pro'da açık, buton doğru
+paywall'ı açıyor (session-suppress'i atlatmak için `stats.rounds` seed
+gerekti — "ilk oturumda paywall yok" kuralı, bug DEĞİL). Ekran görüntüsüyle
+sadelik doğrulandı (İsabet Grafiği/Zayıf Bölge Raporu ile BİREBİR aynı
+görsel ağırlık). **Dokunulan:** `www/index.html`, `www/js/app.js`,
+`www/styles.css` (SADECE `#dailyTipCard{position:relative}`).
+
+**COMMIT 2 (ac92e9a) — Kesim Noktası'nda geri bildirim okunmuyor.** ÖLÇÜLDÜ:
+`.fb` arka planı %12-13 opak, `backdrop-filter` YOK. `.fb` `bottom:0` sabit,
+yüksekliği İÇERİĞE göre büyüyor — kısa viewport'ta (375×667'de ölçüldü,
+390×844'te ÜRETİLEMEDİ, bu yüzden önceki turlarda görülmemiş olabilir) üst
+kenarı oyun kontrol satırını (`#gameSpectrumControls`, 56-58px çakışma
+ÖLÇÜLDÜ) ve uzun metinlerde eğri grafiğini (`#analyzer`) de kapsayabiliyor.
+z-index DOĞRUYDU (panel üstte) ama arka plan saydam olduğu için altındaki
+şekiller sızıp metni okunmaz kılıyordu. Canvas panel açıkken çizmeye devam
+ETMİYOR (durağan görüntü, ölçüldü) — sorun canlı animasyon değil, sabit bir
+sızma. **Kesim Noktası'na özgü DEĞİL** — Frekans Bulma/Q Genişliği/
+Boost-Cut'ın DÖRDÜNDE de AYNI sorun ölçülüp ekran görüntüsüyle doğrulandı.
+Düzeltme: `.fb`'ye `backdrop-filter:blur(14px)` eklendi — C2/#21'in
+(10af88e) çözümünden FARKLI bir katman (o SADECE `.fb-advance-head`'e opak
+arka plan eklemişti, panelin EN ALT satırı; buradaki çakışma panelin ÜST
+kenarında) — İKİSİ ÇAKIŞMIYOR, tekrar edilmedi. `.fb-overlay`'in
+`backdrop-filter:none`'ı (G85, "tasarımın LİTERAL rengi") AYRI bir element
+(tam ekran karartma, panelin KENDİSİ değil) — dokunulmadı. Ölçüm: 4 modda
+öncesi/sonrası ekran görüntüsü — kontrol satırının/eğrinin bulanık ama
+GÖRÜNMEZ hâle geldiği, metnin net okunduğu doğrulandı. **Dokunulan:**
+`www/styles.css` (SADECE `.fb`'ye 2 satır).
+
+**Ortak DOKUNULMAYAN (2 commit toplamı):** Bug 29 (`freqTapTimer`), Grup
+A/B/C, Bug 25/20/10/13/14/9/18/17/19/22/23/24, çip genişliği, kaynak
+çipi+BARE_ANALYZER, paywall içeriği/reklam kotası — hepsi yeniden koşulup
+DOĞRULANDI, değişmedi.
+
+**npm test: 1285 → 1285 (2 commit boyunca DEĞİŞMEDİ).** İkisi de
+`app.js`-içi DOM/state ya da SADECE CSS — `core/*.js` saf fonksiyonlarına
+dokunulmadı, Playwright ile doğrulandı.
 
 G187 — **Bug 29: Frekans Bulma'da "buton hep Play'de kalıyor, otomatik
 geçiş ölüyor" — analiz + iki katmanlı düzeltme, ONAYLANDI ve uygulandı.**
@@ -14329,7 +14381,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G187 itibarıyla):** Bug 29 (Frekans Bulma'da
+**EN YENİ SIRADAKİ ADIM (G188 itibarıyla):** İki düzeltme (#36 + Kesim
+Noktası okunabilirliği), 2 ayrı commit'te, Playwright'la doğrulandı, GERÇEK
+cihazda HENÜZ görülmedi. Kontrol edilecek: (1) ücretsiz hesapla ana menüye
+git — "Bugünün Önerisi" kartı bulanık+kilitli görünmeli, "Pro ile aç"a
+basınca doğru paywall açılmalı; Pro'da/geliştirici modunda normal (kilitsiz)
+çalışmalı. (2) Kesim Noktası'nda (ve Frekans Bulma/Q Genişliği/Boost-Cut'ta)
+bir soruyu cevapla — geri bildirim panelinin ÜST kısmı (başlık satırı)
+GERÇEKTEN net okunmalı, arkadaki kontrol satırı/eğri artık sızmamalı;
+ÖZELLİKLE küçük ekranlı bir cihazda (iPhone SE/mini gibi) veya klavye/
+dinamik ada ile daralmış görünürlükte kontrol et — bu turun bulgusu kısa
+viewport'a bağlıydı (375×667'de üretildi, 390×844'te üretilemedi).
+
+**EN YENİ SIRADAKİ ADIM (G187 itibarıyla, hâlâ geçerli):** Bug 29 (Frekans Bulma'da
 "buton hep Play'de kalıyor") düzeltildi, Playwright'la (`stats.rounds`
 hayalet-artış yöntemi) doğrulandı, GERÇEK cihazda HENÜZ görülmedi. Kontrol
 edilecek: Frekans Bulma'yı Dokunmalı biçimde oyna, spektruma dokun, HEMEN
