@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G188)
+Son güncelleme: 14.08.2026 (G190)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,70 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G190 — **"i" (bilgi) metinleri — tarama + ekleme + tutarlılık taraması.**
+
+**Tutarlılık taraması (AŞAMA 2 öncesi, kullanıcı onayıyla genişletildi):**
+"sınırsız"/"ücretsiz"/"5 mod"/"5 soru"/"can" geçen TÜM kullanıcıya görünen
+metinler tarandı (`app.js`/`core/paywall.js`/`index.html`). Bilinen 3 yerin
+(GENERAL_GUIDE'ın "sınırsız" YANLIŞI, Ayarlar hesap satırı DOĞRU,
+PAYWALL_REASONS'ın 7 metni — HEPSİ DOĞRU çıktı) dışında **2 yeni yanlış/eksik
+yer bulundu**:
+- Seans Sonu ekranının `resHead`'i ("Günlük 5 ücretsiz sorunu tamamladın") —
+  limit GÜNLÜK değil OTURUM/deneme başına, "yarın gel" yanlış izlenimi
+  veriyordu. Bu ilk-oturum kullanıcısının GÖRDÜĞÜ İLK ekranlardan biri.
+- `PAYWALL_REASONS.modeLocked`'ın SABİT detay metni ("dB Seviyesi, Reverb,
+  Tonal Denge ve Distortion — dördü de...") 4 mod sayıyordu, GERÇEKTEN
+  kilitli mod sayısı 6 (Pan Konumu + Stereo Genişlik eksikti).
+
+**Düzeltmeler (kullanıcı onayı: "İKİSİNİ DE DÜZELT"):**
+- `resHead`: "Bu oturumun 5 sorusu bitti. Canın varsa hemen yeni bir oturum
+  başlatabilir, ya da reklam izleyip 5 soru daha kazanabilirsin." — sabit
+  sayı yerine `paywall.FREE_SESSION_QUESTION_LIMIT`/`SESSION_EXTENSION_QUESTIONS`
+  okunuyor.
+- `modeLocked`: SABİT liste yerine `paywall.fullyLockedModeIds()` (YENİ, saf
+  fonksiyon) + `paywall.formatNameList()` (YENİ, saf fonksiyon, "A, B ve C"
+  Türkçe birleştirme) ile **dinamik** üretiliyor — yeni mod eklenip/çıkarılırsa
+  metin kendiliğinden doğru kalır. **Ölçümle bulunan ek bir hata**: ilk
+  denemede `MODE_CATALOG`'un TAMAMI kullanılmıştı — bu, HENÜZ YAYINLANMAMIŞ
+  (`playable:false`) "Hız Modu"/"Hangisi Farklı" placeholder'larını da
+  listeye SIZDIRDI (Playwright'ta yakalandı) — `e.playable` filtresi
+  eklenerek düzeltildi.
+- `LOCK_MESSAGES.sessionLimit`: reklam seçeneği (G185) eklendi — bu satır
+  ŞU AN app.js'te hiç OKUNMUYOR (grep'le doğrulandı, dead code) ama
+  tutarlılık için güncellendi.
+
+**"i" metinleri (AŞAMA 2, 5 madde):**
+1. Tonal Balance "i"ye YENİ bölüm: "Bir bandı tek başına dinle" — grafikteki
+   bantlara dokununca solo dinleme (verilen örnek a).
+2. HER 12 modun `MODE_OPTIONS_TEXTS`'ine: "Durdur'a basıp sonra cevap
+   verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz." —
+   Kompresör/Reverb/Distortion DAHİL (kullanıcı kararı: bu 3 modda round
+   aktifken Durdur butonu DOM'da gizli olsa da — ölçüldü — davranışın
+   KENDİSİ mode-bağımsız, metin tutarlılık için kalıyor).
+3. GENERAL_GUIDE'ın "Ücretsiz ve Pro" bölümü YENİDEN yazıldı — mod ERİŞİMİ
+   (sınırsız) ile OTURUM UZUNLUĞU (5 soru sınırlı) ayrı ayrı anlatılıyor,
+   reklam+kota (G185) ve Pro'nun oturum sınırını kaldırdığı eklendi.
+4. Frekans Bulma'nın `MODE_OPTIONS_TEXTS`'ine: cevap sonrası "Senin
+   cevabın"/"Doğru cevap" (kulak) karşılaştırma butonları — sadece bu modda
+   var, hiç anlatılmıyordu (yeni bulgu).
+5. A/B uzun-bas döngü (8 modda mevcut, ölçüldü) — kullanıcı kararıyla
+   EKLENMEDİ ("döngü butonu zaten var, iki yol aynı işi yapıyor, metin
+   şişmesin").
+
+**DOKUNULAN dosyalar:** `www/js/core/guide-texts.js` (5 madde, sadece
+metin/veri), `www/js/app.js` (`resHead` metni + `modeLocked` dinamik
+üretim — SAF hesaplama, DOM/davranış mantığına dokunulmadı), `www/js/core/paywall.js`
+(YENİ `fullyLockedModeIds`/`formatNameList` saf fonksiyonlar +
+`LOCK_MESSAGES.sessionLimit` metni), `test/paywall.test.mjs` (YENİ 6 test).
+**DOKUNULMAYAN dosyalar:** `www/index.html`, `www/styles.css` (hiçbiri —
+İlerleme/Araçlar'a yeni "i" ikonu EKLENMEDİ, kullanıcı kararı), paywall'ın
+YAPISI (PAYWALL_REASONS'ın `endsRound`/`adGrant`/buton mantığı DEĞİŞMEDİ,
+SADECE `modeLocked`'ın metni), Bug 25/20/10/13/14/9/18/17/19/22/23/24/29,
+Grup A/B/C, 4d0a50d, ac92e9a — hepsi yeniden koşulup DOĞRULANDI.
+
+**npm test: 1285 → 1291 (+6, YENİ saf fonksiyon testleri — `fullyLockedModeIds`/
+`formatNameList` — sadece EKLENDİ, düşmedi).**
 
 G188 — **İki düzeltme, iki ayrı commit'te (#36 + Kesim Noktası okunabilirliği).**
 
@@ -14381,7 +14445,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G188 itibarıyla):** İki düzeltme (#36 + Kesim
+**EN YENİ SIRADAKİ ADIM (G190 itibarıyla):** "i" metinleri taraması +
+tutarlılık taraması + AŞAMA 2'nin 5 maddesi tamamlandı, Playwright'la
+doğrulandı, GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: (1) ilk kez
+(temiz kurulum) ücretsizde 5 soruyu bitir — Seans Sonu ekranında "Bu
+oturumun 5 sorusu bitti..." metni GERÇEKTEN doğru okunmalı ("Günlük" YOK,
+"yarın gel" izlenimi VERMEMELİ); (2) kilitli bir moda (ör. Pan Konumu) bas
+— paywall'daki mod listesi GERÇEKTEN 6 modun HEPSİNİ içermeli (Hız Modu/
+Hangisi Farklı gibi henüz yayınlanmamış placeholder'lar GÖRÜNMEMELİ); (3)
+ana ekran/her mod kartı/Tonal Balance'ın "i" ikonlarını aç — yeni eklenen
+cümleler (Durdur→cevap davranışı, kulak butonları, bölge-solo, ücretsiz
+kurallar) GERÇEKTEN okunaklı ve doğru görünmeli.
+
+**EN YENİ SIRADAKİ ADIM (G188 itibarıyla, hâlâ geçerli):** İki düzeltme (#36 + Kesim
 Noktası okunabilirliği), 2 ayrı commit'te, Playwright'la doğrulandı, GERÇEK
 cihazda HENÜZ görülmedi. Kontrol edilecek: (1) ücretsiz hesapla ana menüye
 git — "Bugünün Önerisi" kartı bulanık+kilitli görünmeli, "Pro ile aç"a

@@ -29,8 +29,12 @@ export const GENERAL_GUIDE = {
       body: "Üst üste 6 doğru → sınav hakkı. Sınavı geçersen bölüm atlarsın, bir üst seviyeye çıkarsın. 6 doğru toplanmazsa zayıf olduğun yerden kısa bir telafi turu gelir. Seviye atlamak hak etmekle olur — takılırsan zorlaşmaz, aynı yerde çalışırsın."
     },
     {
+      // G190 DÜZELTMESİ (tutarlılık taraması) — "5 mod ücretsiz, sınırsız
+      // oynanır" YANLIŞTI: mod ERİŞİMİ sınırsız (istediğin zaman bu 5 modu
+      // açabilirsin) ama OTURUM UZUNLUĞU sınırlı (5 soru sonra durur, Bug 25/
+      // G185) — ikisi KARIŞTIRILMIŞTI. Artık ayrı ayrı, doğru anlatılıyor.
       heading: "Ücretsiz ve Pro",
-      body: "5 mod ücretsiz, sınırsız oynanır. Pro'da 12 modun tamamı, sınav ve seviye sistemi, kendi şarkını yükleyip çalışma ve analiz araçları açılır."
+      body: "12 modun 5'i ücretsiz — istediğin zaman oynayabilirsin, ama her oturum 5 soru sonra durur. Reklam izleyip aynı oturuma 5 soru daha ekleyebilirsin (günde en fazla 3 kez), ya da Pro'ya geçip oturum sınırı olmadan oynayabilirsin. Pro'da ayrıca 12 modun tamamı, sınav ve seviye sistemi, kendi şarkını yükleyip çalışma ve analiz araçları açılır."
     },
     {
       heading: "Can",
@@ -74,6 +78,10 @@ export const TOOLS_TONAL_GUIDE = {
     {
       heading: "Sapma listesi",
       body: "Her bandın yanındaki dB değeri, o bandı referansa yaklaştırmak için gereken düzeltmeyi gösterir — kendi DAW'ındaki EQ'da aynı frekansa aynı yönde (boost/cut) uygulayabilirsin."
+    },
+    {
+      heading: "Bir bandı tek başına dinle",
+      body: "Grafikteki herhangi bir banda dokun — o bölge solo çalar, bandın miksteki gerçek ağırlığını (seviye telafisi olmadan, kısıksa kısık, baskınsa baskın) duyarsın. Tekrar dokununca solo kapanır."
     }
   ]
 };
@@ -119,19 +127,32 @@ export const MODE_GUIDE_TEXTS = {
 //    (Kompresör/Reverb/Distortion) AYNI buton A/B/C döngüye dönüşür.
 //  - Frekans Çakışması'nın "Önce/Sonra" karşılaştırması SADECE stage 3'te
 //    doğru cevap sonrası açılır (`#cakismaCompare`) — mevcut, ayrıca yazıldı.
+//  - G190 ("i" metinleri taraması, kullanıcı kararı) — "Durdur'a basıp cevap
+//    verirsen geri bildirim kapanmaz" HER 12 modda EKLENDİ, Kompresör/
+//    Reverb/Distortion DAHİL. Bu üçünde round aktifken "Durdur" butonu
+//    (`#startBtn`) DOM'da GİZLİ (bkz. app.js:updateStartBtnLabel,
+//    `mode.THREE_WAY && activeQuestion`) — yani bu ÜÇÜNDE senaryo AYNI
+//    yoldan tetiklenemez, ama davranışın KENDİSİ (autoStopped=true iken
+//    cevap verilirse ensureAutoNext()'in erken dönmesi) mode-bağımsız,
+//    KOD SEVİYESİNDE hâlâ orada — kullanıcının kendi kararı: metin bu üç
+//    modda da dursun (tutarlılık, gelecekte Durdur'a başka bir yoldan
+//    ulaşılabilir hâle gelirse metin ZATEN doğru olur).
+//  - Frekans Bulma'ya AYRICA "kulak" karşılaştırma butonları eklendi
+//    (showFrequencyEars/#fbEarLeft-Right, SADECE bu modda — "frequency"
+//    sorularında, Pro Plus HARİÇ) — hiçbir yerde anlatılmıyordu.
 export const MODE_OPTIONS_TEXTS = {
-  "frekans-bulma": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Dokunmalı/Şıklı cevap biçimini seçebilen TEK mod budur. Odak aralığıyla (Bas/Orta/Tiz) belirli bir bölgeye odaklanabilirsin. Bilemezsen 'Atla'ya dokun.",
-  "kesim-noktasi": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le kesim öncesi/sonrası sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
-  "q-genisligi": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
-  "boost-mu-cut-mu": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
-  "db-seviyesi": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
-  kompresor: "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun.",
-  reverb: "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun.",
-  distortion: "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun.",
-  "tonal-denge": "Kaynağı 'Davul Döngüsü' ya da kendi yüklediğin mix arasında seçebilirsin. 'A/B Test'le düzeltmeden önceki/sonraki sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
-  "frekans-cakismasi": "Kaynak çiftini (Kick+Bas/Vokal+Gitar/Snare+Gitar) seçebilir, ya da kendi iki sesini yükleyebilirsin. Kestikten sonra 'Önce/Sonra' ile maskeyi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
-  "pan-konumu": "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı — çok kısa vuruşlar konum algısı için yetersiz), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun.",
-  "stereo-genislik": "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı — çok kısa vuruşlar genişlik algısı için yetersiz), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun."
+  "frekans-bulma": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Dokunmalı/Şıklı cevap biçimini seçebilen TEK mod budur. Odak aralığıyla (Bas/Orta/Tiz) belirli bir bölgeye odaklanabilirsin. Bilemezsen 'Atla'ya dokun. Cevap sonrası 'Senin cevabın'/'Doğru cevap' butonlarına dokunarak ikisini de tekrar dinleyip karşılaştırabilirsin. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  "kesim-noktasi": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le kesim öncesi/sonrası sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  "q-genisligi": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  "boost-mu-cut-mu": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  "db-seviyesi": "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  kompresor: "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  reverb: "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  distortion: "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  "tonal-denge": "Kaynağı 'Davul Döngüsü' ya da kendi yüklediğin mix arasında seçebilirsin. 'A/B Test'le düzeltmeden önceki/sonraki sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  "frekans-cakismasi": "Kaynak çiftini (Kick+Bas/Vokal+Gitar/Snare+Gitar) seçebilir, ya da kendi iki sesini yükleyebilirsin. Kestikten sonra 'Önce/Sonra' ile maskeyi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  "pan-konumu": "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı — çok kısa vuruşlar konum algısı için yetersiz), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  "stereo-genislik": "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı — çok kısa vuruşlar genişlik algısı için yetersiz), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz."
 };
 
 // ---- 3. SPOTLIGHT rehber turu — ilk HINT_ROUNDS_LIMIT round'da görünür ----

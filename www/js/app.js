@@ -1790,10 +1790,17 @@ function showSessionEnd(kind) {
   // Tasarımın statusSub'ı (pill'in HEMEN altındaki kısa cümle) — gerçek
   // sayılarla (storage.TOTAL_LIVES/paywall.FREE_SESSION_QUESTION_LIMIT),
   // Prototip'in KENDİ cümle kalıbına birebir yakın.
+  // G190 DÜZELTMESİ ("i" metinleri taraması, tutarlılık taraması) — "Günlük
+  // N ücretsiz sorunu tamamladın" YANLIŞTI: FREE_SESSION_QUESTION_LIMIT bir
+  // GÜNLÜK sınır DEĞİL, OTURUM/deneme başına (resetSession() her yeni
+  // denemede sıfırlıyor) — kullanıcı "yarın gel" anlıyordu, oysa HEMEN yeni
+  // bir oturum başlatabilir (canı varsa) ya da reklam izleyip +5 soru
+  // kazanabilir (G185). Bu, ilk-oturum kullanıcısının GÖRDÜĞÜ İLK ekranlardan
+  // biri — olduğundan daha kısıtlı bir uygulama izlenimi veriyordu.
   els.resHead.textContent = lost
     ? `${storage.TOTAL_LIVES} canı da kullandın. Seans ${total}. soruda kapandı.`
     : freeLimit
-    ? `Günlük ${paywall.FREE_SESSION_QUESTION_LIMIT} ücretsiz sorunu tamamladın.`
+    ? `Bu oturumun ${paywall.FREE_SESSION_QUESTION_LIMIT} sorusu bitti. Canın varsa hemen yeni bir oturum başlatabilir, ya da reklam izleyip ${paywall.SESSION_EXTENSION_QUESTIONS} soru daha kazanabilirsin.`
     : `${total} soruyu can kaybetmeden bitirdin.`;
 
   // Tasarımdaki "Son seansına göre +N puan" karşılaştırması VERİ KAYNAĞI YOK —
@@ -2974,6 +2981,22 @@ function renderExerciseGrid() {
           if (!openPaywallReason(reasonKey)) {
             const msg = access.reason === "daily-used" ? paywall.LOCK_MESSAGES["daily-used"] : paywall.LOCK_MESSAGES.pro;
             toast(msg.title, msg.detail, "pro");
+          } else if (reasonKey === "modeLocked" && els.paywallReasonDetail) {
+            // G190 DÜZELTMESİ — PAYWALL_REASONS.modeLocked'ın SABİT detay
+            // metni ("dB Seviyesi, Reverb, Tonal Denge ve Distortion —
+            // dördü de...") 4 mod sayıyordu ama GERÇEKTEN kilitli
+            // OYNANABİLİR mod sayısı 6'ydı (Pan Konumu + Stereo Genişlik
+            // eksikti, ölçüldü) — SABİT liste yerine burada FREE_MODE_IDS'ten
+            // TÜRETİLİYOR. `e.playable` filtresi BURADA ZORUNLU: MODE_CATALOG
+            // "Hız Modu"/"Hangisi Farklı" gibi HENÜZ YAYINLANMAMIŞ (playable:
+            // false) placeholder girdiler de taşıyor (bkz. renderExerciseGrid'in
+            // AYNI filtresi, satır ~2902) — filtresiz ilk denemede bunlar da
+            // listeye SIZMIŞTI (ölçüldü, Playwright'ta yakalandı), henüz var
+            // OLMAYAN modları "Pro'nun bir parçası" diye YANLIŞ tanıtıyordu.
+            const playableEntries = MODE_CATALOG.filter(e => e.playable);
+            const lockedIds = paywall.fullyLockedModeIds(playableEntries.map(m => m.id));
+            const lockedNames = playableEntries.filter(m => lockedIds.includes(m.id)).map(m => m.ad);
+            els.paywallReasonDetail.textContent = `${paywall.formatNameList(lockedNames)} — Pro'nun bir parçası.`;
           }
           return;
         }

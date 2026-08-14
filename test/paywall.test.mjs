@@ -90,6 +90,45 @@ describe("paywall: mod erişimi", () => {
   });
 });
 
+// G190 (Bug: modeLocked paywall metninin SABİT/eksik mod listesi) —
+// fullyLockedModeIds() FREE_MODE_IDS + DAILY_TASTE_MODE_ID DIŞINDAKİ TÜM
+// modları döndürüyor mu, formatNameList() Türkçe "A, B ve C" birleştirmesini
+// doğru yapıyor mu.
+describe("paywall: tam kilitli mod listesi (modeLocked paywall metni, G190)", () => {
+  it("FREE_MODE_IDS + günlük-tadımlık DIŞINDAKİ modları döndürür", () => {
+    const all = ["frekans-bulma", "kesim-noktasi", "q-genisligi", "boost-mu-cut-mu", "kompresor",
+      "db-seviyesi", "reverb", "tonal-denge", "distortion", "frekans-cakismasi", "pan-konumu", "stereo-genislik"];
+    const locked = paywall.fullyLockedModeIds(all);
+    assert.deepEqual(locked.sort(), ["db-seviyesi", "reverb", "tonal-denge", "distortion", "pan-konumu", "stereo-genislik"].sort());
+  });
+
+  it("ücretsiz modlar ve günlük-tadımlık modu SONUÇTA YOK", () => {
+    const all = [...paywall.FREE_MODE_IDS, paywall.DAILY_TASTE_MODE_ID, "reverb"];
+    const locked = paywall.fullyLockedModeIds(all);
+    assert.deepEqual(locked, ["reverb"]);
+  });
+
+  it("formatNameList: boş dizi boş string döner", () => {
+    assert.equal(paywall.formatNameList([]), "");
+  });
+
+  it("formatNameList: tek eleman AYNEN döner ('ve' eklenmez)", () => {
+    assert.equal(paywall.formatNameList(["Reverb"]), "Reverb");
+  });
+
+  it("formatNameList: iki eleman 've' ile birleşir", () => {
+    assert.equal(paywall.formatNameList(["Reverb", "Distortion"]), "Reverb ve Distortion");
+  });
+
+  it("formatNameList: altı eleman — virgüllü liste + son elemandan önce 've'", () => {
+    const names = ["dB Seviyesi", "Reverb", "Tonal Denge", "Distortion", "Pan Konumu", "Stereo Genişlik"];
+    assert.equal(
+      paywall.formatNameList(names),
+      "dB Seviyesi, Reverb, Tonal Denge, Distortion, Pan Konumu ve Stereo Genişlik"
+    );
+  });
+});
+
 describe("paywall: oturum soru limiti", () => {
   it("ücretsizde 5. soru posedildikten sonra limit dolar", () => {
     assert.equal(paywall.isFreeSessionLimitReached(4, false), false);

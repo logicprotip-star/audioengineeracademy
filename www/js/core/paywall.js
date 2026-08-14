@@ -50,6 +50,29 @@ export function isDailyTasteMode(modeId) {
   return modeId === DAILY_TASTE_MODE_ID;
 }
 
+// G190 ("i" metinleri taraması, tutarlılık taraması, kullanıcı kararı) —
+// PAYWALL_REASONS.modeLocked'ın detay metni SABİT 4 mod adı sayıyordu
+// ("dB Seviyesi, Reverb, Tonal Denge ve Distortion") ama GERÇEKTEN kilitli
+// mod sayısı 6'ydı (Pan Konumu + Stereo Genişlik eksikti) — ölçüldü,
+// FREE_MODE_IDS'in 5 elemanı + DAILY_TASTE_MODE_ID'nin kendisi (o AYRI bir
+// mesaj taşıyor, "dailyUsed") dışındaki HER modu döndürür. allModeIds:
+// TÜM mod id'lerinin düz dizisi (app.js:MODE_CATALOG'dan türetilir) — bu
+// fonksiyon mode-catalog.js'e hiç bağımlı değil (SAF kalması için sadece
+// id string dizisi alır), yeni bir mod eklenip/çıkarılırsa çağıran taraf
+// GÜNCEL id listesini geçirdiği sürece sonuç OTOMATİK doğru kalır.
+export function fullyLockedModeIds(allModeIds) {
+  return allModeIds.filter(id => !isModeFree(id) && !isDailyTasteMode(id));
+}
+
+// SAF metin birleştirici — ["A","B","C"] → "A, B ve C". Türkçe "N'si de"
+// sayı-sözcüğü (örn. "dördü de") İCAT EDİLMEDİ — liste boyutu değişebildiği
+// için sayı-sözcüğü eşlemesi kırılgan olurdu, sade bir liste yeterli.
+export function formatNameList(names) {
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  return `${names.slice(0, -1).join(", ")} ve ${names[names.length - 1]}`;
+}
+
 // Yerel takvim günü anahtarı (YYYY-MM-DD) — UTC (toISOString) DEĞİL, cihazın
 // KENDİ saat dilimi kullanılıyor: "günde 1" kullanıcı beklentisi cihazın
 // gördüğü güne göredir (gece yarısına yakın UTC kayması yanlış gün üretirdi).
@@ -185,7 +208,11 @@ export const LOCK_MESSAGES = Object.freeze({
   focusRange: { title: "Pro gerekli", detail: "Bölge seçerek çalışmak Pro'da açılır." },
   weakZoneReport: { title: "Pro gerekli", detail: "Zayıf bölge raporu Pro'da açılır." },
   tools: { title: "Pro gerekli", detail: "Araçlar sekmesinin içeriği Pro'da açılır." },
-  sessionLimit: { title: "Ücretsiz oturum bitti", detail: "Ücretsizde oturum başına 5 soru. Daha fazlası için Pro gerekli." },
+  // G190 DÜZELTMESİ — reklamla +5 soru seçeneği (G185) eksikti, sadece Pro'yu
+  // anıyordu. Bu satır ŞU AN app.js'te hiç OKUNMUYOR (grep'le doğrulandı,
+  // PAYWALL_REASONS.sessionLimit — GERÇEK paywall ekranı — tek kullanılan
+  // yol) ama diğer LOCK_MESSAGES girdileriyle TUTARLI kalsın diye güncellendi.
+  sessionLimit: { title: "Ücretsiz oturum bitti", detail: "Ücretsizde oturum başına 5 soru. Reklam izleyip 5 soru daha kazanabilir (günde en fazla 3) ya da Pro'yla sınırsız oynayabilirsin." },
   freePlayMode: { title: "Pro gerekli", detail: "Serbest (sonsuz) mod Pro'da açılır — ücretsizde oturum başına 5 soru." }
 });
 
@@ -272,7 +299,14 @@ export const PAYWALL_REASONS = Object.freeze({
   modeLocked: {
     kicker: "PRO MOD",
     title: "Bu mod Pro'da açılır",
-    detail: "dB Seviyesi, Reverb, Tonal Denge ve Distortion — dördü de Pro'nun bir parçası.",
+    // G190 DÜZELTMESİ — SABİT 4 mod adı (dB Seviyesi/Reverb/Tonal Denge/
+    // Distortion) sayıyordu ama GERÇEKTEN kilitli mod sayısı 6'ydı (Pan
+    // Konumu + Stereo Genişlik eksikti, ölçüldü) — burası SADECE genel
+    // FALLBACK (app.js:openPaywallReason("modeLocked")'ın TEK çağrı noktası,
+    // mode-card tıklaması, bu metni HER ZAMAN fullyLockedModeIds()'ten
+    // türetilmiş GERÇEK listeyle EZER — bkz. o çağrı sitesindeki not).
+    // Belirli mod adları YAZILMADI ki bu fallback de aynı şekilde bayatlamasın.
+    detail: "Bu mod Pro'nun bir parçası.",
     buttons: "pro",
     endsRound: false
   },
