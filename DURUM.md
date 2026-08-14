@@ -73,6 +73,45 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G197 — **#44 eğri görünürlüğü (İKİNCİ DENEME) — ONAYLANDI VE UYGULANDI.**
+
+G196'da ölçülen kök sebep (`#feedbackOverlay`'in `.fb-overlay` class'ının
+`backdrop-filter:none`'ı, AYNI özgüllükteki `.sheet-overlay` class'ının
+`blur(3px)`'i tarafından dosya sırasıyla eziliyordu) kullanıcı onayıyla
+düzeltildi. **Uygulama:** `www/styles.css`'te selector `.fb-overlay` →
+`.sheet-overlay.fb-overlay` (iki class'lı, özgüllük 0,0,2,0 — artık dosya
+SIRASINDAN bağımsız her zaman kazanıyor). `.sheet-overlay`'in KENDİ kuralı
+(satır ~1721, TÜM diğer sheet'ler paylaşıyor) TEK SATIR değişmedi. `.fb`'nin
+blur(14px)'i ve G193'ün `max-height:29vh`'i HİÇ dokunulmadı. G85'in eski
+yorumu güncellendi — artık NEDEN hiç uygulanmadığını (özgüllük çakışması,
+dosya-sırası tie-breaker) ve nasıl düzeltildiğini AÇIKÇA yazıyor, aynı
+tuzağa bir daha düşülmesin diye.
+
+**Ölçüm (375×667, 4 modda, Playwright):** Kesim Noktası/Frekans Bulma/Q
+Genişliği/Boost-Cut'ın HEPSİNDE yanlış cevap tetiklenip `getComputedStyle`
+ile doğrulandı: `#feedbackOverlay`'in backdrop-filter'ı artık GERÇEKTEN
+`none` (`bg=rgba(0,0,0,.5)`, G85'in literal rengi ARTIK GERÇEKTEN
+uygulanıyor), `.fb`'nin backdrop-filter'ı `blur(14px)` ve `max-height`'i
+`193.43px` (29vh, DEĞİŞMEDİ) — dördünde de AYNI. Ekran görüntüsüyle 4
+modun HEPSİNDE eğri+lejant+eksen etiketleri TAM NET, panel metni
+(başlık/açıklama) da TAM OKUNAKLI — hiçbir modda bulanıklık kalmadı.
+`.sheet-overlay`'in paylaşılan kuralının BOZULMADIĞI ayrıca doğrulandı:
+Ayarlar sheet'i (`mainSettingsOverlay`, sadece `sheet-overlay` class'ı,
+`fb-overlay` YOK) hâlâ eskisi gibi `blur(3px)` alıyor.
+
+**Ölçüm:** `npm test` → **1291/1291** (SADECE CSS, hiçbir JS dokunulmadı).
+
+**Dokunulan:** `www/styles.css` (SADECE `.fb-overlay` selector'ı + yorum).
+
+**Dokunulmayan:** `.sheet-overlay`'in kendi kuralı (diğer TÜM sheet'ler —
+Ayarlar, Oyun Ayarları, dosya seçici vb. — canlı doğrulandı, DEĞİŞMEDİ),
+`.fb`'nin blur(14px)'i, G193'ün max-height/flex/scroll-shadow'u, G192'nin
+rAF döngüsü/seek mantığı, G194'ün Pro-metin gizlemeleri, G190/G191, Bug
+17/19/20/22/23/24/25/29, Grup A/B/C, çip genişliği (581f798), kaynak
+çipi+BARE_ANALYZER (a4efb42), Stereo Genişlik `pickPlaybackOffset` (G122),
+İpucu Motor1/Motor2 ayrımı (G85/G86) — hiçbiri yeniden koşulmadı, hiçbiri
+bu turun SADECE-CSS değişikliğiyle kesişmiyor.
+
 G196 — **#44 eğri görünürlüğü (İKİNCİ DENEME) — ölçüldü, gerçek kök sebep BULUNDU, DÜZELTME İÇİN ONAY BEKLİYOR. #45 waveform akıcılığı ve #42 Pro'da "Pro'ya geç" DÜZELTİLDİ.**
 
 **İŞ 1 — #44, KOD YAZILMADI, sadece ölçüldü (task'ın kendi kuralı).** G193
@@ -14906,8 +14945,23 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G196 itibarıyla):** **#44'ün düzeltmesi kullanıcı
-onayı BEKLİYOR** — kök sebep ölçüldü (`#feedbackOverlay`'in `.sheet-overlay`
+**EN YENİ SIRADAKİ ADIM (G197 itibarıyla):** #44 ÇÖZÜLDÜ (`.fb-overlay` →
+`.sheet-overlay.fb-overlay`), `npm test` (1291/1291) ve Playwright'la 4
+modda (375×667) doğrulandı, GERÇEK cihazda HENÜZ görülmedi. Bu, #44'ün
+İKİNCİ deneme sonrası GERÇEKTEN kök sebebe inen düzeltmesi — kontrol
+ederken özellikle DİKKAT: (1) 4 modun (Kesim Noktası/Frekans Bulma/Q
+Genişliği/Boost-Cut) HEPSİNDE yanlış bir cevap ver — eğri artık TAM NET
+görünmeli, "Doğru"/"Senin cevabın" lejantı ve eksen sayıları OKUNAKLI
+olmalı (önceki İKİ turda da "düzeldi" denip cihazda TEKRARLAMIŞTI — bu
+sefer GERÇEKTEN kalıcı mı, dikkatli bakılmalı); (2) panelin KENDİ metni
+(başlık/açıklama) hâlâ net mi, ÖZELLİKLE yoğun arka planlı modlarda
+(Boost/Cut'ın nokta deseni gibi) — G189/G193'ün kazandığı okunabilirlik
+BOZULMAMALI; (3) Ayarlar/Oyun Ayarları gibi BAŞKA sheet'lerin karartması
+hâlâ eskisi gibi bulanık mı (blur(3px) — bu turda BİLEREK değiştirilmedi,
+DEĞİŞMEMESİ gerekiyor).
+
+**EN YENİ SIRADAKİ ADIM (G196 itibarıyla, ARTIK ESKİ — G197'de çözüldü, aşağıda tarihe not olarak bırakıldı):** #44'ün düzeltmesi kullanıcı
+onayı BEKLİYOR — kök sebep ölçüldü (`#feedbackOverlay`'in `.sheet-overlay`
 class'ından miras aldığı `blur(3px)`, `.fb-overlay`'in kendi `none`'ını
 eziyor), önerilen düzeltme (`.fb-overlay` → `.sheet-overlay.fb-overlay`
 iki-class'lı seçici) rapor edildi, henüz UYGULANMADI. Onay gelince: CSS

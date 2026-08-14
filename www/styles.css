@@ -1346,8 +1346,26 @@
     /* G85: karartma — tasarımın LİTERAL rgba(0,0,0,.5)'i (satır 1309),
        .sheet-overlay'in genel bulanık/koyu varyantından FARKLI — bu yüzden
        ayrı bir modifier (.fb-overlay), z-index/position/transition mekaniği
-       .sheet-overlay'den KORUNDU (tutarlılık). */
-    .fb-overlay{background:rgba(0,0,0,.5);backdrop-filter:none}
+       .sheet-overlay'den KORUNDU (tutarlılık).
+       G196 DÜZELTMESİ (#44, İKİNCİ DENEME) — bu kural G85'ten beri HİÇ
+       UYGULANMIYORDU: `#feedbackOverlay`'in HTML'i `class="sheet-overlay
+       fb-overlay"` — iki class da tek-selector, AYNI özgüllük (0,0,1,0),
+       CSS'te .sheet-overlay (aşağıda, satır ~1721) SONRA geldiği için
+       backdrop-filter:blur(3px)'i KAZANIYORDU, buradaki `none` hiç devreye
+       girmiyordu (`getComputedStyle` ile ÖLÇÜLDÜ: gerçek değer blur(3px)).
+       Sonuç: bu tam-ekran karartma katmanı (position:fixed;inset:0) .fb'nin
+       KENDİ konumundan/yüksekliğinden TAMAMEN BAĞIMSIZ olarak ARKASINDAKİ
+       HER ŞEYİ (özellikle #analyzer'ın eğri grafiğini, G193'ün panel×canvas
+       çakışmasını sıfırlamasına RAĞMEN) hafifçe bulanıklaştırıyordu — G189/
+       G193'ün ele aldığı `.fb`'nin KENDİ blur(14px)'iyle KARIŞTIRILMASIN,
+       o AYRI bir katman ve BU turda dokunulmadı. Canlı deneyle doğrulandı:
+       SADECE bu overlay'in blur'u kaldırılınca (.fb'ye hiç dokunmadan)
+       eğri+lejant+eksen etiketleri TAM NET oldu. Düzeltme: selector İKİ
+       class'lı (.sheet-overlay.fb-overlay, özgüllük 0,0,2,0) yapıldı — artık
+       dosya SIRASINDAN bağımsız her zaman kazanıyor, `.sheet-overlay`'in
+       KENDİSİ (aşağıda, TÜM diğer sheet'ler paylaşıyor) TEK SATIR
+       değişmedi. */
+    .sheet-overlay.fb-overlay{background:rgba(0,0,0,.5);backdrop-filter:none}
     /* Panel arka planı G81'in KENDİ (bu turun kapsamı DIŞINDA) doğru/yanlış
        yeşil/kırmızı translucent tonu — DEĞİŞTİRİLMEDİ, SADECE konumlandırma
        (fixed+backdrop+üst köşe yuvarlama) tasarımın istediği mimariye taşındı. */
