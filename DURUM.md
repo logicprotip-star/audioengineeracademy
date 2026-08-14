@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G208)
+Son güncelleme: 15.08.2026 (G209)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,61 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G209 — **G208'in eksik bıraktığı kapsam tamamlandı: "SON İŞLEMLERİM" de artık temizlenebiliyor.**
+
+G208'in görev metni SADECE Ölçüm Sonuçları'nı adlandırdığı için SON
+İŞLEMLERİM o turda kapsam dışı bırakılmıştı — Logic'in asıl isteği
+"Araçlar sekmesindeki BİRİKEN HER LİSTE" olduğu netleşince bu tur
+tamamlandı.
+
+**ÖLÇÜM:** SON İŞLEMLERİM `eqEarTrainerProXToolsActions` anahtarında,
+G208'in Ölçüm Sonuçları'yla AYNI `toolsSaveJson`/`TOOLS_HISTORY_MAX=10`
+mekanizmasıyla (`toolsLogAction`, Referans Filtreleri'nin filtre kartına
+dokununca `{file, filter, at}` şeklinde `unshift` edilir) tutuluyor —
+G202/G208'in deseni DOĞRUDAN uygulanabilir bulundu, index bazlı silme
+YETERLİ (kayıtların stabil bir id'si yok, gerekmiyor da — G208'in
+`toolsDisplayedMeasurementAt` gibi bir zaman-damgası izleyicisine BURADA
+GEREK YOK, aşağıya bkz.).
+
+**"Silinen kayıt o an ekranda gösteriliyorsa ne olacak?" sorusunun
+ÖLÇÜLMÜŞ cevabı:** SON İŞLEMLERİM satırlarının hiçbirinin bir "açma/detay
+gösterme" etkileşimi YOK — `toolsActionsList`'e (G208'in `toolsMeasurementsList`'inin
+AKSİNE) hiçbir click-delegasyonu bağlı DEĞİLDİ (ölçüldü, grep ile
+doğrulandı) — bu satırlar SADECE bir günlük, tıklanamaz. Silinen bir
+kaydın ekranda "gösterildiği" bir durum YOK — bu yüzden G208'in
+`resetToolsAnalysis()` çağıran DİKKAT dalının BİR KARŞILIĞI gerekmiyor,
+silme SADECE localStorage + `renderToolsFilesSheetContent()`.
+
+**Uygulanan:** her satıra G202/G208'in AYNI `.tools-files-row-trash`
+ikonu (`data-remove-action`), başlığa AYNI `.prog-clear-btn`
+("Tümünü temizle", satır G202'nin `.tools-files-section-label-row`
+deseniyle). YENİ `toolsDeleteAction(index)`/`toolsClearAllActions()` —
+G208'in `toolsDeleteMeasurement`/`toolsClearAllMeasurements`'ının BİREBİR
+yapısal paraleli, sadece "gösteriliyor mu" kontrolü YOK.
+
+**NOT (görev metninde "onay diyaloğuyla" ifadesi geçiyordu):** G202/G208'in
+AYNI desenini uygulama talimatı AÇIKÇA verildiği ve o iki desenin İKİSİ de
+native `confirm()` KULLANMADIĞI (İlerleme'nin `clearRecentBtn`'iyle AYNI,
+bilinçli kullanıcı kararı — bkz. G202'nin kendi notu) için TUTARLILIK
+seçildi, "Tümünü temizle" burada da onaysız. Bu bir ÜRÜN KARARI ise
+(gerçekten native/özel bir onay adımı isteniyorsa) ayrıca belirtilmeli —
+şu an G202/G208 ile TUTARSIZ bir DAVRANIŞ İSTENMEDİĞİ varsayıldı.
+
+**Ölçüm (Playwright):** localStorage'a enjekte edilen kayıtlarla — tek
+kayıt silme → satır kalktı, boş-durum mesajı göründü, "Tümünü temizle"
+kendini gizledi; 3 kayıtla "Tümünü temizle" → hepsi silindi, aynı boş-durum
+davranışı.
+
+**Dokunulan:** `www/index.html` (SON İŞLEMLERİM başlığının yanına
+`#toolsClearActionsBtn`), `www/js/app.js` (satır şablonuna çöp kutusu
+ikonu, YENİ `toolsDeleteAction`/`toolsClearAllActions`, `els.toolsClearActionsBtn`).
+**Dokunulmayan:** `www/styles.css` (G202'nin `.tools-files-row-trash`/
+`.prog-clear-btn` class'ları AYNEN yeniden kullanıldı, YENİ kural
+YAZILMADI), G208'in Ölçüm Sonuçları kodu (TEK SATIR değişmedi), G207'nin
+mağaza düzeltmeleri, G200-G206, Bug 17-29, Grup A/B/C.
+
+npm test: 1311/1311.
 
 G208 — **#57: Analiz (Ölçüm Sonuçları) geçmişine G202'nin "Dosyalarım" temizleme deseni uygulandı.**
 
@@ -15686,7 +15741,20 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G208 itibarıyla):** #57 — Ölçüm Sonuçları (analiz)
+**EN YENİ SIRADAKİ ADIM (G209 itibarıyla):** G208'in kapsam dışı bıraktığı
+"SON İŞLEMLERİM" de artık temizlenebiliyor (AYNI çöp kutusu ikonu +
+"Tümünü temizle" deseni, native confirm() YOK — G202/G208 ile TUTARLI,
+görev metnindeki "onay diyaloğuyla" ifadesi bu tutarlılık lehine
+YORUMLANDI, bkz. BİTTİ'deki G209 notu). `npm test` (1311/1311) ve
+Playwright'la (localStorage enjeksiyonuyla, sayılarla) doğrulandı. GERÇEK
+cihazda HENÜZ görülmedi. Kontrol edilecek: (1) Referans Filtreleri'nde bir
+filtre kartına dokunup SON İŞLEMLERİM'de bir kayıt oluştur, çöp kutusuyla
+sil — satır kalkmalı; (2) birkaç kayıt biriktir, "Tümünü temizle"ye bas —
+hepsi silinmeli, boş-durum mesajı görünmeli; (3) EĞER kullanıcı GERÇEKTEN
+bir onay adımı istiyorsa (görev metnindeki "onay diyaloğuyla" LİTERAL
+alındıysa) bu BİLİNÇLİ bir sapma — düzeltilmesi gerekebilir.
+
+**EN YENİ SIRADAKİ ADIM (G208 itibarıyla, ARTIK ESKİ):** #57 — Ölçüm Sonuçları (analiz)
 geçmişine G202'nin Dosyalarım deseni (çöp kutusu ikonu + "Tümünü temizle")
 uygulandı, `npm test` (1311/1311) ve Playwright'la (3 senaryo, sayılarla)
 doğrulandı. GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: (1) bir dosya

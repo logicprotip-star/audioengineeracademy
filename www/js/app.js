@@ -176,6 +176,7 @@ const els = {
   toolsFilesTotalSpace: document.getElementById("toolsFilesTotalSpace"),
   toolsActionsList: document.getElementById("toolsActionsList"),
   toolsActionsEmpty: document.getElementById("toolsActionsEmpty"),
+  toolsClearActionsBtn: document.getElementById("toolsClearActionsBtn"), // #57 (SON İŞLEMLERİM)
   toolsMeasurementsList: document.getElementById("toolsMeasurementsList"),
   toolsMeasurementsEmpty: document.getElementById("toolsMeasurementsEmpty"),
   toolsClearMeasurementsBtn: document.getElementById("toolsClearMeasurementsBtn"), // #57
@@ -9661,14 +9662,18 @@ function renderToolsFilesSheetContent() {
 
   const actions = toolsLoadJson(TOOLS_ACTIONS_KEY);
   if (els.toolsActionsList) {
-    els.toolsActionsList.innerHTML = actions.map((a) => `<div class="tools-files-history-row">
+    els.toolsActionsList.innerHTML = actions.map((a, i) => `<div class="tools-files-history-row">
       <div style="flex:1;min-width:0">
         <div class="tools-files-history-name">${escapeHtml(a.file)}</div>
         <div class="tools-files-history-sub">${escapeHtml(a.filter)}</div>
       </div>
       <div class="tools-files-history-time">${toolsRelativeTime(a.at)}</div>
+      <div class="tools-files-row-trash" data-remove-action="${i}" title="Sil" aria-label="Sil">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+      </div>
     </div>`).join("");
   }
+  if (els.toolsClearActionsBtn) els.toolsClearActionsBtn.classList.toggle("hidden", actions.length === 0);
   if (els.toolsActionsEmpty) els.toolsActionsEmpty.classList.toggle("hidden", actions.length > 0);
 
   const measurements = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
@@ -9757,6 +9762,30 @@ if (els.toolsMeasurementsList) {
     const measurements = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
     const m = measurements[Number(row.dataset.openMeasurement)];
     if (m) toolsOpenSavedMeasurement(m);
+  });
+}
+// #57 (SON İŞLEMLERİM) — toolsDeleteMeasurement/toolsClearAllMeasurements'ın
+// AYNI deseni, TEK fark: bu kayıtların "ekranda gösteriliyor" hali YOK —
+// ÖLÇÜLDÜ: toolsActionsList'in tıklanabilir/açılabilir bir satırı hiç yok
+// (toolsLogAction SADECE Referans Filtreleri'nin play-toggle'ından çağrılan
+// tek yönlü bir günlük, data-open-* gibi bir DETAY görünümü YOK) — bu yüzden
+// toolsDisplayedMeasurementAt'in KARŞILIĞI (bir "ekranı sıfırla" adımı)
+// GEREKMİYOR, silme SADECE localStorage + yeniden render.
+function toolsDeleteAction(index) {
+  const list = toolsLoadJson(TOOLS_ACTIONS_KEY);
+  list.splice(index, 1);
+  toolsSaveJson(TOOLS_ACTIONS_KEY, list);
+  renderToolsFilesSheetContent();
+}
+function toolsClearAllActions() {
+  toolsSaveJson(TOOLS_ACTIONS_KEY, []);
+  renderToolsFilesSheetContent();
+}
+if (els.toolsClearActionsBtn) els.toolsClearActionsBtn.addEventListener("click", toolsClearAllActions);
+if (els.toolsActionsList) {
+  els.toolsActionsList.addEventListener("click", (e) => {
+    const delRow = e.target.closest("[data-remove-action]");
+    if (delRow) toolsDeleteAction(Number(delRow.dataset.removeAction));
   });
 }
 
