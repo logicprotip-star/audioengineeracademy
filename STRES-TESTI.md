@@ -4,58 +4,100 @@ Bu dosya, otomatik testlerin (`npm test`) kapsamadığı — gerçek cihazda,
 gerçek işletim sistemi davranışıyla elle denenmesi gereken uç durum
 senaryolarını listeler. Kaynak kod okunarak doğrulanamaz (bkz. CLAUDE.md).
 
-Her madde numaralanır. Bir madde denendiğinde sonucu (geçti/geçmedi, tarih,
-cihaz/iOS sürümü, gözlemlenen davranış) bu dosyaya not düşülür — "denendi"
-denilen ama sonucu yazılmayan madde, denenmemiş sayılır.
+**SON DURUM: 14 Ağustos 2026, iPhone (kabloyla kurulan Debug build).
+14 maddenin 11'i denendi, 4 hata bulundu.**
+
+---
 
 ## CİHAZ VE SES OTURUMU
 
-1. Şarkı/soru çalarken ekranı kilitle, 5 sn bekle, kilidi aç, SADECE
-   play'e bas. Ses kaldığı yerden gelmeli, "Atla" gerekmemeli, hiçbir
-   uyarı ekranı çıkmamalı. (G155'te masaüstünde Playwright ile
-   `document.hidden`/`visibilitychange` simülasyonuyla doğrulandı —
-   cihazda GERÇEK kilit ile henüz denenmedi.)
-2. Bluetooth kulaklık tak, ses çalarken çıkar, tekrar tak. Her adımda
-   ses düzgün devam etmeli/kesilmemeli — AVAudioSession route
-   değişiminin (`routeChangeNotification`) en sık tetikleyicisi budur.
-3. Kablolu kulaklık tak/çıkar, aynı kontrol (madde 2 ile aynı senaryo,
-   farklı donanım yolu — route change farklı tetiklenebilir).
-4. Arama gelirken oyun oyna, arama bitince devam et — ses oturumu araya
-   giren çağrıdan (interruption) sonra doğru kurtarmalı, madde 1'deki
-   AYNI kurtarma zincirinin telefon çağrısı için de çalıştığı doğrulanmalı.
-5. Uygulamayı 10 dakika arka planda bırak, geri dön — iOS uygulamayı
-   bellekten atmış olabilir; ilerleme/ayarlar/kütüphane durumu
-   (localStorage/Capacitor Preferences) korunmuş mu.
+**1. Ekran kilidi** — çalarken kilitle, 5 sn bekle, aç, play'e bas.
+✅ **GEÇTİ** (14 Ağu) — ses kaldığı yerden geldi, uyarı çıkmadı.
+
+**2-3. Kulaklık tak/çıkar (Bluetooth + kablolu)**
+❌ **İKİ HATA BULUNDU** (14 Ağu):
+- **#50 — Kulaklık çıkınca oyun DURMUYOR.** Ses telefon
+  hoparlöründen devam ediyor, tur da devam ediyor. iOS standardı
+  duraklatmaktır. Kulak eğitimi uygulamasında ayrıca zararlı —
+  kullanıcı yanlış ekipmanla cevap verip can kaybediyor.
+- **#51 — Hızlı tak/çıkar: 10 denemede 2 kez ses tamamen kesildi.**
+  Ses geri gelmedi, uygulama sessiz kaldı. %20 başarısızlık.
+  Route değişimi arka arkaya olunca ses motoru toparlayamıyor.
+
+**4. Gelen arama** — oyun ortasında arama gelsin, bitince devam et.
+✅ **GEÇTİ** (14 Ağu) — arama sırasında bile oynanabildi, sorun yok.
+
+**5. 10 dakika arka plan** — bırak, geri dön.
+❌ **HATA — #53:** Oyun kaldığı yerden devam etmiyor, **yeniden
+başlıyor.** O turdaki cevap, süre, combo kayboluyor.
+**KARAR (Logic): kaldığı yerden devam etsin, ücretsiz kullanıcıysa
+CAN GİTMESİN.** Arka planda geçen süre kullanıcının hatası değil.
+⚠️ Süre sayacı da durmalı — yoksa dönünce "süre doldu" diye can gider.
+_Not: kısa arka plan dönüşleri çalışıyor (G134/G135), sorun UZUN sürede._
+
+---
 
 ## SİSTEM DURUMLARI
 
-6. Düşük Güç Modu açıkken tüm modları gez — iOS bazı arka plan/CPU
-   işlemlerini kısıtlıyor, ses zincirinde gecikme/kesinti/analiz
-   döngüsünde (`requestAnimationFrame`) yavaşlama var mı.
-7. Uçak modu açıkken uygulama açılıyor mu, tüm modlar çalışıyor mu
-   (backend yok, tüm veri localStorage'da — teorik olarak etkilenmemeli,
-   cihazda doğrulanmalı).
-8. Depolama neredeyse doluyken büyük dosya yükle — hata mesajı doğru
-   çıkıyor mu, uygulama çökmüyor mu, yarım kalan bir dosya kütüphanede
-   bozuk bir kayıt bırakmıyor mu.
-9. Sessiz anahtarı açık/kapalı — iki durumda da ses davranışı
-   (AVAudioSession kategorisi playback ise sessiz anahtarından
-   etkilenmemesi beklenir, cihazda doğrulanmalı).
+**6. Düşük Güç Modu** — tüm modları gez.
+⬜ **DENENMEDİ**
+
+**7. Uçak modu** — uygulama açılıyor mu, modlar çalışıyor mu.
+✅ **GEÇTİ** (14 Ağu) — uygulama ve modlar çalıştı. Reklam
+başlatılamadı, **sağ üstte "reklam başlatılamadı" toast'ı çıktı** —
+anlaşılır hata mesajı doğrulandı. Can/soru turu gelmedi (doğru).
+
+**8. Depolama doluyken büyük dosya**
+⬜ **DENENMEDİ**
+
+**9. Sessiz anahtar açık/kapalı**
+✅ **GEÇTİ** (14 Ağu) — 5-8 kez açıp kapatıldı, her seferinde
+ses geldi. AVAudioSession playback kategorisi doğru çalışıyor.
+
+---
 
 ## YÜK VE HIZ
 
-10. Art arda 10 moda hızlı girip çık — bellek sızıntısı, ses birikmesi
-    (aynı anda birden fazla ses kaynağının çalması/üst üste binmesi)
-    var mı.
-11. Aynı oturumda 5 farklı dosya yükle — hepsi kütüphanede doğru
-    saklanıyor mu (isim/boyut/süre metadata'sı doğru mu, biri diğerinin
-    yerine geçmiyor mu).
-12. 100 MB sınırına yakın dosya yükle — decode süresi, UI donması,
-    başarısız olursa hata mesajının doğru çıkması.
-13. Çok kısa dosya (5 sn altı) yükle — seek/loop/analiz modüllerinde
-    sıfıra bölme, negatif süre ya da NaN gibi kenar durumları var mı
-    (bkz. G159'un seek-sınırı bug'ı — kısa dosyada üst sınır kenetlemesi
-    özellikle kırılgan).
-14. Mono dosya yükle — stereo genişlik/mid-side gibi kanal-farkına
-    dayanan modüllerde beklenen uyarılar (ör. "bu dosya mono, stereo
-    ölçüm anlamsız") doğru çıkıyor mu.
+**10. Art arda 10 moda hızlı girip çık**
+✅ **GEÇTİ** (14 Ağu) — ses birikmesi/üst üste binme yok.
+
+**11. Aynı oturumda 5 farklı dosya yükle**
+🚫 **KAPSAM DIŞI** (14 Ağu, Logic kararı) — gerçekçi senaryo değil,
+kimse art arda 5 dosya yüklemiyor.
+
+**12. 100 MB sınırına yakın dosya**
+✅ **GEÇTİ** (14 Ağu) — sınır üstünde uyarı veriyor, çökme yok.
+
+**13. Çok kısa dosya (5 sn altı)**
+🚫 **KAPSAM DIŞI** (14 Ağu, Logic kararı) — kimse 5 saniyelik
+dosya yüklemiyor.
+⚠️ **Yine de not:** kısa dosya Stereo Genişlik'in
+`pickPlaybackOffset()` aramasını, Tonal Balance ortalamasını ve
+LUFS integrated ölçümünü bozar. **Basit çözüm:** 15 saniyeden kısa
+dosyayı reddet ve uyar. Uygulanmadı, karar bekliyor.
+
+**14. Mono dosya**
+⬜ **DENENMEDİ** — bunun yerine **#52 bulundu: AIF dosyası kabul
+edilmiyor.** AIFF, Logic Pro'nun varsayılan bounce formatlarından
+biri; hedef kitle prodüktör, çoğu AIFF kullanıyor. iOS AVAudioFile
+AIFF'i destekliyor, teknik engel olmamalı.
+
+---
+
+## ÖZET — 14 Ağustos turu
+
+| Sonuç | Adet | Maddeler |
+|---|---|---|
+| ✅ Geçti | 6 | 1, 4, 7, 9, 10, 12 |
+| ❌ Hata | 4 | #50, #51, #52, #53 |
+| ⬜ Denenmedi | 3 | 6, 8, 14 |
+| 🚫 Kapsam dışı | 2 | 11, 13 |
+
+**Denenmeyen 3 madde:**
+- **6 — Düşük Güç Modu:** CPU kısıtlaması ses zincirini etkileyebilir,
+  `requestAnimationFrame` yavaşlayabilir. Waveform ve analizör
+  döngüleri var, denenmeli.
+- **8 — Depolama dolu:** yarım kalan dosya kütüphanede bozuk kayıt
+  bırakıyor mu.
+- **14 — Mono dosya:** Stereo Genişlik/mid-side modüllerinde uyarı
+  çıkıyor mu.

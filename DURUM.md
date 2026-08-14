@@ -67,9 +67,68 @@ Ayrıntı için BİTTİ bölümündeki ilgili G-kaydına bkz.; bu SADECE bir öz
   (BEKLEYEN KARARLAR C) hâlâ bilinçli olarak açık bırakıldı. Kod
   DEĞİŞMEDİ, sadece DURUM.md düzenlendi.
 
-**Şu an bilinen en büyük açık iş:** hiçbir G136-G164 değişikliği GERÇEK
-cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
-temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
+- **14 Ağustos GÜN SONU (G190 → G209):** Sabah App Store Connect'te
+  boş bir sürüm sayfası vardı, akşam build "Ready to Submit" —
+  cihaz testinde 58 bulgu açıldı (13 Ağustos'tan devam), 40+'ı
+  kapandı/hata-değil çıktı, mağaza uyumluluk denetimi yapıldı, test
+  sayısı 1285→1311. Kapananların özeti: "i" metinleri + tutarlılık
+  taraması (G190) · bant etiketi TİZ (G191) · waveform rAF/seek/pause/
+  dolgu (G192, Bug 38/45) · feedback paneli blur/max-height (G193) ·
+  Pro'da ücretsiz metin sızıntıları (G194) · overlay blur özgüllük
+  çakışması (G197) · rozet seti 9→6 (G198) · yanlış e-posta (G199) ·
+  ölü dosya `www/app.js` silindi (G200) · Mixini Yükle kendi upload
+  manager'ı + bölge solo paylaşılan fonksiyon (G201) · Dosyalarım
+  temizleme + AIF desteği + "×" ile seçim kaldırma (G202) · route
+  change/kulaklık/arka-plan-3-saat kurtarması (G203) · sekme
+  değişiminde Mixini Yükle artık duraklıyor, baştan almıyor (G204) ·
+  Referans Filtreleri tier-3'ü sahipleniyor (G205) · BÖLÜM sayacı
+  yeni parkurda sıfırlanıyor (G206) · mağaza uyumluluk 6 madde:
+  "Yakında" gizlendi/"TASLAK" metni/armv7→arm64/iPad yön anahtarı/
+  package.json/AD_ID izni (G207) · Ölçüm Sonuçları geçmişi temizleme
+  (G208) · SON İŞLEMLERİM de temizleme (G209, G208'in G207'den SONRA
+  yazılan `DEVIR-14-08-2026.md`/`TAM-LISTE-14-08.md`'de HÂLÂ "prompt
+  bekliyor" görünen tek maddesiydi — bu turda kapatıldı, o iki belge
+  bu G-numarasından ÖNCE yazıldığı için bunu içermiyor, ÇELİŞKİ
+  DEĞİL, sadece zaman sırası).
+- **Devir belgeleriyle çapraz kontrol (bu turda):** `DEVIR-14-08-2026.md`/
+  `TAM-LISTE-14-08.md`/`MAGAZA-DENETIM.md`/`GORSEL-TEST.md`/
+  `STRES-TESTI.md`/`TERIM-KURALI.md`/`FIYAT-ARASTIRMA.md`/
+  `EVRAK-HESAP-METIN.md` okunup bu dosyayla karşılaştırıldı —
+  **doğrudan çelişki bulunmadı** (G190-G209'un HEPSİ bu belgelerdeki
+  karşılığıyla tutarlı, ör. G192↔"Bug 38/45", G202↔"#49a/#49b",
+  G203↔"#50-53", G205↔"#58", G206↔"#54/#55", G207↔mağaza denetimi
+  maddeleri). **İki gözlem (çelişki değil, eksik/gecikme):** (1)
+  `DEVIR-14-08-2026.md`'nin kendi belge listesi (bölüm 11)
+  `TERIM-TARAMA-SONUC.md` ve `ROZET-TERIM-ONERI.md`'ye atıf yapıyor,
+  bu iki dosya projede YOK — muhtemelen henüz yazılmadı. (2)
+  `GORSEL-TEST.md`'nin (58 bulgunun tam kaydı) HÂLÂ ⏸️/🔴 işaretli
+  ~9 küçük UI bulgusu (#4 spektrum 4 modda aynı eğri, #9 feedback
+  panelinde basılamayan "SONRAKİ SORU"/"ATLAMAK İÇİN ×", #15 Reverb
+  C harfi, #18 Reverb play butonu ortalanmamış, #21 Atla barı
+  feedback panelini kesiyor, #23 play/pause ikonu oyun türü
+  değişince karışıyor, #30 sekme değişiminde Tonal Balance TİZ basılı
+  kalıyor, #34 terim taraması toplu iş) bu dosyada AYRI, numaralı
+  AÇIK İŞLER olarak YOK — bunlar SADECE `GORSEL-TEST.md`'nin kendi
+  kaydında duruyor. Bu dosya (DURUM.md) o belgeyi TEKRARLAMAK yerine
+  BURADAN işaret ediyor — bir sonraki oturum bu ~9 maddeyi ele almak
+  isterse `GORSEL-TEST.md`'ye bakmalı.
+
+**Şu an bilinen en büyük açık iş:** 14 Ağustos'ta kapanan G190-G209
+değişikliklerinin HİÇBİRİ (özellikle #50/#51/#53'ün Swift/route-change
+kurtarması ve #55/#56/#57/#58'in Araçlar sekmesi düzeltmeleri) GERÇEK
+cihazda doğrulanmadı. Cihazda doğrulanmayı bekleyen 5 madde (görev
+metninin kendi listesi, `DEVIR-14-08-2026.md` bölüm 8 ile TUTARLI):
+(1) kulaklık çıkınca oyun duruyor mu (Swift, HİÇ test edilmedi), (2)
+kulaklık takınca hiçbir şey olmuyor mu (kullanıcı kararı: "Tekrar
+Çal"a basana kadar OTOMATİK devam ETMEMELİ), (3) hızlı tak/çıkar 10
+kez → ses kesiliyor mu (eskiden 10'da 2), (4) arka plandan (3 saat
+sınırı) dönünce tur kaldığı yerden mi devam ediyor, can gitmiyor mu,
+(5) BÖLÜM sayacı yeni parkurda "BÖLÜM 2/10" oluyor mu (Pro simülasyonu
++ sınav-etkin mod + "10 Soruluk Bölüm"). **Açık karar W (Pro Plus
+bölüm sayacı) hâlâ AÇIK** — Frekans Bulma'nın Pro Plus zorluğu
+`handleExamOutcome()`'a hiç ulaşmıyor, sayaç orada sıfırlanmıyor;
+G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
+BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
