@@ -68,7 +68,12 @@ export const TOOLS_TONAL_GUIDE = {
     },
     {
       heading: "Pop / EDM / Akustik",
-      body: "Bu üç hazır hedef eğri şu an TASLAK — gerçek referans parçalardan yeniden türetilecek, kesin ölçüm değil. Kabaca bir fikir verir, kesin hedef olarak kullanma."
+      // G207 — Mağaza denetimi (14 Ağustos) kararı: "TASLAK" ibaresi dürüst
+      // ama inceleyiciye "bu özellik bitmedi" diye okunabiliyordu — Logic'in
+      // onayladığı metinle DEĞİŞTİRİLDİ, aynı bilgiyi (bu üç eğri genel bir
+      // referans, kesin ölçüm için kendi referansını yükle) yarım-iş
+      // çağrışımı OLMADAN veriyor.
+      body: "Bu üç hazır eğri genel bir tür referansıdır. En doğru sonuç için 'Kendi Referansım' ile beğendiğin bir şarkıyı yükle."
     },
     {
       heading: "Kendi Referansım",

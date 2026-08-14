@@ -11367,9 +11367,14 @@ async function renderToolsTonalCard() {
   if (els.toolsTonalLegend) els.toolsTonalLegend.classList.toggle("hidden", showCustomLegend);
   if (els.toolsTonalLegendCustom) els.toolsTonalLegendCustom.classList.toggle("hidden", !showCustomLegend);
   if (els.toolsTonalDraftNote) {
+    // G207 — Mağaza denetimi kararı: guide-texts.js:TOOLS_TONAL_GUIDE'daki
+    // "Pop / EDM / Akustik" metniyle AYNI değişiklik, AYNI gerekçe ("TASLAK"
+    // ibaresi "bitmemiş özellik" izlenimi veriyordu) — bu SADECE o metnin
+    // kart üzerindeki kısa/tekrar eden hali, Logic'in onayladığı ifadenin
+    // KISALTILMIŞ (tek satırlık not alanına sığan) versiyonu.
     els.toolsTonalDraftNote.textContent = isCustom
       ? ""
-      : "Hedef eğri TASLAK — gerçek referans parçalardan yeniden türetilecek, kesin ölçüm değildir.";
+      : "Genel bir tür referansı — en doğru sonuç için 'Kendi Referansım'ı kullan.";
   }
   if (isCustom) {
     const hasRef = !!activeRef;

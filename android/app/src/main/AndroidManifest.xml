@@ -45,4 +45,20 @@
          resmi kurulum talimatı) — bu izin olmadan Google Play Billing
          hiç başlatılamaz. -->
     <uses-permission android:name="com.android.vending.BILLING" />
+    <!-- G207 — Mağaza denetimi (14 Ağustos) kararı. ÖLÇÜLDÜ: ne bu manifest'te
+         ne @capacitor-community/admob'ın KENDİ AndroidManifest'inde
+         (node_modules/@capacitor-community/admob/android/src/main/AndroidManifest.xml
+         — sadece ACCESS_NETWORK_STATE/INTERNET taşıyor) AD_ID izni HİÇ yoktu.
+         android/app/build/ altında ÖNCEDEN üretilmiş bir merged manifest
+         VARDI ama 8 Ağustos'tan (admob/native-purchases entegrasyonundan
+         ÖNCESİNDEN) kalma, hatta APPLICATION_ID meta-data'sını bile
+         içermiyordu — GÜNCEL bağımlılık kümesini YANSITMIYOR, bu ortamda
+         Java/Gradle YOK, taze bir build alıp GERÇEK merge sonucunu
+         DOĞRULAYAMADIM. play-services-ads:24.9.+ (build.gradle'daki sürüm)
+         Google'ın KENDİ SDK notlarına göre v20.4.0'dan beri bu izni genelde
+         kendi AAR'ından otomatik ekliyor, ama BU PROJEDE KANITLANAMADI —
+         bu yüzden tahmine güvenmek yerine ELLE eklendi (Android manifest
+         merger AYNI iznin TEKRAR beyan edilmesinden rahatsız olmaz, zararsız/
+         idempotent) — bkz. rapor. -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 </manifest>

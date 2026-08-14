@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G206)
+Son güncelleme: 15.08.2026 (G207)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,74 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G207 — **Mağaza uyumluluk düzeltmeleri (App Store/Play Store denetimi, 14 Ağustos) — 6 madde, TEK commit.**
+
+**1) "Yakında" bölümü gizlendi (Guideline 2.1 riski — "placeholder içerik"):**
+`index.html`'de `.coming-head`/`#comingGrid` YENİ bir `<div id="comingSection"
+class="hidden">` sarmalayıcısına alındı. `renderComingGrid()`/`MODE_CATALOG`'un
+playable:false girdilerine TEK SATIR dokunulmadı — kod ÇALIŞMAYA devam
+ediyor (Playwright'ta doğrulandı: `#comingGrid` hâlâ 2 kartla doluyor),
+SADECE `.hidden` (`display:none!important`) görünürlüğü kapatıyor. Modlar
+kodlanınca açmak için: `#comingSection`'dan `class="hidden"`i kaldırmak
+YETERLİ.
+
+**2) "TASLAK" metni yeniden yazıldı — İKİ konumda bulundu, İKİSİ de düzeltildi:**
+`core/guide-texts.js`'teki `TOOLS_TONAL_GUIDE`'ın "Pop / EDM / Akustik"
+metni Logic'in onayladığı ifadeyle DEĞİŞTİRİLDİ. Tarama SADECE bu dosyada
+DEĞİL, `www/js/` genelinde yapıldı (`grep -rn "TASLAK"`) — `app.js:11372`'de
+(`toolsTonalDraftNote`, Tonal Balance kartının ÜZERİNDEKİ kısa not, AYNI
+mesajın kart-üstü tekrarı) İKİNCİ bir kullanıcıya-görünen kopya bulundu,
+AYNI ilkeyle (kısaltılmış) yeniden yazıldı. `progress.js`/`tonal-balance.js`/
+`guide-texts.js` dosya başındaki "TASLAK" geçen yorumlara (kod yorumu,
+kullanıcıya görünmüyor) BİLİNÇLİ dokunulmadı. Playwright'ta doğrulandı: guide
+sheet'in TAM metninde ve kart notunda "TASLAK" artık HİÇ geçmiyor.
+
+**3) armv7 → arm64 (Info.plist):** `UIRequiredDeviceCapabilities` düzeltildi
+— armv7 2017'den beri desteklenmiyor, bazı cihazlarda App Store'da
+görünmemeye yol açabiliyordu. `plutil -lint` ile doğrulandı.
+
+**4) iPad yön anahtarı kaldırıldı:** `UISupportedInterfaceOrientations~ipad`
+bloğu SİLİNDİ (uygulama iPhone-only, TARGETED_DEVICE_FAMILY=1, G172 — bu
+anahtar tutarsızdı). iPhone'un KENDİ `UISupportedInterfaceOrientations`ı
+(dikey kilit, G121) TEK SATIR değişmedi.
+
+**5) package.json temizliği:** `name` → `audio-engineer-academy`, `main`
+(SİLİNEN `app.js`'e işaret eden ölü referans, G200'de dosya kaldırılmıştı —
+kök dizinde `app.js` YOK, `www/js/app.js` VAR, doğru dosya bu değil) KALDIRILDI
+(mağazaya gitmiyor, gerçek bir "library entry point" kavramı da yok — işaret
+etmek yerine kaldırmak seçildi), `description` ve `author: "Şahin Salt"`
+dolduruldu. JSON syntax doğrulandı.
+
+**6) Android AD_ID izni — KONTROL SONUCU (madde metninde AÇIKÇA istenen):**
+`AndroidManifest.xml`'de YOKTU (doğrulandı). `@capacitor-community/admob`'ın
+KENDİ manifest'inde de (`node_modules/@capacitor-community/admob/android/
+src/main/AndroidManifest.xml`) YOKTU — sadece `ACCESS_NETWORK_STATE`/
+`INTERNET` taşıyor. `android/app/build/` altında ÖNCEDEN üretilmiş bir
+merged manifest bulundu AMA 8 Ağustos tarihli — admob/native-purchases
+entegrasyonundan ÖNCESİNE ait (APPLICATION_ID meta-data'sını bile
+içermiyordu), GÜNCEL bağımlılık kümesini YANSITMIYOR. Bu ortamda Java/Gradle
+YOK — taze bir build alıp play-services-ads:24.9.+'ın (build.gradle'daki
+sürüm) GERÇEKTEN AD_ID'yi otomatik enjekte edip etmediğini BU PROJEDE
+DOĞRULAYAMADIM (Google'ın SDK notlarına göre v20.4.0'dan beri genelde
+otomatik ekliyor, ama bu GENEL bilgi, bu projeye özgü KANIT değil). Tahmine
+güvenmek yerine (KESİN belirsizlik durumunda) İZİN ELLE EKLENDİ —
+`android/app/src/main/AndroidManifest.xml`'e `com.google.android.gms.
+permission.AD_ID` satırı, zararsız/idempotent (manifest merger aynı iznin
+tekrar beyanından rahatsız olmaz). XML syntax doğrulandı.
+
+**Dokunulan:** `www/index.html` (comingSection sarmalayıcı), `www/js/
+core/guide-texts.js` (TOOLS_TONAL_GUIDE), `www/js/app.js` (toolsTonalDraftNote),
+`ios/App/App/Info.plist` (armv7→arm64, ipad yön anahtarı silindi),
+`package.json` (name/main/description/author), `android/app/src/main/
+AndroidManifest.xml` (AD_ID izni).
+**Dokunulmayan:** `renderComingGrid()`/`MODE_CATALOG`'un playable:false
+girdileri, `AD_TEST_MODE`, ATT/UMP akışı, "satın alımı geri yükle"
+butonları, paywall yasal bağlantıları, `fetchProPrice()`, dikey kilit
+(iPhone'un kendi UISupportedInterfaceOrientations'ı), G190-G206, Bug 17-29,
+Grup A/B/C.
+
+npm test: 1311/1311 (düşmedi).
 
 G206 — **#55: Pro'da BÖLÜM göstergesi artık her yeni parkurda sıfırlanıyor.**
 
@@ -15569,7 +15637,26 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G206 itibarıyla):** #56 (sekme değişiminde Mixini
+**EN YENİ SIRADAKİ ADIM (G207 itibarıyla):** Mağaza uyumluluk düzeltmeleri
+(6 madde — "Yakında" gizlendi, "TASLAK" metni değişti, armv7→arm64, iPad
+yön anahtarı kaldırıldı, package.json temizlendi, Android AD_ID izni elle
+eklendi). `npm test` (1311/1311) ve Playwright'la doğrulandı. GERÇEK
+cihazda/derleme ortamında HENÜZ görülmedi. Kontrol edilecek: (1) Ana
+ekranda "Yakında" bölümü hiç görünmemeli; (2) Tonal Balance kartının "i"
+bilgisinde ve kartın kendi notunda "TASLAK" kelimesi hiç geçmemeli; (3)
+Xcode'da temiz bir derleme + arşiv alıp `UIRequiredDeviceCapabilities`nın
+gerçekten arm64 olarak paketlendiğini doğrula; (4) **6. madde ÖZELLİKLE
+önemli** — bu ortamda Java/Gradle olmadığı için AD_ID izninin GERÇEK
+merge sonucu hiç görülmedi; bir sonraki oturumda GERÇEK bir `./gradlew
+:app:processReleaseManifest` (ya da Android Studio'nun "Merged Manifest"
+sekmesi) ile: (a) izin GERÇEKTEN paketleniyor mu, (b) play-services-ads'in
+KENDİSİ de AYRICA ekliyorsa ÇİFT beyan bir soruna yol açıyor mu (beklenmez
+ama doğrulanmalı) kontrol edilmeli; (5) Play Console'un Data Safety
+formunda reklam kimliği (advertising ID) kullanımı zaten beyan edilmiş
+olmalı — AD_ID izninin elle eklenmesi bu beyanla TUTARLI olmalı, çelişki
+YARATMAMALI.
+
+**EN YENİ SIRADAKİ ADIM (G206 itibarıyla, ARTIK ESKİ):** #56 (sekme değişiminde Mixini
 Yükle baştan alıyordu) + #58 (Referans Filtreleri Mixini Yükle silinince
 devre dışı kalıyordu) + #55 (Pro'da BÖLÜM sayacı sıfırlanmıyordu) — ÜÇÜ DE
 düzeltildi, `npm test` (1311/1311) ve Playwright'la (sayılarla) doğrulandı,

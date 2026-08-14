@@ -32,9 +32,12 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- G207 — Mağaza denetimi (14 Ağustos) kararı: armv7 32-bit, 2017'den
+	     beri desteklenmiyor — yanlış değer bazı cihazlarda uygulamanın App
+	     Store'da HİÇ görünmemesine yol açabiliyordu. arm64'e düzeltildi. -->
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
-		<string>armv7</string>
+		<string>arm64</string>
 	</array>
 	<!-- G121 — dikey kilit (kullanıcı onayı): uygulama dikey tasarlandı (tab
 	     bar/kartlar/sheet'ler hiçbiri yatay düzen içermiyor, bkz. DURUM.md G120
@@ -46,11 +49,11 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-	</array>
+	<!-- G207 — Mağaza denetimi kararı: UISupportedInterfaceOrientations~ipad
+	     bloğu KALDIRILDI — uygulama iPhone-only (TARGETED_DEVICE_FAMILY=1,
+	     G172), iPad için bir yön anahtarı taşımak TUTARSIZDI. iPhone'un
+	     KENDİ UISupportedInterfaceOrientations'ı (yukarısı, dikey kilit,
+	     G121) AYNEN KALDI, DEĞİŞMEDİ. -->
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<!-- G165 — AdMob ödüllü reklam. GADApplicationIdentifier SDK başlatma için

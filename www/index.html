@@ -133,9 +133,20 @@
              app.js:renderComingGrid). ÖNCEDEN #modeGrid'in İÇİNDE, motor
              gruplarıyla karışık, kilitli kart olarak render ediliyordu — yeni
              tasarım bunları AYRI bir bölüme taşıyor, kendi "kilitli mod
-             kartı" görseli yok, sade bir "yakında" satırı. -->
-        <div class="coming-head">Yakında</div>
-        <div id="comingGrid" class="mode-grid"></div>
+             kartı" görseli yok, sade bir "yakında" satırı.
+             G207 — Mağaza denetimi (14 Ağustos) kararı: 1.0'da GİZLİ.
+             Guideline 2.1 riski ("placeholder içerik" — henüz kodlanmamış
+             modları listelemek "uygulama tamamlanmamış görünüyor" diye
+             reddedilebilir). renderComingGrid()/MODE_CATALOG'un playable:false
+             girdilerine TEK SATIR dokunulmadı — kod ÇALIŞMAYA devam ediyor,
+             #comingGrid normal şekilde dolduruluyor, SADECE bu sarmalayıcının
+             "hidden" class'ı görünürlüğü kapatıyor. Modlar gerçekten
+             kodlandığında AÇMAK için: aşağıdaki id="comingSection" öğesinden
+             class="hidden"i kaldırmak YETERLİ — kod hazır bekliyor. -->
+        <div id="comingSection" class="hidden">
+          <div class="coming-head">Yakında</div>
+          <div id="comingGrid" class="mode-grid"></div>
+        </div>
       </div>
 
       <!-- G90 (madde 8) — Tasarim-2026-08/Prototip.dc.html "KULAKLIK UYARISI"

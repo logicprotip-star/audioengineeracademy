@@ -1,13 +1,12 @@
 {
-  "name": "eq-bu",
+  "name": "audio-engineer-academy",
   "version": "1.0.0",
-  "description": "",
-  "main": "app.js",
+  "description": "Web Audio API tabanlı Türkçe kulak eğitimi uygulaması (Capacitor ile iOS/Android)",
   "scripts": {
     "test": "node --test"
   },
   "keywords": [],
-  "author": "",
+  "author": "Şahin Salt",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
