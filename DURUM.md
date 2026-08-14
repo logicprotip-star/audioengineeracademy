@@ -73,6 +73,81 @@ temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
 
+G195 — **Üç küçük temizlik: kırılmış test notu, ölü dosya, abPressTimer belgelemesi.**
+
+**İŞ 1 — "freshChallenge/G174 testi" araştırıldı, GERÇEK bir dosya olarak
+bulunamadı.** `test/challenge.test.mjs` hâlâ 1291/1291'in İÇİNDE, yeşil —
+sadece SAF `freshChallenge()` fonksiyonunu test ediyor, "idle'da gizli
+olmalı" gibi bir iddia hiç TAŞIMIYORDU. Repo genelinde arandı (git log
+dahil) — "freshChallenge/G174" adı verilen şey aslında `test/`'te hiç
+COMMIT EDİLMEMİŞ, sadece DURUM.md'nin G176 girişinde ("LOCKED çapraz
+kontrol") anlatılan, tek seferlik bir Playwright script'iydi; o script'in
+"idle'da `collapsed===true`" beklentisi Bug 17 (664f1f1) kararıyla geçersiz
+kaldığı G176'da ZATEN doğru şekilde kayıtlıydı. Kullanıcıya bulgular
+sunuldu, "sadece yorum/belge güncelle, koda dokunma" kararı alındı (showChapter
+mantığını (`!boss && !examActive && isChallenge()`) saf bir fonksiyona
+çıkarmak — DOM testi eklemenin tek yolu — bu turun "küçük temizlik"
+kapsamını aşardı). **Uygulama:** `test/challenge.test.mjs`'in üst yorumuna
+Bug 17/G176 kararını AÇIKÇA belgeleyen bir not eklendi — artık eski
+script'in "idle'da gizli" varsayımının GEÇERSİZ olduğu, güncel doğru
+davranışın ne olduğu ("10 Soruluk Bölüm" seçiliyken idle'da GÖRÜNÜR,
+"Serbest"te GİZLİ) bu dosyada da kalıcı olarak yazılı — gelecekte biri
+"bu test mi kırık" diye sorarsa cevap artık burada.
+
+**İŞ 2 — `www/app.js` (üst düzey, `www/js/app.js`'ten FARKLI, 109 KB, 28
+Temmuz tarihli) silindi.** Silmeden önce 3 kontrol (hepsi TEMİZ çıktı):
+(1) hiçbir yerden `import`/`require` edilmiyor — grep'le doğrulandı;
+(2) `index.html`'in TEK `<script>` etiketi `js/app.js`'i yüklüyor, bu
+dosyanın yolu HİÇ geçmiyor; (3) hiçbir testte referans yok. Ayrıca git
+geçmişi bu oturumun G-numaralı kuralından ÖNCEKİ commit mesajlarını
+taşıyordu ("feat: analizör panelinde okunabilirlik...") — TİZ/HAVA gibi
+eski etiketleri hâlâ içeren, terk edilmiş bir mimari kalıntısıydı (bu bulgu
+G191'de de not edilmişti, o turda "dokunulmadı" olarak bırakılmıştı, bu
+turda ÜÇ kontrolün TEMİZ çıkması üzerine silindi). `git rm` ile kaldırıldı.
+
+**İŞ 3 — `abPressTimer` (A/B uzun-basma zamanlayıcısı) SADECE belgelendi,
+KOD YAZILMADI (kullanıcının kendi talimatı).** `www/js/app.js`'teki 520ms
+eşik zamanlayıcısı Bug 29'daki `freqTapTimer` İLE AYNI desende round'un
+yaşam döngüsüne bağlı değil — round parmak basılıyken bir yoldan biterse
+zamanlayıcı temizlenmiyor, YENİ round'a karşı `startAbLoop()` tetiklenebilir.
+Bug 29'dan farkı: cevap GÖNDERMİYOR (sadece bir dinleme döngüsü başlatıyor),
+tetiklenme penceresi dar — düşük risk. Yeni "BİLİNEN AÇIKLAR" bölümüne
+(aşağı bkz., madde 1) ve `DEVIR-13-08-2026.md`'ye eklendi.
+
+**DEVIR-13-08-2026.md'de eskiyen bilgi düzeltildi:** "Referans Filtreleri
+gerçek DSP — Filtre seçmek sesi DEĞİŞTİRMİYOR, sadece etiket, G53'ten beri
+kasıtlı kapsam sınırı" satırı KARAR BEKLEYENLER tablosundan kaldırıldı —
+GEÇERSİZDİ, DSP gerçekten çalışıyor (bkz. G182/G192/G193, cihazda
+doğrulandı). "BİLİNEN AÇIKLAR VE HATIRLATMALAR" bölümüne bu düzeltme +
+`abPressTimer` maddesi + `www/app.js`'in silindiği notu eklendi (ileride
+"nereye gitti" diye aranmasın diye).
+
+**Ölçüm:** `npm test` → **1291/1291** (test SAYISI değişmedi — bu turda
+sadece yorum eklendi, yeni assert yazılmadı, kullanıcı kararıyla). Playwright
+ile smoke-seviyesi doğrulama: sayfa sıfır konsol/network hatasıyla açılıyor
+(www/app.js'in silinmesi HİÇBİR ŞEYİ bozmadı), 12 mod kartı doğru render
+ediliyor, G174'ün çip genişlik eşitliği (115/115/115) ve G81'in kulak
+elementleri (fbEarLeft/fbEarRight) hâlâ yerinde. **Tam LOCKED taraması
+YAPILMADI** (bilinçli karar) — bu turun GERÇEK dosya değişiklikleri SADECE
+`test/challenge.test.mjs` (yorum) ve `www/app.js`'in silinmesiydi (`www/js/app.js`
+DEĞİŞMEDİ), yani hiçbir CANLI davranış kodu dokunulmadı — 20 maddelik LOCKED
+listesinin tamamını tek tek yeniden oynatmak bu değişiklik sınıfı için
+orantısız olurdu; onun yerine sayfa yükleme + 2 ucuz temsilci kontrol
+(çip genişliği, kulak elementleri) ile "hiçbir şey bozulmadı" doğrulandı.
+
+**Dokunulan:** `test/challenge.test.mjs` (SADECE üst yorum), `www/app.js`
+(SİLİNDİ), `DURUM.md` (bu giriş + yeni "BİLİNEN AÇIKLAR" bölümü),
+`DEVIR-13-08-2026.md` (eskiyen DSP satırı düzeltildi + 2 yeni not).
+
+**Dokunulmayan:** `www/js/app.js` (canlı kod, hiç değişmedi), `www/styles.css`,
+tüm mod dosyaları, Bug 17/19 (664f1f1), Bug 20 (1765a49), Bug 22 (c960ce8),
+Bug 23 (9f61003), Bug 24 (2d205e3), Bug 25 (G185), Bug 29 (09ade1d), Bug 10
+(7b726cd), Bug 13/14 (8f476fc), Bug 9/18 (548927c), Grup A/B/C (136a7b0,
+b368f51, 10af88e), G190, G191, G192, G193, `4d0a50d`, `ac92e9a`, çip
+genişliği (581f798), kaynak çipi+BARE_ANALYZER (a4efb42), Stereo Genişlik
+`pickPlaybackOffset` (G122), İpucu Motor1/Motor2 metin ayrımı (G85/G86) —
+hiçbiri yeniden koşulmadı, hepsi bu turun kapsamı DIŞINDA kaldı.
+
 G194 — **Bug #40 (Pro'da ücretsiz sürüm metinleri) + #41 (Tonal Balance "i" sıralaması).**
 
 **#40 TARAMA (kod yazmadan önce) — bilinen 2 yerin dışında 2 YENİ yer bulundu:**
@@ -14521,6 +14596,34 @@ bir müzik/mix parçası, telifsiz) eklenip mod dosyasız da en az bir
 demo/örnek kaynakla açılabilmeli — ya da kullanıcı bu SINIRI bilerek
 kabul edip madde kapatılır.
 
+## BİLİNEN AÇIKLAR
+
+Düşük riskli, ölçülmüş ama şu an DÜZELTİLMEYEN (bilerek — kod yazılmadı,
+sadece belgelendi) davranış tuhaflıkları. Bir bug raporuyla eşleşirse önce
+BURAYA bakılsın — muhtemelen zaten bilinen bir şeydir.
+
+**1. `abPressTimer` (A/B uzun-basma zamanlayıcısı) round'a bağlı değil (G194)**
+`www/js/app.js` — 520ms'lik A/B uzun-basma eşiği (`abPressTimer`,
+satır ~1002/6279-6291), `Bug 29`'daki `freqTapTimer` İLE AYNI desen: round
+HERHANGİ bir yoldan (Atla/Durdur/Oyun Türü değişimi/mod değişimi) biterken
+bu zamanlayıcı AÇIKÇA temizlenmiyor. `pointerdown`'da başlıyor,
+`pointerup`/`pointerleave`'de iptal ediliyor — ama kullanıcı parmağını
+BASILI TUTARKEN (520ms dolmadan) round bir şekilde değişirse, zamanlayıcı
+dolduğunda callback yine de çalışır. Callback içindeki `if (!activeQuestion)
+return;` koruması SADECE "hiç round yok" durumunu yakalıyor — round DEĞİŞİP
+YENİ bir `activeQuestion` atanmışsa (null değil, farklı bir soru) bu koruma
+devreye GİRMİYOR, callback YENİ round'a karşı `startAbLoop()`'u tetikler.
+**Bug 29'dan FARKI (neden düşük risk):** `freqTapTimer`'ın hatası bir CEVAP
+gönderiyordu (ghost-submission, round'u yanlış bitiriyordu) — burada
+callback SADECE bir A/B dinleme döngüsü BAŞLATIYOR, herhangi bir cevabı
+YANLIŞ göndermiyor/round'u bitirmiyor. Tetiklenme penceresi de dar: kullanıcının
+tam 520ms'lik pencerede parmağını basılı tutarken AYNI ANDA round'u başka
+bir yoldan (Atla/mod değişimi) bitirmesi gerekiyor — gerçek kullanımda
+nadir. **Kod YAZILMADI** (kullanıcı kararı: "sadece belgelensin") — ileride
+gerçek bir kullanıcı raporu gelirse Bug 29'un ÇÖZDÜĞÜ AYNI desen (round
+sonlanan HER yolda `clearTimeout(abPressTimer)` eklemek) burada da
+uygulanabilir.
+
 ## BEKLEYEN KARARLAR
 
 **R. G142 — Stereo Genişlik'in "her zaman upload" varsayılanı — istisna kabul mü, yeni mühendislik mi?**
@@ -14715,6 +14818,13 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G195 itibarıyla):** Üç küçük temizlik tamamlandı
+(test yorumu, ölü dosya silme, abPressTimer belgelemesi) — hiçbiri canlı
+davranışı DEĞİŞTİRMEDİ, bu yüzden "cihazda kontrol edilecek" bir liste YOK
+(sadece belgeleme + ölü kod temizliği). Tek kontrol noktası: `npm test`
+1291/1291 ve Playwright smoke testi zaten bu turda koşuldu, GERÇEK cihazda
+AYRICA doğrulanmasına gerek yok (davranış değişmedi).
 
 **EN YENİ SIRADAKİ ADIM (G194 itibarıyla):** Bug #40 (Pro'da ücretsiz sürüm
 metinleri — GENERAL_GUIDE'ın 2 bölümü, SSS'nin can maddesi, günlük-tadımlık

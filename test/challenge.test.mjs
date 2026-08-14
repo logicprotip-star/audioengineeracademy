@@ -4,6 +4,20 @@
 // önceki modun ilerlemesini göstermemesi) DOM'a bağımlı, bu ortamda (node
 // --test, DOM yok) test edilemez, Playwright'ta ayrıca doğrulandı (bkz.
 // DURUM.md).
+//
+// G194 NOTU — "BÖLÜM göstergesi idle'da GİZLİ olmalı" diye bir varsayım bu
+// dosyada HİÇ yoktu (yukarıdaki paragraf bunu zaten test DIŞI bırakıyordu)
+// ama G176/Bug 17 (664f1f1) ile PRODUCT KARARI DEĞİŞTİ ve bunu burada AÇIKÇA
+// kayıt altına almak gerekiyor, çünkü DURUM.md'nin G174 döneminden kalma
+// eski bir Playwright script'i (bu dosyada YOK, hiç commit edilmemişti)
+// "idle'da collapsed===true" bekliyordu — o beklenti artık YANLIŞ. Güncel
+// GERÇEK davranış (app.js:renderGameHeader → showChapter = !boss &&
+// !examActive && isChallenge()): "10 Soruluk Bölüm" MOD olarak seçiliyken
+// BÖLÜM çubuğu idle'da (Play'den ÖNCE) de GÖRÜNÜR olmalı ("BÖLÜM 1/10", 0
+// dolu nokta); "Serbest" modda ise HER ZAMAN gizli kalır. Bu satır, o eski
+// script'in yerini tutan KALICI bir referans — DOM'a bağımlı olduğu için
+// gerçek assert BURADA yazılamıyor (yukarıdaki paragrafla AYNI kısıt),
+// Playwright doğrulaması G194'te YENİDEN koşuldu.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
