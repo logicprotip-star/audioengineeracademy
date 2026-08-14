@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G207)
+Son güncelleme: 15.08.2026 (G208)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,55 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G208 — **#57: Analiz (Ölçüm Sonuçları) geçmişine G202'nin "Dosyalarım" temizleme deseni uygulandı.**
+
+**ÖLÇÜM:** Analiz geçmişi `eqEarTrainerProXToolsMeasurements` anahtarında,
+localStorage'da, en fazla `TOOLS_HISTORY_MAX=10` kayıt (`toolsSaveJson`'ın
+`slice(0,10)`'u, `toolsLogAction`'ın SON İŞLEMLERİM'iyle PAYLAŞILAN aynı
+sınır/mekanizma) — `{file, at, result}` şeklinde, INDEX ile listelenip
+açılıyordu (`data-open-measurement="${i}"`), SİLME yolu HİÇ yoktu. G202'nin
+deseni (index/id bazlı satır silme + "Tümünü temizle", native confirm()
+YOK) DOĞRUDAN uygulanabilir bulundu — TEK fark: Dosyalarım'ın `toolsRemoveFile`'ı
+GERÇEK dosyaları (stabil id'li) siliyordu, burası SADECE bir kayıt listesi
+(index'in kendisi kimlik olarak yeterli, HER tıklamada localStorage'dan
+TAZE okunduğu için bayatlama riski yok).
+
+**DİKKAT (görev metninin kendi sorusu) — silinen analiz o an ekranda
+gösteriliyorsa:** YENİ `toolsDisplayedMeasurementAt` (bir `at` damgası)
+canlı bir analiz BİTER BİTMEZ VE geçmişten bir ölçüm açıldığında set
+ediliyor — silme (`toolsDeleteMeasurement`/`toolsClearAllMeasurements`) bu
+damgayla eşleşen bir kayıt SİLERSE `resetToolsAnalysis()` çağrılıyor (ekran
+boşalır, "Analiz et" başlangıç haline döner). `toolsLogMeasurement` artık
+oluşturduğu kaydı (özellikle `.at`) ÇAĞIRANA DÖNDÜRÜYOR — bu izleme
+MÜMKÜN olsun diye TEK imza değişikliği.
+
+**Tutarlılık:** "Tümünü temizle" İlerleme'nin `.prog-clear-btn`'iyle AYNI
+görsel dil (class DOĞRUDAN yeniden kullanıldı, G202'nin YÜKLEDİKLERİM
+başlığıyla AYNI `.tools-files-section-label-row` deseni) — YENİ CSS
+YAZILMADI, `.tools-files-row-trash` (G202) de SATIR İÇİ aynen yeniden
+kullanıldı.
+
+**Ölçüm (Playwright):** (1) canlı bir analiz çalıştırılıp ekranda
+gösterilirken, geçmişten AYNI kaydı çöp kutusuyla sil → sonuç paneli
+kapandı, "Analiz et" butonu geri geldi, rozet gizlendi; (2) İKİ farklı
+dosya analiz edilip, ESKİ kayıt geçmişten açıldıktan SONRA, GÖSTERİLMEYEN
+(yeni) kayıt silindi → ekran ETKİLENMEDİ (gösterilen kayıt duruyor); (3)
+gösterilen kayıt dahil TÜM geçmiş "Tümünü temizle" ile silindi → ekran
+boşaldı, boş-durum mesajı göründü, "Tümünü temizle" kendini gizledi.
+
+**Dokunulan:** `www/index.html` (SON ÖLÇÜMLERİM başlığının yanına
+`#toolsClearMeasurementsBtn`), `www/js/app.js` (satır şablonuna çöp kutusu
+ikonu, YENİ `toolsDeleteMeasurement`/`toolsClearAllMeasurements`/
+`toolsDisplayedMeasurementAt`, `toolsLogMeasurement`'ın dönüş değeri,
+`toolsOpenSavedMeasurement`/`resetToolsAnalysis`/canlı analiz handler'ının
+bu değişkeni set/temizlemesi). **Dokunulmayan:** `www/styles.css` (mevcut
+`.tools-files-row-trash`/`.prog-clear-btn` aynen yeniden kullanıldı, YENİ
+kural YAZILMADI), SON İŞLEMLERİM (`toolsLogAction`/`toolsActionsList` —
+görev kapsamı SADECE Ölçüm Sonuçları'ydı), G207'nin mağaza düzeltmeleri,
+G200-G206, Bug 17-29, Grup A/B/C.
+
+npm test: 1311/1311.
 
 G207 — **Mağaza uyumluluk düzeltmeleri (App Store/Play Store denetimi, 14 Ağustos) — 6 madde, TEK commit.**
 
@@ -15637,7 +15686,17 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G207 itibarıyla):** Mağaza uyumluluk düzeltmeleri
+**EN YENİ SIRADAKİ ADIM (G208 itibarıyla):** #57 — Ölçüm Sonuçları (analiz)
+geçmişine G202'nin Dosyalarım deseni (çöp kutusu ikonu + "Tümünü temizle")
+uygulandı, `npm test` (1311/1311) ve Playwright'la (3 senaryo, sayılarla)
+doğrulandı. GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: (1) bir dosya
+analiz et, Dosyalarım → SON ÖLÇÜMLERİM'de o kaydı çöp kutusuyla sil —
+Ölçüm Sonuçları kartı "Analiz et" başlangıç haline dönmeli; (2) birden
+fazla analiz kaydı varken GÖSTERİLMEYEN birini sil — ekrandaki sonuç
+ETKİLENMEMELİ; (3) "Tümünü temizle" — tüm geçmiş silinmeli, buton kendini
+gizlemeli, boş-durum mesajı görünmeli.
+
+**EN YENİ SIRADAKİ ADIM (G207 itibarıyla, ARTIK ESKİ):** Mağaza uyumluluk düzeltmeleri
 (6 madde — "Yakında" gizlendi, "TASLAK" metni değişti, armv7→arm64, iPad
 yön anahtarı kaldırıldı, package.json temizlendi, Android AD_ID izni elle
 eklendi). `npm test` (1311/1311) ve Playwright'la doğrulandı. GERÇEK

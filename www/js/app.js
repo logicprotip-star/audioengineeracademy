@@ -178,6 +178,7 @@ const els = {
   toolsActionsEmpty: document.getElementById("toolsActionsEmpty"),
   toolsMeasurementsList: document.getElementById("toolsMeasurementsList"),
   toolsMeasurementsEmpty: document.getElementById("toolsMeasurementsEmpty"),
+  toolsClearMeasurementsBtn: document.getElementById("toolsClearMeasurementsBtn"), // #57
   // D) Tonal Balance
   toolsTonalCard: document.getElementById("toolsTonalCard"),
   toolsTonalInfoBtn: document.getElementById("toolsTonalInfoBtn"),
@@ -9469,9 +9470,22 @@ function toolsLogAction(fileName, filterName) {
 }
 function toolsLogMeasurement(fileName, result) {
   const list = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
-  list.unshift({ file: fileName, at: Date.now(), result });
+  const entry = { file: fileName, at: Date.now(), result };
+  list.unshift(entry);
   toolsSaveJson(TOOLS_MEASUREMENTS_KEY, list);
+  // #57 — entry (özellikle .at) çağırana geri döner: canlı bir analiz
+  // BİTER BİTMEZ ekranda gösterilen sonuç HANGİ kayıtlı ölçüme karşılık
+  // geliyor izlenebilsin diye (bkz. toolsDisplayedMeasurementAt).
+  return entry;
 }
+// #57 — SON ÖLÇÜMLERİM'den (ya da canlı bir analiz BİTER BİTMEZ) o an
+// EKRANDA gösterilen sonucun hangi kayıtlı ölçüme ait olduğunu izler (`at`,
+// Date.now() damgası — pratikte benzersiz). "Tümünü temizle"/tekil silme bu
+// kaydı SİLERSE ekran boşaltılıp "Analiz et" başlangıç haline dönülür (bkz.
+// toolsDeleteMeasurementsIfShown). Sadece BU dosyada tutulan, oturum-içi bir
+// izleyici — kalıcı depoya YAZILMIYOR (measurements listesinin kendisi
+// zaten kalıcı, bu SADECE "hangisi şu an ekranda" bilgisi).
+let toolsDisplayedMeasurementAt = null;
 
 // G103 — "sheet açıldığında içerik EN ÜSTTEN başlasın": sheet DOM'dan
 // kaldırılmıyor (sadece gizleniyor), bu yüzden ÖNCEKİ açılışta kalan
@@ -9665,9 +9679,13 @@ function renderToolsFilesSheetContent() {
         <div class="tools-files-meas-time">${toolsRelativeTime(m.at)}</div>
       </div>
       <div class="tools-files-meas-lufs">${fmtLufs(m.result.program.integratedLufs)}</div>
+      <div class="tools-files-row-trash" data-remove-measurement="${i}" title="Sil" aria-label="Sil">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+      </div>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#4a4f56" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
     </div>`).join("");
   }
+  if (els.toolsClearMeasurementsBtn) els.toolsClearMeasurementsBtn.classList.toggle("hidden", measurements.length === 0);
   if (els.toolsMeasurementsEmpty) els.toolsMeasurementsEmpty.classList.toggle("hidden", measurements.length > 0);
 }
 
@@ -9705,8 +9723,35 @@ if (els.toolsFilesList) {
 // #49a — İlerleme'nin clearRecentBtn'iyle AYNI ilke: native confirm() YOK
 // (dialog'lar ajanın KENDİ kısıtı + İlerleme'nin kendi emsali de onaysız).
 if (els.toolsClearAllBtn) els.toolsClearAllBtn.addEventListener("click", toolsClearAllFiles);
+// #57 — G202'nin Dosyalarım deseniyle AYNI ilke (toolsRemoveFile/
+// toolsClearAllFiles): tek kayıt silme + "Tümünü temizle", native confirm()
+// YOK (İlerleme'nin clearRecentBtn'iyle AYNI, dialog'lar ajanın KENDİ kısıtı).
+// index BAZLI silme (measurements'ın kendi kimlik şeması, data-open-
+// measurement'la AYNI) — HER tıklamada localStorage'dan TAZE okunuyor, aynı
+// render/tıklama döngüsü İÇİNDE kullanıldığı için bayatlama riski YOK.
+function toolsDeleteMeasurement(index) {
+  const list = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
+  const removed = list.splice(index, 1)[0];
+  toolsSaveJson(TOOLS_MEASUREMENTS_KEY, list);
+  // DİKKAT (görev metni) — silinen ölçüm O AN ekranda gösteriliyorsa: ekran
+  // boşalsın, "Analiz et" başlangıç haline dönsün. `at` damgası eşleşmesiyle
+  // (bkz. toolsDisplayedMeasurementAt'in dosya başı notu) tespit edilir.
+  if (removed && toolsDisplayedMeasurementAt === removed.at) resetToolsAnalysis();
+  renderToolsFilesSheetContent();
+}
+function toolsClearAllMeasurements() {
+  const list = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
+  const wasShowing = toolsDisplayedMeasurementAt != null && list.some((m) => m.at === toolsDisplayedMeasurementAt);
+  toolsSaveJson(TOOLS_MEASUREMENTS_KEY, []);
+  if (wasShowing) resetToolsAnalysis();
+  renderToolsFilesSheetContent();
+}
+if (els.toolsClearMeasurementsBtn) els.toolsClearMeasurementsBtn.addEventListener("click", toolsClearAllMeasurements);
 if (els.toolsMeasurementsList) {
   els.toolsMeasurementsList.addEventListener("click", (e) => {
+    // #57 — çöp kutusu ikonu satırı AÇMASIN, SADECE silsin.
+    const delRow = e.target.closest("[data-remove-measurement]");
+    if (delRow) { toolsDeleteMeasurement(Number(delRow.dataset.removeMeasurement)); return; }
     const row = e.target.closest("[data-open-measurement]");
     if (!row) return;
     const measurements = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
@@ -10267,6 +10312,7 @@ function resetToolsAnalysis() {
   toolsAnalysisErrorMsg = "";
   toolsAnalysisChartData = null;
   toolsAnalyzedFileId = null;
+  toolsDisplayedMeasurementAt = null; // #57 — ekrandaki sonuç artık YOK, izlenecek bir şey kalmadı
   toolsCloseResultsAccordion();
   renderToolsAnalysisCardState();
 }
@@ -10349,7 +10395,10 @@ if (els.toolsAnalyzeBtn) {
       toolsAnalysisResult = result;
       toolsAnalyzedFileId = entry.id;
       toolsAnalysisState = "success";
-      toolsLogMeasurement(entry.name, result);
+      // #57 — bu SONUÇ, kayda ait `at` damgasıyla EKRANDA gösteriliyor
+      // olarak işaretlenir (bkz. toolsDisplayedMeasurementAt'in dosya başı
+      // notu) — geçmişten SİLİNİRSE ekran boşaltılabilsin diye.
+      toolsDisplayedMeasurementAt = toolsLogMeasurement(entry.name, result).at;
     } catch (err) {
       console.error("[analiz] hata:", err && err.message, err);
       toolsAnalysisErrorMsg = toolsAnalysisErrorMessage(err);
@@ -10401,6 +10450,7 @@ if (els.toolsResultsHeader) els.toolsResultsHeader.addEventListener("click", too
 // doğruydu ama rAF'taki olası yeniden çizim eski/stale sonucu kullanabilirdi).
 function toolsOpenSavedMeasurement(savedEntry) {
   toolsAnalysisResult = savedEntry.result;
+  toolsDisplayedMeasurementAt = savedEntry.at; // #57 — bkz. dosya başı notu
   renderToolsAnalysisResults(savedEntry.result);
   if (els.toolsResultsHeaderBadge) {
     els.toolsResultsHeaderBadge.classList.remove("hidden");
