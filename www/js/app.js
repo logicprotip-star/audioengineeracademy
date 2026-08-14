@@ -1563,6 +1563,15 @@ function freeSessionLimitReached() {
 // (YENİ, "Atla" kaçağı kapatmak için startRound()'da) AYNI teardown'ı
 // paylaşıyor — tek kontrol noktası, davranış TEK SATIR değişmeden ayrıldı.
 function teardownActiveRound() {
+  // G187 DÜZELTMESİ (Bug 29, KATMAN 1): Frekans Bulma'nın "Dokunmalı" biçiminde
+  // canvas dokunuşunu 180ms geciktiren freqTapTimer (bkz. tanımı) round BURADAN
+  // (can/oturum sınırı) bitince temizlenmiyordu — 180ms sonra ateşlenip artık
+  // var olmayan/farklı bir round'a karşı submitFrequencyGuess() çağırabiliyordu
+  // (ölçüldü: stats.rounds hayalet artış). cmpPreviewStopTimer/abLoopTimer'ın
+  // AYNI çoklu-nokta temizlik deseni — round BİRDEN FAZLA yoldan bitebiliyor,
+  // tek kontrol noktası yetmiyor.
+  clearTimeout(freqTapTimer);
+  freqTapTimer = null;
   autoPlaying = false;
   autoStopped = true;
   roundFlow.clearAutoAdvance();
@@ -2419,6 +2428,11 @@ function enterMode(entry, realMode) {
     // mod varken hiç mümkün olmayan bir geçişti).
     audioEngine.stopAudio();
     roundFlow.stopAll();
+    // G187 (Bug 29, KATMAN 1) — Frekans Bulma'dan (freqTapTimer beklerken)
+    // başka bir moda geçiliyorsa, 180ms sonra ateşleyip YENİ modun activeQuestion'ına
+    // karşı submitFrequencyGuess() çağırmasın diye burada da temizleniyor.
+    clearTimeout(freqTapTimer);
+    freqTapTimer = null;
     activeQuestion = null;
     roundActive = false;
     autoStopped = true;
@@ -5250,6 +5264,12 @@ function cancelCmpPreviewPause() {
 
 // "Durdur" — hiçbir kaynağı/node'u durdurmaz, sadece sesi/zamanlayıcıyı askıya alır.
 function pauseRound() {
+  // G187 (Bug 29, KATMAN 1) — cancelCmpPreviewPause()'un AYNI mantığı:
+  // bekleyen bir freqTapTimer varsa (Frekans Bulma'nın Dokunmalı biçiminde
+  // kullanıcı dokunup 180ms dolmadan Durdur'a bastıysa) burada da temizlenir,
+  // Tekrar Çal'dan SONRA farklı bir round'a karşı ateşlemesin.
+  clearTimeout(freqTapTimer);
+  freqTapTimer = null;
   autoPlaying = false;
   autoStopped = true;
   // F2: bir cmp-önizleme duraklatması zaten aktifse (autoAdvance zamanlayıcısı onun
@@ -5531,6 +5551,12 @@ function setAutoPlay(on) {
     // değişimden SONRA da `true` kaldı) — G31'in AYNI kök sebep ailesi,
     // SADECE farklı bir çağrı noktasından eksikti.
     if (abLoopTimer) stopAbLoop();
+    // G187 (Bug 29, KATMAN 1) — G180'in AYNI kök sebep ailesi: bu fonksiyonun
+    // KENDİ ayrı teardown'ı freqTapTimer'ı da hiç temizlemiyordu (Oyun Türü
+    // değişirken Frekans Bulma'da bekleyen bir dokunuş varsa 180ms sonra
+    // YENİ moda/round'a karşı ateşleyebilirdi).
+    clearTimeout(freqTapTimer);
+    freqTapTimer = null;
     roundFlow.clearTimer();
     audioEngine.stopAudio();
     uploadManager.pausePlayback();
@@ -5674,8 +5700,16 @@ els.canvas.addEventListener("pointerdown", e => {
   if (q.mode !== "proplus") {
     freqGuessHz = hz;
     clearTimeout(freqTapTimer);
+    // G187 (Bug 29, KATMAN 2 — savunma) — KATMAN 1'in çoklu temizlik
+    // noktalarından biri kaçırılırsa (ör. round'un YENİ, henüz düşünülmemiş
+    // bir yoldan bitmesi) diye ikinci bir güvenlik ağı: `q`, bu dokunuşun
+    // ait olduğu SORUYU (referans olarak) yakalıyor — startRound() HER
+    // round için YENİ bir activeQuestion nesnesi kuruyor (mode.createQuestion()),
+    // bu yüzden 180ms sonra `activeQuestion` HÂLÂ `q` İLE AYNI referansı
+    // taşımıyorsa round KESİN olarak değişmiş demektir (round-generation-
+    // counter icat etmeye gerek yok, JS referans eşitliği yeterli).
     freqTapTimer = setTimeout(() => {
-      if (!roundActive) return;
+      if (!roundActive || activeQuestion !== q) return;
       try { submitFrequencyGuess(hz); } catch (err) { console.error(err); }
     }, 180);
     return;
@@ -6175,6 +6209,16 @@ els.startBtn.addEventListener("click", async () => {
 // eder — aksi halde yeni turun ortasında eski önizlemenin zamanlayıcısı tetiklenip
 // yanlışlıkla ikinci bir otomatik-geçiş kurabilirdi.
 async function goToNextRound() {
+  // G187 (Bug 29, KATMAN 1) — bu, `await audioEngine.initAudio()`'DAN ÖNCE,
+  // SENKRON olarak çalışmalı: freqTapTimer'ın (Frekans Bulma'nın Dokunmalı
+  // biçimindeki 180ms dokunuş debounce'u) kalan süresi bu await'in kendi
+  // gecikmesinden KISA olabilir — cmpPreviewStopTimer'ın (aşağıda, await
+  // SONRASI temizlenen, ÖNCEDEN VAR OLAN/DOKUNULMAYAN kod) AYNI yerde
+  // bırakılması ölçümle YARIŞ YARATTIĞI için (stale timer await'in bitmesini
+  // BEKLEMEDEN ateşleyip HÂLÂ mevcut round'a karşı gönderim yapabiliyordu)
+  // freqTapTimer'ınki ÖZELLİKLE erkene alındı.
+  clearTimeout(freqTapTimer);
+  freqTapTimer = null;
   await audioEngine.initAudio();
   if (blockIfLivesOut()) return;
   clearTimeout(cmpPreviewStopTimer);

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G186)
+Son güncelleme: 14.08.2026 (G187)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,80 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G187 — **Bug 29: Frekans Bulma'da "buton hep Play'de kalıyor, otomatik
+geçiş ölüyor" — analiz + iki katmanlı düzeltme, ONAYLANDI ve uygulandı.**
+
+**Kök sebep (ölçümle kanıtlandı):** `freqTapTimer` (Frekans Bulma'nın
+"Dokunmalı" biçiminde canvas dokunuşunu 180ms geciktiren debounce —
+G86'nın kendi kasıtlı tasarımı, "parmak gezdirirken ara dokunuş
+gönderilmesin") round HERHANGİ BİR yoldan (Atla/Durdur/Oyun Türü
+değişimi/mod değişimi/can-oturum sınırı) bitince TEMİZLENMİYORDU. 180ms
+sonra ateşlediğinde hangi round aktifse (değişmiş olsa bile) ONA karşı
+`submitFrequencyGuess(eskiHz)` çağırıyordu — kullanıcının HİÇ cevaplamadığı
+YENİ bir round'u "hayalet" cevaplıyordu, `roundActive=false` yapıp
+kullanıcının GERÇEK dokunuşunu sessizce yutuyordu. Diğer 11 modun (+ Frekans
+Bulma'nın Şıklı/Pro Plus biçimlerinin) TAMAMI cevabı SENKRON gönderiyor —
+bu asenkron gecikme SADECE bu modun Dokunmalı biçiminde var, bu yüzden
+belirti SADECE bu modda görülüyordu. Bug 23'ün (9f61003) düzeltmesi
+`abLoopTimer`ı kapsıyordu — TAMAMEN FARKLI, tek-seferlik bir zamanlayıcı
+(`freqTapTimer`) hiç dokunulmamıştı.
+
+**KATMAN 1 — `freqTapTimer`'ı round'un bitebileceği HER noktada temizle**
+(`cmpPreviewStopTimer`/`abLoopTimer`'ın AYNI çoklu-nokta deseni — tek
+kontrol noktası yetmiyor, round birden fazla yoldan bitiyor):
+`teardownActiveRound()`, `enterMode()`'un mod-değişim teardown'ı,
+`pauseRound()`, `setAutoPlay(false)` (Bug 23'ün `stopAbLoop()`'unun
+yanına), `goToNextRound()`.
+
+**KATMAN 2 — savunma katmanı:** `freqTapTimer` kurulurken `activeQuestion`
+referans olarak yakalanıyor (`q`), callback'te `activeQuestion !== q` ise
+gönderim iptal ediliyor — `startRound()` HER round için YENİ bir nesne
+kurduğu için JS referans eşitliği "aynı soru mu" sorusuna güvenilir cevap
+veriyor (round-generation-counter icat edilmedi).
+
+**Ölçümle bulunan EK bir ayrıntı (planın ötesinde, gerekli):**
+`goToNextRound()` `async` ve `await audioEngine.initAudio()` İLE
+BAŞLIYOR — KATMAN 1'in temizliği başta bu await'İN SONRASINA
+eklenmişti, ama bu await'in kendi gecikmesi 180ms'den UZUN olabildiği
+için (ölçüldü) stale `freqTapTimer` temizlik kodu çalışmadan ateşleyip
+HÂLÂ aynı round'a karşı gönderim yapabiliyordu (KATMAN 2 bunu
+YAKALAMIYOR çünkü `activeQuestion` o an HENÜZ değişmemiş olabiliyor).
+Düzeltme: `goToNextRound()`'daki `freqTapTimer` temizliği `await`'TEN
+ÖNCEYE alındı (senkron, anında çalışır) — `cmpPreviewStopTimer`'ın
+kendisi (ÖNCEDEN VAR OLAN, dokunulmayan kod) await SONRASINDA kalmaya
+devam ediyor, SADECE bu turun YENİ eklediği satır taşındı.
+
+**Ölçüm (Playwright, `stats.rounds` yöntemiyle — SADECE `submitFrequencyGuess()`
+bunu artırıyor):** Düzeltmeden ÖNCE: dokun → 50ms sonra Atla → t≈170ms'de
+`stats.rounds` 0'dan 1'e SIÇRADI (hiç cevap verilmediği hâlde). Düzeltmeden
+SONRA: AYNI senaryo, `stats.rounds` 650ms boyunca 0'da SABİT kaldı. Normal
+akış (BOZULMADIĞI doğrulandı, 3 biçim ayrı ayrı): Dokunmalı — dokun, 400ms
+bekle, `stats.rounds` +1, `feedbackVisible:true`, `startBtnText:"⏸"`
+(Durdur — İKON DOĞRU, "hep Play'de" ARTIK YOK), `fbAdvanceBarRun:true`
+(otomatik geçiş ÇALIŞIYOR); Şıklı — buton tıkla, `stats.rounds` +1,
+feedback+otomatik geçiş normal; Pro Plus — 4 işaret, İLK 3'ünde
+`stats.rounds` DEĞİŞMEDİ, 4.'sünde +1 (senkron gönderim, debounce'a hiç
+girmiyor, doğrulandı).
+
+**DOKUNULAN dosyalar:** `www/js/app.js` (SADECE `freqTapTimer` temizliği +
+referans kontrolü, 5 nokta + 1 sıralama düzeltmesi).
+**DOKUNULMAYAN dosyalar:** `www/index.html`, `www/styles.css`,
+`www/js/core/*.js` (hiçbiri) — diğer 11 modun senkron gönderim yolu,
+Frekans Bulma'nın Şıklı/Pro Plus biçimleri, 180ms debounce'un SÜRESİ/
+KENDİSİ (G86, kasıtlı — DEĞİŞMEDİ), Bug 23'ün `stopAbLoop()` düzeltmesi,
+Bug 25/20/10/13/14/9/18/17/19/22/24, Grup A/B/C.
+
+**BİLİNEN, DÜŞÜK ÖNCELİKLİ, BU TURDA DOKUNULMAYAN NOT:** `abPressTimer`
+(520ms, A/B uzun-basma algılama) AYNI deseni taşıyor (round bitmişse
+callback'i `if (!activeQuestion) return;` ile SADECE kısmen korunuyor) —
+ama YANLIŞ CEVAP GÖNDERMİYOR, sadece `startAbLoop()`'u tetikleyebilir
+(çok daha dar bir pencere: kullanıcının parmağı BASILI kalırken round
+değişmeli). Bug 29'un kapsamı dışında bırakıldı.
+
+**npm test: 1285 → 1285 (değişmedi).** Değişiklik tamamen `app.js`-içi
+zamanlayıcı/DOM state (`createQuestion`/`evaluateAnswer` saf kaldı) —
+Playwright ile doğrulandı.
 
 G186 — **Yedi düşük riskli düzeltme, İSTENDİĞİ GİBİ üç ayrı commit'te
 (Grup A/B/C) — her grup kendi başına doğrulandı, kendi commit'ine gitti.**
@@ -14255,7 +14329,18 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G186 itibarıyla):** 7 düzeltme (A1-A3/B1-B2/C1-C2),
+**EN YENİ SIRADAKİ ADIM (G187 itibarıyla):** Bug 29 (Frekans Bulma'da
+"buton hep Play'de kalıyor") düzeltildi, Playwright'la (`stats.rounds`
+hayalet-artış yöntemi) doğrulandı, GERÇEK cihazda HENÜZ görülmedi. Kontrol
+edilecek: Frekans Bulma'yı Dokunmalı biçimde oyna, spektruma dokun, HEMEN
+(180ms dolmadan) "Atla"ya bas — bunu birkaç kez art arda tekrarla, sonra
+GERÇEK bir soruyu cevapla (dokun, bekle) — ikon "⏸"e (Durdur) dönmeli, alt
+bardaki süre GERÇEKTEN ilerlemeli, otomatik geçiş kendiliğinden çalışmalı
+(elle "Atla"ya basmaya gerek KALMAMALI). Ayrıca Şıklı ve Pro Plus
+biçimlerinde de normal akışın (dokun/tıkla → geri bildirim → otomatik
+geçiş) BOZULMADIĞINI doğrula.
+
+**EN YENİ SIRADAKİ ADIM (G186 itibarıyla, hâlâ geçerli):** 7 düzeltme (A1-A3/B1-B2/C1-C2),
 3 ayrı commit'te, Playwright'la doğrulandı, GERÇEK cihazda HENÜZ görülmedi.
 Kontrol edilecek: (1) reklam izleyip +5 soru kazan — sayaç payda GERÇEKTEN
 büyümeli ("N / 10"); (2) Pro'ya geç (ya da geliştirici modunu aç) — can
