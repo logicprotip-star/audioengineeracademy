@@ -111,6 +111,8 @@ const els = {
   dailyTipText: document.getElementById("dailyTipText"),
   dailyTipStartBtn: document.getElementById("dailyTipStartBtn"),
   dailyTipSkipBtn: document.getElementById("dailyTipSkipBtn"),
+  dailyTipLock: document.getElementById("dailyTipLock"),
+  dailyTipProBtn: document.getElementById("dailyTipProBtn"),
   // G36: Ana Menü seviye rozeti (Dizayn/prototype.html .lvl-badge'den) — G40'tan beri
   // İlerleme sekmesindeki AYNI desenli rozetle (progLevelValue/progXpBar/
   // progNextLevelText) AYNI veriyi (updateUI() içinde AYNI xp = progress.xpProgress
@@ -3281,6 +3283,13 @@ const DAILY_TIP_MIN_ATTEMPTS = 10;
 // (n>=2 eşiğiyle) kart genelde görünür olduğu ve "Başla" zaten genel bir set
 // başlattığı için, veri YETERSİZKEN de kart görünür kalıp kullanıcıyı genel bir
 // sete yönlendirir (aşağıdaki else dalı) — boş kart ya da yanıltıcı %0 YOK.
+// G188 (#36) — Zayıf Bölge Raporu'yla (renderZonePanel) AYNI kilit
+// predicate'i: bu kart o raporun BİREBİR AYNI verisinden (zoneScores())
+// üretiliyor, "veri kilitli ama öneri açık" tutarsızlığı buradan geliyordu.
+// veri yeterli/yetersiz FARK ETMEKSİZİN kilitleniyor (İsabet Grafiği/Zayıf
+// Bölge Raporu da veri miktarına göre AYRIM YAPMIYOR, SADECE isUserPro()'ya
+// bakıyor) — aksi hâlde yeni bir ücretsiz kullanıcı (henüz veri yok) kilitsiz,
+// eski bir ücretsiz kullanıcı (verisi var) kilitli görürdü, tutarsız kalırdı.
 function renderDailyTip() {
   if (!els.dailyTipCard) return;
   // G91 (madde 1): Ayarlar'daki "Bugünün önerisini göster" kapalıysa kart
@@ -3288,6 +3297,9 @@ function renderDailyTip() {
   // KALICI bir tercih.
   if (!prefs.showDailyTip) { els.dailyTipCard.classList.add("hidden"); return; }
   if (daily.tipDismissed) { els.dailyTipCard.classList.add("hidden"); return; }
+  const locked = paywall.isWeakZoneReportLocked(isUserPro());
+  if (els.dailyTipWrap) els.dailyTipWrap.classList.toggle("prog-blurred", locked);
+  if (els.dailyTipLock) els.dailyTipLock.classList.toggle("hidden", !locked);
   const enough = zoneScores().filter(s => s.n >= DAILY_TIP_MIN_ATTEMPTS);
   if (enough.length) {
     const weakest = enough.slice().sort((a, b) => a.pct - b.pct)[0];
@@ -7031,6 +7043,9 @@ if (els.clearRecentBtn) els.clearRecentBtn.addEventListener("click", e => {
 // openPaywallReason PAYWALL_REASONS'ı okuyor, ikisi karıştırılmadı).
 if (els.accChartProBtn) els.accChartProBtn.addEventListener("click", () => openPaywallReason("zoneHistory"));
 if (els.zoneProBtn) els.zoneProBtn.addEventListener("click", () => openPaywallReason("zoneHistory"));
+// G188 (#36) — Ana menüdeki "Bugünün Önerisi"nin ÜÇÜNCÜ kilit butonu, AYNI
+// "zoneHistory" nedeni (bu kart da zoneScores()'un AYNI verisinden üretiliyor).
+if (els.dailyTipProBtn) els.dailyTipProBtn.addEventListener("click", () => openPaywallReason("zoneHistory"));
 
 // Madde 2: boş-durumun "İlk seansını başlat" CTA'sı — Frekans Bulma kartına
 // PROGRAMATİK tıklar (bkz. renderExerciseGrid'in card.dataset.modeId notu),
@@ -7996,6 +8011,12 @@ function syncDevUI() {
   // alma (grantRealPro()) de AYNI syncDevUI()'yi çağırdığı için AYNI eksiği
   // taşıyordu — SADECE geliştirici modu değil.
   renderAnalysis();
+  // G188 (#36) — renderAnalysis()'in AYNI eksiği: "Bugünün Önerisi" (ana
+  // menü) da isUserPro()'ya bağlı bir kilit taşıyor ama renderAnalysis()'in
+  // KAPSAMI DIŞINDA (o SADECE İlerleme sekmesi) — burada AYRICA eklenmezse
+  // Pro durumu değişince bu kart da G186'daki AYNI gecikmeyi (bir sonraki
+  // veri-değişikliğine kadar bayat kalma) yaşardı.
+  renderDailyTip();
 }
 let versionTapCount = 0;
 let versionTapTimer = null;

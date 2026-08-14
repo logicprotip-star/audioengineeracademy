@@ -1924,6 +1924,12 @@
     .prog-chart-labels{display:flex;justify-content:space-between;margin-top:8px;font-size:11px;font-weight:600;color:#4a4f56}
     .prog-blurred{filter:blur(5px)}
     .prog-lockable{padding-bottom:14px}
+    /* G188 (#36) — .prog-card zaten position:relative taşıyor (İsabet
+       Grafiği/Zayıf Bölge Raporu bunun üzerinde), #dailyTipCard'ın .card'ı
+       taşımıyor — .prog-lock-overlay'in position:absolute;inset:0'ı için
+       BURADA scoped olarak ekleniyor, .card'ın KENDİSİ değiştirilmedi (diğer
+       .card kullanımlarını etkilemesin diye). */
+    #dailyTipCard{position:relative}
     .prog-lock-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(12,13,15,.35)}
     .prog-lock-ring{width:42px;height:42px;border-radius:50%;background:rgba(20,16,6,.9);border:1px solid rgba(232,196,106,.45);display:flex;align-items:center;justify-content:center}
     .prog-lock-btn{border:none;border-radius:999px;padding:7px 16px;background:linear-gradient(180deg,#f6d878,#d9a83c);color:#1a1305;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(217,168,60,.3)}
