@@ -1218,6 +1218,17 @@
        butonun kendi genişliği/dolgusu DEĞİŞMEDİ — sadece bu satırın kendi
        aralığı (gap) daraltıldı, sadece Motor 2 (.controls-m2) satırında. */
     .game-spectrum-controls.controls-m2{gap:4px}
+    /* G183 (Bug 18 — Play ortalanmamış) ÖLÇÜLDÜ: satır ZATEN tam dolu
+       (before=103px, after=191px, toplam=358=satır genişliği, BOŞ ALAN
+       SIFIR) — İpucu'nun genişliğine (G85/G86, KASITLI) DOKUNMADAN ve gap'i
+       (4px, a4efb42, KASITLI) DEĞİŞTİRMEDEN Play'i TRUE-CENTER etmenin tek
+       yolu (position:absolute, satırın geometrik merkezi) DENENDİ, GERİ
+       ALINDI — A/B/C kutusunu (konumu SABİT kalan) 40px KAPATIYORDU
+       (ölçüldü: playRight=227, abLeft=187). "after" içeriği (A/B/C+döngü,
+       187px) satırın Play-merkezi SONRASI kalan alandan (147px) 40px daha
+       geniş — bu SADECE A/B/C/döngü'nün KENDİ boyutunu küçülterek
+       kapanabilir, o da AYRI bir ürün kararı (bkz. DURUM.md'nin bu turdaki
+       raporu). Kod YAZILMADI, index.html'in AYNI notuna bkz. */
 
     /* ---- Tonal Denge (G45) — canlı EQ kaydırıcıları. .answers/.ans'ın grid
        düzeninden BAĞIMSIZ (bkz. .answers-tonal) — bu bir "şık seç" ekranı
@@ -1582,9 +1593,19 @@
     .abbtn[data-ab="B"] .abside[data-side="B"]{background:rgba(108,140,255,.4);color:#EAF0FF}
     /* G30: Kompresör'ün 3-yönlü dinleme genişlemesi — "C" pill'i SADECE bu mod
        aktifken (app.js:updateAbToggleUI'nin eklediği .three-way class'ı) görünür,
-       diğer beş modun A/B ikilisinde HİÇ görünmez. */
+       diğer beş modun A/B ikilisinde HİÇ görünmez.
+       G183 DÜZELTMESİ (ölçüldü, Bug 15): görünürlük SADECE `display:none`/
+       `display:block` ile açılıp kapatılıyordu — ama base `.abside` kuralı
+       `display:flex;align-items:center;justify-content:center` ile A/B'nin
+       harfini KUTUNUN içinde ORTALIYOR; C'nin `display:block`'u bunu EZİYOR
+       (aynı specificity, C'nin kuralı SONRA geliyor) — "C" harfi flex
+       ortalamasını KAYBEDİP varsayılan blok metin akışına düşüyordu (kutunun
+       KENDİSİ A/B ile AYNI boyutta ölçüldü — SADECE İÇERİĞİN hizalaması
+       bozuktu, "kutu yok" görünümü BUNDAN geliyordu). `display:block` YERİNE
+       `display:flex` — A/B'nin AYNI ortalama davranışını KORUYUP SADECE
+       görünürlüğü açıp kapatıyor. */
     .abside-c{display:none}
-    .abbtn.three-way .abside-c{display:block}
+    .abbtn.three-way .abside-c{display:flex}
     .abbtn[data-ab="C"] .abside[data-side="C"]{background:rgba(168,85,247,.4);color:#F5EAFF}
     /* A/B uzun basma döngüsü aktifken (bkz. app.js startAbLoop/stopAbLoop) —
        G73: döngü combo/boss/süre kapsamına girmediği için --cyan'a taşındı. */

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 14.08.2026 (G182)
+Son güncelleme: 14.08.2026 (G183)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -72,6 +72,114 @@ cihazda doğrulanmadı — bir sonraki oturumun önceliği `cap sync` + Xcode
 temiz derleme + cihaza kurulum + SIRADAKİ'deki checklist'in tamamı.
 
 ## BİTTİ
+
+G183 — **4 görsel sorun ölçüldü. Biri (#15) düzeltildi. Üçü (#9/#18/#21)
+ürün kararı gerektiriyor — kod YAZILMADI, bekliyor.**
+
+**#15 (Reverb'de C butonunun kutusu yok) — DÜZELTİLDİ.**
+Kök sebep: `.abside-c{display:none}` / `.abbtn.three-way .abside-c{display:block}`
+(`styles.css`) — C'nin görünürlüğü `display:none`/`display:block` ile
+açılıp kapatılıyordu, ama base `.abside` kuralı `display:flex;align-items:center;
+justify-content:center` ile A/B'nin harfini kutunun İÇİNDE ortalıyor — C'nin
+`display:block`'u BUNU EZİYORDU (aynı specificity, C'nin kuralı sonra
+geliyor). Kutunun KENDİSİ A/B ile AYNI boyutta ölçüldü (38×34px, aynı
+background/border-radius) — SADECE içeriğin hizalaması bozuktu, "kutu yok"
+görünümü BUNDAN geliyordu. Fix: `display:block` → `display:flex` (tek
+kelime). Ölçüm: A/B/C'nin ÜÇÜ de artık `display:flex`, kutuları görsel
+olarak ÖZDEŞ (ekran görüntüsüyle doğrulandı).
+
+**#18 (Reverb'de Play ortalanmamış) — ÖLÇÜLDÜ, FIX DENENDİ, GERİ ALINDI,
+KARAR BEKLİYOR.**
+Kök sebep: Kontrol satırı (`.controls-m2`) ZATEN piksel-piksel dolu —
+İpucu(96px, Motor2 metinli, G85/G86 KASITLI)+gap = 103px "önce", gap+A-B-C
+(136px)+gap+döngü(47px) = 191px "sonra", TOPLAM=358=satır genişliğinin
+TAMAMI, boş piksel SIFIR. `justify-content:center` kümeyi ortalasa da Play'in
+KENDİSİ satırın gerçek merkezinden **44px sola kayıyor** — KOMPRESÖR/REVERB/
+DISTORTION'da BİREBİR AYNI (3'ü de ayrı ayrı ölçüldü). Stereo Genişlik gibi
+Motor1 modlarında sorun yok çünkü İpucu ikon-only (46px), Motor2'nin geniş
+metinli versiyonuyla AYNI genişlikte değil — asimetri SADECE Motor2'de var.
+**Denenen fix:** `#startBtn`'i normal flex akışından çıkarıp
+(`position:absolute`, satırın geometrik merkezi) görünmez bir slot'la
+(`#startBtnSlot`) eski yerini flex akışında TUTMAK — matematik olarak Play'i
+TAM ortaladı (`centerOffset:0`, ölçüldü, 3 modda da) AMA A/B/C kutusunu
+(konumu SABİT kalan) **40px KAPATTI** (ölçüldü: `playRight=227, abLeft=187`)
+— ekran görüntüsüyle DOĞRULANDI, "A" harfi Play'in ARKASINDA kayboluyordu.
+Orijinal off-center-ama-örtüşmesiz durumdan DAHA KÖTÜ bir sonuç — kod
+YAZILMADAN önce fark edilip GERİ ALINDI (`index.html`/`styles.css`'te SADECE
+açıklayıcı yorum kaldı, fonksiyonel değişiklik YOK).
+**Neden geri alındı:** "after" içeriği (A/B/C+döngü, 187px) Play'in gerçek-
+merkez SONRASI kalan alandan (147px) tam 40px daha geniş — bu SADECE A/B/C/
+döngü'nün KENDİ boyutunu küçülterek kapanabilir (İpucu'na/gap'e dokunmadan).
+A/B/C/döngü'nün boyutu AÇIKÇA "dokunma" listesinde DEĞİL ama küçültmek görsel
+bir değişiklik (daha dar pill'ler/harfler) — bu bir ÜRÜN KARARI, kod
+yazmadan önce sorulmalı: A/B/C/döngü küçültülsün mü (ne kadar), yoksa Play
+"biraz daha az sola kaymış" bir ARA NOKTAYA mı çekilsin (tam ortalanmadan,
+sadece overlap OLMAYACAK KADAR), yoksa BÖYLE mi kalsın?
+
+**#9 (feedback panelindeki "SONRAKİ SORU"/"ATLAMAK İÇİN ✕" basılamıyor) —
+ÖLÇÜLDÜ, KARAR BEKLİYOR (kod yazılmadı, istendiği gibi).**
+İkisi de düz `<span>` (`index.html:585-587`, `.fb-advance-head` İÇİNDE) —
+`cursor:auto`, `onclick` YOK, hiçbir JS event-listener'ı YOK (grep +
+Playwright'la doğrulandı). CSS'te de buton görünümü YOK — border/background/
+cursor:pointer HİÇBİRİ yok, SADECE 10px büyük harf, harf aralıklı, soluk
+renkli caption stili (`.fb-advance-head`, `styles.css:1396-1397`) — ASLA
+buton OLARAK tasarlanmamışlar. "Sonraki soru" alt satırdaki ilerleme
+çubuğunun (`#fbAdvanceBar`, otomatik-geçiş SAYACI) BAŞLIĞI; "atlamak için ✕"
+kullanıcıyı panelin SAĞ ÜSTÜNDEKİ GERÇEK, ÇALIŞAN X butonuna (`#feedbackClose`)
+YÖNLENDİREN bir METİN İPUCU — kendisi TIKLANABİLİR olması AMAÇLANMAMIŞ.
+Kullanıcının "basmaya çalışıyorum, olmuyor" deneyimi muhtemelen metnin
+İÇİNDEKİ "✕" GLİFİNİN kafa karıştırmasından geliyor (panelde İKİ "✕" var
+gibi görünüyor — biri GERÇEK buton sağ üstte, biri sadece METİN burada).
+**Seçenekler (kod yazılmadı, karar bekleniyor):**
+(a) Bu iki span'i GERÇEKTEN tıklanabilir yap (aynı `goToNextRound()`'u
+    çağıran bir click-delegasyonu ekle, `#feedbackClose` deseninin AYNISI) —
+    kullanıcı DENEDİĞİ şeyin ÇALIŞMASINI sağlar.
+(b) Metni DEĞİŞTİR ("atlamak için ✕" yerine ör. sadece "Sonraki soru" veya
+    "Otomatik geçiş" gibi buton OLMADIĞINI daha net anlatan bir ifade) —
+    yanlış beklenti YARATMAZ.
+(c) Hiç dokunma — mevcut davranış "yanlış" değil, sadece kafa karıştırıcı;
+    #21 düzeltilirse (aşağıya bkz.) belki karışıklık kendiliğinden azalır.
+
+**#21 (Atla ▶ barı SONRAKİ SORU/ATLAMAK İÇİN yazılarının üstüne biniyor) —
+ÖLÇÜLDÜ, TEKRARLANAMADI (headless'te), CİHAZ DOĞRULAMASI ÖNERİLİYOR.**
+`.actionbar` (Atla barının kapsayıcısı) `position:fixed;bottom:0` +
+`#screen-game.actionbar-tucked .actionbar{transform:translateY(115%)}` —
+feedback paneli AÇIKKEN `actionbar-tucked` class'ı DOĞRU şekilde
+uygulanıyor (ölçüldü: `screenClasses` içinde var), actionbar viewport'un
+TAMAMEN DIŞINA (`top:863`, viewport yüksekliği 844) itiliyor. Frekans
+Bulma'da doğru/yanlış cevap + Reverb'de cevap sonrası — HİÇBİRİNDE örtüşme
+ÖLÇÜLEMEDİ (`overlapPixelsY` hep NEGATİF, yani boşluk var, çakışma yok).
+`translateY(115%)` YÜZDESİ elementin KENDİ (safe-area dahil) yüksekliğine
+göre hesaplandığı için matematik olarak `env(safe-area-inset-bottom)`'lu
+GERÇEK cihazlarda da (headless Chromium bunu simüle EDEMİYOR, her zaman 0
+döner) ölçekli kalıp güvenli mesafeyi KORUMASI beklenir — ama bu iddia
+GERÇEK cihazda DOĞRULANAMADI (CLAUDE.md: "cihaza özgü hatalarda önce Safari
+konsolundan ölçüm al", burada tahmin yürütülmedi, sadece matematik + headless
+ölçüm sunuluyor). Kod YAZILMADI — GERÇEK cihazda tekrarlanamazsa muhtemelen
+zaten düzelmiştir (belki DAHA ÖNCEKİ bir turda, ör. panel yüksekliği
+değişimiyle), tekrarlanırsa Safari Web Inspector'dan gerçek `computedStyle`/
+`getBoundingClientRect()` ölçümü gerekiyor.
+
+**DOKUNULAN dosyalar:** `www/styles.css` (SADECE `.abside-c` display
+değeri, #15), `www/index.html` (SADECE 1 yorum düzeltmesi + #18'in denenip
+geri alınan denemesinin belgelenmesi — fonksiyonel değişiklik YOK).
+**DOKUNULMAYAN dosyalar:** `www/js/app.js` (hiç dokunulmadı — TÜM bulgular
+saf CSS/ölçüm), Bug 10/17/19/20/22/23/24'ün kendi kodu, Bug 13/14'ün kendi
+kodu, çip genişliği (581f798), kaynak çipi + BARE_ANALYZER (a4efb42),
+İpucu buton metin ayrımı (G85/G86) — SADECE OKUNDU, hiç değiştirilmedi.
+
+**LOCKED çapraz kontrol (Playwright'la yeniden koşuldu, regresyon YOK):** çip
+genişliği 115/115/115 ve 176/176/176; Bug 10'un 4 paneli hâlâ duraklıyor;
+Bug 17/20/22/23 DEĞİŞMEDİ; kaynak çipi senkronu DEĞİŞMEDİ; Bug 13/14'ün 8
+adımlık senaryosu (bağımsız dosya + mutual exclusion) DEĞİŞMEDİ; kontrol
+satırı gap 4px (a4efb42) DOKUNULMADI (Play'in denemesi GERİ ALINIRKEN gap
+satırı da AYNEN korundu, sadece Play'in KENDİ position kuralı eklenip
+SONRA kaldırıldı).
+
+**npm test: 1275 → 1275 (değişmedi).** Bu turda YENİ bir birim testi
+EKLENMEDİ — #15'in fix'i SAF CSS (`display:block`→`display:flex`), test
+edilebilir bir JS mantığı yok; #9/#18/#21 için KOD hiç YAZILMADI (ölçüm +
+rapor + bekleyen karar).
 
 G182 — **Bug 13 + 14: Referans Filtreleri artık "Mixini Yükle"den TAM
 BAĞIMSIZ — kendi dosyası, kendi oynatıcısı (transport zaten G159'dan beri
@@ -13719,6 +13827,22 @@ kabul edip madde kapatılır.
 
 ## BEKLEYEN KARARLAR
 
+**W. G183 — 3 görsel sorun (#9/#18/#21), kod YAZILMADI, karar bekliyor.**
+- **#18 (Play ortalanmamış, Motor2):** Kontrol satırı piksel-piksel dolu
+  (boş alan sıfır, ölçüldü) — Play'i TAM ortalamanın TEK yolu (denendi,
+  geri alındı) A/B/C/döngü'yü 40px küçültmek. Seçenekler: (a) A/B/C/döngü
+  küçültülsün (ne kadar?), (b) Play kısmen (overlap olmayacak kadar) kaydırılsın,
+  (c) böyle kalsın.
+- **#9 (feedback panelindeki "SONRAKİ SORU"/"ATLAMAK İÇİN ✕" basılamıyor):**
+  İkisi de hiç buton OLARAK tasarlanmamış düz metin (JS/CSS'te hiçbir
+  tıklanabilirlik izi yok) — "atlamak için ✕" kullanıcıyı GERÇEK X butonuna
+  yönlendiren bir ipucu, kendisi değil. Seçenekler: (a) gerçekten
+  tıklanabilir yap, (b) metni netleştir (buton gibi durmasın), (c) dokunma.
+- **#21 (Atla barı feedback panelindeki yazıların üstüne biniyor):**
+  Headless ölçümde TEKRARLANAMADI (actionbar doğru tucked, viewport dışına
+  itiliyor, örtüşme YOK) — GERÇEK cihazda (safe-area-inset dahil)
+  doğrulanmalı, headless Chromium bunu simüle edemiyor.
+
 **R. G142 — Stereo Genişlik'in "her zaman upload" varsayılanı — istisna kabul mü, yeni mühendislik mi?**
 Kullanıcı G141 sonrası "temiz kurulumda kaynak upload seçili geliyor,
 12 modun HEPSİNDE üretilen bir kaynak varsayılan olsun" istedi. Kod
@@ -13911,6 +14035,13 @@ vb.) ANALOG bir per-band kayıt olup olmadığı bu turda TEK TEK
 doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
+
+**EN YENİ SIRADAKİ ADIM (G183 itibarıyla):** #15 (Reverb'de C butonu)
+düzeltildi, GERÇEK cihazda henüz görülmedi — kontrol edilecek: Kompresör/
+Reverb/Distortion'da A/B/C'nin ÜÇÜ de aynı görünmeli. Kalan 3 madde
+(BEKLEYEN KARARLAR W) kod yazılmadan ÖNCE kullanıcı kararı bekliyor —
+özellikle #21 (Atla barı örtüşmesi) GERÇEK cihazda (Safari Web Inspector'dan)
+ölçülmeli, headless'te tekrarlanamadı.
 
 **EN YENİ SIRADAKİ ADIM (G182 itibarıyla):** Bug 13+14 (Referans
 Filtreleri'nin bağımsız dosya seçimi) sadece Playwright'la (gerçek dosya
