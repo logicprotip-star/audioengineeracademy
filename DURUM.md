@@ -146,6 +146,70 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G225 — **Madde 30 düzeltildi: "Atla" ile sessionLimit'e ulaşıp reklam izleyen kullanıcının +5 soru hakkı artık silinmiyor.**
+
+**Kök sebep (G224'ün ölçümüyle netleşmişti):** `els.startBtn`'in click
+handler'ı `activeQuestion===null` iken tıklamayı GERÇEK bir fresh-start
+sanıyordu — ama bu durum İKİ farklı sebepten gelebiliyor: (a) gerçek bir
+fresh-start, (b) sessionLimit/livesOut paywall'ı (`endsRound:true`) round'u
+TEARDOWN ettiği için. Ayrım YOKTU, ikisi de aynı reset koduna (`roundsInThisPlaySession=0`/
+`sessionExtraQuestionsGranted=0`/`startChallenge()`) düşüyordu.
+
+**Uygulanan:** Yeni bayrak `paywallEndedRoundForResume` (`app.js`,
+`paywallPausedRound`'un TAM TERSİ — o `endsRound:false`'u, bu `endsRound:true`'yu
+izliyor). `openPaywallReason()` içinde `cfg.endsRound` true'ysa set ediliyor.
+`#startBtn`'in `!activeQuestion` dalı bu bayrağı OKUYUP TÜKETİYOR (`true` →
+reset ATLANIR, `setAutoPlay(true)` doğrudan çağrılır — `roundsInThisPlaySession`/
+`sessionExtraQuestionsGranted`/`challenge.done` KORUNUR). `resetSession()`
+(GERÇEK fresh-start noktaları: Oyunu Başlat İLK kez, Tekrar Oyna, 10 Soru
+Daha, Menüye Dön) bayrağı AYRICA temizliyor — paywall'dan hiç dönülmeden
+kullanıcı kendi isteğiyle yeni bir deneme başlatırsa eski bayrak SIZMASIN
+diye.
+
+**DOKUNULMAYAN yol (task'ın kendi kuralı, doğrulandı):** cevaplayarak (`.ans`)
+limite ulaşan kullanıcı zaten `goToNextRound()` üzerinden (feedback paneli
+açık kaldığı için) resume ediyordu, bu kod yoluna HİÇ uğramıyordu —
+`paywallEndedRoundForResume` set edilse bile bu yol onu HİÇ okumuyor
+(`goToNextRound()` bu bayrağa dokunmuyor). Regresyon testiyle doğrulandı.
+
+**Ölçüm — düzeltme ÖNCESİ/SONRASI karşılaştırması (`git stash`):** Düzeltme
+OLMADAN yeni "Atla yolu" testi KIRMIZI çıktı (`#gameQMax` beklenen "10"
+yerine "5" — TAM olarak G224'ün raporladığı hata), düzeltmeyle YEŞİL.
+"Cevaplama yolu" testi HER İKİ durumda da yeşildi (bu yolun hiç
+bozulmadığının kanıtı — testin kendisi false-positive DEĞİL).
+
+**e2e — `e2e/paywall-flow.spec.mjs`'e 2 yeni test eklendi** (suite'in YAPISI
+değişmedi, SADECE yeni test eklendi — `helpers/app-fixtures.mjs`'e de 2
+yeni paylaşılan yardımcı: `mockAdReward()`/`dismissFeedbackIfShown()`,
+`layout-geometry.spec.mjs`'in KENDİ yerel kopyalarına DOKUNULMADI, o dosya
+DEĞİŞMEDİ. `seedLocalStorage()`'a geriye-uyumlu `feedbackScreen` parametresi
+eklendi, varsayılan `true` — mevcut 4 testin HİÇBİRİ etkilenmedi):
+1. **"madde 30 (Atla yolu)"** — KABUL KRİTERİNİN kendisi: "Atla" ×5 → paywall →
+   reklam izle (+5 soru, günlük hak "3 kaldı" doğrulanıyor) → "Oyunu Başlat"a
+   bas → `#gameQMax`="10", `#gameQNum`="6" (hak SİLİNMEMİŞ) → 4 "Atla" daha
+   (9. soruya kadar paywall'a düşülmüyor) → 10. "Atla" → paywall TEKRAR açılır
+   (beklenen — madde 20 EK 2'nin kendi bulgusu, challenge.total=10 ile
+   çakışma, BU turun kapsamı DEĞİL) → günlük reklam sayacı "2 kaldı" (3→2
+   doğru azaldı).
+2. **"madde 30 (cevaplama yolu, regresyon)"** — 5 cevap → paywall → reklam
+   izle → feedback panelini kapat (OTOMATİK resume, `#startBtn`'e HİÇ
+   basılmadan) → `#gameQMax`="10", `#gameQNum`="6" — BOZULMADI.
+
+**Ölçüm:** `npm test` → **1315/1315, DEĞİŞMEDİ**. `npm run test:e2e` →
+**10/10** (8 eski test DEĞİŞMEDİ + 2 yeni test).
+
+**Dokunulan:** `www/js/app.js` (`paywallEndedRoundForResume` bayrağı —
+tanım, `openPaywallReason()`'da set, `resetSession()`'da temizleme,
+`#startBtn` handler'ında tüketim), `e2e/paywall-flow.spec.mjs` (2 yeni
+test), `e2e/helpers/app-fixtures.mjs` (2 yeni export + `seedLocalStorage`'a
+geriye-uyumlu parametre).
+**Dokunulmayan:** `goToNextRound()` (hiç değişmedi, cevaplama yolu bu
+fonksiyona hiç dokunmadan çalışıyordu ve çalışmaya devam ediyor),
+`showSessionEnd()`/`window.__aeaShowSessionEndForTest` (G221'in kancası),
+`e2e/layout-geometry.spec.mjs` (dosyanın kendisi tek satır değişmedi), G220
+paywall koşulu, G221 layout, G223 hedef eğriler, G214/G215/G216, G177/G178/
+G185/G187, G198, G201/G204/G205, G203, G212, 581f798/a4efb42.
+
 G224 — **Madde 30 ölçüldü (KOŞULLU bug, önceki "her zaman" iddiası fazla genişti), showSessionEnd() üç dalının TAMAMI TAMAMEN ÖLÜ doğrulandı, SSS madde 31 düzeltildi.**
 
 **1) Madde 30 — VAR, ama KOŞULLU (önceki rapor fazla genişti).** Logic'in
@@ -16289,42 +16353,6 @@ bir müzik/mix parçası, telifsiz) eklenip mod dosyasız da en az bir
 demo/örnek kaynakla açılabilmeli — ya da kullanıcı bu SINIRI bilerek
 kabul edip madde kapatılır.
 
-**30. "Oyunu Başlat" resume'u — KOŞULLU olarak reklamla kazanılan +5 soru
-hakkını VE parkur ilerlemesini siliyor (G224'te netleşti, önceki "her
-zaman" iddiası fazla genişti)**
-Kök sebep AYNI: `els.startBtn`'in click handler'ı (`app.js` ~6282-6309)
-`activeQuestion===null` iken tıklamayı "fresh start" sayıp
-`roundsInThisPlaySession=0`, `sessionExtraQuestionsGranted=0` yazıyor,
-`startChallenge()`'ı (challenge.done=0) yeniden çağırıyor. AMA G224'ün
-ölçümü gösterdi ki bu SADECE `activeQuestion===null` VE açık bir feedback
-paneli YOKKEN tetikleniyor — cevaplayarak (`.ans`) limite ulaşan bir
-kullanıcının feedback paneli paywall'dan dönüşte HÂLÂ açık kalıyor
-(`gameOver=true` olduğu için `scheduleNext()` hiç çalışmıyor), paneli
-kapatmak `goToNextRound()`'u (bu reset koduna HİÇ dokunmayan, TAMAMEN AYRI
-bir yol) tetikliyor — bu yoldan resume GÜVENLİ, ad-reward doğru çalışıyor
-(`#gameQMax`="10" doğru gösteriliyor, ölçüldü). Bug SADECE "Atla" (`#nextBtn`)
-ile limite ulaşıldığında (feedback paneli hiç açılmadığı için ekran temiz
-"Oyunu Başlat" idle durumuna düşüyor, kullanıcı `#startBtn`'e basmak
-ZORUNDA kalıyor) **100% tekrar üretildi** — repro adımları G224'ün BİTTİ
-kaydında.
-**Somut etki (Atla yolunda):** sessionLimit paywall'ında reklam izleyip
-+5 soru kazanan bir kullanıcı, "Atla" ile limite ulaşmışsa "Oyunu Başlat"a
-bastığı AN bu hak siliniyor — `#gameQMax` "10" yerine "5" gösteriyor,
-`#gameQNum` "1"e sıfırlanıyor.
-Madde **20** ile bağlantılı ama AYRI bir sebep — bkz. 20'nin kendisi (G224'te
-free tarafın "done"a ulaşamamasının kendi, ÜÇÜNCÜ ve BAĞIMSIZ bir sebebi
-daha bulundu: sessionLimit'in ad-extended hâli TAM `challenge.total`'a
-denk geliyor ve senkron kontrol yarışı kazanıyor — bu madde 30'dan
-TAMAMEN AYRI).
-**Kabul kriteri:** "Atla" ile limite ulaşıp reklam izleyen bir kullanıcı,
-`#gameQMax`'ın GERÇEKTEN "10" gösterdiği VE 5 soru daha oynayabildiği
-canlı/Playwright ile doğrulanmalı — muhtemel düzeltme yönü: resume'u
-(paywall'dan/duraklatmadan dönüş) fresh-start'tan ayıran bir bayrak,
-`roundsInThisPlaySession`/`sessionExtraQuestionsGranted`/`startChallenge()`
-sıfırlamasını SADECE gerçek fresh-start'ta (mod kartına yeniden girme,
-"Tekrar oyna"/"10 soru daha") tetiklemeli — kullanıcı kararı gerekir,
-DÜZELTİLMEDİ (G224'ün kapsamı ölçümdü).
-
 ## BİLİNEN AÇIKLAR
 
 Düşük riskli, ölçülmüş ama şu an DÜZELTİLMEYEN (bilerek — kod yazılmadı,
@@ -16628,7 +16656,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G224 itibarıyla):** Madde 30 ölçüldü — bug VAR
+**EN YENİ SIRADAKİ ADIM (G225 itibarıyla):** Madde 30 DÜZELTİLDİ ve KAPANDI
+— yeni `paywallEndedRoundForResume` bayrağı `#startBtn`'in fresh-start
+resetini SADECE gerçek fresh-start'ta çalıştırıyor, paywall'dan (reklamla
+uzatılmış oturuma) dönüşte artık çalışmıyor. Cevaplama yolu (zaten
+etkilenmiyordu) regresyon testiyle doğrulandı, bozulmadı. `e2e/paywall-flow.spec.mjs`'e
+2 yeni test (Atla yolu + cevaplama yolu) eklendi, `git stash` ile
+kırmızı/yeşil karşılaştırması yapıldı. `npm test` 1315/1315, `npm run
+test:e2e` 10/10 (8 eski + 2 yeni).
+**Bir sonraki adım:** Kod tarafında açık bir görev yok — AÇIK İŞLER'de
+sadece madde 20 (Pro'da "normal" seans sonu ekranına asla ulaşılamaması,
+kullanıcı kararı bekliyor — "kasıtlı mı, regresyon mu") kalıyor.
+
+**EN YENİ SIRADAKİ ADIM (G224 itibarıyla, ARTIK ESKİ):** Madde 30 ölçüldü — bug VAR
 ama önceki rapor abartılıydı, SADECE "Atla" ile limite ulaşılırsa
 tetikleniyor (cevaplayarak ulaşılırsa feedback panelinin açık kalması
 sayesinde güvenli yoldan resume oluyor). `showSessionEnd()`'in üç dalı da

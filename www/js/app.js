@@ -1026,6 +1026,11 @@ function resetSession() {
   sessionStartLevel = progress.xpProgress(diffState().xp).level;
   roundsInThisPlaySession = 0;
   sessionExtraQuestionsGranted = 0;
+  // G225 (madde 30 düzeltmesi) — bu GERÇEK bir fresh-start (Oyunu Başlat İLK
+  // kez/Tekrar Oyna/10 Soru Daha/Menüye Dön) — paywall'dan dönüşü bekleyen
+  // eski bir paywallEndedRoundForResume bayrağı varsa (kullanıcı paywall'ı
+  // kapatıp buradan yeniden başladıysa) burada SIZMADAN temizlenir.
+  paywallEndedRoundForResume = false;
 }
 
 // G18 bug taraması bulgusu: `session` (yukarıda) sadece Seans Sonu ekranının 3
@@ -6293,10 +6298,28 @@ els.startBtn.addEventListener("click", async () => {
       }
       return;
     }
-    // Gerçek bir fresh-start (bkz. roundsInThisPlaySession tanımındaki not) —
-    // Tekrar Çal (autoStopped dalı, aşağıda) BUNU sıfırlamaz, sadece burası.
-    roundsInThisPlaySession = 0;
-    sessionExtraQuestionsGranted = 0;
+    // G225 (madde 30 düzeltmesi) — bu `!activeQuestion` durumu İKİ FARKLI
+    // sebepten gelebilir: (a) GERÇEK bir fresh-start (mod kartına yeni
+    // girildi, ya da Seans Sonu'nun "Tekrar Oyna"/"10 Soru Daha" CTA'sı
+    // buraya HİÇ uğramadan doğrudan goScreen+setAutoPlay yapıyor — resetSession()
+    // ORADA zaten çalıştı), (b) paywall (livesOut/sessionLimit, endsRound:true)
+    // round'u TEARDOWN ettiği için activeQuestion null — kullanıcı reklamla
+    // uzatılmış bir oturuma (sessionExtraQuestionsGranted) DEVAM etmek
+    // istiyor olabilir. `paywallEndedRoundForResume` bu ikisini ayırıyor —
+    // true ise roundsInThisPlaySession/sessionExtraQuestionsGranted/challenge
+    // SIFIRLANMAZ, "Atla" ile limite ulaşıp reklam izleyen kullanıcının
+    // kazandığı +5 soru hakkı (ve challenge.done'ın mevcut ilerlemesi)
+    // KORUNUR — cevaplayarak limite ulaşan yol (goToNextRound() üzerinden
+    // resume eder, BURAYA hiç uğramaz) zaten etkilenmiyordu, DEĞİŞMEDİ.
+    const isResumeFromPaywall = paywallEndedRoundForResume;
+    paywallEndedRoundForResume = false;
+    if (!isResumeFromPaywall) {
+      // Gerçek bir fresh-start (bkz. roundsInThisPlaySession tanımındaki not) —
+      // Tekrar Çal (autoStopped dalı, aşağıda) BUNU sıfırlamaz, sadece burası.
+      roundsInThisPlaySession = 0;
+      sessionExtraQuestionsGranted = 0;
+      if (isChallenge()) startChallenge();
+    }
     // G61: günlük tadımlık BURADA (gerçek round başlarken), mod kartına
     // dokunulduğu anda DEĞİL işaretleniyor — yanlışlıkla karta basıp geri
     // çıkan bir kullanıcı günün hakkını KAYBETMESİN diye.
@@ -6304,7 +6327,6 @@ els.startBtn.addEventListener("click", async () => {
       stats.dailyTasteLastPlayedAt = Date.now();
       persistStats();
     }
-    if (isChallenge()) startChallenge();
     setAutoPlay(true);
     return;
   }
@@ -8134,6 +8156,18 @@ let openPaywallReasonKey = null;
 // duraklatmaz — round zaten finalizeIfGameOver()/blockIfSessionLimitReached()
 // ile TEARDOWN edilmiş oluyor, duraklatacak bir şey yok.
 let paywallPausedRound = false;
+// G225 (madde 30 düzeltmesi) — paywallPausedRound'un TAM TERSİ durumu
+// işaretler: endsRound:true (livesOut/sessionLimit) bir paywall round'u
+// TEARDOWN ETTİYSE (activeQuestion=null), bu BAYRAK true olur. `#startBtn`'in
+// `!activeQuestion` dalı (aşağıda) bunu OKUYUP tüketiyor — true ise bu bir
+// GERÇEK fresh-start DEĞİL, paywall'dan (reklamla uzatılmış olabilecek bir
+// oturumdan) dönüş — roundsInThisPlaySession/sessionExtraQuestionsGranted/
+// challenge SIFIRLANMAZ, kaldığı yerden devam eder. resetSession() (GERÇEK
+// fresh-start noktaları: Oyunu Başlat İLK kez, Tekrar Oyna, 10 Soru Daha,
+// Menüye Dön) bu bayrağı AYRICA temizler — paywall'dan hiç dönülmeden
+// kullanıcı kendi isteğiyle yeni bir deneme başlatırsa eski bayrak
+// SIZMASIN diye.
+let paywallEndedRoundForResume = false;
 function resumePausedRoundForPaywall() {
   if (paywallPausedRound) resumeRound();
   paywallPausedRound = false;
@@ -8188,6 +8222,11 @@ function openPaywallReason(reasonKey) {
   // G185 (Bug 25, karar 4) — endsRound:false ise (round hâlâ canlı) duraklat.
   paywallPausedRound = !cfg.endsRound && !!activeQuestion && !autoStopped;
   if (paywallPausedRound) pauseRound();
+  // G225 (madde 30 düzeltmesi) — endsRound:true (livesOut/sessionLimit)
+  // round'u TEARDOWN ETTİ demektir — bkz. paywallEndedRoundForResume'un
+  // tanımı, `#startBtn`'in `!activeQuestion` dalı bunu tüketip fresh-start
+  // reset'ini ATLAYACAK.
+  if (cfg.endsRound) paywallEndedRoundForResume = true;
   goScreen("paywall");
   return true;
 }
