@@ -110,6 +110,17 @@
          (161px) durumları --actionbar-h'ın (168px) içine ZATEN sığıyor,
          onlar için bu ikinci sabit KULLANILMIYOR. */
       --actionbar-h-compact:92px;
+      /* G221 DÜZELTMESİ (REGRESYON-15-08 #4c/#4d) — Seans Sonu ekranının
+         (#screen-result) `.actionbar`'ı --actionbar-h'ın (oyun ekranı için
+         kalibre edilmiş) KAYNAĞI DEĞİL, kendi AYRI bir içeriğe sahip: resCta
+         butonu + "Tekrar oyna"/"Menüye dön" satırı + ("lost" durumunda)
+         #resWaitRow can geri sayımı. Playwright'la ölçülen GERÇEK yükseklik:
+         resWaitRow gizliyken 154px, GÖRÜNÜRKEN (en uzun hal, "lost") 198px —
+         --actionbar-h'ın (168px) KENDİSİ ölçüldüğü gibi burada da EN UZUN
+         duruma göre, AYNI ~%13 güvenlik payıyla (168←150, 92←81) yuvarlandı
+         (198×1.13≈224). #screen-result'ın #screen-game'deki gibi bir
+         compact/tucked varyantı YOK — TEK bir sabit yeter. */
+      --result-actionbar-h:225px;
       /* G112 — alt sekme çubuğunun (.tabbar) GERÇEK içerik yüksekliği,
          --actionbar-h ile AYNI desen (env(safe-area-inset-bottom) HARİÇ — o
          ayrıca ekleniyor, bkz. .tools-scroll). Masaüstü Chrome'da ÖLÇÜLEN
@@ -741,6 +752,15 @@
        .25s geçiş süresiyle actionbar'ın kayışıyla SENKRON büyür — içerik ANİ
        sıçramaz, ikisi birlikte yumuşak kayar. */
     #screen-game.actionbar-tucked .game-scroll{margin-bottom:env(safe-area-inset-bottom)}
+
+    /* G221 DÜZELTMESİ (REGRESYON-15-08 #4c/#4d) — .game-scroll'un YUKARIDAKİ
+       AYNI kök sebep/AYNI çözüm: #screen-result'ın (Seans Sonu) `.scroll`'u
+       bu telafiye hiç sahip değildi, sabit `.actionbar`'ın (position:fixed,
+       satır ~1554) ARKASINDA kalıyordu (kaydırıldığında son kart kesiliyor,
+       actionbar'ın üstten saydam kenarından bölge etiketleri sızıyordu).
+       #screen-result'ın #screen-game'deki gibi compact/tucked varyantı YOK —
+       tek, sabit bir margin-bottom yeter. */
+    #screen-result .scroll{margin-bottom:calc(var(--result-actionbar-h) + env(safe-area-inset-bottom))}
 
     /* ---- kaynak / karıştır / zorluk / cevap-biçimi / odak çip satırları ---- */
     /* G85 DÜZELTMESİ — Tasarim-2026-08/Prototip.dc.html satır 531: TEK

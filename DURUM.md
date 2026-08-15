@@ -200,6 +200,66 @@ DEĞİŞMEDİ), paywall ekranlarının içeriği, e2e suite'inin yapısı (sadec
 assert güncellendi), G177/G178/G185/G187/G198/G201/G204/G205/G203/G212/
 G214/G215/G216, 581f798/a4efb42.
 
+G221 — **REGRESYON-15-08 #4c/#4d (Seans Sonu'nda sabit actionbar kaydırılan içeriği örtüyor) ve #4a (boş kırmızı uyarı kutusu) düzeltildi.**
+
+**#4c/#4d — layout telafisi:** `#screen-game .game-scroll`'un zaten sahip
+olduğu `margin-bottom` telafi deseni (`styles.css:737/743`, `--actionbar-h`)
+`#screen-result .scroll`'a hiç uygulanmamıştı. Playwright'la GERÇEK ölçüldü:
+`#screen-result .actionbar` `#resWaitRow` gizliyken 154px, GÖRÜNÜRKEN
+("lost" varyantı, en uzun hal) 198px — `--actionbar-h`'ın (168px, ölçülen
+150px × ~1.13 güvenlik payı) AYNI kuralıyla 198×1.13≈224 → yeni
+`--result-actionbar-h:225px` (`styles.css`, `--actionbar-h-compact`'ın
+hemen altına eklendi) + `#screen-result .scroll{margin-bottom:calc(var(--result-actionbar-h)
++ env(safe-area-inset-bottom))}` (styles.css, `#screen-game.actionbar-tucked
+.game-scroll` kuralının hemen altına eklendi). `#screen-result`'ın
+`#screen-game`'deki gibi bir compact/tucked varyantı yok — tek sabit yeter.
+
+**#4a — `#resWeakBox` boşken artık gizli:** `showSessionEnd()` içinde
+`resCommentText` (zayıf bölge içgörüsü ya da en zayıf bölge cümlesi) boşsa
+(`zoneEnough.length<2`, henüz yeterli veri yokken) kutunun KENDİSİ artık
+`.hidden` — önceden metin boş olsa bile uyarı ikonu + boş bir kutu
+görünüyordu. `#resBonusRow`/`#resLevelUp`/`#resBadge`'in AYNI koşullu-gizleme
+deseni.
+
+**Test metodolojisi — üç deneme, DÜRÜSTLÜK notu:**
+1. İlk sürüm `#screen-result`'ı `.screen.active`'i elle açarak, statik/varsayılan
+   (boş) içerikle ölçtü — CSS telafisi OLMADAN da yeşil çıktığı fark edildi
+   (`git stash`'le doğrulandı) — statik içerik gerçek render'dan kısa olduğu
+   için taşma hiç oluşmuyordu, YANLIŞ güven veriyordu. Reddedildi.
+2. İkinci deneme GERÇEK bir "10 Soruluk Bölüm" (normal/kayıpsız) akışını
+   sürmeye çalıştı (5 soru → sessionLimit paywall → mock'lanmış reklam
+   izleme → 5 soru daha). Bu, BAŞKA bir GERÇEK, önceden bilinmeyen uygulama
+   kilidine çarptı: bkz. yukarıdaki AÇIK İŞLER madde **30** — `startBtn`'in
+   resume dalı reklamla kazanılan +5 soru hakkını VE `challenge.done`'ı
+   sıfırlıyor, bu yüzden akış her seferinde YİNE paywall'a düşüyordu. Kök
+   sebep bu turda koda kadar izlendi (kullanıcıya bildirildi, madde 30 olarak
+   kaydedildi) ama düzeltilmedi — bu turun kapsamı DEĞİLDİ.
+3. Kullanıcı kararıyla (yöntem değişikliği önce soruldu): `window.__tonalDebugState`
+   ile AYNI "doğrulama kancası" deseninde YENİ bir kanca eklendi —
+   `window.__aeaShowSessionEndForTest = showSessionEnd;` (`app.js`,
+   `__tonalRefVerify`'ın hemen altı). Test artık GERÇEK oynanmış turlarla
+   (6 gerçek cevap, `#screen-game` kontrol grubunun AYNI `answerOnce()`
+   akışı) gerçek `session.log`/`session.xp`/`zoneStats` biriktirip bu kancayla
+   `showSessionEnd("lost")`'u DOĞRUDAN çağırıyor — "lost" seçildi çünkü
+   `--result-actionbar-h`'ın kalibre edildiği EN UZUN (198px, `#resWaitRow`
+   görünür) varyant, ölçüm en sıkı koşulda yapılmış oluyor. `git stash`'le
+   TEKRAR doğrulandı: CSS'siz KIRMIZI (actionbar top=646, içerik bottom=694,
+   ~48px örtüşme), CSS'li YEŞİL.
+
+**Ölçüm:** `npm test` → **1315/1315, DEĞİŞMEDİ**. `npm run test:e2e` →
+**8/8 geçti** (layout-geometry.spec.mjs'in ikinci testi artık YEŞİL, kabul
+kriteri karşılandı).
+
+**Dokunulan:** `www/styles.css` (`--result-actionbar-h` + `#screen-result
+.scroll` margin-bottom kuralı), `www/js/app.js` (`els.resWeakBox` + koşullu
+`.hidden` toggle'ı, `window.__aeaShowSessionEndForTest` doğrulama kancası),
+`e2e/layout-geometry.spec.mjs` (ikinci testin TAMAMI, üçüncü deneme yöntemiyle).
+**Dokunulmayan:** paywall ekranlarının içeriği, `finalizeIfGameOver`/
+`blockIfLivesOut`/`blockIfSessionLimitReached`, `startBtn`'in resume/
+fresh-start mantığı (madde 30'un kök nedeni — BİLEREK dokunulmadı, kapsam
+dışı), e2e suite'inin yapısı (sadece bir test yeniden yazıldı), G177/G178/
+G185/G187/G198/G201/G204/G205/G203/G212/G214/G215/G216, 581f798/a4efb42.
+
 G219 — **TEST-BOSLUGU-15-08.md'nin A/E/F maddeleri kalıcı teste dönüştürüldü — `e2e/` altında yeni, AYRI bir Playwright suite'i (`npm run test:e2e`), `npm test`'e (1315) HİÇ DOKUNMADAN.**
 
 **Yapısal karar:** `playwright` (`^1.62.1`) devDependency olarak eklendi
@@ -15905,6 +15965,14 @@ kapatılır, (b) regresyonsa `finishChallenge()`'ın exam-passed/remedial-passed
 sonrasında da (ya da EXAM_ENABLED olmayan bir moda dönülürse) tetiklenmesi
 sağlanıp "done" canlı yeniden denenmeli.
 
+**EK (G221'de bulundu):** Free kullanıcının "done"a asla ulaşamamasının
+İKİNCİ, BAĞIMSIZ bir sebebi daha var — bkz. madde **30**: sessionLimit
+paywall'ından reklamla "+5 soru" kazanılsa BİLE, "Oyunu Başlat"a basıp
+devam etmek `challenge.done`'ı sıfırlıyor. Yani bu madde SADECE
+"examGateActive() Pro'yu bloke ediyor" değil, free tarafta da ayrı bir
+yapısal kilit var — ikisi birlikte "done" durumunu HER kullanıcı tipi için
+kapatıyor.
+
 **21. G106 — Bant bazlı mono kaybı, düşük frekans bantlarında (SUB→BAS)
 komşu banda sızıyor**
 Tek kademe 2. derece band-pass biquad kullanıldığı için (bkz. BİTTİ'nin
@@ -15978,6 +16046,44 @@ bu yüzden burada YAPILAMIYOR.
 bir müzik/mix parçası, telifsiz) eklenip mod dosyasız da en az bir
 demo/örnek kaynakla açılabilmeli — ya da kullanıcı bu SINIRI bilerek
 kabul edip madde kapatılır.
+
+**30. YENİ (G221'de bulundu) — "Oyunu Başlat" resume'u, reklamla kazanılan
++5 soru hakkını VE parkur ilerlemesini sessizce siliyor**
+Kök sebep: `els.startBtn`'in click handler'ı (`app.js` ~6282-6309)
+`activeQuestion===null` iken (bu, HER paywall teardown'ından sonra doğrudur
+— `teardownActiveRound()` bunu HER ZAMAN null'a çeker) tıklamayı "fresh
+start" sayıp `roundsInThisPlaySession=0`, `sessionExtraQuestionsGranted=0`
+YAZIYOR ve `isChallenge()` iken `startChallenge()`'ı (challenge.done'ı da
+sıfırlayan) YENİDEN çağırıyor — bu üçü, kullanıcının paywall'dan HER dönüşünde
+(reklam izleyip devam etsin ya da sadece "Oyunu Başlat"a bassın, fark etmez)
+çalışıyor.
+**Somut etki:** sessionLimit paywall'ında "reklam izle, +5 soru hakkı kazan"
+CTA'sına basan bir ücretsiz kullanıcı reklamı gerçekten izler,
+`grantSessionExtension()` `sessionExtraQuestionsGranted`'ı 5 artırır — ama
+kullanıcı "Oyunu Başlat"a bastığı AN bu değer 0'a döner. Kazanılan hak
+GÖRÜNÜŞTE var (toast/kısa an gösterilir) ama fiilen kullanılamaz — kullanıcı
+5 soru daha oynayınca AYNI paywall'a AYNI şekilde tekrar çarpar, reklam
+ödülü etkisiz. Bu, e2e testinde (`e2e/layout-geometry.spec.mjs`, G221'in
+ilk denemesi) canlı yakalandı: reklam+resume sonrası akış beklenen
+`screen-result` yerine YİNE `screen-paywall`'a düşüyordu — kök sebep bu
+turda koda kadar izlendi, DÜZELTİLMEDİ (bu turun kapsamı/DOKUNULMAYACAK
+listesi dışında, kullanıcıya bildirildi).
+Madde **20** ile bağlantılı ama AYRI bir sebep: 20 "Pro examGateActive
+yüzünden done'a hiç ulaşamıyor" diyor, bu madde ise "free tarafta ad-reward
+escape hatch'i de fiilen çalışmıyor" diyor — ikisi birlikte "10 Soruluk
+Bölüm"ün kayıpsız bitişini (neredeyse) HİÇBİR kullanıcı tipi için mümkün
+kılmıyor.
+**Kabul kriteri:** sessionLimit paywall'ında reklam izleyip devam eden bir
+kullanıcı, kalan soru hakkının (`#gameQMax`) GERÇEKTEN 10 gösterdiği VE
+5 soru daha oynayabildiği canlı/Playwright ile doğrulanmalı — muhtemel
+düzeltme yönü: resume'u (paywall'dan/duraklatmadan dönüş) fresh-start'tan
+ayıran bir bayrak (ör. `paywallPausedRound`'a benzer, ama teardown edilmiş
+round'lar için de çalışan bir işaret), `roundsInThisPlaySession`/
+`sessionExtraQuestionsGranted`/`startChallenge()` sıfırlamasını SADECE
+gerçek fresh-start'ta (mod kartına yeniden girme, "Tekrar oyna"/"10 soru
+daha") tetiklemeli — kullanıcı kararı gerekir (DOKUNULMAYACAK listesi bu
+turda `startBtn` handler'ını kapsamıyordu ama task'ın kapsamı SADECE CSS
+telafisiydi, bu yüzden dokunulmadı).
 
 ## BİLİNEN AÇIKLAR
 
@@ -16282,15 +16388,25 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G220 itibarıyla):** "ÜÇ İŞ" görevinin 1. maddesi
+**EN YENİ SIRADAKİ ADIM (G221 itibarıyla):** "ÜÇ İŞ" görevinin ilk ikisi
+bitti — G220 (G63 kaldırıldı, paywall ilk oturumda da GERÇEK açılıyor) ve
+G221 (`#screen-result` layout telafisi + `#resWeakBox` boşken gizleniyor,
+`e2e/layout-geometry.spec.mjs` artık 2/2 yeşil). Bu arada İKİ yeni bulgu
+AÇIK İŞLER'e eklendi: madde 20'nin eki (free tarafta da "done" durumuna
+ulaşılamıyor) ve YENİ madde 30 (reklamla kazanılan +5 soru hakkı `startBtn`
+resume'unda sessizce siliniyor) — ikisi de bu turun kapsamı dışında,
+düzeltilmedi. `npm test` 1315/1315, `npm run test:e2e` 8/8.
+**Bir sonraki adım:** ÜÇÜNCÜ iş — "i" metinleri taraması (ücretsiz sürüm
+kuralları kaç yerde anlatılıyor, tutuyor mu — ÖLÇÜM, kod yazılmayacak).
+Ayrıca madde 30 için kullanıcı kararı bekleniyor (düzeltilsin mi, ne zaman).
+
+**EN YENİ SIRADAKİ ADIM (G220 itibarıyla, ARTIK ESKİ):** "ÜÇ İŞ" görevinin 1. maddesi
 bitti — G63 kaldırıldı, paywall ilk oturumda da GERÇEK ekranıyla açılıyor
 (bkz. G220'nin YAPISAL YAN ETKİ notu: showSessionEnd()'in üç dalı da artık
 UI'dan erişilemez). `npm test` 1315/1315, `npm run test:e2e` 7/8 (paywall
 matrisinin 4 testi güncellendi/geçti; `layout-geometry.spec.mjs`'in
 G219'dan kalan bilinen-kırmızı testi bu G'nin kendi değişikliğiyle daha
 erken bir noktada patlıyor — bir sonraki committe baştan yazılacak).
-**Bir sonraki adım:** "ÜÇ İŞ"in 2. maddesi — REGRESYON-15-08 #4c/#4d/#4a
-layout telafisi (`#screen-result`), ayrı commit.
 
 **EN YENİ SIRADAKİ ADIM (G219 itibarıyla, ARTIK ESKİ):** `e2e/` altında kalıcı bir
 Playwright test suite'i kuruldu (`npm run test:e2e`, `npm test`'ten AYRI,

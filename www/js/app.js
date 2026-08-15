@@ -557,6 +557,7 @@ const els = {
   resSeqMap: document.getElementById("resSeqMap"),
   resBoxes: document.getElementById("resBoxes"),
   resComment: document.getElementById("resComment"),
+  resWeakBox: document.getElementById("resWeakBox"),
   resBadge: document.getElementById("resBadge"),
   resBadgeIcon: document.getElementById("resBadgeIcon"),
   resBadgeName: document.getElementById("resBadgeName"),
@@ -1857,7 +1858,14 @@ function showSessionEnd(kind) {
     els.resBoxes.innerHTML = "";
   }
 
-  els.resComment.textContent = insight || (weakest ? `${weakest.label} bölgesinde %${weakest.pct} isabetin var.` : "");
+  // G221 DÜZELTMESİ (REGRESYON-15-08 #4a) — #resWeakBox (ikon+kutu) ÖNCEDEN
+  // koşulsuz görünürdü, `resCommentText` boşken bile (ör. zoneEnough<2,
+  // henüz yeterli veri yokken) sadece uyarı ikonu + boş bir kutu kalıyordu.
+  // Artık metin BOŞSA kutunun KENDİSİ de gizleniyor — diğer koşullu
+  // satırların (#resBonusRow/#resLevelUp/#resBadge) AYNI `.hidden` deseni.
+  const resCommentText = insight || (weakest ? `${weakest.label} bölgesinde %${weakest.pct} isabetin var.` : "");
+  els.resComment.textContent = resCommentText;
+  if (els.resWeakBox) els.resWeakBox.classList.toggle("hidden", !resCommentText);
 
   // Rozet kartı — Seans Özeti.dc.html'de var, Prototip'in canlı özet ekranında
   // yok (çeliştikleri yer, task'ın kendi maddesinde AÇIKÇA istendi) — bu
@@ -11408,6 +11416,16 @@ window.__tonalRefVerify = async function (qOverride, scaleOverride) {
   const afterDist = afterDevs.reduce((s, d, i) => s + Math.abs(d - refDevs[i]), 0);
   return { mixDevs, refDevs, gains, afterDevs, beforeDist, afterDist };
 };
+
+// G221 — doğrulama kancası: showSessionEnd()'in "lost"/"freeLimit" dalları
+// G220'nin (G63 kaldırılması) yapısal yan etkisiyle normal akıştan (paywall
+// her zaman araya giriyor) BİR DAHA tetiklenemiyor — ama fonksiyonun kendisi
+// hâlâ gerçek, canlı `session`/`zoneStats`/`stats` state'ini render ediyor.
+// e2e/layout-geometry.spec.mjs bu kancayla GERÇEK oynanmış turların
+// ürettiği veriyle #screen-result'ı açıp CSS telafisini
+// (--result-actionbar-h) ölçüyor — window.__tonalDebugState'in AYNI deseni
+// (kalıcı, çağrılmazsa maliyeti yok).
+window.__aeaShowSessionEndForTest = showSessionEnd;
 
 // G117 madde B — bölge SOLO dinleme. Bant adları canvas üstünde ÇİZİLİ metin
 // (gerçek DOM elemanı DEĞİL, bkz. drawTonalChart), bu yüzden tıklama pixel-
