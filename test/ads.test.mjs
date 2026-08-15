@@ -38,7 +38,7 @@ describe("ads: pickRewardedAdUnitId", () => {
     assert.equal(new Set(ids).size, 4);
   });
 
-  it("AD_TEST_MODE varsayılan olarak AÇIK — yayına almadan önce tek satırla değiştirilir", () => {
+  it("AD_TEST_MODE varsayılan olarak AÇIK — G239'dan beri build-flags.js:DEV_MODE'dan türüyor (bkz. test/build-flags.test.mjs), bağımsız bir sabit DEĞİL", () => {
     assert.equal(AD_TEST_MODE, true);
   });
 });

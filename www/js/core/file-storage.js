@@ -14,6 +14,8 @@
 // "iOS kısıtı: uygulama başka bir dosyanın yolunu saklayıp sonradan o yoldan
 // okuyamaz" — bu yüzden dosyanın KENDİSİ (yolu değil) buraya kopyalanıyor.
 
+import { DEV_MODE } from "./build-flags.js";
+
 const FS_DIRECTORY = "DATA";
 const FS_SUBDIR = "araclar-kutuphane";
 
@@ -38,7 +40,9 @@ function uploadDiagMem() {
   }
   return "";
 }
+// G239 — build-flags.js:DEV_MODE false iken (Release Archive) HİÇ basılmaz.
 function uploadDiagLog(step, label, phase, detail) {
+  if (!DEV_MODE) return;
   console.log(`[upload-diag] ${step}) ${label} ${phase}${detail ? ` — ${detail}` : ""}${uploadDiagMem()}`);
 }
 

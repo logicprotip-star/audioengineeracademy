@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G238)
+Son güncelleme: 15.08.2026 (G239)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,110 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G239 — **Tek yayın bayrağı kuruldu (BEYAN-DENETIM-15-08 bulgusu 🔴) — AD_TEST_MODE + 43 tanı logu + 3 test kancası ARTIK TEK bir `DEV_MODE`'dan (core/build-flags.js) türüyor, yanlış konumda npm test/e2e KIRMIZI çıkıyor.**
+
+**Kök sebep (TUR5A'da bulunmuştu):** `AD_TEST_MODE` (ads.js) ve
+"43 tanı logu her zaman açık" İKİ AYRI, elle takip edilen durumdu —
+Capacitor'ın web katmanında Debug/Release ayrımı olmadığı için (webDir
+doğrudan kopyalanıyor) HİÇBİRİ derleme zamanında otomatik kapanmıyordu.
+
+**Uygulanan:**
+1. YENİ `core/build-flags.js` — TEK export: `DEV_MODE = true` (repo'nun
+   HER ZAMAN committed hâli). Release Archive'ından HEMEN önce TEK satır
+   `false`'a çevrilip Archive alınır, HEMEN geri `true`'ya alınır — bu
+   hâl repo'ya KOMMİT EDİLMEZ.
+2. `core/ads.js:AD_TEST_MODE` artık `DEV_MODE`'un aynası
+   (`export const AD_TEST_MODE = DEV_MODE;`), bağımsız bir sabit DEĞİL.
+3. Tanı log wrapper'larının HEPSİ (`app.js:audioDiagLog`/`uploadDiagLog`,
+   `core/upload.js:uploadDiagLog`, `core/file-storage.js:uploadDiagLog`,
+   `core/tonal-balance.js:tonalDiagLog`) `if (!DEV_MODE) return;` ile
+   gated. `core/audio-engine.js`'in DAHA ÖNCE hiç wrapper'ı OLMAYAN 19
+   raw `console.log([audio-diag]...)` çağrısı YENİ bir yerel `audioDiagLog()`
+   sarmalayıcısına yönlendirildi (diğer 4 dosyadaki AYNI desen) —
+   mekanik bir dönüşüm, mesaj içerikleri DEĞİŞMEDİ.
+4. Test kancalarının ÜÇÜ de (`window.__aeaShowSessionEndForTest`/
+   `__tonalDebugState`/`__tonalRefVerify`) `if (DEV_MODE) {...}` bloğuna
+   alındı — native köprü fonksiyonları (`window.__aeaNativeRouteChanged`/
+   `__aeaNativeInterruption`, GERÇEK Swift↔JS iletişimi, TEST kancası
+   DEĞİL) BİLEREK gated EDİLMEDİ, Release'de de çalışmalı.
+
+**İKİ KATMANLI tripwire (task'ın kendi talebi: "belgeye güvenmeyelim"):**
+1. YENİ `test/build-flags.test.mjs` — `DEV_MODE===true` DOĞRUDAN
+   zorluyor, yanlışlıkla `false` commit edilirse `npm test` EN BAŞTA
+   kırmızı çıkar.
+2. Mevcut `e2e/layout-geometry.spec.mjs` (ZATEN vardı, DOKUNULMADI) —
+   `window.__aeaShowSessionEndForTest`'in VARLIĞINI `assert.equal(hookAvailable,
+   true, ...)` ile doğruluyor, `DEV_MODE=false`'ta bu da kırmızı çıkar.
+
+**Kırmızı/yeşil FİİLEN doğrulandı (varsayım değil):**
+`DEV_MODE`'u GEÇİCİ olarak `false`'a çevirip `test/build-flags.test.mjs`
+(kırmızı, beklenen mesajla), `test/ads.test.mjs` (kırmızı) ve
+`e2e/layout-geometry.spec.mjs` (kırmızı, "ön koşul: window.__aeaShowSessionEndForTest
+bulunamadı") ÜÇÜNÜN de gerçekten kırmızı çıktığı GÖZLEMLENDİ, SONRA
+`true`'ya geri alındı.
+
+**Testler:** `test/build-flags.test.mjs` (yeni, 2 test) +
+`test/ads.test.mjs`'in mevcut testinin yorumu güncellendi (davranış
+DEĞİŞMEDİ, hâlâ `AD_TEST_MODE===true` bekliyor).
+
+**Ölçüm:** `npm test` → **1357/1357** (1355 + 2 yeni test, bu iş için —
+frekans-cakismasi'nin 2 testi AYRI commit'te). `npm run test:e2e` →
+**18/18, DEĞİŞMEDİ** ("madde 30 (cevaplama yolu)" testinin bir ÖNCEKİ
+çalıştırmada 1 kez FLAKE verdiği gözlemlendi — hemen tekrar
+çalıştırıldı, 18/18 YEŞİL — G239'un değişiklikleriyle İLGİSİZ, bu test
+zaten uzun/karmaşık bir zamanlama senaryosu taşıyor).
+
+**Dokunulan:** YENİ `www/js/core/build-flags.js`, `www/js/core/ads.js`,
+`www/js/app.js` (2 wrapper + 3 kanca), `www/js/core/upload.js`,
+`www/js/core/file-storage.js`, `www/js/core/tonal-balance.js`,
+`www/js/core/audio-engine.js` (YENİ yerel wrapper + 19 çağrı sitesi),
+YENİ `test/build-flags.test.mjs`, `test/ads.test.mjs` (SADECE yorum).
+**Dokunulmayan:** `window.__aeaNativeRouteChanged`/`__aeaNativeInterruption`
+(gerçek native köprüler, gated EDİLMEDİ), tanı log MESAJLARININ
+İÇERİĞİ, AdMob birim ID'leri/reklam mantığı, e2e suite yapısı,
+G214-G238, 581f798/a4efb42.
+
+TUR 5A — **Teknik Sağlamlık ve Çökme Riski denetimi tamamlandı (`TUR5A-SAGLAMLIK-15-08.md`) — KOD DEĞİŞMEDİ, sadece ölçüm. Baş bulgu: G214-G238'in (18 commit, aynı gün) etkileşimi tarandı, ciddi bir çakışma bulunmadı; G220'nin showSessionEnd() ölü kodu (görevin kendi örneği) teyit edildi, ZATEN test kancasıyla telafi edilmiş; Debug/Release için build config'den KESİN kanıt: bu Capacitor projesinde JS/HTML/CSS katmanı için minification/strip YOK, iki build BİREBİR AYNI.**
+
+**Yöntem:** 7 bölüm (A-G) — bugünün 18 commit'inin etkileşimi
+(öncelikli), bellek sızıntısı, sonsuz döngü/donma, sayısal uçlar,
+iOS'a özel çökme sebepleri, Debug/Release farkı (önemli), bugün
+atlanan var mı. Commit tarihleri `git log --date` ile doğrulandı (hepsi
+15 Ağustos 12:17-23:53 arası, tek çalışma bloğu).
+
+**Öne çıkan bulgular (TAM liste ve gerekçe `TUR5A-SAGLAMLIK-15-08.md`'de):**
+1. **🟡 YENİ** — `frekans-cakismasi.js:generateStage3Choices()` (satır
+   264) korumasız bir `while` döngüsü taşıyor, kardeş fonksiyonundaki
+   (satır 232) `guard` sınırlamasına SAHİP DEĞİL. Matematiksel analizle
+   şu an tetiklenemediği doğrulandı (`cutStepDb` her zaman pozitif),
+   ama savunmasız — `guard` deseni EKLENEBİLİR.
+2. **🟡 TEYİT** — G220'nin `showSessionEnd("lost"/"freeLimit")`'i ölü
+   koda çevirmesi (görevin kendi verdiği örnek) koddan KESİN doğrulandı
+   — `openPaywallReason()` artık pratikte hiç `false` dönmüyor. ZATEN
+   biliniyordu (kod yorumu + `window.__aeaShowSessionEndForTest` test
+   kancası) — YENİ bir keşif değil, teyit.
+3. **🟢 KESİN** — `capacitor.config.json`/`package.json` okunarak: bu
+   projede web katmanı için Debug/Release AYRIMI YOK (webpack/vite/
+   rollup config YOK, `www/` klasörü OLDUĞU GİBİ kopyalanıyor). 43
+   tanı logu VE 3 test kancası (`window.__aeaShowSessionEndForTest`/
+   `__tonalDebugState`/`__tonalRefVerify`) Release'de KOŞULSUZ kalıyor
+   — bilinçli bir ödün, düşük risk (satın alma/veri bypass'ı sağlamıyor).
+4. **🟢** — 173 addEventListener/0 removeEventListener istatistiği İLK
+   BAKIŞTA alarm ama YANLIŞ ALARM — tek-sayfa mimaride (DOM elemanları
+   hiç yeniden oluşturulmuyor) beklenen desen, 3 `window`/`document`
+   istisnası tek tek kontrol edilip GÜVENLİ bulundu (bayrak/IIFE ile
+   korumalı).
+5. **🟢** — G225 ile G237'nin AYNI kod bloğuna (fresh-start reset
+   mantığı) dokunması DOĞRUDAN bir çakışma alanıydı — ama "madde 30"
+   e2e testlerinin G237 sonrasında da yeşil kalması (bu oturumda
+   BİZZAT doğrulandı) G237'nin G225'in davranışını ÇÜRÜTMEDİĞİNİ,
+   FARKLI bir mekanizmayla (kalıcı) YERİNE GEÇİRDİĞİNİ kanıtlıyor.
+
+**Dokunulan:** Yok (sadece okuma/grep/matematiksel analiz/config
+dosyası incelemesi). **Dokunulmayan:** Tüm kod, tüm testler, tüm
+commit'ler — task'ın kendi kısıtı ("KOD YAZMA. COMMIT ATMA.") harfiyen
+uygulandı, tek yeni dosya `TUR5A-SAGLAMLIK-15-08.md`.
 
 G238 — **Seviye eşikleri yaklaştırıldı (ürün kararı) — ACADEMY_XP_MULTIPLIER 5'ten 3'e indirildi, Sv 30 (Altın Kulak) için gereken toplam XP 159.500'den 95.700'e düştü.**
 
@@ -17651,7 +17755,18 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G238 itibarıyla):** Bu görevin 2 maddesi de
+**EN YENİ SIRADAKİ ADIM (TUR 5A itibarıyla):** `TUR5A-SAGLAMLIK-15-08.md`
+tamamlandı (denetim, kod yazılmadı, commit atılmadı). **Bir sonraki
+adım — kullanıcının onayı gerekir:** raporun "yayın öncesi
+düzeltilecekler" listesindeki 2 madde — (1) `frekans-cakismasi.js:generateStage3Choices()`'a
+(satır 264) kardeş fonksiyonundaki `guard` deseninin eklenmesi (dar
+kapsamlı, düşük risk), (2) `showSessionEnd("lost"/"freeLimit")`'in
+ölü dallarının temizlenmesi/belgelenmesi (acil değil). Ayrıca G231/
+G235/G236'nın BİRİKEN cihazda-doğrulama listeleri (raporun "cihazda
+doğrulanması gerekenler" bölümü) — TEK bir cihaz turunda toplu
+yapılabilir. TUR4'ün kalan 2 maddesi de hâlâ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (G238 itibarıyla, ARTIK ESKİ):** Bu görevin 2 maddesi de
 KAPANDI — G237 (5 soru duvarı kalıcı) + G238 (ACADEMY_XP_MULTIPLIER
 5→3, Sv 30 için 159.500→95.700 XP). `npm test` 1355/1355 (değişmedi),
 `npm run test:e2e` 18/18 (değişmedi). **⚠️ Hatırlatma (G238'in kendi

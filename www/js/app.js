@@ -2,6 +2,7 @@
 // DOM cache, event listener'lar, oyun döngüsü orkestrasyonu burada yaşar — asıl
 // mantık (ses zinciri, soru üretimi/puanlama, kalıcılık) core/ ve modes/ içindedir.
 
+import { DEV_MODE } from "./core/build-flags.js";
 import { createAudioEngine } from "./core/audio-engine.js";
 import { createUploadManager, validateAudioFile, validateAudioDuration, audioAcceptAttr, SHORT_AUDIO_FORMAT_LIST, FULL_AUDIO_FORMAT_LIST } from "./core/upload.js";
 import { createRoundFlow } from "./core/round-flow.js";
@@ -5041,7 +5042,9 @@ function cakismaSourcesSpec(pair) {
 
 // [audio-diag] KALICI TEŞHİS GÜNLÜĞÜ (task'ın kendi isteği — DÜZELTME YOK,
 // sadece görünürlük). Tek satır format: "[audio-diag] <etiket> — <detay>".
+// G239 — build-flags.js:DEV_MODE false iken (Release Archive) HİÇ basılmaz.
 function audioDiagLog(label, detail) {
+  if (!DEV_MODE) return;
   console.log(`[audio-diag] ${label}${detail ? ` — ${detail}` : ""}`);
 }
 // item 4 — sayfa/uygulama YENİDEN görünür olduğu an burada damgalanır
@@ -6145,7 +6148,9 @@ function uploadDiagMem() {
   }
   return "";
 }
+// G239 — build-flags.js:DEV_MODE false iken (Release Archive) HİÇ basılmaz.
 function uploadDiagLog(step, label, phase, detail) {
+  if (!DEV_MODE) return;
   console.log(`[upload-diag] ${step}) ${label} ${phase}${detail ? ` — ${detail}` : ""}${uploadDiagMem()}`);
 }
 
@@ -11537,59 +11542,66 @@ function drawTonalChart(avgDevs, targetDevs, liveDevs) {
 // G127 — doğrulama kancası: anlık Tonal Balance durumunu (referans listesi,
 // ölçülen LUFS'lar, uygulanan GERÇEK GainNode değeri, çalma durumları)
 // dışarıya okunur biçimde açar — A/B seviye eşitlemesinin sayısal kanıtı için.
-window.__tonalDebugState = () => ({
-  references: toolsTonalReferences,
-  mixLufs: toolsTonalMixLufs,
-  lastAvgDevs: toolsTonalLastAvgDevs,
-  lastTargetDevs: toolsTonalLastTargetDevs,
-  abGainA: toolsTonalAbGainA ? toolsTonalAbGainA.gain.value : null,
-  abGainB: toolsTonalAbGainB ? toolsTonalAbGainB.gain.value : null,
-  filterPreviewGain: toolsFilterPreviewGain ? toolsFilterPreviewGain.gain.value : null,
-  tonalRefPlaying,
-  tonalMixPlaying,
-  toolsFilterPlaying,
-  toolsRawMixPlaying,
-  toolsRefFilterElapsed: toolsRefFilterUploadManager.elapsed,
-  toolsRefFilterDuration: toolsRefFilterUploadManager.duration,
-  isCustom: toolsTonalIsCustom(),
-});
-window.__tonalRefVerify = async function (qOverride, scaleOverride) {
-  const buffer = uploadManager.getBuffer();
-  const ref = toolsTonalActiveRef();
-  if (!buffer || !ref || !toolsTonalLastAvgDevs) return null;
-  const mixDevs = toolsTonalLastAvgDevs;
-  const refDevs = ref.devs;
-  const scale = scaleOverride != null ? scaleOverride : TOOLS_TONAL_EQ_GAIN_SCALE;
-  const gains = tonalBalance.computeReferenceEqGainsDb(mixDevs, refDevs).map((g) => g * scale);
-  const freqs = tonalBalance.bandCenterFreqs();
-  const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
-  const ctx = new OfflineCtx(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
-  const src = ctx.createBufferSource();
-  src.buffer = buffer;
-  let node = src;
-  gains.forEach((g, i) => {
-    const f = ctx.createBiquadFilter();
-    f.type = "peaking"; f.frequency.value = freqs[i]; f.gain.value = g; f.Q.value = qOverride != null ? qOverride : TOOLS_TONAL_EQ_Q;
-    node.connect(f); node = f;
+// G239 — build-flags.js:DEV_MODE false iken (Release Archive) ÜÇÜ de HİÇ
+// kurulmaz — inceleyici Safari Web Inspector'la bağlansa bile bu kancaları
+// GÖREMEZ. DEV_MODE=true (repo'nun committed hâli) İKEN e2e testleri
+// (e2e/layout-geometry.spec.mjs) __aeaShowSessionEndForTest'e bağlı —
+// DEV_MODE=false'ta o test kırmızı çıkar (bkz. build-flags.js'in KENDİ
+// notu, bu KASITLI bir tripwire).
+if (DEV_MODE) {
+  window.__tonalDebugState = () => ({
+    references: toolsTonalReferences,
+    mixLufs: toolsTonalMixLufs,
+    lastAvgDevs: toolsTonalLastAvgDevs,
+    lastTargetDevs: toolsTonalLastTargetDevs,
+    abGainA: toolsTonalAbGainA ? toolsTonalAbGainA.gain.value : null,
+    abGainB: toolsTonalAbGainB ? toolsTonalAbGainB.gain.value : null,
+    filterPreviewGain: toolsFilterPreviewGain ? toolsFilterPreviewGain.gain.value : null,
+    tonalRefPlaying,
+    tonalMixPlaying,
+    toolsFilterPlaying,
+    toolsRawMixPlaying,
+    toolsRefFilterElapsed: toolsRefFilterUploadManager.elapsed,
+    toolsRefFilterDuration: toolsRefFilterUploadManager.duration,
+    isCustom: toolsTonalIsCustom(),
   });
-  node.connect(ctx.destination);
-  src.start();
-  const rendered = await ctx.startRendering();
-  const afterDevs = await tonalBalance.measureSpectralDeviation(rendered);
-  const beforeDist = mixDevs.reduce((s, d, i) => s + Math.abs(d - refDevs[i]), 0);
-  const afterDist = afterDevs.reduce((s, d, i) => s + Math.abs(d - refDevs[i]), 0);
-  return { mixDevs, refDevs, gains, afterDevs, beforeDist, afterDist };
-};
+  window.__tonalRefVerify = async function (qOverride, scaleOverride) {
+    const buffer = uploadManager.getBuffer();
+    const ref = toolsTonalActiveRef();
+    if (!buffer || !ref || !toolsTonalLastAvgDevs) return null;
+    const mixDevs = toolsTonalLastAvgDevs;
+    const refDevs = ref.devs;
+    const scale = scaleOverride != null ? scaleOverride : TOOLS_TONAL_EQ_GAIN_SCALE;
+    const gains = tonalBalance.computeReferenceEqGainsDb(mixDevs, refDevs).map((g) => g * scale);
+    const freqs = tonalBalance.bandCenterFreqs();
+    const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    const ctx = new OfflineCtx(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    let node = src;
+    gains.forEach((g, i) => {
+      const f = ctx.createBiquadFilter();
+      f.type = "peaking"; f.frequency.value = freqs[i]; f.gain.value = g; f.Q.value = qOverride != null ? qOverride : TOOLS_TONAL_EQ_Q;
+      node.connect(f); node = f;
+    });
+    node.connect(ctx.destination);
+    src.start();
+    const rendered = await ctx.startRendering();
+    const afterDevs = await tonalBalance.measureSpectralDeviation(rendered);
+    const beforeDist = mixDevs.reduce((s, d, i) => s + Math.abs(d - refDevs[i]), 0);
+    const afterDist = afterDevs.reduce((s, d, i) => s + Math.abs(d - refDevs[i]), 0);
+    return { mixDevs, refDevs, gains, afterDevs, beforeDist, afterDist };
+  };
 
-// G221 — doğrulama kancası: showSessionEnd()'in "lost"/"freeLimit" dalları
-// G220'nin (G63 kaldırılması) yapısal yan etkisiyle normal akıştan (paywall
-// her zaman araya giriyor) BİR DAHA tetiklenemiyor — ama fonksiyonun kendisi
-// hâlâ gerçek, canlı `session`/`zoneStats`/`stats` state'ini render ediyor.
-// e2e/layout-geometry.spec.mjs bu kancayla GERÇEK oynanmış turların
-// ürettiği veriyle #screen-result'ı açıp CSS telafisini
-// (--result-actionbar-h) ölçüyor — window.__tonalDebugState'in AYNI deseni
-// (kalıcı, çağrılmazsa maliyeti yok).
-window.__aeaShowSessionEndForTest = showSessionEnd;
+  // G221 — doğrulama kancası: showSessionEnd()'in "lost"/"freeLimit" dalları
+  // G220'nin (G63 kaldırılması) yapısal yan etkisiyle normal akıştan (paywall
+  // her zaman araya giriyor) BİR DAHA tetiklenemiyor — ama fonksiyonun kendisi
+  // hâlâ gerçek, canlı `session`/`zoneStats`/`stats` state'ini render ediyor.
+  // e2e/layout-geometry.spec.mjs bu kancayla GERÇEK oynanmış turların
+  // ürettiği veriyle #screen-result'ı açıp CSS telafisini
+  // (--result-actionbar-h) ölçüyor.
+  window.__aeaShowSessionEndForTest = showSessionEnd;
+}
 
 // G117 madde B — bölge SOLO dinleme. Bant adları canvas üstünde ÇİZİLİ metin
 // (gerçek DOM elemanı DEĞİL, bkz. drawTonalChart), bu yüzden tıklama pixel-

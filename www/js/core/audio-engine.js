@@ -4,6 +4,7 @@
 // callback'i alır (bkz. modes/*.js: applyProcessing(question, { audioCtx })).
 
 import { findSource } from "./source-catalog.js";
+import { DEV_MODE } from "./build-flags.js";
 
 const MUTE_RAMP_SEC = 0.05; // ~50ms — Durdur/Tekrar Çal arasındaki geçiş
 // G33: stopAudio()'nun eski zincir söndürme zaman sabiti (0.03) node.stop()'un
@@ -36,6 +37,15 @@ const STOP_RAMP_TIME_CONSTANT = 0.012;
 const DISCONNECT_DELAY_MS = 100;
 
 export function createAudioEngine() {
+  // G239 — bu dosyanın 18 ayrı "[audio-diag]" console.log çağrısı ÖNCEDEN
+  // wrapper'sız/koşulsuzdu (app.js/upload.js/tonal-balance.js/file-storage.js'in
+  // KENDİ audioDiagLog/uploadDiagLog/tonalDiagLog desenlerinin AKSİNE) — bu
+  // yüzden diğer 4 dosyadaki bayrak ekleme deseni burada da uygulandı,
+  // build-flags.js:DEV_MODE false iken (Release Archive) HİÇ basılmaz.
+  function audioDiagLog(msg) {
+    if (!DEV_MODE) return;
+    console.log(msg);
+  }
   let audioCtx = null;
   let analyser = null;
   let masterGain = null;
@@ -226,7 +236,7 @@ export function createAudioEngine() {
   async function activateNativeSession(reason) {
     const plugin = getAudioSessionPlugin();
     if (!plugin) {
-      console.log(`[audio-diag] native AVAudioSession plugin BULUNAMADI (${reason}) — window.Capacitor yok/iOS değil/nativePromise yok/isPluginAvailable('AudioSessionPlugin') false (Web/Android'de NORMAL; iOS'ta görüyorsan native taraf GERÇEKTEN kayıtlı değil demektir — MainViewController.swift/registerPluginInstance'ı kontrol et)`);
+      audioDiagLog(`[audio-diag] native AVAudioSession plugin BULUNAMADI (${reason}) — window.Capacitor yok/iOS değil/nativePromise yok/isPluginAvailable('AudioSessionPlugin') false (Web/Android'de NORMAL; iOS'ta görüyorsan native taraf GERÇEKTEN kayıtlı değil demektir — MainViewController.swift/registerPluginInstance'ı kontrol et)`);
       return;
     }
     const t0 = performance.now();
@@ -235,9 +245,9 @@ export function createAudioEngine() {
         plugin.activate(),
         new Promise((_, reject) => setTimeout(() => reject(new Error("native activate() 2000ms içinde yanıt vermedi (zaman aşımı)")), 2000))
       ]);
-      console.log(`[audio-diag] native AVAudioSession activate() (${reason}) — ${(performance.now() - t0).toFixed(0)}ms, ok=${res && res.ok}`);
+      audioDiagLog(`[audio-diag] native AVAudioSession activate() (${reason}) — ${(performance.now() - t0).toFixed(0)}ms, ok=${res && res.ok}`);
     } catch (e) {
-      console.log(`[audio-diag] native AVAudioSession activate() HATA (${reason}) — ${(performance.now() - t0).toFixed(0)}ms — ${e && e.message}`);
+      audioDiagLog(`[audio-diag] native AVAudioSession activate() HATA (${reason}) — ${(performance.now() - t0).toFixed(0)}ms — ${e && e.message}`);
     }
   }
 
@@ -245,12 +255,12 @@ export function createAudioEngine() {
     if (!audioCtx || audioCtx.state === "running") return;
     const before = audioCtx.state;
     const t0 = performance.now();
-    console.log(`[audio-diag] resume çağrılıyor (${label}) — öncesi state=${before}`);
+    audioDiagLog(`[audio-diag] resume çağrılıyor (${label}) — öncesi state=${before}`);
     try {
       await audioCtx.resume();
-      console.log(`[audio-diag] resume sonucu (${label}) — ${(performance.now() - t0).toFixed(0)}ms sonra state=${audioCtx.state}`);
+      audioDiagLog(`[audio-diag] resume sonucu (${label}) — ${(performance.now() - t0).toFixed(0)}ms sonra state=${audioCtx.state}`);
     } catch (e) {
-      console.log(`[audio-diag] resume HATA (${label}) — ${e && e.message}`);
+      audioDiagLog(`[audio-diag] resume HATA (${label}) — ${e && e.message}`);
     }
   }
 
@@ -267,7 +277,7 @@ export function createAudioEngine() {
     await new Promise((r) => setTimeout(r, LIVENESS_WAIT_MS));
     const after = audioCtx.currentTime;
     const alive = after > before;
-    console.log(`[audio-diag] currentTime ilerleme kontrolü — ${before.toFixed(3)}s → ${after.toFixed(3)}s (${LIVENESS_WAIT_MS}ms bekleme) — canlı: ${alive}`);
+    audioDiagLog(`[audio-diag] currentTime ilerleme kontrolü — ${before.toFixed(3)}s → ${after.toFixed(3)}s (${LIVENESS_WAIT_MS}ms bekleme) — canlı: ${alive}`);
     return alive;
   }
 
@@ -280,17 +290,17 @@ export function createAudioEngine() {
   // ZORLA yeniden çalıştırılıyor — kod TEKRARLANMADI.
   async function recreateContext() {
     if (contextRecreateCount >= MAX_CONTEXT_RECREATE) {
-      console.log(`[audio-diag] bağlam yeniden oluşturma İPTAL — üst sınıra (${MAX_CONTEXT_RECREATE}) ulaşıldı`);
+      audioDiagLog(`[audio-diag] bağlam yeniden oluşturma İPTAL — üst sınıra (${MAX_CONTEXT_RECREATE}) ulaşıldı`);
       return false;
     }
     const sinceLastAttempt = performance.now() - lastRecreateAttemptAt;
     if (sinceLastAttempt < RECREATE_COOLDOWN_MS) {
-      console.log(`[audio-diag] bağlam yeniden oluşturma İPTAL — hız sınırı (son denemeden ${sinceLastAttempt.toFixed(0)}ms geçti, en az ${RECREATE_COOLDOWN_MS}ms gerekiyor)`);
+      audioDiagLog(`[audio-diag] bağlam yeniden oluşturma İPTAL — hız sınırı (son denemeden ${sinceLastAttempt.toFixed(0)}ms geçti, en az ${RECREATE_COOLDOWN_MS}ms gerekiyor)`);
       return false;
     }
     lastRecreateAttemptAt = performance.now();
     contextRecreateCount++;
-    console.log(`[audio-diag] bağlam YENİDEN OLUŞTURULUYOR (${contextRecreateCount}/${MAX_CONTEXT_RECREATE})`);
+    audioDiagLog(`[audio-diag] bağlam YENİDEN OLUŞTURULUYOR (${contextRecreateCount}/${MAX_CONTEXT_RECREATE})`);
     const oldCtx = audioCtx;
     // Aktif turun/önizlemenin TÜM düğümleri eski (zombi) bağlama ait —
     // yeni bağlama TAŞINAMAZLAR (AudioNode context'e bağlıdır), sadece
@@ -323,12 +333,12 @@ export function createAudioEngine() {
     // çıkarılan toplam sınırın GÜVENLİ olmasının ÖN KOŞULU).
     if (oldCtx) {
       const closeT0 = performance.now();
-      console.log("[audio-diag] eski bağlam close() çağrılıyor");
+      audioDiagLog("[audio-diag] eski bağlam close() çağrılıyor");
       try {
         await oldCtx.close();
-        console.log(`[audio-diag] eski bağlam close() TAMAMLANDI — ${(performance.now() - closeT0).toFixed(0)}ms, state=${oldCtx.state}`);
+        audioDiagLog(`[audio-diag] eski bağlam close() TAMAMLANDI — ${(performance.now() - closeT0).toFixed(0)}ms, state=${oldCtx.state}`);
       } catch (e) {
-        console.log(`[audio-diag] eski bağlam close() HATA — ${(performance.now() - closeT0).toFixed(0)}ms — ${e && e.message}`);
+        audioDiagLog(`[audio-diag] eski bağlam close() HATA — ${(performance.now() - closeT0).toFixed(0)}ms — ${e && e.message}`);
       }
     }
     unlockAudio(); // audioCtx/analyser/masterGain/muteGain YENİDEN kurulur (TAZE AudioContext)
@@ -339,7 +349,7 @@ export function createAudioEngine() {
     await activateNativeSession("recreateContext");
     await tryResumeOnce("bağlam yeniden oluşturma");
     const alive = await checkLiveness();
-    console.log(`[audio-diag] bağlam yeniden oluşturma sonucu — canlı: ${alive}`);
+    audioDiagLog(`[audio-diag] bağlam yeniden oluşturma sonucu — canlı: ${alive}`);
     if (onContextRecreated) onContextRecreated();
     return alive;
   }
@@ -372,7 +382,7 @@ export function createAudioEngine() {
       // geçişte (kimin tetiklediğinden bağımsız) ateşlenir.
       let audioDiagLastState = audioCtx.state;
       audioCtx.onstatechange = () => {
-        console.log(`[audio-diag] statechange — ${audioDiagLastState} → ${audioCtx.state} (currentTime=${audioCtx.currentTime.toFixed(2)})`);
+        audioDiagLog(`[audio-diag] statechange — ${audioDiagLastState} → ${audioCtx.state} (currentTime=${audioCtx.currentTime.toFixed(2)})`);
         audioDiagLastState = audioCtx.state;
       };
       audioReady = true;
@@ -388,10 +398,10 @@ export function createAudioEngine() {
     // fonksiyonun notu — HER dokunuşta ağır bir 120ms+ doğrulama yapmak
         // sağlıklı normal kullanımda gereksiz gecikme eklerdi).
     if (audioCtx.state !== "running") {
-      console.log(`[audio-diag] resume çağrılıyor (unlockAudio/dokunuş) — öncesi state=${audioCtx.state}`);
+      audioDiagLog(`[audio-diag] resume çağrılıyor (unlockAudio/dokunuş) — öncesi state=${audioCtx.state}`);
       audioCtx.resume().then(
-        () => console.log(`[audio-diag] resume sonucu (unlockAudio/dokunuş) — state=${audioCtx.state}`),
-        (e) => console.log(`[audio-diag] resume HATA (unlockAudio/dokunuş) — ${e && e.message}`)
+        () => audioDiagLog(`[audio-diag] resume sonucu (unlockAudio/dokunuş) — state=${audioCtx.state}`),
+        (e) => audioDiagLog(`[audio-diag] resume HATA (unlockAudio/dokunuş) — ${e && e.message}`)
       );
     }
     if (!audioUnlocked) {
@@ -481,7 +491,7 @@ export function createAudioEngine() {
   async function initAudio() {
     unlockAudio();
     if (audioCtx) {
-      console.log(`[audio-diag] play denemesi (initAudio) — state=${audioCtx.state}, currentTime=${audioCtx.currentTime.toFixed(2)}`);
+      audioDiagLog(`[audio-diag] play denemesi (initAudio) — state=${audioCtx.state}, currentTime=${audioCtx.currentTime.toFixed(2)}`);
     }
     return await ensureAudioAlive();
   }

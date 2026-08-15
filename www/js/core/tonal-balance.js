@@ -36,6 +36,7 @@
 // dahil edildi — liste ileride zenginleşebilir, bkz. DURUM.md G223.
 
 import { FA_ZONES } from "../modes/frekans-bulma.js";
+import { DEV_MODE } from "./build-flags.js";
 
 export const BANDS = FA_ZONES.map((z) => z.t.split(" (")[0]);
 export const BAND_EDGES = [FA_ZONES[0].a, ...FA_ZONES.map((z) => z.b)];
@@ -160,7 +161,9 @@ function tonalDiagMem() {
   }
   return "";
 }
+// G239 — build-flags.js:DEV_MODE false iken (Release Archive) HİÇ basılmaz.
 function tonalDiagLog(label, phase, detail) {
+  if (!DEV_MODE) return;
   console.log(`[upload-diag] 5a) ${label} ${phase}${detail ? ` — ${detail}` : ""}${tonalDiagMem()}`);
 }
 

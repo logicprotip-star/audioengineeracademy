@@ -43,6 +43,7 @@
 // ediyor, karşılaştırma önizlemeleri de aynı dondurulmuş noktadan başlıyor.
 
 import { decodeWavPcm } from "./wav-parser.js";
+import { DEV_MODE } from "./build-flags.js";
 
 // G108 — "copyFile sonrası donma, hiç log yok" teşhisi için EKLENDİ (task'ın
 // kendi kuralı: SADECE günlük, düzeltme YOK). `[upload-diag]` önekli, app.js'
@@ -54,7 +55,9 @@ function uploadDiagMem() {
   }
   return "";
 }
+// G239 — build-flags.js:DEV_MODE false iken (Release Archive) HİÇ basılmaz.
 function uploadDiagLog(step, label, phase, detail) {
+  if (!DEV_MODE) return;
   console.log(`[upload-diag] ${step}) ${label} ${phase}${detail ? ` — ${detail}` : ""}${uploadDiagMem()}`);
 }
 

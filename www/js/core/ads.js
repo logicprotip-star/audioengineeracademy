@@ -9,14 +9,16 @@
 // "kullanıcı reklamı yarıda kapattı") sessizce { ok:false } döner, hata
 // TOASTI gösterilmez (bu bir hata değil, beklenen bir sonuç).
 
-// ═══════════════════════════════════════════════════════════════════════════
-// CANLIYA ALMADAN ÖNCE: bu satırı false yap. Test modunda HER ZAMAN Google'ın
-// resmi test birim ID'leri kullanılır (aşağıdaki TEST_UNIT_IDS) — gerçek
-// birim ID'lerin (LIVE_UNIT_IDS) YAYINDA bile yanlışlıkla gösterilme riski
-// yok, çünkü test modu AÇIKKEN gerçek ID'ler hiç OKUNMUYOR. Kendi reklamına
-// tıklamak AdMob hesabı kapatma sebebi — bu yüzden varsayılan AÇIK.
-// ═══════════════════════════════════════════════════════════════════════════
-export const AD_TEST_MODE = true;
+import { DEV_MODE } from "./build-flags.js";
+
+// G239 — ARTIK ayrı elle-çevrilen bir sabit DEĞİL, build-flags.js:DEV_MODE'dan
+// türüyor (bkz. o dosyanın notu — "iki ayrı unutma riski tek yerde
+// birleşsin"). Test modunda HER ZAMAN Google'ın resmi test birim ID'leri
+// kullanılır (aşağıdaki TEST_UNIT_IDS) — gerçek birim ID'lerin (LIVE_UNIT_IDS)
+// YAYINDA bile yanlışlıkla gösterilme riski yok, çünkü test modu AÇIKKEN
+// gerçek ID'ler hiç OKUNMUYOR. Kendi reklamına tıklamak AdMob hesabı kapatma
+// sebebi — bu yüzden DEV_MODE'un varsayılanı (true) AÇIK.
+export const AD_TEST_MODE = DEV_MODE;
 
 // Google'ın resmi, herkese açık test birim ID'leri (hesabından bağımsız,
 // geçersiz trafik riski yok) — https://developers.google.com/admob/ios/test-ads
