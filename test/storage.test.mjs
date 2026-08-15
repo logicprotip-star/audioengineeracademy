@@ -7,7 +7,7 @@
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave } from "../www/js/core/storage.js";
+import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave, loadSchemaVersion, ensureSchemaVersion, CURRENT_SCHEMA_VERSION } from "../www/js/core/storage.js";
 
 function installLocalStorageMock(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -385,5 +385,50 @@ describe("G232 — trySave({mirror:false}) — app.js'in storage.js dışı 3 an
     const store = installLocalStorageMock();
     assert.equal(trySave("eqEarTrainerProXToolsMeasurements", [{ file: "y" }], { mirror: false }), true);
     assert.deepEqual(JSON.parse(store.get("eqEarTrainerProXToolsMeasurements")), [{ file: "y" }]);
+  });
+});
+
+// G233 (TUR3A bulgusu 🟡) — hiçbir kayıtta sürüm/şema numarası yoktu.
+// SADECE bir sayı okuma/yazma turu — HİÇBİR migration mantığı YOK
+// (task'ın kendi talimatı: "en basit çözüm yeter").
+describe("G233 — loadSchemaVersion()/ensureSchemaVersion() — sürüm yoksa 'v1' varsayılır", () => {
+  it("anahtar HİÇ yazılmamışsa (bu düzeltmeden önceki TÜM mevcut veri) v1 sayılır", () => {
+    installLocalStorageMock();
+    assert.equal(loadSchemaVersion(), 1);
+  });
+
+  it("bozuk/sayısal olmayan bir değer varsa da v1'e düşer, çökmez", () => {
+    installLocalStorageMock({ eqEarTrainerProXSchemaVersion: "abc" });
+    assert.equal(loadSchemaVersion(), 1);
+  });
+
+  it("ensureSchemaVersion() ÇAĞRILDIKTAN SONRA loadSchemaVersion() CURRENT_SCHEMA_VERSION döner", () => {
+    installLocalStorageMock();
+    globalThis.window = { Capacitor: null };
+    ensureSchemaVersion();
+    assert.equal(loadSchemaVersion(), CURRENT_SCHEMA_VERSION);
+  });
+
+  it("İLK açılışta (anahtar hiç YOKKEN) ensureSchemaVersion() anahtarı GERÇEKTEN yazar — loadSchemaVersion()'ın 'yoksa v1 varsay' TARAFSIZLIĞINDAN bağımsız doğrulama (bu test YAZMADAN önce kırmızıydı: CURRENT_SCHEMA_VERSION=1 iken 'zaten güncel' kontrolü loadSchemaVersion()'ın varsayılanıyla YANLIŞLIKLA eşleşip anahtarı HİÇ yazmıyordu)", () => {
+    const store = installLocalStorageMock();
+    globalThis.window = { Capacitor: null };
+    assert.equal(store.has("eqEarTrainerProXSchemaVersion"), false);
+    ensureSchemaVersion();
+    assert.equal(store.has("eqEarTrainerProXSchemaVersion"), true, "ilk açılışta anahtar GERÇEKTEN yazılmalı, sadece varsayılan değerle 'örtüşmemeli'");
+    assert.equal(JSON.parse(store.get("eqEarTrainerProXSchemaVersion")), CURRENT_SCHEMA_VERSION);
+  });
+
+  it("ensureSchemaVersion() setItem hata fırlatsa bile çökmez (trySave'in KENDİ koruması üzerinden geçiyor)", () => {
+    installThrowingLocalStorageMock();
+    assert.doesNotThrow(() => ensureSchemaVersion());
+  });
+
+  it("sürüm ZATEN güncelse ensureSchemaVersion() GEREKSİZ bir yazma turu YAPMAZ", () => {
+    const store = installLocalStorageMock({ eqEarTrainerProXSchemaVersion: String(CURRENT_SCHEMA_VERSION) });
+    let writeCount = 0;
+    const origSetItem = store.set.bind(store);
+    globalThis.localStorage.setItem = (k, v) => { writeCount++; return origSetItem(k, v); };
+    ensureSchemaVersion();
+    assert.equal(writeCount, 0);
   });
 });

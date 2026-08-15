@@ -21,6 +21,15 @@ const PURCHASE_KEY = "eqEarTrainerProXPurchase";
 // kötü ihtimalle bir devam fırsatı kaçar, kalıcı ilerleme değil) — 4 kritik
 // anahtarın "yedeklemeye değer" muamelesi burada BİLİNÇLİ olarak uygulanmadı.
 const IN_PROGRESS_ROUND_KEY = "eqEarTrainerProXInProgressRound";
+// G233 (TUR3A bulgusu 🟡) — hiçbir kayıtta sürüm/şema numarası TUTULMUYORDU
+// (grep, sıfır sonuç) — 1.1'de veri yapısı değişirse eski veri (bu anahtar
+// hiç YOKKEN yazılmış) tanınamazdı. Task'ın kendi talimatı: "en basit çözüm
+// yeter, karmaşık migration altyapısı kurma" — TEK, paylaşılan bir sayı,
+// HİÇBİR migration mantığı İÇERMİYOR (şu an hiçbir yerde OKUNMUYOR/
+// KARŞILAŞTIRILMIYOR bile) — sadece gelecekte "bu veri hangi sürümde
+// yazıldı" sorusuna cevap verebilecek bir temel taşı.
+const SCHEMA_VERSION_KEY = "eqEarTrainerProXSchemaVersion";
+export const CURRENT_SCHEMA_VERSION = 1;
 
 // Canlar artık zorluğa göre DEĞİL — tek, global bir havuz (bkz. freshStats().lives).
 // Eskiden her zorluğun kendi canı vardı (perDiff[key].lives); bu yüzden zorluk
@@ -72,6 +81,39 @@ export function trySave(key, value, { mirror = true } = {}) {
     console.error(`[storage] "${key}" yazılamadı:`, e && e.message);
     return false;
   }
+}
+
+// Anahtar hiç yazılmamışsa (bu düzeltmeden ÖNCEKİ TÜM veri) 1 sayılır —
+// task'ın kendi kararı: "sürüm yoksa 'v1' varsay". Mevcut veriye
+// DOKUNMUYOR, sadece OKUMA anında varsayılan değer üretiyor.
+export function loadSchemaVersion() {
+  try {
+    const raw = localStorage.getItem(SCHEMA_VERSION_KEY);
+    const n = raw == null ? 1 : Number(raw);
+    return Number.isFinite(n) && n >= 1 ? n : 1;
+  } catch (e) {
+    return 1;
+  }
+}
+
+// Uygulama açılışında bir kez çağrılır (app.js) — sürüm zaten AÇIKÇA
+// yazılmış VE güncelse gereksiz bir yazma turu ATLANIR. DİKKAT:
+// `loadSchemaVersion()` KULLANILMIYOR — o, anahtar YOKKEN de 1 döner
+// (kasıtlı, "sürüm yoksa v1 varsay"), bu yüzden CURRENT_SCHEMA_VERSION=1
+// olduğu sürece "zaten güncel" ile karıştırılıp anahtar HİÇ yazılmazdı
+// (ölçüldü — Playwright ile ilk açılışta anahtar boş çıktı). Ham değeri
+// AYRI okuyup "gerçekten YAZILMIŞ mı" ile "değeri NE" sorularını ayırıyor.
+// `mirror:false` — bu anahtar diğer 12 kritik anahtar gibi Preferences'a
+// yansıtılmıyor (kapsam dışı, "basit çözüm" talimatıyla tutarlı).
+export function ensureSchemaVersion() {
+  let raw;
+  try {
+    raw = localStorage.getItem(SCHEMA_VERSION_KEY);
+  } catch (e) {
+    raw = null;
+  }
+  if (raw != null && Number(raw) === CURRENT_SCHEMA_VERSION) return;
+  trySave(SCHEMA_VERSION_KEY, CURRENT_SCHEMA_VERSION, { mirror: false });
 }
 
 export function freshDiffState() {

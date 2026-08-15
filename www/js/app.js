@@ -975,6 +975,10 @@ const roundFlow = createRoundFlow({
 // girdisi açılmaz). legacyModeId: perMode İLK KEZ oluşturulurken (göç) tüm geçmiş
 // XP'nin frekans-bulma'ya ait sayılması için — bugüne kadar oynanabilir TEK mod oydu.
 function playableModeIds() { return listModes().map(m => m.getMeta().id); }
+// G233 (TUR3A bulgusu) — şu an hiçbir migration kararını ETKİLEMİYOR,
+// sadece gelecekteki bir sürüm sıçramasının "bu veri hangi sürümde
+// yazıldı" sorusuna cevap verebilmesi için EN BAŞTA bir kez damgalanıyor.
+storage.ensureSchemaVersion();
 let stats = storage.loadStats(difficultyLivesMap(), HINTS_PER_GAME, playableModeIds(), frekansBulma.MODE_ID);
 let history = stats.history || [];
 // loadStats negatif skorları belleğe yüklerken 0'a çeker — düzeltilmiş değer hemen

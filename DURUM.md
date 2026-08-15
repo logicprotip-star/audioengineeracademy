@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (TUR 3A)
+Son güncelleme: 15.08.2026 (G233)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,56 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G233 — **Şema sürüm numarası eklendi (TUR3A bulgusu 🟡) — hiçbir migration mantığı YOK, sadece gelecekteki bir sürüm sıçraması için tek, paylaşılan bir sayı.**
+
+**Kök sebep (TUR3A'da bulunmuştu):** Hiçbir localStorage anahtarında
+sürüm/şema bilgisi tutulmuyordu (grep, sıfır sonuç) — 1.1'de veri
+yapısı değişirse eski veriyi (bu anahtar hiç YOKKEN yazılmış) tanımanın
+hiçbir yolu olmazdı, sonradan eklenemez (geçmiş veri o zaman
+tanınamazdı).
+
+**Uygulanan:** `core/storage.js` — TEK bir anahtar
+(`eqEarTrainerProXSchemaVersion`) + `CURRENT_SCHEMA_VERSION = 1` +
+`loadSchemaVersion()` (anahtar yoksa/bozuksa v1 varsayar — task'ın kendi
+kararı) + `ensureSchemaVersion()` (uygulama açılışında `app.js`'ten bir
+kez çağrılır, sürüm zaten güncelse yazmaz). HİÇBİR migration KARARI
+alınmıyor, hiçbir yerde OKUNUP karşılaştırılmıyor — task'ın kendi
+talimatı ("en basit çözüm yeter, karmaşık migration altyapısı kurma").
+
+**Bulunup DÜZELTİLEN kendi hata (Playwright doğrulaması sırasında
+yakalandı, commit'e GİRMEDEN):** İlk yazdığım `ensureSchemaVersion()`
+"zaten güncelse yazma" kontrolünü `loadSchemaVersion()` üzerinden
+yapıyordu — ama o fonksiyon anahtar YOKKEN de (kasıtlı olarak) 1
+döndürüyor, `CURRENT_SCHEMA_VERSION` de 1 olduğu için "zaten güncel"
+sanılıp anahtar İLK açılışta HİÇ YAZILMIYORDU (tarayıcıda ölçüldü: ilk
+yükte `localStorage.getItem(...)` → `null`). Düzeltme: "zaten yazılmış
+mı" kontrolü HAM değeri ayrı okuyarak yapılıyor artık (`loadSchemaVersion()`
+KULLANILMIYOR bu kontrolde) — anahtarın GERÇEKTEN var olup olmadığı ile
+"değeri ne" soruları ayrıştırıldı.
+
+**Testler:** `test/storage.test.mjs` — 6 yeni test. Kritik olan: "İLK
+açılışta anahtar GERÇEKTEN yazılır" testi — bu, yukarıdaki kendi hatamı
+YAKALAYAN test, `git diff` ile buglı sürüme GERİ alınıp ÇALIŞTIRILDI
+(kırmızı çıktı, doğrulandı), sonra düzeltmeyle YEŞİLE döndü.
+
+**Tarayıcı doğrulaması (Playwright):** ilk açılışta
+`eqEarTrainerProXSchemaVersion` → `"1"` (düzeltmeden ÖNCE `null` idi,
+ölçüldü). Sayfa yeniden yüklenince de `"1"` kalıyor (gereksiz yazma
+turu yok, ama zaten yazılmış — regresyon yok).
+
+**Ölçüm:** `npm test` → **1347/1347** (1341 + 6 yeni test). `npm run
+test:e2e` → **12/12, DEĞİŞMEDİ**.
+
+**Dokunulan:** `www/js/core/storage.js` (`ensureSchemaVersion`/
+`loadSchemaVersion`/`CURRENT_SCHEMA_VERSION`), `www/js/app.js` (açılışta
+TEK satır — `storage.ensureSchemaVersion();`), `test/storage.test.mjs`.
+**Dokunulmayan:** Mevcut hiçbir kayıt/anahtar BOZULMADI (sadece 1 YENİ
+anahtar eklendi), migration mantığı (task istemedi — "şu an bir işe
+yaramayacak"), Preferences mirror kapsamı (bu anahtar da mirror'a
+EKLENMEDİ, G232'nin 3 anahtarıyla TUTARLI), G220/G221/G223/G225/
+G228/G229/G230/G231/G232, G214/G215/G216, G177/G178/G185/G187, G198,
+G201/G204/G205, G203, G212, 581f798/a4efb42.
 
 G232 — **Kalan üç kayıt yeri korumaya alındı (TUR3A bulgusu) — `TOOLS_LIBRARY_KEY`/`TOOLS_ACTIONS_KEY`/`TOOLS_MEASUREMENTS_KEY` artık `trySave()` üzerinden geçiyor, başarısızlıkta ölçülü bir toast gösteriyor.**
 
@@ -17172,7 +17222,26 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G230 itibarıyla):** TUR2-YARIM-15-08.md'nin İKİ
+**EN YENİ SIRADAKİ ADIM (G233 itibarıyla):** TUR3A-VERI-15-08.md'nin
+"yayın öncesi düzeltilecekler" listesindeki 2 maddenin İKİSİ de
+KAPANDI — G231 (7 dakika süre sınırı, decode'dan önce) ve G232/G233
+(3 kayıt yeri `trySave()`'e alındı + şema sürüm numarası eklendi).
+`npm test` 1347/1347 (1331 + 16 yeni test, 3 ayrı commit). `npm run
+test:e2e` 12/12, değişmedi. Playwright ile 4 ayrı gerçek-tarayıcı
+doğrulaması yapıldı (süre reddi/kabulü, kütüphane yazım hatası toast'ı,
+şema anahtarının ilk açılışta gerçekten yazıldığı) — G233'te BU
+doğrulama sırasında kendi yazdığım bir hata (ensureSchemaVersion()'ın
+"zaten güncel" kontrolü ilk açılışta anahtarı hiç yazmıyordu) commit'e
+GİRMEDEN yakalanıp düzeltildi, bkz. o G-kaydı.
+**Bir sonraki adım:** TUR3A-VERI-15-08.md'nin "1.1'e bırakılabilir" ve
+"sadece belgelenecek" listeleri hâlâ AÇIK (7 upload manager'ın aynı
+anda birden fazla buffer tutabilmesi, Documents/iCloud yedek boyutu
+notu, vb.) — kullanıcı kararı gerektirir. RET-RISKI-15-08.md'nin kalan
+öncelik listesi de hâlâ AÇIK: madde 1 (`AD_TEST_MODE=true`), madde 3
+(Privacy Manifest, BELİRSİZ), madde 4 (App Store ekran görüntüleri),
+madde 5 (Paid Apps Agreement, BELİRSİZ).
+
+**EN YENİ SIRADAKİ ADIM (G230 itibarıyla, ARTIK ESKİ):** TUR2-YARIM-15-08.md'nin İKİ
 🔴 maddesi DÜZELTİLDİ — G229 (satın alma kaybı, 12 `save*()` fonksiyonu
 artık korumalı) ve G230 (negatif sıfır, `formatDb()`'nin 4 varyantı
 AÇIKÇA güvenli). `npm test` 1331/1331 (1315 + 16 yeni test), `npm run
