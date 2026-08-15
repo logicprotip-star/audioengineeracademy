@@ -77,20 +77,23 @@ export function modeLevel(stats, modeId) {
 // xpNeeded eğrisi total XP'ye uygulansaydı) akademiyi TEK bir moddan bile DAHA HIZLI
 // doldururdu (10 modun XP'si TOPLANDIĞI için) — task'ın "mod eğrisi akademi için çok
 // hızlı dolar" gerekçesiyle TERS bir sonuç olurdu, bu yüzden çarpan >1 zorunlu.
-// YAN ETKİ (ürün kararı, BURADA ÇÖZÜLMEDİ): paywall.meetsLevelRequirement bu AYNI
-// academyLevel'ı Pro seviye kilidi (mode-catalog.js unlockLevel, 1..20 aralığı) için
-// de kullanıyor — çarpanın büyümesi bu kilitlerin açılma HIZINI da yavaşlatır, bu
-// task'ın kapsamı DEĞİL, kullanıcıya bırakıldı (bkz. DURUM.md G75 BEKLEYEN KARARLAR).
+// YAN ETKİ YOK (DÜZELTME, TUR6-YANETKI-15-08 bulgusu — bu paragraf ÖNCEDEN
+// "paywall.meetsLevelRequirement bu academyLevel'ı Pro seviye kilidi için de
+// kullanıyor, çarpan kilitlerin açılma hızını etkiler" diyordu, bu YANLIŞTI):
+// paywall.meetsLevelRequirement() G163/G164'te (bu satırdan ÇOK ÖNCE, kullanıcı
+// kararıyla "Pro alan kullanıcı seviye ile uğraşmasın") parametresiz, koşulsuz
+// `true` dönecek şekilde sabitlendi — academyLevel'ı hiç OKUMUYOR. mode-catalog.js
+// unlockLevel alanları KODDA duruyor (ileride geri açılabilsin diye silinmedi)
+// ama hiçbir yerde okunmuyor, UI'da da görsel karşılığı yok (grep ile doğrulandı).
+// ACADEMY_XP_MULTIPLIER'ın TEK etkisi Ana Menü'nün gösterdiği academyLevel
+// rozetidir (#menuLevelValue) — zorluk rampası (tierForLevel, modeLevel'dan
+// besleniyor, bu eğriden bağımsız) ve mod kilitleri BUNDAN ETKİLENMEZ.
 //
 // 15 Ağustos 2026 DÜZELTMESİ (ürün kararı, TUR4'ün XP ekonomisi ölçümü sonrası) —
 // 5'ten 3'e indirildi: Sv 30 (Altın Kulak) için gereken toplam XP 159.500'den
 // 95.700'e düştü. `xpNeeded(L)=120+(L-1)×70` formülüne VE seviye eşiklerine
-// (1/3/6/10/15/22/30, `LEVEL_TITLES`) DOKUNULMADI — SADECE bu çarpan değişti.
-// AYNI YAN ETKİ burada da geçerli: paywall.meetsLevelRequirement'ın Pro
-// seviye-kilidi de bu çarpanı paylaştığı için, mod kilitlerinin açılma hızı
-// da orantılı olarak HIZLANDI (kilit seviyelerinin KENDİSİ — mode-catalog.js
-// unlockLevel — DEĞİŞMEDİ, sadece o seviyelere ulaşma SÜRESİ kısaldı) — bu
-// task'ın açıkça istediği DEĞİL, çarpanın PAYLAŞILMASININ kaçınılmaz sonucu.
+// (1/3/6/10/15/22/30, `LEVEL_TITLES`) DOKUNULMADI — SADECE bu çarpan değişti,
+// SADECE Ana Menü rozetinin gösterdiği sayı hızlandı (yukarıdaki not).
 const ACADEMY_XP_MULTIPLIER = 3;
 
 export function academyXpNeeded(level) {

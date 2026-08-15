@@ -936,8 +936,11 @@ audioEngine.onReady = () => drawVisualizer();
 
 // G47: Sınav sistemi (core/exam-system.js) — TEK örnek, round-flow.js/audio-engine.js
 // ile AYNI "bir kez yarat, elde tut" deseni. mode.EXAM_ENABLED export ETMEYEN
-// modlarda (bugün Kompresör HARİÇ hepsi) examSystem.phase HER ZAMAN "parkur" kalır
-// ve HİÇBİR app.js dalı onu okumaz — var olması bile o modları ETKİLEMEZ.
+// modlarda (DÜZELTME, TUR8-OGRETIM-15-08 bulgusu: G47'de sadece Kompresör'dü,
+// artık 12 playable modun 12'sinde de EXAM_ENABLED=true — export ETMEYEN bir
+// mod şu an YOK, bu dal artık teorik/gelecekteki bir moda karşı savunma)
+// examSystem.phase HER ZAMAN "parkur" kalır ve HİÇBİR app.js dalı onu okumaz
+// — var olması bile o modları ETKİLEMEZ.
 const examSystem = createExamSystem();
 
 const revealAnimator = mode.createRevealAnimator({
@@ -1316,7 +1319,10 @@ function examStatsFor(modeId) {
 // ham-XP tabanı sınırsız artmaya devam ediyordu — sınavı geçemeyen kullanıcıda
 // "Seviye N" sabitken gerçek kGap/gainDb/Q artmaya devam ediyordu). SADECE
 // mode.EXAM_ENABLED modlarda (ve o modda examState kurulduktan SONRA) etkili —
-// diğer yedi mod examLevel=undefined ile examCappedLevel'den DEĞİŞMEDEN geçer.
+// DÜZELTME (TUR8-OGRETIM-15-08): 12 playable modun 12'sinde de EXAM_ENABLED
+// artık true, "diğer yedi mod" diye ayrı bir grup KALMADI — EXAM_ENABLED
+// export ETMEYEN (gelecekteki) bir mod olursa examLevel=undefined ile
+// examCappedLevel'den DEĞİŞMEDEN geçmeye devam eder.
 function currentDifficultyPosition(boss) {
   const tier = els.difficultySelect ? els.difficultySelect.value : "medium";
   if (tier === "proplus") return undefined;
@@ -3875,13 +3881,15 @@ function renderQuestion() {
   // ayrım gerçek (challenge.active), bu yüzden "/10" SADECE 10 Soruluk Bölüm'de
   // gösteriliyor — Serbest'te sonsuz bir "/10" yanıltıcı olurdu.
   //
-  // G47: mode.EXAM_ENABLED olan bir modda (bugün SADECE Kompresör) bu ayrım
-  // GEÇERSİZ — kullanıcının onayladığı görev kararı gereği sınav sistemi HER
-  // oyun uzunluğunda (Serbest DAHİL) arka planda 10'ar sorudan parkur sayar,
-  // bu yüzden challenge.active'DEN BAĞIMSIZ HER ZAMAN examSystem.label()
-  // kullanılır ("Soru N/10" / "Sınav N/4" / "Telafi N/5" — bkz. core/
-  // exam-system.js). Export etmeyen diğer yedi modda mode.EXAM_ENABLED
-  // undefined → bu dal hiç çalışmaz, ÖNCEKİ davranış BİREBİR aynı kalır.
+  // G47: mode.EXAM_ENABLED olan bir modda (DÜZELTME, TUR8-OGRETIM-15-08:
+  // G47'de sadece Kompresör'dü, artık 12 playable modun 12'sinde de aktif)
+  // bu ayrım GEÇERSİZ — kullanıcının onayladığı görev kararı gereği sınav
+  // sistemi HER oyun uzunluğunda (Serbest DAHİL) arka planda 10'ar sorudan
+  // parkur sayar, bu yüzden challenge.active'DEN BAĞIMSIZ HER ZAMAN
+  // examSystem.label() kullanılır ("Soru N/10" / "Sınav N/4" / "Telafi N/5"
+  // — bkz. core/exam-system.js). EXAM_ENABLED export ETMEYEN bir mod şu an
+  // YOK — export etmeyen (gelecekteki) bir moda düşerse bu dal hiç
+  // çalışmaz, ÖNCEKİ davranışla BİREBİR aynı kalır.
   els.roundChip.textContent = examGateActive()
     ? examSystem.label()
     : challenge.active
@@ -4686,10 +4694,10 @@ function submitThreeWayGuess(letter) {
   // seans-sonu ekranı ÖNCELİKLİ — sınav sheet'leri bir game-over ekranının
   // ÜSTÜNE açılmamalı, o yüzden gameOver ÖNCE kontrol edilir.
   const gameOver = finalizeIfGameOver();
-  // G47: sınav sistemi — SADECE mode.EXAM_ENABLED true iken (bugün Kompresör)
-  // çağrılır, Reverb (AYNI fonksiyonu paylaşıyor) tamamen ETKİLENMEDEN eski
-  // yoldan devam eder. handleExamOutcome true dönerse (sheet açıldı, akış
-  // KENDİSİ yönetiyor demek) normal scheduleNext ATLANIR.
+  // G47: sınav sistemi — SADECE mode.EXAM_ENABLED true iken (DÜZELTME,
+  // TUR8-OGRETIM-15-08: G47'de sadece Kompresör'dü, artık 12 playable modun
+  // 12'sinde de aktif) çağrılır. handleExamOutcome true dönerse (sheet
+  // açıldı, akış KENDİSİ yönetiyor demek) normal scheduleNext ATLANIR.
   const examHandled = !gameOver && examGateActive() && handleExamOutcome(q, result, gained);
   // Diğer beş modla AYNI hizalı geçiş formülü (bkz. G21). #feedbackBox'ın
   // KENDİ X'i (#feedbackClose, G27) de merkezi delegasyondan otomatik geldi.
@@ -5320,13 +5328,16 @@ function ensureAutoNext(durationMs) {
   // çalışmaz), ama round zaten BAŞLAMIŞ olduğu için hiçbir hata/paywall da
   // görünmezdi.
   if (!isUserPro() && currentLives <= 0) return;
-  // G47: mode.EXAM_ENABLED bir modda (bugün Kompresör) "10 Soruluk Bölüm"ün
-  // KENDİ "10 soru bitti → seansı kapat" mantığı DEVRE DIŞI — parkur/sınav/telafi
-  // akışı 10'un ÖTESİNE geçebiliyor (erken sınav + telafi turları), bunu
-  // challenge.done>=10'da kesmek sınavı YARIDA keserdi. challenge.active/
-  // xpMult()'un +%50 bonusu HÂLÂ çalışıyor (kullanıcı "10 Soruluk Bölüm"ü
-  // seçtiyse), SADECE otomatik bitirme bastırıldı. Diğer yedi modda
-  // mode.EXAM_ENABLED undefined → bu koşul ÖNCEKİ davranışla BİREBİR aynı.
+  // G47: mode.EXAM_ENABLED bir modda (DÜZELTME, TUR8-OGRETIM-15-08: G47'de
+  // sadece Kompresör'dü, artık 12 playable modun 12'sinde de aktif) "10
+  // Soruluk Bölüm"ün KENDİ "10 soru bitti → seansı kapat" mantığı DEVRE
+  // DIŞI — parkur/sınav/telafi akışı 10'un ÖTESİNE geçebiliyor (erken sınav
+  // + telafi turları), bunu challenge.done>=10'da kesmek sınavı YARIDA
+  // keserdi. challenge.active/xpMult()'un +%50 bonusu HÂLÂ çalışıyor
+  // (kullanıcı "10 Soruluk Bölüm"ü seçtiyse), SADECE otomatik bitirme
+  // bastırıldı. EXAM_ENABLED export ETMEYEN bir mod şu an YOK — export
+  // etmeyen (gelecekteki) bir moda düşerse bu koşul ÖNCEKİ davranışla
+  // BİREBİR aynı kalır.
   //
   // G97 (madde 4) — ÜRÜN KARARI, HATA DEĞİL: `examGateActive()` SADECE
   // `isUserPro()` iken true dönebilir (bkz. o fonksiyonun tanımı) — yani bu
