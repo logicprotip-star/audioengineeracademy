@@ -146,6 +146,115 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G224 — **Madde 30 ölçüldü (KOŞULLU bug, önceki "her zaman" iddiası fazla genişti), showSessionEnd() üç dalının TAMAMI TAMAMEN ÖLÜ doğrulandı, SSS madde 31 düzeltildi.**
+
+**1) Madde 30 — VAR, ama KOŞULLU (önceki rapor fazla genişti).** Logic'in
+cihazda tekrar üretememesi HAKLI ÇIKTI kısmen — bug gerçek ama SADECE BELİRLİ
+bir yoldan tetikleniyor, "her resume'da" değil. Playwright'la (scratch script,
+`e2e/`'ye eklenmedi, ölçüm sonrası silindi) İKİ senaryo net ayrıştırıldı:
+
+- **GÜVENLİ yol (Logic'in muhtemelen izlediği) — cevaplayarak (`.ans`) limite
+  ulaşmak:** `finalizeIfGameOver()` (app.js:1588) session limiti tetiklediğinde
+  feedback paneli ZATEN açık durumdaydı (`gameOver=true` olduğu için
+  `scheduleNext()` hiç çağrılmıyor, satır 4059 — panel kapanmadan asılı
+  kalıyor). Reklam izlenip paywall'dan dönüldüğünde panel HÂLÂ açık — kapatmak
+  (`#feedbackClose`) `goToNextRound()`'u (`startBtn`'in fresh-start dalından
+  TAMAMEN AYRI bir kod yolu) çağırıyor, bu yol `roundsInThisPlaySession`/
+  `sessionExtraQuestionsGranted`/`challenge.done`'a HİÇ dokunmuyor (grep ile
+  doğrulandı: bu üç değişkenin YAZILDIĞI TEK iki yer `resetSession()` —
+  app.js:1027-1028 — ve `startBtn`'in `!activeQuestion` dalı — app.js:6298-6299
+  — `goToNextRound()` bunlardan biri DEĞİL). Ölçüldü: reklam sonrası
+  `#gameQMax`="10", 6. soru doğru şekilde geldi.
+- **BUGLU yol (100% tekrar üretildi) — "Atla" (`#nextBtn`) ile limite
+  ulaşmak:** "Atla" hiç feedback paneli açmıyor — paywall'dan dönüşte ekran
+  temiz "Oyunu Başlat" (▶) idle durumunda, `activeQuestion===null`. Kullanıcı
+  `#startBtn`'e basmak ZORUNDA — bu, `els.startBtn`'in click handler'ının
+  `!activeQuestion` dalını (app.js ~6282-6309) tetikliyor: `roundsInThisPlaySession=0`,
+  `sessionExtraQuestionsGranted=0`, `startChallenge()` (challenge.done=0) —
+  ÜÇÜ DE sıfırlanıyor. Ölçüldü (temiz repro): reklamla `#gameQMax`="10"
+  olması gerekirken resume sonrası "5"e döndü, `#gameQNum` "1"e sıfırlandı.
+
+**Tam repro adımları (buglu yol):** 1) ücretsiz kullanıcı, boost-mu-cut-mu
+moduna gir. 2) "Oyunu Başlat", 5 kez "Atla"ya bas (5. basıştan sonra
+`screen-paywall`, "Ücretsiz oturumun bitti" açılır). 3) "veya reklam izle,
++5 soru hakkı kazan"a bas (headless testte `ads.js`'in `watchRewardedAd()`'ı
+mock'lanmalı — gerçek cihazda gerçek reklam). 4) `screen-game`'e dönülür,
+`#startBtn` "▶" (Oyunu Başlat) gösterir. 5) `#startBtn`'e bas. **Sonuç:**
+`#gameQMax` "10" DEĞİL "5" gösterir, `#gameQNum` "1"e döner — kazanılan +5
+soru hakkı ve önceki 5 sorunun sayacı SİLİNMİŞ.
+
+**Gerçek yol (Logic → rapor) çelişkisi çözüldü:** Logic cevaplayarak
+oynadı (GÜVENLİ yol) — bug ORADA hiç tetiklenmiyor, bu yüzden görmedi. Rapor
+"Oyunu Başlat" resume'unu GENELLEŞTİRMİŞTİ ("her paywall dönüşünde") — bu
+YANLIŞTI, SADECE `activeQuestion===null` VE açık bir feedback paneli YOKKEN
+tetikleniyor (fiiliyatta: "Atla" ile limite ulaşma, ya da her ne sebeple
+olursa olsun feedback paneli açık kalmadan paywall'dan dönülen HER durum).
+**Kabul kriteri DEĞİŞMEDİ** (madde 30'da yazılı) — SADECE tetikleme koşulu
+netleşti, düzeltme YAPILMADI (task'ın kapsamı ölçümdü).
+
+**2) showSessionEnd() — ÜÇ DALI da TAMAMEN ÖLÜ, tek tek doğrulandı:**
+
+- **"lost"** (`blockIfLivesOut()`, app.js:1541-1545): `openPaywallReason("livesOut")`
+  G220'den beri HİÇBİR ZAMAN `false` dönmüyor (`paywall.PAYWALL_REASONS.livesOut`
+  her zaman var) — `if (!openPaywallReason(...)) showSessionEnd("lost")` dalı
+  YAPISAL OLARAK imkânsız, koşullu DEĞİL, KESİN ölü.
+- **"freeLimit"** (`finalizeIfGameOver()`/`blockIfSessionLimitReached()`,
+  app.js:1621/1641): AYNI sebep — `"sessionLimit"` de her zaman `PAYWALL_REASONS`'ta
+  var, `openPaywallReason` hiç `false` dönmüyor. KESİN ölü.
+- **"normal"** (`finishChallenge()`, app.js:5698): İKİ BAĞIMSIZ sebepten
+  KESİN ölü — (a) **Pro:** `examGateActive()=mode.EXAM_ENABLED&&isUserPro()`
+  12 modun 12'sinde de `EXAM_ENABLED=true` olduğundan (grep ile doğrulandı)
+  Pro'da HER ZAMAN true, `finishChallenge()`'ın kendi koşulu (`!examGateActive()`)
+  hiç sağlanmıyor. (b) **Free — YENİ ölçüm, önceki turlarda kanıtlanmamıştı:**
+  Bug 30'un GÜVENLİ yolundan (reset olmadan) 10 gerçek soru cevaplandı (canlar
+  999'a seedlendi, livesOut karışmasın diye) — 10. soruda YİNE `screen-paywall`
+  ("Ücretsiz oturumun bitti") açıldı, `screen-result` DEĞİL. Kök sebep: free
+  limit reklamla TAM `FREE_SESSION_QUESTION_LIMIT(5)+SESSION_EXTENSION_QUESTIONS(5)=10`'a
+  çıkıyor — `challenge.total`(10) İLE BİREBİR ÇAKIŞIYOR. `finalizeIfGameOver()`
+  (senkron, cevap sonrası HEMEN) `freeSessionLimitReached()`'ı `ensureAutoNext()`'in
+  (SADECE `gameOver===false`'ken çağrılan, `finishChallenge()`'ın TEK çağrı
+  yeri) `challenge.done>=10` kontrolünden ÖNCE değerlendiriyor — 10. cevapta
+  İKİSİ DE true olsa bile sessionLimit'in senkron/erken kontrolü YARIŞI
+  KAZANIYOR, `finishChallenge()`'a hiç sıra gelmiyor. Bu, G220/Bug-30'dan
+  TAMAMEN BAĞIMSIZ, üçüncü bir yapısal sebep.
+
+**Kod hacmi/bağımlılık:** `showSessionEnd()`'in kendisi 152 satır
+(app.js:1748-1899) + SADECE onu besleyen yardımcılar: `buildResultRing()`
+(19 satır), `buildXpRows()` (15 satır), `start/stopResWaitTicker()` (27
+satır), `hideSessionEnd()` (4 satır) — toplam ~220 satır. 4 çağrı sitesi
+(1543/1621/1641/5698), DÖRDÜ de yukarıdaki sebeplerle ölü. `#screen-result`'ın
+TÜM DOM'u (index.html) + 3 CTA handler'ı (app.js ~7075-7102, "Yeni Seans"/
+"Tekrar oyna"/"Menüye dön") + G221'in CSS telafisi (`--result-actionbar-h`)
+SADECE bu ölü koda hizmet ediyor.
+**e2e kancasına bağımlılık:** EVET — `window.__aeaShowSessionEndForTest`
+(app.js, G221'de eklendi) `e2e/layout-geometry.spec.mjs`'in `#screen-result`
+testinin TEK erişim yolu. `showSessionEnd()`/`#screen-result` silinirse bu
+test VE G221'in doğruladığı CSS telafisi ANLAMSIZ kalır, ikisi de
+kaldırılmalı. **Silme ÖNERİLMEDİ** (task'ın kendi kuralı) — sadece durum
+raporlandı.
+**Sonuç: TAMAMEN ÖLÜ** (kısmen erişilebilir bir dal yok).
+
+**3) SSS madde 31 düzeltildi (KOD):** `www/js/app.js:8261` (`FAQ` dizisi,
+"Canlar neye yarıyor, nasıl dolar?") — son cümle "Canların biterse Seans
+Sonu ekranı açılır" idi (yukarıdaki 2. maddenin kanıtladığı gibi artık
+KESİN yanlış — o ekran hiç açılmıyor) → "Canların biterse devam etmen için
+bir ekran açılır" oldu. **Aynı yanlışın başka yerde geçip geçmediği
+tarandı** (`guide-texts.js`, `app.js`'in TÜM "Seans Sonu ekranı" geçtiği
+satırlar, `index.html`) — HEPSİ kod yorumu, kullanıcıya gösterilen BAŞKA
+hiçbir metinde bu iddia yoktu, SADECE bu tek FAQ maddesindeydi (G222'nin
+kendi taramasıyla TUTARLI).
+
+**Ölçüm:** `npm test` → **1315/1315, DEĞİŞMEDİ**. Ölçüm bölümünde (1/2)
+KOD YAZILMADI — Playwright scratch script'leri (`e2e/_debug_*.mjs`) SADECE
+ölçüm için kullanıldı, ölçüm bitince silindi (`e2e/`'de kalıcı iz yok).
+
+**Dokunulan:** `www/js/app.js` (SADECE `FAQ` dizisinin bir maddesi + üstüne
+açıklayıcı yorum).
+**Dokunulmayan:** `showSessionEnd()`/`finishChallenge()`/`blockIfLivesOut()`/
+`finalizeIfGameOver()`/`blockIfSessionLimitReached()`/`startBtn` handler'ı
+(hiçbiri düzeltilmedi, SADECE okundu/ölçüldü), G220 paywall koşulu, G221
+layout, G223 eğriler, e2e suite yapısı, G214/G215/G216.
+
 G223 — **Tonal Balance hedef eğrileri (Pop/EDM/Akustik) taslaktan GERÇEK ölçüme geçti — 41 parça, kullanıcı tarafından ölçüldü.**
 
 **Değişen sayılar** (`www/js/core/tonal-balance.js:32-36`, `DRAFT_TARGET_CURVES`
@@ -16085,11 +16194,26 @@ sağlanıp "done" canlı yeniden denenmeli.
 
 **EK (G221'de bulundu):** Free kullanıcının "done"a asla ulaşamamasının
 İKİNCİ, BAĞIMSIZ bir sebebi daha var — bkz. madde **30**: sessionLimit
-paywall'ından reklamla "+5 soru" kazanılsa BİLE, "Oyunu Başlat"a basıp
-devam etmek `challenge.done`'ı sıfırlıyor. Yani bu madde SADECE
-"examGateActive() Pro'yu bloke ediyor" değil, free tarafta da ayrı bir
-yapısal kilit var — ikisi birlikte "done" durumunu HER kullanıcı tipi için
-kapatıyor.
+paywall'ından reklamla "+5 soru" kazanılsa BİLE, "Atla" ile limite
+ulaşılmışsa "Oyunu Başlat"a basıp devam etmek `challenge.done`'ı
+sıfırlıyor (G224'te koşulu netleşti — SADECE "Atla" yolunda, cevaplayarak
+ulaşılırsa tetiklenmiyor).
+
+**EK 2 (G224'te bulundu, madde 30'dan TAMAMEN BAĞIMSIZ ÜÇÜNCÜ sebep):**
+Madde 30'un GÜVENLİ yolundan (reset OLMADAN) 10 gerçek soru cevaplanıp
+`screen-result`e ulaşılmaya çalışıldı (ölçüldü, canlar 999'a seedlenerek
+livesOut karışması önlendi) — YİNE `screen-paywall` açıldı, `finishChallenge()`
+hiç tetiklenmedi. Sebep: reklamla free limit TAM `FREE_SESSION_QUESTION_LIMIT(5)
++SESSION_EXTENSION_QUESTIONS(5)=10`'a çıkıyor — `challenge.total`(10) ile
+BİREBİR ÇAKIŞIYOR. `finalizeIfGameOver()` (cevap sonrası senkron/HEMEN)
+`freeSessionLimitReached()`'ı, `ensureAutoNext()`'in (SADECE `gameOver===false`
+iken çağrılan, `finishChallenge()`'ın TEK çağrı yeri) `challenge.done>=10`
+kontrolünden ÖNCE değerlendiriyor — 10. cevapta ikisi de true olsa bile
+sessionLimit'in erken/senkron kontrolü yarışı KAZANIYOR. Yani "done"
+durumu üç BAĞIMSIZ sebepten kapalı: (1) Pro'da examGateActive() hep true,
+(2) free'de madde 30'un "Atla" yolu ad-reward'ı siliyor, (3) free'de
+GÜVENLİ yoldan bile ad-extended limit challenge.total'a denk gelip
+sessionLimit kontrolü finishChallenge()'ı hep önden kesiyor.
 
 **21. G106 — Bant bazlı mono kaybı, düşük frekans bantlarında (SUB→BAS)
 komşu banda sızıyor**
@@ -16165,57 +16289,41 @@ bir müzik/mix parçası, telifsiz) eklenip mod dosyasız da en az bir
 demo/örnek kaynakla açılabilmeli — ya da kullanıcı bu SINIRI bilerek
 kabul edip madde kapatılır.
 
-**30. YENİ (G221'de bulundu) — "Oyunu Başlat" resume'u, reklamla kazanılan
-+5 soru hakkını VE parkur ilerlemesini sessizce siliyor**
-Kök sebep: `els.startBtn`'in click handler'ı (`app.js` ~6282-6309)
-`activeQuestion===null` iken (bu, HER paywall teardown'ından sonra doğrudur
-— `teardownActiveRound()` bunu HER ZAMAN null'a çeker) tıklamayı "fresh
-start" sayıp `roundsInThisPlaySession=0`, `sessionExtraQuestionsGranted=0`
-YAZIYOR ve `isChallenge()` iken `startChallenge()`'ı (challenge.done'ı da
-sıfırlayan) YENİDEN çağırıyor — bu üçü, kullanıcının paywall'dan HER dönüşünde
-(reklam izleyip devam etsin ya da sadece "Oyunu Başlat"a bassın, fark etmez)
-çalışıyor.
-**Somut etki:** sessionLimit paywall'ında "reklam izle, +5 soru hakkı kazan"
-CTA'sına basan bir ücretsiz kullanıcı reklamı gerçekten izler,
-`grantSessionExtension()` `sessionExtraQuestionsGranted`'ı 5 artırır — ama
-kullanıcı "Oyunu Başlat"a bastığı AN bu değer 0'a döner. Kazanılan hak
-GÖRÜNÜŞTE var (toast/kısa an gösterilir) ama fiilen kullanılamaz — kullanıcı
-5 soru daha oynayınca AYNI paywall'a AYNI şekilde tekrar çarpar, reklam
-ödülü etkisiz. Bu, e2e testinde (`e2e/layout-geometry.spec.mjs`, G221'in
-ilk denemesi) canlı yakalandı: reklam+resume sonrası akış beklenen
-`screen-result` yerine YİNE `screen-paywall`'a düşüyordu — kök sebep bu
-turda koda kadar izlendi, DÜZELTİLMEDİ (bu turun kapsamı/DOKUNULMAYACAK
-listesi dışında, kullanıcıya bildirildi).
-Madde **20** ile bağlantılı ama AYRI bir sebep: 20 "Pro examGateActive
-yüzünden done'a hiç ulaşamıyor" diyor, bu madde ise "free tarafta ad-reward
-escape hatch'i de fiilen çalışmıyor" diyor — ikisi birlikte "10 Soruluk
-Bölüm"ün kayıpsız bitişini (neredeyse) HİÇBİR kullanıcı tipi için mümkün
-kılmıyor.
-**Kabul kriteri:** sessionLimit paywall'ında reklam izleyip devam eden bir
-kullanıcı, kalan soru hakkının (`#gameQMax`) GERÇEKTEN 10 gösterdiği VE
-5 soru daha oynayabildiği canlı/Playwright ile doğrulanmalı — muhtemel
-düzeltme yönü: resume'u (paywall'dan/duraklatmadan dönüş) fresh-start'tan
-ayıran bir bayrak (ör. `paywallPausedRound`'a benzer, ama teardown edilmiş
-round'lar için de çalışan bir işaret), `roundsInThisPlaySession`/
-`sessionExtraQuestionsGranted`/`startChallenge()` sıfırlamasını SADECE
-gerçek fresh-start'ta (mod kartına yeniden girme, "Tekrar oyna"/"10 soru
-daha") tetiklemeli — kullanıcı kararı gerekir (DOKUNULMAYACAK listesi bu
-turda `startBtn` handler'ını kapsamıyordu ama task'ın kapsamı SADECE CSS
-telafisiydi, bu yüzden dokunulmadı).
-
-**31. YENİ (G222'de bulundu) — SSS'nin "Canlar" maddesi G220'den beri YANLIŞ: "Canların biterse Seans Sonu ekranı açılır" diyor, artık paywall açılıyor**
-`www/js/app.js:8261` (`FAQ` dizisi, "Canlar neye yarıyor, nasıl dolar?"
-sorusu): "...Canların biterse Seans Sonu ekranı açılır." G220 (G63'ün
-kaldırılması) `blockIfLivesOut()`'un canlar bitince artık HER ZAMAN
-`openPaywallReason("livesOut")`'a (GERÇEK paywall ekranı) gittiğini,
-`showSessionEnd("lost")`'un (bu SSS maddesinin anlattığı "Seans Sonu
-ekranı") artık UI'dan erişilemez olduğunu belgeledi (bkz. G220'nin YAPISAL
-YAN ETKİ notu) — bu SSS metni o değişiklikten SONRA güncellenmedi, ESKİ
-davranışı anlatmaya devam ediyor. "i" metinleri taramasında (G222) bulundu,
-DÜZELTİLMEDİ (task'ın kendi kuralı: "önce liste, düzeltme yapma").
-**Kabul kriteri:** SSS metni "Canların biterse Seans Sonu ekranı açılır"
-yerine gerçek davranışı ("...devam etmen için bir paywall ekranı açılır"
-gibi) yansıtmalı — kullanıcı onayı gerekir (metin değişikliği).
+**30. "Oyunu Başlat" resume'u — KOŞULLU olarak reklamla kazanılan +5 soru
+hakkını VE parkur ilerlemesini siliyor (G224'te netleşti, önceki "her
+zaman" iddiası fazla genişti)**
+Kök sebep AYNI: `els.startBtn`'in click handler'ı (`app.js` ~6282-6309)
+`activeQuestion===null` iken tıklamayı "fresh start" sayıp
+`roundsInThisPlaySession=0`, `sessionExtraQuestionsGranted=0` yazıyor,
+`startChallenge()`'ı (challenge.done=0) yeniden çağırıyor. AMA G224'ün
+ölçümü gösterdi ki bu SADECE `activeQuestion===null` VE açık bir feedback
+paneli YOKKEN tetikleniyor — cevaplayarak (`.ans`) limite ulaşan bir
+kullanıcının feedback paneli paywall'dan dönüşte HÂLÂ açık kalıyor
+(`gameOver=true` olduğu için `scheduleNext()` hiç çalışmıyor), paneli
+kapatmak `goToNextRound()`'u (bu reset koduna HİÇ dokunmayan, TAMAMEN AYRI
+bir yol) tetikliyor — bu yoldan resume GÜVENLİ, ad-reward doğru çalışıyor
+(`#gameQMax`="10" doğru gösteriliyor, ölçüldü). Bug SADECE "Atla" (`#nextBtn`)
+ile limite ulaşıldığında (feedback paneli hiç açılmadığı için ekran temiz
+"Oyunu Başlat" idle durumuna düşüyor, kullanıcı `#startBtn`'e basmak
+ZORUNDA kalıyor) **100% tekrar üretildi** — repro adımları G224'ün BİTTİ
+kaydında.
+**Somut etki (Atla yolunda):** sessionLimit paywall'ında reklam izleyip
++5 soru kazanan bir kullanıcı, "Atla" ile limite ulaşmışsa "Oyunu Başlat"a
+bastığı AN bu hak siliniyor — `#gameQMax` "10" yerine "5" gösteriyor,
+`#gameQNum` "1"e sıfırlanıyor.
+Madde **20** ile bağlantılı ama AYRI bir sebep — bkz. 20'nin kendisi (G224'te
+free tarafın "done"a ulaşamamasının kendi, ÜÇÜNCÜ ve BAĞIMSIZ bir sebebi
+daha bulundu: sessionLimit'in ad-extended hâli TAM `challenge.total`'a
+denk geliyor ve senkron kontrol yarışı kazanıyor — bu madde 30'dan
+TAMAMEN AYRI).
+**Kabul kriteri:** "Atla" ile limite ulaşıp reklam izleyen bir kullanıcı,
+`#gameQMax`'ın GERÇEKTEN "10" gösterdiği VE 5 soru daha oynayabildiği
+canlı/Playwright ile doğrulanmalı — muhtemel düzeltme yönü: resume'u
+(paywall'dan/duraklatmadan dönüş) fresh-start'tan ayıran bir bayrak,
+`roundsInThisPlaySession`/`sessionExtraQuestionsGranted`/`startChallenge()`
+sıfırlamasını SADECE gerçek fresh-start'ta (mod kartına yeniden girme,
+"Tekrar oyna"/"10 soru daha") tetiklemeli — kullanıcı kararı gerekir,
+DÜZELTİLMEDİ (G224'ün kapsamı ölçümdü).
 
 ## BİLİNEN AÇIKLAR
 
@@ -16520,7 +16628,20 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G223 tamamlandı):** Tonal Balance hedef eğrileri
+**EN YENİ SIRADAKİ ADIM (G224 itibarıyla):** Madde 30 ölçüldü — bug VAR
+ama önceki rapor abartılıydı, SADECE "Atla" ile limite ulaşılırsa
+tetikleniyor (cevaplayarak ulaşılırsa feedback panelinin açık kalması
+sayesinde güvenli yoldan resume oluyor). `showSessionEnd()`'in üç dalı da
+(normal/lost/freeLimit) TAMAMEN ÖLÜ doğrulandı — "normal" için Pro'da
+examGateActive() + free'de ad-extended limitin challenge.total'a denk
+gelmesi, İKİ BAĞIMSIZ sebep. Madde 31 (SSS'nin "Canlar" maddesi) düzeltildi
+ve KAPANDI. `npm test` 1315/1315, değişmedi. Kod tarafında SADECE `FAQ`
+dizisinin bir maddesi değişti.
+**Bir sonraki adım:** madde 30 için kullanıcı kararı bekleniyor (düzeltilsin
+mi — "Atla" yolunun resume'unu fresh-start'tan ayıran bir mekanizma
+gerekir). Kod tarafında başka açık bir görev yok.
+
+**EN YENİ SIRADAKİ ADIM (G223 tamamlandı, ARTIK ESKİ):** Tonal Balance hedef eğrileri
 (Pop/EDM/Akustik) 41 parçalık GERÇEK ölçümle değiştirildi (`DRAFT_TARGET_CURVES`,
 isim aynı kaldı) — algoritmaya (`normalizeBandSums`/`measureSpectralDeviation`)
 DOKUNULMADI. `.gitignore`'a ses dosyası uzantıları eklendi (`www/audio/`'nun

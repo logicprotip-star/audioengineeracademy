@@ -8258,7 +8258,14 @@ if (!purchaseState.proPurchased) {
 const FAQ = [
   ["İpucu puanımı düşürür mü?", "Evet — ipucu kullandığın sorularda kazanılan XP yarıya iner. Doğru/yanlış değerlendirmeni ya da isabet oranını etkilemez."],
   ["Zorluk seviyeleri birbirinden nasıl farklı?", "Kolay'dan Pro Plus'a gittikçe frekans/bant farkları daralır ve süre kısalır. Ayarlar → Zorluk → Sabit'ten istediğin seviyeyi seçebilirsin; oyun ekranındaki zorluk göstergesiyle her zaman senkrondur."],
-  ["Canlar neye yarıyor, nasıl dolar?", "Canlar TEK bir havuzda tutulur, zorluk seviyesinden bağımsız. 5 canın var; biri biterse 30 dakikada bir otomatik dolar, ya da video izleyip anında doldurabilirsin. Canların biterse Seans Sonu ekranı açılır.", true],
+  // #31 DÜZELTMESİ (G222'de bulundu, G220'nin yapısal yan etkisi) — son
+  // cümle ÖNCEDEN "Canların biterse Seans Sonu ekranı açılır" diyordu, bu
+  // G63'ün (paywallSuppressedFirstSession) kaldırılmasından ÖNCEKİ
+  // davranıştı. G220'den beri showSessionEnd("lost") bir daha hiç
+  // tetiklenmiyor (openPaywallReason artık HER ZAMAN true dönüyor,
+  // blockIfLivesOut'un "!openPaywallReason(...) ise showSessionEnd" dalı
+  // yapısal olarak ölü) — canlar bitince GERÇEKTEN açılan ekran paywall.
+  ["Canlar neye yarıyor, nasıl dolar?", "Canlar TEK bir havuzda tutulur, zorluk seviyesinden bağımsız. 5 canın var; biri biterse 30 dakikada bir otomatik dolar, ya da video izleyip anında doldurabilirsin. Canların biterse devam etmen için bir ekran açılır.", true],
   ["Kendi ses dosyamı yükleyince ne oluyor?", "Dosya yalnızca cihazında kalır, hiçbir sunucuya gönderilmez. Kaynak olarak seçili kaldığı sürece sorularda o dosya çalar; Karıştır (⇄) açıksa her turda rastgele bir kaynağa geçilir."],
   ["Neden kulaklık öneriliyor?", "Filtre/frekans farkları genelde incedir; telefon hoparlörü bunu kolayca maskeleyebilir. Kulaklık zorunlu değil ama çok daha güvenilir ve tutarlı sonuç verir."]
 ];
