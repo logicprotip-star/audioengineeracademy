@@ -146,6 +146,62 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G216 — **Seviye başlıkları yenilendi — 7 isim değişti, EŞİKLER (min) AYNEN KORUNDU, Seviye 30 "Altın Kulak" bilerek değişmedi.**
+
+**Değişiklik** (`www/js/core/progress.js:120-129`, `LEVEL_TITLES`):
+
+| Eşik | Eski | Yeni |
+|---|---|---|
+| Sv 1 | Çırak Kulak | Yeni Kulak |
+| Sv 3 | Kalibre Kulak | Ton Avcısı |
+| Sv 6 | Keskin Kulak | Frekans Kaşifi |
+| Sv 10 | Uzman Kulak | Denge Ustası |
+| Sv 15 | Usta Kulak | Miks Mimarı |
+| Sv 22 | Prodüksiyon Ustası | Referans Kulak |
+| Sv 30 | Altın Kulak | Altın Kulak (DEĞİŞMEDİ — bkz. BİLİNEN AÇIKLAR madde 3, rozetle kasıtlı çakışma) |
+
+Gerekçe (kullanıcı kararı): eski 7 başlık hepsi "X Kulak" kalıbını
+tekrarlıyordu, yapay duruyordu — yeni liste her kademeye kendi kimliğini
+veriyor. `min` değerleri TEK SATIR değişmedi, `levelTitle()`'ın kendi
+mantığı (eşiği aşan en yüksek kademeyi döndürür) dokunulmadı.
+
+**Eski başlıkların başka yerlerde taranması:** `www/index.html:67`'deki
+statik varsayılan (`#menuLevelTitle`, JS çalışmadan önceki ilk kare) —
+"Çırak Kulak" → "Yeni Kulak" güncellendi. `test/progress.test.mjs:135`'teki
+YORUM satırı (örnek olarak "Kalibre Kulak" geçiyordu, fonksiyonel bir
+assertion DEĞİL — testlerin hepsi `LEVEL_TITLES[i].title` gibi DİNAMİK
+referanslarla yazılmış, hardcoded string yok) — "Ton Avcısı" örneğine
+güncellendi. `guide-texts.js`/mod "i" metinleri/SSS'de eski başlıklardan
+HİÇBİRİ hiç geçmiyordu (tarandı, sıfır sonuç) — dokunulacak başka yer
+yoktu. Mağaza metinleri (App Store Connect'te, bu repoda YOK) bu turun
+kapsamı DIŞINDA.
+
+**Rozet adlarıyla çakışma kontrolü:** 6 yeni başlık (Altın Kulak hariç) 6
+rozet adıyla (Dinleyici/Ses Kaşifi/Miksçi/Ses Mühendisi/Mastering
+Mühendisi/Altın Kulak) TEK TEK karşılaştırıldı — **YENİ bir çakışma
+YOK.** ("Frekans Kaşifi" ile "Ses Kaşifi" AYNI kalıbı — "X Kaşifi" —
+paylaşıyor ama BİREBİR aynı string DEĞİL, bu bir çakışma sayılmadı.)
+Tek çakışma hâlâ Seviye 30/"Altın Kulak" — KASITLI, DEĞİŞMEDİ.
+
+**Taşma kontrolü (Playwright, `#menuLevelTitle`'a 7 başlığın HER BİRİ
+tek tek yazdırılıp ölçüldü):** 7 başlığın 7'si de TEK SATIRDA kaldı
+(`height:20px`, 2 satıra sarmadı), sağ kenarı (`right:293px`) pentagon
+rozetinin sol kenarından (`left:305px`) ÖNCE bitiyor — örtüşme YOK. En
+uzun iki aday ("Frekans Kaşifi", "Referans Kulak") DAHİL taşma/kırpılma
+riski YOK.
+
+**Ölçüm:** `npm test` → **1315/1315** (değişmedi — testler `LEVEL_TITLES`
+dizisinin KENDİSİNİ okuyor, hardcoded başlık stringi yok, bu yüzden isim
+değişikliğinden hiç etkilenmediler).
+
+**Dokunulan:** `www/js/core/progress.js` (SADECE `LEVEL_TITLES` dizisi,
+`min` değerleri/`levelTitle()` mantığı DEĞİŞMEDİ), `www/index.html`
+(SADECE statik varsayılan metin), `test/progress.test.mjs` (SADECE bir
+yorum satırı).
+**Dokunulmayan:** `www/js/core/progress.js`'in `ACHIEVEMENTS`/rozet
+sistemi (G198, kullanıcının kendi KİLİT talimatıyla dokunulmadı),
+G214/G215/G177/G178/G185/G187/G203/G212, 581f798/a4efb42.
+
 G215 — **C5 düzeltildi: Ayarlar → Hesap'ta Pro için "seans başına 10 soru" yazısı yanlıştı, Pro'da oturum sınırı YOK.**
 
 **Ölçüm (DOGRULAMA-15-08.md'den):** `paywall.isFreeSessionLimitReached(roundsPlayed,
@@ -16104,7 +16160,16 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (15 Ağustos, belge-düzeltme turu, kod DEĞİŞMEDİ):**
+**EN YENİ SIRADAKİ ADIM (G216 itibarıyla):** Seviye başlıkları yenilendi
+(Yeni Kulak/Ton Avcısı/Frekans Kaşifi/Denge Ustası/Miks Mimarı/Referans
+Kulak/Altın Kulak — eşikler AYNI, Sv 30 değişmedi). Rozet adlarıyla YENİ
+bir çakışma yok, taşma yok (Playwright, 7 başlığın 7'si de tek satır).
+`npm test` 1315/1315 (testler dinamik, etkilenmedi). GERÇEK cihazda
+HENÜZ görülmedi. Kontrol edilecek: Ana ekranda kullanıcı kartı Seviye
+1'de "Yeni Kulak" göstermeli, seviye atladıkça sırayla diğer başlıklara
+geçmeli, hiçbiri 2 satıra sarmamalı/pentagon rozetine binmemeli.
+
+**EN YENİ SIRADAKİ ADIM (15 Ağustos, belge-düzeltme turu, kod DEĞİŞMEDİ, ARTIK ESKİ):**
 Üç belge maddesi kapatıldı/eklendi: BEKLEYEN KARARLAR "C" (rozet 9→6,
 G198'de zaten kapanmıştı) ve "M" (Referans Filtreleri DSP, G117'de zaten
 eklenmişti) KAPANDI olarak işaretlendi; çift "N" etiketi düzeltildi (G122

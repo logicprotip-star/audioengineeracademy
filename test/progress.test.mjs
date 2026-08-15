@@ -132,7 +132,7 @@ describe("academyLevel() / academyXpProgress()", () => {
   });
 });
 
-// G74 — ana ekran kullanıcı kartının "seviye unvanı" (ör. "Kalibre Kulak").
+// G74 — ana ekran kullanıcı kartının "seviye unvanı" (ör. "Ton Avcısı").
 // LEVEL_TITLES/levelTitle() bu turda YENİ eklendi (kodda daha önce hiç
 // yoktu, bkz. DURUM.md G74 raporu) — TASLAK değerler, kesin/nihai DEĞİL.
 // G75: eşikler academyLevel'ın YENİ (1-tabanlı, yavaş) ölçeğine göre YENİDEN

@@ -312,6 +312,15 @@ olan biri zaten Altın Kulak olmayı hak etmiştir, çift taraflı
 tescillensin." Kod değişmeyecek. 7 seviye başlığı × 6 rozet tam
 karşılaştırıldı, başka bir çakışma yok.
 
+**GÜNCELLEME (G216, aynı gün) — seviye başlıkları YENİLENDİ, "Altın
+Kulak" çakışması DEĞİŞMEDİ.** Yukarıdaki satırda (293) örnek olarak
+geçen "Kalibre Kulak" artık kodda YOK — 7 başlığın 6'sı yenilendi (Yeni
+Kulak/Ton Avcısı/Frekans Kaşifi/Denge Ustası/Miks Mimarı/Referans
+Kulak), eşikler (`min`) TEK SATIR değişmedi. Seviye 30 "Altın Kulak"
+BİLEREK aynı bırakıldı — yukarıdaki not hâlâ geçerli. Yeni 6 başlık
+rozet adlarıyla yeniden karşılaştırıldı, YENİ bir çakışma yok (bkz.
+DURUM.md G216 BİTTİ kaydı).
+
 ## EKRAN 8 — ARAÇLAR
 
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |

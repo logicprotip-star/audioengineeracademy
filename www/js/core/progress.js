@@ -117,13 +117,19 @@ export function academyLevel(stats, modeIds) {
 // kullanıcı academyLevel=1'den başlıyor, eski eşikler (0/20/35/...) artık
 // ANLAMSIZ (asla erişilemez) olurdu. Yeni eşikler academyLevel'ın YENİ 1-tabanlı
 // ölçeğine göre TASLAK/TAHMİNİ seçildi — playtest'le DOĞRULANMADI.
+// 15 Ağustos DÜZELTMESİ (kullanıcı kararı) — isimler yenilendi, EŞİKLER
+// (min) AYNEN KORUNDU. Gerekçe: eski 7 başlık hepsi "X Kulak" kalıbını
+// tekrarlıyordu, yapay duruyordu — yeni liste her kademeye kendi
+// kimliğini veriyor. Seviye 30 "Altın Kulak" BİLEREK değişmedi —
+// boss_win rozetiyle (ACHIEVEMENTS, aşağı bkz.) çakışması KASITLI (bkz.
+// DURUM.md BİLİNEN AÇIKLAR madde 3, 83b3eb8).
 export const LEVEL_TITLES = [
-  { min: 1, title: "Çırak Kulak" },
-  { min: 3, title: "Kalibre Kulak" },
-  { min: 6, title: "Keskin Kulak" },
-  { min: 10, title: "Uzman Kulak" },
-  { min: 15, title: "Usta Kulak" },
-  { min: 22, title: "Prodüksiyon Ustası" },
+  { min: 1, title: "Yeni Kulak" },
+  { min: 3, title: "Ton Avcısı" },
+  { min: 6, title: "Frekans Kaşifi" },
+  { min: 10, title: "Denge Ustası" },
+  { min: 15, title: "Miks Mimarı" },
+  { min: 22, title: "Referans Kulak" },
   { min: 30, title: "Altın Kulak" }
 ];
 
