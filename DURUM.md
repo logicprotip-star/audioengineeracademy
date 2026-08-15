@@ -231,6 +231,25 @@ DOKUNULMADI. G187 (`freqTapTimer`) ile AYNI yer DEĞİL — ayrı değişken,
 ayrı mekanizma, ayrı hata sınıfı (bu bir "yanlış ateşleyen zamanlayıcı"
 değil, "doğru duran ama yeniden kurulmayan durdurma").
 
+**KARAR (Logic, 15 Ağustos 2026) — yukarıdaki ölçümün sonucu: 1.0'da
+mevcut davranış AYNEN KALACAK, kod DEĞİŞMEYECEK.**
+
+Durum: G31 cevap anında döngüyü bilerek durduruyor (yukarıdaki ölçüm,
+DEĞİŞMEDİ, hâlâ geçerli). Sonraki soruya otomatik geçişte yeniden
+açılmıyor — bu bir hata değil, karar verilmemiş bir boşluktu, artık
+BİLİNÇLİ olarak "böyle kalsın" diye kapatıldı. TestFlight geri bildirimi
+gelirse yeniden değerlendirilecek.
+
+**1.1 için not (kod YAZILMADI, sadece fikir kaydı):** "döngü tercihi
+hatırlansın, cevap anında sussun, yeni soruda kendiliğinden geri gelsin"
+seçeneği tartışıldı, KARARLAŞTIRILMADI. Açık sorular: (1) tercih MOD
+BAZLI mı (her modun kendi döngü tercihi) yoksa GENEL mi (tek, global bir
+tercih) olmalı, (2) tercih UYGULAMA KAPANINCA da hatırlansın mı (kalıcı,
+localStorage) yoksa SADECE seans içinde mi kalsın (bellek-içi, her
+açılışta sıfırlanır). Bu iki soru YANITLANMADAN 1.1'de kod yazılmaya
+BAŞLANMAMALI (ikisi de mimariyi belirler — kalıcı/mod-bazlı bir tercih,
+seans-içi/genel bir bayraktan çok farklı bir veri yapısı gerektirir).
+
 G235 — **`abPressTimer` teardown eklendi (TUR3B bulgusu 🔴) — G187'nin (freqTapTimer) tedavisi artık A/B uzun-basma zamanlayıcısına da uygulanıyor, `pauseRound()`'a TEK satır.**
 
 **Kök sebep (TUR3B'de bulunmuştu):** `abPressTimer` (A/B/Döngü uzun-basma
