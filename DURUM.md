@@ -146,6 +146,60 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G220 — **G63 kuralı kaldırıldı — ilk oturumda da paywall gerçek ekranıyla açılıyor, artık "seans özeti" ile bastırılmıyor.**
+
+**Gerekçe (kullanıcı kararı):** ilk oturumda kullanıcı satın alma noktasını
+(Pro paywall'ı) hiç görmüyordu — soru hakkı/canlar bitince sade bir seans
+özeti ekranıyla karşılaşıp uygulamayı kapatıyor olabilirdi, hiçbir Pro
+teklifiyle karşılaşmadan.
+
+**Uygulanan:** `app.js:996`'daki `const paywallSuppressedFirstSession =
+paywall.isFirstSession(stats.rounds);` tanımı SÖKÜLDÜ.
+`openPaywallReason(reasonKey)` (app.js ~8173) artık SADECE `cfg` (bilinmeyen
+bir `reasonKey`) yokken `false` dönüyor — pratikte 7 bilinen tetikleme
+noktasının (PAYWALL.md) HİÇBİRİNDE artık `false` dönmüyor, paywall HER ZAMAN
+gerçek ekranıyla açılıyor.
+
+**YAPISAL YAN ETKİ (önemli, ayrıca not düşülüyor):** `blockIfLivesOut()`/
+`blockIfSessionLimitReached()`'ın `if (!openPaywallReason(reasonKey))
+showSessionEnd(...)` deseni (`app.js` ~1619-1623, ~1637-1643) artık PRATİKTE
+hiç `showSessionEnd("lost")`/`showSessionEnd("freeLimit")` çağırmıyor —
+`openPaywallReason` neredeyse hiç `false` dönmediği için bu dal kod olarak
+DURUYOR ama UI'dan bir daha tetiklenmiyor. `showSessionEnd("normal")`
+(`finishChallenge()`'dan) zaten AÇIK İŞLER madde 20'nin belgelediği ayrı bir
+sebepten (examGateActive) neredeyse hiç ulaşılamıyordu. Sonuç: `showSessionEnd()`'in
+ÜÇ dalı da (normal/lost/freeLimit) artık normal oyun akışından **YAPISAL
+OLARAK erişilemez** — fonksiyonun kendisi ve DOM'u (`#screen-result`) SİLİNMEDİ
+(gelecekte gerekebilir, kod hâlâ doğru render ediyor — G221'de bu doğrudan
+`window.__aeaShowSessionEndForTest` kancasıyla canlı doğrulandı), sadece
+tetikleme yolları kapandı. Bu, G63'ün kaldırılmasının BEKLENEN/kabul edilen
+bir sonucu — kullanıcı kararı zaten "paywall HER ZAMAN açılsın" yönündeydi,
+"seans özeti bazen görünsün" değil.
+
+**e2e güncellemesi:** `e2e/paywall-flow.spec.mjs`'in 4 testinin 2'si (İLK
+OTURUM senaryoları) ÖNCEDEN `screen-result`/eski kicker metinlerini
+bekliyordu — artık DÖRDÜ DE `screen-paywall` + doğru `paywallReasonTitle`
+bekliyor ("İLK OTURUM DEĞİL" senaryoları zaten değişmedi, hep doğruydu).
+
+**Ölçüm:** `npm test` → **1315/1315, DEĞİŞMEDİ**. `npm run test:e2e` →
+**paywall matrisinin 4'ü dahil 7/8 geçti** — `layout-geometry.spec.mjs`'in
+G219'dan kalan BİLİNEN-KIRMIZI `#screen-result` testi artık DAHA ERKEN bir
+ön koşulda patlıyor ("Atla" spam'iyle `freeLimit`e ulaşma varsayımı da bu
+G'nin kendi değişikliğiyle geçersizleşti — sessionLimit artık HER ZAMAN
+paywall'a gidiyor). Bu dosya bir SONRAKİ commit'te (G221) baştan yazıldı,
+burada BİLEREK dokunulmadı (task'ın kendi "her biri ayrı commit" sırası).
+
+**Dokunulan:** `www/js/app.js` (`paywallSuppressedFirstSession` tanımı
+silindi, `openPaywallReason()`'ın kendisi TEK SATIR mantık değişikliği
+olmadan — sadece o kontrolü çağıran satır kaldırıldı), `e2e/paywall-flow.spec.mjs`
+(SADECE 2 testin assertion'ları).
+**Dokunulmayan:** `finalizeIfGameOver`/`blockIfLivesOut`/
+`blockIfSessionLimitReached`'ın KENDİ gövdeleri (davranışları
+`openPaywallReason`'ın dönüş değerine bağlı olarak DEĞİŞTİ ama kod satırları
+DEĞİŞMEDİ), paywall ekranlarının içeriği, e2e suite'inin yapısı (sadece
+assert güncellendi), G177/G178/G185/G187/G198/G201/G204/G205/G203/G212/
+G214/G215/G216, 581f798/a4efb42.
+
 G219 — **TEST-BOSLUGU-15-08.md'nin A/E/F maddeleri kalıcı teste dönüştürüldü — `e2e/` altında yeni, AYRI bir Playwright suite'i (`npm run test:e2e`), `npm test`'e (1315) HİÇ DOKUNMADAN.**
 
 **Yapısal karar:** `playwright` (`^1.62.1`) devDependency olarak eklendi
@@ -16228,7 +16282,17 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G219 itibarıyla):** `e2e/` altında kalıcı bir
+**EN YENİ SIRADAKİ ADIM (G220 itibarıyla):** "ÜÇ İŞ" görevinin 1. maddesi
+bitti — G63 kaldırıldı, paywall ilk oturumda da GERÇEK ekranıyla açılıyor
+(bkz. G220'nin YAPISAL YAN ETKİ notu: showSessionEnd()'in üç dalı da artık
+UI'dan erişilemez). `npm test` 1315/1315, `npm run test:e2e` 7/8 (paywall
+matrisinin 4 testi güncellendi/geçti; `layout-geometry.spec.mjs`'in
+G219'dan kalan bilinen-kırmızı testi bu G'nin kendi değişikliğiyle daha
+erken bir noktada patlıyor — bir sonraki committe baştan yazılacak).
+**Bir sonraki adım:** "ÜÇ İŞ"in 2. maddesi — REGRESYON-15-08 #4c/#4d/#4a
+layout telafisi (`#screen-result`), ayrı commit.
+
+**EN YENİ SIRADAKİ ADIM (G219 itibarıyla, ARTIK ESKİ):** `e2e/` altında kalıcı bir
 Playwright test suite'i kuruldu (`npm run test:e2e`, `npm test`'ten AYRI,
 1315'e dokunmadı) — paywall matrisi (4/4 geçti) ve sınav/telafi ekran
 eşlemesi (2/2 geçti) artık her koşuda otomatik doğrulanıyor. Layout

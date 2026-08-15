@@ -987,14 +987,6 @@ let devFlags = storage.loadDevFlags();
 // G168 — GERÇEK satın alma durumu, devFlags'ten AYRI (bkz. storage.js'in
 // G168 notu) — isUserPro() ikisini de okur.
 let purchaseState = storage.loadPurchase();
-// G63 (PAYWALL.md Parça 2): "İlk oturumda paywall yok" — stats.rounds'ın BU
-// runtime BAŞLARKENKİ (henüz hiçbir tur bu çalıştırmada sayılmadan) değeri
-// "hiç oynamamış" mı sorusuna cevap veriyor. BİLEREK const — bu runtime'ın
-// TAMAMI boyunca sabit kalır, kullanıcı bu ziyarette 5-6 tur oynayıp
-// stats.rounds arttırsa bile "ilk oturum" durumu İÇİNDE kalınır; sadece
-// uygulama YENİDEN açılınca (stats.rounds artık >0) paywall aktif olur.
-const paywallSuppressedFirstSession = paywall.isFirstSession(stats.rounds);
-
 let activeQuestion = null;
 let roundActive = false;
 let currentPlayMode = "filtered";
@@ -8161,12 +8153,16 @@ function syncWatchAdButtonForReason(cfg) {
 }
 // G63: 7 kilit tetikleme noktasının (PAYWALL.md) TEK ortak giriş kapısı —
 // core/paywall.js:PAYWALL_REASONS'tan bağlam başlığını + buton setini kurup
-// paywall ekranını DOĞRUDAN açar (toast YOK). "İlk oturumda paywall yok"
-// kuralı BURADA uygulanıyor (task'ın kendi kuralı) — false dönerse çağıran
-// taraf ESKİ (Parça 1) davranışına (toast/session-end ekranı) düşmeli, bu
-// yüzden dönen boolean ÖNEMLİ, göz ardı edilemez.
+// paywall ekranını DOĞRUDAN açar (toast YOK).
+// G220 DÜZELTMESİ (kullanıcı kararı) — "İlk oturumda paywall yok" kuralı
+// KALDIRILDI: ilk oturumda kullanıcı satın alma noktasını hiç görmüyordu.
+// `paywallSuppressedFirstSession`/`paywall.isFirstSession()` çağrısı BU
+// fonksiyondan SÖKÜLDÜ — artık ilk oturumda da (soru hakkı/canlar bitince)
+// paywall AYNI şekilde açılır. Dönen boolean HÂLÂ ÖNEMLİ (aşağıdaki `cfg`
+// bulunamazsa false döner, çağıran taraf o durumda hâlâ eski Parça 1
+// davranışına düşer) — ama artık pratikte SADECE bilinmeyen bir
+// `reasonKey` verilirse tetiklenir.
 function openPaywallReason(reasonKey) {
-  if (paywallSuppressedFirstSession) return false;
   const cfg = paywall.PAYWALL_REASONS[reasonKey];
   if (!cfg) return false;
   openPaywallReasonKey = reasonKey;

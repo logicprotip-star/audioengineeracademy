@@ -4,14 +4,17 @@
 // rapora yazılan, sonra SİLİNEN doğrulamalar artık her `npm run test:e2e`
 // çağrısında otomatik tekrarlanıyor.
 //
-// KİLİT: openPaywallReason/paywallSuppressedFirstSession/finalizeIfGameOver/
-// blockIfLivesOut/blockIfSessionLimitReached — HİÇBİRİNE dokunulmadı, bu
-// dosya SADECE onların GÖZLENEN davranışını assert ediyor.
+// KİLİT: finalizeIfGameOver/blockIfLivesOut/blockIfSessionLimitReached —
+// HİÇBİRİNE dokunulmadı, bu dosya SADECE onların GÖZLENEN davranışını
+// assert ediyor.
 //
-// Dört senaryo = (soru hakkı bitti / canlar bitti) × (ilk oturum / değil).
-// "İlk oturum" ayrımı TEK DEĞİŞKENE bağlı: stats.rounds (app.js:996,
-// paywallSuppressedFirstSession = paywall.isFirstSession(stats.rounds),
-// stats.rounds===0 ise paywall HİÇ açılmaz, showSessionEnd()'e düşülür).
+// G220 GÜNCELLEMESİ (kullanıcı kararı) — "İlk oturumda paywall yok" kuralı
+// (G63) KALDIRILDI: `openPaywallReason()`'daki `paywallSuppressedFirstSession`
+// kontrolü söküldü (bkz. app.js). Dört senaryo hâlâ (soru hakkı bitti /
+// canlar bitti) × (stats.rounds=0 / stats.rounds>0) matrisini kapsıyor —
+// AMA artık DÖRDÜ DE aynı sonuca (GERÇEK paywall) varmalı. "İlk oturum"
+// seed'i BİLEREK korundu: bu, kaldırmanın stats.rounds===0 durumunda da
+// GERÇEKTEN tam çalıştığını (sadece "değil" durumunda değil) kanıtlıyor.
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
@@ -64,7 +67,7 @@ async function readOutcome(page) {
   }));
 }
 
-test("soru hakkı bitti + İLK OTURUM (stats yok) → paywall BASTIRILIR, seans özeti açılır", async () => {
+test("soru hakkı bitti + İLK OTURUM (stats yok) → GERÇEK paywall açılır (G63 kaldırıldı)", async () => {
   const page = await newPage();
   await seedLocalStorage(page, { stats: null });
   await page.reload();
@@ -73,9 +76,8 @@ test("soru hakkı bitti + İLK OTURUM (stats yok) → paywall BASTIRILIR, seans 
   await exhaustFreeSessionLimit(page);
 
   const out = await readOutcome(page);
-  assert.equal(out.screen, "screen-result", `beklenen screen-result, gelen: ${out.screen}`);
-  assert.equal(out.resKicker, "ÜCRETSİZ OTURUM BİTTİ");
-  assert.equal(out.resCta, "Pro ile sınırsız devam et");
+  assert.equal(out.screen, "screen-paywall", `beklenen screen-paywall, gelen: ${out.screen}`);
+  assert.equal(out.paywallReasonTitle, "Ücretsiz oturumun bitti");
   await page.close();
 });
 
@@ -93,7 +95,7 @@ test("soru hakkı bitti + İLK OTURUM DEĞİL (stats.rounds=50) → GERÇEK payw
   await page.close();
 });
 
-test("canlar bitti + İLK OTURUM (stats.rounds=0, lives=0) → paywall BASTIRILIR, seans özeti açılır", async () => {
+test("canlar bitti + İLK OTURUM (stats.rounds=0, lives=0) → GERÇEK paywall açılır (G63 kaldırıldı)", async () => {
   const page = await newPage();
   await seedLocalStorage(page, { stats: { rounds: 0, lives: 0 } });
   await page.reload();
@@ -102,9 +104,8 @@ test("canlar bitti + İLK OTURUM (stats.rounds=0, lives=0) → paywall BASTIRILI
   await triggerLivesOutCheck(page);
 
   const out = await readOutcome(page);
-  assert.equal(out.screen, "screen-result", `beklenen screen-result, gelen: ${out.screen}`);
-  assert.equal(out.resKicker, "CANLARIN BİTTİ");
-  assert.equal(out.resCta, "Reklam izle, +1 can");
+  assert.equal(out.screen, "screen-paywall", `beklenen screen-paywall, gelen: ${out.screen}`);
+  assert.equal(out.paywallReasonTitle, "Devam etmek için bir yol seç");
   await page.close();
 });
 
