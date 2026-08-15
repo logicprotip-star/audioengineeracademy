@@ -146,6 +146,55 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G222 — **"i" metinleri taraması (ÖLÇÜM — kod yazılmadı): ücretsiz sürüm kuralları 6 kaynakta tarandı, 1 çelişki bulundu.**
+
+**Kapsam (task'ın kendi listesi):** Ana menü "i" (`GENERAL_GUIDE`), mod içi
+"i" (`MODE_GUIDE_TEXTS`/`MODE_OPTIONS_TEXTS`, 12 mod), SSS (`FAQ`), Paywall
+iki ana varyant (`sessionLimit`/`livesOut`, `core/paywall.js:PAYWALL_REASONS`),
+Seans Sonu iki varyant (`showSessionEnd("lost"/"freeLimit")`), Mağaza
+açıklaması (paywall ekranının Pro kartı — `PRO_BENEFITS`/`PRO_PRICE`; App
+Store Connect'teki GERÇEK mağaza metni bu repoda YOK, kapsam dışı).
+Her metin 5 kriterle kontrol edildi: seans başına soru sayısı, reklam ödülü
+tipi, günlük reklam hakkı, can sayısı/dolum süresi, ilk oturum kuralı
+kalıntısı.
+
+**Sayılar TUTARLI çıktı:** `FREE_SESSION_QUESTION_LIMIT=5`,
+`SESSION_EXTENSION_QUESTIONS=5`, `MAX_SESSION_EXTENSION_ADS_PER_DAY=3`,
+`TOTAL_LIVES=5`, `LIVES_REFILL_INTERVAL_MS=30dk` — bu 5 sayı GENERAL_GUIDE,
+FAQ, `PAYWALL_REASONS.sessionLimit` ve Ayarlar→Hesap satırında (G215)
+BİREBİR aynı, hiçbir yerde farklı bir sayı uydurulmamış/eskimemiş.
+
+**İlk oturum kuralı kalıntısı — SIFIR bulundu:** "ilk oturum"/"ilk seans"
+ibaresi kullanıcıya gösterilen HİÇBİR metinde (guide-texts.js, paywall.js,
+index.html, FAQ) hiç geçmiyor — G63 zaten SADECE dahili kod mantığıydı
+(`paywallSuppressedFirstSession`), kullanıcıya hiç metinle anlatılmamıştı.
+G220'nin kaldırdığı kural için silinecek/güncellenecek kullanıcı metni yok.
+
+**BULUNAN TEK ÇELİŞKİ (bkz. AÇIK İŞLER madde 31, DÜZELTİLMEDİ):** SSS'nin
+"Canlar neye yarıyor, nasıl dolar?" maddesi (`app.js:8261`) "Canların
+biterse Seans Sonu ekranı açılır" diyor — bu G220'den ÖNCEKİ (canlar
+bitince `showSessionEnd("lost")` gösteren) davranışı anlatıyor, G220'den
+SONRA (`openPaywallReason("livesOut")` her zaman kazanıyor, gerçek paywall
+açılıyor) YANLIŞ. Diğer 5 metnin (Paywall livesOut'un kendisi, Seans Sonu
+"lost"un kendisi — artık ölü kod, Ayarlar/Hesap, mod içi "i"ler) hiçbiri bu
+iddiayı taşımıyor — SADECE SSS'de var.
+
+**Küçük, ikincil gözlem (DÜZELTİLMEDİ, madde açılmadı — kodun kendi yorumu
+zaten "kullanılmıyor" diyor):** `core/paywall.js:215`'teki
+`LOCK_MESSAGES.sessionLimit` — `PAYWALL_REASONS.sessionLimit`'in bir
+kopyası, ama dosyanın kendi yorumu bunun app.js'te HİÇ okunmadığını
+(ölü kod) zaten belgeliyor — yeni bir bulgu değil, sadece taramada
+teyit edildi.
+
+**Ölçüm:** Kod yazılmadı, `npm test` etkilenmedi (1315/1315, doğrulama
+amaçlı yeniden çalıştırılmadı — davranış hiç değişmedi).
+
+**Dokunulan:** Hiçbir kod dosyası — SADECE `DURUM.md` (bu giriş + AÇIK
+İŞLER madde 31).
+**Dokunulmayan:** `www/js/app.js`'in FAQ dizisi (madde 31'in kendisi,
+BİLEREK — "önce liste, düzeltme yapma" kuralı), `guide-texts.js`,
+`core/paywall.js`, `index.html`.
+
 G220 — **G63 kuralı kaldırıldı — ilk oturumda da paywall gerçek ekranıyla açılıyor, artık "seans özeti" ile bastırılmıyor.**
 
 **Gerekçe (kullanıcı kararı):** ilk oturumda kullanıcı satın alma noktasını
@@ -16085,6 +16134,20 @@ daha") tetiklemeli — kullanıcı kararı gerekir (DOKUNULMAYACAK listesi bu
 turda `startBtn` handler'ını kapsamıyordu ama task'ın kapsamı SADECE CSS
 telafisiydi, bu yüzden dokunulmadı).
 
+**31. YENİ (G222'de bulundu) — SSS'nin "Canlar" maddesi G220'den beri YANLIŞ: "Canların biterse Seans Sonu ekranı açılır" diyor, artık paywall açılıyor**
+`www/js/app.js:8261` (`FAQ` dizisi, "Canlar neye yarıyor, nasıl dolar?"
+sorusu): "...Canların biterse Seans Sonu ekranı açılır." G220 (G63'ün
+kaldırılması) `blockIfLivesOut()`'un canlar bitince artık HER ZAMAN
+`openPaywallReason("livesOut")`'a (GERÇEK paywall ekranı) gittiğini,
+`showSessionEnd("lost")`'un (bu SSS maddesinin anlattığı "Seans Sonu
+ekranı") artık UI'dan erişilemez olduğunu belgeledi (bkz. G220'nin YAPISAL
+YAN ETKİ notu) — bu SSS metni o değişiklikten SONRA güncellenmedi, ESKİ
+davranışı anlatmaya devam ediyor. "i" metinleri taramasında (G222) bulundu,
+DÜZELTİLMEDİ (task'ın kendi kuralı: "önce liste, düzeltme yapma").
+**Kabul kriteri:** SSS metni "Canların biterse Seans Sonu ekranı açılır"
+yerine gerçek davranışı ("...devam etmen için bir paywall ekranı açılır"
+gibi) yansıtmalı — kullanıcı onayı gerekir (metin değişikliği).
+
 ## BİLİNEN AÇIKLAR
 
 Düşük riskli, ölçülmüş ama şu an DÜZELTİLMEYEN (bilerek — kod yazılmadı,
@@ -16388,17 +16451,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G221 itibarıyla):** "ÜÇ İŞ" görevinin ilk ikisi
-bitti — G220 (G63 kaldırıldı, paywall ilk oturumda da GERÇEK açılıyor) ve
-G221 (`#screen-result` layout telafisi + `#resWeakBox` boşken gizleniyor,
-`e2e/layout-geometry.spec.mjs` artık 2/2 yeşil). Bu arada İKİ yeni bulgu
-AÇIK İŞLER'e eklendi: madde 20'nin eki (free tarafta da "done" durumuna
-ulaşılamıyor) ve YENİ madde 30 (reklamla kazanılan +5 soru hakkı `startBtn`
-resume'unda sessizce siliniyor) — ikisi de bu turun kapsamı dışında,
-düzeltilmedi. `npm test` 1315/1315, `npm run test:e2e` 8/8.
-**Bir sonraki adım:** ÜÇÜNCÜ iş — "i" metinleri taraması (ücretsiz sürüm
-kuralları kaç yerde anlatılıyor, tutuyor mu — ÖLÇÜM, kod yazılmayacak).
-Ayrıca madde 30 için kullanıcı kararı bekleniyor (düzeltilsin mi, ne zaman).
+**EN YENİ SIRADAKİ ADIM (G222 itibarıyla):** "ÜÇ İŞ" görevinin ÜÇÜ de bitti
+— G220 (G63 kaldırıldı), G221 (`#screen-result` layout telafisi +
+`#resWeakBox`), G222 ("i" metinleri taraması — 6 kaynak, 5 sayı hepsinde
+TUTARLI, ilk-oturum kalıntısı SIFIR, SADECE SSS'nin "Canlar" maddesi
+G220'den beri eski davranışı anlatıyor — bkz. AÇIK İŞLER madde 31,
+DÜZELTİLMEDİ). Toplamda bu üç iş boyunca AÇIK İŞLER'e 3 yeni bulgu eklendi:
+madde 20'nin eki, madde 30 (ad-reward resume'da siliniyor), madde 31 (SSS
+çelişkisi) — ÜÇÜ de kullanıcı kararı bekliyor, hiçbiri düzeltilmedi.
+`npm test` 1315/1315, `npm run test:e2e` 8/8 (G222 kod içermediği için
+etkilenmedi).
+**Bir sonraki adım:** Kullanıcı kararı bekleyen 3 yeni maddeden (20-eki
+kapsamında değil, 30 ve 31 asıl) hangisinin/hangilerinin şimdi
+düzeltileceği — Logic'in kararı. Kod tarafında başka açık bir görev YOK.
 
 **EN YENİ SIRADAKİ ADIM (G220 itibarıyla, ARTIK ESKİ):** "ÜÇ İŞ" görevinin 1. maddesi
 bitti — G63 kaldırıldı, paywall ilk oturumda da GERÇEK ekranıyla açılıyor
