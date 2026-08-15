@@ -146,6 +146,130 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G227 — **İKİ ÖLÇÜM (kod yazılmadı): C6/"K" — Pro'da "done" ekranı git log'la KASITLI doğrulandı (G97, 78a8988) AMA free tarafı G97'nin kendi varsayımıyla ÇELİŞİYOR; hata analizi kayıt formatının TAM tarifi çıkarıldı.**
+
+**1) C6/"K" — KASITLI (Pro tarafı), G97'nin kendi varsayımı YANLIŞ çıktı (free tarafı):**
+`git log -S"examGateActive"` ile bulundu: commit `78a8988` (G97, 2026-08-10,
+"Yedi ürün kararı... kasıtlı davranışların belgelenmesi") `ensureAutoNext()`'e
+(app.js:5293-5305) ŞU AN HÂLÂ KELİMESİ KELİMESİNE DURAN bir yorum eklemiş:
+"ÜRÜN KARARI, HATA DEĞİL... ESKİDEN bu G50 REGRESYONU sanılıyordu, ARTIK
+KASITLI: Pro'da bir bölümü 'bitirmenin' ödülü zaten SINAV EKRANIDIR...
++%50 bölüm bonusu... Pro'da UYGULANMAYA DEVAM EDER — sadece GÖRÜNÜRLÜK
+kısıtlandı, KAZANIM değil." Yani **Pro tarafı KASITLI, commit+gerekçeli,
+DURUM.md'nin K maddesi bu kararı BİLMEDEN yazılmış (G97'ye hiç atıf
+yapmıyor) — K maddesi STALE.**
+AMA G97'nin AYNI yorumu şunu da iddia ediyor: "Ücretsiz kullanıcıda
+(examGateActive() HER ZAMAN false) bu bastırma HİÇ devreye girmez — bölüm
+bitiş ekranı ONLARDA aynen görünmeye devam eder." **Bu iddia G224'ün BU
+OTURUMDAKİ ölçümüyle YANLIŞ çıktı** — free kullanıcı ad-extended limitle
+(5+5=10) bile `finalizeIfGameOver()`'ın senkron sessionLimit kontrolü
+yüzünden `finishChallenge()`'a hiç ulaşamıyor (bkz. G224 kaydı). Ayrıca
+`FREE_SESSION_QUESTION_LIMIT` (G61, 2026-08-08) G97'den (2026-08-10) 2 gün
+ÖNCE zaten vardı — G97 yazılırken free limit 5'ti, reklam-uzatma (G185,
+DAHA SONRA) henüz yoktu, yani free kullanıcı O ZAMAN bile 10'a hiç
+ulaşamıyordu — G97'nin bu iddiası YAZILDIĞI ANDA bile doğrulanmamış/test
+edilmemiş bir varsayım gibi görünüyor.
+**Sonuç:** Pro tarafı **KASITLI** (commit 78a8988, gerekçeli). Free tarafı
+**NE KASITLI NE REGRESYON** — hiçbir commit bunu bilerek karar
+vermedi, G97'nin kendi (yanlış çıkan) varsayımı hiç doğrulanmamış.
+**Kullanıcı kaybı:** halka/rozet/XP-kırılımı/zayıf-bölge-cümlesi görsel
+özeti (showSessionEnd, app.js:1748-1899) gösterilmiyor — AMA G97'nin
+belgelediği gibi +%50 bölüm bonusu XP'ye ZATEN UYGULANMIŞ oluyor (kazanım
+kaybı YOK, sadece kutlama ekranı eksik). Serbest kullanıcıda AYRICA
+`challenge.done` finishChallenge() hiç çağrılmadığı için 10'un ÜSTÜNE
+sınırsız büyümeye devam ediyor (bir sonraki fresh-start'a kadar) — küçük,
+zararsız bir yan etki (bonus xpMult() `challenge.active`'e bağlı, done
+sayısının kendisi hiçbir yerde tavana çarpmıyor).
+**Düzeltme ÖNERİLMEDİ** (task'ın kuralı) — DURUM.md'nin K maddesi G97'ye
+atıf yapacak şekilde GÜNCELLENDİ (aşağıda, BEKLEYEN KARARLAR).
+
+**2) Hata analizi kayıt formatı — mevcut yapı:**
+ÜÇ AYRI, KISMİ veri deposu var, HİÇBİRİ zayıflık haritası için yeterli değil:
+- **`session.log`** (app.js:3525, `pushHistory()`) — `{correct, freq}`,
+  `freq` SADECE Frekans Bulma'nın "frequency" tipi sorularında dolu, diğer
+  11 modda `null`. **BELLEK İÇİ, HİÇ PERSIST EDİLMİYOR** — `resetSession()`'da
+  silinir, Seans Sonu ekranının bölge haritası/soru sırası görselleştirmesi
+  DIŞINDA hiçbir yerde kullanılmıyor.
+- **`history`/`stats.history`** (app.js:3515-3521, `persistStats()` ile
+  `eqEarTrainerProXStats` içinde persist) — `{correct, label, detail, ts}`,
+  `label`/`detail` HER MOD İÇİN AYRI el yazımı bir ternary zincirinden
+  (app.js:3488-3508, 12 dal) üretilen ÖNCEDEN BİÇİMLENDİRİLMİŞ metin — yapılı
+  alan DEĞİL. **12 KAYITLA SINIRLI** (`history.slice(0,12)`) — daha eski
+  cevaplar SİLİNİYOR.
+- **`zoneStats`/`fa_zonestats`** (`recordZone()`, frekans-bulma.js:598-610,
+  localStorage anahtarı `fa_zonestats`) — `{[bant]: {n, ok, sumDOct,
+  dOctCount}}`, TAMAMEN TOPLU/AGREGE — hangi SORUDA ne olduğu değil, bant
+  başına sayaç. **SADECE 4/12 modda çağrılıyor, 2'si KISMİ:** Frekans
+  Bulma (tam) · Frekans Bulma Pro Plus (tam, çok-bantlı) · Kesim Noktası
+  (tam) · Boost mu Cut mu (SADECE Katman 3) · Frekans Çakışması (SADECE
+  Aşama 1). **8 mod hiç çağırmıyor:** dB Seviyesi, Pan Konumu, Stereo
+  Genişlik, Q Genişliği, Kompresör, Reverb, Distortion, Tonal Denge (her
+  birinin kendi dosyasında BU AÇIKÇA yorumla belgelenmiş, ör.
+  `q-genisligi.js:48`, `db-seviyesi.js:34`).
+
+**Zayıflık haritası için EKSİK alanlar (task'ın kendi listesi, tek tek):**
+| Alan | Var mı? |
+|---|---|
+| mod (yapılı ID) | **YOK** — `history.label` serbest metin, `mode.getMeta().id` hiçbir yerde kaydedilmiyor |
+| soru parametreleri | **KISMİ** — SADECE `session.log.freq` (1/12 mod, bellek içi) + `history.detail`'in serbest-metin parçası (12 kayıtla sınırlı) |
+| kullanıcının cevabı (ham değer) | **YOK** — hiçbir yerde |
+| doğru cevap (ham değer) | **YOK** — hiçbir yerde yapılı |
+| zorluk seviyesi | **YOK** — `q.difficulty` her submit fonksiyonunda ZATEN mevcut (XP hesabı için okunuyor, ör. app.js:3991) ama hiç kaydedilmiyor |
+| süre | **YOK** — `roundFlow.timeLeft`/`roundDuration` ZATEN mevcut (XP hesabı için okunuyor) ama hiç kaydedilmiyor |
+| tarih | **KISMİ** — SADECE `history.ts` (12 kayıtla sınırlı) |
+
+**Önemli bulgu:** eksik alanların ÇOĞU (zorluk, süre, doğru cevap) zaten
+her submit fonksiyonunun YEREL KAPSAMINDA hazır duruyor (XP hesaplaması
+için okunuyor) — YENİ bir hesaplama/altyapı GEREKMİYOR, sadece bu ZATEN
+VAR OLAN değerlerin bir yere YAZILMASI gerekiyor.
+
+**12 mod aynı yapıyı mı kullanıyor?** `pushHistory(correct)` HEPSİNDEN
+ÇAĞRILIYOR (13 çağrı sitesi, app.js — 12 mod + 1 timeout yolu) AYNI
+`{correct, freq}`/`{correct,label,detail,ts}` ŞEKLİYLE — ama İÇERİK
+(hangi soru parametresi `label`/`detail`'e gireceği) HER MOD İÇİN AYRI
+YAZILMIŞ bir ternary dalı (app.js:3488-3508). `recordZone()` TEK bir
+paylaşılan fonksiyon (frekans-bulma.js, diğer 11 mod dosyası import+re-export
+ediyor) ama SADECE 4 mod GERÇEKTEN çağırıyor.
+
+**Genişletme maliyeti:**
+- **Depo/şema (TEK yer):** yeni bir kayıt fonksiyonu/şema TEK bir yerde
+  tanımlanabilir (`pushHistory()`'nin YANINA ya da YERİNE) — mimari olarak
+  merkezi.
+- **Veri toplama (12 modda AYRI AYRI):** her mod'un submit fonksiyonu
+  KENDİ soru parametresini/kullanıcı cevabını FARKLI değişken adlarıyla
+  tutuyor (`guessHz`/`answer`/`value`/`labelId`/`letter`/vb.) — yeni
+  fonksiyona bunları GEÇİRMEK için 13 çağrı sitesinin HER BİRİNE
+  dokunulması gerekir (mekanik ama tekil, karmaşık DEĞİL — değerler zaten
+  yerelde hazır).
+- **Migration/geçmiş veri:** YENİ bir localStorage anahtarı kullanılırsa
+  (`fa_zonestats`/`stats.history`'DEN AYRI) migration GEREKMEZ, mevcut
+  veri BOZULMAZ — yeni kullanıcılarda/sürümden sonra BOŞ başlar (task'ın
+  kendi endişesi tam bu: "sonradan eklenirse geçmiş veri olmaz" — DOĞRU,
+  bu yüzden 1.0'da açılması gerekiyor).
+- **localStorage boyutu — GERÇEK bir risk:** `history` (12 kayıt) VE
+  `stats` AYNI blob'da (`persistStats()`, `storage.saveStats(stats,
+  history)`) — HER cevapta SENKRON yeniden yazılıyor. Sınırsız büyüyen bir
+  log AYNI blob'a eklenirse HER cevapta büyüyen bir JSON'u senkron
+  serialize/yazma maliyeti birikir (performans) VE localStorage'ın
+  tarayıcı/WKWebView başına tipik 5-10MB sınırına (kesin sayı bu projede
+  ÖLÇÜLMEDİ, cihaza göre değişir) çok aktif bir kullanıcıda yaklaşılabilir
+  — kaba tahmin: kayıt başına ~100-200 byte × binlerce cevap = birkaç MB
+  mertebesi, kesin doğrulanmadı. **Öneri (uygulanmadı):** `stats` blob'undan
+  AYRI bir anahtar + bir üst sınır/döngüsel-tamponlama (`history`'nin 12
+  kaydını AŞAN ama sınırsız OLMAYAN bir kapasite) mantıklı olur — kesin
+  sayı ürün kararı.
+- **App Privacy:** **ETKİLENMEZ** — proje genelinde `fetch()`/`XMLHttpRequest`
+  kullanımı SADECE yerel/bundle ses dosyalarını okumak için (grep ile
+  doğrulandı, hiçbir ağ/analitik endpoint'i yok, CLAUDE.md'nin "Backend
+  yok, tüm veri localStorage'da" iddiasıyla TUTARLI) — genişletilmiş kayıt
+  da CİHAZDA kalacağı sürece mevcut mağaza beyanı DEĞİŞMEZ.
+
+**Ölçüm:** Kod yazılmadı. `npm test` etkilenmedi (1315/1315, yeniden
+çalıştırılmadı — davranış değişmedi).
+
+**Dokunulan:** Hiçbir kod dosyası — SADECE `DURUM.md` (bu giriş + K
+maddesinin güncellenmesi).
+
 G226 — **Tonal Balance "i" metnine ölçüm/yöntem bilgisi eklendi (mevcut metin korundu).**
 
 `www/js/core/guide-texts.js:76` (`TOOLS_TONAL_GUIDE`, "Pop / EDM / Akustik"
@@ -16281,12 +16405,19 @@ kapatılır, (b) regresyonsa `finishChallenge()`'ın exam-passed/remedial-passed
 sonrasında da (ya da EXAM_ENABLED olmayan bir moda dönülürse) tetiklenmesi
 sağlanıp "done" canlı yeniden denenmeli.
 
-**EK (G221'de bulundu):** Free kullanıcının "done"a asla ulaşamamasının
-İKİNCİ, BAĞIMSIZ bir sebebi daha var — bkz. madde **30**: sessionLimit
-paywall'ından reklamla "+5 soru" kazanılsa BİLE, "Atla" ile limite
-ulaşılmışsa "Oyunu Başlat"a basıp devam etmek `challenge.done`'ı
-sıfırlıyor (G224'te koşulu netleşti — SADECE "Atla" yolunda, cevaplayarak
-ulaşılırsa tetiklenmiyor).
+**GÜNCELLEME (G227, `git log` ile):** Pro tarafının nedeni (`examGateActive()`
+her zaman true) `git log -S"examGateActive"` ile commit `78a8988`'e (G97,
+2026-08-10) kadar izlendi — bu madde ARTIK "belirsiz" DEĞİL, KASITLI
+(BEKLEYEN KARARLAR K'nın güncellenmiş hâline bkz.). Free tarafı ise G97'nin
+KENDİ ("ücretsizde ekran aynen görünür") varsayımıyla ÇELİŞİYOR — ayrıntı
+K maddesinde.
+
+**EK (G221'de bulundu, G225'te KISMEN kapandı):** Free kullanıcının "done"a
+asla ulaşamamasının İKİNCİ sebebiydi — bkz. madde **30 (ARTIK KAPALI,
+G225)**: "Atla" ile limite ulaşıp reklamla "+5 soru" kazanan kullanıcının
+"Oyunu Başlat"a basınca hakkının silinmesi G225'te DÜZELTİLDİ. Bu ARTIK
+"done"a ulaşmayı ENGELLEMİYOR — ama EK 2'deki (aşağıda) BAĞIMSIZ üçüncü
+sebep hâlâ duruyor, o yüzden "done" free tarafta HÂLÂ erişilemez.
 
 **EK 2 (G224'te bulundu, madde 30'dan TAMAMEN BAĞIMSIZ ÜÇÜNCÜ sebep):**
 Madde 30'un GÜVENLİ yolundan (reset OLMADAN) 10 gerçek soru cevaplanıp
@@ -16584,26 +16715,35 @@ Beş madde G162'de raporlanmıştı; ilk üçü G163/G164'te çözüldü, kalan 
    bekliyor (sayaç eklensin mi, yoksa vaat mi düzeltilsin).
 
 **K. G82 — Pro kullanıcı için "done" (kayıpsız 10 Soruluk Bölüm) Seans Sonu
-durumu HİÇ tetiklenemiyor, kasıtlı mı?**
-Kod incelemesiyle doğrulandı (bkz. AÇIK İŞLER madde 20): G50, sınav
-sistemini (`EXAM_ENABLED`) tek tek her moda yayarken (Kompresör'den 10
-moda) `ensureAutoNext()`'teki `finishChallenge()` guard'ı (`!examGateActive()`)
-GÜNCELLENMEDİ — o zaman "diğer yedi modda mode.EXAM_ENABLED undefined"
-varsayımıyla yazılmıştı, artık YANLIŞ. Sonuç: Pro kullanıcı `challenge.done>=10`'a
-ULAŞTIĞINDA sınav HER ZAMAN devreye giriyor (parkur bitmeden), "done"
-ekranı yerine YA sınav-geçti kutlama sheet'i YA "parkur baştan" görüyor.
-İki olası karar:
-1. **Kasıtlı** — Pro'nun "ödül anı" artık sınav-geçti kutlama sheet'i,
-   "done" ekranı SADECE (teorik olarak erişilemeyen) free+limitsiz bir
-   senaryo için var. Bu durumda "done" kodu YİNE de dursun (zararsız,
-   test edilebilir) ama AÇIK İŞLER madde 20 "beklenen davranış" olarak
-   kapatılır.
-2. **Regresyon** — sınav sistemi genişletilirken KAÇIRILAN bir durum;
-   `finishChallenge()` sınav-geçti/telafi-geçti SONRASI (ya da parkurun
-   TAMAMI sınavsız bitmişse) de çağrılmalı. Bu, `core/exam-system.js`/
-   `ensureAutoNext`'e AYRI bir turda dokunmayı gerektirir — bu turun
-   kapsamı DIŞINDA bırakıldı (task "Seans Sonu ekranı giydirilecek" dedi,
-   sınav akışını YENİDEN kablolamak DEĞİL).
+durumu HİÇ tetiklenemiyor — Pro tarafı KASITLI (G97/78a8988), free tarafı
+G97'nin KENDİ varsayımıyla ÇELİŞİYOR (G227'de bulundu)**
+**GÜNCELLEME (G227, `git log -S` ile):** bu maddenin "kasıtlı mı regresyon
+mu belirsiz" çerçevesi STALE'di — karar ZATEN verilmiş: commit `78a8988`
+(G97, 2026-08-10) `ensureAutoNext()`'e (app.js:5293-5305) "ÜRÜN KARARI,
+HATA DEĞİL... ESKİDEN G50 REGRESYONU sanılıyordu, ARTIK KASITLI: Pro'da
+bir bölümü bitirmenin ödülü zaten SINAV EKRANIDIR" yorumunu eklemiş, HÂLÂ
+DURUYOR, kelimesi kelimesine. **Pro tarafı: KASITLI, commit+gerekçeli.**
+AMA aynı yorum "Ücretsiz kullanıcıda... bölüm bitiş ekranı ONLARDA aynen
+görünmeye devam eder" de diyor — bu iddia G224'ün ölçümüyle (bu oturumda)
+YANLIŞ çıktı: free kullanıcı ad-extended limitle (10) bile
+`finalizeIfGameOver()`'ın senkron sessionLimit kontrolü yüzünden
+`finishChallenge()`'a hiç ulaşamıyor. `FREE_SESSION_QUESTION_LIMIT` (G61,
+2026-08-08) G97'den 2 gün ÖNCE zaten vardı — bu iddia yazıldığı anda bile
+doğrulanmamış bir varsayım gibi görünüyor. **Free tarafı: NE KASITLI NE
+REGRESYON — hiç doğrulanmamış bir varsayım.**
+**Kullanıcı kaybı sınırlı:** +%50 bölüm bonusu XP'ye HER İKİ tarafta da
+ZATEN uygulanıyor (G97'nin kendi notu) — kayıp SADECE görsel özet ekranı
+(halka/rozet/XP kırılımı), kazanım kaybı yok.
+İki olası karar (değişmedi, hâlâ AÇIK):
+1. **Mevcut kasıtlı kararı ONAYLA** — "done" kodu dursun (zararsız, test
+   edilebilir, G221'in e2e kancası zaten buna dayanıyor) ama AÇIK İŞLER
+   madde 20 "beklenen davranış" olarak (Pro İÇİN) kapatılır — free
+   tarafının erişilemezliği ayrı, küçük bir not olarak G97'nin yorumuna
+   düzeltme eklenir (kod değişmez, SADECE yorum güncellenir).
+2. **Regresyon gibi ele al** — `finishChallenge()` sınav-geçti/telafi-geçti
+   SONRASI da (ya da free'nin ad-extended limiti challenge.total'ı aşarsa)
+   tetiklenmeli. `core/exam-system.js`/`ensureAutoNext`'e AYRI bir turda
+   dokunmayı gerektirir.
 **Kabul kriteri:** kullanıcı 1 ya da 2'yi seçer; 2 seçilirse ayrı bir görev
 olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 "done" canlı yeniden denenir.
@@ -16681,7 +16821,29 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G225 itibarıyla):** Madde 30 DÜZELTİLDİ ve KAPANDI
+**EN YENİ SIRADAKİ ADIM (G227 itibarıyla):** G226 — Tonal Balance "i" metnine
+ölçüm/yöntem bilgisi eklendi (41 parça, bant sınırları, sapma tanımı,
+kod DEĞİŞMEDİ). G227 (İKİ ÖLÇÜM, kod yazılmadı): (1) BEKLEYEN KARARLAR K
+netleşti — Pro'da "done" ekranının erişilemezliği `git log`'la KASITLI
+bulundu (commit 78a8988/G97, 2026-08-10, "Pro'da ödül sınav ekranıdır")
+ama G97'nin AYNI yorumundaki free-tarafı iddiası ("ücretsizde ekran aynen
+görünür") G224'ün ölçümüyle YANLIŞ çıktı — free tarafı hâlâ AÇIK, kullanıcı
+kararı bekliyor. (2) Hata analizi kayıt formatının TAM tarifi çıkarıldı —
+3 ayrı/kısmi veri deposu (`session.log` bellek-içi, `history` 12-kayıtla
+sınırlı serbest-metin, `zoneStats` SADECE 4/12 modda ve agrege) hiçbiri
+zayıflık haritası için yeterli değil; eksik alanların (zorluk/süre/ham
+cevap) ÇOĞU aslında her submit fonksiyonunun yerel kapsamında ZATEN hazır
+— sadece yazılmıyor. Genişletme: 12 mod'un HER BİRİNE dokunmak gerekir
+(veri toplama), ama depo/şema TEK yerde tanımlanabilir; localStorage
+boyutu GERÇEK bir risk (kesin ölçülmedi); App Privacy ETKİLENMEZ (tüm
+veri cihazda). `npm test` 1315/1315, etkilenmedi (kod yazılmadı).
+**Bir sonraki adım:** BEKLEYEN KARARLAR K için kullanıcı kararı (Pro'nun
+kasıtlı kararını AYNEN onayla + free'nin yorumunu düzelt, ya da
+`finishChallenge()`'ı regresyon gibi ele alıp yeniden kabla). Hata analizi
+kayıt formatı için kullanıcı kararı (1.0'da açılsın mı, hangi alanlar,
+hangi depo stratejisi).
+
+**EN YENİ SIRADAKİ ADIM (G225 itibarıyla, ARTIK ESKİ):** Madde 30 DÜZELTİLDİ ve KAPANDI
 — yeni `paywallEndedRoundForResume` bayrağı `#startBtn`'in fresh-start
 resetini SADECE gerçek fresh-start'ta çalıştırıyor, paywall'dan (reklamla
 uzatılmış oturuma) dönüşte artık çalışmıyor. Cevaplama yolu (zaten
