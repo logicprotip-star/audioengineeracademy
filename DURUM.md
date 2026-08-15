@@ -146,6 +146,79 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G223 — **Tonal Balance hedef eğrileri (Pop/EDM/Akustik) taslaktan GERÇEK ölçüme geçti — 41 parça, kullanıcı tarafından ölçüldü.**
+
+**Değişen sayılar** (`www/js/core/tonal-balance.js:32-36`, `DRAFT_TARGET_CURVES`
+— İSİM DEĞİŞMEDİ, kullanıcı kararı):
+
+| Bant | Pop (eski→yeni) | EDM (eski→yeni) | Akustik (eski→yeni) |
+|---|---|---|---|
+| SUB | -0.4 → **5.6** | 1.2 → **6.5** | -2.3 → **4.0** |
+| BAS | 0.6 → **3.2** | -0.2 → **2.4** | 0.4 → **4.8** |
+| ALT-ORTA | -0.3 → **3.4** | 0.4 → **-0.2** | 1.9 → **5.4** |
+| ORTA | 0.5 → **1.3** | -0.9 → **1.4** | -0.5 → **1.5** |
+| ÜST-ORTA | 2.1 → **-4.2** | 0.7 → **-3.3** | 0.8 → **-4.9** |
+| TİZ | -1.8 → **-9.4** | 0.3 → **-6.8** | -0.2 → **-10.9** |
+
+**Yöntem (kullanıcıdan alındı, Claude BAĞIMSIZ doğrulamadı):** 41 parçadan
+(Pop 25 · EDM 7 · Akustik 9) `measureSpectralDeviation()`/`normalizeBandSums()`'ın
+(bu dosyanın KENDİ algoritması, satır 152-223/104-114 — **hiç değişmedi**,
+BİREBİR yeniden uygulanarak) ürettiği sapma eğrileriyle ölçüldü. Ayırt edici
+bant ALT-ORTA (250-500 Hz): Pop +3.4 · EDM -0.2 · Akustik +5.4 — kategori
+İÇİ sapma 1.2-1.8dB, kategoriler ARASI fark 3.6-5.6dB. EDM'nin 7 parçası
+club-odaklı (tech house/big room/D&B); melodic/progressive EDM (Levels,
+Innerbloom, Summer, Titanium, adore u, Animals, Piece Of Your Heart) ölçümde
+Pop'tan ayrışmadığı için Pop kategorisine dahil edildi.
+
+**EKSİK — DÜZELTİLMEDİ, belgeye yazılamadı:** task'ın 2. maddesi "kaynak
+listesi ve tam parça ölçümleri belgeye yazılsın" diyordu — 41 parçanın
+TAM listesi (isimler + parça-bazlı 6 sayı) bu oturumda Claude'a hiç
+VERİLMEDİ (sadece 3 kategorinin NİHAİ/ortalama dizileri + yukarıdaki
+özet istatistikler paylaşıldı, `hedef-egriler.json` da SADECE bu 3 nihai
+diziyi içeriyor — repo kökünde, untracked, dokunulmadı). Bu yüzden
+CLAUDE.md'nin "sayı uydurma" kuralı gereği 41 parçalık tam liste
+UYDURULMADI — kullanıcıdan istendi (bu turun sonunda).
+
+**Algoritma DEĞİŞMEDİ (task'ın kendi DOKUNULMAYACAK listesi):**
+`BANDS`/`BAND_EDGES`/`FA_ZONES`, `normalizeBandSums()`, `measureSpectralDeviation()`,
+UI/grafik/bölge dinleme, "Kendi Referansım" akışı, kullanıcıya gösterilen
+"i" metinleri (G222'nin taradığı, TOOLS_TONAL_GUIDE'daki "Pop/EDM/Akustik"
+metni SADECE presetlerin "genel bir tür referansı, kesin ölçüm için Kendi
+Referansım'ı kullan" dediği için bu değişiklikle ÇELİŞMİYOR — dokunulmadı).
+`DRAFT_TARGET_CURVES` sabitinin ADI aynı kaldı, SADECE değerleri ve üstündeki
+yorum (artık taslak değil, ölçülmüş — DÜRÜSTLÜK NOTU güncellendi) değişti.
+
+**TASARIM.md:** "Tonal Balance" başlıklı bir bölüm YOK (grep ile doğrulandı
+— sadece "Tonal Denge" adlı AYRI bir oyun modundan bahsediyor) — task'ın
+kendi koşulu ("varsa oraya da") sağlanmadı, dokunulmadı.
+
+**`.gitignore`:** `*.m4a`/`*.wav`/`*.aif`/`*.aiff` eklendi (ölçüm için
+kullanılan referans parçaların repoya girmemesi için) — `www/audio/`'daki
+uygulamanın KENDİ örnek ses kütüphanesi (kick/snare/bass/vocal/vb., 9
+dosya, ZATEN takipli) `!www/audio/*.m4a` negatif deseniyle açıkça HARİÇ
+tutuldu. Doğrulandı: `git check-ignore www/audio/kick.m4a` boş/1 dönüyor
+(ignore edilmiyor), yeni bir `.m4a` dosyası (`test_probe.m4a`) ignore
+ediliyor. `ios/App/App/public/`/`android/.../assets/public/` altındaki
+kopya `.m4a`'lar zaten Capacitor'ün KENDİ `ios/.gitignore`/`android/.gitignore`'ıyla
+(App/App/public, app/src/main/assets/public) ayrıca ignore ediliyor —
+bu turda EK bir şey gerekmedi.
+
+**Ölçüm:** `npm test` → **1315/1315, DEĞİŞMEDİ**. `npm run test:e2e` →
+**8/8, DEĞİŞMEDİ**. `test/tonal-balance.test.mjs` (23 test) ayrıca tek
+başına çalıştırıldı → **23/23** — DRAFT_TARGET_CURVES'e dokunan tek test
+(satır 31-38) SADECE şekli (3 anahtar × 6 sonlu sayı) doğruluyor, tahmin
+edildiği gibi değer değişikliğinden ETKİLENMEDİ.
+
+**Dokunulan:** `www/js/core/tonal-balance.js` (SADECE `DRAFT_TARGET_CURVES`
+değerleri + üstündeki DÜRÜSTLÜK NOTU yorumu), `.gitignore`.
+**Dokunulmayan:** `BANDS`/`BAND_EDGES`/`FA_ZONES`, `normalizeBandSums()`/
+`measureSpectralDeviation()`'ın gövdeleri, Tonal Balance UI/grafik/bölge
+dinleme kodu, "Kendi Referansım" akışı, `guide-texts.js`/`app.js`'teki
+"i" metinleri, `TASARIM.md` (ilgili bölüm yok), `hedef-egriler.json`
+(kullanıcının kendi dosyası, untracked, dokunulmadı), G177/G178/G185/
+G187/G198/G201/G204/G205/G203/G212/G214/G215/G216/G220/G221/G222,
+581f798/a4efb42.
+
 G222 — **"i" metinleri taraması (ÖLÇÜM — kod yazılmadı): ücretsiz sürüm kuralları 6 kaynakta tarandı, 1 çelişki bulundu.**
 
 **Kapsam (task'ın kendi listesi):** Ana menü "i" (`GENERAL_GUIDE`), mod içi
@@ -16451,7 +16524,18 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G222 itibarıyla):** "ÜÇ İŞ" görevinin ÜÇÜ de bitti
+**EN YENİ SIRADAKİ ADIM (G223 itibarıyla):** Tonal Balance hedef eğrileri
+(Pop/EDM/Akustik) 41 parçalık GERÇEK ölçümle değiştirildi (`DRAFT_TARGET_CURVES`,
+isim aynı kaldı) — algoritmaya (`normalizeBandSums`/`measureSpectralDeviation`)
+DOKUNULMADI. `.gitignore`'a ses dosyası uzantıları eklendi (`www/audio/`'nun
+kendi örnek kütüphanesi hariç tutularak). `npm test` 1315/1315, `npm run
+test:e2e` 8/8 — ikisi de değişmedi. **EKSİK:** 41 parçanın tam kaynak
+listesi/parça-bazlı ölçümleri task'ta istenmişti ama Claude'a hiç verilmedi
+— uydurulmadı, kullanıcıdan istendi.
+**Bir sonraki adım:** Kullanıcı 41 parçanın kaynak listesini/parça-bazlı
+ölçümlerini sağlarsa DURUM.md'nin G223 kaydına eklenecek.
+
+**EN YENİ SIRADAKİ ADIM (G222 itibarıyla, ARTIK ESKİ):** "ÜÇ İŞ" görevinin ÜÇÜ de bitti
 — G220 (G63 kaldırıldı), G221 (`#screen-result` layout telafisi +
 `#resWeakBox`), G222 ("i" metinleri taraması — 6 kaynak, 5 sayı hepsinde
 TUTARLI, ilk-oturum kalıntısı SIFIR, SADECE SSS'nin "Canlar" maddesi

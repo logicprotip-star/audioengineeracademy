@@ -14,25 +14,40 @@
 // FA_ZONES'un (frekans-bulma.js — Frekans Bulma modunun ZATEN kullandığı 6
 // bölge, burada TEKRAR TANIMLANMADI) her bandına düşen bin'ler ortalanıyor.
 //
-// HEDEF EĞRİLER (Pop/EDM/Akustik) — DÜRÜSTLÜK NOTU: bu sayılar gerçek
-// referans parçalardan ölçülerek türetilmedi. Tasarımın (Araçlar.dc.html)
-// KENDİ taslak sayıları — kullanıcının onayladığı bir başlangıç noktası
-// olarak birebir alındı, ama TASLAK'tır ve gerçek referans parçalardan
-// yeniden türetilmesi gerekir (bkz. task'ın kendi notu). Üretim kararı
-// olarak SUNULMUYOR.
+// HEDEF EĞRİLER (Pop/EDM/Akustik) — G223 DÜZELTMESİ: eski DÜRÜSTLÜK NOTU
+// ("bu sayılar ölçülmedi, tasarım dosyasından kopyalandı, TASLAK'tır")
+// ARTIK GEÇERSİZ — sayılar 41 gerçek parçadan (Pop 25 · EDM 7 · Akustik 9)
+// GERÇEKTEN ölçülerek türetildi. Yöntem: bu dosyanın KENDİ algoritması
+// (measureSpectralDeviation + normalizeBandSums, aşağıda) birebir yeniden
+// uygulanarak — fftSize 8192, tarayıcının AnalyserNode'unun kendi (spec'e
+// göre Blackman) penceresi, hopSec 0.5s (t=0.5s'den dosya sonuna, son
+// <0.5s'lik kuyruk hariç), sessizlik eşiği/atlama YOK, (L+R)/2 downmix
+// (1-kanallı OfflineAudioContext'in varsayılan indirgemesi), her bin'in
+// gücü kendi frekansıyla ağırlıklandırılıp (pembe-eğim telafisi) bant içi
+// güç-domeninde ortalanıyor, bantlar arası normalize dB-domeninde 6 bandın
+// aritmetik ortalamasına göre yapılıyor — kullanıcı tarafından ölçüldü,
+// Claude bu ölçümü BAĞIMSIZ doğrulamadı (kaynak parça sesleri/ölçüm script'i
+// bu oturumda incelenmedi).
+// Ayırt edici bant ALT-ORTA (250-500 Hz): Pop +3.4 · EDM -0.2 · Akustik
+// +5.4 — kategori İÇİ sapma 1.2-1.8dB, kategoriler ARASI fark 3.6-5.6dB.
+// EDM'nin 7 parçası club-odaklı (tech house/big room/D&B); melodic/
+// progressive EDM (Levels, Innerbloom, Summer, Titanium, adore u, Animals,
+// Piece Of Your Heart) ölçümde Pop'tan ayrışmadığı için Pop kategorisine
+// dahil edildi — liste ileride zenginleşebilir, bkz. DURUM.md G223.
 
 import { FA_ZONES } from "../modes/frekans-bulma.js";
 
 export const BANDS = FA_ZONES.map((z) => z.t.split(" (")[0]);
 export const BAND_EDGES = [FA_ZONES[0].a, ...FA_ZONES.map((z) => z.b)];
 
-// TASLAK hedef eğriler — Tasarim-2026-08/Araçlar.dc.html'in kendi TB
-// sabitinden BİREBİR (satır ~640-643). Her dizi 6 bant için dB sapma
-// (SUB/BAS/ALT-ORTA/ORTA/ÜST-ORTA/TİZ sırasıyla).
+// Hedef eğriler (G223'ten beri GERÇEK ölçüm, ADI hâlâ DRAFT_TARGET_CURVES —
+// kullanıcı kararı: mevcut çağrı noktaları/testler bu isme bağlı, isim
+// DEĞİŞTİRİLMEDİ). Her dizi 6 bant için dB sapma (SUB/BAS/ALT-ORTA/ORTA/
+// ÜST-ORTA/TİZ sırasıyla) — yöntem yukarıdaki DÜRÜSTLÜK NOTU'nda.
 export const DRAFT_TARGET_CURVES = {
-  Pop: [-0.4, 0.6, -0.3, 0.5, 2.1, -1.8],
-  EDM: [1.2, -0.2, 0.4, -0.9, 0.7, 0.3],
-  Akustik: [-2.3, 0.4, 1.9, -0.5, 0.8, -0.2],
+  Pop: [5.6, 3.2, 3.4, 1.3, -4.2, -9.4],
+  EDM: [6.5, 2.4, -0.2, 1.4, -3.3, -6.8],
+  Akustik: [4.0, 4.8, 5.4, 1.5, -4.9, -10.9],
 };
 
 export const OFF_TARGET_THRESHOLD_DB = 1.5;

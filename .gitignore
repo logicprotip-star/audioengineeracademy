@@ -7,3 +7,13 @@ android/build/
 android/.gradle/
 android/app/build/
 .vscode/
+
+# G223 — Tonal Balance hedef eğrilerini ölçmek için kullanılan referans
+# parçalar repoya girmesin (telif). www/audio/'daki uygulamanın KENDİ örnek
+# ses kütüphanesi (kick/snare/bass/vocal/vb., zaten repoda takipli) BUNDAN
+# MUAF — negatif desenle açıkça hariç tutuldu, kazara ignore edilmiyor.
+*.m4a
+*.wav
+*.aif
+*.aiff
+!www/audio/*.m4a
