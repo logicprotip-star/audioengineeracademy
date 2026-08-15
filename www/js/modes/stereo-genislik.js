@@ -158,6 +158,33 @@ export function generateChoiceValues(trueValue, step, count, min, max) {
   return [trueValue, ...offsets].map(v => Math.round(v));
 }
 
+// G212 — KÖK SEBEP (ölçüldü, bkz. DURUM.md G212): numberOfChannels<2 kontrolü
+// GERÇEK tek-kanallı dosyaları doğru yakalıyordu (Chromium+WebKit'te gerçek
+// mono AIFF ile doğrulandı, ikisi de 1 kanal doğru okuyor — decodeAudioData
+// hatası DEĞİL). Ama birçok DAW "mono" bir kaynağı 2 kanallı (interleaved
+// stereo, L=R — "dual-mono") olarak dışa aktarıyor; bu dosyalar
+// numberOfChannels===2 olduğu için kontrolü GEÇİYOR, uyarı hiç tetiklenmiyor
+// — playwright ile üretilen bir dual-mono WAV/AIFF'te tam olarak BU
+// ÜRETİLDİ. Kanalların GERÇEKTEN farklı içerik taşıyıp taşımadığına da
+// bakılır — örneklenmiş (adaptif adımlı) L/R farkı bir eşiğin altındaysa
+// "mono" (dual-mono) sayılır.
+// Eşik (0.001, ~-60 dB) mühendislik kararı: bit-eşit/bit-eşite yakın
+// kopyaları yakalar, gerçek stereo mikslerde (yüksek mono-uyum bile) yanlış
+// alarm ÜRETMEZ — bu bir ürün/UX kararı, sayı revize edilebilir.
+function isEffectivelyMono(buffer) {
+  if (typeof buffer.getChannelData !== "function") return false; // sahte/kanal-verisiz "buffer benzeri" nesne — bkz. bufferPlayability'nin testteki sözleşmesi
+  const l = buffer.getChannelData(0);
+  const r = buffer.getChannelData(1);
+  const len = l.length;
+  if (len === 0) return true;
+  const DUAL_MONO_THRESHOLD = 0.001;
+  const step = Math.max(1, Math.floor(len / 2000));
+  for (let i = 0; i < len; i += step) {
+    if (Math.abs(l[i] - r[i]) > DUAL_MONO_THRESHOLD) return false;
+  }
+  return true;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // G122 — DOSYA UYGUNLUĞU (SAF, DOM/audio bağımsız — sadece bir AudioBuffer'ın
 // alanlarını okur). app.js hem "Oynat"a basmadan ÖNCE gate panelini
@@ -167,6 +194,7 @@ export function generateChoiceValues(trueValue, step, count, min, max) {
 export function bufferPlayability(buffer) {
   if (!buffer) return { ok: false, reason: "no-file" };
   if (buffer.numberOfChannels < 2) return { ok: false, reason: "mono" };
+  if (isEffectivelyMono(buffer)) return { ok: false, reason: "mono" };
   return { ok: true, reason: null };
 }
 

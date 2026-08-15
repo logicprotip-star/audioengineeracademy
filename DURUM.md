@@ -132,6 +132,97 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G212 — **İki düzeltme + bir ölçüm: (1) SON İŞLEMLERİM zaten G209'da bitmişti, (2) mono dosya uyarısı — GERÇEK kök sebep bulundu ve düzeltildi, (3) BÖLÜM çubuğu doğru/yanlış — SADECE ölçüldü, kod yazılmadı.**
+
+**Part 1 — "SON İŞLEMLERİM temizleme":** kontrol edildi, G209'da ZATEN
+tamamlanmış (`toolsDeleteAction`/`toolsClearAllActions`,
+`#toolsClearActionsBtn`, hepsi mevcut ve çalışıyor). Bu turda hiçbir
+şey değiştirilmedi — tekrar iş yapılmadı.
+
+**Part 2 — "Mono dosyada uyarı yok" — ÖLÇÜLDÜ, KÖK SEBEP BULUNDU, DÜZELTİLDİ:**
+
+Mekanizmanın kendisi (`mode.bufferPlayability`, SADECE
+`stereo-genislik.js`'te var, `syncUploadGate()`/`startRound()` guard'ında
+kullanılıyor) baştan beri DOĞRU çalışıyordu — `numberOfChannels<2`
+kontrolü, gerçek TEK KANALLI bir dosyada (Playwright'ta hem Chromium'un
+mono WAV'ı hem WebKit'in gerçek mono AIFF'i decodeAudioData ile 1 kanal
+doğru okundu, ffprobe ile çapraz doğrulandı) HER seçim yolunda (Oyun
+Ayarları→Dosya Seç→yeni dosya, Dosyalarım'dan var olan dosya seçimi,
+mod girişi, Kaynak dropdown değişimi) doğru şekilde "Bu dosya mono"
+uyarısını tetikliyordu — ölçüldü, dört ayrı Playwright senaryosuyla
+doğrulandı, GERÇEK bir hata YOKTU bu yolda.
+
+**Asıl kök sebep:** kontrol SADECE `numberOfChannels` sayısına bakıyordu.
+Birçok DAW (Logic Pro dahil) "mono" bir kaynağı interleaved-STEREO
+(2 kanal, L===R, "dual-mono") olarak dışa aktarıyor — bu, kullanıcının
+"mono dosya" dediği ama teknik olarak `numberOfChannels===2` olan bir
+dosya. Bunu doğrulamak için `ffmpeg -af "pan=stereo|c0=c0|c1=c0"` ile
+gerçek bir dual-mono AIFF/WAV üretildi, Playwright'ta oynatıldı: gate
+HİÇ görünmedi (`gateHidden:true`) — kullanıcının "yükledim, uyarı
+çıkmadı, oynadı" tarifiyle BİREBİR eşleşen, tekrar üretilebilir bulgu.
+
+**Uygulanan:** `stereo-genislik.js`'in `bufferPlayability()`'sine
+`isEffectivelyMono(buffer)` eklendi — kanal sayısı ≥2 olsa bile, L/R
+örneklerinin (adaptif adımla ~2000 nokta) mutlak farkı 0.001'in
+(~-60 dB) altındaysa yine `reason:"mono"` döner. Eşik BİR MÜHENDİSLİK
+KARARI (bit-eşit/bit-eşite yakın kopyaları yakalar, gerçek stereo
+mikslerde — yüksek mono-uyumlu olsa bile — yanlış alarm ÜRETMEDİĞİ
+Playwright'ta `test-stereo.wav` ile doğrulandı) — "sayı uydurma"
+değil, ama revize edilebilir bir ürün/UX kararı olduğu AÇIKÇA
+işaretlendi (dosya başı G212 notu).
+
+**Geriye dönük uyumluluk:** testteki eski-stil sahte buffer'lar
+(`{numberOfChannels: N}`, `getChannelData` YOK) — `isEffectivelyMono`
+`typeof buffer.getChannelData !== "function"` ise `false` döner,
+davranış AYNEN korunur (test dosyasının kendi "SAF, sadece
+{numberOfChannels} okuyan sahte nesnelerle test edilebiliyor" sözleşmesi
+BOZULMADI).
+
+**Kapsam dışı bırakılan (ölçüldü, gerek YOK):**
+- **Pan Konumu:** `createStereoPanner()` mono girdiyi GEÇERLİ bir
+  kullanım olarak kabul eder (panlamak için mono kaynak normal) —
+  `bufferPlayability` export'u YOK, dokunulmadı.
+- **Ölçüm Sonuçları (Araçlar/analiz):** `core/analysis.js` mono'yu
+  ZATEN kabul ediyor (`numberOfChannels<1||>2` DIŞINDA hata YOK),
+  `renderToolsAnalysisStereo()`/`drawCorrelationChart()` mono girdide
+  ZATEN "Mono dosya — stereo ölçümleri uygulanamaz" / "Mono dosya —
+  uygulanamaz" mesajı gösteriyor (app.js:10077, 10275) — bu yüzeyde
+  uyarı zaten VARDI, YENİ bir şey eklenmedi.
+- **Tonal Balance "Kendi Referansım":** `toolsTonalRefWarn` (app.js
+  ~11463) ZATEN mono referans dosyasını uyarıyordu.
+
+**Ölçüm/doğrulama (Playwright, hem Chromium hem WebKit motoru):**
+gerçek mono AIFF (WebKit, 1ch doğru okundu) · mono WAV → "Bu dosya
+mono" (düzeltmeden ÖNCE de doğruydu) · dual-mono WAV (2ch, L=R) →
+düzeltmeden ÖNCE `gateHidden:true` (uyarı YOK), düzeltmeden SONRA "Bu
+dosya mono" (uyarı VAR) · gerçek stereo WAV (L≠R) → düzeltmeden SONRA
+da `gateHidden:true` (yanlış alarm YOK).
+
+**Dokunulan:** `www/js/modes/stereo-genislik.js` (`isEffectivelyMono` +
+`bufferPlayability` genişletildi), `test/stereo-genislik.test.mjs`
+(4 yeni test: bit-eşit L=R, eşik-altı L≈R, gerçek farklı L/R, eski-stil
+fake geriye dönük uyumluluk).
+**Dokunulmayan:** `pan-konumu.js`, `core/analysis.js`,
+`syncUploadGate()`/`startRound()` guard'ı (app.js — ÇAĞRI ZİNCİRİ
+değişmedi, SADECE çağırdıkları fonksiyonun içi genişledi), G202-G211'in
+hiçbiri.
+
+npm test: 1315/1315 (1311 taban + Part 2'nin 4 yeni testi; hiçbir test
+kaybı yok).
+
+**Part 3 — "BÖLÜM çubuğunda doğru/yanlış gösterimi" — SADECE ÖLÇÜLDÜ,
+KOD YAZILMADI (talimat gereği):** tam bulgular sohbet yanıtında —
+özet: telafi/sınav ekranı AYNI kod bloğunu (`renderGameHeader()`,
+app.js:3671-3688, `#gameExamDots`) paylaşıyor, rengi-DIŞINDA ikinci bir
+görsel sinyali YOK (`.game-exam-dot.on`=altın `var(--gold)`,
+`.wrong`=kırmızı `rgba(248,113,96,.6)`, SADECE background) — renk körü
+kuralını KENDİSİ de karşılamıyor. `challenge` nesnesi
+(`{active,total,done,correct,xp}`) pozisyon bazlı bir dizi TUTMUYOR,
+ama sınav/telafi'nin KENDİ deseni de pozisyonel DEĞİL — sadece iki
+SAYAÇ (`correctCount`/`current`) kullanıyor, ikisi de `challenge`'da
+ZATEN VAR (`correct`/`done`) — bu yüzden "veri yok, yeni alan
+gerekir" YARGISI YANLIŞ ÇIKTI, ayrıntı sohbet yanıtında.
+
 G209 — **G208'in eksik bıraktığı kapsam tamamlandı: "SON İŞLEMLERİM" de artık temizlenebiliyor.**
 
 G208'in görev metni SADECE Ölçüm Sonuçları'nı adlandırdığı için SON
@@ -15800,7 +15891,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G209 itibarıyla):** G208'in kapsam dışı bıraktığı
+**EN YENİ SIRADAKİ ADIM (G212 itibarıyla):** Mono dosya uyarısı (Stereo
+Genişlik) düzeltildi — gerçek kök sebep "dual-mono" dosyalardı (2 kanal,
+L=R), TEK kanallı dosyalarda mekanizma zaten doğruydu. `npm test`
+(1315/1315) ve Playwright'la (Chromium + WebKit, gerçek mono AIFF dahil)
+doğrulandı. GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: (1) Logic
+Pro'dan (ya da benzer bir DAW'dan) mono kaynağı normal şekilde dışa
+aktarıp Stereo Genişlik'e yükle — "Bu dosya mono" gate'i görünmeli; (2)
+gerçek stereo bir dosyada YANLIŞ ALARM olmamalı; (3) Part 3'ün (BÖLÜM
+çubuğu doğru/yanlış) uygulanıp uygulanmayacağı kullanıcının kararına
+kaldı — kod YAZILMADI, sadece ölçüldü (bkz. BİTTİ'deki G212 notu ve
+sohbet yanıtındaki tam bulgular).
+
+**EN YENİ SIRADAKİ ADIM (G209 itibarıyla, ARTIK ESKİ):** G208'in kapsam dışı bıraktığı
 "SON İŞLEMLERİM" de artık temizlenebiliyor (AYNI çöp kutusu ikonu +
 "Tümünü temizle" deseni, native confirm() YOK — G202/G208 ile TUTARLI,
 görev metnindeki "onay diyaloğuyla" ifadesi bu tutarlılık lehine

@@ -217,6 +217,41 @@ describe("Stereo Genişlik — bufferPlayability()", () => {
   });
 });
 
+// G212 — "dual-mono" dosyalar: numberOfChannels===2 ama L===R (birçok DAW'ın
+// mono bir kaynağı interleaved-stereo olarak dışa aktarma alışkanlığı).
+// getChannelData SAĞLAYAN sahte buffer'larla test edilir — getChannelData
+// OLMAYAN eski-stil fake'ler (yukarıdaki testler) davranışını KORUR.
+describe("Stereo Genişlik — bufferPlayability() — dual-mono tespiti (G212)", () => {
+  function fakeBuffer(l, r) {
+    const data = [Float32Array.from(l), Float32Array.from(r)];
+    return { numberOfChannels: 2, getChannelData: (ch) => data[ch] };
+  }
+  it("L===R (bit-eşit) ise reason='mono'", () => {
+    const samples = Array.from({ length: 4000 }, (_, i) => Math.sin(i));
+    const r = mode.bufferPlayability(fakeBuffer(samples, samples));
+    assert.equal(r.ok, false);
+    assert.equal(r.reason, "mono");
+  });
+  it("L/R farkı eşiğin (0.001) altındaysa yine reason='mono'", () => {
+    const l = Array.from({ length: 4000 }, (_, i) => Math.sin(i));
+    const r = l.map((v) => v + 0.0001);
+    const res = mode.bufferPlayability(fakeBuffer(l, r));
+    assert.equal(res.ok, false);
+    assert.equal(res.reason, "mono");
+  });
+  it("gerçekten farklı L/R içeriğinde ok=true", () => {
+    const l = Array.from({ length: 4000 }, (_, i) => Math.sin(i));
+    const r = Array.from({ length: 4000 }, (_, i) => Math.cos(i));
+    const res = mode.bufferPlayability(fakeBuffer(l, r));
+    assert.equal(res.ok, true);
+    assert.equal(res.reason, null);
+  });
+  it("getChannelData sağlamayan eski-stil fake'lerde davranış DEĞİŞMEDİ (ok=true)", () => {
+    const r = mode.bufferPlayability({ numberOfChannels: 2 });
+    assert.equal(r.ok, true);
+  });
+});
+
 // G122 — pickPlaybackOffset: SAF-BENZERİ (rastgelelik var ama rng enjekte
 // edilebiliyor, deterministik test mümkün) — gerçek bir AudioBuffer'ı taklit
 // eden {duration, sampleRate, numberOfChannels, getChannelData} nesnesiyle.
