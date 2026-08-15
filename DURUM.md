@@ -170,14 +170,10 @@ club-odaklı (tech house/big room/D&B); melodic/progressive EDM (Levels,
 Innerbloom, Summer, Titanium, adore u, Animals, Piece Of Your Heart) ölçümde
 Pop'tan ayrışmadığı için Pop kategorisine dahil edildi.
 
-**EKSİK — DÜZELTİLMEDİ, belgeye yazılamadı:** task'ın 2. maddesi "kaynak
-listesi ve tam parça ölçümleri belgeye yazılsın" diyordu — 41 parçanın
-TAM listesi (isimler + parça-bazlı 6 sayı) bu oturumda Claude'a hiç
-VERİLMEDİ (sadece 3 kategorinin NİHAİ/ortalama dizileri + yukarıdaki
-özet istatistikler paylaşıldı, `hedef-egriler.json` da SADECE bu 3 nihai
-diziyi içeriyor — repo kökünde, untracked, dokunulmadı). Bu yüzden
-CLAUDE.md'nin "sayı uydurma" kuralı gereği 41 parçalık tam liste
-UYDURULMADI — kullanıcıdan istendi (bu turun sonunda).
+**Kaynak listesi ve parça bazlı ölçümler `HEDEF-EGRI-KAYNAK.md`'de**
+(kullanıcı tarafından eklendi, ayrı commit) — 41 parçanın tamamı isim + 6
+bant sayısıyla, kategori başına ORTALAMA/±std satırları, "listeye
+alınmayanlar"/"açık not" bölümleriyle.
 
 **Algoritma DEĞİŞMEDİ (task'ın kendi DOKUNULMAYACAK listesi):**
 `BANDS`/`BAND_EDGES`/`FA_ZONES`, `normalizeBandSums()`, `measureSpectralDeviation()`,
@@ -16524,16 +16520,16 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G223 itibarıyla):** Tonal Balance hedef eğrileri
+**EN YENİ SIRADAKİ ADIM (G223 tamamlandı):** Tonal Balance hedef eğrileri
 (Pop/EDM/Akustik) 41 parçalık GERÇEK ölçümle değiştirildi (`DRAFT_TARGET_CURVES`,
 isim aynı kaldı) — algoritmaya (`normalizeBandSums`/`measureSpectralDeviation`)
 DOKUNULMADI. `.gitignore`'a ses dosyası uzantıları eklendi (`www/audio/`'nun
-kendi örnek kütüphanesi hariç tutularak). `npm test` 1315/1315, `npm run
-test:e2e` 8/8 — ikisi de değişmedi. **EKSİK:** 41 parçanın tam kaynak
-listesi/parça-bazlı ölçümleri task'ta istenmişti ama Claude'a hiç verilmedi
-— uydurulmadı, kullanıcıdan istendi.
-**Bir sonraki adım:** Kullanıcı 41 parçanın kaynak listesini/parça-bazlı
-ölçümlerini sağlarsa DURUM.md'nin G223 kaydına eklenecek.
+kendi örnek kütüphanesi hariç tutularak). Eksik kalan "41 parçanın kaynak
+listesi/parça-bazlı ölçümleri" maddesi kullanıcı tarafından `HEDEF-EGRI-KAYNAK.md`
+olarak eklendi (ayrı commit) — G223'ün eksiği KAPANDI. `npm test` 1315/1315,
+`npm run test:e2e` 8/8 — ikisi de değişmedi/etkilenmedi.
+**Bir sonraki adım:** kod tarafında açık bir görev yok — AÇIK İŞLER
+madde 20-eki/30/31 kullanıcı kararı bekliyor (bkz. o bölüm).
 
 **EN YENİ SIRADAKİ ADIM (G222 itibarıyla, ARTIK ESKİ):** "ÜÇ İŞ" görevinin ÜÇÜ de bitti
 — G220 (G63 kaldırıldı), G221 (`#screen-result` layout telafisi +
