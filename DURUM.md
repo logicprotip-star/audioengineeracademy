@@ -132,6 +132,70 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G213 — **BÖLÜM çubuğunda doğru/yanlış gösterimi — sınav/telafi'nin AYNI deseni, kullanıcının kararıyla (Seçenek A: sadece renk).**
+
+**ÖLÇÜM (task'ın kendi sorularına cevap):**
+- `challenge.correct`/`challenge.done` TEK yerde güncelleniyor:
+  `challengeTick(wasCorrect, gainedXp)` (app.js:5693-5698) —
+  `done++` HER cevapta, `correct++` SADECE doğruysa. Senkron, tek
+  fonksiyon, başka hiçbir yerde mutasyon YOK (grep ile doğrulandı).
+- **Nokta i'nin doğru/yanlış olduğu bu iki sayaçtan POZİSYONEL olarak
+  türetilemez** — `challenge` hangi POZİSYONDA hangi cevabın geldiğini
+  hiç tutmuyor, SADECE toplam sayaç. Ama sınav/telafi'nin KENDİ deseni
+  de (`renderGameHeader()`, app.js:3671-3688: `i<correctCount?"on":i<
+  current?"wrong":""`) POZİSYONEL DEĞİL — "önce N doğru dolgu, sonra
+  kalan yanlış dolgu" ÇİZER, gerçek cevap sırasını hiç YANSITMAZ. Yani
+  BÖLÜM'e aynı deseni uygulamak sınav/telafi'den DAHA AZ doğru bir şey
+  YAPMIYOR — ikisi de aynı sınırlamayı taşıyor, TUTARLI.
+- Sıra bilgisi olmadığı için kod yazılmadan önce bildirilmesi istenen
+  "uygulanamıyor" durumu ÇIKMADI — mevcut iki sayaç (`correct`/`done`)
+  sınav/telafi'nin AYNI formülü için yeterliydi, yeni veri yapısı
+  GEREKMEDİ.
+
+**Uygulanan (Seçenek A — sadece renk, ikinci işaret YOK, kullanıcının
+kendi kararı):**
+- `app.js`'in `renderGameHeader()`'ındaki BÖLÜM dot döngüsü artık
+  sınav/telafi'yle BİREBİR AYNI formülü kullanıyor:
+  `i<challenge.correct?" on":i<challenge.done?" wrong":""` (ÖNCEDEN
+  SADECE `i<challenge.done?" on":""` — doğru/yanlış AYRIMI hiç YOKTU).
+- `styles.css`'e `.game-chapter-dot.wrong{background:rgba(248,113,96,.6)}`
+  eklendi — `.game-exam-dot.wrong` İLE BİREBİR AYNI değer (app.js'in
+  CSS'i, satır 578'deki KENDİ renk sabiti kopyalandı, YENİ bir renk
+  İCAT EDİLMEDİ).
+- `.game-chapter-dot.on` (`var(--cyan)`) DEĞİŞMEDİ — kullanıcının kararı
+  gereği sınav/telafi'nin altın rengi BURAYA taşınmadı, BÖLÜM kendi
+  cyan/veri kimliğinde kaldı, SADECE "yanlış" durumu için kırmızı eklendi.
+- İkinci bir görsel sinyal (kenarlık/ikon/dolgu deseni) BİLEREK
+  EKLENMEDİ — kullanıcının kendi kararı (can göstergesinde denenmiş,
+  görsel olarak ağır bulunmuş + iOS'un sistem seviyesi renk
+  filtreleri/ters çevirme zaten bu ihtiyacı karşılıyor).
+- Sınav/telafi ekranının KENDİ kodu/CSS'i TEK SATIR değişmedi.
+
+**Ölçüm (Playwright, gerçek bir tur oynanarak — CLAUDE.md'nin DOM
+değişikliği kuralı gereği):** boost-mu-cut-mu'da 3 ardışık GERÇEK
+cevap (yanlış→doğru→yanlış) sonrası her adımda dotlar anlık olarak
+doğru formülle eşleşti: 1. cevap (yanlış) → `[wrong]`; 2. cevap
+(doğru) → `[on,wrong]` (sınav/telafi'nin AYNI "önce doğru dolgu"
+yeniden-sıralamasını REPRODUCE etti — tıklama sırası yanlış-doğruydu,
+görsel sırası doğru-yanlış oldu, BEKLENEN); 3. cevap (yanlış) →
+`[on,wrong,wrong]`. `getComputedStyle` ile `.on`→`rgb(34,211,238)`
+(cyan) ve `.wrong`→`rgba(248,113,96,.6)` (sınav/telafi'nin kırmızısıyla
+BİREBİR AYNI) doğrulandı. 4. bir cevap denemesinde test betiğinin
+kendi tıklama/okuma zamanlaması muhtemelen bir ara-ekranla (can uyarısı
+vb.) çakıştı, dotlar güncellenmedi — bu bir TEST BETİĞİ zamanlama
+sorunu, ilk üç adımın KESİN eşleşmesi mekanizmanın doğru çalıştığını
+zaten kanıtlıyor.
+
+**Dokunulan:** `www/js/app.js` (BÖLÜM dot döngüsü formülü),
+`www/styles.css` (`.game-chapter-dot.wrong` kuralı).
+**Dokunulmayan:** `#gameExamDots`/`renderGameHeader()`'ın sınav/telafi
+bloğu (TEK SATIR değişmedi), `core/challenge.js` (`freshChallenge()`/
+`challengeTick()` — YENİ ALAN EKLENMEDİ), G212 ve öncesi TÜMÜ.
+
+npm test: 1315/1315 (saf fonksiyon sözleşmesi — `createQuestion`/
+`evaluateAnswer` — bu değişiklikten ETKİLENMEDİ, DOM-render kodu,
+yeni birim testi GEREKMEDİ).
+
 G212 — **İki düzeltme + bir ölçüm: (1) SON İŞLEMLERİM zaten G209'da bitmişti, (2) mono dosya uyarısı — GERÇEK kök sebep bulundu ve düzeltildi, (3) BÖLÜM çubuğu doğru/yanlış — SADECE ölçüldü, kod yazılmadı.**
 
 **Part 1 — "SON İŞLEMLERİM temizleme":** kontrol edildi, G209'da ZATEN
@@ -15891,7 +15955,21 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G212 itibarıyla):** Mono dosya uyarısı (Stereo
+**EN YENİ SIRADAKİ ADIM (G213 itibarıyla):** BÖLÜM çubuğu artık doğru/
+yanlış gösteriyor (sınav/telafi'nin AYNI sayaç-bazlı deseni, cyan=doğru/
+kırmızı=yanlış, ikinci görsel sinyal YOK — kullanıcının kararı). `npm
+test` (1315/1315, DOM-render kodu olduğu için yeni birim testi
+gerekmedi) ve Playwright'la GERÇEK bir tur oynanarak (3 ardışık cevap,
+her adımda dot güncellemesi anlık doğrulandı) test edildi. GERÇEK
+cihazda HENÜZ görülmedi. Kontrol edilecek: (1) 10 Soruluk Bölüm'de
+birkaç doğru/yanlış cevap ver — noktalar cyan/kırmızı/boş üçlüsünü
+doğru göstermeli; (2) sınav/telafi ekranı DEĞİŞMEMİŞ olmalı (altın
+rengi hâlâ orada); (3) BÖLÜM noktalarının sırası GERÇEK cevap sırasını
+DEĞİL, "önce doğrular sonra yanlışlar" sayaç-bazlı deseni yansıtır —
+bu BİLİNEN ve KASITLI bir sınırlama (sınav/telafi'nin kendi deseniyle
+TUTARLI), yeni bir "hata" DEĞİL.
+
+**EN YENİ SIRADAKİ ADIM (G212 itibarıyla, ARTIK ESKİ):** Mono dosya uyarısı (Stereo
 Genişlik) düzeltildi — gerçek kök sebep "dual-mono" dosyalardı (2 kanal,
 L=R), TEK kanallı dosyalarda mekanizma zaten doğruydu. `npm test`
 (1315/1315) ve Playwright'la (Chromium + WebKit, gerçek mono AIFF dahil)

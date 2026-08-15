@@ -654,6 +654,10 @@
     .game-chapter-dots{display:flex;align-items:center;gap:4px;flex:1}
     .game-chapter-dot{flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);transition:background .3s}
     .game-chapter-dot.on{background:var(--cyan)}
+    /* G213 — .game-exam-dot.wrong İLE AYNI değer (app.js:578), kullanıcının
+       kendi kararı: sınav/telafi'nin "yanlış" kırmızısı BURAYA taşınır, ama
+       "doğru/aktif" rengi (altın) TAŞINMAZ — BÖLÜM kendi cyan'ında kalır. */
+    .game-chapter-dot.wrong{background:rgba(248,113,96,.6)}
     .game-chapter-label{flex:none;font-size:9.5px;font-weight:700;letter-spacing:.6px;color:var(--text-muted)}
     /* G79 DÜZELTMESİ: tasarımın KENDİ rengi bu çubukta CYAN (#1aa8ba→#34e0f5,
        Tasarim-2026-08/Prototip.dc.html "hızlı cevap" satırı) — G77'de yanlışlıkla

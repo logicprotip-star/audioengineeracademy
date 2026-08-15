@@ -3752,9 +3752,16 @@ function renderGameHeader() {
   if (els.gameSpeedRow) els.gameSpeedRow.classList.toggle("ghead-collapsed", !showChapter);
   if (showChapter && els.gameChapterDots && els.gameChapterLabel) {
     els.gameChapterDots.innerHTML = "";
+    // G213 — sınav/telafi'nin AYNI sayaç-bazlı deseni (i<correctCount→"on",
+    // i<current→"wrong", bkz. yukarıdaki #gameExamDots bloğu): SIRA bilgisi
+    // (hangi POZİSYONdaki soru yanlıştı) `challenge`'da hiç YOK, sınav/telafi
+    // de zaten bunu TUTMUYOR — ikisi de "önce N doğru, sonra kalan yanlış"
+    // görselini ÇİZER, gerçek cevap sırasını YANSITMAZ. Kullanıcının kendi
+    // kararı: sınav/telafi'nin BİLİNEN bu sınırlaması BÖLÜM'e de AYNEN
+    // taşınıyor, yeni bir veri yapısı İCAT EDİLMEDİ.
     for (let i = 0; i < challenge.total; i++) {
       const dot = document.createElement("div");
-      dot.className = `game-chapter-dot${i < challenge.done ? " on" : ""}`;
+      dot.className = `game-chapter-dot${i < challenge.correct ? " on" : i < challenge.done ? " wrong" : ""}`;
       els.gameChapterDots.appendChild(dot);
     }
     els.gameChapterLabel.textContent = `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`;
