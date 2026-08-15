@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G233)
+Son güncelleme: 15.08.2026 (G234)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,115 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+ÖLÇÜM (kod yazılmadı) — **"Cevap veriyorsun, otomatik atlama yapıyor ve kapanıyor" raporu doğrulandı: A/B "Döngü" (`abLoopTimer`) her cevaptan SONRA BİLİNÇLİ olarak durduruluyor (G31, `app.js:726-740`), ama otomatik geçişte YENİDEN AÇILMIYOR — kullanıcı her soruda elle yeniden açmak zorunda.**
+
+Kapanma noktası KASITLI (G31'in kendi gerekçesi hâlâ geçerli — durdurmasa
+geri bildirim kartı açıkken döngü yeni ses çalmaya devam ediyordu).
+Otomatik geçiş sonrası yeniden AÇILMAMASI ise hiçbir commit'te
+kararlaştırılmamış — kod tasarlandığı gibi çalışıyor (HATA değil), ama
+"kullanıcı her soruda yeniden açsın" diye BİLİNÇLİ bir karar da
+verilmemiş. **Sonuç: BELİRSİZ/ürün kararı gerektiriyor**, kod
+DOKUNULMADI. G187 (`freqTapTimer`) ile AYNI yer DEĞİL — ayrı değişken,
+ayrı mekanizma, ayrı hata sınıfı (bu bir "yanlış ateşleyen zamanlayıcı"
+değil, "doğru duran ama yeniden kurulmayan durdurma").
+
+G234 — **Reklam yükleme zaman aşımı eklendi (TUR3B bulgusu 🔴) — `prepareRewardVideoAd()` askıda kalırsa "İzle" butonu artık 30sn sonra çözülüyor, kalıcı kilitlenmiyor.**
+
+**Kök sebep (TUR3B'de bulunmuştu):** `core/ads.js:loadAndShowRewardedAd()`
+AdMob SDK'sının `prepareRewardVideoAd()` çağrısını hiçbir zaman
+aşımı olmadan bekliyordu — düşük fill-rate/yavaş ağda SDK hiç
+çözülmezse, `handleWatchAd()`'ın `adWatchBusy` bayrağı (modül-seviyesi,
+ekran geçişleriyle SIFIRLANMIYOR) kalıcı `true` kalıyor, buton
+"Yükleniyor…" yazılı/disabled kalıyordu — TEK çıkış yolu uygulamayı
+tamamen kapatıp açmaktı.
+
+**Uygulanan:** `core/ads.js` — `AD_LOAD_TIMEOUT_MS = 30000` +
+`prepareRewardVideoAd()` çağrısı `Promise.race([preparePromise,
+timeoutPromise])` ile sarıldı (audio-engine.js'in `activateNativeSession()`
+2000ms deseninin AYNI kalıbı). Zaman aşımı kazanırsa: `showRewardVideoAd()`
+HİÇ ÇAĞRILMAZ (`.then` zincirine hiç girilmez — reklam geç hazır olsa
+bile kullanıcıya hata gösterildikten SONRA aniden açılmaz),
+`loadAndShowRewardedAd()` reddedilir, `watchRewardedAd()`'ın mevcut
+`catch` bloğu bunu `{ok:false, title:"Reklam yüklenemedi", detail:"Bağlantını
+kontrol edip tekrar dene."}`'ye çevirir — `handleWatchAd()`'ın `finally`'si
+(DEĞİŞTİRİLMEDİ) butonu HER durumda çözer. Günlük hak sayacı
+(`recordSessionAdWatch`) SADECE `result.ok===true` dalında (`onSuccess`
+callback'i) çağrılıyor (DEĞİŞMEDİ) — zaman aşımı `{ok:false}` döndüğü
+için sayaç DÜŞMEZ, kontrol EDİLDİ.
+
+**Kapsam sınırı (bilinçli):** `ensureAdMobReady()`'nin (UMP onay
+formu/iOS ATT izni) KENDİSİNE dokunulmadı — o adımlar kullanıcının
+KENDİ hızında etkileşim gerektiriyor (form okuma/karar verme), kısa
+bir zaman aşımı orada yavaş OKUYAN bir kullanıcıyı yanlışlıkla "zaman
+aşımı" sayardı — audio-engine.js'in etkileşimsiz SDK çağrısından
+FARKLI bir zaman karakteristiği.
+
+**Testler:** `test/ads.test.mjs` — 2 yeni test, `node:test`'in
+`mock.timers` API'siyle (Node 26'da mevcut) `prepareRewardVideoAd()`'ı
+SONSUZA kadar askıda bırakan sahte bir `window.Capacitor.Plugins.AdMob`
+kurulup GERÇEK `watchRewardedAd()` kodu (mock DEĞİL) çalıştırıldı —
+30sn'lik gerçek bekleme YOK, `mock.timers.tick()` ile anında geçiliyor.
+`git stash` ile doğrulandı: `export` kaldırılınca test dosyası import
+hatasıyla ÇÖKÜYOR (hard red).
+
+**Ölçüm:** `npm test` → **1349/1349** (1347 + 2 yeni test). `npm run
+test:e2e` → **12/12, DEĞİŞMEDİ** (madde 30'un reklam-izleme e2e'si dahil).
+
+**Dokunulan:** `www/js/core/ads.js` (`loadAndShowRewardedAd`, YENİ
+`AD_LOAD_TIMEOUT_MS`), `test/ads.test.mjs`.
+**Dokunulmayan:** `showRewardVideoAd()`/`Dismissed` akışı (reklam
+GÖSTERİLMEYE başladıktan sonrası — ayrı bir zaman karakteristiği),
+`ensureAdMobReady()`/UMP/ATT akışı, günlük hak sayacının kendi mantığı,
+`handleWatchAd()`'ın `adWatchBusy`/`finally` deseni, G220/G221/G223/
+G225/G228/G229/G230/G231/G232/G233, G187, G203, G214/G215/G216, G212.
+
+⚠️ **CİHAZDA doğrulanması gereken adımlar (koddan kesin kanıtlanamaz):**
+gerçek bir cihazda AdMob test reklamı ÇOK YAVAŞ bir ağda (ağ kısıtlama
+aracı/uçak modu-aç-kapa ile simüle) izlenmeye çalışılmalı — 30 saniye
+sonunda buton GERÇEKTEN "Reklam yüklenemedi" toast'ıyla çözülüyor mu,
+günlük hak sayısı GERÇEKTEN düşmüyor mu, 30sn SONRASINDA reklam
+"geç gelip" aniden açılmıyor mu.
+
+TUR 3B — **Zamanlama ve Dış Dünya denetimi tamamlandı (`TUR3B-ZAMAN-15-08.md`) — KOD DEĞİŞMEDİ, sadece ölçüm. Baş bulgu: reklam yüklemede zaman aşımı YOK (buton kalıcı kilitlenebilir), `abPressTimer` G187'nin AYNI sınıfından açık kaldı, native ses kesintisi (arama/Siri/alarm) bildirimi JS'e HİÇ ulaşmıyor.**
+
+**Yöntem:** 11 bölüm (A-K, kullanıcının kendi sorularıyla) — yarış
+durumları, ağ uçları, zaman/tarih, ses motoru uçları, AdMob eş zamanlı
+yük, boş durumlar, hata yolu taraması, aynı hatanın diğer örnekleri,
+kesinti sonrası devam noktası, sayaç tutarlılığı, zamanlayıcı yaşam
+döngüsü (K, öncelikli — TAM kod taraması). Cihaz gerektiren senaryolar
+(arama/Siri kesintisi GERÇEKTE visibilitychange tetikliyor mu, AdMob
+SDK'nın kendi zaman aşımı var mı, timezone/DST geçişinin yönü) AÇIKÇA
+BELİRSİZ bırakıldı.
+
+**Öne çıkan 🔴 bulgular (TAM liste ve gerekçe `TUR3B-ZAMAN-15-08.md`'de):**
+1. `core/ads.js:loadAndShowRewardedAd()` hiçbir zaman aşımı taşımıyor
+   (audio-engine.js'in `activateNativeSession()`'ının 2000ms deseninin
+   AKSİNE) — AdMob SDK'sı askıda kalırsa "İzle" butonu kalıcı olarak
+   "Yükleniyor…" yazıp kilitli kalabilir, uygulamayı kapatmadan kaçış
+   YOK (`adWatchBusy` modül-seviyesi, ekran geçişleriyle sıfırlanmıyor).
+2. `abPressTimer` (A/B uzun-basma) SADECE `pointerup`/`pointerleave`'de
+   temizleniyor — G187'nin (freqTapTimer) aldığı 5 noktalı teardown
+   tedavisini HİÇ almadı, aynı "ölü ekrana ateş eden zamanlayıcı"
+   sınıfından, görevin kendi bilinen açığı bu turda somut senaryoyla
+   detaylandırıldı.
+3. `AudioSessionPlugin.swift`'in `interruptionBegan`/`sessionActivated`
+   olayları hâlâ doğrulanmamış `notifyListeners` köprüsünden gönderiliyor
+   — G135'in AYNI bulgusu (route-change bunun için `evaluateJavaScript`'e
+   geçmişti, kesinti olayları bu geçişi ALMADI). Kesinti `visibilitychange`'i
+   tetiklemiyorsa round zamanlayıcısı arama/Siri/alarm SIRASINDA çalışmaya
+   devam edebilir — can/süre haksız kaybı riski, CİHAZDA doğrulanmadı.
+
+**Zaten bilinen/açık kararların TEYİDİ (yeni DEĞİL):** cihaz saati ileri
+alınarak can dolumu/günlük reklam hakkı/günlük görevlerin erken
+tetiklenmesi — ÜÇÜ de AYNI "yerel cihaz saatine güven" mimarisi,
+BEKLEYEN KARARLAR **D** (sunucu zamanı) kapsamında ZATEN açık, bu tur
+sadece 3 somut örneği ekledi.
+
+**Dokunulan:** Yok (sadece okuma/grep/kod analizi). **Dokunulmayan:**
+Tüm kod, tüm testler, tüm commit'ler — task'ın kendi kısıtı ("KOD YAZMA.
+DOSYA DEĞİŞTİRME. COMMIT ATMA.") harfiyen uygulandı, tek yeni dosya
+`TUR3B-ZAMAN-15-08.md`.
 
 G233 — **Şema sürüm numarası eklendi (TUR3A bulgusu 🟡) — hiçbir migration mantığı YOK, sadece gelecekteki bir sürüm sıçraması için tek, paylaşılan bir sayı.**
 
@@ -17222,7 +17331,32 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G233 itibarıyla):** TUR3A-VERI-15-08.md'nin
+**EN YENİ SIRADAKİ ADIM (G234 itibarıyla):** TUR3B-ZAMAN-15-08.md'nin
+3 maddelik "yayın öncesi düzeltilecekler" listesinin İLKİ (reklam
+yükleme zaman aşımı) KAPANDI — `core/ads.js`, `AD_LOAD_TIMEOUT_MS=30000`,
+`git stash` ile kırmızı/yeşil doğrulandı. `npm test` 1349/1349
+(1347+2 yeni test), `npm run test:e2e` 12/12. **Bir sonraki adım:**
+listenin kalan 2 maddesi (abPressTimer teardown, native kesinti
+köprüsü) devam ediyor — AYNI GÖREV içinde, ayrı commit'ler halinde.
+Ayrıca bu turda BAĞIMSIZ bir ölçüm yapıldı: "cevap sonrası A/B döngüsü
+kapanıyor, her soruda yeniden açmak gerekiyor" raporu doğrulandı,
+KASITLI durdurma + kararlaştırılmamış yeniden-açmama olarak BELİRSİZ/
+ürün kararı bekliyor (bkz. yukarıdaki ÖLÇÜM kaydı) — kod DOKUNULMADI.
+
+**EN YENİ SIRADAKİ ADIM (TUR 3B itibarıyla, ARTIK ESKİ):** `TUR3B-ZAMAN-15-08.md`
+tamamlandı (denetim, kod yazılmadı, commit atılmadı). **Bir sonraki
+adım — kullanıcının onayı gerekir:** raporun "yayın öncesi
+düzeltilecekler" listesindeki 3 madde — (1) `core/ads.js`'e reklam
+yükleme zaman aşımı eklemek (dar kapsamlı, audio-engine.js'in ZATEN
+kanıtlanmış `Promise.race` desenini tekrar kullanır), (2) `abPressTimer`
+temizliğini `pauseRound()`/`visibilitychange`'e eklemek (G187'nin AYNI
+tedavisi, tek satır), (3) native ses kesintisi (arama/Siri/alarm)
+CİHAZDA test edilip `visibilitychange`'i tetikleyip tetiklemediğinin
+doğrulanması — tetiklemiyorsa `interruptionBegan`'a route-change'in
+ALDIĞI `evaluateJavaScript` tedavisi uygulanmalı. TUR3A-VERI-15-08.md'nin
+"1.1'e bırakılabilir"/"sadece belgelenecek" listeleri de hâlâ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (G233 itibarıyla, ARTIK ESKİ):** TUR3A-VERI-15-08.md'nin
 "yayın öncesi düzeltilecekler" listesindeki 2 maddenin İKİSİ de
 KAPANDI — G231 (7 dakika süre sınırı, decode'dan önce) ve G232/G233
 (3 kayıt yeri `trySave()`'e alındı + şema sürüm numarası eklendi).

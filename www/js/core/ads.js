@@ -129,6 +129,21 @@ export async function showPrivacyOptions() {
   }
 }
 
+// G234 (TUR3B bulgusu 🔴) — SADECE `prepareRewardVideoAd()` (ağ-bağımlı,
+// kullanıcı etkileşimi İÇERMEYEN SDK çağrısı — reklamı İNDİRİR) zaman
+// aşımına alındı. `showRewardVideoAd()`/`Dismissed` BİLEREK dışarıda
+// bırakıldı: reklam GERÇEKTEN gösterilmeye başladıktan sonra tam ekran
+// native overlay kullanıcının önünde, "Yükleniyor…" butonu artık GÖRÜNMÜYOR
+// bile — asıl risk (görev metninin kendi tarifi) SADECE yükleme
+// aşamasında. `ensureAdMobReady()`'nin (UMP onay formu/ATT izni)
+// KENDİSİNE dokunulmadı — o adımlar kullanıcının KENDİ hızında
+// etkileşim GEREKTİRİYOR (form okuma/karar verme), audio-engine.js'in
+// `activateNativeSession()`'ından (arka planda, kullanıcı etkileşimsiz
+// bir SDK çağrısı) FARKLI bir zaman karakteristiği — kısa bir zaman
+// aşımı orada YANLIŞ pozitif üretirdi (yavaş OKUYAN bir kullanıcıyı
+// "zaman aşımı" sanardı).
+export const AD_LOAD_TIMEOUT_MS = 30000;
+
 // Reklamı hazırlayıp gösterir, ödül KESİN olarak "Rewarded" olayıyla belirlenir
 // (showRewardVideoAd()'ın kendi promise çözünürlüğüne GÜVENİLMEDİ — plugin'in
 // derlenmiş kaynağındaki enum yorumu "Dismissed"in ödülle İLGİSİZ olduğunu
@@ -160,7 +175,26 @@ function loadAndShowRewardedAd(admob, adId, hooks) {
     ])
       .then((h) => {
         handles.push(...h);
-        return admob.prepareRewardVideoAd({ adId, isTesting: AD_TEST_MODE });
+        // G234 — prepareRewardVideoAd() SDK'nın kendi zaman aşımını
+        // GARANTİ ETMİYOR (dokümante edilmemiş) — düşük fill-rate/yavaş
+        // ağda hiç çözülmeyip "İzle" butonunu kalıcı olarak "Yükleniyor…"
+        // yazılı/disabled bırakabiliyordu (adWatchBusy modül-seviyesi,
+        // ekran geçişleriyle sıfırlanmıyor — bkz. app.js:handleWatchAd).
+        // Timeout kazanırsa showRewardVideoAd() HİÇ ÇAĞRILMAZ (aşağıdaki
+        // .then zincire GİRMEZ) — reklam GEÇ hazır olsa bile kullanıcıya
+        // ZATEN hata gösterildikten SONRA aniden açılmaz.
+        const preparePromise = admob.prepareRewardVideoAd({ adId, isTesting: AD_TEST_MODE });
+        // Zaman aşımından SONRA geç gelen bir red, konsola "unhandled
+        // rejection" olarak sızmasın diye — akışı ETKİLEMEZ (race zaten
+        // kazananı belirledi), sadece gürültüyü önler.
+        preparePromise.catch(() => {});
+        return Promise.race([
+          preparePromise,
+          new Promise((_, rej) => setTimeout(
+            () => rej(new Error(`prepareRewardVideoAd() ${AD_LOAD_TIMEOUT_MS}ms içinde yanıt vermedi (zaman aşımı)`)),
+            AD_LOAD_TIMEOUT_MS
+          )),
+        ]);
       })
       .then(() => {
         if (hooks && hooks.onBeforeShow) { try { hooks.onBeforeShow(); } catch (e) {} }
