@@ -129,6 +129,27 @@ describe("generateStage3Choices() — kesim miktarı şıkları (HEP negatif, cu
     const vals = new Set(choices.map(c => c.cutDb));
     assert.equal(vals.size, choices.length);
   });
+
+  // G240 (BEYAN-DENETIM-15-08 bulgusu 🟡) — DIFFICULTY tablolarında cutStepDb
+  // HER ZAMAN pozitif olduğu için bu senaryo NORMAL oyunda hiç oluşmaz — ama
+  // döngünün KENDİSİ artık cutStepDb sıfır/negatif olsa BİLE sonlu adımda
+  // dönmeli (guard + for-tabanlı güvenlik tamamlaması). Bu test bir "hang
+  // detector": Node'un event loop'unu BLOKE eden gerçek bir sonsuz döngü
+  // olsaydı bu testin KENDİSİ asla bitmez, test runner zaman aşımına uğrardı
+  // — testin TAMAMLANMASININ KENDİSİ (herhangi bir spesifik değer değil) kanıt.
+  it("cutStepDb=0 (pathological/misconfigürasyon) İLE ÇAĞRILSA BİLE SONLU sürede döner, hiç asılı kalmaz", () => {
+    const choices = mode.generateStage3Choices(6, 0, 5);
+    assert.ok(Array.isArray(choices), "fonksiyon dönmeli (asılı kalmamalı)");
+    assert.ok(choices.length <= 5, "optionsCount'u AŞMAMALI");
+    const vals = new Set(choices.map(c => c.cutDb));
+    assert.equal(vals.size, choices.length, "üretilen adaylar KENDİ İÇİNDE benzersiz kalmalı");
+  });
+
+  it("cutStepDb=-1 (negatif, ELDE EDİLEMEZ ama savunma katmanı) İLE de sonlu sürede döner", () => {
+    const choices = mode.generateStage3Choices(6, -1, 5);
+    assert.ok(Array.isArray(choices));
+    assert.ok(choices.length <= 5);
+  });
 });
 
 describe("createQuestion() — genel sözleşme (SAF, ses/DOM'a dokunmaz)", () => {

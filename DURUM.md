@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G239)
+Son güncelleme: 15.08.2026 (G240)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,67 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G240 — **Korumasız `while` döngüsü düzeltildi + sınıf taraması (BEYAN-DENETIM/TUR5A bulgusu 🟡) — `frekans-cakismasi.js:generateStage3Choices()` artık kardeş fonksiyonundaki `guard` desenini taşıyor, GERÇEK bir sonsuz döngü olduğu KANITLANDI (Node'un kendi test-timeout'unu bile durduramadı).**
+
+**Kök sebep (TUR5A'da bulunmuştu):** `generateStage3Choices()`'ın
+`while (candidates.length < optionsCount)` döngüsü, kardeş fonksiyonu
+`generateStage2Choices()`'ın (aynı dosya) taşıdığı `guard < optionsCount*15`
+sınırlamasından YOKSUNDU — `cutStepDb` (DIFFICULTY tablolarında HER
+ZAMAN pozitif) sıfır/negatif bir değer alırsa GERÇEK bir sonsuz döngü
+olurdu.
+
+**Uygulanan:** Kardeş fonksiyonun AYNI `guard` deseni eklendi + bir
+"GÜVENLİK TAMAMLAMASI" (`for` döngüsü, kendi başına sonlu — `f <=
+optionsCount*2` hard sınırı) — guard tükenip `optionsCount`'a
+ulaşılamazsa (normal `cutStepDb>0` ile ASLA gerçekleşmez) kalan
+slotlar deterministik dolduruluyor.
+
+**KANIT (varsayım değil, GERÇEKTEN tetiklendi):** Düzeltme
+STAŞLANARAK (`git stash`) eski kod `generateStage3Choices(6, 0, 5)`
+ile ÇAĞRILDI — `node --test --test-timeout=3000` komutu **15 saniye
+sonra hâlâ tamamlanmamıştı**, arka plan işlemi elle `SIGTERM` ile
+sonlandırılmak ZORUNDA kalındı (exit 144) — bu, Node'un KENDİ
+test-timeout mekanizmasının bile İÇİNE MÜDAHALE EDEMEDİĞİ, event
+loop'u tamamen BLOKE eden GERÇEK bir senkron sonsuz döngüydü, teorik
+bir risk DEĞİL. Düzeltmeyle AYNI çağrı 75ms'de tamamlandı.
+
+**SINIF TARAMASI (task'ın kendi isteği — "aynı kalıp başka nerede
+var?"):**
+- **Diğer TÜM `while` döngüleri** (boost-mu-cut-mu/frekans-bulma/
+  kesim-noktası/pan-konumu/stereo-genişlik/progress.js) tek tek
+  okunup DOĞRULANDI — hepsi ya dizi-uzunluğu koşuluyla ya matematiksel
+  olarak KANITLANMIŞ sonlu adımla bitiyor (TUR5A'nın kendi bulguları,
+  bu turda TEKRARLANMADI, sadece TEYİT edildi). **Başka bir düzeltme
+  GEREKMEDİ.**
+- **Recursive çağrılar:** 426 fonksiyon isminin TAMAMI programatik
+  taranıp "kendi adını çağıran" 17 aday BULUNDU — TEK TEK elle
+  doğrulandı, HEPSİ YANLIŞ POZİTİF çıktı (kod tabanının kendi
+  fonksiyon-adını-anan yorum/log-metni alışkanlığı, ör.
+  `saveFile()`'ın kendi `uploadDiagLog`'unda "saveFile() çağrıldı"
+  YAZMASI) — TEK istisna `tonal-balance.js:scheduleNext()`, o da
+  ASENKRON (`.then()` callback'i İÇİNDE, stack BÜYÜTMEDEN) ve
+  `t >= duration` ile SONLU — **genuine bir stack-derinliği riski
+  BULUNAMADI.**
+- **rAF zincirleri:** TUR3B/TUR5A'da ZATEN "kendi koşul kontrolüyle
+  duran, `cancelAnimationFrame` gerektirmeyen" desen diye
+  doğrulanmıştı — bu turda TEKRAR taranmadı.
+
+**Testler:** `test/frekans-cakismasi.test.mjs` — 2 yeni test
+(`cutStepDb=0`/`cutStepDb=-1` ile "hang detector" — testin
+TAMAMLANMASININ KENDİSİ kanıt, `--test-timeout=5000` ile). Mevcut
+test (`(6,2,5)` normal senaryo) DEĞİŞMEDEN 5/5 aynı sonucu üretmeye
+devam ediyor — davranış AYNI kaldı.
+
+**Ölçüm:** `npm test` → **1359/1359** (1357 + 2 yeni test). `npm run
+test:e2e` → **18/18, DEĞİŞMEDİ**.
+
+**Dokunulan:** `www/js/modes/frekans-cakismasi.js`
+(`generateStage3Choices()`, TEK fonksiyon), `test/frekans-cakismasi.test.mjs`.
+**Dokunulmayan:** Kardeş fonksiyonun (`generateStage2Choices`) kendisi,
+soru üretim mantığının GÖZLENEBİLİR davranışı (normal `cutStepDb>0`
+girdilerde ÇIKTI birebir aynı, testle doğrulandı), diğer 11 mod, e2e
+suite yapısı, kaynak ses dosyaları, G214-G239, 581f798/a4efb42.
 
 G239 — **Tek yayın bayrağı kuruldu (BEYAN-DENETIM-15-08 bulgusu 🔴) — AD_TEST_MODE + 43 tanı logu + 3 test kancası ARTIK TEK bir `DEV_MODE`'dan (core/build-flags.js) türüyor, yanlış konumda npm test/e2e KIRMIZI çıkıyor.**
 

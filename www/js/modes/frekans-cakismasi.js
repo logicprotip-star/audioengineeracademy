@@ -258,14 +258,33 @@ export function generateStage1Choices(trueCenter, regionWidthOct, optionsCount, 
 // AŞAMA 3 ŞIKLARI — dB Seviyesi'nin pickChoices deseniyle AYNI: doğru değer +
 // cutStepDb aralıklarla uzaklaşan negatif (KESİM, hep negatif — bu modda
 // "boost" kavramı yok, sadece maskeleyen kaynaktan kesiliyor) çeldiriciler.
+// G240 (BEYAN-DENETIM-15-08 bulgusu 🟡) — bu döngü ÖNCEDEN korumasızdı,
+// kardeş fonksiyonun (generateStage2Choices, yukarıda) `guard` deseninden
+// YOKSUNDU. `cutStepDb` DIFFICULTY tablolarında/eğrisinde HER ZAMAN pozitif
+// olduğu sürece bu SONLU adımda biter (matematiksel olarak doğrulandı,
+// BEYAN-DENETIM-15-08.md Bölüm C) — ama kod bunu GARANTİ ETMİYORDU, gelecekte
+// bir eğri ayarı `cutStepDb`'yi sıfır/negatif üretirse GERÇEK bir sonsuz
+// döngü olurdu. Kardeş fonksiyonun AYNI `guard` sınırlaması eklendi.
 export function generateStage3Choices(trueCutDb, cutStepDb, optionsCount) {
   const candidates = [{ cutDb: -Math.round(trueCutDb * 10) / 10, correct: true }];
   let step = 1;
-  while (candidates.length < optionsCount) {
+  let guard = 0;
+  while (candidates.length < optionsCount && guard < optionsCount * 15) {
+    guard++;
     const mag = trueCutDb + step * cutStepDb * (1 + Math.floor((step - 1) / 2) * 0.4);
     const cutDb = -Math.max(CUT_DB_FLOOR * 0.4, Math.round(mag * 10) / 10);
     if (!candidates.some(c => Math.abs(c.cutDb - cutDb) < 1e-6)) candidates.push({ cutDb, correct: false });
     step++;
+  }
+  // GÜVENLİK TAMAMLAMASI — kardeş fonksiyonun AYNI ilkesi: guard tükenip
+  // optionsCount'a ulaşılamazsa (NORMAL cutStepDb>0 değerleriyle ASLA
+  // gerçekleşmez), kalan slotlar SABİT SAYIDA (`for`, kendi başına sonlu)
+  // adımda, CUT_DB_FLOOR'un altına inen deterministik değerlerle doldurulur
+  // — sonsuz döngü riski YOK (for'un kendi üst sınırı YETERLİ), optionsCount'un
+  // ALTINDA kalma riski en aza indirilir.
+  for (let f = 1; candidates.length < optionsCount && f <= optionsCount * 2; f++) {
+    const cutDb = -(CUT_DB_FLOOR * 0.4 + f * 0.1);
+    if (!candidates.some(c => Math.abs(c.cutDb - cutDb) < 1e-6)) candidates.push({ cutDb, correct: false });
   }
   return shuffle(candidates);
 }
