@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G209)
+Son güncelleme: 15.08.2026 (TUR 3A)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,42 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+TUR 3A — **Veri ve Depolama Dayanıklılığı denetimi tamamlandı (`TUR3A-VERI-15-08.md`) — KOD DEĞİŞMEDİ, sadece ölçüm. Baş bulgu: G229'un `trySave()` koruması `storage.js`'e ÖZELDİ, aynı sınıf hata (korumasız/sessiz `localStorage.setItem`) 3 anahtarda (`TOOLS_LIBRARY_KEY`/`TOOLS_ACTIONS_KEY`/`TOOLS_MEASUREMENTS_KEY`, app.js'te doğrudan) HÂLÂ AÇIK.**
+
+**Yöntem:** 7 bölüm (A-G, kullanıcının kendi sorularıyla) — dosya
+yükleme matrisi, depolama yaşam döngüsü, bellek, veri kalıcılığı/
+migration, geri alınabilirlik, ilk kurulum/güncelleme, aynı hatanın
+diğer örnekleri. Her madde KODDAN/grep'ten/node hesabından doğrulandı;
+gerçek cihaz/format-kombinasyonu gerektiren maddeler (iCloud-indirilmemiş
+dosya, TestFlight build'leri arası veri, arka planda decode'un iOS
+tarafından öldürülüp öldürülmediği vb.) AÇIKÇA BELİRSİZ bırakıldı,
+tahmin YAZILMADI.
+
+**Öne çıkan 🔴 bulgular (TAM liste ve gerekçe `TUR3A-VERI-15-08.md`'de):**
+1. `TOOLS_LIBRARY_KEY`/`TOOLS_ACTIONS_KEY`/`TOOLS_MEASUREMENTS_KEY` —
+   app.js'te `storage.js`'i hiç kullanmadan doğrudan
+   `localStorage.setItem`, bare `catch(e){}`, G229'un TARAMASI
+   `storage.js`'e özel olduğu için kaçmıştı.
+2. 100 MB'lık sıkıştırılmış (düşük bitrate) bir dosya decode edilince
+   ~1-2 GB Float32 PCM'e büyüyebiliyor (node ile hesaplandı), hiçbir
+   süre/bitrate uyarısı yok — sadece bayt-boyutu sınırı var.
+3. Hiçbir yerde sürüm/şema numarası tutulmuyor (grep, sıfır sonuç) —
+   "bugün öğrenilen" stats.rounds sıfırlanması olayının yapısal kök
+   nedeni.
+
+**Doğrulanan (önceki iddiaların bu turda KANITLA teyidi, "muhtemelen"
+DEĞİL):** GORSEL-TEST #49/G202'nin "silinmiş dosya kapandı" iddiası
+DOĞRU — 9 ayrı "Dosya bulunamadı" fallback noktası bulundu. `Directory.Data`
+iOS'ta Documents'a eşleniyor — Capacitor Filesystem plugin'inin KENDİ
+(app'in yorumuna değil, bağımsız kaynağa dayalı) dokümantasyonundan
+doğrulandı. Okuma tarafı (`load*()`) G229'DAN ÖNCE de zaten korumalıydı
+— sadece yazma tarafı bozuktu.
+
+**Dokunulan:** Yok (sadece okuma/grep/node hesabı). **Dokunulmayan:**
+Tüm kod, tüm testler, tüm commit'ler — task'ın kendi kısıtı ("KOD YAZMA.
+DOSYA DEĞİŞTİRME. COMMIT ATMA.") harfiyen uygulandı, tek yeni dosya
+`TUR3A-VERI-15-08.md`.
 
 G230 — **Negatif sıfır düzeltildi (TUR2-YARIM-15-08) — `formatDb()` (level-sheet-terms.js) "-0.0 dB" üretiyordu; 3 diğer dB formatlayıcı da AÇIKÇA güvenli hale getirildi.**
 
