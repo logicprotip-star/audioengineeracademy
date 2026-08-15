@@ -8215,10 +8215,17 @@ function openPaywallReason(reasonKey) {
   if (els.paywallLivesStrip) els.paywallLivesStrip.classList.toggle("hidden", !isLivesOut);
   if (isLivesOut) startPaywallLivesTicker(); else stopPaywallLivesTicker();
   syncWatchAdButtonForReason(cfg);
-  // Bağlamsal (bir kilitten gelen) ekranda "Geri yükle" gürültü — o an satın
-  // almayı GERİ YÜKLEMEK değil, YENİ bir kilidi AŞMAK istiyor (task: "sade,
-  // abartısız").
-  if (els.restorePurchaseBtn) els.restorePurchaseBtn.classList.add("hidden");
+  // G228 DÜZELTMESİ (RET-RISKI-15-08, Apple 3.1.1) — ÖNCEDEN bağlamsal
+  // (bir kilitten gelen) ekranda "Geri yükle" GİZLENİYORDU ("satın almayı
+  // GERİ YÜKLEMEK değil, YENİ bir kilidi AŞMAK istiyor" gerekçesiyle) —
+  // ama #buyProBtn'in KENDİSİ hiçbir koşulda gizlenmiyor, bu asimetri
+  // yaratıyordu: G220'den beri kullanıcının GERÇEKTE karşılaşacağı İLK
+  // paywall (soru/can limiti) "Pro'ya Geç" gösterirken "Geri yükle"yi
+  // GÖSTERMİYORDU — Apple'ın "satın alma ekranında restore imkânı"
+  // şartını bu YOLDAN karşılamıyordu. Artık HER paywall varyantında
+  // (bağlamsal DAHİL) görünür — resetPaywallToGeneric()'in AYNI satırıyla
+  // (yukarıda, .remove("hidden")) tutarlı.
+  if (els.restorePurchaseBtn) els.restorePurchaseBtn.classList.remove("hidden");
   // G185 (Bug 25, karar 4) — endsRound:false ise (round hâlâ canlı) duraklat.
   paywallPausedRound = !cfg.endsRound && !!activeQuestion && !autoStopped;
   if (paywallPausedRound) pauseRound();

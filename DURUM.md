@@ -146,6 +146,61 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G228 — **Restore Purchase asimetrisi düzeltildi (RET-RISKI-15-08, Apple 3.1.1) — restore butonu artık HER paywall varyantında görünüyor.**
+
+**Kök sebep (RET-RISKI-15-08'de bulunmuştu):** `openPaywallReason()`
+(app.js:8207-8231) HER bağlamsal tetikleyicide (sessionLimit/livesOut/
+modeLocked/upload/dailyUsed/zoneHistory/freePlayMode — 7'sinin TAMAMI)
+`#restorePurchaseBtn`'i `.add("hidden")` ile gizliyordu — "bağlamsal
+ekranda geri yükleme gürültü" gerekçesiyle (G63'ten kalma karar).
+`#buyProBtn`'de ise HİÇBİR gating YOKTU (grep ile doğrulandı) — asimetri
+G220'den beri (paywall artık ilk oturumda da açılıyor) kullanıcının/
+incelemecinin GERÇEKTE karşılaşacağı İLK paywall ekranında "Pro'ya Geç"
+görünürken "Geri yükle"nin YOK olması anlamına geliyordu.
+
+**Uygulanan:** Tek satır — `openPaywallReason()`'daki
+`.classList.add("hidden")` → `.classList.remove("hidden")` (app.js:8221
+civarı). Artık `resetPaywallToGeneric()`'in (Ayarlar → "Pro'ya geç")
+AYNI satırıyla tutarlı — HANGİ yoldan açılırsa açılsın restore butonu
+görünür. `#buyProBtn`'e, `showSessionEnd()`'e, G220'nin paywall açılma
+koşuluna (`openPaywallReason`'ın DÖNÜŞ DEĞERİ/mantığı) DOKUNULMADI —
+SADECE bir görünürlük class'ı.
+
+**e2e — `e2e/paywall-flow.spec.mjs`'e eklenenler (suite yapısı
+DEĞİŞMEDİ, SADECE assert + 1 yeni test):**
+1. Mevcut 4 senaryo testinin (soru hakkı bitti/canlar bitti × ilk
+   oturum/değil) HER BİRİNE `restoreBtnVisible(page)` assert'i eklendi
+   — `#restorePurchaseBtn`'in Playwright `.isVisible()` ile GERÇEK
+   görünürlüğünü (sadece class kontrolü değil) doğruluyor.
+2. **YENİ test** ("G228: Ayarlar'dan açılan GENEL paywall...") —
+   `#menuSettingsBtn` → `#goProBtn` → genel paywall yoluyla açılan
+   ekranda restore butonunun (a) HÂLÂ görünür olduğunu (regresyon
+   kontrolü — bu yol ÖNCEDEN de çalışıyordu, G228 bunu BOZMADI) VE
+   (b) İŞLEVİNİN gerçekten çalıştığını doğruluyor — web'de
+   `core/iap.js:getIAPPlugin()` null döndüğü için `handleRestorePurchase()`
+   GERÇEK "plugin yok" dalına düşüp bir toast gösteriyor (MOCK'LANMADI,
+   gerçek kod yolu) — click handler'ın fiilen tetiklendiğinin ve
+   uygulamanın çökmediğinin kanıtı.
+
+**Ölçüm — düzeltme ÖNCESİ/SONRASI karşılaştırması (`git stash`):**
+Düzeltme OLMADAN 4 senaryo testinin TAMAMI restore-görünürlük
+assert'inde KIRMIZI çıktı (`false !== true`, RET-RISKI-15-08'in bulduğu
+TAM hata) — düzeltmeyle 11/11 YEŞİL.
+
+**Ölçüm:** `npm test` → **1315/1315, DEĞİŞMEDİ**. `npm run test:e2e` →
+**11/11** (10 eski + 1 yeni test; 4 eski testin İÇİNDE ayrıca yeni
+assert'ler var, testlerin SAYISI değil İÇERİĞİ genişledi).
+
+**Dokunulan:** `www/js/app.js` (SADECE `openPaywallReason()`'daki TEK
+satır + açıklayıcı yorum), `e2e/paywall-flow.spec.mjs` (4 mevcut teste
+assert eklendi + 1 yeni test).
+**Dokunulmayan:** `#buyProBtn` (zaten doğru çalışıyordu), G220'nin
+paywall açılma koşulu (`openPaywallReason`'ın `cfg`/dönüş mantığı TEK
+SATIR değişmedi), `showSessionEnd()`, e2e suite'inin yapısı (sadece
+assert eklendi, yeni bir helper/dosya/desen gerekmedi), G221/G223/G225,
+G214/G215/G216, G177/G178/G185/G187, G198, G201/G204/G205, G203, G212,
+581f798/a4efb42.
+
 G227 — **İKİ ÖLÇÜM (kod yazılmadı): C6/"K" — Pro'da "done" ekranı git log'la KASITLI doğrulandı (G97, 78a8988) AMA free tarafı G97'nin kendi varsayımıyla ÇELİŞİYOR; hata analizi kayıt formatının TAM tarifi çıkarıldı.**
 
 **1) C6/"K" — KASITLI (Pro tarafı), G97'nin kendi varsayımı YANLIŞ çıktı (free tarafı):**
@@ -16821,7 +16876,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G227 itibarıyla):** G226 — Tonal Balance "i" metnine
+**EN YENİ SIRADAKİ ADIM (G228 itibarıyla):** RET-RISKI-15-08.md'nin 🔴
+madde 2'si (Restore Purchase asimetrisi) DÜZELTİLDİ — restore butonu
+artık HER paywall varyantında (bağlamsal DAHİL) görünüyor,
+`e2e/paywall-flow.spec.mjs` 11/11 (4 senaryoya assert eklendi + 1 yeni
+işlev testi). `git stash` ile kırmızı/yeşil doğrulandı. `npm test`
+1315/1315, değişmedi.
+**Bir sonraki adım:** RET-RISKI-15-08.md'nin kalan öncelik listesi —
+madde 1 (`AD_TEST_MODE=true`, hâlâ açık), madde 3 (Privacy Manifest,
+BELİRSİZ/dış doğrulama gerektiriyor), madde 4 (App Store ekran
+görüntüleri G216 ile tutarlı mı, BELİRSİZ), madde 5 (Paid Apps
+Agreement, BELİRSİZ).
+
+**EN YENİ SIRADAKİ ADIM (G227 itibarıyla, ARTIK ESKİ):** G226 — Tonal Balance "i" metnine
 ölçüm/yöntem bilgisi eklendi (41 parça, bant sınırları, sapma tanımı,
 kod DEĞİŞMEDİ). G227 (İKİ ÖLÇÜM, kod yazılmadı): (1) BEKLEYEN KARARLAR K
 netleşti — Pro'da "done" ekranının erişilemezliği `git log`'la KASITLI

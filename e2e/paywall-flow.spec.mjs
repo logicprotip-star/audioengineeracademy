@@ -64,7 +64,16 @@ async function readOutcome(page) {
     resKicker: document.getElementById("resKicker")?.textContent || null,
     resCta: document.getElementById("resCta")?.textContent || null,
     paywallReasonTitle: document.getElementById("paywallReasonTitle")?.textContent || null,
+    // G228 (RET-RISKI-15-08, Apple 3.1.1 düzeltmesi) — restore butonu
+    // ARTIK bağlamsal paywall'da da görünür olmalı, .isVisible()'a bkz.
+    // (sadece "hidden" class'ının yokluğu DEĞİL, gerçek görünürlük).
   }));
+}
+
+// G228 — restore butonunun GERÇEKTEN görünür olduğunu (class kontrolü
+// DEĞİL, Playwright'ın layout/visibility hesabı) doğrular.
+async function restoreBtnVisible(page) {
+  return page.locator("#restorePurchaseBtn").isVisible().catch(() => false);
 }
 
 test("soru hakkı bitti + İLK OTURUM (stats yok) → GERÇEK paywall açılır (G63 kaldırıldı)", async () => {
@@ -78,6 +87,7 @@ test("soru hakkı bitti + İLK OTURUM (stats yok) → GERÇEK paywall açılır 
   const out = await readOutcome(page);
   assert.equal(out.screen, "screen-paywall", `beklenen screen-paywall, gelen: ${out.screen}`);
   assert.equal(out.paywallReasonTitle, "Ücretsiz oturumun bitti");
+  assert.equal(await restoreBtnVisible(page), true, "G228: restore butonu bağlamsal paywall'da görünmeli (Apple 3.1.1)");
   await page.close();
 });
 
@@ -92,6 +102,7 @@ test("soru hakkı bitti + İLK OTURUM DEĞİL (stats.rounds=50) → GERÇEK payw
   const out = await readOutcome(page);
   assert.equal(out.screen, "screen-paywall", `beklenen screen-paywall, gelen: ${out.screen}`);
   assert.equal(out.paywallReasonTitle, "Ücretsiz oturumun bitti");
+  assert.equal(await restoreBtnVisible(page), true, "G228: restore butonu bağlamsal paywall'da görünmeli (Apple 3.1.1)");
   await page.close();
 });
 
@@ -106,6 +117,7 @@ test("canlar bitti + İLK OTURUM (stats.rounds=0, lives=0) → GERÇEK paywall a
   const out = await readOutcome(page);
   assert.equal(out.screen, "screen-paywall", `beklenen screen-paywall, gelen: ${out.screen}`);
   assert.equal(out.paywallReasonTitle, "Devam etmek için bir yol seç");
+  assert.equal(await restoreBtnVisible(page), true, "G228: restore butonu bağlamsal paywall'da görünmeli (Apple 3.1.1)");
   await page.close();
 });
 
@@ -120,6 +132,48 @@ test("canlar bitti + İLK OTURUM DEĞİL (stats.rounds=50, lives=0) → GERÇEK 
   const out = await readOutcome(page);
   assert.equal(out.screen, "screen-paywall", `beklenen screen-paywall, gelen: ${out.screen}`);
   assert.equal(out.paywallReasonTitle, "Devam etmek için bir yol seç");
+  assert.equal(await restoreBtnVisible(page), true, "G228: restore butonu bağlamsal paywall'da görünmeli (Apple 3.1.1)");
+  await page.close();
+});
+
+// G228 (RET-RISKI-15-08 düzeltmesi) — Ayarlar'dan açılan GENEL paywall'da
+// restore butonu zaten çalışıyordu (resetPaywallToGeneric()) — BOZULMADIĞINI
+// doğrular. Ayrıca butonun sadece GÖRÜNMESİ değil İŞLEVİNİN de çalıştığını
+// (tıklanınca iap.restorePro() gerçekten çağrılıyor) doğrular — web'de
+// NativePurchases plugin'i yok, bu yüzden core/iap.js:getIAPPlugin() null
+// döner ve handleRestorePurchase() "Kullanılamıyor / Bu özellik sadece
+// mobil uygulamada çalışır" toast'ına düşer (core/iap.js:restorePro()'nun
+// KENDİ, GERÇEK "plugin yok" dalı — mock'lanmadı, gerçek kod yolu) — bu,
+// butonun click handler'ının GERÇEKTEN tetiklendiğinin kanıtı.
+test("G228: Ayarlar'dan açılan GENEL paywall'da restore butonu görünür VE işlevi çalışıyor (web'de plugin yok → doğru 'kullanılamıyor' toast'ı)", async () => {
+  const page = await newPage();
+  await seedLocalStorage(page);
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+
+  // Ana menü → dişli (#menuSettingsBtn) → Ayarlar sheet'i açılır → "Pro'ya
+  // geç" (#goProBtn) → resetPaywallToGeneric() + goToSettingsSubpage("paywall").
+  await dismissSpotlightIfShown(page);
+  await page.locator("#menuSettingsBtn").click();
+  await page.waitForTimeout(300);
+  await page.locator("#goProBtn").click();
+  await page.waitForTimeout(300);
+
+  const screen = await activeScreenId(page);
+  assert.equal(screen, "screen-paywall", `ön koşul: genel paywall açılmadı (${screen})`);
+  assert.equal(await restoreBtnVisible(page), true, "genel paywall'da restore butonu görünmeli (regresyon kontrolü — bu yol ÖNCEDEN de çalışıyordu)");
+
+  // İşlev kontrolü: web'de core/iap.js:getIAPPlugin() null döner (NativePurchases
+  // plugin'i sadece native köprüde var) — handleRestorePurchase() bu GERÇEK
+  // "plugin yok" dalına düşüp bir toast gösterir, MOCK'LANMADI. Asıl kanıt:
+  // click handler GERÇEKTEN tetiklendi, uygulama çökmedi/donmadı, hâlâ yanıt
+  // veriyor.
+  await page.locator("#restorePurchaseBtn").click();
+  await page.waitForTimeout(500);
+  const stillResponsive = await page.evaluate(() => document.querySelector(".screen.active") !== null);
+  assert.equal(stillResponsive, true, "restore butonuna basınca uygulama yanıt vermez hale gelmemeli");
+  const toastVisible = await page.locator(".toast").first().isVisible().catch(() => false);
+  assert.equal(toastVisible, true, "restore tıklaması sonrası bir toast (ör. 'sadece mobil uygulamada çalışır') gösterilmeli — click handler'ın gerçekten çalıştığının kanıtı");
   await page.close();
 });
 
