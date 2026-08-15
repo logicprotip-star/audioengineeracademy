@@ -157,6 +157,42 @@ ya testçilere Pro açacak bir mekanizma yazılacak — şu an yok.
 
 # 🟤 7. ANDROID — iOS yayınlandıktan sonra
 
+## ⚠️⚠️ ZORUNLU KURAL — HER ANDROID PROMPT'UNDA SORULACAK ⚠️⚠️
+
+**Logic'in talimatı (15 Ağustos):** *"Android tarafına geçerken o
+ayrım mutlaka sorulsun çünkü ben unutabilirim."*
+
+Android için `www/` klasöründe (ortak kod) HERHANGİ bir değişiklik
+yapılacaksa, **her prompt'a şu madde eklenecek:**
+
+```
+⚠️ PLATFORM AYRIMI ZORUNLU
+
+Bu değişiklik www/ klasöründe mi olacak?
+Öyleyse iOS'u BOZMAMASI için platform ayrımı yapılmalı:
+
+  if (getPlatform() === "android") { ... yeni davranış ... }
+  else { ... iOS'un mevcut davranışı AYNEN korunsun ... }
+
+getPlatform() zaten var (core/ads.js).
+
+iOS'un mevcut davranışı HİÇ DEĞİŞMEYECEK. Değişecekse
+KOD YAZMADAN bildir.
+```
+
+**Neden:** `www/` klasörü iOS ve Android tarafından ORTAK
+kullanılıyor. Orada yapılan her değişiklik iOS'a da yansır.
+`ios/` ve `android/` klasörleri birbirini görmez, oralarda risk yok.
+
+**Risk taşıyan dosyalar:** `www/js/core/audio-engine.js` ·
+`upload.js` · `ads.js` · `iap.js` · `app.js` — hepsi ortak.
+
+**Risk taşımayan:** `android/` altındaki her şey (Kotlin/Java,
+AndroidManifest.xml, Gradle).
+
+---
+
+
 | # | İş | Not |
 |---|---|---|
 | 47 | Play Console hesabı | **25 $** |
