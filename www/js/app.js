@@ -2140,9 +2140,18 @@ function setAnalyzerPhase(phase) {
   if (els.analyzer) els.analyzer.dataset.phase = phase;
 }
 
+// G230 DÜZELTMESİ (TUR2-YARIM-15-08, "Negatif Sıfır") — ÖNCEDEN bu
+// fonksiyon "-0.0" hatasından KORUNUYORDU ama TESADÜFEN: `-0`'ı doğrudan
+// şablon string'e gömmek (`` `${-0}` ``) JS'te "0" üretiyor (toFixed()'in
+// AKSİNE, bkz. level-sheet-terms.js:formatDb()'nin AYNI hatası) — bu
+// davranış BAŞKA bir yerde `.toFixed()`'e geçilirse ya da kod
+// "sadeleştirilirse" sessizce bozulabilirdi. Artık AÇIKÇA `-0`'ı `0`'a
+// çeviriyor, hiçbir davranış DEĞİŞMEDİ (aynı girdilerle aynı çıktı,
+// node ile doğrulandı) — sadece tesadüfe bırakılmıyor.
 function formatGainDb(gain) {
   const rounded = Math.round(gain * 10) / 10;
-  return `${rounded > 0 ? "+" : ""}${rounded} dB`;
+  const safe = rounded === 0 ? 0 : rounded;
+  return `${safe > 0 ? "+" : ""}${safe} dB`;
 }
 
 // A/B tek buton durumunu (A|B göstergesi + spektrum başlığı) currentPlayMode'a göre günceller.

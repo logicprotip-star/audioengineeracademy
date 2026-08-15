@@ -114,3 +114,24 @@ describe("level-sheet-terms: DEFAULT_LEVEL_SHEET_TERMS güvenlik ağı", () => {
     assert.equal(terms.formatAmount(), null);
   });
 });
+
+// G230 (TUR2-YARIM-15-08, "Negatif Sıfır") — modül-içi `formatDb()` dışa
+// AÇILMIYOR, bu yüzden `LEVEL_SHEET_TERMS["frekans-bulma"].formatAmount()`
+// (formatDb'yi ÇAĞIRAN, GERÇEKTEN dışa açık tek yol) üzerinden dolaylı
+// test ediliyor — modülün genel yüzeyi GENİŞLETİLMEDİ.
+describe("level-sheet-terms: formatDb() sıfıra yuvarlanan negatif değerlerde \"-0.0\" ÜRETMEZ (G230)", () => {
+  it("sıfıra çok yakın negatif bir gainDb (-0.03) \"0.0 dB\" gösterir, \"-0.0 dB\" DEĞİL", () => {
+    const val = LEVEL_SHEET_TERMS["frekans-bulma"].formatAmount({ gainDb: -0.03 });
+    assert.equal(val, "0.0 dB");
+  });
+
+  it("gerçek negatif bir değer (-1.23) DOĞRU işaretiyle kalır, dokunulmaz", () => {
+    const val = LEVEL_SHEET_TERMS["frekans-bulma"].formatAmount({ gainDb: -1.23 });
+    assert.equal(val, "-1.2 dB");
+  });
+
+  it("tam sıfır (0) ve küçük pozitif (0.001) de \"0.0 dB\" gösterir — tutarlı", () => {
+    assert.equal(LEVEL_SHEET_TERMS["frekans-bulma"].formatAmount({ gainDb: 0 }), "0.0 dB");
+    assert.equal(LEVEL_SHEET_TERMS["frekans-bulma"].formatAmount({ gainDb: 0.001 }), "0.0 dB");
+  });
+});

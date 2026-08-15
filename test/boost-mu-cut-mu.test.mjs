@@ -600,3 +600,14 @@ describe("Boost/Cut — Kesim Noktası/dB Seviyesi'yle KARŞILAŞTIRMA (bağlant
     }
   });
 });
+
+// G230 (TUR2-YARIM-15-08, "Negatif Sıfır") — db-seviyesi.js'in AYNI
+// (birebir kopya) formatDb()'siyle AYNI gerekçe/doğrulama.
+describe("boost-mu-cut-mu: formatDb() sıfıra yuvarlanan negatif değerlerde \"-0.00\" ÜRETMEZ (G230)", () => {
+  it("sıfıra çok yakın negatif bir değer (-0.001) \"+0.00 dB\" gösterir, \"-0.00 dB\" DEĞİL", () => {
+    assert.equal(mode.formatDb(-0.001), "+0.00 dB");
+  });
+  it("gerçek negatif bir değer (-1.23) DOĞRU işaretiyle kalır, dokunulmaz", () => {
+    assert.equal(mode.formatDb(-1.23), "-1.23 dB");
+  });
+});

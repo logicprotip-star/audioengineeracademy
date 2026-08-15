@@ -90,7 +90,7 @@ dışında) — BELİRSİZ.
 
 ## I) TUTARSIZLIKLAR
 
-### 🔴 CİDDİ, ÇALIŞTIRILARAK DOĞRULANDI — `formatDb()` (level-sheet-terms.js) "-0.0 dB" ÜRETİYOR
+### ✅ DÜZELTİLDİ (G230) — `formatDb()` (level-sheet-terms.js) "-0.0 dB" ÜRETİYORDU
 İki AYRI dB biçimlendirme fonksiyonu var (asimetri — bkz. A):
 - `app.js:2143-2146` `formatGainDb(gain)`: `Math.round(gain*10)/10` sonra
   şablon string'e gömüyor — **node ile TEST EDİLDİ:**
@@ -291,9 +291,11 @@ diye belgelenmişti) bu turda TEKRAR doğrulanmadı. **Hepsi BELİRSİZ.**
    fonksiyonu artık try/catch'li, kritik yol (satın alma/geri yükleme/
    arka plan mülkiyet kontrolü) kullanıcıya AÇIK bir hata mesajı
    gösteriyor. Bkz. DURUM.md G229.
-2. **🔴 `formatDb()` (level-sheet-terms.js:34-36) "-0.0" üretmesi
-   düzeltilmeli** — `Math.round`'a çevirmek ya da `+0` normalize
-   etmek yeterli, tek fonksiyon.
+2. **✅ DÜZELTİLDİ (G230)** — `formatDb()` artık "0.0 dB" gösteriyor.
+   Tarama sonucu: diğer 6 formatlayıcıdan SADECE `formatGainDb()`/
+   `db-seviyesi.js`/`boost-mu-cut-mu.js`'in `formatDb()`'leri aynı
+   RİSKİ taşıyordu (ama TESADÜFEN zaten güvenliydiler) — hepsi AÇIKÇA
+   güvenli hale getirildi. Bkz. DURUM.md G230.
 
 ## 1.1'e bırakılabilir
 - `resetAllProgress()`'in kapsamını `dailyAcc`/`toolsTonalReferences`'ı

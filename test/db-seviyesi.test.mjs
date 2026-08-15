@@ -615,3 +615,20 @@ describe("dB Seviyesi — G24: pickDbDelta artık DB_FLOOR'u ihlal etmiyor + sea
     }
   });
 });
+
+// G230 (TUR2-YARIM-15-08, "Negatif Sıfır") — formatDb() ÖLÇÜLDÜ: bu
+// fonksiyon "-0.0" hatasını GÖSTERMİYORDU (Math.round'un ürettiği -0
+// üzerinde toFixed(2) çağırmak tesadüfen koruyordu) — artık AÇIKÇA
+// normalize ediyor, davranış DEĞİŞMEDİ. Bu test SIFIRA yuvarlanan
+// durumu VE gerçek negatif değerlerin dokunulmadığını doğruluyor.
+describe("db-seviyesi: formatDb() sıfıra yuvarlanan negatif değerlerde \"-0.00\" ÜRETMEZ (G230)", () => {
+  it("sıfıra çok yakın negatif bir değer (-0.001) \"+0.00 dB\" gösterir, \"-0.00 dB\" DEĞİL", () => {
+    assert.equal(mode.formatDb(-0.001), "+0.00 dB");
+  });
+  it("gerçek negatif bir değer (-1.23) DOĞRU işaretiyle kalır, dokunulmaz", () => {
+    assert.equal(mode.formatDb(-1.23), "-1.23 dB");
+  });
+  it("gerçek negatif, yuvarlanan bir değer (-0.049) DOĞRU işaretiyle kalır", () => {
+    assert.equal(mode.formatDb(-0.049), "-0.05 dB");
+  });
+});

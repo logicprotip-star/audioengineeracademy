@@ -146,6 +146,70 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G230 — **Negatif sıfır düzeltildi (TUR2-YARIM-15-08) — `formatDb()` (level-sheet-terms.js) "-0.0 dB" üretiyordu; 3 diğer dB formatlayıcı da AÇIKÇA güvenli hale getirildi.**
+
+**Kök sebep — SADECE `core/level-sheet-terms.js:formatDb()` GERÇEKTEN
+buglıydı:** `db.toFixed(1)` ham değer üzerinde DOĞRUDAN çağrılıyordu.
+`Number.prototype.toFixed()` yuvarlama SONUCU sıfır olsa bile ORİJİNAL
+işareti KORUYOR (node ile ölçüldü: `(-0.03).toFixed(1)` → `"-0.0"`,
+`(-0).toFixed(2)` → `"0.00"` — ikisi FARKLI davranıyor, girdinin ÖNCEDEN
+`Math.round`'dan geçip geçmediğine bağlı).
+
+**TARAMA sonucu (task'ın istediği "başka formatlayıcı" kontrolü) — 7
+formatlayıcı incelendi, SADECE 1'i buglıydı:**
+| Fonksiyon | Buglı mıydı? | Neden |
+|---|---|---|
+| `level-sheet-terms.js:formatDb()` | **EVET** | `toFixed()` ham değer üzerinde direkt |
+| `app.js:formatGainDb()` | Hayır (TESADÜFEN) | `-0`'ı şablon string'e gömmek (`` `${-0}` ``) "0" üretir — `toFixed()`'in AKSİNE |
+| `db-seviyesi.js:formatDb()` | Hayır (TESADÜFEN) | ÖNCE `Math.round` (→ tam `-0`), SONRA `.toFixed(2)` — `(-0).toFixed(2)`→`"0.00"`, işaret KAYBOLUYOR |
+| `boost-mu-cut-mu.js:formatDb()` | Hayır (aynı, kopya kod) | yukarısıyla BİREBİR aynı fonksiyon |
+| `app.js:formatToolsDuration()` | Uygulanamaz | süre işaretsiz (negatif olmaz) |
+| `core/utils.js:formatHz()` | Uygulanamaz | frekans işaretsiz |
+| `formatWidthPercent`/`formatPanPercent`/`level-sheet-terms.js:formatPercent()` | Hayır | `.toFixed()` KULLANMIYORLAR, düz `Math.round()`+şablon string (aynı "tesadüfen güvenli" mekanizma) |
+
+**Uygulanan (4 dosya, HEPSİ AYNI desen — önce yuvarla, SONUCUN `0`'a eşit
+olup olmadığını AÇIKÇA kontrol et, `-0===0` JS'te `true`):**
+1. `level-sheet-terms.js:formatDb()` — GERÇEK düzeltme.
+2. `app.js:formatGainDb()` — task'ın kendi talimatı ("tesadüfe bırakma") —
+   davranış AYNI kaldı, artık AÇIKÇA.
+3. `db-seviyesi.js`/`boost-mu-cut-mu.js:formatDb()` — ZATEN güvenliydi,
+   AYNI gerekçeyle (gelecekte biri "sadeleştirip" `Math.round`→`toFixed`
+   sırasını değiştirirse hata SESSİZCE geri dönmesin) AÇIKÇA yapıldı —
+   davranış TEK SATIR değişmedi (node ile karşılaştırmalı doğrulandı).
+**Gerçek negatif değerlere (task'ın DİKKAT uyarısı) dokunulmadı** — dört
+fonksiyon için de -1.23/-0.4/-0.049 gibi girdiler AYNI çıktıyı üretmeye
+devam ediyor, SADECE sıfıra yuvarlanan durum düzeldi.
+
+**Testler:**
+- `test/level-sheet-terms.test.mjs` — YENİ 3 test (`formatDb` dışa
+  AÇILMADIĞI için `LEVEL_SHEET_TERMS["frekans-bulma"].formatAmount()`
+  üzerinden DOLAYLI test edildi, modülün genel yüzeyi GENİŞLETİLMEDİ).
+- `test/db-seviyesi.test.mjs` / `test/boost-mu-cut-mu.test.mjs` — YENİ
+  2-3'er test (`formatDb` ikisinde de EXPORTED, doğrudan test edildi).
+
+**Ölçüm — düzeltme ÖNCESİ/SONRASI (`git stash`):** `level-sheet-terms.js`'in
+testi düzeltme OLMADAN KIRMIZI çıktı (`'-0.0 dB'` üretti, TAM olarak
+TUR2'nin ölçtüğü hata) — `db-seviyesi.js`/`boost-mu-cut-mu.js`'in testleri
+düzeltme OLMADAN da YEŞİL kaldı (155/156 — bu ikisinin GERÇEKTEN
+buglı OLMADIĞINI, sadece "tesadüfen güvenli"yi "açıkça güvenli"ye
+çevirdiğimizi KANITLADI, sahte bir "düzeltme" değil).
+
+**Ölçüm:** `npm test` → **1331/1331** (1323 + 8 yeni test). `npm run
+test:e2e` → **12/12, DEĞİŞMEDİ**.
+
+**Dokunulan:** `www/js/core/level-sheet-terms.js`, `www/js/app.js`
+(`formatGainDb()`), `www/js/modes/db-seviyesi.js`,
+`www/js/modes/boost-mu-cut-mu.js` (`formatDb()`'lerin gövdesi — SADECE
+bu 4 fonksiyon), `test/level-sheet-terms.test.mjs`,
+`test/db-seviyesi.test.mjs`, `test/boost-mu-cut-mu.test.mjs`.
+**Dokunulmayan:** Gerçek negatif değerlerin gösterimi (SIFIR davranış
+değişikliği), `formatToolsDuration`/`formatHz`/yüzde formatlayıcıları
+(uygulanabilir değildi/zaten güvenli), db-seviyesi.js ile boost-mu-cut-mu.js'in
+KENDİLERİNİN AYNI kod olması (D bölümünün ayrı bir bulgusu — bu turun
+kapsamı DEĞİLDİ, konsolide EDİLMEDİ), G220/G221/G223/G225/G228/G229,
+G214/G215/G216, G177/G178/G185/G187, G198, G201/G204/G205, G203, G212,
+581f798/a4efb42.
+
 G229 — **Satın alma kaybı düzeltildi (TUR2-YARIM-15-08) — 12 `save*()` fonksiyonunun 10'unda hata yakalama yoktu, `savePurchase()` dahil; artık hepsi korumalı ve kritik yol kullanıcıya açıkça bildiriyor.**
 
 **Kök sebep (TUR2'de bulunmuştu):** `core/storage.js`'in 12 `save*()`
@@ -16950,17 +17014,25 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G228 itibarıyla):** RET-RISKI-15-08.md'nin 🔴
+**EN YENİ SIRADAKİ ADIM (G230 itibarıyla):** TUR2-YARIM-15-08.md'nin İKİ
+🔴 maddesi DÜZELTİLDİ — G229 (satın alma kaybı, 12 `save*()` fonksiyonu
+artık korumalı) ve G230 (negatif sıfır, `formatDb()`'nin 4 varyantı
+AÇIKÇA güvenli). `npm test` 1331/1331 (1315 + 16 yeni test), `npm run
+test:e2e` 12/12. İkisi de `git stash` ile kırmızı/yeşil doğrulandı.
+**Bir sonraki adım:** RET-RISKI-15-08.md'nin kalan öncelik listesi —
+madde 1 (`AD_TEST_MODE=true`, hâlâ açık), madde 3 (Privacy Manifest,
+BELİRSİZ/dış doğrulama gerektiriyor), madde 4 (App Store ekran
+görüntüleri G216 ile tutarlı mı, BELİRSİZ), madde 5 (Paid Apps
+Agreement, BELİRSİZ). TUR2-YARIM-15-08.md'nin "1.1'e bırakılabilir"
+listesi (`resetAllProgress()` kapsamı, sistematik .md-kod çapraz
+doğrulaması) hâlâ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (G228 itibarıyla, ARTIK ESKİ):** RET-RISKI-15-08.md'nin 🔴
 madde 2'si (Restore Purchase asimetrisi) DÜZELTİLDİ — restore butonu
 artık HER paywall varyantında (bağlamsal DAHİL) görünüyor,
 `e2e/paywall-flow.spec.mjs` 11/11 (4 senaryoya assert eklendi + 1 yeni
 işlev testi). `git stash` ile kırmızı/yeşil doğrulandı. `npm test`
 1315/1315, değişmedi.
-**Bir sonraki adım:** RET-RISKI-15-08.md'nin kalan öncelik listesi —
-madde 1 (`AD_TEST_MODE=true`, hâlâ açık), madde 3 (Privacy Manifest,
-BELİRSİZ/dış doğrulama gerektiriyor), madde 4 (App Store ekran
-görüntüleri G216 ile tutarlı mı, BELİRSİZ), madde 5 (Paid Apps
-Agreement, BELİRSİZ).
 
 **EN YENİ SIRADAKİ ADIM (G227 itibarıyla, ARTIK ESKİ):** G226 — Tonal Balance "i" metnine
 ölçüm/yöntem bilgisi eklendi (41 parça, bant sınırları, sapma tanımı,

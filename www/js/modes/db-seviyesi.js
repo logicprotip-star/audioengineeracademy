@@ -187,10 +187,18 @@ export const DISTRACTOR_STEP_DB = { easy: 1.5, medium: 1.0, hard: 0.6, pro: 0.35
 // şıkka basmak yine "doğru" sayılabilir.
 export const DB_TOLERANCE = 0.1;
 
+// G230 NOTU (TUR2-YARIM-15-08, "Negatif Sıfır") — ÖLÇÜLDÜ: bu fonksiyon
+// "-0.0" hatasını GÖSTERMİYORDU (level-sheet-terms.js:formatDb()'nin
+// AKSİNE) — `Math.round`'un ÜRETTİĞİ `-0` üzerinde `.toFixed(2)` çağırmak
+// (`(-0).toFixed(2)` → `"0.00"`, işaret KAYBOLUYOR) burada TESADÜFEN
+// koruyucu çıkıyordu. Yine de AÇIKÇA normalize ediliyor — sıralama
+// (önce round, sonra toFixed) DEĞİŞTİRİLİRSE hata sessizce geri
+// dönmesin diye. Davranış DEĞİŞMEDİ (aynı girdilerle aynı çıktı).
 export function formatDb(value) {
   const rounded = Math.round(value * 100) / 100;
-  const sign = rounded >= 0 ? "+" : "";
-  return `${sign}${rounded.toFixed(2)} dB`;
+  const safe = rounded === 0 ? 0 : rounded;
+  const sign = safe >= 0 ? "+" : "";
+  return `${sign}${safe.toFixed(2)} dB`;
 }
 
 // SAF FONKSİYON. baseDelta (curve'ün ürettiği "tipik" büyüklük) etrafında ±%20

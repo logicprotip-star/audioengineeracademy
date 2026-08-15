@@ -31,8 +31,18 @@ import { formatOctaveBandwidth, qToOctaveBandwidth } from "./difficulty-curve.js
 function formatPercent(k) {
   return `%${Math.round(k * 100)}`;
 }
+// G230 DÜZELTMESİ (TUR2-YARIM-15-08, "Negatif Sıfır") — ÖNCEDEN `db.toFixed(1)`
+// ham değer üzerinde DOĞRUDAN çağrılıyordu: `Number.prototype.toFixed()`
+// yuvarlama SONUCU sıfır olsa bile ORİJİNAL negatif işareti KORUYOR
+// (node ile ÖLÇÜLDÜ: `(-0.03).toFixed(1)` → `"-0.0"`, matematiksel olarak
+// yanlış) — sıfıra çok yakın negatif bir sapma "-0.0 dB" gösteriyordu.
+// Artık ÖNCE `Math.round` ile yuvarlanıp SONUCUN KENDİSİ `0`'a eşit mi diye
+// AÇIKÇA kontrol ediliyor (`-0 === 0` JS'te `true`) — GERÇEK negatif
+// değerler (ör. -1.23 → "-1.2") TEK SATIR değişmeden aynı kalıyor.
 function formatDb(db) {
-  return `${db.toFixed(1)} dB`;
+  const rounded = Math.round(db * 10) / 10;
+  const safe = rounded === 0 ? 0 : rounded;
+  return `${safe.toFixed(1)} dB`;
 }
 
 export const LEVEL_SHEET_TERMS = {

@@ -160,10 +160,16 @@ export const FREQ_TOLERANCE_OCT = 0.3; // oktav
 // Frekans Bulma'nın orta zorluk Q'suna yakın makul bir değer.
 const FILTER_Q = 1.4;
 
+// G230 NOTU (TUR2-YARIM-15-08, "Negatif Sıfır") — db-seviyesi.js'in AYNI
+// (birebir kopya) fonksiyonuyla AYNI gerekçe: bu, "-0.0" hatasını
+// GÖSTERMİYORDU (Math.round'un ÜRETTİĞİ -0 üzerinde toFixed(2) çağırmak
+// tesadüfen koruyordu) ama artık AÇIKÇA normalize ediliyor. Davranış
+// DEĞİŞMEDİ.
 export function formatDb(value) {
   const rounded = Math.round(value * 100) / 100;
-  const sign = rounded >= 0 ? "+" : "";
-  return `${sign}${rounded.toFixed(2)} dB`;
+  const safe = rounded === 0 ? 0 : rounded;
+  const sign = safe >= 0 ? "+" : "";
+  return `${sign}${safe.toFixed(2)} dB`;
 }
 
 // SAF FONKSİYON. dB Seviyesi'nin pickDbDelta'sıyla AYNI (G24'te ÖĞRENİLEN
