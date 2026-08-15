@@ -302,6 +302,16 @@ tablolarının HİÇBİRİNİ etkilemiyor. Ana menünün "Bugünün Önerisi" ka
 | Son turlar (geçmiş listesi) | ✗ | ✓ | **Ters fark** | Tasarımda karşılığı yok — kod-only |
 | "İstatistikleri Sıfırla" butonu | ✗ | ✓ | **Ters fark** | Tasarımda karşılığı yok — kod-only |
 
+**NOT (15 Ağustos, DOGRULAMA-15-08.md/DURUM.md BİLİNEN AÇIKLAR madde 3 —
+kasıtlı isim örtüşmesi):** yukarıdaki satırda (293) geçen seviye başlığı
+"Kalibre Kulak" ile aynı dizinin (`progress.js:121-127`) SON kaydı olan
+Seviye 30 başlığı **"Altın Kulak"**, rozet ızgarasındaki (satır 299,
+güncel 6-rozet setinin) `boss_win` rozetinin adı **"Altın Kulak"** ile
+BİREBİR AYNI. Bu bir tutarsızlık DEĞİL — kullanıcı kararı: "30. seviyede
+olan biri zaten Altın Kulak olmayı hak etmiştir, çift taraflı
+tescillensin." Kod değişmeyecek. 7 seviye başlığı × 6 rozet tam
+karşılaştırıldı, başka bir çakışma yok.
+
 ## EKRAN 8 — ARAÇLAR
 
 | Öğe | Tasarımda | Kodda | Durum | Eksik olan |

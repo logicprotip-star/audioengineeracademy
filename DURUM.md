@@ -15843,6 +15843,23 @@ karşı da AYNEN üretildi — **G201'in bir regresyonu DEĞİL, ÖNCEDEN
 VARDI**, sadece bu turda YENİ fark edildi. Kod YAZILMADI (bu turun kapsamı
 #47/#48'di) — ayrı bir görev.
 
+**3. "Altın Kulak" adı Seviye 30 başlığıyla `boss_win` rozetinde AYNI —
+KASITLI, bilerek bırakılıyor (DOGRULAMA-15-08.md'de bulundu, 15 Ağustos
+kullanıcı kararı)**
+`www/js/core/progress.js:127` — Seviye başlıkları dizisinin (7 kayıt:
+Çırak Kulak/Kalibre Kulak/Keskin Kulak/Uzman Kulak/Usta Kulak/Prodüksiyon
+Ustası/**Altın Kulak**, `min:1` → `min:30`) SON kaydı `{ min: 30, title:
+"Altın Kulak" }`. `progress.js:158`'deki `ACHIEVEMENTS` dizisinin SON
+kaydı da `{ id: "boss_win", ..., title: "Altın Kulak", ... }` — İKİ AYRI
+sistem (seviye başlığı vs rozet), BİREBİR AYNI Türkçe string. **Kullanıcı
+kararı: ÇAKIŞMA KALACAK, düzeltilmeyecek.** Gerekçe (Logic'in kendi
+sözü): *"30. seviyede olan biri zaten Altın Kulak olmayı hak etmiştir —
+çift taraflı tescillensin."* Kod DEĞİŞMEDİ, sadece BU NOT eklendi ki
+ileride biri bunu fark edip "tutarsızlık" sanıp düzeltmeye kalkmasın —
+KASITLI bir tasarım kararıdır, bug DEĞİLDİR. Diğer 6 seviye başlığı ile
+diğer 5 rozet arasında BAŞKA bir isim çakışması taranıp BULUNAMADI (7
+seviye başlığı × 6 rozet, tam karşılaştırma) — "Altın Kulak" TEK örnek.
+
 ## BEKLEYEN KARARLAR
 
 **W. G206 — Pro Plus, sınav/parkur sistemine hiç DAHİL DEĞİL — dahil edilsin mi?**
