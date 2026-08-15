@@ -97,6 +97,16 @@ public class AudioSessionPlugin: CAPPlugin, CAPBridgedPlugin {
         notifyListeners("sessionActivated", data: ["ok": ok, "source": "didBecomeActive"])
     }
 
+    // G236 (TUR3B bulgusu 🔴, EN KRİTİK) — ÖNCEDEN bu olay SADECE
+    // `notifyListeners()` (Capacitor'ın addListener proxy'si) ile
+    // gönderiliyordu — `handleRouteChange`'in AŞAĞIDA aldığı, G135'te
+    // kanıtlanmış `evaluateJavaScript` tedavisini HİÇ almamıştı. Kesinti
+    // (arama/Siri/alarm) `document.visibilitychange`'i tetiklemiyorsa
+    // (BELİRSİZ, cihaza bağlı — bkz. TUR3B-ZAMAN-15-08.md Bölüm D/I) JS
+    // tarafı kesintiden HİÇ haberdar olmuyor, round zamanlayıcısı
+    // duraklamıyordu. `notifyListeners` çağrıları KALDIRILMADI (zararsız,
+    // ileride Capacitor köprüsü çalışır hâle gelirse ekstra bir maliyeti
+    // yok) — `evaluateJavaScript` birincil/kanıtlanmış yol olarak EKLENDİ.
     @objc private func handleInterruption(_ notification: Notification) {
         guard let info = notification.userInfo,
               let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
@@ -105,12 +115,26 @@ public class AudioSessionPlugin: CAPPlugin, CAPBridgedPlugin {
         case .began:
             print("[audio-diag-native] AVAudioSession kesintisi BAŞLADI")
             notifyListeners("interruptionBegan", data: [:])
+            notifyJsInterruption("began")
         case .ended:
             print("[audio-diag-native] AVAudioSession kesintisi BİTTİ — oturum yeniden etkinleştiriliyor")
             let ok = activateSession(reason: "interruptionEnded")
             notifyListeners("sessionActivated", data: ["ok": ok, "source": "interruptionEnded"])
+            notifyJsInterruption("ended")
         @unknown default:
             break
+        }
+    }
+
+    // handleRouteChange'in AYNI deseni (bkz. o fonksiyonun G135 notu) —
+    // window.__aeaNativeInterruption(type) çağırır (audio-engine.js'in
+    // window.__aeaNativeRouteChanged'ıyla AYNI mimari).
+    private func notifyJsInterruption(_ type: String) {
+        DispatchQueue.main.async {
+            self.bridge?.webView?.evaluateJavaScript(
+                "window.__aeaNativeInterruption && window.__aeaNativeInterruption('\(type)')",
+                completionHandler: nil
+            )
         }
     }
 

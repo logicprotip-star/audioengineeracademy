@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G235)
+Son güncelleme: 15.08.2026 (G236)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,79 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G236 — **Native ses kesintisi köprüsü eklendi (TUR3B bulgusu 🔴, EN KRİTİK) — `interruptionBegan`/`sessionActivated` artık route-change'in kullandığı `evaluateJavaScript` yoluyla JS'e ulaşıyor.**
+
+**Kök sebep (TUR3B'de bulunmuştu):** `AudioSessionPlugin.swift`
+kesintiyi (arama/Siri/alarm) `AVAudioSession.interruptionNotification`
+ile DOĞRU algılıyordu ama JS'e SADECE `notifyListeners()` (Capacitor'ın
+`registerPlugin` tabanlı proxy'si) ile bildiriyordu — G135'in AYNI
+bulgusu bu köprünün BU UYGULAMADA (düz-script bridge, `nativePromise`
+tabanlı) doğrulanmadığını/muhtemelen çalışmadığını göstermişti.
+Route-change (#50/#51) bu yüzden `evaluateJavaScript`'e geçmişti,
+kesinti olayları bu geçişi HİÇ almamıştı. Kesinti `visibilitychange`'i
+tetiklemiyorsa (BELİRSİZ, cihaza bağlı) round zamanlayıcısı arama/Siri/
+alarm SIRASINDA çalışmaya devam edip can/süre kaybettirebiliyordu.
+
+**Uygulanan:**
+1. `AudioSessionPlugin.swift:handleInterruption()` — `notifyJsInterruption(_:)`
+   adında YENİ bir yardımcı eklendi, `handleRouteChange`'in AYNI
+   `DispatchQueue.main.async { bridge?.webView?.evaluateJavaScript(...) }`
+   deseni — `window.__aeaNativeInterruption('began'/'ended')` çağırıyor.
+   Mevcut `notifyListeners(...)` çağrıları KALDIRILMADI (zararsız, ekstra
+   maliyeti yok) — `evaluateJavaScript` birincil/kanıtlanmış yol olarak
+   EKLENDİ.
+2. `audio-engine.js` — `window.__aeaNativeInterruption` tanımlandı
+   (`window.__aeaNativeRouteChanged` İLE AYNI yerde/desende), `onInterruption`
+   hook'u dışa açıldı (`onRouteChanged`'ın AYNI `set` deseni).
+3. `app.js` — `audioEngine.onInterruption` dinleyicisi eklendi:
+   `"began"` gelince `visibilitychange`'in hidden dalıyla BİREBİR AYNI
+   eylemler (ses durdurma + 4 Araçlar oynatıcısının duraklatılması +
+   `pauseRound()` varsa) — `visibilitychange` zaten tetiklenmişse
+   `pauseRound()`'un kendi `if (activeQuestion && !autoStopped)`
+   koruması sayesinde İKİNCİ çağrı ZARARSIZ (no-op). `"ended"` gelince
+   `ensureAudioAlive({allowRecreate:false, silent:true})` (visibilitychange'in
+   visible dalıyla AYNI, banner'a dokunmuyor).
+
+**Testler:** `e2e/native-interruption.spec.mjs` — YENİ dosya, 3 test
+(`window.__aeaNativeInterruption('began')` aktif turu duraklatıyor mu
+— `#startBtn`'in aria-label'i "Durdur"→"Oynat" değişimiyle doğrulandı;
+`'ended'` hata fırlatmıyor mu; idle ekranda (activeQuestion yok) çökme
+yok mu). `git stash` ile kırmızı/yeşil doğrulandı: düzeltme OLMADAN
+İLK test GERÇEKTEN kırmızı çıktı (`'Durdur' !== 'Oynat'`), diğer ikisi
+zaten yeşildi (fonksiyon TANIMSIZ olduğu için `&&` kısa devre —
+çökmüyordu ama İŞE de YARAMIYORDU, bu YÜZDEN sadece 1 testin kırmızı
+olması BEKLENEN/doğru).
+
+**Ölçüm:** `npm test` → **1349/1349, DEĞİŞMEDİ**. `npm run test:e2e` →
+**16/16** (13 + 3 yeni).
+
+**Dokunulan:** `ios/App/App/AudioSessionPlugin.swift` (`handleInterruption`,
+yeni `notifyJsInterruption`), `www/js/core/audio-engine.js`
+(`window.__aeaNativeInterruption` + `onInterruption` hook),
+`www/js/app.js` (yeni `audioEngine.onInterruption` dinleyicisi),
+`e2e/native-interruption.spec.mjs` (yeni dosya).
+**Dokunulmayan:** `handleRouteChange`/route-change köprüsü (zaten
+çalışıyordu, dokunulmadı), `visibilitychange`'in kendisi (PARALEL bir
+ikinci sinyal, birbirini iptal etmez), `handleAppBecameActive` (kapsam
+dışı — didBecomeActive genel uygulama-öne-gelme olayı, visibilitychange
+ZATEN kapsıyor, bu turun konusu SADECE AVAudioSession kesintisi),
+G220/G221/G223/G225/G228/G229/G230/G231/G232/G233/G234/G235, G187,
+G203, G214/G215/G216, G212.
+
+⚠️ **CİHAZDA ZORUNLU doğrulama (bu koddan KESİN kanıtlanamaz — Swift
+tarafı bu ortamda derlenip çalıştırılamıyor):**
+1. Bir tur AÇIKKEN (süre işlerken) kendine ARA çağrısı yaptır (başka
+   bir cihazdan) — arama geldiği AN tur duruyor mu (süre donuyor mu),
+   aramayı reddet/kapat — tur kaldığı yerden mi devam ediyor?
+2. AYNI senaryo Siri ile ("Hey Siri" ile açıp kapat).
+3. AYNI senaryo bir ALARM çalarken (kısa bir alarm kur, tur ortasında
+   çalsın).
+4. HER ÜÇÜNDE de: can gidiyor mu (gitmemeli), süre kesintide işliyor
+   mu (işlememeli), kesinti bitince ses/round doğru toparlanıyor mu.
+5. Xcode konsolunda `[audio-diag-native]` logları + Safari Web
+   Inspector'da `[audio-diag] nativeInterruption` logları GÖRÜNÜYOR mu
+   — İKİSİNİN de görünmesi köprünün UÇTAN UCA çalıştığının kanıtı.
 
 ÖLÇÜM (kod yazılmadı) — **"Cevap veriyorsun, otomatik atlama yapıyor ve kapanıyor" raporu doğrulandı: A/B "Döngü" (`abLoopTimer`) her cevaptan SONRA BİLİNÇLİ olarak durduruluyor (G31, `app.js:726-740`), ama otomatik geçişte YENİDEN AÇILMIYOR — kullanıcı her soruda elle yeniden açmak zorunda.**
 
@@ -17376,7 +17449,22 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G235 itibarıyla):** TUR3B-ZAMAN-15-08.md'nin
+**EN YENİ SIRADAKİ ADIM (G236 itibarıyla):** TUR3B-ZAMAN-15-08.md'nin
+3 maddelik "yayın öncesi düzeltilecekler" listesinin ÜÇÜ DE KAPANDI —
+G234 (reklam zaman aşımı), G235 (abPressTimer teardown), G236 (native
+kesinti köprüsü, EN KRİTİK). `npm test` 1349/1349 (1347+2 yeni test,
+G234'ten). `npm run test:e2e` 16/16 (12+4 yeni: 1 G235'ten, 3 G236'dan).
+Üçü de `git stash` ile kırmızı/yeşil doğrulandı. **Bir sonraki adım —
+ZORUNLU, kullanıcının kendisi yapmalı:** G236'nın DURUM.md kaydındaki
+5 maddelik CİHAZDA doğrulama listesi (arama/Siri/alarm sırasında
+tur/can/süre davranışı) — bu SADECE gerçek bir iOS cihazda test
+edilebilir, Swift değişikliği bu ortamda derlenip çalıştırılamıyor.
+G235'in de kendi tek maddelik cihaz doğrulaması AÇIK. TUR3A-VERI-15-08.md/
+TUR3B-ZAMAN-15-08.md'nin "1.1'e bırakılabilir"/"sadece belgelenecek"
+listeleri ve "otomatik geçişte A/B döngüsü kapanması" ölçümü (BELİRSİZ/
+ürün kararı, bkz. aşağıdaki ÖLÇÜM kaydı) hâlâ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (G235 itibarıyla, ARTIK ESKİ):** TUR3B-ZAMAN-15-08.md'nin
 3 maddelik "yayın öncesi düzeltilecekler" listesinin İKİNCİSİ
 (abPressTimer teardown) KAPANDI — `app.js:pauseRound()`, TEK satır,
 `e2e/ab-loop-teardown.spec.mjs` (yeni), `git stash` ile kırmızı/yeşil

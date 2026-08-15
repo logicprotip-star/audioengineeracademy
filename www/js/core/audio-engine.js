@@ -120,6 +120,20 @@ export function createAudioEngine() {
   window.__aeaNativeRouteChanged = (reason) => {
     if (onRouteChanged) onRouteChanged(reason);
   };
+  // G236 (TUR3B bulgusu 🔴) — AudioSessionPlugin.swift'in `interruptionBegan`/
+  // `sessionActivated` olayları (arama/Siri/alarm) ÖNCEDEN SADECE `notifyListeners()`
+  // (Capacitor'ın doğrulanmamış addListener proxy'si, bkz. YUKARIDAKİ #50/#51 notu)
+  // üzerinden gönderiliyordu — route-change'in ALDIĞI `evaluateJavaScript` tedavisini
+  // HİÇ almamıştı. Kesinti `document.visibilitychange`'i tetiklemiyorsa (BELİRSİZ,
+  // cihaza bağlı) `pauseRound()` HİÇ çağrılmıyor, round zamanlayıcısı arama/Siri/
+  // alarm SIRASINDA çalışmaya devam edip can/süre kaybettirebiliyordu — AYNI
+  // `window.__aeaNativeRouteChanged` deseni, YENİ bir köprü mimarisi İCAT EDİLMEDİ.
+  // type: "began" (kesinti başladı) | "ended" (kesinti bitti, oturum yeniden
+  // etkinleştirildi).
+  let onInterruption = null; // app.js: visibilitychange'in hidden/visible dallarıyla AYNI eylemler
+  window.__aeaNativeInterruption = (type) => {
+    if (onInterruption) onInterruption(type);
+  };
   // G133 — "aynı anda birden fazla yeniden oluşturma çalışmasın" (task'ın
   // kendi isteği): ensureAudioAlive() halihazırda DEVAM EDEN bir çağrı
   // varken (ör. native sessionActivated olayı VE bir play denemesi neredeyse
@@ -1018,6 +1032,8 @@ export function createAudioEngine() {
     set onContextRecreated(fn) { onContextRecreated = fn; },
     // #50/#51 — bkz. dosya başındaki window.__aeaNativeRouteChanged notu.
     set onRouteChanged(fn) { onRouteChanged = fn; },
+    // G236 — bkz. dosya başındaki window.__aeaNativeInterruption notu.
+    set onInterruption(fn) { onInterruption = fn; },
     get audioDead() { return audioDead; },
     get contextRecreateCount() { return contextRecreateCount; },
     get audioCtx() { return audioCtx; },

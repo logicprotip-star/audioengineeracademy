@@ -12732,3 +12732,36 @@ audioEngine.onRouteChanged = (reason) => {
     audioEngine.ensureAudioAlive({ allowRecreate: false, silent: true });
   }, ROUTE_CHANGE_DEBOUNCE_MS);
 };
+
+// G236 (TUR3B bulgusu 🔴, EN KRİTİK) — native AVAudioSession kesintisi
+// (arama/Siri/alarm — AudioSessionPlugin.swift'in interruptionBegan/
+// sessionActivated'ı, route-change'in AYNI evaluateJavaScript köprüsü
+// üzerinden window.__aeaNativeInterruption'a bağlandı, bkz. audio-engine.js'in
+// G236 notu). visibilitychange'in hidden/visible dallarıyla AYNI eylemler —
+// YENİ bir duraklatma/kurtarma mekanizması İCAT EDİLMEDİ, SADECE onu
+// tetikleyen İKİNCİ bir sinyal eklendi (kesinti `document.hidden`'ı
+// tetiklemiyorsa bu, tetikliyorsa `pauseRound()`'un kendi
+// `if (activeQuestion && !autoStopped)` koruması sayesinde İKİNCİ çağrı
+// ZARARSIZ — round zaten duraklamış, no-op).
+audioEngine.onInterruption = (type) => {
+  audioDiagLog("nativeInterruption", type);
+  if (type === "began") {
+    audioEngine.stopAudio();
+    // G155'in AYNI 4 oynatıcı — bkz. visibilitychange'in hidden dalının
+    // KENDİ notu (bu blok o dalla BİREBİR aynı, YENİ bir kapsam EKLENMEDİ).
+    toolsPauseFilterPlayback();
+    toolsPauseRawMixPlayback();
+    toolsTonalStopRefPlayback();
+    toolsTonalStopMixPlayback();
+    renderToolsFilterPlayer();
+    renderToolsMixPlayer(toolsSelectedEntry());
+    renderToolsTonalAbUi();
+    if (activeQuestion) audioChainStoppedByBackground = true;
+    if (activeQuestion && !autoStopped) pauseRound();
+  } else if (type === "ended") {
+    // visibilitychange'in visible dalıyla AYNI: SESSİZ ısıtma, banner'a
+    // dokunmaz — GERÇEK kurtarma bir SONRAKİ play denemesinde.
+    audioVisibleSinceAt = performance.now();
+    if (audioEngine.audioCtx) audioEngine.ensureAudioAlive({ allowRecreate: false, silent: true });
+  }
+};
