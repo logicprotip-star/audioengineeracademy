@@ -146,6 +146,73 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G231 — **Süre sınırı eklendi (7 dakika, TUR3A bulgusu) — 100 MB'lık düşük-bitrate dosyalar decode'dan ÖNCE reddediliyor, artık GB mertebesinde RAM'e büyümüyorlar.**
+
+**Kök sebep (TUR3A'da bulunmuştu):** `upload.js`'in boyut kontrolü (100 MB)
+SIKIŞTIRILMIŞ formatlarda (m4a/mp3/aac/ogg) decode edilmiş PCM boyutunu
+SINIRLAMIYORDU — düşük bitrate'te 100 MB onlarca dakikaya karşılık
+gelebiliyor, `decodeAudioData` bunu Float32 PCM'e açınca (node ile
+hesaplandı) GB mertebesinde belleğe büyüyebiliyordu, hiçbir süre kontrolü
+YOKTU.
+
+**Uygulanan:**
+1. `core/upload.js` — `MAX_AUDIO_DURATION_SEC = 7*60` + `getAudioDurationSec(file)`
+   (yeni, `HTMLMediaElement`'in `loadedmetadata` olayıyla, TAM PCM decode
+   YAPMADAN container süresini okur) + `evaluateAudioDuration(sec)` (SAF,
+   testlenebilir çekirdek) + `validateAudioDuration(file)` (ikisini
+   birleştiren async sarmalayıcı, `validateAudioFile()` ile AYNI
+   `{ok,title,detail}` sözleşmesi).
+2. `app.js` — YENİ bir dosyayı KÜTÜPHANEYE ekleyen TEK ortak yol
+   (`toolsAddFile`, 5 bağlamın hepsinin — Mixini Yükle/Tonal Balance
+   ref+mix/Araçlar ref filtresi/ham mix — paylaştığı) ve Frekans
+   Çakışması'nın AYRI A/B yükleme yolu (`processCakismaUploadFile`) —
+   İKİSİ de `validateAudioFile()`'dan HEMEN sonra, `uploadManager.loadFile()`
+   (decode) ÇAĞRILMADAN ÖNCE `validateAudioDuration()`'ı kontrol ediyor.
+   Var olan bir kütüphane girdisini YENİDEN seçmek (`applyUploadSelection`
+   ve eşdeğerleri) DOKUNULMADI — o dosya ZATEN yükleme anında hem
+   boyut hem süre kontrolünden geçmişti.
+3. Mesaj boyut sınırı mesajından AYIRT EDİLEBİLİR: başlık "Dosya çok uzun"
+   (boyut sınırı "Dosya çok büyük"), metin kullanıcının verdiği örnekle
+   BİREBİR: "Bu dosya 12 dakika. En fazla 7 dakikalık dosya yükleyebilirsin
+   — dinlemek istediğin bölümü kırpıp tekrar dene."
+4. Kırpma YOK (kullanıcı kararı — Logic kullanıcısı kendi kırpar).
+   Metadata okunamazsa (bazı format/tarayıcı kombinasyonlarında
+   `loadedmetadata` hiç ateşlenmeyebilir) süre kontrolü SESSİZCE atlanır
+   (`sec == null` → `ok:true`) — bu, decode aşamasının KENDİ hata yolunun
+   yanlış-pozitif bir REDLE çakışmaması için BİLİNÇLİ bir mühendislik
+   tercihi (ürün kararı DEĞİL — boyut sınırı/format listesi gibi bir
+   karar gerektirmiyor, mevcut "sessizce en güvenli tarafa düş" desenini
+   izliyor).
+
+**Testler:** `test/upload-validation.test.mjs` — 7 yeni test
+(`evaluateAudioDuration()`, SAF çekirdek — `getAudioDurationSec()`
+`Audio`/`URL.createObjectURL` gerektirdiği için Node'da test EDİLEMEDİ,
+gerçek tarayıcı davranışı Playwright ile AYRICA doğrulandı, aşağıya
+bkz.).
+
+**Tarayıcı doğrulaması (Playwright, Node API — CLAUDE.md'nin DOM/ses
+gereği):** gerçek 8 dakikalık ve 1 dakikalık WAV dosyaları üretilip
+`#toolsFileInput`'a verildi. 8 dakikalık dosya `decodeAudioData`'ya HİÇ
+ULAŞMADAN "Dosya çok uzun" toast'ıyla reddedildi (konsol loglarında
+decode adımı hiç görünmedi — decode'dan ÖNCE durduğu doğrulandı). 1
+dakikalık dosya normal şekilde decode edilip "Dosyalarım'da listelendi"
+toast'ıyla kabul edildi.
+
+**Ölçüm:** `npm test` → **1338/1338** (1331 + 7 yeni test). `npm run
+test:e2e` → **12/12, DEĞİŞMEDİ** (mevcut e2e testlerinin hiçbiri dosya
+yükleme akışını kullanmıyor — Playwright doğrulaması ayrı, geçici bir
+script ile yapıldı, kalıcı bir e2e testi EKLENMEDİ, task bunu talep
+etmiyordu).
+
+**Dokunulan:** `www/js/core/upload.js`, `www/js/app.js`
+(`toolsAddFile`/`processCakismaUploadFile`'ın SADECE giriş kontrolü),
+`test/upload-validation.test.mjs`.
+**Dokunulmayan:** 100 MB boyut sınırı (aynen kaldı), dosya seçici akışı,
+`decodeAudioData`/WAV yedek yolu mantığı, `applyUploadSelection` ve
+eşdeğerleri (var olan kütüphane girdisini yeniden seçme), e2e suite
+yapısı, G220/G221/G223/G225/G228/G229/G230, G214/G215/G216,
+G177/G178/G185/G187, G198, G201/G204/G205, G203, G212, 581f798/a4efb42.
+
 TUR 3A — **Veri ve Depolama Dayanıklılığı denetimi tamamlandı (`TUR3A-VERI-15-08.md`) — KOD DEĞİŞMEDİ, sadece ölçüm. Baş bulgu: G229'un `trySave()` koruması `storage.js`'e ÖZELDİ, aynı sınıf hata (korumasız/sessiz `localStorage.setItem`) 3 anahtarda (`TOOLS_LIBRARY_KEY`/`TOOLS_ACTIONS_KEY`/`TOOLS_MEASUREMENTS_KEY`, app.js'te doğrudan) HÂLÂ AÇIK.**
 
 **Yöntem:** 7 bölüm (A-G, kullanıcının kendi sorularıyla) — dosya

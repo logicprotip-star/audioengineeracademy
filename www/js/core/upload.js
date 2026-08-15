@@ -120,6 +120,63 @@ export function validateAudioFile(file) {
   return { ok: true };
 }
 
+// TUR3A bulgusu (🔴) — 100 MB'lık boyut sınırı SIKIŞTIRILMIŞ (düşük bitrate)
+// dosyalarda ~1-2 GB'a varan decode edilmiş PCM belleğine karşılık gelebiliyor
+// (bkz. TUR3A-VERI-15-08.md, Bölüm A/C) — boyut GÜVENDE olsa bile SÜRE
+// (dolayısıyla decode edilecek örnek sayısı) kontrolsüzdü. Süre, decodeAudioData
+// ÇAĞRILMADAN ÖNCE, HTMLMediaElement'in KENDİ metadata-okuma yolundan (tam PCM
+// decode DEĞİL, sadece container header/metadata) öğrenilir — amaç belleğin
+// hiç şişmeden reddetmek.
+export const MAX_AUDIO_DURATION_SEC = 7 * 60; // KULLANICI KARARI — kırpma YOK, kullanıcı kendi kırpar
+
+// Metadata okunamazsa (bazı tarayıcı/format kombinasyonlarında "loadedmetadata"
+// hiç ateşlenmeyebilir ya da duration Infinity/NaN dönebilir — bilinen bir
+// HTMLMediaElement sınırlaması) null döner — bu durumda süre kontrolü SESSİZCE
+// atlanır (decode aşaması zaten kendi hata yolunu taşıyor, burada YANLIŞ
+// pozitif bir ret üretmemek tercih edildi).
+export function getAudioDurationSec(file) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const audio = new Audio();
+    const url = URL.createObjectURL(file);
+    const finish = (sec) => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      resolve(sec);
+    };
+    audio.preload = "metadata";
+    audio.addEventListener("loadedmetadata", () => {
+      const d = audio.duration;
+      finish(Number.isFinite(d) && d > 0 ? d : null);
+    });
+    audio.addEventListener("error", () => finish(null));
+    audio.src = url;
+  });
+}
+
+// SAF — sec bilinmeden (null) ya da sınır İÇİNDE her zaman ok:true; testler
+// bu fonksiyonu doğrudan çağırır, `Audio`/`URL.createObjectURL` (Node'da
+// mevcut değil, sadece tarayıcıda) gerektiren getAudioDurationSec'i atlar.
+export function evaluateAudioDuration(sec) {
+  if (sec == null) return { ok: true };
+  if (sec > MAX_AUDIO_DURATION_SEC) {
+    const fileMin = Math.round(sec / 60);
+    const limitMin = Math.round(MAX_AUDIO_DURATION_SEC / 60);
+    return {
+      ok: false,
+      title: "Dosya çok uzun",
+      detail: `Bu dosya ${fileMin} dakika. En fazla ${limitMin} dakikalık dosya yükleyebilirsin — dinlemek istediğin bölümü kırpıp tekrar dene.`
+    };
+  }
+  return { ok: true };
+}
+
+export async function validateAudioDuration(file) {
+  const sec = await getAudioDurationSec(file);
+  return evaluateAudioDuration(sec);
+}
+
 // getAudioCtx: () => AudioContext|null — audioCtx sadece ilk kullanıcı etkileşiminde
 // (unlockAudio) oluşturulduğu için burada sabit değer değil, geç bağlanan bir
 // erişimci alınır.

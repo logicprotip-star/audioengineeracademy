@@ -3,7 +3,7 @@
 // mantık (ses zinciri, soru üretimi/puanlama, kalıcılık) core/ ve modes/ içindedir.
 
 import { createAudioEngine } from "./core/audio-engine.js";
-import { createUploadManager, validateAudioFile, audioAcceptAttr, SHORT_AUDIO_FORMAT_LIST, FULL_AUDIO_FORMAT_LIST } from "./core/upload.js";
+import { createUploadManager, validateAudioFile, validateAudioDuration, audioAcceptAttr, SHORT_AUDIO_FORMAT_LIST, FULL_AUDIO_FORMAT_LIST } from "./core/upload.js";
 import { createRoundFlow } from "./core/round-flow.js";
 import { createExamSystem, getWeakTier, recordTierResult, EXAM_CONFIG } from "./core/exam-system.js";
 import * as storage from "./core/storage.js";
@@ -6180,6 +6180,11 @@ async function processCakismaUploadFile(file, uploadMgr, inputId, slotLabel) {
     setFeedback(validation.title, validation.detail);
     return;
   }
+  const durationCheck = await validateAudioDuration(file);
+  if (!durationCheck.ok) {
+    setFeedback(durationCheck.title, durationCheck.detail);
+    return;
+  }
   try {
     await audioEngine.initAudio();
     const res = await uploadMgr.loadFile(file);
@@ -9258,6 +9263,8 @@ function toolsSetFileSaveProgress(fraction) {
 async function toolsAddFile(file) {
   const validation = validateAudioFile(file);
   if (!validation.ok) { toast(validation.title, validation.detail); return null; }
+  const durationCheck = await validateAudioDuration(file);
+  if (!durationCheck.ok) { toast(durationCheck.title, durationCheck.detail); return null; }
   await audioEngine.initAudio();
   const t2_0 = performance.now();
   uploadDiagLog(2, "ArrayBuffer'a dönüştürme + decodeAudioData (uploadManager.loadFile)", "BAŞLIYOR", `${(file.size / 1048576).toFixed(1)} MB`);
