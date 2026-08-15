@@ -146,6 +146,61 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G232 — **Kalan üç kayıt yeri korumaya alındı (TUR3A bulgusu) — `TOOLS_LIBRARY_KEY`/`TOOLS_ACTIONS_KEY`/`TOOLS_MEASUREMENTS_KEY` artık `trySave()` üzerinden geçiyor, başarısızlıkta ölçülü bir toast gösteriyor.**
+
+**Kök sebep (TUR3A'da bulunmuştu):** G229'un `trySave()` koruması
+`storage.js`'in 12 anahtarına ÖZELDİ — app.js'te `storage.js`'i hiç
+kullanmadan doğrudan `localStorage.setItem`/`getItem` yazan 3 anahtar
+(`toolsSaveLibraryManifest()`, `toolsSaveJson()`) G229'un TARAMASI
+`storage.js`'e özel olduğu için KAÇMIŞTI — bare `try{}catch(e){}`,
+loglama/bildirim YOK.
+
+**Uygulanan:**
+1. `core/storage.js` — `trySave()` dışa AÇILDI (YENİ bir kopya
+   YAZILMADI, aynı fonksiyon paylaşılıyor).
+2. `app.js` — `toolsSaveLibraryManifest()` ve `toolsSaveJson()` artık
+   `storage.trySave(key, value, {mirror:false})` kullanıyor (`mirror:false`
+   — bu 3 anahtar ÖNCEDEN de Capacitor Preferences'a yansıtılmıyordu, bu
+   davranış DEĞİŞMEDİ). Başarısızlıkta G229'un ölçülü yaklaşımıyla
+   TUTARLI bir toast: satın alma kadar agresif değil (ekran kapanmıyor/
+   akış durmuyor), ama artık SESSİZ de değil — "Kütüphane listesi
+   kaydedilemedi" / "Son İşlemlerim kaydedilemedi" / "Son Ölçümlerim
+   kaydedilemedi", hepsi "bu oturumda görünüyor ama kalıcı olarak
+   saklanamadı" ile.
+3. `toolsSaveJson(key, arr, label)` yeni bir `label` parametresi aldı —
+   6 çağrı sitesinin (log/sil/tümünü temizle, hem İşlemler hem Ölçümler
+   için) HEPSİ güncellendi, hangi listeden bahsedildiği toast'ta AÇIK.
+
+**Testler:** `test/storage.test.mjs` — 3 yeni test (`trySave()`'in
+KENDİSİ, `{mirror:false}` yolunun exception-yutma/retry davranışı).
+`git stash` ile doğrulandı: `export` KALDIRILINCA test dosyasının
+TAMAMI import hatasıyla ÇÖKÜYOR (hard red) — testin fixe GERÇEKTEN
+bağlı olduğu kanıtlandı.
+
+**Tarayıcı doğrulaması (Playwright):** `TOOLS_LIBRARY_KEY` yazımı
+`QuotaExceededError` fırlatacak şekilde yamalandı, gerçek bir dosya
+yüklendi. SONUÇ: "Kütüphane listesi kaydedilemedi" toast'ı GÖRÜNDÜ
+(konsolda `[storage] "eqEarTrainerProXToolsLibrary" yazılamadı` logu
+da doğrulandı) — ARDINDAN çağıranın KENDİ "Dosya yüklendi" toast'ı da
+göründü (2 toast art arda, `activeToasts` YIĞINLANIYOR — bu YENİ bir
+davranış DEĞİL, `fileStorage.saveFile()` başarısızlığında da AYNI
+şekilde iki toast art arda görünüyordu, ÖNCEDEN de böyleydi, bu turda
+DEĞİŞTİRİLMEDİ).
+
+**Ölçüm:** `npm test` → **1341/1341** (1338 + 3 yeni test). `npm run
+test:e2e` → **12/12, DEĞİŞMEDİ**.
+
+**Dokunulan:** `www/js/core/storage.js` (`trySave` artık `export`),
+`www/js/app.js` (`toolsSaveLibraryManifest`/`toolsSaveJson`/6 çağrı
+sitesi), `test/storage.test.mjs`.
+**Dokunulmayan:** `trySave()`'in KENDİ mantığı (davranış AYNI, sadece
+dışa açıldı), Preferences mirror kapsamı (bu 3 anahtar mirror'a
+EKLENMEDİ — kapsam dışı, task istemedi), okuma tarafı
+(`toolsLoadLibraryManifest`/`toolsLoadJson` ZATEN korumalıydı, TUR3A'da
+doğrulanmıştı), storage.js'in 12 anahtarı, G220/G221/G223/G225/
+G228/G229/G230/G231, G214/G215/G216, G177/G178/G185/G187, G198,
+G201/G204/G205, G203, G212, 581f798/a4efb42.
+
 G231 — **Süre sınırı eklendi (7 dakika, TUR3A bulgusu) — 100 MB'lık düşük-bitrate dosyalar decode'dan ÖNCE reddediliyor, artık GB mertebesinde RAM'e büyümüyorlar.**
 
 **Kök sebep (TUR3A'da bulunmuştu):** `upload.js`'in boyut kontrolü (100 MB)

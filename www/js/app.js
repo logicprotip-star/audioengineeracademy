@@ -9182,11 +9182,15 @@ function toolsLoadLibraryManifest() {
   }
 }
 function toolsSaveLibraryManifest() {
-  try {
-    const manifest = toolsFiles.map(({ id, name, sizeKb, durationSec, peaks, mimeType, addedAt }) =>
-      ({ id, name, sizeKb, durationSec, peaks, mimeType, addedAt }));
-    localStorage.setItem(TOOLS_LIBRARY_KEY, JSON.stringify(manifest));
-  } catch (e) {}
+  const manifest = toolsFiles.map(({ id, name, sizeKb, durationSec, peaks, mimeType, addedAt }) =>
+    ({ id, name, sizeKb, durationSec, peaks, mimeType, addedAt }));
+  // G232 (TUR3A bulgusu) — ÖNCEDEN bare try/catch{} idi, storage.js'in 12
+  // anahtarının AKSİNE hiç loglamıyor/bildirmiyordu. storage.js'in trySave()'i
+  // (mirror:false — bu anahtar ÖNCEDEN de Preferences'a yansıtılmıyordu)
+  // ile ölçülü bir toast: satın alma kadar agresif değil, ama sessiz de değil.
+  if (!storage.trySave(TOOLS_LIBRARY_KEY, manifest, { mirror: false })) {
+    toast("Kütüphane listesi kaydedilemedi", "Dosya bu oturumda kullanılabilir ama liste kalıcı olarak güncellenmedi.");
+  }
 }
 
 let toolsFiles = toolsLoadLibraryManifest();
@@ -9604,19 +9608,25 @@ const TOOLS_HISTORY_MAX = 10;
 function toolsLoadJson(key) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : []; } catch { return []; }
 }
-function toolsSaveJson(key, arr) {
-  try { localStorage.setItem(key, JSON.stringify(arr.slice(0, TOOLS_HISTORY_MAX))); } catch (e) {}
+// G232 (TUR3A bulgusu) — ÖNCEDEN bare try/catch{} idi. storage.js'in
+// trySave()'i (mirror:false, bkz. yukarıdaki toolsSaveLibraryManifest notu)
+// + ölçülü bir toast: label çağıranın HANGİ listeden (Son İşlemlerim/Son
+// Ölçümlerim) bahsettiğini kullanıcıya söylesin diye.
+function toolsSaveJson(key, arr, label) {
+  if (!storage.trySave(key, arr.slice(0, TOOLS_HISTORY_MAX), { mirror: false })) {
+    toast(`${label} kaydedilemedi`, "Bu oturumda görünüyor ama kalıcı olarak saklanamadı.");
+  }
 }
 function toolsLogAction(fileName, filterName) {
   const list = toolsLoadJson(TOOLS_ACTIONS_KEY);
   list.unshift({ file: fileName, filter: filterName, at: Date.now() });
-  toolsSaveJson(TOOLS_ACTIONS_KEY, list);
+  toolsSaveJson(TOOLS_ACTIONS_KEY, list, "Son İşlemlerim");
 }
 function toolsLogMeasurement(fileName, result) {
   const list = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
   const entry = { file: fileName, at: Date.now(), result };
   list.unshift(entry);
-  toolsSaveJson(TOOLS_MEASUREMENTS_KEY, list);
+  toolsSaveJson(TOOLS_MEASUREMENTS_KEY, list, "Son Ölçümlerim");
   // #57 — entry (özellikle .at) çağırana geri döner: canlı bir analiz
   // BİTER BİTMEZ ekranda gösterilen sonuç HANGİ kayıtlı ölçüme karşılık
   // geliyor izlenebilsin diye (bkz. toolsDisplayedMeasurementAt).
@@ -9880,7 +9890,7 @@ if (els.toolsClearAllBtn) els.toolsClearAllBtn.addEventListener("click", toolsCl
 function toolsDeleteMeasurement(index) {
   const list = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
   const removed = list.splice(index, 1)[0];
-  toolsSaveJson(TOOLS_MEASUREMENTS_KEY, list);
+  toolsSaveJson(TOOLS_MEASUREMENTS_KEY, list, "Son Ölçümlerim");
   // DİKKAT (görev metni) — silinen ölçüm O AN ekranda gösteriliyorsa: ekran
   // boşalsın, "Analiz et" başlangıç haline dönsün. `at` damgası eşleşmesiyle
   // (bkz. toolsDisplayedMeasurementAt'in dosya başı notu) tespit edilir.
@@ -9890,7 +9900,7 @@ function toolsDeleteMeasurement(index) {
 function toolsClearAllMeasurements() {
   const list = toolsLoadJson(TOOLS_MEASUREMENTS_KEY);
   const wasShowing = toolsDisplayedMeasurementAt != null && list.some((m) => m.at === toolsDisplayedMeasurementAt);
-  toolsSaveJson(TOOLS_MEASUREMENTS_KEY, []);
+  toolsSaveJson(TOOLS_MEASUREMENTS_KEY, [], "Son Ölçümlerim");
   if (wasShowing) resetToolsAnalysis();
   renderToolsFilesSheetContent();
 }
@@ -9917,11 +9927,11 @@ if (els.toolsMeasurementsList) {
 function toolsDeleteAction(index) {
   const list = toolsLoadJson(TOOLS_ACTIONS_KEY);
   list.splice(index, 1);
-  toolsSaveJson(TOOLS_ACTIONS_KEY, list);
+  toolsSaveJson(TOOLS_ACTIONS_KEY, list, "Son İşlemlerim");
   renderToolsFilesSheetContent();
 }
 function toolsClearAllActions() {
-  toolsSaveJson(TOOLS_ACTIONS_KEY, []);
+  toolsSaveJson(TOOLS_ACTIONS_KEY, [], "Son İşlemlerim");
   renderToolsFilesSheetContent();
 }
 if (els.toolsClearActionsBtn) els.toolsClearActionsBtn.addEventListener("click", toolsClearAllActions);

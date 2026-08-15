@@ -7,7 +7,7 @@
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences } from "../www/js/core/storage.js";
+import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave } from "../www/js/core/storage.js";
 
 function installLocalStorageMock(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -354,5 +354,36 @@ describe("G229 — save*() fonksiyonları localStorage.setItem() hata fırlatın
     savePurchase({ proPurchased: true }); // başarısız, hiç yazılmadı
     installLocalStorageMock(); // yeni "açılış" — hiçbir kayıt yok
     assert.deepEqual(loadPurchase(), freshPurchase());
+  });
+});
+
+// G232 (TUR3A bulgusu) — trySave() ARTIK dışa açık, çünkü app.js'in
+// storage.js DIŞINDA kalan 3 anahtarı (TOOLS_LIBRARY_KEY/TOOLS_ACTIONS_KEY/
+// TOOLS_MEASUREMENTS_KEY — G229'un TARAMASI storage.js'e özel olduğu için
+// kaçmıştı) artık BUNU kullanıyor, `{mirror:false}` ile (bu 3 anahtar
+// ÖNCEDEN de Preferences'a yansıtılmıyordu, bu davranış DEĞİŞMEDİ).
+// app.js'in KENDİSİ (toolsSaveLibraryManifest/toolsSaveJson) DOM'a bağlı
+// olduğu için birim testinde import EDİLEMİYOR (mode sözleşmesinin dışında
+// kalan bir dosya) — o bütünleşme Playwright ile AYRICA doğrulandı
+// (bkz. DURUM.md G232). Burada test edilen SADECE trySave()'in KENDİSİ,
+// app.js'in HANGİ parametrelerle çağırdığı.
+describe("G232 — trySave({mirror:false}) — app.js'in storage.js dışı 3 anahtarının kullandığı yol", () => {
+  it("mirror:false verildiğinde window.Capacitor HİÇ okunmuyor bile başarıyla yazar (app.js bu 3 anahtar için mirror kullanmıyor)", () => {
+    installLocalStorageMock();
+    globalThis.window = undefined;
+    assert.equal(trySave("eqEarTrainerProXToolsLibrary", [{ id: "a" }], { mirror: false }), true);
+  });
+
+  it("setItem hata fırlatınca mirror:false ile de çökmez, false döner", () => {
+    installThrowingLocalStorageMock();
+    assert.equal(trySave("eqEarTrainerProXToolsActions", [{ file: "x" }], { mirror: false }), false);
+  });
+
+  it("başarısızlıktan sonra retry ile (depolama düzelirse) veri doğru yazılır", () => {
+    installThrowingLocalStorageMock();
+    assert.equal(trySave("eqEarTrainerProXToolsMeasurements", [{ file: "y" }], { mirror: false }), false);
+    const store = installLocalStorageMock();
+    assert.equal(trySave("eqEarTrainerProXToolsMeasurements", [{ file: "y" }], { mirror: false }), true);
+    assert.deepEqual(JSON.parse(store.get("eqEarTrainerProXToolsMeasurements")), [{ file: "y" }]);
   });
 });

@@ -56,7 +56,13 @@ export function mirrorRemove(key) {
 // değerini okuyan YENİ çağıranlar için değişti, bkz. app.js:grantRealPro()).
 // `mirror:false` — SADECE `saveInProgressRound()` için: bu anahtar KASITLI
 // olarak Preferences'a yansıtılmıyor (bkz. IN_PROGRESS_ROUND_KEY'in kendi notu).
-function trySave(key, value, { mirror = true } = {}) {
+// G232 — app.js'in storage.js DIŞINDA doğrudan localStorage yazan 3 anahtarı
+// (TOOLS_LIBRARY_KEY/TOOLS_ACTIONS_KEY/TOOLS_MEASUREMENTS_KEY, TUR3A bulgusu)
+// da BU fonksiyonu kullanabilsin diye dışa açıldı — YENİ bir kopya
+// YAZILMADI. Bu 3 anahtar da `mirror:false` ile çağrılıyor (storage.js'in
+// 12 anahtarının AKSİNE, bunlar ÖNCEDEN de Preferences'a yansıtılmıyordu —
+// bu davranış DEĞİŞMEDİ, kapsam dışı).
+export function trySave(key, value, { mirror = true } = {}) {
   try {
     const raw = JSON.stringify(value);
     localStorage.setItem(key, raw);
