@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G234)
+Son güncelleme: 15.08.2026 (G235)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -157,6 +157,51 @@ verilmemiş. **Sonuç: BELİRSİZ/ürün kararı gerektiriyor**, kod
 DOKUNULMADI. G187 (`freqTapTimer`) ile AYNI yer DEĞİL — ayrı değişken,
 ayrı mekanizma, ayrı hata sınıfı (bu bir "yanlış ateşleyen zamanlayıcı"
 değil, "doğru duran ama yeniden kurulmayan durdurma").
+
+G235 — **`abPressTimer` teardown eklendi (TUR3B bulgusu 🔴) — G187'nin (freqTapTimer) tedavisi artık A/B uzun-basma zamanlayıcısına da uygulanıyor, `pauseRound()`'a TEK satır.**
+
+**Kök sebep (TUR3B'de bulunmuştu):** `abPressTimer` (A/B/Döngü uzun-basma
+eşiği, 520ms) SADECE `pointerup`/`pointerleave`'de temizleniyordu —
+`pauseRound()`'un (Durdur/arka plana alınma/sheet açılışı/rota değişimi
+— #53'ün TEK kontrol noktası) HİÇBİR dalında temizlenmiyordu. Kullanıcı
+parmağı basılı tutarken (520ms dolmadan) round duraklarsa
+(`pointerup`/`pointerleave` güvenilir şekilde ateşlenmeyebilecek bir
+senaryoda — ör. tam basılı tutarken arka plana alınma), zamanlayıcı
+DURAKLAMIŞ bir ekranda ateşleyip `startAbLoop()`'u tetikleyip istenmeyen
+bir ses döngüsü başlatabiliyordu — `freqTapTimer`'ın G187'de düzeltilen
+AYNI "hayalet zamanlayıcı" sınıfı.
+
+**Uygulanan:** `app.js:pauseRound()`'a (freqTapTimer'ın ZATEN temizlendiği
+SATIRIN hemen altına) `clearTimeout(abPressTimer)` eklendi.
+`pauseRound()` TÜM duraklatma sebeplerini TEK noktadan kapsadığı için
+(freqTapTimer'ın G187'de gerektirdiği 5 AYRI çağrı sitesinin AKSİNE)
+BURADA TEK bir ekleme yeterli oldu.
+
+**Testler:** `e2e/ab-loop-teardown.spec.mjs` — YENİ dosya, 1 test.
+`pauseRound()` DOM/audio'ya bağlı olduğu için (mode sözleşmesinin
+`createQuestion`/`evaluateAnswer` SAFLIK kuralı dışında) birim testi
+YAZILAMADI — Playwright ile gerçek senaryo üretildi: `#abToggle`'a
+`pointerdown` gönderilip 520ms dolmadan `#gameSettingsBtn` (gerçek bir
+`pauseRound()` çağrı yolu) tıklanıp kapatıldı, sonra 520ms eşiği
+aşılana kadar beklendi — döngünün (`#abToggle.loop`/`#gameLoopBadgeRow`)
+KENDİLİĞİNDEN başlamadığı doğrulandı. `git stash` ile kırmızı/yeşil
+doğrulandı: düzeltme OLMADAN test GERÇEKTEN kırmızı çıktı (döngü
+kendiliğinden BAŞLADI, `assert.equal` `true !== false` ile başarısız
+oldu) — testin fixe GERÇEKTEN bağlı olduğu kanıtlandı.
+
+**Ölçüm:** `npm test` → **1349/1349, DEĞİŞMEDİ** (bu düzeltme DOM'a
+bağlı, birim testi yok). `npm run test:e2e` → **13/13** (12 + 1 yeni).
+
+**Dokunulan:** `www/js/app.js` (`pauseRound()`, TEK satır + yorum),
+`e2e/ab-loop-teardown.spec.mjs` (yeni dosya).
+**Dokunulmayan:** `abLoopTimer`/`startAbLoop`/`stopAbLoop`'un kendi
+mantığı, `freqTapTimer`'ın 5 noktalı teardown'ı (zaten G187'de
+tamamdı), diğer e2e dosyaları, G220/G221/G223/G225/G228/G229/G230/
+G231/G232/G233/G234, G187, G203, G214/G215/G216, G212.
+
+⚠️ **CİHAZDA doğrulanması gereken adım:** A/B/Döngü butonuna basılı
+tutup 520ms dolmadan uygulamayı arka plana al (home-swipe), birkaç
+saniye bekleyip geri dön — döngü/ses OTOMATİK başlamamalı.
 
 G234 — **Reklam yükleme zaman aşımı eklendi (TUR3B bulgusu 🔴) — `prepareRewardVideoAd()` askıda kalırsa "İzle" butonu artık 30sn sonra çözülüyor, kalıcı kilitlenmiyor.**
 
@@ -17331,7 +17376,16 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G234 itibarıyla):** TUR3B-ZAMAN-15-08.md'nin
+**EN YENİ SIRADAKİ ADIM (G235 itibarıyla):** TUR3B-ZAMAN-15-08.md'nin
+3 maddelik "yayın öncesi düzeltilecekler" listesinin İKİNCİSİ
+(abPressTimer teardown) KAPANDI — `app.js:pauseRound()`, TEK satır,
+`e2e/ab-loop-teardown.spec.mjs` (yeni), `git stash` ile kırmızı/yeşil
+doğrulandı (düzeltme olmadan test GERÇEKTEN kırmızı çıktı). `npm test`
+1349/1349 (değişmedi), `npm run test:e2e` 13/13 (12+1 yeni). **Bir
+sonraki adım:** listenin son maddesi (native ses kesintisi köprüsü,
+EN KRİTİK) devam ediyor.
+
+**EN YENİ SIRADAKİ ADIM (G234 itibarıyla, ARTIK ESKİ):** TUR3B-ZAMAN-15-08.md'nin
 3 maddelik "yayın öncesi düzeltilecekler" listesinin İLKİ (reklam
 yükleme zaman aşımı) KAPANDI — `core/ads.js`, `AD_LOAD_TIMEOUT_MS=30000`,
 `git stash` ile kırmızı/yeşil doğrulandı. `npm test` 1349/1349

@@ -5366,6 +5366,18 @@ function pauseRound() {
   // Tekrar Çal'dan SONRA farklı bir round'a karşı ateşlemesin.
   clearTimeout(freqTapTimer);
   freqTapTimer = null;
+  // G235 (TUR3B bulgusu) — freqTapTimer'ın AYNI sınıfı: A/B/Döngü butonuna
+  // basılı tutulup 520ms eşiği dolmadan (abPressTimer beklerken) bu fonksiyon
+  // tetiklenirse (Durdur/arka plana alınma/sheet açılışı/rota değişimi —
+  // #53'ün AYNI tek kontrol noktası) ÖNCEDEN abPressTimer temizlenmiyordu.
+  // pointerup/pointerleave'in GÜVENİLİR ateşlenmediği senaryolarda (ör. tam
+  // basılı tutarken arka plana alınma) zamanlayıcı BURADAN SONRA ateşleyip
+  // startAbLoop()'u tetikleyebiliyordu — ölü/duraklamış bir ekranda yeni bir
+  // ses döngüsü başlatan, freqTapTimer'ın G187'de düzeltilen SINIFINDAN bir
+  // "hayalet" tetikleme. pauseRound() TEK kontrol noktası olduğu için
+  // (freqTapTimer'ın 5 AYRI çağrı sitesinin AKSİNE) burada TEK bir ekleme
+  // yeterli.
+  clearTimeout(abPressTimer);
   autoPlaying = false;
   autoStopped = true;
   // F2: bir cmp-önizleme duraklatması zaten aktifse (autoAdvance zamanlayıcısı onun
