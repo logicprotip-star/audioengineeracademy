@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (G241 + TUR8-OGRETIM-15-08 — TUR6-YANETKI-15-08'den sonraki tur)
+Son güncelleme: 16.08.2026 (TUR9-ARACLAR-15-08 — G242/G243/OLCUM-OGRETIM'den sonraki tur)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,136 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G244 — **EQ zinciri kazanç sınırı eklendi (Düzeltme 1, TUR9-ARACLAR-15-08 bulgusu 🔴, işitme güvenliği) — `computeReferenceEqGainsDb()`/`lufsMatchGainDb()` artık ±12dB'ye kırpılıyor, "referans eğrisiyle dinle" zincirine kendi limiter'ı eklendi.**
+
+**Kök sebep:** Tonal Balance'ın "referans eğrisiyle dinle" (A ·
+Eşitlenmiş mix) zinciri (`app.js:toolsTonalToggleMatchedMixPlayback()`)
+`computeReferenceEqGainsDb()`/`lufsMatchGainDb()`'nin (`tonal-balance.js`)
+SINIRSIZ çıktısını doğrudan `BiquadFilterNode.gain`/`GainNode.gain`'e
+yazıyordu, zincir `ctx.destination`'a DOĞRUDAN bağlıydı — ana oyun
+motorunun paylaşılan `DynamicsCompressorNode`'u bu zincirde HİÇ YOK'tu
+(o, `audio-engine.js:buildQuestionChain()`'in İÇİNDEKİ bir yerel
+değişken). Çok farklı iki dosya (mix/referans) seçilirse aşırı kazanç
+→ clipping/ani yüksek ses riski.
+
+**Uygulanan:**
+1. `tonal-balance.js`'e `REFERENCE_EQ_GAIN_CLAMP_DB`/
+   `LUFS_MATCH_GAIN_CLAMP_DB` (İKİSİ de **±12dB**, TEK/tutarlı politika)
+   + `clampGainDb()` (SAF, +Infinity/-Infinity sınıra, NaN 0'a düşer —
+   sessiz bir bant/dosya için Infinity/NaN'ın hiçbir yere SIZMAMASI
+   için). **±12dB KEYFİ DEĞİL:** `DRAFT_TARGET_CURVES`'in (G223'te 41
+   gerçek parçadan ölçülmüş) kendi en uç değeri ±10.9dB — yani GERÇEK,
+   iyi mikslenmiş parçalar arası normal bant sapması bu sınırın ZATEN
+   altında, ±12 bu payı KIRPMADAN geçiyor; üstü egzotik/patolojik bir
+   girdi sayılır.
+2. `computeReferenceEqGainsDb()`/`lufsMatchGainDb()` artık bu SAF
+   fonksiyonu kullanıyor — 3 çağrı noktasının (A'nın ses zinciri, EQ
+   hareketleri listesi UI'ı, `__tonalRefVerify` dev-test hook'u) ÜÇÜ
+   de TEK kaynaktan otomatik güvenli hale geldi.
+3. `app.js`'e `toolsTonalOutputLimiter` — audio-engine.js'in AYNI
+   parametreleriyle (threshold -16dB, knee 22, ratio 2.2, YENİ bir
+   sayı İCAT EDİLMEDİ) bir `DynamicsCompressorNode`, `toolsTonalAbGainA`
+   ile `ctx.destination` ARASINA eklendi (ikinci güvenlik katmanı).
+   `toolsTonalStopMixPlayback()`'e simetrik `disconnect()`.
+4. **Sınıra takılınca sessizce kırpılıyor, kullanıcıya AYRI bir
+   uyarı YOK** (task'ın kendi kararı, gerekçeyle): normal kullanımda
+   sınıra neredeyse hiç takılınmaz, takılınca da "biraz daha az
+   düzeltildi" sessiz bir derece meselesi — çökme/veri kaybı değil,
+   diğer soft-limit'lerle (DB_FLOOR, GAIN_DB_FLOOR) AYNI ilke.
+
+**Testler:** `test/tonal-balance.test.mjs`'e 9 yeni test — RBJ tarzı
+temel doğruluklar + **KABUL KRİTERİ**: çok farklı iki dosya (mix -30dB/
+ref +10dB bir bantta, ham fark 40dB) ±12dB'ye kırpılıyor, simetrik
+(ters yönde de), -Infinity/NaN güvenli, sınırın ALTINDAKİ farklar
+(±10.9dB dahil) HİÇ kırpılmadan geçiyor.
+
+**Ölçüm:** `npm test` → **1383/1383** (1374+9). `npm run test:e2e` →
+**18/18, DEĞİŞMEDİ**. Canlı tarayıcıda (Playwright) Araçlar sekmesi
+konsol hatasız açıldı, `tonal-balance.js` modülü GERÇEK tarayıcı
+ortamında import edilip ±12dB kırpma davranışı DOĞRUDAN doğrulandı
+(Node testinin TEKRARI değil, ayrı bir kanıt).
+
+**Dokunulan:** `www/js/core/tonal-balance.js`
+(`computeReferenceEqGainsDb`/`lufsMatchGainDb`/yeni `clampGainDb`),
+`www/js/app.js` (SADECE `toolsTonalOutputLimiter` + bağlantı 3
+noktası), `test/tonal-balance.test.mjs`.
+**Dokunulmayan:** `analysis.js`'in ölçüm algoritması, Tonal Balance
+grafiği/çizim kodu, `DRAFT_TARGET_CURVES` hedef eğri değerleri, e2e
+suite yapısı, diğer 11 mod, G214-G243 arası commit'ler.
+
+TUR9-ARACLAR-15-08 — **Araçlar sekmesi denetimi (SADECE ÖLÇÜM, kod/commit YOK) — 9 bölüm (A-I), `TUR9-ARACLAR-15-08.md`'ye yazıldı.**
+
+**En ciddi bulgu (🔴, Bölüm E):** Tonal Balance'ın "referans eğrisiyle
+dinle" özelliği — `computeReferenceEqGainsDb()`/`lufsMatchGainDb()`
+(`tonal-balance.js:265`) HİÇBİR clamp taşımıyor, doğrudan
+`f.gain.value`'ya yazılıyor, zincir `ctx.destination`'a DOĞRUDAN
+bağlı (ana oyun motorunun paylaşılan güvenlik limiter'ı BU zincirde
+YOK) — mix bir bandı referanstan aşırı sapmışsa clipping/aşırı-ses
+riski YAPISAL OLARAK KESİN, gerçek bir ekstrem dosyayla ÖLÇÜLMEDİ.
+
+**İkinci bulgu (🟡, Bölüm C):** `core/analysis.js` (753 satır) ITU-R
+BS.1770-4/EBU Tech 3342'ye TAM UYUMLU, olağanüstü rigorous bir LUFS/
+true-peak/LRA/korelasyon motoru — AMA bu metodoloji kullanıcıya HİÇ
+GÖSTERİLMİYOR (`guide-texts.js`'te Ölçüm Sonuçları için "i" metni
+YOK, Tonal Balance'ın G226'da aldığı AYNI muamele burada eksik) —
+"ölçüm doğru ama görünmez belgeli", tam task'ın öngördüğü senaryo.
+
+**Olumlu/güven veren bulgular (özet):** Referans Filtreleri'nin 5
+cihaz simülasyonu KOD VE UI'DA AÇIKÇA "gerçek ölçüm değil, tipik
+taklit" diye etiketlenmiş (index.html'de kullanıcı-görünür uyarı) —
+Bluetooth hoparlör eklemek/değiştirmek İÇİN persistans/test/metin
+migrasyonu GEREKMİYOR (aktif seçim hiç kaydedilmiyor, sıfır test
+bağımlılığı, "i" metni isim anmıyor); Kendi Referansım'ın 5-limit/
+silme/mono-uyarı akışları TAM çalışıyor; Tonal Balance'ın canlı
+ölçeği her yeni dosya/hedefte sıfırlanıyor (bir dosyanın şişmesi
+sonrakine sızmıyor); analiz worker fallback'inin 5 dakikalık dosya
+için GERÇEK süresi Node'da ÖLÇÜLDÜ (~3.27sn, desktop — mobilde
+KESİN değil ama sıfıra yakın olmadığı KESİN); geçmiş/kütüphane
+limitleri (5/5/10) ve temizleme butonları (G202/G208/G209) TAM
+kapsıyor. Referans Filtreleri + Tonal Balance A/B arasında ÇAPRAZ
+karşılıklı-dışlama YOK (🟡, iki kaynak üst üste çalabilir — çökme
+riski yok, UX karışıklığı).
+
+**Testler/Ölçüm:** Yok — bu tur kod yazmadı, `npm test`/e2e
+DOKUNULMADI (son ölçüm geçerli: 1374/1374, e2e 18/18). Bölüm I'in
+5-dakikalık-dosya süresi GERÇEKTEN Node'da çalıştırılarak ölçüldü
+(kalıcı bir test EKLENMEDİ, tek seferlik bir doğrulama).
+
+**Dokunulan:** `TUR9-ARACLAR-15-08.md` (yeni dosya, henüz commit
+edilmedi — önceki TUR raporlarıyla AYNI kural).
+**Dokunulmayan:** Hiçbir kod dosyası, `npm test`/e2e suite.
+
+OLCUM-OGRETIM-15-08 — **Fletcher-Munson + Boost/Cut asimetrisi ölçümü (SADECE ÖLÇÜM, kod/commit YOK, G242/G243 hariç — onlar bu ölçümden ÖNCE, ayrı commit'lerde tamamlandı) — `OLCUM-OGRETIM-15-08.md`'ye yazıldı.**
+
+**Ölçüm 1 (Fletcher-Munson) sonucu:** Frekans Bulma'nın gain/Q eğrisi
+(Seviye 1-20, `logLerp` ile hesaplandı: Seviye 1'de 10dB/Q0.8, Seviye
+7'de 6.84dB/Q1.43, Seviye 20'de 3dB/Q5.0) frekanstan TAMAMEN bağımsız
+— ISO 226:2003 ya da A-weighting eklenmesi PEDAGOJİK olarak
+savunulabilir ama **`difficulty-curve.js`'in PAYLAŞILAN mimarisine
+YAPISAL değişiklik gerektiriyor** — bu turun "DOKUNULMAYACAK: zorluk
+eğrisi (Z1-Z7)" kısıtıyla DOĞRUDAN çakışır, ORTA-BÜYÜK bir iş,
+1.1'e bırakılabilir. Rakiplerin (SoundGym/Quiztones/TrainYourEars)
+bunu yapıp yapmadığı web aramasıyla DOĞRULANAMADI, BELİRSİZ bırakıldı.
+
+**Ölçüm 2 (Boost/Cut asimetrisi) sonucu:** Boost mu Cut mu modu
+%50/%50 simetrik yön seçiyor, boost/cut AYNI mutlak |gainDb|
+kullanıyor (Seviye 1'de 8dB, Seviye 20'de 1.4dB, TAM TABLO
+raporda). Literatürde asimetri için TEK bir dB katsayısı
+BULUNAMADI (web araması yapıldı) — telafi uygulanacaksa (cut
+büyütme yönünde, KESİN değil) küçük/tek-dosyalık bir iş olurdu ama
+KATSAYI seçimi kulakla doğrulama GEREKTİRİR. **G242'nin (loudness
+eşitleme) bu sorunu KISMEN çözdüğü DOĞRUDAN kontrol edildi:**
+loudness/RMS boyutunu kapatıyor, ama boost'un spektral "tepe"si ile
+cut'ın "çukur"unun GÖRÜNÜRLÜK/maskelenme farkına HİÇ dokunmuyor —
+farklı bir fenomen, AYRI kalıyor.
+
+**Testler/Ölçüm:** Yok — bu bölüm kod yazmadı. `npm test`/e2e
+DOKUNULMADI (G243'ün ölçümü geçerli: 1374/1374, e2e 18/18).
+
+**Dokunulan:** `OLCUM-OGRETIM-15-08.md` (yeni dosya, henüz commit
+edilmedi — önceki TUR raporlarıyla AYNI kural).
+**Dokunulmayan:** Hiçbir kod dosyası, `npm test`/e2e suite.
 
 G243 — **Convolver normalize kapatıldı (Düzeltme 2, TUR8-OGRETIM-15-08 bulgusu 🔴) — `reverb.js:359`, `convolver.normalize` artık `false`, Room/Hall/Plate arasındaki GERÇEK enerji farkı çıkışa yansıyor.**
 
@@ -18093,7 +18223,46 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G241 + TUR8-OGRETIM-15-08 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (TUR9-ARACLAR-15-08 itibarıyla):**
+`TUR9-ARACLAR-15-08.md` tamamlandı (denetim, kod yazılmadı, commit
+atılmadı). **Bir sonraki adım — kullanıcının onayı/kararı gerekir,
+öncelik sırasıyla:**
+1. 🔴 **Tonal Balance'ın "referans eğrisiyle dinle" EQ zincirinde
+   sınırsız kazanç + limiter yokluğu** (Bölüm E) — clipping riski,
+   mühendislik müdahalesi (clamp + belki paylaşılan limiter)
+   gerektirir, kod yazılmadı, kullanıcı onayı bekliyor.
+2. 🟡 **Ölçüm Sonuçları paneline metodoloji "i" metni eklenmesi**
+   (Bölüm C) — Tonal Balance'ın G226'da aldığı muamelenin AYNISI,
+   düşük maliyetli/yüksek fayda.
+3. Bluetooth hoparlör filtresi kararı verilirse Bölüm A'nın sonundaki
+   iş listesi (persistans/test migrasyonu GEREKMİYOR, sadece
+   `TOOLS_FILTERS` + ikon eklemesi) doğrudan uygulanabilir.
+Ayrıca önceki turların açık maddeleri (BEYAN-DENETIM'in .gitignore
+tuzağı, TUR6'nın Android/G236 bulgusu, OLCUM-OGRETIM'in Fletcher-
+Munson/Boost-Cut kararları) hâlâ AÇIK, bu turdan ETKİLENMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G242/G243 + OLCUM-OGRETIM-15-08 itibarıyla, ARTIK ESKİ):**
+TUR8'in İKİ 🔴 bulgusu (A/B loudness eşitleme, convolver normalize)
+G242/G243'te AYRI commit'lerle KAPANDI — `npm test` 1374/1374, `npm
+run test:e2e` 18/18, ikisi de canlı tarayıcıda (Playwright smoke)
+konsol hatasız doğrulandı. `OLCUM-OGRETIM-15-08.md` tamamlandı
+(ölçüm, kod yazılmadı, commit atılmadı). **Bir sonraki adım —
+kullanıcının onayı/kararı gerekir, öncelik sırasıyla:**
+1. Yukarıdaki "YARIN KULAKLA DOĞRULANMASI GEREKENLER" listesinin
+   (4 madde: G242/G243'ün gerçek algısal sonucu + Fletcher-Munson/
+   Boost-Cut asimetrisinin gerçek kullanıcı gözlemiyle teyidi)
+   TestFlight/gerçek cihaz turunda ele alınması.
+2. Fletcher-Munson ağırlıklandırmasının (Ölçüm 1) YAPILIP
+   YAPILMAYACAĞI ürün kararı — ORTA-BÜYÜK bir iş, `difficulty-curve.js`
+   mimarisine dokunuyor, AYRI ve dikkatli planlanmış bir tur
+   gerektirir.
+3. Boost/Cut asimetri telafisinin (Ölçüm 2) YAPILIP YAPILMAYACAĞI —
+   küçük bir iş ama katsayı seçimi kulakla doğrulama gerektirir,
+   G242 zaten en ciddi boyutu (loudness) kapattığı için ACİL DEĞİL.
+Ayrıca BEYAN-DENETIM-15-08'in .gitignore tuzağı ve TUR6'nın Android/
+G236 bulgusu hâlâ AÇIK, bu turdan ETKİLENMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G241 + TUR8-OGRETIM-15-08 itibarıyla, ARTIK ESKİ):**
 İki belge düzeltmesi (G241) commit'lendi, `TUR8-OGRETIM-15-08.md`
 tamamlandı (denetim, kod yazılmadı, commit atılmadı). **Bir sonraki
 adım — kullanıcının onayı/kararı gerekir, öncelik sırasıyla:**

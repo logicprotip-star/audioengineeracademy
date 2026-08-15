@@ -6,7 +6,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { BANDS, BAND_EDGES, DRAFT_TARGET_CURVES, OFF_TARGET_THRESHOLD_DB, summarizeDeviation, bandDevsFromLiveSnapshot, bandCenterFreqs, computeReferenceEqGainsDb, lufsMatchGainDb, dbToLinearGain } from "../www/js/core/tonal-balance.js";
+import { BANDS, BAND_EDGES, DRAFT_TARGET_CURVES, OFF_TARGET_THRESHOLD_DB, summarizeDeviation, bandDevsFromLiveSnapshot, bandCenterFreqs, computeReferenceEqGainsDb, lufsMatchGainDb, dbToLinearGain, REFERENCE_EQ_GAIN_CLAMP_DB, LUFS_MATCH_GAIN_CLAMP_DB } from "../www/js/core/tonal-balance.js";
 import { FA_ZONES } from "../www/js/modes/frekans-bulma.js";
 
 describe("tonal-balance.js — BANDS/BAND_EDGES, Frekans Bulma'nın FA_ZONES'uyla TUTARLI mı", () => {
@@ -222,5 +222,59 @@ describe("tonal-balance.js — lufsMatchGainDb() / dbToLinearGain() (G127 madde 
     assert.ok(Math.abs(aResultLufs - targetLufs) < 1e-9);
     assert.ok(Math.abs(bResultLufs - targetLufs) < 1e-9);
     assert.ok(Math.abs(aResultLufs - bResultLufs) < 1e-9, "A ve B AYNI hedefe eşitlendiği için birbirine de eşit olmalı");
+  });
+});
+
+describe("tonal-balance.js — Düzeltme 1 KABUL KRİTERİ (TUR9-ARACLAR-15-08 bulgusu 🔴): kazançlar ±12dB'ye kırpılıyor, işitme güvenliği", () => {
+  it("REFERENCE_EQ_GAIN_CLAMP_DB / LUFS_MATCH_GAIN_CLAMP_DB ikisi de 12dB — tek/tutarlı politika", () => {
+    assert.equal(REFERENCE_EQ_GAIN_CLAMP_DB, 12);
+    assert.equal(LUFS_MATCH_GAIN_CLAMP_DB, 12);
+  });
+
+  it("computeReferenceEqGainsDb — ÇOK FARKLI iki dosya (bir bant neredeyse sessiz, biri çok baskın) ±12dB'nin İÇİNDE kalır", () => {
+    // Gerçekçi bir aşırı senaryo: mix bir bantta -30dB (neredeyse sessiz),
+    // referans o bantta +10dB (çok baskın) — ham fark 40dB olurdu.
+    const gains = computeReferenceEqGainsDb([-30, 0, 0, 0, 0, 0], [10, 0, 0, 0, 0, 0]);
+    assert.equal(gains[0], REFERENCE_EQ_GAIN_CLAMP_DB, "ham fark (40dB) sınıra KIRPILMALI");
+    assert.ok(Math.abs(gains[0]) <= REFERENCE_EQ_GAIN_CLAMP_DB);
+  });
+
+  it("computeReferenceEqGainsDb — ters yönde de (mix çok baskın, ref sessiz) simetrik kırpılır", () => {
+    const gains = computeReferenceEqGainsDb([25, 0, 0, 0, 0, 0], [-15, 0, 0, 0, 0, 0]);
+    assert.equal(gains[0], -REFERENCE_EQ_GAIN_CLAMP_DB);
+  });
+
+  it("computeReferenceEqGainsDb — sınırın ALTINDAKİ farklar (normal kullanım, DRAFT_TARGET_CURVES'in kendi ±10.9dB uç değeri dahil) HİÇ kırpılmadan geçer", () => {
+    const gains = computeReferenceEqGainsDb([0, 0, 0, 0, 0, 0], [10.9, -10.9, 5, -5, 1.5, -1.5]);
+    assert.deepEqual(gains, [10.9, -10.9, 5, -5, 1.5, -1.5], "sınırın altındaki hiçbir değer değişmemeli");
+  });
+
+  it("computeReferenceEqGainsDb — bir bandın deviasyonu -Infinity/+Infinity olsa bile (tamamen sessiz bant) sonuç sınıra düşer, asla Infinity/NaN SIZMAZ", () => {
+    const gains = computeReferenceEqGainsDb([-Infinity, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]);
+    assert.equal(gains[0], REFERENCE_EQ_GAIN_CLAMP_DB);
+    assert.ok(Number.isFinite(gains[0]));
+  });
+
+  it("lufsMatchGainDb — ÇOK FARKLI iki dosyanın (biri neredeyse sessiz -40 LUFS, biri yüksek -8 LUFS) ham farkı (32dB) ±12dB'ye kırpılır", () => {
+    const gainDb = lufsMatchGainDb(-40, -8);
+    assert.equal(gainDb, LUFS_MATCH_GAIN_CLAMP_DB);
+  });
+
+  it("lufsMatchGainDb — sourceLufs=-Infinity (tam sessizlik) durumunda Infinity/NaN SIZMAZ, sınıra düşer", () => {
+    const gainDb = lufsMatchGainDb(-Infinity, -14);
+    assert.equal(gainDb, LUFS_MATCH_GAIN_CLAMP_DB);
+    assert.ok(Number.isFinite(gainDb));
+  });
+
+  it("lufsMatchGainDb — HEM source HEM target -Infinity ise (NaN üretecek matematiksel durum) güvenli 0 döner", () => {
+    const gainDb = lufsMatchGainDb(-Infinity, -Infinity);
+    assert.equal(gainDb, 0);
+  });
+
+  it("KABUL KRİTERİ — kırpılmış kazanç doğrusal alanda ÖLÇÜLEBİLİR şekilde güvenli sınırda kalır (±12dB = ~×3.98/×0.251 doğrusal kazanç, ×10 DEĞİL)", () => {
+    const gainDb = computeReferenceEqGainsDb([-40], [10])[0];
+    const linear = dbToLinearGain(gainDb);
+    assert.ok(Math.abs(linear - 3.9811) < 0.001, `+12dB doğrusal kazancı ~3.98 olmalı, ${linear} çıktı`);
+    assert.ok(linear < 10, "ham (kırpılmamış) 50dB'lik farkın doğrusal kazancı (~316x) ile KIYASLANAMAYACAK kadar küçük — güvenlik sınırı ÇALIŞIYOR");
   });
 });

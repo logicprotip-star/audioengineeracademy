@@ -10802,6 +10802,16 @@ let tonalMixPlaying = false;
 let tonalMixPreviewNode = null;
 let toolsTonalMixEqNodes = []; // A'nın eşleme EQ zinciri (6 peaking filtre) — çalmadan ÖNCE/durunca temizlenir
 let toolsTonalAbGainA = null; // A (eşitlenmiş mix) çalarken B'nin (referansın) LUFS'una eşitleme kazancı
+// Düzeltme 1 (TUR9-ARACLAR-15-08 bulgusu 🔴, işitme güvenliği) — A'nın EQ+LUFS
+// zinciri ÖNCEDEN ctx.destination'a DOĞRUDAN bağlıydı, ana oyun motorunun
+// (audio-engine.js buildQuestionChain) paylaşılan DynamicsCompressorNode'u BU
+// zincirde HİÇ YOK'tu (o, o dosyanın İÇİNDEKİ bir yerel değişken, buradan
+// erişilemez) — computeReferenceEqGainsDb/lufsMatchGainDb artık ±12dB'ye
+// kırpılıyor (bkz. tonal-balance.js) ama İKİNCİ bir güvenlik katmanı olarak
+// bu zincire KENDİ limiter'ı eklendi: audio-engine.js'in AYNI parametreleri
+// (threshold -16dB, knee 22, ratio 2.2) — yeni bir sayı İCAT EDİLMEDİ,
+// KANITLANMIŞ/zaten kullanılan bir ayar tekrar kullanıldı.
+let toolsTonalOutputLimiter = null;
 
 // --- G102: canlı analizör durumu ---
 let toolsTonalLastAvgDevs = null;    // en son çizilen ORTALAMA eğri (rAF döngüsü bunu yeniden kullanır)
@@ -11051,6 +11061,7 @@ async function toolsTonalStopMixPlayback() {
   toolsTonalMixEqNodes.forEach((n) => { try { n.disconnect(); } catch (e) {} });
   toolsTonalMixEqNodes = [];
   if (toolsTonalAbGainA) { try { toolsTonalAbGainA.disconnect(); } catch (e) {} }
+  if (toolsTonalOutputLimiter) { try { toolsTonalOutputLimiter.disconnect(); } catch (e) {} }
   tonalMixPlaying = false;
 }
 async function toolsTonalEnsureMixLufs() {
@@ -11170,7 +11181,14 @@ async function toolsTonalToggleMatchedMixPlayback() {
     const gainDb = (mixLufs != null && ref.lufs != null) ? tonalBalance.lufsMatchGainDb(mixLufs, ref.lufs) : 0;
     toolsTonalAbGainA = toolsTonalAbGainA || ctx.createGain();
     toolsTonalAbGainA.gain.value = 0.85 * tonalBalance.dbToLinearGain(gainDb);
-    toolsTonalAbGainA.connect(ctx.destination);
+    // Düzeltme 1 — artık ctx.destination'a DOĞRUDAN değil, KENDİ limiter'ı
+    // üzerinden (bkz. toolsTonalOutputLimiter'ın dosya başı notu).
+    toolsTonalOutputLimiter = toolsTonalOutputLimiter || ctx.createDynamicsCompressor();
+    toolsTonalOutputLimiter.threshold.value = -16;
+    toolsTonalOutputLimiter.knee.value = 22;
+    toolsTonalOutputLimiter.ratio.value = 2.2;
+    toolsTonalAbGainA.connect(toolsTonalOutputLimiter);
+    toolsTonalOutputLimiter.connect(ctx.destination);
 
     tonalMixPreviewNode = tonalMixUploadManager.getSourceNode();
     if (!tonalMixPreviewNode) return;

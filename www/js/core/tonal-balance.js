@@ -257,19 +257,56 @@ export function bandCenterFreqs() {
   return BAND_EDGES.slice(0, -1).map((lo, i) => Math.sqrt(lo * BAND_EDGES[i + 1]));
 }
 
+// Düzeltme 1 (TUR9-ARACLAR-15-08 bulgusu 🔴, işitme güvenliği) — İKİ
+// kazanç kaynağı da (bant başına EQ farkı + LUFS eşitleme) ÖNCEDEN
+// SINIRSIZDI: mixDevs/refDevs (ya da mixLufs/refLufs) birbirinden ÇOK
+// FARKLI iki dosyaya aitse, fark doğrudan bir BiquadFilterNode/GainNode
+// kazancına yazılıyordu — aradan hiçbir emniyet geçmiyordu, zincir
+// ctx.destination'a DOĞRUDAN bağlıydı (ana oyun motorunun paylaşılan
+// DynamicsCompressorNode'u BU zincirde HİÇ YOK). ±12dB sınırı SEÇİLDİ,
+// KEYFİ DEĞİL: DRAFT_TARGET_CURVES'in (yukarıda, G223'te 41 GERÇEK
+// parçadan ölçülmüş) kendi en uç değeri ±10.9dB (Akustik/TİZ) — yani
+// GERÇEK, iyi mikslenmiş parçalar arasındaki normal bant sapması bu
+// sınırın ZATEN altında kalıyor, ±12 bu payı KIRPMADAN geçiyor. Bunun
+// ÜSTÜNDEKİ bir fark (iki dosya birbirine hiç benzemiyor, ya da biri
+// neredeyse sessiz) egzotik/patolojik bir girdi sayılır — kırpılması
+// "yanlış" bir düzeltme değil, ANLAMLI bir EQ hareketinin hâlâ dinlenebilir
+// kalmasını sağlar. Aynı sınır lufsMatchGainDb'de de kullanıldı (TEK
+// politika, iki ayrı "sihirli sayı" yerine) — bir A/B karşılaştırma
+// özelliğinin amacı iki dosyayı MÜKEMMEL eşitlemek değil, kulağı
+// YAKMADAN karşılaştırmaktır.
+export const REFERENCE_EQ_GAIN_CLAMP_DB = 12;
+export const LUFS_MATCH_GAIN_CLAMP_DB = 12;
+
+// SAF. +Infinity/-Infinity sınıra, NaN 0'a düşer (sessiz/geçersiz veri) —
+// hiçbir durumda çağıran tarafa Infinity/NaN SIZMAZ (ör. bir bandın tamamen
+// sessiz olduğu bir dosyada dB sapması -Infinity olabilir, bkz. aşağıdaki
+// lufsMatchGainDb'nin AYNI riski integratedLufs=-Infinity için taşıması).
+function clampGainDb(raw, limitDb) {
+  if (!Number.isFinite(raw)) return raw > 0 ? limitDb : raw < 0 ? -limitDb : 0;
+  return Math.max(-limitDb, Math.min(limitDb, raw));
+}
+
 // "Referans eğrisiyle dinle" (madde 5) — kendi mixin, referansın eğrisine göre
 // işlenmiş HALDE duyulur: her bantta uygulanacak peaking-EQ kazancı, o bandın
 // referans-mix FARKI kadardır (mix o bandı REF'ten NE KADAR azsa o kadar
 // yükseltilir, fazlaysa o kadar kısılır) — uygulanınca mixDevs, refDevs'e
 // yaklaşır (bkz. app.js'teki offline render testi, sayısal kanıt).
+// ±REFERENCE_EQ_GAIN_CLAMP_DB'ye SESSİZCE kırpılır (kullanıcı kararı gerektiren
+// bir hata durumu DEĞİL — bkz. yukarıdaki DÜZELTME notu, bir toast/uyarı
+// EKLENMEDİ: sınıra takılmak normal kullanımda neredeyse hiç olmaz, olduğunda
+// da "biraz daha az düzeltildi" sessiz bir derece meselesi, çökme/veri kaybı
+// değil).
 export function computeReferenceEqGainsDb(mixDevs, refDevs) {
-  return mixDevs.map((d, i) => refDevs[i] - d);
+  return mixDevs.map((d, i) => clampGainDb(refDevs[i] - d, REFERENCE_EQ_GAIN_CLAMP_DB));
 }
 
 // A/B dinleme (madde 4) — "İKİSİ AYNI seviyede çalsın": kaynağın kazancı,
 // hedef LUFS'a ULAŞMASI için gereken dB kadar (targetLufs - sourceLufs).
+// ±LUFS_MATCH_GAIN_CLAMP_DB'ye SESSİZCE kırpılır (yukarıdaki notla AYNI
+// gerekçe/karar).
 export function lufsMatchGainDb(sourceLufs, targetLufs) {
-  return targetLufs - sourceLufs;
+  return clampGainDb(targetLufs - sourceLufs, LUFS_MATCH_GAIN_CLAMP_DB);
 }
 
 export function dbToLinearGain(db) {
