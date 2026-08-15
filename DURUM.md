@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G240)
+Son güncelleme: 16.08.2026 (TUR6-YANETKI-15-08 — BEYAN-DENETIM-15-08'den sonraki denetim turu)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,108 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+TUR6-YANETKI-15-08 — **Bugünün yan etkileri + sınav sistemi bütün olarak denetimi (SADECE ÖLÇÜM, kod/commit YOK) — 9 bölüm (A-I), `TUR6-YANETKI-15-08.md`'ye yazıldı.**
+
+**En önemli bulgu (🔴, Bölüm A):** G238'in bugünkü kod yorumu
+(`core/progress.js:80-93`) YANLIŞ — "ACADEMY_XP_MULTIPLIER'ın Pro
+seviye kilidinin açılma hızını da etkilediği" iddiası, o kilidin
+(`paywall.meetsLevelRequirement()`) **G163'te (bugünden çok önce)
+zaten koşulsuz `true`'ya sabitlendiği** gerçeğiyle ÇELİŞİYOR — kilit
+tamamen ölü, UI'da hiçbir görsel karşılığı kalmamış (grep ile
+doğrulandı). G238'in GERÇEK etkisi SADECE Ana Menü'nün academy-seviyesi
+rozetini (`#menuLevelValue`) hızlandırmak — zorluk rampası, mod-içi
+seviye, rozetler, sınav sistemi HİÇBİRİ etkilenmiyor (hepsi
+`progress.modeLevel()`'ın ayrı/değişmemiş eğrisini kullanıyor).
+
+**İkinci önemli bulgu (🔴, Bölüm I):** G236'nın ("EN KRİTİK" işaretli
+native kesinti köprüsü) Android'de HİÇBİR karşılığı yok —
+`android/`'da `AudioSessionPlugin.swift`'e denk bir dosya bulunamadı
+(sadece stok `MainActivity.java`). Çökme riski yok
+(`getAudioSessionPlugin()` zaten `platform!=="ios"` ise güvenle
+`null` dönüyor) ama Android kullanıcısı G236'nın yeni kurtarma
+yolunu HİÇ almıyor — 1.0 Android çıkarsa bu ürün kararı gerektirir.
+
+**Diğer bulgular (özet, tam kanıt rapor dosyasında):** sınav sistemi
+ARTIK 12 playable modun 12'sinde de aktif (`EXAM_ENABLED=true`) —
+app.js'in "bugün sadece Kompresör" yorumu stale; sınav HER ZAMAN
+`EXAM_DIFFICULTY="pro"` (en zor kademe) kullanıyor, kolay sınav riski
+YOK, tam tersi; boss round GLOBAL `stats.rounds%5` (mod-bağımsız,
+kullanıcı hangi modda boss alacağını dolaylı seçebilir); combo GLOBAL
+olması G47'de zaten BİLİNÇLİ karar (bugün yeniden keşfedilmedi, sadece
+doğrulandı); ipucu sistemi 3/fresh-start, free/Pro aynı, sadece XP'yi
+yarılıyor; round süresi hâlâ STATİK tier tablosundan (TAM-LISTE karar
+17, hâlâ açık, bugünden etkilenmedi); G203'ün arka-plan XP-kalıcılığı
++ G237'nin seans sayacı arka plan dönüşünde ÇİFT SAYIM/kayıp riski
+TAŞIMIYOR (mimari olarak doğrulandı); bugün `www/`'a dokunan commit
+sayısı task'ın tahmin ettiği "12" değil, ölçülen **27** (G239/G240
+dahil).
+
+**Testler/Ölçüm:** Yok — bu tur kod yazmadı, `npm test`/e2e
+DOKUNULMADI (son ölçüm geçerli: 1359/1359, e2e 18/18).
+
+**Dokunulan:** `TUR6-YANETKI-15-08.md` (yeni dosya, henüz commit
+edilmedi — önceki TUR raporlarıyla AYNI kural).
+**Dokunulmayan:** Hiçbir kod dosyası, `npm test`/e2e suite.
+
+BEYAN-DENETIM-15-08 — **Belge/beyan denetimi (SADECE ÖLÇÜM, kod/commit YOK) — 9 bölüm (A-I), `BEYAN-DENETIM-15-08.md`'ye yazıldı, G239/G240'ın KAYNAK olarak kullanıldığı, kendisi AYRI bir tur.**
+
+**Kapsam:** G239/G240 zaten AYRI commit'lerde tamamlanmıştı (bu turun
+İLK iki bölümü) — BU giriş SADECE üçüncü, ölçüm-only bölümü kapsıyor.
+
+**Bulgular özeti (tam detay + kanıt için `BEYAN-DENETIM-15-08.md`):**
+- **A (MAX_CONTEXT_RECREATE):** 🟡 Sınıra ulaşınca kullanıcı banner
+  ile bilgilendiriliyor (sessiz ölüm YOK), uygulamayı kapat/aç KESİN
+  kurtarıyor (sayaç modül-seviyesi `let`, persist edilmiyor) — AMA
+  banner'a tekrar dokunmak sayaç sıfırlanmadığı için İŞE YARAMIYOR,
+  metin "yeniden başlat" gibi spesifik bir yönlendirme İÇERMİYOR.
+- **B (TAM-LISTE madde güncelliği):** 🟡 `abPressTimer` maddesi
+  KISMEN kapandı — G235 SADECE `pauseRound()` yolunu (Durdur/arka
+  plan/panel) kapattı, `teardownActiveRound()` (round'un session-limit/
+  can-bitişiyle DOĞAL sonlanması) HÂLÂ temizlemiyor, grep ile
+  doğrulandı. TAM-LISTE'nin maddesi "KAPANDI" değil "daraltıldı" olarak
+  güncellenmeli. Diğer 8 madde bugünkü commit'lerden ETKİLENMEDİ.
+- **C (ölü kod):** 🟢 `showSessionEnd()` **152 satır** (task'ın "~220"
+  tahmini yanlıştı, `awk` ile ölçüldü) — fonksiyonun KENDİSİ ölü değil
+  (normal kind'de çalışıyor), sadece 3 çağrı noktası (`lost`/
+  `freeLimit` kind) G220'den beri ulaşılamıyor (~6-10 satır, TUR5A'da
+  zaten bilinen bulgu).
+- **D (App Store beyan tutarlılığı):** 🟢 G233/G237'nin yeni anahtarları
+  (17 localStorage anahtarının 2'si) DOĞRULANDI — hepsi cihazda kalıyor,
+  gerçek ağ isteği hâlâ SIFIR (2 `fetch` call'ın ikisi de yerel dosya
+  okuma), yeni bir veri KATEGORİSİ toplanmaya başlanmadı — beyan
+  DEĞİŞMEMELİ.
+- **E (gizlilik/destek/koşullar metni için kod-gerçeği):** 17
+  localStorage anahtarının TAM envanteri çıkarıldı (14 storage.js + 3
+  app.js), hiçbiri kişisel veri İÇERMİYOR, hiçbiri ağa gitmiyor. "5
+  soru" kotasının G237 SONRASI gerçek davranışı (günde 5+3×5=20, mod
+  kapat/aç ARTIK sıfırlamıyor) ve Pro'nun TAM kod-doğrulanmış listesi
+  (8-9 madde) yazıldı — Logic'in site metniyle KARŞILAŞTIRMASI
+  gerekiyor, repo dışı metin GÖRÜLEMEDİ.
+- **F (mağaza metni tutarlılığı):** 🟡 "12 mod"un 5-ücretsiz/7-Pro
+  ayrımının mağaza açıklamasında net olup olmadığı BU ORTAMDAN
+  GÖRÜLEMEZ — "Sınırsız"/"reklamsız" vaatleri kodla TUTARLI
+  (doğrulandı).
+- **G/H (cihaz/sandbox test listeleri):** G228-G238'in HER biri için
+  tek-cümlelik talimat + sandbox satın alma 4 maddesi yazıldı — G236
+  (native kesinti köprüsü) EN KRİTİK işaretlendi, Swift tarafı bu
+  ortamda HİÇ derlenmedi.
+- **I (.gitignore tuzağı):** 🔴 `git check-ignore -v` ile DOĞRUDAN
+  test edildi — `.wav`/`.aiff` İSTİSNASIZ ignore ediliyor, `.m4a`
+  SADECE `www/audio/`'nun DOĞRUDAN İÇİNDE (alt klasörde DEĞİL)
+  istisna alıyor, YANLIŞ yere konan dosya SESSİZCE kaybolur (`git
+  status` bile göstermez), bunu yakalayacak bir hook/script YOK —
+  kaynak kütüphanesi yenilemeden ÖNCE Logic'e AÇIKÇA söylenmesi
+  gereken TEK madde.
+
+**Testler/Ölçüm:** Yok — bu bölüm kod yazmadı, `npm test`/e2e
+DOKUNULMADI (G240'ın son ölçümü geçerli: 1359/1359, e2e 18/18).
+
+**Dokunulan:** `BEYAN-DENETIM-15-08.md` (yeni dosya, henüz commit
+edilmedi — TUR3A/3B/4/5A ile AYNI kural: rapor bu turda YAZILDI, ayrı
+bir belgeleme commit'i olarak bir SONRAKİ turda atılacak).
+**Dokunulmayan:** Hiçbir kod dosyası, `npm test`/e2e suite, G214-G240
+arası commit'ler.
 
 G240 — **Korumasız `while` döngüsü düzeltildi + sınıf taraması (BEYAN-DENETIM/TUR5A bulgusu 🟡) — `frekans-cakismasi.js:generateStage3Choices()` artık kardeş fonksiyonundaki `guard` desenini taşıyor, GERÇEK bir sonsuz döngü olduğu KANITLANDI (Node'un kendi test-timeout'unu bile durduramadı).**
 
@@ -17816,7 +17918,48 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (TUR 5A itibarıyla):** `TUR5A-SAGLAMLIK-15-08.md`
+**EN YENİ SIRADAKİ ADIM (TUR6-YANETKI-15-08 itibarıyla):**
+`TUR6-YANETKI-15-08.md` tamamlandı (denetim, kod yazılmadı, commit
+atılmadı). **Bir sonraki adım — kullanıcının onayı/kararı gerekir,
+öncelik sırasıyla:**
+1. 🔴 **Android'de G236 (native kesinti köprüsü) eşdeğeri yok** —
+   ürün kararı: 1.0 Android'de bu kabul mü, yoksa ayrı bir Android
+   native işi mi açılacak?
+2. 🔴 **`core/progress.js:80-93`'teki G238 yorumu düzeltilmeli** —
+   olmayan bir "seviye kilidi açılma hızı" yan etkisini belgeliyor
+   (gerçek kilit G163'te zaten ölmüştü); dar kapsamlı bir yorum
+   düzeltmesi, davranış değişmez.
+3. 🟡 TAM-LISTE karar 16'nın güncellenmesi ("üç kilit tipi" artık
+   pratikte iki).
+4. Sınav sisteminin `EXAM_DIFFICULTY="pro"` (her zaman en zor)
+   tasarımının düşük seviyeli Pro kullanıcılar için gerçek bir engel
+   olup olmadığı — playtest verisi gerekiyor, BELİRSİZ.
+Ayrıca BEYAN-DENETIM-15-08'in kendi öncelik listesi (özellikle 🔴
+.gitignore tuzağı, Logic kaynak kütüphanesini yenilemeden ÖNCE) hâlâ
+AÇIK, bu turdan ETKİLENMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (BEYAN-DENETIM-15-08 itibarıyla, ARTIK ESKİ):**
+`BEYAN-DENETIM-15-08.md` tamamlandı (denetim, kod yazılmadı, commit
+atılmadı — G239/G240 zaten AYRI commit'lerdi). **Bir sonraki adım —
+kullanıcının onayı/işi gerekir, öncelik sırasıyla:**
+1. 🔴 **.gitignore tuzağı (Bölüm I)** — Logic kaynak kütüphanesini
+   yenilemeden ÖNCE bilgilendirilmeli: yeni dosyalar `.m4a` uzantısıyla
+   `www/audio/`'nun DOĞRUDAN İÇİNE (alt klasörsüz) konmalı, yoksa
+   SESSİZCE commit dışı kalır — bunu yakalayacak bir kontrol/hook YOK.
+2. 🟡 `TAM-LISTE-14-08.md`'nin `abPressTimer` maddesinin güncellenmesi
+   ("kapandı" değil "daraltıldı" — `teardownActiveRound()` yolu hâlâ
+   açık).
+3. Bölüm G/H'nin cihaz + sandbox test listelerinin (G228-G238, 11
+   commit + 4 sandbox maddesi) TEK bir cihaz turunda toplu yapılması
+   — G236 (native kesinti köprüsü) EN KRİTİK.
+4. Bölüm E/F'nin Logic'in site/Connect metinleriyle karşılaştırması
+   (gizlilik/destek/koşullar/mağaza açıklaması) — kod tarafı bu turda
+   TAM çıkarıldı, site tarafı repo dışı.
+Ayrıca TUR4'ün kalan 2 maddesi (`--text-muted` kontrastı, `.seg button`
+dokunma hedefi) ve TUR3A/3B/5A'nın "1.1'e bırakılabilir" listeleri
+hâlâ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (TUR 5A itibarıyla, ARTIK ESKİ):** `TUR5A-SAGLAMLIK-15-08.md`
 tamamlandı (denetim, kod yazılmadı, commit atılmadı). **Bir sonraki
 adım — kullanıcının onayı gerekir:** raporun "yayın öncesi
 düzeltilecekler" listesindeki 2 madde — (1) `frekans-cakismasi.js:generateStage3Choices()`'a
