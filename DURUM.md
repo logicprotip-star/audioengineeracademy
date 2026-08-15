@@ -146,6 +146,31 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G226 — **Tonal Balance "i" metnine ölçüm/yöntem bilgisi eklendi (mevcut metin korundu).**
+
+`www/js/core/guide-texts.js:76` (`TOOLS_TONAL_GUIDE`, "Pop / EDM / Akustik"
+bölümü) — mevcut cümle ("Bu üç hazır eğri genel bir tür referansıdır. En
+doğru sonuç için 'Kendi Referansım' ile beğendiğin bir şarkıyı yükle.")
+AYNEN KORUNDU, üstüne şu bilgiler eklendi: 41 parça/kategori dağılımı
+(Pop 25 · EDM 7 · Akustik 9), 6 bant sınırı (Hz), "mutlak seviye değil
+kendi bant ortalamasına göre sapma" açıklaması, "başka bir araçla sayılar
+tutmayabilir, hata değil" notu. Ayrıntı için `HEDEF-EGRI-KAYNAK.md`'ye atıf
+YAPILMADI (task'ın kendi kuralı — "atıf gerekmez").
+**Kullanıcı kararıyla SINIRLI kapsam:** `app.js:11503-11505`'teki kart
+üstü kısa not (`toolsTonalDraftNote`) BİLEREK dokunulmadı — task açıkça
+"kart üstündeki kısa nota değil" dedi, SADECE `guide-texts.js`'in "i" metni
+genişletildi.
+
+**Ölçüm:** `npm test` → **1315/1315, DEĞİŞMEDİ**. `npm run test:e2e` →
+**10/10, DEĞİŞMEDİ**. Bu metne bağlı hiçbir test yok (grep ile doğrulandı).
+
+**Dokunulan:** `www/js/core/guide-texts.js` (SADECE `TOOLS_TONAL_GUIDE`'ın
+"Pop / EDM / Akustik" maddesinin `body` metni).
+**Dokunulmayan:** `app.js:11503-11505` (kart üstü kısa not), `showSessionEnd()`,
+hedef eğri değerleri (`DRAFT_TARGET_CURVES`), e2e suite yapısı, Tonal
+Balance UI/grafik/bölge dinleme kodu, G220/G221/G223/G225, G214/G215/G216,
+G177/G178/G185/G187, G198, G201/G204/G205, G203, G212, 581f798/a4efb42.
+
 G225 — **Madde 30 düzeltildi: "Atla" ile sessionLimit'e ulaşıp reklam izleyen kullanıcının +5 soru hakkı artık silinmiyor.**
 
 **Kök sebep (G224'ün ölçümüyle netleşmişti):** `els.startBtn`'in click

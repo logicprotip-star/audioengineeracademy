@@ -73,7 +73,12 @@ export const TOOLS_TONAL_GUIDE = {
       // onayladığı metinle DEĞİŞTİRİLDİ, aynı bilgiyi (bu üç eğri genel bir
       // referans, kesin ölçüm için kendi referansını yükle) yarım-iş
       // çağrışımı OLMADAN veriyor.
-      body: "Bu üç hazır eğri genel bir tür referansıdır. En doğru sonuç için 'Kendi Referansım' ile beğendiğin bir şarkıyı yükle."
+      // G226 DÜZELTMESİ — G223'te eğriler taslaktan gerçek ölçüme geçti
+      // (bkz. HEDEF-EGRI-KAYNAK.md), metne yöntem/kapsam bilgisi eklendi —
+      // mevcut cümle KORUNDU, sadece üstüne eklendi (kullanıcı kararı: kart
+      // üstündeki kısa nota — app.js toolsTonalDraftNote — DOKUNULMADI,
+      // SADECE bu "i" metni genişletildi).
+      body: "Bu üç hazır eğri genel bir tür referansıdır. En doğru sonuç için 'Kendi Referansım' ile beğendiğin bir şarkıyı yükle. Eğriler 41 gerçek parçadan (Pop 25 · EDM 7 · Akustik 9) ölçüldü — SUB 20-120 · BAS 120-250 · ALT-ORTA 250-500 · ORTA 500-2000 · ÜST-ORTA 2000-8000 · TİZ 8000-20000 Hz bantlarında, mutlak seviye değil parçanın kendi bant ortalamasına göre sapma olarak. Bant tanımları araçtan araca değiştiği için başka bir ölçüm aracıyla sayılar birebir tutmayabilir — bu bir hata değil."
     },
     {
       heading: "Kendi Referansım",
