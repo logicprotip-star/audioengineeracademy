@@ -66,6 +66,18 @@ ana menü, ilerleme sekmesi, ayarlar, kalibrasyon, satın alma ekranı,
 - **Sayı uydurma.** Test veya ölçüm sonucu yoksa "doğrulanmadı" yaz.
 - **Ürün kararı verme.** Fiyat, kilit seviyesi, mod sıralaması gibi kararlar kullanıcıya
   sorulur — makul görünen değer uydurulmaz.
+- **Varsayım yasak.** Önce ölç, sonra sorgula, sonra sor. Bu kod için de geçerli,
+  belge okuması için de (bir .md dosyasının "kapandı"/"hâlâ açık" dediğine güvenip
+  geçme — kod değişmiş olabilir), prompt'un kendi formatı/yöntemi için de, kapatma
+  kararları için de.
+- **Bir maddeyi kapalı saymak için commit numarası + kanıt şart.** Kanıt yoksa madde
+  AÇIK kalır, "doğrulanmadı" yazılır — "muhtemelen kapandı" ya da "büyük ihtimalle
+  düzeldi" gibi bir sonuç yeterli değildir (bkz. DOGRULAMA-15-08.md'nin kendi
+  bulguları: DURUM.md'nin "C"/"M" maddeleri tam bu yüzden aylarca stale kalmıştı).
+- **Format/yöntem değişikliği yapılacaksa önce sorulur.** Örn. bir denetim/rapor
+  turunun çıktı biçimini, hangi dosyaların okunacağını ya da "kapalı" sayma
+  ölçütünü DEĞİŞTİRMEK isteyen bir durumla karşılaşılırsa, sessizce kendi kararını
+  uygulamak yerine önce kullanıcıya sorulur.
 - Her değişiklikten sonra `npm test` çalıştır ve sonucu raporla.
 
 ## Seans sonu zorunluluğu

@@ -15922,26 +15922,40 @@ Bkz. AÇIK İŞLER madde 21. Daha dik filtre işlem maliyetini ARTIRIR (madde
 N'yle çelişen bir yönde) — kullanıcı önce "doğruluk mu, hız mı" önceliğini
 netleştirmeli.
 
-**M. G101 — "Referans Filtreleri"nin GERÇEK DSP'si ne zaman eklenecek?**
-Filtre seçmek hâlâ sesi DEĞİŞTİRMİYOR (sadece hangi cihazın simüle edildiğini
-gösteriyor) — bu G53'ten beri KASITLI bir kapsam sınırı, bu turda da
-korundu (task'ın kendi kuralı: "Bu turda DSP yazma"). Kullanıcıya artık
-akordiyon içinde GERÇEK bir çalar (dosya adı/dalga formu/transport)
-gösterildiği için bu eksiklik daha BELİRGİN hale geldi — bir amber uyarı
-notu eklendi (`.tools-filter-dsp-note`) ama kalıcı çözüm gerçek EQ/filtre
-DSP'sinin (cihaz frekans eğrilerine göre) yazılması. **Kabul kriteri:**
-kullanıcı önceliklendirirse ayrı bir tur — her filtrenin `range` metnindeki
-frekans aralığına karşılık gelen bir EQ eğrisi (BiquadFilterNode zinciri)
-gerekir.
+~~**M. G101 — "Referans Filtreleri"nin GERÇEK DSP'si ne zaman eklenecek?**~~
+**KAPANDI (15 Ağustos, DOGRULAMA-15-08.md'de doğrulandı).** Bu madde
+G101'den (filtre seçmek sesi henüz değiştirmiyordu) kalmaydı — G117
+(`581d250`, "Araçlar — ortak DSP katmanı, bölge solo, referans
+filtrelerinin GERÇEK işlemesi") ile CEVAPLANDI ama madde hiç
+kaldırılmamıştı. Kod doğrulaması: `toolsFilterGrid` click handler'ı
+(`app.js:12016-12026`) filtre değişince çalıyorsa `toolsConnectFilterPreviewChain()`'i
+YENİDEN çağırıyor, bu da seçili filtrenin `range`ine göre GERÇEK
+`ctx.createBiquadFilter()` highpass/lowpass düğümleri kuruyor
+(`app.js:11869-11870`) — ses zincirine GERÇEKTEN bağlı, sadece bir
+etiket/rozet değişimi değil. DEVIR-14-08-2026.md'nin "DSP'si ÇALIŞIYOR,
+cihazda doğrulandı" notuyla TUTARLI.
+**Ayrıca (aynı G101 commit'i, `6e41b9b`, "Araçlar ekranı — Tasarim-2026-08/
+Araçlar.dc.html'in tam giydirmesi"):** eski sahte "Analiz" kartının
+render fonksiyonu `renderToolBars()`/`#toolBars` de BU COMMIT'TE tamamen
+silinmiş — `git show 6e41b9b -- www/js/app.js` diff'inde doğrudan
+görülüyor ("eski renderToolBars()/#toolBars TAMAMEN SİLİNDİ" yorumuyla).
+Daha önceki (10.08 tarihli) `DENETIM.md`'nin "zararsız no-op, hâlâ
+duruyor" notu STALE — fonksiyon artık kodda hiç yok (`grep` sıfır sonuç).
 
-**C. Rozet sayısı ve seti — HÂLÂ AÇIK (G163 sonrası doğrulandı)**
-`progress.js:82-90`: kod hâlâ TAM 9 rozet tanımlıyor (first_blood/combo_5/
-combo_10/round_25/round_100/accuracy_70/level_5/pro_clear/boss_win), anlık
-eşik felsefesiyle. TASARIM.md'de 6 kavram, süreklilik/ustalık felsefesiyle —
-isimler örtüşmüyor. Rozetlerin şu an bir işlevi/ödülü YOK, sadece liste
-olarak görünüyor. Kullanıcı kararı: **karar bilinçli olarak ertelendi**
-("yarına bırakıldı") — hangi setin kalacağı (6, 9, birleşim) ve
-rozetlere işlev/ödül eklenip eklenmeyeceği ürün kararı, kodlanmadı.
+~~**C. Rozet sayısı ve seti — HÂLÂ AÇIK (G163 sonrası doğrulandı)**~~
+**KAPANDI (15 Ağustos, DOGRULAMA-15-08.md'de doğrulandı).** Bu madde
+G163'ten kalmaydı ("kod hâlâ 9 rozet tanımlıyor") — G198 (`14ade68`,
+"Rozet seti revizyonu: 9 → 6, isimler/ikonlar yenilendi") ile
+CEVAPLANDI/UYGULANDI ama madde hiç kaldırılmamıştı. Kod doğrulaması:
+`progress.js:152-158`, `ACHIEVEMENTS` dizisinde TAM 6 kayıt (Dinleyici/
+Ses Kaşifi/Miksçi/Ses Mühendisi/Mastering Mühendisi/Altın Kulak),
+`renderAchievements()` (`app.js:3180-3181`) TEK bu diziden besleniyor,
+ikinci bir rozet listesi YOK. Eski isim/eşiklerden (İlk Kulak, Alev
+Zinciri, Şimşek Kulak, Dayanıklılık, EQ Beyni, Keskin Hedef, Yükseliş,
+Pro Kulak, Boss Avcısı) HİÇBİRİ kullanıcıya görünen metinlerde kalmamış
+(tarandı, sıfır sonuç) — sadece 3 eski ID (`combo_10`/`round_100`/
+`level_5`) migration yorumlarında/geriye-uyumluluk testinde var, doğru
+ve kasıtlı.
 
 **D. Can dolumu — YÖN KARARLAŞTIRILDI (saat manipülasyonu ile birlikte), henüz kodlanmadı**
 Eski not stale idi ("kodda yok" G61 öncesine ait bir varsayımdı, o zamandan
@@ -16017,8 +16031,10 @@ ekranı yerine YA sınav-geçti kutlama sheet'i YA "parkur baştan" görüyor.
 olarak `finishChallenge()`'ın exam/telafi SONRASI da tetiklenmesi kodlanıp
 "done" canlı yeniden denenir.
 
-**N. G122 — mid/side genişlik tekniği GERÇEK bir mix'te kulakla
-DOĞRULANMADI**
+**J. G122 — mid/side genişlik tekniği GERÇEK bir mix'te kulakla
+DOĞRULANMADI (harf DÜZELTMESİ: bu madde ÖNCEDEN de "N" etiketliydi, G106'nın
+süre-artışı maddesiyle ÇAKIŞIYORDU — DOGRULAMA-15-08.md'de bulundu,
+"J"ye geçirildi, İÇERİK değişmedi)**
 Sayısal kanıt (korelasyon/cepstrum) SENTETİK bir test sinyaliyle üretildi,
 matematiksel olarak sinyal içeriğinden bağımsız olsa da (mid/side matrisi
 HER stereo girdide aynı davranır) gerçek bir müzik dosyasıyla kulakla HİÇ
@@ -16036,6 +16052,21 @@ yayınlanacak. Ayarlar'daki `#langSeg` (Türkçe/English seçici) kod
 tarafında hâlâ İKİ seçenek gösteriyor (bu turda dokunulmadı, kod
 değişikliği İSTENMEDİ) — mağaza metinleri/App Store Connect kaydı
 SADECE Türkçe için hazırlandı.
+
+**A. Pop/EDM tek eğri mi? (15 Ağustos, DEVIR-15-08-SABAH.md'den taşındı,
+DOGRULAMA-15-08.md'de "DURUM.md'ye hiç işlenmemiş" bulundu — bu turda
+eklendi)**
+Hedef eğri ölçümünde (`DEVIR-15-08-SABAH.md`, "HEDEF EĞRİLERİ" bölümü) 7
+parça ölçüldü — **Levels (Avicii, EDM) bant profili 5 Türkçe pop
+parçasından AYIRT EDİLEMİYOR** (SUB/BAS/ALT-ORTA/ORTA/ÜST-ORTA/TİZ
+değerleri hepsi birbirine çok yakın). Gerekçe: modern pop zaten
+elektronik üretiliyor — aynı alt uç, aynı loudness hedefi. **Karar
+gereken:** Tonal Balance'ın hedef eğri sayısı 3 (Pop/EDM/Akustik) yerine
+2'ye (Pop+EDM birleşik/Akustik) mi insin, yoksa daha fazla EDM
+parçası ölçülene kadar 3 kategori KORUNSUN mu (tek EDM örneği erken
+karar için yetersiz olabilir)? Kod tarafı bu turda DEĞİŞMEDİ — eğriler
+zaten TASLAK durumda (referans şarkı toplama devam ediyor), sadece
+kategori SAYISI kararı bekliyor.
 
 ## İLERİ SÜRÜM FİKİRLERİ
 
@@ -16073,7 +16104,20 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G215 itibarıyla):** C5 kapandı — Ayarlar → Hesap'ta
+**EN YENİ SIRADAKİ ADIM (15 Ağustos, belge-düzeltme turu, kod DEĞİŞMEDİ):**
+Üç belge maddesi kapatıldı/eklendi: BEKLEYEN KARARLAR "C" (rozet 9→6,
+G198'de zaten kapanmıştı) ve "M" (Referans Filtreleri DSP, G117'de zaten
+eklenmişti) KAPANDI olarak işaretlendi; çift "N" etiketi düzeltildi (G122
+maddesi artık "J"); "Pop/EDM tek eğri mi?" yeni "A" maddesi olarak
+eklendi (DEVIR-15-08-SABAH.md'den taşındı, henüz karar verilmedi);
+`renderToolBars()`'ın G101'de (`6e41b9b`) silindiği "M" maddesine not
+düşüldü. Ayrıca CLAUDE.md'nin Çalışma Kuralları'na 3 yeni madde eklendi
+(varsayım yasağı, kapatma için kanıt zorunluluğu, format değişikliği
+öncesi soru). **Bir sonraki adım:** "A" (Pop/EDM) kararı — daha fazla EDM
+parçası ölçülüp netleşene kadar mı beklenecek, yoksa şimdiden 2 kategoriye
+mi inilecek, Logic karar verecek.
+
+**EN YENİ SIRADAKİ ADIM (G215 itibarıyla, ARTIK ESKİ):** C5 kapandı — Ayarlar → Hesap'ta
 Pro için yanlış "seans başına 10 soru" iddiası "seans sınırsız" oldu
 (Pro'da gerçekten hiçbir oturum-soru sınırı yok). Aynı yanlış metin
 başka hiçbir yerde bulunamadı (guide-texts.js zaten doğruydu). `npm
