@@ -96,22 +96,36 @@ Ayrıntı için BİTTİ bölümündeki ilgili G-kaydına bkz.; bu SADECE bir öz
   `EVRAK-HESAP-METIN.md` okunup bu dosyayla karşılaştırıldı —
   **doğrudan çelişki bulunmadı** (G190-G209'un HEPSİ bu belgelerdeki
   karşılığıyla tutarlı, ör. G192↔"Bug 38/45", G202↔"#49a/#49b",
-  G203↔"#50-53", G205↔"#58", G206↔"#54/#55", G207↔mağaza denetimi
-  maddeleri). **İki gözlem (çelişki değil, eksik/gecikme):** (1)
+  G203↔"#50-53", G205↔"#58", G206↔"#55", G207↔mağaza denetimi
+  maddeleri). **DÜZELTME (15 Ağustos, DENETIM-15-08.md'de bulundu):** bu
+  satır ÖNCEDEN "G206↔'#54/#55'" yazıyordu — YANLIŞTI. G206'nın kendi
+  BİTTİ girişi (aşağıda) SADECE #55'i (Pro'da BÖLÜM göstergesinin yeni
+  parkurda sıfırlanması) kapsıyor, #54'e (telafi turunda "Atla" ile
+  sayacın ilerlememesi) TEK SATIR değinmiyor — ikisi AYNI G-numarasında
+  kapandı sanılmıştı, kapanmamıştı. #54 bu turda AYRI olarak G214'te
+  kapatıldı (bkz. o BİTTİ girişi). **İki gözlem (çelişki değil,
+  eksik/gecikme):** (1)
   `DEVIR-14-08-2026.md`'nin kendi belge listesi (bölüm 11)
   `TERIM-TARAMA-SONUC.md` ve `ROZET-TERIM-ONERI.md`'ye atıf yapıyor,
   bu iki dosya projede YOK — muhtemelen henüz yazılmadı. (2)
-  `GORSEL-TEST.md`'nin (58 bulgunun tam kaydı) HÂLÂ ⏸️/🔴 işaretli
-  ~9 küçük UI bulgusu (#4 spektrum 4 modda aynı eğri, #9 feedback
-  panelinde basılamayan "SONRAKİ SORU"/"ATLAMAK İÇİN ×", #15 Reverb
-  C harfi, #18 Reverb play butonu ortalanmamış, #21 Atla barı
-  feedback panelini kesiyor, #23 play/pause ikonu oyun türü
-  değişince karışıyor, #30 sekme değişiminde Tonal Balance TİZ basılı
-  kalıyor, #34 terim taraması toplu iş) bu dosyada AYRI, numaralı
-  AÇIK İŞLER olarak YOK — bunlar SADECE `GORSEL-TEST.md`'nin kendi
-  kaydında duruyor. Bu dosya (DURUM.md) o belgeyi TEKRARLAMAK yerine
-  BURADAN işaret ediyor — bir sonraki oturum bu ~9 maddeyi ele almak
-  isterse `GORSEL-TEST.md`'ye bakmalı.
+  `GORSEL-TEST.md`'nin kendi ⏸️/🔴 işaretleri **STALE** çıktı
+  (DENETIM-15-08.md, 15 Ağustos) — o turda ÖNCEDEN "hâlâ açık" sanılan
+  #9/#15/#18/#21/#23/#30/#36'nın YEDİSİ de aslında G180/G183/G184/G186a/
+  G186b/G186c'de ZATEN kapanmıştı (GORSEL-TEST.md'nin kendi satırları
+  GÜNCELLENMEMİŞ, kod ÖNCE düzeltilmiş). #4 (spektrum 4 modda aynı eğri)
+  BUG DEĞİL — G83'ün kasıtlı "soru sırasında sese kör çizim" kararı,
+  koddan kesin doğrulandı. #34 (terim taraması) zaten G191'de bitti.
+  Bu ~9 maddenin GERÇEKTEN açık kalanı **#54** idi (bu turda G214'te
+  kapatıldı, yukarı bkz.) — geri kalanların HİÇBİRİ ayrıca ele alınmayı
+  BEKLEMİYOR. **DÜZELTME (aynı denetimin kendi hatası):** DENETIM-15-08.md
+  "G186a/G186b/G186c/G188a/G188b'nin DURUM.md'de BİTTİ girişi YOK" diye
+  raporlamıştı — bu YANLIŞTI. Sadece "^G186a —" gibi harf-sonekli bir
+  başlık aranmıştı; gerçekte BEŞİ de ZATEN belgeli — TEK bir "G186 —"
+  başlığı ALTINDA "GRUP A/B/C" olarak (commit hash'leri 136a7b0/b368f51/
+  10af88e dahil, satır ~1778) ve TEK bir "G188 —" başlığı ALTINDA "COMMIT
+  1/2" olarak (4d0a50d/ac92e9a, satır ~1652) — İKİSİ de commit-hash,
+  ölçüm, dokunulan/dokunulmayan dosya, npm test içeren TAM girişler. Hiçbir
+  şey EKLENMEDİ, tekrar yazılmadı.
 
 **Şu an bilinen en büyük açık iş:** 14 Ağustos'ta kapanan G190-G209
 değişikliklerinin HİÇBİRİ (özellikle #50/#51/#53'ün Swift/route-change
