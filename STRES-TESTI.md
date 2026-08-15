@@ -15,7 +15,11 @@ senaryolarını listeler. Kaynak kod okunarak doğrulanamaz (bkz. CLAUDE.md).
 ✅ **GEÇTİ** (14 Ağu) — ses kaldığı yerden geldi, uyarı çıkmadı.
 
 **2-3. Kulaklık tak/çıkar (Bluetooth + kablolu)**
-❌ **İKİ HATA BULUNDU** (14 Ağu):
+✅ **DÜZELTİLDİ VE DOĞRULANDI** (15 Ağu, G203 sonrası cihazda):
+kulaklık çıkınca oyun duruyor, takınca otomatik başlamıyor
+(kasıtlı — kullanıcı "Tekrar Çal"a basacak).
+
+_Aşağıdaki iki hata 14 Ağustos'ta bulunmuş, G203'te düzeltilmişti:_
 - **#50 — Kulaklık çıkınca oyun DURMUYOR.** Ses telefon
   hoparlöründen devam ediyor, tur da devam ediyor. iOS standardı
   duraklatmaktır. Kulak eğitimi uygulamasında ayrıca zararlı —
@@ -40,7 +44,8 @@ _Not: kısa arka plan dönüşleri çalışıyor (G134/G135), sorun UZUN sürede
 ## SİSTEM DURUMLARI
 
 **6. Düşük Güç Modu** — tüm modları gez.
-⬜ **DENENMEDİ**
+✅ **GEÇTİ** (14 Ağu) — sorun yok. rAF döngüleri (waveform,
+analizör) düşük güç modunda da düzgün çalışıyor.
 
 **7. Uçak modu** — uygulama açılıyor mu, modlar çalışıyor mu.
 ✅ **GEÇTİ** (14 Ağu) — uygulama ve modlar çalıştı. Reklam
@@ -77,8 +82,14 @@ LUFS integrated ölçümünü bozar. **Basit çözüm:** 15 saniyeden kısa
 dosyayı reddet ve uyar. Uygulanmadı, karar bekliyor.
 
 **14. Mono dosya**
-⬜ **DENENMEDİ** — bunun yerine **#52 bulundu: AIF dosyası kabul
-edilmiyor.** AIFF, Logic Pro'nun varsayılan bounce formatlarından
+✅ **GEÇTİ** (15 Ağu) — mono AIF dosyası yüklendi, Stereo
+Genişlik modunda sorun çıkmadı, kilitlenme yok.
+_Not: uyarı mesajı ("bu dosya mono, stereo ölçüm anlamsız")
+çıkıp çıkmadığı ayrıca kontrol edilmeli — çökmediği doğrulandı,
+uyarı verdiği doğrulanmadı._
+
+_14 Ağustos'ta bu madde denenirken **#52 bulunmuştu: AIF kabul
+edilmiyordu.**_ AIFF, Logic Pro'nun varsayılan bounce formatlarından
 biri; hedef kitle prodüktör, çoğu AIFF kullanıyor. iOS AVAudioFile
 AIFF'i destekliyor, teknik engel olmamalı.
 
@@ -88,16 +99,18 @@ AIFF'i destekliyor, teknik engel olmamalı.
 
 | Sonuç | Adet | Maddeler |
 |---|---|---|
-| ✅ Geçti | 6 | 1, 4, 7, 9, 10, 12 |
-| ❌ Hata | 4 | #50, #51, #52, #53 |
-| ⬜ Denenmedi | 3 | 6, 8, 14 |
+| ✅ Geçti | 10 | 1, 2, 3, 4, 6, 7, 9, 10, 12, 14 |
+| ✅ Bulundu → düzeltildi → doğrulandı | 3 | #50, #51, #52 |
+| ✅ Bulundu → düzeltildi → doğrulandı | +1 | #53 (arka plandan dönüş) |
+| ⬜ Denenmedi | 1 | 8 (depolama dolu) |
 | 🚫 Kapsam dışı | 2 | 11, 13 |
 
-**Denenmeyen 3 madde:**
-- **6 — Düşük Güç Modu:** CPU kısıtlaması ses zincirini etkileyebilir,
-  `requestAnimationFrame` yavaşlayabilir. Waveform ve analizör
-  döngüleri var, denenmeli.
+**Kalan tek madde:**
 - **8 — Depolama dolu:** yarım kalan dosya kütüphanede bozuk kayıt
-  bırakıyor mu.
-- **14 — Mono dosya:** Stereo Genişlik/mid-side modüllerinde uyarı
-  çıkıyor mu.
+  bırakıyor mu. _Denemesi zor — telefonu doldurmak gerekiyor.
+  Düşük öncelik._
+
+**#53 — arka plandan dönüş: ✅ DOĞRULANDI** (15 Ağu)
+Uygulama tamamen kapatıldı, beklendi, açıldı — Frekans Bulma'da
+kalınan yerden devam etti. G203'ün 3 saat sınırı ve tur kurtarma
+mekanizması cihazda çalışıyor.
