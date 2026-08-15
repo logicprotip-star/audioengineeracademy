@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Web Audio API tabanlı Türkçe kulak eğitimi uygulaması (Capacitor ile iOS/Android)",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "test:e2e": "node --test e2e/*.spec.mjs"
   },
   "keywords": [],
   "author": "Şahin Salt",
@@ -23,6 +24,7 @@
     "@capgo/native-purchases": "^8.6.5"
   },
   "devDependencies": {
-    "@capacitor/assets": "^3.0.5"
+    "@capacitor/assets": "^3.0.5",
+    "playwright": "^1.62.1"
   }
 }

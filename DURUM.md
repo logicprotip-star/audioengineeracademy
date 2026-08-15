@@ -146,6 +146,74 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G219 — **TEST-BOSLUGU-15-08.md'nin A/E/F maddeleri kalıcı teste dönüştürüldü — `e2e/` altında yeni, AYRI bir Playwright suite'i (`npm run test:e2e`), `npm test`'e (1315) HİÇ DOKUNMADAN.**
+
+**Yapısal karar:** `playwright` (`^1.62.1`) devDependency olarak eklendi
+(`~/Library/Caches/ms-playwright`'ta zaten cache'li Chromium'u kullandı,
+yeni indirme gerekmedi). `e2e/*.spec.mjs` dosyaları `node:test`'in KENDİ
+`describe`/`it`'i ile yazıldı (YENİ bir test çatısı — `@playwright/test`
+— EKLENMEDİ, mevcut alışkanlık korundu). `npm test` (bare `node --test`)
+`e2e/`'yi HİÇ TARAMIYOR — ölçüldü: sahte bir prob dosyasıyla doğrulandı,
+`.spec.mjs` uzantısı + `test/` DIŞINDAKİ bir klasör bare `node --test`'in
+varsayılan keşif deseniyle EŞLEŞMİYOR. `package.json`'a SADECE `"test:e2e":
+"node --test e2e/*.spec.mjs"` eklendi, `"test"` scripti TEK SATIR
+değişmedi.
+
+**A — Paywall matrisi (`e2e/paywall-flow.spec.mjs`, 4 test, HEPSİ GEÇTİ):**
+REGRESYON-15-08.md'nin scratchpad script'lerinin (`reg_paywall_check.py`/
+`reg_lives_check.py`) kalıcı hâli. (soru hakkı bitti/canlar bitti) ×
+(ilk oturum/değil) — dördü de `stats.rounds` seed'ine göre `screen-paywall`
+vs `screen-result` + doğru kicker/CTA/başlık metnini assert ediyor.
+`openPaywallReason`/`paywallSuppressedFirstSession`/`finalizeIfGameOver`/
+`blockIfLivesOut`/`blockIfSessionLimitReached` — HİÇBİRİNE dokunulmadı.
+
+**E — Sınav/telafi ekran eşlemesi (`e2e/exam-flow.spec.mjs`, 2 test,
+HEPSİ GEÇTİ):** G214'ün kendi doğrulama script'inin (`g214_skip_verify.py`)
+kalıcı hâli. 10 "Atla" → `remedial-start` → `#screen-exam` (telafi anons)
+açılır; anonsu kapat + 5 "Atla" daha → telafi BAŞARISIZ → yeni parkur,
+`#screen-game`'e döner, `#gameExamRow` tekrar `.hidden` olur — #54'ün
+YAŞANDIĞI `handleExamOutcome()` katmanı artık her koşuda otomatik
+doğrulanıyor.
+
+**F — Layout geometrisi (`e2e/layout-geometry.spec.mjs`, 2 test, 1 GEÇTİ
+1 BİLEREK KIRMIZI):** Görsel piksel-diff KURULMADI (TEST-BOSLUGU'nun
+kendi önerisi buydu) — bunun yerine `getBoundingClientRect` tabanlı,
+resimsiz bir geometri kontrolü: `.scroll`'u sonuna kaydırıp `position:
+fixed`/`absolute` OLMAYAN son çocuğun alt kenarını `.actionbar`'ın üst
+kenarıyla karşılaştırıyor. **`#screen-game` (kontrol grubu) GEÇTİ** —
+`.game-scroll`'un kendi `margin-bottom` telafisi (`styles.css:737/743`)
+doğru çalıştığını KANITLADI, test metodolojisinin kendisi sağlam.
+**`#screen-result` BİLEREK/BEKLENDİĞİ GİBİ KIRMIZI** — ölçülen: actionbar
+top=690, içerik bottom=693.5625 (~3.5px örtüşme) — REGRESYON-15-08'in
+#4c maddesini DOĞRULUYOR, `styles.css`'te "#screen-result" hiç geçmiyor
+(telafi hiç yazılmamış). **Bu turun kuralı gereği CSS'e dokunulmadı** —
+kırmızı test, kusur düzeltilene kadar KASITLI olarak öyle kalacak; bir
+sonraki oturum bu CSS'i düzeltirse test kendiliğinden yeşile döner.
+
+**İlk deneme hatası (öz-düzeltme, DÜRÜSTLÜK notu):** F testinin ilk
+sürümü `.scroll`'un TÜM doğrudan çocuklarının en büyük `bottom`'ını
+alıyordu — `#screen-game`'de bu, `position:fixed`/`absolute` olan
+feedback overlay elementlerini (normal akışın DIŞINDA, `scrollHeight`'a
+katkısı yok) yanlışlıkla "içerik" sayıp SAHTE bir kırmızı üretti (kontrol
+grubu da kırmızı çıktı, bu YANLIŞ bir sonuçtu). Kök sebep bulunup
+(`getComputedStyle(child).position` filtresi eklenip) düzeltildi — SONRA
+kontrol grubu yeşile döndü, gerçek kusur (#screen-result) hâlâ kırmızı
+kaldı. Bu, testin KENDİSİNİN doğru kalibre edildiğinin kanıtı.
+
+**Ölçüm:** `npm test` (bare) → **1315/1315, DEĞİŞMEDİ**. `npm run test:e2e` →
+**8 test, 7 geçti, 1 BİLEREK KIRMIZI (F/#screen-result)**, toplam ~9.6sn.
+
+**Dokunulan:** `package.json` (`playwright` devDependency + `test:e2e`
+scripti), `package-lock.json`, `e2e/` (YENİ klasör: `helpers/static-server.mjs`,
+`helpers/app-fixtures.mjs`, `paywall-flow.spec.mjs`, `exam-flow.spec.mjs`,
+`layout-geometry.spec.mjs`).
+**Dokunulmayan:** `test/` (1315'in TAMAMI, tek satır değişmedi), `www/js/**`
+(SIFIR davranış değişikliği — bu tur SADECE test ekliyordu),
+`openPaywallReason`/`paywallSuppressedFirstSession`/`finalizeIfGameOver`/
+`blockIfLivesOut`/`blockIfSessionLimitReached` (kilit listesi), G177/
+G178/G185/G187/G198/G201/G204/G205/G203/G212/G214/G215/G216,
+581f798/a4efb42.
+
 G216 — **Seviye başlıkları yenilendi — 7 isim değişti, EŞİKLER (min) AYNEN KORUNDU, Seviye 30 "Altın Kulak" bilerek değişmedi.**
 
 **Değişiklik** (`www/js/core/progress.js:120-129`, `LEVEL_TITLES`):
@@ -16160,7 +16228,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G216 itibarıyla):** Seviye başlıkları yenilendi
+**EN YENİ SIRADAKİ ADIM (G219 itibarıyla):** `e2e/` altında kalıcı bir
+Playwright test suite'i kuruldu (`npm run test:e2e`, `npm test`'ten AYRI,
+1315'e dokunmadı) — paywall matrisi (4/4 geçti) ve sınav/telafi ekran
+eşlemesi (2/2 geçti) artık her koşuda otomatik doğrulanıyor. Layout
+geometri testi (F) BİLEREK 1 kırmızı bırakıyor — `#screen-result`'ta
+sabit actionbar'ın kaydırılan içeriği ~3.5px örttüğü (REGRESYON-15-08
+#4c) hâlâ düzeltilmedi, bu turun kuralı CSS'e dokunmayı yasaklıyordu.
+**Bir sonraki adım:** `#screen-result .scroll`'a `#screen-game
+.game-scroll`'daki AYNI `margin-bottom` telafi desenini (`styles.css:
+737/743`) uygulamak — düzeltilince `e2e/layout-geometry.spec.mjs`'in
+ikinci testi kendiliğinden yeşile döner, ayrı bir doğrulama gerekmez.
+
+**EN YENİ SIRADAKİ ADIM (G216 itibarıyla, ARTIK ESKİ):** Seviye başlıkları yenilendi
 (Yeni Kulak/Ton Avcısı/Frekans Kaşifi/Denge Ustası/Miks Mimarı/Referans
 Kulak/Altın Kulak — eşikler AYNI, Sv 30 değişmedi). Rozet adlarıyla YENİ
 bir çakışma yok, taşma yok (Playwright, 7 başlığın 7'si de tek satır).
