@@ -45,6 +45,29 @@ export function mirrorRemove(key) {
   if (p) p.remove({ key }).catch(() => {});
 }
 
+// G229 DÜZELTMESİ (TUR2-YARIM-15-08, "Satın Alma Kaybı") — `localStorage.setItem()`
+// Safari private-browsing modunda VE depolama doluyken HATA FIRLATIR (WKKit'in
+// dokümante edilmiş davranışı) — 12 `save*()` fonksiyonundan 10'u bunu HİÇ
+// yakalamıyordu, en kritik örneği `savePurchase()` idi (satın alma GERÇEKLEŞSE
+// bile kalıcı yazılamayıp bir sonraki açılışta "Pro" sessizce kaybolabiliyordu,
+// HİÇBİR hata mesajı olmadan). Tek, paylaşılan yazma yardımcısı — HER `save*()`
+// artık `true`/`false` DÖNÜYOR (mevcut çağıranların HİÇBİRİ dönüş değerini
+// ÖNCEDEN okumuyordu — bu yüzden GERİYE UYUMLU, davranış SADECE dönüş
+// değerini okuyan YENİ çağıranlar için değişti, bkz. app.js:grantRealPro()).
+// `mirror:false` — SADECE `saveInProgressRound()` için: bu anahtar KASITLI
+// olarak Preferences'a yansıtılmıyor (bkz. IN_PROGRESS_ROUND_KEY'in kendi notu).
+function trySave(key, value, { mirror = true } = {}) {
+  try {
+    const raw = JSON.stringify(value);
+    localStorage.setItem(key, raw);
+    if (mirror) mirrorSet(key, raw);
+    return true;
+  } catch (e) {
+    console.error(`[storage] "${key}" yazılamadı:`, e && e.message);
+    return false;
+  }
+}
+
 export function freshDiffState() {
   return { xp: 0, score: 0, bestScore: 0 };
 }
@@ -180,9 +203,7 @@ export function loadStats(difficultyLives, hintsPerGame, modeIds = [], legacyMod
 
 export function saveStats(stats, history) {
   stats.history = history.slice(0, 12);
-  const raw = JSON.stringify(stats);
-  localStorage.setItem(STATS_KEY, raw);
-  mirrorSet(STATS_KEY, raw);
+  return trySave(STATS_KEY, stats);
 }
 
 export function clearStats() {
@@ -224,9 +245,7 @@ export function loadDaily() {
 }
 
 export function saveDaily(daily) {
-  const raw = JSON.stringify(daily);
-  localStorage.setItem(DAILY_KEY, raw);
-  mirrorSet(DAILY_KEY, raw);
+  return trySave(DAILY_KEY, daily);
 }
 
 export function clearDaily() {
@@ -273,9 +292,7 @@ export function loadPrefs() {
 }
 
 export function savePrefs(prefs) {
-  const raw = JSON.stringify(prefs);
-  localStorage.setItem(PREFS_KEY, raw);
-  mirrorSet(PREFS_KEY, raw);
+  return trySave(PREFS_KEY, prefs);
 }
 
 // Geliştirici modu (Pro test anahtarı) — Genel Ayarlar/Hakkında/Sürüm numarasına
@@ -298,9 +315,7 @@ export function loadDevFlags() {
 }
 
 export function saveDevFlags(devFlags) {
-  const raw = JSON.stringify(devFlags);
-  localStorage.setItem(DEV_KEY, raw);
-  mirrorSet(DEV_KEY, raw);
+  return trySave(DEV_KEY, devFlags);
 }
 
 // G168 — GERÇEK satın alma durumu (StoreKit/Play Billing) — devFlags'ten
@@ -329,9 +344,7 @@ export function loadPurchase() {
 }
 
 export function savePurchase(purchase) {
-  const raw = JSON.stringify(purchase);
-  localStorage.setItem(PURCHASE_KEY, raw);
-  mirrorSet(PURCHASE_KEY, raw);
+  return trySave(PURCHASE_KEY, purchase);
 }
 
 // G123 — "Dosya seçimi mod başına ayrılacak" (kullanıcının kendi kararı):
@@ -352,9 +365,7 @@ export function loadUploadSelections() {
 }
 
 export function saveUploadSelections(selections) {
-  const raw = JSON.stringify(selections);
-  localStorage.setItem(UPLOAD_SELECTIONS_KEY, raw);
-  mirrorSet(UPLOAD_SELECTIONS_KEY, raw);
+  return trySave(UPLOAD_SELECTIONS_KEY, selections);
 }
 
 // G138 — kullanıcının kendi kararı: G126'nın "kaynak TÜRÜ mod-agnostik kalsın"
@@ -376,9 +387,7 @@ export function loadSourceSelections() {
 }
 
 export function saveSourceSelections(selections) {
-  const raw = JSON.stringify(selections);
-  localStorage.setItem(SOURCE_SELECTIONS_KEY, raw);
-  mirrorSet(SOURCE_SELECTIONS_KEY, raw);
+  return trySave(SOURCE_SELECTIONS_KEY, selections);
 }
 
 // G144 — kullanıcının kendi kararı: Dokunmalı/Şıklı (Cevap Biçimi) artık
@@ -398,9 +407,7 @@ export function loadAnswerFormatSelections() {
 }
 
 export function saveAnswerFormatSelections(selections) {
-  const raw = JSON.stringify(selections);
-  localStorage.setItem(ANSWER_FORMAT_SELECTIONS_KEY, raw);
-  mirrorSet(ANSWER_FORMAT_SELECTIONS_KEY, raw);
+  return trySave(ANSWER_FORMAT_SELECTIONS_KEY, selections);
 }
 
 // G127 — "Kendi referansım" (G157'de bayrak arkasından çıkarılıp yayına
@@ -426,9 +433,7 @@ export function loadToolsTonalReferences() {
 }
 
 export function saveToolsTonalReferences(state) {
-  const raw = JSON.stringify(state);
-  localStorage.setItem(TONAL_REFS_KEY, raw);
-  mirrorSet(TONAL_REFS_KEY, raw);
+  return trySave(TONAL_REFS_KEY, state);
 }
 
 // İlerleme sekmesindeki "son 30 gün" grafiği için günlük isabet oranı. dailyKey()
@@ -442,9 +447,7 @@ export function loadDailyAcc() {
 }
 
 export function saveDailyAcc(dailyAcc) {
-  const raw = JSON.stringify(dailyAcc);
-  localStorage.setItem(DAILY_ACC_KEY, raw);
-  mirrorSet(DAILY_ACC_KEY, raw);
+  return trySave(DAILY_ACC_KEY, dailyAcc);
 }
 
 // dailyAcc'ı YERİNDE günceller (bugünün sayacını artırır) ve DAILY_ACC_KEEP_DAYS'ten
@@ -482,11 +485,7 @@ export function loadZoneStats() {
 }
 
 export function saveZoneStats(zoneStats) {
-  try {
-    const raw = JSON.stringify(zoneStats);
-    localStorage.setItem(ZONESTATS_KEY, raw);
-    mirrorSet(ZONESTATS_KEY, raw);
-  } catch (e) {}
+  return trySave(ZONESTATS_KEY, zoneStats);
 }
 
 export function clearZoneStats() {
@@ -541,9 +540,7 @@ export function loadInProgressRound() {
 }
 
 export function saveInProgressRound(snapshot) {
-  try {
-    localStorage.setItem(IN_PROGRESS_ROUND_KEY, JSON.stringify(snapshot));
-  } catch (e) {}
+  return trySave(IN_PROGRESS_ROUND_KEY, snapshot, { mirror: false });
 }
 
 export function clearInProgressRound() {

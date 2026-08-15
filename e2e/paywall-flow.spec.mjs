@@ -299,3 +299,95 @@ test("madde 30 (cevaplama yolu, regresyon): cevaplayarak sessionLimit'e ulaşan 
 
   await page.close();
 });
+
+// G229 (TUR2-YARIM-15-08, "Satın Alma Kaybı") — `localStorage.setItem()`
+// GERÇEKTEN hata fırlatınca (Safari private-browsing/depolama dolu) satın
+// alma akışının artık NASIL davrandığını doğrular: (1) kullanıcı AÇIK bir
+// hata mesajı görür, (2) ekranda kalır (satın alma "başarılıymış gibi"
+// kapanmaz), (3) `localStorage`'da YARIM/tutarsız bir kayıt KALMAZ, (4)
+// depolama düzelince (retry) TEMİZ bir başarı elde edilir. Web'de gerçek
+// NativePurchases plugin'i olmadığı için (`core/iap.js:getIAPPlugin()`
+// null döner) `window.Capacitor.Plugins.NativePurchases`'ı MINIMAL bir
+// sahte nesneyle DOLDURUYORUZ — mock'lanan TEK şey native SINIR (StoreKit
+// çağrısı), `#buyProBtn`'in click handler'ı/`grantRealPro()`/`storage.js`'in
+// GERÇEK kodu HİÇ mock'lanmadı, uçtan uca gerçek yol izleniyor.
+test("G229: localStorage.setItem() hata fırlatınca satın alma kullanıcıya AÇIKÇA bildiriliyor, state tutarsız kalmıyor, retry temiz çalışıyor", async () => {
+  const page = await newPage();
+  await seedLocalStorage(page);
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+
+  // Native satın alma köprüsünü sahte bir NativePurchases plugin'iyle
+  // dolduruyoruz — SADECE bu, StoreKit'in KENDİSİ (core/iap.js dokunulmadı).
+  await page.evaluate((productId) => {
+    window.Capacitor = window.Capacitor || {};
+    window.Capacitor.Plugins = window.Capacitor.Plugins || {};
+    window.Capacitor.Plugins.NativePurchases = {
+      purchaseProduct: async () => ({}),
+      getPurchases: async () => ({ purchases: [{ productIdentifier: productId }] }),
+      restorePurchases: async () => ({}),
+    };
+  }, "com.logicprotrick.audioengineeracademy.pro");
+
+  // Genel paywall — Ayarlar → "Pro'ya geç" (G228'in AYNI yolu).
+  await dismissSpotlightIfShown(page);
+  await page.locator("#menuSettingsBtn").click();
+  await page.waitForTimeout(300);
+  await page.locator("#goProBtn").click();
+  await page.waitForTimeout(300);
+  let screen = await activeScreenId(page);
+  assert.equal(screen, "screen-paywall", `ön koşul: genel paywall açılmadı (${screen})`);
+
+  // localStorage.setItem()'ı SADECE satın alma anahtarı için hata
+  // fırlatacak şekilde yamıyoruz — diğer TÜM yazımlar (ör. spotlight/ayarlar
+  // durumu) normal çalışmaya devam ediyor, test bunlardan etkilenmesin diye.
+  await page.evaluate(() => {
+    const orig = localStorage.setItem.bind(localStorage);
+    window.__origSetItem = orig;
+    localStorage.setItem = (key, value) => {
+      if (key === "eqEarTrainerProXPurchase") {
+        throw new DOMException("QuotaExceededError (e2e simüle)", "QuotaExceededError");
+      }
+      return orig(key, value);
+    };
+  });
+
+  await page.locator("#buyProBtn").click();
+  await page.waitForTimeout(600);
+
+  // 1) Kullanıcı AÇIK bir hata mesajı görüyor.
+  const toastVisible = await page.locator(".toast").first().isVisible().catch(() => false);
+  assert.equal(toastVisible, true, "hata durumunda bir toast gösterilmeli");
+  const toastTitle = await page.locator(".toast b").first().textContent().catch(() => null);
+  assert.match(toastTitle || "", /kaydedilemedi/i, `toast başlığı ne olduğunu söylemeli, gelen: "${toastTitle}"`);
+
+  // 2) Ekranda kalıyor — "başarılıymış gibi" paywall'dan ÇIKARILMADI.
+  screen = await activeScreenId(page);
+  assert.equal(screen, "screen-paywall", `hata sonrası HÂLÂ paywall'da kalınmalı, gelen: ${screen}`);
+
+  // 3) localStorage'da YARIM/tutarsız bir kayıt YOK.
+  const purchaseRaw = await page.evaluate(() => localStorage.getItem("eqEarTrainerProXPurchase"));
+  assert.equal(purchaseRaw, null, "başarısız yazımdan sonra satın alma anahtarı localStorage'da HİÇ olmamalı");
+
+  // İlk (başarısız) toast'ın TAMAMEN kaybolmasını bekle (fx.js: 2800ms'de
+  // DOM'dan kaldırılıyor) — aksi halde aşağıdaki ".toast" seçicisi retry'nin
+  // YENİ toast'ı yerine bu ESKİ/kalıntı toast'ı yakalayabilir.
+  await page.waitForTimeout(2500);
+
+  // Depolama "düzeliyor" — retry senaryosu.
+  await page.evaluate(() => {
+    if (window.__origSetItem) localStorage.setItem = window.__origSetItem;
+  });
+  await page.locator("#buyProBtn").click();
+  await page.waitForTimeout(600);
+
+  // 4) Retry temiz başarıyla sonuçlanıyor — önceki başarısız denemeden
+  // KALINTI yok, tutarlı bir "şimdi Pro" durumu var.
+  const toastTitleAfterRetry = await page.locator(".toast b").first().textContent().catch(() => null);
+  assert.match(toastTitleAfterRetry || "", /Pro açıldı/, `retry sonrası başarı toast'ı bekleniyordu, gelen: "${toastTitleAfterRetry}"`);
+  const purchaseRawAfterRetry = await page.evaluate(() => localStorage.getItem("eqEarTrainerProXPurchase"));
+  assert.ok(purchaseRawAfterRetry, "retry sonrası satın alma kaydı localStorage'a yazılmış olmalı");
+  assert.equal(JSON.parse(purchaseRawAfterRetry).proPurchased, true);
+
+  await page.close();
+});

@@ -146,6 +146,80 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G229 — **Satın alma kaybı düzeltildi (TUR2-YARIM-15-08) — 12 `save*()` fonksiyonunun 10'unda hata yakalama yoktu, `savePurchase()` dahil; artık hepsi korumalı ve kritik yol kullanıcıya açıkça bildiriyor.**
+
+**Kök sebep (TUR2'de bulunmuştu):** `core/storage.js`'in 12 `save*()`
+fonksiyonundan 10'u `localStorage.setItem()`'ı hiç `try/catch` içine
+almıyordu (Safari private-browsing/depolama dolu → `QuotaExceededError`,
+WKKit'in dokümante edilmiş davranışı). En kritik örnek `savePurchase()` —
+`grantRealPro()`'nun (app.js) tek `finally`'li (catch'siz) çağrısı
+yüzünden bu istisna yukarı fırlayıp `toast`/`syncDevUI`/ekran geçişi hiç
+çalışmadan sessizce kesiliyordu. Kullanıcı StoreKit'te GERÇEKTEN ödeme
+yapmış olsa bile bir sonraki açılışta Pro sessizce kayboluyordu.
+
+**Uygulanan:**
+1. `core/storage.js` — paylaşılan `trySave(key, value, {mirror})` yardımcısı
+   eklendi (`mirrorSet`/`mirrorRemove`'un hemen altına). 12 `save*()`
+   fonksiyonunun TAMAMI artık BUNUN üzerinden geçiyor, `true`/`false`
+   DÖNÜYOR (mevcut hiçbir çağıran dönüş değerini önceden okumuyordu —
+   GERİYE UYUMLU) ve hata durumunda `console.error` ile logluyor.
+   `saveInProgressRound()` `{mirror:false}` ile ÖZEL kaldı (bu anahtar
+   KASITLI olarak Preferences'a yansıtılmıyor, önceki davranış korundu).
+2. `app.js:grantRealPro()` — `storage.savePurchase()`'ın dönüşünü
+   OKUYOR; başarısızsa bellekteki `purchaseState.proPurchased`'ı da GERİ
+   ALIYOR (tutarlılık — kayıt yoksa "sahip" gibi görünüp sonra sessizce
+   kaybolmasın) ve `false` döndürüyor.
+3. ÜÇ çağrı sitesinin HEPSİ `grantRealPro()`'nun dönüşünü kontrol edip
+   başarısızlıkta AÇIK bir toast gösteriyor: `#buyProBtn` (satın alma —
+   "Satın alma tamamlandı ama kaydedilemedi", ekran KAPANMIYOR, kullanıcı
+   retry/restore deneyebilir), `handleRestorePurchase()` (geri yükleme),
+   arka plandaki `checkProOwnership()` başlangıç kontrolü (SADECE
+   kullanıcı GERÇEKTEN Pro sahibiyken VE kayıt başarısız olursa
+   tetiklenir — normal "Pro değil" durumunda HİÇ görünmez).
+4. Diğer 9 `save*()` (satın alma/geri yükleme DIŞINDAKİ) fonksiyon
+   ÖLÇÜLÜ bırakıldı — task'ın kendi talimatı ("sessiz kalmasın ama
+   agresif uyarma") — `console.error` ile loglanıyor, HER birinin HER
+   çağrı sitesine yeni bir toast EKLENMEDİ (bu, uygulamanın onlarca
+   yerine dokunan orantısız bir değişiklik olurdu).
+
+**Testler:**
+- `test/storage.test.mjs` — YENİ `describe("G229...")` bloğu, 8 test:
+  `savePurchase()`'ın istisna FIRLATMADIĞI/`false` döndüğü, başarılı
+  yazımda `true` döndüğü, **başarısız-sonra-retry senaryosunda veri
+  EKSİKSİZ yazıldığı** (state tutarsız KALMADIĞI), `saveStats`/`saveDaily`/
+  `saveDevFlags`/`saveToolsTonalReferences` (temsili örneklem, HEPSİ AYNI
+  paylaşılan `trySave()`'den geçtiği için 12'sinin tek tek testi
+  GEREKMEDİ) ve `loadPurchase()`'ın başarısız yazımdan sonra
+  `freshPurchase()`'a düştüğü (sahip GÖRÜNMEDİĞİ, sonra kaybolmadığı).
+- `e2e/paywall-flow.spec.mjs` — YENİ test: web'de gerçek NativePurchases
+  plugin'i olmadığı için `window.Capacitor.Plugins.NativePurchases`
+  MİNİMAL bir sahte nesneyle dolduruldu (SADECE native SINIR mock'landı
+  — `#buyProBtn`'in click handler'ı/`grantRealPro()`/`storage.js` GERÇEK
+  kod, hiçbiri mock'lanmadı), `localStorage.setItem()` SADECE satın alma
+  anahtarı için hata fırlatacak şekilde yamalandı. Uçtan uca doğrulanan:
+  (1) kullanıcı AÇIK bir toast görüyor, (2) ekranda kalıyor (paywall'dan
+  ÇIKARILMIYOR), (3) `localStorage`'da YARIM kayıt YOK, (4) depolama
+  "düzelince" retry TEMİZ başarıyla sonuçlanıyor.
+
+**Ölçüm — düzeltme ÖNCESİ/SONRASI (`git stash`):** Düzeltme OLMADAN e2e
+testi KIRMIZI çıktı ("hata durumunda bir toast gösterilmeli — false !==
+true" — istisna sessizce yutulup HİÇBİR mesaj göstermiyordu, TAM olarak
+TUR2'nin teşhis ettiği davranış) — düzeltmeyle 12/12 YEŞİL.
+
+**Ölçüm:** `npm test` → **1323/1323** (1315 + 8 yeni birim testi).
+`npm run test:e2e` → **12/12** (11 eski + 1 yeni).
+
+**Dokunulan:** `www/js/core/storage.js` (`trySave()` yardımcısı + 12
+`save*()` fonksiyonunun gövdesi), `www/js/app.js` (`grantRealPro()` +
+3 çağrı sitesi), `test/storage.test.mjs` (8 yeni test),
+`e2e/paywall-flow.spec.mjs` (1 yeni test).
+**Dokunulmayan:** Satın alma akışının KENDİSİ (`iap.purchasePro()`/
+`iap.restorePro()`/`iap.checkProOwnership()`'in StoreKit çağrıları TEK
+SATIR değişmedi — SADECE bu çağrıların SONUCUNU işleyen app.js kodu
+genişledi), e2e suite'inin yapısı (mevcut dosyalara test EKLENDİ), G220/
+G221/G223/G225/G228, G214/G215/G216, G177/G178/G185/G187, G198, G201/
+G204/G205, G203, G212, 581f798/a4efb42.
+
 G228 — **Restore Purchase asimetrisi düzeltildi (RET-RISKI-15-08, Apple 3.1.1) — restore butonu artık HER paywall varyantında görünüyor.**
 
 **Kök sebep (RET-RISKI-15-08'de bulunmuştu):** `openPaywallReason()`

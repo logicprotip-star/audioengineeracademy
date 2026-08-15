@@ -1,12 +1,13 @@
 // storage.js testleri — Z3 odaklı: perMode migration (eski formatlı localStorage'dan
 // yeni yapıya geçiş, veri kaybı olmadan). Node'da global localStorage yok — testler
-// KENDİ in-memory shim'ini kurar (sadece getItem/setItem/removeItem — storage.js'in
-// loadStats/freshStats'ı bunlardan fazlasını çağırmıyor; saveStats/mirrorSet gibi
-// window.Capacitor'a dokunan fonksiyonlar burada TEST EDİLMİYOR, Node'da window yok).
+// KENDİ in-memory shim'ini kurar (sadece getItem/setItem/removeItem). `window.Capacitor`'a
+// dokunan fonksiyonlar (saveStats/saveUploadSelections/vb. — mirrorSet üzerinden)
+// `globalThis.window = { Capacitor: null }` seçilen testlerde AYRICA kuruluyor
+// (bkz. aşağıdaki describe blokları).
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections } from "../www/js/core/storage.js";
+import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences } from "../www/js/core/storage.js";
 
 function installLocalStorageMock(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -16,6 +17,19 @@ function installLocalStorageMock(initial = {}) {
     removeItem: k => store.delete(k)
   };
   return store;
+}
+
+// G229 (TUR2-YARIM-15-08, "Satın Alma Kaybı") — `localStorage.setItem()`nin
+// GERÇEK, dokümante edilmiş bir başarısızlık modunu (Safari private-browsing/
+// depolama dolu → QuotaExceededError) simüler. `save*()` fonksiyonlarının
+// istisnayı YUTUP `false` döndürdüğünü (uygulamayı ÇÖKERTMEDİĞİNİ) doğrulamak
+// için kullanılır.
+function installThrowingLocalStorageMock() {
+  globalThis.localStorage = {
+    getItem: () => null,
+    setItem: () => { throw new DOMException("QuotaExceededError (simüle)", "QuotaExceededError"); },
+    removeItem: () => {}
+  };
 }
 
 const STATS_KEY = "eqEarTrainerProXStats";
@@ -266,5 +280,79 @@ describe("sourceSelections (G138) — bağlam başına kalıcı kaynak-türü se
     const loaded = loadSourceSelections();
     assert.equal(loaded["kesim-noktasi"], "upload", "Kesim Noktası'nın kaynağı Frekans Bulma değişince BOZULMAMALI");
     assert.equal(loaded["frekans-bulma"], "pink-noise");
+  });
+});
+
+// G229 (TUR2-YARIM-15-08, "Satın Alma Kaybı") — 12 `save*()` fonksiyonunun
+// TAMAMININ `localStorage.setItem()` hata fırlattığında (Safari private-browsing/
+// depolama dolu) uygulamayı ÇÖKERTMEDEN `false` döndürdüğünü doğrular.
+// `savePurchase()` EN KRİTİK örnek — sessiz satın-alma-kaybı riskinin
+// KENDİSİ. Diğer üçü (`saveStats`/`saveDaily`/`saveDevFlags`/
+// `saveToolsTonalReferences`) TEMSİLİ bir örneklem — 12'sinin TAMAMI AYNI
+// paylaşılan `trySave()` yardımcısından geçiyor (storage.js), bu yüzden
+// TEK TEK 12 ayrı test GEREKMİYOR, ama en az BİRKAÇ FARKLI anahtar/veri
+// şekliyle doğrulanıyor ki paylaşılan yardımcı HER çağrı sitesinde
+// gerçekten devrede.
+describe("G229 — save*() fonksiyonları localStorage.setItem() hata fırlatınca ÇÖKMEZ, false döner", () => {
+  beforeEach(() => {
+    globalThis.window = { Capacitor: null };
+  });
+
+  it("savePurchase(): setItem hata fırlatınca istisna FIRLAMAZ, false döner (satın alma kaybı senaryosunun kökü)", () => {
+    installThrowingLocalStorageMock();
+    let threw = false;
+    let result;
+    try {
+      result = savePurchase({ proPurchased: true });
+    } catch (e) {
+      threw = true;
+    }
+    assert.equal(threw, false, "savePurchase() istisnayı YUTMALI, yukarı fırlatmamalı");
+    assert.equal(result, false, "başarısız yazımda false dönmeli");
+  });
+
+  it("savePurchase(): başarılı yazımda true döner (regresyon — hep false dönmüyor)", () => {
+    installLocalStorageMock();
+    const result = savePurchase({ proPurchased: true });
+    assert.equal(result, true);
+    assert.deepEqual(loadPurchase(), { proPurchased: true });
+  });
+
+  it("savePurchase() başarısız olduktan SONRA localStorage düzelirse (retry) yeniden true döner VE veri doğru yazılır — state tutarsız KALMIYOR", () => {
+    installThrowingLocalStorageMock();
+    assert.equal(savePurchase({ proPurchased: true }), false);
+    // "Depolama açıldı" — gerçek (çalışan) bir localStorage'a geçiliyor,
+    // grantRealPro()'nun retry senaryosuyla AYNI (bkz. app.js G229 notu).
+    installLocalStorageMock();
+    assert.equal(savePurchase({ proPurchased: true }), true);
+    assert.deepEqual(loadPurchase(), { proPurchased: true }, "retry sonrası veri EKSİKSİZ/DOĞRU yazılmalı, önceki başarısız denemeden bir kalıntı KALMAMALI");
+  });
+
+  it("saveStats(): setItem hata fırlatınca çökmez, false döner", () => {
+    installThrowingLocalStorageMock();
+    const stats = freshStats(DIFF_LIVES, 3, ["frekans-bulma"]);
+    assert.equal(saveStats(stats, []), false);
+  });
+
+  it("saveDaily(): setItem hata fırlatınca çökmez, false döner", () => {
+    installThrowingLocalStorageMock();
+    assert.equal(saveDaily({ key: "2026-8-15", tasks: [] }), false);
+  });
+
+  it("saveDevFlags(): setItem hata fırlatınca çökmez, false döner", () => {
+    installThrowingLocalStorageMock();
+    assert.equal(saveDevFlags({ unlocked: true, simulatePro: true }), false);
+  });
+
+  it("saveToolsTonalReferences(): setItem hata fırlatınca çökmez, false döner", () => {
+    installThrowingLocalStorageMock();
+    assert.equal(saveToolsTonalReferences({ list: [], activeId: null }), false);
+  });
+
+  it("loadPurchase(): savePurchase() hiç BAŞARILI olmamışsa freshPurchase()'a düşer (proPurchased:false) — 'sahip görünüp sonra kaybolma' YERİNE hiç sahip GÖRÜNMEZ", () => {
+    installThrowingLocalStorageMock();
+    savePurchase({ proPurchased: true }); // başarısız, hiç yazılmadı
+    installLocalStorageMock(); // yeni "açılış" — hiçbir kayıt yok
+    assert.deepEqual(loadPurchase(), freshPurchase());
   });
 });

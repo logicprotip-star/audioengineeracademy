@@ -8280,9 +8280,16 @@ iap.fetchProPrice().then((price) => {
 // HİÇBİR UI/onay ekranı açmaz, SADECE true dönerse (kullanıcı GERÇEKTEN
 // sahipse) purchaseState'i kalıcı işaretler. false dönmesi HİÇBİR ŞEYİ
 // DEĞİŞTİRMEZ (proPurchased TEK YÖNLÜ, bkz. storage.js'in G168 notu).
+// G229 DÜZELTMESİ — `owned===true` iken `grantRealPro()` kayıt
+// başarısız olursa (aynı depolama-dolu senaryosu) ARTIK sessiz kalmıyor:
+// bu SADECE kullanıcı GERÇEKTEN Pro sahibiyken VE kayıt hata verdiğinde
+// tetiklenir (yaygın "Pro sahibi değil" durumunda HİÇ görünmez — normal
+// kullanıcı açılışta bir hata mesajıyla karşılaşmaz).
 if (!purchaseState.proPurchased) {
   iap.checkProOwnership().then((owned) => {
-    if (owned) grantRealPro();
+    if (owned && !grantRealPro()) {
+      toast("Pro sahipliğin doğrulandı ama kaydedilemedi", "Cihazda yer açıp uygulamayı yeniden başlat, ya da Ayarlar'dan \"Satın alımı geri yükle\"yi dene.");
+    }
   });
 }
 
@@ -8786,10 +8793,26 @@ syncAccountLine();
 // (renderModeGrid/enforceFreeRestrictions/applyProLockVisibility/
 // syncAccountLine) tetikliyor — Pro'nun etkisi UYGULAMANIN HER YERİNDE
 // anında görünür, G63'ün simülasyon çağrısıyla AYNI mekanizma.
+// G229 DÜZELTMESİ (TUR2-YARIM-15-08, "Satın Alma Kaybı") — ÖNCEDEN
+// `storage.savePurchase()`'ın dönüşüne HİÇ bakılmıyordu; `localStorage.setItem()`
+// hata fırlatırsa (depolama dolu, Safari private-browsing) `purchaseState.proPurchased`
+// SADECE bellekte true kalıyor, `syncDevUI()`/toast/ekran geçişi HİÇ
+// çalışmıyordu (istisna yukarı fırlayıp `finally`'ye düşüyordu) — kullanıcı
+// GERÇEKTEN ödeme yapmış olsa bile bir sonraki açılışta Pro sessizce
+// kayboluyordu, hiçbir hata mesajı olmadan. Artık `storage.savePurchase()`
+// KENDİSİ hatayı yakalayıp `false` döndürüyor (bkz. storage.js:trySave) —
+// burada da bellek durumu GERİ ALINIYOR (kayıt başarısızsa "sahip" gibi
+// görünüp sonra sessizce kaybolmasın diye) ve sonuç ÇAĞIRANA bildiriliyor,
+// üç çağrı sitesinin (satın alma/geri yükleme/arka plan mülkiyet kontrolü)
+// HER BİRİ artık dönüş değerini okuyup kullanıcıya AÇIK bir mesaj gösteriyor.
 function grantRealPro() {
   purchaseState.proPurchased = true;
-  storage.savePurchase(purchaseState);
+  if (!storage.savePurchase(purchaseState)) {
+    purchaseState.proPurchased = false;
+    return false;
+  }
   syncDevUI();
+  return true;
 }
 // G168 — "Pro'ya Geç" → GERÇEK StoreKit/Play Billing satın alma akışı.
 // buyProBusy: çift basış kilidi (G165'in handleWatchAd'ıyla AYNI desen).
@@ -8805,15 +8828,22 @@ if (els.buyProBtn) els.buyProBtn.addEventListener("click", async () => {
   try {
     const result = await iap.purchasePro();
     if (result.ok) {
-      grantRealPro();
-      toast("🎉 Pro açıldı", "12 mod, sınırsız oynama, sınav, kendi mix, Araçlar — hepsi açık.");
-      stopPaywallLivesTicker();
-      // G185 (karar 4) — round CANLIYKEN duraklatılmış olabilir (endsRound:false
-      // bir sebepten, ör. upload kilidi) — Pro artık kilidi kaldırdığı için
-      // kaldığı yerden devam etmeli. endsRound:true'da paywallPausedRound zaten
-      // false (hiç duraklatılmadı) — no-op.
-      resumePausedRoundForPaywall();
-      goBackFromSubpage();
+      if (grantRealPro()) {
+        toast("🎉 Pro açıldı", "12 mod, sınırsız oynama, sınav, kendi mix, Araçlar — hepsi açık.");
+        stopPaywallLivesTicker();
+        // G185 (karar 4) — round CANLIYKEN duraklatılmış olabilir (endsRound:false
+        // bir sebepten, ör. upload kilidi) — Pro artık kilidi kaldırdığı için
+        // kaldığı yerden devam etmeli. endsRound:true'da paywallPausedRound zaten
+        // false (hiç duraklatılmadı) — no-op.
+        resumePausedRoundForPaywall();
+        goBackFromSubpage();
+      } else {
+        // G229 DÜZELTMESİ — StoreKit'te satın alma GERÇEKLEŞTİ ama cihaza
+        // kaydedilemedi (depolama dolu/private-browsing) — kullanıcı ekranda
+        // kalır (goBackFromSubpage() ÇAĞRILMAZ), ne olduğunu ve ne
+        // yapabileceğini AÇIKÇA görür.
+        toast("Satın alma tamamlandı ama kaydedilemedi", "Cihazda yer açıp tekrar dene, ya da az sonra 'Satın alımı geri yükle'ye bas.");
+      }
     } else if (result.title) {
       toast(result.title, result.detail);
     }
@@ -8840,8 +8870,13 @@ async function handleRestorePurchase(btn, { isRichRow = false } = {}) {
   try {
     const result = await iap.restorePro();
     if (result.restored) {
-      grantRealPro();
-      toast("🎉 Pro geri yüklendi", "Bu cihazda önceki satın alımın bulundu.");
+      if (grantRealPro()) {
+        toast("🎉 Pro geri yüklendi", "Bu cihazda önceki satın alımın bulundu.");
+      } else {
+        // G229 DÜZELTMESİ — StoreKit satın alımı DOĞRULADI ama cihaza
+        // kaydedilemedi.
+        toast("Satın alımın bulundu ama kaydedilemedi", "Cihazda yer açıp tekrar dene.");
+      }
     } else if (result.ok) {
       toast("Kontrol edildi", "Bu cihazda geri yüklenecek bir satın alım bulunamadı.");
     } else if (result.title) {
