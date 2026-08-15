@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G236)
+Son güncelleme: 15.08.2026 (G237)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,134 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G237 — **5 soru sınırı KALICI hale getirildi (TUR4 bulgusu 🔴) — ücretsiz duvar artık günlük/kalıcı, mod kapat/aç ile aşılamıyor. Yan etki: reklamla kazanılan +5 soru hakkı da artık kalıcı (önceden o da mod-kapatmada kayboluyordu).**
+
+**Kök sebep (TUR4'te bulunmuştu):** `roundsInThisPlaySession` (5-soru/
+oturum sayacı) app.js'te bellek-içi bir değişkendi — "gerçek bir
+fresh-start"ta (mod kartına yeniden girme/"Tekrar Oyna") SIFIRLANIYORDU.
+Doğru cevapladıkça can gitmediği için, motive bir ücretsiz kullanıcı
+modu kapatıp yeniden açarak reklam izlemeden/Pro'ya geçmeden GÜNDE
+TEORİK OLARAK SINIRSIZ soru cevaplayabiliyordu.
+
+**Uygulanan:**
+1. `core/storage.js` — YENİ anahtar `FREE_SESSION_KEY` +
+   `freshFreeSession()`/`loadFreeSession()`/`saveFreeSession()` —
+   `loadDaily()`'nin BİREBİR AYNI "gün değiştiyse taze başla" deseni
+   (`{key: dailyKey(), used: 0}`), `trySave()` üzerinden (G229/G232'nin
+   AYNI koruması), `mirror:false` (IN_PROGRESS_ROUND_KEY'in AYNI
+   düşük-risk kararı — kaybı en kötü ihtimalle bir günlük kotanın
+   erken sıfırlanmasına yol açar, veri kaybı DEĞİL).
+2. `app.js:startRound()` — `roundsInThisPlaySession++`'ın hemen
+   yanına, SADECE `!isUserPro()` iken, `storage.loadFreeSession()`
+   TAZE okunup `used++` yapılıp `saveFreeSession()` ile yazılıyor.
+   `roundsInThisPlaySession`'ın KENDİSİNE (seans rampası/sessionQuestionIndex/
+   ekran sayacı için kullanılan, DEĞİŞMEYEN bir amaç) DOKUNULMADI —
+   YENİ, AYRI bir kalıcı sayaç eklendi.
+3. `app.js:freeSessionLimitReached()` — artık `roundsInThisPlaySession`
+   DEĞİL `storage.loadFreeSession().used`'ı okuyor, HER çağrıda TAZE
+   (bir önbellek değişkeninde TUTULMUYOR) — gün ORTASINDA değişse
+   (gece yarısı) bile bir SONRAKİ kontrol doğru günü görür.
+4. **Yan düzeltme (aynı kök sebepten, task'ın "günlük sıfırlama vb.
+   hangi kurallar varsa onlar korunacak" talimatının uygulanışı):**
+   reklamla kazanılan +5 soru hakkı ÖNCEDEN `sessionExtraQuestionsGranted`
+   adında AYRI bir bellek-içi sayaçtı, `roundsInThisPlaySession` İLE AYNI
+   noktalarda sıfırlanıyordu — yani kullanıcı reklam izleyip +5 kazandıktan
+   SONRA modu kapatıp açsa bu hakkı da KAYBEDİYORDU (ayrı bir tutarsızlık).
+   `sessionExtraQuestionsGranted` KALDIRILDI, yerine `sessionExtraQuestionsToday()`
+   eklendi — `stats.sessionAdWatchesToday`/`sessionAdWatchesDate` (G185'ten
+   beri ZATEN kalıcı, `persistStats()` ile) DOĞRUDAN kaynak: bugün izlenen
+   reklam sayısı × `SESSION_EXTENSION_QUESTIONS`. Reklam ödülü MİKTARI
+   (`SESSION_EXTENSION_QUESTIONS=5`) ve günlük üst sınır
+   (`MAX_SESSION_EXTENSION_ADS_PER_DAY=3`) BİR SATIR değişmedi — SADECE
+   "bugün ne kadar kazanıldı" hesabı ZATEN kalıcı olan veriden türetildi.
+   "Soru N/M" ekran sayacı (`#gameQNum`/`#gameQMax`) da AYNI kalıcı
+   kaynaklara geçirildi — kullanıcı artık yanıltıcı bir "1/5" GÖRMÜYOR
+   (önceki oturumda 4/5'i harcamış olsa bile).
+
+**Ürün kararı (belgeleniyor, kod YORUMUNDA da var):** "ne zaman
+sıfırlanmalı" sorusunun yanıtı GÜNLÜK (dailyKey() bazlı) seçildi —
+kodda BAŞKA bir açık "5 soru" sıfırlama kuralı YOKTU, en yakın
+ANALOG mekanizma (`sessionAdWatchesRemainingToday`, reklam izleme
+günlük kotası) ZATEN aynı `localDateKey`/günlük desenini kullanıyordu
+— bu turda O DESEN taklit edildi, yeni bir politika İCAT EDİLMEDİ.
+Farklı bir cadence isteniyorsa (`haftalık`/`hiç sıfırlanmasın`/vb.)
+AÇIKÇA belirtilmeli.
+
+**Testler:**
+- `test/storage.test.mjs` — 6 yeni test (`freshFreeSession`/
+  `loadFreeSession`/`saveFreeSession`: gün değişince sıfırlama, bozuk
+  veri, `trySave` hata koruması, `mirror:false`).
+- `e2e/free-session-limit.spec.mjs` — YENİ dosya, 2 test: (1) 5 soru
+  bitip paywall açıldıktan SONRA sayfa yenilenip 6. soru denenirse
+  YİNE paywall açılıyor (görevin KENDİ kabul kriteri, birebir), (2)
+  Pro kullanıcıda `eqEarTrainerProXFreeSession` anahtarı HİÇ
+  yazılmıyor. `git stash` ile kırmızı/yeşil doğrulandı: düzeltme
+  OLMADAN 1. test GERÇEKTEN kırmızı çıktı (`'screen-game' !==
+  'screen-paywall'` — TAM olarak tarif edilen açık).
+
+**Ölçüm:** `npm test` → **1355/1355** (1349 + 6 yeni test). `npm run
+test:e2e` → **18/18** (16 + 2 yeni) — "madde 30" testleri (reklamla
+oturum uzatma, G185/G225'in KİLİTLİ akışı) DEĞİŞMEDİ, ikisi de yeşil
+kaldı (ad-extension bookkeeping'in yeniden bağlanması BU akışı BOZMADI).
+
+**Dokunulan:** `www/js/core/storage.js` (yeni `FREE_SESSION_KEY` +
+3 fonksiyon), `www/js/app.js` (`startRound()`, `freeSessionLimitReached()`,
+`sessionExtraQuestionsGranted`→`sessionExtraQuestionsToday()`, "Soru
+N/M" ekran sayacı), `test/storage.test.mjs`, YENİ `e2e/free-session-limit.spec.mjs`.
+**Dokunulmayan:** Rozet eşikleri, XP kazanma formülü (base/combo/boss/
+hızlı-cevap/bölüm bonusu), seviye eşik formülünün şekli, can sistemi,
+reklam ödülü MİKTARI (5) ve günlük ÜST SINIRI (3), e2e suite yapısı,
+`roundsInThisPlaySession`'ın KENDİSİ (ramp/display amacı DEĞİŞMEDİ),
+G220/G221/G223/G225/G228/G229/G230/G231/G232/G233/G234/G235/G236,
+G187, G203, G214/G215/G216, G212, 581f798/a4efb42.
+
+TUR 4 — **Ürün ve Öğretim Denetimi tamamlandı (`TUR4-URUN-15-08.md`) — KOD DEĞİŞMEDİ, sadece ölçüm. Baş bulgu: görevin kendi "2 açık mod" öncülü YANLIŞ (gerçekte 5 mod ücretsiz), "5 soru/oturum" duvarı reklamsız da aşılabiliyor (kalıcı değil, mod yeniden açılınca sıfırlanıyor).**
+
+**Yöntem:** 9 bölüm (A-I, kullanıcının kendi sorularıyla) — öğretim
+doğruluğu, zorluk eğrisi tutarlılığı, ilk 60 saniye, para akışı,
+erişilebilirlik, "i" metinleri kapsamı, öğretim/geri bildirim
+tutarlılığı, zorluk/ödül tutarlılığı, ücretsiz kullanıcı deneyimi
+(I, öncelikli). Kulak/göz gerektiren maddeler AÇIKÇA "TESTFLIGHT'A
+DEVREDİLDİ" işaretlendi (14 madde), tahmin YAZILMADI.
+
+**Öne çıkan 🔴 bulgular (TAM liste ve gerekçe `TUR4-URUN-15-08.md`'de):**
+1. Görevin "2 açık mod" öncülü YANLIŞ — `mode-catalog.js`'te
+   `tier:"free" && playable:true` olan mod sayısı **5**
+   (Frekans Bulma/Kesim Noktası/Q Genişliği/Boost-Cut/Kompresör),
+   kod ve "i" metni (guide-texts.js: "12 modun 5'i ücretsiz") BİRBİRİYLE
+   TUTARLI — "2" sayısı hiçbir yerde doğrulanamadı.
+2. `roundsInThisPlaySession` (5-soru/oturum sayacı) BELLEK-İÇİ,
+   KALICI DEĞİL — mod yeniden açılınca sıfırlanıyor. Motive bir
+   ücretsiz kullanıcı (doğru cevapladıkça can gitmiyor) reklam
+   izlemeden/Pro'ya geçmeden GÜNDE TEORİK OLARAK SINIRSIZ soru
+   cevaplayabilir. Kasıtlı mı fark edilmemiş bir gevşeklik mi —
+   ürün kararı gerektiriyor, kod DOKUNULMADI.
+
+**Öne çıkan 🟡 bulgular:** "Q=2.5 sabit" ve "Pan 7 kademe/derece"
+öncülleri de GÜNCEL koddan farklı (G120'de pan mimarisi sürekli
+ölçeğe geçti, "derece" hiçbir yerde YOK) — eski bir zihin modelinden
+kalma görünüyor. `--text-muted` kontrastı (4.05:1, WCAG hesaplandı)
+AA eşiğinin (4.5:1) altında, küçük metinde (9.5-13px) kullanılıyor.
+`.seg button` (36px) 44pt dokunma hedefinin altında. Dynamic Type
+(sistem yazı boyutu) hiç desteklenmiyor (tüm font-size'lar sabit px).
+`#visualizer` canvas'ı (Frekans Bulma'nın "Dokunmalı" formatı)
+VoiceOver'a kapalı ama "Şıklı" erişilebilir alternatifi VAR.
+
+**Doğrulanan (önceki iddiaların bu turda KANITLA teyidi):** Tonal
+Balance'ın zone-listening'i (görevin kendi örneği) G190'da kapanmış,
+HÂLÂ kapalı — "i" metni doğru. Seans rampası (-1.5/+1.0/+2.0) kodda
+BİREBİR doğrulandı. Seviye eşikleri (1/3/6/10/15/22/30) kodda
+BİREBİR var ama kodun KENDİSİ "TASLAK/TAHMİNİ, playtest'le
+DOĞRULANMADI" diyor. 6 rozetin hiçbiri erişilemez değil. Altın
+Kulak'a (academyLevel 30) toplam XP ihtiyacı HESAPLANDI: 159.500 XP
+(tahmin değil, doğrudan formülden).
+
+**Dokunulan:** Yok (sadece okuma/grep/WCAG kontrast hesabı/mod
+kataloğu karşılaştırması). **Dokunulmayan:** Tüm kod, tüm testler,
+tüm commit'ler — task'ın kendi kısıtı ("KOD YAZMA. DOSYA DEĞİŞTİRME.
+COMMIT ATMA.") harfiyen uygulandı, tek yeni dosya
+`TUR4-URUN-15-08.md`.
 
 G236 — **Native ses kesintisi köprüsü eklendi (TUR3B bulgusu 🔴, EN KRİTİK) — `interruptionBegan`/`sessionActivated` artık route-change'in kullandığı `evaluateJavaScript` yoluyla JS'e ulaşıyor.**
 
@@ -17468,7 +17596,29 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G236 itibarıyla):** TUR3B-ZAMAN-15-08.md'nin
+**EN YENİ SIRADAKİ ADIM (G237 itibarıyla):** TUR4-URUN-15-08.md'nin
+"yayın öncesi düzeltilecekler" listesinin İLK maddesi (5 soru/oturum
+duvarının kalıcı olmaması) KAPANDI — sayaç artık `storage.js:loadFreeSession()`
+ile GÜNLÜK kalıcı, reklamla kazanılan +5 soru hakkı da (yan düzeltme)
+artık kalıcı. `npm test` 1355/1355 (1349+6 yeni), `npm run test:e2e`
+18/18 (16+2 yeni). `git stash` ile kırmızı/yeşil doğrulandı. **Bir
+sonraki adım:** AYNI görevin 2. maddesi (seviye eşiklerinin yaklaşması,
+ACADEMY_XP_MULTIPLIER 5→3) devam ediyor. Ayrıca TUR4'ün kalan 2 maddesi
+(`--text-muted` kontrastı, `.seg button` dokunma hedefi) hâlâ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (TUR 4 itibarıyla, ARTIK ESKİ):** `TUR4-URUN-15-08.md`
+tamamlandı (denetim, kod yazılmadı, commit atılmadı). **Bir sonraki
+adım — kullanıcının onayı gerekir:** raporun "yayın öncesi
+düzeltilecekler" listesindeki 3 madde — (1) "5 soru/oturum" duvarının
+yumuşak (mod yeniden açılınca sıfırlanan) olması hakkında bir ÜRÜN
+KARARI (kasıtlıysa belgelenir, değilse `roundsInThisPlaySession`
+kalıcı hale getirilir), (2) `--text-muted` kontrastının (4.05:1,
+WCAG AA'nın altında) düzeltilmesi, (3) `.seg button`'ın (36px) 44pt
+dokunma hedefine çekilmesi. "1.1'e bırakılabilir"/"TestFlight'a
+devredilenler" listeleri (14 madde, gerçek cihaz/kullanıcı testi
+gerektiriyor) hâlâ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (G236 itibarıyla, ARTIK ESKİ):** TUR3B-ZAMAN-15-08.md'nin
 3 maddelik "yayın öncesi düzeltilecekler" listesinin ÜÇÜ DE KAPANDI —
 G234 (reklam zaman aşımı), G235 (abPressTimer teardown), G236 (native
 kesinti köprüsü, EN KRİTİK). `npm test` 1349/1349 (1347+2 yeni test,

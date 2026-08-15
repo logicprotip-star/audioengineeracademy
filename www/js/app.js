@@ -1029,7 +1029,9 @@ function resetSession() {
   session = { correct: 0, wrong: 0, xp: 0, hints: 0, log: [], xpBaseSum: 0, newBadges: [] };
   sessionStartLevel = progress.xpProgress(diffState().xp).level;
   roundsInThisPlaySession = 0;
-  sessionExtraQuestionsGranted = 0;
+  // G237 — sessionExtraQuestionsGranted KALDIRILDI (bkz. tanımlı olduğu
+  // satırın G237 notu): reklamla kazanılan ek hak artık stats.sessionAdWatchesToday'den
+  // (ZATEN kalıcı) türetiliyor, burada sıfırlanacak bellek-içi bir kopyası YOK.
   // G225 (madde 30 düzeltmesi) — bu GERÇEK bir fresh-start (Oyunu Başlat İLK
   // kez/Tekrar Oyna/10 Soru Daha/Menüye Dön) — paywall'dan dönüşü bekleyen
   // eski bir paywallEndedRoundForResume bayrağı varsa (kullanıcı paywall'ı
@@ -1052,10 +1054,22 @@ function resetSession() {
 let roundsInThisPlaySession = 0;
 // G185 (Bug 25) — sessionLimit paywall'ında reklam izleyip kazanılan ek soru
 // hakkı (bkz. grantSessionExtension) — freeSessionLimitReached()'ın limitini
-// büyütür. roundsInThisPlaySession İLE AYNI iki noktada (resetSession() +
-// startBtn'in fresh-start dalı) sıfırlanır — bir SONRAKİ oturuma taşınmaz,
-// SADECE günlük reklam kotası (stats.sessionAdWatchesToday) kalıcı.
-let sessionExtraQuestionsGranted = 0;
+// büyütür.
+// G237 DÜZELTMESİ — ÖNCEDEN bu bellek-içi bir sayaçtı (sessionExtraQuestionsGranted,
+// roundsInThisPlaySession İLE AYNI noktalarda sıfırlanıyordu — mod kapat/aç
+// bunu da SIFIRLIYORDU, kullanıcı kazandığı +5'i kaybedip yeniden reklam
+// izlemek ZORUNDA kalıyordu, ayrı bir tutarsızlık). Artık HİÇBİR yeni state
+// YOK — `stats.sessionAdWatchesToday`/`sessionAdWatchesDate` (G185'ten beri
+// ZATEN kalıcı, persistStats() ile) DOĞRUDAN kaynak: bugün izlenen reklam
+// sayısı × SESSION_EXTENSION_QUESTIONS. Bu hem G237'nin ana bulgusunu
+// (5-soru duvarının kalıcı olmaması) hem bu YAN tutarsızlığı TEK hamlede
+// kapatıyor — reklam ödülü MİKTARI (SESSION_EXTENSION_QUESTIONS) ve günlük
+// üst sınır (MAX_SESSION_EXTENSION_ADS_PER_DAY) BİR SATIR değişmedi.
+function sessionExtraQuestionsToday() {
+  const remaining = paywall.sessionAdWatchesRemainingToday(stats.sessionAdWatchesToday, stats.sessionAdWatchesDate, Date.now());
+  const watchedToday = paywall.MAX_SESSION_EXTENSION_ADS_PER_DAY - remaining;
+  return watchedToday * paywall.SESSION_EXTENSION_QUESTIONS;
+}
 
 let freqGuessHz = null;
 let freqHoverHz = null;
@@ -1554,18 +1568,21 @@ function blockIfLivesOut() {
 }
 
 // G61 (PAYWALL.md): "5 soru/oturum (sonra dur)" — currentLives<=0 (canlar
-// bitti) ile AYNI ÇIKIŞ NOKTASI, farklı bir SEBEP. roundsInThisPlaySession
-// (bkz. tanımındaki not) her YENİ soru KURULDUĞUNDA +1 olur — 5. soru zaten
-// posedildikten SONRA true'ya döner, bir 6. soru HİÇ kurulmaz.
+// bitti) ile AYNI ÇIKIŞ NOKTASI, farklı bir SEBEP.
 // G185 (Bug 25, kullanıcı kararı — sessionLimit'te reklamla +5 soru): limit
 // artık sabit paywall.FREE_SESSION_QUESTION_LIMIT DEĞİL, reklamla kazanılan
-// (sessionExtraQuestionsGranted, bkz. tanımı) eklenmiş hâli — paywall.js'in
+// (sessionExtraQuestionsToday(), bkz. tanımı) eklenmiş hâli — paywall.js'in
 // KENDİSİ bu uzatma miktarını bilmiyor (saf kalsın diye), sadece karşılaştırıyor.
+// G237 DÜZELTMESİ — sayaç ARTIK `roundsInThisPlaySession` (bellek-içi,
+// mod kapat/aç ile sıfırlanıyordu) DEĞİL, `storage.loadFreeSession().used`
+// (kalıcı, GÜNLÜK sıfırlanır — bkz. o fonksiyonun G237 notu). Her çağrıda
+// TAZE okunuyor (bir ÖNBELLEK değişkeninde TUTULMUYOR) — gün ORTASINDA
+// değişirse (gece yarısı geçişi) bile bir SONRAKİ kontrol doğru günü görür.
 function freeSessionLimitReached() {
   return paywall.isFreeSessionLimitReached(
-    roundsInThisPlaySession,
+    storage.loadFreeSession().used,
     isUserPro(),
-    paywall.FREE_SESSION_QUESTION_LIMIT + sessionExtraQuestionsGranted
+    paywall.FREE_SESSION_QUESTION_LIMIT + sessionExtraQuestionsToday()
   );
 }
 // G185 — finalizeIfGameOver() (cevap/timeout sonrası) İLE blockIfSessionLimitReached()
@@ -3651,18 +3668,23 @@ function renderGameHeader() {
   }
 
   // Soru sayacı — ücretsiz oturum limiti (paywall.FREE_SESSION_QUESTION_LIMIT=5
-  // + reklamla kazanılan sessionExtraQuestionsGranted, bkz. freeSessionLimitReached()'ın
+  // + reklamla kazanılan sessionExtraQuestionsToday(), bkz. freeSessionLimitReached()'ın
   // AYNI toplamı). Pro'da anlamsız (sınır yok) — gizlenir.
   // G186 DÜZELTMESİ (#26 civarı, G185'in kendi notu): payda ("/ 5") ÖNCEDEN
   // SABİTTİ — reklam izleyip +5 soru kazanan kullanıcı hâlâ "3/5" görüyordu,
   // limit ARTIK 10 olsa bile. #gameQMax (YENİ, index.html) ARTIK BU toplamdan
   // yazılıyor — pay zaten bu SINIRA göre kırpılıyordu (Math.min), payda da
   // AYNI sınırı göstermeli.
+  // G237 DÜZELTMESİ — pay ARTIK `roundsInThisPlaySession` (bu OTURUMUN kendi
+  // sayısı, mod kapat/aç ile sıfırlanır) DEĞİL, `storage.loadFreeSession().used`
+  // (GERÇEKTEN ne kadarı harcandığı, günlük). Kullanıcı bugün 4/5'i ÖNCEKİ bir
+  // oturumda harcadıysa, yeni bir oturuma başlayınca "1/5" gibi YANILTICI bir
+  // sayı GÖRMEMELİ — gerçek kalan hakkı görmeli.
   const pro = isUserPro();
   if (els.gameQCounter) els.gameQCounter.classList.toggle("hidden", pro);
-  const effectiveQuestionLimit = paywall.FREE_SESSION_QUESTION_LIMIT + sessionExtraQuestionsGranted;
+  const effectiveQuestionLimit = paywall.FREE_SESSION_QUESTION_LIMIT + sessionExtraQuestionsToday();
   if (els.gameQNum) {
-    els.gameQNum.textContent = Math.max(1, Math.min(roundsInThisPlaySession, effectiveQuestionLimit));
+    els.gameQNum.textContent = Math.max(1, Math.min(storage.loadFreeSession().used, effectiveQuestionLimit));
   }
   if (els.gameQMax) els.gameQMax.textContent = effectiveQuestionLimit;
 
@@ -5589,6 +5611,15 @@ function startRound() {
   // (bitmiş) round'u YANLIŞLIKLA geri getirmesin diye burada da temizleniyor.
   storage.clearInProgressRound();
   roundsInThisPlaySession++;
+  // G237 — ücretsiz "5 soru/gün" duvarının KALICI sayacı: `blockIfSessionLimitReached()`
+  // bu round'un BAŞLAMASINA ZATEN izin verdi (fonksiyonun en başında çalıştı,
+  // bkz. çağrı sitesi) — burada SADECE tüketimi kaydediyoruz. Pro'da HİÇ
+  // yazılmıyor (task'ın kendi isteği: "Pro kullanıcı bundan ETKİLENMEMELİ").
+  if (!isUserPro()) {
+    const freeSession = storage.loadFreeSession();
+    freeSession.used++;
+    storage.saveFreeSession(freeSession);
+  }
   // Karıştır açıkken çalan kaynak sourceSelect'ten farklı olabilir — chip her zaman
   // o turda GERÇEKTEN çalan kaynağın adını göstersin. Frekans Çakışması'nda
   // (G51) bu chip zaten gizli (bkz. syncCakismaVisibility) VE activeQuestion'ın
@@ -6334,20 +6365,21 @@ els.startBtn.addEventListener("click", async () => {
     // buraya HİÇ uğramadan doğrudan goScreen+setAutoPlay yapıyor — resetSession()
     // ORADA zaten çalıştı), (b) paywall (livesOut/sessionLimit, endsRound:true)
     // round'u TEARDOWN ettiği için activeQuestion null — kullanıcı reklamla
-    // uzatılmış bir oturuma (sessionExtraQuestionsGranted) DEVAM etmek
+    // uzatılmış bir oturuma (sessionExtraQuestionsToday()) DEVAM etmek
     // istiyor olabilir. `paywallEndedRoundForResume` bu ikisini ayırıyor —
-    // true ise roundsInThisPlaySession/sessionExtraQuestionsGranted/challenge
-    // SIFIRLANMAZ, "Atla" ile limite ulaşıp reklam izleyen kullanıcının
-    // kazandığı +5 soru hakkı (ve challenge.done'ın mevcut ilerlemesi)
-    // KORUNUR — cevaplayarak limite ulaşan yol (goToNextRound() üzerinden
-    // resume eder, BURAYA hiç uğramaz) zaten etkilenmiyordu, DEĞİŞMEDİ.
+    // true ise roundsInThisPlaySession/challenge SIFIRLANMAZ, "Atla" ile
+    // limite ulaşıp reklam izleyen kullanıcının challenge.done'ın mevcut
+    // ilerlemesi KORUNUR — cevaplayarak limite ulaşan yol (goToNextRound()
+    // üzerinden resume eder, BURAYA hiç uğramaz) zaten etkilenmiyordu,
+    // DEĞİŞMEDİ. G237 — reklamla kazanılan +5 soru hakkı ARTIK
+    // stats.sessionAdWatchesToday'den türetildiği için (bkz. o değişkenin
+    // G237 notu) bu dalda AYRICA "korunması" GEREKMİYOR, zaten kalıcı.
     const isResumeFromPaywall = paywallEndedRoundForResume;
     paywallEndedRoundForResume = false;
     if (!isResumeFromPaywall) {
       // Gerçek bir fresh-start (bkz. roundsInThisPlaySession tanımındaki not) —
       // Tekrar Çal (autoStopped dalı, aşağıda) BUNU sıfırlamaz, sadece burası.
       roundsInThisPlaySession = 0;
-      sessionExtraQuestionsGranted = 0;
       if (isChallenge()) startChallenge();
     }
     // G61: günlük tadımlık BURADA (gerçek round başlarken), mod kartına
@@ -8191,8 +8223,8 @@ let paywallPausedRound = false;
 // TEARDOWN ETTİYSE (activeQuestion=null), bu BAYRAK true olur. `#startBtn`'in
 // `!activeQuestion` dalı (aşağıda) bunu OKUYUP tüketiyor — true ise bu bir
 // GERÇEK fresh-start DEĞİL, paywall'dan (reklamla uzatılmış olabilecek bir
-// oturumdan) dönüş — roundsInThisPlaySession/sessionExtraQuestionsGranted/
-// challenge SIFIRLANMAZ, kaldığı yerden devam eder. resetSession() (GERÇEK
+// oturumdan) dönüş — roundsInThisPlaySession/challenge SIFIRLANMAZ, kaldığı
+// yerden devam eder. resetSession() (GERÇEK
 // fresh-start noktaları: Oyunu Başlat İLK kez, Tekrar Oyna, 10 Soru Daha,
 // Menüye Dön) bu bayrağı AYRICA temizler — paywall'dan hiç dönülmeden
 // kullanıcı kendi isteğiyle yeni bir deneme başlatırsa eski bayrak
@@ -8948,7 +8980,9 @@ function grantAdLife() {
 // (persistStats()) burada.
 function grantSessionExtension() {
   const now = Date.now();
-  sessionExtraQuestionsGranted += paywall.SESSION_EXTENSION_QUESTIONS;
+  // G237 — ayrı bir sessionExtraQuestionsGranted++ ARTIK GEREKMİYOR:
+  // sessionExtraQuestionsToday() bu artıştan HEMEN sonra stats.sessionAdWatchesToday'i
+  // okuyup türetiyor, tek kaynak.
   const rec = paywall.recordSessionAdWatch(stats.sessionAdWatchesToday, stats.sessionAdWatchesDate, now);
   stats.sessionAdWatchesToday = rec.sessionAdWatchesToday;
   stats.sessionAdWatchesDate = rec.sessionAdWatchesDate;

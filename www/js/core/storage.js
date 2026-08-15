@@ -30,6 +30,15 @@ const IN_PROGRESS_ROUND_KEY = "eqEarTrainerProXInProgressRound";
 // yazıldı" sorusuna cevap verebilecek bir temel taşı.
 const SCHEMA_VERSION_KEY = "eqEarTrainerProXSchemaVersion";
 export const CURRENT_SCHEMA_VERSION = 1;
+// G237 (TUR4 bulgusu 🔴) — ücretsiz "5 soru/gün" duvarının SAYACI ÖNCEDEN
+// app.js'te bellek-içi bir değişkendi (roundsInThisPlaySession) — mod
+// kapatılıp AÇILINCA "gerçek bir fresh-start" sayılıp SIFIRLANIYORDU, bu
+// yüzden reklam izlemeden/Pro'ya geçmeden sınırsız tekrarlanabiliyordu.
+// dailyKey()'in AYNI deseni (bkz. loadDaily) — gün değişince otomatik
+// sıfırlanır, GÜN İÇİNDE mod kapat/aç'tan ETKİLENMEZ. `daily`nin (görev
+// listesi) AKSİNE AYRI bir anahtarda tutuluyor — kavramsal olarak FARKLI
+// bir özellik (günlük görevler ≠ ücretsiz kota), karıştırılmadı.
+const FREE_SESSION_KEY = "eqEarTrainerProXFreeSession";
 
 // Canlar artık zorluğa göre DEĞİL — tek, global bir havuz (bkz. freshStats().lives).
 // Eskiden her zorluğun kendi canı vardı (perDiff[key].lives); bu yüzden zorluk
@@ -301,6 +310,33 @@ export function clearDaily() {
     localStorage.removeItem(DAILY_KEY);
     mirrorRemove(DAILY_KEY);
   } catch (e) {}
+}
+
+// G237 — loadDaily()'nin BİREBİR AYNI "gün değiştiyse taze başla" deseni.
+// `used`: bugün BAŞLATILAN ücretsiz soru sayısı (Pro'da hiç yazılmıyor,
+// bkz. app.js). `mirror:false` — IN_PROGRESS_ROUND_KEY'in AYNI gerekçesi:
+// kaybı en kötü ihtimalle bir günlük kotanın erken sıfırlanmasına yol
+// açar (WKWebView storage baskısı senaryosu), kalıcı ilerleme/para KAYBI
+// DEĞİL — 4 kritik anahtarın (stats/daily/zoneStats/prefs) yedekleme
+// muamelesi burada da BİLİNÇLİ uygulanmadı.
+export function freshFreeSession() {
+  return { key: dailyKey(), used: 0 };
+}
+
+export function loadFreeSession() {
+  try {
+    const raw = localStorage.getItem(FREE_SESSION_KEY);
+    if (!raw) return freshFreeSession();
+    const parsed = JSON.parse(raw);
+    if (parsed.key !== dailyKey() || typeof parsed.used !== "number") return freshFreeSession();
+    return parsed;
+  } catch {
+    return freshFreeSession();
+  }
+}
+
+export function saveFreeSession(freeSession) {
+  return trySave(FREE_SESSION_KEY, freeSession, { mirror: false });
 }
 
 // Genel Ayarlar sheet'indeki basit tercihler. Bildirimler'in gerçek bir bildirim

@@ -7,7 +7,7 @@
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave, loadSchemaVersion, ensureSchemaVersion, CURRENT_SCHEMA_VERSION } from "../www/js/core/storage.js";
+import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave, loadSchemaVersion, ensureSchemaVersion, CURRENT_SCHEMA_VERSION, freshFreeSession, loadFreeSession, saveFreeSession, dailyKey } from "../www/js/core/storage.js";
 
 function installLocalStorageMock(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -430,5 +430,56 @@ describe("G233 — loadSchemaVersion()/ensureSchemaVersion() — sürüm yoksa '
     globalThis.localStorage.setItem = (k, v) => { writeCount++; return origSetItem(k, v); };
     ensureSchemaVersion();
     assert.equal(writeCount, 0);
+  });
+});
+
+// G237 (TUR4 bulgusu 🔴) — ücretsiz "5 soru/gün" duvarının sayacı ÖNCEDEN
+// app.js'te bellek-içi bir değişkendi (roundsInThisPlaySession) — mod
+// kapatılıp AÇILINCA sıfırlanıyordu, reklamsız/Pro'suz sınırsız tekrarlanabiliyordu.
+// loadDaily()'nin BİREBİR AYNI "gün değişince taze başla" deseni — burada
+// SADECE storage.js katmanı test ediliyor (SAF fonksiyonlar), app.js'in
+// KENDİ kablolaması (startRound()'un artık bunu okuyup/yazması,
+// blockIfSessionLimitReached()'ın 6. soruyu engellemesi) e2e ile
+// doğrulanıyor (bkz. e2e/free-session-limit.spec.mjs).
+describe("G237 — freshFreeSession()/loadFreeSession()/saveFreeSession() — günlük kalıcı kota", () => {
+  it("hiç kayıt yokken bugünün anahtarıyla, used:0 ile başlar", () => {
+    installLocalStorageMock();
+    const fs = loadFreeSession();
+    assert.equal(fs.key, dailyKey());
+    assert.equal(fs.used, 0);
+  });
+
+  it("saveFreeSession() sonrası loadFreeSession() AYNI used değerini döner (mod kapat/aç simülasyonu — YENİDEN YÜKLEME sıfırlamaz)", () => {
+    installLocalStorageMock();
+    saveFreeSession({ key: dailyKey(), used: 5 });
+    const fs = loadFreeSession();
+    assert.equal(fs.used, 5, "kalıcı olmalı — TAM olarak G237'nin düzelttiği hata burada eskiden used'ı kaybederdi");
+  });
+
+  it("kayıtlı anahtar DÜNKÜ bir güne aitse (gün değişti) used SIFIRA döner", () => {
+    installLocalStorageMock();
+    saveFreeSession({ key: "2020-1-1", used: 5 });
+    const fs = loadFreeSession();
+    assert.equal(fs.key, dailyKey());
+    assert.equal(fs.used, 0);
+  });
+
+  it("bozuk JSON / eksik 'used' alanı varsa çökmeden taze başlar", () => {
+    const store = installLocalStorageMock();
+    store.set("eqEarTrainerProXFreeSession", "{not json");
+    assert.deepEqual(loadFreeSession(), freshFreeSession());
+    store.set("eqEarTrainerProXFreeSession", JSON.stringify({ key: dailyKey() }));
+    assert.deepEqual(loadFreeSession(), freshFreeSession());
+  });
+
+  it("saveFreeSession(): setItem hata fırlatınca çökmez, false döner (G229/G232'nin AYNI trySave koruması)", () => {
+    installThrowingLocalStorageMock();
+    assert.equal(saveFreeSession({ key: dailyKey(), used: 1 }), false);
+  });
+
+  it("saveFreeSession() mirror:false ile çağrılıyor — window.Capacitor HİÇ okunmasa bile başarıyla yazar (IN_PROGRESS_ROUND_KEY'in AYNI düşük-risk kararı)", () => {
+    installLocalStorageMock();
+    globalThis.window = undefined;
+    assert.equal(saveFreeSession({ key: dailyKey(), used: 2 }), true);
   });
 });
