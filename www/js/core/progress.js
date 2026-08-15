@@ -81,7 +81,17 @@ export function modeLevel(stats, modeId) {
 // academyLevel'ı Pro seviye kilidi (mode-catalog.js unlockLevel, 1..20 aralığı) için
 // de kullanıyor — çarpanın büyümesi bu kilitlerin açılma HIZINI da yavaşlatır, bu
 // task'ın kapsamı DEĞİL, kullanıcıya bırakıldı (bkz. DURUM.md G75 BEKLEYEN KARARLAR).
-const ACADEMY_XP_MULTIPLIER = 5;
+//
+// 15 Ağustos 2026 DÜZELTMESİ (ürün kararı, TUR4'ün XP ekonomisi ölçümü sonrası) —
+// 5'ten 3'e indirildi: Sv 30 (Altın Kulak) için gereken toplam XP 159.500'den
+// 95.700'e düştü. `xpNeeded(L)=120+(L-1)×70` formülüne VE seviye eşiklerine
+// (1/3/6/10/15/22/30, `LEVEL_TITLES`) DOKUNULMADI — SADECE bu çarpan değişti.
+// AYNI YAN ETKİ burada da geçerli: paywall.meetsLevelRequirement'ın Pro
+// seviye-kilidi de bu çarpanı paylaştığı için, mod kilitlerinin açılma hızı
+// da orantılı olarak HIZLANDI (kilit seviyelerinin KENDİSİ — mode-catalog.js
+// unlockLevel — DEĞİŞMEDİ, sadece o seviyelere ulaşma SÜRESİ kısaldı) — bu
+// task'ın açıkça istediği DEĞİL, çarpanın PAYLAŞILMASININ kaçınılmaz sonucu.
+const ACADEMY_XP_MULTIPLIER = 3;
 
 export function academyXpNeeded(level) {
   return ACADEMY_XP_MULTIPLIER * xpNeeded(level);

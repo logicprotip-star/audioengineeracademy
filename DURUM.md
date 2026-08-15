@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 15.08.2026 (G237)
+Son güncelleme: 15.08.2026 (G238)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,61 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G238 — **Seviye eşikleri yaklaştırıldı (ürün kararı) — ACADEMY_XP_MULTIPLIER 5'ten 3'e indirildi, Sv 30 (Altın Kulak) için gereken toplam XP 159.500'den 95.700'e düştü.**
+
+**Yapılan:** `core/progress.js:84` — SADECE `ACADEMY_XP_MULTIPLIER = 5`
+→ `3`. `xpNeeded(L) = 120+(L-1)×70` formülüne VE seviye eşiklerine
+(1/3/6/10/15/22/30, `LEVEL_TITLES`) DOKUNULMADI — istenen TEK
+değişiklik buydu. Rozetlere (`ACHIEVEMENTS`, tur/combo sayacına bağlı)
+DOKUNULMADI.
+
+**Ölçüm (hesaplanmış, tahmin değil):** Sv 30'a ulaşmak için gereken
+toplam XP **159.500 → 95.700** (×0,6). Günde bir seans (10 soru,
+medium tier, "gerçekçi" combo+boss+hızlı-cevap senaryosu, TUR4'ün XP
+ekonomisi tablosundaki AYNI 450 XP/seans varsayımıyla) oynayan bir
+kullanıcı için **~354 gün → ~212,7 gün** (95700/450). Diğer tüm
+eşikler de AYNI 0,6 oranında kısaldı (ör. Sv 10: 18.000→10.800 XP,
+Sv 22: 86.100→51.660 XP) — formül DOĞRUSAL olduğu için oran TÜM
+seviyelerde SABİT.
+
+**⚠️ ÜRÜN NOTU (task'ın kendi talimatıyla kayıt altına alınıyor —
+1.1'de ÇARPAN TEKRAR değiştirilirse bu not GÜNCELLENMELİ):** Bu
+değişiklik MEVCUT kullanıcıların Sv'sini YÜKSELTİR — aynı biriktirdiği
+XP, artık DAHA DÜŞÜK bir eşikle karşılaştırıldığı için otomatik olarak
+daha yüksek bir seviyeye düşer (localStorage'da HİÇBİR veri
+değişmiyor, sadece `academyXpProgress()`'in hesapladığı seviye
+DEĞİŞİR — bu davranış zaten KASITLI/beklenen, XP GERİYE alınmıyor).
+Şu an SADECE geliştirme/test verisi var (TestFlight'a henüz
+çıkılmadı) — bu yüzden şu an İÇİN sorun değil. **TestFlight SONRASI
+bu çarpan bir daha değiştirilirse, gerçek testçilerin Sv'si BEKLENMEDİK
+şekilde zıplar/düşer** — kullanıcıya AÇIKÇA anlatılmadan yapılmamalı.
+
+**Yan etki (task'ın açıkça istemediği ama çarpanın PAYLAŞILMASININ
+kaçınılmaz sonucu, kod yorumunda da belirtiliyor):**
+`paywall.meetsLevelRequirement`'ın Pro mod-kilidi kontrolü de AYNI
+`academyLevel`'ı okuyor (`mode-catalog.js:unlockLevel`, 1-20 aralığı)
+— kilit SEVİYELERİNİN KENDİSİ değişmedi, ama onlara ULAŞMA SÜRESİ de
+orantılı olarak KISALDI (aynı 0,6 oranı). Bu, G75'in kendi "BEKLEYEN
+KARARLAR" notunda ÖNCEDEN de flaglenmiş, bilinen bir bağ.
+
+**Testler:** Yeni test EKLENMEDİ — `test/progress.test.mjs`'in mevcut
+35 testi property-based (ör. "academyXpNeeded > xpNeeded",
+"academyLevel monoton artan", "taze kullanıcı Sv=1'den başlar") —
+HİÇBİRİ eski ×5 değerine SABİTLENMEMİŞ, hepsi ×3 ile de GEÇERLİ
+kaldı (koştu, 35/35 yeşil) — formülün ŞEKLİ değişmediği için yeni bir
+test senaryosu GEREKMEDİ.
+
+**Ölçüm:** `npm test` → **1355/1355, DEĞİŞMEDİ** (35/35 progress.test.mjs
+dahil). `npm run test:e2e` → **18/18, DEĞİŞMEDİ**.
+
+**Dokunulan:** `www/js/core/progress.js` (TEK satır — `ACADEMY_XP_MULTIPLIER`
+değeri — + genişletilmiş yorum).
+**Dokunulmayan:** `xpNeeded()`/`LEVEL_TITLES` eşikleri, `ACHIEVEMENTS`
+(rozetler), XP kazanma formülü, can sistemi, reklam ödülü, tüm
+testler (davranış değişmedi, sadece SAYI), G220/G221/G223/G225/G228/
+G229/G230/G231/G232/G233/G234/G235/G236/G237, G187, G203,
+G214/G215/G216, G212, 581f798/a4efb42.
 
 G237 — **5 soru sınırı KALICI hale getirildi (TUR4 bulgusu 🔴) — ücretsiz duvar artık günlük/kalıcı, mod kapat/aç ile aşılamıyor. Yan etki: reklamla kazanılan +5 soru hakkı da artık kalıcı (önceden o da mod-kapatmada kayboluyordu).**
 
@@ -17596,7 +17651,18 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G237 itibarıyla):** TUR4-URUN-15-08.md'nin
+**EN YENİ SIRADAKİ ADIM (G238 itibarıyla):** Bu görevin 2 maddesi de
+KAPANDI — G237 (5 soru duvarı kalıcı) + G238 (ACADEMY_XP_MULTIPLIER
+5→3, Sv 30 için 159.500→95.700 XP). `npm test` 1355/1355 (değişmedi),
+`npm run test:e2e` 18/18 (değişmedi). **⚠️ Hatırlatma (G238'in kendi
+notu):** TestFlight SONRASI bu çarpan bir daha değiştirilirse gerçek
+testçilerin Sv'si beklenmedik şekilde zıplar — kullanıcıya açıkça
+anlatılmadan yapılmamalı. **Bir sonraki adım:** TUR4-URUN-15-08.md'nin
+kalan 2 maddesi (`--text-muted` kontrastı, `.seg button` dokunma
+hedefi) hâlâ AÇIK, ayrıca TUR3A/TUR3B'nin "1.1'e bırakılabilir"/
+"TestFlight'a devredilenler" listeleri.
+
+**EN YENİ SIRADAKİ ADIM (G237 itibarıyla, ARTIK ESKİ):** TUR4-URUN-15-08.md'nin
 "yayın öncesi düzeltilecekler" listesinin İLK maddesi (5 soru/oturum
 duvarının kalıcı olmaması) KAPANDI — sayaç artık `storage.js:loadFreeSession()`
 ile GÜNLÜK kalıcı, reklamla kazanılan +5 soru hakkı da (yan düzeltme)
