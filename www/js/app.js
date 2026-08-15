@@ -8197,8 +8197,12 @@ function syncAccountLine() {
   // olduğu (listModes()) ayrı bir şey, paywall metnine karışmaz.
   const total = MODE_CATALOG.length;
   if (els.accountVerLine) {
+    // C5 DÜZELTMESİ (DOGRULAMA-15-08.md) — ÖNCEDEN "seans başına 10 soru"
+    // yazıyordu, YANLIŞTI: paywall.isFreeSessionLimitReached() isPro=true
+    // iken KOŞULSUZ false döner (core/paywall.js:122-124) — Pro'da oturum
+    // soru sayısına dair HİÇBİR sınır YOK, "10" rastgele/eski bir sayıydı.
     els.accountVerLine.textContent = isUserPro()
-      ? `Pro${devFlags.simulatePro ? " (simüle)" : ""} — ${total} mod, seans başına 10 soru, can sınırsız`
+      ? `Pro${devFlags.simulatePro ? " (simüle)" : ""} — ${total} mod, seans sınırsız, can sınırsız`
       : `Ücretsiz — ${FREE_MODE_COUNT} mod, seans başına 5 soru`;
   }
   // Bug #42 — metin doğru güncelleniyordu ama yanındaki "Pro'ya geç" (#goProBtn)

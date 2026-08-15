@@ -146,6 +146,40 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G215 — **C5 düzeltildi: Ayarlar → Hesap'ta Pro için "seans başına 10 soru" yazısı yanlıştı, Pro'da oturum sınırı YOK.**
+
+**Ölçüm (DOGRULAMA-15-08.md'den):** `paywall.isFreeSessionLimitReached(roundsPlayed,
+isPro, ...)` (`www/js/core/paywall.js:122-124`) `isPro` true iken
+KOŞULSUZ `false` döner — Pro kullanıcıda oturum başına soru sayısına dair
+HİÇBİR sınır YOK (sınırsız), "10" rastgele/eski bir sayıydı. `www/js/app.js`'in
+eski `syncAccountLine()`'ı (`accountVerLine`, Ayarlar → Hesap satırı) Pro
+için `"${total} mod, seans başına 10 soru, can sınırsız"` yazıyordu — Apple
+3.1.1 kapsamında satın alma öncesi yanlış bilgilendirme riski (kullanıcı
+kararı: "ret riski" olarak işaretlendi).
+
+**Tarama (aynı yanlış metnin başka yerde geçip geçmediği):** "i" metinleri
+(`guide-texts.js`), SSS, mağaza açıklaması (bu repoda YOK, App Store
+Connect'te ayrı tutuluyor — kapsam dışı) taranıp SADECE `app.js:8201`'de
+bulundu. `guide-texts.js:43`'teki GENERAL_GUIDE metni ZATEN DOĞRU
+yazıyordu ("Pro'ya geçip oturum sınırı olmadan oynayabilirsin") —
+dokunulmadı. Ücretsiz tarafın "seans başına 5 soru" metni (`app.js:8202`,
+`index.html:1745`'in statik varsayılanı) `FREE_SESSION_QUESTION_LIMIT=5`
+ile TUTARLI — dokunulmadı.
+
+**Uygulanan:** `www/js/app.js:8201`'deki Pro dalı `"${total} mod, seans
+sınırsız, can sınırsız"` oldu (SADECE bu satır). Ölçüldü (Playwright, Pro
+ve ücretsiz iki durumda): Pro → `"Pro (simüle) — 14 mod, seans sınırsız,
+can sınırsız"`; Ücretsiz → `"Ücretsiz — 5 mod, seans başına 5 soru"`
+(DEĞİŞMEDİ).
+
+**Dokunulan:** `www/js/app.js` (SADECE `syncAccountLine()`'ın Pro dalı,
+tek satır).
+**Dokunulmayan:** `www/js/core/guide-texts.js` (zaten doğruydu),
+`index.html:1745`'in statik varsayılanı (ücretsiz metin, zaten doğru),
+G177/G178/G185/G187/G198/G201/G204/G205/G203/G212/G214, 581f798/a4efb42.
+
+npm test: 1315/1315 (değişmedi).
+
 G214 — **#54 düzeltildi: "Atla" artık yanlış cevap sayılıyor — parkur (BÖLÜM), sınav ve telafi sayaçlarının hepsi ilerliyor, kilitlenme kalmadı.**
 
 **Ölçüm (DENETIM-15-08.md'den):** `goToNextRound()` (`www/js/app.js`,
@@ -16022,7 +16056,15 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G214 itibarıyla):** #54 kapandı — "Atla" artık
+**EN YENİ SIRADAKİ ADIM (G215 itibarıyla):** C5 kapandı — Ayarlar → Hesap'ta
+Pro için yanlış "seans başına 10 soru" iddiası "seans sınırsız" oldu
+(Pro'da gerçekten hiçbir oturum-soru sınırı yok). Aynı yanlış metin
+başka hiçbir yerde bulunamadı (guide-texts.js zaten doğruydu). `npm
+test` (1315/1315) ve Playwright (Pro/ücretsiz iki durum) ile doğrulandı.
+GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: Ayarlar → Hesap
+satırı Pro kullanıcıda "seans sınırsız, can sınırsız" göstermeli.
+
+**EN YENİ SIRADAKİ ADIM (G214 itibarıyla, ARTIK ESKİ):** #54 kapandı — "Atla" artık
 parkur/sınav/telafi sayaçlarının hepsini ilerletiyor (yanlış cevap
 sayılarak), telafi turunda kilitlenme senaryosu Playwright'ta bir daha
 üretilemedi. `npm test` (1315/1315) ve uçtan uca Playwright (10+10 "Atla"
