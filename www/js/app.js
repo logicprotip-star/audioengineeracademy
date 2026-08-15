@@ -6367,9 +6367,33 @@ async function goToNextRound() {
   clearTimeout(cmpPreviewStopTimer);
   cmpPreviewStopTimer = null;
   cmpPreviewRemainingMs = null;
+  // #54 DÜZELTMESİ (ölçüldü, DENETIM-15-08.md — kullanıcı kararı: "Atla"
+  // yanlış cevap sayılsın): `roundActive===true` iken buraya girilmesi
+  // CEVAPLANMAMIŞ bir sorunun ATLANDIĞI anlamına gelir — hiçbir submit*Guess
+  // fonksiyonu (challengeTick/handleExamOutcome'un TEK çağrı yeri) henüz
+  // çalışmadığı için `roundActive` hâlâ true'dur. Feedback panelinden
+  // "Sonraki Soru"ya (AYNI fonksiyon — `.fb-advance-head`/`#feedbackClose`
+  // da `goToNextRound()`'u çağırıyor) basıldığında ise submit handler
+  // KENDİ BAŞINDA `roundActive=false` yapmış olur — bu blok o yolda hiç
+  // ÇALIŞMAZ, ÇİFT SAYIM riski yok. Can kaybı/loseLife() BİLEREK
+  // ÇAĞRILMIYOR (kullanıcının açık talimatı: "can kaybı davranışı
+  // değişmesin") — SADECE ilerleme sayaçları (challenge/BÖLÜM,
+  // examSystem/sınav-telafi) her submit'in yaptığı gibi artırılıyor.
+  let examTookOver = false;
+  if (roundActive && activeQuestion) {
+    const q = activeQuestion;
+    challengeTick(false, 0);
+    if (examGateActive()) examTookOver = handleExamOutcome(q, { correct: false }, 0);
+  }
   autoStopped = false;
   roundFlow.clearAutoAdvance();
   pausedAutoAdvanceRemainingMs = null;
+  // handleExamOutcome true dönerse (exam-offer/exam-start/remedial-start/
+  // exam-passed/exam-failed) KENDİ ekranını (showExamScreen/goScreen("exam"))
+  // ZATEN açtı — submit handler'ların "examHandled ise scheduleNext ATLA"
+  // deseninin AYNISI: startRound() BURADA çağrılmaz, "game" ekranına geri
+  // dönmez.
+  if (examTookOver) return;
   startRound();
 }
 els.nextBtn.addEventListener("click", goToNextRound);

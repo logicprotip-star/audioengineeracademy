@@ -132,6 +132,59 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G214 — **#54 düzeltildi: "Atla" artık yanlış cevap sayılıyor — parkur (BÖLÜM), sınav ve telafi sayaçlarının hepsi ilerliyor, kilitlenme kalmadı.**
+
+**Ölçüm (DENETIM-15-08.md'den):** `goToNextRound()` (`www/js/app.js`,
+`#nextBtn`/"Atla"nın TEK çağrı yeri) `examSystem.recordAnswer()`'ı hiç
+çağırmıyordu — ne parkur (`challengeTick`), ne sınav, ne telafi sayacı
+"Atla" ile ilerliyordu. Kullanıcı kararı: "Atla" YANLIŞ CEVAP sayılsın.
+
+**Uygulanan:** `goToNextRound()`'a, `startRound()`'dan ÖNCE, `roundActive
+&& activeQuestion` koşuluyla korunan bir blok eklendi —
+`challengeTick(false, 0)` (her zaman, submit handler'ların AYNI çağrısı)
++ `examGateActive()` iken `handleExamOutcome(q, {correct:false}, 0)`
+(parkur/sınav/telafi sayaçlarının HEPSİNİ kapsayan TEK fonksiyon, submit
+handler'ların zaten kullandığı AYNI yol). `handleExamOutcome` `true`
+dönerse (exam-offer/exam-start/remedial-start/exam-passed/exam-failed —
+kendi ekranını AÇMIŞ demektir) `startRound()` ÇAĞRILMIYOR, submit
+handler'ların "examHandled ise scheduleNext atlanır" deseninin AYNISI.
+`loseLife()`/can kaybı BİLEREK eklenmedi (kullanıcının açık talimatı).
+
+**Çift sayım riski nasıl kapandı:** `goToNextRound()` İKİ senaryodan
+çağrılıyor — (a) cevaplanmamış bir soruyu "Atla" ile geçmek (`roundActive`
+hâlâ `true`, hiçbir submit* fonksiyonu çalışmadı) VE (b) feedback
+panelinden "Sonraki Soru"ya basmak (`.fb-advance-head`/`#feedbackClose`
+AYNI `goToNextRound()`'u çağırıyor, ama bu noktada submit handler KENDİ
+BAŞINDA `roundActive=false` yapmış olur). Yeni blok `roundActive===true`
+şartına bağlı olduğu için SADECE (a) senaryosunda çalışır, (b)'de devreye
+GİRMEZ — çift sayım yapısal olarak imkânsız.
+
+**Ölçüm (Playwright, boost-mu-cut-mu, Pro+challenge modu, uçtan uca):**
+1 "Atla" → BÖLÜM dot[0]="wrong" (challenge.done ilerledi). 10 "Atla" →
+parkur (`PARKUR_LENGTH=10`) bitti, telafi anons ekranı (`screen-exam`)
+açıldı — kilitlenme YOK. Anons kapatılıp 10 "Atla" DAHA → `examProgress`
+"TELAFİ 2/5→3/5→4/5→5/5" ilerledi, `REMEDIAL_LENGTH=5` sonunda telafi
+BAŞARISIZ (hepsi "yanlış") sayılıp otomatik YENİ parkura döndü
+(`screen-game`, `examRowHidden=true`) — GORSEL-TEST.md'nin #54 kaydındaki
+"telafi geldi ama geçilemiyor, kilitli ekranda kalınıyor" senaryosu artık
+TEKRARLANAMIYOR. Ücretsiz kullanıcıda ayrı test: 3×"Atla" sonrası
+`stats.lives` 5→5 (DEĞİŞMEDİ, can kaybı davranışı korunuyor). Regresyon
+testi: normal cevapla (`.ans`) + `#feedbackClose` ile kapatma — BÖLÜM
+sayacı SADECE 1 arttı (ÇİFT SAYIM yok, "Sonraki Soru" yolu bu yeni bloğa
+hiç girmedi).
+
+**Dokunulan:** `www/js/app.js` (SADECE `goToNextRound()`).
+**Dokunulmayan:** `core/exam-system.js`/`core/challenge.js` (saf kaldılar,
+YENİ bir alan/fonksiyon eklenmedi — SADECE var olan `handleExamOutcome`/
+`challengeTick` YENİ bir çağrı yerinden kullanıldı), G177/G178/G185 (can-
+paywall akışı), G187 (`freqTapTimer`), G198 (rozet sistemi), G201/G204/G205
+(Araçlar oynatıcıları), G203 (route change), G212 (mono uyarısı), G213
+(BÖLÜM renk gösterimi — AYNI dot render formülü, SADECE besleyen veri artık
+"Atla"dan da geliyor), 581f798/a4efb42 (çip/idle).
+
+npm test: 1315/1315 (değişmedi — DOM-akış kodu, saf fonksiyon sözleşmesi
+etkilenmedi).
+
 G213 — **BÖLÜM çubuğunda doğru/yanlış gösterimi — sınav/telafi'nin AYNI deseni, kullanıcının kararıyla (Seçenek A: sadece renk).**
 
 **ÖLÇÜM (task'ın kendi sorularına cevap):**
@@ -15955,7 +16008,17 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G213 itibarıyla):** BÖLÜM çubuğu artık doğru/
+**EN YENİ SIRADAKİ ADIM (G214 itibarıyla):** #54 kapandı — "Atla" artık
+parkur/sınav/telafi sayaçlarının hepsini ilerletiyor (yanlış cevap
+sayılarak), telafi turunda kilitlenme senaryosu Playwright'ta bir daha
+üretilemedi. `npm test` (1315/1315) ve uçtan uca Playwright (10+10 "Atla"
+ile tam parkur→telafi→yeni-parkur döngüsü, can kaybı yok, çift sayım yok)
+ile doğrulandı. GERÇEK cihazda HENÜZ görülmedi. Kontrol edilecek: (1)
+Düşük Güç Modu'nda, Frekans Bulma'da defalarca "Atla" + rastgele cevap —
+GORSEL-TEST.md'nin #54 senaryosu artık kilitlenmemeli; (2) telafi/sınav
+sayaçlarının GERÇEK cihazda da "Atla" ile ilerlediği gözle doğrulanmalı.
+
+**EN YENİ SIRADAKİ ADIM (G213 itibarıyla, ARTIK ESKİ):** BÖLÜM çubuğu artık doğru/
 yanlış gösteriyor (sınav/telafi'nin AYNI sayaç-bazlı deseni, cyan=doğru/
 kırmızı=yanlış, ikinci görsel sinyal YOK — kullanıcının kararı). `npm
 test` (1315/1315, DOM-render kodu olduğu için yeni birim testi
