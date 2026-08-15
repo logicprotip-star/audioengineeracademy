@@ -454,12 +454,21 @@ describe("Reverb — applyProcessing (previewLetter'a göre doğru ConvolverNode
     assert.ok(Math.abs(f2[0].gain.value - (1 - 0.8)) < 1e-9, "previewLetter='B' verilince O harfin wetMix'i kullanılmalıydı");
   });
 
-  it("her applyProcessing çağrısı TAM BİR ConvolverNode oluşturur, normalize=true", () => {
+  it("her applyProcessing çağrısı TAM BİR ConvolverNode oluşturur, normalize=false (Düzeltme 2, TUR8-OGRETIM-15-08 bulgusu 🔴 — ÖNCEDEN true'ydu, tarayıcının kendi enerji-normalizasyonu Room/Hall/Plate arasındaki GERÇEK enerji farkını eziyordu)", () => {
     const ctx = fakeAudioCtx();
     const q = { variants: [{ letter: "A", type: "room", decaySec: 0.5, preDelaySec: 0.005, sizeNorm: 0.2, wetMix: 0.4, brightness: 0.65 }] };
     mode.applyProcessing(q, { audioCtx: ctx });
     assert.equal(ctx.__created.convolvers.length, 1);
-    assert.equal(ctx.__created.convolvers[0].normalize, true);
+    assert.equal(ctx.__created.convolvers[0].normalize, false);
+  });
+
+  it("Düzeltme 2 KABUL KRİTERİ — dry/wet oranı (input/wetGain.gain.value) normalize değişikliğinden ETKİLENMEDİ", () => {
+    const ctx = fakeAudioCtx();
+    const q = { variants: [{ letter: "A", type: "hall", decaySec: 2.5, preDelaySec: 0.03, sizeNorm: 0.8, wetMix: 0.8, brightness: 0.4 }] };
+    const { filters } = mode.applyProcessing(q, { audioCtx: ctx });
+    assert.ok(Math.abs(filters[0].gain.value - (1 - 0.8)) < 1e-9, "kuru pay (input.gain) hâlâ 1-wetMix");
+    const wetGainNode = ctx.__created.gains.find(g => Math.abs(g.gain.value - 0.8) < 1e-9);
+    assert.ok(wetGainNode, "wetGain (0.8) hâlâ oluşturulan gain'ler arasında — ıslak pay DEĞİŞMEDİ");
   });
 });
 
@@ -682,5 +691,52 @@ describe("Reverb — Kompresör ŞABLONUNUN doğru miras alındığı (Motor 2 t
     const revQ = { variants: [{ letter: "A", type: "room", decaySec: 0.5, preDelaySec: 0.005, sizeNorm: 0.2, wetMix: 0.4, brightness: 0.65 }] };
     const revResult = mode.applyProcessing(revQ, { audioCtx: fakeRevCtx });
     assert.equal(revResult.filters.length, 2);
+  });
+});
+
+describe("Reverb — Düzeltme 2 KABUL KRİTERİ (TUR8-OGRETIM-15-08 bulgusu 🔴): farklı reverb tipleri arasında GERÇEK enerji farkı korunuyor", () => {
+  function fakeAudioCtx(sampleRate = 44100) {
+    return {
+      sampleRate,
+      createBuffer: (channels, length) => {
+        const data = Array.from({ length: channels }, () => new Float32Array(length));
+        return { getChannelData: (ch) => data[ch], length };
+      }
+    };
+  }
+  function rms(data) {
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+    return Math.sqrt(sum / data.length);
+  }
+  // generateImpulseResponse'un KENDİ çıktısı — convolver.normalize KAPALIYKEN
+  // (Düzeltme 2 sonrası) tarayıcı bu buffer'ı YENİDEN ÖLÇEKLENDİRMEZ, yani BURADA
+  // ölçülen oran GERÇEK çıkış oranıyla BİREBİR aynı kalır (normalize=true olsaydı
+  // bu oran tarayıcı tarafından bilinmeyen bir katsayıyla EZİLİRDİ — asıl bug buydu).
+  const k = 0.5; // orta zorluk temsili nokta — REVERB_TYPES aralıklarının ortası
+
+  it("Hall'ın IR'si (uzun decay) Room'unkinden (kısa decay) ANLAMLI ÖLÇÜDE daha fazla toplam enerji taşır", () => {
+    const room = mode.REVERB_TYPES.room;
+    const hall = mode.REVERB_TYPES.hall;
+    const roomVariant = { decaySec: mode.decayAtK(room, k), preDelaySec: mode.preDelayAtK(room, k), sizeNorm: mode.sizeAtK(room, k), wetMix: 0.6, brightness: 0.6 };
+    const hallVariant = { decaySec: mode.decayAtK(hall, k), preDelaySec: mode.preDelayAtK(hall, k), sizeNorm: mode.sizeAtK(hall, k), wetMix: 0.6, brightness: 0.6 };
+
+    const roomIr = mode.generateImpulseResponse(fakeAudioCtx(), roomVariant);
+    const hallIr = mode.generateImpulseResponse(fakeAudioCtx(), hallVariant);
+
+    const roomRms = rms(roomIr.getChannelData(0));
+    const hallRms = rms(hallIr.getChannelData(0));
+
+    assert.ok(hallVariant.decaySec > roomVariant.decaySec * 1.5, `ön koşul: Hall decaySec (${hallVariant.decaySec.toFixed(2)}s) Room'dan (${roomVariant.decaySec.toFixed(2)}s) belirgin uzun olmalı`);
+    assert.ok(hallRms > roomRms * 1.2, `Hall RMS (${hallRms.toFixed(4)}) Room RMS'den (${roomRms.toFixed(4)}) en az %20 büyük olmalı — normalize=false ile bu fark artık ÇIKIŞA YANSIYOR`);
+  });
+
+  it("AYNI tipte (Room), decaySec artınca (k=0→1) IR enerjisi de MONOTON artar", () => {
+    const room = mode.REVERB_TYPES.room;
+    const shortVariant = { decaySec: mode.decayAtK(room, 0), preDelaySec: mode.preDelayAtK(room, 0), sizeNorm: mode.sizeAtK(room, 0), wetMix: 0.6, brightness: 0.6 };
+    const longVariant = { decaySec: mode.decayAtK(room, 1), preDelaySec: mode.preDelayAtK(room, 1), sizeNorm: mode.sizeAtK(room, 1), wetMix: 0.6, brightness: 0.6 };
+    const shortRms = rms(mode.generateImpulseResponse(fakeAudioCtx(), shortVariant).getChannelData(0));
+    const longRms = rms(mode.generateImpulseResponse(fakeAudioCtx(), longVariant).getChannelData(0));
+    assert.ok(longRms > shortRms, `k=1 RMS (${longRms.toFixed(4)}) k=0 RMS'den (${shortRms.toFixed(4)}) büyük olmalı — enerji decaySec ile monoton artmalı`);
   });
 });

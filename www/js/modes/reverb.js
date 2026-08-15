@@ -356,7 +356,19 @@ export function applyProcessing(question, { audioCtx }) {
   wetGain.gain.value = variant.wetMix; // ISLAK pay
   const output = audioCtx.createGain();
   const convolver = audioCtx.createConvolver();
-  convolver.normalize = true;
+  // Düzeltme 2 (TUR8-OGRETIM-15-08 bulgusu 🔴) — ÖNCEDEN true idi: Web Audio
+  // spesifikasyonu normalize=true iken tarayıcının IR buffer'ını KENDİ enerji-
+  // bazlı algoritmasıyla yeniden ölçeklendirdiğini tanımlıyor — bu,
+  // generateImpulseResponse()'un ÖZENLE hesapladığı RT60/decay/density farklarının
+  // (Room/Hall/Plate arasındaki GERÇEK enerji farkı) tarayıcı tarafından
+  // EZİLMESİNE yol açıyordu. false'a çevrildi — generateImpulseResponse()'un
+  // KENDİ matematiği (RT60 zarfı + density) ZATEN decaySec'e ORANTILI bir enerji
+  // üretiyor (bkz. o fonksiyonun dosya başı notu) — normalize KAPALIYKEN bu GERÇEK
+  // fark artık çıkışta KORUNUYOR. wetGain.gain.value (yukarı, satır 356) ve
+  // input.gain.value (kuru pay, satır 354) TEK SATIR değişmedi — dry/wet ORANI
+  // (mix dengesi) bu değişiklikten ETKİLENMİYOR, sadece wet yolun MUTLAK enerjisi
+  // artık gerçekçi (bkz. test/reverb.test.mjs'nin GÜNCELLENEN + YENİ testleri).
+  convolver.normalize = false;
   convolver.buffer = generateImpulseResponse(audioCtx, variant);
 
   input.connect(convolver);

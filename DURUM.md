@@ -146,6 +146,42 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G243 — **Convolver normalize kapatıldı (Düzeltme 2, TUR8-OGRETIM-15-08 bulgusu 🔴) — `reverb.js:359`, `convolver.normalize` artık `false`, Room/Hall/Plate arasındaki GERÇEK enerji farkı çıkışa yansıyor.**
+
+**Kök sebep:** `convolver.normalize=true` iken Web Audio spesifikasyonu
+gereği tarayıcı, `generateImpulseResponse()`'un ÖZENLE hesapladığı RT60/
+decay/density zarfını KENDİ enerji-bazlı algoritmasıyla YENİDEN
+ölçeklendiriyordu — farklı reverb tiplerinin/decay sürelerinin GERÇEK
+loudness farkı tarayıcı tarafından EZİLİYORDU.
+
+**Uygulanan:** `convolver.normalize = false`. `generateImpulseResponse()`'un
+KENDİ matematiği (RT60 zarfı + density) ZATEN decaySec'e ORANTILI bir
+enerji üretiyor — normalize kapalıyken bu artık ÇIKIŞTA KORUNUYOR, ekstra
+bir manuel normalizasyon GEREKMEDİ (task'ın "gerekiyorsa" koşulu —
+gerekmedi, mevcut IR matematiği zaten doğru orantılı). `wetGain.gain.value`/
+`input.gain.value` (dry/wet oranı) TEK SATIR değişmedi.
+
+**Testler:** `test/reverb.test.mjs` — mevcut "normalize=true" testi
+"normalize=false" bekleyecek şekilde güncellendi + 3 YENİ test: (1) dry/wet
+oranının değişmediği, (2) Hall'ın IR RMS'inin Room'dan en az %20 büyük
+olduğu (gerçek enerji farkı ÖLÇÜLEREK doğrulandı, tahmin değil), (3) AYNI
+tipte decaySec arttıkça IR enerjisinin MONOTON arttığı.
+
+**Ölçüm:** `npm test` → **1374/1374** (G242'nin 1371'i + Düzeltme 2'nin
+kendi +3 yeni testi: dry/wet oranı korundu + Hall/Room enerji farkı +
+decaySec-monotonluk; mevcut "normalize=true" testi "false" bekleyecek
+şekilde GÜNCELLENDİ, ayrı sayılmadı). `npm run
+test:e2e` → **18/18, DEĞİŞMEDİ**. Canlı tarayıcıda (Playwright, geçici
+smoke script — e2e/'ye eklenmedi) Reverb modunda round başlatılıp A/B 3
+kez değiştirildi, konsol hatası SIFIR.
+
+**Dokunulan:** `www/js/modes/reverb.js` (SADECE `applyProcessing()`'in
+`convolver.normalize` satırı), `test/reverb.test.mjs`.
+**Dokunulmayan:** `generateImpulseResponse()`'un matematiği, `wetMix`/
+dry-pay hesapları, REVERB_TYPES/decayAtK/preDelayAtK/sizeAtK, zorluk
+eğrisi (Z1-Z7), DIFFICULTY tabloları, seans rampası, e2e suite yapısı,
+kaynak dosyalar, diğer 11 mod, G214-G242 arası commit'ler.
+
 G242 — **A/B loudness eşitleme (Düzeltme 1, TUR8-OGRETIM-15-08 bulgusu 🔴) — Boost mu Cut mu/Frekans Bulma/Kesim Noktası/Q Genişliği'nde işlenmiş sinyale RBJ-matematiğinden hesaplanan ölçülebilir bir telafi kazancı uygulanıyor, dB Seviyesi HARİÇ tutuldu.**
 
 **Kök sebep:** A/B karşılaştırmasında (`audio-engine.js` dry/wet
