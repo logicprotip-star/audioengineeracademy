@@ -5,6 +5,7 @@
 
 import { findSource } from "./source-catalog.js";
 import { DEV_MODE } from "./build-flags.js";
+import { estimateChainGainDb, compensationGainLinear } from "./eq-loudness.js";
 
 const MUTE_RAMP_SEC = 0.05; // ~50ms — Durdur/Tekrar Çal arasındaki geçiş
 // G33: stopAudio()'nun eski zincir söndürme zaman sabiti (0.03) node.stop()'un
@@ -781,6 +782,23 @@ export function createAudioEngine() {
     // hazır bekliyor, A/B toggle'ı sadece gain crossfade ile arasında geçiyor.
     const processingResult = applyProcessing(question, { audioCtx });
     const filters = processingResult.filters || [];
+    // Düzeltme 1 (TUR8-OGRETIM-15-08 bulgusu 🔴, core/eq-loudness.js) — SADECE mod
+    // KENDİSİ matchLoudness:true ile OPT-IN ederse uygulanır (allowlist, blacklist
+    // DEĞİL — dB Seviyesi'nin g.gain.value=10^(dbDelta/20)'si GİBİ "seviye farkının
+    // KENDİSİ soru" olan modlarda bu telafi MODU BOZAR, bu yüzden mod dosyasının
+    // AÇIKÇA istemesi gerekiyor). filters[]'teki GERÇEK biquad parametreleri
+    // (type/frequency.value/Q.value/gain.value) okunup RBJ matematiğiyle (tahmini
+    // bir sabit DEĞİL) bir telafi kazancı hesaplanıyor — aşağıda wet zincirine
+    // (filtrelerden SONRA, localWetGain'DEN ÖNCE) tek bir GainNode olarak ekleniyor.
+    let loudnessCompGain = null;
+    if (processingResult.matchLoudness && filters.length) {
+      const filterParams = filters
+        .filter(f => f && f.frequency && typeof f.frequency.value === "number")
+        .map(f => ({ type: f.type, frequency: f.frequency.value, Q: f.Q ? f.Q.value : 0.707, gain: f.gain ? f.gain.value : 0 }));
+      const effectiveDb = estimateChainGainDb(filterParams, { sampleRate: audioCtx.sampleRate });
+      loudnessCompGain = audioCtx.createGain();
+      loudnessCompGain.gain.value = compensationGainLinear(effectiveDb);
+    }
     // G118 (Stereo Genişlik) — TEK EKLENTİ NOKTASI: `filters` dizisi SADECE DÜZ
     // bir SERİ zincir kurabiliyor (`wetNode.connect(f); wetNode=f`, aşağıda AYNEN
     // korundu) — bir modun kaynağı İÇERDE ikiye ayırıp (fan-out) farklı işleyip
@@ -803,7 +821,7 @@ export function createAudioEngine() {
     dryGain = localDryGain;
     wetGain = localWetGain;
 
-    currentNodes.push(out, sourceMix, compressor, localDryGain, localWetGain, ...(branch ? branch.nodes : filters));
+    currentNodes.push(out, sourceMix, compressor, localDryGain, localWetGain, ...(branch ? branch.nodes : filters), ...(loudnessCompGain ? [loudnessCompGain] : []));
 
     if (sourceType === "upload" && uploadManager && uploadManager.hasBuffer) {
       const node = uploadManager.getSourceNode();
@@ -872,6 +890,13 @@ export function createAudioEngine() {
     } else {
       let wetNode = sourceMix;
       filters.forEach(f => { wetNode.connect(f); wetNode = f; });
+      // Düzeltme 1 — filtrelerden SONRA, localWetGain'DEN ÖNCE tek bir telafi
+      // kazancı (varsa). Yoksa (matchLoudness olmayan modlar — dB Seviyesi dahil,
+      // davranış BİREBİR eskisi gibi) doğrudan localWetGain'e bağlanır.
+      if (loudnessCompGain) {
+        wetNode.connect(loudnessCompGain);
+        wetNode = loudnessCompGain;
+      }
       wetNode.connect(localWetGain);
     }
     localWetGain.connect(compressor);

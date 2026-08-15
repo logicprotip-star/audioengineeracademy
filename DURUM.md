@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (TUR6-YANETKI-15-08 — BEYAN-DENETIM-15-08'den sonraki denetim turu)
+Son güncelleme: 16.08.2026 (G241 + TUR8-OGRETIM-15-08 — TUR6-YANETKI-15-08'den sonraki tur)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,145 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G242 — **A/B loudness eşitleme (Düzeltme 1, TUR8-OGRETIM-15-08 bulgusu 🔴) — Boost mu Cut mu/Frekans Bulma/Kesim Noktası/Q Genişliği'nde işlenmiş sinyale RBJ-matematiğinden hesaplanan ölçülebilir bir telafi kazancı uygulanıyor, dB Seviyesi HARİÇ tutuldu.**
+
+**Kök sebep:** A/B karşılaştırmasında (`audio-engine.js` dry/wet
+crossfade) işlenmiş sinyalin GENEL SEVİYESİ hiç telafi edilmiyordu —
+boost genel seviyeyi artırıyor, cut azaltıyor. En ciddi sonucu Boost mu
+Cut mu modunda: kullanıcı SPEKTRAL bir yargı yerine "hangisi daha
+yüksek sesli" kısayoluyla da doğru cevaba ulaşabiliyordu — modun amacı
+boşa çıkıyordu.
+
+**Uygulanan:**
+1. YENİ `core/eq-loudness.js` — SAF/test edilebilir fonksiyonlar.
+   `biquadMagnitudeDb()` Web Audio'nun BiquadFilterNode'unun GERÇEK
+   matematiğini (RBJ Audio-EQ Cookbook formülleri — Web Audio
+   spesifikasyonunun kaynağı) BİREBİR yeniden üretiyor — peaking/
+   highpass/lowpass (bu app'in kullandığı ÜÇ tip, grep ile doğrulandı).
+   `estimateChainGainDb()` bir filtre zincirinin PEMBE GÜRÜLTÜ
+   (oktav başına eşit enerji, bu app'in kendi varsayılan kaynağıyla
+   TUTARLI) ağırlıklı ortalama kazancını (dB) hesaplıyor — log-uniform
+   256 frekans örneği üzerinden GÜÇ (dB değil) ortalaması. Bu bir
+   TAHMİNİ SABİT DEĞİL, filtrenin GERÇEK type/frequency/Q/gain
+   parametrelerinden HESAPLANAN bir değer (task'ın açık isteği).
+2. `boost-mu-cut-mu.js`/`frekans-bulma.js`/`kesim-noktasi.js`/
+   `q-genisligi.js`'in `applyProcessing()`'i `{filters, matchLoudness:
+   true}` döndürüyor — ALLOWLIST (opt-in), blacklist DEĞİL: `dB
+   Seviyesi` (`g.gain.value=10^(dbDelta/20)`, seviye farkının
+   KENDİSİ soru olduğu için telafi modu BOZAR), Reverb (Düzeltme 2'yle
+   AYRI ele alındı), Frekans Çakışması (`{filterA,filterB}` — TAMAMEN
+   FARKLI bir şekil, `filters` dizisi hiç kullanmıyor), Kompresör/
+   Distortion (nonlinear DSP, RBJ biquad matematiği uygulanamaz),
+   Stereo Genişlik (mid/side branch, basit biquad değil), Pan
+   Konumu/Tonal Denge BİLİNÇLİ OLARAK bu turun kapsamı DIŞINDA
+   bırakıldı (task'ın "özellikle" dediği 4 mod önceliklendirildi,
+   DIFFICULTY/zorluk eğrisi riske atılmadı).
+3. `audio-engine.js`: `applyProcessing()` çağrısından SONRA, mod
+   `matchLoudness:true` derse, gerçek filtre node'larının (`f.type`/
+   `f.frequency.value`/`f.Q.value`/`f.gain.value`) parametreleri
+   okunup `estimateChainGainDb()`'ye verilir, sonucun tersi
+   (`compensationGainLinear()`) YENİ bir GainNode olarak filtrelerin
+   SONRASINA, `localWetGain`'DEN ÖNCESİNE eklenir. `matchLoudness`
+   yoksa (10 mod) davranış BİREBİR eskisi gibi.
+
+**Testler:** YENİ `test/eq-loudness.test.mjs` — 12 test: RBJ
+formüllerinin doğruluğu (peaking f0'da TAM kendi gain'ini veriyor,
+HPF/LPF'in DC/yüksek-frekans uç davranışları), pembe-gürültü
+ortalamasının pik gain'den küçük/monoton davranışı, 256-örnek
+yakınsaması (<0.01dB), VE **KABUL KRİTERİ testi**: simetrik +6dB
+boost/-6dB cut, telafi SONRASI İKİSİ de <0.01dB'ye (ölçülebilir
+şekilde eşit) iniyor.
+
+**Ölçüm:** `npm test` → **1371/1371** (1359+12 eq-loudness testi).
+`npm run test:e2e` → **18/18, DEĞİŞMEDİ**. Canlı tarayıcıda (Playwright, geçici smoke script)
+Boost mu Cut mu/Frekans Bulma/Kesim Noktası/Q Genişliği'nde round
+başlatılıp A/B 4 kez değiştirildi, konsol hatası SIFIR, oyun ekranı
+her modda göründü.
+
+**Dokunulan:** `www/js/core/eq-loudness.js` (yeni), `www/js/core/
+audio-engine.js` (SADECE `buildQuestionChain()`'in `matchLoudness`
+bloğu), `www/js/modes/boost-mu-cut-mu.js`/`frekans-bulma.js`/
+`kesim-noktasi.js`/`q-genisligi.js` (SADECE `applyProcessing()`'in
+dönüş değeri, tek alan eklendi), `test/eq-loudness.test.mjs` (yeni).
+**Dokunulmayan:** `createQuestion`/`evaluateAnswer`/`calculateXP`
+(4 modun HİÇBİRİNDE), DIFFICULTY tabloları, zorluk eğrisi (Z1-Z7),
+seans rampası, dB Seviyesi/Reverb/Frekans Çakışması/Kompresör/
+Distortion/Stereo Genişlik/Pan Konumu/Tonal Denge (8 mod HİÇ
+dokunulmadı), e2e suite yapısı, kaynak dosyalar, G214-G241 arası
+commit'ler.
+
+G241 — **İki stale yorum düzeltildi (TUR6/TUR8 bulgusu) — kod davranışı DEĞİŞMEDİ, sadece yorum metni gerçekle hizalandı.**
+
+**Düzeltilen 1 — `core/progress.js:80-93` (G238'in bugün yazdığı
+yorum):** "ACADEMY_XP_MULTIPLIER'ın Pro seviye kilidinin açılma
+hızını da etkilediği" iddiası YANLIŞTI — o kilit
+(`paywall.meetsLevelRequirement()`) G163/G164'te (bugünden ÇOK
+ÖNCE) koşulsuz `true`'ya sabitlenmişti, academyLevel'ı hiç
+okumuyor. Yorum artık gerçeği yansıtıyor: ACADEMY_XP_MULTIPLIER'ın
+TEK etkisi Ana Menü'nün academyLevel rozetidir, zorluk/mod kilidi
+etkilenmez.
+
+**Düzeltilen 2 — `app.js`'in 4 noktası:** "sınav sistemi bugün
+SADECE Kompresör'de aktif" yorumu ARTIK YANLIŞ — 12 playable modun
+12'sinde de `EXAM_ENABLED=true` (grep ile doğrulandı). "Diğer yedi
+mod"/"export etmeyen diğer modlar" ifadeleri "EXAM_ENABLED export
+etmeyen bir mod şu an YOK, gelecekteki bir moda karşı savunma"
+şeklinde güncellendi.
+
+**Ölçüm:** `npm test` → **1359/1359, DEĞİŞMEDİ** (sadece yorum
+satırları değişti, hiçbir çalıştırılabilir kod dokunulmadı).
+
+**Dokunulan:** `www/js/core/progress.js`, `www/js/app.js` (SADECE
+yorum satırları). **Dokunulmayan:** Her iki dosyanın çalıştırılabilir
+kodu, `npm test`/e2e suite, G214-G240 arası commit'ler.
+
+TUR8-OGRETIM-15-08 — **Öğretim doğruluğu denetimi (SADECE ÖLÇÜM, kod/commit YOK, G241 hariç) — 13 bölüm (A-M), `TUR8-OGRETIM-15-08.md`'ye yazıldı.**
+
+**En ciddi bulgu (🔴, Bölüm A):** A/B karşılaştırmasında (dry/wet
+crossfade, `audio-engine.js`) HİÇBİR loudness/RMS eşitlemesi YOK —
+boost genel seviyeyi artırıyor, cut azaltıyor, aralarında telafi
+kazancı yok. **Boost/Cut modu ÖZELİNDE en ciddi:** bu modun TEK
+amacı "boost mu cut mu" ayrımını KULAKLA yaptırmak ama kullanıcı
+loudness farkı kısayoluyla da doğru cevaba ulaşabilir — mixing
+pedagojisinin "level-matched A/B" kuralının tersini öğretme riski.
+
+**İkinci ciddi bulgu (🔴, Bölüm J):** `reverb.js:359` —
+`convolver.normalize=true` — Web Audio spesifikasyonu gereği
+tarayıcı, özenle hesaplanmış RT60 zarflarını KENDİ enerji-bazlı
+algoritmasıyla yeniden ölçekliyor — farklı decay/tip IR'lerin
+GERÇEK loudness farkını EZEBİLİR (task'ın kendi öngördüğü risk,
+kod seviyesinde DOĞRULANDI). Standart pratik `normalize=false` +
+elle kazanç kontrolü.
+
+**Diğer bulgular (özet, tam kanıt rapor dosyasında):** dB Seviyesi'nin
+Seviye 20'deki 0.32dB farkı, DB_FLOOR=0.25'in kendi "KESİN
+ölçülmedi" notuyla tutarlı biçimde gerçek-dünya JND sınırına yakın
+(🟡, TestFlight'ta doğrulanmalı); Frekans Bulma tüm frekanslarda AYNI
+gain kullanıyor, Fletcher-Munson ağırlıklandırması YOK (🔴, eksik
+zorluk dengesi); Pan Konumu standart eşit-güç StereoPannerNode
+kullanıyor, Logic'in HANGİ pan yasasıyla eşleştiği BELİRSİZ/DAW'a
+bağlı (🟡); Frekans Çakışması'nın maskeleme modeli KASITLI olarak
+"dekoratif" (gerçek psikoakustik asimetri YOK ama kod bunu dürüstçe
+itiraf ediyor, 🟢/🟡 sınırı); Q ölçeği doğru şekilde logaritmik
+(🟢); Kesim Noktası 12dB/oct Butterworth (Q=0.707, doğru/gerçekçi
+ama slope seçeneği YOK, 🟡); Boost/Cut simetrik modelleniyor,
+gerçek algısal asimetri YOK (🔴); Kompresör'ün canlı GR metresi
+yok ama bu muhtemelen G83'ün "kör dinleme" ilkesiyle KASITLI (🟢);
+soru dağılımı kasıtlı olarak zayıf-bölge-ağırlıklı, tekrar-önleme
+guard'ı yok ama sürekli rastgele dağılım nedeniyle risk düşük (🟡);
+şık üretimi (pozisyon + oktav-bazlı çeldirici mesafesi) doğru (🟢);
+fade-in 50ms ölçüldü, groove_090.m4a'nın döngü noktası ffmpeg/astats
+ile ÖLÇÜLEREK (ilk/son 1ms peak -47.7dB/-72.5dB, near-silent) temiz
+bulundu (🟢, ama faz-seviyesi doğrulama kulakla yapılmalı).
+
+**Testler/Ölçüm:** Ölçüm bölümü kod yazmadı — `npm test`/e2e
+DOKUNULMADI (G241'in ölçümü geçerli: 1359/1359, e2e 18/18).
+
+**Dokunulan:** `TUR8-OGRETIM-15-08.md` (yeni dosya, henüz commit
+edilmedi — önceki TUR raporlarıyla AYNI kural).
+**Dokunulmayan:** G241 dışında hiçbir kod dosyası, `npm test`/e2e
+suite.
 
 TUR6-YANETKI-15-08 — **Bugünün yan etkileri + sınav sistemi bütün olarak denetimi (SADECE ÖLÇÜM, kod/commit YOK) — 9 bölüm (A-I), `TUR6-YANETKI-15-08.md`'ye yazıldı.**
 
@@ -17918,7 +18057,26 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (TUR6-YANETKI-15-08 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G241 + TUR8-OGRETIM-15-08 itibarıyla):**
+İki belge düzeltmesi (G241) commit'lendi, `TUR8-OGRETIM-15-08.md`
+tamamlandı (denetim, kod yazılmadı, commit atılmadı). **Bir sonraki
+adım — kullanıcının onayı/kararı gerekir, öncelik sırasıyla:**
+1. 🔴 **`reverb.js:359`'daki `convolver.normalize=true`** —
+   `false`'a çevrilip IR'nin RMS'ine göre elle kazanç kontrolü
+   eklenmesi (dar kapsamlı bir düzeltme, büyük pedagojik etki).
+2. 🔴 **A/B loudness eşitleme, özellikle Boost/Cut modu** — ürün
+   kararı: wet yola RMS/peak-bazlı telafi kazancı eklensin mi
+   (mühendislik işi) yoksa bu sınır 1.1'e mi ertelensin?
+3. 🟡 dB Seviyesi'nin üst seviyelerinin (Seviye 15-20,
+   ~0.3-0.5dB) TestFlight'ta fiziksel ayırt edilebilirliğinin
+   kulakla doğrulanması.
+4. 🟡 Boost/Cut asimetrisinin (+3dB boost vs -3dB cut algısal
+   büyüklük farkı) TestFlight testinde gözlemlenmesi.
+Ayrıca TUR6-YANETKI-15-08'in kendi öncelik listesi (Android'de G236
+karşılığının olmaması) ve BEYAN-DENETIM-15-08'in .gitignore tuzağı
+hâlâ AÇIK, bu turdan ETKİLENMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (TUR6-YANETKI-15-08 itibarıyla, ARTIK ESKİ):**
 `TUR6-YANETKI-15-08.md` tamamlandı (denetim, kod yazılmadı, commit
 atılmadı). **Bir sonraki adım — kullanıcının onayı/kararı gerekir,
 öncelik sırasıyla:**

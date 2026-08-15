@@ -373,7 +373,11 @@ export function applyProcessing(question, { audioCtx }) {
   f.type = question.filterType;
   f.frequency.value = question.freq;
   f.Q.value = FILTER_Q;
-  return { filters: [f] };
+  // Düzeltme 1 (TUR8-OGRETIM-15-08 bulgusu 🔴, core/eq-loudness.js) — HPF/LPF
+  // geniş bantta genel seviyeyi düşürür, bu "kesim var" ipucu verebilir.
+  // audio-engine.js filtrenin GERÇEK RBJ frekans tepkisinden bir telafi kazancı
+  // hesaplar — tahmini bir sabit değil.
+  return { filters: [f], matchLoudness: true };
 }
 
 // SAF FONKSİYON. answer: { freq, filterType } — şıklı arayüzden gelen seçimin HER

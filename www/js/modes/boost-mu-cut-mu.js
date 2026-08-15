@@ -367,7 +367,11 @@ export function applyProcessing(question, { audioCtx }) {
   f.frequency.value = question.freq;
   f.Q.value = FILTER_Q;
   f.gain.value = question.gainDb;
-  return { filters: [f] };
+  // Düzeltme 1 (TUR8-OGRETIM-15-08 bulgusu 🔴, core/eq-loudness.js) — bu modun
+  // TEK amacı boost/cut yönünü KULAKLA ayırt ettirmek, loudness ipucu vermemeli.
+  // matchLoudness:true → audio-engine.js filtrenin GERÇEK RBJ frekans tepkisinden
+  // (tahmini bir sabit DEĞİL) bir telafi kazancı hesaplayıp wet yola ekler.
+  return { filters: [f], matchLoudness: true };
 }
 
 // SAF FONKSİYON. answer şekli katmana göre değişir:

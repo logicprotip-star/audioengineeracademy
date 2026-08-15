@@ -446,7 +446,11 @@ export function applyProcessing(question, { audioCtx }) {
     f.gain.value = question.gain;
     filters.push(f);
   }
-  return { filters };
+  // Düzeltme 1 (TUR8-OGRETIM-15-08 bulgusu 🔴, core/eq-loudness.js) — boost'un genel
+  // seviyeyi artırıp "hangi bant boost'landı" sorusuna loudness ipucu vermesini
+  // önler. audio-engine.js filtrelerin GERÇEK RBJ frekans tepkisinden bir telafi
+  // kazancı hesaplar — tahmini bir sabit değil.
+  return { filters, matchLoudness: true };
 }
 
 // SAF FONKSİYON: sadece hesap yapar.

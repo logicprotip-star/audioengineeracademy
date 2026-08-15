@@ -366,7 +366,11 @@ export function applyProcessing(question, { audioCtx }) {
   f.frequency.value = question.freq;
   f.Q.value = question.q;
   f.gain.value = question.gainDb;
-  return { filters: [f] };
+  // Düzeltme 1 (TUR8-OGRETIM-15-08 bulgusu 🔴, core/eq-loudness.js) — boost/cut
+  // genel seviyeyi değiştirip bant genişliği (Q) ayrımına loudness ipucu
+  // katmasın diye. audio-engine.js filtrenin GERÇEK RBJ frekans tepkisinden bir
+  // telafi kazancı hesaplar — tahmini bir sabit değil.
+  return { filters: [f], matchLoudness: true };
 }
 
 // SAF FONKSİYON. answer: etiket id'si (string, "notch"/"dar"/...) ya da {id}.
