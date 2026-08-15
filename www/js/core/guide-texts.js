@@ -114,6 +114,47 @@ export const TOOLS_TONAL_GUIDE = {
   ]
 };
 
+// ---- 1c. Araçlar → Ölçüm Sonuçları kartının "i"si — TOOLS_TONAL_GUIDE'ın
+// AYNI {title, sections} şekli. Düzeltme 2 (TUR9-ARACLAR-15-08 bulgusu 🟡):
+// core/analysis.js ITU-R BS.1770-4/EBU Tech 3342'ye tam uyumlu ama bu
+// yöntem kullanıcıya HİÇ gösterilmiyordu — Tonal Balance'ın hedef eğrileri
+// G226'da AYNI muameleyi almıştı (bkz. yukarı), bu panel almamıştı. Metin
+// core/analysis.js'in KENDİ kod yorumlarından/sabitlerinden türetildi
+// (GATING_BLOCK_MS/MOMENTARY_BLOCKS/SHORT_TERM_BLOCKS/ABSOLUTE_GATE_LUFS/
+// RELATIVE_GATE_OFFSET_LU, true-peak L=8/Kaiser-pencere/G100'ün ölçülmüş
+// sapma sınırları, LRA_WINDOW_BLOCKS/LRA_STEP_BLOCKS/LRA_LOW_PERCENTILE/
+// LRA_HIGH_PERCENTILE, SHORT_TERM_BLOCKS'un korelasyon penceresi olarak da
+// kullanılması) — TAHMİN EDİLMEDİ, kod OKUNARAK yazıldı.
+export const TOOLS_RESULTS_GUIDE = {
+  title: "Ölçüm Sonuçları",
+  sections: [
+    {
+      heading: "Ölçüm Sonuçları ne işe yarar?",
+      body: "Yüklediğin dosyanın loudness, tepe seviyesi, dinamik aralık ve faz/stereo uyumunu ölçer — iZotope RX'in Waveform Statistics paneline benzer bir küçük karşılığı. Ölçüm dosyanın TAMAMI üzerinden yapılır, bir bölüm/aralık değil."
+    },
+    {
+      heading: "LUFS (loudness)",
+      body: "ITU-R BS.1770-4 standardına göre K-ağırlıklı ölçüm. Momentary (400ms), Short-term (3sn) ve Integrated (parça geneli) üçü de gösterilir. Integrated, standardın istediği iki aşamalı kapılamayla hesaplanır: önce −70 LUFS'un altındaki sessiz bölümler atılır, sonra kalan ortalamanın 10 LU altındakiler de atılır."
+    },
+    {
+      heading: "True Peak (dBTP)",
+      body: "8× aşırı örnekleme ile ölçülür. ITU'nun resmi polifaz filtre tablosu birebir kullanılmıyor — kendi tasarımımız Kaiser-pencereli bir filtre ile üretiliyor, testlerle ölçülen sapma en kötü durumda gerçek tepenin ~0.04dB üstünde ya da ~0.17dB altında kalıyor. RX 11 ile karşılaştırıldı ve yakın bulundu, birebir eşleşme iddia edilmiyor."
+    },
+    {
+      heading: "LRA (Loudness Range)",
+      body: "EBU Tech 3342'ye göre — 3 saniyelik pencere, 100ms adımla kayarak ölçülür, loudness dağılımının 10. ve 95. yüzdelik dilimleri arasındaki fark olarak hesaplanır."
+    },
+    {
+      heading: "Faz / stereo korelasyon",
+      body: "İki değer var: parçanın TAMAMI için tek bir genel korelasyon, ve grafikteki zaman serisi için 3 saniyelik kayan pencere — ikisi de −1 (ters faz) ile +1 (tam mono uyumlu) arasında."
+    },
+    {
+      heading: "Başka bir araçla küçük fark görürsen",
+      body: "Bu beklenen bir durum — LRA'nın adım büyüklüğü ve true peak'in filtre tasarımı araçtan araca değişebilir. Sayılar RX 11 ile karşılaştırıldı ve yakın çıktı; birebir eşleşmemesi bir hata değildir."
+    }
+  ]
+};
+
 // ---- 2. Mod başına "i" — ne öğretir + nasıl oynanır + mix anlamı ----
 // Anahtarlar mode-catalog.js'in id'leriyle BİREBİR aynı (10 oynanabilir mod).
 export const MODE_GUIDE_TEXTS = {

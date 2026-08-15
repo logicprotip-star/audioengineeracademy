@@ -1096,6 +1096,12 @@
                 </div>
                 <div class="tools-card-sub">Yüklediğin mixin teknik ölçümleri</div>
               </div>
+              <!-- Düzeltme 2 (TUR9-ARACLAR-15-08 bulgusu 🟡) — toolsTonalInfoBtn'in
+                   AYNI deseni (core/guide-texts.js:TOOLS_RESULTS_GUIDE). Bu buton
+                   akordiyon başlığının İÇİNDE olduğu için app.js'te
+                   e.stopPropagation() ile tıklamanın akordiyonu AÇIP/KAPAMASI
+                   engelleniyor. -->
+              <button type="button" class="mode-info-btn" id="toolsResultsInfoBtn" aria-label="Ölçüm Sonuçları bilgisi">i</button>
               <svg class="tools-filter-chevron" id="toolsResultsChevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
             </div>
             <div class="tools-card-disabled-hint" id="toolsAnalysisDisabledHint">Önce bir dosya seç</div>

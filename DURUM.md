@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (TUR9-ARACLAR-15-08 — G242/G243/OLCUM-OGRETIM'den sonraki tur)
+Son güncelleme: 16.08.2026 (G244/G245 — TUR9-ARACLAR-15-08'in iki düzeltmesi)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,53 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G245 — **Ölçüm metodolojisi "i" metni eklendi (Düzeltme 2, TUR9-ARACLAR-15-08 bulgusu 🟡) — Ölçüm Sonuçları kartına Tonal Balance'ın G226'da aldığı AYNI muamele, YENİ bir "i" butonuyla.**
+
+**Kök sebep:** `core/analysis.js` ITU-R BS.1770-4/EBU Tech 3342'ye
+tam uyumlu ama bu yöntem kullanıcıya HİÇ açıklanmıyordu —
+`guide-texts.js`'te bu panel için "i" metni/butonu HİÇ YOKTU (Tonal
+Balance'ın hedef eğrileri G226'da bu muameleyi almıştı, Ölçüm
+Sonuçları almamıştı).
+
+**Uygulanan:**
+1. `guide-texts.js`'e `TOOLS_RESULTS_GUIDE` — `TOOLS_TONAL_GUIDE`'ın
+   AYNI `{title, sections}` şekli, 6 bölüm: ne işe yarar (TAM parça
+   ölçülüyor), LUFS (ITU-R BS.1770-4, Momentary/Short-term/Integrated,
+   iki-aşamalı kapılama), True Peak (8× oversampling, kendi Kaiser-
+   pencereli filtre, ölçülmüş ~0.04/~0.17dB sapma sınırı), LRA (EBU
+   Tech 3342, 3sn pencere/100ms adım, P10-P95), Faz/korelasyon (genel
+   + 3sn kayan pencere), "başka bir araçla küçük fark" dürüstlük notu.
+   **Metin `analysis.js`'in KENDİ kod yorumlarından/sabitlerinden
+   TÜRETİLDİ** (GATING_BLOCK_MS/MOMENTARY_BLOCKS/SHORT_TERM_BLOCKS/
+   ABSOLUTE_GATE_LUFS/RELATIVE_GATE_OFFSET_LU/LRA_WINDOW_BLOCKS/
+   LRA_STEP_BLOCKS/LRA_LOW_PERCENTILE/LRA_HIGH_PERCENTILE/G100'ün
+   ölçülmüş true-peak sapma notları) — TAHMİN EDİLMEDİ.
+2. `index.html`'e YENİ `#toolsResultsInfoBtn` ("i" butonu,
+   `toolsTonalInfoBtn`'in AYNI `.mode-info-btn` deseni) — Ölçüm
+   Sonuçları kartının akordiyon başlığının İÇİNE eklendi.
+3. `app.js`: `openGuideSheet()`'e `"tools-results"` sentinel dalı
+   (`"tools-tonal-balance"`'ın AYNI şekli), tıklama listener'ında
+   `e.stopPropagation()` — buton akordiyon başlığının İÇİNDE olduğu
+   için bu OLMADAN tıklama HEM sheet'i açar HEM akordiyonu aç/kapardı.
+
+**Testler:** Bu bir metin/UI eklemesi — otomatik test EKLENMEDİ (task
+kabul kriteri istemedi). Canlı tarayıcıda (Playwright) DOĞRUDAN
+doğrulandı: buton DOM'da var, tıklayınca sheet "Ölçüm Sonuçları"
+başlığıyla açılıyor, gövde LUFS/True Peak/LRA metinlerini İÇERİYOR,
+akordiyon AYNI ANDA açılmıyor (stopPropagation çalışıyor), konsol
+hatası SIFIR.
+
+**Ölçüm:** `npm test` → **1383/1383, DEĞİŞMEDİ** (G244'ün ölçümü
+geçerli). `npm run test:e2e` → **18/18, DEĞİŞMEDİ**.
+
+**Dokunulan:** `www/js/core/guide-texts.js` (yeni `TOOLS_RESULTS_GUIDE`),
+`www/index.html` (yeni `#toolsResultsInfoBtn`), `www/js/app.js`
+(SADECE `els.toolsResultsInfoBtn` + `openGuideSheet()`'in yeni dalı +
+1 listener).
+**Dokunulmayan:** `analysis.js`'in ölçüm algoritması (bir satır bile
+değişmedi — SADECE okunup metne DÖKÜLDÜ), Tonal Balance grafiği,
+hedef eğri değerleri, e2e suite yapısı, G214-G244 arası commit'ler.
 
 G244 — **EQ zinciri kazanç sınırı eklendi (Düzeltme 1, TUR9-ARACLAR-15-08 bulgusu 🔴, işitme güvenliği) — `computeReferenceEqGainsDb()`/`lufsMatchGainDb()` artık ±12dB'ye kırpılıyor, "referans eğrisiyle dinle" zincirine kendi limiter'ı eklendi.**
 
@@ -18223,7 +18270,20 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (TUR9-ARACLAR-15-08 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G244/G245 itibarıyla):** TUR9'un iki
+bulgusu da KAPANDI — G244 (EQ zinciri ±12dB kazanç sınırı + kendi
+limiter'ı) ve G245 (Ölçüm Sonuçları'na metodoloji "i" metni).
+`npm test` 1383/1383, `npm run test:e2e` 18/18, ikisi de canlı
+tarayıcıda (Playwright) doğrulandı. **Bir sonraki adım:** Bölüm A'nın
+Bluetooth hoparlör filtresi önerisi (kararı Logic'e bağlı, kod
+YAZILMADI) ve TUR9'un "1.1'e bırakılabilir" listesi (Referans
+Filtreleri'nin sıfır test kapsamı, Tonal Balance/Referans Filtreleri
+arası çapraz karşılıklı-dışlama eksikliği) hâlâ AÇIK — acil değil.
+Ayrıca önceki turların açık maddeleri (BEYAN-DENETIM'in .gitignore
+tuzağı, TUR6'nın Android/G236 bulgusu, OLCUM-OGRETIM'in Fletcher-
+Munson/Boost-Cut kararları) hâlâ AÇIK, bu turdan ETKİLENMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (TUR9-ARACLAR-15-08 itibarıyla, ARTIK ESKİ):**
 `TUR9-ARACLAR-15-08.md` tamamlandı (denetim, kod yazılmadı, commit
 atılmadı). **Bir sonraki adım — kullanıcının onayı/kararı gerekir,
 öncelik sırasıyla:**
