@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (G244/G245 — TUR9-ARACLAR-15-08'in iki düzeltmesi)
+Son güncelleme: 16.08.2026 (TUR710-PERF-ARAYUZ-15-08 — G244/G245'ten sonraki tur)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,132 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G246 — **iCloud yedeği hariç tutma (Düzeltme 1, TUR710-PERF-ARAYUZ-15-08 bulgusu 🔴) — `file-storage.js` artık `Directory.LIBRARY_NO_CLOUD` kullanıyor, eski dosyalar için `Directory.DATA`'ya okuma/silme fallback'i var, native Swift/Kotlin KODU YAZILMADI.**
+
+**Kök sebep:** Kullanıcının yüklediği dosyalar `Directory.Data`'da
+(iOS'ta Documents dizinine karşılık geliyor, @capacitor/filesystem'in
+KENDİ tip tanımıyla doğrulandı) tutuluyordu — VARSAYILAN olarak
+iCloud/iTunes yedeğine dahil, `isExcludedFromBackup`/
+`NSURLIsExcludedFromBackupKey` hiç ayarlanmamıştı.
+
+**Araştırma (KOD YAZMADAN önce, task'ın kendi isteği):**
+`node_modules/@capacitor/filesystem`'in TAM TypeScript tanımları
+(`definitions.d.ts`) okundu — `Directory.LIBRARY_NO_CLOUD` (@since
+7.1.0, kurulu sürüm 8.1.2) resmi olarak *"The Library directory
+without cloud backup. Used in iOS."* diye belgeleniyor. Native iOS
+implementasyonu (`IONFileStructures+Converters.swift`) bunu
+`.notSyncedLibrary`'e eşliyor; Android'de `FilesystemPlugin.kt`'nin
+GERÇEK (modern) çağrı yolu `io.ionic.libs.ionfilesystemlib.
+IONFILEController` — bu, npm paketinde KAYNAK KODU BULUNMAYAN, Xcode/
+Gradle build sırasında ayrıca çekilen bir bağımlılık, BU YÜZDEN
+`NSURLIsExcludedFromBackupKey`'in TAM implementasyonu BURADAN
+doğrulanamadı, SADECE resmi API sözleşmesine güvenildi. **SONUÇ: bu
+tamamen bir Capacitor/JS-seviyesi değişiklik, native Swift/Kotlin
+kodu YAZILMADI (task'ın açık isteği karşılandı).**
+
+**Uygulanan:**
+1. `FS_DIRECTORY = "LIBRARY_NO_CLOUD"` (önceden `"DATA"`),
+   `FS_DIRECTORY_LEGACY = "DATA"` eklendi.
+2. `loadFile()`/`fileExists()` ÖNCE yeni (yedek-dışı) dizine bakar,
+   BULAMAZSA eski dizine DÜŞER — **bu değişiklikten ÖNCE yüklenmiş
+   dosyalar KAYBOLMAZ** (task'ın açık uyarısı karşılandı).
+3. `deleteFile()` HER İKİ konumdan da silmeye çalışır.
+4. **BİLİNÇLİ SINIR (dürüstçe belgelendi):** eski dosyalar GERİYE
+   DÖNÜK olarak yeni konuma TAŞINMIYOR (otomatik kopyalama/silme
+   RİSK taşırdı) — SADECE bu değişiklikten SONRA yüklenen dosyalar
+   yedek dışı kalır, ZATEN yüklenmiş dosyalar kullanıcı yeniden
+   yükleyene kadar Documents'ta (yedekli) kalmaya devam eder.
+5. **Android — AYRI, ÇÖZÜLMEMİŞ bir konu olarak işaretlendi:**
+   Android'in "Auto Backup" mekanizması DİZİN-bazlı değil, manifest
+   düzeyinde (`android:allowBackup`/`fullBackupContent`) çalışıyor —
+   `AndroidManifest.xml`'de `android:allowBackup="true"`, HİÇBİR
+   `fullBackupContent` istisnası YOK. Bu turun kapsamı SADECE iCloud
+   (task'ın kendi başlığı) — Android'in KENDİ yedek hariç tutması
+   AYRI bir native XML işi, YAPILMADI.
+6. `android/app/src/main/res/xml/file_paths.xml`'in mevcut
+   `<files-path path="." />` girdisi zaten `context.filesDir`'in
+   TAMAMINI (LIBRARY_NO_CLOUD DAHİL) kapsıyor — Android'in KENDİ
+   FilePicker.copyFile() native hızlı yolu için EK bir değişiklik
+   GEREKMEDİ.
+
+**Testler:** YENİ `test/file-storage.test.mjs` — 7 test, sahte bir
+Capacitor Filesystem plugin'i (in-memory, iki-dizinli) ile: yazma
+SADECE yeni dizine gidiyor, okuma/varlık-kontrolü yeni→eski sırayla
+düşüyor (eski dosya KAYBOLMUYOR), silme HER İKİ dizinden de deniyor.
+
+**Ölçüm:** `npm test` → **1390/1390** (1383+7). `npm run test:e2e` →
+**18/18, DEĞİŞMEDİ** (bu değişiklik SADECE native/Capacitor yolunu
+etkiliyor, e2e'nin kullandığı web/IndexedDB yolu dokunulmadı). Canlı
+tarayıcıda (Playwright) Araçlar sekmesi + modül import'u konsol
+hatasız doğrulandı.
+
+**Dokunulan:** `www/js/core/file-storage.js` (SADECE dizin
+sabitleri + `loadFile`/`fileExists`/`deleteFile`'ın fallback
+mantığı), `test/file-storage.test.mjs` (yeni).
+**Dokunulmayan:** `saveFile()`'ın kendi mantığı (SADECE hangi dizine
+yazdığı değişti), IndexedDB/web yolu, native Swift/Kotlin dosyaları
+(SIFIR native kod değişikliği), `file_paths.xml` (zaten kapsıyordu,
+dokunulmadı), ölçüm algoritmaları, hedef eğri değerleri, e2e suite
+yapısı, zorluk eğrisi, G214-G245 arası commit'ler.
+
+**Cihazda doğrulanacak:** gerçek bir iOS build'inde, uygulama içinden
+bir dosya yüklenip Ayarlar > [Apple ID] > iCloud > Hesap Depolama >
+[Uygulama]'nın yedek boyutunun bu dosyayı İÇERMEDİĞİ doğrulanmalı —
+bu ortamda native implementasyon KANITLANAMADI, sadece resmi API
+sözleşmesine güvenildi.
+
+TUR710-PERF-ARAYUZ-15-08 — **Performans/bellek + arayüz/yerelleştirme denetimi (SADECE ÖLÇÜM, kod/commit YOK) — 14 bölüm (A-N), `TUR710-PERF-ARAYUZ-15-08.md`'ye yazıldı.**
+
+**En ciddi bulgu (🔴, Bölüm N):** iOS'ta `isExcludedFromBackup`/
+`NSURLIsExcludedFromBackupKey` HİÇ ayarlanmamış (grep sıfır sonuç) —
+kullanıcının yüklediği dosyalar `Directory.Data`'da (Library/, Cache
+DEĞİL) tutuluyor, VARSAYILAN olarak iCloud yedeğine dahil oluyor —
+5 dosya × 100MB'a kadar (500MB'a kadar) kullanıcının iCloud kotasını
+şişirebilir.
+
+**İkinci bulgu (🟡, Bölüm F):** `drawVisualizer()`'ın rAF döngüsü
+(`audioEngine.onReady`'de BİR KEZ başlıyor) HİÇBİR ZAMAN durmuyor —
+kod içinde `document.hidden`/aktif-ekran kontrolü YOK, uygulama ön
+plandayken Araçlar/Ayarlar/İlerleme'de gezinirken bile saniyede 60
+kez canvas çiziyor. Eski cihazda pil/ısı etkisi BELİRSİZ ama riski
+artıran somut bir mimari bulgu.
+
+**Güven veren bulgular (🟢, gerçek ölçümle):** AudioNode zinciri her
+soruda temiz kuruluyor/temizleniyor, sızıntı YOK (mimari analiziyle
+doğrulandı); decode önbelleği 9 dosyayı SADECE BİR KEZ decode ediyor;
+**sample rate uyuşmazlığı riski BULUNAMADI** (Web Audio spec +
+kod analizi — hardcoded rate sıfır, filtre frekansları context-
+agnostik) ama uçtan uca cihaz doğrulaması hâlâ ÖNERİLİR; FA_MAX=
+17000Hz'de (44.1kHz Nyquist'in %77'si) filtre GERÇEKTEN RBJ
+matematiğiyle test edildi, bozulma YOK; Q/gain kombinasyonu ASLA
+aynı anda ikisi de max olmuyor (eğri tasarımı böyle), hipotetik en
+kötü durum bile kararlı çıktı; 5 `setInterval` çağrı noktasının 5'i
+de kendi kendini koruyor (çifte kurulum riski YOK); eski bundle ID
+kalıntısı YOK; sayı biçimlendirmesi TUTARLI (her yerde nokta, hiç
+virgül).
+
+**Türkçe toUpperCase() (⚠️, Bölüm J):** Kodda SADECE 3 çağrı noktası
+— ikisi (dosya uzantıları) zaten DOĞRU kullanım, biri
+(`db-seviyesi.js` DIRECTION_WORD) ŞU AN kelime seçimi sayesinde
+GÜVENLİ ama KIRILGAN (gelecekte noktalı-i içeren bir kelime eklenirse
+sessizce bozulur). CSS text-transform:uppercase (12 kullanım) DAHA
+İYİ durumda — `lang="tr"` doğru kurulu, gerçek bir test string'i
+("İsabet Grafiği") ile JS-vs-Türkçe-locale farkı GERÇEKTEN ölçüldü
+("GRAFIĞI" vs doğru "GRAFİĞİ") — ama WebKit'in bunu piksel
+seviyesinde doğru render ettiği bu ortamdan doğrulanamadı, cihazda
+gözle bakılmalı.
+
+**Testler/Ölçüm:** Yok — bu tur kod yazmadı, `npm test`/e2e
+DOKUNULMADI (G245'in ölçümü geçerli: 1383/1383, e2e 18/18). Birçok
+bulgu GERÇEK ölçümle desteklendi (Node'da RBJ filtre matematiği
+çalıştırıldı, `du -sh` ile bundle boyutu ölçüldü, Playwright ile
+375px'te taşma kontrolü + `lang`/DOM doğrulaması yapıldı) — kalıcı
+bir test EKLENMEDİ (görev kuralı).
+
+**Dokunulan:** `TUR710-PERF-ARAYUZ-15-08.md` (yeni dosya, henüz
+commit edilmedi — önceki TUR raporlarıyla AYNI kural).
+**Dokunulmayan:** Hiçbir kod dosyası, `npm test`/e2e suite.
 
 G245 — **Ölçüm metodolojisi "i" metni eklendi (Düzeltme 2, TUR9-ARACLAR-15-08 bulgusu 🟡) — Ölçüm Sonuçları kartına Tonal Balance'ın G226'da aldığı AYNI muamele, YENİ bir "i" butonuyla.**
 
@@ -18270,7 +18396,28 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G244/G245 itibarıyla):** TUR9'un iki
+**EN YENİ SIRADAKİ ADIM (TUR710-PERF-ARAYUZ-15-08 itibarıyla):**
+`TUR710-PERF-ARAYUZ-15-08.md` tamamlandı (denetim, kod yazılmadı,
+commit atılmadı) — bu, taramanın SON turu (14 bölüm, A-N). **Bir
+sonraki adım — kullanıcının onayı/kararı gerekir, öncelik sırasıyla:**
+1. 🔴 **`isExcludedFromBackup` ayarlanması** (Bölüm N) — native
+   (Swift/Capacitor Filesystem config) tarafında bir iş, kod
+   YAZILMADI.
+2. 🟡 **`drawVisualizer()`'ın rAF döngüsüne ekran-bazlı durdurma
+   eklenmesi** (Bölüm F) — dar kapsamlı bir düzeltme, kod YAZILMADI.
+3. TestFlight/cihazda ölçülmesi gereken 6 madde (sample rate uçtan
+   uca, Türkçe uppercase piksel doğrulaması, pil/ısı, bundle boyutu,
+   metin taşması yüksek-XP durumunda, VoiceOver) — raporun kendi
+   listesi.
+Ayrıca önceki turların açık maddeleri (BEYAN-DENETIM'in .gitignore
+tuzağı, TUR6'nın Android/G236 bulgusu, OLCUM-OGRETIM'in Fletcher-
+Munson/Boost-Cut kararları, TUR9'un Bluetooth filtresi önerisi) hâlâ
+AÇIK, bu turdan ETKİLENMEDİ. **Tüm ölçüm turları (TUR1-TUR10)
+tamamlanmış durumda** — sıradaki adım muhtemelen bulguların
+ÖNCELİKLENDİRİLMESİ ve hangi düzeltmelerin yayına gireceğinin
+KULLANICI TARAFINDAN kararlaştırılması.
+
+**EN YENİ SIRADAKİ ADIM (G244/G245 itibarıyla, ARTIK ESKİ):** TUR9'un iki
 bulgusu da KAPANDI — G244 (EQ zinciri ±12dB kazanç sınırı + kendi
 limiter'ı) ve G245 (Ölçüm Sonuçları'na metodoloji "i" metni).
 `npm test` 1383/1383, `npm run test:e2e` 18/18, ikisi de canlı

@@ -1,11 +1,12 @@
 // G102 — Kalıcı dosya depolama (Araçlar > Dosyalarım). İKİ ayrı implementasyon:
 // (1) NATIVE — Capacitor'ın resmi @capacitor/filesystem plugin'i, Directory.
-//     Data (iOS: Documents, Android: uygulamaya özel dosya alanı — uygulama
-//     silinince silinir, kullanıcı içeriği için doğru kapsam) altında bir
-//     alt klasöre BASE64 olarak yazıyor. Bu projenin YERLEŞİK deseniyle AYNI
-//     (window.Capacitor.Plugins.* global erişimi, bkz. app.js:
-//     getFilePickerPlugin/pickNativeAudioFile) — hiçbir ES-import/bundler
-//     gerektirmiyor, native tarafta npx cap sync ile otomatik kayıt olur.
+//     LIBRARY_NO_CLOUD (iOS: Library, iCloud/iTunes yedeğine DAHİL EDİLMEYEN
+//     alt bölüm — bkz. G246 notu altta; Android: uygulamaya özel dosya alanı,
+//     Data'yla FİİLEN AYNI davranış) altında bir alt klasöre BASE64 olarak
+//     yazıyor. Bu projenin YERLEŞİK deseniyle AYNI (window.Capacitor.Plugins.*
+//     global erişimi, bkz. app.js: getFilePickerPlugin/pickNativeAudioFile)
+//     — hiçbir ES-import/bundler gerektirmiyor, native tarafta npx cap sync
+//     ile otomatik kayıt olur.
 // (2) WEB (masaüstü/tarayıcı geliştirme, window.Capacitor YOK) — IndexedDB,
 //     Blob'u DOĞRUDAN saklıyor (base64 dönüşümüne gerek yok, IndexedDB
 //     Blob'u native destekliyor). Bu SADECE `python3 -m http.server`
@@ -13,10 +14,38 @@
 //
 // "iOS kısıtı: uygulama başka bir dosyanın yolunu saklayıp sonradan o yoldan
 // okuyamaz" — bu yüzden dosyanın KENDİSİ (yolu değil) buraya kopyalanıyor.
-
+//
+// G246 (TUR710-PERF-ARAYUZ-15-08 bulgusu 🔴, iCloud yedek) — ÖNCEDEN
+// `Directory.Data` kullanılıyordu; @capacitor/filesystem'in KENDİ tip
+// tanımına göre (node_modules/@capacitor/filesystem/dist/esm/definitions.d.ts)
+// bu iOS'ta DOCUMENTS dizinine karşılık geliyor — VARSAYILAN OLARAK iCloud/
+// iTunes yedeğine dahil. `Directory.LIBRARY_NO_CLOUD` (@capacitor/filesystem
+// 7.1.0'dan beri, kurulu sürüm 8.1.2 — resmi API, native Swift/Obj-C KODU
+// YAZILMADI) resmi olarak *"The Library directory without cloud backup. Used
+// in iOS."* diye belgeleniyor — native tarafın TAM implementasyonu (hangi
+// NSURLResourceKey'in ne zaman ayarlandığı) IONFilesystemLib adlı, bu ortamda
+// (npm install) kaynak kodu BULUNMAYAN, Xcode build sırasında Swift Package
+// Manager'ın ayrıca çektiği bir bağımlılıkta yaşıyor — BU YÜZDEN gerçek
+// NSURLIsExcludedFromBackupKey çağrısı BURADAN doğrulanamadı, SADECE resmi
+// paket dokümantasyonuna güvenildi (bkz. DURUM.md G246, "cihazda
+// doğrulanacaklar" notu).
+//
+// GERİYE DÖNÜK UYUMLULUK — kullanıcının dosyaları SİLİNMEMELİ: bu değişiklik
+// ÖNCESİNDE yüklenmiş dosyalar HÂLÂ eski `FS_DIRECTORY_LEGACY` (Documents)
+// altında duruyor. `loadFile()`/`fileExists()` ÖNCE yeni (yedek-dışı) dizine
+// bakar, BULAMAZSA eskiye DÜŞER (kendi gövdelerinde, ayrı bir yardımcı
+// fonksiyon YOK — iki çağrı türü/dönüş şekli birbirinden yeterince farklı
+// olduğu için PAYLAŞILAN bir soyutlama İCAT EDİLMEDİ) — hiçbir mevcut dosya
+// "kayıp" görünmez. BİLİNÇLİ SINIR: eski dosyalar GERİYE DÖNÜK olarak yeni
+// konuma taşınmıyor (otomatik bir kopyalama/silme işlemi RİSK taşırdı,
+// "dosyalar silinmemeli" kısıtı EN GÜVENLİ yorumla ele alındı) — SADECE
+// BUGÜNDEN İTİBAREN yüklenen dosyalar yedek dışı kalır. `deleteFile()` HER
+// İKİ konumdan da silmeye çalışır (bir dosya hangi konumda olursa olsun
+// gerçekten silinsin diye).
 import { DEV_MODE } from "./build-flags.js";
 
-const FS_DIRECTORY = "DATA";
+const FS_DIRECTORY = "LIBRARY_NO_CLOUD";
+const FS_DIRECTORY_LEGACY = "DATA"; // G246 öncesi yazılan dosyalar — SADECE okuma/silme fallback'i için
 const FS_SUBDIR = "araclar-kutuphane";
 
 function getFilesystemPlugin() {
@@ -258,6 +287,9 @@ async function saveFileNativeChunked(fs, id, blob, onProgress) {
 
 // Dönen: Blob | null (bulunamadı/okunamadı — sessizce null döner, çağıran
 // taraf bunu "dosya eksik" olarak yorumlar, bkz. app.js bütünlük kontrolü).
+// G246 — ÖNCE yeni (yedek-dışı) dizinde arar, BULAMAZSA eski (G246 öncesi
+// yazılmış) dizine DÜŞER — dosyalar SİLİNMEDİ, sadece BUGÜNDEN İTİBAREN
+// yeni yazılanlar farklı bir konumda.
 export async function loadFile(id, mimeType) {
   const fs = getFilesystemPlugin();
   if (fs) {
@@ -266,7 +298,13 @@ export async function loadFile(id, mimeType) {
       if (res.data instanceof Blob) return res.data; // web-implementasyonlu Filesystem (teoride)
       return base64ToBlob(res.data, mimeType);
     } catch (e) {
-      return null;
+      try {
+        const res = await fs.readFile({ path: `${FS_SUBDIR}/${id}`, directory: FS_DIRECTORY_LEGACY });
+        if (res.data instanceof Blob) return res.data;
+        return base64ToBlob(res.data, mimeType);
+      } catch (e2) {
+        return null;
+      }
     }
   } else {
     try {
@@ -277,6 +315,9 @@ export async function loadFile(id, mimeType) {
   }
 }
 
+// G246 — bir dosya HANGİ dizinde olursa olsun (yeni ya da eski) GERÇEKTEN
+// silinsin diye İKİ konum da denenir — biri bulunamazsa (zaten yoksa)
+// sessizce geçilir, bu YENİ değil, ÖNCEKİ davranışla AYNI "yoksay" ilkesi.
 export async function deleteFile(id) {
   const fs = getFilesystemPlugin();
   if (fs) {
@@ -285,6 +326,11 @@ export async function deleteFile(id) {
     } catch (e) {
       // Zaten yoksa (ör. daha önce elle silinmiş) sessizce geç.
     }
+    try {
+      await fs.deleteFile({ path: `${FS_SUBDIR}/${id}`, directory: FS_DIRECTORY_LEGACY });
+    } catch (e) {
+      // Eski konumda hiç yoksa (dosya G246 SONRASI yüklenmiş) sessizce geç.
+    }
   } else {
     try {
       await idbDelete(id);
@@ -292,6 +338,7 @@ export async function deleteFile(id) {
   }
 }
 
+// G246 — loadFile()'ın AYNI iki-konum arama sırası.
 export async function fileExists(id) {
   const fs = getFilesystemPlugin();
   if (fs) {
@@ -299,7 +346,12 @@ export async function fileExists(id) {
       await fs.stat({ path: `${FS_SUBDIR}/${id}`, directory: FS_DIRECTORY });
       return true;
     } catch (e) {
-      return false;
+      try {
+        await fs.stat({ path: `${FS_SUBDIR}/${id}`, directory: FS_DIRECTORY_LEGACY });
+        return true;
+      } catch (e2) {
+        return false;
+      }
     }
   } else {
     try {
