@@ -29,7 +29,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { startStaticServer } from "./helpers/static-server.mjs";
-import { seedLocalStorage, enterMode, dismissSpotlightIfShown } from "./helpers/app-fixtures.mjs";
+import { seedLocalStorage, enterMode, dismissSpotlightIfShown, answerCorrectChoice } from "./helpers/app-fixtures.mjs";
 
 let serverHandle, browser;
 
@@ -75,32 +75,14 @@ async function actionbarTop(page, actionbarSelector) {
   }, actionbarSelector);
 }
 
-// sessionLimit paywall'ı bazen bir feedback paneli AÇIKKEN araya giriyor
-// (teardownActiveRound() round'u kapatıyor ama panel-DOM'unu kapatmıyor) —
-// paywall'dan dönüldüğünde #feedbackOverlay hâlâ "open" kalıp #startBtn'i
-// engelleyebiliyor. Varsa #feedbackClose ile GERÇEK kapatma yolundan geçilir
-// (goToNextRound()'un AYNI yolu, bkz. G214) — DOM'a doğrudan dokunulmaz.
-async function dismissFeedbackIfShown(page) {
-  const closeBtn = page.locator("#feedbackClose");
-  if (await closeBtn.isVisible().catch(() => false)) {
-    await closeBtn.click({ timeout: 1000 }).catch(() => {});
-    await page.waitForTimeout(300);
-  }
-}
-
-// Spotlight turu birden fazla ADIMDA (her yeni soru/ekranda) yeniden
-// açılabiliyor — tek seferlik dismissSpotlightIfShown() yetmiyor. Sonraki
-// sorunun ses zinciri kurulup `.ans`'ın GERÇEKTEN tıklanabilir hâle gelmesi
-// ~2sn sürüyor (ölçüldü) — `isEnabled()` polling YANILTICI çıktı (buton
-// ara bir DOM durumunda KISA süreliğine "enabled" görünüp asıl yeni-round
-// durumuna GELMEDEN tıklanabiliyordu, cevap SAYILMIYORDU) — bunun yerine
-// SABİT, ölçülmüş bir bekleme kullanılıyor.
-async function answerOnce(page) {
-  await dismissSpotlightIfShown(page);
-  await dismissFeedbackIfShown(page);
-  await page.locator(".ans").first().click({ timeout: 3000 }).catch(() => {});
-  await page.waitForTimeout(2500);
-}
+// G261 (OLCUM-FLAKY-16-08.md) — bu fonksiyon ESKİDEN körü-körüne `.ans`'ın
+// İLK butonuna basıyordu; şıklar shuffle() ile karıştırıldığı için bu genelde
+// YANLIŞ cevaba denk geliyordu. Bu test "lost" varyantını kasıtlı olarak
+// showSessionEnd() DOĞRUDAN çağrılarak açtığı için yanlış cevapların can
+// bitirmesi bu testin KENDİ ölçümünü bozmuyordu, ama AYNI riskli kalıp
+// paywall-flow.spec.mjs'te GERÇEK bir flake'e yol açtığı için (bkz. o
+// dosyadaki G261 notu) tutarlılık için burada da paylaşılan
+// `answerCorrectChoice()` (app-fixtures.mjs) kullanılıyor.
 
 test("#screen-game: sabit actionbar, kaydırılan son kartı ÖRTMÜYOR (kontrol grubu — beklenen: GEÇER)", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -135,7 +117,7 @@ test("#screen-game: sabit actionbar, kaydırılan son kartı ÖRTMÜYOR (kontrol
 // sıfırlıyor — yani reklamla kazanılan +5 soru hakkı, "Oyunu Başlat"a
 // basılır basılmaz siliniyor (ayrı bir bug, bu görevin kapsamı/DOKUNULMAYACAK
 // listesi dışında, kullanıcıya bildirildi).
-// ÇÖZÜM (kullanıcı onaylı): gerçek oynanmış turlarla (answerOnce loop, AYNI
+// ÇÖZÜM (kullanıcı onaylı): gerçek oynanmış turlarla (answerCorrectChoice loop, AYNI
 // #screen-game kontrol grubunun kullandığı GERÇEK akış) gerçek session.log/
 // session.xp/zoneStats biriktirilir, SONRA `window.__aeaShowSessionEndForTest`
 // (yeni, app.js'teki `window.__tonalDebugState` ile AYNI "doğrulama kancası"
@@ -153,7 +135,7 @@ test("#screen-result: sabit actionbar, kaydırılan son kartı ÖRTMÜYOR (REGRE
 
   await page.locator("#startBtn").click();
   await page.waitForTimeout(400);
-  for (let i = 0; i < 6; i++) await answerOnce(page);
+  for (let i = 0; i < 6; i++) await answerCorrectChoice(page);
 
   const hookAvailable = await page.evaluate(() => typeof window.__aeaShowSessionEndForTest === "function");
   assert.equal(hookAvailable, true, "ön koşul: window.__aeaShowSessionEndForTest bulunamadı");

@@ -19,7 +19,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
 import { startStaticServer } from "./helpers/static-server.mjs";
-import { seedLocalStorage, enterMode, dismissSpotlightIfShown, activeScreenId, dismissFeedbackIfShown, mockAdReward } from "./helpers/app-fixtures.mjs";
+import { seedLocalStorage, enterMode, dismissSpotlightIfShown, activeScreenId, dismissFeedbackIfShown, mockAdReward, answerCorrectChoice } from "./helpers/app-fixtures.mjs";
 
 let serverHandle, browser;
 
@@ -249,12 +249,17 @@ test("madde 30 (Atla yolu): sessionLimit paywall'ında reklam izleyip +5 soru ka
 // G225 — cevaplayarak (`.ans`) limite ulaşan yol BOZULMADI mı doğrulanıyor
 // (bu yol zaten `goToNextRound()` üzerinden resume ediyordu, madde 30'un
 // reset koduna hiç uğramıyordu — G225 bu davranışa DOKUNMADI).
-async function dismissAndAnswer(page) {
-  await dismissSpotlightIfShown(page);
-  await dismissFeedbackIfShown(page);
-  await page.locator(".ans").first().click({ timeout: 3000 }).catch(() => {});
-  await page.waitForTimeout(2500);
-}
+//
+// G261 DÜZELTMESİ (OLCUM-FLAKY-16-08.md) — bu fonksiyon ESKİDEN körü-körüne
+// `.ans`'ın İLK butonuna basıyordu (`dismissAndAnswer`, yerel bir kopya) —
+// şıklar shuffle() ile karıştırıldığı için bu genelde YANLIŞ cevaba denk
+// geliyordu, yanlış cevap can GÖTÜRÜYOR, 5 soruluk pencerede TÜM cevaplar
+// yanlış gelirse can 5→0 düşüp paywall "livesOut" sebebiyle (bu testin
+// beklediği "sessionLimit" YERİNE) açılıyordu — ~%5-6 gerçek, rastgele
+// kırmızı bu yüzden çıkıyordu. `answerCorrectChoice()` (app-fixtures.mjs,
+// TÜM e2e dosyalarının PAYLAŞTIĞI TEK yer) artık DOĞRU şıkkı seçiyor —
+// bu test seed'i (`lives:999`, GERÇEKTE `applyLivesRefill()` tarafından
+// 5'e klemplenir) artık ASLA tükenmez, çünkü hiçbir cevap yanlış GELMEZ.
 
 test("madde 30 (cevaplama yolu, regresyon): cevaplayarak sessionLimit'e ulaşan kullanıcı reklamla devam ederken BOZULMADI", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
@@ -273,7 +278,7 @@ test("madde 30 (cevaplama yolu, regresyon): cevaplayarak sessionLimit'e ulaşan 
 
   await page.locator("#startBtn").click();
   await page.waitForTimeout(400);
-  for (let i = 0; i < 5; i++) await dismissAndAnswer(page);
+  for (let i = 0; i < 5; i++) await answerCorrectChoice(page);
 
   const beforeAd = await readOutcome(page);
   assert.equal(beforeAd.screen, "screen-paywall", `ön koşul: 5. cevap sonrası paywall açılmadı (${beforeAd.screen})`);

@@ -146,6 +146,59 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G261 — **Flaky test düzeltmesi (OLCUM-FLAKY-16-08.md'nin bulduğu kök sebep): `paywall-flow.spec.mjs`'in "madde 30 (cevaplama yolu)" testi artık DOĞRU şıkkı seçiyor, körü körüne ilk butona basmıyor — aynı riskli kalıbı taşıyan `layout-geometry.spec.mjs` da düzeltildi. AYRI commit.**
+
+**Kök sebep/gerekçe:** OLCUM-FLAKY-16-08.md'nin bulgusu — test `lives:999`
+seed'liyor ama `applyLivesRefill()` (`core/paywall.js`) HERHANGİ bir
+`lives >= totalLives` değerini ANINDA 5'e çekiyor; testin eski
+`dismissAndAnswer()`'ı şıklara KÖRÜ KÖRÜNE (`.ans.first()`) basıyordu,
+`boost-mu-cut-mu.js`'in şıkları `shuffle()`lı olduğu için 5 soruluk
+pencerede TÜM cevapların yanlış gelme ihtimali (~%5-6) vardı — bu
+durumda can 5→0 düşüp paywall "livesOut" sebebiyle (testin beklediği
+"sessionLimit" YERİNE) açılıyordu.
+
+**Uygulanan:**
+- `app.js`'e SADECE OKUYAN, DEV_MODE-gated yeni bir doğrulama kancası
+  eklendi: `window.__aeaActiveQuestionChoices()` aktif sorunun
+  `choices` dizisini (her elemanın `correct` alanıyla) OLDUĞU GİBİ dışa
+  açıyor. TÜM choice-formatlı mod dosyalarının `renderAnswerChoices()`'ı
+  `q.choices.map(c=>...).join("")` ile BİREBİR AYNI SIRADA render
+  ettiği doğrulandı (grep ile, render sırasında yeniden karıştırma
+  YOK) — bu yüzden dizideki N. elemanın doğruluğu DOM'daki N. `.ans`
+  butonuna karşılık geliyor.
+- `e2e/helpers/app-fixtures.mjs`'e paylaşılan `answerCorrectChoice(page)`
+  eklendi — kancayı okuyup doğru şıkkı tıklıyor, kanca yoksa (DEV_MODE=
+  false ya da mod choices üretmiyorsa) eski davranışa (ilk buton) düşüyor.
+- `paywall-flow.spec.mjs`'in yerel `dismissAndAnswer()`'ı silinip
+  `answerCorrectChoice()` ile değiştirildi.
+- 27 test dosyası TARANDI (`.ans...first()` + `Math.random` için) —
+  `layout-geometry.spec.mjs:answerOnce()` AYNI riskli kalıbı taşıyan
+  TEK diğer dosya bulundu, AYNI düzeltmeyle güncellendi (yerel
+  `answerOnce`/`dismissFeedbackIfShown` silinip paylaşılan
+  `answerCorrectChoice()`'a geçirildi).
+- `ear-buttons.spec.mjs`'in G256'da eklenen `Math.random()` tabanlı şık
+  seçimi BİLEREK dokunulmadı — o testler doğru VE yanlış outcome'ların
+  İKİSİNİ de gözlemesi GEREKTİĞİ için farklı bir stratejiye (tolerans +
+  retry) ihtiyaç duyuyor, `answerCorrectChoice` o testlerin amacını
+  bozardı.
+
+**KİLİT doğrulandı:** `core/paywall.js`/`applyLivesRefill()` ve
+`finalizeIfGameOver()`'ın `livesOut`/`sessionLimitOut` öncelik mantığı
+HİÇ değişmedi (grep ile doğrulandı, task'ın KİLİT listesi).
+
+**Kabul kriteri (task'ın kendi ölçütü, ÇALIŞTIRILARAK doğrulandı):**
+- `paywall-flow.spec.mjs`'in "madde 30 (cevaplama yolu)" testi **30 kez
+  arka arkaya** izole koşuldu → **30/30 yeşil**.
+- `npm run test:e2e` (tam takım, 27 test) **5 kez** koşuldu → **5/5
+  temiz, her seferinde 27/27**.
+- `npm test` → **1390/1390** (DEĞİŞMEDİ).
+
+**Dokunulan:** `www/js/app.js` (yeni DEV_MODE-gated doğrulama kancası),
+`e2e/helpers/app-fixtures.mjs` (yeni `answerCorrectChoice` export'u),
+`e2e/paywall-flow.spec.mjs`, `e2e/layout-geometry.spec.mjs`.
+**Dokunulmayan:** `core/paywall.js`, `finalizeIfGameOver()`'ın öncelik
+mantığı, `ear-buttons.spec.mjs`, G214-G260 arası hiçbir commit.
+
 OLCUM-SEVIYE-16-08 — **G259'un "bekleyen karar" maddesi ÇÖZÜLDÜ: kaynak kütüphanesi -3dBFS'ten -6dBFS'e yeniden üretildi (Logic), Kompresör/Distortion uyumu DOĞRULANDI (SADECE ÖLÇÜM, kod/commit YOK) — `OLCUM-SEVIYE-16-08.md`'ye yazıldı.**
 
 **Kök sebep/gerekçe:** OLCUM-KAYNAK-16-08.md (G259) kaynak kütüphanesinin
@@ -19598,7 +19651,22 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (OLCUM-SEVIYE-16-08 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G261 itibarıyla):**
+Flaky test düzeltmesi TAMAMLANDI — `paywall-flow.spec.mjs`'in "madde 30
+(cevaplama yolu)" testi artık DOĞRU şıkkı seçiyor (OLCUM-FLAKY-16-08.md'nin
+önerdiği düzeltme, kanca+paylaşılan helper ile uygulandı), AYNI riskli
+kalıp taşıyan `layout-geometry.spec.mjs` da düzeltildi. Kabul kriteri
+ÇALIŞTIRILARAK doğrulandı: 30/30 izole koşu, 5×27/27 tam takım, 1390/1390
+unit test. **AYRI commit** — henüz atılmadı, bu turun son adımı.
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü OLCUM-FLAKY-16-08.md'de
+   İKİNCİ bir flake ADAYI olarak işaretlenmişti — bu turda da
+   ÇALIŞTIRILARAK test EDİLMEDİ (kapsam dışı), ayrı bir ölçüm turu
+   gerekebilir.
+2. OLCUM-SEVIYE-16-08/G259'dan kalan açık maddeler (aşağıdaki "ARTIK ESKİ"
+   SIRADAKİ girdisinde) hâlâ AÇIK — bu turda dokunulmadı.
+
+**EN YENİ SIRADAKİ ADIM (OLCUM-SEVIYE-16-08 itibarıyla, ARTIK ESKİ):**
 G259'un "bekleyen karar" maddesi (Kompresör/Distortion seviye uyumu)
 ÇÖZÜLDÜ — Logic kaynak kütüphanesini -3dBFS'ten -6dBFS'e yeniden
 üretti, `COMP_REF_LEVEL_DB=-6` artık GERÇEK tepeyle BİREBİR eşleşiyor
@@ -19648,16 +19716,14 @@ basması + `lives:999` seed'inin `applyLivesRefill()` tarafından 5'e
 klemplenmesi, nadiren (~%5-6) TÜM cevapların yanlış gelip canı
 tüketmesine yol açıyor, bu da paywall'ın YANLIŞ (ama doğru ekran)
 sebeple açılmasına neden oluyor. Build'i engelleyen bir bulgu YOK.
-**Bir sonraki adım — kullanıcının kararı gerekir:**
-1. `dismissAndAnswer()`'ın (`paywall-flow.spec.mjs:252-257`) körü-körüne
-   ilk şıkka basmak yerine DOĞRU şıkkı seçmesi — rapor bunu ÖNERDİ,
-   KOD YAZILMADI.
-2. `layout-geometry.spec.mjs:answerOnce()` da AYNI riskli deseni
-   taşıyor (şu an bu flake'e YAKALANMIYOR ama yapısal olarak kırılgan)
-   — AYNI düzeltme oraya da uygulanmalı mı, kullanıcı kararı.
+**Bir sonraki adım (G261'de ÇÖZÜLDÜ — 1 ve 2 artık KAPALI, bkz. BİTTİ):**
+1. ~~`dismissAndAnswer()`'ın körü-körüne ilk şıkka basmak yerine DOĞRU
+   şıkkı seçmesi~~ — **G261'de yapıldı** (`answerCorrectChoice()`).
+2. ~~`layout-geometry.spec.mjs:answerOnce()` da AYNI riskli deseni
+   taşıyor~~ — **G261'de bu da düzeltildi.**
 3. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü İKİNCİ bir
-   flake ADAYI olarak işaretlendi — bu turda ÇALIŞTIRILARAK test
-   EDİLMEDİ, ayrı bir ölçüm turu gerekebilir.
+   flake ADAYI olarak işaretlendi — G261'in kapsamı DIŞINDA, hâlâ
+   ÇALIŞTIRILARAK test EDİLMEDİ, ayrı bir ölçüm turu gerekebilir.
 
 **EN YENİ SIRADAKİ ADIM (G254-G258 itibarıyla, ARTIK ESKİ):**
 Kulak butonları 7 moda daha eklendi (4 AYRI commit, her biri kendi

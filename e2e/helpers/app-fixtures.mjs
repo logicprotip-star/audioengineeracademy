@@ -66,6 +66,45 @@ export async function dismissFeedbackIfShown(page) {
   return false;
 }
 
+// OLCUM-FLAKY-16-08.md'nin bulduğu kök sebep — iki e2e testi (paywall-flow.spec.mjs
+// "madde 30", layout-geometry.spec.mjs "#screen-result") KÖRÜ KÖRÜNE
+// `.ans`'ın İLK butonuna basıyordu; şıklar shuffle() ile karıştırıldığı
+// için bu ~%50-70 ihtimalle YANLIŞ cevaba denk geliyordu — yanlış cevap
+// can GÖTÜRÜYOR, bu da paywall-flow testinde GERÇEKTEN gözlenen (~%5-6
+// oranında) rastgele kırmızıya yol açtı (5 soruluk pencerede TÜM cevaplar
+// yanlış gelirse can 5→0 düşüyor, finalizeIfGameOver() "livesOut" sebebini
+// "sessionLimit"in ÖNÜNE alıyor — bu ÖNCELİK KASITLI/DOĞRU, ama testin
+// "sessionLimit" beklentisini bozuyordu).
+//
+// Düzeltme: app.js'e (G261) SADECE OKUYAN, DEV_MODE-gated bir doğrulama
+// kancası eklendi — `window.__aeaActiveQuestionChoices()` aktif sorunun
+// `choices` dizisini (her elemanın `correct` alanıyla) OLDUĞU GİBİ dışa
+// açıyor. Her modun `renderAnswerChoices()`'ı `q.choices.map(c=>...).join("")`
+// ile BİREBİR AYNI SIRADA render ettiği için (TÜM mod dosyalarında
+// doğrulandı, render sırasında YENİDEN KARIŞTIRMA yok), dizideki N.
+// elemanın doğruluğu DOM'daki N. `.ans` butonuna karşılık geliyor — bu
+// yüzden DOM'a hiç "hile" sızmadan (kullanıcı arayüzünde doğru cevap HİÇ
+// görünmüyor, SADECE test kancası aracılığıyla, DEV_MODE=false'ta hiç
+// kurulmuyor) doğru şık GÜVENİLİR biçimde tıklanabiliyor.
+//
+// Kanca YOKSA (DEV_MODE=false'ta çalışıyor OLABİLİR, ya da mod choices
+// üretmiyor) körü-körüne İLK butona DÜŞÜLÜR — eski davranışla AYNI,
+// hiçbir testi KIRMAZ, sadece garantiyi KAYBEDER (build-flags.test.mjs'in
+// KENDİ tripwire'ı zaten DEV_MODE=false'ın repoya committed KALMASINI
+// engelliyor, bu yüzden pratikte bu dal e2e koşularında HİÇ tetiklenmez).
+export async function answerCorrectChoice(page) {
+  await dismissSpotlightIfShown(page);
+  await dismissFeedbackIfShown(page);
+  const correctIndex = await page.evaluate(() => {
+    const choices = window.__aeaActiveQuestionChoices ? window.__aeaActiveQuestionChoices() : null;
+    if (!Array.isArray(choices)) return -1;
+    return choices.findIndex((c) => c && c.correct);
+  });
+  const target = correctIndex >= 0 ? page.locator(".ans").nth(correctIndex) : page.locator(".ans").first();
+  await target.click({ timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(2500);
+}
+
 // G225 (madde 30 düzeltmesi) — reklam mock'u: headless Chromium'da gerçek
 // AdMob plugin'i olmadığı için `ads.js:watchRewardedAd()` GERÇEKTEN
 // başarısız olur (`getAdMobPlugin()` null). `page.route()` ile sunucudan

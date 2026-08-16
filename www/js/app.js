@@ -11905,6 +11905,22 @@ if (DEV_MODE) {
   // ürettiği veriyle #screen-result'ı açıp CSS telafisini
   // (--result-actionbar-h) ölçüyor.
   window.__aeaShowSessionEndForTest = showSessionEnd;
+
+  // G261 — doğrulama kancası: OLCUM-FLAKY-16-08.md'nin bulduğu kök sebep —
+  // e2e testleri körü körüne `.ans`'ın İLK butonuna basıyordu, şıklar
+  // shuffle() ile karıştırıldığı için bu %50-70 ihtimalle YANLIŞ cevaba
+  // denk geliyordu (yanlış cevap can GÖTÜRÜYOR, bu da bazı testlerde
+  // beklenmeyen paywall sebeplerine/erken game-over'a yol açabiliyordu —
+  // GERÇEKTEN gözlendi, paywall-flow.spec.mjs'in "madde 30" testi).
+  // `activeQuestion.choices` her modun `renderAnswerChoices()`'ı TARAFINDAN
+  // `q.choices.map(c=>...).join("")` ile BİREBİR AYNI SIRADA render
+  // edildiği için (TÜM mod dosyalarında doğrulandı — grep ile, hiçbiri
+  // render SIRASINDA yeniden karıştırmıyor), bu kancanın döndürdüğü
+  // dizideki N. elemanın `correct` alanı, DOM'daki N. `.ans` butonuna
+  // BİREBİR karşılık gelir — testler `choices.findIndex(c=>c.correct)`
+  // ile DOĞRU şıkkı GÜVENİLİR biçimde bulabiliyor. SADECE OKUR, hiçbir
+  // oyun durumunu DEĞİŞTİRMEZ/ETKİLEMEZ.
+  window.__aeaActiveQuestionChoices = () => (activeQuestion && activeQuestion.choices) || null;
 }
 
 // G117 madde B — bölge SOLO dinleme. Bant adları canvas üstünde ÇİZİLİ metin
