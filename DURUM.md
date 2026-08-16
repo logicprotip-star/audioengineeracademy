@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (G253 — Araçlar Pro-kilit metnindeki stale "telefon hoparlöründen" ifadesi düzeltildi)
+Son güncelleme: 16.08.2026 (G258 — Kulak butonları 7 moda daha eklendi (G254-G257) + GORSEL-TEST.md çelişkisi düzeltildi)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,205 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G254-G258 — **Kulak butonları (#fbEarLeft/#fbEarRight) 7 yere daha eklendi (Kesim Noktası, dB Seviyesi, Pan Konumu, Stereo Genişlik, Boost/Cut katman 2-3, Frekans Çakışması Aşama 1+3) + GORSEL-TEST.md'nin #8/#12 çelişkisi düzeltildi — 5 AYRI commit (G254/G255/G256/G257 kod, G258 belge).**
+
+**Kök sebep/gerekçe:** OLCUM-KULAK-16-08.md'nin bulgusu — kulak
+butonları G81'den beri SADECE Frekans Bulma'ya bağlıydı, G81'in kendi
+gerekçesi ("iki frekans yok") diğer modları TEK TEK değerlendirmemişti.
+Bu turda D) maddesindeki "OLUR" analizine göre 7 yer koda döküldü.
+
+**Uygulanan (4 kod commit'i, her biri kendi içinde tam test edilmiş):**
+- **G254** — `showCutoffEars`/`showLevelEars` eklendi, paylaşılan
+  `.fb-ear` click-handler'ı "cutoff"/"dblevel" modlarını kapsayacak
+  şekilde genişletildi.
+- **G255** — `showPanEars`/`showWidthEars` eklendi, "pan"/"width"
+  eklendi.
+- **G256** — `showBoostCutEars` eklendi, SADECE katman 2/3'te
+  (katman 1'de sayısal ikinci değer yok, task'ın kendi kapsamı).
+- **G257** — en karmaşığı: Frekans Çakışması ÇİFT-kaynak (`buildDualSourceChain`),
+  diğer 6 gibi tek-kaynak `buildQuestionChain` kullanamıyor. Aşama 3
+  ZATEN CANLI çalan zincire `setDualCut()` ile müdahale ediyor (chain
+  yeniden kurulmuyor); Aşama 1 `stopAudio()` sonrası chain'i YENİDEN
+  kuruyor, `frekans-cakismasi.js:applyProcessing`'e OPSİYONEL bir
+  `previewGainDb` alanı eklendi (varsayılan 0, normal oyun TEK SATIR
+  değişmedi) — `mode.BASE_CUT_DB` (modülün KENDİ sabiti) ile boost
+  ediliyor, yeni sayı icat edilmedi. Aşama 2 (kaynak A/B) kapsam DIŞI.
+
+**KİLİT doğrulandı:** `showFrequencyEars`/`submitFrequencyGuess`
+(Frekans Bulma) TEK SATIR değişmedi — her commit'te AYRI bir REGRESYON
+testiyle doğrulandı. Kompresör/Reverb/Saturation&Distortion/Tonal
+Denge'ye HİÇ dokunulmadı (task'ın kendi "gerek yok"/"ayrı çözüm gerekir"
+kararı).
+
+**Testler (her commit kendi git-stash kırmızı/yeşil doğrulamasıyla):**
+`e2e/ear-buttons.spec.mjs` — 8 YENİ test (Kesim Noktası, dB Seviyesi,
+Pan Konumu, Stereo Genişlik, Boost/Cut katman 3, Frekans Çakışması
+Aşama 1+3, + 1 Frekans Bulma regresyon testi). Her test: buton
+görünüyor mu, doğru DEĞER dataset'e yazılıyor mu (tıklanan şıkla
+eşleşiyor mu), tıklanınca `.on` alıyor mu + sayfa hatası YOK, hem
+doğru hem yanlış cevapta çalışıyor mu (retry döngüsü ikisini de
+gözleyene kadar dener). `git stash` ile 4 kez doğrulandı: her commit
+İÇİN app.js (ve Frekans Çakışması'nda mode dosyası) stash'lenince
+İLGİLİ testler KIRMIZI, geri gelince YEŞİL.
+
+**Test altyapısı notları:**
+- Stereo Genişlik SADECE gerçek stereo dosyayla oynanabiliyor —
+  `www/audio/`'daki 9 gömülü örneğin HEPSİ mono (ffprobe ile
+  doğrulandı) — `e2e/fixtures/stereo-test.wav` (YENİ, ffmpeg'le
+  üretildi, `*.wav` gitignore kuralına `-f` ile istisna) eklendi.
+- `answerFirstChoice()` İLK sürümünde HER ZAMAN `.ans`'ın ilk butonuna
+  tıklıyordu — dB Seviyesi testinde flaky çıktı (tam takım koşusunda
+  yakalandı, izole koşuda geçiyordu). Düzeltme: rastgele şık seçimi +
+  retry sınırı 15→25, 2 tam koşuda tekrar doğrulandı.
+- Tam takım e2e koşusu SIRASINDA bir kez ilgisiz bir testte
+  (`paywall-flow.spec.mjs`, madde 30) geçici flake görüldü — izole
+  koşuda VE bir sonraki tam takım koşusunda TEMİZ geçti, bu turun
+  dokunmadığı bir dosyada (`paywall.js`'e hiç dokunulmadı) — kayda
+  geçirildi, regresyon SAYILMADI.
+
+**G258 — GORSEL-TEST.md düzeltmesi:** #8 ("sadece Frekans Bulma'da
+var") ve #12 ("12 modun hiçbirinde yok") birbiriyle ÇELİŞİYORDU — ikisi
+de G254-G257'nin GERÇEK durumuna göre güncellendi, gerekçe (Kompresör/
+Reverb/Distortion/Tonal Denge'de neden YOK) her ikisine de yazıldı.
+
+**npm test:** 1390/1390 (DEĞİŞMEDİ, her commit'te ayrı ayrı
+doğrulandı). **npm run test:e2e:** 27/27 (19'dan +8 yeni).
+
+**Dokunulan:** `www/js/app.js` (show-fonksiyonları + submit* çağrıları
++ paylaşılan click-handler), `www/js/modes/frekans-cakismasi.js`
+(`applyProcessing`'in `previewGainDb` opsiyonel alanı), `e2e/ear-buttons.spec.mjs`
+(YENİ dosya), `e2e/fixtures/stereo-test.wav` (YENİ), `GORSEL-TEST.md`.
+**Dokunulmayan:** `showFrequencyEars`/`submitFrequencyGuess` (Frekans
+Bulma), `kompresor.js`/`reverb.js`/`distortion.js`/`tonal-denge.js`,
+zorluk eğrisi, feedback panelinin yapısı, e2e suite'in DİĞER dosyaları.
+
+OLCUM-KULAK-16-08 — **Frekans Çakışması'nda kulak butonlarının neden görünmediği + 12 modda öğretim açısından nerede anlamlı olacağı ölçüldü (SADECE ÖLÇÜM, kod/dosya/commit YOK) — `OLCUM-KULAK-16-08.md`'ye yazıldı.**
+
+**Yöntem:** `app.js`'in G81 bloğu (`showFrequencyEars`, `submitFrequencyGuess`,
+`submitCakismaGuess`, `isChoiceFormat`), `index.html`'in `#feedbackBox`
+markup'ı, 12 mod dosyasının `getMeta()`/`createQuestion()` fonksiyonları
+TAM okundu. `git log -S` ile TÜM repo geçmişi (G214-G252 dahil, sadece
+o aralıkla sınırlı kalınmadı) tarandı.
+
+**Sonuç (özet, tam detay raporda):**
+1. **A)** Kulak butonları (`#fbEarLeft`/`#fbEarRight`, `index.html:
+   601-602`) TÜM 12 modun PAYLAŞTIĞI `#feedbackBox`'ın SABİT çocukları,
+   varsayılan gizli — SADECE `showFrequencyEars()` (`app.js:2007-2018`)
+   gösteriyor, bu fonksiyon SADECE Frekans Bulma'nın (tek-bant)
+   `submitFrequencyGuess()`'inde çağrılıyor. Diğer 11 modda (proplus
+   dahil) YOK.
+2. **B) Frekans Çakışması'nda "kaybolmuş" önermesi YANLIŞ — hiç VAR
+   OLMAMIŞ:** `submitCakismaGuess()` (`app.js:4811-4871`) `showFrequencyEars()`'i
+   TEK SATIR çağırmıyor. Yapısal sebep: Frekans Çakışması `isChoiceFormat()`'te
+   listeli (`app.js:1371`, `mode==="cakisma"`) — cevap HER ZAMAN şıklı
+   buton, `submitFrequencyGuess()`'e (ear butonlarının TEK yolu) HİÇ
+   gitmiyor. `git log -S "showFrequencyEars"` TÜM repo tarihinde SADECE
+   G81'in kendi commit'ini (`9a075bd`) buluyor — hiçbir sonraki commit
+   eklemedi/çıkarmadı. G214-G252 taraması: `frekans-cakismasi.js`'e
+   dokunan 2 commit (G249 dB format metni, G240 sonsuz-döngü koruması)
+   İKİSİ de ear-butonuyla İLGİSİZ.
+3. **C)** GORSEL-TEST #8'in gerekçesi ("iki frekans yok") kompresör/
+   pan/reverb İÇİN doğru ama **Frekans Çakışması'nı HİÇ ADLANDIRMAMIŞ**
+   — modun Aşama 1'i (`trueCenter`, gizli merkez frekans + şıklı frekans
+   seçimi) Frekans Bulma'yla YAPISAL OLARAK AYNI şekilde, gerekçe
+   tutarlı uygulansaydı bu aşama İÇİN geçerli OLMAZDI.
+4. **D) ⚠️ ASIL SORU — 12 mod tek tek değerlendirildi:** Kesim Noktası/
+   dB Seviyesi/Pan Konumu/Stereo Genişlik/Boost-Cut katman 2-3/Frekans
+   Çakışması Aşama 1&3 → **OLUR** (Frekans Bulma'yla AYNI "gizli değer +
+   seçilen değer" şekli). Kompresör/Reverb/Saturation&Distortion →
+   **OLMAZ** (A/B/C varyant zaten KENDİ karşılaştırma aracını — play
+   düğmelerini — taşıyor). Tonal Denge → OLMAZ (çok boyutlu, Tools'un
+   "referans eğri" özelliğine benzer AYRI bir çözüm gerekir). Q Genişliği/
+   Boost-Cut katman 1 → KISMEN/OLMAZ (sayısal değer kullanıcıya hiç
+   gösterilmiyor ya da yok).
+5. **E)** GORSEL-TEST #12 ("karşılaştırmalı dinletme, 12 modun
+   HİÇBİRİNDE yok") ile #8 ("Frekans Bulma'da VAR, ✅ KAPANDI") **ÇELİŞKİLİ**
+   — bu turda BULUNUP raporlandı (CLAUDE.md'nin "doğrulama" kuralı
+   gereği, sessizce geçilmedi). Kulak butonları #12'nin bir ALT-KÜMESİ/
+   prototipi — ikisi KAVRAMSAL olarak BİRLEŞTİRİLEBİLİR, D)'nin bulduğu
+   3 farklı kalıba (sayısal-çift/varyant-harf/çok-boyutlu-eğri) göre.
+
+**Testler/Ölçüm:** Kod/dosya DEĞİŞTİRİLMEDİ, `npm test`/e2e bu tur
+ETKİLENMEDİ. Playwright bu turda ÇALIŞTIRILMADI — statik kod akışı
+(showFrequencyEars'in tek çağrı yeri) rastgelelik/zamanlama İÇERMİYOR,
+canlı teste gerek kalmadı.
+
+**Dokunulan:** `OLCUM-KULAK-16-08.md` (yeni dosya, henüz commit
+edilmedi — task'ın kendi kuralı: "KOD YAZMA, COMMIT ATMA").
+**Dokunulmayan:** `app.js`/`index.html`/12 mod dosyası dahil hiçbir
+kod dosyası.
+
+OLCUM-BAYRAK-16-08 — **G239'un yayın bayrağı (`DEV_MODE`) ve 7-tık geliştirici modunun ilişkisi, 3-durumlu bayrak fizibilitesi, build-ayırımı otomasyonu ve risk ölçüldü (SADECE ÖLÇÜM, kod/dosya/commit YOK) — `OLCUM-BAYRAK-16-08.md`'ye yazıldı.**
+
+**Not:** Görev metninde "G250'de kuruldu" denmişti — kod tarandı,
+gerçek G-numarası **G239**'dur (`build-flags.js`/`test/build-flags.
+test.mjs`'in kendi başlıkları AÇIKÇA G239 yazıyor), rapor doğru
+numarayla yazıldı.
+
+**Yöntem:** `build-flags.js`, `ads.js`, `storage.js`, `app.js`'in ilgili
+bölümleri (7-tık handler'ı, `isUserPro`, `devFlags`) TAM okundu/grep
+edildi. `ios/App/App/AppDelegate.swift` TAM okundu (native ayrım kodu
+var mı diye). `@capgo/native-purchases` plugin'inin (zaten G168'de
+entegre) tip tanımları okundu.
+
+**Sonuç (özet, tam detay raporda):**
+1. **G239'un bayrağı:** `DEV_MODE` (`build-flags.js:27`), TEK boolean,
+   2 durum, TAMAMEN elle değiştiriliyor (Archive öncesi tek satır flip,
+   hemen geri alınıyor, repoya `false` HİÇ commit edilmiyor). `AD_TEST_MODE`
+   (`ads.js:21`) ONA DOĞRUDAN türüyor, hem kodda hem `build-flags.
+   test.mjs`'in kendi assert'inde doğrulandı. Şu an `true` (committed).
+   2 tripwire testi (`build-flags.test.mjs`, `layout-geometry.spec.mjs`)
+   `false` yanlışlıkla commit edilirse `npm test`/e2e'yi kırmızı çıkarıyor.
+2. **⚠️ EN ÖNEMLİ BULGU:** 7-tık geliştirici modu (`app.js:8488-8519`,
+   `devFlags.unlocked`/`devFlags.simulatePro`) `DEV_MODE`'a **HİÇ
+   BAĞLI DEĞİL** — `grep` ile doğrulandı, `DEV_MODE`'un 3 gate noktası
+   (2 tanı-log fonksiyonu + 3 test kancası) DIŞINDA hiçbir yerde
+   geçmiyor. **Bugün `DEV_MODE=false` yapılıp Archive alınsa BİLE,
+   7-tık Pro-bedava backdoor'u O BUILD'DE DE AYNEN açık kalır.** Bu,
+   görevin sorduğu asıl soruya doğrudan, ölçülmüş cevap: mevcut bayrak
+   geliştirici modunu ŞU AN yönetmiyor.
+3. **Geliştirici modu mekanizması:** 7 dokunuş SADECE gizli menüyü
+   AÇAR (`devFlags.unlocked`), Pro'yu VEREN AYRI bir anahtar
+   (`devProSwitch` → `devFlags.simulatePro`) elle AYRICA tıklanmalı —
+   iki adımlı. `isUserPro() = proPurchased || simulatePro` — 68 çağrı
+   yerinin (app.js) HEPSİNİ aynı anda açıyor, kısmi/kademeli YOK.
+   `localStorage`'da (`prefs`'ten AYRI anahtar) KALICI, kendi kapatma
+   düğmesi var. Kod yorumu bunun BİLİNÇLİ bir ürün kararı olduğunu
+   gösteriyor ("yayında da kalacak, görev tanımında böyle istendi").
+4. **3-durumlu bayrak MÜMKÜN, ama BUGÜN YOK — kod gerektirir:**
+   `DEV_MODE`'u 3 değerli yapmak mimari olarak KÜÇÜK bir değişiklik,
+   ama asıl iş (7-tık'ı YENİ bayrağa BAĞLAMAK) BUGÜN HİÇ YAPILMAMIŞ —
+   AYRI bir ikinci bayrak yerine TEK bayrağın genişletilmesi ÖNERİLDİ
+   (G239'un kendi "tek yerden yönet" prensibiyle tutarlı).
+5. **Build ayrımı — native tarafta BUGÜN YOK ama altyapı HAZIR,
+   KULLANILMIYOR:** `AppDelegate.swift` stok boilerplate, özel kod YOK.
+   AMA zaten entegre `@capgo/native-purchases` plugin'i `getAppTransaction()`
+   ile StoreKit 2'nin `AppTransaction.environment` ('Sandbox'/'Production'/
+   'Xcode') alanını sunuyor — TestFlight=Sandbox, App Store=Production
+   (Apple dokümantasyonu, bu turda cihazda DOĞRULANMADI, BELİRSİZ
+   işaretlendi). Kodda `getAppTransaction()` SIFIR çağrı yeri — TAMAMEN
+   KULLANILMAMIŞ. iOS 16+ ile SINIRLI, Android'de bu alan hep `null`.
+6. **Risk:** Sayı/yüzde UYDURULMADI. Mekanizma iki adımlı (kazara
+   TEK dokunuşla olmaz). "7 kez dokun" Android'in KENDİ resmi
+   Geliştirici Seçenekleri deseniyle AYNI — genel tanınırlığı yüksek.
+   **BAĞIMSIZ, İKİNCİ bir arka kapı BULUNDU:** `purchaseState.
+   proPurchased` `localStorage`'dan sunucu doğrulaması OLMADAN okunuyor
+   — Safari Web Inspector/uzak hata ayıklamayla `localStorage`'a elle
+   yazan biri Pro'yu KALICI açabilir, `proPurchased` TEK YÖNLÜ olduğu
+   için (G168 tasarımı) bu asla geri ALINMAZ. 7-tık menüsü kaldırılsa
+   BİLE bu yol KAPANMAZ — client-only freemium uygulamaların YAPISAL
+   bir özelliği, kod hatası DEĞİL.
+
+**Testler/Ölçüm:** Kod/dosya DEĞİŞTİRİLMEDİ, `npm test`/e2e bu tur
+ETKİLENMEDİ. Tamamen kod okuma + grep + plugin tip tanımları okuması
+ile yapıldı (StoreKit 2 `AppTransaction` davranışı cihazda test
+EDİLMEDİ, BELİRSİZ olarak işaretlendi).
+
+**Dokunulan:** `OLCUM-BAYRAK-16-08.md` (yeni dosya, henüz commit
+edilmedi — task'ın kendi kuralı: "KOD YAZMA, COMMIT ATMA").
+**Dokunulmayan:** `build-flags.js`/`ads.js`/`storage.js`/`app.js`/
+`AppDelegate.swift` dahil hiçbir kod dosyası.
 
 G253 — **`index.html:1203`'teki Araçlar Pro-kilit ekranı alt başlığındaki stale "telefon hoparlöründen" ifadesi "bluetooth hoparlörden" olarak düzeltildi (G252'nin bulduğu 🟡 bulgu, tek satır) — filtre tanımları ve diğer metinler DOKUNULMADI.**
 
@@ -19216,7 +19415,69 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G253 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G254-G258 itibarıyla):**
+Kulak butonları 7 moda daha eklendi (4 AYRI commit, her biri kendi
+git-stash kırmızı/yeşil doğrulamasıyla) + GORSEL-TEST.md'nin #8/#12
+çelişkisi düzeltildi. `npm test` 1390/1390, `npm run test:e2e` 27/27
+(19+8 yeni). **Bir sonraki adım — kullanıcının kararı gerekir:**
+1. Kompresör/Reverb/Saturation & Distortion için OLCUM-KULAK-16-08.md'nin
+   önerdiği "seçtiğin harf + doğru harfi art arda çaldırma" fikri
+   (A/B/C varyantların KENDİ ses buffer'ları zaten var, YENİ ses
+   sentezi GEREKMEZ) — KODLANMADI, 1.1'e bırakılabilir, GORSEL-TEST.md
+   madde 12'ye not edildi.
+2. Tonal Denge için "tam eğrini çal / hedef eğriyi çal" fikri (Tools'un
+   mevcut "referans eğri" özelliğine benzer) — AYRI, çok-boyutlu bir
+   çözüm gerektiriyor, KODLANMADI.
+3. Buton etiketleri (Kesim Noktası: "Senin kesimin", dB Seviyesi:
+   "Senin seviyen", vb.) kullanıcı tarafından cihazda GÖRSEL olarak
+   henüz doğrulanmadı — bu turda SADECE DOM/dataset seviyesinde test
+   edildi (headless Chromium'da gerçek ses duyarak doğrulamak mümkün
+   değil, CLAUDE.md'nin kendi sınırı).
+
+**EN YENİ SIRADAKİ ADIM (OLCUM-KULAK-16-08 itibarıyla, ARTIK ESKİ):**
+Kulak butonlarının Frekans Çakışması'nda neden görünmediği + 12 modda
+öğretim açısından nerede anlamlı olacağı ÖLÇÜLDÜ (kod/dosya
+DEĞİŞTİRİLMEDİ, `OLCUM-KULAK-16-08.md`, henüz commit edilmedi). Bulgu:
+"kaybolmuş" değil, Frekans Çakışması'na hiç BAĞLANMAMIŞ (mimari
+sebep, regresyon değil). **Bir sonraki adım — kullanıcının kararı
+gerekir:**
+1. Rapor D)'nin "OLUR" işaretlediği modlara (Kesim Noktası, dB
+   Seviyesi, Pan Konumu, Stereo Genişlik, Boost-Cut katman 2-3, Frekans
+   Çakışması Aşama 1&3) kulak-butonu benzeri bir referans-dinletme
+   EKLENSİN Mİ — hangi modlardan başlanacağı, GORSEL-TEST #12'nin
+   ("karşılaştırmalı dinletme") 1.0/1.1 kararıyla NASIL birleştirileceği
+   kullanıcıya ait.
+2. **🟡 Belge çelişkisi bulundu:** GORSEL-TEST #12 ("12 modun
+   HİÇBİRİNDE yok") ile #8 ("Frekans Bulma'da VAR, KAPANDI") çelişiyor
+   — #12'nin durum etiketi hâlâ "⏸️ KARAR", güncellenmesi gerekebilir.
+3. Kompresör/Reverb/Saturation&Distortion İÇİN AYRI bir çözüm (A/B/C
+   varyantların "senin seçtiğin harf + doğru harf"i art arda çalması,
+   YENİ ses sentezi GEREKMEZ) — rapor bunu bir SEÇENEK olarak önerdi,
+   kod YAZILMADI.
+
+**EN YENİ SIRADAKİ ADIM (OLCUM-BAYRAK-16-08 itibarıyla, ARTIK ESKİ):**
+G239'un yayın bayrağı (`DEV_MODE`) ile 7-tık geliştirici modunun
+ilişkisi ÖLÇÜLDÜ (kod/dosya DEĞİŞTİRİLMEDİ, `OLCUM-BAYRAK-16-08.md`,
+henüz commit edilmedi). **⚠️ En önemli bulgu: bugün `DEV_MODE=false`
+yapılıp Archive alınsa BİLE, 7-tık Pro-bedava backdoor'u O BUILD'DE
+DE AYNEN açık kalıyor** — ikisi hiç bağlı değil. **Bir sonraki adım —
+kullanıcının kararı gerekir:**
+1. 7-tık geliştirici modunu `DEV_MODE`'a (ya da 3-durumlu genişletilmiş
+   bir sürümüne) BAĞLAYAN kod YAZILMALI mı — rapor bunu MİMARİ olarak
+   mümkün buldu (TEK bayrağı 3 değerli yapmak, AYRI bir ikinci bayrak
+   yerine) ama HİÇBİR kod bu turda YAZILMADI, ürün/mimari kararı
+   kullanıcıya ait.
+2. `@capgo/native-purchases`'ın (zaten entegre) `getAppTransaction()`
+   metodu ile TestFlight/App Store otomatik ayrımı DENENMELİ mi —
+   altyapı hazır ama SIFIR çağrı yeri var, iOS 16+ ile sınırlı, Apple'ın
+   Sandbox=TestFlight davranışı bu turda cihazda DOĞRULANMADI.
+3. **🟡 Bağımsız, ikinci bir "arka kapı" bulundu:** `proPurchased`
+   localStorage'dan sunucu doğrulaması olmadan okunuyor, uzak hata
+   ayıklamayla elle Pro açılabilir ve TEK YÖNLÜ olduğu için asla geri
+   alınmaz — 7-tık menüsü kaldırılsa BİLE bu yol kapanmaz, bu YAPISAL
+   bir gerçek, ayrı bir karar konusu.
+
+**EN YENİ SIRADAKİ ADIM (G253 itibarıyla, ARTIK ESKİ):**
 Araçlar Pro-kilit ekranındaki stale "telefon hoparlöründen" metni
 "bluetooth hoparlörden" olarak düzeltildi (AYRI commit, tek satır).
 `npm test` 1390/1390, `npm run test:e2e` 19/19, DEĞİŞMEDİ. "telefon
