@@ -2109,6 +2109,31 @@ function showBoostCutEars(guessFreq, guessGainDb) {
   els.fbEarRight.dataset.preview = "correct";
 }
 
+// Q Genişliği'nin kulak butonları — REFERANS: showFrequencyEars. G254-257'de
+// (OLCUM-KULAK-16-08.md'nin "OLUR" listesindeki) 6 mod eklenirken Q Genişliği
+// gerekçesiz atlanmıştı (AJAN-DENETIM-16-08.md madde D.3) — yapısal olarak
+// diğer altısıyla AYNI (choiceOnly, gizli gerçek değer + şıklı tahmin), bu
+// turda (OLCUM-CIHAZ-16-08.md madde A) eklendi. Gizli değer q.q (sayısal Q)
+// ama tahmin SAYISAL DEĞİL, bir ETİKET id'si ("notch"/"dar"/...) —
+// q-genisligi.js'in KENDİ kararı ("sayısal Q değeri şıklarda BİLEREK yok").
+// Bu yüzden diğer altısından FARKLI: dataset'e HAM sayı değil ETİKET id'si
+// yazılıyor, click-handler PREVIEW ANINDA mode.labelById()'in qCenter'ıyla
+// (etiketin Q-aralığının geometrik ortalaması — q-genisligi.js:drawOverlay'in
+// guess-eğrisi AYNI değeri zaten kullanıyor) sayısal bir Q'ya çözülüyor;
+// freq/gainDb HER ZAMAN true değerlerle aynı kalıyor
+// (kullanıcı SADECE genişliği tahmin etti, izolasyon ilkesi burada da geçerli).
+function showQWidthEars(guessLabelId) {
+  if (!els.fbEarLeft || !els.fbEarRight) return;
+  els.fbEarLeft.classList.remove("hidden");
+  els.fbEarRight.classList.remove("hidden");
+  els.fbEarLeft.classList.remove("neutral", "on");
+  els.fbEarRight.classList.remove("on");
+  els.fbEarLeft.textContent = "Senin cevabın";
+  els.fbEarLeft.dataset.preview = "mine";
+  els.fbEarLeft.dataset.guessLabelId = guessLabelId;
+  els.fbEarRight.dataset.preview = "correct";
+}
+
 // Frekans Çakışması Aşama 1'in kulak butonları — REFERANS: showFrequencyEars,
 // ama ses üretim yolu TAMAMEN FARKLI (tek-kaynak buildQuestionChain değil,
 // çift-kaynak buildDualSourceChain — bkz. click-handler'ın "cakisma" dalı).
@@ -4738,6 +4763,7 @@ function submitQWidthGuess(labelId) {
     const feedback = mode.getFeedbackData(q, labelId, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
     showXpBreakdown(q, q.difficulty, gained);
+    showQWidthEars(labelId);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
@@ -4750,6 +4776,7 @@ function submitQWidthGuess(labelId) {
 
     const feedback = mode.getFeedbackData(q, labelId, { gained: 0 });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    showQWidthEars(labelId);
     audioEngine.sfxBuzz();
     shake(els.canvas);
     loseLife("Genişlik karakterini ıskaladın.", { silent: true });
@@ -6817,7 +6844,7 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
   // değişmiyor.
   const qMode = activeQuestion.mode;
   const isCakismaEar = qMode === "cakisma" && (activeQuestion.stage === 1 || activeQuestion.stage === 3);
-  const earEligible = qMode === "frequency" || qMode === "cutoff" || qMode === "dblevel" || qMode === "pan" || qMode === "width"
+  const earEligible = qMode === "frequency" || qMode === "cutoff" || qMode === "dblevel" || qMode === "pan" || qMode === "width" || qMode === "qwidth"
     || (qMode === "boostcut" && activeQuestion.layer !== 1) || isCakismaEar;
   if (!earEligible) return;
 
@@ -6849,6 +6876,13 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
       const guessFreq = Number(btn.dataset.guessFreq);
       if (!Number.isFinite(guessGain) || !Number.isFinite(guessFreq)) return;
       guessQuestion = { ...activeQuestion, freq: guessFreq, gainDb: guessGain };
+    } else if (qMode === "qwidth") {
+      // showQWidthEars'in dosya başı notu — dataset ETİKET id'si taşıyor
+      // (ham Q değeri DEĞİL), burada mode.labelById()'in qCenter'ıyla
+      // sayısal Q'ya çözülüyor; freq/gainDb true değerlerle AYNI kalıyor.
+      const guessLabel = mode.labelById(btn.dataset.guessLabelId);
+      if (!guessLabel) return;
+      guessQuestion = { ...activeQuestion, q: guessLabel.qCenter };
     } else if (isCakismaEar) {
       // aşağıda AYRI ele alınıyor (dual-source, buildQuestionChain'e HİÇ girmiyor)
     }

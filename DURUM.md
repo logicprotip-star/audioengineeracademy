@@ -146,6 +146,79 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G265 — **Kulak butonları TÜM modlarda GERÇEKTEN görünür/tıklanabilir hâle getirildi: `.fb`'nin `overflow:hidden`'ı (G193) `overflow:visible`'a çevrildi, Q Genişliği'ne (gerekçesiz atlanmıştı) eklendi, `e2e/ear-buttons.spec.mjs`'in yalancı-yeşil testi gerçek `elementFromPoint` hit-test'ine geçirildi (git stash ile kırmızı/yeşil doğrulandı). AYRI commit.**
+
+**Kök sebep/gerekçe:** OLCUM-CIHAZ-16-08.md madde A'nın bulgusu —
+`.fb-ear` (`styles.css:1549`, panelin üst kenarının TAMAMEN DIŞINDA
+duracak şekilde `position:absolute;transform:translateY(-100%)`) `.fb`'nin
+(`styles.css:1414`) `overflow:hidden`'ı (G193, 2 gün önce, `21814c3`) ile
+kırpılıyordu — DOM/CSS "görünür" diyordu ama gerçek piksel boyanmıyordu.
+`e2e/ear-buttons.spec.mjs` (G254) bunu YAKALAYAMAMIŞTI çünkü SADECE
+`classList.contains("hidden")` kontrol ediyordu VE `clickBothEars()`
+`document.getElementById(...).click()` (DOM API, gerçek hit-test'i
+BAYPAS EDEN sentetik dispatch) kullanıyordu — testin KENDİ yorumu bu
+semptomu ("koordinat tıklaması #feedbackOverlay'i vuruyordu") canlı
+gözlemleyip kök sebep yerine bununla etrafından dolanmıştı.
+
+**Uygulanan (İKİ seçenekten (a) seçildi, gerekçesi aşağıda):**
+- **CSS — `.fb{overflow:hidden}` → `overflow:visible`** (`styles.css:1414`).
+  **(a) vs (b) kararı:** (b) — butonları `.fb`'nin DIŞINA, üst kardeş
+  öğe olarak taşımak — DOM restructuring + click-delegasyonunun
+  (`#feedbackBox`'a bağlı, `app.js:6807`) taşınması + panelin DEĞİŞKEN
+  yüksekliğine göre butonların pozisyonunu JS'le SENKRON tutma
+  gerektirirdi (yeni bir kırılganlık kaynağı). **(a) seçildi** — GERÇEK
+  ölçümle (Playwright, Boost/Cut'ın G193'ün KENDİ "en kötü çakışma"
+  senaryosu, `overflow:hidden` İLE ve `overflow:visible` İLE AYRI AYRI
+  10'ar round) doğrulandı: panel yüksekliği HER İKİSİNDE de tam 29vh'de
+  (193.42px, 375×667'de) sabit kaldı, canvas'la ARA HİÇ değişmedi (-22px
+  ile -91px arası, İKİSİNDE de örtüşme YOK) — `.fb`'nin KENDİ overflow'u
+  bu mekanizmanın HİÇBİR yerinde rol OYNAMIYORDU (asıl iş max-height +
+  flexbox + `.fb p`'nin KENDİ `overflow-y:auto`'sunda), sadece `.fb-ear`'ı
+  kırpıyordu. **max-height:29vh'e DOKUNULMADI** (KİLİT).
+- **Q Genişliği eklendi** — `showQWidthEars(guessLabelId)` (`app.js`,
+  diğer 6 modun AYNI deseni), `submitQWidthGuess()`'e 2 çağrı, click-
+  delegasyonuna `qwidth` dalı. **Diğer 6 moddan FARKI:** guess SAYISAL
+  DEĞİL, bir ETİKET id'si (q-genisligi.js'in "sayısal Q şıklarda
+  BİLEREK yok" kararı) — dataset'e etiket id'si yazılıyor, click ANINDA
+  `mode.labelById(id).qCenter` ile sayısal Q'ya çözülüyor (freq/gainDb
+  true değerlerle AYNI kalıyor, izolasyon ilkesi). Diğer 5 mod
+  (Kompresör/Reverb/Distortion/Tonal Denge/Frekans Çakışması Aşama 2)
+  KASITLI olarak dışarıda bırakıldı — Motor 2'nin 3'ü (A/B/C kart
+  formatı FARKLI, önceki turların KENDİ kararı), Tonal Denge (sürekli
+  kaydırıcı, "hangi cevap" kavramı yok), Aşama 2 (kaynak-mı-B-mi seçimi
+  sayısal ikinci değer taşımıyor) — HİÇBİRİ değiştirilmedi.
+- **Test — gerçek görünürlük:** `earDataset()`'e `leftClickable`/
+  `rightClickable` eklendi (`document.elementFromPoint()` ile butonun
+  KENDİ merkez koordinatında GERÇEKTEN kendisinin boyandığını doğruluyor).
+  `clickBothEars()` artık GERÇEK bir Playwright locator click'i kullanıyor
+  (DOM `.click()` bypass'ı SİLİNDİ). Tüm 6 mevcut test + REGRESYON testine
+  clickable assertion'ları eklendi, Q Genişliği için 7. mod testi YAZILDI.
+  **`.fb`'nin `.3s`lik geçiş animasyonuyla yarışan bir zamanlama sorunu**
+  bulundu (Frekans Çakışması Aşama 3'te, çift-kaynak zincirinin EK async
+  gecikmesiyle) — sabit `waitForTimeout` yerine (G261'in AYNI dersi)
+  `earDatasetStable()` (butonlar GERÇEKTEN stabilleşene kadar polling,
+  üst sınır 2sn) eklendi, 6 çağrı sitesi buna geçirildi.
+
+**git stash kırmızı/yeşil (task'ın kendi kabul kriteri):** `.fb`'nin
+`overflow`'u ELLE `hidden`'a geri çevrilip (test dosyası/Q Genişliği
+DEĞİŞMEDEN) 2 test koşuldu — İKİSİ DE KIRMIZI yandı ("kulak butonu
+KIRPILMIŞ — elementFromPoint kendisini bulamadı"). CSS `visible`'a geri
+alınınca AYNI 2 test YEŞİL. Tam takım 3+3 kez (biri kirlenmiş, temiz
+tekrar koşulan) 9/9 stabil.
+
+**Testler:** `e2e/ear-buttons.spec.mjs` — **9/9** (8 mod + Frekans Bulma
+regresyonu, önceki 8'den +1). `npm test` 1390/1390 (DEĞİŞMEDİ).
+`npm run test:e2e` 29→**30/30** (+1 yeni Q Genişliği testi).
+
+**Dokunulan:** `www/styles.css` (`.fb` overflow), `www/js/app.js`
+(`showQWidthEars` + click-delegasyon dalı + `submitQWidthGuess` 2 çağrı),
+`e2e/ear-buttons.spec.mjs` (gerçek görünürlük + Q Genişliği testi).
+**Dokunulmayan:** `max-height:29vh` (G193), feedback panelinin kaydırma
+davranışı (`.fb p{overflow-y:auto}`), kulak butonlarının ses üretim
+mantığı (`showXEars` fonksiyonlarının GERİ KALANI, click-delegasyonunun
+DİĞER dalları), G254-257'nin mod entegrasyonları, G214-G264 arası
+commit'ler, G174/G175 (`581f798`/`a4efb42`).
+
 G264 — **`app.js:10630`'daki "RX 11 karşılaştırmasıyla doğrulandı" ifadesi (Ölçüm Sonuçları'nın metodoloji notu) sadeleştirildi — ürün adı VE karşılaştırma iddiası ikisi de kaldırıldı. Kod tabanı marka adı için tarandı, tek kullanıcı-görünür örnek buydu. AYRI commit.**
 
 **Kök sebep/gerekçe:** G262'nin (`8d5acc3`) kapsamı SADECE
@@ -19786,7 +19859,24 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G264 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G265 itibarıyla):**
+OLCUM-CIHAZ-16-08.md madde A ÇÖZÜLDÜ — kulak butonları artık TÜM
+uygulanabilir modlarda (Frekans Bulma + 7 mod = 8) gerçekten görünür VE
+tıklanabilir. `.fb{overflow:hidden→visible}` (max-height:29vh KORUNDU),
+Q Genişliği eklendi, `e2e/ear-buttons.spec.mjs`'in yalancı-yeşil
+`clickBothEars()`'ı gerçek Playwright click'ine + `elementFromPoint`
+hit-test'ine geçirildi — git stash ile kırmızı/yeşil doğrulandı.
+`npm test` 1390/1390, `npm run test:e2e` 29→30/30.
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. OLCUM-CIHAZ-16-08.md'nin KALAN maddeleri hâlâ AÇIK: C (Saturation &
+   Distortion sesi Kompresör'den ölçülebilir biçimde yüksek, işitme-
+   güvenliği), E/F (Motor 2 döngü offset stratejisi), G (Frekans
+   Çakışması snare-gitar çifti), I.2 (4 tanı-log ailesinin DEV_MODE'a
+   bağlanması) — hiçbiri henüz ele alınmadı.
+2. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü (OLCUM-FLAKY-16-08.md)
+   hâlâ ÇALIŞTIRILARAK test EDİLMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G264 itibarıyla, ARTIK ESKİ):**
 `app.js:10630`'daki (eski satır 10599 — G262/G263'ün eklediği kod
 yüzünden kaydı) "RX 11 karşılaştırmasıyla doğrulandı" ifadesi ÇÖZÜLDÜ —
 ürün adı VE karşılaştırma iddiası ikisi de kaldırıldı. Kod tabanı

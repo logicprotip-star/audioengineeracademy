@@ -1411,7 +1411,27 @@
          bırakılarak seçildi — panel artık canvas'a ulaşamıyor, TÜM sabit satırlar (ikon/
          başlık/combo/"sonraki soru") flex:none ile korunuyor, SADECE #feedbackDetail
          (.fb p, değişken uzunluklu metin) kayar. */
-      display:flex;flex-direction:column;max-height:29vh;overflow:hidden;
+      display:flex;flex-direction:column;max-height:29vh;overflow:visible;
+      /* G265 DÜZELTMESİ (OLCUM-CIHAZ-16-08.md madde A) — YUKARIDAKİ max-height:29vh
+         KORUNDU (G193'ün kararı DEĞİŞMEDİ), SADECE `overflow:hidden` → `overflow:visible`
+         oldu. Kök sebep: `.fb-ear` (aşağı bkz., panelin üst kenarının TAMAMEN DIŞINDA
+         duracak şekilde `position:absolute;transform:translateY(-100%)`) bu `overflow:hidden`
+         tarafından kırpılıyordu — DOM/CSS "görünür" diyordu (display:flex/visibility:
+         visible/opacity:1) ama gerçek piksel boyanmıyordu, `elementFromPoint` o
+         koordinatta `#feedbackOverlay`'i buluyordu, butonun KENDİSİNİ değil (canlı
+         Playwright'ta ölçüldü). G193'ün ASIL amacı (panelin İÇERİĞE göre büyüyüp
+         #analyzer eğrisini örtmesini önlemek) `overflow:hidden`'a değil, `max-height` +
+         flexbox'a (sabit satırlar flex:none, SADECE `.fb p`/#feedbackDetail flex:1'le
+         BÜYÜYEN tek öğe, o da KENDİ `overflow-y:auto`'suyla İÇ İÇERİĞİNİ kaydırıyor)
+         bağlıydı — G193'ün KENDİ "en kötü çakışma" senaryosu (Boost/Cut, canvas altı
+         452px/panel üstü 402px) bu turda `overflow:hidden` İLE ve `overflow:visible` İLE
+         AYRI AYRI 10'ar round ölçüldü: panel yüksekliği HER İKİSİNDE de tam 29vh'de
+         (193.42px, 375×667'de) sabit kaldı, canvas'la ARA HİÇ değişmedi (-22px ile -91px
+         arası, İKİSİNDE de örtüşme YOK) — `.fb`'nin KENDİ overflow'u bu mekanizmanın
+         HİÇBİR yerinde rol OYNAMIYORDU, sadece `.fb-ear`'ı kırpıyordu. Değişiklik SONRASI:
+         gerçek Playwright koordinat tıklaması + `elementFromPoint` butonun KENDİSİNİ
+         buluyor, `.on` class'ı GERÇEK tıklamayla ekleniyor (bkz. e2e/ear-buttons.spec.mjs'in
+         YENİ görünürlük assertion'ları). */
       /* G189 DÜZELTMESİ (Kesim Noktası geri bildirim okunabilirliği) — .fb'nin arka planı
          SADECE %12-13 opak (ölçüldü, DEĞİŞTİRİLMEDİ — G81'in kendi rengi,
          bu turun kapsamı DIŞINDA) — kısa viewport'ta (375×667 ölçüldü)

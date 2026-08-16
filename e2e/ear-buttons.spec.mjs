@@ -1,16 +1,25 @@
 // Kulak butonları (#fbEarLeft/#fbEarRight) — G81'de SADECE Frekans Bulma'ya
-// bağlıydı (bkz. OLCUM-KULAK-16-08.md). Bu tur 6 tek-kaynak moda (Kesim
+// bağlıydı (bkz. OLCUM-KULAK-16-08.md). G254-257'de 6 tek-kaynak moda (Kesim
 // Noktası, dB Seviyesi, Pan Konumu, Stereo Genişlik, Boost/Cut katman 2-3)
-// + Frekans Çakışması'nın 2 aşamasına (1 ve 3) aynı mekanizma eklendi.
+// + Frekans Çakışması'nın 2 aşamasına (1 ve 3) aynı mekanizma eklendi. G265'te
+// (OLCUM-CIHAZ-16-08.md madde A) Q Genişliği de (gerekçesiz atlanmıştı,
+// AJAN-DENETIM-16-08.md D.3) eklendi — TOPLAM 7 mod + Frekans Bulma'nın
+// regresyon testi.
 //
 // Her mod için kabul kriteri (task'ın kendi listesi):
-//   1) buton feedback panelinde GÖRÜNÜYOR (hidden sınıfı kalkıyor)
+//   1) buton feedback panelinde GÖRÜNÜYOR (hidden sınıfı kalkıyor) VE GERÇEKTEN
+//      tıklanabilir (G265 — bkz. earDataset()'in leftClickable/rightClickable'ı,
+//      elementFromPoint tabanlı GERÇEK hit-test; SADECE "hidden" class'ının
+//      yokluğu YETMEZ, bkz. OLCUM-CIHAZ-16-08.md'nin bu testin İLK sürümünü
+//      "yalancı yeşil" olarak bulduğu madde A)
 //   2) basınca DOĞRU ses çalıyor — burada "doğru DEĞER" dataset'e doğru
 //      yazıldığı + tıklamanın hatasız (pageerror/console.error YOK)
 //      tamamlandığı ile doğrulanıyor (gerçek ses çıktısını headless
 //      Chromium'da duyarak doğrulamak mümkün değil, bu proje boyunca
 //      kullanılan AYNI sınır — bkz. CLAUDE.md "ses/DOM davranışı kaynak
-//      koddan doğrulanamaz" notu, karşılığı burada davranışsal/DOM kanıtı)
+//      koddan doğrulanamaz" notu, karşılığı burada davranışsal/DOM kanıtı) —
+//      tıklama GERÇEK bir Playwright locator click'i (bkz. clickBothEars()),
+//      DOM'daki .click() BAYPAS'ı DEĞİL
 //   3) yanlış cevapta da doğru cevapta da çalışıyor — retry döngüsü İKİ
 //      çıktıyı da GÖZLEMLEYENE kadar yeni round'lar dener (3-6 şıklı bir
 //      modda birkaç denemede ikisi de doğal olarak gözlenir)
@@ -79,14 +88,63 @@ async function startRound(page, modeId) {
 
 // SADECE seçilen data-alanı OKUNABİLİR biçimde döndürülüyor — çağıran
 // hangi alanı bekliyorsa onu karşılaştırır.
+//
+// G265 DÜZELTMESİ (OLCUM-CIHAZ-16-08.md madde A) — leftHidden/rightHidden
+// SADECE CSS class'ının yokluğunu doğruluyordu, GERÇEK GÖRÜNÜRLÜĞÜ değil.
+// `.fb`'nin (o zamanki) `overflow:hidden`'ı butonu KIRPIYORDU ama
+// `classList.contains("hidden")` bunu hiç YAKALAMIYORDU (class zaten
+// kaldırılmıştı, sadece piksel boyanmıyordu) — bu YÜZDEN 8 test yeşil
+// geçerken özellik cihazda kırıktı. `leftClickable`/`rightClickable` artık
+// `document.elementFromPoint()` ile butonun KENDİ merkez koordinatında
+// GERÇEKTEN o butonun boyandığını (üstünde başka bir eleman — ör.
+// #feedbackOverlay — YOK) doğruluyor; bu, gerçek bir kullanıcı
+// dokunuşunun o noktada NEYE isabet edeceğinin birebir karşılığı.
 async function earDataset(page) {
-  return page.evaluate(() => ({
-    leftHidden: document.getElementById("fbEarLeft")?.classList.contains("hidden"),
-    rightHidden: document.getElementById("fbEarRight")?.classList.contains("hidden"),
-    leftPreview: document.getElementById("fbEarLeft")?.dataset.preview,
-    rightPreview: document.getElementById("fbEarRight")?.dataset.preview,
-    left: { ...document.getElementById("fbEarLeft")?.dataset },
-  }));
+  return page.evaluate(() => {
+    function hitTestable(id) {
+      const el = document.getElementById(id);
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return false;
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const hit = document.elementFromPoint(cx, cy);
+      return !!hit && (hit === el || el.contains(hit));
+    }
+    return {
+      leftHidden: document.getElementById("fbEarLeft")?.classList.contains("hidden"),
+      rightHidden: document.getElementById("fbEarRight")?.classList.contains("hidden"),
+      leftClickable: hitTestable("fbEarLeft"),
+      rightClickable: hitTestable("fbEarRight"),
+      leftPreview: document.getElementById("fbEarLeft")?.dataset.preview,
+      rightPreview: document.getElementById("fbEarRight")?.dataset.preview,
+      left: { ...document.getElementById("fbEarLeft")?.dataset },
+    };
+  });
+}
+
+// `.fb`'nin GÖSTER geçişi `.3s`lik bir CSS transform'la animasyonlu (bkz.
+// styles.css `.fb{transition:transform .3s ...}`) — geometri tabanlı
+// leftClickable/rightClickable ölçümü panel HENÜZ kayarken yapılırsa
+// (özellikle Frekans Çakışması'nda, çift-kaynak zincirinin EK async
+// gecikmesiyle üst üste binince) ARA bir konumda ölçülüp YANLIŞLIKLA
+// başarısız olabilir — bu GERÇEK bir kırpılma DEĞİL, bir zamanlama yarışı
+// (ölçüldü: tam takım koşusunda ~1/4 ihtimalle, izole koşuda hiç). Sabit
+// bir `waitForTimeout` yerine (G261'in AYNI dersi — "körü körüne sabit
+// süre" flaky'ye yol açar) burada durum GERÇEKTEN stabilleşene (ya da
+// makul bir üst sınıra) kadar POLLING yapılıyor — GERÇEK bir kırpılma
+// bug'ında hiçbir zaman "clickable" olmayacağı için bu, testin asıl
+// doğrulama gücünü AZALTMIYOR, sadece geçici animasyon penceresini
+// TOLERE ediyor.
+async function earDatasetStable(page, timeoutMs = 2000) {
+  const start = Date.now();
+  let last = await earDataset(page);
+  while (Date.now() - start < timeoutMs) {
+    if (last.leftClickable && last.rightClickable) return last;
+    await page.waitForTimeout(75);
+    last = await earDataset(page);
+  }
+  return last;
 }
 
 // İki kulak butonuna da (mine/correct) sırayla basar, İKİSİNİN de "on"
@@ -98,23 +156,29 @@ async function earDataset(page) {
 // durumda bir konsol hatası ÜRETMEZ ama runtime hatası da fırlatmaz —
 // bu yüzden asıl kanıt madde (2)'deki dataset eşleşmesi, buradaki hata-
 // yokluğu EK bir güvenlik ağı).
+//
+// G265 DÜZELTMESİ (OLCUM-CIHAZ-16-08.md madde A) — bu fonksiyon ESKİDEN
+// `document.getElementById(...).click()` (DOM API, gerçek hit-test'i
+// BAYPAS EDEN sentetik bir dispatch) kullanıyordu. Kendi ESKİ yorumu
+// AÇIKÇA itiraf ediyordu: "koordinat tabanlı Playwright tıklaması bazen
+// #feedbackOverlay'i VURUYORDU, buton KENDİSİNİ değil" — yani test YAZARI
+// TAM OLARAK bu turun bulduğu clipping regresyonunun SEMPTOMUNU canlı
+// gözlemlemiş, kök sebebi araştırmak yerine `.click()` ile ETRAFINDAN
+// DOLANMIŞTI. Artık GERÇEK bir Playwright locator click'i kullanılıyor —
+// buton gerçekten kırpılmışsa (ya da başka bir eleman üstünü örtüyorsa)
+// Playwright'ın actionability kontrolü ZAMAN AŞIMINA UĞRAR, test KIRMIZI
+// yanar (git stash ile doğrulandı, bkz. commit mesajı).
 async function clickBothEars(page) {
   const errors = [];
   const onErr = (e) => errors.push(String(e));
   page.on("pageerror", onErr);
   page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg.text()); });
 
-  // DOM'daki .click() — koordinat tabanlı Playwright tıklaması (force:true
-  // dahil) omuz butonlarının panelin üst kenarında olması yüzünden bazen
-  // #feedbackOverlay'i (üstte duran, yarı saydam karartma) VURUYORDU, buton
-  // KENDİSİNİ değil (ölçüldü — .on hiç eklenmiyordu). .click() ELEMENTİN
-  // KENDİSİNE dispatch edilir, gerçek bir "click" event'i doğurur — test
-  // ettiğimiz şey (delegasyonun DOĞRU çalışması) için daha güvenilir.
-  await page.evaluate(() => document.getElementById("fbEarLeft")?.click());
+  await page.locator("#fbEarLeft").click({ timeout: 5000 });
   await page.waitForTimeout(250);
   const leftOn = await page.evaluate(() => document.getElementById("fbEarLeft")?.classList.contains("on"));
 
-  await page.evaluate(() => document.getElementById("fbEarRight")?.click());
+  await page.locator("#fbEarRight").click({ timeout: 5000 });
   await page.waitForTimeout(250);
   const rightOn = await page.evaluate(() => document.getElementById("fbEarRight")?.classList.contains("on"));
 
@@ -135,9 +199,11 @@ async function verifyEarsAcrossOutcomes(page, modeId, guessDatasetKey, sourceDat
     if (!alreadySeen) {
       seen[correct] = true;
 
-      const ears = await earDataset(page);
+      const ears = await earDatasetStable(page);
       assert.equal(ears.leftHidden, false, `[${modeId}, correct=${correct}] kulak butonu (#fbEarLeft) GÖRÜNMÜYOR`);
       assert.equal(ears.rightHidden, false, `[${modeId}, correct=${correct}] kulak butonu (#fbEarRight) GÖRÜNMÜYOR`);
+      assert.equal(ears.leftClickable, true, `[${modeId}, correct=${correct}] kulak butonu (#fbEarLeft) KIRPILMIŞ — elementFromPoint kendisini bulamadı`);
+      assert.equal(ears.rightClickable, true, `[${modeId}, correct=${correct}] kulak butonu (#fbEarRight) KIRPILMIŞ — elementFromPoint kendisini bulamadı`);
       assert.equal(ears.leftPreview, "mine", `[${modeId}] sol omuz preview="mine" değil`);
       assert.equal(ears.rightPreview, "correct", `[${modeId}] sağ omuz preview="correct" değil`);
       assert.equal(
@@ -195,6 +261,26 @@ test("Pan Konumu: kulak butonları görünüyor, doğru panPercent taşıyor, ik
   await page.close();
 });
 
+// G265 (OLCUM-CIHAZ-16-08.md madde A) — Q Genişliği, G254-257'nin (OLCUM-KULAK-16-08.md)
+// "OLUR" listesindeki 6 modun BİRİYDİ ama gerekçesiz atlanmıştı (AJAN-DENETIM-16-08.md
+// madde D.3) — yapısal olarak diğer altısıyla AYNI, bu turda eklendi. DİĞER
+// beşinden FARKI: guess SAYISAL DEĞİL, bir ETİKET id'si ("notch"/"dar"/"orta"/
+// "genis"/"cokgenis" — q-genisligi.js'in "sayısal Q değeri şıklarda BİLEREK
+// yok" kararı) — .ans butonunun data-label-id'si (dataset.labelId) ile
+// #fbEarLeft'in dataset.guessLabelId'i STRING olarak karşılaştırılıyor,
+// verifyEarsAcrossOutcomes'un GENEL (sayı/string ayrımı yapmayan) String()
+// karşılaştırması buna zaten uygun.
+test("Q Genişliği: kulak butonları görünüyor, doğru etiket id'si taşıyor, iki çıktıda da çalışıyor", async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(serverHandle.baseUrl);
+  await seedLocalStorage(page, { dev: { simulatePro: true } });
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await dismissSpotlightIfShown(page);
+  await verifyEarsAcrossOutcomes(page, "q-genisligi", "guessLabelId", "labelId");
+  await page.close();
+});
+
 // G259 — Stereo Genişlik artık "upload" DIŞINDA kütüphanenin GERÇEK stereo
 // iki örneğini de kabul ediyor (acoustic_guitar_stereo/clean_guitar_stereo,
 // source-catalog.js) — bunlar SOURCE_GROUPS içinde "own"/upload grubundan
@@ -223,9 +309,11 @@ test("Stereo Genişlik: kulak butonları görünüyor, doğru widthPercent taş�
     const alreadySeen = seen[String(correct)];
     if (!alreadySeen) {
       seen[correct] = true;
-      const ears = await earDataset(page);
+      const ears = await earDatasetStable(page);
       assert.equal(ears.leftHidden, false, `[stereo-genislik, correct=${correct}] kulak butonu (#fbEarLeft) GÖRÜNMÜYOR`);
       assert.equal(ears.rightHidden, false, `[stereo-genislik, correct=${correct}] kulak butonu (#fbEarRight) GÖRÜNMÜYOR`);
+      assert.equal(ears.leftClickable, true, `[stereo-genislik, correct=${correct}] kulak butonu (#fbEarLeft) KIRPILMIŞ — elementFromPoint kendisini bulamadı`);
+      assert.equal(ears.rightClickable, true, `[stereo-genislik, correct=${correct}] kulak butonu (#fbEarRight) KIRPILMIŞ — elementFromPoint kendisini bulamadı`);
       assert.equal(
         String(ears.left.guessWidth),
         String(dataset.value),
@@ -280,9 +368,11 @@ test("Boost/Cut (katman 3): kulak butonları görünüyor, doğru freq/gainDb ta
     const alreadySeen = seen[String(correct)];
     if (!alreadySeen) {
       seen[correct] = true;
-      const ears = await earDataset(page);
+      const ears = await earDatasetStable(page);
       assert.equal(ears.leftHidden, false, `[boostcut-L3, correct=${correct}] kulak butonu (#fbEarLeft) GÖRÜNMÜYOR`);
       assert.equal(ears.rightHidden, false, `[boostcut-L3, correct=${correct}] kulak butonu (#fbEarRight) GÖRÜNMÜYOR`);
+      assert.equal(ears.leftClickable, true, `[boostcut-L3, correct=${correct}] kulak butonu (#fbEarLeft) KIRPILMIŞ — elementFromPoint kendisini bulamadı`);
+      assert.equal(ears.rightClickable, true, `[boostcut-L3, correct=${correct}] kulak butonu (#fbEarRight) KIRPILMIŞ — elementFromPoint kendisini bulamadı`);
       assert.equal(
         String(ears.left.guessFreq), String(dataset.freq),
         `[boostcut-L3, correct=${correct}] kulak butonundaki freq tıklanan şıkla EŞLEŞMİYOR`
@@ -326,9 +416,11 @@ test("Frekans Çakışması Aşama 1: kulak butonları görünüyor, doğru merk
     const alreadySeen = seen[String(correct)];
     if (!alreadySeen) {
       seen[correct] = true;
-      const ears = await earDataset(page);
+      const ears = await earDatasetStable(page);
       assert.equal(ears.leftHidden, false, `[cakisma-S1, correct=${correct}] kulak butonu (#fbEarLeft) GÖRÜNMÜYOR`);
       assert.equal(ears.rightHidden, false, `[cakisma-S1, correct=${correct}] kulak butonu (#fbEarRight) GÖRÜNMÜYOR`);
+      assert.equal(ears.leftClickable, true, `[cakisma-S1, correct=${correct}] kulak butonu (#fbEarLeft) KIRPILMIŞ — elementFromPoint kendisini bulamadı`);
+      assert.equal(ears.rightClickable, true, `[cakisma-S1, correct=${correct}] kulak butonu (#fbEarRight) KIRPILMIŞ — elementFromPoint kendisini bulamadı`);
       assert.equal(
         String(ears.left.guessCenter), String(dataset.center),
         `[cakisma-S1, correct=${correct}] kulak butonundaki merkez frekans tıklanan şıkla EŞLEŞMİYOR`
@@ -374,9 +466,11 @@ test("Frekans Çakışması Aşama 3: kulak butonları görünüyor, doğru cutD
     const alreadySeen = seen[String(correct)];
     if (!alreadySeen) {
       seen[correct] = true;
-      const ears = await earDataset(page);
+      const ears = await earDatasetStable(page);
       assert.equal(ears.leftHidden, false, `[cakisma-S3, correct=${correct}] kulak butonu (#fbEarLeft) GÖRÜNMÜYOR`);
       assert.equal(ears.rightHidden, false, `[cakisma-S3, correct=${correct}] kulak butonu (#fbEarRight) GÖRÜNMÜYOR`);
+      assert.equal(ears.leftClickable, true, `[cakisma-S3, correct=${correct}] kulak butonu (#fbEarLeft) KIRPILMIŞ — elementFromPoint kendisini bulamadı`);
+      assert.equal(ears.rightClickable, true, `[cakisma-S3, correct=${correct}] kulak butonu (#fbEarRight) KIRPILMIŞ — elementFromPoint kendisini bulamadı`);
       assert.equal(
         String(ears.left.guessCut), String(dataset.cut),
         `[cakisma-S3, correct=${correct}] kulak butonundaki cutDb tıklanan şıkla EŞLEŞMİYOR`
@@ -419,9 +513,11 @@ test("REGRESYON — Frekans Bulma'nın kulak butonları bu turdan sonra da bozul
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await page.waitForTimeout(600);
 
-  const ears = await earDataset(page);
+  const ears = await earDatasetStable(page);
   assert.equal(ears.leftHidden, false, "Frekans Bulma'da #fbEarLeft görünmüyor — REGRESYON");
   assert.equal(ears.rightHidden, false, "Frekans Bulma'da #fbEarRight görünmüyor — REGRESYON");
+  assert.equal(ears.leftClickable, true, "Frekans Bulma'da #fbEarLeft KIRPILMIŞ — elementFromPoint kendisini bulamadı — REGRESYON");
+  assert.equal(ears.rightClickable, true, "Frekans Bulma'da #fbEarRight KIRPILMIŞ — elementFromPoint kendisini bulamadı — REGRESYON");
   assert.ok("guessHz" in ears.left, "Frekans Bulma'nın kendi dataset alanı (guessHz) hâlâ yazılmıyor — REGRESYON");
 
   const { leftOn, rightOn, errors } = await clickBothEars(page);
