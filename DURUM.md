@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (TUR710-PERF-ARAYUZ-15-08 — G244/G245'ten sonraki tur)
+Son güncelleme: 16.08.2026 (G248 — METIN-TARAMA-15-08'in 3 metin düzeltmesi)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,92 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G248 — **METIN-TARAMA-15-08'in 3 metin düzeltmesi — "balans"→"denge", kod-yorumu vurgusunun ("AYNI") kullanıcı metnine sızması düzeltildi, "mekan"/"mekân" yazımı KODUN TAMAMINDA "mekân"a standardize edildi.**
+
+**Kök sebep:** METIN-TARAMA-15-08.md'nin 3 bulgusu — (1)
+`guide-texts.js:165`'teki "balans" kelimesi hem TERIM-KURALI.md
+listesinde yok hem app'in kendi "Tonal Denge" adlandırmasıyla
+tutarsızdı. (2) `guide-texts.js:172`'de kod-yorumu vurgu üslubu
+("AYNI" büyük harf) kullanıcı metnine sızmıştı. (3) "mekan" ve
+"mekân" yazımları KARIŞIK kullanılıyordu — aynı kelime app.js/
+distortion.js'de doğru (â'lı), guide-texts.js/reverb.js'de eksik
+(â'sız) yazılmıştı.
+
+**Uygulanan:**
+1. `guide-texts.js:165` — "balans" → "denge".
+2. `guide-texts.js:172` — "AYNI konuyu" → "aynı konuyu".
+3. "mekan" → "mekân" standardizasyonu — TÜM kod tabanında
+   (`grep -rn "mekan\b" www/js/ | grep -v "mekân"` ile taranan)
+   13 yer düzeltildi: `guide-texts.js:167` (1), `reverb.js`'de 12
+   yer (satır 32, 77, 79, 87, 95, 242, 254, 417, 418, 419, 420, 592,
+   598 — METIN-TARAMA-15-08.md'nin özet tablosunda 4 olarak
+   sayılmıştı, TAM tarama 13'e çıkardı; bunların 4'ü kullanıcıya
+   görünen `REVERB_AMOUNT_TIERS` metni, gerisi kod yorumu). "mekân"
+   TDK-doğru modern yazım olduğu için hedef seçildi (zaten
+   `app.js:2657` ve `distortion.js:271`'de doğru kullanılıyordu).
+
+**Kapsam genişletme (task'ın "aynı hataların başka yerde geçip
+geçmediğini de tara" isteğiyle):** "balans" ve "AYNI" için de
+`www/js/` ve `app.js`/`index.html` genelinde ek grep taraması
+yapıldı — "balans" İZOLE (1 yer) doğrulandı, "AYNI" İZOLE (1 yer,
+diğer tüm ALL-CAPS "AYNI" örnekleri kod yorumlarında, kullanıcı
+metnine sızmamış) doğrulandı.
+
+**Testler:** `node --check` her iki değişen dosyada da temiz.
+`npm test` → **1390/1390, DEĞİŞMEDİ** (saf string değişikliği,
+hiçbir test bu metinlere bağımlı değil). `npm run test:e2e` →
+**19/19, DEĞİŞMEDİ**. Canlı tarayıcıda (Playwright/Chrome, Pro
+simülasyonu) Reverb modunun bilgi kartı açılıp "Reverb derinlik ve
+mekân katar" metninin doğru â ile render edildiği görsel olarak
+doğrulandı — `REVERB_AMOUNT_TIERS`'in 4 metni sadece geri bildirim
+ekranında görünüyor, saf string değişikliği olduğu ve `evaluateAnswer`
+DOKUNULMADIĞI için ayrı bir round oynanmadı.
+
+**Ölçüm:** Değişiklik öncesi/sonrası `npm test` 1390/1390 (KİLİT
+karşılandı — 1374'ün altına düşmedi), e2e 19/19 (kırılmadı).
+
+**Dokunulan:** `www/js/core/guide-texts.js` (3 satır), `www/js/
+modes/reverb.js` (12 satır, 6'sı kod yorumu + 4'ü kullanıcıya görünen
+`REVERB_AMOUNT_TIERS.detail` metni + 2'si diğer yorum satırları).
+**Dokunulmayan:** ölçüm algoritmaları, hedef eğri değerleri, zorluk
+eğrisi, e2e suite yapısı, G214-G247 arası commit'ler, 581f798,
+a4efb42.
+
+METIN-TARAMA-15-08 — **Türkçe metin kalitesi taraması (SADECE ÖLÇÜM, kod/commit YOK) — 7 kategori (a-g), `TERIM-KURALI.md` referans alınarak, `METIN-TARAMA-15-08.md`'ye yazıldı.**
+
+**Sonuç: 3 somut bulgu, HİÇBİRİ 🔴 değil.** (1) `guide-texts.js:165`
+— "balans" TERIM-KURALI.md listesinde yok VE app'in kendi "Tonal
+Denge" adlandırmasıyla tutarsız, "denge" önerildi. (2)
+`guide-texts.js:172` — kod-yorumu vurgu üslubu ("AYNI" büyük harf)
+İZOLE bir örnekte kullanıcı metnine sızmış, küçük harfe çevrilmesi
+önerildi. (3) "mekan" (`reverb.js` 6 yerde + `guide-texts.js`) vs
+"mekân" (`app.js`'in kulaklık uyarısı) — AYNI kelime iki farklı
+yazımda, HER İKİSİ de kullanıcıya görünüyor, tutarlılık için
+"mekân"a çevrilmesi önerildi.
+
+**Güven veren bulgular:** AI-slop kelimeleri ("harika"/"mükemmel"
+vb.) SIFIR; hitap SIFIR "siz" (tam "sen" tutarlılığı); ünlem/emoji
+kullanımı seyrek ve bağlamsal (aşırı değil); jenerik pazarlama dili
+YOK; `tonal-denge.js`'in bant-cümlesi kalıbı ("BAS'ı +2.3dB fazla
+bıraktın") İNCELENDİ ve kod yorumuyla (`tonal-denge.js:466`) Logic'in
+KENDİ ÖNCEKİ format kararıyla eşleştiği DOĞRULANDI — yanlış-pozitif
+olarak bulgu listesine ALINMADI.
+
+**Kapsam dürüstçe işaretlendi:** DERİN okunan — `guide-texts.js`
+(346 satır TAMAMI), `paywall.js`'in metin sabitleri, FAQ (TAMAMI),
+`tonal-denge.js`'in feedback fonksiyonları (TAMAMI). YÜZEYSEL/
+TARANMAMIŞ — diğer 11 mod dosyasının feedback metinleri (SADECE
+grep ile örneklendi), `app.js`'in ~12.500 satırlık taranmamış kısmı
+(SADECE `toast(` hedefli arandı) — bu, raporun kendi "1.1'e
+bırakılabilir" listesindeki EN BÜYÜK açık.
+
+**Testler/Ölçüm:** Yok — bu tur kod yazmadı, `npm test`/e2e
+DOKUNULMADI (G247'nin ölçümü geçerli: 1390/1390, e2e 19/19).
+
+**Dokunulan:** `METIN-TARAMA-15-08.md` (yeni dosya, henüz commit
+edilmedi — önceki TUR raporlarıyla AYNI kural, Logic bakacak).
+**Dokunulmayan:** Hiçbir kod dosyası, `npm test`/e2e suite.
 
 G247 — **Görsel döngü durdurma (Düzeltme 2, TUR710-PERF-ARAYUZ-15-08 bulgusu 🟡) — `drawVisualizer()`'ın rAF döngüsü artık SADECE oyun ekranı aktifken çalışıyor, diğer 9 rAF çağrı noktası KONTROL EDİLDİ (SADECE bu bir tanesi bozuktu).**
 
@@ -18460,7 +18546,46 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (TUR710-PERF-ARAYUZ-15-08 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G248 itibarıyla):**
+METIN-TARAMA-15-08.md'nin 3 bulgusu KAPANDI — G248 olarak commit
+edildi (balans→denge, AYNI→aynı, mekan→mekân TAM tarama ile 13 yerde
+düzeltildi). `npm test` 1390/1390, `npm run test:e2e` 19/19,
+DEĞİŞMEDİ. Aynı görev kapsamında Part 2 — 11 modun feedback
+metinlerinin TAM taraması (`METIN-TARAMA-2-15-08.md`) — SIRADA,
+henüz başlanmadı. **Bir sonraki adım:**
+1. 11 mod dosyasının (frekans-bulma, kesim-noktasi, q-genisligi,
+   boost-mu-cut-mu, db-seviyesi, kompresor, reverb, distortion,
+   pan-konumu, stereo-genislik, frekans-cakismasi) feedback
+   metinlerinin TAM okunup `METIN-TARAMA-2-15-08.md`'ye yazılması —
+   SADECE ÖLÇÜM, kod YAZILMAYACAK.
+2. Gerçek bir iOS build'inde G246'nın iCloud yedek davranışının
+   cihazda doğrulanması (bkz. G246'nın kendi DURUM.md kaydı) — hâlâ
+   AÇIK.
+Ayrıca önceki turların açık maddeleri (BEYAN-DENETIM'in .gitignore
+tuzağı, TUR6'nın Android/G236 bulgusu, OLCUM-OGRETIM'in Fletcher-
+Munson/Boost-Cut kararları, TUR9'un Bluetooth filtresi önerisi) hâlâ
+AÇIK, bu turdan ETKİLENMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G246/G247 + METIN-TARAMA-15-08 itibarıyla, ARTIK ESKİ):**
+TUR710'un iki bulgusu da KAPANDI — G246 (iCloud yedek hariç tutma,
+native kod yazılmadı) ve G247 (görsel döngü durdurma). `METIN-
+TARAMA-15-08.md` tamamlandı (3 küçük bulgu, hiçbiri ciddi). `npm
+test` 1390/1390, `npm run test:e2e` 19/19. **Bir sonraki adım —
+kullanıcının onayı/kararı gerekir, öncelik sırasıyla:**
+1. Gerçek bir iOS build'inde G246'nın iCloud yedek davranışının
+   cihazda doğrulanması (bkz. G246'nın kendi DURUM.md kaydı).
+2. `METIN-TARAMA-15-08.md`'nin 3 küçük düzeltmesinin (balans→denge,
+   AYNI→aynı, mekan→mekân) UYGULANIP UYGULANMAYACAĞI — kod
+   YAZILMADI, Logic'in onayı bekliyor.
+3. Diğer 11 mod dosyasının feedback metinlerinin daha derin bir
+   metin taraması (bu turun kendi "en büyük açık" notu) — istenirse
+   ayrı bir tur.
+Ayrıca önceki turların açık maddeleri (BEYAN-DENETIM'in .gitignore
+tuzağı, TUR6'nın Android/G236 bulgusu, OLCUM-OGRETIM'in Fletcher-
+Munson/Boost-Cut kararları, TUR9'un Bluetooth filtresi önerisi) hâlâ
+AÇIK, bu turdan ETKİLENMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (TUR710-PERF-ARAYUZ-15-08 itibarıyla, ARTIK ESKİ):**
 `TUR710-PERF-ARAYUZ-15-08.md` tamamlandı (denetim, kod yazılmadı,
 commit atılmadı) — bu, taramanın SON turu (14 bölüm, A-N). **Bir
 sonraki adım — kullanıcının onayı/kararı gerekir, öncelik sırasıyla:**

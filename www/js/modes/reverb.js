@@ -29,7 +29,7 @@
 // IR (impulse response) SENTETİK üretiliyor — hazır dosya YOK (bkz. dosya
 // sonundaki generateImpulseResponse): üstel sönümlü gürültü + tip-özgü bir
 // tek-kutuplu lowpass (parlaklık) + pre-delay boşluğu. Gerçek bir akustik
-// mekan ölçümü DEĞİL, algoritmik bir yaklaşıklık.
+// mekân ölçümü DEĞİL, algoritmik bir yaklaşıklık.
 
 import { compatibleSourceIds } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground } from "./frekans-bulma.js";
@@ -74,9 +74,9 @@ export const REVERB_TYPES = {
     label: "Room",
     decayRange: [0.3, 0.9], // sn
     preDelayRange: [0.003, 0.012], // sn
-    sizeRange: [0.15, 0.35], // [0,1] — mekan büyüklüğü normu
+    sizeRange: [0.15, 0.35], // [0,1] — mekân büyüklüğü normu
     brightness: 0.65, // 0=donuk/karanlık, 1=parlak — lowpass sertliğini belirler
-    mixMeaning: "kısa, yakın/kuru bir mekan hissi — sesi öne, dinleyiciye yakın tutar"
+    mixMeaning: "kısa, yakın/kuru bir mekân hissi — sesi öne, dinleyiciye yakın tutar"
   },
   hall: {
     label: "Hall",
@@ -84,7 +84,7 @@ export const REVERB_TYPES = {
     preDelayRange: [0.02, 0.045],
     sizeRange: [0.55, 0.95],
     brightness: 0.4,
-    mixMeaning: "geniş, yumuşak, uzun bir mekan hissi — sesi geriye/derine iter, doğal konser-salonu havası"
+    mixMeaning: "geniş, yumuşak, uzun bir mekân hissi — sesi geriye/derine iter, doğal konser-salonu havası"
   },
   plate: {
     label: "Plate",
@@ -92,7 +92,7 @@ export const REVERB_TYPES = {
     preDelayRange: [0.0, 0.006],
     sizeRange: [0.25, 0.45],
     brightness: 0.85,
-    mixMeaning: "parlak, yoğun, metalik bir kuyruk — vokal/snare'de parlaklık/enerji katar, gerçek bir mekan hissi vermez"
+    mixMeaning: "parlak, yoğun, metalik bir kuyruk — vokal/snare'de parlaklık/enerji katar, gerçek bir mekân hissi vermez"
   }
 };
 const TYPE_IDS = Object.keys(REVERB_TYPES); // ["room","hall","plate"]
@@ -239,7 +239,7 @@ export function getMeta() {
     motor: 2,
     // G37: true — reverb kuyruğunun ince decay/pre-delay farkları (özellikle AYNI-tip
     // turlarda, bkz. G35) telefon hoparlöründe kolayca kaybolur; kulaklık derinlik/
-    // mekan hissini net verir. G35'te bu alan YANLIŞLIKLA false bırakılmıştı (Kompresör
+    // mekân hissini net verir. G35'te bu alan YANLIŞLIKLA false bırakılmıştı (Kompresör
     // şablonundan kopyalanırken düzeltilmemiş) — kulaklikGerekli o zaman HİÇBİR YERDE
     // okunmadığı için etkisizdi, G37'de gerçek bir uyarı sheet'i buna bağlandığı için
     // DOĞRU değere düzeltildi (mode-catalog.js'teki reverb girdisi zaten true'ydu).
@@ -251,7 +251,7 @@ export function getMeta() {
     // kaynak (+upload) gerçek mix pratiğinde reverb'in duyulabilir/anlamlı olduğu
     // kaynaklar: gitar (oda/plate ambiyansı), vokal (klasik reverb kaynağı), snare
     // (kısa room/plate — vuruş sonrası kuyruk NET duyulur), davul döngüsü (bağlam
-    // içinde mekan hissi). Bas (mud riski), kick/hi-hat/tom (tek vuruşun geri kalanı
+    // içinde mekân hissi). Bas (mud riski), kick/hi-hat/tom (tek vuruşun geri kalanı
     // çok kısa/net değil bu üçünde), sentetik/gürültü (mixte hiç reverb verilmeyen
     // test tonları) BİLEREK dışarıda — kullanıcı ürün kararı, bkz. DURUM.md G43.
     uyumluKaynaklar: compatibleSourceIds({ only: ["guitar", "vocal", "snare", "groove", "upload"] }),
@@ -414,10 +414,10 @@ export function calculateXP(question, result, hintUsed, level, context = {}) {
 // COMPRESSION_TIERS'ıyla AYNI desen) — AYNI-tip (miktar farkı) turlarında
 // "ikisi de aynı kademede mi" ayrımı için.
 const REVERB_AMOUNT_TIERS = [
-  { max: 0.4, word: "ince/hafif reverb", detail: "ses öne yakın kalır, mekan hissi belli belirsiz" },
-  { max: 1.0, word: "orta reverb", detail: "dengeli bir mekan hissi, ne çok kuru ne çok ıslak" },
-  { max: 2.0, word: "belirgin/geniş reverb", detail: "ses geriye/derine çekilir, mekan net hissedilir" },
-  { max: Infinity, word: "çok uzun/derin reverb", detail: "ses neredeyse mekanın içinde kayboluyor, kuyruk uzun sürüyor" }
+  { max: 0.4, word: "ince/hafif reverb", detail: "ses öne yakın kalır, mekân hissi belli belirsiz" },
+  { max: 1.0, word: "orta reverb", detail: "dengeli bir mekân hissi, ne çok kuru ne çok ıslak" },
+  { max: 2.0, word: "belirgin/geniş reverb", detail: "ses geriye/derine çekilir, mekân net hissedilir" },
+  { max: Infinity, word: "çok uzun/derin reverb", detail: "ses neredeyse mekânın içinde kayboluyor, kuyruk uzun sürüyor" }
 ];
 
 function amountTier(score) {
@@ -589,13 +589,13 @@ export function drawOverlay(ctx2d, canvasEl, w, h, state = {}) {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SENTETİK IMPULSE RESPONSE (IR) ÜRETİMİ — hazır dosya YOK. Algoritmik:
-//   1. preDelaySamples kadar SESSİZLİK (kuru/ıslak arası boşluk — mekan
+//   1. preDelaySamples kadar SESSİZLİK (kuru/ıslak arası boşluk — mekân
 //      büyüdükçe/tipe göre uzuyor).
 //   2. Ardından üstel sönümlü (RT60 formülü: -60dB'ye decaySec'te iner) beyaz
 //      gürültü — GERÇEK bir difüz reverb kuyruğunun temel yapısı budur (rastgele
 //      yansımaların üst üste binmesi istatistiksel olarak beyaz gürültüye
 //      yakınsar, klasik "sentetik reverb" tekniği).
-//   3. size'a bağlı bir "yoğunluk" çarpanı — büyük mekanlarda erken yansımalar
+//   3. size'a bağlı bir "yoğunluk" çarpanı — büyük mekânlarda erken yansımalar
 //      daha SIK/yoğun (basit bir yaklaşıklık, GERÇEK erken-yansıma modellemesi
 //      DEĞİL).
 //   4. Tek-kutuplu (one-pole) IIR alçak geçiren filtre — TİPİN brightness'ına

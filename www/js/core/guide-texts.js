@@ -162,14 +162,14 @@ export const MODE_GUIDE_TEXTS = {
   "kesim-noktasi": "Bir sesin nereden kesildiğini (high-pass/low-pass) bulursun. Kesim frekansını yakala. Mixte gereksiz alt/üst bölgeyi temizlemek yer açar — kesim noktasını doğru duymak mix'i temiz tutar.",
   "q-genisligi": "EQ'nun ne kadar dar ya da geniş çalıştığını bulursun. Dar Q tek noktaya, geniş Q bölgeye dokunur. Cerrahi müdahale mi genel renk mi — Q'yu duymak müdahalenin karakterini belirler.",
   "boost-mu-cut-mu": "Bir frekansın artırıldığını mı kesildiğini mi ayırt edersin. Yön önemli: bir bölgeyi açmak (boost) ile bulanıklığı temizlemek (cut) farklı kararlardır.",
-  "db-seviyesi": "İki ses arasındaki seviye farkını dB olarak bulursun. Mixte 1-2 dB bile dengeyi değiştirir — seviye farkını duymak gain staging ve balans için şarttır.",
+  "db-seviyesi": "İki ses arasındaki seviye farkını dB olarak bulursun. Mixte 1-2 dB bile dengeyi değiştirir — seviye farkını duymak gain staging ve denge için şarttır.",
   kompresor: "İki sesten hangisinin daha çok kompresyon yediğini bulursun. Kompresyon dinamiği kontrol eder — vokali öne çıkarır, davulu oturtur. En çok karışan konudur, kulağınla tanımak mix'in oturmasını sağlar.",
-  reverb: "Sese ne kadar reverb verildiğini ayırt edersin. Reverb derinlik ve mekan katar — ama fazlası mix'i uzaklaştırır, bulanıklaştırır. Doğru miktarı duymak alanı yönetmektir.",
+  reverb: "Sese ne kadar reverb verildiğini ayırt edersin. Reverb derinlik ve mekân katar — ama fazlası mix'i uzaklaştırır, bulanıklaştırır. Doğru miktarı duymak alanı yönetmektir.",
   "tonal-denge": "Bozulmuş bir sesin tonal dengesini kaydırıcılarla düzeltirsin — bas mı fazla, tiz mi eksik, kulağınla nötrle. Gerçek mix işi budur: referansla karşılaştır, dengesizliği duy, düzelt. Kendi mix'ini de yükleyip çalışabilirsin.",
   "frekans-cakismasi": "İki ses aynı frekansta çakışınca mix bulanıklaşır. Nerede çakıştıklarını bul, hangisinden keseceğine karar ver, kes. Gerçek mixin en klasik problemi — kick+bas, vokal+gitar çakışmasını çözmek mix'i açar. Kendi iki sesini de yükleyebilirsin.",
   distortion: "İki sesten hangisinin daha çok saturation/distortion taşıdığını bulursun. Saturation sıcaklık ve karakter katar (tube, tape), distortion sertlik. Türü ve miktarı duymak analog renk ile kontrolsüz bozulmayı ayırmaktır.",
   "pan-konumu": "Sesin stereo alanda nereden geldiğini bulursun. Pan kararı mix'te alan açmak içindir — iki enstrüman aynı frekans bandında çakışıyorsa biri sağa biri sola alınır. Kick, bas, vokal ve snare genelde merkezde kalır; konumu doğru duymak mix'te kimin nerede durması gerektiğini öğretir.",
-  "stereo-genislik": "İki mono kaynağın zıt yönlere yerleştirilmesiyle oluşan stereo görüntünün ne kadar geniş olduğunu bulursun. Genişlik derinlik ve alan katar ama abartılırsa mono uyumu bozulur — kulüpte ve telefonda mix çöker. Bu, Araçlar'daki mono uyum ölçümüyle AYNI konuyu kulakla öğretir."
+  "stereo-genislik": "İki mono kaynağın zıt yönlere yerleştirilmesiyle oluşan stereo görüntünün ne kadar geniş olduğunu bulursun. Genişlik derinlik ve alan katar ama abartılırsa mono uyumu bozulur — kulüpte ve telefonda mix çöker. Bu, Araçlar'daki mono uyum ölçümüyle aynı konuyu kulakla öğretir."
 };
 
 // ---- 2b. Mod başına "i" — OYUN SEÇENEKLERİ (G69) ----
