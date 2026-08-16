@@ -5685,7 +5685,17 @@ function startRound() {
   // yakalanması gerekirdi) — bu blok SADECE Stereo Genişlik'in EK mono
   // kontrolü için var, "hasBuffer var ama mono" durumunu yukarıdaki satır
   // YAKALAYAMAZ.
-  if (mode.MODE_ID === "stereo-genislik" && mode.bufferPlayability) {
+  // G259 DÜZELTMESİ — bu blok ESKİDEN kaynak "upload" OLUP OLMADIĞINA
+  // BAKMADAN çalışıyordu, `uploadManager.getBuffer()`'ı (upload yapılmadıysa
+  // HER ZAMAN null) kontrol ediyordu — kütüphaneye paketli stereo kaynaklar
+  // (acoustic_guitar_stereo/clean_guitar_stereo) eklenince bu, ONLAR seçiliyken
+  // BİLE "Önce ses yükle" diye round'u YANLIŞLIKLA engelliyordu (ölçüldü —
+  // gerçek e2e testinde yakalandı). syncUploadGate()'in KENDİ, DOĞRU koşulu
+  // (`sourceSelect.value==="upload"`) buraya da eklendi — paketli
+  // stereoOnly kaynaklar katalogda ZATEN gerçek stereo olarak DOĞRULANMIŞ
+  // (ffprobe, OLCUM-KAYNAK-16-08.md), runtime mono kontrolü SADECE
+  // kullanıcının kendi (doğrulanmamış) yüklediği dosya için gerekli.
+  if (mode.MODE_ID === "stereo-genislik" && mode.bufferPlayability && els.sourceSelect.value === "upload") {
     const playability = mode.bufferPlayability(uploadManager.getBuffer());
     if (!playability.ok) {
       setFeedback(
@@ -5736,6 +5746,17 @@ function startRound() {
   // dosya başı notu — createQuestion'ın SAF sözleşmesini bozmamak için
   // BURADA, createQuestion'dan ÖNCE yapılıyor; buildQuestionChain playQuestion()
   // içinde bu turun İÇİNDE, birazdan çağrılacak).
+  // G259 NOTU (BİLİNÇLİ SINIR, düzeltilmedi) — `uploadManager.hasBuffer`
+  // koşulu bu adımı SADECE "upload" kaynağında çalıştırıyor; paketli stereo
+  // kaynaklar (acoustic_guitar_stereo/clean_guitar_stereo) seçiliyken bu
+  // rastgele-sıçrama UYGULANMAZ, her round dosyanın BAŞINDAN (0. saniye)
+  // çalar. `uploadManager.seekTo()` upload-manager'a ÖZGÜ bir API — paketli
+  // "sample" kind kaynaklar buildSampleSource() ile AYRI bir yoldan çalıyor
+  // (bkz. audio-engine.js), oraya offset ENJEKTE etmek AYRI/daha büyük bir
+  // değişiklik gerektirir (kapsam dışı bırakıldı, bkz. DURUM.md). Ölçülen
+  // etki KÜÇÜK: OLCUM-KAYNAK-16-08.md'nin ölçtüğü gibi bu iki dosyanın İLK
+  // ~1ms'i sessize yakın, sonrası dolu — pratikte fark edilir bir "sessizlikle
+  // başlama" riski YOK.
   if (mode.MODE_ID === "stereo-genislik" && mode.pickPlaybackOffset && uploadManager.hasBuffer) {
     uploadManager.seekTo(mode.pickPlaybackOffset(uploadManager.getBuffer()));
   }

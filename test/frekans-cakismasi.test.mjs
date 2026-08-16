@@ -40,20 +40,23 @@ describe("source-catalog.js — SOURCE_PAIRS / OWN_SOURCE_PAIR / findSourcePair 
   // G52: kütüphane task'ın kendi verdiği üç hazır setle genişledi — yeni ses
   // dosyası GEREKMEDİ, source-catalog.js'in mevcut vocal/guitar/snare
   // girdilerine işaret ediyorlar.
-  it("vokal-gitar çifti mevcut, ORTA bölgede (task: ~2kHz orta)", () => {
+  // G259 — kütüphane yenilendi, region'lar YENİDEN ÖLÇÜLDÜ (OLCUM-KAYNAK-16-08.md,
+  // FFT tabanlı gerçek çakışma ölçümü) — eski [500,2000]/[200,2000] ESKİ
+  // kütüphaneye göreydi, YENİ dosyalarla uyumsuzdu.
+  it("vokal-gitar çifti mevcut, ORTA bölgede (G259: ölçülen çakışma ~200-600Hz — vocal HÂLÂ eski dosya, bkz. DURUM.md)", () => {
     const pair = SOURCE_PAIRS.find(p => p.id === "vokal-gitar");
     assert.ok(pair);
     assert.equal(pair.sourceA, "vocal");
     assert.equal(pair.sourceB, "guitar");
-    assert.deepEqual(pair.region, [500, 2000]);
+    assert.deepEqual(pair.region, [200, 600]);
   });
 
-  it("snare-gitar çifti mevcut, task'ın verdiği ~200Hz-2kHz aralığında", () => {
+  it("snare-gitar çifti mevcut, G259: ölçülen çakışma ~170-400Hz", () => {
     const pair = SOURCE_PAIRS.find(p => p.id === "snare-gitar");
     assert.ok(pair);
     assert.equal(pair.sourceA, "snare");
     assert.equal(pair.sourceB, "guitar");
-    assert.deepEqual(pair.region, [200, 2000]);
+    assert.deepEqual(pair.region, [170, 400]);
   });
 
   it("üç hazır çiftin sourceA/sourceB'si source-catalog.js'in KENDİ SOURCE_GROUPS'unda gerçekten var (kod incelemesiyle: kick/bass/vocal/guitar/snare)", () => {
@@ -158,7 +161,7 @@ describe("createQuestion() — genel sözleşme (SAF, ses/DOM'a dokunmaz)", () =
     assert.equal(q.mode, "cakisma");
     assert.equal(q.stage, 1);
     assert.ok(q.pair && q.pair.labelA && q.pair.labelB);
-    assert.ok(q.trueCenter >= 50 && q.trueCenter <= 160, "varsayılan kick-bas çiftinin region'ı içinde olmalı");
+    assert.ok(q.trueCenter >= 30 && q.trueCenter <= 120, "varsayılan kick-bas çiftinin region'ı içinde olmalı (G259: yeniden ölçüldü)");
     assert.ok(q.correctSource === "a" || q.correctSource === "b");
     assert.ok(q.correctCutDb > 0, "correctCutDb POZİTİF büyüklük taşır (işaret evaluateAnswer'da eklenir)");
     assert.ok(Array.isArray(q.choices) && q.choices.length === mode.DIFFICULTY.medium.options);
@@ -168,20 +171,21 @@ describe("createQuestion() — genel sözleşme (SAF, ses/DOM'a dokunmaz)", () =
 
   // G52: yeni vokal-gitar/snare-gitar çiftleri de trueCenter'ı KENDİ
   // region'larına doğru üretiyor mu — pro tier (en dar regionWidthOct, en çok
-  // şık) STRES testi, kick-bas'ın dar 50-160 aralığı için zaten yapılan
+  // şık) STRES testi, kick-bas'ın dar aralığı için zaten yapılan
   // benzersizlik doğrulamasının AYNISI, DAHA GENİŞ iki region için de.
-  it("vokal-gitar çiftinde trueCenter [500,2000] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir", () => {
+  // G259 — region'lar yeniden ölçüldü, sınırlar GÜNCELLENDİ.
+  it("vokal-gitar çiftinde trueCenter [200,600] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir", () => {
     for (let seed = 0; seed < 50; seed++) {
       const q = mode.createQuestion("pro", { pairId: "vokal-gitar", sessionQuestionIndex: 0, rng: mulberry32(seed) });
-      assert.ok(q.trueCenter >= 500 && q.trueCenter <= 2000, `seed=${seed} trueCenter=${q.trueCenter}`);
+      assert.ok(q.trueCenter >= 200 && q.trueCenter <= 600, `seed=${seed} trueCenter=${q.trueCenter}`);
       assert.equal(new Set(q.choices.map(c => c.center)).size, q.choices.length, `seed=${seed}`);
     }
   });
 
-  it("snare-gitar çiftinde trueCenter [200,2000] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir", () => {
+  it("snare-gitar çiftinde trueCenter [170,400] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir", () => {
     for (let seed = 0; seed < 50; seed++) {
       const q = mode.createQuestion("pro", { pairId: "snare-gitar", sessionQuestionIndex: 0, rng: mulberry32(seed) });
-      assert.ok(q.trueCenter >= 200 && q.trueCenter <= 2000, `seed=${seed} trueCenter=${q.trueCenter}`);
+      assert.ok(q.trueCenter >= 170 && q.trueCenter <= 400, `seed=${seed} trueCenter=${q.trueCenter}`);
       assert.equal(new Set(q.choices.map(c => c.center)).size, q.choices.length, `seed=${seed}`);
     }
   });

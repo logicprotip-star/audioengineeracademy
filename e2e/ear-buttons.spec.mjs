@@ -195,32 +195,16 @@ test("Pan Konumu: kulak butonları görünüyor, doğru panPercent taşıyor, ik
   await page.close();
 });
 
-// Stereo Genişlik SADECE yüklenmiş bir dosyayla oynanabiliyor (mid/side
-// ayrıştırması gerçek stereo kayıt gerektiriyor, uyumluKaynaklar:{only:
-// ["upload"]}) — www/audio/'daki 9 gömülü örneğin HEPSİ MONO (ffprobe ile
-// doğrulandı, `channels=1`), bu yüzden `bufferPlayability()` (stereo-
-// genislik.js:194-199) HERHANGİ birini "mono" diye REDDEDER. Bu yüzden
-// GERÇEKTEN stereo bir test dosyası (e2e/fixtures/stereo-test.wav — L=220Hz/
-// R=330Hz farklı sinüsler, ffmpeg'le üretildi) kullanılıyor. Playwright'ın
-// KENDİ setInputFiles()'ı ile #toolsFileInput'a yükleniyor (bu, önceki turda
-// denenip GÜVENİLMEZ bulunan Chrome-MCP dosya enjeksiyonundan FARKLI bir
-// mekanizma — Playwright input.files'ı DOĞRUDAN ayarlar, "change" event'i
-// garanti fırlar). Yükleme "Dosyalarım" sheet'i İÇİNDEN olduğu için, dosya
-// bağlama uygulandıktan SONRA sheet KAPATILMALI — kapanmazsa #uploadGate
-// arkada "hidden" olsa bile #startBtn sheet'in ALTINDA kalır.
-async function uploadStereoTestFile(page) {
-  await page.locator("#uploadGateBtn").click();
-  await page.waitForTimeout(200);
-  await page.setInputFiles("#toolsFileInput", "e2e/fixtures/stereo-test.wav");
-  await page.waitForTimeout(500);
-  const closeBtn = page.locator("#toolsFilesClose");
-  if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click().catch(() => {});
-  // decode + IndexedDB yazımı sabit bir gecikmeden UZUN sürebilir — sabit
-  // bir timeout yerine #uploadGate'in GERÇEKTEN kaybolmasını bekle.
-  await page.locator("#uploadGate").waitFor({ state: "hidden", timeout: 15000 }).catch(() => {});
-  await page.waitForTimeout(300);
-}
-
+// G259 — Stereo Genişlik artık "upload" DIŞINDA kütüphanenin GERÇEK stereo
+// iki örneğini de kabul ediyor (acoustic_guitar_stereo/clean_guitar_stereo,
+// source-catalog.js) — bunlar SOURCE_GROUPS içinde "own"/upload grubundan
+// ÖNCE geldiği için populateSourceSelect() varsayılan olarak PAKETLİ stereo
+// kaynağı seçiyor (app.js:601-623, ilk uyumlu seçenek), yani mod artık
+// HİÇBİR upload YAPILMADAN doğrudan oynanabiliyor — eski "önce dosya yükle"
+// adımı GEREKSİZLEŞTİ. `e2e/fixtures/stereo-test.wav` (GERÇEK stereo, ffmpeg
+// üretimi) hâlâ upload YOLUNU test etmek isteyen BAŞKA testler için duruyor
+// (bkz. test/stereo-genislik.test.mjs'in kendi upload/bufferPlayability
+// testleri), bu dosyada artık kullanılmıyor.
 test("Stereo Genişlik: kulak butonları görünüyor, doğru widthPercent taşıyor, iki çıktıda da çalışıyor", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.goto(serverHandle.baseUrl);
@@ -230,7 +214,7 @@ test("Stereo Genişlik: kulak butonları görünüyor, doğru widthPercent taş�
   await dismissSpotlightIfShown(page);
   await enterMode(page, "stereo-genislik");
   await dismissHeadphoneSheetIfShown(page);
-  await uploadStereoTestFile(page);
+  await page.waitForTimeout(300); // paketli stereo kaynağın decode'u
   await page.locator("#startBtn").click();
   await page.waitForTimeout(400);
   const seen = { true: false, false: false };

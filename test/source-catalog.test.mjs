@@ -18,19 +18,27 @@ import * as tonalDenge from "../www/js/modes/tonal-denge.js";
 import * as frekansCakismasi from "../www/js/modes/frekans-cakismasi.js";
 
 const ALL_IDS = SOURCE_GROUPS.flatMap(g => g.sources.map(s => s.id));
+// G259 — stereoOnly bayrağı: compatibleSourceIds()'in varsayılan (parametresiz)
+// yolu bunları BİLEREK dışlar (source-catalog.js'in kendi notu) — "TÜM
+// kaynaklar" testleri artık ALL_IDS DEĞİL, bu daraltılmış küme ile karşılaştırılmalı.
+const STEREO_ONLY_IDS = SOURCE_GROUPS.flatMap(g => g.sources).filter(s => s.stereoOnly).map(s => s.id);
+const NON_STEREO_IDS = ALL_IDS.filter(id => !STEREO_ONLY_IDS.includes(id));
 
 describe("source-catalog — compatibleSourceIds()", () => {
-  it("parametresiz çağrıldığında TÜM kaynakları döner (varsayılan: kısıtlama yok)", () => {
+  it("parametresiz çağrıldığında stereoOnly HARİÇ tüm kaynakları döner (varsayılan: stereo-özel kaynaklar dışlanır)", () => {
     const ids = compatibleSourceIds();
-    assert.deepEqual([...ids].sort(), [...ALL_IDS].sort());
+    assert.ok(STEREO_ONLY_IDS.length > 0, "en az bir stereoOnly kaynak olmalıydı (test önkoşulu, G259)");
+    assert.deepEqual([...ids].sort(), [...NON_STEREO_IDS].sort());
+    for (const id of STEREO_ONLY_IDS) assert.ok(!ids.includes(id), `${id} (stereoOnly) varsayılan listede OLMAMALIYDI`);
   });
 
-  it("requireTransient: transient'sız (noTransient:true) kaynakları çıkarır, diğerlerini korur", () => {
+  it("requireTransient: transient'sız (noTransient:true) VE stereoOnly kaynakları çıkarır, diğerlerini korur", () => {
     const ids = compatibleSourceIds({ requireTransient: true });
     const noTransientIds = SOURCE_GROUPS.flatMap(g => g.sources).filter(s => s.noTransient).map(s => s.id);
     assert.ok(noTransientIds.length > 0, "en az bir noTransient kaynak olmalıydı (test önkoşulu)");
     for (const id of noTransientIds) assert.ok(!ids.includes(id), `${id} dışlanmalıydı`);
-    for (const id of ALL_IDS.filter(i => !noTransientIds.includes(i))) assert.ok(ids.includes(id), `${id} korunmalıydı`);
+    for (const id of STEREO_ONLY_IDS) assert.ok(!ids.includes(id), `${id} (stereoOnly) dışlanmalıydı`);
+    for (const id of NON_STEREO_IDS.filter(i => !noTransientIds.includes(i))) assert.ok(ids.includes(id), `${id} korunmalıydı`);
   });
 
   it("only: SADECE verilen id'leri döner, diğer tüm kaynakları/filtreleri yok sayar", () => {
@@ -60,7 +68,7 @@ describe("source-catalog — compatibleSourceIds()", () => {
 // commit mesajında "hariç" diye BİLEREK dışarıda bırakmıştı (source-catalog.js'e
 // davul/enstrüman eklenmeden ÖNCEKİ ESKİ, elle yazılmış bir dizi kalmıştı) —
 // bu, cihazda kullanıcı raporuyla YAKALANDI (kick/snare/hihat/tom/bass/
-// bass_alt/guitar/vocal listede HİÇ görünmüyordu). G54'te düzeltildi. Bu
+// guitar/vocal listede HİÇ görünmüyordu). G54'te düzeltildi. Bu
 // describe HİÇBİR modun (ileride source-catalog.js/mod dosyaları değişse
 // bile) SESSİZCE aynı şekilde "unutulmuş" bir eski listeye düşmemesini
 // garanti eder — compatibleSourceIds() mekanizmasının KENDİSİ zaten yukarıda
@@ -75,12 +83,18 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
     ["boost-mu-cut-mu", boostMuCutMu],
     ["q-genisligi", qGenisligi]
   ].forEach(([id, mod]) => {
-    it(`${id}: uyumluKaynaklar TÜM kaynakları içerir (enstrüman+davul+synth+upload, ${ALL_IDS.length} adet)`, () => {
+    it(`${id}: uyumluKaynaklar stereoOnly HARİÇ tüm kaynakları içerir (enstrüman+davul+synth+upload, ${NON_STEREO_IDS.length} adet)`, () => {
       const meta = mod.getMeta();
-      assert.deepEqual([...meta.uyumluKaynaklar].sort(), [...ALL_IDS].sort(), `${id}: kayıp/fazla kaynak var`);
-      // Özellikle G54'te kaybolduğu tespit edilen enstrümanlar/davul TEK TEK:
-      for (const id2 of ["kick", "snare", "hihat", "tom", "groove", "bass", "bass_alt", "guitar", "vocal"]) {
+      assert.deepEqual([...meta.uyumluKaynaklar].sort(), [...NON_STEREO_IDS].sort(), `${id}: kayıp/fazla kaynak var`);
+      // Özellikle G54'te kaybolduğu tespit edilen enstrümanlar/davul TEK TEK
+      // (G259: bass_alt kütüphaneden çıktı, clean_guitar YENİ eklendi):
+      for (const id2 of ["kick", "snare", "hihat", "tom", "groove", "bass", "guitar", "clean_guitar", "vocal"]) {
         assert.ok(meta.uyumluKaynaklar.includes(id2), `${id}: ${id2} eksik`);
+      }
+      // stereoOnly kaynaklar bu 5 "frekans-genel" modun listesinde HİÇ
+      // görünmemeli (G259'un kendi kararı — Stereo Genişlik DIŞINDA hiçbir yerde).
+      for (const id2 of STEREO_ONLY_IDS) {
+        assert.ok(!meta.uyumluKaynaklar.includes(id2), `${id}: ${id2} (stereoOnly) GÖRÜNMEMELİYDİ`);
       }
     });
   });

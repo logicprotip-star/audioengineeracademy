@@ -140,7 +140,9 @@ export function getMeta() {
     // dosyanın süresini yargılayamaz. (Stereo Genişlik'in G120'de kaynak
     // listesini daraltmasının AKSİNE, tek-kaynaklı panlamada decorrelation
     // riski hiç yok — bu liste GENİŞ kalabiliyor.)
-    uyumluKaynaklar: compatibleSourceIds({ only: ["pink", "white", "saw", "square", "triangle", "groove", "bass", "bass_alt", "guitar", "vocal", "upload"] }),
+    // G259 — "bass_alt" kütüphaneden ÇIKARILDI (kaynak dosyası silindi), listeden
+    // de düşürüldü — başka HİÇBİR alan/karar değişmedi.
+    uyumluKaynaklar: compatibleSourceIds({ only: ["pink", "white", "saw", "square", "triangle", "groove", "bass", "guitar", "vocal", "upload"] }),
     // Diğer on bir modun AYNI kararı — bu alan GERÇEK kilitlemede
     // kullanılmıyor (grep ile doğrulandı, tek gerçek kaynak core/paywall.js:
     // FREE_MODE_IDS + mode-catalog.js:tier, bkz. frekans-cakismasi.js'in

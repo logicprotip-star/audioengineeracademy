@@ -46,16 +46,28 @@ export const SOURCE_GROUPS = [
       { id: "snare", label: "Snare", kind: "sample", samplePath: "audio/snare.m4a", desc: "Snare — orta/üst bölge gövde + tel" },
       { id: "hihat", label: "Hi-Hat", kind: "sample", samplePath: "audio/hihat.m4a", desc: "Hi-hat — tiz bölge" },
       { id: "tom", label: "Tom", kind: "sample", samplePath: "audio/tom.m4a", desc: "Tom — alt-orta rezonans" },
-      { id: "groove", label: "Davul Döngüsü", kind: "sample", samplePath: "audio/groove_090.m4a", desc: "90 BPM davul döngüsü — mix bağlamı" }
+      // G259 — kütüphane yenilendi (78 BPM, 8 bar/24.6sn), dosya adı groove_090.m4a
+      // idi artık groove.m4a — id/etiket/açıklama DEĞİŞMEDİ (sadece samplePath).
+      { id: "groove", label: "Davul Döngüsü", kind: "sample", samplePath: "audio/groove.m4a", desc: "78 BPM davul döngüsü — mix bağlamı" }
     ]
   },
   {
     id: "instruments", label: "ENSTRÜMAN",
     sources: [
-      { id: "bass", label: "Bas (C2)", kind: "sample", samplePath: "audio/bass.m4a", desc: "Bas gitar C2, 65 Hz — SUB/BAS" },
-      { id: "bass_alt", label: "Bas (E2)", kind: "sample", samplePath: "audio/bass_alt.m4a", desc: "Bas gitar E2, 82 Hz — BAS" },
-      { id: "guitar", label: "Akustik Gitar", kind: "sample", samplePath: "audio/acoustic_guitar.m4a", desc: "Akustik gitar A2, 110 Hz — alt-orta" },
-      { id: "vocal", label: "Vokal", kind: "sample", samplePath: "audio/vocal.m4a", desc: "Lead vokal frazı — orta bölge" }
+      // G259 — kütüphane yenilendi. Nota/perde İDDİA EDİLMİYOR (eski "C2/65Hz"
+      // gibi etiketler yeni kayıtta doğrulanmadı) — bunun yerine GERÇEK ölçülen
+      // tepe frekansı (OLCUM-KAYNAK-16-08.md'nin FFT ölçümü, ~11Hz çözünürlük).
+      { id: "bass", label: "Bas", kind: "sample", samplePath: "audio/bass.m4a", desc: "Bas gitar — SUB/BAS, ölçülen tepe ~97 Hz" },
+      { id: "guitar", label: "Akustik Gitar", kind: "sample", samplePath: "audio/acoustic_guitar.m4a", desc: "Akustik gitar — alt-orta, ölçülen tepe ~194 Hz" },
+      // G259 — YENİ: mono, temiz (efektsiz) elektrogitar.
+      { id: "clean_guitar", label: "Temiz Gitar", kind: "sample", samplePath: "audio/clean_guitar.m4a", desc: "Temiz elektrogitar — alt-orta, ölçülen tepe ~291 Hz" },
+      { id: "vocal", label: "Vokal", kind: "sample", samplePath: "audio/vocal.m4a", desc: "Lead vokal frazı — orta bölge" },
+      // G259 — YENİ, stereo. `stereoOnly:true` — compatibleSourceIds()'in
+      // varsayılan (parametresiz) yolundan BİLEREK dışlanır (bkz. aşağı),
+      // SADECE `only` ile açıkça isteyen bir mod (Stereo Genişlik) görür —
+      // diğer 11 modun kaynak seçicisinde HİÇ görünmez (task'ın kendi kararı).
+      { id: "acoustic_guitar_stereo", label: "Akustik Gitar (Stereo)", kind: "sample", samplePath: "audio/acoustic_guitar_stereo.m4a", desc: "Akustik gitar, GERÇEK stereo kayıt — SADECE Stereo Genişlik", stereoOnly: true },
+      { id: "clean_guitar_stereo", label: "Temiz Gitar (Stereo)", kind: "sample", samplePath: "audio/clean_guitar_stereo.m4a", desc: "Temiz elektrogitar, GERÇEK stereo kayıt — SADECE Stereo Genişlik", stereoOnly: true }
     ]
   },
   {
@@ -91,18 +103,27 @@ export function findSource(id) {
 // başlangıç — diğer tüm sayısal sabitlerle AYNI dürüstlük notu). Yeni ses
 // dosyası GEREKMEDİ — vocal.m4a/acoustic_guitar.m4a/snare.m4a zaten
 // SOURCE_GROUPS'ta vardı (bkz. yukarı), burada SADECE çift olarak eşleniyor.
+// G259 — kütüphane yenilendi, region'lar YENİDEN ÖLÇÜLDÜ (OLCUM-KAYNAK-16-08.md'nin
+// FFT ölçümü — her kaynağın ortalama güç spektrumu, Welch yöntemi, 4096-nokta
+// FFT, 44.1kHz/4096≈10.8Hz çözünürlük). Yöntem: her kaynağın KENDİ tepesine
+// göre -15dB üstü "anlamlı enerji" bandı bulunup, ÇİFTİN İKİ kaynağının da
+// bu bandı sağladığı KESİŞİM aralığı region olarak alındı — eski region'lar
+// (ESKİ kütüphaneye göre elle ayarlanmıştı) YENİ dosyalarla ARTIK UYUMSUZDU.
+// ⚠️ vokal-gitar: vocal.m4a HÂLÂ ESKİ dosya (yeni kayıt gelmedi) — bu region
+// YARI-güvenilir, guitar YENİ + vocal ESKİ bir çiftin ölçümü. vocal.m4a
+// yenilenince BU ÇİFT YENİDEN ÖLÇÜLMELİ (bkz. DURUM.md SIRADAKİ).
 export const SOURCE_PAIRS = [
   {
     id: "kick-bas", labelA: "Kick", labelB: "Bas", sourceA: "kick", sourceB: "bass",
-    region: [50, 160], desc: "Kick ve bas — sub/bas bölgesinde en sık çakışma"
+    region: [30, 120], desc: "Kick ve bas — sub/bas bölgesinde en sık çakışma"
   },
   {
     id: "vokal-gitar", labelA: "Vokal", labelB: "Gitar", sourceA: "vocal", sourceB: "guitar",
-    region: [500, 2000], desc: "Vokal ve gitar — orta bölgede gövde çatışması"
+    region: [200, 600], desc: "Vokal ve gitar — orta bölgede gövde çatışması"
   },
   {
     id: "snare-gitar", labelA: "Snare", labelB: "Gitar", sourceA: "snare", sourceB: "guitar",
-    region: [200, 2000], desc: "Snare ve gitar — atak ve sertlik bölgesinde çakışma"
+    region: [170, 400], desc: "Snare ve gitar — atak ve sertlik bölgesinde çakışma"
   }
 ];
 
@@ -147,9 +168,15 @@ export function findSourcePair(id) {
 //                       snare'i YANLIŞLIKLA dışlamıştı — "tek vuruş" heuristiği
 //                       ile "reverb alır" gerçek dünya kararı ÖRTÜŞMÜYORDU) SADECE
 //                       o id'ler döner, diğer TÜM filtreler/kaynaklar yok sayılır.
+// G259 — stereoOnly bayrağı: "only" ile AÇIKÇA istenmediği sürece HİÇBİR
+// modun varsayılan (parametresiz) listesinde görünmez (kaynak nesnelerinde
+// tanımlı, bkz. yukarı acoustic_guitar_stereo/clean_guitar_stereo). "only"
+// verilirse bu filtre de requireTransient gibi TAMAMEN yok sayılır (only
+// HER ZAMAN son söz, dosya başındaki AYNI kural).
 export function compatibleSourceIds({ requireTransient = false, only = null } = {}) {
   if (only) return [...only];
   return SOURCE_GROUPS.flatMap(g => g.sources)
     .filter(s => !(requireTransient && s.noTransient))
+    .filter(s => !s.stereoOnly)
     .map(s => s.id);
 }

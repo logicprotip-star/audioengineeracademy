@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (G258 — Kulak butonları 7 moda daha eklendi (G254-G257) + GORSEL-TEST.md çelişkisi düzeltildi)
+Son güncelleme: 16.08.2026 (G259 — Kaynak kütüphanesi yenilendi: 10 yeni dosya, bass_alt kaldırıldı, 2 stereo kaynak + Stereo Genişlik desteği, SOURCE_PAIRS yeniden ölçüldü)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,146 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G259 — **Kaynak kütüphanesi yenilendi: 10 yeni ses dosyası (78 BPM, 8 bar/24.6sn, -3dBFS tepe, AAC), `bass_alt` kaldırıldı, 2 YENİ stereo kaynak eklendi (SADECE Stereo Genişlik'te görünür), Stereo Genişlik artık paketli kaynak kabul ediyor, SOURCE_PAIRS'ın çakışma bölgeleri GERÇEK FFT ölçümüyle yeniden hesaplandı — TEK commit.**
+
+**Kök sebep/gerekçe:** Logic yeni bir ses kütüphanesi kaydetti
+(www/audio/ altına 10 yeni dosya koydu, `bass_alt.m4a`/`groove_090.m4a`'yı
+sildi) — katalog/kod/testler bu değişikliğe göre güncellendi. Tam ölçüm
+sonuçları `OLCUM-KAYNAK-16-08.md`'de.
+
+**Uygulanan (`www/js/core/source-catalog.js`):**
+- `kick`/`snare`/`hihat`/`tom`/`bass`/`guitar` — id/samplePath AYNI
+  kaldı (dosya İÇERİĞİ değişti, kod DEĞİŞMEDİ — doğrulandı).
+- `groove`'un samplePath'i `audio/groove_090.m4a` → `audio/groove.m4a`.
+- `bass_alt` girdisi SİLİNDİ (kaynak dosyası kaldırıldığı için).
+- YENİ `clean_guitar` (mono) — normal bir enstrüman gibi TÜM modların
+  varsayılan listesinde.
+- YENİ `acoustic_guitar_stereo`/`clean_guitar_stereo` (GERÇEK stereo,
+  ffprobe ile 2-kanal doğrulandı) — `stereoOnly:true` bayrağıyla.
+  `compatibleSourceIds()`'in varsayılan (parametresiz) yolu bu bayrağı
+  TAŞIYAN kaynakları artık OTOMATİK dışlıyor — `only` ile AÇIKÇA
+  isteyen (Stereo Genişlik) DIŞINDA hiçbir modun kaynak seçicisinde
+  GÖRÜNMÜYORLAR (canlı Chrome'da 3 mod için doğrulandı, `test/
+  source-catalog.test.mjs`'in G54 çitiyle 12 modun TAMAMI için).
+- `SOURCE_PAIRS`'ın region'ları (kick-bas/vokal-gitar/snare-gitar)
+  GERÇEK FFT ölçümüyle (Welch yöntemi, 4096-nokta, -15dB eşik kesişimi)
+  yeniden hesaplandı — eski, elle-tahmin edilmiş değerler YENİ
+  kütüphaneyle artık uyumsuzdu. **⚠️ vokal-gitar region'u GEÇİCİ** —
+  `vocal.m4a` HÂLÂ eski dosya (KİLİT listesinde "DOKUNULMAYACAK"), bu
+  çift yeni vokal gelince YENİDEN ÖLÇÜLMELİ.
+
+**Uygulanan (mod dosyaları):**
+- `pan-konumu.js`: `only` listesinden `bass_alt` çıkarıldı, başka
+  hiçbir alan değişmedi.
+- `stereo-genislik.js`: `only:["upload"]` → `only:["upload",
+  "acoustic_guitar_stereo","clean_guitar_stereo"]` — upload seçeneği
+  KORUNDU.
+
+**🔴 GERÇEK BİR KOD HATASI bulundu ve düzeltildi (`app.js:startRound()`):**
+Stereo Genişlik'e özel mono-kontrol bloğu `mode.MODE_ID==="stereo-genislik"`'e
+bakıyordu ama kaynağın GERÇEKTEN "upload" olup olmadığına BAKMIYORDU —
+paketli stereo kaynaklar seçiliyken `uploadManager` boş olduğu için
+round'u YANLIŞLIKLA "Önce ses yükle" diye engelliyordu. **Canlı e2e
+testinde YAKALANDI** (`.ans` hiç render edilmiyordu). `syncUploadGate()`'in
+KENDİ doğru koşulu (`sourceSelect.value==="upload"`) eklendi — canlı
+Chrome'da VE e2e testinde düzeltme doğrulandı (3 şık render ediliyor,
+round tamamlanıyor).
+
+**Ölçüm sonuçları (`OLCUM-KAYNAK-16-08.md`, özet):**
+1. Tüm dosya özellikleri (süre/BPM/dBFS/kanal) ffprobe ile DOĞRULANDI.
+2. **🟡 BEKLEYEN KARAR:** eski dosyalar -6dB tepe taşıyordu (kompresor.js:
+   `COMP_REF_LEVEL_DB=-6` ile NEREDEYSE BİREBİR eşleşiyordu), yeni
+   dosyalar -3dBFS (3dB DAHA YÜKSEK) — Kompresör'ün gösterdiği "gain
+   reduction" sayısı GERÇEK azaltmayı MATEMATİKSEL olarak ~2.5 kat
+   AZ gösterebilir, Distortion'ın drive eğrileri de aynı sebeple
+   biraz daha FAZLA doygunluk üretir. **DEĞİŞTİRİLMEDİ** (DIFFICULTY/
+   zorluk eğrisi KİLİT listesinde) — yeniden kalibre edilmesi gerekip
+   gerekmediği ürün kararı, kullanıcıya bırakıldı.
+3. Loop noktası "tık" riski ÖLÇÜLDÜ, DÜŞÜK bulundu (tüm dosyaların son
+   32 örneği sessizliğe yakın).
+4. `pickPlaybackOffset()` GERÇEK stereo PCM ile Node'da doğrudan
+   test edildi, çalışıyor.
+
+**Testler:** `npm test` 1390/1390 (DEĞİŞMEDİ — `test/source-catalog.test.mjs`/
+`test/frekans-cakismasi.test.mjs`/`test/reverb.test.mjs`/`test/
+stereo-genislik.test.mjs` güncellendi, YENİ test EKLENMEDİ, sadece
+mevcut assert'ler yeni kataloğa göre düzeltildi). `npm run test:e2e`
+27/27 (DEĞİŞMEDİ — `e2e/ear-buttons.spec.mjs`'in Stereo Genişlik testi
+artık upload akışına GEREK DUYMUYOR, paketli varsayılan kaynağı
+kullanıyor).
+
+**Dokunulan:** `www/audio/*` (10 yeni/değişen dosya, 2 silinen),
+`www/js/core/source-catalog.js`, `www/js/modes/pan-konumu.js`,
+`www/js/modes/stereo-genislik.js`, `www/js/app.js` (startRound
+düzeltmesi), `test/source-catalog.test.mjs`, `test/frekans-cakismasi.test.mjs`,
+`test/reverb.test.mjs`, `test/stereo-genislik.test.mjs`,
+`e2e/ear-buttons.spec.mjs`, YENİ `OLCUM-KAYNAK-16-08.md`.
+**Dokunulmayan:** `vocal.m4a`, DIFFICULTY tabloları/zorluk eğrisi,
+mod mantığı (createQuestion/evaluateAnswer SAF sözleşmesi), e2e
+suite'in yapısı (yeni dosya eklenmedi, mevcutlar güncellendi).
+
+OLCUM-FLAKY-16-08 — **`paywall-flow.spec.mjs`'in bugün iki kez rastgele kırmızı yanmasının kök sebebi bulundu ve KANITLANDI (SADECE ÖLÇÜM, kod/dosya/commit YOK) — `OLCUM-FLAKY-16-08.md`'ye yazıldı. SONUÇ: TEST SORUNU, kod sorunu DEĞİL.**
+
+**Yöntem:** `e2e/paywall-flow.spec.mjs` TAM okundu, `app.js:syncLives/
+finalizeIfGameOver/blockIfLivesOut` + `core/paywall.js:applyLivesRefill/
+onLifeLost` TAM okundu, `boost-mu-cut-mu.js:generateLayer1Choices/
+generateLayer2Choices` TAM okundu. **26 GERÇEK test koşusu** yapıldı
+(20 izole + 6 tam takım e2e). Kök sebep `applyLivesRefill()`'i Node'da
+DOĞRUDAN çağırarak (tarayıcısız, saf fonksiyon) KANITLANDI.
+
+**Sonuç (özet, tam detay raporda):**
+1. **A) Tekrar üretim:** 20 izole koşu → 20/20 GEÇTİ. 6 tam-takım koşusu
+   → 5 GEÇTİ, 1 KIRMIZI (run #2, aynı satır: `paywall-flow.spec.mjs:280`,
+   AYNI hata: beklenen "Ücretsiz oturumun bitti", gelen "Devam etmek
+   için bir yol seç"). Toplam 26 koşuda 1 kırmızı (~%3.8).
+2. **B) ⚠️ KÖK SEBEP KANITLANDI:** Test `lives:999` seed'iyor ("can
+   hiç bitmez" varsayımı), AMA `core/paywall.js:applyLivesRefill()`
+   HERHANGİ bir `lives >= totalLives` (5) değerini ANINDA 5'e ÇEKİYOR
+   — `node -e "applyLivesRefill(999,...)"` → `{lives:5,...}`, DOĞRUDAN
+   doğrulandı. Testin `dismissAndAnswer()`'ı şıklara KÖRÜ KÖRÜNE
+   (`.ans.first()`) basıyor, `boost-mu-cut-mu.js`'in şıkları
+   `shuffle()`lı — 5 soruluk pencerede TÜM cevaplar yanlış gelirse
+   (~%5-6 hesaplanan ihtimal, 26 koşuda 1 kez GERÇEKLEŞTİ) can 5→0
+   düşüyor. `finalizeIfGameOver()`'ın (`app.js:1638-1639`) `livesOut`'u
+   `sessionLimitOut`'un ÖNÜNE koyması KASITLI/DOĞRU bir öncelik kararı
+   (can sorunu oturum sınırından daha ACİL) — ama bu yüzden paywall
+   YANLIŞ SEBEPLE (doğru ekran, yanlış metin) açılıyor.
+3. **C) Diğer testler:** `layout-geometry.spec.mjs:answerOnce()` AYNI
+   körü-körüne tıklama desenini taşıyor ama `stats:null` (gerçek 5
+   canla başlıyor, 999→5 klemplenmesi hiç oluşmuyor) kullandığı VE
+   assert'i paywall SEBEBİNE bakmadığı için BU flake'e yakalanmıyor —
+   yine de 🟡 potansiyel gelecekteki kırılganlık olarak işaretlendi.
+   8 dosya genelinde 64 sabit-süre (`waitForTimeout`) / 29 koşullu
+   bekleme çağrısı sayıldı. `exam-flow.spec.mjs`'in sabit-200ms
+   `#nextBtn` döngüsü İKİNCİ bir flake ADAYI olarak not edildi
+   (ÇALIŞTIRILARAK test edilmedi, kapsam dışı).
+4. **D) Kod sorunu mu:** HAYIR — `livesOut`'un önceliklenmesi kasıtlı
+   ve doğru (can + oturum sınırına AYNI ANDA ulaşan bir kullanıcı için
+   "canların bitti" mesajı objektif olarak daha doğru/acil). Gerçek
+   kullanıcı sıklığı ÖLÇÜLEMEDİ (BELİRSİZ, testin körü-körüne %50-70
+   yanlış-tıklama modeli gerçek kullanıcı davranışını TEMSİL ETMİYOR).
+5. **⚠️ Build notu:** Bu gece atılacak build İÇİN bir engel YOK — paywall
+   gerçek kullanıcılar için yanlış/geç açılmıyor, sadece test suite'inin
+   KENDİ güvenilirliği etkileniyor. Düzeltme testin KENDİSİNDE olmalı
+   (körü-körüne ilk şıkka basmak yerine DOĞRU şıkkı seçmek) — bu turda
+   KOD YAZILMADI.
+
+**Ek doğrulanan gerçek:** Test dosyaları PARALEL çalışıyor (tam-takım
+koşusunda TEK TEK test sürelerinin toplamı 173.3sn ama gerçek
+`duration_ms` sadece 57.0sn — ~3× eşzamanlılık, `static-server.mjs`'in
+`port:0` yorumu da bunu doğruluyor, BİLEREK öyle tasarlanmış) — ama bu,
+BU spesifik flake'in sebebi OLDUĞUNA dair KANIT değil (izole/tam-takım
+farkı ~%5-6 teorik oranla istatistiksel olarak TUTARLI, küçük örneklem).
+
+**Testler/Ölçüm:** Kod/dosya DEĞİŞTİRİLMEDİ, `npm test`/normal e2e
+akışı bu tur ETKİLENMEDİ (26 EKSTRA koşu SADECE ölçüm amaçlı,
+scratchpad'e yazıldı, repoya HİÇ girmedi).
+
+**Dokunulan:** `OLCUM-FLAKY-16-08.md` (yeni dosya, henüz commit
+edilmedi — task'ın kendi kuralı: "KOD YAZMA, COMMIT ATMA").
+**Dokunulmayan:** `e2e/paywall-flow.spec.mjs`/`app.js`/`core/paywall.js`
+dahil hiçbir kod dosyası.
 
 G254-G258 — **Kulak butonları (#fbEarLeft/#fbEarRight) 7 yere daha eklendi (Kesim Noktası, dB Seviyesi, Pan Konumu, Stereo Genişlik, Boost/Cut katman 2-3, Frekans Çakışması Aşama 1+3) + GORSEL-TEST.md'nin #8/#12 çelişkisi düzeltildi — 5 AYRI commit (G254/G255/G256/G257 kod, G258 belge).**
 
@@ -19415,7 +19555,49 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G254-G258 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G259 itibarıyla):**
+Kaynak kütüphanesi yenilendi (10 yeni dosya, bass_alt kaldırıldı, 2
+stereo kaynak + Stereo Genişlik desteği, SOURCE_PAIRS yeniden ölçüldü,
+AYRI commit). `npm test` 1390/1390, `npm run test:e2e` 27/27, DEĞİŞMEDİ.
+Bu turda `app.js:startRound()`'da GERÇEK bir kod hatası bulunup
+düzeltildi (paketli stereo kaynaklar YANLIŞLIKLA engelleniyordu).
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. **🟡 vocal.m4a yenilenince** `vokal-gitar` çiftinin region'ı
+   YENİDEN ÖLÇÜLMELİ — şu anki [200,600] değeri ESKİ vokal + YENİ
+   gitar karışımı, GEÇİCİ (OLCUM-KAYNAK-16-08.md madde 3).
+2. **🟡 BEKLEYEN KARAR:** Kompresör'ün `COMP_REF_LEVEL_DB=-6` sabiti
+   ve Distortion'ın `DRIVE_RANGES`'ı ESKİ kütüphanenin -6dB tepe
+   seviyesine göre kalibre görünüyor — yeni kütüphane -3dBFS (3dB
+   daha yüksek). Gösterilen "gain reduction" sayısı gerçek azaltmayı
+   matematiksel olarak az gösterebilir. Zorluk eğrisi KİLİT listesinde
+   olduğu için bu turda DOKUNULMADI — yeniden kalibre edilsin mi,
+   kullanıcı kararı (OLCUM-KAYNAK-16-08.md madde 2).
+3. Stereo Genişlik'in paketli kaynaklarında rastgele-başlangıç-noktası
+   (diğer modlardaki gibi) UYGULANMIYOR (her round dosyanın 0.
+   saniyesinden başlıyor) — ölçülen risk düşük (ilk ~1ms sessize
+   yakın, sonrası dolu) ama İSTENİRSE ayrı bir iş olarak eklenebilir.
+
+**EN YENİ SIRADAKİ ADIM (OLCUM-FLAKY-16-08 itibarıyla, ARTIK ESKİ):**
+`paywall-flow.spec.mjs`'in bugün iki kez rastgele kırmızı yanmasının
+kök sebebi ÖLÇÜLDÜ ve KANITLANDI (kod/dosya DEĞİŞTİRİLMEDİ,
+`OLCUM-FLAKY-16-08.md`, henüz commit edilmedi). **SONUÇ: TEST SORUNU
+(kod sorunu DEĞİL)** — `dismissAndAnswer()`'ın körü-körüne ilk şıkka
+basması + `lives:999` seed'inin `applyLivesRefill()` tarafından 5'e
+klemplenmesi, nadiren (~%5-6) TÜM cevapların yanlış gelip canı
+tüketmesine yol açıyor, bu da paywall'ın YANLIŞ (ama doğru ekran)
+sebeple açılmasına neden oluyor. Build'i engelleyen bir bulgu YOK.
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. `dismissAndAnswer()`'ın (`paywall-flow.spec.mjs:252-257`) körü-körüne
+   ilk şıkka basmak yerine DOĞRU şıkkı seçmesi — rapor bunu ÖNERDİ,
+   KOD YAZILMADI.
+2. `layout-geometry.spec.mjs:answerOnce()` da AYNI riskli deseni
+   taşıyor (şu an bu flake'e YAKALANMIYOR ama yapısal olarak kırılgan)
+   — AYNI düzeltme oraya da uygulanmalı mı, kullanıcı kararı.
+3. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü İKİNCİ bir
+   flake ADAYI olarak işaretlendi — bu turda ÇALIŞTIRILARAK test
+   EDİLMEDİ, ayrı bir ölçüm turu gerekebilir.
+
+**EN YENİ SIRADAKİ ADIM (G254-G258 itibarıyla, ARTIK ESKİ):**
 Kulak butonları 7 moda daha eklendi (4 AYRI commit, her biri kendi
 git-stash kırmızı/yeşil doğrulamasıyla) + GORSEL-TEST.md'nin #8/#12
 çelişkisi düzeltildi. `npm test` 1390/1390, `npm run test:e2e` 27/27

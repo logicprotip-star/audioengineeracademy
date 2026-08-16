@@ -649,7 +649,7 @@ describe("Reverb — getMeta() sözleşme alanları", () => {
 
   it("gerçek mixte reverb VERİLMEYEN kaynaklar (kick/hihat/tom/sentetik/gürültü/bas) dışlanır", () => {
     const meta = mode.getMeta();
-    for (const id of ["kick", "hihat", "tom", "saw", "square", "triangle", "pink", "white", "bass", "bass_alt"]) {
+    for (const id of ["kick", "hihat", "tom", "saw", "square", "triangle", "pink", "white", "bass"]) {
       assert.ok(!meta.uyumluKaynaklar.includes(id), `${id} listede olmamalıydı`);
     }
   });

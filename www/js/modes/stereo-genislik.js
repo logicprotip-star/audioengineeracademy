@@ -257,13 +257,19 @@ export function getMeta() {
     motor: 1,
     kulaklikGerekli: true,
     kulaklikMetni: "Genişliği doğru duymak için kulaklık şart — hoparlörde stereo görüntü odaya karışır, fark edilmez.",
-    // G122 — SADECE "upload": mid/side ayrıştırması GERÇEK bir stereo
-    // kayıt gerektiriyor, sentetik kaynaklarda (G120) ya da gömülü örnek
-    // dosyalarda (mono) bu kavram anlamsız/yok. Bu YÜZDEN Pan Konumu'nun
-    // (aynı ekranda yan yana görünen ikiz modun) geniş listesiyle KASITLI
-    // bir kapsam farkı var (bkz. DURUM.md G120 BEKLEYEN KARAR-L, artık
-    // bu kararla ÇÖZÜLDÜ — task'ın kendi kararı).
-    uyumluKaynaklar: compatibleSourceIds({ only: ["upload"] }),
+    // G122 — mid/side ayrıştırması GERÇEK bir stereo kayıt gerektiriyor,
+    // sentetik kaynaklarda (G120) ya da gömülü örnek dosyaların ÇOĞUNDA
+    // (mono) bu kavram anlamsız/yok. Bu YÜZDEN Pan Konumu'nun (aynı ekranda
+    // yan yana görünen ikiz modun) geniş listesiyle KASITLI bir kapsam
+    // farkı var (bkz. DURUM.md G120 BEKLEYEN KARAR-L, artık bu kararla
+    // ÇÖZÜLDÜ — task'ın kendi kararı).
+    // G259 — kütüphaneye GERÇEK stereo iki örnek eklendi (source-catalog.js:
+    // acoustic_guitar_stereo/clean_guitar_stereo, `stereoOnly:true`) — SADECE
+    // bu mod `only` ile açıkça istediği için görebiliyor, diğer 11 modun
+    // varsayılan (parametresiz) compatibleSourceIds() çağrısı bunları
+    // otomatik dışlıyor (bkz. source-catalog.js'in kendi notu). "upload"
+    // seçeneği KORUNDU — paketli VE kendi dosyası aynı anda kullanılabilir.
+    uyumluKaynaklar: compatibleSourceIds({ only: ["upload", "acoustic_guitar_stereo", "clean_guitar_stereo"] }),
     ucretsiz: true, // diğer on bir modun AYNI kararı — bkz. pan-konumu.js'in AYNI notu (mod zaten Pro tier, bkz. mode-catalog.js)
     videoUrl: "",
     difficulty: DIFFICULTY,

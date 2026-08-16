@@ -1,5 +1,7 @@
-// Stereo Genişlik moduna özel testler (G122 — mid/side genişlik, SADECE
-// yüklenen dosyayla oynanır). Zorluk-eğrisi/şık-üretim testleri Pan Konumu'yla
+// Stereo Genişlik moduna özel testler (G122 — mid/side genişlik; G259'dan
+// beri SADECE yüklenen dosya değil, kütüphanenin GERÇEK stereo iki örneği
+// de kabul ediliyor — bkz. aşağıdaki "kaynak listesi" testi). Zorluk-eğrisi/
+// şık-üretim testleri Pan Konumu'yla
 // AYNI iskelet (kaynak/DSP katmanından bağımsız) — DSP/kaynak/bufferPlayability/
 // pickPlaybackOffset testleri BU turun YENİ eklentileri.
 
@@ -528,9 +530,9 @@ describe("Stereo Genişlik — getMeta() sözleşme alanları", () => {
     assert.equal(meta.choiceOnly, true);
   });
 
-  it("G122 — kaynak listesi SADECE 'upload' — mid/side ayrıştırması GERÇEK bir stereo kayıt gerektiriyor", () => {
+  it("G259 — kaynak listesi 'upload' + kütüphanenin GERÇEK stereo iki örneği — mid/side ayrıştırması GERÇEK bir stereo kayıt gerektiriyor, mono/sentetik kaynaklar HÂLÂ dışarıda", () => {
     const meta = mode.getMeta();
-    assert.deepEqual([...meta.uyumluKaynaklar], ["upload"]);
+    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["acoustic_guitar_stereo", "clean_guitar_stereo", "upload"].sort());
   });
 
   it("ad/aciklama BİLEREK yok", () => {
