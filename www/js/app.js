@@ -2089,6 +2089,25 @@ function showWidthEars(guessWidth) {
   els.fbEarRight.dataset.preview = "correct";
 }
 
+// Boost/Cut'ın kulak butonları — REFERANS: showFrequencyEars, ama SADECE
+// katman 2/3'te çağrılır (katman 1'de sayısal bir "ikinci değer" yok —
+// kullanıcı sadece yön seçiyor, OLCUM-KULAK-16-08'in D) maddesi). Katman
+// 2'de guessFreq === q.freq (frekans zaten verilmişti, SADECE gain guess
+// edildi) — applyProcessing yine de freq+gainDb ÇİFTİNİ birlikte okuduğu
+// için (boost-mu-cut-mu.js:applyProcessing) ikisi de taşınıyor.
+function showBoostCutEars(guessFreq, guessGainDb) {
+  if (!els.fbEarLeft || !els.fbEarRight) return;
+  els.fbEarLeft.classList.remove("hidden");
+  els.fbEarRight.classList.remove("hidden");
+  els.fbEarLeft.classList.remove("neutral", "on");
+  els.fbEarRight.classList.remove("on");
+  els.fbEarLeft.textContent = "Senin ayarın";
+  els.fbEarLeft.dataset.preview = "mine";
+  els.fbEarLeft.dataset.guessFreq = String(guessFreq);
+  els.fbEarLeft.dataset.guessGain = String(guessGainDb);
+  els.fbEarRight.dataset.preview = "correct";
+}
+
 // Gerçek XP kırılımı — CLAUDE.md/task kuralı: "uydurma sayı yazma". Tüm
 // çarpanlar calculateXP()'ye GEÇİLEN AYNI context'ten (bkz. her submit
 // fonksiyonunun kendi calculateXP çağrısı) veya mode'un KENDİ DIFFICULTY/
@@ -4580,6 +4599,7 @@ function submitBoostCutGuess(answer) {
     const feedback = mode.getFeedbackData(q, answer, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
     showXpBreakdown(q, q.difficulty, gained);
+    if (q.layer !== 1) showBoostCutEars(guessFreq, guessGainDb);
     if (q.layer === 3) mode.recordZone(zoneStats, q.freq, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -4593,6 +4613,7 @@ function submitBoostCutGuess(answer) {
 
     const feedback = mode.getFeedbackData(q, answer, { gained: 0 });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    if (q.layer !== 1) showBoostCutEars(guessFreq, guessGainDb);
     if (q.layer === 3) mode.recordZone(zoneStats, q.freq, false, result.dOct);
     audioEngine.sfxBuzz();
     shake(els.canvas);
@@ -6714,7 +6735,8 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
   // birer dal eklenir, showFrequencyEars'in KENDİ "frequency" dalı hiç
   // değişmiyor.
   const qMode = activeQuestion.mode;
-  const earEligible = qMode === "frequency" || qMode === "cutoff" || qMode === "dblevel" || qMode === "pan" || qMode === "width";
+  const earEligible = qMode === "frequency" || qMode === "cutoff" || qMode === "dblevel" || qMode === "pan" || qMode === "width"
+    || (qMode === "boostcut" && activeQuestion.layer !== 1);
   if (!earEligible) return;
 
   const preview = btn.dataset.preview;
@@ -6740,6 +6762,11 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
       const guessWidth = Number(btn.dataset.guessWidth);
       if (!Number.isFinite(guessWidth)) return;
       guessQuestion = { ...activeQuestion, widthPercent: guessWidth };
+    } else if (qMode === "boostcut") {
+      const guessGain = Number(btn.dataset.guessGain);
+      const guessFreq = Number(btn.dataset.guessFreq);
+      if (!Number.isFinite(guessGain) || !Number.isFinite(guessFreq)) return;
+      guessQuestion = { ...activeQuestion, freq: guessFreq, gainDb: guessGain };
     }
   } else if (preview !== "clean" && preview !== "correct") {
     return;

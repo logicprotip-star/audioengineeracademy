@@ -38,10 +38,19 @@ after(async () => {
 // hangi butonun doğru olduğunu ÖNCEDEN bilmiyoruz (q.freq/q.dbDelta/vb
 // DOM'a hiç sızmıyor, kulakla bulma ilkesi), bu yüzden "ikisini de gör"
 // retry deseni kullanılıyor.
+// DÜRÜSTLÜK NOTU: bu fonksiyonun İLK sürümü HER ZAMAN .ans'ın İLK
+// butonuna tıklıyordu — dB Seviyesi'nde 15 (sonra 20) denemede TEK bir
+// "doğru" gözlenmeden test flaky çıktı (ölçüldü, npm run test:e2e tam
+// takımında yakalandı). Kök sebep KESİN belirlenmedi (zorluk eğrisinin
+// erken sorularda "doğru" şıkkı HER ZAMAN belirli bir konuma koyması
+// ihtimali dışlanmadı) — düzeltme: rastgele bir şıkka tıklamak, konum
+// tabanlı HERHANGİ bir örüntüden bağımsız kılıyor.
 async function answerFirstChoice(page) {
   await dismissExamScreenIfShown(page);
   await dismissSpotlightIfShown(page); // her yeni round'da (ilk mod girişi DIŞINDA da) yeniden çıkabiliyor
-  const btn = page.locator(".ans").first();
+  const count = await page.locator(".ans").count();
+  const idx = Math.floor(Math.random() * Math.max(1, count));
+  const btn = page.locator(".ans").nth(idx);
   const dataset = await btn.evaluate((el) => ({ ...el.dataset }));
   await btn.click();
   await page.waitForTimeout(350);
@@ -116,11 +125,11 @@ async function clickBothEars(page) {
 
 // Genel kabul-kriteri koşucusu — modId + choiceOnly datasetten okunacak
 // guess-alanı adı + o alanın KAYNAK data-* adı verilir, HER İKİ çıktıyı
-// (doğru/yanlış) da gözleyene kadar yeni round'lar dener (üst sınır 15).
+// (doğru/yanlış) da gözleyene kadar yeni round'lar dener (üst sınır 25).
 async function verifyEarsAcrossOutcomes(page, modeId, guessDatasetKey, sourceDatasetKey) {
   await startRound(page, modeId);
   const seen = { true: false, false: false };
-  for (let i = 0; i < 15 && (!seen.true || !seen.false); i++) {
+  for (let i = 0; i < 25 && (!seen.true || !seen.false); i++) {
     const { correct, dataset } = await answerFirstChoice(page);
     const alreadySeen = seen[String(correct)]; // bu çıktıyı zaten gördük, tekrar assert etmeye gerek yok ama round KAPATILMALI
     if (!alreadySeen) {
@@ -225,7 +234,7 @@ test("Stereo Genişlik: kulak butonları görünüyor, doğru widthPercent taş�
   await page.locator("#startBtn").click();
   await page.waitForTimeout(400);
   const seen = { true: false, false: false };
-  for (let i = 0; i < 15 && (!seen.true || !seen.false); i++) {
+  for (let i = 0; i < 25 && (!seen.true || !seen.false); i++) {
     const { correct, dataset } = await answerFirstChoice(page);
     const alreadySeen = seen[String(correct)];
     if (!alreadySeen) {
@@ -247,8 +256,68 @@ test("Stereo Genişlik: kulak butonları görünüyor, doğru widthPercent taş�
     if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click({ timeout: 3000 }).catch(() => {});
     await page.waitForTimeout(300);
   }
-  assert.ok(seen.true, "stereo-genislik: 15 denemede hiç doğru cevap gözlenmedi");
-  assert.ok(seen.false, "stereo-genislik: 15 denemede hiç yanlış cevap gözlenmedi");
+  assert.ok(seen.true, "stereo-genislik: 25 denemede hiç doğru cevap gözlenmedi");
+  assert.ok(seen.false, "stereo-genislik: 25 denemede hiç yanlış cevap gözlenmedi");
+  await page.close();
+});
+
+// Boost/Cut — SADECE katman 2/3'te kulak butonu var (katman 1'de yön
+// dışında sayısal bir "ikinci değer" yok, task'ın kendi kapsamı). Katman
+// boost-mu-cut-mu.js:layerForIndex'e göre sessionQuestionIndex'e bağlı:
+// idx<3 → katman1, idx<6 → katman2, idx>=6 → katman3 (KALICI, session
+// bitene kadar). İlk 6 round'u (katman 1/2, ears BEKLENMEDEN) DIŞARIDA
+// bırakıp katman 3'e ULAŞILDIKTAN SONRA doğrulama yapılıyor — click-
+// handler'ın guessQuestion mantığı katman 2/3 arasında AYRIŞMIYOR (ikisi
+// de freq+gainDb çiftini taşıyor, SADECE submitBoostCutGuess'in guessFreq
+// hesabı farklı — bkz. app.js), bu yüzden katman 3'ü doğrulamak paylaşılan
+// kod yolunu YETERİNCE kapsıyor.
+test("Boost/Cut (katman 3): kulak butonları görünüyor, doğru freq/gainDb taşıyor, iki çıktıda da çalışıyor", async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(serverHandle.baseUrl);
+  await seedLocalStorage(page, { dev: { simulatePro: true } });
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await dismissSpotlightIfShown(page);
+  await startRound(page, "boost-mu-cut-mu");
+
+  // Katman 1/2'yi (ilk 6 soru) atla — ears'ın GÖRÜNMEDİĞİNİ (katman 1) ya
+  // da göründüğünü (katman 2, AYNI kod yolu) AYRICA doğrulamaya gerek yok,
+  // asıl hedef katman 3.
+  for (let i = 0; i < 6; i++) {
+    await answerFirstChoice(page);
+    const closeBtn = page.locator("#feedbackClose");
+    if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+
+  const seen = { true: false, false: false };
+  for (let i = 0; i < 25 && (!seen.true || !seen.false); i++) {
+    const { correct, dataset } = await answerFirstChoice(page);
+    const alreadySeen = seen[String(correct)];
+    if (!alreadySeen) {
+      seen[correct] = true;
+      const ears = await earDataset(page);
+      assert.equal(ears.leftHidden, false, `[boostcut-L3, correct=${correct}] kulak butonu (#fbEarLeft) GÖRÜNMÜYOR`);
+      assert.equal(ears.rightHidden, false, `[boostcut-L3, correct=${correct}] kulak butonu (#fbEarRight) GÖRÜNMÜYOR`);
+      assert.equal(
+        String(ears.left.guessFreq), String(dataset.freq),
+        `[boostcut-L3, correct=${correct}] kulak butonundaki freq tıklanan şıkla EŞLEŞMİYOR`
+      );
+      assert.equal(
+        String(ears.left.guessGain), String(dataset.gain),
+        `[boostcut-L3, correct=${correct}] kulak butonundaki gain tıklanan şıkla EŞLEŞMİYOR`
+      );
+      const { leftOn, rightOn, errors } = await clickBothEars(page);
+      assert.equal(leftOn, true, `[boostcut-L3, correct=${correct}] "Senin cevabın" tıklanınca .on almadı`);
+      assert.equal(rightOn, true, `[boostcut-L3, correct=${correct}] "Doğru cevap" tıklanınca .on almadı`);
+      assert.deepEqual(errors, [], `[boostcut-L3, correct=${correct}] hata: ${errors.join(" | ")}`);
+    }
+    const closeBtn = page.locator("#feedbackClose");
+    if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  assert.ok(seen.true, "boostcut-L3: 25 denemede hiç doğru cevap gözlenmedi");
+  assert.ok(seen.false, "boostcut-L3: 25 denemede hiç yanlış cevap gözlenmedi");
   await page.close();
 });
 
