@@ -83,22 +83,22 @@ export const DISTORTION_TYPES = { easy: "clip", medium: "soft", hard: "tube", pr
 // düşük frekansta kirlenme) mixNote'lara işlendi.
 export const DISTORTION_TYPE_INFO = {
   clip: {
-    label: "Clipping",
+    label: "Distortion: Clipping",
     character: "sert ve kirli",
     mixNote: "dalga tepeleri düz kesiliyor — agresif ama kontrolsüz, tizlerde sertlik/tıslama artar, davulda atak daha da 'patlar'"
   },
   soft: {
-    label: "Soft Clip / Overdrive",
+    label: "Distortion: Soft Clip / Overdrive",
     character: "ortada — hafif sıcak ama hâlâ belirgin",
     mixNote: "gitar/bas'a itki ve 'dolgunluk' katar (ses daha büyük/dolu duyulur), abartılırsa yine kirlenmeye kayar"
   },
   tube: {
-    label: "Tube (Valf) Saturation",
+    label: "Saturation: Tube (Valf)",
     character: "sıcak ve yumuşak",
     mixNote: "üst-ortada dolgunluk katar, vokal/bas'ı 'analog' yapar — clipping'in aksine sert/kirli değil"
   },
   tape: {
-    label: "Tape Saturation",
+    label: "Saturation: Tape",
     character: "çok ince, neredeyse fark edilmez",
     mixNote: "sesi biraz daha 'dolgun/büyük' hissettirir, düşük frekanslar hafifçe 'kirlenir', davul kuyruğu az uzar — dinlerken bunlara odaklan"
   }
@@ -327,7 +327,7 @@ export function createQuestion(level, settings = {}) {
 }
 
 export function modeDescription() {
-  return "A/B/C ile üçünü de dinle, distortion'ı FARKLI olanı şıklardan seç.";
+  return "A/B/C ile üçünü de dinle, saturation/distortion'ı farklı olanı şıklardan seç.";
 }
 
 export function correctLabel(question) {
@@ -426,7 +426,7 @@ export function getFeedbackData(question, answer, context = {}) {
 export function getHintText(question) {
   const odd = question.variants[question.oddIndex];
   const same = question.variants.find((v, i) => i !== question.oddIndex);
-  return odd.k > same.k ? "Farklı olan DAHA ÇOK bozulmuş" : "Farklı olan DAHA AZ bozulmuş";
+  return odd.k > same.k ? "Farklı olan daha çok bozulmuş" : "Farklı olan daha az bozulmuş";
 }
 
 export function renderHintMask(hintMaskLayerEl) {

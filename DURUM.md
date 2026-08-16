@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (G249 — METIN-TARAMA-2-15-08'in 6 bulgusundan 5'inin düzeltmesi + boost/cut terim tutarlılığı)
+Son güncelleme: 16.08.2026 (G250 — Distortion modu "Saturation & Distortion" olarak yeniden adlandırıldı, MODE_ID DEĞİŞMEDİ)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,134 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G250 — **Distortion modunun GÖRÜNEN adı "Saturation & Distortion" oldu (Logic'in kararı, OLCUM-DISTORTION-16-08'e dayanarak) — `MODE_ID` ("distortion") KESİNLİKLE DEĞİŞMEDİ, kullanıcı XP/seviye/sınav ilerlemesi risk altında DEĞİL.**
+
+**Kök sebep/karar:** OLCUM-DISTORTION-16-08.md'nin ölçümü modun GERÇEKTEN
+iki karakteri (tape %0.46-3.76 THD saturation, clip %38.66 THD gerçek
+kare-dalgaya 0.5dB yakın distortion) birden kapsadığını gösterdi — Logic
+"Saturation & Distortion" adını seçti. `MODE_ID` DEĞİŞMEDİĞİ için (task'ın
+kendi kilidi) `stats.perMode.distortion`/`stats.examState.distortion`
+DOKUNULMADI, migration GEREKMEDİ.
+
+**Uygulanan:**
+1. **Görünen ad** — `mode-catalog.js:46`: `ad: "Distortion"` →
+   `"Saturation & Distortion"` (`id: "distortion"` AYNEN KALDI). Bu TEK
+   değişiklik ana menü kartı, "i" bilgi sheet başlığı, kilitli-mod listesi,
+   "gelecek" kartı gibi TÜM `entry.ad` okuyan yerlere OTOMATİK yansıdı
+   (app.js'te 1866/2499/2740/3003/3037/3079/3138/3463/6806/6903 satırları
+   — TEK kaynaktan okundukları GÖRSELDE Chrome/Playwright ile DOĞRULANDI:
+   ana menü kartı, "i" sheet, oyun-içi başlık — üçü de doğru).
+2. **`app.js:3548`** — "Son Cevaplar" geçmiş kartının `desc` zincirindeki
+   TEK hardcoded `` `Distortion · ...` `` literali (mode-catalog.js'ten
+   OTOMATİK türemeyen, AYRI bir yer) → `"Saturation & Distortion · ..."`.
+3. **`app.js:3959`** — Motor 2'nin AYRI bir soru-başlığı ternary zincirinde
+   (mode.modeDescription()'dan BAĞIMSIZ, app.js'in kendi kopyası) distortion
+   satırı → "saturation/distortion'ı farklı olanı seç." **Ek bulgu:** AYNI
+   ternary'nin kompresor (3957) ve reverb (3958) satırlarında G249'un DÜN
+   düzelttiği ALL-CAPS "FARKLI" hatası BURADA hâlâ duruyordu (G249 sadece
+   kompresor.js/reverb.js'in KENDİ export ettiği metnini düzeltmişti, bu
+   app.js'in AYRI kopyası gözden kaçmıştı) — üçü BİRLİKTE düzeltildi
+   (tek satırlık, aynı desen, ayrı bırakmak tutarsız olurdu).
+4. **`distortion.js` ALL-CAPS sızıntısı** (G249'da ERTELENMİŞTİ) —
+   `modeDescription()` (330) ve `getHintText()` (429) küçük harfe çevrildi.
+5. **`DISTORTION_TYPE_INFO.label`** (4 tip) — her tipin ADI artık kategori
+   önekiyle: `"Distortion: Clipping"`, `"Distortion: Soft Clip /
+   Overdrive"`, `"Saturation: Tube (Valf)"`, `"Saturation: Tape"` —
+   `character`/`mixNote` alanlarına (zaten iyi yazılmış öğretim metni)
+   DOKUNULMADI, SADECE hangi tipin hangi kategoriye ait olduğu artık
+   AÇIKÇA söyleniyor. THD sayıları metne YAZILMADI (task'ın kendi kuralı) —
+   sadece karakter farkı (character/mixNote alanları zaten bunu yapıyordu).
+6. **Üç mevcut "saturation" kullanımı** tutarlı hale getirildi:
+   `mode-catalog.js`'in `aciklama`sı ("Hangisinin saturation/distortion'ı
+   daha fazla?"), `level-sheet-terms.js`'in `sensitivityLabel`ı
+   ("Saturation/Distortion ayrımı"). **`guide-texts.js`'in İKİ metni
+   (170/220) İNCELENDİ, DEĞİŞTİRİLMEDİ** — "ne öğretir" metni ZATEN hem
+   "saturation" hem "distortion"u ayrı ayrı doğru tanımlıyordu, oyun-
+   seçenekleri metni jenerik (mod adı geçmiyor) — ikisi de ZATEN yeni
+   isimle tutarlıydı.
+7. **Terim kuralı** — saturation/distortion/drive/clipping İngilizce
+   KALDI, hiçbiri Türkçeleştirilmedi (yeni eklenen "Distortion:"/
+   "Saturation:" önekleri dahil).
+
+**Kapsam dışı bırakılan/gözden geçirilip DOKUNULMAYAN:**
+- `${same.letter}'den` (teachingText, harf ekinde ünlü uyumu — "A'den"
+  yerine "A'dan" olmalıydı) — PRE-EXISTING, bu görevle İLGİSİZ, bulundu
+  ama DOKUNULMADI (kapsam dışı, ayrı bir küçük düzeltme olabilir).
+- Mağaza açıklaması/ekran görüntüleri — repodaki `EVRAK-HESAP-METIN.md`/
+  `MAGAZA-DENETIM.md` TARANDI, "distortion" hiç geçmiyor, ama App Store
+  Connect'in KENDİSİ bu repodan görülemez — **Logic'e bildiriliyor:** mod
+  adı mağaza açıklamasında/ekran görüntülerinde geçiyorsa Connect
+  tarafında AYRICA güncellenmeli, bu repo o kısmı KAPSAMIYOR.
+
+**Testler:** `node --check` 4 değişen dosyada temiz. `npm test` →
+**1390/1390, DEĞİŞMEDİ** (`level-sheet-terms.js`'in `/saturation/i`
+regex testi hâlâ geçiyor — yeni etiket "saturation" alt-string'ini
+KORUYOR; `distortion.js`'in `/distortion/i`/`/Tube/i`/`/Tape/i`/`/sıcak/i`
+testleri de KORUNAN alanlar sayesinde geçti). `npm run test:e2e` →
+**19/19, DEĞİŞMEDİ**. Tüm saf fonksiyon çıktıları (`mode-catalog.js`,
+`level-sheet-terms.js`, `distortion.js`'in `modeDescription`/`getHintText`/
+`correctLabel`/`teachingText`) Node'da DOĞRUDAN çağrılıp gözle doğrulandı;
+ayrıca CANLI tarayıcıda (Chrome, Pro simülasyonu) ana menü kartı, "i"
+bilgi sheet'i ve oyun-içi başlık GÖRSEL olarak "Saturation & Distortion"
+gösterdiği DOĞRULANDI.
+
+**Dokunulan:** `www/js/core/mode-catalog.js`, `www/js/core/
+level-sheet-terms.js`, `www/js/modes/distortion.js`, `www/js/app.js`
+(3 satır: 3548, 3957-3959).
+**Dokunulmayan:** `MODE_ID`/dosya adı/test dosyası adı (`distortion`/
+`distortion.js`/`distortion.test.mjs` HİÇBİRİ değişmedi), DSP kodu,
+WaveShaper eğrileri, drive aralıkları, zorluk eğrisi, e2e suite yapısı,
+`guide-texts.js`, G214-G249 arası commit'ler, 581f798, a4efb42.
+
+OLCUM-DISTORTION-16-08 — **Distortion modunun DSP karakteri + isim uygunluğu ölçüldü (SADECE ÖLÇÜM, kod/commit YOK) — `OLCUM-DISTORTION-16-08.md`'ye yazıldı.**
+
+**Yöntem:** `distortion.js`'in GERÇEK export ettiği fonksiyonlar
+(`driveAtK`, `buildDistortionCurve`, `paramsForDifficultyPosition`) Node'da
+doğrudan çağrılıp 1 kHz sinüs test sinyaliyle harmonik içerik ÖLÇÜLDÜ
+(Goertzel-benzeri doğrudan korelasyon, FFT boyut kısıtlaması olmadan tam
+frekanslarda). Ölçüm scripti repoya EKLENMEDİ, `distortion.js` TEK satır
+değişmedi (`git log` ile doğrulandı — son commit hâlâ G97).
+
+**Sonuç:** 4 tip (clip/soft/tube/tape) matematiksel olarak GERÇEKTEN
+farklı formüller (clamp/tanh/asimetrik-tanh/kübik) — THD %0.46 (tape,
+k=0) ile %38.66 (clip, k=1) arasında GERÇEK bir yelpaze. `clip`'in yüksek
+drive'daki harmonik oranları (H3=−9.7dB, H5=−14.5dB) ideal kare-dalga
+teorisiyle (−9.54dB/−13.98dB) neredeyse BİREBİR örtüşüyor — GERÇEKTEN sert
+distortion. `tape` (0.46-3.76% THD) ders kitabı saturation. `tube`'un
+çift/tek harmonik dengesi drive'a göre TERS DÖNÜYOR (düşük drive'da çift-
+baskın/"sıcak", yüksek drive'da tek-baskın) — ilginç, önceden bilinmeyen
+bir bulgu. **İsim sorusu:** ne SAF "Distortion" ne SAF "Saturation" doğru
+— mod bir SÜREKLİLİĞİ kapsıyor, modun KENDİ mevcut metinleri (guide-
+texts.js, mode-catalog.js, level-sheet-terms.js) ZATEN "saturation"
+kelimesini kullanıyor (3 ayrı yerde, bu ölçümden BAĞIMSIZ, önceden
+yazılmış) — mevcut bir iç-tutarsızlık, bu ölçümün İCAT ETTİĞİ bir şey
+DEĞİL.
+
+**Rename maliyeti (koddan sayıldı, tahmin edilmedi):** SADECE görünen ad
+değişirse (MODE_ID "distortion" kalırsa) risk SIFIR, tek dosya
+(mode-catalog.js). MODE_ID de değişirse 6 dosyada GERÇEK kod/string
+değişikliği + 1 test dosyası gerekir (e2e'de SIFIR referans, etkilenmez)
+VE **GERÇEK bir kullanıcı-veri-kaybı riski var** — `stats.perMode[modeId]`/
+`stats.examState[modeId]` (core/progress.js/storage.js'te doğrulandı)
+DOĞRUDAN mod ID string'iyle anahtarlanıyor, mevcut `legacyModeId` göç
+mekanizması BU senaryoyu KAPSAMIYOR (SADECE `perMode` hiç yokken çalışan
+tek-seferlik bir göç) — migration YAZILMADAN yayınlanırsa kullanıcılar
+distortion modundaki XP/seviye/sınav ilerlemesini KAYBEDER (veri silinmez
+ama bir daha hiç okunmaz).
+
+**Ek gözlem (kod DEĞİŞTİRİLMEDİ):** `app.js:3959`'da G249'da
+`distortion.js`'in kendisinde düzeltilen ALL-CAPS "FARKLI" sızıntısının
+AYNISı hâlâ duruyor — ama bu app.js'te, distortion.js'te DEĞİL, G249'un
+kısıtına girmedi.
+
+**Testler/Ölçüm:** Bu tur `distortion.js`'e dokunmadığı için `npm test`/
+`npm run test:e2e` YENİDEN ÇALIŞTIRILMADI — G249'un sonucu (1390/1390,
+19/19) hâlâ geçerli.
+
+**Dokunulan:** `OLCUM-DISTORTION-16-08.md` (yeni dosya, henüz commit
+edilmedi — önceki ölçüm-turlarıyla AYNI kural, Logic bakacak).
+**Dokunulmayan:** `distortion.js` dahil hiçbir kod dosyası.
 
 G249 — **METIN-TARAMA-2-15-08'in 6 bulgusundan 5'i düzeltildi (AYRI commit) — filtre-tipi başlık hatası, nokta-sonrası küçük harf (3 dosya), Motor 2'nin ALL-CAPS sızıntısı (kompresor.js/reverb.js — distortion.js KULLANICI KARARIYLA bu turda dokunulmadı), dB sayı biçimi (2 ondalık standardı), boost/cut terim tutarlılığı (frekans-bulma.js).**
 
@@ -18686,21 +18814,24 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G249 itibarıyla):**
-METIN-TARAMA-2-15-08.md'nin 6 bulgusundan 5'i G249 olarak commit edildi.
-`npm test` 1390/1390, `npm run test:e2e` 19/19, DEĞİŞMEDİ. Aynı görev
-kapsamında Distortion modunun (WaveShaper eğrisi/harmonik içerik/isim
-sorusu) ÖLÇÜMÜ — `OLCUM-DISTORTION-16-08.md` — SIRADA/az sonra. **Bir
-sonraki adım:**
-1. `frekans-cakismasi.js`'in "kes-" fiilinin (kesilmesi/kesildi/vb.,
+**EN YENİ SIRADAKİ ADIM (G250 itibarıyla):**
+Distortion modu artık "Saturation & Distortion" — `MODE_ID` DEĞİŞMEDİ,
+kullanıcı verisi risk altında DEĞİL (bkz. G250 kaydı). `npm test`
+1390/1390, `npm run test:e2e` 19/19, DEĞİŞMEDİ. **Bir sonraki adım —
+kullanıcının kararı gerekir, öncelik sırasıyla:**
+1. **Mağaza tarafı** — mod adı App Store Connect açıklamasında/ekran
+   görüntülerinde geçiyorsa Logic tarafından AYRICA güncellenmeli (bu
+   repo o kısmı KAPSAMIYOR, bkz. G250 kaydı).
+2. `${same.letter}'den` (distortion.js:teachingText, ünlü uyumu — "A'den"
+   yerine "A'dan" olmalı) — G250'de GÖRÜLDÜ, kapsam dışı bırakıldı,
+   istenirse küçük/ayrı bir düzeltme.
+3. `frekans-cakismasi.js`'in "kes-" fiilinin (kesilmesi/kesildi/vb.,
    onlarca yer) boost/cut terim kuralına göre İngilizce'ye çevrilip
    çevrilmeyeceği — G249'da BİLEREK ERTELENDİ (kapsamı "sadece terim
    düzeltmesi"ni aşıp modun TÜM öğretim anlatısını yeniden yazmaya
    dönüşüyor), AYRI bir karar/tur gerektiriyor.
-2. `frekans-cakismasi.js:539-546`'nın "İpucu:" öneki tutarsızlığı
+4. `frekans-cakismasi.js:539-546`'nın "İpucu:" öneki tutarsızlığı
    (METIN-TARAMA-2'nin #5 bulgusu) — G249'un kapsamına ALINMADI, hâlâ AÇIK.
-3. Distortion ölçümünün SONUCUNA göre (Saturation'a yeniden adlandırma
-   kararı) — kod DEĞİŞTİRİLMEDİ, sadece ölçüldü, karar Logic'e ait.
 Ayrıca önceki turların açık maddeleri (BEYAN-DENETIM'in .gitignore
 tuzağı, Fletcher-Munson/Boost-Cut kararları, TUR6'nın Android/G236
 bulgusu) hâlâ AÇIK, bu turdan ETKİLENMEDİ.
