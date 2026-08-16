@@ -130,7 +130,7 @@ export const TOOLS_RESULTS_GUIDE = {
   sections: [
     {
       heading: "Ölçüm Sonuçları ne işe yarar?",
-      body: "Yüklediğin dosyanın loudness, tepe seviyesi, dinamik aralık ve faz/stereo uyumunu ölçer — iZotope RX'in Waveform Statistics paneline benzer bir küçük karşılığı. Ölçüm dosyanın TAMAMI üzerinden yapılır, bir bölüm/aralık değil."
+      body: "Yüklediğin dosyanın loudness, tepe seviyesi, dinamik aralık ve faz/stereo uyumunu ölçer. Ölçüm dosyanın TAMAMI üzerinden yapılır, bir bölüm/aralık değil."
     },
     {
       heading: "LUFS (loudness)",
@@ -138,7 +138,7 @@ export const TOOLS_RESULTS_GUIDE = {
     },
     {
       heading: "True Peak (dBTP)",
-      body: "8× aşırı örnekleme ile ölçülür. ITU'nun resmi polifaz filtre tablosu birebir kullanılmıyor — kendi tasarımımız Kaiser-pencereli bir filtre ile üretiliyor, testlerle ölçülen sapma en kötü durumda gerçek tepenin ~0.04dB üstünde ya da ~0.17dB altında kalıyor. RX 11 ile karşılaştırıldı ve yakın bulundu, birebir eşleşme iddia edilmiyor."
+      body: "8× aşırı örnekleme ile ölçülür. ITU'nun resmi polifaz filtre tablosu birebir kullanılmıyor — kendi tasarımımız Kaiser-pencereli bir filtre ile üretiliyor, testlerle ölçülen sapma en kötü durumda gerçek tepenin ~0.04dB üstünde ya da ~0.17dB altında kalıyor. Başka bir ölçüm aracıyla karşılaştırıldı ve yakın bulundu, birebir eşleşme iddia edilmiyor."
     },
     {
       heading: "LRA (Loudness Range)",
@@ -148,19 +148,50 @@ export const TOOLS_RESULTS_GUIDE = {
       heading: "Faz / stereo korelasyon",
       body: "İki değer var: parçanın TAMAMI için tek bir genel korelasyon, ve grafikteki zaman serisi için 3 saniyelik kayan pencere — ikisi de −1 (ters faz) ile +1 (tam mono uyumlu) arasında."
     },
-    {
-      heading: "Başka bir araçla küçük fark görürsen",
-      body: "Bu beklenen bir durum — LRA'nın adım büyüklüğü ve true peak'in filtre tasarımı araçtan araca değişebilir. Sayılar RX 11 ile karşılaştırıldı ve yakın çıktı; birebir eşleşmemesi bir hata değildir."
-    },
-    // G251 — G245'in metodoloji metni KORUNDU, üstüne EKLENDİ (yukarıdaki
-    // beş bölüme dokunulmadı). Bu bölüm ÜRÜN ADI TAŞIMAZ (task'ın kendi
-    // kuralı) — yukarıdaki "RX 11" anısı zaten var, bu YENİ bölüm genel/
-    // araç-tarafsız bir gerekçe ekliyor: standardın KENDİSİ uygulama
-    // detaylarını (pencere/örtüşme gibi) açık bırakıyor, farklar bundan
-    // doğar.
+    // G251 — G245'in metodoloji metni KORUNDU (madde içerikleri tek karakter
+    // değişmeden), ÜSTÜNE EKLENDİ. OLCUM-CIHAZ-16-08.md madde H.1 bulgusu:
+    // bu bölüm dizinin SONUNDA kaldığı için kullanıcı ona ulaşmadan önce
+    // TÜM metodoloji metnini kaydırmak zorundaydı — ölçüm değerlerini
+    // anlatan 4 bölümün (LUFS/True Peak/LRA/Faz-stereo) HEMEN ARDINA
+    // taşındı, "Başka bir araçla küçük fark görürsen"in ÖNÜNE geçti.
+    // İÇERİK değişmedi, SADECE sıra.
     {
       heading: "Neden küçük farklar olur?",
       body: "Her ölçüm aracı standardı kendi uygulama tercihleriyle hayata geçirir. Başka bir araçla karşılaştırırken gördüğün küçük farklar bu yüzden normaldir, bir hata değildir."
+    },
+    {
+      heading: "Başka bir araçla küçük fark görürsen",
+      body: "Bu beklenen bir durum — LRA'nın adım büyüklüğü ve true peak'in filtre tasarımı araçtan araca değişebilir. Sayılar başka bir ölçüm aracıyla karşılaştırıldı ve yakın çıktı; birebir eşleşmemesi bir hata değildir."
+    }
+  ]
+};
+
+// ---- 1d. Araçlar → Referans Filtreleri kartının "i"si — TOOLS_TONAL_GUIDE/
+// TOOLS_RESULTS_GUIDE'ın AYNI {title, sections} şekli. OLCUM-CIHAZ-16-08.md
+// madde H.3 bulgusu: bu karta hiç "i" butonu/rehber metni eklenmemişti
+// (Tonal Balance/Ölçüm Sonuçları'nın İKİSİNDE de var, bu üçüncü kartta yok).
+// 5 filtrenin adı/aralığı `app.js:TOOLS_FILTERS`'tan (tek doğruluk kaynağı)
+// alındı, uydurulmadı. "Gerçek ölçüm değil" uyarısı kartın kendi
+// `.tools-filter-dsp-note`'uyla (index.html) AYNI gerçeği tekrarlıyor —
+// task'ın kendi isteği, iki yerde de dursun.
+export const TOOLS_FILTER_GUIDE = {
+  title: "Referans Filtreleri",
+  sections: [
+    {
+      heading: "Referans Filtreleri ne işe yarar?",
+      body: "Yüklediğin mixi farklı dinleme cihazlarının tipik frekans tepkisinden geçirerek dinletir — stüdyo dışında (telefonda, arabada, kulaklıkla) nasıl duyulacağını tahmin etmene yardımcı olur."
+    },
+    {
+      heading: "Gerçek bir ölçüm değil",
+      body: "Bu filtreler gerçek bir cihazın ölçülmüş frekans eğrisi DEĞİL — o cihaz SINIFININ tipik karakterine yaklaşık bir taklit. Belirli bir marka/modelin birebir karşılığı iddia edilmiyor."
+    },
+    {
+      heading: "5 filtre",
+      body: "Bluetooth Hoparlör (90 Hz–13 kHz), Araba (60 Hz–14 kHz), Kulaklık (20 Hz–20 kHz — referans, neredeyse düz), Club Sistemi (25 Hz–18 kHz), Laptop Hoparlörü (250 Hz–12 kHz)."
+    },
+    {
+      heading: "Nasıl kullanılır?",
+      body: "Bir filtre seç, oynatıcıdan mixini çal — o cihazın karakteriyle dinlersin. 10 sn ileri/geri ve oynat/duraklat ile istediğin bölümü tekrar dinleyebilirsin. Filtreyi değiştirerek aynı mixi farklı cihazlarda kıyaslayabilirsin."
     }
   ]
 };

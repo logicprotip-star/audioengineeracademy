@@ -59,15 +59,18 @@ export const SOURCE_GROUPS = [
       // tepe frekansı (OLCUM-KAYNAK-16-08.md'nin FFT ölçümü, ~11Hz çözünürlük).
       { id: "bass", label: "Bas", kind: "sample", samplePath: "audio/bass.m4a", desc: "Bas gitar — SUB/BAS, ölçülen tepe ~97 Hz" },
       { id: "guitar", label: "Akustik Gitar", kind: "sample", samplePath: "audio/acoustic_guitar.m4a", desc: "Akustik gitar — alt-orta, ölçülen tepe ~194 Hz" },
-      // G259 — YENİ: mono, temiz (efektsiz) elektrogitar.
-      { id: "clean_guitar", label: "Temiz Gitar", kind: "sample", samplePath: "audio/clean_guitar.m4a", desc: "Temiz elektrogitar — alt-orta, ölçülen tepe ~291 Hz" },
+      // G259 — YENİ: mono, temiz (efektsiz) elektrogitar. Etiket "Clean Gitar"
+      // — TERIM-KURALI.md'nin "sektör terimi İngilizce kalır" kararı
+      // (OLCUM-CIHAZ-16-08.md madde H.2, kullanıcı kararı), diğer kaynak
+      // adlarının (Pink Noise/Saw/Square/Triangle) BİREBİR aynı deseni.
+      { id: "clean_guitar", label: "Clean Gitar", kind: "sample", samplePath: "audio/clean_guitar.m4a", desc: "Temiz elektrogitar — alt-orta, ölçülen tepe ~291 Hz" },
       { id: "vocal", label: "Vokal", kind: "sample", samplePath: "audio/vocal.m4a", desc: "Lead vokal frazı — orta bölge" },
       // G259 — YENİ, stereo. `stereoOnly:true` — compatibleSourceIds()'in
       // varsayılan (parametresiz) yolundan BİLEREK dışlanır (bkz. aşağı),
       // SADECE `only` ile açıkça isteyen bir mod (Stereo Genişlik) görür —
       // diğer 11 modun kaynak seçicisinde HİÇ görünmez (task'ın kendi kararı).
       { id: "acoustic_guitar_stereo", label: "Akustik Gitar (Stereo)", kind: "sample", samplePath: "audio/acoustic_guitar_stereo.m4a", desc: "Akustik gitar, GERÇEK stereo kayıt — SADECE Stereo Genişlik", stereoOnly: true },
-      { id: "clean_guitar_stereo", label: "Temiz Gitar (Stereo)", kind: "sample", samplePath: "audio/clean_guitar_stereo.m4a", desc: "Temiz elektrogitar, GERÇEK stereo kayıt — SADECE Stereo Genişlik", stereoOnly: true }
+      { id: "clean_guitar_stereo", label: "Clean Gitar (Stereo)", kind: "sample", samplePath: "audio/clean_guitar_stereo.m4a", desc: "Temiz elektrogitar, GERÇEK stereo kayıt — SADECE Stereo Genişlik", stereoOnly: true }
     ]
   },
   {

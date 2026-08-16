@@ -18,7 +18,7 @@ import { modeVisualSvg } from "./core/mode-visuals.js";
 import { SOURCE_GROUPS, findSource, findSourcePair } from "./core/source-catalog.js";
 import { tierForLevel, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
 import { levelSheetTermsFor } from "./core/level-sheet-terms.js";
-import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS, TOOLS_TONAL_GUIDE, TOOLS_RESULTS_GUIDE, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
+import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS, TOOLS_TONAL_GUIDE, TOOLS_RESULTS_GUIDE, TOOLS_FILTER_GUIDE, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
 import { getWeakZone } from "./core/personalization.js";
 import * as tonalBalance from "./core/tonal-balance.js";
 import * as fileStorage from "./core/file-storage.js";
@@ -234,6 +234,7 @@ const els = {
   toolsFilterCard: document.getElementById("toolsFilterCard"),
   toolsFilterHeader: document.getElementById("toolsFilterHeader"),
   toolsFilterHeaderBadge: document.getElementById("toolsFilterHeaderBadge"),
+  toolsFilterInfoBtn: document.getElementById("toolsFilterInfoBtn"), // OLCUM-CIHAZ-16-08 madde H.3
   toolsFilterChevron: document.getElementById("toolsFilterChevron"),
   toolsFilterBody: document.getElementById("toolsFilterBody"),
   toolsFilterFileName: document.getElementById("toolsFilterFileName"),
@@ -7124,6 +7125,14 @@ function openGuideSheet(modeId) {
     els.guideSheetBody.innerHTML = `
       <p style="margin:8px 2px 0;font-size:13.5px;line-height:1.6;color:#b8bdc4">${intro.body}</p>
       <div class="guide-point-list">${rest.map(s => `<div class="guide-point"><i></i><span><b style="color:var(--am);font-weight:700">${s.heading}:</b> ${s.body}</span></div>`).join("")}</div>`;
+  } else if (modeId === "tools-filters") {
+    // OLCUM-CIHAZ-16-08.md madde H.3 — "tools-results" sentinel'iyle AYNI
+    // desen (bir MOD DEĞİL, MODE_GUIDE_TEXTS'in anahtar uzayında yok).
+    if (els.guideSheetTitle) els.guideSheetTitle.textContent = TOOLS_FILTER_GUIDE.title;
+    const [intro, ...rest] = TOOLS_FILTER_GUIDE.sections;
+    els.guideSheetBody.innerHTML = `
+      <p style="margin:8px 2px 0;font-size:13.5px;line-height:1.6;color:#b8bdc4">${intro.body}</p>
+      <div class="guide-point-list">${rest.map(s => `<div class="guide-point"><i></i><span><b style="color:var(--am);font-weight:700">${s.heading}:</b> ${s.body}</span></div>`).join("")}</div>`;
   } else if (modeId && MODE_GUIDE_TEXTS[modeId]) {
     const entry = MODE_CATALOG.find(e => e.id === modeId);
     if (els.guideSheetTitle) els.guideSheetTitle.textContent = entry ? entry.ad : "Bu mod";
@@ -7188,6 +7197,11 @@ if (els.toolsTonalInfoBtn) els.toolsTonalInfoBtn.addEventListener("click", () =>
 // tıklama HEM sheet'i açar HEM akordiyonu aç/kapar, kullanıcı şaşırtıcı bir
 // ÇİFTE tepki görür.
 if (els.toolsResultsInfoBtn) els.toolsResultsInfoBtn.addEventListener("click", (e) => { e.stopPropagation(); openGuideSheet("tools-results"); });
+// OLCUM-CIHAZ-16-08.md madde H.3 — toolsResultsInfoBtn'in AYNI deseni:
+// buton toolsFilterHeader'ın (akordiyon başlığı, kendi click listener'ı
+// VAR — toolsToggleFilterAccordion) İÇİNDE, stopPropagation ŞART (G245'te
+// Ölçüm Sonuçları'nda AYNI sorun yaşanmıştı).
+if (els.toolsFilterInfoBtn) els.toolsFilterInfoBtn.addEventListener("click", (e) => { e.stopPropagation(); openGuideSheet("tools-filters"); });
 if (els.guideSheetClose) els.guideSheetClose.addEventListener("click", closeGuideSheet);
 if (els.guideSheetOverlay) els.guideSheetOverlay.addEventListener("click", closeGuideSheet);
 
