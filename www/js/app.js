@@ -2017,6 +2017,48 @@ function showFrequencyEars(ok, guessHz) {
   els.fbEarRight.classList.remove("on");
 }
 
+// OLCUM-KULAK-16-08'in bulgusuna dayanarak: kulak butonları 7 moda daha
+// eklendi. Sağ omuz TÜM modlarda değişmeden "Doğru cevap" (index.html'in
+// STATİK metni, showFrequencyEars de HİÇ dokunmuyor) — SADECE sol omuzun
+// metni moda göre değişiyor (aşağıdaki show*Ears fonksiyonları HER
+// ÇAĞRIDA baştan yazıyor, bu yüzden farklı modlar art arda oynanınca
+// eski bir modun etiketi SIZMAZ). showFrequencyEars'e (Frekans Bulma)
+// TEK SATIR dokunulmadı — davranışı BİREBİR korunuyor.
+//
+// Kesim Noktası'nın kulak butonları — REFERANS: showFrequencyEars, ama
+// körü körüne kopyalanmadı: bu modun "gizli değeri" freq TEK BAŞINA değil,
+// freq+filterType ÇİFTİ (evaluateAnswer'ın kendi mantığı, kesim-noktasi.js:
+// 390 — tip AÇIKLANMAMIŞSA guessType doğru tipe düşer, guessFilterType BOŞ
+// bırakılabilir).
+function showCutoffEars(guessFreq, guessFilterType) {
+  if (!els.fbEarLeft || !els.fbEarRight) return;
+  els.fbEarLeft.classList.remove("hidden");
+  els.fbEarRight.classList.remove("hidden");
+  els.fbEarLeft.classList.remove("neutral", "on");
+  els.fbEarRight.classList.remove("on");
+  els.fbEarLeft.textContent = "Senin kesimin";
+  els.fbEarLeft.dataset.preview = "mine";
+  els.fbEarLeft.dataset.guessFreq = String(guessFreq);
+  els.fbEarLeft.dataset.guessFilterType = guessFilterType || "";
+  els.fbEarRight.dataset.preview = "correct";
+}
+
+// dB Seviyesi'nin kulak butonları — REFERANS: showFrequencyEars. Bu modun
+// gizli değeri db-seviyesi.js:applyProcessing'in okuduğu TEK alan
+// (question.dbDelta), Frekans Bulma'nın freq'iyle YAPISAL AYNI (tek
+// sayı) — SADECE alan adı ve etiket metni farklı.
+function showLevelEars(guessDb) {
+  if (!els.fbEarLeft || !els.fbEarRight) return;
+  els.fbEarLeft.classList.remove("hidden");
+  els.fbEarRight.classList.remove("hidden");
+  els.fbEarLeft.classList.remove("neutral", "on");
+  els.fbEarRight.classList.remove("on");
+  els.fbEarLeft.textContent = "Senin seviyen";
+  els.fbEarLeft.dataset.preview = "mine";
+  els.fbEarLeft.dataset.guessDb = String(guessDb);
+  els.fbEarRight.dataset.preview = "correct";
+}
+
 // Gerçek XP kırılımı — CLAUDE.md/task kuralı: "uydurma sayı yazma". Tüm
 // çarpanlar calculateXP()'ye GEÇİLEN AYNI context'ten (bkz. her submit
 // fonksiyonunun kendi calculateXP çağrısı) veya mode'un KENDİ DIFFICULTY/
@@ -4175,6 +4217,7 @@ function submitCutoffGuess(answer) {
     // buradaki `false` öğretici metnin hiç görünmemesine yol açan bir hataydı).
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
     showXpBreakdown(q, q.difficulty, gained);
+    showCutoffEars(result.guessFreq, result.guessType);
     mode.recordZone(zoneStats, q.freq, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -4188,6 +4231,7 @@ function submitCutoffGuess(answer) {
 
     const feedback = mode.getFeedbackData(q, answer, { gained: 0 });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    showCutoffEars(result.guessFreq, result.guessType);
     mode.recordZone(zoneStats, q.freq, false, result.dOct);
     audioEngine.sfxBuzz();
     shake(els.canvas);
@@ -4270,6 +4314,7 @@ function submitLevelGuess(value) {
     const feedback = mode.getFeedbackData(q, value, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
     showXpBreakdown(q, q.difficulty, gained);
+    showLevelEars(value);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
@@ -4282,6 +4327,7 @@ function submitLevelGuess(value) {
 
     const feedback = mode.getFeedbackData(q, value, { gained: 0 });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    showLevelEars(value);
     audioEngine.sfxBuzz();
     shake(els.canvas);
     loseLife("dB farkını ıskaladın.", { silent: true });
@@ -6628,14 +6674,31 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
     return;
   }
   const btn = e.target.closest(".fb-ear");
-  if (!btn || btn.classList.contains("hidden") || !activeQuestion || activeQuestion.mode !== "frequency") return;
+  if (!btn || btn.classList.contains("hidden") || !activeQuestion) return;
+  // OLCUM-KULAK-16-08: kulak butonları hangi modlarda AKTİF — allowlist.
+  // Yeni bir mod eklenince BURAYA ve aşağıdaki guessQuestion switch'ine
+  // birer dal eklenir, showFrequencyEars'in KENDİ "frequency" dalı hiç
+  // değişmiyor.
+  const qMode = activeQuestion.mode;
+  const earEligible = qMode === "frequency" || qMode === "cutoff" || qMode === "dblevel";
+  if (!earEligible) return;
 
   const preview = btn.dataset.preview;
   let guessQuestion = null;
   if (preview === "mine") {
-    const guessHz = Number(btn.dataset.guessHz);
-    if (!Number.isFinite(guessHz)) return;
-    guessQuestion = { ...activeQuestion, freq: guessHz };
+    if (qMode === "frequency") {
+      const guessHz = Number(btn.dataset.guessHz);
+      if (!Number.isFinite(guessHz)) return;
+      guessQuestion = { ...activeQuestion, freq: guessHz };
+    } else if (qMode === "cutoff") {
+      const guessFreq = Number(btn.dataset.guessFreq);
+      if (!Number.isFinite(guessFreq)) return;
+      guessQuestion = { ...activeQuestion, freq: guessFreq, filterType: btn.dataset.guessFilterType || activeQuestion.filterType };
+    } else if (qMode === "dblevel") {
+      const guessDb = Number(btn.dataset.guessDb);
+      if (!Number.isFinite(guessDb)) return;
+      guessQuestion = { ...activeQuestion, dbDelta: guessDb };
+    }
   } else if (preview !== "clean" && preview !== "correct") {
     return;
   }
