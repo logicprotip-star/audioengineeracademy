@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (G259 — Kaynak kütüphanesi yenilendi: 10 yeni dosya, bass_alt kaldırıldı, 2 stereo kaynak + Stereo Genişlik desteği, SOURCE_PAIRS yeniden ölçüldü)
+Son güncelleme: 16.08.2026 (OLCUM-SEVIYE-16-08 — kaynak kütüphanesi -3→-6dBFS'e yeniden üretildi, Kompresör/Distortion uyumu DOĞRULANDI, kod/commit YOK)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,49 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+OLCUM-SEVIYE-16-08 — **G259'un "bekleyen karar" maddesi ÇÖZÜLDÜ: kaynak kütüphanesi -3dBFS'ten -6dBFS'e yeniden üretildi (Logic), Kompresör/Distortion uyumu DOĞRULANDI (SADECE ÖLÇÜM, kod/commit YOK) — `OLCUM-SEVIYE-16-08.md`'ye yazıldı.**
+
+**Kök sebep/gerekçe:** OLCUM-KAYNAK-16-08.md (G259) kaynak kütüphanesinin
+-3dBFS tepe taşıdığını, `kompresor.js:COMP_REF_LEVEL_DB=-6`'nın ESKİ
+kütüphanenin -6dB seviyesine göre kalibre olduğunu, bu yüzden gösterilen
+"gain reduction" sayısının gerçek azaltmayı ~2.5 kat AZ gösterebileceğini
+bulmuştu — BEKLEYEN KARAR olarak bırakılmıştı. Logic 10 dosyayı -6dBFS'e
+yeniden üretti.
+
+**Sonuç (özet, tam detay raporda):**
+1. **Seviye doğrulandı:** `ffmpeg volumedetect` ile 10 dosyanın hepsi
+   **-6.0dB ±0.1dB tepe** — iddia doğrulandı. Süre/kanal sayısı
+   DEĞİŞMEDİ.
+2. **`npm test` 1390/1390, `npm run test:e2e` 27/27** — "kod değişikliği
+   gerekmemeli" iddiası ÇALIŞTIRILARAK doğrulandı, GERÇEKTEN gerekmedi.
+3. **Kompresör threshold uyumu TAM:** `COMP_REF_LEVEL_DB=-6` artık
+   GERÇEK ölçülen tepeyle (-6.0dB) BİREBİR eşleşiyor — önceki turun
+   bulduğu 3dB'lik gösterge/gerçek-davranış farkı SIFIRLANDI (5 farklı
+   k değerinde matematiksel olarak doğrulandı, hepsi TAM eşleşiyor).
+   Ortalama (RMS) seviyeler (-21/-32dB) threshold aralığıyla (-8/-34dB)
+   tutarlı — k=0'da sadece tepeler, k=1'de sinyalin çoğu eşiği aşıyor.
+4. **Distortion'ın 4 türü GERÇEK -6dBFS sinyalle test edildi** (Node'da
+   `buildDistortionCurve`/`driveAtK` doğrudan çağrılarak, WaveShaper
+   yorumuyla): clip=aralığın tamamında sert kırpma, soft=temizden tam
+   doygunluğa geniş aralık, tube=asimetrik orta, tape=aralığın
+   TAMAMINDA neredeyse fark edilmez — 4'ü de KENDİ dosya-başı
+   açıklamalarıyla BİREBİR tutarlı.
+5. **12 modun kaynak RMS/crest-factor profili sağlıklı** — crest factor
+   14.9-26.2dB arası (transient kaynaklar yüksek, sürekli kaynaklar
+   düşük — gerçekçi), hiçbir dosya -6dB'nin üstüne taşmıyor (clipping
+   riski yok), aykırı değer yok.
+
+**Testler/Ölçüm:** Kod/dosya DEĞİŞTİRİLMEDİ (audio dosyaları Logic
+tarafından yeniden üretilmişti, bu turda SADECE ölçüldü). `npm test`/
+`npm run test:e2e` ÇALIŞTIRILDI (DOĞRULAMANIN kendisi), sonuç DEĞİŞMEDİ.
+
+**Dokunulan:** `OLCUM-SEVIYE-16-08.md` (yeni dosya, henüz commit
+edilmedi — task'ın kendi kuralı: "Kod DEĞİŞTİRME — sadece doğrula ve
+raporla").
+**Dokunulmayan:** `www/js/` altında hiçbir kod dosyası (`www/audio/`
+altındaki 10 dosya Logic tarafından ÖNCEDEN değiştirilmişti, henüz
+commit edilmemiş durumda — bu turda dokunulmadı, sadece ölçüldü).
 
 G259 — **Kaynak kütüphanesi yenilendi: 10 yeni ses dosyası (78 BPM, 8 bar/24.6sn, -3dBFS tepe, AAC), `bass_alt` kaldırıldı, 2 YENİ stereo kaynak eklendi (SADECE Stereo Genişlik'te görünür), Stereo Genişlik artık paketli kaynak kabul ediyor, SOURCE_PAIRS'ın çakışma bölgeleri GERÇEK FFT ölçümüyle yeniden hesaplandı — TEK commit.**
 
@@ -19555,7 +19598,26 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G259 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (OLCUM-SEVIYE-16-08 itibarıyla):**
+G259'un "bekleyen karar" maddesi (Kompresör/Distortion seviye uyumu)
+ÇÖZÜLDÜ — Logic kaynak kütüphanesini -3dBFS'ten -6dBFS'e yeniden
+üretti, `COMP_REF_LEVEL_DB=-6` artık GERÇEK tepeyle BİREBİR eşleşiyor
+(matematiksel olarak doğrulandı, `OLCUM-SEVIYE-16-08.md`). `npm test`
+1390/1390, `npm run test:e2e` 27/27 — kod değişikliği GERÇEKTEN
+gerekmedi, ÇALIŞTIRILARAK doğrulandı. Ses dosyaları henüz commit
+EDİLMEDİ (bu turda dokunulmadı, kod DEĞİŞTİRME kuralı gereği).
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. 10 ses dosyası (`www/audio/`) commit'lenmeli mi — bu turda SADECE
+   ölçüldü, commit atılmadı (task'ın kendi kuralı).
+2. **🟡 vocal.m4a yenilenince** `vokal-gitar` çiftinin region'ı HÂLÂ
+   YENİDEN ÖLÇÜLMELİ — bu turun kapsamı DIŞINDA, G259'dan beri açık
+   (OLCUM-KAYNAK-16-08.md madde 3).
+3. Distortion'ın eski (-3dBFS) kütüphanedeki çıkışı bu turda ÖLÇÜLMEDİ
+   (SADECE yeni -6dBFS seviyesi test edildi) — "bu -6dB'nin orijinal
+   kalibrasyon olduğu" çıkarımı mantıklı ama eski/yeni KARŞILAŞTIRMALI
+   olarak kanıtlanmadı (OLCUM-SEVIYE-16-08.md'nin kendi dürüstlük notu).
+
+**EN YENİ SIRADAKİ ADIM (G259 itibarıyla, ARTIK ESKİ):**
 Kaynak kütüphanesi yenilendi (10 yeni dosya, bass_alt kaldırıldı, 2
 stereo kaynak + Stereo Genişlik desteği, SOURCE_PAIRS yeniden ölçüldü,
 AYRI commit). `npm test` 1390/1390, `npm run test:e2e` 27/27, DEĞİŞMEDİ.
