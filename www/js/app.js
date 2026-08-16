@@ -2622,6 +2622,23 @@ function enterMode(entry, realMode) {
   // gerekmiyordu, artık her kart tıklamasında (moda özgü "eski başlık asılı kalır"
   // riskini önden kapatmak için mod DEĞİŞMESE bile) doğru isimle senkronlanıyor.
   if (els.gameTitle) els.gameTitle.textContent = entry.ad;
+  // OLCUM-CIHAZ-16-08.md madde D — #freqInfo/#answers/#freqGuessArea (aşağı,
+  // mode!==realMode bloğunun İÇİNDE) gibi diğer reset'lerin AKSİNE bu
+  // KOŞULSUZ çalışmalı: canlar bitip paywall'a zorla yönlendirilen bir
+  // round'un GERİ BİLDİRİM PANELİ hiç kapanmadan "show-result"/"open"
+  // kalıyordu (#feedbackBox/#feedbackOverlay'i normalde SADECE
+  // pauseRound()'un "#53 — TEK kontrol noktası" temizliyor, enterMode()
+  // pauseRound()'u ÇAĞIRMIYOR). İlk düzeltme mode!==realMode bloğunun
+  // İÇİNE konmuştu — AYNI moda (menüden çıkıp aynı karta) geri dönüşte
+  // panel HÂLÂ temizlenmiyordu, çünkü o dal "aynı moda dönüş yarım parkuru
+  // KORUR" ilkesiyle (G47) TAMAMEN atlanıyor. Kendi e2e testiyle YAKALANDI
+  // (e2e/feedback-panel-reset.spec.mjs'in ikinci testi) — challenge/exam-
+  // parkur'un AKSİNE (bkz. aşağıdaki not, meşru biçimde SADECE mod
+  // DEĞİŞİNCE sıfırlanıyor) geri bildirim paneli bir "önceki round'un
+  // KALINTISI", korunması gereken bir İLERLEME değil — bu yüzden buraya,
+  // mode kontrolünden ÖNCEye taşındı.
+  if (els.feedbackBox) els.feedbackBox.classList.remove("show-result", "bad");
+  if (els.feedbackOverlay) els.feedbackOverlay.classList.remove("open");
   if (mode !== realMode) {
     // Farklı bir moda geçiliyor — önceki modun round'u/sesi/ekran metni yeni moda
     // SIZMASIN diye temiz bir sayfayla başlanır (aksi halde "Oyunu Başlat"a

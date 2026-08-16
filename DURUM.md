@@ -146,6 +146,102 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G263 — **Bayat geri bildirim paneli düzeltildi: `enterMode()` artık `#feedbackBox`/`#feedbackOverlay`'i her zaman temizliyor — canlar bitip paywall'a zorla yönlendirilen bir round'un geri bildirimi, HANGİ moda (AYNI mod dahil) girilirse girilsin bir daha ekranda kalmıyor. 2 yeni e2e testi. AYRI commit.**
+
+**Kök sebep/gerekçe:** OLCUM-CIHAZ-16-08.md madde D'nin bulgusu —
+`enterMode()` (`app.js:2619-2757`) `#freqInfo`/`#answers`/`#freqGuessArea`/
+başlık-meta/zamanlayıcı/`challenge`/`#cakismaCompare`/spotlight/analyzer
+class'larının HEPSİNİ sıfırlıyordu ama `#feedbackBox`/`#feedbackOverlay`'e
+HİÇ dokunmuyordu. Bu class'lar normalde SADECE `pauseRound()`'da ("#53 —
+TEK kontrol noktası") temizleniyor — `enterMode()` `pauseRound()`'u
+ÇAĞIRMIYOR, doğrudan `audioEngine.stopAudio()`/`roundFlow.stopAll()`
+kullanıyor. Sonuç: canlar bitip paywall'a ZORLA yönlendirilen bir
+round'un geri bildirim paneli hiç kapanmadan "show-result"/"open"
+kalıyordu; `#feedbackBox`/`#feedbackOverlay` `#screen-game`'in İÇİNDE
+olduğu için (`.screen{display:none}`) ekran değişince görünmez oluyordu
+ama class'lar canlı kalıyordu — kullanıcı `#screen-game`'e (hangi moddan
+girerse girsin) döner dönmez panel ESKİ içerikle YENİDEN görünüyordu.
+
+**Uygulanan:**
+- `enterMode()`'a `els.feedbackBox.classList.remove("show-result","bad")`
+  + `els.feedbackOverlay.classList.remove("open")` eklendi.
+- **İKİ AŞAMALI bulundu:** ilk taslak bu satırları `if (mode !== realMode)`
+  bloğunun İÇİNE koymuştu (diğer resetlerle AYNI yere) — kendi e2e testi
+  (aşağıya bkz.) bunun AYNI moda (menüden çıkıp aynı karta) geri dönüşte
+  YETERSİZ kaldığını yakaladı, çünkü o dal "aynı moda dönüş yarım parkuru
+  KORUR" (G47) ilkesiyle TAMAMEN atlanıyor. Satırlar `mode !== realMode`
+  kontrolünden ÖNCEye, `els.gameTitle` güncellemesinin yanına taşındı —
+  artık HER `enterMode()` çağrısında (mod değişse de değişmese de) çalışıyor.
+  Challenge/exam-parkur'un AKSİNE (bilerek SADECE mod değişince sıfırlanan,
+  korunması GEREKEN bir ilerleme) geri bildirim paneli bir ÖNCEKİ round'un
+  kalıntısı — bu ayrım task'ın kendi notuyla (G47) tutarlı, farklı bir
+  davranış kategorisi.
+
+**Aynı kalıp başka nerede tarandı (task'ın kendi isteği):**
+- `enterMode()` baştan sona yeniden okunup diğer resetlerle (freqInfo/
+  answers/freqGuessArea/başlık-meta/zamanlayıcı/challenge/cakismaCompare/
+  spotlight/analyzer class'ları) çapraz kontrol edildi — feedbackBox/
+  feedbackOverlay TESPİT EDİLEN TEK istisnaydı, başka eksik BULUNAMADI.
+- **Canvas/waveform/analizör pikselleri** (OLCUM-CIHAZ-16-08.md'nin
+  BELİRSİZ bıraktığı tek nokta) bu turda AYRICA doğrulandı: `drawVisualizer()`
+  (`app.js:6009-6075`) HER karede `ctx2d.clearRect(...)` ile koşulsuz
+  temizleniyor, `goScreen("game")` (`app.js:2479-2493`) OYUN EKRANINA HER
+  girişte `syncGameVisualizerLoop()`'u açıkça yeniden başlatıyor — pixel
+  kalıntısı riski YOK, kod okunarak KAPATILDI.
+- Açık sheet'ler (Oyun Ayarları/rehber/kulaklık uyarısı) tarandı — hiçbiri
+  ekran-bağımsız bir "unutulmuş açık" durumuna girebilecek bir yoldan
+  `enterMode()`'a ULAŞAMIYOR (hepsi kendi kapatma yollarından `pauseRound()`
+  çağırıyor ya da zaten ekrandan BAĞIMSIZ, `.app-shell` kökünde duruyor).
+
+**Testler:** `e2e/feedback-panel-reset.spec.mjs` (YENİ dosya, 2 test) —
+(1) canlar bitir → paywall → çık → FARKLI moda gir → panel temiz,
+(2) canlar bitir → paywall → çık → AYNI moda tekrar gir → panel temiz
+(ilk taslağın YAKALANAMADIĞI senaryo, ikinci düzeltmeyi bu test zorladı).
+`npm test`: 1390/1390 (DEĞİŞMEDİ). `npm run test:e2e`: 27→**29/29**
+(+2 yeni, hepsi temiz).
+
+**Dokunulan:** `www/js/app.js` (`enterMode()`, 2 satır + taşıma),
+`e2e/feedback-panel-reset.spec.mjs` (YENİ).
+**Dokunulmayan:** `core/paywall.js`, `finalizeIfGameOver()`, ses zinciri,
+Motor 2 A/B/C mekanizması, G214-G261 arası commit'ler, G174/G175
+(`581f798`/`a4efb42`)'in KENDİ reset mantığı (SADECE yanına yeni,
+koşulsuz iki satır eklendi — onların `mode !== realMode` kapsamındaki
+resetlerine DOKUNULMADI).
+
+G262 — **Üç metin düzeltmesi: TOOLS_RESULTS_GUIDE'daki "iZotope RX"/"RX 11" ürün adı kaldırıldı + "Neden küçük farklar olur?" bölümü görünür bir yere taşındı, clean_guitar/clean_guitar_stereo etiketleri "Clean Gitar"a çevrildi, Referans Filtreleri kartına "i" butonu eklendi. AYRI commit.**
+
+**Kök sebep/gerekçe:** OLCUM-CIHAZ-16-08.md madde H'nin üç bulgusu (H.1/H.2/H.3).
+
+**Uygulanan:**
+- **a)** `guide-texts.js:TOOLS_RESULTS_GUIDE`'daki 3 "RX"/"RX 11" geçişi
+  araç-tarafsız dille değiştirildi (G251'in "başka bir ürünün adı
+  geçmeyecek" kuralı artık TÜM bölüme uygulanıyor, G245'in metodoloji
+  metninin GERİ KALANI tek karakter değişmeden korundu). "Neden küçük
+  farklar olur?" bölümü dizinin sonundan (7/7) ölçüm değerlerini anlatan
+  4 bölümün hemen ardına (6/7) taşındı.
+- **b)** `source-catalog.js`'te `clean_guitar`/`clean_guitar_stereo`
+  etiketleri "Temiz Gitar" → "Clean Gitar" (TERIM-KURALI.md — sektör
+  terimi İngilizce kalır, Pink Noise/Saw/Square/Triangle'ın AYNI deseni).
+  `desc` alanına DOKUNULMADI (kullanıcıya hiç gösterilmiyor, grep ile
+  doğrulandı).
+- **c)** Referans Filtreleri kartına Tonal Balance/Ölçüm Sonuçları'nın
+  AYNI "i" butonu deseni eklendi — YENİ `TOOLS_FILTER_GUIDE`
+  (`guide-texts.js`), 5 filtrenin adı/aralığı `TOOLS_FILTERS`'tan alındı
+  (uydurulmadı), "gerçek ölçüm değil" uyarısı içeriyor. Buton akordiyon
+  başlığının İÇİNDE olduğu için G245'teki AYNI sorun (stopPropagation
+  olmadan tıklama akordiyonu da açar/kapar) burada da ÖNLENDİ — Playwright'ta
+  doğrulandı (info butonuna basınca akordiyon AÇILMIYOR).
+
+**Testler:** `npm test` 1390/1390, `npm run test:e2e` 27/27 (DEĞİŞMEDİ).
+Playwright'ta canlı doğrulama: RX metni artık YOK, yeni bölüm doğru
+sırada, yeni "i" butonu sheet'i açıyor ama akordiyonu AÇMIYOR.
+
+**Dokunulan:** `www/js/core/guide-texts.js`, `www/js/app.js` (import +
+els binding + click listener + openGuideSheet dalı), `www/index.html`
+(yeni buton), `www/js/core/source-catalog.js` (2 etiket).
+**Dokunulmayan:** Kulak butonları, ses zinciri, Motor 2 A/B/C, G251'in
+DİĞER içeriği (6 orijinal bölümün METNİ tek karakter değişmedi).
+
 G261 — **Flaky test düzeltmesi (OLCUM-FLAKY-16-08.md'nin bulduğu kök sebep): `paywall-flow.spec.mjs`'in "madde 30 (cevaplama yolu)" testi artık DOĞRU şıkkı seçiyor, körü körüne ilk butona basmıyor — aynı riskli kalıbı taşıyan `layout-geometry.spec.mjs` da düzeltildi. AYRI commit.**
 
 **Kök sebep/gerekçe:** OLCUM-FLAKY-16-08.md'nin bulgusu — test `lives:999`
@@ -19651,7 +19747,29 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G261 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G263 itibarıyla):**
+OLCUM-CIHAZ-16-08.md'nin H maddesi (3 metin düzeltmesi, G262) ve D maddesi
+(bayat geri bildirim paneli, G263) ÇÖZÜLDÜ — AYRI commit'ler. `enterMode()`
+artık geri bildirim panelini HER girişte (mod değişse de değişmese de)
+temizliyor; ilk taslak SADECE mod değişiminde temizliyordu, kendi eklenen
+e2e testi ("aynı moda tekrar gir") bunun yetersiz olduğunu yakalayıp
+düzeltmeyi kendi turunda tamamlattı. `npm test` 1390/1390, `npm run
+test:e2e` 27→29/29 (+2 yeni test).
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. OLCUM-CIHAZ-16-08.md'nin KALAN maddeleri hâlâ AÇIK: A (kulak
+   butonları — TÜM modlarda cihazda çalışmıyor, ayrı bir iş olarak
+   ayrıldı, bu turda DOKUNULMADI), C (Saturation & Distortion sesi
+   Kompresör'den ölçülebilir biçimde yüksek, işitme-güvenliği), E/F
+   (Motor 2 döngü offset stratejisi), G (Frekans Çakışması snare-gitar
+   çifti), I.2 (4 tanı-log ailesinin DEV_MODE'a bağlanması) — hiçbiri bu
+   turun kapsamında DEĞİLDİ.
+2. H.1'in ürün kararı BEKLEYEN: `app.js:10599`'daki dinamik metinde
+   "RX 11" HÂLÂ geçiyor (TOOLS_RESULTS_GUIDE'ın dışında, bu turun
+   kapsamı SADECE guide-texts.js'ti) — istenirse ayrı bir küçük iş.
+3. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü (OLCUM-FLAKY-16-08.md)
+   hâlâ ÇALIŞTIRILARAK test EDİLMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G261 itibarıyla, ARTIK ESKİ):**
 Flaky test düzeltmesi TAMAMLANDI — `paywall-flow.spec.mjs`'in "madde 30
 (cevaplama yolu)" testi artık DOĞRU şıkkı seçiyor (OLCUM-FLAKY-16-08.md'nin
 önerdiği düzeltme, kanca+paylaşılan helper ile uygulandı), AYNI riskli
