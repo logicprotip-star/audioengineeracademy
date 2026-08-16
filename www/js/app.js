@@ -10626,8 +10626,14 @@ function renderToolsAnalysisStereo(result) {
 function renderToolsAnalysisStandardNote(result) {
   if (!els.toolsAnalysisStandardNote) return;
   const m = result.meta;
+  // OLCUM-CIHAZ-16-08.md madde H.1'in devamı (kullanıcı takibi) — "RX 11
+  // karşılaştırmasıyla doğrulandı" ifadesi HEM ürün adı taşıyordu HEM
+  // başka bir araçla karşılaştırma İDDİASI içeriyordu (task'ın kendi
+  // ayrımı: sadece adı çıkarmak yetmez, iddianın kendisi de gereksiz).
+  // Cümle SADECE davranışın kendisini (AES17 konvansiyonunda 0dB'nin
+  // nerede olduğu) anlatacak şekilde sadeleştirildi, iddia YOK.
   els.toolsAnalysisStandardNote.textContent =
-    `ITU-R BS.1770-4 / EBU R128 · True peak: ${m.truePeakOversample}x aşırı örnekleme (genel amaçlı filtre — ITU'nun resmi tablosuyla bit-bire-bir aynı değil, ölçülen üst sınır ~0.04dB yukarı sapma) · RMS penceresi: ${m.rmsWindowMs}ms · RMS konvansiyonu: AES17 (tam ölçekli sinüs = 0dB; HAM konvansiyonda bu −3.01dB kayar, RX 11 karşılaştırmasıyla doğrulandı) · Eşik renkleri yaygın yayın/streaming hedeflerine göre belirlenmiştir, mutlak kural değildir.`;
+    `ITU-R BS.1770-4 / EBU R128 · True peak: ${m.truePeakOversample}x aşırı örnekleme (genel amaçlı filtre — ITU'nun resmi tablosuyla bit-bire-bir aynı değil, ölçülen üst sınır ~0.04dB yukarı sapma) · RMS penceresi: ${m.rmsWindowMs}ms · RMS konvansiyonu: AES17 (tam ölçekli sinüs = 0dB; HAM konvansiyonda bu −3.01dB kayar) · Eşik renkleri yaygın yayın/streaming hedeflerine göre belirlenmiştir, mutlak kural değildir.`;
 }
 
 // --- Short-term seyri grafiği (canvas, DPR-farkında — oyun ekranındaki

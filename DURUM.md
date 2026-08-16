@@ -146,6 +146,45 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G264 — **`app.js:10630`'daki "RX 11 karşılaştırmasıyla doğrulandı" ifadesi (Ölçüm Sonuçları'nın metodoloji notu) sadeleştirildi — ürün adı VE karşılaştırma iddiası ikisi de kaldırıldı. Kod tabanı marka adı için tarandı, tek kullanıcı-görünür örnek buydu. AYRI commit.**
+
+**Kök sebep/gerekçe:** G262'nin (`8d5acc3`) kapsamı SADECE
+`guide-texts.js:TOOLS_RESULTS_GUIDE`'dı — `renderToolsAnalysisStandardNote()`'un
+(`app.js`, Ölçüm Sonuçları panelinin ALT metodoloji notu, `#toolsAnalysisStandardNote`'a
+`textContent` ile yazılıyor) AYNI "RX 11" geçişi o turun dışında bırakılmıştı,
+DURUM.md'nin SIRADAKİ'sine not düşülmüştü. Bu turda hem bu satır hem de
+İKİNCİ bir istek (ürün adı YETMEZ, "doğrulandı" iddiası da kaldırılsın)
+uygulandı.
+
+**Uygulanan:**
+- `"RMS konvansiyonu: AES17 (tam ölçekli sinüs = 0dB; HAM konvansiyonda bu
+  −3.01dB kayar, RX 11 karşılaştırmasıyla doğrulandı)"` →
+  `"RMS konvansiyonu: AES17 (tam ölçekli sinüs = 0dB; HAM konvansiyonda bu
+  −3.01dB kayar)"` — ürün adı VE "doğrulandı" iddiası ikisi de kaldırıldı,
+  cümle SADECE konvansiyonun kendisini anlatıyor.
+- **Tam tarama (task'ın kendi listesi: iZotope/RX/Ozone/JBL/SoundGym/
+  Quiztones/Logic Pro + ek olarak Pro Tools/Waves/FabFilter/Melodyne/
+  Serato/Cubase/Studio One/Ableton/Native Instruments):** `grep -rniE`
+  ile `www/` (js+html) TAMAMI tarandı. Bulunanlar:
+  - `app.js:10630` — kullanıcıya görünen METİN — **DÜZELTİLDİ** (yukarı).
+  - `analysis.js` (7 satır), `wav-parser.js`/`upload.js` (Logic Pro/Pro
+    Tools), `mode-catalog.js`/`reverb.js`/`kompresor.js`/`distortion.js`/
+    `q-genisligi.js`/`frekans-cakismasi.js` (SoundGym) — HEPSİ kod
+    YORUMU (`//`), kullanıcı hiç görmüyor, `app.js:10465` dahil BİLEREK
+    DOKUNULMADI (task'ın kendi sınırı).
+  - `index.html`'deki TÜM "rx"/"RX" eşleşmeleri SVG `<rect rx="...">`
+    (köşe yuvarlama) özniteliğiydi — YANLIŞ POZİTİF, marka adı DEĞİL,
+    tek tek kontrol edilip elendi.
+  - JBL/Quiztones/Ozone: SIFIR sonuç, kod tabanında hiç geçmiyor.
+
+**Testler:** `npm test` 1390/1390, `npm run test:e2e` 29/29 — DEĞİŞMEDİ
+(sadece bir string literal, mantık değişmedi; `grep` ile hiçbir testin
+eski metne bağımlı olmadığı doğrulandı).
+
+**Dokunulan:** `www/js/app.js` (`renderToolsAnalysisStandardNote()`, 1 satır).
+**Dokunulmayan:** Kod yorumlarındaki TÜM marka adları (task'ın açık isteği),
+`guide-texts.js` (G262'de zaten düzeltilmişti), diğer her şey.
+
 G263 — **Bayat geri bildirim paneli düzeltildi: `enterMode()` artık `#feedbackBox`/`#feedbackOverlay`'i her zaman temizliyor — canlar bitip paywall'a zorla yönlendirilen bir round'un geri bildirimi, HANGİ moda (AYNI mod dahil) girilirse girilsin bir daha ekranda kalmıyor. 2 yeni e2e testi. AYRI commit.**
 
 **Kök sebep/gerekçe:** OLCUM-CIHAZ-16-08.md madde D'nin bulgusu —
@@ -19747,26 +19786,25 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G263 itibarıyla):**
-OLCUM-CIHAZ-16-08.md'nin H maddesi (3 metin düzeltmesi, G262) ve D maddesi
-(bayat geri bildirim paneli, G263) ÇÖZÜLDÜ — AYRI commit'ler. `enterMode()`
-artık geri bildirim panelini HER girişte (mod değişse de değişmese de)
-temizliyor; ilk taslak SADECE mod değişiminde temizliyordu, kendi eklenen
-e2e testi ("aynı moda tekrar gir") bunun yetersiz olduğunu yakalayıp
-düzeltmeyi kendi turunda tamamlattı. `npm test` 1390/1390, `npm run
-test:e2e` 27→29/29 (+2 yeni test).
+**EN YENİ SIRADAKİ ADIM (G264 itibarıyla):**
+`app.js:10630`'daki (eski satır 10599 — G262/G263'ün eklediği kod
+yüzünden kaydı) "RX 11 karşılaştırmasıyla doğrulandı" ifadesi ÇÖZÜLDÜ —
+ürün adı VE karşılaştırma iddiası ikisi de kaldırıldı. Kod tabanı
+(iZotope/RX/Ozone/JBL/SoundGym/Quiztones/Logic Pro/Pro Tools/Waves/
+FabFilter/vb.) TAM tarandı — kullanıcıya görünen TEK örnek buydu, kod
+yorumlarındaki marka adlarına (analysis.js'nin 7 satırı, wav-parser.js/
+upload.js'nin Logic Pro/Pro Tools'u, 6 mod dosyasının SoundGym'i)
+BİLEREK dokunulmadı (task'ın kendi sınırı). `npm test` 1390/1390,
+`npm run test:e2e` 29/29 — DEĞİŞMEDİ.
 **Bir sonraki adım — kullanıcının kararı gerekir:**
 1. OLCUM-CIHAZ-16-08.md'nin KALAN maddeleri hâlâ AÇIK: A (kulak
    butonları — TÜM modlarda cihazda çalışmıyor, ayrı bir iş olarak
-   ayrıldı, bu turda DOKUNULMADI), C (Saturation & Distortion sesi
+   ayrıldı, hâlâ DOKUNULMADI), C (Saturation & Distortion sesi
    Kompresör'den ölçülebilir biçimde yüksek, işitme-güvenliği), E/F
    (Motor 2 döngü offset stratejisi), G (Frekans Çakışması snare-gitar
-   çifti), I.2 (4 tanı-log ailesinin DEV_MODE'a bağlanması) — hiçbiri bu
-   turun kapsamında DEĞİLDİ.
-2. H.1'in ürün kararı BEKLEYEN: `app.js:10599`'daki dinamik metinde
-   "RX 11" HÂLÂ geçiyor (TOOLS_RESULTS_GUIDE'ın dışında, bu turun
-   kapsamı SADECE guide-texts.js'ti) — istenirse ayrı bir küçük iş.
-3. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü (OLCUM-FLAKY-16-08.md)
+   çifti), I.2 (4 tanı-log ailesinin DEV_MODE'a bağlanması) — hiçbiri
+   henüz ele alınmadı.
+2. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü (OLCUM-FLAKY-16-08.md)
    hâlâ ÇALIŞTIRILARAK test EDİLMEDİ.
 
 **EN YENİ SIRADAKİ ADIM (G261 itibarıyla, ARTIK ESKİ):**
