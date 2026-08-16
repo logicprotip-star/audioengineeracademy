@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (G250 — Distortion modu "Saturation & Distortion" olarak yeniden adlandırıldı, MODE_ID DEĞİŞMEDİ)
+Son güncelleme: 16.08.2026 (G251 — Ölçüm Sonuçları "i" metnine araç-tarafsız bir "neden küçük fark olur" notu eklendi)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,164 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G251 — **Ölçüm Sonuçları "i" metnine (G245) araç-tarafsız, ürün adı taşımayan bir "neden küçük fark olur" notu eklendi — mevcut 6 bölüm TEK KARAKTER değişmeden korundu.**
+
+**Kök sebep/gerekçe:** OLCUM-RX-KARSILASTIRMA-16-08'in bulgusu — bazı
+metriklerdeki (Max Momentary, LRA, Min RMS) kalan farkların kök sebebi
+KISMEN/TAMAMEN RX'in kapalı-kaynak uygulama detaylarına dayanıyor,
+kullanıcıya bunun "beklenen" olduğunu AÇIKLAYAN bir genel not eksikti
+— mevcut "Başka bir araçla küçük fark görürsen" bölümü (G245) SPESİFİK
+teknik nedenleri (LRA adımı, true peak filtresi) + RX 11 karşılaştırmasını
+anıyordu ama standardın KENDİSİNİN neden yorum farkına açık olduğunu
+GENEL olarak anlatmıyordu.
+
+**Uygulanan:** `core/guide-texts.js`'in `TOOLS_RESULTS_GUIDE.sections`
+dizisine YENİ, 7. bir bölüm EKLENDİ (`"Neden küçük farklar olur?"`) —
+mevcut 6 bölümün (G245'in TAMAMI dahil) hiçbirine TEK KARAKTER
+dokunulmadı, sadece dizinin SONUNA eklendi. Yeni metin:
+- **Ürün adı TAŞIMIYOR** (ne RX ne başka bir isim) — task'ın kendi
+  kuralı, doğrulandı (`grep` ile).
+- **Sayı İÇERMİYOR.**
+- **2 cümle** — "Her ölçüm aracı standardı kendi uygulama tercihleriyle
+  hayata geçirir. Başka bir araçla karşılaştırırken gördüğün küçük
+  farklar bu yüzden normaldir, bir hata değildir."
+- Ton mevcut metnin "bir hata değildir" kapanış kalıbıyla TUTARLI
+  (G245'in kendi üslubunu tekrarlıyor, savunmacı bir dil EKLEMİYOR).
+
+**Testler:** `node --check` temiz. `npm test` → **1390/1390,
+DEĞİŞMEDİ**. `npm run test:e2e` → 3 kez çalıştırıldı, **19/19** (ortadaki
+1 çalıştırmada `paywall-flow.spec.mjs`'de İLGİSİZ bir flake görüldü —
+Ölçüm Sonuçları/guide-texts.js ile HİÇBİR bağlantısı yok, iki TEKRAR
+çalıştırmada da 19/19 TEMİZ geçti, bu değişiklikten KAYNAKLANMADIĞI
+doğrulandı). `test/terminology.test.mjs` `TOOLS_RESULTS_GUIDE`'ı hiç
+İMPORT ETMİYOR (grep ile doğrulandı) — bu değişiklik için bir test
+kilidi YOK, ama yasaklı-çeviri kelimelerinin (yankı/doygun/sıkıştır/
+eşik/artırım/azaltım) hiçbiri yeni metinde de YOK. Canlı Chrome'da
+(Pro simülasyonu) `#toolsResultsInfoBtn` tıklanıp hem G245'in 6 bölümünün
+hem YENİ 7. bölümün doğru sırada, doğru biçimde RENDER edildiği
+GÖRSEL olarak doğrulandı.
+
+**Dokunulan:** `www/js/core/guide-texts.js` (SADECE `TOOLS_RESULTS_GUIDE.
+sections` dizisine 1 yeni obje eklendi).
+**Dokunulmayan:** `analysis.js`'in ölçüm algoritması, G245'in 6 bölümünün
+metni (BİREBİR korundu), G214-G250 arası commit'ler.
+
+OLCUM-RX-KARSILASTIRMA-16-08 — **analysis.js'in iZotope RX 11 ile karşılaştırmasındaki 5 sapan metriğin (14'ten) kök sebep analizi (SADECE ÖLÇÜM, kod/dosya/commit YOK) — `OLCUM-RX-KARSILASTIRMA-16-08.md`'ye yazıldı.**
+
+**Yöntem:** `core/analysis.js` (753 satır) TAM okundu. Gerçek ölçümler:
+Node'da `analyzeAudioBuffer()`'ı 60sn sentetik stereo sinyalle
+doğrudan çağırıp süre ölçüldü; gating granülerliğini (100ms→10ms)
+değiştiren bir SCRATCH kopya (repoya HİÇ yazılmadı, `/private/tmp/...`
+altında, ölçüm sonrası silindi) üzerinde aynı ölçüm tekrarlandı; canlı
+Chrome'da `AudioContext.sampleRate`/`decodeAudioData` gerçek davranışı
+doğrulandı. TUR9'da doğrulanan BS.1770-4/Tech 3342 UYUMU bu turda
+SORGULANMADI (task'ın kısıtı) — sadece pencere/örtüşme/örnekleme gibi
+UYGULAMA detayları incelendi.
+
+**Sonuç (5 sapan metrik):**
+1. **Max Momentary (0.88 LUFS):** pencere (400ms) VE örtüşme (%75) TAM
+   spesifikasyona uyuyor — task'ın "örtüşme yetersiz mi" varsayımı
+   DOĞRULANMADI. Kalan fark muhtemelen 100ms'e SABİT hizalı ızgaranın
+   RX'in (bilinmeyen) iç çözünürlüğüyle TAM örtüşmemesi (ekstremum
+   istatistiği ızgara-fazına duyarlı, ORTALAMA türü istatistikler —
+   integrated 0.03 LUFS — neredeyse hiç etkilenmiyor, tutarlı bir
+   desen). İnce ızgaraya geçişin GERÇEK ölçülen maliyeti: 60sn stereo'da
+   710.5ms→715.7ms (~%0.7, ihmal edilebilir).
+2. **LRA (0.42 LU):** adım boyutu (100ms) Tech 3342'nin literal "1s"ından
+   SAPIYOR ama bu G100'de RX'e göre BİLİNÇLİ ayarlanmış, kısmi (~0.1 LU)
+   iyileştirme sağlamış bir karar — iki kapı/eşikler/yüzdelikler (10/95,
+   nearest-rank) TAM doğru. Kalan fark muhtemelen RX'in kapalı-kaynak
+   detaylarından.
+3. **Sample Peak (0.11/0.07 dB) — EN ÖNEMLİ bulgu:** formül (max(abs(x)))
+   KESİNLİKLE doğru. AudioContext HİÇBİR açık `sampleRate` OLMADAN
+   kuruluyor (`audio-engine.js:362`) — dosyanın native hızı tarayıcının
+   varsayılanından FARKLIYSA `decodeAudioData` SESSİZCE resample
+   YAPABİLİR (bu makinede test edilen dosyada uyuşma vardı, RX
+   karşılaştırmasının kendi dosyası/cihazı BİLİNMİYOR). İKİNCİ eşit
+   derecede geçerli aday: kaynak kayıplı (AAC/MP3) ise iki farklı
+   decoder BİT-BİRE-BİR aynı PCM üretme GARANTİSİ taşımaz. İkisi
+   ayırt edilemedi — test dosyasının formatı/sample rate'i VE ölçüm
+   cihazının `AudioContext.sampleRate`'i bilinmeden KESİNLEŞTİRİLEMEZ.
+4. **Min RMS (1.20/0.66 dB):** standart YOK (kod bunu zaten kabul
+   ediyor). Pencere ÖRTÜŞMÜYOR (sert blok sıfırlama) — RX örtüşen bir
+   pencere kullanıyorsa (yaygın "hızlı RMS" tasarımı) bu app'in daha
+   negatif okumasını (gözlemlenen YÖNLE tutarlı) açıklardı — TEST
+   EDİLMEDİ, sadece gerekçelendirilmiş bir hipotez. Ayrıca: tam dijital
+   sessizlik ÖZEL olarak ele alınmıyor, `-Infinity` üretir (bu dosyada
+   tetiklenmedi ama ayrı, gerçek bir sağlamlık açığı).
+5. **Max RMS/True Peak (0.05-0.09, zaten <0.1):** True peak 8× oversample
+   (BS.1770-4'ün minimum 4×'ünün 2 katı), G100'de ayrıca karakterize
+   edilmiş belirsizlik bandı (~0.04dB üstünden/~0.17dB Nyquist-yakını
+   altından) İÇİNDE — beklenmedik değil, dokunulması ÖNERİLMEDİ.
+
+**Hedef değerlendirmesi ("14'ün en az 12'si <0.1"):** Şu an 9/14 zaten
+<0.1. Sample Peak L (0.11) eşiğe ÇOK yakın, kaynağı resample ise
+düzeltilebilir görünüyor. Diğer 4'ün kök sebebi KISMEN/TAMAMEN RX'in
+kapalı-kaynak detaylarına dayanıyor — **12/14 hedefi ULAŞILABİLİR ama
+GARANTİ EDİLEMEZ**, dürüstçe böyle raporlandı (sayı uydurulmadı).
+
+**Testler/Ölçüm:** Kod/dosya DEĞİŞTİRİLMEDİ, `npm test`/e2e bu tur
+ETKİLENMEDİ. Compute-maliyeti ölçümleri (100ms→10ms ızgara) GERÇEK,
+Node'da yapıldı.
+
+**Dokunulan:** `OLCUM-RX-KARSILASTIRMA-16-08.md` (yeni dosya, henüz
+commit edilmedi — task'ın kendi kuralı: "KOD YAZMA, DOSYA DEĞİŞTİRME,
+COMMIT ATMA").
+**Dokunulmayan:** `core/analysis.js` dahil hiçbir kod dosyası (scratch
+kopya repoya HİÇ girmedi, ölçüm sonrası silindi).
+
+OLCUM-CALMA-SURESI-16-08 — **Kaynak kütüphanesi yenilemesi için soru başına çalma/döngü/başlangıç-noktası/dosya-uzunluğu davranışı ölçüldü (SADECE ÖLÇÜM, kod/commit YOK) — `OLCUM-CALMA-SURESI-16-08.md`'ye yazıldı.**
+
+**Yöntem:** `audio-engine.js`/`source-catalog.js`/`upload.js`/
+`round-flow.js`/`app.js`'in ilgili bölümleri TAM okundu. Bazı sayılar
+GERÇEK ölçümle üretildi: `ffprobe` ile 9 mevcut kaynağın tam süre/boyut/
+bit hızı, canlı Chrome'da `decodeAudioData` ile GERÇEK decode süresi
+(mevcut 5 dosya + `ffmpeg`'le üretilen 20sn'lik 160kbps bir test
+dosyası) — test dosyası ölçümden SONRA silindi, repoda İZ bırakmadı.
+
+**Sonuç:** Çalma mekanizması TÜM 12 modda TEK/ortak — kaynak HER ZAMAN
+`loop=true` ile döngüye giriyor (`loopStart`/`loopEnd` HİÇBİR YERDE
+ayarlanmıyor, dosyanın TAMAMI döngüleniyor), gerçek duyulan süre
+`min(cevap verilene kadar geçen süre, roundDuration)` — dosyanın kendi
+süresiyle (0.25-5.67sn) DOĞRUDAN bir ilişkisi YOK, sadece NE SIKLIKTA
+retrigger edildiğini belirliyor. `roundDuration` mod/zorluğa göre
+~7.5-26sn arasında (Z1-Z7 tam tablo raporda). Başlangıç noktası HER
+ZAMAN offset 0 — SADECE Stereo Genişlik `pickPlaybackOffset()` ile
+rastgele bir noktaya atlıyor. A/B karşılaştırması Motor 1'de (8 mod)
+GERÇEKTEN kesintisiz (gain crossfade, kaynak hiç yeniden kurulmuyor),
+Motor 2'de (Kompresör/Reverb/Saturation & Distortion) HER basışta
+baştan başlıyor (kodun kendi yorumu bunu itiraf ediyor). `requireTransient`
+SADECE Kompresör'de var, sadece gürültüyü (pink/white) dışlıyor.
+`groove_090.m4a`'nın 5.332993sn'lik süresi GERÇEKTEN 90 BPM'de 2 bar'a
+bar-hizalı (0.34ms fark, AAC çerçeve-kuantalamasıyla tutarlı) — diğer
+8 dosyada böyle bir hizalama kanıtı YOK. 8 yeni dosya × 12-25sn @
+160kbps varsayımıyla bundle'a +1.9 ila +3.9 MB (şu anki 9-dosya toplamı
+442 KB'den) — App Store için pratik bir engel değil. Decode süresi
+(gerçek ölçüm, masaüstü Chrome) 20sn'lik dosyada 40ms'nin altında,
+SEANS başına dosya başına SADECE BİR KEZ ödenen bir maliyet
+(`sampleBufferCache`).
+
+**Öneri (ölçüme dayalı, ÜRÜN KARARI DEĞİL):** 12-18sn bandı makul bir
+hedef — mevcut round-süresi aralığıyla (7.5-26sn) karşılaştırıldığında
+döngü noktası ya hiç duyulmaz ya da nadiren duyulur (mevcut KISA
+dosyalarda saniyede birkaç kez retrigger olan durumdan çok daha doğal).
+Döngü mimari olarak GEREKLİ kalıyor (round süresi dosyadan uzun
+olabilir). Kesim noktası müzikal kaynaklarda bar sınırına, diğerlerinde
+sıfır geçişi+fade'e göre seçilebilir (genel DSP prensibi, bu projede
+kulakla DOĞRULANMADI).
+
+**Dürüstlük notu:** Gerçek cihazda decode süresi VE loop noktasında
+kulakla duyulabilir bir "tık" olup olmadığı bu turda ÖLÇÜLMEDİ —
+raporun kendi "Dürüstlük notu" bölümünde açıkça işaretlendi.
+
+**Testler/Ölçüm:** Kod YAZILMADI, `npm test`/e2e bu tur ETKİLENMEDİ,
+YENİDEN ÇALIŞTIRILMADI (gerek yok — hiçbir kaynak dosya değişmedi).
+
+**Dokunulan:** `OLCUM-CALMA-SURESI-16-08.md` (yeni dosya, henüz commit
+edilmedi — task'ın kendi kuralı: "KOD YAZMA, COMMIT ATMA").
+**Dokunulmayan:** Hiçbir kod dosyası, `www/audio/` (test dosyası
+ölçüm SONRASI silindi).
 
 G250 — **Distortion modunun GÖRÜNEN adı "Saturation & Distortion" oldu (Logic'in kararı, OLCUM-DISTORTION-16-08'e dayanarak) — `MODE_ID` ("distortion") KESİNLİKLE DEĞİŞMEDİ, kullanıcı XP/seviye/sınav ilerlemesi risk altında DEĞİL.**
 
@@ -18814,7 +18972,51 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G250 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G251 itibarıyla):**
+Ölçüm Sonuçları "i" metnine araç-tarafsız bir "neden küçük fark olur"
+notu eklendi (AYRI commit). `npm test` 1390/1390, `npm run test:e2e`
+19/19 (3 çalıştırma, ortadaki 1 ilgisiz flake hariç). **Bir sonraki
+adım — kullanıcının kararı gerekir:**
+1. OLCUM-RX-KARSILASTIRMA-16-08.md'nin bulgularına göre (Sample Peak'in
+   kök sebebi, ince gating ızgarası, örtüşen RMS penceresi gibi) hangi
+   analysis.js düzeltmelerinin denenmesine karar verilmeli — bu turda
+   HİÇBİRİ uygulanmadı, sadece metin eklendi.
+2. Sample Peak'in kök sebebini kesinleştirmek için RX karşılaştırmasında
+   kullanılan test dosyasının formatı/örnekleme hızı hâlâ BELİRLENMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (OLCUM-RX-KARSILASTIRMA-16-08 itibarıyla, ARTIK ESKİ):**
+`analysis.js`'in RX 11 karşılaştırmasındaki 5 sapan metrik ÖLÇÜLDÜ (kod/
+dosya DEĞİŞTİRİLMEDİ, `OLCUM-RX-KARSILASTIRMA-16-08.md`, henüz commit
+edilmedi). **Bir sonraki adım — kullanıcının kararı gerekir:**
+1. **Sample Peak'in kök sebebini kesinleştirmek için** RX karşılaştırmasında
+   kullanılan test dosyasının formatı (WAV mı AAC/MP3 mü) + native
+   örnekleme hızı + ölçüm cihazının `AudioContext.sampleRate`'i
+   BELİRLENMELİ — resample mi yoksa kayıplı-decoder farkı mı olduğu
+   bu bilgi olmadan kesinleşemiyor (rapor madde C).
+2. Hangi düzeltmelerin denenmesine karar verilmeli: ince gating ızgarası
+   (Max Momentary), örtüşen RMS penceresi (Min RMS) — ikisinin de
+   GERÇEK ölçülen compute-maliyeti ihmal edilebilir, ama İKİSİ de RX'in
+   kapalı-kaynak algoritmasına göre SONUÇ GARANTİSİ TAŞIMIYOR.
+3. Tam dijital sessizlikte `minRmsDb`'nin `-Infinity` üretmesi (rapor
+   madde D, mevcut sapmanın nedeni DEĞİL ama ayrı bir sağlamlık açığı)
+   — istenirse ayrı, küçük bir düzeltme.
+
+**EN YENİ SIRADAKİ ADIM (OLCUM-CALMA-SURESI-16-08 itibarıyla, ARTIK ESKİ):**
+Kaynak kütüphanesi yenilemesi için çalma/döngü/offset/dosya-uzunluğu
+davranışı ÖLÇÜLDÜ (kod YAZILMADI, `OLCUM-CALMA-SURESI-16-08.md`, henüz
+commit edilmedi). **Bir sonraki adım — kullanıcının kararı gerekir:**
+1. Yeni 8 kaynağın hedef süresi (rapor 12-18sn bandını ÖNERİYOR, kesin
+   sayı Logic'in kararı) ve kesim noktası yöntemi (bar sınırı/sıfır
+   geçişi) netleşmeli.
+2. Gerçek cihazda decode süresi + loop noktasında kulakla "tık" olup
+   olmadığı bu turda ÖLÇÜLMEDİ — yeni dosyalar geldiğinde AYRI bir
+   dinleme/ölçüm turu gerekebilir.
+3. Motor 2'nin (Kompresör/Reverb/Saturation & Distortion) A/B/C
+   önizlemesinin HER basışta baştan başlaması (rapor madde 2) — 12-25sn'lik
+   dosyalarla bu davranış DAHA belirgin hissedilebilir, kod tarafı bu
+   turda DEĞİŞTİRİLMEDİ, sadece GÖZLEMLENDİ.
+
+**EN YENİ SIRADAKİ ADIM (G250 itibarıyla, ARTIK ESKİ):**
 Distortion modu artık "Saturation & Distortion" — `MODE_ID` DEĞİŞMEDİ,
 kullanıcı verisi risk altında DEĞİL (bkz. G250 kaydı). `npm test`
 1390/1390, `npm run test:e2e` 19/19, DEĞİŞMEDİ. **Bir sonraki adım —

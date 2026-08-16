@@ -151,6 +151,16 @@ export const TOOLS_RESULTS_GUIDE = {
     {
       heading: "Başka bir araçla küçük fark görürsen",
       body: "Bu beklenen bir durum — LRA'nın adım büyüklüğü ve true peak'in filtre tasarımı araçtan araca değişebilir. Sayılar RX 11 ile karşılaştırıldı ve yakın çıktı; birebir eşleşmemesi bir hata değildir."
+    },
+    // G251 — G245'in metodoloji metni KORUNDU, üstüne EKLENDİ (yukarıdaki
+    // beş bölüme dokunulmadı). Bu bölüm ÜRÜN ADI TAŞIMAZ (task'ın kendi
+    // kuralı) — yukarıdaki "RX 11" anısı zaten var, bu YENİ bölüm genel/
+    // araç-tarafsız bir gerekçe ekliyor: standardın KENDİSİ uygulama
+    // detaylarını (pencere/örtüşme gibi) açık bırakıyor, farklar bundan
+    // doğar.
+    {
+      heading: "Neden küçük farklar olur?",
+      body: "Her ölçüm aracı standardı kendi uygulama tercihleriyle hayata geçirir. Başka bir araçla karşılaştırırken gördüğün küçük farklar bu yüzden normaldir, bir hata değildir."
     }
   ]
 };
