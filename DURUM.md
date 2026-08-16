@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (G252 — Referans Filtreleri: Telefon Hoparlörü kaldırıldı, Bluetooth Hoparlör eklendi)
+Son güncelleme: 16.08.2026 (G253 — Araçlar Pro-kilit metnindeki stale "telefon hoparlöründen" ifadesi düzeltildi)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,59 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G253 — **`index.html:1203`'teki Araçlar Pro-kilit ekranı alt başlığındaki stale "telefon hoparlöründen" ifadesi "bluetooth hoparlörden" olarak düzeltildi (G252'nin bulduğu 🟡 bulgu, tek satır) — filtre tanımları ve diğer metinler DOKUNULMADI.**
+
+**Kök sebep/gerekçe:** G252'de "Telefon Hoparlörü" filtresi kaldırılıp
+"Bluetooth Hoparlör" eklenmişti; `.tools-lock-sub` metni hâlâ eski
+filtreden bahsediyordu (tam adıyla değil, "telefon hoparlöründen" çekim
+ekli hâliyle yazıldığı için G252'nin ilk grep taramasından kaçmıştı,
+canlı Chrome incelemesiyle bulunup DURUM.md'ye 🟡 olarak not edilmişti).
+
+**Uygulanan (`www/index.html:1203`):**
+```
+ESKİ: "Kendi mixini yükle, telefon hoparlöründen club sistemine kadar
+       referans filtreleriyle dinle."
+YENİ: "Kendi mixini yükle, bluetooth hoparlörden club sistemine kadar
+       referans filtreleriyle dinle."
+```
+Kullanıcının verdiği metin BİREBİR kullanıldı.
+
+**Tarama — aynı hatanın başka yerde olup olmadığı ("telefon hoparlör"
+kökü, TÜM çekim ekleriyle, case-insensitive):** `grep -rniE "telefon
+hoparlör" www/` → `index.html:1203` (DÜZELTİLEN) DIŞINDA 6 sonuç daha
+bulundu, HEPSİ incelendi:
+- `app.js:2657` (`DEFAULT_HP_TEXT`), `app.js:8450` ("Neden kulaklık
+  öneriliyor?" metni), `modes/reverb.js:241`, `modes/frekans-
+  cakismasi.js:301`, `modes/tonal-denge.js:297` — HEPSİ "kulaklık kullan,
+  telefon hoparlöründe ince detaylar kaybolur" tarzı GENEL kulaklık-
+  tavsiyesi metinleri, Referans Filtreleri'nin filtre LİSTESİYLE HİÇ
+  İLGİLİ DEĞİL (telefon hoparlörünün genel olarak yetersiz olduğu bir
+  gerçek, filtre var/yok'tan BAĞIMSIZ hâlâ DOĞRU) — **stale DEĞİL,
+  DOKUNULMADI.**
+- `app.js:11990` (G117'nin üst-blok yorumu, "telefon hoparlörü GERÇEKTEN
+  kısık duyulacak") — bu bir KOD YORUMU (kullanıcıya görünmüyor), G252'de
+  kullanıcı tarafından AÇIKÇA kilitlenmişti (DOKUNULMAYACAK listesi,
+  app.js:11988-11990) — bu turda da DOKUNULMADI, task'ın kapsamı
+  ("aynı hatanın başka yerde olup olmadığını tara") kullanıcıya görünen
+  METİN'i hedefliyordu, kod yorumu zaten AYRICA kilitliydi.
+- `app.js:12004` (G252'nin KENDİ yeni yorumu, Bluetooth filtresinin
+  gerekçesinde "Telefon Hoparlörü'nün ... deseni" referansı) — TARİHSEL
+  bir tasarım-referansı (o filtrenin hâlâ var olduğunu İDDİA ETMİYOR),
+  stale DEĞİL.
+
+**Sonuç: `index.html:1203` DIŞINDA düzeltilmesi gereken BAŞKA bir yer
+YOK.**
+
+**Testler:** `node --check www/js/app.js` temiz (app.js'e bu turda
+dokunulmadı, sadece kontrol amaçlı). `npm test` → **1390/1390,
+DEĞİŞMEDİ**. `npm run test:e2e` → **19/19, DEĞİŞMEDİ**.
+
+**Dokunulan:** `www/index.html` (SADECE `tools-lock-sub` metni, 1
+satır).
+**Dokunulmayan:** `TOOLS_FILTERS` (filtre tanımları), `app.js`'in
+diğer 6 "telefon hoparlör" metni (yukarıda gerekçeli), `test/`, `e2e/`,
+`guide-texts.js`.
 
 G252 — **Referans Filtreleri: "Telefon Hoparlörü" (index 0) kaldırıldı, YERİNE "Bluetooth Hoparlör" eklendi — diğer 4 filtre, zincir sırası, `toolsFilterPreviewGain` (0.85 sabit), mid/side mantığı TEK KARAKTER değişmeden korundu.**
 
@@ -19163,7 +19216,21 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G252 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G253 itibarıyla):**
+Araçlar Pro-kilit ekranındaki stale "telefon hoparlöründen" metni
+"bluetooth hoparlörden" olarak düzeltildi (AYRI commit, tek satır).
+`npm test` 1390/1390, `npm run test:e2e` 19/19, DEĞİŞMEDİ. "telefon
+hoparlör" kökü TÜM çekim ekleriyle tarandı — başka düzeltilmesi
+gereken yer YOK (6 diğer sonuç incelendi, hepsi genel kulaklık-tavsiyesi
+metni, filtre listesinden BAĞIMSIZ, stale DEĞİL). **Bir sonraki adım —
+kullanıcının kararı gerekir:**
+1. Yeni Bluetooth Hoparlör filtresinin kart ızgarasındaki TAM görünümü
+   (G252'de not edildi) hâlâ GERÇEK bir dosya seçilerek/cihazda
+   doğrulanmadı — CDP dosya enjeksiyonu bu ortamda güvenilir çalışmadı.
+2. Yeni filtrenin GERÇEK bir Bluetooth hoparlörle kulakla karşılaştırılması
+   — mevcut 4 filtre de aynı şekilde "kulakla doğrulanmadı" durumda.
+
+**EN YENİ SIRADAKİ ADIM (G252 itibarıyla, ARTIK ESKİ):**
 Referans Filtreleri'nde "Telefon Hoparlörü" kaldırıldı, "Bluetooth
 Hoparlör" eklendi (AYRI commit). `npm test` 1390/1390, `npm run
 test:e2e` 19/19, DEĞİŞMEDİ. **Bir sonraki adım — kullanıcının kararı
