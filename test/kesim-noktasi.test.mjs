@@ -359,7 +359,7 @@ describe("Kesim Noktası — öğretici metin (G20, teachingText/getFeedbackData
 
     const wrongType = { freq: q.freq, filterType: q.filterType === "highpass" ? "lowpass" : "highpass" };
     const wrongFeedback = mode.getFeedbackData(q, wrongType, { gained: 0 });
-    assert.equal(wrongFeedback.title, "Ters yöne gittin");
+    assert.equal(wrongFeedback.title, "Yanlış filtre tipi");
     assert.equal(wrongFeedback.showResult, true);
 
     const wrongFreq = { freq: q.freq * 4, filterType: q.filterType };

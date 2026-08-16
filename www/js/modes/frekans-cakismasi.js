@@ -374,7 +374,7 @@ export function modeDescription(q) {
 export function correctLabel(q) {
   if (q.stage === 1) return `${formatHz(q.trueCenter)}`;
   if (q.stage === 2) return q.correctSource === "a" ? q.pair.labelA : q.pair.labelB;
-  return `${q.correctCutDb.toFixed(1)} dB kes`;
+  return `${q.correctCutDb.toFixed(2)} dB kes`;
 }
 
 // AŞAMA 3'te uygulanacak (ya da "önce" durumunda gain=0 kalan) filtreleri
@@ -502,14 +502,14 @@ export function teachingText(question, answer) {
 
   // AŞAMA 3
   if (result.correct) {
-    return `${question.pair.labelA} ve ${question.pair.labelB} ${centerLabel}'de çakışıyordu. ${cutLabel}'ı ${centerLabel}'den ${Math.abs(question.correctCutDb).toFixed(1)} dB kestin, ${keepLabel}'e yer açıldı — artık ikisi de net. Gerçek mixte ${keepLabel.toLowerCase()}e o bölgeyi bırak, ${cutLabel.toLowerCase()}ı biraz yukarıdan tut.`;
+    return `${question.pair.labelA} ve ${question.pair.labelB} ${centerLabel}'de çakışıyordu. ${cutLabel}'ı ${centerLabel}'den ${Math.abs(question.correctCutDb).toFixed(2)} dB kestin, ${keepLabel}'e yer açıldı — artık ikisi de net. Gerçek mixte ${keepLabel.toLowerCase()}e o bölgeyi bırak, ${cutLabel.toLowerCase()}ı biraz yukarıdan tut.`;
   }
   // Yön (az mı çok mu kesildi) + yakınlığa göre ince/kaba geri bildirim —
   // task'ın üç alt-senaryosu (az kestin / çok kestin / yakın ama tam değil).
   const correctAbs = Math.abs(question.correctCutDb);
   const guessAbs = Math.abs(result.guessCutDb);
   const underCut = guessAbs < correctAbs;
-  const base = `${cutLabel}'dan ${correctAbs.toFixed(1)} dB kesilmesi gerekiyordu, sen ${guessAbs.toFixed(1)} dB dedin`;
+  const base = `${cutLabel}'dan ${correctAbs.toFixed(2)} dB kesilmesi gerekiyordu, sen ${guessAbs.toFixed(2)} dB dedin`;
   if (result.maskOpenedPct >= 75) {
     // Doğruya YAKIN ama tam değil — task'ın "uygun ince geri bildirim" isteği,
     // kaba az/çok mesajı yerine yakınlığı ÖNE çıkaran daha nazik bir ton.
@@ -579,7 +579,7 @@ export function renderAnswerChoices(answersEl, q) {
     return;
   }
   // AŞAMA 3
-  answersEl.innerHTML = q.choices.map(c => `<button type="button" class="ans" data-cut="${c.cutDb}"><b>${c.cutDb.toFixed(1)} dB</b></button>`).join("");
+  answersEl.innerHTML = q.choices.map(c => `<button type="button" class="ans" data-cut="${c.cutDb}"><b>${c.cutDb.toFixed(2)} dB</b></button>`).join("");
 }
 
 export function markAnswerChoices(answersEl, q, picked) {

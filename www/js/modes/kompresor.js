@@ -332,12 +332,12 @@ export function createQuestion(level, settings = {}) {
 }
 
 export function modeDescription() {
-  return "A/B/C ile üçünü de dinle, FARKLI kompresyonlu olanı (dinamiği ne kadar daraltılmış) şıklardan seç.";
+  return "A/B/C ile üçünü de dinle, farklı kompresyonlu olanı (dinamiği ne kadar daraltılmış) şıklardan seç.";
 }
 
 export function correctLabel(question) {
   const odd = question.variants[question.oddIndex];
-  return `${odd.letter} (ratio ${odd.ratio.toFixed(1)}:1, GR ${odd.gainReductionDb.toFixed(1)}dB)`;
+  return `${odd.letter} (ratio ${odd.ratio.toFixed(1)}:1, GR ${odd.gainReductionDb.toFixed(2)} dB)`;
 }
 
 // Soruda uygulanan kompresyonu audioCtx üzerinde kurar. question.previewLetter
@@ -431,7 +431,7 @@ export function teachingText(question, answer) {
     const mixMetni = heavier ? "mixte daha geride/oturmuş durur" : "biraz daha dinamik/canlı kalır";
     base = `İkisi de ${sameTier.word} durumundaydı, ${odd.letter} ${yonMetni} — ${mixMetni}.`;
   } else {
-    base = `${odd.letter} farklıydı (ratio ${odd.ratio.toFixed(1)}:1, threshold ${odd.threshold.toFixed(0)} dB) — ${compressionWord(odd.gainReductionDb)}.`;
+    base = `${odd.letter} farklıydı (ratio ${odd.ratio.toFixed(1)}:1, threshold ${odd.threshold.toFixed(2)} dB) — ${compressionWord(odd.gainReductionDb)}.`;
   }
 
   if (result.correct) return `Doğru! ${base}`;
@@ -458,7 +458,7 @@ export function getFeedbackData(question, answer, context = {}) {
 export function getHintText(question) {
   const odd = question.variants[question.oddIndex];
   const same = question.variants.find((v, i) => i !== question.oddIndex);
-  return odd.gainReductionDb > same.gainReductionDb ? "Farklı olan DAHA ÇOK kompresyonlu" : "Farklı olan DAHA AZ kompresyonlu";
+  return odd.gainReductionDb > same.gainReductionDb ? "Farklı olan daha çok kompresyonlu" : "Farklı olan daha az kompresyonlu";
 }
 
 export function renderHintMask(hintMaskLayerEl) {

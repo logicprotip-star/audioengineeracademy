@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (DEVIR-15-08-GECE.md — 15 Ağustos oturumunun devir belgesi, G214-G248)
+Son güncelleme: 16.08.2026 (G249 — METIN-TARAMA-2-15-08'in 6 bulgusundan 5'inin düzeltmesi + boost/cut terim tutarlılığı)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,76 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G249 — **METIN-TARAMA-2-15-08'in 6 bulgusundan 5'i düzeltildi (AYRI commit) — filtre-tipi başlık hatası, nokta-sonrası küçük harf (3 dosya), Motor 2'nin ALL-CAPS sızıntısı (kompresor.js/reverb.js — distortion.js KULLANICI KARARIYLA bu turda dokunulmadı), dB sayı biçimi (2 ondalık standardı), boost/cut terim tutarlılığı (frekans-bulma.js).**
+
+**Kök sebep/kapsam:** `METIN-TARAMA-2-15-08.md`'nin 6 bulgusundan 5'i
+kod tarafında düzeltildi; #5 (`frekans-cakismasi.js`'in "İpucu:" öneki
+tutarsızlığı) bu turun kapsamına ALINMADI (task listesinde YOKTU, o
+madde METIN-TARAMA-2'de hâlâ AÇIK).
+
+**Uygulanan:**
+1. **(a) Öğretim hatası** — `kesim-noktasi.js:519`: `"Ters yöne gittin"`
+   (filtre TİPİ hatasında yanlış bağlamda kullanılıyordu) →
+   `"Yanlış filtre tipi"`. `test/kesim-noktasi.test.mjs:362`'deki
+   ilgili assertion GÜNCELLENDİ (davranış/metin kasıtlı değişti,
+   test onu doğru şekilde takip ediyor).
+2. **(b) Nokta-sonrası küçük harf, 3 dosya** — `q-genisligi.js`'in
+   `LABELS[].mixText` (66-70), `boost-mu-cut-mu.js`'in
+   `DIRECTION_EFFECT` (453-456), `db-seviyesi.js`'in `DIRECTION_EFFECT`
+   (413-416) — hepsi büyük harfle başlayacak şekilde düzeltildi.
+3. **(c) Motor 2 ALL-CAPS sızıntısı** — `kompresor.js` (335, 461) ve
+   `reverb.js` (325, 475, 476) SADECE — `distortion.js`'e bu turda
+   KULLANICI KARARIYLA dokunulmadı (bölüm 2'nin ölçüm-only kısıtıyla
+   çakışmasın diye, kullanıcı AÇIKÇA "hayır, distortion.js'e hiç
+   dokunma" dedi). "FARKLI"/"DAHA ÇOK"/"DAHA AZ"/"BAŞKA"/"DAHA
+   UZUN"/"DAHA KISA" → küçük harfe çevrildi.
+4. **(d) dB sayı biçimi** — `kompresor.js` (GR: 1 ondalık/boşluksuz →
+   2 ondalık/boşluklu; threshold: 0 ondalık → 2 ondalık),
+   `frekans-cakismasi.js` (4 yer, hepsi 1 ondalıktan 2 ondalığa) —
+   `db-seviyesi.js`/`boost-mu-cut-mu.js`'in ZATEN kurulu `formatDb()`
+   standardına (2 ondalık, boşluklu, "dB" son eki) hizalandı.
+   `distortion.js`'in drive gösterimi (birimsiz, 2 ondalık) bu
+   kapsamın DIŞINDA bırakıldı (farklı bir fiziksel büyüklük, ayrıca
+   dosyaya dokunulmuyor).
+5. **(e) Terim tutarlılığı** — SADECE `frekans-bulma.js:494`:
+   `"yükseltildi ▲"`/`"kesildi ▼"` → `"boost edildi ▲"`/`"cut edildi
+   ▼"` (kullanıcının kendi örnek cümlesiyle — "boost ettim" — BİREBİR
+   aynı kalıp). **Diğer terimler (attack/release/threshold/ratio/
+   knee/gain/headroom/wet-dry/pre-delay/decay) TARANDI, kullanıcıya
+   görünen metinde SIFIR Türkçeleştirilmiş örnek bulundu** (hepsi
+   sadece kod yorumlarında) — değiştirilecek başka bir yer YOKTU.
+   **İKİ borderline durum BİLEREK değiştirilmedi** (TERIM-KURALI.md'nin
+   kendi "hava" ayrımıyla — bant adı/etiket İngilizce kalır, açıklama
+   metnindeki NİTELİK Türkçe kalabilir — gerekçelendirildi):
+   - `frekans-bulma.js:201-206` (FA_ZONES) — "yükseltmek"/"kesmek"
+     akıcı ÖĞRETİCİ anlatı içinde bir NİTELİK/eylem tarif ediyor,
+     `act` alanındaki gibi kısa bir ETİKET değil.
+   - `reverb.js`'in `mixMeaning`/`REVERB_AMOUNT_TIERS`'ındaki
+     "kuru"/"ıslak" — sesin KARAKTERİNİ tarif eden sıfatlar, uygulamada
+     kullanıcıya gösterilen bir "wet/dry" kontrolü/etiketi YOK
+     (wetMix tamamen dahili bir DSP parametresi).
+   - `frekans-cakismasi.js`'in onlarca "kes-" fiili (kesilmesi/
+     kesildi/kesilecek/vb.) — modun TÜM öğretim anlatısına yayılmış,
+     tek tek İngilizce'ye çevirmek "sadece dil/terim düzeltmesi"
+     sınırını AŞIP ÖĞRETİM İÇERİĞİNİ yeniden yazmak olurdu (DOKUNULMAYACAK
+     listesindeki kısıtla ÇELİŞİRDİ) — AYRI, daha büyük bir karar
+     olarak SIRADAKİ'ye taşındı.
+
+**Testler:** `node --check` 8 değişen dosyada + test dosyasında temiz.
+`npm test` → **1390/1390, DEĞİŞMEDİ** (kesim-noktasi.test.mjs'in
+1 assertion'ı KASITLI güncellendi, testler KIRILMADI). `npm run
+test:e2e` → **19/19, DEĞİŞMEDİ**. Değişen 8 dosyadaki TÜM `getFeedbackData`/
+`teachingText`/`getHintText`/`modeDescription`/`correctLabel` çıktıları
+Node'da doğrudan çağrılıp (saf fonksiyonlar, DOM/ses bağımsız) GERÇEK
+string çıktısı gözle doğrulandı.
+
+**Dokunulan:** `kesim-noktasi.js`, `q-genisligi.js`, `boost-mu-cut-mu.js`,
+`db-seviyesi.js`, `kompresor.js`, `reverb.js`, `frekans-cakismasi.js`,
+`frekans-bulma.js`, `test/kesim-noktasi.test.mjs`.
+**Dokunulmayan:** `distortion.js` (kullanıcı kararıyla, bkz. yukarı),
+ölçüm algoritmaları, hedef eğri değerleri, zorluk eğrisi, e2e suite
+yapısı, G214-G248 arası commit'ler, 581f798, a4efb42.
 
 DEVİR — **`DEVIR-15-08-GECE.md` yazıldı — 15 Ağustos oturumunun (G214-G248, 35 commit) TAM devir belgesi, yarın sıfırdan devam edilebilmesi için.**
 
@@ -18616,7 +18686,26 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (DEVIR-15-08-GECE.md itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G249 itibarıyla):**
+METIN-TARAMA-2-15-08.md'nin 6 bulgusundan 5'i G249 olarak commit edildi.
+`npm test` 1390/1390, `npm run test:e2e` 19/19, DEĞİŞMEDİ. Aynı görev
+kapsamında Distortion modunun (WaveShaper eğrisi/harmonik içerik/isim
+sorusu) ÖLÇÜMÜ — `OLCUM-DISTORTION-16-08.md` — SIRADA/az sonra. **Bir
+sonraki adım:**
+1. `frekans-cakismasi.js`'in "kes-" fiilinin (kesilmesi/kesildi/vb.,
+   onlarca yer) boost/cut terim kuralına göre İngilizce'ye çevrilip
+   çevrilmeyeceği — G249'da BİLEREK ERTELENDİ (kapsamı "sadece terim
+   düzeltmesi"ni aşıp modun TÜM öğretim anlatısını yeniden yazmaya
+   dönüşüyor), AYRI bir karar/tur gerektiriyor.
+2. `frekans-cakismasi.js:539-546`'nın "İpucu:" öneki tutarsızlığı
+   (METIN-TARAMA-2'nin #5 bulgusu) — G249'un kapsamına ALINMADI, hâlâ AÇIK.
+3. Distortion ölçümünün SONUCUNA göre (Saturation'a yeniden adlandırma
+   kararı) — kod DEĞİŞTİRİLMEDİ, sadece ölçüldü, karar Logic'e ait.
+Ayrıca önceki turların açık maddeleri (BEYAN-DENETIM'in .gitignore
+tuzağı, Fletcher-Munson/Boost-Cut kararları, TUR6'nın Android/G236
+bulgusu) hâlâ AÇIK, bu turdan ETKİLENMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (DEVIR-15-08-GECE.md itibarıyla, ARTIK ESKİ):**
 15 Ağustos oturumu KAPANDI, `DEVIR-15-08-GECE.md` tek giriş noktası.
 `npm test` 1390/1390, `npm run test:e2e` 19/19. **Yarının sırası (bkz.
 devir belgesinin kendi bölüm numaraları):**

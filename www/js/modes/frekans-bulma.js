@@ -491,7 +491,7 @@ export function evaluateAnswer(question, answer) {
   const dOct = Math.abs(Math.log2(guessHz / question.freq));
   const ok = dOct <= 0.5; // yarım oktav içi = doğru
   const zone = faZoneOf(question.freq);
-  const act = question.gain >= 0 ? "yükseltildi ▲" : "kesildi ▼";
+  const act = question.gain >= 0 ? "boost edildi ▲" : "cut edildi ▼";
   const dir = guessHz > question.freq ? "daha tiz seçtin" : "daha pes seçtin";
   const quality = dOct <= 0.17 ? "🎯 Tam isabet!" : (dOct <= 0.33 ? "Çok iyi!" : "Doğru!");
 

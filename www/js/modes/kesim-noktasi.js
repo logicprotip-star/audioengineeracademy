@@ -516,7 +516,7 @@ export function getFeedbackData(question, answer, context = {}) {
   if (result.correct) {
     return { result, title: "Doğru!", detail: `${text} (+${gained} XP)`, showResult: true, panel: null };
   }
-  const title = result.typeOk ? "Yakın ama kaçtı" : "Ters yöne gittin";
+  const title = result.typeOk ? "Yakın ama kaçtı" : "Yanlış filtre tipi";
   return { result, title, detail: text, showResult: true, panel: null };
 }
 

@@ -63,11 +63,11 @@ export const EXAM_WEAK_AREA = "zone";
 // Dar ~3-5/Geniş ~0.5-1" aralıklarına makul bir başlangıç noktası, "Orta" ve "Çok
 // Geniş" (spec'in "belki 4-5 kademe" notuyla istenen granülerlik) araya/uca eklendi.
 const LABELS = [
-  { id: "notch", tr: "Notch", qMin: 7, qMax: 16, mixText: "cerrahi bir müdahale — tek bir rezonansı/uğultuyu avlar, mix'in geri kalanına neredeyse hiç dokunmaz" },
-  { id: "dar", tr: "Dar", qMin: 3, qMax: 7, mixText: "hedefli bir düzeltme — dar bir bölgeyi düzeltir, komşu frekanslara sızma az" },
-  { id: "orta", tr: "Orta", qMin: 1.3, qMax: 3, mixText: "dengeli bir müdahale — ne çok cerrahi ne çok müzikal, genel amaçlı" },
-  { id: "genis", tr: "Geniş", qMin: 0.5, qMax: 1.3, mixText: "müzikal bir renklendirme — geniş bir bölgenin genel tonunu şekillendirir" },
-  { id: "cokgenis", tr: "Çok Geniş", qMin: 0.2, qMax: 0.5, mixText: "çok geniş bir ton eğimi — neredeyse bir shelf gibi davranır, tüm bölgeyi yumuşakça renklendirir" }
+  { id: "notch", tr: "Notch", qMin: 7, qMax: 16, mixText: "Cerrahi bir müdahale — tek bir rezonansı/uğultuyu avlar, mix'in geri kalanına neredeyse hiç dokunmaz" },
+  { id: "dar", tr: "Dar", qMin: 3, qMax: 7, mixText: "Hedefli bir düzeltme — dar bir bölgeyi düzeltir, komşu frekanslara sızma az" },
+  { id: "orta", tr: "Orta", qMin: 1.3, qMax: 3, mixText: "Dengeli bir müdahale — ne çok cerrahi ne çok müzikal, genel amaçlı" },
+  { id: "genis", tr: "Geniş", qMin: 0.5, qMax: 1.3, mixText: "Müzikal bir renklendirme — geniş bir bölgenin genel tonunu şekillendirir" },
+  { id: "cokgenis", tr: "Çok Geniş", qMin: 0.2, qMax: 0.5, mixText: "Çok geniş bir ton eğimi — neredeyse bir shelf gibi davranır, tüm bölgeyi yumuşakça renklendirir" }
 ].map(l => ({ ...l, qCenter: Math.sqrt(l.qMin * l.qMax) }));
 
 export const MIN_Q = LABELS[LABELS.length - 1].qMin;

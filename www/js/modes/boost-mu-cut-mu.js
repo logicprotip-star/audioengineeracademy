@@ -451,8 +451,8 @@ export function calculateXP(question, result, hintUsed, level, context = {}) {
 
 const DIRECTION_WORD = { boost: "boost", cut: "cut" };
 const DIRECTION_EFFECT = {
-  boost: "boost sesi öne çıkarır, mix'te daha baskın yapar",
-  cut: "cut sesi geri çeker, mix'te daha az yer kaplatır"
+  boost: "Boost sesi öne çıkarır, mix'te daha baskın yapar",
+  cut: "Cut sesi geri çeker, mix'te daha az yer kaplatır"
 };
 function magnitudeWord(absDb) {
   if (absDb < 2) return "ince bir dokunuş — dikkatli dinlemeden fark edilmez";

@@ -322,7 +322,7 @@ export function createQuestion(level, settings = {}) {
 }
 
 export function modeDescription() {
-  return "A/B/C ile üçünü de dinle, reverb'i FARKLI olan sesi şıklardan seç.";
+  return "A/B/C ile üçünü de dinle, reverb'i farklı olan sesi şıklardan seç.";
 }
 
 export function correctLabel(question) {
@@ -472,8 +472,8 @@ export function getFeedbackData(question, answer, context = {}) {
 export function getHintText(question) {
   const odd = question.variants[question.oddIndex];
   const same = question.variants.find((v, i) => i !== question.oddIndex);
-  if (odd.type !== same.type) return `Farklı olan BAŞKA bir tip reverb (${REVERB_TYPES[same.type].label} değil)`;
-  return odd.amountScore > same.amountScore ? "Farklı olan DAHA UZUN/derin reverb'li" : "Farklı olan DAHA KISA/yakın reverb'li";
+  if (odd.type !== same.type) return `Farklı olan başka bir tip reverb (${REVERB_TYPES[same.type].label} değil)`;
+  return odd.amountScore > same.amountScore ? "Farklı olan daha uzun/derin reverb'li" : "Farklı olan daha kısa/yakın reverb'li";
 }
 
 export function renderHintMask(hintMaskLayerEl) {

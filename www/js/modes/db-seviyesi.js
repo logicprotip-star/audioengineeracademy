@@ -411,8 +411,8 @@ function magnitudeWord(absDb) {
 const DIRECTION_WORD = { up: "açıldı", down: "kısıldı" };
 // Yön yanlışken (case 3) ters yönün ne anlama geldiğini hatırlatan ifadeler.
 const DIRECTION_EFFECT = {
-  up: "açılınca sesin öne çıkması, mix'te daha baskın olması demek",
-  down: "kısılınca sesin geri çekilmesi, mix'te daha az yer kaplaması demek"
+  up: "Açılınca sesin öne çıkması, mix'te daha baskın olması demek",
+  down: "Kısılınca sesin geri çekilmesi, mix'te daha az yer kaplaması demek"
 };
 
 // SAF FONKSİYON. Cevap sonrası öğretici Türkçe metin gövdesi — ÜÇ durum: (1) doğru
