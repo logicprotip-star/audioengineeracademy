@@ -933,7 +933,7 @@ function openFilesSheetForContext(contextId) {
 // cakisma'nın kendi "kick-bas" hazır çifti) uploadManagerA/B'yi HİÇ görmez.
 const uploadManagerA = createUploadManager(() => audioEngine.audioCtx);
 const uploadManagerB = createUploadManager(() => audioEngine.audioCtx);
-audioEngine.onReady = () => drawVisualizer();
+audioEngine.onReady = () => syncGameVisualizerLoop(); // G247 — koşulsuz başlatma yerine ekran-bazlı senkron
 
 // G47: Sınav sistemi (core/exam-system.js) — TEK örnek, round-flow.js/audio-engine.js
 // ile AYNI "bir kez yarat, elde tut" deseni. mode.EXAM_ENABLED export ETMEYEN
@@ -2357,6 +2357,15 @@ function goScreen(name) {
     // okumak tarayıcıyı güncel layout'u hesaplamaya zorlar — rAF'a gerek yok (rAF arka
     // planda/pasif sekmelerde ertelenebiliyor, bu da güvenilmez ölçümlere yol açıyordu).
     resizeCanvas();
+    // G247 — oyun ekranına HER girişte (kart tıklama, geri tuşu, Dosyalarım
+    // sheet'inden dönüş) drawVisualizer() döngüsünü uyandırır — ekrandan
+    // çıkarken KENDİSİ durduğu için (bkz. drawVisualizer'ın gameScreenActive()
+    // kontrolü) burada AÇIKÇA yeniden başlatılması GEREKİYOR. Ses henüz
+    // unlock edilmemişse bile GÜVENLİ (drawVisualizer'ın "Visualizer pasif"
+    // dalı zaten bu durumu ele alıyor) — audioEngine.onReady'nin AYRICA
+    // çağırdığı syncGameVisualizerLoop() (varsa) bu noktada zaten planlı
+    // bulup no-op olur.
+    syncGameVisualizerLoop();
     // G123 — bu MODUN kendi kalıcı dosya seçimini (varsa) uploadManager'a
     // yükle — G122'de sadece Stereo Genişlik'e özgüydü, artık "upload"
     // destekleyen TÜM modlarda genel. syncUploadGate'in "mod DEĞİŞMEDİYSE
@@ -5814,8 +5823,33 @@ function resetChallengeForNewParkur() {
 // Görselleştirici (spektrum + modun dalga/eksen katmanı)
 // ═══════════════════════════════════════════════════════════════════════════
 
+// G247 (TUR710-PERF-ARAYUZ-15-08 bulgusu 🟡) — ÖNCEDEN drawVisualizer() KOŞULSUZ
+// kendi kendini rAF'a yeniden planlıyordu: audioEngine.onReady'de BİR KEZ
+// başlayıp UYGULAMANIN GERİ KALAN ÖMRÜ boyunca, HANGİ EKRANDA olunursa olunsun
+// (Araçlar/Ayarlar/İlerleme dahil) saniyede 60 kez çalışmaya devam ediyordu —
+// kod içinde `document.hidden`/aktif-ekran kontrolü YOKTU. `toolsFilterUiTick`/
+// `toolsTonalLiveTick`'in (Araçlar'ın KENDİ rAF döngüleri, G102/G117) AYNI
+// "kontrol et → planla → çalış, koşul düşerse YENİDEN PLANLAMA" deseni burada
+// da uygulandı — TEK fark: Araçlar'ın döngüleri PLAYBACK durumuna bağlı
+// (`toolsFilterPlaying` vb.), bu döngü SADECE oyun ekranının aktif/görünür
+// olmasına bağlı (spektrum HER ZAMAN, çalma durumundan bağımsız, görsel bir
+// "boş" durum bile göstermeli — bkz. altındaki "Visualizer pasif" dalı).
+let gameVisualizerRafId = null;
+function gameScreenActive() {
+  return document.querySelector(".screen.active")?.id === "screen-game" && !document.hidden;
+}
+// Ekrana giriş/audio ilk hazır olduğunda çağrılır — döngü ZATEN planlıysa
+// (toolsFilterSyncUiLoop/toolsTonalSyncLiveLoop'un AYNI "if (id) return"
+// deseni) tekrar planlamaz, oyun ekranı aktif DEĞİLSE hiç başlatmaz.
+function syncGameVisualizerLoop() {
+  if (gameVisualizerRafId) return;
+  if (!gameScreenActive()) return;
+  gameVisualizerRafId = requestAnimationFrame(drawVisualizer);
+}
 function drawVisualizer() {
-  requestAnimationFrame(drawVisualizer);
+  gameVisualizerRafId = null;
+  if (!gameScreenActive()) return; // ekran değişti/arka plana gidildi — döngü BURADA durur, syncGameVisualizerLoop() ile uyanır
+  gameVisualizerRafId = requestAnimationFrame(drawVisualizer);
 
   const w = canvasCssW;
   const h = canvasCssH;

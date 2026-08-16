@@ -146,6 +146,70 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G247 — **Görsel döngü durdurma (Düzeltme 2, TUR710-PERF-ARAYUZ-15-08 bulgusu 🟡) — `drawVisualizer()`'ın rAF döngüsü artık SADECE oyun ekranı aktifken çalışıyor, diğer 9 rAF çağrı noktası KONTROL EDİLDİ (SADECE bu bir tanesi bozuktu).**
+
+**Kök sebep:** `drawVisualizer()` fonksiyonun EN BAŞINDA KOŞULSUZ
+`requestAnimationFrame(drawVisualizer)` çağırıyordu — `audioEngine.
+onReady`'de BİR KEZ başladıktan SONRA, uygulamanın GERİ KALAN ÖMRÜ
+boyunca (Araçlar/Ayarlar/İlerleme dahil HER ekranda) saniyede 60 kez
+canvas çiziyordu, ekran/görünürlük kontrolü YOKTU.
+
+**Diğer canvas'lar kontrol edildi (task'ın açık isteği) — TAM 10
+`requestAnimationFrame(` çağrı noktasının HEPSİ tek tek okundu:**
+4'ü **ONE-SHOT** (self-reschedule YOK — `scrollFeedbackIntoView`/
+`scrollToAnalyzer`/sheet açılış animasyonu/`toolsOpenResultsAccordion`'ın
+tek seferlik grafik çizimi), İKİSİ **ZATEN DOĞRU** desende
+(`toolsFilterUiTick`/`toolsTonalLiveTick` — Araçlar'ın KENDİ rAF
+döngüleri, `toolsToolsScreenActive()` kontrolü + `if (id) return`
+çifte-planlama koruması ZATEN VARDI, bu turda SADECE doğrulandı,
+DOKUNULMADI), BİRİ **ZATEN doğru şekilde iptal edilebilir**
+(`calMeterRaf` — kalibrasyon meter'i, `cancelAnimationFrame` çağrısı
+zaten mevcut). **SADECE `drawVisualizer` bozuktu** — task'ın "onlar
+da düzelsin" şartı, düzeltilecek BAŞKA bir yer BULUNMADIĞI için
+karşılanmış oldu.
+
+**Uygulanan (`toolsFilterUiTick`'in AYNI, ZATEN KANITLANMIŞ deseni
+kopyalandı):**
+1. `gameScreenActive()` — `toolsToolsScreenActive()`'ın AYNAsı,
+   `.screen.active` id'si `"screen-game"` mi VE `!document.hidden` mi
+   kontrol ediyor.
+2. `gameVisualizerRafId` — döngünün o an PLANLI olup olmadığını izler.
+3. `drawVisualizer()`: EN BAŞTA `gameScreenActive()` kontrolü — false
+   ise reschedule ETMEDEN döner (döngü BURADA durur); true ise ÖNCE
+   bir sonraki kareyi planlar, SONRA çizim yapar (eski davranışla
+   BİREBİR aynı sıra, sadece bir kontrol eklendi).
+4. `syncGameVisualizerLoop()` — `toolsFilterSyncUiLoop()`'un AYNI
+   "zaten planlıysa no-op" deseni — `audioEngine.onReady`'den VE
+   `goScreen()`'in `name==="game"` dalından (oyun ekranına HER
+   girişte — kart tıklama/geri tuşu/Dosyalarım'dan dönüş) çağrılıyor.
+5. Ses henüz unlock edilmemişken bile GÜVENLİ — `drawVisualizer`'ın
+   ZATEN VAR OLAN "Visualizer pasif" dalı bu durumu ele alıyor,
+   YENİ bir kontrol GEREKMEDİ.
+
+**Testler:** YENİ `e2e/game-visualizer-loop.spec.mjs` — GERÇEK bir
+tarayıcıda `window.requestAnimationFrame`'i (`page.addInitScript`
+ile, uygulama yüklenmeden ÖNCE) bir sayaçla sarmalayıp: oyun
+ekranındayken 500ms'de 15'ten fazla çağrı (KABUL kriteri — 60fps'te
+~30 beklenir), `#backBtn` ile menüye çıkıp İlerleme'ye geçince
+500ms'de 5'ten AZ çağrı (döngü DURDU), Antrenman→AYNI mod kartına
+tekrar girince YENİDEN 15'ten fazla çağrı (⚠️ task'ın "sorunsuz
+yeniden başlamalı" şartı) — HEPSİ GERÇEK UI tıklamalarıyla (tab
+bar/mod kartı/#backBtn), test-only bir kısayol (`window.goScreen()`
+gibi) İCAT EDİLMEDİ.
+
+**Ölçüm:** `npm test` → **1390/1390, DEĞİŞMEDİ** (bu düzeltme app.js'in
+DOM/rAF katmanında, unit test kapsamı dışında). `npm run test:e2e` →
+**19/19** (18+1 yeni, HİÇBİRİ kırılmadı — KİLİT karşılandı).
+
+**Dokunulan:** `www/js/app.js` (SADECE `drawVisualizer`'ın kendisi +
+`audioEngine.onReady` + `goScreen()`'in `name==="game"` dalına TEK
+satır ekleme), `e2e/game-visualizer-loop.spec.mjs` (yeni).
+**Dokunulmayan:** `toolsFilterUiTick`/`toolsTonalLiveTick`/
+`animateCalMeter`'in KENDİ döngüleri (zaten doğru, DOKUNULMADI),
+diğer 4 one-shot rAF çağrısı, ölçüm algoritmaları, hedef eğri
+değerleri, e2e suite YAPISI (yeni bir dosya EKLENDİ, mevcut yapı
+DEĞİŞTİRİLMEDİ), zorluk eğrisi, G214-G246 arası commit'ler.
+
 G246 — **iCloud yedeği hariç tutma (Düzeltme 1, TUR710-PERF-ARAYUZ-15-08 bulgusu 🔴) — `file-storage.js` artık `Directory.LIBRARY_NO_CLOUD` kullanıyor, eski dosyalar için `Directory.DATA`'ya okuma/silme fallback'i var, native Swift/Kotlin KODU YAZILMADI.**
 
 **Kök sebep:** Kullanıcının yüklediği dosyalar `Directory.Data`'da
