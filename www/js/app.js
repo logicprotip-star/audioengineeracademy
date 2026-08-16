@@ -11991,18 +11991,30 @@ function drawTonalChartCustomRef(mixDevs, refDevs, liveDevs) {
 // ═══════════════════════════════════════════════════════════════════════════
 const TOOLS_FILTERS = [
   {
-    name: "Telefon Hoparlörü", range: "400 Hz – 6 kHz", kind: "phone", icon: "M7 3h10v18H7zM10 18h4",
-    // ~500Hz altı pratikte YOK (2 kademeli highpass, ~24dB/oktav — tek
-    // kademe yeterince sert değildi), 1–3kHz orta bant öne çıkar (peaking
-    // tepe 2kHz), ~8kHz üstü söner.
+    name: "Bluetooth Hoparlör", range: "90 Hz – 13 kHz", kind: "bluetooth", icon: "M7 7L17 17L12 22V2L17 7L7 17",
+    // 90Hz highpass: küçük sürücülerin fiziksel alt sınırı — taşınabilir
+    // hoparlörlerin çoğu 100-150Hz altında bası kesiyor. 150Hz +5dB:
+    // üreticilerin DSP loudness telafisi — gerçek sub yokken "bas var"
+    // hissi vermek için bu bölge yükseltiliyor, küçük hoparlörde bas ancak
+    // harmonikleriyle duyulur, bu tümsek onu taklit ediyor. 3kHz +4dB:
+    // küçük sürücülerin doğal tepesi + DSP netlik vurgusu, 2-6kHz insan
+    // kulağının en duyarlı bölgesi. 13kHz lowpass: yayınlanmış "20kHz"
+    // spec'leri toleranssız, gerçek düşüş 12-14kHz civarı. İKİ peaking
+    // KASITLI (diğer filtrelerde TEK) — hem yapay bas tümseği hem orta
+    // vurgu gerekiyor, Telefon Hoparlörü'nün highpass ×2 kademeli deseni
+    // gibi tip tekrarı zaten kabul edilmiş bir yaklaşım. Belirli bir
+    // marka/model taklit edilmiyor, taşınabilir hoparlör SINIFININ tipik
+    // davranışı modelleniyor (bkz. index.html'deki .tools-filter-dsp-note,
+    // aynı "gerçek ölçüm değil" uyarısı bu filtre için de geçerli).
     eq: [
-      { type: "highpass", freq: 500, q: 0.9 },
-      { type: "highpass", freq: 500, q: 0.9 },
-      { type: "peaking", freq: 2000, gain: 7, q: 1.1 },
-      { type: "lowpass", freq: 8000, q: 0.8 }
+      { type: "highpass", freq: 90, q: 0.9 },
+      { type: "peaking", freq: 150, gain: 5, q: 1.2 },
+      { type: "peaking", freq: 3000, gain: 4, q: 1.0 },
+      { type: "lowpass", freq: 13000, q: 0.8 }
     ],
-    // Tek hoparlör — yan bileşen SIFIR (mid=1, side=0 ⇒ L'=R'=(L+R)/2, tam mono).
-    stereo: [{ lo: 20, hi: 20000, mid: 1, side: 0 }]
+    // Sürücüler birbirine çok yakın — stereo ayrımı zayıf (side=0.25,
+    // Laptop'tan [0.3] daha dar, ama tam mono değil).
+    stereo: [{ lo: 20, hi: 20000, mid: 1, side: 0.25 }]
   },
   {
     name: "Araba", range: "60 Hz – 14 kHz", kind: "car", icon: "M4 16v-3l2-5h12l2 5v3M4 16h16M7 16v2M17 16v2",
@@ -12257,7 +12269,7 @@ function toolsConnectFilterPreviewChain() {
 // aktif/pasif geçişi diğer kart öğeleriyle (`.tools-filter-name` vb.) AYNI
 // mekanizmayı paylaşıyor.
 const TOOLS_FILTER_ILLUST_PATHS = {
-  phone: `<rect x="19" y="3" width="18" height="38" rx="3.5"></rect><line x1="24.5" y1="8" x2="31.5" y2="8"></line><line x1="25" y1="35" x2="31" y2="35"></line>`,
+  bluetooth: `<rect x="6" y="16" width="40" height="18" rx="9"></rect><circle cx="18" cy="25" r="6"></circle><circle cx="34" cy="25" r="6"></circle><path d="M41 4.5L49 9.5L45 12V2L49 4.5L41 9.5"></path>`,
   car: `<path d="M3 30h50"></path><path d="M9 30L12 21H18L21 13H35L38 21H44L47 30"></path><circle cx="16" cy="32" r="3.4"></circle><circle cx="40" cy="32" r="3.4"></circle>`,
   head: `<path d="M6 25v-4a22 22 0 0 1 44 0v4"></path><rect x="2" y="23" width="9" height="15" rx="3.5"></rect><rect x="45" y="23" width="9" height="15" rx="3.5"></rect>`,
   club: `<rect x="17" y="3" width="22" height="38" rx="2.5"></rect><circle cx="28" cy="28" r="8"></circle><circle cx="28" cy="28" r="3"></circle><circle cx="28" cy="11" r="3.4"></circle>`,

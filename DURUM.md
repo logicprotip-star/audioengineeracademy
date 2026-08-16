@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (G251 — Ölçüm Sonuçları "i" metnine araç-tarafsız bir "neden küçük fark olur" notu eklendi)
+Son güncelleme: 16.08.2026 (G252 — Referans Filtreleri: Telefon Hoparlörü kaldırıldı, Bluetooth Hoparlör eklendi)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,197 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G252 — **Referans Filtreleri: "Telefon Hoparlörü" (index 0) kaldırıldı, YERİNE "Bluetooth Hoparlör" eklendi — diğer 4 filtre, zincir sırası, `toolsFilterPreviewGain` (0.85 sabit), mid/side mantığı TEK KARAKTER değişmeden korundu.**
+
+**Kök sebep/gerekçe:** Kullanıcı kararı, OLCUM-FILTRELER-16-08.md'nin
+ölçtüğü mevcut yapıya dayanarak. Değerler (frekans/Q/gain/side) ve
+gerekçe metni KULLANICI tarafından verildi, koda BİREBİR aktarıldı —
+uydurulmadı.
+
+**Uygulanan (`www/js/app.js`):**
+- `TOOLS_FILTERS[0]` (`app.js:11992-12006` ESKİ hâli) tamamen
+  DEĞİŞTİRİLDİ: `name:"Bluetooth Hoparlör"`, `range:"90 Hz – 13 kHz"`,
+  `kind:"bluetooth"`, yeni `icon` path. `eq`: highpass 90Hz Q0.9 +
+  peaking 150Hz Q1.2 +5dB + peaking 3000Hz Q1.0 +4dB + lowpass 13000Hz
+  Q0.8 (4 node, İKİ peaking KASITLI — kullanıcının kendi notu: bas
+  tümseği + orta vurgu, Telefon Hoparlörü'nün highpass ×2 kademeli
+  deseniyle AYNI "tip tekrarı kabul edilmiş" mantığı). `stereo`:
+  `[{lo:20,hi:20000,mid:1,side:0.25}]`.
+- Kod yorumu kullanıcının verdiği GEREKÇEYLE (90Hz fiziksel alt sınır,
+  150Hz DSP loudness telafisi, 3kHz doğal tepe+netlik, 13kHz
+  yayınlanmış spec toleranssızlığı, side=0.25 dar sahne) mevcut
+  filtrelerin yorum ÜSLUBUYLA (madde-madde, "~X altı/üstü" kalıbı)
+  TUTARLI yazıldı. "Gerçek ölçüm değil, tipik taklit" uyarısı (üst
+  blok yorumu, `app.js:11983-11991`) DOKUNULMADI — zaten TÜM filtreler
+  için geçerli, yeni filtre otomatik kapsanıyor.
+- `TOOLS_FILTER_ILLUST_PATHS`'teki ARTIK KULLANILMAYAN `phone` anahtarı
+  SİLİNDİ (dead code — Telefon Hoparlörü artık yok), YERİNE `bluetooth`
+  anahtarı eklendi: pill-şekilli hoparlör gövdesi (2 daire sürücü) +
+  köşede küçük Bluetooth rün simgesi, diğer 4 illüstrasyonla (rect+
+  circle deseni, Club Sistemi'yle aynı yaklaşım) TUTARLI stil.
+- **DOKUNULMAYAN (kilit listesi, doğrulandı):** Araba/Kulaklık/Club
+  Sistemi/Laptop Hoparlörü objeleri BİREBİR aynı. Zincir kurulum sırası
+  (`toolsConnectFilterPreviewChain`), `toolsFilterPreviewGain=0.85`,
+  `toolsBuildMidSideStage` — TEK SATIR değişmedi.
+
+**Kontrol sonuçları (task'ın kendi soruları):**
+1. **Kayıtlı kullanıcı seçimi — ETKİLENMİYOR, doğrulandı:**
+   `toolsFilterActiveIdx` `grep` ile TEKRAR kontrol edildi, HİÇBİR
+   `storage.js`/`localStorage` bağlantısı YOK — OLCUM-FILTRELER
+   raporunun "aktif seçim hiç kaydedilmiyor" bulgusu BAĞIMSIZ olarak
+   yeniden doğrulandı.
+2. **Testler — SIFIR bağımlılık:** `grep -rl "Telefon Hoparlör\|
+   Bluetooth Hoparlör\|toolsFilterActiveIdx\|TOOLS_FILTERS" test/ e2e/`
+   sonuç YOK.
+3. **"i" metni — filtreleri saymıyor, güncellenecek bir şey YOK:**
+   `grep -n "...filtre isimleri..." guide-texts.js` sonuç YOK
+   (doğrulandı, değişmedi).
+4. **🟡 Mağaza/kilit metninde "Telefon Hoparlörü" GEÇİYOR — Logic'e
+   BİLDİRİLDİ, KOD DEĞİŞTİRİLMEDİ (ürün kararı):** `index.html:1203`,
+   `.tools-lock-sub` sınıfı (Araçlar'ın Pro-kilit ekranı alt başlığı):
+   *"Kendi mixini yükle, telefon hoparlöründen club sistemine kadar
+   referans filtreleriyle dinle."* Bu metin `grep -rn "Telefon Hoparlör"
+   test/ e2e/ guide-texts.js` taramasında YAKALANMADI çünkü küçük harfle
+   ve çekim ekiyle yazılı ("telefon hoparlöründen") — canlı Chrome'da
+   Araçlar ekranını GÖRSEL olarak inceleyerek bulundu. **Bu metin
+   ARTIK yanlış** (Bluetooth Hoparlör var, Telefon Hoparlörü yok) —
+   düzeltme METNİ kullanıcının kendi tercihine bağlı (ör. "telefon
+   hoparlöründen" → "bluetooth hoparlöründen"), bu turda DOKUNULMADI.
+
+**Testler:** `node --check www/js/app.js` temiz. `npm test` →
+**1390/1390, DEĞİŞMEDİ**. `npm run test:e2e` → **19/19, DEĞİŞMEDİ**.
+Canlı Chrome'da (Pro simülasyonu, `localStorage.eqEarTrainerProXPurchase`)
+Araçlar ekranı GÖRSEL olarak doğrulandı — Pro kilit ekranındaki metin
+sorunu BÖYLE bulundu. Yeni ikonun (küçük kart ikonu + büyük
+illüstrasyon) GERÇEKTEN doğru render edildiği, izole bir HTML sayfasında
+UYGULAMANIN KULLANDIĞI AYNI SVG path string'leriyle görsel olarak
+doğrulandı (Bluetooth rün sembolü + pill-şekilli hoparlör gövdesi, iki
+sürücü dairesi — net, bozuk değil). **Uygulama içinde GERÇEK bir dosya
+yükleyip Referans Filtreleri kart ızgarasını CANLI görüntüleme
+denendi ama dosya seçme akışı bu ortamda (CDP dosya enjeksiyonu) güvenilir
+çalışmadı** — bu YÜZDEN ikon doğrulaması izole sayfada yapıldı, kartın
+UYGULAMA İÇİNDEKİ tam görünümü (aktif/pasif renk geçişi dahil) cihazda/
+gerçek bir dosya seçilerek AYRICA doğrulanmalı.
+
+**Dokunulan:** `www/js/app.js` (`TOOLS_FILTERS[0]`,
+`TOOLS_FILTER_ILLUST_PATHS.phone→bluetooth`).
+**Dokunulmayan:** `index.html` (mağaza metni SORUN olarak tespit edildi
+ama DEĞİŞTİRİLMEDİ — ürün kararı), diğer 4 filtre, zincir/gain/mid-side
+mantığı, `test/`, `e2e/`, `guide-texts.js`.
+
+OLCUM-FILTRELER-16-08 — **Referans Filtreleri'nin (5 filtre) tam DSP yapısı, kaynak/gerekçesi, ekleme/çıkarma maliyeti ve Bluetooth filtresi için yapı önerisi ölçüldü (SADECE ÖLÇÜM, kod/dosya/commit YOK) — `OLCUM-FILTRELER-16-08.md`'ye yazıldı.**
+
+**Yöntem:** `app.js:11983-12460` (TOOLS_FILTERS tanımı + zincir kurulumu +
+oynatıcı akışı) TAM okundu. `index.html`/`www/styles.css`/`guide-texts.js`/
+`test/`/`e2e/` grep edildi. TUR9-ARACLAR-15-08.md'nin (dün) bu konudaki
+TÜM iddiaları (persistans yok, test bağımlılığı yok, "i" metni isim
+anmıyor, DSP-taklit uyarısı) bu turda BAĞIMSIZ OLARAK YENİDEN grep ile
+doğrulandı — TUR9'a güvenilmedi, kod dünden bugüne bu bölgede
+DEĞİŞMEDİĞİ için AYNI sonuçlar tekrar üretildi.
+
+**Sonuç (özet, tam detay raporda):**
+1. **A)** 5 filtrenin `eq` (BiquadFilterNode, seri, 2-4 node) ve
+   `stereo` (mid/side matris, seri, EQ'dan SONRA) zincirleri TAM
+   çıkarıldı, dosya:satır verildi. Zincir HER ZAMAN kaynak→EQ→stereo→
+   [solo]→gain sırasında. **Toplam kazanç telafisi YOK** (kod yorumu:
+   "task'ın kendi kararı").
+2. **B)** En büyük değer +7dB (Telefon, 2kHz peaking) / -4.5dB (Araba,
+   350Hz peaking). Bypass durumu VAR (`toolsFilterActiveIdx=-1`).
+   Çıkış seviyesi filtreler arasında EŞİTLENMİYOR — `toolsFilterPreviewGain`
+   SABİT 0.85, hangi filtre seçili olursa olsun. G242'nin A/B loudness-
+   eşitlemesiyle TUTARSIZLIK DEĞİL — iki mekanizma bilerek farklı
+   pedagojik amaçlara hizmet ediyor.
+3. **C)** Kod VE UI'da (`index.html:1185`, `.tools-filter-dsp-note`)
+   AÇIKÇA "gerçek cihaz ölçümü değildir" etiketi var — dürüst
+   etiketleme. Hangi spesifik cihaz/model taklit edildiği kodda
+   BELİRTİLMEMİŞ, sadece jenerik kategori isimleri var.
+4. **D)** `toolsFilterActiveIdx` HİÇBİR YERDE persist edilmiyor
+   (TUR9'un iddiası doğrulandı) — filtre kaldırma/değiştirme
+   persistans/test/metin AÇISINDAN SIFIR ek maliyetli. `kind` alanı
+   SADECE ikon-sözlüğü aramasında kullanılıyor, CSS'te kind-özel
+   kural YOK.
+5. **E)** Gerçek zamanlı (`OfflineAudioContext` yok), filtre değişince
+   kaynak node YENİDEN BAŞLAMIYOR (pozisyon korunuyor), sadece
+   downstream zincir sökülüp kuruluyor — kulakla duyulabilir "tık"
+   olup olmadığı bu turda ÖLÇÜLMEDİ (BELİRSİZ, dinleme testi
+   gerektirir). Aynı anda TEK filtre seçilebiliyor (karşılıklı
+   dışlayıcı).
+6. **F)** Bluetooth filtresi için YAPI önerisi verildi (değer değil):
+   "Telefon Hoparlörü"nün YERİNE geçmeli (5 filtre sayısı korunur),
+   2-4 node'luk seri `eq` + tek ya da çok-bantlı `stereo`, kazanç
+   telafisi EKLENMEMELİ (mimari tutarlılık).
+
+**Testler/Ölçüm:** Kod/dosya DEĞİŞTİRİLMEDİ, `npm test`/e2e bu tur
+ETKİLENMEDİ. Tamamen kod okuma + grep ile yapıldı (canlı ses deneyi
+bu turun kapsamında YOK — E'deki "tık" sorusu bu yüzden BELİRSİZ
+kaldı).
+
+**Dokunulan:** `OLCUM-FILTRELER-16-08.md` (yeni dosya, henüz commit
+edilmedi — task'ın kendi kuralı: "KOD YAZMA, DOSYA DEĞİŞTİRME,
+COMMIT ATMA").
+**Dokunulmayan:** `app.js`/`index.html`/`styles.css`/`guide-texts.js`
+dahil hiçbir kod dosyası.
+
+OLCUM-SAMPLERATE-16-08 — **Sample rate zincirinin A-G tüm bölümleri ölçüldü (SADECE ÖLÇÜM, kod/dosya/commit YOK) — `OLCUM-SAMPLERATE-16-08.md`'ye yazıldı.**
+
+**Yöntem:** `audio-engine.js` (TEK `AudioContext` yapım noktası, `grep`
+ile doğrulandı), `upload.js`, `analysis.js`, `analysis-worker.js` TAM
+okundu/grep edildi. Canlı Chrome'da (masaüstü) 4 GERÇEK deney: (1)
+44.1kHz kaynak bir dosyayı 44100Hz ve 48000Hz context'e decode edip
+`sampleRate`/`length`/`duration` karşılaştırıldı, (2) bellek-içi
+üretilen 1000Hz test tonu mismatch-decode edilip Goertzel ile tepe
+frekansı ölçüldü, (3) `frekans-bulma.js`'in gerçek "medium" filtre
+parametreleriyle (`gain:8,q:1.3`) `OfflineAudioContext` + gerçek
+`BiquadFilterNode` kullanılarak 44100Hz ve 48000Hz'de kazanç (dB)
+ölçüldü, (4) 96kHz'lik 30kHz'lik bir ton 44.1kHz'e decode edilip
+aliasing/anti-alias davranışı Goertzel ile ölçüldü. Hiçbir dosya
+diske YAZILMADI, hiçbir kod DEĞİŞTİRİLMEDİ.
+
+**Sonuç (özet, tam detay raporda):**
+1. **A)** Context açıkça hiçbir `sampleRate` VERMİYOR (`audio-engine.js:362`,
+   doğrulandı) — iOS/WKWebView'in gerçek varsayılan hızı, Bluetooth
+   codec etkisi, route-change'de hız değişip değişmediği **BELİRSİZ**
+   (bu ortamda ÖLÇÜLEMEDİ). G203 SADECE pause/resume'u ele alıyor,
+   `sampleRate`'i HİÇ kontrol etmiyor — TAM metni okunarak doğrulandı.
+   `recreateContext()`'in `sampleBufferCache.clear()` + `onContextRecreated`'in
+   ana dosyayı YENİDEN decode ettirmesi (kod okunarak doğrulandı) —
+   context farklı hızda yeniden kurulsa bile ESKİ/yanlış-hızlı buffer
+   YANLIŞLIKLA yeniden kullanılmıyor.
+2. **B)** `decodeAudioData` context'in hızına GERÇEKTEN, BİR KEZ decode
+   anında resample yapıyor (HER çalmada DEĞİL — `sampleBufferCache`
+   Promise önbelleği ile doğrulandı). Ölçülen kalite: frekans-koruyucu
+   (1000Hz→1000.00Hz, sıfır kayma), anti-aliasing doğru çalışıyor.
+   Kaynakları 48kHz'e taşımanın net bir kazancı GÖRÜNMÜYOR.
+3. **C)** Kullanıcı dosyaları (48/96/192kHz) AYNI mekanizmadan geçiyor.
+   96kHz'in 20kHz-üstü içeriği doğru SÜZÜLÜYOR, duyulabilir banda
+   ALIASING OLARAK katlanmıyor (GERÇEK ölçüldü).
+4. **D) ⚠️ EN KRİTİK:** Frekans Bulma'nın "1kHz" sorusu context hızından
+   BAĞIMSIZ doğru hedefliyor — 44100Hz ve 48000Hz'de ölçülen filtre
+   kazancı arasındaki fark **0.002dB** (gürültü seviyesinde). BiquadFilterNode
+   HER ZAMAN gerçek Hz hedefliyor, kayma ÖLÇÜLEMEDİ.
+5. **E)** Resample süreyi/pitch'i DEĞİŞTİRMİYOR (5.67s→5.67s, iki farklı
+   context hızında da BİREBİR aynı, GERÇEK ölçüldü).
+6. **F)** `OfflineAudioContext` kod tabanında HİÇ KULLANILMIYOR (`grep`
+   sıfır sonuç) — `analysis.js` TEK, paylaşılan context'in ürettiği
+   buffer üzerinde, `bufferLike.sampleRate`'i genel olarak okuyarak
+   çalışıyor, ayrı bir ikinci "hız" YOK.
+7. **G)** Bu turda MASAÜSTÜ Chrome'da ölçülen hiçbir senaryoda gerçek
+   bir sorun BULUNAMADI. Kalan risk TAMAMEN iOS/WebKit'e özgü, BU
+   ortamda ölçülemeyen alanlarda (resample kalitesi, varsayılan hız,
+   route-change davranışı). Kullanıcının "context'i kilitlemek sorunu
+   katman değiştirir, kaybolmaz" iddiası mimari olarak GEREKÇELİ
+   bulundu (spec-tutarlı çıkarım, ölçülmedi) — context kilitlemesi
+   ÖNERİLMEDİ.
+
+**Testler/Ölçüm:** Kod/dosya DEĞİŞTİRİLMEDİ, `npm test`/e2e bu tur
+ETKİLENMEDİ. 4 deney GERÇEK, canlı Chrome'da (masaüstü) çalıştırıldı.
+
+**Dokunulan:** `OLCUM-SAMPLERATE-16-08.md` (yeni dosya, henüz commit
+edilmedi — task'ın kendi kuralı: "KOD YAZMA, DOSYA DEĞİŞTİRME,
+COMMIT ATMA").
+**Dokunulmayan:** `audio-engine.js`/`upload.js`/`analysis.js`/
+`analysis-worker.js`/`app.js` dahil hiçbir kod dosyası.
 
 G251 — **Ölçüm Sonuçları "i" metnine (G245) araç-tarafsız, ürün adı taşımayan bir "neden küçük fark olur" notu eklendi — mevcut 6 bölüm TEK KARAKTER değişmeden korundu.**
 
@@ -18972,7 +19163,65 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G251 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G252 itibarıyla):**
+Referans Filtreleri'nde "Telefon Hoparlörü" kaldırıldı, "Bluetooth
+Hoparlör" eklendi (AYRI commit). `npm test` 1390/1390, `npm run
+test:e2e` 19/19, DEĞİŞMEDİ. **Bir sonraki adım — kullanıcının kararı
+gerekir:**
+1. **🟡 `index.html:1203`'teki Araçlar Pro-kilit ekranı metni
+   ("...telefon hoparlöründen club sistemine kadar...") ARTIK YANLIŞ**
+   — Bluetooth Hoparlör var, Telefon Hoparlörü yok. Bu turda TESPİT
+   EDİLDİ ama DEĞİŞTİRİLMEDİ (ürün kararı, metin kullanıcının kendi
+   tercihine bağlı).
+2. Yeni filtrenin kart ızgarasındaki TAM görünümü (aktif/pasif renk
+   geçişi, ikon render'ı UYGULAMA İÇİNDE) bu turda GERÇEK bir dosya
+   seçilerek doğrulanamadı (CDP dosya enjeksiyonu bu ortamda güvenilir
+   çalışmadı, izole SVG testiyle DOLAYLI doğrulandı) — cihazda/gerçek
+   tarayıcıda AYRICA kontrol edilmeli.
+3. Yeni filtrenin GERÇEK bir Bluetooth hoparlörle kulakla karşılaştırılması
+   — mevcut 4 filtre de aynı şekilde "kulakla doğrulanmadı" durumda.
+
+**EN YENİ SIRADAKİ ADIM (OLCUM-FILTRELER-16-08 itibarıyla, ARTIK ESKİ):**
+Referans Filtreleri'nin tam DSP yapısı, kaynağı ve Bluetooth filtresi
+için YAPI önerisi ÖLÇÜLDÜ (kod/dosya DEĞİŞTİRİLMEDİ,
+`OLCUM-FILTRELER-16-08.md`, henüz commit edilmedi). **Bir sonraki
+adım — kullanıcının kararı gerekir:**
+1. Logic'in kendi araştırmasına dayanarak Bluetooth Hoparlör'ün
+   GERÇEK `eq`/`stereo` değerlerini (frekans/Q/gain, mid-side oranı)
+   belirlemesi gerekiyor — rapor SADECE yapıyı (kaç node, hangi
+   tipler, hangi sırada) önerdi, sayı ÖNERMEDİ (task'ın kendi kuralı).
+2. "Telefon Hoparlörü"nün YERİNE mi geçecek yoksa 6. bir filtre olarak
+   mı EKLENECEK netleşmeli — rapor kullanıcının orijinal talebine
+   göre "YERİNE geçme" varsaydı, kesin karar kullanıcıya ait.
+3. Yeni filtre kodlanınca `TOOLS_FILTER_ILLUST_PATHS`'e bir SVG ikon
+   eklenmesi ÖNERİLİYOR (zorunlu değil, D) maddesi — eklenmezse
+   illüstrasyon alanı boş kalır ama çökmez).
+4. Filtreler arası CANLI geçişte kulakla "tık" olup olmadığı hiç
+   ÖLÇÜLMEDİ (rapor madde E, BELİRSİZ) — yeni filtre eklendiğinde
+   cihazda/dinleyerek doğrulanmalı.
+
+**EN YENİ SIRADAKİ ADIM (OLCUM-SAMPLERATE-16-08 itibarıyla, ARTIK ESKİ):**
+Sample rate zinciri (A-G) ÖLÇÜLDÜ (kod/dosya DEĞİŞTİRİLMEDİ,
+`OLCUM-SAMPLERATE-16-08.md`, henüz commit edilmedi). Masaüstü Chrome'da
+ölçülen hiçbir senaryoda gerçek bir sorun BULUNAMADI (decode-resample
+frekans-koruyucu, BiquadFilterNode context-hızından bağımsız doğru,
+anti-aliasing doğru). **Bir sonraki adım — kullanıcının kararı/cihaz
+testi gerekir:**
+1. iOS Safari/WKWebView'de gerçek varsayılan `AudioContext.sampleRate`
+   hiç ÖLÇÜLMEDİ — bu turda ortam erişimi YOK, rapor bunu açıkça
+   BELİRSİZ olarak işaretledi (madde A).
+2. Kulaklık/Bluetooth tak-çıkarında context hızının değişip
+   değişmediği, G203'ün kapsamadığı bir alan — cihazda test edilmeli
+   (madde A/G).
+3. Bu raporun D maddesindeki Goertzel/OfflineAudioContext testi
+   Safari'de AYNEN tekrarlanıp WebKit'in resample kalitesinin
+   Chrome'la aynı olup olmadığı doğrulanmalı (madde B/D).
+4. Rapor iki potansiyel iyileştirme fikri NOT ETTİ (uygulanmadı):
+   analiz için `OfflineAudioContext`'i dosyanın native hızında açmak
+   (madde G) ve kaynakları 48kHz'e taşımak (madde B, net kazanç
+   GÖRÜNMÜYOR, ÖNERİLMEDİ) — ikisi de kullanıcı kararı gerektirir.
+
+**EN YENİ SIRADAKİ ADIM (G251 itibarıyla, ARTIK ESKİ):**
 Ölçüm Sonuçları "i" metnine araç-tarafsız bir "neden küçük fark olur"
 notu eklendi (AYRI commit). `npm test` 1390/1390, `npm run test:e2e`
 19/19 (3 çalıştırma, ortadaki 1 ilgisiz flake hariç). **Bir sonraki
