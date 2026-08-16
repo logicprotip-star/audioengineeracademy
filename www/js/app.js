@@ -2108,6 +2108,39 @@ function showBoostCutEars(guessFreq, guessGainDb) {
   els.fbEarRight.dataset.preview = "correct";
 }
 
+// Frekans Çakışması Aşama 1'in kulak butonları — REFERANS: showFrequencyEars,
+// ama ses üretim yolu TAMAMEN FARKLI (tek-kaynak buildQuestionChain değil,
+// çift-kaynak buildDualSourceChain — bkz. click-handler'ın "cakisma" dalı).
+// Gizli değer q.trueCenter (merkez frekans).
+function showCakismaStage1Ears(guessCenter) {
+  if (!els.fbEarLeft || !els.fbEarRight) return;
+  els.fbEarLeft.classList.remove("hidden");
+  els.fbEarRight.classList.remove("hidden");
+  els.fbEarLeft.classList.remove("neutral", "on");
+  els.fbEarRight.classList.remove("on");
+  els.fbEarLeft.textContent = "Senin seçimin";
+  els.fbEarLeft.dataset.preview = "mine";
+  els.fbEarLeft.dataset.guessCenter = String(guessCenter);
+  els.fbEarRight.dataset.preview = "correct";
+}
+
+// Frekans Çakışması Aşama 3'ün kulak butonları — ses üretim yolu Aşama
+// 1'den de FARKLI: chain YENİDEN KURULMUYOR, round'un KENDİ ZATEN CANLI
+// zinciri kullanılıyor (bkz. app.js:4879-4883'teki "AŞAMA 3'te ses
+// DURDURULMAZ" notu, audioEngine.setDualCut() doğrudan çağrılıyor). Gizli
+// değer q.correctCutDb (kaç dB kesildiği, KAYNAK zaten Aşama 2'den belli).
+function showCakismaStage3Ears(guessCutDb) {
+  if (!els.fbEarLeft || !els.fbEarRight) return;
+  els.fbEarLeft.classList.remove("hidden");
+  els.fbEarRight.classList.remove("hidden");
+  els.fbEarLeft.classList.remove("neutral", "on");
+  els.fbEarRight.classList.remove("on");
+  els.fbEarLeft.textContent = "Senin kesimin";
+  els.fbEarLeft.dataset.preview = "mine";
+  els.fbEarLeft.dataset.guessCut = String(guessCutDb);
+  els.fbEarRight.dataset.preview = "correct";
+}
+
 // Gerçek XP kırılımı — CLAUDE.md/task kuralı: "uydurma sayı yazma". Tüm
 // çarpanlar calculateXP()'ye GEÇİLEN AYNI context'ten (bkz. her submit
 // fonksiyonunun kendi calculateXP çağrısı) veya mode'un KENDİ DIFFICULTY/
@@ -4921,6 +4954,11 @@ function submitCakismaGuess(answer) {
   setAnalyzerPhase("done");
   if (els.gainValue) els.gainValue.textContent = "";
   if (q.stage === 1 && answer.center != null) cakismaGuess = { center: answer.center };
+  // OLCUM-KULAK-16-08 — Aşama 3'ün kulak butonu için kullanıcının kestiği
+  // dB miktarı (`data-cut`'tan gelen, ZATEN negatif/işaretli sayı — bkz.
+  // evaluateAnswer'ın guessCutDb'yi HİÇ Math.abs() etmeden karşılaştırdığı
+  // kısım).
+  const cakismaStage3GuessCutDb = q.stage === 3 && answer.cutDb != null ? answer.cutDb : null;
   if (isChoiceFormat()) mode.markAnswerChoices(els.answers, q, answer);
 
   stats.rounds++;
@@ -4948,6 +4986,8 @@ function submitCakismaGuess(answer) {
     const feedback = mode.getFeedbackData(q, answer, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
     showXpBreakdown(q, q.difficulty, gained);
+    if (q.stage === 1) showCakismaStage1Ears(answer.center);
+    if (q.stage === 3 && cakismaStage3GuessCutDb != null) showCakismaStage3Ears(cakismaStage3GuessCutDb);
     if (q.stage === 1) mode.recordZone(zoneStats, q.trueCenter, true, result.dOct);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
@@ -4961,6 +5001,8 @@ function submitCakismaGuess(answer) {
 
     const feedback = mode.getFeedbackData(q, answer, { gained: 0 });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    if (q.stage === 1) showCakismaStage1Ears(answer.center);
+    if (q.stage === 3 && cakismaStage3GuessCutDb != null) showCakismaStage3Ears(cakismaStage3GuessCutDb);
     if (q.stage === 1) mode.recordZone(zoneStats, q.trueCenter, false, result.dOct);
     audioEngine.sfxBuzz();
     shake(els.canvas);
@@ -6735,8 +6777,9 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
   // birer dal eklenir, showFrequencyEars'in KENDİ "frequency" dalı hiç
   // değişmiyor.
   const qMode = activeQuestion.mode;
+  const isCakismaEar = qMode === "cakisma" && (activeQuestion.stage === 1 || activeQuestion.stage === 3);
   const earEligible = qMode === "frequency" || qMode === "cutoff" || qMode === "dblevel" || qMode === "pan" || qMode === "width"
-    || (qMode === "boostcut" && activeQuestion.layer !== 1);
+    || (qMode === "boostcut" && activeQuestion.layer !== 1) || isCakismaEar;
   if (!earEligible) return;
 
   const preview = btn.dataset.preview;
@@ -6767,16 +6810,46 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
       const guessFreq = Number(btn.dataset.guessFreq);
       if (!Number.isFinite(guessGain) || !Number.isFinite(guessFreq)) return;
       guessQuestion = { ...activeQuestion, freq: guessFreq, gainDb: guessGain };
+    } else if (isCakismaEar) {
+      // aşağıda AYRI ele alınıyor (dual-source, buildQuestionChain'e HİÇ girmiyor)
     }
   } else if (preview !== "clean" && preview !== "correct") {
     return;
+  }
+  if (isCakismaEar && preview === "mine") {
+    const val = activeQuestion.stage === 1 ? Number(btn.dataset.guessCenter) : Number(btn.dataset.guessCut);
+    if (!Number.isFinite(val)) return;
   }
 
   els.feedbackBox.querySelectorAll(".fb-ear").forEach(c => c.classList.remove("on"));
   btn.classList.add("on");
 
   await audioEngine.initAudio();
-  if (preview === "clean") {
+  // Frekans Çakışması — İKİ kaynağın AYNI ANDA çalması gereken tek mod
+  // (bkz. audio-engine.js:buildDualSourceChain dosya başı notu), diğer
+  // sekiz modun TEK-kaynak buildQuestionChain'i buna UYGUN değil.
+  if (isCakismaEar) {
+    if (activeQuestion.stage === 3) {
+      // AŞAMA 3'te ses ZATEN CANLI çalıyor (submitCakismaGuess bilerek
+      // stopAudio() ÇAĞIRMIYOR, bkz. o fonksiyonun "AŞAMA 3" notu) — YENİDEN
+      // KURMAYA gerek yok, aynı zincirin filtresini setDualCut ile hedef
+      // dB'ye çekmek yeterli (cakismaBefore/After'ın KENDİ deseni).
+      const targetDb = preview === "mine" ? Number(btn.dataset.guessCut) : -Math.abs(activeQuestion.correctCutDb);
+      audioEngine.setDualCut(activeQuestion.correctSource, targetDb);
+    } else {
+      // AŞAMA 1'de submitCakismaGuess stopAudio() ÇAĞIRIYOR (diğer sekiz
+      // modla AYNI dal) — chain YENİDEN kurulmalı. previewGainDb SADECE
+      // burada, önizleme SIRASINDA set ediliyor (frekans-cakismasi.js:
+      // applyProcessing'in opsiyonel alanı) — normal soru objesi hiç
+      // taşımıyor, gerçek oyun turunu ETKİLEMEZ.
+      const targetFreq = preview === "mine" ? Number(btn.dataset.guessCenter) : activeQuestion.trueCenter;
+      // mode.BASE_CUT_DB — frekans-cakismasi.js'in KENDİ, zaten var olan
+      // sabiti (Aşama 3'ün kesim büyüklüğü) — YENİ bir sayı İCAT EDİLMEDİ,
+      // aynı modülün mevcut bir DEĞERİ ÖDÜNÇ alındı.
+      const previewQuestion = { ...activeQuestion, trueCenter: targetFreq, previewGainDb: mode.BASE_CUT_DB };
+      await audioEngine.buildDualSourceChain(previewQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing);
+    }
+  } else if (preview === "clean") {
     await audioEngine.buildQuestionChain(activeQuestion, false, activeQuestion.source, uploadManager, mode.applyProcessing);
   } else if (preview === "correct") {
     await audioEngine.buildQuestionChain(activeQuestion, true, activeQuestion.source, uploadManager, mode.applyProcessing);

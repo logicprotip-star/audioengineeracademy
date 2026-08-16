@@ -384,18 +384,27 @@ export function correctLabel(q) {
 // app.js SADECE q.correctSource'a karşılık gelen filtrenin gain'ini
 // (setDualCut ile) q.correctCutDb'ye ANİMASYONLAR — diğer filtre HER ZAMAN 0.
 const CUT_FILTER_Q = 1.1;
+// OLCUM-KULAK-16-08 — Aşama 1'in kulak butonu ("senin seçtiğin merkez" vs
+// "gerçek merkez") için: normal oyunda filtreler HER ZAMAN gain=0 ile
+// başlar (kullanıcı KULAKLA bulmalı, ipucu YOK) — kulak-önizlemesi BUNUN
+// DIŞINDA, GERİ BİLDİRİM ekranında, cevap ZATEN verildikten SONRA çalışan
+// AYRI bir çağrı. `previewGainDb` SADECE o önizleme çağrısı BİLEREK verdiğinde
+// var olan, OPSİYONEL bir alan — normal soru objelerinde HİÇ set edilmiyor,
+// bu yüzden varsayılan (undefined → 0) DAVRANIŞ TEK BİR SATIR bile değişmedi.
 export function applyProcessing(question, { audioCtx }) {
+  const previewGainDb = Number.isFinite(question.previewGainDb) ? question.previewGainDb : 0;
+
   const filterA = audioCtx.createBiquadFilter();
   filterA.type = "peaking";
   filterA.frequency.value = question.trueCenter;
   filterA.Q.value = CUT_FILTER_Q;
-  filterA.gain.value = 0;
+  filterA.gain.value = previewGainDb;
 
   const filterB = audioCtx.createBiquadFilter();
   filterB.type = "peaking";
   filterB.frequency.value = question.trueCenter;
   filterB.Q.value = CUT_FILTER_Q;
-  filterB.gain.value = 0;
+  filterB.gain.value = previewGainDb;
 
   return { filterA, filterB };
 }

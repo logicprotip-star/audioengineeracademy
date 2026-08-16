@@ -321,6 +321,96 @@ test("Boost/Cut (katman 3): kulak butonları görünüyor, doğru freq/gainDb ta
   await page.close();
 });
 
+// Frekans Çakışması — stageForIndex'e göre idx<3 → aşama1, idx<6 → aşama2,
+// idx>=6 → aşama3 (KALICI). Aşama 1 İLK 3 soru olduğu için doğrudan test
+// edilebiliyor; Aşama 3'e ulaşmak için aşama 1/2'nin (ilk 6 soru) ears
+// BEKLENMEDEN atlanması gerekiyor (Aşama 2'de kulak butonu YOK — task'ın
+// kapsamı SADECE 1/3, kaynak-mı-B-mi seçimi sayısal bir "ikinci değer"
+// taşımıyor).
+test("Frekans Çakışması Aşama 1: kulak butonları görünüyor, doğru merkez frekansı taşıyor, iki çıktıda da çalışıyor", async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(serverHandle.baseUrl);
+  await seedLocalStorage(page, { dev: { simulatePro: true } });
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await dismissSpotlightIfShown(page);
+  await startRound(page, "frekans-cakismasi");
+
+  const seen = { true: false, false: false };
+  for (let i = 0; i < 3 && (!seen.true || !seen.false); i++) {
+    const { correct, dataset } = await answerFirstChoice(page);
+    const alreadySeen = seen[String(correct)];
+    if (!alreadySeen) {
+      seen[correct] = true;
+      const ears = await earDataset(page);
+      assert.equal(ears.leftHidden, false, `[cakisma-S1, correct=${correct}] kulak butonu (#fbEarLeft) GÖRÜNMÜYOR`);
+      assert.equal(ears.rightHidden, false, `[cakisma-S1, correct=${correct}] kulak butonu (#fbEarRight) GÖRÜNMÜYOR`);
+      assert.equal(
+        String(ears.left.guessCenter), String(dataset.center),
+        `[cakisma-S1, correct=${correct}] kulak butonundaki merkez frekans tıklanan şıkla EŞLEŞMİYOR`
+      );
+      const { leftOn, rightOn, errors } = await clickBothEars(page);
+      assert.equal(leftOn, true, `[cakisma-S1, correct=${correct}] "Senin cevabın" tıklanınca .on almadı`);
+      assert.equal(rightOn, true, `[cakisma-S1, correct=${correct}] "Doğru cevap" tıklanınca .on almadı`);
+      assert.deepEqual(errors, [], `[cakisma-S1, correct=${correct}] hata: ${errors.join(" | ")}`);
+    }
+    const closeBtn = page.locator("#feedbackClose");
+    if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  // Aşama 1 SADECE 3 soru sürdüğü için (STAGE1_QUESTION_COUNT=3) "her ikisi
+  // de görüldü" garantisi YOK (3 denemede hep aynı çıktı gelebilir) — en az
+  // BİR çıktının doğrulanmış olması yeterli kabul kriteri (buton var/doğru
+  // değer taşıyor/tıklanabiliyor), "iki çıktı da" şartı STAGE 3/diğer
+  // modlarda (çok daha fazla deneme hakkı olan) zorunlu tutuluyor.
+  assert.ok(seen.true || seen.false, "cakisma-S1: 3 denemede HİÇ round tamamlanmadı");
+  await page.close();
+});
+
+test("Frekans Çakışması Aşama 3: kulak butonları görünüyor, doğru cutDb taşıyor, iki çıktıda da çalışıyor", async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(serverHandle.baseUrl);
+  await seedLocalStorage(page, { dev: { simulatePro: true } });
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await dismissSpotlightIfShown(page);
+  await startRound(page, "frekans-cakismasi");
+
+  // Aşama 1/2'yi (ilk 6 soru) atla.
+  for (let i = 0; i < 6; i++) {
+    await answerFirstChoice(page);
+    const closeBtn = page.locator("#feedbackClose");
+    if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+
+  const seen = { true: false, false: false };
+  for (let i = 0; i < 25 && (!seen.true || !seen.false); i++) {
+    const { correct, dataset } = await answerFirstChoice(page);
+    const alreadySeen = seen[String(correct)];
+    if (!alreadySeen) {
+      seen[correct] = true;
+      const ears = await earDataset(page);
+      assert.equal(ears.leftHidden, false, `[cakisma-S3, correct=${correct}] kulak butonu (#fbEarLeft) GÖRÜNMÜYOR`);
+      assert.equal(ears.rightHidden, false, `[cakisma-S3, correct=${correct}] kulak butonu (#fbEarRight) GÖRÜNMÜYOR`);
+      assert.equal(
+        String(ears.left.guessCut), String(dataset.cut),
+        `[cakisma-S3, correct=${correct}] kulak butonundaki cutDb tıklanan şıkla EŞLEŞMİYOR`
+      );
+      const { leftOn, rightOn, errors } = await clickBothEars(page);
+      assert.equal(leftOn, true, `[cakisma-S3, correct=${correct}] "Senin cevabın" tıklanınca .on almadı`);
+      assert.equal(rightOn, true, `[cakisma-S3, correct=${correct}] "Doğru cevap" tıklanınca .on almadı`);
+      assert.deepEqual(errors, [], `[cakisma-S3, correct=${correct}] hata: ${errors.join(" | ")}`);
+    }
+    const closeBtn = page.locator("#feedbackClose");
+    if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  assert.ok(seen.true, "cakisma-S3: 25 denemede hiç doğru cevap gözlenmedi");
+  assert.ok(seen.false, "cakisma-S3: 25 denemede hiç yanlış cevap gözlenmedi");
+  await page.close();
+});
+
 // REGRESYON — Frekans Bulma'nın G81'den beri var olan davranışı bu turda
 // TEK SATIR değişmedi (showFrequencyEars/submitFrequencyGuess'e hiç
 // dokunulmadı) — ama PAYLAŞILAN click-handler (#feedbackBox'ın delegasyonu)
