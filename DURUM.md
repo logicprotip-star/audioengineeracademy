@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (G248 — METIN-TARAMA-15-08'in 3 metin düzeltmesi)
+Son güncelleme: 16.08.2026 (DEVIR-15-08-GECE.md — 15 Ağustos oturumunun devir belgesi, G214-G248)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,76 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+DEVİR — **`DEVIR-15-08-GECE.md` yazıldı — 15 Ağustos oturumunun (G214-G248, 35 commit) TAM devir belgesi, yarın sıfırdan devam edilebilmesi için.**
+
+**Kapsam:** (1) G214-G248'in HEPSİ commit hash'i + tek cümlelik özet +
+hangi tur bulgusunu kapattığıyla tablo hâlinde; test sayısı 1285→1390,
+e2e 0→19 (her ikisi de bu belgeyi yazmadan hemen önce YENİDEN çalıştırılıp
+doğrulandı). (2) 13 tarama turunun (Tur 1/2/3A/3B/4/5A/6/8/9/7+10 +
+Fletcher-Munson ölçümü + 2 metin taraması) her biri için rapor dosyası +
+🔴/🟡 sayısı + hangi commit'lerin hangi maddeleri kapattığı. (3) METIN-
+TARAMA-2-15-08'in 6 bulgusu özetlendi (öncelik notuyla: #2/#3 sistemik,
+tek kural olarak düzeltilmeli). (4) 35 commit'in HEPSİ için cihaz-doğrulama
+talimatı — 6 tanesi (G236/G242/G243/G244/G247/G237) genişletilmiş
+paragrafla. (5) Kaynak kütüphanesi yenileme notları (.gitignore tuzağı
+BU turda `git check-ignore` ile TEKRAR doğrulandı). (6) Yayın engelleyenler.
+(7) Açık kararlar (Fletcher-Munson/Boost-Cut 1.1'e, showSessionEnd artık
+TEYİT edilmiş ölü kod — yeni bir "karar" değil, Bluetooth filtresi
+kullanıcı tarafından bu sürüme planlandı olarak GÜNCELLENDİ, hata analizi
+formatı G227'nin tarifiyle). (8) Çalışma kuralları hatırlatması.
+
+**Testler/Ölçüm:** `npm test` 1390/1390, `npm run test:e2e` 19/19 — bu
+belgeyi yazmadan hemen önce YENİDEN çalıştırılıp DOĞRULANDI (tahmin
+edilmedi). Bu tur kod YAZMADI.
+
+**Dokunulan:** `DEVIR-15-08-GECE.md` (yeni dosya), `DURUM.md`.
+**Dokunulmayan:** Hiçbir kod dosyası.
+
+METIN-TARAMA-2-15-08 — **11 modun feedback metinlerinin TAM taraması (SADECE ÖLÇÜM, kod/commit YOK) — kriter a-j, `METIN-TARAMA-2-15-08.md`'ye yazıldı.**
+
+**Kapsam:** METIN-TARAMA-15-08'in kendi "en büyük açık" notunu ("diğer
+11 modun feedback metinleri sadece YÜZEYSEL tarandı") kapatmak için,
+`frekans-bulma`/`kesim-noktasi`/`q-genisligi`/`boost-mu-cut-mu`/
+`db-seviyesi`/`kompresor`/`reverb`/`distortion`/`pan-konumu`/
+`stereo-genislik`/`frekans-cakismasi` — 11/11 mod dosyası (~8.465 satır)
+SATIR SATIR okundu, hiçbiri grep ile örneklenmedi.
+
+**Sonuç: 6 bulgu, HİÇBİRİ 🔴 değil.** (1) `kesim-noktasi.js:519` —
+"Ters yöne gittin" başlığı filtre-TİPİ hatasında (HPF/LPF karıştırma)
+yanlış bağlamda kullanılıyor, GERÇEK bir yön hatası değilken öyleymiş
+gibi okunuyor. (2) **Sistemik** — `q-genisligi.js`/`boost-mu-cut-mu.js`/
+`db-seviyesi.js`'de (3 ayrı dosya, aynı kalıp) nokta-sonrası küçük harfle
+başlayan cümle hatası. (3) **Sistemik** — Motor 2'nin üç modunda
+(`kompresor`/`reverb`/`distortion`, 7 örnek) G248'in "AYNI" bulgusuyla
+AYNI kategoriden ALL-CAPS kod-yorumu vurgusu kullanıcı metnine sızmış.
+(4) boost/cut kavramı `frekans-bulma.js`'te Türkçe fiil, diğer iki modda
+İngilizce isim — kesin ihlal değil, üslup kararı. (5) `frekans-cakismasi.js`
+getHintText'inde küçük bir "İpucu:" öneki tutarsızlığı. (6) dB
+gösteriminde ondalık hassasiyeti/boşluk kuralı 4 farklı kalıpta (mod
+başına farklı `.toFixed()` kullanımı, ortak bir `formatDb` YOK).
+
+**Güven veren bulgular:** AI-slop kelimesi SIFIR (11/11 modda), hitap
+SIFIR "siz" (11/11 modda tam "sen" tutarlılığı), öğretim değeri genel
+olarak ÇOK GÜÇLÜ (her mod "neden" açıklıyor) — `frekans-cakismasi.js`
+G57'nin "yanlışta da aynı derinlikte öğretim" hedefini EN İYİ karşılayan
+mod (kişiselleştirilmiş yanlış-cevap açıklamaları). "Senin cevabın"/
+"Doğru" legend metni 10/10 modda BİREBİR tutarlı; Motor 2'nin "Yanlış
+ses"/"Bir kart seç" metinleri 3/3 modda BİREBİR tutarlı; Pan Konumu/
+Stereo Genişlik ("ikiz mod") üslubu neredeyse BİREBİR paralel.
+
+**Kapsam dürüstçe işaretlendi:** DERİN okunan — 11 mod dosyasının
+TAMAMI (bu turun kendi amacı). Bu turda OKUNMAYAN — `app.js`'in bu 11
+modu render eden katmanı (mod dosyaları SAF çıktı üretiyor, app.js'in
+bunu DOM'a nasıl bastığı ayrı bir katman, bazı bulgularda "gerçekten
+oyuncuya görünüyor mu" BELİRSİZ bırakıldı).
+
+**Testler/Ölçüm:** Yok — bu tur kod yazmadı, `npm test`/e2e DOKUNULMADI
+(G248'in ölçümü geçerli: 1390/1390, e2e 19/19).
+
+**Dokunulan:** `METIN-TARAMA-2-15-08.md` (yeni dosya, henüz commit
+edilmedi — önceki TUR raporlarıyla AYNI kural, Logic bakacak).
+**Dokunulmayan:** Hiçbir kod dosyası, `npm test`/e2e suite.
 
 G248 — **METIN-TARAMA-15-08'in 3 metin düzeltmesi — "balans"→"denge", kod-yorumu vurgusunun ("AYNI") kullanıcı metnine sızması düzeltildi, "mekan"/"mekân" yazımı KODUN TAMAMINDA "mekân"a standardize edildi.**
 
@@ -18546,7 +18616,46 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G248 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (DEVIR-15-08-GECE.md itibarıyla):**
+15 Ağustos oturumu KAPANDI, `DEVIR-15-08-GECE.md` tek giriş noktası.
+`npm test` 1390/1390, `npm run test:e2e` 19/19. **Yarının sırası (bkz.
+devir belgesinin kendi bölüm numaraları):**
+1. METIN-TARAMA-2-15-08.md'nin 6 bulgusundan hangilerinin uygulanacağına
+   karar ver (bölüm 3) — özellikle #2/#3 sistemik, TEK kural önerilir.
+2. Bugünkü 35 commit'in cihazda doğrulanması (bölüm 4) — G236/G242/G243/
+   G244/G247/G237 öncelikli.
+3. Logic'in kaynak kütüphanesi yenilemesi (bölüm 5, .gitignore tuzağına
+   dikkat).
+4. Yayın engelleyenlerin (bölüm 6) durumu takip edilmeli: Stereo Genişlik
+   kaynak dosyası, pazartesi evrak zinciri, AD_TEST_MODE/build numarası.
+Bluetooth hoparlör filtresi ARTIK bu sürüme PLANLANDI (kullanıcı kararı,
+bu turda netleşti) — kod HENÜZ yazılmadı, ayrı bir iş olarak ele
+alınmalı. Ayrıca önceki turların açık maddeleri (BEYAN-DENETIM'in
+.gitignore tuzağı — ARTIK bölüm 5'te devir belgesine de taşındı,
+Fletcher-Munson/Boost-Cut kararları — bkz. BEKLEYEN KARARLAR, TUR6'nın
+Android/G236 bulgusu) hâlâ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (G248 + METIN-TARAMA-2-15-08 itibarıyla, ARTIK ESKİ):**
+METIN-TARAMA-15-08.md'nin 3 bulgusu KAPANDI (G248 — balans→denge,
+AYNI→aynı, mekan→mekân 13 yerde). Aynı görev kapsamındaki Part 2 —
+11 modun feedback metinlerinin TAM taraması — TAMAMLANDI, 6 bulgu
+`METIN-TARAMA-2-15-08.md`'de (kod YAZILMADI, commit atılmadı, Logic
+bakacak). `npm test` 1390/1390, `npm run test:e2e` 19/19, DEĞİŞMEDİ
+(bu ikinci tur da kod dokunmadı). **Bir sonraki adım — kullanıcının
+onayı/kararı gerekir, öncelik sırasıyla:**
+1. METIN-TARAMA-2-15-08.md'nin 6 bulgusunun hangilerinin UYGULANACAĞI
+   — özellikle #2/#3 (nokta-sonrası küçük harf + ALL-CAPS vurgu
+   sızıntısı) SİSTEMİK olduğu için tek-seferlik değil, TEK bir kural
+   olarak düzeltilmeleri önerilir; #4/#6 ürün-üslup kararı gerektiriyor.
+2. Gerçek bir iOS build'inde G246'nın iCloud yedek davranışının
+   cihazda doğrulanması (bkz. G246'nın kendi DURUM.md kaydı) — hâlâ
+   AÇIK.
+Ayrıca önceki turların açık maddeleri (BEYAN-DENETIM'in .gitignore
+tuzağı, TUR6'nın Android/G236 bulgusu, OLCUM-OGRETIM'in Fletcher-
+Munson/Boost-Cut kararları, TUR9'un Bluetooth filtresi önerisi) hâlâ
+AÇIK, bu turdan ETKİLENMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G248 itibarıyla, ARTIK ESKİ):**
 METIN-TARAMA-15-08.md'nin 3 bulgusu KAPANDI — G248 olarak commit
 edildi (balans→denge, AYNI→aynı, mekan→mekân TAM tarama ile 13 yerde
 düzeltildi). `npm test` 1390/1390, `npm run test:e2e` 19/19,
