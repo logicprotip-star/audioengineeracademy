@@ -2059,6 +2059,36 @@ function showLevelEars(guessDb) {
   els.fbEarRight.dataset.preview = "correct";
 }
 
+// Pan Konumu'nun kulak butonları — REFERANS: showFrequencyEars. Gizli
+// değer pan-konumu.js:applyProcessing'in okuduğu TEK alan (question.
+// panPercent).
+function showPanEars(guessPan) {
+  if (!els.fbEarLeft || !els.fbEarRight) return;
+  els.fbEarLeft.classList.remove("hidden");
+  els.fbEarRight.classList.remove("hidden");
+  els.fbEarLeft.classList.remove("neutral", "on");
+  els.fbEarRight.classList.remove("on");
+  els.fbEarLeft.textContent = "Senin pan'ın";
+  els.fbEarLeft.dataset.preview = "mine";
+  els.fbEarLeft.dataset.guessPan = String(guessPan);
+  els.fbEarRight.dataset.preview = "correct";
+}
+
+// Stereo Genişlik'in kulak butonları — REFERANS: showFrequencyEars. Gizli
+// değer stereo-genislik.js:applyProcessing'in okuduğu TEK alan (question.
+// widthPercent).
+function showWidthEars(guessWidth) {
+  if (!els.fbEarLeft || !els.fbEarRight) return;
+  els.fbEarLeft.classList.remove("hidden");
+  els.fbEarRight.classList.remove("hidden");
+  els.fbEarLeft.classList.remove("neutral", "on");
+  els.fbEarRight.classList.remove("on");
+  els.fbEarLeft.textContent = "Senin genişliğin";
+  els.fbEarLeft.dataset.preview = "mine";
+  els.fbEarLeft.dataset.guessWidth = String(guessWidth);
+  els.fbEarRight.dataset.preview = "correct";
+}
+
 // Gerçek XP kırılımı — CLAUDE.md/task kuralı: "uydurma sayı yazma". Tüm
 // çarpanlar calculateXP()'ye GEÇİLEN AYNI context'ten (bkz. her submit
 // fonksiyonunun kendi calculateXP çağrısı) veya mode'un KENDİ DIFFICULTY/
@@ -4391,6 +4421,7 @@ function submitPanGuess(value) {
     const feedback = mode.getFeedbackData(q, value, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
     showXpBreakdown(q, q.difficulty, gained);
+    showPanEars(value);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
@@ -4403,6 +4434,7 @@ function submitPanGuess(value) {
 
     const feedback = mode.getFeedbackData(q, value, { gained: 0 });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    showPanEars(value);
     audioEngine.sfxBuzz();
     shake(els.canvas);
     loseLife("Pan konumunu ıskaladın.", { silent: true });
@@ -4461,6 +4493,7 @@ function submitWidthGuess(value) {
     const feedback = mode.getFeedbackData(q, value, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, false);
     showXpBreakdown(q, q.difficulty, gained);
+    showWidthEars(value);
     audioEngine.sfxDing();
     spawnXp(`+${gained} XP`, els.canvas);
     burst(els.canvas);
@@ -4473,6 +4506,7 @@ function submitWidthGuess(value) {
 
     const feedback = mode.getFeedbackData(q, value, { gained: 0 });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
+    showWidthEars(value);
     audioEngine.sfxBuzz();
     shake(els.canvas);
     loseLife("Genişliği ıskaladın.", { silent: true });
@@ -6680,7 +6714,7 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
   // birer dal eklenir, showFrequencyEars'in KENDİ "frequency" dalı hiç
   // değişmiyor.
   const qMode = activeQuestion.mode;
-  const earEligible = qMode === "frequency" || qMode === "cutoff" || qMode === "dblevel";
+  const earEligible = qMode === "frequency" || qMode === "cutoff" || qMode === "dblevel" || qMode === "pan" || qMode === "width";
   if (!earEligible) return;
 
   const preview = btn.dataset.preview;
@@ -6698,6 +6732,14 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
       const guessDb = Number(btn.dataset.guessDb);
       if (!Number.isFinite(guessDb)) return;
       guessQuestion = { ...activeQuestion, dbDelta: guessDb };
+    } else if (qMode === "pan") {
+      const guessPan = Number(btn.dataset.guessPan);
+      if (!Number.isFinite(guessPan)) return;
+      guessQuestion = { ...activeQuestion, panPercent: guessPan };
+    } else if (qMode === "width") {
+      const guessWidth = Number(btn.dataset.guessWidth);
+      if (!Number.isFinite(guessWidth)) return;
+      guessQuestion = { ...activeQuestion, widthPercent: guessWidth };
     }
   } else if (preview !== "clean" && preview !== "correct") {
     return;

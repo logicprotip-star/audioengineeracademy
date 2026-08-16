@@ -49,8 +49,21 @@ async function answerFirstChoice(page) {
   return { correct: !bad, dataset };
 }
 
+// Pan Konumu/Stereo Genişlik kulaklikGerekli:true (G37) — mod kartına
+// tıklayınca #screen-game'e GEÇMEDEN önce bir "kulaklık öner" sheet'i açılır
+// (openHeadphoneSheet, app.js:3164), #startBtn o ekranın parçası olduğu
+// için bu sheet kapatılmadan HİÇ görünmez.
+async function dismissHeadphoneSheetIfShown(page) {
+  const confirm = page.locator("#hpSheetConfirm");
+  if (await confirm.isVisible().catch(() => false)) {
+    await confirm.click();
+    await page.waitForTimeout(200);
+  }
+}
+
 async function startRound(page, modeId) {
   await enterMode(page, modeId);
+  await dismissHeadphoneSheetIfShown(page);
   await page.locator("#startBtn").click();
   await page.waitForTimeout(400);
 }
@@ -159,6 +172,83 @@ test("dB Seviyesi: kulak butonları görünüyor, doğru dbDelta taşıyor, iki 
   await page.waitForLoadState("networkidle");
   await dismissSpotlightIfShown(page);
   await verifyEarsAcrossOutcomes(page, "db-seviyesi", "guessDb", "db");
+  await page.close();
+});
+
+test("Pan Konumu: kulak butonları görünüyor, doğru panPercent taşıyor, iki çıktıda da çalışıyor", async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(serverHandle.baseUrl);
+  await seedLocalStorage(page, { dev: { simulatePro: true } });
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await dismissSpotlightIfShown(page);
+  await verifyEarsAcrossOutcomes(page, "pan-konumu", "guessPan", "value");
+  await page.close();
+});
+
+// Stereo Genişlik SADECE yüklenmiş bir dosyayla oynanabiliyor (mid/side
+// ayrıştırması gerçek stereo kayıt gerektiriyor, uyumluKaynaklar:{only:
+// ["upload"]}) — www/audio/'daki 9 gömülü örneğin HEPSİ MONO (ffprobe ile
+// doğrulandı, `channels=1`), bu yüzden `bufferPlayability()` (stereo-
+// genislik.js:194-199) HERHANGİ birini "mono" diye REDDEDER. Bu yüzden
+// GERÇEKTEN stereo bir test dosyası (e2e/fixtures/stereo-test.wav — L=220Hz/
+// R=330Hz farklı sinüsler, ffmpeg'le üretildi) kullanılıyor. Playwright'ın
+// KENDİ setInputFiles()'ı ile #toolsFileInput'a yükleniyor (bu, önceki turda
+// denenip GÜVENİLMEZ bulunan Chrome-MCP dosya enjeksiyonundan FARKLI bir
+// mekanizma — Playwright input.files'ı DOĞRUDAN ayarlar, "change" event'i
+// garanti fırlar). Yükleme "Dosyalarım" sheet'i İÇİNDEN olduğu için, dosya
+// bağlama uygulandıktan SONRA sheet KAPATILMALI — kapanmazsa #uploadGate
+// arkada "hidden" olsa bile #startBtn sheet'in ALTINDA kalır.
+async function uploadStereoTestFile(page) {
+  await page.locator("#uploadGateBtn").click();
+  await page.waitForTimeout(200);
+  await page.setInputFiles("#toolsFileInput", "e2e/fixtures/stereo-test.wav");
+  await page.waitForTimeout(500);
+  const closeBtn = page.locator("#toolsFilesClose");
+  if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click().catch(() => {});
+  // decode + IndexedDB yazımı sabit bir gecikmeden UZUN sürebilir — sabit
+  // bir timeout yerine #uploadGate'in GERÇEKTEN kaybolmasını bekle.
+  await page.locator("#uploadGate").waitFor({ state: "hidden", timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(300);
+}
+
+test("Stereo Genişlik: kulak butonları görünüyor, doğru widthPercent taşıyor, iki çıktıda da çalışıyor", async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await page.goto(serverHandle.baseUrl);
+  await seedLocalStorage(page, { dev: { simulatePro: true } });
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await dismissSpotlightIfShown(page);
+  await enterMode(page, "stereo-genislik");
+  await dismissHeadphoneSheetIfShown(page);
+  await uploadStereoTestFile(page);
+  await page.locator("#startBtn").click();
+  await page.waitForTimeout(400);
+  const seen = { true: false, false: false };
+  for (let i = 0; i < 15 && (!seen.true || !seen.false); i++) {
+    const { correct, dataset } = await answerFirstChoice(page);
+    const alreadySeen = seen[String(correct)];
+    if (!alreadySeen) {
+      seen[correct] = true;
+      const ears = await earDataset(page);
+      assert.equal(ears.leftHidden, false, `[stereo-genislik, correct=${correct}] kulak butonu (#fbEarLeft) GÖRÜNMÜYOR`);
+      assert.equal(ears.rightHidden, false, `[stereo-genislik, correct=${correct}] kulak butonu (#fbEarRight) GÖRÜNMÜYOR`);
+      assert.equal(
+        String(ears.left.guessWidth),
+        String(dataset.value),
+        `[stereo-genislik, correct=${correct}] kulak butonundaki değer tıklanan şıkla EŞLEŞMİYOR`
+      );
+      const { leftOn, rightOn, errors } = await clickBothEars(page);
+      assert.equal(leftOn, true, `[stereo-genislik, correct=${correct}] "Senin cevabın" tıklanınca .on almadı`);
+      assert.equal(rightOn, true, `[stereo-genislik, correct=${correct}] "Doğru cevap" tıklanınca .on almadı`);
+      assert.deepEqual(errors, [], `[stereo-genislik, correct=${correct}] hata: ${errors.join(" | ")}`);
+    }
+    const closeBtn = page.locator("#feedbackClose");
+    if (await closeBtn.isVisible().catch(() => false)) await closeBtn.click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(300);
+  }
+  assert.ok(seen.true, "stereo-genislik: 15 denemede hiç doğru cevap gözlenmedi");
+  assert.ok(seen.false, "stereo-genislik: 15 denemede hiç yanlış cevap gözlenmedi");
   await page.close();
 });
 
