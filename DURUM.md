@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G281 — snare-arpej-gitar SOURCE_PAIRS region'ı YENİ arpeggio_guitar.m4a'ya göre yeniden ölçüldü [170,400]→[170,310] (Welch/4096-FFT + 60Hz boşluk-toleranslı kümeleme, yöntem [172,398] doc'lu değerle KONTROL edilip doğrulandı) — task'ın verdiği sayılardan (-15dB:183-393, -20dB:159-744) FARKLI çıktı, kendi ölçümüm kullanıldı ve fark bildirildi; 2 test güncellendi, kırmızı/yeşil doğrulandı)
+Son güncelleme: 17.08.2026 (G282 — source-psd-data.js'in arpeggio_guitar girdisi YENİ dosyaya göre yeniden ölçüldü (computeSourcePsd, AYNI yöntem/script) — SADECE bu TEK girdi/satır değişti, diğer 14 girdi (git diff: 1 hunk) BAYT BAYT AYNI kanıtlandı; Kesim Noktası telafi hatası KÖTÜLEŞMEDİ, ölçüldü: ESKİ(stale) PSD ort. 0.303dB hata → YENİ PSD ort. 0.268dB hata (6 filtre senaryosu); 4 test eklendi, kırmızı/yeşil doğrulandı)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,30 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G282 — **source-psd-data.js: arpeggio_guitar spektrum verisi YENİ dosyaya göre yeniden ölçüldü (SADECE bu girdi, diğer 14 bayt bayt aynı). AYRI commit.**
+
+**SORUN:** G271/G272'nin Kesim Noktası PSD-ağırlıklı telafisi `source-psd-data.js:SOURCE_PSD.arpeggio_guitar`'ı okuyor — bu veri ESKİ (snare sızıntılı) arpeggio_guitar.m4a'ya göre önceden hesaplanmıştı (G271), G281'de dosya değiştiği için ARTIK STALE.
+
+**Yapılan:** `e2e/precompute-source-psd.mjs` İLE AYNI yöntem (`computeSourcePsd(samples,44100,48)`, ffmpeg ile PCM'e çözüp) — ama script'in TAMAMI DEĞİL, SADECE `arpeggio_guitar` girdisi yeniden hesaplanıp dosyaya yapıştırıldı. **Script'in TAMAMI ÇALIŞTIRILMADI** çünkü `pink`/`white` girdileri `Math.random()` tabanlı (istatistiksel durağan ama BAYT BAYT rastgele) — tam çalıştırma bunları da <0.1dB kaydırıp "diğer 11(+3 sentetik)=14 girdi bayt bayt aynı kalsın" kabul kriterini ihlal ederdi.
+
+**Kanıt (diğer 14 girdi bayt bayt aynı):** `git diff --stat www/js/core/source-psd-data.js` → `1 file changed, 1 insertion(+), 1 deletion(-)`; hunk sayısı: **1**. Yeni değerler ESKİ değerlerden farklı (beklenen — dosya değişti), freqs listesi AYNI (sabit log-uniform grid, sampleRate/points'e bağlı, dosyadan bağımsız).
+
+**Telafi hatası ölçümü (KABUL KRİTERİ — "kötüleşmedi"):** RBJ HPF/LPF biquad'ı (Kesim Noktası'nın kendi Q=0.707'si) GERÇEK YENİ ses dosyasına uygulanıp GERÇEK RMS oranı (dB) ölçüldü, `estimateChainGainDbWeighted`'in ESKİ (stale) ve YENİ PSD'yle TAHMİN ettiği değerle karşılaştırıldı (6 senaryo: 3×HPF@150/400/1000Hz, 3×LPF@1000/3000/8000Hz):
+
+| | ESKİ (stale) PSD hatası | YENİ PSD hatası |
+|---|---|---|
+| Ortalama mutlak hata | 0.303dB | **0.268dB** |
+
+**KÖTÜLEŞMEDİ — hafifçe İYİLEŞTİ** (her iki durumda da hata zaten küçük, ~sub-1dB — arpeggio_guitar'ın genel spektral profili snare-temizleme ile DRAMATİK değişmedi, ince bir iyileşme bekleniyordu ve ÖLÇÜLDÜ).
+
+**Testler eklendi:** `test/source-psd-data.test.mjs` (4 test) — 48 nokta/pozitif güçler sözleşmesi, tepe ~194Hz (guitar ailesiyle tutarlı), ESKİ stale değerden farklı olduğu (güncellemenin GERÇEKTEN uygulandığının kanıtı), diğer 14 girdinin hâlâ mevcut olduğu.
+
+**Kırmızı/yeşil doğrulama — `git stash push -- www/js/core/source-psd-data.js`:** KIRMIZI (`Expected "actual" to be strictly unequal to: 0.00001184404` — stash'lenmiş ESKİ dosyada arpeggio_guitar'ın ilk power değeri HÂLÂ eski/stale değere eşit çıktı) → `git stash pop` → YEŞİL (4/4).
+
+**Test sonuçları:** `npm test` 1442/1442 (G281'deki 1438'den +4). `npm run test:e2e` 51/51 (bu turda flake GÖRÜLMEDİ, tek koşuda temiz).
+
+---
 
 G281 — **SOURCE_PAIRS: snare-arpej-gitar region'ı YENİ arpeggio_guitar.m4a'ya göre güncellendi ([170,400]→[170,310]). AYRI commit.**
 
