@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G285 — 1.1'in "Son Oyunlarım" replay listesi İÇİN cevap geçmişi kayıt formatı açıldı — core/answer-history.js (SAF), 12 modun HEPSİNDE 11 submit handler'dan tetikleniyor (kompresor/reverb/distortion TEK ortak handler); YENİ/AYRI eqEarTrainerProXAnswerHistory anahtarı, mevcut session.log/stats.history/zoneStats'a DOKUNULMADI (app.js diff'i %100 EKLEME, TEK satır SİLİNMEDİ); 200 kayıt sınırı FIFO, G233 şema damgası, G229/G232 trySave() koruması; ÖLÇÜLDÜ: 200 kayıt ≈59.2KB (~303B/kayıt), GERÇEK tarayıcıda localStorage.setItem() ort. 0.034ms — ana thread bloklanmıyor, toplu yazmaya GEREK YOK; App Privacy beyanı DEĞİŞMEDİ (ağ çağrısı yok, doğrulandı); 12 mod + 2 bütünlük testi (14 e2e) + 22 birim + 8 storage testi, kırmızı/yeşil doğrulandı)
+Son güncelleme: 18.08.2026 (G286 — App Store yorum isteme NATIVE tarafı bağlandı — OLCUM-YORUM-17-08.md'nin önerdiği "Yol A": `ios/App/App/AudioSessionPlugin.swift`'e YENİ `requestReview` metodu (iOS 18+ AppStore.requestReview, 16-17/altı SKStoreReviewController — 3 katmanlı `#available`), YENİ plugin/Main.storyboard değişikliği GEREKMEDİ (zaten kayıtlı); `app.js:requestNativeStoreReview()` artık `window.Capacitor.nativePromise("AudioSessionPlugin","requestReview",{})` çağırıyor, katmanlı guard (`core/review-request.js:canRequestNativeReview`, SAF/test edilebilir) + try/catch — native yokken/metot yokken/hata fırlatırsa sessizce false; ⚠️ BEKLENMEYEN BULGU: bu ortamda `xcodebuild` GERÇEKTEN ÇALIŞIYORMUŞ — task "Swift bu ortamda derlenemiyor" varsayıyordu, ÖLÇÜLDÜ ve YANLIŞ çıktı, TAM TEMİZ (clean) build BUILD SUCCEEDED verdi, `AudioSessionPlugin.swift` dahil sıfır warning/error; 6 yeni birim testi, kırmızı/yeşil doğrulandı, npm test 1491/1491, e2e 69/69)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,35 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G286 — **App Store yorum isteme — NATIVE tarafı bağlandı (OLCUM-YORUM-17-08.md'nin önerdiği "Yol A"). AYRI commit.**
+
+**DURUM:** G283'te karar mantığı yazılmıştı ama gerçek native çağrı yoktu — `requestNativeStoreReview()` sadece `console.warn` yazıyordu. Bu tur onu bağladı.
+
+**Yapılan (Yol A — mevcut AudioSessionPlugin.swift'e ekleme, YENİ plugin/Main.storyboard değişikliği GEREKMEDİ):**
+
+1. `ios/App/App/AudioSessionPlugin.swift` — `import UIKit` + `import StoreKit` (StoreKit.framework zaten bağlıydı, yeni framework linki gerekmedi) eklendi. `pluginMethods` dizisine `CAPPluginMethod(name: "requestReview", returnType: CAPPluginReturnPromise)` eklendi (⚠️ G134'ün tuzağı — bu satır unutulursa metot native tarafta var olsa bile JS'ten çağrılamazdı). Yeni `@objc func requestReview(_ call: CAPPluginCall)`:
+   - `UIApplication.shared.connectedScenes`'ten aktif `UIWindowScene` bulunur; yoksa `{"ok":false}` (hata fırlatmadan).
+   - 3 katmanlı `#available`: iOS 18+ → `AppStore.requestReview(in:)`; iOS 16-17 → `SKStoreReviewController.requestReview(in:)`; iOS 15 (proje minimum hedefi) → AYNI `SKStoreReviewController` ("deprecated fallback").
+   - `call.resolve(["ok": true])` — SADECE "çağrı native tarafta yapıldı" anlamına gelir, "diyalog gösterildi" DEĞİL (Apple bunu bildirmiyor, kasıtlı).
+2. `www/js/core/review-request.js` — YENİ SAF fonksiyon `canRequestNativeReview(capacitor, platform)`: `window.Capacitor` yok / platform iOS değil / `nativePromise` fonksiyon değil / plugin kayıtlı değil → false. `ads.js:getAdMobPlugin()`/`audio-engine.js:getAudioSessionPlugin()`'in AYNI kontrol zinciri, SAF hâle getirilmiş (parametre olarak `capacitor`/`platform` alır — test edilebilir).
+3. `www/js/app.js` — `requestNativeStoreReview()` artık `async`, GERÇEK çağrı yapıyor: `canRequestNativeReview()` false dönerse hiç denemiyor; `try/catch` içinde `window.Capacitor.nativePromise("AudioSessionPlugin","requestReview",{})` — metot native tarafta yoksa (eski derleme) reddedilen promise BURADA yakalanıyor, HER durumda `false` döner, ASLA fırlatmıyor/çökmüyor. `maybeRequestStoreReview()`'daki çağrı `.catch(() => {})` ile ekstra güvenlik payı aldı (fire-and-forget, `cycleThreeWayPreview()`'ın AYNI deseni).
+
+**⚠️ BEKLENMEYEN BULGU — task'ın "Swift bu ortamda derlenemiyor" varsayımı ÖLÇÜLDÜ ve YANLIŞ çıktı:** Bu ortamda `swiftc`/`xcodebuild`/tam Xcode 26.6 kurulu olduğu keşfedildi. `ios/App` için TAM, TEMİZ (clean) bir `xcodebuild ... clean build` çalıştırıldı (iphonesimulator SDK, `CODE_SIGNING_ALLOWED=NO`):
+- **`** BUILD SUCCEEDED **`** — 3019 satırlık build log, `AudioSessionPlugin.swift` HEM x86_64 HEM arm64 için GERÇEKTEN derlendi (SwiftCompile girdileriyle doğrulandı).
+- **Sıfır warning/error** `AudioSessionPlugin.swift`/`requestReview`/`StoreKit`/`SKStoreReviewController`/`AppStore` ile ilgili — build log'daki TEK 2 warning türü (Splash asset seti + AppIntents metadata) TAMAMEN alakasız, ÖNCEDEN VAR, bu turun dokunmadığı şeyler.
+- Bu, RUNTIME doğrulamanın (diyalog GERÇEKTEN gösteriliyor mu, cihazda) YERİNE GEÇMİYOR — SADECE söz dizimi/tip/API kullanımı hatası OLMADIĞINI kanıtlıyor. Logic'in Xcode'da ⌘B'si (ve gerçek cihaz/simülatör çalıştırması) hâlâ ÖNERİLİYOR — ama artık "muhtemelen doğru" değil, "derlemesi ÖLÇÜLDÜ, temiz" diyebiliyoruz.
+- Build artifact'leri (`DerivedData/`) proje dışında (`~/Library/Developer/Xcode/DerivedData/`), git'e HİÇ girmedi — `git status` build ÖNCESİ/SONRASI birebir aynı (SADECE beklenen 4 dosya).
+
+**Testler eklendi (6 birim testi, `test/review-request.test.mjs`):** `canRequestNativeReview()` — capacitor yok/platform iOS değil/nativePromise fonksiyon değil/plugin kayıtlı değil (4 red senaryosu) + `isPluginAvailable` hiç yoksa kontrolün atlandığı + tüm şartlar sağlanınca true. **Swift tarafı için birim testi YAZILAMADI** (Node'da derlenemez/çalıştırılamaz, DOM/native bağımlı) — KABUL KRİTERİ'nin kendi ayrımı ("Swift tarafı Logic'in Xcode kontrolüne bırakılıyor") ile TUTARLI, sadece artık GERÇEK bir clean-build kanıtıyla DESTEKLENİYOR.
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/js/app.js www/js/core/review-request.js` → `test/review-request.test.mjs` modül-yükleme hatasıyla (`canRequestNativeReview` export edilmiyor) KIRMIZI → `git stash pop` → YEŞİL (15/15).
+
+**DOKUNULMAYACAK'a uyuldu:** G283'ün karar mantığı (`shouldRequestReview`, olgunluk/cooldown/ilk-oturum/3-onaylı-an) TEK SATIR değişmedi — `git diff` bunu doğruluyor, SADECE `requestNativeStoreReview()`'ın GÖVDESİ (NO-OP→gerçek çağrı) değişti. `AudioSessionPlugin.swift`'in mevcut kesinti/route-change kodu (`handleInterruption`/`handleRouteChange`/`activate`) TEK SATIR değişmedi — SADECE ekleme (`import StoreKit`/`import UIKit`, yeni `pluginMethods` girdisi, yeni `requestReview` metodu). Zorluk eğrisine dokunulmadı.
+
+**Test sonuçları:** `npm test` 1491/1491 (G285'teki 1485'ten +6). `npm run test:e2e` 69/69 (değişmedi — bu görev sadece BİR fonksiyonun native-çağrı gövdesini değiştirdi, gating/persist mantığı aynı kaldığı için MEVCUT e2e testleri zaten kapsıyordu, yeni e2e testi GEREKMEDİ).
+
+---
 
 G285 — **Cevap geçmişi kayıt formatı (1.1'in "Son Oyunlarım" replay listesi İÇİN) — 12 modun HEPSİNDE açıldı. AYRI commit.**
 
@@ -21064,7 +21093,23 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G285 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G286 itibarıyla):**
+App Store yorum isteme NATIVE tarafı bağlandı — `AudioSessionPlugin.swift`'e
+`requestReview` metodu (3 katmanlı `#available`: iOS 18+ AppStore.
+requestReview / 16-17 ve altı SKStoreReviewController), `app.js`'te GERÇEK
+çağrı (`canRequestNativeReview` SAF guard + try/catch, native yok/metot
+yok/hata → sessizce false). **Beklenmedik bulgu:** bu ortamda Xcode/
+xcodebuild ÇALIŞIYORMUŞ — tam clean build denendi, **BUILD SUCCEEDED**,
+`AudioSessionPlugin.swift` dahil sıfır warning/error. Bu RUNTIME
+doğrulamanın (diyalog cihazda GERÇEKTEN gösteriliyor mu) YERİNE GEÇMİYOR.
+**Kullanıcının/Logic'in sıradaki adımı:** Xcode'da cihaz/simülatörde
+GERÇEK çalıştırma + "sınav geç/seviye atla/rozet kazan" anlarından birinde
+sistem diyaloğunun (ya da OS'un kendi sessiz sınırlamasının) davranışını
+gözlemlemek — bu, bu ortamdan YAPILAMAZ (gerçek kullanıcı jesti/StoreKit
+sunucu etkileşimi gerektiriyor). `npm test` 1491/1491, `npm run test:e2e`
+69/69.
+
+**EN YENİ SIRADAKİ ADIM (G285 itibarıyla, ARTIK ESKİ):**
 1.1'in "Son Oyunlarım" replay listesi İÇİN cevap geçmişi kayıt formatı
 açıldı — `core/answer-history.js` (SAF), 12 modun HEPSİNDE (11 submit
 handler, kompresor/reverb/distortion TEK ortak handler) her cevapta

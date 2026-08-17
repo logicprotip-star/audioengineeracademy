@@ -1,10 +1,14 @@
-// G283 — App Store yorum isteme kararı. SADECE karar fonksiyonu (SAF) test
-// ediliyor; native çağrı (app.js:requestNativeStoreReview) BİLEREK NO-OP —
-// Capacitor'da hazır bir plugin yok, bkz. DURUM.md G283.
+// G283/G286 — App Store yorum isteme. SADECE SAF fonksiyonlar test
+// ediliyor: `shouldRequestReview` (ŞİMDİ istemeli miyiz — olgunluk/cooldown)
+// ve `canRequestNativeReview` (native köprü ÇAĞRILMAYA DEĞER mi — G286).
+// GERÇEK native çağrı (app.js:requestNativeStoreReview,
+// `window.Capacitor.nativePromise(...)`) DOM'a bağımlı, Node'da test
+// EDİLEMEZ — o e2e/manuel cihaz doğrulamasının kapsamında (bkz. DURUM.md
+// G286, Swift tarafı Logic'in Xcode kontrolüne bırakıldı).
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { shouldRequestReview, MATURITY_MIN_ROUNDS, REQUEST_COOLDOWN_MS } from "../www/js/core/review-request.js";
+import { shouldRequestReview, MATURITY_MIN_ROUNDS, REQUEST_COOLDOWN_MS, canRequestNativeReview } from "../www/js/core/review-request.js";
 
 describe("shouldRequestReview() — olgunluk eşiği", () => {
   it("MATURITY_MIN_ROUNDS'un ALTINDA (hiç istenmemiş) — false", () => {
@@ -41,5 +45,44 @@ describe("shouldRequestReview() — girdi sağlamlığı", () => {
   it("totalRoundsEver undefined/NaN ise false (asla yanlışlıkla true'ya düşmez)", () => {
     assert.equal(shouldRequestReview({ totalRoundsEver: undefined, lastRequestedAt: null }), false);
     assert.equal(shouldRequestReview({ totalRoundsEver: NaN, lastRequestedAt: null }), false);
+  });
+});
+
+// G286 — KABUL KRİTERİ: "JS tarafı test edilebilir (native yokken sessizce
+// false)". `window.Capacitor`'ın GERÇEK/sahte şekillerini taklit eden
+// nesnelerle — audio-engine.js:getAudioSessionPlugin()'in cihazda
+// KANITLANMIŞ (G135) kontrol zincirinin AYNISI.
+describe("canRequestNativeReview() — native köprü VARLIĞI (G286)", () => {
+  it("capacitor hiç yoksa (Web/ilk yükleme) — false", () => {
+    assert.equal(canRequestNativeReview(null, null), false);
+    assert.equal(canRequestNativeReview(undefined, undefined), false);
+  });
+
+  it("platform iOS DEĞİLSE (web/android) — false, capacitor VAR olsa bile", () => {
+    const capacitor = { nativePromise: () => {}, isPluginAvailable: () => true };
+    assert.equal(canRequestNativeReview(capacitor, "web"), false);
+    assert.equal(canRequestNativeReview(capacitor, "android"), false);
+  });
+
+  it("nativePromise fonksiyon DEĞİLSE (eski/bundler'lı Capacitor JS API'si, G135'in bulduğu boşluk) — false", () => {
+    const capacitor = { nativePromise: undefined, isPluginAvailable: () => true };
+    assert.equal(canRequestNativeReview(capacitor, "ios"), false);
+    const capacitor2 = { nativePromise: "fonksiyon değil", isPluginAvailable: () => true };
+    assert.equal(canRequestNativeReview(capacitor2, "ios"), false);
+  });
+
+  it("isPluginAvailable('AudioSessionPlugin') false dönerse — false (plugin native tarafta kayıtlı DEĞİL)", () => {
+    const capacitor = { nativePromise: () => {}, isPluginAvailable: (name) => name !== "AudioSessionPlugin" };
+    assert.equal(canRequestNativeReview(capacitor, "ios"), false);
+  });
+
+  it("isPluginAvailable HİÇ YOKSA (Capacitor'ın bazı sürümlerinde olmayabilir) — kontrol ATLANIR, diğer şartlar yeterliyse true", () => {
+    const capacitor = { nativePromise: () => {} }; // isPluginAvailable YOK
+    assert.equal(canRequestNativeReview(capacitor, "ios"), true);
+  });
+
+  it("HER ŞART sağlanıyorsa (iOS + nativePromise + plugin kayıtlı) — true", () => {
+    const capacitor = { nativePromise: () => {}, isPluginAvailable: (name) => name === "AudioSessionPlugin" };
+    assert.equal(canRequestNativeReview(capacitor, "ios"), true);
   });
 });

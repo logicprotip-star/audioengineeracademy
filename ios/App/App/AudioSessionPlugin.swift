@@ -24,13 +24,26 @@
 import Foundation
 import Capacitor
 import AVFoundation
+import UIKit
+// G286 — App Store yorum isteme (SKStoreReviewController/AppStore.requestReview).
+// StoreKit.framework ZATEN BAĞLI (project.pbxproj — @capgo/native-purchases
+// IAP için, bkz. OLCUM-YORUM-17-08.md madde 1) — yeni bir framework linki
+// GEREKMEDİ.
+import StoreKit
 
 @objc(AudioSessionPlugin)
 public class AudioSessionPlugin: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "AudioSessionPlugin"
     public let jsName = "AudioSessionPlugin"
+    // ⚠️ G134'ün tuzağı: bu dizide YOK olan bir metod native tarafta VAR
+    // olsa bile JS köprüsünden ÇAĞRILAMAZ (Capacitor'ın plugin keşif
+    // sözleşmesi) — YENİ bir @objc metod eklerken buraya AYRICA satır
+    // eklenmesi ZORUNLU, unutulması sessiz bir "metot bulunamadı" hatasına
+    // yol açar (app.js tarafındaki try/catch bunu yakalar, ama native
+    // tarafta HİÇBİR uyarı/derleme hatası VERMEZ — SADECE burası unutulursa).
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "activate", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "activate", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "requestReview", returnType: CAPPluginReturnPromise)
     ]
 
     override public func load() {
@@ -90,6 +103,51 @@ public class AudioSessionPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc func activate(_ call: CAPPluginCall) {
         let ok = activateSession(reason: "js-çağrısı")
         call.resolve(["ok": ok])
+    }
+
+    // G286 — App Store yorum isteme. JS tarafı (app.js:requestNativeStoreReview,
+    // core/review-request.js:shouldRequestReview) NE ZAMAN çağıracağına ÇOKTAN
+    // karar verdi (olgunluk/cooldown/ilk-oturum/3-onaylı-an — bu dosyaya HİÇ
+    // taşınmadı, DOKUNULMAYACAK) — burası SADECE Apple'ın sistem diyaloğunu
+    // TETİKLER, KENDİ UI'ını GÖSTERMEZ (Apple'ın kuralı: özel "Yorum yap"
+    // butonu YASAK, SADECE sistem diyaloğu).
+    //
+    // Diyaloğun GERÇEKTEN gösterilip gösterilmediği bu API'lerin HİÇBİRİNDEN
+    // ÖĞRENİLEMEZ (Apple'ın kasıtlı tasarımı — yılda en fazla 3 kez sistem
+    // TARAFINDAN sessizce sınırlanır, geliştiriciye bildirim YOK). `call.resolve`
+    // SADECE "çağrı native tarafta BAŞARIYLA YAPILDI" anlamına gelir.
+    //
+    // Üç katmanlı sürüm dalı (task'ın kendi talimatı):
+    //   iOS 18+  → AppStore.requestReview(in:) (en yeni, Swift concurrency API)
+    //   iOS 16-17 → SKStoreReviewController.requestReview(in:) (AppStore.
+    //               requestReview bu aralıkta henüz kullanılabilir kabul
+    //               EDİLMEDİ — bkz. OLCUM-YORUM-17-08.md, bu SDK/derleyici
+    //               varsayımı Logic'in Xcode derlemesiyle DOĞRULANMALI)
+    //   iOS 15 (bu projenin minimum hedefi, project.pbxproj) → AYNI
+    //               SKStoreReviewController — "deprecated fallback" (iOS
+    //               16'dan sonra Apple'ın eski işaretlediği ama HÂLÂ ÇALIŞAN
+    //               tek yol, bu min-deployment'ta BAŞKA seçenek YOK).
+    @objc func requestReview(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let scene = UIApplication.shared.connectedScenes
+                .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+            else {
+                // Ön planda aktif bir UIWindowScene yoksa (ör. arka planda
+                // çağrılmışsa) sistem diyaloğu ZATEN gösterilemez — sessizce
+                // "yapılamadı" döner, HATA FIRLATMAZ (JS tarafı bunu normal
+                // bir "false" olarak ele alıyor, çökme YOK).
+                call.resolve(["ok": false])
+                return
+            }
+            if #available(iOS 18.0, *) {
+                AppStore.requestReview(in: scene)
+            } else if #available(iOS 16.0, *) {
+                SKStoreReviewController.requestReview(in: scene)
+            } else {
+                SKStoreReviewController.requestReview(in: scene)
+            }
+            call.resolve(["ok": true])
+        }
     }
 
     @objc private func handleAppBecameActive() {

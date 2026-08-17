@@ -10,7 +10,7 @@ import { createExamSystem, getWeakTier, recordTierResult, EXAM_CONFIG } from "./
 import * as storage from "./core/storage.js";
 import * as progress from "./core/progress.js";
 import * as paywall from "./core/paywall.js";
-import { shouldRequestReview } from "./core/review-request.js";
+import { shouldRequestReview, canRequestNativeReview } from "./core/review-request.js";
 import { toast, spawnXp, burst, shake } from "./core/fx.js";
 import { formatHz } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
@@ -2939,13 +2939,37 @@ function getWeakArea(stats, modeId) {
   return { type: "tier", value: tier, label: mode.DIFFICULTY[tier]?.label || tier };
 }
 
-// G283 — App Store yorum isteme. GERÇEK native çağrı — Capacitor'da HAZIR
-// bir plugin YOK (bkz. core/review-request.js dosya başı notu, DURUM.md
-// G283). BİLEREK NO-OP: plugin eklenince buraya (ads.js:getAdMobPlugin()'in
-// AYNI "global bridge, yoksa null" deseni) `window.Capacitor.Plugins.
-// <PluginAdı>.requestReview()` çağrısı eklenmeli.
-function requestNativeStoreReview() {
-  if (DEV_MODE) console.warn("[review-request] native plugin kurulu değil — istek NO-OP (bkz. DURUM.md G283)");
+// G286 — App Store yorum isteme, GERÇEK native çağrı (OLCUM-YORUM-17-08.md'nin
+// önerdiği "Yol A" — ios/App/App/AudioSessionPlugin.swift'e eklenen YENİ
+// `requestReview` metodu, ZATEN kayıtlı plugin'in ÜZERİNE, yeni plugin/
+// Main.storyboard değişikliği GEREKMEDİ). `window.Capacitor.nativePromise(
+// "AudioSessionPlugin","requestReview",{})` — `activate`'in (G132/G135,
+// audio-engine.js:getAudioSessionPlugin) CİHAZDA KANITLANMIŞ AYNI köprüsü.
+//
+// KATMANLI GUARD (task'ın kendi şartı — "native değilse/plugin yoksa/metot
+// yoksa/hata fırlatırsa → sessizce false dön, kırılma"):
+//   1. `canRequestNativeReview()` (core/review-request.js, SAF/test edilebilir)
+//      — window.Capacitor yok / iOS değil / nativePromise yok / plugin
+//      kayıtlı değil → false, native ÇAĞRI HİÇ DENENMEZ.
+//   2. try/catch — plugin VAR ama `requestReview` metodu native tarafta
+//      henüz YOKSA (eski bir derleme) nativePromise'in reddettiği promise
+//      BURADA yakalanır, YİNE false (asla fırlatmaz/çökmez).
+// Apple'ın kendi sınırı (yılda en fazla 3) İŞLETİM SİSTEMİ TARAFINDAN
+// uygulanıyor — `res.ok:true` SADECE "native çağrı başarıyla YAPILDI"
+// demek, "diyalog GERÇEKTEN gösterildi" DEĞİL (iOS bunu bildirmiyor,
+// GİZLİLİK/anti-gaming tasarımı — kod bu BELİRSİZLİĞE zaten hazır, hiçbir
+// yerde "gösterildi" varsayılmıyor).
+async function requestNativeStoreReview() {
+  try {
+    const capacitor = window.Capacitor;
+    const platform = capacitor && capacitor.getPlatform ? capacitor.getPlatform() : null;
+    if (!canRequestNativeReview(capacitor, platform)) return false;
+    const res = await capacitor.nativePromise("AudioSessionPlugin", "requestReview", {});
+    return !!(res && res.ok);
+  } catch (e) {
+    if (DEV_MODE) console.warn("[review-request] native çağrı başarısız (plugin eski/metot yok/hata) — sessizce yutuldu:", e && e.message);
+    return false;
+  }
 }
 
 // SADECE ÜÇ onaylı çağrı noktasından (sınav geçildi/rozet kazanıldı/seviye
@@ -2962,7 +2986,11 @@ function maybeRequestStoreReview() {
   if (!shouldRequestReview({ totalRoundsEver: stats.rounds, lastRequestedAt: stats.lastReviewRequestAt })) return;
   stats.lastReviewRequestAt = Date.now();
   persistStats();
-  requestNativeStoreReview();
+  // requestNativeStoreReview() KENDİ try/catch'i içinde HER durumda resolve
+  // eder (asla reject etmez) — bu .catch() SADECE ekstra bir güvenlik payı,
+  // .then()/await burada BİLEREK YOK (fire-and-forget, cycleThreeWayPreview()
+  // çağrısının AYNI deseni, bkz. app.js toggleAB).
+  requestNativeStoreReview().catch(() => {});
 }
 
 // {{ exFacts }}'ın (Prototip.dc.html satır 2428) AYNI satırı — renk

@@ -10,14 +10,15 @@
 //
 // Bu dosya SADECE "şimdi istemeli miyiz" kararını (SAF, test edilebilir)
 // verir. GERÇEK native çağrı app.js'te `requestNativeStoreReview()` —
-// Capacitor'da HAZIR bir review-request plugin'i YOK (grep+npm ile
-// doğrulandı: `@capacitor-community/in-app-review` gibi bir paket bu
-// projede kurulu DEĞİL, Capacitor CORE'un kendisi review isteği için bir
-// API SUNMUYOR — sadece üçüncü-parti plugin'lerle mümkün). Eklemek
-// `npm install` + `npx cap sync` (Podfile/Xcode proje dosyalarını
-// DEĞİŞTİRİR, derleme doğrulaması bu ortamdan YAPILAMAZ) gerektiriyor —
-// bu NEDENLE native çağrı YAZILMADI, KOD YAZMADAN bildirildi (bkz.
-// DURUM.md G283). `requestNativeStoreReview()` şimdilik NO-OP.
+// G286'da OLCUM-YORUM-17-08.md'nin ÖNERDİĞİ "Yol A" ile bağlandı: mevcut
+// `ios/App/App/AudioSessionPlugin.swift`'e (ZATEN MainViewController.swift'te
+// kayıtlı, YENİ plugin/Main.storyboard değişikliği GEREKMEDİ) yeni bir
+// `requestReview` metodu eklendi — `SKStoreReviewController`/`AppStore.
+// requestReview` (StoreKit, ZATEN bağlı framework). Swift bu ortamda
+// DERLENEMEDİ (Logic Xcode'da ⌘B ile doğrulayacak) — JS tarafı ise
+// `window.Capacitor.nativePromise("AudioSessionPlugin","requestReview",{})`
+// çağırıyor, `AudioSessionPlugin.swift`'in `activate` metodunun (G132/G135)
+// AYNI KANITLANMIŞ köprü deseni.
 
 // Olgunluk eşiği: en az bu kadar tur (stats.rounds, TÜM zamanların toplamı)
 // oynanmış olmalı — task'ın "kullanıcı belirli bir olgunluğa ulaşmadan
@@ -41,5 +42,25 @@ export const REQUEST_COOLDOWN_MS = 60 * 24 * 60 * 60 * 1000;
 export function shouldRequestReview({ totalRoundsEver, lastRequestedAt, now = Date.now() } = {}) {
   if (!(totalRoundsEver >= MATURITY_MIN_ROUNDS)) return false;
   if (typeof lastRequestedAt === "number" && now - lastRequestedAt < REQUEST_COOLDOWN_MS) return false;
+  return true;
+}
+
+// G286 — native köprünün ÇAĞRILMAYA DEĞER olup olmadığını (VARLIĞINI)
+// kontrol eder, GERÇEK çağrıyı YAPMAZ (o app.js'te — `window.Capacitor.
+// nativePromise(...)` DOM'a bağımlı, Node'da test edilemez). `ads.js:
+// getAdMobPlugin()`/`audio-engine.js:getAudioSessionPlugin()`'in AYNI
+// "global bridge, katman katman kontrol et, yoksa false/null" deseni —
+// SAF hâle getirilmiş: `capacitor`/`platform` parametre olarak verilir
+// (gerçek çağrıda `window.Capacitor`/`window.Capacitor.getPlatform()`,
+// testte sahte bir nesne). Metodun (`requestReview`) native tarafta
+// GERÇEKTEN var olup olmadığı BURADA kontrol EDİLEMEZ (sadece PLUGIN'in
+// kayıtlı olduğu anlaşılır) — o, GERÇEK çağrının try/catch'i (app.js)
+// tarafından, "metot yoksa" durumunda native köprünün reddettiği
+// promise'i yakalayarak ele alınıyor.
+export function canRequestNativeReview(capacitor, platform) {
+  if (!capacitor) return false;
+  if (platform !== "ios") return false;
+  if (typeof capacitor.nativePromise !== "function") return false;
+  if (typeof capacitor.isPluginAvailable === "function" && !capacitor.isPluginAvailable("AudioSessionPlugin")) return false;
   return true;
 }
