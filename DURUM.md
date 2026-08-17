@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G276 — bölüm çubuğu sırası düzeltmesi: challenge.results[] eklendi, nokta çizimi artık gerçek cevap sırasını gösteriyor (done/correct sayaçları değişmedi); kök sebep G213'tü, 2 gün önce, G214 sorumlu değil)
+Son güncelleme: 17.08.2026 (G277 — kurtarılan tur çalmıyor düzeltmesi, EN CİDDİ: playThreeWaySpecific/cycleThreeWayPreview artık chainNeedsRebuild() ise playQuestion() ile SIFIRDAN kuruyor; Kompresör+Distortion analyser-tap ile doğrulandı, "Kompresör'de sorun yok" iddiası yanlışlanmıştı; G267'nin seamless davranışı G267'nin kendi 5 testiyle korunduğu doğrulandı)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,74 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G277 — **Kurtarılan tur çalmıyor düzeltmesi (OLCUM-SATURATION-17-08 madde C — "EN CİDDİ"). G267'nin seamless A/B/C mimarisi (Kompresör/Distortion), kart-üstü play/DÖNGÜ kontrollerinin zincirin ZATEN kurulu olduğunu varsayıyordu — G203'ün tur-kurtarma yolu zinciri BİLEREK ertelediği için, kurtarma sonrası bu kontroller sessizce no-op yapıyordu. AYRI commit.**
+
+**Kök sebep, kesin doğrulandı + izole edildi (OLCUM-SATURATION-17-08'de):**
+`playThreeWaySpecific()`/`cycleThreeWayPreview()`'ın `isSeamlessThreeWay`
+dalı SADECE `audioEngine.setThreeWayActive()`/`unmuteOutput()` çağırıyordu
+— bunlar VAR OLAN bir `threeWayGainNodes`'un gain'ini AYARLAR, YENİ bir
+zincir KURMAZ (`audio-engine.js`: `if (!audioCtx || !threeWayGainNodes)
+return;` — sessiz no-op). G203'ün kurtarma yolu (`applyRestoredRoundIfAny`,
+3 gün önceki, KENDİ BAŞINA doğru) zinciri KASITLI ERTELİYORDU ("bir
+SONRAKİ 'Tekrar Çal' playQuestion()'la kursun"), ama THREE_WAY modlarda
+`#startBtn` (o "Tekrar Çal" yolu) `activeQuestion` doluyken HER ZAMAN
+GİZLİ (`updateStartBtnLabel`, G86'dan beri KASITLI tasarım) — kullanıcının
+erişebildiği TEK kontroller (kart-üstü play, DÖNGÜ) zincir kurmayı hiç
+DENEMİYORDU. **Bu bir G203 bug'ı DEĞİL** — G267'nin (bugün, `e9acd73`)
+yeni kontrol yüzeyinin kurtarma senaryosunu KAPSAMAMASI.
+
+**"Kompresör'de sorun yok" iddiası — YANLIŞLANDI (OLCUM-SATURATION-17-08'de
+ölçüldü, bu turda TEKRAR doğrulandı):** `SEAMLESS_THREE_WAY_MODE_IDS =
+["kompresor","distortion"]` — İKİSİ DE AYNI koddan geçiyor, mod-spesifik
+hiçbir dallanma YOK. Kompresör'ün "sorun yok" izlenimi bu TAM
+reprodüksiyon adımının (arka plana al→kapat/aç→kart-üstü play) o modda
+DENENMEMİŞ olmasından geliyordu.
+
+**Düzeltme:** `playThreeWaySpecific(letter)` ve `cycleThreeWayPreview()`
+`async` oldu. İKİSİNİN DE `isSeamlessThreeWay(mode)` dalının EN BAŞINA
+`chainNeedsRebuild()` kontrolü eklendi (`#startBtn`'in "Tekrar Çal"
+dalıyla AYNI, ZATEN VAR OLAN sinyal — `www/js/app.js:5322`) — true ise
+(zincir yok/geçersiz) `await playQuestion(currentPlayMode!=="clean")`
+ile SIFIRDAN kurulup normal pause/resume mantığı ATLANIYOR (chain
+YOKKEN "zaten çalıyordu" varsayımı ANLAMSIZ). `playThreeWaySpecific`'te
+TIKLANAN harf `playQuestion()`'a `threeWayPlayLetter` olarak geçiyor
+(build ÖNCESİ atanıyor) — **TEK basışta O harf DUYULUR hale geliyor**
+(KABUL KRİTERİ: "play'e bas → SES GELİR", ikinci basışa GEREK YOK).
+Chain ZATEN kuruluysa (normal/yaygın durum) davranış BİR SATIR
+değişmedi — `chainNeedsRebuild()` false döner, ESKİ (G267'nin kesintisiz
+crossfade) yol AYNEN çalışır. 2 çağrı noktası (`toggleAB()`,
+`.ans-m2-play` click handler) `await` EDİLMİYOR (ÖNCEKİ senkron
+click-handler deseni korunuyor), `.catch(console.error)` ile hatalar
+sessizce YUTULMUYOR.
+
+**Ölçüm — analyser-tap (`AudioContext.prototype.createAnalyser`'a Proxy,
+uygulamanın paylaşılan analyser'ından GERÇEK sinyal okuma):**
+
+| | Kurtarma sonrası, TEK basış |
+|---|---|
+| Düzeltme ÖNCESİ (ölçüldü, OLCUM-SATURATION-17-08) | sapma=0 (tam sessizlik) |
+| Düzeltme SONRASI, Distortion | sapma=23 |
+| Düzeltme SONRASI, Kompresör | sapma=28 |
+
+(Baseline/normal round sapması 23-45 aralığında — düzeltme sonrası
+değerler bu aralıkla TUTARLI, gerçek ses.)
+
+**Regresyon korumaları:** `e2e/seamless-three-way.spec.mjs`'in 5 mevcut
+testi (G267'nin KENDİ "zincir yeniden KURULMUYOR" iddiası) TEK SATIR
+değişmeden **5/5 GEÇTİ** — seamless crossfade davranışı BOZULMADI.
+Canlı Chrome'da AYRICA doğrulandı: kurtarma sonrası karta TEK tıklama
+→ "çalıyor" + animasyonlu waveform, konsol hatasız.
+
+**Testler:** YENİ `e2e/recovered-round-audio.spec.mjs` (2 test —
+Distortion + Kompresör, analyser-tap ile TEK-basış-SES-üretir
+doğrulaması). `git stash -- app.js` ile KIRMIZI (2 test de "SES
+GELMEDİ, sapma=0" diye başarısız oldu) doğrulandı, `stash pop` ile
+YEŞİL'e döndü — AYNI çalıştırmada `seamless-three-way.spec.mjs`'in
+5 testi de YEŞİL kaldı (7/7).
+
+**Doğrulama:** `npm test` 1429/1429 (değişmedi — sadece e2e testi
+eklendi). `npm run test:e2e` 41→**43/43**.
 
 G276 — **Bölüm çubuğu sırası düzeltmesi (OLCUM-CIHAZ2-17-08 madde A). `challenge.correct`/`done` SAYAÇLARI hangi POZİSYONUN doğru/yanlış olduğunu tutmuyordu — çubuk "önce N doğru, sonra kalan yanlış" çiziyordu, gerçek sırayı YANSITMIYORDU. AYRI commit.**
 
@@ -20693,7 +20761,54 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G273 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G277 itibarıyla):**
+OLCUM-SATURATION-17-08 ve OLCUM-CIHAZ2-17-08'in 4 bulgusu DÜZELTİLDİ,
+HER BİRİ AYRI commit (G274-G277), HER BİRİ `git stash` ile kırmızı/yeşil
+doğrulandı:
+- **G274** — siyah ekran (`goScreen("home")` 5 yerde, kök 3 gün önceki
+  commit'ler, bugünle ilgisi yok). Regresyon testi: `test/goscreen-ids.
+  test.mjs`.
+- **G275** — kaynak değişimi sonrası `.answers` kaybolması (kök G126,
+  6 gün önce). `syncAnswerArea()` çağrısı eklendi, soru DEĞİŞMİYOR.
+  Regresyon testi: `e2e/upload-gate-answers-restore.spec.mjs`.
+- **G276** — BÖLÜM çubuğu sırası (kök G213, 2 gün önce — G214 SORUMLU
+  DEĞİL). `challenge.results[]` eklendi, `done`/`correct` sayaçları
+  DEĞİŞMEDİ, `challenge` HİÇ persist edilmediği için geriye dönük
+  uyumluluk/G233 endişesi UYGULANMADI. Testler: `test/challenge.
+  test.mjs` (+3), `e2e/chapter-dots-order.spec.mjs`.
+- **G277 (EN CİDDİ)** — kurtarılan tur çalmıyor (kök: G267'nin YENİ
+  kontrol yüzeyi G203'ün kurtarma senaryosunu kapsamıyordu).
+  `playThreeWaySpecific`/`cycleThreeWayPreview` artık `chainNeedsRebuild()`
+  ise `playQuestion()` ile SIFIRDAN kuruyor — TEK basışta ses geliyor.
+  Kompresör+Distortion analyser-tap ile doğrulandı (sapma 0→23/28),
+  "Kompresör'de sorun yok" iddiası YANLIŞLANMIŞTI. G267'nin KENDİ 5
+  testi (`seamless-three-way.spec.mjs`) TEK SATIR değişmeden geçti —
+  seamless crossfade davranışı korundu. Test: `e2e/recovered-round-
+  audio.spec.mjs`.
+
+`npm test` 1423→**1429/1429** (G274-277 toplamı). `npm run test:e2e`
+38→**43/43**. DOKUNULMAYACAK (Reverb'in A/B/C davranışı/döngü süresi,
+Reverb wet yolu, zorluk eğrisi, DIFFICULTY tabloları, G271/272/273'ün
+spektrum telafisi) TEK SATIR değişmedi — 4 düzeltmenin HİÇBİRİ bu
+alanlara dokunmadı.
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. OLCUM-CIHAZ2-17-08'in DÜZELTİLMEYEN 3 bulgusu hâlâ AÇIK: Reverb A/B/C
+   geçiş süresi (2000ms, Hall decay'i aşıyor), Reverb wet yoluna
+   high-pass eklenmesi (kick "boom"), zorluk dengesi (dB Seviyesi/
+   Stereo Genişlik) — HEPSİ bu turun DOKUNULMAYACAK listesinde, AYRI
+   işler olarak bekliyor.
+2. B'nin (G275) ürün sorusu HÂLÂ AÇIK: kaynak değişimi "Atla" sayılmasın
+   mı? (G214'ün davranışı BU turda değiştirilmedi.)
+3. `OLCUM-KALAN-17-08.md`/`OLCUM-CPU-17-08.md`/`OLCUM-KESIM-17-08.md`/
+   `OLCUM-SATURATION-17-08.md`/`OLCUM-CIHAZ2-17-08.md` henüz commit'e
+   alınmadı.
+4. vocal+clean_guitar çifti ÖLÇÜLDÜ ([441,743]Hz) ama YENİ bir
+   SOURCE_PAIRS girdisi olarak EKLENMEDİ — bkz. OLCUM-KAYNAK-17-08.md
+   madde F.2.
+5. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü hâlâ
+   ÇALIŞTIRILARAK test EDİLMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G273 itibarıyla, ARTIK ESKİ):**
 AÇIK İŞLER madde 27 kapatıldı — "Saw" kaynağı artık GERÇEK sawtooth
 çalıyor (`resolveOscillatorType()` YENİ SAF fonksiyonu, `osc1.type =
 sourceType`'ın "saw" için GEÇERSİZ olan atamasını `"sawtooth"`ya

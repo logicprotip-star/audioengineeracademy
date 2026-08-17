@@ -5436,7 +5436,7 @@ async function playQuestion(processed = true) {
 // başlayan asıl işlem) yine de çalıştırabiliyordu — cevap sonrası KISA bir an
 // için istenmeyen bir ses/kaynak değişimi (task'ın 4. maddesindeki "kaynak
 // değişimi... anları" ile AYNI aile). Savunma amaçlı, en baştaki koşulla kapatıldı.
-function cycleThreeWayPreview() {
+async function cycleThreeWayPreview() {
   if (!roundActive) return;
   const q = activeQuestion;
   const idx = q.variants.findIndex(v => v.letter === threeWayPlayLetter);
@@ -5450,6 +5450,14 @@ function cycleThreeWayPreview() {
   // otomatik unmute) davranışı DEĞİŞMESİN diye burada unmuteOutput() ile
   // AYNEN korunuyor.
   if (isSeamlessThreeWay(mode)) {
+    // G277 — bkz. playThreeWaySpecific()'in AYNI notu (DÖNGÜ butonu/otomatik
+    // abLoopTimer de setThreeWayActive/unmuteOutput'un VAR OLAN bir zincire
+    // dayandığı AYNI varsayıma çarpıyordu).
+    if (chainNeedsRebuild()) {
+      await playQuestion(currentPlayMode !== "clean");
+      updateAbToggleUI();
+      return;
+    }
     audioEngine.setThreeWayActive(next.letter);
     audioEngine.unmuteOutput();
     updateAbToggleUI();
@@ -5488,7 +5496,7 @@ function cycleThreeWayPreview() {
 // aynı harf duraklatılıp TEKRAR ona basılınca (isResumingSameLetter)
 // döngü de geri başlatılıyor; FARKLI bir harfe geçişte döngü davranışı
 // (açık/kapalı ne ise) HİÇ etkilenmiyor (task'ın kendi kuralı).
-function playThreeWaySpecific(letter) {
+async function playThreeWaySpecific(letter) {
   if (!roundActive || !isThreeWayQuestion(activeQuestion)) return;
   const q = activeQuestion;
   if (!q.variants.some(v => v.letter === letter)) return;
@@ -5502,6 +5510,31 @@ function playThreeWaySpecific(letter) {
   // pausePreview() BU İKİ MOD İÇİN artık gereksiz (pozisyon zaten hiç kaybolmuyor).
   // ⚠️ REVERB için aşağıdaki ESKİ (pausePreview/offset/rebuild) yol AYNEN korunuyor.
   if (isSeamlessThreeWay(mode)) {
+    // G277 (OLCUM-SATURATION-17-08 madde C düzeltmesi) — bu dal setThreeWayActive/
+    // unmuteOutput'un VAR OLAN bir zinciri (threeWayGainNodes) AYARLADIĞINI
+    // varsayıyordu — G203'ün tur-kurtarma yolu (bkz. applyRestoredRoundIfAny)
+    // BİLEREK hiç zincir kurmadan bırakıyor ("bir SONRAKİ 'Tekrar Çal'
+    // playQuestion()'la SIFIRDAN kursun"), ama THREE_WAY modlarda #startBtn
+    // (o "Tekrar Çal" yolu) activeQuestion doluyken HER ZAMAN gizli
+    // (updateStartBtnLabel, G86'dan beri KASITLI) — kullanıcının erişebildiği
+    // TEK kontroller (kart-üstü play, DÖNGÜ) setThreeWayActive/unmuteOutput'un
+    // sessiz no-op koruma satırlarına (audio-engine.js: "if (!audioCtx ||
+    // !threeWayGainNodes) return;") çarpıyordu — SES HİÇ GELMİYORDU (ölçüldü:
+    // analyser sapması 0, 2 tıklamada da). chainNeedsRebuild() (aşağıda,
+    // #startBtn'in "Tekrar Çal" dalıyla AYNI sinyal) burada da geçerli: true
+    // ise zincir HİÇ YOK/geçersiz demektir — normal pause/resume ayrımı
+    // (aşağıdaki `if (letter===threeWayPlayLetter && !threeWayPreviewPaused)`)
+    // bu durumda ANLAMSIZ ("zaten çalıyordu" varsayımı YANLIŞ, hiçbir şey
+    // çalmıyordu) — DOĞRUDAN playQuestion() ile SIFIRDAN kurulup TIKLANAN
+    // harf İLK basışta duyulur hale getiriliyor (KABUL KRİTERİ: "play'e
+    // bas → SES GELİR", ikinci bir basışa GEREK YOK).
+    if (chainNeedsRebuild()) {
+      threeWayPlayLetter = letter;
+      threeWayPreviewPaused = false;
+      await playQuestion(currentPlayMode !== "clean");
+      updateAbToggleUI();
+      return;
+    }
     if (letter === threeWayPlayLetter && !threeWayPreviewPaused) {
       audioEngine.muteThreeWayPreview();
       threeWayPreviewPaused = true;
@@ -5563,7 +5596,11 @@ if (els.freqGuessArea) els.freqGuessArea.addEventListener("click", e => {
 
 function toggleAB() {
   if (isThreeWayQuestion(activeQuestion)) {
-    cycleThreeWayPreview();
+    // G277 — cycleThreeWayPreview() artık async (bkz. kendi notu) — burada
+    // BEKLENMİYOR (ÖNCEKİ senkron çağrı deseni korunuyor, abLoopTimer/
+    // #abToggle click'i playQuestion() bitmesini beklemeden dönebilir),
+    // hata SESSİZCE yutulmasın diye .catch ile loglanıyor.
+    cycleThreeWayPreview().catch((err) => console.error(err));
     return;
   }
   const processed = currentPlayMode !== "filtered";
@@ -6291,7 +6328,9 @@ if (els.answers) els.answers.addEventListener("click", e => {
   const playBtn = e.target.closest(".ans-m2-play");
   if (playBtn) {
     if (playBtn.disabled || !isThreeWayQuestion(activeQuestion)) return;
-    playThreeWaySpecific(playBtn.dataset.letter);
+    // G277 — playThreeWaySpecific() artık async (bkz. kendi notu), burada
+    // BEKLENMİYOR (ÖNCEKİ senkron click-handler deseni korunuyor).
+    playThreeWaySpecific(playBtn.dataset.letter).catch((err) => console.error(err));
     return;
   }
   const btn = e.target.closest(".ans");
