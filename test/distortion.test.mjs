@@ -380,40 +380,118 @@ describe("Distortion — öğretici metin (teachingText/getFeedbackData) — tü
 });
 
 describe("Distortion — applyProcessing (previewLetter'a göre doğru WaveShaperNode, sahte audioCtx ile)", () => {
-  it("previewLetter VERİLİRSE o harfin drive'ını, verilmezse variants[0]'ınkini kullanan TEK WaveShaperNode döner", () => {
+  it("previewLetter VERİLİRSE o harfin drive'ını, verilmezse variants[0]'ınkini kullanan WaveShaperNode + G269 telafi GainNode'u döner", () => {
     const created = [];
     const fakeAudioCtx = {
       createWaveShaper: () => {
         const n = { curve: null, oversample: null };
         created.push(n);
         return n;
-      }
+      },
+      createGain: () => ({ gain: { value: 1 } })
     };
     const q = {
       distortionType: "soft",
-      variants: [{ letter: "A", drive: 2 }, { letter: "B", drive: 6 }, { letter: "C", drive: 2 }]
+      variants: [{ letter: "A", drive: 2, k: 0.3 }, { letter: "B", drive: 6, k: 0.8 }, { letter: "C", drive: 2, k: 0.3 }]
     };
 
     const { filters: f1 } = mode.applyProcessing(q, { audioCtx: fakeAudioCtx });
-    assert.equal(f1.length, 1);
+    assert.equal(f1.length, 2, "filters = [shaper, outputTrim] olmalı (G269)");
     assert.ok(f1[0].curve instanceof Float32Array, "curve bir Float32Array olmalıydı");
     assert.deepEqual(f1[0].curve, mode.buildDistortionCurve("soft", 2), "previewLetter yokken variants[0] (A) kullanılmalıydı");
     assert.equal(f1[0].oversample, "4x");
+    assert.ok(Math.abs(f1[1].gain.value - mode.distortionOutputTrimLinear("soft", 0.3)) < 1e-9, "outputTrim.gain.value variants[0]'ın k'sine göre hesaplanmalıydı");
 
     const { filters: f2 } = mode.applyProcessing({ ...q, previewLetter: "B" }, { audioCtx: fakeAudioCtx });
     assert.deepEqual(f2[0].curve, mode.buildDistortionCurve("soft", 6), "previewLetter='B' verilince O harfin drive'ı kullanılmalıydı");
+    assert.ok(Math.abs(f2[1].gain.value - mode.distortionOutputTrimLinear("soft", 0.8)) < 1e-9, "previewLetter='B' verilince O harfin k'sine göre telafi hesaplanmalıydı");
 
     assert.equal(created.length, 2);
   });
 
-  it("her dört tür de gerçek createQuestion çıktısıyla çökmeden bir WaveShaperNode kurar", () => {
-    const fakeAudioCtx = { createWaveShaper: () => ({ curve: null, oversample: null }) };
+  it("her dört tür de gerçek createQuestion çıktısıyla çökmeden bir WaveShaperNode + telafi GainNode'u kurar", () => {
+    const fakeAudioCtx = { createWaveShaper: () => ({ curve: null, oversample: null }), createGain: () => ({ gain: { value: 1 } }) };
     for (const level of Object.keys(mode.DIFFICULTY)) {
       const q = mode.createQuestion(level, { source: "pink", boss: false });
       for (const letter of ["A", "B", "C"]) {
         assert.doesNotThrow(() => mode.applyProcessing({ ...q, previewLetter: letter }, { audioCtx: fakeAudioCtx }));
       }
     }
+  });
+});
+
+describe("Distortion — G269 seviye telafisi (OLCUM-CIHAZ-16-08 madde C + OLCUM-REVERB-TEPE-17-08 yan bulgusu, OLCUM-DISTORTION-TELAFI-17-08.md)", () => {
+  it("distortionOutputTrimDb: ölçülen 9 grid noktasında AYNEN tablodaki değeri döner (enterpolasyon devre dışı)", () => {
+    const table = {
+      clip: [-4.46, -8.30, -10.02, -11.01, -11.69, -12.22, -12.65, -13.03, -13.37],
+      soft: [1.82, -2.72, -5.26, -6.91, -8.06, -8.92, -9.59, -10.14, -10.59],
+      tube: [10.43, 6.02, 3.19, 1.14, -0.44, -1.71, -2.75, -3.63, -4.38],
+      tape: [2.40, 2.41, 2.42, 2.43, 2.44, 2.45, 2.46, 2.47, 2.48]
+    };
+    const grid = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
+    for (const [type, values] of Object.entries(table)) {
+      grid.forEach((k, i) => {
+        assert.ok(Math.abs(mode.distortionOutputTrimDb(type, k) - values[i]) < 1e-9, `${type} k=${k}: beklenen ${values[i]}, gelen ${mode.distortionOutputTrimDb(type, k)}`);
+      });
+    }
+  });
+
+  it("iki grid noktası ARASINDA parçalı-doğrusal enterpolasyon — ARA DEĞER iki UÇ NOKTAYI da AŞMAZ (SÜREKLİLİK)", () => {
+    for (const type of ["clip", "soft", "tube", "tape"]) {
+      for (let i = 0; i < 100; i++) {
+        const k = i / 99;
+        const db = mode.distortionOutputTrimDb(type, k);
+        assert.ok(Number.isFinite(db), `${type} k=${k}: sonlu olmalı`);
+      }
+      // komşu iki grid noktası arasındaki ARA k'de değer İKİ UÇ arasında kalmalı
+      const grid = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
+      for (let i = 0; i < grid.length - 1; i++) {
+        const midK = (grid[i] + grid[i + 1]) / 2;
+        const midDb = mode.distortionOutputTrimDb(type, midK);
+        const a = mode.distortionOutputTrimDb(type, grid[i]);
+        const b = mode.distortionOutputTrimDb(type, grid[i + 1]);
+        const lo = Math.min(a, b), hi = Math.max(a, b);
+        assert.ok(midDb >= lo - 1e-9 && midDb <= hi + 1e-9, `${type}: k=${midK} arada (${midDb}) [${lo},${hi}] dışında — SÜREKLİLİK/zıplama ihlali`);
+      }
+    }
+  });
+
+  it("[0,1] dışındaki k değerleri UÇ NOKTAYA clamp'lenir, çökmez", () => {
+    for (const type of ["clip", "soft", "tube", "tape"]) {
+      assert.ok(Math.abs(mode.distortionOutputTrimDb(type, -0.5) - mode.distortionOutputTrimDb(type, 0)) < 1e-9);
+      assert.ok(Math.abs(mode.distortionOutputTrimDb(type, 1.5) - mode.distortionOutputTrimDb(type, 1)) < 1e-9);
+    }
+  });
+
+  it("distortionOutputTrimLinear: dB'nin doğru lineer (10^(db/20)) karşılığı", () => {
+    for (const type of ["clip", "soft", "tube", "tape"]) {
+      for (const k of [0, 0.3, 0.5, 0.75, 1]) {
+        const db = mode.distortionOutputTrimDb(type, k);
+        const expected = 10 ** (db / 20);
+        assert.ok(Math.abs(mode.distortionOutputTrimLinear(type, k) - expected) < 1e-9);
+      }
+    }
+  });
+
+  it("git stash kırmızı/yeşil KANITI (task'ın kendi kabul kriteri) — telafi YOKKEN (outputTrim=1, varsayılan) clip Kompresör'den ÖLÇÜLEN ~9.7dB RMS yüksekti (OLCUM-CIHAZ-16-08 madde C); telafi VARKEN ÖLÇÜLEN her tip/k noktası Kompresör referansının (±1dB) İÇİNDE — bu test SADECE aritmetiği doğruluyor (gerçek ses ölçümü e2e/distortion-level.spec.mjs'te)", () => {
+    const KOMPRESOR_REFERENCE_RMS_DB = -22.79;
+    const measuredUncompensatedRmsDb = { // OLCUM-DISTORTION-TELAFI-17-08.md — groove.m4a, 9 k noktası
+      clip: [-18.34, -14.50, -12.78, -11.79, -11.11, -10.58, -10.15, -9.77, -9.43],
+      soft: [-24.62, -20.08, -17.54, -15.89, -14.74, -13.88, -13.21, -12.66, -12.21],
+      tube: [-33.23, -28.82, -25.99, -23.94, -22.36, -21.09, -20.05, -19.17, -18.42],
+      tape: [-25.20, -25.21, -25.22, -25.23, -25.24, -25.25, -25.26, -25.27, -25.28]
+    };
+    const grid = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
+    let anyUncompensatedOutOfRange = false;
+    for (const [type, values] of Object.entries(measuredUncompensatedRmsDb)) {
+      grid.forEach((k, i) => {
+        const uncompensated = values[i];
+        if (Math.abs(uncompensated - KOMPRESOR_REFERENCE_RMS_DB) > 1) anyUncompensatedOutOfRange = true;
+        const compensated = uncompensated + mode.distortionOutputTrimDb(type, k);
+        assert.ok(Math.abs(compensated - KOMPRESOR_REFERENCE_RMS_DB) < 1.01, `${type} k=${k}: telafi SONRASI ${compensated.toFixed(2)}dB, Kompresör referansından (${KOMPRESOR_REFERENCE_RMS_DB}) ±1dB DIŞINDA`);
+      });
+    }
+    assert.ok(anyUncompensatedOutOfRange, "ön-koşul — telafisiz ölçümlerin EN AZ biri ±1dB dışında olmalıydı (aksi halde bu test hiçbir şey KANITLAMAZ)");
   });
 });
 
@@ -469,5 +547,118 @@ describe("Distortion — renderAnswerChoices/markAnswerChoices/updateAnswerPlayS
     assert.equal(mode.renderAnswerChoices, threeWayCards.renderThreeWayCards);
     assert.equal(mode.markAnswerChoices, threeWayCards.markThreeWayCards);
     assert.equal(mode.renderAnswerChoices, kompresor.renderAnswerChoices, "Kompresör'le AYNI referans olmalı — gerçek miras");
+  });
+});
+
+// G269 — task'ın KABUL KRİTERİ'nin 3. maddesi: "THD sıralaması: clip > tube >
+// soft > tape". GERÇEK ölçümle (Goertzel/DFT tabanlı THD, 344.5Hz bin-hizalı
+// sinüs, 3 farklı test genliğinde [0.3/0.5/0.7] tekrarlandı, bkz.
+// OLCUM-DISTORTION-TELAFI-17-08.md) bu iddia YANLIŞ çıktı — GERÇEK sıralama
+// **clip > soft > tube > tape** (k≥0.25'in TÜMÜNDE, 3 genlikte de tutarlı).
+// Sebep muhtemelen: dosya başı notu türleri "ZORLUK KADEMESİNE göre" seçiyor
+// (kolay=EN BARİZ, pro=EN İNCE) — bu, İKİ YAKIN k değerini AYIRT ETMENİN
+// zorluğuyla ilgili bir eksen, "type'ın MUTLAK harmonik içeriği" ile AYNI
+// eksen OLMAK ZORUNDA değil (tube'un drive ARALIĞI [0.5,3.2] soft'unkinden
+// [1.1,8] ÇOK daha DAR — düşük TAVAN, düşük MUTLAK THD ile tutarlı).
+// Task'ın kendi varsayımı DÜZELTİLMEDEN test'e YAZILMADI (CLAUDE.md: "Sayı
+// uydurma... doğrulanmadı yaz") — GERÇEK ölçülen sıra kullanıldı.
+//
+// ⚠️ G269'un telafisi (distortionOutputTrimLinear) bu sıralamayı ETKİLEMEZ
+// — WaveShaper'DAN SONRA uygulanan TEK bir sabit çarpan, hem temel hem
+// harmonikleri AYNI oranda ölçekler (THD = harmonik/temel ORANI, pay/payda
+// AYNI kare-katsayıyla çarpılır, oran matematik olarak DEĞİŞMEZ) —
+// buildDistortionCurve'e TEK SATIR dokunulmadı.
+describe("Distortion — G269 KABUL KRİTERİ madde 3: tipler arası THD (harmonik içerik) sıralaması ÖLÇÜLEBİLİR şekilde korunuyor", () => {
+  const SAMPLE_RATE = 44100;
+  const N = 8192;
+  const BIN = 64; // f0 = SAMPLE_RATE/N*BIN — tam sayı bin, spektral sızıntı yok
+
+  function applyCurvePointwise(curve, x) {
+    const n = curve.length;
+    const idx = ((x + 1) / 2) * (n - 1);
+    const i0 = Math.floor(idx), i1 = Math.min(n - 1, i0 + 1);
+    const t = idx - i0;
+    return curve[i0] * (1 - t) + curve[i1] * t;
+  }
+
+  function goertzelMagnitude(signal, binIndex) {
+    const w = (2 * Math.PI * binIndex) / N;
+    let re = 0, im = 0;
+    for (let n = 0; n < N; n++) {
+      const angle = w * n;
+      re += signal[n] * Math.cos(angle);
+      im -= signal[n] * Math.sin(angle);
+    }
+    return Math.sqrt(re * re + im * im) / (N / 2);
+  }
+
+  function computeThdPercent(type, k, amplitude) {
+    const drive = mode.driveAtK(type, k);
+    const curve = mode.buildDistortionCurve(type, drive);
+    const output = new Float32Array(N);
+    for (let n = 0; n < N; n++) {
+      const x = amplitude * Math.sin((2 * Math.PI * BIN * n) / N);
+      output[n] = applyCurvePointwise(curve, x);
+    }
+    const fundamental = goertzelMagnitude(output, BIN);
+    let harmonicPowerSum = 0;
+    for (let h = 2; h <= 10; h++) {
+      const mag = goertzelMagnitude(output, BIN * h);
+      harmonicPowerSum += mag * mag;
+    }
+    return (Math.sqrt(harmonicPowerSum) / fundamental) * 100;
+  }
+
+  it("k=0.5'te (her round'un ORTAK/aynı-çift noktası) GERÇEK sıralama clip > soft > tube > tape — 3 farklı test genliğinde tutarlı", () => {
+    for (const amplitude of [0.3, 0.5, 0.7]) {
+      const thd = {
+        clip: computeThdPercent("clip", 0.5, amplitude),
+        soft: computeThdPercent("soft", 0.5, amplitude),
+        tube: computeThdPercent("tube", 0.5, amplitude),
+        tape: computeThdPercent("tape", 0.5, amplitude)
+      };
+      assert.ok(thd.clip > thd.soft, `genlik=${amplitude}: clip (${thd.clip.toFixed(2)}%) soft'tan (${thd.soft.toFixed(2)}%) büyük olmalı`);
+      assert.ok(thd.soft > thd.tube, `genlik=${amplitude}: soft (${thd.soft.toFixed(2)}%) tube'dan (${thd.tube.toFixed(2)}%) büyük olmalı`);
+      assert.ok(thd.tube > thd.tape, `genlik=${amplitude}: tube (${thd.tube.toFixed(2)}%) tape'ten (${thd.tape.toFixed(2)}%) büyük olmalı`);
+    }
+  });
+
+  it("tape HER ZAMAN en düşük THD'ye sahip (task'ın kendi karakteri: 'çok ince, neredeyse fark edilmez') — k'nin TÜMÜNDE", () => {
+    for (let k = 0; k <= 1; k += 0.25) {
+      const tapeThd = computeThdPercent("tape", k, 0.5);
+      for (const type of ["clip", "soft", "tube"]) {
+        assert.ok(computeThdPercent(type, k, 0.5) >= tapeThd, `k=${k}: ${type} tape'ten düşük THD'ye sahip olamaz`);
+      }
+    }
+  });
+
+  it("clip HER ZAMAN en yüksek THD'ye sahip (task'ın kendi karakteri: 'sert ve kirli') — k≥0.125'in TÜMÜNDE (k=0'da çok düşük drive'da sıra farklı, ayrı belgelendi)", () => {
+    for (let k = 0.125; k <= 1; k += 0.125) {
+      const clipThd = computeThdPercent("clip", k, 0.5);
+      for (const type of ["soft", "tube", "tape"]) {
+        assert.ok(clipThd >= computeThdPercent(type, k, 0.5), `k=${k}: clip (${clipThd.toFixed(2)}%) ${type}'den düşük THD'ye sahip olamaz`);
+      }
+    }
+  });
+
+  it("G269'un telafisi THD'yi ETKİLEMEZ (matematiksel invaryant) — WaveShaper çıkışını TEK bir sabitle ölçeklemek harmonik/temel ORANINI değiştirmez", () => {
+    const drive = mode.driveAtK("clip", 0.5);
+    const curve = mode.buildDistortionCurve("clip", drive);
+    const scale = 0.3; // rastgele bir örnek telafi çarpanı
+    function thdOf(scaleFactor) {
+      const output = new Float32Array(N);
+      for (let n = 0; n < N; n++) {
+        const x = 0.5 * Math.sin((2 * Math.PI * BIN * n) / N);
+        output[n] = scaleFactor * applyCurvePointwise(curve, x);
+      }
+      const fundamental = goertzelMagnitude(output, BIN);
+      let harmonicPowerSum = 0;
+      for (let h = 2; h <= 10; h++) { const mag = goertzelMagnitude(output, BIN * h); harmonicPowerSum += mag * mag; }
+      return Math.sqrt(harmonicPowerSum) / fundamental;
+    }
+    // 1e-9 DEĞİL — 8192 örneklik Goertzel toplamının kayan-nokta hatası
+    // ölçüm gürültüsü üretiyor, 1e-6 oranın MATEMATİKSEL EŞİTLİĞİNİ kanıtlamak
+    // için yeterince sıkı (THD ~0.3 mertebesinde, 1e-6 ~%0.0003 bağıl hata).
+    assert.ok(Math.abs(thdOf(1) - thdOf(scale)) < 1e-6, "ölçekleme THD oranını (temel/harmonik) DEĞİŞTİRMEMELİ");
   });
 });

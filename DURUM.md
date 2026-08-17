@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G268 — Reverb'in Room/Hall/Plate tepe kırpması TEK ortak -16dB telafiyle düzeltildi, enerji farkı korundu; Distortion'da YENİ bir kırpma bulgusu tespit edildi/DÜZELTİLMEDİ)
+Son güncelleme: 17.08.2026 (G269 — Distortion'a drive-ve-tip bağımlı çıkış telafisi eklendi, clip artık Kompresör'le ±1dB içinde ve 0dBFS'i aşmıyor; task'ın THD sıralaması varsayımı ölçülüp düzeltildi)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,94 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G269 — **Saturation & Distortion'a drive-ve-tip bağımlı çıkış telafisi eklendi — clip artık Kompresör'den ~9.7dB RMS yüksek DEĞİL (OLCUM-CIHAZ-16-08 madde C), "easy" zorlukta vocal/snare kaynağıyla artık 0dBFS'i AŞMIYOR (OLCUM-REVERB-TEPE-17-08 yan bulgusu). ÖNCE hesaplama (analitik model) denendi, ±1dB'yi tutturamadı — ölçülmüş 9-noktalı tablo kullanıldı, metodoloji OLCUM-DISTORTION-TELAFI-17-08.md'de. Task'ın THD sıralaması varsayımı ("clip>tube>soft>tape") ÖLÇÜLDÜ VE YANLIŞ ÇIKTI — gerçek sıra (clip>soft>tube>tape) test'e yazıldı. AYRI commit.**
+
+**Kök sebep (tek kök, iki belirti):** WaveShaper çıkışına HİÇ makyaj/telafi
+kazancı yoktu — `eq-loudness.js`'in `matchLoudness` mekanizması KAPSAM
+DIŞI bırakıyordu (kendi başlık yorumu: "WaveShaperNode... KAPSAM DIŞI").
+clip tipi Kompresör'den GERÇEKTEN yüksek RMS üretiyordu (OLCUM-CIHAZ-16-08
+madde C) VE aynı zamanda düşük drive'da (kolay zorluk) vocal/snare gibi
+tepe-yoğun kaynaklarla 0dBFS'i aşıyordu (OLCUM-REVERB-TEPE-17-08 yan
+bulgusu) — İKİSİ AYNI eksik telafinin iki farklı belirtisi.
+
+**Önce HESAPLAMA denendi (task'ın kendi tercih sırası, `eq-loudness.js`'in
+RBJ deseni örnek alınarak):** WaveShaper'ın `curve(x)` dizisi üzerinde bir
+GİRİŞ genlik dağılımı varsayılıp E[curve(x)²]/E[x²] integrali hesaplandı —
+İKİ model denendi: (a) groove.m4a'nın ölçülen dry RMS'ine (-25.19dB)
+kalibre bir Laplace dağılımı — en kötü hata (clip, k=1) **4.85dB**; (b)
+4 gerçek kaynaktan (~3.5M örnek) ÖLÇÜLEN GERÇEK genlik histogramı, AYNI
+integral — en kötü hata **2.33dB**. İKİSİ DE ±1dB hedefini TUTTURAMADI —
+kök sebep: WaveShaper HAFIZASIZ (örnek-örnek) çalışıyor, gerçek sesin
+ZAMANSAL zarfı (transient/sessizlik dizisi) sert kırpmanın etkisini ANLIK
+genlik dağılımının tek başına yakalayamadığı bir şekilde belirliyor.
+
+**Task'ın kendi izin verdiği geri dönüş yoluna geçildi — ölçülmüş tablo:**
+groove.m4a, `OfflineAudioContext`, WaveShaperNode TEK BAŞINA (paylaşılan
+güvenlik compressor'ından ÖNCE — G268'in AYNI gerekçesi, compressor'a
+GÜVENMEDEN kapatmak için). 9 k noktasında (0/0.125/…/1, 5 DEĞİL — ilk
+denemede tube k=0→0.25 arası 7dB sıçrama gösterdi, parçalı-doğrusal
+enterpolasyon hatası büyük olurdu) 4 tipin çıkış RMS'i ölçüldü. Referans:
+Kompresör'ün AYNI kaynakla, AYNI 9 noktada ölçülen RMS'inin ORTALAMASI
+(**-22.79dB**). Telafi = hedef - ölçülen, HER (tip,k) için ayrı — tam
+tablo OLCUM-DISTORTION-TELAFI-17-08.md'de.
+
+**Uygulama:** `applyProcessing()`'e WaveShaper'DAN SONRA TEK bir GainNode
+(`outputTrim`) eklendi, `distortionOutputTrimLinear(type, k)` (parçalı-
+doğrusal enterpolasyon, `distortionOutputTrimDb`'nin SÜREKLİLİĞİNİ
+YAPISAL olarak garanti eder — komşu iki grid noktası arası ARA DEĞER
+İKİ UÇ NOKTAYI da AŞMAZ) ile hesaplanan değeri alıyor. `buildDistortionCurve`
+TEK SATIR değişmedi — telafi eğrinin harmonik karakterini ETKİLEMEZ (THD =
+harmonik/temel ORANI, TEK bir gain ölçeklemesinden matematiksel olarak
+BAĞIMSIZ, pay/payda AYNI katsayıyla çarpılır — testle doğrulandı).
+
+**Doğrulama (kalibrasyon kaynağı groove.m4a):** telafi sonrası 4 tipin
+TÜMÜ Kompresör referansından ±0.01dB (±1dB hedefinin ÇOK içinde), en
+yüksek tepe -2.50dB (0dBFS'e YAKLAŞMIYOR bile).
+
+**Çapraz kaynak dürüstlük notu (task'ın kendi kabul kriterinde YOK ama
+AYRICA ölçüldü):** groove-kalibreli telafi vocal/snare/gitar'a da MAKUL
+ÖLÇÜDE genelliyor (telafisiz ~10-13dB farktan 0.5-3.7dB'ye düştü,
+Kompresör'ün KENDİ RMS'i de kaynağa göre 13dB'lik bir aralıkta gezindiği
+İÇİN "sabit hedef" değil "o kaynağın KENDİ Kompresör RMS'i" doğru
+karşılaştırma ölçütüydü — bu YANLIŞ karşılaştırmayla önce 2-7.5dB sapma
+görünüp sonra düzeltildi) ama TAM ±1dB hedefini SADECE kalibrasyon
+kaynağında (groove) ve yakınında (snare, 1.30dB) tutturuyor — vocal
+(2.45dB)/gitar (3.70dB) SAPMA KALIYOR. **Bu GİZLENMEDİ, AÇIK İŞLER'e not
+düşüldü.** Tepe güvenliği İSE tüm kaynaklarda sağlam (en yüksek -2.50dB).
+
+**Task'ın THD varsayımı YANLIŞ çıktı, DÜZELTİLDİ:** KABUL KRİTERİ "THD
+sıralaması: clip > tube > soft > tape" bekliyordu. Goertzel/DFT tabanlı
+GERÇEK ölçüm (3 test genliğinde tutarlı): **clip > soft > tube > tape**
+(k≥0.125'te). CLAUDE.md'nin "sayı uydurma, doğrulanmadı yaz" kuralı
+gereği task'ın varsayımı test'e YAZILMADI, ÖLÇÜLEN gerçek sıra kullanıldı
+— muhtemel sebep: türler ZORLUK KADEMESİNE göre seçiliyor (ayırt etme
+GÜÇLÜĞÜ ekseni), bu "MUTLAK harmonik içerik" ekseniyle AYNI olmak zorunda
+değil (tube'un drive aralığı soft'unkinden çok daha dar).
+
+**Test:** `test/distortion.test.mjs` — 9 yeni test (deterministik grid/
+enterpolasyon/süreklilik/clamp/git-stash-provable aritmetik + 4 THD testi).
+`e2e/distortion-level.spec.mjs` — 2 yeni test, GERÇEK ses dosyalarıyla
+KABUL KRİTERİ 1 (±1dB) ve KABUL KRİTERİ 2 (0dBFS altı, "easy"+vocal/snare)
+canlı doğruluyor (~4.5sn). **git stash kırmızı/yeşil (task'ın kendi kabul
+kriteri):** `distortion.js` geçici kaldırıldı, test dosyaları KALDI — hem
+unit hem e2e KIRMIZI yandı (fonksiyon bulunamadı). Stash geri alınınca
+İKİSİ DE YEŞİL. `npm test` 1394→**1403/1403** (+9). `npm run test:e2e`
+36→**38/38** (+2).
+
+**Dokunulmayan (KİLİT):** `buildDistortionCurve` (WaveShaper eğrileri)
+TEK SATIR değişmedi, `driveAtK`/`DRIVE_RANGES` (drive aralıkları)
+değişmedi, 4 tipin karakteri (mixNote/character metinleri) değişmedi,
+zorluk eğrisi/DIFFICULTY tabloları değişmedi, G267'nin seamless A/B/C
+mimarisi (`buildThreeWayChain`/`setThreeWayActive`) etkilenmedi (Distortion
+zaten seamless listede, `filters` dizisinin 2 elemana çıkması bu mekanizmayı
+BOZMADI — testle doğrulandı, e2e 38/38 içinde G267'nin 5 testi de VAR).
+
+**Dokunulan:** `www/js/modes/distortion.js` (DISTORTION_TRIM_K_GRID/
+DISTORTION_TRIM_DB_TABLE + distortionOutputTrimDb/Linear + applyProcessing'e
+outputTrim GainNode'u), `test/distortion.test.mjs` (9 yeni test, 2 mevcut
+test filters.length=2'ye güncellendi), `e2e/distortion-level.spec.mjs`
+(YENİ dosya), `OLCUM-DISTORTION-TELAFI-17-08.md` (YENİ dosya), `DURUM.md`.
 
 G268 — **Reverb'in Hall/Room/Plate tiplerinin ÜÇÜ de GERÇEK dijital kırpmaya (0dBFS üstü tepe) ulaşabiliyordu (OLCUM-KALAN-17-08 madde B'nin bulgusu — SADECE Hall'e özgü sanılıyordu, ölçülünce Room/Plate'in de kırptığı bulundu). `applyProcessing()`'e TEK bir ortak çıkış telafisi (-16dB) eklendi — Hall'ün tepesi +13.2dBFS'ten -2.8dBFS'e indi, tipler arası enerji farkı matematiksel olarak BİREBİR korundu, dry/wet oranı DEĞİŞMEDİ. AYRI commit.**
 
@@ -19519,22 +19607,28 @@ bulgu güçlü ama "temiz localStorage'da can göstergesi gerçekten 5 ile açı
 iddiası henüz gözle görülmedi.
 **Kabul kriteri:** temiz `localStorage` ile açılışta can = tanımlı başlangıç değeri (canlı doğrulanmalı)
 
-**24. G268'de TESADÜFEN bulundu — Distortion "easy" zorlukta, vocal/snare
-kaynağıyla GERÇEK dijital kırpma** (`OLCUM-REVERB-TEPE-17-08.md` madde F,
-12-mod tepe taramasının yan ürünü — Reverb'i düzeltirken diğer 11 mod da
-tarandı, Distortion'ın kendisi bu turun kapsamı DEĞİLDİ, bilerek
-düzeltilmedi). OLCUM-CIHAZ-16-08 madde C'nin ÖLÇTÜĞÜ "clip k=0.5, groove,
--4.2dB peak" kombinasyonundan FARKLI bir durum — bu YENİ bulgu "easy"
-zorluğu (düşük drive) + vocal/snare kaynağı: vocal'de 25 denemenin 20'si
-(en kötü +0.90dBFS), snare'de 22'si (en kötü +0.37dBFS) 0dBFS'i AŞIYOR;
-groove güvenli kalıyor (-0.32dBFS). Kök sebep muhtemelen: düşük drive'da
-OLCUM-KALAN-17-08 madde B'nin ÖLÇTÜĞÜ telafi ihtiyacı ~0dB (WaveShaper
-kaynağı neredeyse değiştirmeden geçiriyor) — kaynağın KENDİSİ (özellikle
-vocal/snare gibi tepe-yoğun olanlar) zaten 0dBFS'e yakın/üstünde
-kalabiliyor, paylaşılan güvenlik compressor'ı (threshold=-16dB) bunu
-TAM kapatamıyor (Reverb'de de AYNI mekanizma gözlendi, bkz. G268).
-**Kabul kriteri:** Distortion'ın DÖRT tipinin (clip/soft/tube/tape) TÜM
-zorluk/kaynak kombinasyonlarında tepesi 0dBFS altında (ölçülebilir test)
+**24. ✅ KAPANDI (G269, `distortionOutputTrimLinear`) — Distortion "easy"
+zorlukta, vocal/snare kaynağıyla GERÇEK dijital kırpma.** G268'de
+TESADÜFEN bulunmuştu (`OLCUM-REVERB-TEPE-17-08.md` madde F, 12-mod tepe
+taramasının yan ürünü), G269 düzeltti: `e2e/distortion-level.spec.mjs`
+KABUL KRİTERİ 2 testi — "easy"+vocal/snare artık 15 denemenin HİÇBİRİNDE
+0dBFS'i aşmıyor (ÖNCEDEN 25 denemenin 20-22'si aşıyordu). Kanıt: commit
+G269, canlı ölçüm OLCUM-DISTORTION-TELAFI-17-08.md madde E'de.
+
+**25. 🟡 G269'un KENDİ dürüstlük notu — telafi TEK kaynakla (groove.m4a)
+kalibre edildi, vocal/gitar'da ±1dB hedefi TUTMUYOR** (snare/groove
+tutuyor). Groove-kalibreli tablo, Kompresör'ün AYNI kaynaktaki RMS'ine
+(±0.5-1.3dB) yakın kalıyor ama vocal'de 2.45dB, gitar'da 3.70dB sapma
+KALIYOR (telafisiz ~10-13dB'lik farktan düşürüldü ama TAM ±1dB değil) —
+tepe GÜVENLİĞİ (0dBFS altı) TÜM kaynaklarda sağlam kalıyor, SADECE RMS-
+eşleşme hassasiyeti kaynağa göre değişiyor. Kök sebep: WaveShaper hafızasız
+(memoryless) — bir kaynağın KENDİ genlik/zaman zarfı GENEL telafi
+tablosunun neyi öngöremediğini belirliyor (bkz. OLCUM-DISTORTION-TELAFI-17-08.md
+madde A'nın analitik model denemeleri, AYNI kök sebep). **Kabul kriteri
+(gelecek iş, İSTENİRSE):** ya çok-kaynaklı bir kalibrasyon tablosu (her
+kaynak grubu için ayrı telafi) ya da kaynağın KENDİ ölçülen genlik
+profiline göre ÇALIŞMA-ZAMANINDA hesaplanan dinamik bir telafi — kullanıcı
+kararı gerekir, bu turun kapsamı DIŞINDA bırakıldı.
 
 ### Eksik özellikler
 
@@ -20077,7 +20171,34 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G268 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G269 itibarıyla):**
+Saturation & Distortion'a drive-ve-tip bağımlı çıkış telafisi eklendi —
+clip artık Kompresör'den ölçülebilir biçimde yüksek DEĞİL (OLCUM-CIHAZ-16-08
+madde C ÇÖZÜLDÜ), "easy" zorlukta vocal/snare kaynağıyla artık 0dBFS'i
+AŞMIYOR (AÇIK İŞLER madde 24 KAPANDI). ÖNCE hesaplama (2 analitik model)
+denendi, ±1dB'yi tutturamadı (en iyi model 2.33dB hata) — ölçülmüş
+9-noktalı tablo kullanıldı (metodoloji OLCUM-DISTORTION-TELAFI-17-08.md'de).
+Task'ın "THD sıralaması: clip>tube>soft>tape" varsayımı GERÇEK ölçümle
+YANLIŞ çıktı — gerçek sıra (clip>soft>tube>tape) test'e yazıldı, task'ın
+varsayımı UYDURULMADI. `npm test` 1394→1403/1403, `npm run test:e2e`
+36→38/38 (git stash ile kırmızı/yeşil doğrulandı, hem unit hem e2e).
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. **🟡 AÇIK İŞLER madde 25 (YENİ):** telafi TEK kaynakla (groove.m4a)
+   kalibre edildi — vocal'de 2.45dB, gitar'da 3.70dB sapma KALIYOR (±1dB
+   hedefi SADECE groove/snare'de tutuyor). Tepe güvenliği TÜM kaynaklarda
+   sağlam, SADECE RMS-eşleşme hassasiyeti kaynağa göre değişiyor —
+   çok-kaynaklı kalibrasyon mu, dinamik telafi mi, yoksa mevcut durum
+   YETERLİ mi kararı kullanıcıya bırakıldı.
+2. OLCUM-CIHAZ-16-08.md'nin KALAN maddeleri hâlâ AÇIK: G (Frekans
+   Çakışması snare-gitar çifti), I.2 (4 tanı-log ailesinin DEV_MODE'a
+   bağlanması).
+3. `OLCUM-KALAN-17-08.md`/`OLCUM-CPU-17-08.md` henüz commit'e alınmadı
+   (task'ın kendi kuralı, sadece DURUM.md'ye G267/G268/G269 girdileriyle
+   kaydedildi) — kullanıcı isterse ayrı bir commit'le eklenebilir.
+4. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü (OLCUM-FLAKY-16-08.md)
+   hâlâ ÇALIŞTIRILARAK test EDİLMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G268 itibarıyla, ARTIK ESKİ):**
 Reverb'in Room/Hall/Plate tiplerinin ÜÇÜNÜN de GERÇEK dijital kırpmaya
 ulaşabildiği ölçüldü (OLCUM-REVERB-TEPE-17-08.md) ve TEK ortak bir çıkış
 telafisiyle (`REVERB_OUTPUT_TRIM_DB=-16`, `applyProcessing()`'in `output`

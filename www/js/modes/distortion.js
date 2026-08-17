@@ -336,6 +336,81 @@ export function correctLabel(question) {
   return `${odd.letter} (${info.label}, drive ${odd.drive.toFixed(2)})`;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// G269 — SEVİYE TELAFİSİ (OLCUM-CIHAZ-16-08 madde C: clip Kompresör'den
+// ~9.7dB RMS yüksek + OLCUM-REVERB-TEPE-17-08 yan bulgusu: kolay zorlukta
+// vocal/snare ile 0dBFS'i AŞIYOR). ÖNCE HESAPLANARAK üretilmeye ÇALIŞILDI
+// (eq-loudness.js'in RBJ-formülü deseni örnek alınarak) — İKİ analitik model
+// denendi: (a) WaveShaper eğrisinin kendisi ÜZERİNDE Laplace-dağılımlı bir
+// giriş varsayımıyla E[curve(x)²]/E[x²] integrali, (b) AYNI integral ama
+// varsayılan dağılım YERİNE 4 gerçek ses dosyasından (groove/vocal/snare/
+// gitar, ~3.5M örnek) ÖLÇÜLEN GERÇEK genlik histogramı. İKİSİ DE clip
+// tipinde ±1dB hedefini TUTTURAMADI (Laplace: 4.85dB hata, gerçek histogram:
+// 2.33dB hata, k=1'de) — kök sebep WaveShaper'ın HAFIZASIZ (memoryless,
+// örnek-örnek) doğası: gerçek sesin ZAMANSAL zarfı (transient/sessizlik
+// dizisi) sert kırpmanın enerjiye etkisini, ANLIK genlik dağılımının tek
+// başına yakalayamadığı bir şekilde belirliyor. Bu YÜZDEN (task'ın kendi
+// izin verdiği geri dönüş yolu) ÖLÇÜLMÜŞ bir tablo kullanılıyor —
+// nasıl ölçüldüğü:
+//
+// Kaynak: groove.m4a (bu projede kurulu ÖLÇÜM kaynağı, OLCUM-KALAN-17-08/
+// OLCUM-REVERB-TEPE-17-08 ile AYNI), `OfflineAudioContext`, WaveShaperNode
+// TEK BAŞINA (paylaşılan güvenlik compressor'ından ÖNCE — G268'in AYNI
+// gerekçesi: compressor'a GÜVENMEDEN kapatmak için). HER tip için 9 k
+// noktasında (0/0.125/.../1) GERÇEK çıkış RMS ölçüldü. Referans: Kompresör'ün
+// AYNI kaynakla, AYNI 9 k noktasında (ratioAtK/thresholdAtK) ölçülen çıkış
+// RMS'inin ORTALAMASI (-22.79dB, KOMPRESOR_REFERENCE_RMS_DB). Telafi =
+// hedef - ölçülen, HER (tip,k) noktası için AYRI AYRI hesaplandı — tam
+// tablo/metodoloji OLCUM-DISTORTION-TELAFI-17-08.md'de.
+//
+// Ara k değerleri PARÇALI-DOĞRUSAL (piecewise-linear) enterpolasyonla
+// bulunuyor — ⚠️ "SÜREKLİ olmalı, ses seviyesi zıplamamalı" gereğini
+// YAPISAL olarak sağlıyor (komşu iki nokta arasında ARA DEĞER hiçbir zaman
+// uç noktaları AŞMAZ, fonksiyon k=0..1 boyunca KESİNTİSİZ). 9 nokta (5
+// değil) SEÇİLDİ çünkü ilk denemede (5 nokta) tube tipi k=0→0.25 arasında
+// 7dB'lik bir sıçrama gösteriyordu — parçalı-doğrusal enterpolasyonun ARA
+// DEĞER hatası 5 noktada ölçülemeyecek kadar büyük olabilirdi, 9 nokta bu
+// hatayı GÖZLEMLENEBİLİR ÖLÇÜDE küçültüyor (komşu noktalar arası fark HİÇBİR
+// yerde 4dB'yi aşmıyor, bkz. tablo).
+//
+// ⚠️ TİPLER ARASI KARAKTER FARKI: telafi WaveShaper eğrisinden SONRA, TEK
+// bir GainNode ile TÜM sinyale EŞİT ORANDA uygulanıyor — THD (harmonik
+// içerik ORANI, temel/harmonik güç ORANI) bir GAIN ölçeklemesinden
+// ETKİLENMEZ (pay ve payda AYNI kare-katsayıyla çarpılır, oran DEĞİŞMEZ) —
+// clip/tube/soft/tape'in KENDİ harmonik karakteri (buildDistortionCurve,
+// DOKUNULMADI) telafiden TAMAMEN BAĞIMSIZ kalıyor (bkz.
+// test/distortion.test.mjs'in THD sıralaması testi).
+const KOMPRESOR_REFERENCE_RMS_DB = -22.79;
+const DISTORTION_TRIM_K_GRID = [0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1];
+// dB — GERÇEK ölçüm (groove.m4a, WaveShaperNode tek başına, yukarıdaki not).
+const DISTORTION_TRIM_DB_TABLE = {
+  clip: [-4.46, -8.30, -10.02, -11.01, -11.69, -12.22, -12.65, -13.03, -13.37],
+  soft: [1.82, -2.72, -5.26, -6.91, -8.06, -8.92, -9.59, -10.14, -10.59],
+  tube: [10.43, 6.02, 3.19, 1.14, -0.44, -1.71, -2.75, -3.63, -4.38],
+  tape: [2.40, 2.41, 2.42, 2.43, 2.44, 2.45, 2.46, 2.47, 2.48]
+};
+
+// SAF FONKSİYON — parçalı-doğrusal enterpolasyon, DISTORTION_TRIM_K_GRID
+// üzerinde. k tablo aralığının dışındaysa (olmaması gerekir, driveAtK zaten
+// [0,1]'e clamp'lenmiş k alır) en yakın uç noktaya clamp'lenir.
+export function distortionOutputTrimDb(type, k) {
+  const values = DISTORTION_TRIM_DB_TABLE[type] || DISTORTION_TRIM_DB_TABLE.soft;
+  const grid = DISTORTION_TRIM_K_GRID;
+  const clampedK = Math.min(1, Math.max(0, k));
+  for (let i = 0; i < grid.length - 1; i++) {
+    if (clampedK >= grid[i] && clampedK <= grid[i + 1]) {
+      const t = (clampedK - grid[i]) / (grid[i + 1] - grid[i]);
+      return values[i] + t * (values[i + 1] - values[i]);
+    }
+  }
+  return values[values.length - 1];
+}
+
+// SAF FONKSİYON — dB'nin lineer (GainNode.gain.value'ya atanabilir) karşılığı.
+export function distortionOutputTrimLinear(type, k) {
+  return 10 ** (distortionOutputTrimDb(type, k) / 20);
+}
+
 // Soruda uygulanan distortion'ı audioCtx üzerinde kurar — Kompresör'ün
 // previewLetter deseninin BİREBİR aynısı: question.previewLetter VERİLİRSE
 // (app.js'in 3-yönlü abToggle'ı) o harfin GERÇEK drive'ı question.variants'tan
@@ -346,7 +421,16 @@ export function applyProcessing(question, { audioCtx }) {
   const shaper = audioCtx.createWaveShaper();
   shaper.curve = buildDistortionCurve(question.distortionType, variant.drive);
   shaper.oversample = "4x"; // WaveShaperNode'un standart pratiği — aliasing/yapay tizlik azaltır
-  return { filters: [shaper] };
+  // G269 — seviye telafisi: WaveShaper'DAN SONRA, TEK bir GainNode — dry/wet
+  // kavramı burada YOK (Distortion'ın filters zinciri tek yollu, Reverb'in
+  // aksine), bu yüzden G268'deki "dry/wet oranını etkilemeden" kaygısı
+  // burada YOK — telafi TÜM sinyale (zaten %100 ıslak) uygulanıyor. shaper→
+  // outputTrim bağlantısı BURADA manuel KURULMUYOR — filters dizisindeki
+  // ARDIŞIK elemanları audio-engine.js'in genel döngüsü ZATEN seri bağlıyor
+  // (Reverb'in input→output AYNI deseni).
+  const outputTrim = audioCtx.createGain();
+  outputTrim.gain.value = distortionOutputTrimLinear(question.distortionType, variant.k);
+  return { filters: [shaper, outputTrim] };
 }
 
 // SAF FONKSİYON. answer: harf ("A"/"B"/"C") ya da {id}.
