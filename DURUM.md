@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 16.08.2026 (OLCUM-SEVIYE-16-08 — kaynak kütüphanesi -3→-6dBFS'e yeniden üretildi, Kompresör/Distortion uyumu DOĞRULANDI, kod/commit YOK)
+Son güncelleme: 17.08.2026 (G267 — Motor 1'in kesintisiz crossfade deseni Kompresör/Distortion'a taşındı, OLCUM-CIHAZ-16-08.md madde E/F çözüldü, Reverb dokunulmadı)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,123 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G267 — **Motor 1'in kesintisiz crossfade deseni Kompresör'e ve Saturation & Distortion'a taşındı — A/B/C geçişinde (kart tıklaması, otomatik döngü, kartın kendi play/pause butonu) kaynak artık ASLA yeniden kurulmuyor/pozisyon sıfırlanmıyor. OLCUM-CIHAZ-16-08.md madde E/F'nin (döngü topallaması + Kompresör'ün "takılma" hissi) kök sebebini bu iki mod için ÇÖZER. Reverb (kasıtlı, kuyruk davranışı) DOKUNULMADI. AYRI commit.**
+
+**Kök sebep (OLCUM-CIHAZ-16-08.md madde E/F'nin tespiti, bu turun görevi):**
+`abLoopTimer`/manuel `#abToggle`/kartın kendi play butonu — üçü de
+`cycleThreeWayPreview()`/`playThreeWaySpecific()` üzerinden HER geçişte
+`audioEngine.buildQuestionChain({...q, previewLetter: harf}, ...)` çağırıyordu
+— bu, `stopAudio()` + YENİ source + YENİ filtre demek, yani ses HER
+geçişte pozisyon 0'dan başlıyordu. 24.6sn'lik bir dosyada 2000ms'lik
+otomatik döngü ARALIĞI, kullanıcının dosyanın SADECE ilk ~2 saniyesini
+sonsuza dek tekrar tekrar duymasına yol açıyordu (dosyanın geri kalan
+~%92'sine hiç ulaşılamıyordu) — Kompresör'de bu özellikle "takılma" gibi
+hissediliyordu çünkü kompresyonun net anlaşılması için transient SONRASI
+sürdürülen dinamiklerin duyulması gerekiyor, kullanıcı hep aynı açılış
+vuruşunu duyuyordu.
+
+**Uygulanan (Motor 1'in dryGain/wetGain crossfade deseninin N-yollu genellemesi):**
+- **`core/audio-engine.js`** — üç yeni fonksiyon eklendi (`buildQuestionChain`/
+  `setProcessed`'e TEK SATIR dokunulmadı, Motor 1 modları ve Reverb'in
+  davranışı BİREBİR korundu):
+  - `buildThreeWayChain(question, sourceType, uploadManager, applyProcessing,
+    activeLetter, previewOffsetSec)` — TEK source, `question.variants`'ın
+    HER harfi için AYRI bir `applyProcessing({...question, previewLetter:
+    harf}, {audioCtx})` çağrısıyla (mod dosyalarının `applyProcessing`'i
+    TEK SATIR değişmedi) kurulan ÜÇ paralel yol, ÜÇÜ DE HER ZAMAN bağlı —
+    `buildDualSourceChain`'in (Motor 3) KENDİ emsaliyle AYNI gerekçeyle
+    kaynak kurulum mantığı (upload/pink/white/sample/synth dalları)
+    BURADA TEKRARLANDI, paylaşılana çıkarılmadı (buildQuestionChain'in
+    KİLİTLİ davranışına dokunma riski taşırdı).
+  - `setThreeWayActive(letter)` — `setProcessed()`'in N-yollu genellemesi,
+    AYNI `CROSSFADE_SEC` (50ms) crossfade deseni, `stopAudio()` ÇAĞIRMAZ.
+  - `muteThreeWayPreview()` — kart-üstü pause İÇİN, üç harfin gain'ini de
+    0'a indirir. `muteOutput()`/round-seviyesi `muteGain`'e KASITLI
+    DOKUNMAZ — eski `pausePreview()`/`stopAudio()` da bu paylaşılan
+    gain'e dokunmuyordu, kart-pause'u round-seviyesi Durdur/Tekrar-Çal'dan
+    BAĞIMSIZ tutan bu özellik korundu (aksi halde bir kartı bireysel
+    duraklatıp round'u "Tekrar Çal"la açmak o kartı da istenmeden geri
+    başlatırdı — canlı kod okumasıyla ÖNCEDEN tespit edilip böyle
+    tasarlandı, cihazda AYRICA doğrulanmadı ama mantığı sağlam).
+  - `stopAudioCallCount` (get) — test/doğrulama kancası: `stopAudio()`
+    HER üç build fonksiyonunun (buildQuestionChain/buildDualSourceChain/
+    buildThreeWayChain) başında çağrılıyor, `setThreeWayActive`/
+    `muteThreeWayPreview` ÇAĞIRMIYOR — "zincir yeniden mi kuruldu yoksa
+    sadece crossfade mi oldu" sorusuna DIŞARIDAN kanıtlanabilir bir cevap.
+- **`www/js/app.js`** — `SEAMLESS_THREE_WAY_MODE_IDS = ["kompresor",
+  "distortion"]` + `isSeamlessThreeWay(m)` (Reverb KASITLI DIŞARIDA,
+  `THREE_WAY_MODE_IDS`'in ALT KÜMESİ). `playQuestion()`/
+  `cycleThreeWayPreview()`/`playThreeWaySpecific()`'in ÜÇÜ DE bu bayrağa
+  göre dallandı — seamless modlarda yeni fonksiyonlar, Reverb'de (ve
+  gelecekte THREE_WAY_MODE_IDS'e eklenebilecek başka bir modda) ESKİ
+  `buildQuestionChain`/`pausePreview`/offset yolu AYNEN korunuyor.
+  `cycleThreeWayPreview()`'un seamless dalı `unmuteOutput()` da çağırıyor
+  — eski rebuild yolunun `buildQuestionChain` içindeki "güvenlik amaçlı
+  muteGain'i 1'e zorlama" yan etkisiyle AYNI davranış (Durdur'dayken
+  abToggle'a basılırsa otomatik unmute) bilinçli olarak korundu.
+  `window.__aeaStopAudioCallCount` (DEV_MODE-gated) test kancası eklendi.
+- **Kompresör'ün GR (gain-reduction) göstergesi — DOĞRULANDI, kod
+  DEĞİŞMEDİ:** `kompresor.js:drawOverlay()` incelendi — gösterge canlı bir
+  `DynamicsCompressorNode.reduction` OKUMUYOR, SADECE `question.
+  variants[...].gainReductionDb`'yi (createQuestion() anında saf matematikle
+  önceden hesaplanmış) ve round BİTTİKTEN SONRA (`roundActive===false`)
+  çiziyor — "hangi variant aktif" sorusuyla hiç ilgisi yok, yeni mimariden
+  ETKİLENMİYOR. Tarayıcıda GERÇEK bir round oynanıp doğrulandı: A→B
+  crossfade sonrası doğru cevap onaylandı, geri bildirim paneli doğru
+  variant'ın (ratio/threshold) bilgisini gösterdi.
+
+**Test:** `e2e/seamless-three-way.spec.mjs` — 5 yeni test: Kompresör/
+Distortion'da manuel `#abToggle` geçişi zincir YENİDEN KURMUYOR, Reverb'de
+ESKİ (kasıtlı korunan) rebuild davranışı DEĞİŞMEDİ (regresyon testi),
+Kompresör'de otomatik döngü de aynı, kartın kendi play/pause butonu
+(playThreeWaySpecific — pause/resume/switch üçü de) zincir kurmuyor.
+Doğrulama sinyali `window.__aeaStopAudioCallCount()` — sayaç DEĞİŞMEDİYSE
+crossfade, ARTTIYSA rebuild (Reverb testi ARTMASINI BEKLİYOR). **git stash
+kırmızı/yeşil (task'ın kendi kabul kriteri):** implementasyon dosyaları
+(`app.js`/`audio-engine.js`) geçici stash'lendi, test dosyası KALDI — 5/5
+test KIRMIZI yandı (kancası bulunamadı — `assert.equal(typeof n,
+"number")` guard'ı SESSİZ-YEŞİL riskini kapattı, ilk denemede bu guard
+eksikti ve 3/5 test SAHTE-YEŞİL çıkmıştı, guard eklenip düzeltildi).
+Stash geri alınınca 5/5 YEŞİL. `npm test` 1390/1390 (DEĞİŞMEDİ).
+`npm run test:e2e` 30→**35/35** (+5 yeni test, mevcut 30 DEĞİŞMEDİ).
+Ayrıca tarayıcıda (Chrome, gerçek kullanıcı jesti ile — `element.click()`
+DEĞİL, gerçek fare tıklaması, autoplay politikası gerçek jest istiyor)
+Kompresör'de A→B geçişi CANLI doğrulandı: `stopAudioCallCount` DEĞİŞMEDİ,
+UI (`#abToggle[data-ab]`, kart highlight'ı, "çalıyor" etiketi) doğru
+güncellendi.
+
+**Commit kararı:** Task "AYRI COMMIT (mod başına ayrılabilir)" dedi —
+ayrılabilir/opsiyonel okundu, ZORUNLU değil. Paylaşılan altyapı
+(`buildThreeWayChain`/`setThreeWayActive`/`muteThreeWayPreview`,
+`isSeamlessThreeWay`) HER İKİ mod tarafından AYNI şekilde kullanıldığı ve
+wiring (`playQuestion`/`cycleThreeWayPreview`/`playThreeWaySpecific`)
+mod-agnostik/tek koşullu olduğu için gerçek bir mod-başına ayrım (önce
+sadece Kompresör'ü listeye ekleyip SONRA Distortion'ı eklemek) yapay bir
+bölme olurdu — TEK commit'te birleştirildi, gerekçe bu notta kayıtlı.
+
+**Dokunulan:** `www/js/core/audio-engine.js` (3 yeni fonksiyon + 1 sayaç,
+`stopAudio()`'ya 2 satır ekleme), `www/js/app.js` (1 yeni sabit + yardımcı,
+3 fonksiyonun dallandırılması, 1 test kancası), `e2e/seamless-three-way.spec.mjs`
+(YENİ dosya), `DURUM.md`.
+**Dokunulmayan:** ⚠️ Reverb'in `buildQuestionChain`/`pausePreview`/
+`threeWayPreviewOffsets` yolu (KASITLI — kuyruk davranışı, "reverb kuyruğu
+var, dokunulmasın" ürün kararı), Motor 1 modlarının mevcut A/B mekanizması,
+zorluk eğrisi/DIFFICULTY tabloları, K_GAP, Stereo Genişlik'in branch
+mekanizması, `kompresor.js`/`distortion.js`/`reverb.js`'in `applyProcessing`
+imzası (TEK SATIR değişmedi), G214-G266 arası commit'ler, `581f798`/
+`a4efb42`.
+
+Bu turda AYRICA (kod/commit YOK, task'ın kendi kuralı "Kod yazma, bu tur
+sadece ölçüm"): `OLCUM-KALAN-17-08.md` (Pan Konumu + aynı-desen taraması,
+Saturation fix-path + 12-mod RMS karşılaştırması, Motor1 vs Motor2
+mekanizması/taşınabilirlik, Frekans Çakışması çiftleri, 6 durum kontrolü)
+ve `OLCUM-CPU-17-08.md` (3 paralel ConvolverNode'un CPU/bellek riski —
+OfflineAudioContext duvar-saati render süresiyle GERÇEK ölçüm, Kompresör
+44.9ms/Distortion 51.7ms/1×Hall 163.2ms/3×Hall 484.9ms — risk YOK sonucu,
+bu turun G267'sinin "CPU ÖLÇÜMÜ" gerekçesinin kaynağı) yazıldı — HENÜZ
+commit'e alınmadı (task'ın kendi kuralı, sadece bu G267 girdisiyle
+DURUM.md'ye kaydedildi).
 
 G265 — **Kulak butonları TÜM modlarda GERÇEKTEN görünür/tıklanabilir hâle getirildi: `.fb`'nin `overflow:hidden`'ı (G193) `overflow:visible`'a çevrildi, Q Genişliği'ne (gerekçesiz atlanmıştı) eklendi, `e2e/ear-buttons.spec.mjs`'in yalancı-yeşil testi gerçek `elementFromPoint` hit-test'ine geçirildi (git stash ile kırmızı/yeşil doğrulandı). AYRI commit.**
 
@@ -19859,7 +19976,36 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G265 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G267 itibarıyla):**
+OLCUM-CIHAZ-16-08.md madde E/F (döngü topallaması + Kompresör'ün
+"takılma" hissi) Kompresör VE Saturation & Distortion için ÇÖZÜLDÜ —
+Motor 1'in kesintisiz crossfade deseni taşındı (`buildThreeWayChain`/
+`setThreeWayActive`/`muteThreeWayPreview`), A/B/C geçişinde kaynak artık
+ASLA yeniden kurulmuyor. Reverb KASITLI dokunulmadı (kuyruk davranışı
+ürün kararı). `npm test` 1390/1390, `npm run test:e2e` 30→35/35
+(+5 yeni test, git stash ile kırmızı/yeşil doğrulandı).
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. OLCUM-CIHAZ-16-08.md'nin KALAN maddeleri hâlâ AÇIK: C (Saturation &
+   Distortion sesi Kompresör'den ölçülebilir biçimde yüksek, işitme-
+   güvenliği), G (Frekans Çakışması snare-gitar çifti), I.2 (4 tanı-log
+   ailesinin DEV_MODE'a bağlanması) — hiçbiri henüz ele alınmadı.
+2. `OLCUM-KALAN-17-08.md`/`OLCUM-CPU-17-08.md` henüz commit'e alınmadı
+   (bu turda SADECE DURUM.md'ye G267 girdisiyle kaydedildi) — kullanıcı
+   isterse ayrı bir commit'le eklenebilir.
+3. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü (OLCUM-FLAKY-16-08.md)
+   hâlâ ÇALIŞTIRILARAK test EDİLMEDİ.
+4. **🟡 YENİ gözlem (bu turda TESADÜFEN yakalandı, G267'nin KAPSAMI
+   DIŞINDA):** `ear-buttons.spec.mjs`'in "Frekans Çakışması Aşama 3"
+   testi sistem yükü altında (bu turda art arda 2 kez) `#fbEarLeft`
+   için "KIRPILMIŞ" hatasıyla kırmızı yandı — G267'nin kodu STASH'lenip
+   AYNI hatayla AYNI şekilde kırmızı yanarak (yani G267'DEN BAĞIMSIZ)
+   doğrulandı, sistem sakinleşince (3. deneme) tekrar YEŞİLE döndü.
+   G265'in "`.3s`lik geçiş animasyonuyla yarışan zamanlama sorunu"
+   notuyla AYNI ailede görünüyor ama `earDatasetStable()`'ın 2sn üst
+   sınırı bu turda YETERSİZ kalmış olabilir — DÜZELTİLMEDİ (kapsam
+   dışı), sadece kaydedildi.
+
+**EN YENİ SIRADAKİ ADIM (G265 itibarıyla, ARTIK ESKİ):**
 OLCUM-CIHAZ-16-08.md madde A ÇÖZÜLDÜ — kulak butonları artık TÜM
 uygulanabilir modlarda (Frekans Bulma + 7 mod = 8) gerçekten görünür VE
 tıklanabilir. `.fb{overflow:hidden→visible}` (max-height:29vh KORUNDU),

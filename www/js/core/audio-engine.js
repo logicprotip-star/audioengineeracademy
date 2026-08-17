@@ -59,6 +59,19 @@ export function createAudioEngine() {
   // sonraki buildQuestionChain çağrısına kadar geçerli, o an aktif zincire ait.
   let dryGain = null;
   let wetGain = null;
+  // G267 — seamless üç yollu crossfade (Kompresör/Distortion, bkz. buildThreeWayChain/
+  // setThreeWayActive altındaki dosya başı notu): dryGain/wetGain'in AYNI "bir sonraki
+  // zincire kadar geçerli" deseni, ama harf başına (letter -> GainNode). Reverb bu
+  // yolu KULLANMIYOR (kasıtlı, kuyruk davranışı korunuyor) — o yüzden Reverb turlarında
+  // bu değişken HER ZAMAN null kalır.
+  let threeWayGainNodes = null;
+  // G267 — test/doğrulama amaçlı: stopAudio() HER çağrıldığında artar (rebuild'in
+  // TEK ortak imzası — hem buildQuestionChain hem buildDualSourceChain hem
+  // buildThreeWayChain başında çağırıyor). setProcessed()/setThreeWayActive() ise
+  // stopAudio() ÇAĞIRMAZ — bu sayaç, "geçiş sırasında zincir yeniden mi kuruldu yoksa
+  // sadece crossfade mi oldu" sorusuna DIŞARIDAN (app.js/e2e testleri) kanıtlanabilir
+  // bir cevap veriyor (bkz. app.js DEV_MODE test hook'u).
+  let stopAudioCallCount = 0;
   // G12: "upload" kaynağı aktifken buildQuestionChain'in geçirdiği uploadManager
   // referansı — SADECE stopAudio()'nun onu duraklatabilmesi için tutuluyor (bkz.
   // stopAudio). Kaynak upload DEĞİLSE null'a çekilir; böylece stopAudio() gömülü/
@@ -564,6 +577,7 @@ export function createAudioEngine() {
 
   function stopAudio() {
     if (!audioCtx) return;
+    stopAudioCallCount++;
     // G12: fiziksel durdurmayla AYNI anda upload'ın MANTIKSAL çalma konumunu da
     // duraklat — aksi halde AudioBufferSourceNode gerçekten susar ama uploadManager
     // hâlâ "çalıyor" sanıp bir sonraki getSourceNode() çağrısında geçen GERÇEK
@@ -604,6 +618,7 @@ export function createAudioEngine() {
     currentNodes = [];
     dryGain = null;
     wetGain = null;
+    threeWayGainNodes = null;
   }
 
   // G151 — kart-üstü play/pause (Motor 2: Kompresör/Reverb/Distortion'ın A/B/C
@@ -922,6 +937,156 @@ export function createAudioEngine() {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // G267 — Motor 2'nin Kompresör/Distortion modları: cycleThreeWayPreview()/
+  // playThreeWaySpecific() ESKİDEN her A/B/C geçişinde buildQuestionChain()'i
+  // BAŞTAN çağırıyordu (stopAudio() + yeni source + yeni filtre) — kullanıcı
+  // kendi dosyasını yüklediğinde HER geçişte pozisyon 0'a dönüyordu (bkz.
+  // DURUM.md G267). Çözüm: buildQuestionChain'in dryGain/wetGain crossfade
+  // deseninin (yukarı bkz.) N-YOLU (harf başına bir GainNode) genellemesi —
+  // TEK source, ÜÇ paralel yol, ÜÇÜ DE HER ZAMAN bağlı, geçişte SADECE hangi
+  // harfin gain'i 1 olduğu değişiyor (setThreeWayActive). Kaynak/filtreler bir
+  // daha ASLA disconnect/reconnect edilmiyor.
+  //
+  // ⚠️ REVERB BU YOLU KULLANMIYOR — kasıtlı: kuyruk davranışı (geçişte kuyruğun
+  // kesilip yeni kaynağın baştan başlaması) ürün kararıyla KORUNUYOR (bkz.
+  // DURUM.md, "reverb kuyruğu var, dokunulmasın"). Reverb HÂLÂ buildQuestionChain
+  // üzerinden çalışıyor — bu fonksiyona hiç girmiyor (bkz. app.js
+  // isSeamlessThreeWay).
+  //
+  // applyProcessing(question, {audioCtx}) MOD SÖZLEŞMESİ hiç değişmedi — bu
+  // fonksiyon onu question.variants'ın HER HARFİ için previewLetter override
+  // ederek AYRI AYRI çağırıyor (kompresor.js/distortion.js'in applyProcessing'i
+  // TEK SATIR değişmeden 3 kez çağrılıyor, her çağrı kendi bağımsız node'unu
+  // kurup döndürüyor — DynamicsCompressorNode/WaveShaperNode zaten previewLetter'a
+  // göre TEK bir varyant kuruyordu, bu davranış BİREBİR korunuyor).
+  //
+  // Kaynak kurulumu (upload/pink/white/sample/synth dalları) buildQuestionChain'in
+  // AYNI mantığı — buildDualSourceChain'in KENDİ emsaliyle AYNI gerekçeyle BURADA
+  // TEKRARLANDI (paylaşılan bir yardımcıya çıkarmak buildQuestionChain'in KİLİTLİ
+  // davranışına dokunma riski taşırdı, bkz. o fonksiyonun dosya başı notu).
+  async function buildThreeWayChain(question, sourceType, uploadManager, applyProcessing, activeLetter, previewOffsetSec = 0) {
+    let sampleLoadFailed = false;
+    stopAudio();
+    activeUploadManager = sourceType === "upload" ? uploadManager : null;
+    currentPreview = null;
+
+    if (muteGain) {
+      const now = audioCtx.currentTime;
+      muteGain.gain.cancelScheduledValues(now);
+      muteGain.gain.setValueAtTime(1, now);
+    }
+
+    const out = audioCtx.createGain();
+    out.gain.value = 0.0001;
+    out.gain.exponentialRampToValueAtTime(0.8, audioCtx.currentTime + 0.05);
+
+    const sourceMix = audioCtx.createGain();
+    sourceMix.gain.value = 1;
+
+    const compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -16;
+    compressor.knee.value = 22;
+    compressor.ratio.value = 2.2;
+
+    // Her harf için AYRI applyProcessing çağrısı — üçü de KOŞULSUZ kurulur ve
+    // bağlanır (buildQuestionChain'in "filtreler her zaman kuruluyor" ilkesinin
+    // N-yollu hali), SADECE gainNodes[letter].gain başlangıç değeri farklı.
+    const gainNodes = {};
+    const branchNodes = [];
+    question.variants.forEach(variant => {
+      const processingResult = applyProcessing({ ...question, previewLetter: variant.letter }, { audioCtx });
+      const filters = processingResult.filters || [];
+      const g = audioCtx.createGain();
+      g.gain.value = variant.letter === activeLetter ? 1 : 0.0001;
+      gainNodes[variant.letter] = g;
+      let wetNode = sourceMix;
+      filters.forEach(f => { wetNode.connect(f); wetNode = f; });
+      wetNode.connect(g);
+      g.connect(compressor);
+      branchNodes.push(g, ...filters);
+    });
+    threeWayGainNodes = gainNodes;
+
+    currentNodes.push(out, sourceMix, compressor, ...branchNodes);
+
+    if (sourceType === "upload" && uploadManager && uploadManager.hasBuffer) {
+      const node = uploadManager.getSourceNode();
+      if (node) {
+        node.connect(sourceMix);
+        currentNodes.push(node);
+      }
+    } else if (sourceType === "pink" || sourceType === "white") {
+      const [noise] = buildNoiseSource(sourceType);
+      noise.connect(sourceMix);
+      currentNodes.push(noise);
+    } else if (findSource(sourceType)?.kind === "sample") {
+      const samplePath = findSource(sourceType).samplePath;
+      try {
+        const [sample, sampleBuffer] = await buildSampleSource(samplePath, previewOffsetSec);
+        if (currentNodes.includes(out)) {
+          sample.connect(sourceMix);
+          currentNodes.push(sample);
+          currentPreview = {
+            buffer: sampleBuffer,
+            startedAt: audioCtx.currentTime,
+            baseOffset: sampleBuffer.duration > 0 ? previewOffsetSec % sampleBuffer.duration : 0
+          };
+        } else {
+          sample.stop();
+        }
+      } catch (err) {
+        console.error(err);
+        sampleLoadFailed = true;
+        const [noise] = buildNoiseSource("pink");
+        noise.connect(sourceMix);
+        currentNodes.push(noise);
+      }
+    } else {
+      const { nodes, outputs } = buildSynthSource(sourceType);
+      outputs.forEach(o => o.connect(sourceMix));
+      currentNodes.push(...nodes);
+    }
+
+    if (!currentNodes.includes(out)) return { sampleLoadFailed };
+
+    compressor.connect(out);
+    out.connect(muteGain);
+    return { sampleLoadFailed };
+  }
+
+  // setProcessed()'in N-yollu (harf başına) genellemesi — AYNI CROSSFADE_SEC,
+  // AYNI cancelScheduledValues/setValueAtTime/linearRampToValueAtTime deseni.
+  // stopAudio() ÇAĞIRMAZ — kaynak/filtreler dokunulmadan çalmaya devam eder.
+  function setThreeWayActive(letter) {
+    if (!audioCtx || !threeWayGainNodes) return;
+    const now = audioCtx.currentTime;
+    Object.entries(threeWayGainNodes).forEach(([l, g]) => {
+      const target = l === letter ? 1 : 0.0001;
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(g.gain.value, now);
+      g.gain.linearRampToValueAtTime(target, now + CROSSFADE_SEC);
+    });
+  }
+
+  // G267 — kart-üstü pause (Motor 2: Kompresör/Distortion'ın G86 play/pause butonu,
+  // bkz. app.js playThreeWaySpecific): ESKİ mekanizma (pausePreview→stopAudio) round
+  // seviyesindeki muteGain'e (Durdur/Tekrar-Çal, bkz. muteOutput/unmuteOutput) HİÇ
+  // DOKUNMUYORDU — iki mekanizma birbirinden BAĞIMSIZDI. setThreeWayActive'in AKSİNE
+  // "hiçbiri aktif değil" durumuna geçmek İÇİN VAR — muteOutput() KULLANILMADI, o
+  // paylaşılan gain round-seviyesi Durdur/Tekrar-Çal ile ÇAKIŞIR (ikisi AYNI node'u
+  // kullansaydı, bir kartı bireysel duraklatıp SONRA round'u Tekrar Çal'la açmak o
+  // kartı da İSTENMEDEN geri başlatırdı). Kaynak/filtreler/graf dokunulmuyor.
+  function muteThreeWayPreview() {
+    if (!audioCtx || !threeWayGainNodes) return;
+    const now = audioCtx.currentTime;
+    Object.values(threeWayGainNodes).forEach(g => {
+      g.gain.cancelScheduledValues(now);
+      g.gain.setValueAtTime(g.gain.value, now);
+      g.gain.linearRampToValueAtTime(0.0001, now + CROSSFADE_SEC);
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // G51 — Motor 3 (Frekans Çakışması): buildQuestionChain'in TEK-kaynak varsayımı
   // (bkz. o fonksiyonun dosya başı notu) İKİ kaynağın AYNI ANDA çalması gereken
   // bu modu KARŞILAYAMAZ. Bu bölüm TAMAMEN AYRI/EK bir yol — buildQuestionChain'e
@@ -1051,9 +1216,13 @@ export function createAudioEngine() {
     pausePreview,
     buildQuestionChain,
     setProcessed,
+    buildThreeWayChain,
+    setThreeWayActive,
+    muteThreeWayPreview,
     buildDualSourceChain,
     setDualCut,
     setDualSolo,
+    get stopAudioCallCount() { return stopAudioCallCount; },
     set onReady(fn) { onReady = fn; },
     // G131 — app.js "Devam etmek için ekrana dokunun" banner'ını buradan
     // yönetir (fn(dead: boolean)) — context'in "gerçekten canlı değil,

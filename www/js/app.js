@@ -64,6 +64,14 @@ registerMode(stereoGenislik);
 const THREE_WAY_MODE_IDS = ["kompresor", "reverb", "distortion"];
 function isThreeWayModule(m) { return !!m && THREE_WAY_MODE_IDS.includes(m.MODE_ID); }
 function isThreeWayQuestion(q) { return !!q && THREE_WAY_MODE_IDS.includes(q.mode); }
+// G267 — THREE_WAY_MODE_IDS'in ALT KÜMESİ: A/B/C geçişinde audioEngine.buildThreeWayChain/
+// setThreeWayActive (seamless crossfade, kaynak ASLA yeniden kurulmuyor) kullanan modlar.
+// Reverb KASITLI OLARAK DIŞARIDA — kuyruk davranışı (geçişte kuyruğun kesilip yeni
+// kaynağın baştan başlaması) ürün kararıyla KORUNUYOR, Reverb hâlâ buildQuestionChain
+// üzerinden (ESKİ rebuild yolu) çalışıyor (bkz. DURUM.md G267, audio-engine.js'in
+// buildThreeWayChain dosya başı notu).
+const SEAMLESS_THREE_WAY_MODE_IDS = ["kompresor", "distortion"];
+function isSeamlessThreeWay(m) { return !!m && SEAMLESS_THREE_WAY_MODE_IDS.includes(m.MODE_ID); }
 // Artık birden fazla oynanabilir mod var — `mode` menüden hangi karta basıldığına
 // göre DEĞİŞİR (bkz. renderModeGrid'in kart click handler'ı). Başlangıç değeri
 // Frekans Bulma (ilk açılışta menüde gösterilen ekran budur, henüz hiçbir kart
@@ -5338,7 +5346,15 @@ async function playQuestion(processed = true) {
   // görünür (senkron kaynaklarda anlık kapanır, GERÇEK gecikme — uydurma
   // bir minimum süre YOK).
   showAudioLoading();
-  const result = await audioEngine.buildQuestionChain(activeQuestion, processed, activeQuestion.source, uploadManager, mode.applyProcessing);
+  // G267 — Kompresör/Distortion (bkz. isSeamlessThreeWay): buildQuestionChain
+  // YERİNE buildThreeWayChain — üç varyantın ÜÇÜ DE AYNI ANDA kurulup bağlanır,
+  // A/B/C geçişi artık ayrı bir zincir kurmuyor (bkz. cycleThreeWayPreview/
+  // playThreeWaySpecific). threeWayPlayLetter renderQuestion()'da "A"ya
+  // sıfırlanmış olur (round başlangıcı) — Reverb ve diğer TÜM modlar bu dala
+  // hiç girmiyor, ÖNCEKİ davranışları BİREBİR aynı kalıyor.
+  const result = isSeamlessThreeWay(mode)
+    ? await audioEngine.buildThreeWayChain(activeQuestion, activeQuestion.source, uploadManager, mode.applyProcessing, threeWayPlayLetter)
+    : await audioEngine.buildQuestionChain(activeQuestion, processed, activeQuestion.source, uploadManager, mode.applyProcessing);
   hideAudioLoading();
   // [audio-diag] item 1 — "çalma gerçekten başladı mı": buildQuestionChain
   // döndüğünde kaynak node'u (upload/noise/sample/synth) ZATEN bağlanıp
@@ -5398,11 +5414,25 @@ function cycleThreeWayPreview() {
   const idx = q.variants.findIndex(v => v.letter === threeWayPlayLetter);
   const next = q.variants[(idx + 1) % q.variants.length];
   threeWayPlayLetter = next.letter;
+  threeWayPreviewPaused = false;
+  // G267 — Kompresör/Distortion: zincir YENİDEN KURULMUYOR, SADECE gain
+  // crossfade (audioEngine.setThreeWayActive) — kaynak/pozisyon dokunulmuyor.
+  // Eski buildQuestionChain yolu muteGain'i HER ZAMAN 1'e zorluyordu (rebuild'in
+  // kendi güvenlik satırı) — bu YAN ETKİ (Durdur'dayken abToggle'a basılırsa
+  // otomatik unmute) davranışı DEĞİŞMESİN diye burada unmuteOutput() ile
+  // AYNEN korunuyor.
+  if (isSeamlessThreeWay(mode)) {
+    audioEngine.setThreeWayActive(next.letter);
+    audioEngine.unmuteOutput();
+    updateAbToggleUI();
+    return;
+  }
   // G151: döngü (otomatik A/B/C) HER ZAMAN sıradaki harfi SIFIRDAN çalar —
   // manuel pause/resume ile karışmaz, task'ın kendi kararı ("döngü modu
   // davranışı DEĞİŞMESİN"). Duraklatılmış bir harf varsa bile döngü onu
   // ATLAMAZ/DEVAM ETTİRMEZ, sırası gelince eskisi gibi baştan çalar.
-  threeWayPreviewPaused = false;
+  // ⚠️ REVERB (ve THREE_WAY_MODE_IDS'teki diğer olası modlar) İÇİN BU YOL
+  // AYNEN KORUNUYOR — kuyruk davranışı kasıtlı, geçişte baştan başlıyor.
   audioEngine.buildQuestionChain({ ...q, previewLetter: next.letter }, true, q.source, uploadManager, mode.applyProcessing);
   updateAbToggleUI();
 }
@@ -5434,6 +5464,36 @@ function playThreeWaySpecific(letter) {
   if (!roundActive || !isThreeWayQuestion(activeQuestion)) return;
   const q = activeQuestion;
   if (!q.variants.some(v => v.letter === letter)) return;
+  // G267 — Kompresör/Distortion: kaynak ASLA durmuyor. "pause" SADECE üç harfin
+  // önizleme gain'lerini 0'a indirir (muteThreeWayPreview — round-seviyesi
+  // muteGain'e DOKUNMAZ, Durdur/Tekrar-Çal ile BAĞIMSIZ kalır, ESKİ pausePreview/
+  // stopAudio'nun da muteGain'e dokunmaması gibi). "resume/switch" hedef harfin
+  // gain'ini geri açar (setThreeWayActive) + round-seviyesi çıkışı da unmute eder
+  // (ESKİ buildQuestionChain'in HER çağrıda muteGain'i güvenlik amaçlı 1'e
+  // zorlama yan etkisiyle AYNI — davranış BİREBİR korunuyor). threeWayPreviewOffsets/
+  // pausePreview() BU İKİ MOD İÇİN artık gereksiz (pozisyon zaten hiç kaybolmuyor).
+  // ⚠️ REVERB için aşağıdaki ESKİ (pausePreview/offset/rebuild) yol AYNEN korunuyor.
+  if (isSeamlessThreeWay(mode)) {
+    if (letter === threeWayPlayLetter && !threeWayPreviewPaused) {
+      audioEngine.muteThreeWayPreview();
+      threeWayPreviewPaused = true;
+      threeWayLoopWasRunningBeforePause = !!abLoopTimer;
+      if (abLoopTimer) stopAbLoop();
+      updateAbToggleUI();
+      return;
+    }
+    const isResumingSameLetter = letter === threeWayPlayLetter && threeWayPreviewPaused;
+    threeWayPlayLetter = letter;
+    threeWayPreviewPaused = false;
+    audioEngine.setThreeWayActive(letter);
+    audioEngine.unmuteOutput();
+    if (isResumingSameLetter && threeWayLoopWasRunningBeforePause) {
+      threeWayLoopWasRunningBeforePause = false;
+      startAbLoop();
+    }
+    updateAbToggleUI();
+    return;
+  }
   if (letter === threeWayPlayLetter && !threeWayPreviewPaused) {
     threeWayPreviewOffsets[letter] = audioEngine.pausePreview();
     threeWayPreviewPaused = true;
@@ -11992,6 +12052,14 @@ if (DEV_MODE) {
   // ile DOĞRU şıkkı GÜVENİLİR biçimde bulabiliyor. SADECE OKUR, hiçbir
   // oyun durumunu DEĞİŞTİRMEZ/ETKİLEMEZ.
   window.__aeaActiveQuestionChoices = () => (activeQuestion && activeQuestion.choices) || null;
+
+  // G267 — doğrulama kancası: audioEngine.stopAudioCallCount, buildQuestionChain/
+  // buildDualSourceChain/buildThreeWayChain'in ÜÇÜNÜN de başında çağırdığı stopAudio()'nun
+  // GLOBAL çağrı sayacı — setProcessed()/setThreeWayActive() bu sayacı HİÇ artırmaz.
+  // e2e testleri Kompresör/Distortion'da A/B/C geçişinin zinciri YENİDEN KURMADIĞINI
+  // (sayaç DEĞİŞMEDİ → seamless crossfade), Reverb'de ESKİ (kasıtlı korunan) rebuild
+  // davranışının DEĞİŞMEDİĞİNİ (sayaç ARTTI) bu kancayla kanıtlıyor. SADECE OKUR.
+  window.__aeaStopAudioCallCount = () => audioEngine.stopAudioCallCount;
 }
 
 // G117 madde B — bölge SOLO dinleme. Bant adları canvas üstünde ÇİZİLİ metin
