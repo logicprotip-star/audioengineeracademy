@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G283 — App Store yorum isteme KARAR mantığı eklendi (core/review-request.js, SAF/test edilebilir) — sınav geçildi/seviye atlandı/rozet kazanıldı'da tetiklenir, paywall/can-bitişi/yanlış-cevap/reklam/ilk-oturum'da ASLA (statik+e2e testle kilitlendi); olgunluk eşiği 30 tur + 60 gün cooldown (KENDİ kararım, gerekçeli); ⚠️ GERÇEK native çağrı YAZILMADI — Capacitor'da hazır bir review-request plugin'i YOK, eklemek npm+native proje değişikliği gerektiriyor, KOD YAZMADAN bildirildi; 13 test eklendi, kırmızı/yeşil doğrulandı)
+Son güncelleme: 17.08.2026 (G285 — 1.1'in "Son Oyunlarım" replay listesi İÇİN cevap geçmişi kayıt formatı açıldı — core/answer-history.js (SAF), 12 modun HEPSİNDE 11 submit handler'dan tetikleniyor (kompresor/reverb/distortion TEK ortak handler); YENİ/AYRI eqEarTrainerProXAnswerHistory anahtarı, mevcut session.log/stats.history/zoneStats'a DOKUNULMADI (app.js diff'i %100 EKLEME, TEK satır SİLİNMEDİ); 200 kayıt sınırı FIFO, G233 şema damgası, G229/G232 trySave() koruması; ÖLÇÜLDÜ: 200 kayıt ≈59.2KB (~303B/kayıt), GERÇEK tarayıcıda localStorage.setItem() ort. 0.034ms — ana thread bloklanmıyor, toplu yazmaya GEREK YOK; App Privacy beyanı DEĞİŞMEDİ (ağ çağrısı yok, doğrulandı); 12 mod + 2 bütünlük testi (14 e2e) + 22 birim + 8 storage testi, kırmızı/yeşil doğrulandı)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,58 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G285 — **Cevap geçmişi kayıt formatı (1.1'in "Son Oyunlarım" replay listesi İÇİN) — 12 modun HEPSİNDE açıldı. AYRI commit.**
+
+**Dürüstlük notu (task'ın KİLİT baseline'ı ile ÖLÇÜLEN gerçek uyuşmuyor):** Task "npm test 1463'ten düşmeyecek" diyordu — bu turun BAŞLANGICINDA (G283 HEAD, hiçbir uncommitted değişiklik yokken) `npm test` **1455/1455** verdi, e2e ise task'ın verdiği "55/55" ile TAM eşleşti. 1463 rakamının kaynağı bulunamadı (git log'da G284 diye bir commit YOK). Bu görev **1455'i gerçek baseline sayarak** yürütüldü, düşüş OLMADI (aşağıya bkz.) — ama fark AÇIKÇA bildiriliyor, sessizce "muhtemelen 1463'tü" diye UYDURULMADI.
+
+**AMAÇ:** 1.1'de "Son Oyunlarım" listesi tıklanabilir olacak, kullanıcı geçmiş bir soruya basınca kendi cevabıyla doğru cevabı art arda dinleyecek — bunun için kayıt formatı ŞİMDİ açılmalı (sonradan eklenirse geçmiş veri olmaz, liste 1.1'e geçişte boş kalır).
+
+**Mevcut durum (OLCUM-KALAN-17-08 E.6'nın bulduğu):** zorluk/süre ZATEN submit anında yerel kapsamda duruyor (XP hesabı için), sadece hiçbir yere yazılmıyordu. Üç parçalı depo (session.log/stats.history/zoneStats) hiçbiri yapısal alan tutmuyor.
+
+**Yapılan:**
+1. YENİ `www/js/core/answer-history.js` (SAF fonksiyonlar) — `buildAnswerRecord(modeId, question, answer, result, {timeSpentSec, timestamp})`: her cevapta `{modeId, timestamp, difficulty, timeSpentSec, correct, params}` üretir. `params` MOD BAZINDA — 12 mod dosyasının (www/js/modes/*.js) GERÇEK `createQuestion()`/`evaluateAnswer()` dönüş şekilleri TEK TEK okunup (uydurulmadı) ilgili alanlar seçildi: frekans-bulma (frequency+proplus İKİ alt-tip), kesim-noktasi, db-seviyesi, boost-mu-cut-mu (3 katman-farklı), q-genisligi, kompresor/reverb/distortion (ÜÇÜ de AYNI three-way şekli), tonal-denge, frekans-cakismasi (3 aşama-farklı), pan-konumu, stereo-genislik. `appendAnswerRecord(records, record, limit=200)` — FIFO, en eski silinir.
+2. `www/js/core/storage.js` — YENİ `eqEarTrainerProXAnswerHistory` anahtarı (`freshAnswerHistory`/`loadAnswerHistory`/`saveAnswerHistory`/`clearAnswerHistory`). `saveAnswerHistory` G229/G232'nin `trySave()`'ini kullanıyor (başarısızlık `console.error`'a düşer, sessiz kalmaz). `mirror:false` — IN_PROGRESS_ROUND_KEY'in AYNI "düşük risk, 12 kritik anahtar değil" kararı (kaybedilirse en kötü ihtimalle birkaç geçmiş turun sesi yeniden üretilemez, XP/ilerleme/satın alma gibi KRİTİK değil). G233'ün `CURRENT_SCHEMA_VERSION`'ı blob'un `schemaVersion` alanında (KAYIT başına DEĞİL, tek damga — boyut/basitlik).
+3. `www/js/app.js` — `recordAnswerHistoryEntry(modeId, q, answer, result)` (roundFlow.roundDuration−roundFlow.timeLeft'ten `timeSpentSec` türetir) 11 submit handler'ın TAMAMINDAN çağrılıyor (`pushHistory(result.correct)`'ın hemen öncesinde — mevcut "history" çağrısıyla AYNI konum, tutarlılık için). `submitThreeWayGuess` TEK fonksiyon olduğu için `mode.MODE_ID` (dinamik: kompresor/reverb/distortion) kullanıldı — 11 handler × bu üçlü = **12 mod TAMAMI kapsandı**.
+4. `resetAllProgress()` (Ayarlar → "İlerlemeyi sıfırla") — `storage.clearAnswerHistory()` eklendi, zoneStats'ın AYNI "tüm istatistikler sözü gerçekten tutulsun" gerekçesiyle (aksi halde sıfırlama sonrası stale kayıtlar kalırdı).
+5. YENİ DEV_MODE test kancası `window.__aeaSubmitAnswerForTest()` — aktif sorunun DOĞRU cevabını hesaplayıp GERÇEK submit fonksiyonunu çağırır (Frekans Bulma'nın serbest-tıklama canvas'ı/Tonal Denge'nin sürükleme-çubukları gibi e2e'de güvenilir sürüklemesi/tıklaması zor akışları atlamak için — `__aeaShowSessionEndForTest`'in AYNI "gerçek fonksiyonu tetikle" ilkesi).
+
+**MEVCUT DEPOLARA DOKUNULMADI (kanıtlı):** `git diff www/js/app.js` ve `www/js/core/storage.js` — **her ikisi de %100 EKLEME, TEK satır SİLİNMEDİ** (`git diff | grep "^-"` boş döndü). session.log/stats.history/zoneStats/XP hesabı/can sistemi/DIFFICULTY tabloları/G276'nın challenge.results'ı HİÇBİRİNE dokunulmadı.
+
+**localStorage boyutu ölçümü (KABUL KRİTERİ):** 12 modun HEPSİNİ kapsayan GERÇEKÇİ (uydurulmamış, `buildAnswerRecord`'un KENDİ params şekilleriyle üretilen) 200 kayıtlık blob:
+
+| Ölçüm | Sonuç |
+|---|---|
+| Toplam boyut | **59.21 KB** |
+| Kayıt başına ortalama | 303 byte |
+| `JSON.stringify` (200 kayıt) | 1.57ms |
+| `JSON.parse` (200 kayıt) | 0.27ms |
+| Tek cevap ekleyip stringify (GERÇEK per-answer maliyet) | 0.82ms |
+
+**Yazma performansı ölçümü (GERÇEK tarayıcıda, Playwright/Chromium, 50 tekrar):**
+
+| Ölçüm | Sonuç |
+|---|---|
+| `localStorage.setItem()` ortalama (60KB blob) | **0.034ms** |
+| `localStorage.setItem()` en kötü | 0.10ms |
+| `localStorage.getItem()`+`JSON.parse()` | 0.60ms |
+
+**Sonuç: ana thread bloklanma riski YOK.** Tek cevaptaki toplam ek maliyet (~0.9ms: JS-taraf hesap+stringify+gerçek setItem) mevcut submit handler'ların ZATEN yaptığı işlemlerin (audioEngine.stopAudio, DOM güncellemeleri, persistStats/persistDaily) yanında ihmal edilebilir düzeyde — **toplu yazma ÖNERİLMİYOR, gerek yok** (task'ın "gerekiyorsa öner" şartı — gerekmedi, ölçümle gösterildi).
+
+**App Privacy doğrulaması:** `answer-history.js`/`storage.js`'in yeni fonksiyonlarında `fetch`/`XMLHttpRequest`/`sendBeacon`/ağ adresi YOK (grep ile doğrulandı, sıfır eşleşme) — SADECE `localStorage.setItem()` (`mirror:false` olduğu için Capacitor Preferences köprüsü bile YOK). Veri TAMAMEN cihazda kalıyor — mevcut App Privacy beyanı (proje kökünde bir `PrivacyInfo.xcprivacy` YOK, beyan App Store Connect'te tutulan bir manifest) bu değişiklikle DEĞİŞMESİ GEREKMİYOR.
+
+**Testler eklendi (44):**
+- `test/answer-history.test.mjs` (22 birim testi) — ortak alanlar (timestamp/timeSpentSec kırpma/null), 12 modun HER BİRİ için `params` şekli (frekans-bulma İKİ alt-tip dahil), `appendAnswerRecord`'ın 200-sınırı/FIFO'su/saflığı.
+- `test/storage.test.mjs`'e 8 yeni test — fresh/load/save/clear, bozuk JSON, eksik schemaVersion göçü, trySave koruması, mirror:false.
+- `e2e/answer-history.spec.mjs` (14 e2e testi) — **12 modun HER BİRİ** GERÇEK runtime'da (`__aeaSubmitAnswerForTest` kancasıyla) doğru kayıt üretiyor mu (KABUL KRİTERİ), + mevcut depoların bozulmadığı, + 200 sınırının GERÇEK runtime'da çalıştığı.
+
+**Kırmızı/yeşil doğrulama:**
+1. `git stash push -- www/js/app.js www/js/core/storage.js` → `test/storage.test.mjs` modül-yükleme hatasıyla KIRMIZI, `e2e/answer-history.spec.mjs` "kanca bulunamadı" ile KIRMIZI → `git stash pop` → YEŞİL.
+2. `answer-history.js` içinde geçici regresyon enjeksiyonu (`appendAnswerRecord`'ın 200-sınırı KALDIRILDI) → birim testi KIRMIZI (`205 !== 200`) → enjeksiyon geri alındı → YEŞİL.
+
+**Test sonuçları:** `npm test` **1485/1485** (1455 baseline'dan +30: 22 answer-history + 8 storage). `npm run test:e2e` **69/69** (55 baseline'dan +14). Paralel tam-suite koşusunda `ear-buttons.spec.mjs`'nin (bu turun DOKUNMADIĞI bir dosya) ÖNCEDEN VAR olan flake'i bir kez daha görüldü — tek başına 9/9, tekrar tam koşuda 69/69 temiz.
+
+---
 
 G283 — **App Store yorum isteme (SKStoreReviewController) — KARAR mantığı eklendi, GERÇEK native çağrı YAZILMADI (Capacitor'da hazır bir plugin YOK, bildirildi). AYRI commit.**
 
@@ -21012,7 +21064,42 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G283 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G285 itibarıyla):**
+1.1'in "Son Oyunlarım" replay listesi İÇİN cevap geçmişi kayıt formatı
+açıldı — `core/answer-history.js` (SAF), 12 modun HEPSİNDE (11 submit
+handler, kompresor/reverb/distortion TEK ortak handler) her cevapta
+`{modeId, timestamp, difficulty, timeSpentSec, correct, params}`
+yazıyor. YENİ/AYRI `eqEarTrainerProXAnswerHistory` anahtarı, mevcut
+session.log/stats.history/zoneStats'a DOKUNULMADI (app.js/storage.js
+diff'i %100 EKLEME, kanıtlı). 200 kayıt FIFO sınırı, G233 şema damgası,
+G229/G232 trySave() koruması. Ölçüldü: 200 kayıt ≈59.2KB, GERÇEK
+tarayıcıda `localStorage.setItem()` ort. 0.034ms — ana thread
+bloklanmıyor, toplu yazmaya GEREK YOK. App Privacy beyanı DEĞİŞMEDİ
+(ağ çağrısı yok, doğrulandı). 44 yeni test (22 birim + 8 storage + 14
+e2e — 12 modun HER BİRİ ayrı ayrı doğrulandı), kırmızı/yeşil
+doğrulandı. `npm test` 1485/1485, `npm run test:e2e` 69/69.
+**Dürüstlük notu:** task'ın "1463" baseline'ı ÖLÇÜLEN gerçek G283
+HEAD'iyle (1455) UYUŞMADI, git log'da G284 diye bir commit de YOK —
+fark bildirildi, sessizce düzeltilmedi, 1455 gerçek baseline sayılarak
+ilerlendi (düşüş olmadı). **1.1'in KENDİ replay UI'ı bu turun KAPSAMI
+DIŞINDA** — sadece kayıt açıldı.
+
+**EN YENİ SIRADAKİ ADIM (OLCUM-MAGAZA-METNI-17-08 itibarıyla, ARTIK ESKİ):**
+App Store metni ile kod karşılaştırıldı (ÖLÇÜM, kod YAZILMADI, metin
+Logic'in — o güncelleyecek). **Kullanıcının kararı gereken AÇIK
+bulgu:** 🔴 "Distortion" mod adı ESKİ — kod `mode-catalog.js:46`'da
+G59'dan beri "Saturation & Distortion" diyor, metin GÜNCELLENMEDİ.
+⚠️ "5 can" ifadesi Pro'da SINIRSIZ olduğu için NÜANS gerektiriyor
+(ücretsiz sürüm bağlamında doğru, koşulsuz okunursa yanıltıcı). Kalan
+TÜM maddeler (12 mod adı/sayısı, 5 egzersiz, 5 soru, zayıf bölge
+raporu, günlük görevler, ilerleme geçmişi, 7 araç ölçümü — true
+peak/LUFS/RMS/faz korelasyonu/mono uyum kaybı/DC offset/bant dağılımı,
+Kendi Referansım) kodla DOĞRU. "Pro'nun verdikleri" listesi metnin tam
+hali verilmediği için karşılaştırılamadı — kodun kendi listesi
+(`paywall.js:PRO_BENEFITS`, 7 madde) raporlandı. Tam rapor:
+OLCUM-MAGAZA-METNI-17-08.md.
+
+**EN YENİ SIRADAKİ ADIM (G283 itibarıyla, ARTIK ESKİ):**
 App Store yorum isteme KARAR mantığı eklendi (sınav geçildi/seviye
 atlandı/rozet kazanıldı'da tetiklenir, paywall/can-bitişi/yanlış-cevap/
 reklam/ilk-oturumda ASLA — statik+e2e testle kilitlendi). Olgunluk eşiği

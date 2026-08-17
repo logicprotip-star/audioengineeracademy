@@ -587,6 +587,45 @@ export function clearZoneStats() {
   } catch (e) {}
 }
 
+// G285 — cevap geçmişi (1.1'in "Son Oyunlarım" replay listesi İÇİN, bkz.
+// core/answer-history.js dosya başı notu). MEVCUT session.log/stats.history/
+// zoneStats'a HİÇ DOKUNULMADI — bu TAMAMEN YENİ/AYRI bir anahtar (task'ın
+// kendi şartı). `mirror:false` — IN_PROGRESS_ROUND_KEY'in AYNI kararı:
+// bu veri (1.1'in henüz VAR OLMAYAN replay UI'ı için) kaybedilirse en kötü
+// ihtimalle birkaç geçmiş turun sesi yeniden üretilemez — XP/ilerleme/satın
+// alma gibi KRİTİK veri DEĞİL, "12 kritik anahtar" muamelesi gerektirmiyor
+// (WKWebView depolama baskısında Preferences'a yedeklemeye DEĞMEZ).
+// schemaVersion: G233'ün CURRENT_SCHEMA_VERSION'ı — HER kayıtta DEĞİL,
+// blob'un KENDİSİNDE TEK bir damga (kayıt başına tekrar tutmak boyutu
+// gereksiz büyütürdü, "basit çözüm" ilkesiyle tutarsız olurdu).
+const ANSWER_HISTORY_KEY = "eqEarTrainerProXAnswerHistory";
+
+export function freshAnswerHistory() {
+  return { schemaVersion: CURRENT_SCHEMA_VERSION, records: [] };
+}
+
+export function loadAnswerHistory() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(ANSWER_HISTORY_KEY));
+    if (!raw || !Array.isArray(raw.records)) return freshAnswerHistory();
+    return { schemaVersion: typeof raw.schemaVersion === "number" ? raw.schemaVersion : CURRENT_SCHEMA_VERSION, records: raw.records };
+  } catch (e) {
+    return freshAnswerHistory();
+  }
+}
+
+export function saveAnswerHistory(answerHistory) {
+  return trySave(ANSWER_HISTORY_KEY, answerHistory, { mirror: false });
+}
+
+// "İlerlemeyi sıfırla" (app.js:resetAllProgress) — zoneStats'ın AYNI
+// "tüm istatistikler temizlensin sözü GERÇEKTEN tutulsun" gerekçesi.
+export function clearAnswerHistory() {
+  try {
+    localStorage.removeItem(ANSWER_HISTORY_KEY);
+  } catch (e) {}
+}
+
 // localStorage boşsa (ör. WKWebView temizlemişse) Preferences'taki yedekten kurtarmaya çalışır.
 // recovered anahtarlarının haritasını döndürür ki çağıran taraf ilgili state'i yeniden yükleyip
 // UI'ı tazeleyebilsin.

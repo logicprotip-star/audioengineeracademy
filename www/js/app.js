@@ -27,6 +27,7 @@ import * as ads from "./core/ads.js";
 import * as iap from "./core/iap.js";
 import { freshChallenge } from "./core/challenge.js";
 import { resolveAbLoopIntervalMs } from "./core/ab-loop-timing.js";
+import { buildAnswerRecord, appendAnswerRecord, ANSWER_HISTORY_LIMIT } from "./core/answer-history.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
@@ -1008,6 +1009,10 @@ let history = stats.history || [];
 storage.saveStats(stats, history);
 let daily = storage.loadDaily();
 let zoneStats = storage.loadZoneStats();
+// G285 — cevap geçmişi (bkz. core/answer-history.js dosya başı notu).
+// stats/daily/zoneStats İLE AYNI desen: açılışta BİR KEZ yüklenir, bellekte
+// tutulur, HER cevapta mutasyona uğrayıp trySave() ile kalıcı hale gelir.
+let answerHistory = storage.loadAnswerHistory();
 let prefs = storage.loadPrefs();
 let dailyAcc = storage.loadDailyAcc();
 let devFlags = storage.loadDevFlags();
@@ -1259,6 +1264,23 @@ function xpMult() { return (challenge.active && isChallenge()) ? CHALLENGE_XP_MU
 
 function persistStats() { storage.saveStats(stats, history); }
 function persistDaily() { storage.saveDaily(daily); }
+
+// G285 — HER 11 submit handler'ın (12 modu kapsıyor — submitThreeWayGuess
+// KOMPRESÖR/REVERB/SATURATION&DISTORTION'ın ÜÇÜNÜ de tek fonksiyonda
+// kapsıyor) ORTAK kuyruğu — TEK yerden çağrılır ki 12. moddan biri
+// yanlışlıkla ATLANMASIN. q: activeQuestion (evaluateAnswer'a geçirilen
+// AYNI nesne). answer: submit handler'ın HAM argümanı. result:
+// mode.evaluateAnswer(q, answer)'ın dönüşü — HANDLER'DA ZATEN hesaplanmış,
+// BURADA yeniden hesaplanmıyor (OLCUM-KALAN-17-08 E.6'nın "veri zaten
+// elde" bulgusuyla TUTARLI). timeSpentSec: roundFlow'un KENDİ
+// roundDuration/timeLeft'inden türetilir (roundFlow.clearTimer() timeLeft'i
+// SIFIRLAMAZ, SADECE interval'i durdurur — bkz. round-flow.js).
+function recordAnswerHistoryEntry(modeId, q, answer, result) {
+  const timeSpentSec = Math.max(0, roundFlow.roundDuration - roundFlow.timeLeft);
+  const record = buildAnswerRecord(modeId, q, answer, result, { timeSpentSec });
+  answerHistory.records = appendAnswerRecord(answerHistory.records, record, ANSWER_HISTORY_LIMIT);
+  storage.saveAnswerHistory(answerHistory);
+}
 function recordAndPersistDailyAccuracy(correct) {
   storage.recordDailyAccuracy(dailyAcc, correct);
   storage.saveDailyAcc(dailyAcc);
@@ -4343,6 +4365,7 @@ function submitFrequencyGuess(guessHz) {
   }
 
   storage.saveZoneStats(zoneStats);
+  recordAnswerHistoryEntry("frekans-bulma", q, guessHz, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
@@ -4444,6 +4467,7 @@ function submitCutoffGuess(answer) {
   }
 
   storage.saveZoneStats(zoneStats);
+  recordAnswerHistoryEntry("kesim-noktasi", q, answer, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
@@ -4538,6 +4562,7 @@ function submitLevelGuess(value) {
     challengeTick(false, 0);
   }
 
+  recordAnswerHistoryEntry("db-seviyesi", q, value, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
@@ -4615,6 +4640,7 @@ function submitPanGuess(value) {
     challengeTick(false, 0);
   }
 
+  recordAnswerHistoryEntry("pan-konumu", q, value, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
@@ -4687,6 +4713,7 @@ function submitWidthGuess(value) {
     challengeTick(false, 0);
   }
 
+  recordAnswerHistoryEntry("stereo-genislik", q, value, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
@@ -4777,6 +4804,7 @@ function submitBoostCutGuess(answer) {
   }
 
   if (q.layer === 3) storage.saveZoneStats(zoneStats);
+  recordAnswerHistoryEntry("boost-mu-cut-mu", q, answer, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
@@ -4862,6 +4890,7 @@ function submitQWidthGuess(labelId) {
     challengeTick(false, 0);
   }
 
+  recordAnswerHistoryEntry("q-genisligi", q, labelId, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
@@ -4949,6 +4978,9 @@ function submitThreeWayGuess(letter) {
     challengeTick(false, 0);
   }
 
+  // mode.MODE_ID — bu handler kompresor/reverb/distortion ÜÇÜNÜ de kapsıyor
+  // (bkz. dosya başı not), o an aktif olan mod hangisiyse ONUN id'si yazılır.
+  recordAnswerHistoryEntry(mode.MODE_ID, q, letter, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
@@ -5040,6 +5072,7 @@ function submitTonalDengeGuess() {
     challengeTick(false, 0);
   }
 
+  recordAnswerHistoryEntry("tonal-denge", q, answer, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
@@ -5152,6 +5185,7 @@ function submitCakismaGuess(answer) {
     audioEngine.stopAudio();
   }
 
+  recordAnswerHistoryEntry("frekans-cakismasi", q, answer, result);
   pushHistory(result.correct);
   updateDaily(result.correct);
   accumulatePracticeTime();
@@ -5235,6 +5269,7 @@ function submitProPlusGuess() {
   q._result = result.bands.map(b => ({ freq: b.freq, gain: b.gain, correct: b.correct })).sort((a, z) => a.freq - z.freq);
   revealAnimator.start(q._result);
 
+  recordAnswerHistoryEntry("frekans-bulma", q, q.guesses, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
   updateDaily(result.correct);
@@ -7746,6 +7781,10 @@ function resetAllProgress() {
   // dokunmuyordu, kullanıcı SADECE o ayrı bağlantıyla temizleyebiliyordu.
   storage.clearZoneStats();
   zoneStats = {};
+  // G285 — zoneStats'ın AYNI gerekçesi: "tüm istatistikler" sözü cevap
+  // geçmişini de kapsamalı, aksi halde sıfırlama sonrası stale kayıtlar kalır.
+  storage.clearAnswerHistory();
+  answerHistory = storage.freshAnswerHistory();
   stats = storage.freshStats(difficultyLivesMap(), HINTS_PER_GAME, playableModeIds());
   history = [];
   daily = storage.freshDaily();
@@ -12210,6 +12249,56 @@ if (DEV_MODE) {
   // ile DOĞRU şıkkı GÜVENİLİR biçimde bulabiliyor. SADECE OKUR, hiçbir
   // oyun durumunu DEĞİŞTİRMEZ/ETKİLEMEZ.
   window.__aeaActiveQuestionChoices = () => (activeQuestion && activeQuestion.choices) || null;
+
+  // G285 — doğrulama kancası: aktif sorunun DOĞRU cevabını hesaplayıp GERÇEK
+  // submit fonksiyonunu (submitFrequencyGuess/submitCutoffGuess/vb. — 11
+  // fonksiyonun TAMAMI, 12 modu kapsıyor) ÇAĞIRIR. Tonal Denge'nin
+  // sürükleme-çubukları/Frekans Bulma'nın serbest-tıklama canvas'ı gibi
+  // e2e'de GÜVENİLİR biçimde SÜRÜKLEMEK/TIKLAMAK zor akışları — round GERÇEK
+  // #startBtn ile başlatıldıktan SONRA, GERÇEK activeQuestion/roundFlow
+  // durumuyla çalışır, SADECE son "kullanıcı hangi DOM elemanına dokundu"
+  // adımını atlar (window.__aeaShowSessionEndForTest'in AYNI "gerçek
+  // fonksiyonu tetikle" ilkesi — bu kanca "SADECE OKUR" DEĞİL, G261'in
+  // __aeaActiveQuestionChoices'ından farklı bir sınıf, bilerek).
+  window.__aeaSubmitAnswerForTest = () => {
+    const q = activeQuestion;
+    if (!q) return false;
+    const correctChoiceId = () => {
+      const c = Array.isArray(q.choices) ? q.choices.find(c => c.correct) : null;
+      return c ? c.id : null;
+    };
+    switch (q.mode) {
+      case "frequency": submitFrequencyGuess(q.freq); return true;
+      case "proplus": q.guesses = (q.bands || []).map(b => b.freq); submitProPlusGuess(); return true;
+      case "cutoff": submitCutoffGuess({ freq: q.freq, filterType: q.filterType }); return true;
+      case "dblevel": submitLevelGuess(q.dbDelta); return true;
+      case "pan": submitPanGuess(q.panPercent); return true;
+      case "width": submitWidthGuess(q.widthPercent); return true;
+      case "boostcut": {
+        if (q.layer === 1) submitBoostCutGuess({ direction: q.gainDb >= 0 ? "boost" : "cut" });
+        else if (q.layer === 2) submitBoostCutGuess({ gainDb: q.gainDb });
+        else submitBoostCutGuess({ freq: q.freq, gainDb: q.gainDb });
+        return true;
+      }
+      case "qwidth": submitQWidthGuess(correctChoiceId()); return true;
+      case "kompresor": case "reverb": case "distortion":
+        submitThreeWayGuess(q.variants[q.oddIndex].letter);
+        return true;
+      case "tonal-denge": {
+        tonalDengeCorrections = {};
+        (q.bands || []).forEach(b => { tonalDengeCorrections[b.id] = -b.bugDb; });
+        submitTonalDengeGuess();
+        return true;
+      }
+      case "cakisma": {
+        if (q.stage === 1) submitCakismaGuess({ center: q.trueCenter });
+        else if (q.stage === 2) submitCakismaGuess({ source: q.correctSource });
+        else submitCakismaGuess({ cutDb: -Math.round(q.correctCutDb * 10) / 10 });
+        return true;
+      }
+      default: return false;
+    }
+  };
 
   // G267 — doğrulama kancası: audioEngine.stopAudioCallCount, buildQuestionChain/
   // buildDualSourceChain/buildThreeWayChain'in ÜÇÜNÜN de başında çağırdığı stopAudio()'nun

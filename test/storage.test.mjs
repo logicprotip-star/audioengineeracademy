@@ -7,7 +7,7 @@
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave, loadSchemaVersion, ensureSchemaVersion, CURRENT_SCHEMA_VERSION, freshFreeSession, loadFreeSession, saveFreeSession, dailyKey } from "../www/js/core/storage.js";
+import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave, loadSchemaVersion, ensureSchemaVersion, CURRENT_SCHEMA_VERSION, freshFreeSession, loadFreeSession, saveFreeSession, dailyKey, freshAnswerHistory, loadAnswerHistory, saveAnswerHistory, clearAnswerHistory } from "../www/js/core/storage.js";
 
 function installLocalStorageMock(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -481,5 +481,59 @@ describe("G237 — freshFreeSession()/loadFreeSession()/saveFreeSession() — g�
     installLocalStorageMock();
     globalThis.window = undefined;
     assert.equal(saveFreeSession({ key: dailyKey(), used: 2 }), true);
+  });
+});
+
+// G285 — cevap geçmişi (bkz. core/answer-history.js). session.log/stats.history/
+// zoneStats İLE AYNI test iskeleti (yukarıdaki describe blokları) — YENİ/AYRI
+// bir anahtar, mevcut hiçbirine dokunmuyor.
+describe("freshAnswerHistory()/loadAnswerHistory()/saveAnswerHistory()/clearAnswerHistory()", () => {
+  it("freshAnswerHistory() — schemaVersion=CURRENT_SCHEMA_VERSION, records boş dizi", () => {
+    assert.deepEqual(freshAnswerHistory(), { schemaVersion: CURRENT_SCHEMA_VERSION, records: [] });
+  });
+
+  it("hiç kayıt yokken loadAnswerHistory() taze şekli döner", () => {
+    installLocalStorageMock();
+    assert.deepEqual(loadAnswerHistory(), freshAnswerHistory());
+  });
+
+  it("saveAnswerHistory() sonrası loadAnswerHistory() AYNI kayıtları döner (kalıcı)", () => {
+    installLocalStorageMock();
+    const blob = { schemaVersion: CURRENT_SCHEMA_VERSION, records: [{ modeId: "frekans-bulma", correct: true }] };
+    saveAnswerHistory(blob);
+    assert.deepEqual(loadAnswerHistory(), blob);
+  });
+
+  it("bozuk JSON / records dizi değilse çökmeden taze başlar", () => {
+    const store = installLocalStorageMock();
+    store.set("eqEarTrainerProXAnswerHistory", "{not json");
+    assert.deepEqual(loadAnswerHistory(), freshAnswerHistory());
+    store.set("eqEarTrainerProXAnswerHistory", JSON.stringify({ schemaVersion: 1, records: "yanlış-tip" }));
+    assert.deepEqual(loadAnswerHistory(), freshAnswerHistory());
+  });
+
+  it("schemaVersion eksikse (eski/bozuk kayıt) CURRENT_SCHEMA_VERSION'a düşer, records KORUNUR", () => {
+    const store = installLocalStorageMock();
+    store.set("eqEarTrainerProXAnswerHistory", JSON.stringify({ records: [{ modeId: "reverb" }] }));
+    assert.deepEqual(loadAnswerHistory(), { schemaVersion: CURRENT_SCHEMA_VERSION, records: [{ modeId: "reverb" }] });
+  });
+
+  it("saveAnswerHistory(): setItem hata fırlatınca çökmez, false döner (G229/G232'nin AYNI trySave koruması)", () => {
+    installThrowingLocalStorageMock();
+    assert.equal(saveAnswerHistory(freshAnswerHistory()), false);
+  });
+
+  it("saveAnswerHistory() mirror:false ile çağrılıyor — window.Capacitor HİÇ okunmasa bile başarıyla yazar (düşük-risk veri, IN_PROGRESS_ROUND_KEY'in AYNI kararı)", () => {
+    installLocalStorageMock();
+    globalThis.window = undefined;
+    assert.equal(saveAnswerHistory(freshAnswerHistory()), true);
+  });
+
+  it("clearAnswerHistory() sonrası loadAnswerHistory() taze şekle döner", () => {
+    const store = installLocalStorageMock();
+    saveAnswerHistory({ schemaVersion: CURRENT_SCHEMA_VERSION, records: [{ modeId: "kompresor" }] });
+    clearAnswerHistory();
+    assert.equal(store.has("eqEarTrainerProXAnswerHistory"), false);
+    assert.deepEqual(loadAnswerHistory(), freshAnswerHistory());
   });
 });
