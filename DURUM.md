@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G279 — Reverb'in otomatik döngü süresi 2000ms → 4500ms, Kompresör/Saturation 2000ms'de kaldı; mod-bazlı saf fonksiyon core/ab-loop-timing.js'e çıkarıldı, birim+e2e test eklendi, iki katmanlı kırmızı/yeşil doğrulandı; ayrıca ölçüldü: gerçek tur süresi aralığı task'ın iddia ettiği "7.5-26sn" DEĞİL, 8-17sn — en kısa turda otomatik döngü C'ye hiç ulaşmıyor, manuel tıklama etkilenmiyor)
+Son güncelleme: 17.08.2026 (G280 — Reverb'in tur süresi (SADECE `time` alanı) medium/hard/pro/proplus'ta 16sn'ye yükseltildi (easy zaten 17sn, DEĞİŞMEDİ) — otomatik A/B/C döngüsü artık boss dahil HER kademede C'yi TAM duyuruyor; ölçülen ölü süre 108-117ms, bare minimum 13.734sn; SADECE reverb.js değişti, diğer 11 mod dosyası checksum'la BAYT BAYT aynı kanıtlandı; birim+e2e test eklendi, kırmızı/yeşil doğrulandı)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,60 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G280 — **Reverb'in tur süresi (SADECE `time` alanı) — otomatik A/B/C döngüsü artık boss dahil HER kademede C'yi TAM duyuruyor (Logic'in kararı: "C şıkkına ulaşmadan olmaz, hata olur"). ÖNCE ÖLÇ SONRA UYGULA. AYRI commit.**
+
+**SORUN (G279 ölçümünde bulunmuştu):** Reverb'in otomatik döngüsü 4500ms (G279). En kısa turda (8sn, boss+pro/proplus, DÜZELTME ÖNCESİ) kullanıcı A'yı tam, B'yi ~%78 duyuyor, **C'ye HİÇ ulaşamıyordu** — üç şıktan birini hiç duymadan cevap vermek zorunda kalıyordu.
+
+**═══ ÖNCE ÖLÇ (task'ın kendi 5 sorusu) ═══**
+
+**1) Reverb'in tur süresi tam olarak kaç saniye (tüm kademeler, boss dahil) — TAM TABLO:**
+
+| Kademe | `time` ÖNCESİ (non-boss / boss) | `time` SONRASI (non-boss / boss) |
+|---|---|---|
+| easy | 17 / 15 | 17 / 15 (**DEĞİŞMEDİ** — zaten yeterliydi) |
+| medium | 14 / 12 | **16** / 14 |
+| hard | 12 / 10 | **16** / 14 |
+| pro | 10 / 8 | **16** / 14 |
+| proplus | 10 / 8 | **16** / 14 |
+
+(boss indirimi: `app.js:startTimerForCurrentQuestion()`'ın `Math.max(6, baseTime-2)` formülü — DOKUNULMADI, sadece `baseTime` = reverb.js'in KENDİ `DIFFICULTY[tier].time`'ı değişti.)
+
+**2) Üç şıkkın otomatik döngüde bir kez TAM duyulması için minimum süre:**
+Playwright ile analyser-tap + `dataset.ab` geçiş zaman damgası tekniğiyle (bkz. G277/G279'un AYNI yöntemleri) geçiş-başı ölü süre (zincir yeniden kurulma + ramp) **4 örneklemde 108-117ms** ölçüldü (tutarlı, jitter düşük). Formül (task'ın kendi önerisi): **3×4500ms + 2×117ms(en kötü) = 13.734sn BARE minimum** (2 geçiş — A→B, B→C — C'ye ulaşmak için yeterli). Boss'un -2sn'si HER kademede (kademe bağımsız, `isBossRound(roundsCompleted)=(roundsCompleted+1)%5===0`) çıkabildiği için bare minimuma +2sn eklenip **16sn güvenli taban** seçildi (medium/hard/pro/proplus boss'ta 16-2=14sn ≥ 13.734sn, ~266ms pay).
+
+**3) Tur süresi Reverb'e özel ayarlanabilir mi, yoksa paylaşılan bir mekanizma mı?**
+`startTimerForCurrentQuestion()` (app.js, PAYLAŞILAN) `currentDifficultyConfig().time` = `mode.DIFFICULTY[tier].time` okuyor — ama bu VERİ her mod dosyasının **kendi** `DIFFICULTY` nesnesinde (ayrı obje, referans paylaşımı YOK). Yani mekanizma paylaşılan ama VERİ mod-özel — **SADECE `www/js/modes/reverb.js`'in kendi `DIFFICULTY` tablosu değiştirilerek** hiçbir paylaşılan dosyaya (app.js/round-flow.js/difficulty-curve.js) dokunmadan çözülebildi. **KANIT** (task'ın "kanıtlayamıyorsan kod yazma" şartı): `git diff --name-only -- www/js/` → SADECE `www/js/modes/reverb.js`; diğer 11 mod dosyasının checksum'ı (`git show HEAD:<dosya> | shasum` vs çalışma kopyası) **BAYT BAYT AYNI** — script çıktısı hiçbir "FARK VAR" satırı üretmedi. `app.js`/`round-flow.js`/`difficulty-curve.js` diff'i **boş**.
+
+**4) Uzatma XP hesabını etkiler mi (`timeBoost` — süre >%55 kaldıysa 1.2×)?**
+Hayır, YAPISAL olarak etkilemiyor: `calculateXP`'deki `timeBoost = timeLeft > roundDuration * 0.55 ? 1.2 : 1` **ORANSAL** — `roundDuration` büyüdükçe eşik de orantılı büyüyor, kod DEĞİŞMEDİ. `test/reverb.test.mjs`'in mevcut XP testleri `context.roundDuration` değerini DOĞRUDAN test'in kendisinden veriyor (DIFFICULTY tablosundan OKUMUYOR) — bu yüzden bu değişiklikten ETKİLENMEDİLER, hepsi hâlâ yeşil.
+
+**5) Uzatma zorluk eğrisini dolaylı etkiler mi?**
+Hayır — doğrulandı. `question.timeSec` (createQuestion'ın `diff.time` fallback'i) `app.js`'te **HİÇBİR YERDE okunmuyor** (grep ile doğrulandı, ölü/bilgilendirici alan) — gerçek zamanlayıcı SADECE `currentDifficultyConfig().time`'ı okuyor, AYNI kaynak ama `question.timeSec` gameplay'i etkilemiyor. `kGap` (REVERB_CURVE_CONFIG + DIFFICULTY'nin kGap alanı) **TEK SATIR değişmedi** — zorluk hâlâ SADECE kGap'ten geliyor (mode'un kendi dosya-başı notu). Yeni testte (`test/reverb.test.mjs` G280 bloğu) `kGap`/`options`/`lives`/`xp`'nin HER kademede DEĞİŞMEDİĞİ açıkça doğrulandı.
+
+**═══ SONRA UYGULA ═══**
+
+`www/js/modes/reverb.js`'nin `DIFFICULTY` tablosunda **SADECE `time` alanı**: `medium: 14→16`, `hard: 12→16`, `pro: 10→16`, `proplus: 10→16`. `easy: 17` DOKUNULMADI (zaten boss'ta bile 15sn ≥ 13.734sn bare minimum). `kGap`/`xp`/`options`/`lives` HİÇBİRİ değişmedi.
+
+**Gerçek runtime doğrulaması (Playwright, boss+pro — en kısa/en riskli tur, `difficultyMode:"fixed"` ile — "Otomatik" modda manuel zorluk ataması round başında ezildiği ÖLÇÜLDÜ, bu yüzden "Sabit" moda geçilerek test güvenilir kılındı):**
+- Düzeltme ÖNCESİ: click→timeout **8264ms** (≈8000ms beklenen), C harfi ~9147ms'de başlıyor — round C'YE ULAŞMADAN BİTİYOR (REGRESYONU KANITLAYAN ölçüm).
+- Düzeltme SONRASI: click→timeout **14288ms** (≈14000ms beklenen), C harfi ~9147ms'de başlıyor (değişmedi, döngü aynı) — round C başladıktan SONRA hâlâ **~5 saniye** aktif kalıyor, C'nin TAM 4500ms penceresi rahatça sığıyor.
+
+**Testler eklendi:**
+- `test/reverb.test.mjs` (5 yeni birim testi, "Reverb — G280 tur süresi" bloğu) — bare-minimum aritmetiği (13734ms), HER kademenin (boss dahil) bunu karşıladığı, kGap/options/lives/xp'nin DEĞİŞMEDİĞİ, düzeltme ÖNCESİ değerlerin BEKLENDİĞİ GİBİ başarısız olacağının kanıtı.
+- `e2e/reverb-round-duration.spec.mjs` (2 e2e testi) — boss+pro (en kısa tur) GERÇEK runtime'da C'ye ulaşıyor VE C'nin tam penceresi boyunca round aktif kalıyor; easy (zaten yeterliydi) regresyon YOK.
+
+**Kırmızı/yeşil doğrulama — `git stash push -- www/js/modes/reverb.js`:**
+- KIRMIZI: birim testi → `medium: boss turu 12000ms, BARE minimum 13734ms'nin ALTINDA`; e2e testi → `KABUL KRİTERİ İHLALİ: round, C'ye ULAŞMADAN süresi dolup bitti (düzeltme ÖNCESİ davranış — REGRESYON)` (easy testi bu sırada YEŞİL kaldı — beklenen, çünkü easy zaten önceden de yeterliydi, bu da düzeltmenin DOĞRU kademelere odaklandığını AYRICA doğruluyor).
+- `git stash pop` → YEŞİL (7/7, 5 birim + 2 e2e).
+
+**Test sonuçları:** `npm test` 1438/1438 (G279'daki 1433'ten +5). `npm run test:e2e` 51/51 (G279'daki 49'dan +2). Paralel tam-suite koşusunda `recovered-round-audio.spec.mjs`'in (G277, bu G280'in DOKUNMADIĞI bir dosya) bir testi rastgele düştü — TEK BAŞINA koşulduğunda 2/2 yeşil, ikinci tam-suite koşusunda 51/51 — `ear-buttons.spec.mjs`'nin G279'da bulunan AYNI ailede, ÖNCEDEN VAR olan bir paralel-koşu flake'i, bu turda YARATILMADI.
+
+**DOKUNULMAYACAK'a uyuldu (kanıtlı):** diğer 11 mod dosyası checksum'la BAYT BAYT aynı · `app.js`/`round-flow.js`/`difficulty-curve.js` diff'i boş · G279'un 4500ms döngü süresi değişmedi · IR üretimi/decay süreleri/REVERB_TYPES değişmedi · Reverb'in A/B/C mimarisi (G267) değişmedi · kGap/zorluk eğrisi değişmedi.
+
+**Dürüstlük notu (DOĞRULANMADI, gelecek bir seansta cihazda kontrol edilmeli):** ölü süre (108-117ms) SADECE headless Chromium'da (masaüstü, tek bir donanım profili) ölçüldü — gerçek iOS cihazda zincir yeniden kurulma gecikmesi FARKLI (muhtemelen DAHA YÜKSEK, düşük güçlü/eski cihazlarda) olabilir, bu da 16sn'lik tabanın payını (boss'ta ~266ms) daraltabilir. Bu ölçülmedi, "muhtemelen yeterli" gibi bir sonuç YAZILMIYOR — mevcut pay küçük olduğu için cihaz turunda AYRICA doğrulanması ÖNERİLİR.
+
+---
 
 G279 — **Reverb'in otomatik A/B/C döngü süresi 2000ms → 4500ms (Logic'in kararı, OLCUM-CIHAZ2-17-08 madde C düzeltmesi). Kompresör/Saturation 2000ms'de KALDI (DOKUNULMAYACAK). AYRI commit.**
 
@@ -20857,7 +20911,25 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G279 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G280 itibarıyla):**
+Reverb'in tur süresi (SADECE `time` alanı) medium/hard/pro/proplus'ta
+16sn'ye çıkarıldı (easy zaten 17sn, DEĞİŞMEDİ) — G279'un raporladığı
+"en kısa turda C'ye hiç ulaşılamıyor" bulgusunun çözümü (Logic'in
+kararı). Ölçülen ölü süre 108-117ms (4 örneklem), bare minimum
+13.734sn, +2sn boss payıyla 16sn taban seçildi. SADECE
+`www/js/modes/reverb.js` değişti — diğer 11 mod dosyasının checksum'ı
+BAYT BAYT aynı kanıtlandı, `app.js`/`round-flow.js`/`difficulty-
+curve.js` diff'i boş. Gerçek runtime'da doğrulandı (Playwright,
+boss+pro): düzeltme ÖNCESİ round 8264ms'de bitiyordu (C ~9147ms'de
+başlıyor — hiç duyulmuyordu), SONRASI round 14288ms'de bitiyor (C
+başladıktan sonra ~5sn daha aktif). `npm test` 1438/1438, `npm run
+test:e2e` 51/51, kırmızı/yeşil (`git stash`) doğrulandı.
+**Cihazda DOĞRULANMADI:** ölü süre SADECE headless Chromium'da
+ölçüldü — gerçek iOS'ta chain-rebuild gecikmesi daha yüksek olabilir,
+16sn'lik tabanın boss payı (~266ms) küçük. Bir sonraki cihaz turunda
+AYRICA kontrol edilmeli.
+
+**EN YENİ SIRADAKİ ADIM (G279 itibarıyla, ARTIK ESKİ):**
 Reverb'in otomatik döngü süresi 4500ms'ye çıkarıldı, Kompresör/Saturation
 2000ms'de kaldı — mod-bazlı saf fonksiyon (`core/ab-loop-timing.js`) ile.
 Hall decay'i (3.2sn) 4500ms'lik pencereye ~1175ms payla sığıyor (ölçüldü:

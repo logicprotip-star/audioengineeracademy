@@ -9,6 +9,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as mode from "../www/js/modes/reverb.js";
 import { representativeLevelForTier } from "../www/js/core/difficulty-curve.js";
+import { AB_LOOP_INTERVAL_MS_REVERB } from "../www/js/core/ab-loop-timing.js";
 
 describe("Reverb — createQuestion() genel sözleşme", () => {
   for (const level of Object.keys(mode.DIFFICULTY)) {
@@ -792,6 +793,74 @@ describe("Reverb — G268 tepe telafisi (OLCUM-KALAN-17-08 madde B, OLCUM-REVERB
       assert.ok(peakDb > 0, `${type}: ön-koşul — düzeltme ÖNCESİ ölçülen tepe (${peakDb}dBFS) zaten 0dBFS'in üzerinde olmalıydı (aksi halde bu test hiçbir şey KANITLAMAZ)`);
       const afterFixDb = peakDb + mode.REVERB_OUTPUT_TRIM_DB;
       assert.ok(afterFixDb < -1, `${type}: telafi SONRASI tepe (${afterFixDb.toFixed(2)}dBFS) task'ın önerdiği -1dBFS tavanın ALTINDA olmalıydı`);
+    }
+  });
+});
+
+// G280 — OLCUM-CIHAZ2-17-08 madde C'nin devamı (Logic'in kararı: "C şıkkına
+// ulaşmadan olmaz, hata olur"). Playwright ile ÖLÇÜLDÜ (e2e/_verify_reverb_*
+// betikleri, çalıştırıldıktan sonra silindi — DURUM.md'de tam tablo):
+// otomatik A/B/C döngüsünün (G279: 4500ms/harf) geçiş-başı ölü süresi
+// (zincir yeniden kurulma + ramp) 108-117ms (4 örneklem, tutarlı). Üç harfin
+// TAMAMININ bir turda duyulabilmesi için BARE minimum: 3×4500 + 2×117(en kötü
+// ölçülen) = 13734ms. app.js:startTimerForCurrentQuestion()'ın boss indirimi
+// (Math.max(6, baseTime-2), DOKUNULMADI/DOKUNULMAYACAK — burada AYNEN
+// TEKRARLANIYOR, o formülü DEĞİL, reverb.js'in KENDİ `time` verisini test
+// ediyoruz) HER ZORLUK KADEMESİNDE (boss HERHANGİ bir kademede çıkabilir,
+// bkz. frekans-bulma.js isBossRound — kademe bağımsız) uygulanabildiği için
+// 13734ms'lik BARE minimuma boss'un -2sn'si de EKLENEREK (yaklaşık 16sn)
+// GÜVENLİ taban seçildi.
+describe("Reverb — G280 tur süresi: otomatik A/B/C döngüsü HER kademede (boss dahil) turun İÇİNE sığıyor", () => {
+  // app.js:startTimerForCurrentQuestion()'ın GERÇEK formülünün BİREBİR
+  // kopyası (satır ~5853) — o dosya DOM'a bağımlı olduğu için Node'da
+  // import EDİLEMİYOR, formül burada KASITLI olarak tekrarlanıyor. O
+  // formül DEĞİŞİRSE (G280'in DOKUNULMAYACAK'ı, ama gelecekte biri
+  // değiştirirse) bu test bunu YAKALAR (beklenen değerler eskimiş kalır).
+  function bossReducedTimeSec(baseTimeSec) {
+    return Math.max(6, baseTimeSec - 2);
+  }
+
+  // Ölçülen en kötü geçiş-başı ölü süre (bkz. dosya başı not) — 2 geçiş
+  // (A→B, B→C) C'ye ulaşmak için gerekli.
+  const MEASURED_WORST_TRANSITION_DEAD_TIME_MS = 117;
+  const FULL_CYCLE_BARE_MIN_MS = 3 * AB_LOOP_INTERVAL_MS_REVERB + 2 * MEASURED_WORST_TRANSITION_DEAD_TIME_MS;
+
+  it("AB_LOOP_INTERVAL_MS_REVERB hâlâ 4500ms (G279 — DOKUNULMAYACAK, bu testin KENDİ hesabının ön-koşulu)", () => {
+    assert.equal(AB_LOOP_INTERVAL_MS_REVERB, 4500);
+  });
+
+  it("BARE minimum (3×4500 + 2×117) 13734ms — bu değer değişirse alttaki tier kontrolleri de YENİDEN değerlendirilmeli", () => {
+    assert.equal(FULL_CYCLE_BARE_MIN_MS, 13734);
+  });
+
+  it("HER zorluk kademesinde, boss indirimi UYGULANDIKTAN SONRA bile tur süresi BARE minimumu KARŞILIYOR (KABUL KRİTERİ — en kısa turda bile A/B/C üçü de otomatik döngüde tam duyulabiliyor)", () => {
+    for (const [tier, diff] of Object.entries(mode.DIFFICULTY)) {
+      const bossTimeMs = bossReducedTimeSec(diff.time) * 1000;
+      assert.ok(
+        bossTimeMs >= FULL_CYCLE_BARE_MIN_MS,
+        `${tier}: boss turu ${bossTimeMs}ms, BARE minimum ${FULL_CYCLE_BARE_MIN_MS}ms'nin ALTINDA — C'ye otomatik döngüyle ulaşılamayabilir`
+      );
+    }
+  });
+
+  it("kGap/options/lives/xp DOKUNULMADI — SADECE `time` alanı değişti (G280'in kendi DOKUNULMAYACAK'ı: zorluk hâlâ SADECE kGap'ten geliyor)", () => {
+    const expectedKGap = { easy: 0.45, medium: 0.28, hard: 0.14, pro: 0.06, proplus: 0.06 };
+    const expectedOptions = 3;
+    const expectedLives = mode.MAX_LIVES;
+    for (const [tier, diff] of Object.entries(mode.DIFFICULTY)) {
+      assert.equal(diff.kGap, expectedKGap[tier], `${tier}: kGap değişmemeliydi`);
+      assert.equal(diff.options, expectedOptions, `${tier}: options değişmemeliydi`);
+      assert.equal(diff.lives, expectedLives, `${tier}: lives değişmemeliydi`);
+    }
+  });
+
+  it("git stash kırmızı/yeşil KANITI (task'ın kendi kabul kriteri) — DÜZELTME ÖNCESİ değerlerle (easy:17,medium:14,hard:12,pro:10,proplus:10) medium/hard/pro/proplus'ın boss turu BARE minimumun AÇIKÇA altında kalıyordu; DÜZELTME SONRASI (16) açıkça üstünde", () => {
+    const beforeFixTimes = { easy: 17, medium: 14, hard: 12, pro: 10, proplus: 10 };
+    for (const [tier, timeSec] of Object.entries(beforeFixTimes)) {
+      const bossMs = bossReducedTimeSec(timeSec) * 1000;
+      const nowPasses = bossMs >= FULL_CYCLE_BARE_MIN_MS;
+      const stillPasses = tier === "easy"; // easy zaten önceden de yeterliydi, DEĞİŞMEDİ
+      assert.equal(nowPasses, stillPasses, `${tier}: düzeltme ÖNCESİ boss turu (${bossMs}ms) beklenenden FARKLI bir sonuç veriyor — bu test artık ANLAMSIZ olabilir`);
     }
   });
 });

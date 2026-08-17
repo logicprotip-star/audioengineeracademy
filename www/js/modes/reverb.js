@@ -133,12 +133,24 @@ export function reverbAmountScore(decaySec, sizeNorm, wetMix) {
 // YOKSAYILIR (tabloda SADECE yapısal tutarlılık için tutuluyor).
 //
 // KULAKLA DOĞRULANMADI — diğer altı modun AYNI dürüstlük notu.
+//
+// G280 — `time` alanları (SADECE bu alan, kGap DOKUNULMADI): OLCUM-CIHAZ2-17-08
+// madde C'nin devamı (G279'un 4500ms döngüsü) — otomatik A/B/C döngüsünün
+// ÜÇÜNÜ de bir tur içinde TAM duyurabilmesi için minimum tur süresi ÖLÇÜLDÜ
+// (bkz. bu dosyanın en altındaki "TAM DÖNGÜ SÜRESİ" notu, tam ölçüm tablosu
+// DURUM.md'de): 3×4500ms + 2 geçiş ölü süresi (ölçülen 108-117ms) ≈ 13.7sn
+// BARE minimum, +2sn boss payı ile 16sn GÜVENLİ taban. `easy` (17sn) zaten
+// bunu boss'ta bile (17-2=15sn) aşıyor — DOKUNULMADI. medium/hard/pro/proplus
+// 16sn'ye yükseltildi (Logic'in kararı: "C şıkkına ulaşmadan olmaz, hata
+// olur" — HER turda, boss dahil, garanti). Bu ALAN DIŞINDA HİÇBİR şey
+// (xp/options/lives/kGap) değişmedi — zorluk HÂLÂ SADECE kGap'ten geliyor
+// (yukarıdaki not), süre artık bir zorluk ekseni DEĞİL.
 export const DIFFICULTY = {
   easy: { label: "Kolay", xp: 15, options: 3, time: 17, lives: MAX_LIVES, kGap: 0.45 },
-  medium: { label: "Orta", xp: 23, options: 3, time: 14, lives: MAX_LIVES, kGap: 0.28 },
-  hard: { label: "Zor", xp: 33, options: 3, time: 12, lives: MAX_LIVES, kGap: 0.14 },
-  pro: { label: "Pro", xp: 48, options: 3, time: 10, lives: MAX_LIVES, kGap: 0.06 },
-  proplus: { label: "Pro Plus (Çok Bantlı)", xp: 48, options: 3, time: 10, lives: MAX_LIVES, kGap: 0.06 }
+  medium: { label: "Orta", xp: 23, options: 3, time: 16, lives: MAX_LIVES, kGap: 0.28 },
+  hard: { label: "Zor", xp: 33, options: 3, time: 16, lives: MAX_LIVES, kGap: 0.14 },
+  pro: { label: "Pro", xp: 48, options: 3, time: 16, lives: MAX_LIVES, kGap: 0.06 },
+  proplus: { label: "Pro Plus (Çok Bantlı)", xp: 48, options: 3, time: 16, lives: MAX_LIVES, kGap: 0.06 }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
