@@ -4008,16 +4008,20 @@ function renderGameHeader() {
   if (els.gameSpeedRow) els.gameSpeedRow.classList.toggle("ghead-collapsed", !showChapter);
   if (showChapter && els.gameChapterDots && els.gameChapterLabel) {
     els.gameChapterDots.innerHTML = "";
-    // G213 — sınav/telafi'nin AYNI sayaç-bazlı deseni (i<correctCount→"on",
-    // i<current→"wrong", bkz. yukarıdaki #gameExamDots bloğu): SIRA bilgisi
-    // (hangi POZİSYONdaki soru yanlıştı) `challenge`'da hiç YOK, sınav/telafi
-    // de zaten bunu TUTMUYOR — ikisi de "önce N doğru, sonra kalan yanlış"
-    // görselini ÇİZER, gerçek cevap sırasını YANSITMAZ. Kullanıcının kendi
-    // kararı: sınav/telafi'nin BİLİNEN bu sınırlaması BÖLÜM'e de AYNEN
-    // taşınıyor, yeni bir veri yapısı İCAT EDİLMEDİ.
+    // G213 — ESKİ NOT (ARTIK GEÇERSİZ, G276'da düzeltildi): sınav/telafi'nin
+    // sayaç-bazlı deseni (i<correctCount→"on", i<current→"wrong", bkz.
+    // aşağıdaki #gameExamDots bloğu) BÖLÜM'e AYNEN taşınmıştı — SIRA bilgisi
+    // hiç TUTULMUYORDU, "önce N doğru, sonra kalan yanlış" çiziyordu, GERÇEK
+    // cevap sırasını YANSITMIYORDU (OLCUM-CIHAZ2-17-08 madde A, cihazda
+    // ölçüldü: 1. ve 5. soru doğruysa çubukta 1. VE 2. nokta yeşil
+    // görünüyordu). G276 — `challenge.results[]` (core/challenge.js,
+    // app.js:challengeTick() sırayla dolduruyor) BUNU çözüyor: HER pozisyon
+    // KENDİ GERÇEK cevabını gösteriyor. (Sınav/telafi dot'ları BİLEREK
+    // DOKUNULMADI — bu görev SADECE BÖLÜM'ü kapsıyor, AYRI bir karar.)
     for (let i = 0; i < challenge.total; i++) {
       const dot = document.createElement("div");
-      dot.className = `game-chapter-dot${i < challenge.correct ? " on" : i < challenge.done ? " wrong" : ""}`;
+      const answered = i < challenge.results.length;
+      dot.className = `game-chapter-dot${answered ? (challenge.results[i] ? " on" : " wrong") : ""}`;
       els.gameChapterDots.appendChild(dot);
     }
     els.gameChapterLabel.textContent = `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`;
@@ -6080,6 +6084,11 @@ function challengeTick(wasCorrect, gainedXp) {
   challenge.done++;
   if (wasCorrect) challenge.correct++;
   challenge.xp += Math.max(0, gainedXp || 0);
+  // G276 — bkz. core/challenge.js:freshChallenge()'ın dosya başı notu.
+  // done/correct'e PARALEL, SIRAYI koruyan dizi — renderGameHeader()'ın
+  // BÖLÜM nokta çizimi ARTIK bunu okuyor (done/correct'in KENDİSİ TEK
+  // SATIR değişmedi, başka hiçbir okuyucu etkilenmiyor).
+  challenge.results.push(!!wasCorrect);
 }
 // #55 DÜZELTMESİ (ölçüldü — Ölçüm 1, madde 6) — examSystem.recordAnswer()'ın
 // KENDİ resetParkur() çağırdığı HER an (exam-failed/remedial-passed/

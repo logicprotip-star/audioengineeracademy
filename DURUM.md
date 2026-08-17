@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G275 — kaynak değişimi sonrası ekran düzeltmesi: syncUploadGate()'in eksik dalına syncAnswerArea() eklendi, .answers artık geçerli kaynağa dönünce geri geliyor, soru değişmiyor; kök sebep G126'ydı, 6 gün önce)
+Son güncelleme: 17.08.2026 (G276 — bölüm çubuğu sırası düzeltmesi: challenge.results[] eklendi, nokta çizimi artık gerçek cevap sırasını gösteriyor (done/correct sayaçları değişmedi); kök sebep G213'tü, 2 gün önce, G214 sorumlu değil)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,53 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G276 — **Bölüm çubuğu sırası düzeltmesi (OLCUM-CIHAZ2-17-08 madde A). `challenge.correct`/`done` SAYAÇLARI hangi POZİSYONUN doğru/yanlış olduğunu tutmuyordu — çubuk "önce N doğru, sonra kalan yanlış" çiziyordu, gerçek sırayı YANSITMIYORDU. AYRI commit.**
+
+**Kök sebep, kesin doğrulandı (OLCUM-CIHAZ2-17-08'de):**
+`renderGameHeader()`'ın nokta çizim formülü (`i<challenge.correct?"on":
+i<challenge.done?"wrong":""`) MATEMATİKSEL OLARAK SADECE bu bunuk deseni
+üretebilir — `challenge` (`www/js/core/challenge.js`) `{active,total,
+done,correct,xp}` DÜZ SAYAÇLARDAN oluşuyordu, HANGİ POZİSYONUN ne
+olduğuna dair HİÇBİR bilgi taşımıyordu. Kök **G213** (`440b95b`,
+2026-08-15 11:18 — 2 gün önce). **G214 SORUMLU DEĞİL** — G213'ten 1
+saat SONRA (12:17) geldi, formülü DEĞİŞTİRMEDİ, sadece "Atla"yı da AYNI
+(zaten kırık) sayaç sistemine bağladı.
+
+**Düzeltme:** `core/challenge.js:freshChallenge()`'a YENİ `results: []`
+alanı eklendi (`done`/`correct`/`xp` TEK SATIR değişmedi — PARALEL
+alan). `app.js:challengeTick()` artık HER cevaptan sonra
+`challenge.results.push(!!wasCorrect)` da yapıyor. Nokta çizim formülü
+`i<challenge.results.length ? (challenge.results[i]?"on":"wrong") : ""`
+oldu — HER pozisyon KENDİ gerçek cevabını gösteriyor.
+
+**⚠️ Korunanlar:**
+- `done`/`correct`/`total`/`active`/`xp` — kod tabanında bunları OKUYAN
+  TÜM yerler (`xpMult()`, `showSessionEnd`'in XP kırılımı, `#roundChip`
+  etiketi, `finishChallenge()`'ın bitiş kontrolü, `#dailyTipStartBtn`
+  etiketi — `grep` ile TAMAMI tarandı) TEK SATIR değişmedi, hâlâ AYNI
+  sayaçları okuyorlar.
+- **Kayıtlı kullanıcı verisi:** `challenge` nesnesi HİÇBİR YERDE
+  localStorage'a persist EDİLMİYOR (`grep` ile doğrulandı —
+  `storage.js`'te "challenge" anahtarlı bir kayıt YOK, SADECE
+  `prefs.playMode="challenge"` STRING'İ kalıcı, o AYRI/ilgisiz bir alan)
+  — **G233'ün şema sürümü/geriye dönük uyumluluk endişesi BURADA
+  UYGULANMIYOR**, göç edilecek eski bir kayıt YOK, her yeni oturum
+  `freshChallenge()`'dan (results:[] DAHİL) taze başlıyor.
+- Sınav/telafi dot'larının AYNI sınırlaması (G84'ten beri, "kullanıcının
+  kendi kararı") BİLEREK DOKUNULMADI — bu görev SADECE BÖLÜM'ü kapsadı.
+
+**Testler:** `test/challenge.test.mjs`'e 3 YENİ test (freshChallenge'ın
+`results` alanı, paylaşılmayan referans, sıra-koruma KABUL KRİTERİ —
+task'ın kendi senaryosu DOĞRU,YANLIŞ,YANLIŞ,YANLIŞ,DOĞRU). YENİ
+`e2e/chapter-dots-order.spec.mjs` — GERÇEK DOM'da AYNI senaryoyu
+oynatıp çubuğun `[ON,WRONG,WRONG,WRONG,ON]` ürettiğini doğruluyor
+(`[ON,ON,WRONG,-,-]` DEĞİL). `git stash -- app.js core/challenge.js`
+ile KIRMIZI (e2e testi TAM OLARAK eski bunuk deseni — `[ON,ON,WRONG,
+WRONG,WRONG]` — yakaladı) doğrulandı, `stash pop` ile YEŞİL'e döndü.
+
+**Doğrulama:** `npm test` 1427→**1429/1429**. `npm run test:e2e`
+40→**41/41**.
 
 G275 — **Kaynak değişimi sonrası ekran düzeltmesi (OLCUM-CIHAZ2-17-08 madde B). `syncUploadGate()`'in upload-dosyasız dalı `.answers`'ı boşaltıp gizliyordu, geçerli kaynağa dönünce geri getiren HİÇBİR satır yoktu — kullanıcı "Atla" demek zorunda kalıyordu (G214'ten beri bu da yanlış cevap sayılıyor). AYRI commit.**
 

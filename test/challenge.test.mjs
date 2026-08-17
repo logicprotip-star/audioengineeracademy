@@ -25,7 +25,7 @@ import { freshChallenge } from "../www/js/core/challenge.js";
 
 describe("challenge: freshChallenge", () => {
   it("idle (henüz başlamamış) şekli döner — active:false, done:0", () => {
-    assert.deepEqual(freshChallenge(), { active: false, total: 10, done: 0, correct: 0, xp: 0 });
+    assert.deepEqual(freshChallenge(), { active: false, total: 10, done: 0, correct: 0, xp: 0, results: [] });
   });
 
   it("her çağrıda YENİ bir obje döner — çağıranlar arasında paylaşılan/mutasyona açık referans YOK", () => {
@@ -36,12 +36,42 @@ describe("challenge: freshChallenge", () => {
     assert.equal(b.done, 0);
   });
 
-  it("startChallenge()'ın kendi deseniyle (spread + active:true) uyumlu — done/correct/xp SIFIRLANMIŞ kalır", () => {
+  // G276 — OLCUM-CIHAZ2-17-08 madde A düzeltmesi: done/correct SAYAÇLARI
+  // (yukarıdaki testler HÂLÂ geçerli, TEK SATIR değişmedi) hangi POZİSYONUN
+  // doğru/yanlış olduğunu TUTMUYORDU — BÖLÜM çubuğu "önce N doğru, sonra
+  // kalan yanlış" çiziyordu, gerçek sırayı YANSITMIYORDU. results[] bunu
+  // çözüyor.
+  it("results — freshChallenge() BOŞ bir dizi döner, çağırılar arasında PAYLAŞILMAZ", () => {
+    const a = freshChallenge();
+    assert.deepEqual(a.results, []);
+    const b = freshChallenge();
+    a.results.push(true);
+    assert.deepEqual(b.results, [], "a.results'a push, b.results'ı ETKİLEMEMELİ (referans paylaşımı YOK)");
+  });
+
+  it("startChallenge()'ın kendi deseniyle (spread + active:true) uyumlu — done/correct/xp/results SIFIRLANMIŞ kalır", () => {
     const started = { ...freshChallenge(), active: true };
     assert.equal(started.active, true);
     assert.equal(started.done, 0);
     assert.equal(started.correct, 0);
     assert.equal(started.xp, 0);
     assert.equal(started.total, 10);
+    assert.deepEqual(started.results, []);
+  });
+
+  it("KABUL KRİTERİ — results SIRAYI korur: done/correct SAYAÇLARINDAN türetilebilir olmalı (results.length===done, results.filter(Boolean).length===correct)", () => {
+    const c = freshChallenge();
+    const pattern = [true, false, false, false, true]; // task'ın kendi senaryosu: 1. ve 5. soru doğru
+    for (const wasCorrect of pattern) {
+      c.done++;
+      if (wasCorrect) c.correct++;
+      c.results.push(wasCorrect);
+    }
+    assert.equal(c.results.length, c.done);
+    assert.equal(c.results.filter(Boolean).length, c.correct);
+    // Asıl bug'ın kanıtı: pozisyon 1 (index 0) VE pozisyon 5 (index 4) doğru,
+    // aralarındaki 3 pozisyon (index 1-3) yanlış — SIRA korunuyor, "önce
+    // 2 doğru sonra 3 yanlış" GİBİ YANLIŞ bir gruplama YOK.
+    assert.deepEqual(c.results, [true, false, false, false, true]);
   });
 });
