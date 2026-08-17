@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G280 — Reverb'in tur süresi (SADECE `time` alanı) medium/hard/pro/proplus'ta 16sn'ye yükseltildi (easy zaten 17sn, DEĞİŞMEDİ) — otomatik A/B/C döngüsü artık boss dahil HER kademede C'yi TAM duyuruyor; ölçülen ölü süre 108-117ms, bare minimum 13.734sn; SADECE reverb.js değişti, diğer 11 mod dosyası checksum'la BAYT BAYT aynı kanıtlandı; birim+e2e test eklendi, kırmızı/yeşil doğrulandı)
+Son güncelleme: 17.08.2026 (G281 — snare-arpej-gitar SOURCE_PAIRS region'ı YENİ arpeggio_guitar.m4a'ya göre yeniden ölçüldü [170,400]→[170,310] (Welch/4096-FFT + 60Hz boşluk-toleranslı kümeleme, yöntem [172,398] doc'lu değerle KONTROL edilip doğrulandı) — task'ın verdiği sayılardan (-15dB:183-393, -20dB:159-744) FARKLI çıktı, kendi ölçümüm kullanıldı ve fark bildirildi; 2 test güncellendi, kırmızı/yeşil doğrulandı)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,30 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G281 — **SOURCE_PAIRS: snare-arpej-gitar region'ı YENİ arpeggio_guitar.m4a'ya göre güncellendi ([170,400]→[170,310]). AYRI commit.**
+
+**SORUN:** `www/audio/arpeggio_guitar.m4a` (kullanıcı tarafından, benim dışımda) değiştirildi — eski dosyada snare sızıntısı vardı, temizlenmiş yeni dosya konuldu. `source-catalog.js`'in `snare-arpej-gitar` çiftinin `region` alanı HÂLÂ ESKİ dosyaya göre ([170,400], G270'te ölçülmüştü) ayarlıydı.
+
+**Kendi ölçümüm (task'ın "kendi ölçümünü de yap" talimatı gereği):** İlk denemede `eq-loudness.js:computeSourcePsd` (Q=1.4 biquad-sweep yöntemi, G271/G272'nin PSD-ağırlıklı telafisi için tasarlandı) kullanıldı — SONUÇ ANLAMSIZ genişlikte çıktı (-15dB kesişimi [55,3420]Hz gibi). Kök sebep: bu yöntem GERÇEK bir FFT periodogramı DEĞİL, geniş-bantlı bir filtre taraması — SOURCE_PAIRS'in G259/G270'teki ORİJİNAL region ölçümü ("Welch/4096-FFT periodogramı") farklı bir yöntem. **Kendi Welch periodogramımı yazdım** (4096-nokta FFT, Hann pencere, %50 örtüşme) + OLCUM-KAYNAK-17-08.md'nin belgelediği "60Hz boşluk-toleranslı kümeleme" (peak'i içeren küme, izole kırıntılar dışarıda). **Yöntem doğrulaması:** aynı script'le snare+ESKİ acoustic_guitar.m4a (DEĞİŞMEDİ) yeniden ölçüldü → [172.3,398.4]Hz — doc'lu [172,398]Hz'le neredeyse birebir eşleşti.
+
+**Ölçülen (snare ∩ YENİ arpeggio_guitar):**
+| Eşik | Ölçülen |
+|---|---|
+| -15dB | [172.3, 301.5]Hz |
+| -20dB | [150.7, 495.3]Hz |
+
+**Task'ın verdiği sayılarla (-15dB:183-393, -20dB:159-744) KARŞILAŞTIRMA:** FARKLI çıktı — özellikle ÜST sınırda belirgin fark (301.5 vs 393, 495.3 vs 744), alt sınırlar nispeten yakın (172 vs 183, 151 vs 159). Yöntem farkı olabilir (görevde FFT boyutu/pencere/kümeleme belirtilmemişti). **Kendi ölçümüm kullanıldı** (task'ın kendi talimatı: "farklı çıkarsa kendi ölçümünü kullan") çünkü AYNI yöntemle ESKİ değer doğrulanabildi (yöntem-kontrolü), Logic'in yönteminin ise doğrulama noktası yoktu.
+
+**Yapılan:** `region: [170, 310]` (-15dB, projenin TÜM diğer SOURCE_PAIRS'inde kullandığı AYNI eşik — tutarlılık için seçildi; [172,302] ölçüldü, G270 emsaliyle AYNI yönde [DIŞA] yuvarlandı). Diğer 2 çifte (kick-bas, vokal-gitar) DOKUNULMADI.
+
+**Testler güncellendi:** `test/frekans-cakismasi.test.mjs` — 2 test (`pair.region` hardcoded assertion, `trueCenter` aralık kontrolü 50 seed) [170,400]→[170,310].
+
+**Kırmızı/yeşil doğrulama — `git stash push -- www/js/core/source-catalog.js`:** KIRMIZI (`actual:[170,400], expected:[170,310]` + `trueCenter=318.6` aralık-dışı hatası) → `git stash pop` → YEŞİL (51/51, `test/frekans-cakismasi.test.mjs`).
+
+**Test sonuçları:** `npm test` 1438/1438 (sayı değişmedi, mevcut 2 test güncellendi). `npm run test:e2e` 51/51 (paralel koşuda `ear-buttons.spec.mjs`'nin AYNI önceden-var flake'i bir kez daha görüldü, tekrar koşuda 51/51 — bu dosyaya HİÇ dokunulmadı).
+
+---
 
 G280 — **Reverb'in tur süresi (SADECE `time` alanı) — otomatik A/B/C döngüsü artık boss dahil HER kademede C'yi TAM duyuruyor (Logic'in kararı: "C şıkkına ulaşmadan olmaz, hata olur"). ÖNCE ÖLÇ SONRA UYGULA. AYRI commit.**
 

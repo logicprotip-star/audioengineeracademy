@@ -55,17 +55,23 @@ describe("source-catalog.js — SOURCE_PAIRS / OWN_SOURCE_PAIR / findSourcePair 
 
   // G270 — snare-gitar (snare+acoustic_guitar) ÇIKARILDI, YERİNE
   // snare-arpej-gitar (snare+arpeggio_guitar) EKLENDİ — spektral örtüşme
-  // PRATİKTE AYNI kaldı (~170-400Hz, İKİ gitar da AYNI enstrüman/akort) ama
-  // ZAMANSAL örtüşme ÖLÇÜLEBİLİR ŞEKİLDE düzeldi (OLCUM-KAYNAK-17-08.md: eski
-  // çiftte snare vuruşlarının SADECE 1/16'sı en-yakın gitar notasından
-  // 150ms içindeydi — "sırayla çalıyorlardı"; yeni çiftte 16/16'sı 150ms
-  // içinde — GERÇEKTEN üst üste biniyor).
-  it("snare-arpej-gitar çifti mevcut, G270: ölçülen spektral çakışma ~170-400Hz", () => {
+  // O ZAMANKİ arpeggio_guitar.m4a ile PRATİKTE AYNI kaldı (~170-400Hz, İKİ
+  // gitar da AYNI enstrüman/akort) ama ZAMANSAL örtüşme ÖLÇÜLEBİLİR ŞEKİLDE
+  // düzeldi (OLCUM-KAYNAK-17-08.md: eski çiftte snare vuruşlarının SADECE
+  // 1/16'sı en-yakın gitar notasından 150ms içindeydi — "sırayla
+  // çalıyorlardı"; yeni çiftte 16/16'sı 150ms içinde — GERÇEKTEN üst üste
+  // biniyor).
+  // G281 — arpeggio_guitar.m4a TEKRAR değiştirildi (snare sızıntısı
+  // temizlendi) — region YENİDEN ÖLÇÜLDÜ (Welch/4096-FFT + 60Hz boşluk-
+  // toleranslı kümeleme, -15dB eşiği — bkz. source-catalog.js'in dosya başı
+  // notu): [170,400] → [170,310] (üst sınır daraldı, yeni dosyanın snare'le
+  // ORTAK enerjisi daha DAR bir bantta).
+  it("snare-arpej-gitar çifti mevcut, G281: ölçülen spektral çakışma ~170-310Hz (YENİ arpeggio_guitar.m4a)", () => {
     const pair = SOURCE_PAIRS.find(p => p.id === "snare-arpej-gitar");
     assert.ok(pair);
     assert.equal(pair.sourceA, "snare");
     assert.equal(pair.sourceB, "arpeggio_guitar");
-    assert.deepEqual(pair.region, [170, 400]);
+    assert.deepEqual(pair.region, [170, 310]);
   });
 
   it("üç hazır çiftin sourceA/sourceB'si source-catalog.js'in KENDİ SOURCE_GROUPS'unda gerçekten var (kod incelemesiyle: kick/bass/vocal/guitar/snare/arpeggio_guitar)", () => {
@@ -191,10 +197,10 @@ describe("createQuestion() — genel sözleşme (SAF, ses/DOM'a dokunmaz)", () =
     }
   });
 
-  it("snare-arpej-gitar çiftinde trueCenter [170,400] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir (G270: snare-gitar yerine)", () => {
+  it("snare-arpej-gitar çiftinde trueCenter [170,310] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir (G281: region daraldı)", () => {
     for (let seed = 0; seed < 50; seed++) {
       const q = mode.createQuestion("pro", { pairId: "snare-arpej-gitar", sessionQuestionIndex: 0, rng: mulberry32(seed) });
-      assert.ok(q.trueCenter >= 170 && q.trueCenter <= 400, `seed=${seed} trueCenter=${q.trueCenter}`);
+      assert.ok(q.trueCenter >= 170 && q.trueCenter <= 310, `seed=${seed} trueCenter=${q.trueCenter}`);
       assert.equal(new Set(q.choices.map(c => c.center)).size, q.choices.length, `seed=${seed}`);
     }
   });

@@ -137,6 +137,27 @@ export function findSource(id) {
 // KENDİ global tepesi 1087Hz'de ama guitar'la ORTAK/örtüşen bölge çok daha
 // AŞAĞIDA) — eski [200,600] aralığı YENİ vocal ile ARTIK GERÇEKÇİ DEĞİLDİ.
 // Tam ölçüm/yöntem: OLCUM-KAYNAK-17-08.md.
+//
+// G281 — www/audio/arpeggio_guitar.m4a TEKRAR değiştirildi (snare sızıntısı
+// temizlendi, kaynağı BİLİNMİYOR — G270 SONRASI, benim tarafımdan yapılmadı,
+// kullanıcıya birden fazla kez bildirildi). YENİDEN ÖLÇÜLDÜ — YÖNTEM: Welch
+// periodogramı (4096-nokta FFT, Hann pencere, %50 örtüşme — OLCUM-KAYNAK-
+// 17-08.md'nin "Welch/4096-FFT" yöntemiyle AYNI, KONTROL: bu yöntemle snare+
+// ESKİ acoustic_guitar yeniden ölçülüp [172.3,398.4]Hz bulundu — doc'lu
+// [172,398]Hz'le NEREDEYSE BİREBİR eşleşti, yöntem doğrulaması) + 60Hz
+// boşluk-toleranslı kümeleme (AYNI dosyanın "NİHAİ yöntem" notu — peak'i
+// İÇEREN küme, -15dB eşiği).
+// ÖLÇÜLEN (snare ∩ YENİ arpeggio_guitar): -15dB eşiğinde [172.3,301.5]Hz,
+// -20dB eşiğinde [150.7,495.3]Hz. Görevde verilen sayılar (-15dB:183-393,
+// -20dB:159-744) FARKLI ÇIKTI — özellikle ÜST sınırda belirgin fark (301.5
+// vs 393, 495.3 vs 744). Alt sınırlar yakın (172 vs 183, 151 vs 159).
+// Yöntem farkı OLABİLİR (görevin hangi FFT boyutu/pencere/kümeleme
+// kullandığı belirtilmedi) — BENİM ölçümüm, projenin AYNI pariodogram+
+// kümeleme yöntemiyle KONTROL edilip doğrulandığı için kullanıldı (task'ın
+// kendi talimatı: "farklı çıkarsa kendi ölçümünü kullan").
+// -15dB (projenin TÜM diğer SOURCE_PAIRS'inde kullandığı AYNI eşik,
+// tutarlılık için) seçildi: [172,302] ölçüldü, [170,310]'a DIŞA yuvarlandı
+// (bu ÇİFTİN kendi G270 emsaliyle AYNI yuvarlama yönü — [172,398]→[170,400]).
 export const SOURCE_PAIRS = [
   {
     id: "kick-bas", labelA: "Kick", labelB: "Bas", sourceA: "kick", sourceB: "bass",
@@ -148,7 +169,7 @@ export const SOURCE_PAIRS = [
   },
   {
     id: "snare-arpej-gitar", labelA: "Snare", labelB: "Arpej Gitar", sourceA: "snare", sourceB: "arpeggio_guitar",
-    region: [170, 400], desc: "Snare ve arpej gitar — atak/sertlik bölgesinde HEM spektral HEM zamansal çakışma"
+    region: [170, 310], desc: "Snare ve arpej gitar — atak/sertlik bölgesinde HEM spektral HEM zamansal çakışma"
   }
 ];
 
