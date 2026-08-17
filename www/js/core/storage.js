@@ -193,7 +193,12 @@ export function freshStats(difficultyLives, hintsPerGame, modeIds = []) {
     // (sessionAdWatchesDate, YYYY-MM-DD) + SAYAÇ (sessionAdWatchesToday) ayrı
     // tutuluyor çünkü günde 1 DEĞİL günde 3 hak var.
     sessionAdWatchesToday: 0,
-    sessionAdWatchesDate: null
+    sessionAdWatchesDate: null,
+    // G283 — App Store yorum isteme (core/review-request.js:shouldRequestReview)
+    // kaç kez/ne zaman istendiğini takip eder — dailyTasteLastPlayedAt'ın AYNI
+    // "son X zamanı" deseni. null = hiç istenmemiş (cooldown UYGULANMAZ, bkz. o
+    // dosyanın notu).
+    lastReviewRequestAt: null
   };
 }
 
@@ -252,6 +257,9 @@ export function loadStats(difficultyLives, hintsPerGame, modeIds = [], legacyMod
     // deseniyle TUTARLI — eksik veri asla bir hakkı SİLMEZ).
     if (typeof s.sessionAdWatchesToday !== "number") s.sessionAdWatchesToday = 0;
     if (typeof s.sessionAdWatchesDate !== "string") s.sessionAdWatchesDate = null;
+    // G283 — eski kayıtlarda (bu alan eklenmeden önce) hiç yoktu, "hiç
+    // istenmemiş" varsayılanına düşer (dailyTasteLastPlayedAt İLE AYNI göç deseni).
+    if (typeof s.lastReviewRequestAt !== "number") s.lastReviewRequestAt = null;
     return s;
   } catch {
     return freshStats(difficultyLives, hintsPerGame, modeIds);

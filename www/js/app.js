@@ -10,6 +10,7 @@ import { createExamSystem, getWeakTier, recordTierResult, EXAM_CONFIG } from "./
 import * as storage from "./core/storage.js";
 import * as progress from "./core/progress.js";
 import * as paywall from "./core/paywall.js";
+import { shouldRequestReview } from "./core/review-request.js";
 import { toast, spawnXp, burst, shake } from "./core/fx.js";
 import { formatHz } from "./core/utils.js";
 import { registerMode, getMode, listModes } from "./core/registry.js";
@@ -995,6 +996,12 @@ function playableModeIds() { return listModes().map(m => m.getMeta().id); }
 // yazıldı" sorusuna cevap verebilmesi için EN BAŞTA bir kez damgalanıyor.
 storage.ensureSchemaVersion();
 let stats = storage.loadStats(difficultyLivesMap(), HINTS_PER_GAME, playableModeIds(), frekansBulma.MODE_ID);
+// G283 — bu process başlarken (İLK dokunuştan ÖNCE) stats.rounds'ın anlık
+// görüntüsü. paywall.js:isFirstSession'ın AYNI "totalRoundsEver" deseni —
+// review-request'in "ilk oturumda ASLA" kuralı BUNA göre değerlendirilir
+// (stats.rounds bu SEANS içinde büyüse bile, kullanıcı GERÇEKTEN ilk kez
+// açtıysa maybeRequestStoreReview() bu seans boyunca hiç tetiklenmemeli).
+const roundsAtAppLaunch = stats.rounds;
 let history = stats.history || [];
 // loadStats negatif skorları belleğe yüklerken 0'a çeker — düzeltilmiş değer hemen
 // kalıcı hale gelsin diye (kullanıcı ilk aksiyonunu almadan önce bile) burada yazılır.
@@ -1804,6 +1811,13 @@ function showSessionEnd(kind) {
   // de gerçekten seviye atlandıysa gösterilir, SADECE "lost" (canlar bitti,
   // olumsuz kapanış) bunu bastırır — ÖNCEKİ davranış.
   const leveledUp = !lost && sessionStartLevel !== null && nowLevel > sessionStartLevel;
+
+  // G283 — "seviye atlandı"/"rozet kazanıldı" ÜÇ onaylı olumlu andan ikisi.
+  // ⚠️ SADECE kind==="normal" (leveledUp'ın KENDİ kuralından DAHA SIKI —
+  // "freeLimit" burada BİLEREK DE hariç tutuldu: bu ekranın CTA'sı Pro
+  // upsell'e itiyor, task'ın "paywall'dan sonra ASLA" yasağıyla AYNI aile,
+  // XP/seviye GÖSTERİMİ freeLimit'te kısıtlanmasa da yorum İSTEĞİ kısıtlı).
+  if (kind === "normal" && (leveledUp || session.newBadges.length)) maybeRequestStoreReview();
 
   // Tasarım (Prototip.dc.html SS objesi) — accent/pill/ikon/buton renkleri
   // birebir: yeşil (done) / kırmızı (lives) / amber (free).
@@ -2903,6 +2917,32 @@ function getWeakArea(stats, modeId) {
   return { type: "tier", value: tier, label: mode.DIFFICULTY[tier]?.label || tier };
 }
 
+// G283 — App Store yorum isteme. GERÇEK native çağrı — Capacitor'da HAZIR
+// bir plugin YOK (bkz. core/review-request.js dosya başı notu, DURUM.md
+// G283). BİLEREK NO-OP: plugin eklenince buraya (ads.js:getAdMobPlugin()'in
+// AYNI "global bridge, yoksa null" deseni) `window.Capacitor.Plugins.
+// <PluginAdı>.requestReview()` çağrısı eklenmeli.
+function requestNativeStoreReview() {
+  if (DEV_MODE) console.warn("[review-request] native plugin kurulu değil — istek NO-OP (bkz. DURUM.md G283)");
+}
+
+// SADECE ÜÇ onaylı çağrı noktasından (sınav geçildi/rozet kazanıldı/seviye
+// atlandı) çağrılmalı — task'ın ASLA listesi (paywall/can bitişi/yanlış
+// cevap/reklam/ilk oturum SONRASI ASLA) bu fonksiyonun DIŞARIDAN erişilen
+// TEK kapısı `shouldRequestReview()`'un olgunluk+cooldown kontrolüyle DEĞİL,
+// BURAYA HİÇ ÇAĞRI EKLEMEYEREK sağlanıyor — negatif/nötr anlarda bu
+// fonksiyon zaten hiç ÇAĞRILMIYOR.
+function maybeRequestStoreReview() {
+  // "İlk oturumda ASLA" (task'ın kendi kuralı) — paywall.isFirstSession'ın
+  // AYNI predicate'i, roundsAtAppLaunch (bu SÜREÇ başlarkenki anlık görüntü,
+  // stats.rounds'ın şu ANKİ DEĞİL) ile.
+  if (paywall.isFirstSession(roundsAtAppLaunch)) return;
+  if (!shouldRequestReview({ totalRoundsEver: stats.rounds, lastRequestedAt: stats.lastReviewRequestAt })) return;
+  stats.lastReviewRequestAt = Date.now();
+  persistStats();
+  requestNativeStoreReview();
+}
+
 // {{ exFacts }}'ın (Prototip.dc.html satır 2428) AYNI satırı — renk
 // verilmezse tasarımın varsayılanı (#d6d9dd → --tx).
 function exFactRow(k, v, color) {
@@ -2989,6 +3029,8 @@ function showExamScreen(kind, ctx = {}) {
     // sabit "İlk Sınav" örneği UYDURULMADI/kopyalanmadı.
     const badge = session.newBadges.length ? session.newBadges[session.newBadges.length - 1] : null;
     if (badge) facts.push(exFactRow("Yeni rozet", badge.title, GOLD));
+    // G283 — "sınav başarıyla geçildi" ÜÇ onaylı olumlu andan biri.
+    maybeRequestStoreReview();
     ctaLabel = "Devam";
     // #55 — acknowledgePassed() examSystem'i YENİ bir parkura sıfırlıyor
     // (resetParkur), challenge'ı da AYNI anda sıfırlıyoruz (bkz.
@@ -12143,6 +12185,15 @@ if (DEV_MODE) {
   // ürettiği veriyle #screen-result'ı açıp CSS telafisini
   // (--result-actionbar-h) ölçüyor.
   window.__aeaShowSessionEndForTest = showSessionEnd;
+
+  // G283 — doğrulama kancası: maybeRequestStoreReview()'ı GERÇEK stats/
+  // roundsAtAppLaunch state'iyle doğrudan tetikler (bir sınav geçişi/seviye
+  // atlaması/rozet kazanımını GERÇEK oyunla üretmeye GEREK KALMADAN —
+  // olgunluk/cooldown/ilk-oturum kapılarının hepsi GERÇEK fonksiyon
+  // üzerinden test edilebilsin diye). SADECE tetikler, hiçbir state'i
+  // BAŞKA şekilde değiştirmez — native çağrı zaten NO-OP (bkz. dosya başı
+  // notu, plugin kurulu değil).
+  window.__aeaMaybeRequestStoreReviewForTest = maybeRequestStoreReview;
 
   // G261 — doğrulama kancası: OLCUM-FLAKY-16-08.md'nin bulduğu kök sebep —
   // e2e testleri körü körüne `.ans`'ın İLK butonuna basıyordu, şıklar

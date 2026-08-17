@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G282 — source-psd-data.js'in arpeggio_guitar girdisi YENİ dosyaya göre yeniden ölçüldü (computeSourcePsd, AYNI yöntem/script) — SADECE bu TEK girdi/satır değişti, diğer 14 girdi (git diff: 1 hunk) BAYT BAYT AYNI kanıtlandı; Kesim Noktası telafi hatası KÖTÜLEŞMEDİ, ölçüldü: ESKİ(stale) PSD ort. 0.303dB hata → YENİ PSD ort. 0.268dB hata (6 filtre senaryosu); 4 test eklendi, kırmızı/yeşil doğrulandı)
+Son güncelleme: 17.08.2026 (G283 — App Store yorum isteme KARAR mantığı eklendi (core/review-request.js, SAF/test edilebilir) — sınav geçildi/seviye atlandı/rozet kazanıldı'da tetiklenir, paywall/can-bitişi/yanlış-cevap/reklam/ilk-oturum'da ASLA (statik+e2e testle kilitlendi); olgunluk eşiği 30 tur + 60 gün cooldown (KENDİ kararım, gerekçeli); ⚠️ GERÇEK native çağrı YAZILMADI — Capacitor'da hazır bir review-request plugin'i YOK, eklemek npm+native proje değişikliği gerektiriyor, KOD YAZMADAN bildirildi; 13 test eklendi, kırmızı/yeşil doğrulandı)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,59 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G283 — **App Store yorum isteme (SKStoreReviewController) — KARAR mantığı eklendi, GERÇEK native çağrı YAZILMADI (Capacitor'da hazır bir plugin YOK, bildirildi). AYRI commit.**
+
+**SORUN:** SKStoreReviewController mekanizması yok — mekanizma olmadan yorum gelmiyor, ilk 6 ayın birincil metriği yorum sayısı.
+
+**Capacitor kontrolü (task'ın kendi şartı — "Yoksa native tarafta çözülmesi gerekiyorsa KOD YAZMADAN bildir"):** `package.json`/`node_modules/@capacitor*` tarand — `@capacitor-community/in-app-review` gibi bir paket bu projede **kurulu DEĞİL**, Capacitor CORE'un kendisi de review isteği için bir API SUNMUYOR (sadece üçüncü-parti plugin'lerle mümkün). `ios/App/App.xcodeproj`'da `StoreKit.framework` zaten bağlı (IAP için, `@capgo/native-purchases`) ama bu SADECE framework'ün linklendiği anlamına gelir, review-request için bir Capacitor KÖPRÜSÜ (JS↔native) YOK. Eklemek `npm install` + `npx cap sync` (Podfile/Xcode proje dosyalarını DEĞİŞTİRİR, derleme doğrulaması bu ortamdan YAPILAMAZ) gerektiriyor — **bu NEDENLE gerçek native çağrı yazılmadı**, `requestNativeStoreReview()` (app.js) şimdilik SADECE bir DEV_MODE uyarısı basan NO-OP, `ads.js:getAdMobPlugin()`'in AYNI "global bridge, yoksa null" deseniyle GENİŞLETİLMEYE hazır (yorum içinde belirtildi).
+
+**Yapılan (KARAR mantığı, tamamen fonksiyonel/test edilebilir):**
+1. YENİ `www/js/core/review-request.js` — `shouldRequestReview({totalRoundsEver, lastRequestedAt, now})` SAF fonksiyon: olgunluk eşiği + cooldown.
+2. `www/js/core/storage.js` — `freshStats()`'e `lastReviewRequestAt: null` eklendi (dailyTasteLastPlayedAt'ın AYNI "son X zamanı" deseni), `loadStats()`'a göç satırı eklendi.
+3. `www/js/app.js` — `maybeRequestStoreReview()` (ilk-oturum guard'ı + `shouldRequestReview` + persist + native çağrı) İKİ onaylı noktadan çağrılıyor: `showExamScreen`'in "passed" (SINAV GEÇİLDİ) dalı, `showSessionEnd`'de `kind==="normal" && (leveledUp || session.newBadges.length)` guard'ı (rozet+seviye atlama BİRLEŞİK, aynı ekranda ikisi de gösterilebiliyor).
+
+**TETİKLEME ANLARI (görev listesiyle karşılaştırma):**
+| Görevde istenen | Durum |
+|---|---|
+| Sınav başarıyla geçildiğinde | ✅ `showExamScreen("passed")` |
+| Rozet kazanıldığında | ✅ `showSessionEnd("normal")`, `session.newBadges.length` |
+| Seviye atlandığında | ✅ `showSessionEnd("normal")`, `leveledUp` |
+
+**ASLA tetiklenmeyecek anlar — GERÇEKTEN engellendi mi:**
+| Görevde yasak | Nasıl engellendi |
+|---|---|
+| Paywall'dan sonra | `maybeRequestStoreReview()` paywall fonksiyonlarının (`openPaywallReason` vb.) HİÇBİRİNDEN çağrılmıyor — statik testle kilitlendi |
+| Canlar bitince | `showSessionEnd("lost")`'tan çağrılmıyor (`kind==="normal"` guard'ı `"lost"`'u DIŞLAR) |
+| Yanlış cevaptan sonra | Cevap-değerlendirme fonksiyonlarının hiçbirinde çağrı YOK |
+| Reklam izledikten sonra | `watchRewardedAd` ile AYNI satırda/bağlamda DEĞİL — statik testle kilitlendi |
+| İlk oturumda | `paywall.isFirstSession(roundsAtAppLaunch)` guard'ı — `roundsAtAppLaunch` PROCESS BAŞLARKENKİ (bu seans İÇİNDE artan `stats.rounds`'un DEĞİL) anlık görüntü, bu seans boyunca SABİT |
+| ⚠️ "freeLimit" (ücretsiz oturum bitti — task'ın listesinde YOK ama Pro upsell CTA'sı taşıyor, "paywall'dan sonra" ailesiyle AYNI risk) | KENDİ KARARIMLA AYRICA dışlandı — `leveledUp`'ın KENDİ gösterim kuralı freeLimit'i XP için İSTİSNA tutuyordu ama yorum isteği İÇİN DAHA SIKI bir guard (`kind==="normal"`) kullanıldı |
+
+**Apple'ın kuralları:**
+- Yılda en fazla 3 kez — bu SINIRI **işletim sistemi kendi uyguluyor**, bizim tarafımızdan sayılamaz/garanti edilemez (`requestNativeStoreReview` her çağrıldığında iOS'un SESSİZCE hiçbir şey göstermeyebileceği yorum içinde AÇIKÇA belirtildi).
+- Zorlayıcı dil / özel "Yorum yap" butonu — kod SADECE sistem diyaloğunu (kurulunca) tetikleyecek, hiçbir özel UI YAZILMADI.
+- Diyalog gösterilmeyebilir — `requestNativeStoreReview()` şu an zaten NO-OP, plugin eklenince de OS'un kendi kararına bırakılacak (kod bunu VARSAYMIYOR).
+
+**Olgunluk eşiği (task'ın "eşiği sen belirle, gerekçesini yaz" şartı):**
+- `MATURITY_MIN_ROUNDS = 30` — **KENDİ KARARIM**, gerekçe: `paywall.js:FREE_SESSION_QUESTION_LIMIT=5`'in EN AZ 6 katı (30/5=6, "bir kez dokunup çıkan" değil, GERÇEKTEN birkaç ücretsiz oturum tüketmiş kullanıcı) ya da "10 Soruluk Bölüm"den (challenge.total=10) 3 TAM geçiş — iki bağımsız çerçeveleme de AYNI sayıya yakınsıyor.
+- `REQUEST_COOLDOWN_MS = 60 gün` — **KENDİ KARARIM**, Apple'ın "yılda 3" sistem sınırının ÇOK altında, kendi tarafımızda gereksiz sık çağrı YAPMAMAK için bir öz-disiplin payı.
+- İlk oturum guard'ı — `paywall.isFirstSession()`'ın (G220'de paywall'dan SÖKÜLMÜŞ ama HÂLÂ export edilen, ölü kalmamış) AYNI predicate'i yeniden kullanıldı.
+
+**Testler eklendi (13):**
+- `test/review-request.test.mjs` (9 birim testi) — olgunluk eşiği sınırları, cooldown sınırları (tam eşit=izinli, 1ms eksik=engelli), girdi sağlamlığı.
+- `test/review-request-callsites.test.mjs` (4 statik test, `goscreen-ids.test.mjs`'in AYNI "yorum temizle, literal metin ara" deseni) — TAM 2 çağrı noktası var, biri "passed" dalında, biri `kind==="normal"` guard'ıyla AYNI satırda, HİÇBİRİ yasaklı bağlamda (lost/freeLimit/paywall/loseLife/reklam) değil.
+- `e2e/review-request.spec.mjs` (4 e2e testi, YENİ DEV_MODE kancası `window.__aeaMaybeRequestStoreReviewForTest` ile) — GERÇEK runtime'da: olgun+ilk-değil+istenmemiş→tetiklenir, olgun-değil→tetiklenmez, ilk-oturum→tetiklenmez, cooldown-içi→tetiklenmez.
+
+**Kırmızı/yeşil doğrulama:**
+1. `review-request.js` içinde geçici regresyon enjeksiyonu (`shouldRequestReview` her zaman `true` dönecek şekilde) → 2 birim testi KIRMIZI → enjeksiyon geri alındı → YEŞİL.
+2. `git stash push -- www/js/app.js` → statik test KIRMIZI (`kind==="normal"` guard'ı bulunamadı) + e2e testi KIRMIZI (kanca yok) → `git stash pop` → YEŞİL (8/8).
+
+**Test sonuçları:** `npm test` 1455/1455 (G282'deki 1442'den +13). `npm run test:e2e` 55/55 (G282'deki 51'den +4).
+
+**Dürüstlük notu (AÇIK bırakılan, kod YAZILMAYAN kısım):** yorum isteme mekanizması **ŞU AN FONKSİYONEL DEĞİL** — karar mantığı doğru anlarda doğru şekilde tetikleniyor ama `requestNativeStoreReview()` hiçbir şeyi Apple'a İLETMİYOR (NO-OP). Bir sonraki adım (KOD DEĞİL, ÜRÜN/native KARARI): `@capacitor-community/in-app-review` (ya da eşdeğeri) `npm install` edilip `npx cap sync` ile native projeye eklenmeli, `requestNativeStoreReview()` GERÇEK plugin çağrısına bağlanmalı — bu adım Xcode/gerçek cihaz doğrulaması GEREKTİRİYOR, bu ortamdan yapılamaz.
+
+---
 
 G282 — **source-psd-data.js: arpeggio_guitar spektrum verisi YENİ dosyaya göre yeniden ölçüldü (SADECE bu girdi, diğer 14 bayt bayt aynı). AYRI commit.**
 
@@ -20959,7 +21012,20 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G280 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G283 itibarıyla):**
+App Store yorum isteme KARAR mantığı eklendi (sınav geçildi/seviye
+atlandı/rozet kazanıldı'da tetiklenir, paywall/can-bitişi/yanlış-cevap/
+reklam/ilk-oturumda ASLA — statik+e2e testle kilitlendi). Olgunluk eşiği
+30 tur, cooldown 60 gün (ikisi de KENDİ kararım, gerekçeli).
+**Kullanıcının/native tarafın kararı gereken AÇIK iş:** `requestNativeStoreReview()`
+(app.js) hâlâ NO-OP — Capacitor'da hazır bir review-request plugin'i
+YOK (`@capacitor-community/in-app-review` gibi bir paket kurulu değil,
+Capacitor CORE'un kendisi de bir API sunmuyor). Eklemek `npm install` +
+`npx cap sync` (Podfile/Xcode proje dosyalarını değiştirir) gerektiriyor
+— bu adım KOD YAZILMADAN bildirildi, Xcode/gerçek cihaz doğrulaması bu
+ortamdan yapılamaz. `npm test` 1455/1455, `npm run test:e2e` 55/55.
+
+**EN YENİ SIRADAKİ ADIM (G280 itibarıyla, ARTIK ESKİ):**
 Reverb'in tur süresi (SADECE `time` alanı) medium/hard/pro/proplus'ta
 16sn'ye çıkarıldı (easy zaten 17sn, DEĞİŞMEDİ) — G279'un raporladığı
 "en kısa turda C'ye hiç ulaşılamıyor" bulgusunun çözümü (Logic'in
