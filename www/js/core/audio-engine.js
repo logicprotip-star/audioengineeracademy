@@ -19,6 +19,20 @@ function resolvePsdForSource(sourceType, uploadManager) {
   return SOURCE_PSD[sourceType] || null;
 }
 
+// G273 (AÇIK İŞLER 27 düzeltmesi) — SAF FONKSİYON, audioCtx bağımsız, test
+// edilebilir. source-catalog.js'in kaynak ID'si "saw" (DEĞİŞTİRİLMEDİ —
+// kullanıcı verisi/katalog buna bağlı), ama Web Audio'nun OscillatorType'ı
+// SADECE "sawtooth" kabul ediyor (spec: "sine"|"square"|"sawtooth"|
+// "triangle"|"custom") — "saw" GEÇERSİZ, tarayıcı bunu SESSİZCE reddedip
+// osc.type'ı ÖNCEKİ ("sine") değerinde bırakıyordu (empirik doğrulandı,
+// bkz. DURUM.md G272 "Saw GERÇEKTE sinüs çalıyor" bulgusu). "square"/
+// "triangle" ZATEN geçerli Web Audio değerleri (doğrulandı, eşlemeye
+// gerek YOK) — SADECE "saw"→"sawtooth" eşleniyor.
+const SYNTH_OSC_TYPE = { saw: "sawtooth" };
+export function resolveOscillatorType(sourceType) {
+  return SYNTH_OSC_TYPE[sourceType] || sourceType;
+}
+
 const MUTE_RAMP_SEC = 0.05; // ~50ms — Durdur/Tekrar Çal arasındaki geçiş
 // G33: stopAudio()'nun eski zincir söndürme zaman sabiti (0.03) node.stop()'un
 // sabit gecikmesine (0.08sn) göre GEVŞEKTİ — setTargetAtTime asimptotik
@@ -740,7 +754,7 @@ export function createAudioEngine() {
     const g1 = audioCtx.createGain();
     const g2 = audioCtx.createGain();
 
-    osc1.type = sourceType;
+    osc1.type = resolveOscillatorType(sourceType);
     osc2.type = sourceType === "square" ? "triangle" : "sine";
     osc1.frequency.value = 110;
     osc2.frequency.value = 220;

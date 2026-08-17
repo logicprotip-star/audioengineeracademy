@@ -1,40 +1,37 @@
-// G272 — saw/square/triangle sentetik kaynaklarının PSD'sini OFFLINE
-// hesaplayıp www/js/core/source-psd-data.js'e EKLEYEN script (var olan 12
-// girdiye DOKUNMADAN — DOKUNULMAYACAK: "G271'in mevcut davranışı").
+// G272/G273 — saw/square/triangle sentetik kaynaklarının PSD'sini OFFLINE
+// hesaplayıp www/js/core/source-psd-data.js'e YAZAN script. Var olan bir
+// girdi (`ONLY_TYPES` listesinde) REPLACE edilir, LİSTEDE OLMAYANLARA
+// DOKUNULMAZ (G273'ün DOKUNULMAYACAK'ı: "diğer kaynak tipleri").
 //
 // Neden Playwright/gerçek tarayıcı (pink/white'ın AKSİNE, o pure-JS'te
 // üretilebiliyordu)? audio-engine.js:buildSynthSource() GERÇEK
-// OscillatorNode kullanıyor — square/triangle/sine dalga biçimleri
+// OscillatorNode kullanıyor — square/triangle/sawtooth dalga biçimleri
 // tarayıcının KENDİ bant-sınırlı (band-limited) sentezine göre üretiliyor,
 // naif bir formülle (ör. Math.sign(sin(...))) YENİDEN üretmek FARKLI
 // harmonik içerik verir (aliasing farkı). Bu yüzden GERÇEK OscillatorNode
 // + OfflineAudioContext render kullanıldı — buildSynthSource'un KENDİSİYLE
-// BİREBİR AYNI kod (osc1.type=sourceType, osc2.type=sourceType==="square"
-// ?"triangle":"sine", freq 110/220, gain 0.52/0.34).
+// BİREBİR AYNI kod (resolveOscillatorType(sourceType) İLE AYNI eşleme,
+// osc2.type=sourceType==="square"?"triangle":"sine", freq 110/220,
+// gain 0.52/0.34).
 //
-// ⚠️ BULGU (bu script yazılırken keşfedildi, AYRI bir bug — bu turun
-// kapsamı DIŞINDA, SADECE rapor edildi): sourceType="saw" iken
-// `osc1.type = "saw"` GEÇERSİZ bir OscillatorType değeri (spec SADECE
-// "sawtooth" kabul ediyor) — tarayıcı bunu SESSİZCE reddedip osc.type'ı
-// ÖNCEKİ (varsayılan "sine") değerinde bırakıyor (empirik doğrulandı:
-// `osc.type='saw'` sonrası `osc.type` HÂLÂ "sine" okunuyor). Yani "Saw"
-// kaynağı ŞU AN gerçekte SİNÜS çalıyor, testere dişi DEĞİL. Bu script
-// buildSynthSource'un KODUNU birebir kopyaladığı için bu GERÇEK (buggy)
-// davranışı SADAKATLE ölçüyor — PSD'nin doğruluğu bundan ETKİLENMİYOR
-// (telafi HER ZAMAN gerçekte çalınan sese göre doğru olmalı, "olması
-// gereken" sese göre değil). Bug DÜZELTİLMEDİ (DOKUNULMAYACAK kapsamı
-// dışı, ayrı bir ürün kararı).
+// G273 GÜNCELLEMESİ: G272'de "saw" HENÜZ osc.type="saw" (geçersiz→sessizce
+// "sine") bug'ıyla ölçülmüştü — audio-engine.js:resolveOscillatorType()
+// artık "saw"→"sawtooth" eşliyor (bkz. DURUM.md G273), bu script de AYNI
+// eşlemeyi kullanıyor. SADECE "saw" yeniden üretildi (ONLY_TYPES=["saw"]) —
+// square/triangle zaten GEÇERLİ tipler kullanıyordu, sesleri DEĞİŞMEDİ,
+// PSD'lerini yeniden üretmek gereksiz risk/fark yaratırdı.
 import { chromium } from "playwright";
 import { startStaticServer } from "./helpers/static-server.mjs";
 import { readFileSync, writeFileSync } from "node:fs";
 
-const SYNTH_TYPES = ["saw", "square", "triangle"];
+const ONLY_TYPES = ["saw"]; // G273: SADECE bug düzeltmesinden ETKİLENEN tip
 const SAMPLE_RATE = 44100;
 const RENDER_SECONDS = 10;
 
 const JS = ({ synthTypes, sampleRate, seconds }) => {
   return (async () => {
     const eqLoudness = await import("/js/core/eq-loudness.js");
+    const audioEngine = await import("/js/core/audio-engine.js");
     const n = Math.round(sampleRate * seconds);
     const results = {};
     for (const sourceType of synthTypes) {
@@ -43,7 +40,7 @@ const JS = ({ synthTypes, sampleRate, seconds }) => {
       const osc2 = ctx.createOscillator();
       const g1 = ctx.createGain();
       const g2 = ctx.createGain();
-      osc1.type = sourceType;
+      osc1.type = audioEngine.resolveOscillatorType(sourceType);
       osc2.type = sourceType === "square" ? "triangle" : "sine";
       osc1.frequency.value = 110;
       osc2.frequency.value = 220;
@@ -69,28 +66,28 @@ const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
 await page.goto(serverHandle.baseUrl);
 await page.waitForLoadState("networkidle");
-const results = await page.evaluate(JS, { synthTypes: SYNTH_TYPES, sampleRate: SAMPLE_RATE, seconds: RENDER_SECONDS });
+const results = await page.evaluate(JS, { synthTypes: ONLY_TYPES, sampleRate: SAMPLE_RATE, seconds: RENDER_SECONDS });
 await browser.close();
 await serverHandle.close();
 
-for (const t of SYNTH_TYPES) {
+for (const t of ONLY_TYPES) {
   console.error(`${t}: osc1.type GERÇEKTE="${results[t].actualOsc1Type}", osc2.type="${results[t].actualOsc2Type}"`);
 }
 
 const dataPath = new URL("../www/js/core/source-psd-data.js", import.meta.url);
 let content = readFileSync(dataPath, "utf8");
 
-const newLines = SYNTH_TYPES.map(t => {
+for (const t of ONLY_TYPES) {
   const psd = results[t].psd;
   const freqs = psd.freqs.map(f => f.toFixed(2)).join(",");
   const powers = psd.powers.map(p => p.toExponential(6)).join(",");
-  return `  ${t}: { freqs: [${freqs}], powers: [${powers}] },`;
-});
-
-if (SYNTH_TYPES.some(t => new RegExp(`^\\s*${t}:`, "m").test(content))) {
-  throw new Error("source-psd-data.js zaten saw/square/triangle içeriyor — script tekrar mı çalıştırıldı? Elle kontrol et.");
+  const newLine = `  ${t}: { freqs: [${freqs}], powers: [${powers}] },`;
+  const pattern = new RegExp(`^  ${t}: \\{ freqs: \\[.*?\\] \\},$`, "m");
+  if (!pattern.test(content)) {
+    throw new Error(`source-psd-data.js'de "${t}" girdisi bulunamadı — ilk kez mi ekleniyor? Bu script SADECE var olan bir girdiyi REPLACE eder.`);
+  }
+  content = content.replace(pattern, newLine);
 }
 
-content = content.replace(/\n};\n$/, `\n${newLines.join("\n")}\n};\n`);
 writeFileSync(dataPath, content);
-console.error(`\nsource-psd-data.js güncellendi: +${SYNTH_TYPES.length} girdi (saw/square/triangle) — mevcut 12 girdi DOKUNULMADAN.`);
+console.error(`\nsource-psd-data.js güncellendi: ${ONLY_TYPES.join(",")} REPLACE edildi — diğer girdiler DOKUNULMADAN.`);
