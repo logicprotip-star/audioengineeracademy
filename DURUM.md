@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G277 — kurtarılan tur çalmıyor düzeltmesi, EN CİDDİ: playThreeWaySpecific/cycleThreeWayPreview artık chainNeedsRebuild() ise playQuestion() ile SIFIRDAN kuruyor; Kompresör+Distortion analyser-tap ile doğrulandı, "Kompresör'de sorun yok" iddiası yanlışlanmıştı; G267'nin seamless davranışı G267'nin kendi 5 testiyle korunduğu doğrulandı)
+Son güncelleme: 17.08.2026 (G278 — kaynak değişimi "Atla" sayılmasın: ÖLÇÜM G275'in bunu YAN ETKİ olarak zaten sağladığını gösterdi, kod bug'ı yoktu; açıklayıcı yorum + 2 kilitleyen e2e test eklendi, sentetik regresyon enjeksiyonuyla kırmızı/yeşil kanıtlandı)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,75 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G278 — **Kaynak değişimi "Atla" sayılmasın (Logic'in ürün kararı, OLCUM-CIHAZ2-17-08 madde B'nin hile analizi üzerine). ÖLÇÜM: G275 (dün) BU KRİTERİN TAMAMINI ZATEN sağlıyordu — kod BUG'I YOKTU. Eklenen: davranışı KİLİTLEYEN 2 e2e test + açıklayıcı kod yorumu. AYRI commit.**
+
+**Dürüstlük notu (CLAUDE.md'nin "tahminle düzeltme yapma" kuralı gereği
+açıkça yazılıyor):** Bu görev "kaynak değişimi Atla sayılıyor" bir BUG
+DÜZELTMESİ olarak geldi, ama **ölçüm bunun ARTIK doğru olmadığını
+gösterdi.** G275 (bugün daha erken, `.answers`'ı geri getiren
+`syncAnswerArea()` eklemesi) bir YAN ETKİ olarak Logic'in TÜM 5
+kriterini ZATEN sağlıyor — `els.sourceSelect`'in "change" handler'ı
+(`www/js/app.js`) `loseLife()`/`challengeTick()`/`examSystem.
+recordAnswer()` gibi HİÇBİR round-sonlandırma fonksiyonunu ÇAĞIRMIYOR,
+`activeQuestion` mid-round HİÇ mutasyona uğramıyor (audio-engine.js
+`activeQuestion.source`'u round boyunca SABİT tutuyor, "bir SONRAKİ
+turda uygulanacak"). "Kaynak değişimi Atla sayılıyordu" gözlemi,
+G275'TEN ÖNCEKİ dünyaya aitti — kullanıcı `.answers` KIRIK olduğu için
+GERÇEKTEN Atla'ya BASMAK ZORUNDA kalıyordu (o da G214'ten beri yanlış
+sayılıyor), G275 bu ZORUNLULUĞU ORTADAN KALDIRDI.
+
+**Ölçüm (Playwright, 2 mod — normal ve three-way):** round başlat →
+Kaynak sheet'i aç (zamanlayıcı DURUYOR, doğrulandı) → kaynağı değiştir
+→ can/kombo/roundChip/BÖLÜM etiketi/soru **TEK SATIR değişmedi** →
+normal cevap verildi, DOĞRU sayıldı. **HİÇBİR ekstra kod değişikliği
+GEREKMEDİ.**
+
+**Yapılan (kod DEĞİŞİKLİĞİ ASGARİ tutuldu, gereksiz refactor YOK):**
+1. `www/js/app.js`'teki `else if (activeQuestion) { setFeedback(...) }`
+   dalına AÇIKLAYICI bir yorum eklendi — bu dalın NEDEN hiçbir skor/can/
+   sayaç fonksiyonu ÇAĞIRMAMASI GEREKTİĞİNİ (Logic'in kararı) belgeliyor,
+   gelecekte YANLIŞLIKLA bir "yanlış cevap" yan etkisi eklenmesini
+   ÖNLEMEYE yardımcı olsun diye. **Fonksiyonel DAVRANIŞ DEĞİŞMEDİ**
+   (`git stash` ile doğrulandı — yorum GERİ ALINDIĞINDA testler YİNE
+   YEŞİL, çünkü G277'nin KENDİSİ zaten doğru davranıyordu).
+2. YENİ `e2e/source-change-no-penalty.spec.mjs` (2 test — Boost mu Cut
+   mu + Distortion/three-way, G277'nin dokunduğu kod yolu AYRICA test
+   edildi) — can/kombo/roundChip/BÖLÜM sayacı/soru kimliği/cevap-
+   verilebilirlik+doğru-sayılma'yı KİLİTLİYOR.
+
+**Kırmızı/yeşil doğrulama — İKİ AŞAMALI (standart `git stash` YETERSİZ
+kaldığı için, çünkü stash'lenecek bir DAVRANIŞ DÜZELTMESİ YOKTU):**
+1. **`git stash -- app.js`** (SADECE açıklayıcı yorumu geri alıp G277'nin
+   HAM hâline döndü) → testler YİNE **YEŞİL** — G275'in TEK BAŞINA
+   yeterli olduğunun EK kanıtı.
+2. **Sentetik regresyon enjeksiyonu** (testin GERÇEKTEN bir şey
+   tespit ettiğini kanıtlamak için): `else if (activeQuestion)` dalına
+   GEÇİCİ olarak `challengeTick(false, 0);` eklendi → **İKİ test de
+   KIRMIZI** oldu (`"BÖLÜM 3/10" !== "BÖLÜM 2/10"` — fantom bir sayaç
+   artışı YAKALANDI, İLK denemede DOM anlık karşılaştırması bunu
+   KAÇIRMIŞTI, testin "TEK gerçek cevaptan SONRA sayaç TAM 2/10
+   göstermeli" ikinci katmanı YAKALADI) → satır KALDIRILDI → testler
+   YENİDEN **YEŞİL**. Bu, standart "var olan bir fix'i stash'le" deseni
+   DEĞİL — DOKUNULMAYACAK'ın G275'i korumasıyla TUTARLI, aynı titizlikte
+   bir ALTERNATİF kanıt yöntemi.
+
+**⚠️ G277 ile çakışma:** YOK — `e2e/source-change-no-penalty.spec.mjs`
+Distortion'da (G277'nin `chainNeedsRebuild()`/`playQuestion()` eklediği
+KOD YOLU) AYRICA çalıştırıldı, `seamless-three-way.spec.mjs`'in 5
+testi + `recovered-round-audio.spec.mjs`'in 2 testi + `upload-gate-
+answers-restore.spec.mjs`'in 2 testi (9 test TOPLAM) BU commit'in
+YANINDA AYRICA çalıştırılıp HEPSİ YEŞİL kaldığı doğrulandı.
+
+**⚠️ "Soru kaynağa özgü değer içeriyorsa" ölçümü:** `grep` ile
+doğrulandı — `activeQuestion.source` kod tabanında HİÇBİR yerde
+mid-round YENİDEN ATANMIYOR (audio-engine.js her zaman ORİJİNAL
+`activeQuestion.source`'u kullanıyor, `els.sourceSelect.value`'DAN
+BAĞIMSIZ) — **kaynak değişimi mevcut soruyu HİÇBİR ZAMAN geçersiz
+KILAMAZ**, yapısal olarak. Soru yenileme GEREKMİYOR.
+
+**Doğrulama:** `npm test` 1429/1429 (değişmedi). `npm run test:e2e`
+43→**45/45**.
 
 G277 — **Kurtarılan tur çalmıyor düzeltmesi (OLCUM-SATURATION-17-08 madde C — "EN CİDDİ"). G267'nin seamless A/B/C mimarisi (Kompresör/Distortion), kart-üstü play/DÖNGÜ kontrollerinin zincirin ZATEN kurulu olduğunu varsayıyordu — G203'ün tur-kurtarma yolu zinciri BİLEREK ertelediği için, kurtarma sonrası bu kontroller sessizce no-op yapıyordu. AYRI commit.**
 
@@ -20761,7 +20830,37 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G277 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G278 itibarıyla):**
+Logic'in ürün kararı ("kaynak değişimi Atla sayılmasın") ölçüldü —
+**G275 (bugün, aynı gün içinde) bunu YAN ETKİ olarak ZATEN
+sağlıyordu**, kod bug'ı YOKTU (dürüstçe raporlandı, uydurma bir
+"düzeltme" YAPILMADI). Eklenen: `else if (activeQuestion)` dalına
+açıklayıcı kod yorumu (gelecekte yanlışlıkla bir ceza eklenmesini
+önlemeye yardımcı) + YENİ `e2e/source-change-no-penalty.spec.mjs`
+(2 test, normal+three-way modlar, can/kombo/sayaç/soru/cevap-
+verilebilirliği kilitliyor). Kırmızı/yeşil standart `git stash` ile
+DEĞİL (stash'lenecek DAVRANIŞ değişikliği yoktu) — SENTETİK regresyon
+enjeksiyonuyla (`challengeTick(false,0)` geçici eklenip testin
+KIRMIZI olduğu, sonra kaldırılıp YEŞİL'e döndüğü) kanıtlandı. G277 ile
+çakışma YOK (Distortion'da AYRICA test edildi, G267/G277'nin 9 testi
+YANINDA çalıştırılıp hepsi yeşil kaldı). `activeQuestion.source` kod
+tabanında HİÇBİR yerde mid-round yeniden atanmadığı doğrulandı — kaynak
+değişimi soruyu YAPISAL OLARAK geçersiz KILAMAZ, soru yenileme
+gerekmiyor. `npm test` 1429/1429, `npm run test:e2e` 43→**45/45**.
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. OLCUM-CIHAZ2-17-08'in DÜZELTİLMEYEN 3 bulgusu hâlâ AÇIK: Reverb A/B/C
+   geçiş süresi, Reverb wet yoluna high-pass, zorluk dengesi (dB
+   Seviyesi/Stereo Genişlik) — HEPSİ AYRI işler.
+2. `OLCUM-KALAN-17-08.md`/`OLCUM-CPU-17-08.md`/`OLCUM-KESIM-17-08.md`/
+   `OLCUM-SATURATION-17-08.md`/`OLCUM-CIHAZ2-17-08.md` henüz commit'e
+   alınmadı.
+3. vocal+clean_guitar çifti ÖLÇÜLDÜ ([441,743]Hz) ama YENİ bir
+   SOURCE_PAIRS girdisi olarak EKLENMEDİ — bkz. OLCUM-KAYNAK-17-08.md
+   madde F.2.
+4. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü hâlâ
+   ÇALIŞTIRILARAK test EDİLMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G277 itibarıyla, ARTIK ESKİ):**
 OLCUM-SATURATION-17-08 ve OLCUM-CIHAZ2-17-08'in 4 bulgusu DÜZELTİLDİ,
 HER BİRİ AYRI commit (G274-G277), HER BİRİ `git stash` ile kırmızı/yeşil
 doğrulandı:

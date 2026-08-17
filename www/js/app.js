@@ -7830,6 +7830,22 @@ els.difficultySelect.addEventListener("change", () => {
       renderGameHeader();
       setFeedback("Oyun türü değişti", isChallenge() ? "10 Soruluk Bölüm seçili. 'Oyunu Başlat' ile bölümü başlat." : "Serbest oyun seçili. 'Oyunu Başlat' ile sınırsız akış.");
     } else if (activeQuestion) {
+      // G278 (Logic'in ürün kararı, OLCUM-CIHAZ2-17-08 madde B) — BURASI
+      // oyun sırasında kaynak DEĞİŞTİRMENİN TEK davranışsal dalı: SADECE
+      // bir toast gösterir. `activeQuestion`'a, `stats.lives`'a,
+      // `challenge`'a/`examSystem`'e HİÇBİR yerde DOKUNMAZ — bu KASITLI:
+      // kaynak değişimi mevcut soruyu GEÇERSİZ KILMAZ (audio-engine.js
+      // `activeQuestion.source`'u round SÜRESİNCE SABİT tutar, "bir
+      // SONRAKİ turda uygulanacak" — bkz. bu satırın kendi metni), bu
+      // yüzden `loseLife()`/`challengeTick()`/`examSystem.recordAnswer()`
+      // gibi bir "yanlış cevap" yan etkisi BURAYA ASLA EKLENMEMELİ —
+      // eklenirse kullanıcı SADECE ses kaynağını merak edip değiştirdiği
+      // için cezalandırılmış olur (G214'ün "Atla=yanlış" kuralının AKSİNE,
+      // burada GERÇEK bir cevap/atlama eylemi YOK). syncAnswerArea()
+      // (G275, `syncUploadGate()` içinde, aşağıda) `.answers`'ı geri
+      // getirir ama SORUYU YENİDEN ÜRETMEZ — `e2e/source-change-no-
+      // penalty.spec.mjs` bu değişmezliği (can/sayaç/soru/cevap-verilebilirlik)
+      // hem normal hem three-way modlarda kilitliyor.
       setFeedback("Ayar değişti", "Yeni ayarlar bir sonraki turda uygulanacak.");
     }
     // G126 — kullanıcı Kaynak'ı DOĞRUDAN dropdown'dan değiştirirse (Dosyalarım
