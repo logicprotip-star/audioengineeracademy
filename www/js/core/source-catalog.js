@@ -76,7 +76,18 @@ export const SOURCE_GROUPS = [
       // SADECE `only` ile açıkça isteyen bir mod (Stereo Genişlik) görür —
       // diğer 11 modun kaynak seçicisinde HİÇ görünmez (task'ın kendi kararı).
       { id: "acoustic_guitar_stereo", label: "Akustik Gitar (Stereo)", kind: "sample", samplePath: "audio/acoustic_guitar_stereo.m4a", desc: "Akustik gitar, GERÇEK stereo kayıt — SADECE Stereo Genişlik", stereoOnly: true },
-      { id: "clean_guitar_stereo", label: "Clean Gitar (Stereo)", kind: "sample", samplePath: "audio/clean_guitar_stereo.m4a", desc: "Temiz elektrogitar, GERÇEK stereo kayıt — SADECE Stereo Genişlik", stereoOnly: true }
+      { id: "clean_guitar_stereo", label: "Clean Gitar (Stereo)", kind: "sample", samplePath: "audio/clean_guitar_stereo.m4a", desc: "Temiz elektrogitar, GERÇEK stereo kayıt — SADECE Stereo Genişlik", stereoOnly: true },
+      // G288 — YENİ: snare.m4a'nın "geç başlayan çift" varyantı — ilk vuruşu
+      // kesilmiş (OLCUM-CIFT-OFFSET-17-08.md'nin bulduğu "377ms offset'le
+      // playback pozisyon-0'daki asıl atağı ~24sn sonraya öteliyor, tur
+      // boyunca hiç duyulmuyor" sorununu KÖKTEN çözüyor — o atak zaten
+      // dosyada YOK), son 377ms'si temizlenmiş (ölçüldü: son ~350ms+ artık
+      // sessiz — döngü sarma noktasında artık geç-decay kırıntısı yok).
+      // `pairOnly:true` — `stereoOnly`'nin AYNI deseni: compatibleSourceIds()'in
+      // varsayılan listesinden dışlanır (aşağı bkz.), SADECE SOURCE_PAIRS
+      // (findSource ile DOĞRUDAN, filtreden geçmeden) erişir — genel kaynak
+      // seçicide HİÇ görünmez.
+      { id: "snare_late", label: "Snare (Geç)", kind: "sample", samplePath: "audio/snare_late.m4a", desc: "Snare, ilk vuruşu kesilmiş — SADECE Frekans Çakışması'nın offsetli çiftlerinde", pairOnly: true }
     ]
   },
   {
@@ -158,18 +169,66 @@ export function findSource(id) {
 // -15dB (projenin TÜM diğer SOURCE_PAIRS'inde kullandığı AYNI eşik,
 // tutarlılık için) seçildi: [172,302] ölçüldü, [170,310]'a DIŞA yuvarlandı
 // (bu ÇİFTİN kendi G270 emsaliyle AYNI yuvarlama yönü — [172,398]→[170,400]).
+//
+// G288 — TAMAMEN YENİDEN KURULDU (kick-bas/vokal-gitar/snare-arpej-gitar
+// KALKTI). offsetA/offsetB (saniye, HER ZAMAN POZİTİF) — OLCUM-CIFT-OFFSET-
+// 17-08.md'nin bulduğu İKİ şey burada uygulanıyor: (1) `buildSampleSource`
+// (audio-engine.js) zaten `AudioBufferSourceNode.start(0, offsetSec %
+// duration)` kullanıyor ve bu OfflineAudioContext'te ÖLÇÜLDÜ — `loop=true`
+// ile birlikte np.roll'un dairesel kaydırmasıyla BİREBİR eşdeğer (döngüde
+// KALICI, sadece ilk geçişte değil). (2) NEGATİF offsetSec bu formülde
+// RangeError fırlatıyor (ÖLÇÜLDÜ) — bu yüzden offset HER ZAMAN "geç
+// başlaması gereken" kaynağa POZİTİF olarak atanıyor, diğer kaynak 0 alıyor
+// (iki tarafın da negatif alması gerekmiyor çünkü ÇİFT-göreli gecikme tek
+// taraflı pozitif bir değerle zaten ifade edilebiliyor).
+//
+// Region'lar bu turda YENİDEN ÖLÇÜLDÜ — AYNI Welch/4096-FFT/Hann/%50-
+// örtüşme/-15dB/60Hz-boşluk-toleranslı yöntem (G281 ile AYNI, kendi JS
+// FFT'siyle bu turda yeniden üretildi), HER kaynağın KENDİ tepesine göre
+// bandı bulunup ÇİFTİN iki bandının KESİŞİMİ alındı (OLCUM-KAYNAK-17-08.md'nin
+// F.2/vokal-gitar'daki "doğrudan kesişim" yöntemiyle AYNI). Yöntem KONTROLÜ:
+// bas+akustik ve bas+clean için ölçülen [86.1,279.9]/[193.8,279.9]Hz,
+// task'ın verdiği referans [82,279]/[195,279]Hz ile NEREDEYSE BİREBİR eşleşti
+// (yöntem doğrulaması). akustik+clean İSE FARKLI çıktı — ölçülen [193.8,398.4]Hz
+// (acoustic_guitar'ın KENDİ -15dB bandının üst sınırıyla SINIRLI), task'ın
+// referansı [195,1114]Hz — üst sınırda büyük fark (muhtemelen task'ın "1114"
+// değeri bandın KESİŞİMİ değil, İKİ kaynağın ayrı ayrı anlamlı aralıklarının
+// BİRLEŞİMİ gibi farklı bir tanım kullanıyor — G270'teki vokal-gitar'ın
+// AYNI türden "219-1113 vs ölçülen 215-366" farkının bir benzeri). Task'ın
+// kendi talimatı ("farklı çıkarsa kendi ölçümünü kullan") gereği BENİM
+// ölçümüm kullanıldı. Tüm değerler DIŞA yuvarlandı (G281 ile AYNI yön,
+// en yakın 10'a):
+//   akustik+clean:        ölçülen [193.8,398.4] → [190,400]
+//   bas+akustik:           ölçülen  [86.1,279.9] → [80,280]
+//   bas+clean:             ölçülen [193.8,279.9] → [190,280]
+//   snare_late+akustik:    ölçülen [172.3,398.4] → [170,400] (referans verilmedi, "ölç" denildi)
+//   snare_late+clean:      ölçülen [193.8,430.7] → [190,440] (referans verilmedi, "ölç" denildi)
+// Tam ölçüm tablosu: DURUM.md G288.
 export const SOURCE_PAIRS = [
   {
-    id: "kick-bas", labelA: "Kick", labelB: "Bas", sourceA: "kick", sourceB: "bass",
-    region: [30, 120], desc: "Kick ve bas — sub/bas bölgesinde en sık çakışma"
+    id: "akustik-clean", labelA: "Akustik Gitar", labelB: "Clean Gitar", sourceA: "guitar", sourceB: "clean_guitar",
+    offsetA: 0, offsetB: 0,
+    region: [190, 400], desc: "Akustik ve clean gitar — alt-orta bölgede iki gitarın gövde çatışması"
   },
   {
-    id: "vokal-gitar", labelA: "Vokal", labelB: "Gitar", sourceA: "vocal", sourceB: "guitar",
-    region: [220, 360], desc: "Vokal ve gitar — orta bölgede gövde çatışması"
+    id: "bas-akustik", labelA: "Bas", labelB: "Akustik Gitar", sourceA: "bass", sourceB: "guitar",
+    offsetA: 0, offsetB: 0.377,
+    region: [80, 280], desc: "Bas ve akustik gitar — sub/alt-orta geçişinde harmonik çakışma, gitar 377ms geç başlıyor"
   },
   {
-    id: "snare-arpej-gitar", labelA: "Snare", labelB: "Arpej Gitar", sourceA: "snare", sourceB: "arpeggio_guitar",
-    region: [170, 310], desc: "Snare ve arpej gitar — atak/sertlik bölgesinde HEM spektral HEM zamansal çakışma"
+    id: "bas-clean", labelA: "Bas", labelB: "Clean Gitar", sourceA: "bass", sourceB: "clean_guitar",
+    offsetA: 0, offsetB: 0.377,
+    region: [190, 280], desc: "Bas ve clean gitar — alt-orta bölgede harmonik çakışma, gitar 377ms geç başlıyor"
+  },
+  {
+    id: "snare-akustik", labelA: "Snare", labelB: "Akustik Gitar", sourceA: "snare_late", sourceB: "guitar",
+    offsetA: 0.377, offsetB: 0,
+    region: [170, 400], desc: "Snare ve akustik gitar — atak bölgesinde zamansal çakışma, snare 377ms geç başlıyor"
+  },
+  {
+    id: "snare-clean", labelA: "Snare", labelB: "Clean Gitar", sourceA: "snare_late", sourceB: "clean_guitar",
+    offsetA: 0.377, offsetB: 0,
+    region: [190, 440], desc: "Snare ve clean gitar — atak bölgesinde zamansal çakışma, snare 377ms geç başlıyor"
   }
 ];
 
@@ -224,5 +283,6 @@ export function compatibleSourceIds({ requireTransient = false, only = null } = 
   return SOURCE_GROUPS.flatMap(g => g.sources)
     .filter(s => !(requireTransient && s.noTransient))
     .filter(s => !s.stereoOnly)
+    .filter(s => !s.pairOnly)
     .map(s => s.id);
 }

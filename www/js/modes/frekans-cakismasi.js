@@ -237,7 +237,7 @@ export function generateStage1Choices(trueCenter, regionWidthOct, optionsCount, 
     if (!used.has(center)) { used.add(center); candidates.push({ center, correct: false }); }
     i++;
   }
-  // GÜVENLİK TAMAMLAMASI: dar bir pairRegion'da (ör. kick-bas'ın 50-160 Hz'i)
+  // GÜVENLİK TAMAMLAMASI: dar bir pairRegion'da (ör. bas-clean'in 190-280 Hz'i)
   // çok sayıda şık istenince oktav-adımları sınıra ÇARPIP kenetlenebilir,
   // ANA strateji optionsCount'a ULAŞAMAYABİLİR — kalan slotlar [lo,hi]
   // içinde EŞİT ARALIKLI, henüz kullanılmamış Hz noktalarıyla doldurulur
@@ -345,7 +345,10 @@ export function createQuestion(level, settings = {}) {
     mode: "cakisma",
     difficulty: level,
     stage,
-    pair: { id: pair.id, labelA: pair.labelA, labelB: pair.labelB, sourceA: pair.sourceA, sourceB: pair.sourceB },
+    // G288 — offsetA/offsetB EKLENDİ (SOURCE_PAIRS'in yeni alanı, app.js:
+    // cakismaSourcesSpec'in okuduğu) — EKSİK bırakılsaydı offset SESSİZCE
+    // 0'a düşerdi (cakismaSourcesSpec'in "offsetSec || 0" varsayılanı).
+    pair: { id: pair.id, labelA: pair.labelA, labelB: pair.labelB, sourceA: pair.sourceA, sourceB: pair.sourceB, offsetA: pair.offsetA, offsetB: pair.offsetB },
     trueCenter,
     regionWidthOct,
     cutStepDb,

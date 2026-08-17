@@ -1177,7 +1177,10 @@ export function createAudioEngine() {
       } else if (findSource(spec.sourceType)?.kind === "sample") {
         const samplePath = findSource(spec.sourceType).samplePath;
         try {
-          const [sample] = await buildSampleSource(samplePath);
+          // G288 — buildSampleSource(path, offsetSec) ZATEN VAR (G151),
+          // buraya kadar hiç bağlanmamıştı. spec.offsetSec YOKSA (diğer TÜM
+          // eski çağrı yerleri/tek-kaynak modlar) davranış AYNEN 0 — DEĞİŞMEDİ.
+          const [sample] = await buildSampleSource(samplePath, spec.offsetSec || 0);
           if (currentNodes.includes(out)) {
             sample.connect(gainNode);
             currentNodes.push(sample);

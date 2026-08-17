@@ -21,23 +21,30 @@ const ALL_IDS = SOURCE_GROUPS.flatMap(g => g.sources.map(s => s.id));
 // G259 — stereoOnly bayrağı: compatibleSourceIds()'in varsayılan (parametresiz)
 // yolu bunları BİLEREK dışlar (source-catalog.js'in kendi notu) — "TÜM
 // kaynaklar" testleri artık ALL_IDS DEĞİL, bu daraltılmış küme ile karşılaştırılmalı.
+// G288 — pairOnly bayrağı EKLENDİ (snare_late, AYNI stereoOnly deseni) —
+// o da varsayılan listeden dışlanır, NON_STEREO_IDS adı DEĞİŞMEDİ (bütün
+// dosyada yaygın kullanılıyor) ama artık pairOnly'yi de dışlıyor.
 const STEREO_ONLY_IDS = SOURCE_GROUPS.flatMap(g => g.sources).filter(s => s.stereoOnly).map(s => s.id);
-const NON_STEREO_IDS = ALL_IDS.filter(id => !STEREO_ONLY_IDS.includes(id));
+const PAIR_ONLY_IDS = SOURCE_GROUPS.flatMap(g => g.sources).filter(s => s.pairOnly).map(s => s.id);
+const NON_STEREO_IDS = ALL_IDS.filter(id => !STEREO_ONLY_IDS.includes(id) && !PAIR_ONLY_IDS.includes(id));
 
 describe("source-catalog — compatibleSourceIds()", () => {
-  it("parametresiz çağrıldığında stereoOnly HARİÇ tüm kaynakları döner (varsayılan: stereo-özel kaynaklar dışlanır)", () => {
+  it("parametresiz çağrıldığında stereoOnly/pairOnly HARİÇ tüm kaynakları döner (varsayılan: özel kaynaklar dışlanır)", () => {
     const ids = compatibleSourceIds();
     assert.ok(STEREO_ONLY_IDS.length > 0, "en az bir stereoOnly kaynak olmalıydı (test önkoşulu, G259)");
+    assert.ok(PAIR_ONLY_IDS.length > 0, "en az bir pairOnly kaynak olmalıydı (test önkoşulu, G288)");
     assert.deepEqual([...ids].sort(), [...NON_STEREO_IDS].sort());
     for (const id of STEREO_ONLY_IDS) assert.ok(!ids.includes(id), `${id} (stereoOnly) varsayılan listede OLMAMALIYDI`);
+    for (const id of PAIR_ONLY_IDS) assert.ok(!ids.includes(id), `${id} (pairOnly) varsayılan listede OLMAMALIYDI`);
   });
 
-  it("requireTransient: transient'sız (noTransient:true) VE stereoOnly kaynakları çıkarır, diğerlerini korur", () => {
+  it("requireTransient: transient'sız (noTransient:true) VE stereoOnly/pairOnly kaynakları çıkarır, diğerlerini korur", () => {
     const ids = compatibleSourceIds({ requireTransient: true });
     const noTransientIds = SOURCE_GROUPS.flatMap(g => g.sources).filter(s => s.noTransient).map(s => s.id);
     assert.ok(noTransientIds.length > 0, "en az bir noTransient kaynak olmalıydı (test önkoşulu)");
     for (const id of noTransientIds) assert.ok(!ids.includes(id), `${id} dışlanmalıydı`);
     for (const id of STEREO_ONLY_IDS) assert.ok(!ids.includes(id), `${id} (stereoOnly) dışlanmalıydı`);
+    for (const id of PAIR_ONLY_IDS) assert.ok(!ids.includes(id), `${id} (pairOnly) dışlanmalıydı`);
     for (const id of NON_STEREO_IDS.filter(i => !noTransientIds.includes(i))) assert.ok(ids.includes(id), `${id} korunmalıydı`);
   });
 
@@ -96,6 +103,11 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
       for (const id2 of STEREO_ONLY_IDS) {
         assert.ok(!meta.uyumluKaynaklar.includes(id2), `${id}: ${id2} (stereoOnly) GÖRÜNMEMELİYDİ`);
       }
+      // G288 — pairOnly (snare_late) da AYNI şekilde HİÇ görünmemeli (SADECE
+      // Frekans Çakışması'nın SOURCE_PAIRS'i findSource ile DOĞRUDAN erişir).
+      for (const id2 of PAIR_ONLY_IDS) {
+        assert.ok(!meta.uyumluKaynaklar.includes(id2), `${id}: ${id2} (pairOnly) GÖRÜNMEMELİYDİ`);
+      }
     });
   });
 
@@ -117,10 +129,10 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
     assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["groove", "upload"].sort());
   });
 
-  it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 3 hazır çift içerir (G270: snare-gitar→snare-arpej-gitar)", () => {
+  it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 5 hazır çift içerir (G288: kick-bas/vokal-gitar/snare-arpej-gitar KALKTI, offsetli 5 yeni çift)", () => {
     const meta = frekansCakismasi.getMeta();
     assert.deepEqual(meta.uyumluKaynaklar, []);
-    assert.deepEqual(SOURCE_PAIRS.map(p => p.id).sort(), ["kick-bas", "snare-arpej-gitar", "vokal-gitar"].sort());
+    assert.deepEqual(SOURCE_PAIRS.map(p => p.id).sort(), ["akustik-clean", "bas-akustik", "bas-clean", "snare-akustik", "snare-clean"].sort());
   });
 });
 
@@ -172,11 +184,90 @@ describe("source-catalog — G270 YENİ kaynak: arpeggio_guitar", () => {
     assert.ok(!stereoGenislik.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
   });
 
-  it("snare-arpej-gitar SOURCE_PAIRS çiftinde sourceB olarak kullanılıyor", () => {
-    const pair = SOURCE_PAIRS.find(p => p.id === "snare-arpej-gitar");
-    assert.ok(pair);
-    assert.equal(pair.sourceB, "arpeggio_guitar");
-    assert.equal(pair.labelB, "Arpej Gitar");
+  // G288 — arpeggio_guitar ARTIK hiçbir SOURCE_PAIRS çiftinde KULLANILMIYOR
+  // (kick-bas/vokal-gitar/snare-arpej-gitar TAMAMEN kalktı, yerine offsetli
+  // 5 yeni çift geldi — hiçbiri arpeggio_guitar'ı kullanmıyor, guitar/
+  // clean_guitar/bass/snare_late kullanıyor). Kaynağın KENDİSİ (SOURCE_GROUPS'taki
+  // girdisi, diğer modlardaki dahil/hariç durumu) DOKUNULMADI — SADECE bu ÇİFT
+  // ilişkisi kalktı, yukarıdaki testler hâlâ geçerli.
+  it("arpeggio_guitar artık HİÇBİR SOURCE_PAIRS çiftinde kullanılmıyor (G288)", () => {
+    assert.ok(!SOURCE_PAIRS.some(p => p.sourceA === "arpeggio_guitar" || p.sourceB === "arpeggio_guitar"));
+  });
+});
+
+// G288 — YENİ kaynak: snare_late (snare.m4a'nın ilk vuruşu kesilmiş, son
+// 377ms'si temizlenmiş "geç başlayan çift" varyantı). pairOnly:true —
+// stereoOnly İLE AYNI desen (kaynak seçicide GÖRÜNMEZ, SADECE SOURCE_PAIRS
+// findSource ile DOĞRUDAN erişir).
+describe("source-catalog — G288 YENİ kaynak: snare_late", () => {
+  it("SOURCE_GROUPS'ta doğru alanlarla tanımlı — sample/samplePath/pairOnly", () => {
+    const s = findSource("snare_late");
+    assert.ok(s, "snare_late bulunamadı");
+    assert.equal(s.kind, "sample");
+    assert.equal(s.samplePath, "audio/snare_late.m4a");
+    assert.equal(s.pairOnly, true, "pairOnly:true OLMALI — genel seçicide görünmemeli");
+    assert.ok(!s.stereoOnly, "mono dosya — stereoOnly OLMAMALI");
+  });
+
+  it("HİÇBİR modun kaynak listesinde görünmüyor (pairOnly varsayılan filtreden dışlanıyor)", () => {
+    const mods = { frekansBulma, kesimNoktasi, dbSeviyesi, boostMuCutMu, qGenisligi, kompresor, reverb, tonalDenge };
+    for (const [name, mod] of Object.entries(mods)) {
+      assert.ok(!mod.getMeta().uyumluKaynaklar.includes("snare_late"), `${name}: snare_late GÖRÜNMEMELİYDİ`);
+    }
+  });
+
+  it("SOURCE_PAIRS'in İKİ çiftinde (snare-akustik/snare-clean) sourceA olarak, offsetA=0.377 ile kullanılıyor", () => {
+    for (const id of ["snare-akustik", "snare-clean"]) {
+      const pair = SOURCE_PAIRS.find(p => p.id === id);
+      assert.ok(pair, `${id} bulunamadı`);
+      assert.equal(pair.sourceA, "snare_late");
+      assert.equal(pair.offsetA, 0.377);
+      assert.equal(pair.offsetB, 0);
+    }
+  });
+});
+
+// G288 — SOURCE_PAIRS'in YENİ offsetA/offsetB alanı: OLCUM-CIFT-OFFSET-17-08.md'nin
+// bulduğu "negatif offsetSec RangeError fırlatır" sorunundan kaçınmak için
+// HER ZAMAN pozitif (veya 0) olmalı — hiçbir çift negatif bir değer TAŞIMAMALI.
+describe("source-catalog — G288 SOURCE_PAIRS offsetA/offsetB (çift-bazlı zamansal hizalama)", () => {
+  it("her çiftte offsetA/offsetB tanımlı, sayı, NEGATİF DEĞİL", () => {
+    for (const pair of SOURCE_PAIRS) {
+      assert.equal(typeof pair.offsetA, "number", `${pair.id}: offsetA sayı olmalı`);
+      assert.equal(typeof pair.offsetB, "number", `${pair.id}: offsetB sayı olmalı`);
+      assert.ok(pair.offsetA >= 0, `${pair.id}: offsetA NEGATİF OLMAMALI (RangeError riski, OLCUM-CIFT-OFFSET-17-08.md)`);
+      assert.ok(pair.offsetB >= 0, `${pair.id}: offsetB NEGATİF OLMAMALI (RangeError riski, OLCUM-CIFT-OFFSET-17-08.md)`);
+    }
+  });
+
+  it("HER çiftte SADECE bir taraf offsetli (ikisi birden 0'dan farklı olmamalı — 'geç başlayan taraf' tekil olmalı)", () => {
+    for (const pair of SOURCE_PAIRS) {
+      assert.ok(!(pair.offsetA > 0 && pair.offsetB > 0), `${pair.id}: iki tarafın da offseti olmamalı`);
+    }
+  });
+
+  it("akustik-clean çiftinde offset yok (ikisi de 0)", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "akustik-clean");
+    assert.equal(pair.offsetA, 0);
+    assert.equal(pair.offsetB, 0);
+  });
+
+  it("bas-akustik/bas-clean çiftlerinde gitar tarafı (sourceB) 0.377 offsetli, bas (sourceA) offsetsiz", () => {
+    for (const id of ["bas-akustik", "bas-clean"]) {
+      const pair = SOURCE_PAIRS.find(p => p.id === id);
+      assert.equal(pair.sourceA, "bass");
+      assert.equal(pair.offsetA, 0);
+      assert.equal(pair.offsetB, 0.377);
+    }
+  });
+
+  it("region alanları tüm 5 çiftte [min,max] Hz dizisi, min<max, mantıklı ses bandı içinde", () => {
+    for (const pair of SOURCE_PAIRS) {
+      assert.ok(Array.isArray(pair.region) && pair.region.length === 2, `${pair.id}: region [min,max] olmalı`);
+      const [lo, hi] = pair.region;
+      assert.ok(lo > 0 && hi > lo, `${pair.id}: region geçersiz [${lo},${hi}]`);
+      assert.ok(hi < 20000, `${pair.id}: region üst sınırı mantıksız`);
+    }
   });
 });
 
@@ -188,7 +279,7 @@ describe("source-catalog — noTransient bayrağı doğru kaynaklara etiketli", 
   });
 
   it("synth/davul/enstrüman/upload noTransient DEĞİL", () => {
-    for (const id of ["saw", "square", "triangle", "kick", "snare", "hihat", "tom", "groove", "bass", "guitar", "clean_guitar", "arpeggio_guitar", "vocal", "upload"]) {
+    for (const id of ["saw", "square", "triangle", "kick", "snare", "snare_late", "hihat", "tom", "groove", "bass", "guitar", "clean_guitar", "arpeggio_guitar", "vocal", "upload"]) {
       assert.ok(!findSource(id).noTransient, `${id} noTransient OLMAMALIYDI`);
     }
   });

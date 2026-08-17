@@ -30,62 +30,76 @@ describe("source-catalog.js — SOURCE_PAIRS / OWN_SOURCE_PAIR / findSourcePair 
     });
   });
 
-  it("kick-bas çifti mevcut (task'ın istediği TEMEL çift)", () => {
-    const pair = SOURCE_PAIRS.find(p => p.id === "kick-bas");
+  // G288 — kick-bas/vokal-gitar/snare-arpej-gitar TAMAMEN KALKTI, yerine
+  // OLCUM-CIFT-OFFSET-17-08.md'nin bulduğu offset mekanizmasını kullanan 5
+  // yeni çift geldi (akustik-clean, bas-akustik, bas-clean, snare-akustik,
+  // snare-clean) — region'lar Welch/4096-FFT/Hann/%50-örtüşme/-15dB/60Hz-
+  // boşluk-toleranslı yöntemle (G281 ile AYNI yöntem) yeniden ölçüldü, task'ın
+  // referans değerleriyle bas-akustik/bas-clean NEREDEYSE BİREBİR eşleşti
+  // (yöntem doğrulaması), akustik-clean FARKLI çıktı (kendi ölçüm kullanıldı,
+  // task'ın kendi talimatı) — tam tablo: DURUM.md G288.
+  it("akustik-clean çifti mevcut, offsetsiz (ikisi de 0), ölçülen [190,400]Hz", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "akustik-clean");
     assert.ok(pair);
-    assert.equal(pair.sourceA, "kick");
-    assert.equal(pair.sourceB, "bass");
+    assert.equal(pair.sourceA, "guitar");
+    assert.equal(pair.sourceB, "clean_guitar");
+    assert.equal(pair.offsetA, 0);
+    assert.equal(pair.offsetB, 0);
+    assert.deepEqual(pair.region, [190, 400]);
   });
 
-  // G52: kütüphane task'ın kendi verdiği üç hazır setle genişledi — yeni ses
-  // dosyası GEREKMEDİ, source-catalog.js'in mevcut vocal/guitar/snare
-  // girdilerine işaret ediyorlar.
-  // G259 — kütüphane yenilendi, region'lar YENİDEN ÖLÇÜLDÜ (OLCUM-KAYNAK-16-08.md,
-  // FFT tabanlı gerçek çakışma ölçümü) — eski [500,2000]/[200,2000] ESKİ
-  // kütüphaneye göreydi, YENİ dosyalarla uyumsuzdu.
-  // G270 — vocal.m4a YENİLENDİ (eski dosyanın üzerine yazıldı), vokal-gitar
-  // YENİDEN ÖLÇÜLDÜ: [200,600]→[220,360] (OLCUM-KAYNAK-17-08.md).
-  it("vokal-gitar çifti mevcut, ORTA bölgede (G270: YENİ vocal.m4a ile yeniden ölçülen çakışma ~220-360Hz)", () => {
-    const pair = SOURCE_PAIRS.find(p => p.id === "vokal-gitar");
+  it("bas-akustik çifti mevcut, akustik gitar (sourceB) 0.377 geç başlıyor, ölçülen [80,280]Hz", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "bas-akustik");
     assert.ok(pair);
-    assert.equal(pair.sourceA, "vocal");
+    assert.equal(pair.sourceA, "bass");
     assert.equal(pair.sourceB, "guitar");
-    assert.deepEqual(pair.region, [220, 360]);
+    assert.equal(pair.offsetA, 0);
+    assert.equal(pair.offsetB, 0.377);
+    assert.deepEqual(pair.region, [80, 280]);
   });
 
-  // G270 — snare-gitar (snare+acoustic_guitar) ÇIKARILDI, YERİNE
-  // snare-arpej-gitar (snare+arpeggio_guitar) EKLENDİ — spektral örtüşme
-  // O ZAMANKİ arpeggio_guitar.m4a ile PRATİKTE AYNI kaldı (~170-400Hz, İKİ
-  // gitar da AYNI enstrüman/akort) ama ZAMANSAL örtüşme ÖLÇÜLEBİLİR ŞEKİLDE
-  // düzeldi (OLCUM-KAYNAK-17-08.md: eski çiftte snare vuruşlarının SADECE
-  // 1/16'sı en-yakın gitar notasından 150ms içindeydi — "sırayla
-  // çalıyorlardı"; yeni çiftte 16/16'sı 150ms içinde — GERÇEKTEN üst üste
-  // biniyor).
-  // G281 — arpeggio_guitar.m4a TEKRAR değiştirildi (snare sızıntısı
-  // temizlendi) — region YENİDEN ÖLÇÜLDÜ (Welch/4096-FFT + 60Hz boşluk-
-  // toleranslı kümeleme, -15dB eşiği — bkz. source-catalog.js'in dosya başı
-  // notu): [170,400] → [170,310] (üst sınır daraldı, yeni dosyanın snare'le
-  // ORTAK enerjisi daha DAR bir bantta).
-  it("snare-arpej-gitar çifti mevcut, G281: ölçülen spektral çakışma ~170-310Hz (YENİ arpeggio_guitar.m4a)", () => {
-    const pair = SOURCE_PAIRS.find(p => p.id === "snare-arpej-gitar");
+  it("bas-clean çifti mevcut, clean gitar (sourceB) 0.377 geç başlıyor, ölçülen [190,280]Hz", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "bas-clean");
     assert.ok(pair);
-    assert.equal(pair.sourceA, "snare");
-    assert.equal(pair.sourceB, "arpeggio_guitar");
-    assert.deepEqual(pair.region, [170, 310]);
+    assert.equal(pair.sourceA, "bass");
+    assert.equal(pair.sourceB, "clean_guitar");
+    assert.equal(pair.offsetA, 0);
+    assert.equal(pair.offsetB, 0.377);
+    assert.deepEqual(pair.region, [190, 280]);
   });
 
-  it("üç hazır çiftin sourceA/sourceB'si source-catalog.js'in KENDİ SOURCE_GROUPS'unda gerçekten var (kod incelemesiyle: kick/bass/vocal/guitar/snare/arpeggio_guitar)", () => {
-    const knownSourceIds = ["kick", "bass", "vocal", "guitar", "snare", "arpeggio_guitar"];
+  it("snare-akustik çifti mevcut, snare_late (sourceA) 0.377 geç başlıyor, ölçülen [170,400]Hz", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "snare-akustik");
+    assert.ok(pair);
+    assert.equal(pair.sourceA, "snare_late");
+    assert.equal(pair.sourceB, "guitar");
+    assert.equal(pair.offsetA, 0.377);
+    assert.equal(pair.offsetB, 0);
+    assert.deepEqual(pair.region, [170, 400]);
+  });
+
+  it("snare-clean çifti mevcut, snare_late (sourceA) 0.377 geç başlıyor, ölçülen [190,440]Hz", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "snare-clean");
+    assert.ok(pair);
+    assert.equal(pair.sourceA, "snare_late");
+    assert.equal(pair.sourceB, "clean_guitar");
+    assert.equal(pair.offsetA, 0.377);
+    assert.equal(pair.offsetB, 0);
+    assert.deepEqual(pair.region, [190, 440]);
+  });
+
+  it("beş hazır çiftin sourceA/sourceB'si source-catalog.js'in KENDİ SOURCE_GROUPS'unda gerçekten var (kod incelemesiyle: bass/guitar/clean_guitar/snare_late)", () => {
+    const knownSourceIds = ["bass", "guitar", "clean_guitar", "snare_late"];
     SOURCE_PAIRS.forEach(p => {
       assert.ok(knownSourceIds.includes(p.sourceA), `${p.id}.sourceA=${p.sourceA} bilinmiyor`);
       assert.ok(knownSourceIds.includes(p.sourceB), `${p.id}.sourceB=${p.sourceB} bilinmiyor`);
     });
   });
 
-  it("findSourcePair ile id'sinden her üç hazır çift de doğru çözülür", () => {
-    assert.equal(findSourcePair("kick-bas").id, "kick-bas");
-    assert.equal(findSourcePair("vokal-gitar").id, "vokal-gitar");
-    assert.equal(findSourcePair("snare-arpej-gitar").id, "snare-arpej-gitar");
+  it("findSourcePair ile id'sinden beş hazır çift de doğru çözülür", () => {
+    for (const id of ["akustik-clean", "bas-akustik", "bas-clean", "snare-akustik", "snare-clean"]) {
+      assert.equal(findSourcePair(id).id, id);
+    }
   });
 
   it("OWN_SOURCE_PAIR sanal upload-a/upload-b id'leri taşır, region null (aralık ÖNCEDEN bilinemez)", () => {
@@ -176,7 +190,7 @@ describe("createQuestion() — genel sözleşme (SAF, ses/DOM'a dokunmaz)", () =
     assert.equal(q.mode, "cakisma");
     assert.equal(q.stage, 1);
     assert.ok(q.pair && q.pair.labelA && q.pair.labelB);
-    assert.ok(q.trueCenter >= 30 && q.trueCenter <= 120, "varsayılan kick-bas çiftinin region'ı içinde olmalı (G259: yeniden ölçüldü)");
+    assert.ok(q.trueCenter >= 190 && q.trueCenter <= 400, "varsayılan akustik-clean çiftinin (SOURCE_PAIRS[0]) region'ı içinde olmalı (G288)");
     assert.ok(q.correctSource === "a" || q.correctSource === "b");
     assert.ok(q.correctCutDb > 0, "correctCutDb POZİTİF büyüklük taşır (işaret evaluateAnswer'da eklenir)");
     assert.ok(Array.isArray(q.choices) && q.choices.length === mode.DIFFICULTY.medium.options);
@@ -184,26 +198,24 @@ describe("createQuestion() — genel sözleşme (SAF, ses/DOM'a dokunmaz)", () =
     assert.equal(q.hintUsed, false);
   });
 
-  // G52: yeni vokal-gitar/snare-gitar çiftleri de trueCenter'ı KENDİ
-  // region'larına doğru üretiyor mu — pro tier (en dar regionWidthOct, en çok
-  // şık) STRES testi, kick-bas'ın dar aralığı için zaten yapılan
-  // benzersizlik doğrulamasının AYNISI, DAHA GENİŞ iki region için de.
-  // G259 — region'lar yeniden ölçüldü, sınırlar GÜNCELLENDİ.
-  it("vokal-gitar çiftinde trueCenter [220,360] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir (G270: yeni region)", () => {
-    for (let seed = 0; seed < 50; seed++) {
-      const q = mode.createQuestion("pro", { pairId: "vokal-gitar", sessionQuestionIndex: 0, rng: mulberry32(seed) });
-      assert.ok(q.trueCenter >= 220 && q.trueCenter <= 360, `seed=${seed} trueCenter=${q.trueCenter}`);
-      assert.equal(new Set(q.choices.map(c => c.center)).size, q.choices.length, `seed=${seed}`);
-    }
-  });
-
-  it("snare-arpej-gitar çiftinde trueCenter [170,310] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir (G281: region daraldı)", () => {
-    for (let seed = 0; seed < 50; seed++) {
-      const q = mode.createQuestion("pro", { pairId: "snare-arpej-gitar", sessionQuestionIndex: 0, rng: mulberry32(seed) });
-      assert.ok(q.trueCenter >= 170 && q.trueCenter <= 310, `seed=${seed} trueCenter=${q.trueCenter}`);
-      assert.equal(new Set(q.choices.map(c => c.center)).size, q.choices.length, `seed=${seed}`);
-    }
-  });
+  // G288 — G52'nin AYNI stres testi (pro tier, en dar regionWidthOct, en çok
+  // şık, 50 tekrar) — YENİ 5 çiftin HEPSİ için, kendi region'larına göre.
+  const G288_PAIR_REGIONS = {
+    "akustik-clean": [190, 400],
+    "bas-akustik": [80, 280],
+    "bas-clean": [190, 280],
+    "snare-akustik": [170, 400],
+    "snare-clean": [190, 440],
+  };
+  for (const [pairId, [lo, hi]] of Object.entries(G288_PAIR_REGIONS)) {
+    it(`${pairId} çiftinde trueCenter [${lo},${hi}] içinde, pro tier'de 50 tekrarda HEP benzersiz şık üretir (G288)`, () => {
+      for (let seed = 0; seed < 50; seed++) {
+        const q = mode.createQuestion("pro", { pairId, sessionQuestionIndex: 0, rng: mulberry32(seed) });
+        assert.ok(q.trueCenter >= lo && q.trueCenter <= hi, `seed=${seed} trueCenter=${q.trueCenter}`);
+        assert.equal(new Set(q.choices.map(c => c.center)).size, q.choices.length, `seed=${seed}`);
+      }
+    });
+  }
 
   it("settings.pairId='own' iken pair OWN_SOURCE_PAIR'e çözülür, region FA_MIN–400 havuzuna düşer", () => {
     const q = mode.createQuestion("medium", { pairId: "own", sessionQuestionIndex: 0, rng: mulberry32(2) });

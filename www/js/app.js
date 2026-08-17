@@ -942,7 +942,7 @@ function openFilesSheetForContext(contextId) {
 // yüklesin") — createUploadManager BİR FABRİKA (modül-seviyesi paylaşılan
 // durum YOK, bkz. core/upload.js), bu yüzden SADECE İKİNCİ bir örnek yaratmak
 // yeterli, core/upload.js'e TEK SATIR dokunulmadı. Diğer sekiz mod (ve
-// cakisma'nın kendi "kick-bas" hazır çifti) uploadManagerA/B'yi HİÇ görmez.
+// cakisma'nın kendi hazır çiftleri) uploadManagerA/B'yi HİÇ görmez.
 const uploadManagerA = createUploadManager(() => audioEngine.audioCtx);
 const uploadManagerB = createUploadManager(() => audioEngine.audioCtx);
 audioEngine.onReady = () => syncGameVisualizerLoop(); // G247 — koşulsuz başlatma yerine ekran-bazlı senkron
@@ -1434,7 +1434,7 @@ function syncAnswerFormatVisibility() {
 // dallar ÖNCEKİ davranışla BİREBİR aynı kalır (sourceChipWrap/uploadRowSingle
 // hep görünür, cakisma-özel satırlar hep gizli).
 function currentCakismaPairId() {
-  return els.cakismaPairSelect ? els.cakismaPairSelect.value : "kick-bas";
+  return els.cakismaPairSelect ? els.cakismaPairSelect.value : "akustik-clean";
 }
 function syncCakismaVisibility() {
   const isCakisma = mode.MODE_ID === "frekans-cakismasi";
@@ -5383,12 +5383,19 @@ if (els.audioErrorRetry) {
 // çiftine çözer. "upload-a"/"upload-b" (bkz. source-catalog.js:OWN_SOURCE_PAIR)
 // SOURCE_GROUPS'ta YOK — bunlar BURADA, tek yerde, app.js'in KENDİ iki
 // uploadManager'ına eşlenir (audio-engine.js bu iki sanal id'yi HİÇ bilmez).
+// G288 — pair.offsetA/offsetB (SOURCE_PAIRS'in YENİ, opsiyonel alanı —
+// OLCUM-CIFT-OFFSET-17-08.md'nin bulduğu, G151'den beri VAR ama hiç
+// bağlanmamış buildSampleSource(path,offsetSec) mekanizmasını kullanıyor)
+// spec'e taşınıyor. "upload-a"/"upload-b" (kullanıcının kendi dosyası)
+// offset TAŞIMAZ — offset SADECE katalogdaki eşleşmiş sample çiftlerine
+// ait, kullanıcı yüklemesi ayrı bir kod yolundan (uploadManager.getSourceNode())
+// geçiyor ve buildSampleSource'a hiç uğramıyor (audio-engine.js:connectSource).
 function cakismaSourcesSpec(pair) {
-  const resolve = (sourceId, uploadMgr) =>
+  const resolve = (sourceId, uploadMgr, offsetSec) =>
     (sourceId === "upload-a" || sourceId === "upload-b")
       ? { sourceType: "upload", uploadManager: uploadMgr }
-      : { sourceType: sourceId, uploadManager: null };
-  return { a: resolve(pair.sourceA, uploadManagerA), b: resolve(pair.sourceB, uploadManagerB) };
+      : { sourceType: sourceId, uploadManager: null, offsetSec: offsetSec || 0 };
+  return { a: resolve(pair.sourceA, uploadManagerA, pair.offsetA), b: resolve(pair.sourceB, uploadManagerB, pair.offsetB) };
 }
 
 // [audio-diag] KALICI TEŞHİS GÜNLÜĞÜ (task'ın kendi isteği — DÜZELTME YOK,
@@ -12298,6 +12305,15 @@ if (DEV_MODE) {
   // ile DOĞRU şıkkı GÜVENİLİR biçimde bulabiliyor. SADECE OKUR, hiçbir
   // oyun durumunu DEĞİŞTİRMEZ/ETKİLEMEZ.
   window.__aeaActiveQuestionChoices = () => (activeQuestion && activeQuestion.choices) || null;
+
+  // G288 — doğrulama kancası: activeQuestion.pair'in offsetA/offsetB'sini
+  // OKUR (frekans-cakismasi.js:createQuestion'ın SOURCE_PAIRS'ten kopyaladığı
+  // alanlar — bir ÖNCEKİ hatanın AYNISI: bu alanlar `pair: {...}` obje
+  // literalinde UNUTULURSA activeQuestion.pair.offsetA/B SESSİZCE undefined
+  // kalır, cakismaSourcesSpec'in "offsetSec || 0" varsayılanı devreye girer,
+  // offset SESSİZCE 0'a düşer — hiçbir konsol hatası/çökme OLMADAN). SADECE
+  // OKUR, hiçbir durumu DEĞİŞTİRMEZ.
+  window.__aeaActiveQuestionPairForTest = () => (activeQuestion && activeQuestion.pair) || null;
 
   // G285 — doğrulama kancası: aktif sorunun DOĞRU cevabını hesaplayıp GERÇEK
   // submit fonksiyonunu (submitFrequencyGuess/submitCutoffGuess/vb. — 11

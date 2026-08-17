@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G287 — "Çık" turu terk eder (Logic'in kararı, OLCUM-KURTARMA-17-08.md'nin bulduğu kök sebep) — kullanıcı "geri"→exit-confirm→"Çık" ya da Ayarlar→"Oyundan çık" ile turu bilerek bıraktığında `activeQuestion=null` + `storage.clearInProgressRound()` artık "Durdur"la AYNI şekilde çalışıyor (önceden çalışmıyordu — sonraki soğuk başlatmada G203'ün 3-saat-taze kuralı YANLIŞ POZİTİF geri yükleme yapıyordu); tarama TALEP ÜZERİNE (uygulama kapanışı/mod değişimi/sekme değişimi TEMİZ çıktı) + KULLANICI ONAYIYLA kapsam genişletildi: AYNI boşluk sınav ekranının 4 "Sonra"/"Ana Ekran" düğmesinde de vardı, hepsi TEK commit'te düzeltildi (6 çağrı noktası); G203'ün backgrounding/visibilitychange yoluna DOKUNULMADI; 3 e2e (Çık/Oyundan-çık/Kal-regresyon-koruması) + 4 statik test, kırmızı/yeşil doğrulandı; npm test 1495/1495, e2e 72/72)
+Son güncelleme: 18.08.2026 (G288 — Frekans Çakışması: snare_late kaynağı (`pairOnly:true`) + 5 offsetli çift (`akustik-clean`/`bas-akustik`/`bas-clean`/`snare-akustik`/`snare-clean`, `kick-bas`/`vokal-gitar`/`snare-arpej-gitar` KALKTI) — OLCUM-CIFT-OFFSET-17-08.md'nin bulduğu, G151'den beri VAR ama hiç bağlanmamış `buildSampleSource(path,offsetSec)` mekanizması `buildDualSourceChain`'e bağlandı (`start(when,offset)+loop=true`'nun offset'i HER döngüde KORUDUĞU OfflineAudioContext'te ölçüldü, kalıcı e2e testine dönüştürüldü); region'lar Welch/4096-FFT yöntemiyle yeniden ölçüldü (bas-akustik/bas-clean referansla eşleşti, akustik-clean farklı çıktı — kendi ölçüm kullanıldı); `www/index.html`'in hardcoded `#cakismaPairSelect`'i güncellendi; `activeQuestion.pair`'e `offsetA/offsetB` eklenmesi UNUTULMUŞTU, `window.__aeaActiveQuestionPairForTest` doğrulama kancasıyla yazılan e2e testi bunu KIRMIZI yakaladı, düzeltildi; npm test 1508/1508, e2e 76/76)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,42 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G288 — **Frekans Çakışması: snare_late kaynağı + 5 offsetli çift (OLCUM-CIFT-OFFSET-17-08.md'nin bulduğu mekanizma, buildDualSourceChain'e bağlandı). AYRI commit.**
+
+**Yapılan:**
+1. `www/audio/snare_late.m4a` (kullanıcı tarafından eklendi, ölçüldü: 24.636s, mono, 44.1kHz, max -6.1dBFS/mean -32.5dB — task'ın "24.64sn/-6dBFS/mono" iddiasıyla eşleşti) `www/js/core/source-catalog.js`'e `pairOnly:true` bayrağıyla eklendi (`stereoOnly`'nin AYNI deseni) — `compatibleSourceIds()`'in varsayılan filtresine `.filter(s => !s.pairOnly)` eklendi, genel kaynak seçicide GÖRÜNMÜYOR, SADECE `findSource()` ile SOURCE_PAIRS'ten DOĞRUDAN erişiliyor.
+2. `SOURCE_PAIRS` TAMAMEN YENİDEN KURULDU — `kick-bas`/`vokal-gitar`/`snare-arpej-gitar` KALKTI, yerine `offsetA`/`offsetB` (saniye, HER ZAMAN POZİTİF) alanı taşıyan 5 yeni çift geldi.
+3. Offset mekanizması bağlandı — `buildSampleSource(path, offsetSec)` G151'den beri VARDI (`start(0, offsetSec % duration)`) ama `buildDualSourceChain` hiç kullanmıyordu: `www/js/modes/frekans-cakismasi.js:createQuestion`'ın `pair:{...}` literaline `offsetA`/`offsetB` eklendi (bu adım UNUTULMUŞTU, aşağıdaki kırmızı/yeşilde ayrıca doğrulandı) → `www/js/app.js:cakismaSourcesSpec` bunu `spec.offsetSec`'e taşıyor → `www/js/core/audio-engine.js:connectSource`'un sample dalı artık `buildSampleSource(samplePath, spec.offsetSec || 0)` çağırıyor.
+4. `www/index.html`'in `#cakismaPairSelect`'i (OLCUM-KAYNAK-17-08.md'nin bulduğu, SOURCE_PAIRS'ten DİNAMİK üretilMEyen, elle yazılı `<option>` listesi — bu turda task'ın "G270'te SOURCE_PAIRS'tan üretiliyordu, doğrula" varsayımı YENİDEN KONTROL edilip HÂLÂ hardcoded olduğu doğrulandı) 5 yeni çift + "own" ile güncellendi, chip varsayılan etiketi + `app.js`'in `"kick-bas"` fallback string'i de güncellendi.
+
+**Offset yönü:** "geç başlaması gereken kaynağa" pozitif atanıyor — `bas-akustik`/`bas-clean`'de gitar tarafı (sourceB) 0.377, `snare-akustik`/`snare-clean`'de `snare_late` (sourceA) 0.377, `akustik-clean`'de ikisi de 0.
+
+**Ölçüm tablosu — region'lar (Welch periodogramı, 4096-nokta FFT, Hann pencere, %50 örtüşme, -15dB eşik, 60Hz boşluk-toleranslı kümeleme — G281 ile AYNI yöntem, bu turda KENDİ JS FFT'siyle yeniden üretildi, DIŞA en yakın 10'a yuvarlandı):**
+
+| Çift | Ölçülen | Kullanılan | Task referansı | Not |
+|---|---|---|---|---|
+| akustik-clean | [193.8, 398.4] | [190, 400] | [195, 1114] | **FARKLI çıktı** — G270'teki vokal-gitar'ın AYNI türden farkı (muhtemelen referans "1114" kesişim değil, ayrı bir tanım); task'ın kendi talimatı gereği ÖLÇÜLEN kullanıldı |
+| bas-akustik | [86.1, 279.9] | [80, 280] | [82, 279] | NEREDEYSE BİREBİR eşleşti — yöntem doğrulaması |
+| bas-clean | [193.8, 279.9] | [190, 280] | [195, 279] | NEREDEYSE BİREBİR eşleşti — yöntem doğrulaması |
+| snare-akustik | [172.3, 398.4] | [170, 400] | (referans verilmedi, "ölç" denildi) | — |
+| snare-clean | [193.8, 430.7] | [190, 440] | (referans verilmedi, "ölç" denildi) | — |
+
+**snare_late'in içeriği ÖLÇÜLDÜ (10ms RMS zarfı):** ilk 500ms TAMAMEN sessiz (eski snare.m4a'nın peak=0.953'lük ilk-vuruşu GERÇEKTEN kaldırılmış), son ~350ms+ artık sessiz (eski dosyada oradaki uzun decay kuyruğu TEMİZLENMİŞ) — OLCUM-CIFT-OFFSET-17-08.md'nin bulduğu "377ms offset, playback'i buffer'ın sessiz bir noktasından başlatıp asıl atağı ~24sn sonraya öteliyor" sorununu KÖKTEN çözüyor (o atak dosyada zaten YOK).
+
+**Mekanizma doğrulaması (OfflineAudioContext, gerçek Chromium — bu turda KALICI bir e2e testine dönüştürüldü, aşağı bkz.):** `start(when,offset)` + `loop=true`, offset'i HER döngü çevriminde KORUYOR — np.roll'un dairesel kaydırmasıyla BİREBİR eşdeğer (3 çevrim render edilip AYNI 10-örneklik desenin tekrarladığı doğrulandı).
+
+**Testler eklendi:** `test/source-catalog.test.mjs`'e 2 yeni describe (snare_late'in yapısı/görünürlüğü, SOURCE_PAIRS'in offsetA/offsetB'sinin negatif OLMADIĞI/tekil taraf/region geçerliliği) + eski çift id'lerine referans veren testler güncellendi (pairOnly filtresi stereoOnly'nin yanına eklendi). `test/frekans-cakismasi.test.mjs`'in SOURCE_PAIRS describe'ı TAMAMEN YENİDEN yazıldı (5 yeni çift, offset alanları, createQuestion'ın pro-tier 50-tekrar benzersizlik stres testi 5 çiftin HEPSİ için). YENİ `e2e/cakisma-pair-offset.spec.mjs` (4 test): çift seçicinin TAM 5+own gösterdiği, `snare_late`'in genel seçicide YOK olduğu, 5 çiftin HEPSİNİN konsol hatasız round başlatıp önizleme çaldığı (+ `window.__aeaActiveQuestionPairForTest` doğrulama kancasıyla `activeQuestion.pair.offsetA/B`'nin SOURCE_PAIRS'le eştiği — bu KRİTİK, çünkü offset'in sessizce 0'a düşmesi HİÇBİR konsol hatası ÜRETMEZ), mekanizma testi (yukarıdaki OfflineAudioContext doğrulaması).
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/js/app.js www/js/modes/frekans-cakismasi.js` → e2e `__aeaActiveQuestionPairForTest is not a function` ile KIRMIZI → `git stash pop`. AYRICA daha hedefli: SADECE `pair:{...}` literalindeki `offsetA`/`offsetB` elle geri alındı → `activeQuestion.pair.offsetA SOURCE_PAIRS ile UYUŞMUYOR (undefined !== 0)` ile KIRMIZI (tam olarak beklenen "sessiz 0'a düşme" hatası) → düzeltme geri konunca YEŞİL.
+
+**DOKUNULMAYACAK'a uyuldu:** G267'nin seamless A/B/C mimarisi (`THREE_WAY_MODE_IDS`/`SEAMLESS_THREE_WAY_MODE_IDS`) bu turda YENİDEN grep'lendi — `frekans-cakismasi` (MODE_ID) İKİSİNDE de YOK, kod yolu (`buildDualSourceChain`) TAMAMEN ayrı, tek satır dokunulmadı. `loopStartAt` senkron noktası (G267'ye özel, Kompresör/Distortion) hiç kullanılmadı. Diğer kaynaklar/modlar/zorluk eğrisi dokunulmadı.
+
+**Negatif offset güvenliği:** `buildSampleSource`'un `offsetSec % duration` formülü NEGATİF girdide RangeError fırlatıyor (OLCUM-CIFT-OFFSET-17-08.md'de ölçüldü) — bu turda formüle DOKUNULMADI (paylaşılan fonksiyon, upload resume/seek de kullanıyor), bunun yerine VERİ katmanında (SOURCE_PAIRS'in TÜM offsetA/offsetB'leri) HER ZAMAN pozitif/0 tutuldu — yeni testte (`offsetA >= 0`/`offsetB >= 0`) kilitlendi.
+
+**Test sonuçları:** `npm test` 1508/1508 (G287'deki 1495'ten +13). `npm run test:e2e` 76/76 (72'den +4).
+
+---
 
 G287 — **"Çık" turu terk eder (Logic'in kararı, OLCUM-KURTARMA-17-08.md'nin kök sebebi düzeltildi). AYRI commit.**
 
@@ -21119,7 +21155,27 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G287 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G288 itibarıyla):**
+Frekans Çakışması'nın kaynak çifti kütüphanesi TAMAMEN yenilendi —
+`kick-bas`/`vokal-gitar`/`snare-arpej-gitar` KALKTI, yerine offsetli 5
+yeni çift (`akustik-clean`/`bas-akustik`/`bas-clean`/`snare-akustik`/
+`snare-clean`) + yeni `snare_late` kaynağı geldi. OLCUM-CIFT-OFFSET-17-08'in
+bulduğu mekanizma (`buildSampleSource`'un `offsetSec` parametresi)
+`buildDualSourceChain`'e bağlandı, `start(when,offset)+loop=true`'nun
+offset'i her döngüde koruduğu (np.roll ile eşdeğer) gerçek Chromium'da
+ölçülüp KALICI bir e2e testine dönüştürüldü. Yol boyunca UNUTULAN bir
+adım (`activeQuestion.pair`'e offsetA/B taşınması) yazılan e2e testinin
+KENDİSİ tarafından KIRMIZI yakalandı — kanıt: `test/*.test.mjs`/`e2e/
+cakisma-pair-offset.spec.mjs` kırmızı/yeşil doğrulaması. **AÇIK madde
+YOK.** `npm test` 1508/1508, `npm run test:e2e` 76/76.
+**Kullanıcının/Logic'in sıradaki adımı:** GERÇEK cihazda/tarayıcıda 5
+çiftin HEPSİNİ kulakla dinleyip offset'in doğru YÖNDE ve doğru
+BÜYÜKLÜKTE hissedildiğini onaylamak — bu turda SADECE mekanizmanın
+(offset'in koda doğru ULAŞTIĞI, döngüde KORUNDUĞU) doğruluğu ölçüldü,
+"kulağa doğru geliyor mu" (asıl ürün amacı) bu ortamdan
+DOĞRULANAMAZ/DOĞRULANMADI.
+
+**EN YENİ SIRADAKİ ADIM (G287 itibarıyla, ARTIK ESKİ):**
 "Çık" artık turu terk ediyor — `performExit()`/`quitGameBtn`/sınav
 ekranının 4 "Sonra"/"Ana Ekran" düğmesi (6 çağrı noktası TOPLAM)
 `activeQuestion=null` + `storage.clearInProgressRound()` yapıyor,
