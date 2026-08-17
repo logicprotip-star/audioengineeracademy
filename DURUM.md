@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G286 — App Store yorum isteme NATIVE tarafı bağlandı — OLCUM-YORUM-17-08.md'nin önerdiği "Yol A": `ios/App/App/AudioSessionPlugin.swift`'e YENİ `requestReview` metodu (iOS 18+ AppStore.requestReview, 16-17/altı SKStoreReviewController — 3 katmanlı `#available`), YENİ plugin/Main.storyboard değişikliği GEREKMEDİ (zaten kayıtlı); `app.js:requestNativeStoreReview()` artık `window.Capacitor.nativePromise("AudioSessionPlugin","requestReview",{})` çağırıyor, katmanlı guard (`core/review-request.js:canRequestNativeReview`, SAF/test edilebilir) + try/catch — native yokken/metot yokken/hata fırlatırsa sessizce false; ⚠️ BEKLENMEYEN BULGU: bu ortamda `xcodebuild` GERÇEKTEN ÇALIŞIYORMUŞ — task "Swift bu ortamda derlenemiyor" varsayıyordu, ÖLÇÜLDÜ ve YANLIŞ çıktı, TAM TEMİZ (clean) build BUILD SUCCEEDED verdi, `AudioSessionPlugin.swift` dahil sıfır warning/error; 6 yeni birim testi, kırmızı/yeşil doğrulandı, npm test 1491/1491, e2e 69/69)
+Son güncelleme: 18.08.2026 (G287 — "Çık" turu terk eder (Logic'in kararı, OLCUM-KURTARMA-17-08.md'nin bulduğu kök sebep) — kullanıcı "geri"→exit-confirm→"Çık" ya da Ayarlar→"Oyundan çık" ile turu bilerek bıraktığında `activeQuestion=null` + `storage.clearInProgressRound()` artık "Durdur"la AYNI şekilde çalışıyor (önceden çalışmıyordu — sonraki soğuk başlatmada G203'ün 3-saat-taze kuralı YANLIŞ POZİTİF geri yükleme yapıyordu); tarama TALEP ÜZERİNE (uygulama kapanışı/mod değişimi/sekme değişimi TEMİZ çıktı) + KULLANICI ONAYIYLA kapsam genişletildi: AYNI boşluk sınav ekranının 4 "Sonra"/"Ana Ekran" düğmesinde de vardı, hepsi TEK commit'te düzeltildi (6 çağrı noktası); G203'ün backgrounding/visibilitychange yoluna DOKUNULMADI; 3 e2e (Çık/Oyundan-çık/Kal-regresyon-koruması) + 4 statik test, kırmızı/yeşil doğrulandı; npm test 1495/1495, e2e 72/72)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,32 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G287 — **"Çık" turu terk eder (Logic'in kararı, OLCUM-KURTARMA-17-08.md'nin kök sebebi düzeltildi). AYRI commit.**
+
+**SORUN (OLCUM-KURTARMA-17-08):** Kullanıcı oyun ekranında "geri"ye basıp exit-confirm'de "Çık"ı onayladığında (`performExit()`/`exitConfirmLeave`), tur duraklatılıyordu ama `activeQuestion` `null`'a çekilmiyordu ve `eqEarTrainerProXInProgressRound` kaydı GEÇERLİ kalıyordu. "Durdur" bunu doğru yapıyordu, "Çık" yapmıyordu. Sonuç: kullanıcı menüde "aktif tur yok" görüyor, kod tersini sanıyor — bir sonraki soğuk başlatmada G203'ün 3-saat-taze kuralı kaydı geçerli sayıp DOĞRUDAN o modun ekranını açıyordu (cihazda görülen: ana ekrandan çıkıldı, uygulama Frekans Çakışması'ndan açıldı).
+
+**KARAR (Logic, A seçeneği):** "Çık" turu TERK EDER — kullanıcı "Çık" dediyse çıkmak istiyordur, aynı oturumda geri dönmek isterse moda tekrar girer. G203'ün "aktif tur VARKEN kaldığı yerden devam" mantığı (backgrounding/visibilitychange yolu) BUNA dokunmaz — SADECE kullanıcının AÇIKÇA "Çık" dediği an ayrıştırılıyor.
+
+**Yapılan:** "Durdur"un (`toggleStart`'ın durdurma dalı, `activeQuestion = null; storage.clearInProgressRound();`) AYNI iki satırı, TALEP EDİLEN iki çağrı noktasına eklendi:
+1. `performExit()` (satır ~7222) — `activeQuestion=null`/`clearInProgressRound()` KOŞULSUZ (mevcut `if (activeQuestion && !autoStopped) pauseRound();`'dan BAĞIMSIZ) — idle ekrandan "geri" ile çıkışta da ÖNCEDEN VAR olabilecek stale bir kaydı temizler (aynı köke sahip yan fayda).
+2. `quitGameBtn`'in click handler'ı (Ayarlar sheet'inin "Oyundan çık" düğmesi, satır ~7712) — AYNI iki satır.
+
+**⚠️ AYNI KALIP BAŞKA NEREDE — tarama + kullanıcı onayıyla kapsam genişletildi:**
+- Task'ın açıkça istediği 3 kategori TEMİZ çıktı: **uygulama kapanışı** (`visibilitychange`, satır ~8060 — `if (activeQuestion && !autoStopped) pauseRound();`, G203'ün İSTENEN "kaldığı yerden devam" yolu, DOKUNULMADI); **mod değişimi** (`enterMode()`'un "mod DEĞİŞTİ" dalı ZATEN `activeQuestion=null` + `clearInProgressRound()` yapıyordu, satır ~2739-2740); **sekme değişimi** (`#tabbar` "game" ekranında HER ZAMAN gizli — `data-tab` özniteliği yok, kullanıcı mid-round'da bir taba TIKLAYAMAZ, path UNREACHABLE).
+- **AMA taramada 4 EK çağrı noktası bulundu:** sınav ekranının (`showExamScreen`) "announce"/"passed"/"failed"/"makeup" dallarının "Sonra"/"Ana Ekran" ikincil butonları (satır ~3065/3091/3108/3133) — YAPISAL olarak AYNI boşluk (`activeQuestion=null`/`clearInProgressRound()` OLMADAN `goScreen("menu")`). **Kullanıcıya AskUserQuestion ile soruldu** (task'ın kendi "düzeltme kapsamına almadan önce sor" talimatı) — **"Bu turda da düzelt" seçildi**, AYNI commit'e dahil edildi. Toplam **6 çağrı noktası** düzeltildi.
+
+**Testler eklendi:**
+- `e2e/exit-abandons-round.spec.mjs` (3 test) — GERÇEK runtime'da: "geri→Çık→sayfa yenile→MENÜ açılıyor" (KABUL KRİTERİ, Frekans Çakışması'nda), "Oyundan çık" için AYNI, + REGRESYON KORUMASI ("Kal"/iptal → round DEVAM ediyor, kayıt SİLİNMİYOR — G203'ün korunan davranışı).
+- `test/exit-abandons-round-callsites.test.mjs` (4 statik test, `goscreen-ids.test.mjs`'in AYNI "yorum temizle, literal metin ara" deseni) — TAM 6 çağrı noktasında üçlü dizi (`activeQuestion=null`→`clearInProgressRound()`→`goScreen("menu")`) var (sınav ekranının 4 dalı bir e2e'de GÜVENİLİR TETİKLENEMEDİĞİ için — karmaşık sınav-durumu kurulumu gerektirirdi — statik analizle kilitlendi), `performExit()`/`quitGameBtn` AYRICA doğrulandı, "Durdur"un KENDİ (bu G287'nin KAPSAMI DIŞINDAKİ, menüye DÖNMEYEN) çağrı noktası yanlışlıkla 7. eşleşme OLMADIĞI doğrulandı.
+
+**Kırmızı/yeşil doğrulama — `git stash push -- www/js/app.js`:** statik test KIRMIZI (`quitGameBtn handler'ında üçlü YOK`) + e2e testleri KIRMIZI (activeQuestion hâlâ dolu, ekran screen-game) → `git stash pop` → YEŞİL (7/7).
+
+**DOKUNULMAYACAK'a uyuldu:** G203'ün kurtarma (okuma) mantığı — `applyRestoredRoundIfAny`/3-saat kuralı TEK SATIR değişmedi (aktif tur VARKEN backgrounding'den kaldığı yerden devam HÂLÂ çalışıyor, regresyon-koruması testiyle kanıtlı). "Durdur"un mevcut davranışı TEK SATIR değişmedi (zaten doğru temizliyordu). Zorluk eğrisine dokunulmadı.
+
+**Test sonuçları:** `npm test` 1495/1495 (G286'daki 1491'den +4, statik test). `npm run test:e2e` 72/72 (69'dan +3).
+
+---
 
 G286 — **App Store yorum isteme — NATIVE tarafı bağlandı (OLCUM-YORUM-17-08.md'nin önerdiği "Yol A"). AYRI commit.**
 
@@ -21093,7 +21119,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G286 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G287 itibarıyla):**
+"Çık" artık turu terk ediyor — `performExit()`/`quitGameBtn`/sınav
+ekranının 4 "Sonra"/"Ana Ekran" düğmesi (6 çağrı noktası TOPLAM)
+`activeQuestion=null` + `storage.clearInProgressRound()` yapıyor,
+"Durdur"la AYNI. OLCUM-KURTARMA-17-08'in kök sebebi kapandı — kullanıcı
+bilerek "Çık" dedikten sonra artık bir sonraki soğuk başlatmada yanlış
+moddan açılma OLMAYACAK. G203'ün backgrounding/kaldığı-yerden-devam
+davranışı DOKUNULMADI, regresyon-koruması testiyle kanıtlı. Tarama +
+kullanıcı onayıyla kapsam sınav ekranlarını da kapsayacak şekilde
+genişletildi — **AÇIK madde YOK**, tarama TAMAMLANDI. `npm test`
+1495/1495, `npm run test:e2e` 72/72.
+
+**EN YENİ SIRADAKİ ADIM (G286 itibarıyla, ARTIK ESKİ):**
 App Store yorum isteme NATIVE tarafı bağlandı — `AudioSessionPlugin.swift`'e
 `requestReview` metodu (3 katmanlı `#available`: iOS 18+ AppStore.
 requestReview / 16-17 ve altı SKStoreReviewController), `app.js`'te GERÇEK

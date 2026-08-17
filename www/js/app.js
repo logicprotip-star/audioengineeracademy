@@ -3062,7 +3062,10 @@ function showExamScreen(kind, ctx = {}) {
       // ekran. 5 çağrının TAMAMI aynı hatayı taşıyordu (bkz. bu dosyadaki diğer
       // 4 düzeltme) — kod tabanında BAŞKA hiçbir yerde "home" argümanlı bir
       // goScreen() çağrısı YOK (grep ile doğrulandı, bkz. test/goscreen-ids.test.mjs).
-      else goScreen("menu");
+      // G287 (OLCUM-KURTARMA-17-08.md'nin taramasının bulduğu AYNI boşluk) —
+      // performExit()'in AYNI karar/gerekçesi: "Ana Ekran"a dönmek turu TERK
+      // eder, activeQuestion "duraklatılmış, devam ettirilebilir" KALMAMALI.
+      else { activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); }
     };
   } else if (kind === "passed") {
     accent = GOLD; pillBg = "rgba(240,180,66,.12)"; pillBorder = "rgba(240,180,66,.45)";
@@ -3087,8 +3090,8 @@ function showExamScreen(kind, ctx = {}) {
     // resetChallengeForNewParkur'un dosya başı notu).
     ctaHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
-    // G274 — bkz. yukarıdaki "offer" dalının AYNI notu.
-    secondaryHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); goScreen("menu"); };
+    // G274 — bkz. yukarıdaki "offer" dalının AYNI notu. G287 — AYNI turu-terk-etme kararı (bkz. "announce" dalının notu).
+    secondaryHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
   } else if (kind === "failed") {
     accent = RED; pillBg = "rgba(248,113,96,.1)"; pillBorder = "rgba(248,113,96,.4)";
     pillIconD = "M6 6l12 12M18 6L6 18"; kicker = "SINAV GEÇİLEMEDİ";
@@ -3104,8 +3107,8 @@ function showExamScreen(kind, ctx = {}) {
     ctaLabel = "Devam Et";
     ctaHandler = () => { goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
-    // G274 — bkz. yukarıdaki "offer" dalının AYNI notu.
-    secondaryHandler = () => goScreen("menu");
+    // G274 — bkz. yukarıdaki "offer" dalının AYNI notu. G287 — AYNI turu-terk-etme kararı.
+    secondaryHandler = () => { activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
   } else { // makeup
     accent = CYAN; pillBg = "rgba(34,211,238,.1)"; pillBorder = "rgba(34,211,238,.35)";
     pillIconD = "M3 12a9 9 0 1 0 2.6-6.3M3 4v5h5"; kicker = "TELAFİ TURU";
@@ -3129,8 +3132,8 @@ function showExamScreen(kind, ctx = {}) {
     ctaLabel = "Telafi turunu başlat";
     ctaHandler = () => { goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
-    // G274 — bkz. yukarıdaki "offer" dalının AYNI notu.
-    secondaryHandler = () => goScreen("menu");
+    // G274 — bkz. yukarıdaki "offer" dalının AYNI notu. G287 — AYNI turu-terk-etme kararı.
+    secondaryHandler = () => { activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
   }
 
   if (els.exPill) { els.exPill.style.background = pillBg; els.exPill.style.border = `1px solid ${pillBorder}`; }
@@ -7219,8 +7222,22 @@ els.hintBtn.addEventListener("click", giveHint);
 // aktifken ("kaybedecek" bir şey varken) onay penceresi araya giriyor. Boş/
 // idle ekranda (activeQuestion yok — "Oyunu Başlat" bekleniyor) doğrudan
 // çıkış KORUNDU, orada onay istemek gereksiz sürtünme olurdu.
+// G287 (Logic'in kararı, OLCUM-KURTARMA-17-08.md) — "Çık" turu TERK EDER:
+// "Durdur"un (bkz. toggleStart'ın durdurma dalı, ~satır 6216-6217) AYNI iki
+// satırı — kullanıcı AÇIKÇA "Çık" dediyse round'un "duraklatılmış, devam
+// ettirilebilir" SAYILMASI istenmiyor (aksi halde bir sonraki soğuk
+// başlatmada G203'ün 3-saat-taze kuralı bu turu YANLIŞ POZİTİF olarak
+// geri yüklüyordu — cihazda görülen bug BUYDU). G203'ün "aktif tur
+// VARKEN kaldığı yerden devam" mantığına (backgrounding/visibilitychange
+// yolu, satır ~8060) DOKUNULMADI — SADECE kullanıcının BİLEREK "Çık"
+// dediği anı ayırıyor. activeQuestion=null KOŞULSUZ (yukarıdaki
+// pauseRound() çağrısından BAĞIMSIZ) — idle ekrandan (activeQuestion
+// zaten null) "geri" ile çıkışta da ÖNCEDEN VAR olabilecek bir STALE
+// kaydı temizler (aynı köke sahip, ayrı bir yan fayda).
 function performExit() {
   if (activeQuestion && !autoStopped) pauseRound();
+  activeQuestion = null;
+  storage.clearInProgressRound();
   goScreen("menu");
 }
 // G181 DÜZELTMESİ (canlı cihazda bulundu, Bug 10): açılışta pauseRound()
@@ -7712,6 +7729,10 @@ if (els.hpSheetConfirm) els.hpSheetConfirm.addEventListener("click", () => {
 if (els.quitGameBtn) els.quitGameBtn.addEventListener("click", () => {
   closeGameSettingsSheet();
   if (activeQuestion && !autoStopped) pauseRound();
+  // G287 — performExit()'in AYNI karar/gerekçesi (bkz. o fonksiyonun notu):
+  // "Oyundan çık" da "Çık" ile EŞDEĞER bir turu-terk-etme eylemi.
+  activeQuestion = null;
+  storage.clearInProgressRound();
   goScreen("menu");
 });
 
