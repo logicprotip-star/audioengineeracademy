@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G271 — Kesim Noktası loudness telafisi spektrum-farkında (PSD-ağırlıklı) modele geçirildi; ortalama sapma 16.08dB→1.70dB, diğer 3 matchLoudness modu kötüleşmedi/iyileşti, simetrik LPF sorunu da kapsandı)
+Son güncelleme: 17.08.2026 (G272 — G271'in kapsam boşluğu kapatıldı: saw/square/triangle sentetik kaynakları da PSD-ağırlıklı telafiye alındı, ortalama sapma 11.41dB→4.44dB; yan bulgu olarak "Saw" kaynağının GERÇEKTE sinüs çaldığı (osc.type bug'ı) keşfedilip raporlandı, düzeltilmedi)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,71 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G272 — **G271'de bilerek kapsam dışı bırakılan saw/square/triangle sentetik kaynakları PSD kapsamına alındı (kullanıcının düzeltmesi: prompt sadece white noise+hihat adlandırmıştı, kapsam hatası olarak işaretlendi). DOKUNULMAYACAK: G271'in mevcut davranışı, diğer 3 mod, zorluk eğrisi — HİÇBİRİ değişmedi (kod DEĞİŞMEDİ, sadece source-psd-data.js'e 3 YENİ satır eklendi). AYRI commit.**
+
+**Yöntem — G271'in dosya-kaynak/pink/white'tan FARKLI:** saw/square/
+triangle GERÇEK `OscillatorNode` (tarayıcının kendi bant-sınırlı
+sentezi) kullanıyor, pure-JS'te naif bir formülle (ör.
+`Math.sign(sin(...))`) yeniden üretmek FARKLI harmonik/aliasing içeriği
+verirdi. Bunun yerine YENİ `e2e/precompute-synth-psd.mjs` (Playwright)
+`buildSynthSource()`'un KODUNU BİREBİR kopyalayıp (`osc1.type=sourceType`,
+`osc2.type=sourceType==="square"?"triangle":"sine"`, freq 110/220,
+gain 0.52/0.34) `OfflineAudioContext` üzerinden GERÇEK render aldı, PCM'i
+`computeSourcePsd`'ye (G271'den DEĞİŞMEDEN) verdi. `source-psd-data.js`'e
+SADECE 3 satır (`saw`/`square`/`triangle`) eklendi — mevcut 12 girdi
+byte-for-byte DOĞRULANDI (git diff, sadece +3 satır).
+
+**⚠️ YAN BULGU (bu script yazılırken keşfedildi, AYRI bir bug, BU TURDA
+DÜZELTİLMEDİ):** `osc1.type = sourceType` satırı `sourceType="saw"` iken
+GEÇERSİZ bir `OscillatorType` (spec SADECE "sawtooth" kabul ediyor).
+Tarayıcı bunu SESSİZCE reddedip osc.type'ı ÖNCEKİ ("sine") değerinde
+bırakıyor — empirik doğrulandı (`OfflineAudioContext`'te `osc.type='saw'`
+sonrası `osc.type` okundu, `"sine"` çıktı). **"Saw" kaynağı ŞU AN
+GERÇEKTE 110Hz+220Hz SİNÜS karışımı çalıyor, testere dişi DEĞİL** —
+source-catalog.js'in "zengin harmonik" açıklamasıyla ÇELİŞİYOR. PSD
+scripti `buildSynthSource`'un kodunu birebir kopyaladığı için bu GERÇEK
+(buggy) sesi SADAKATLE ölçtü — telafinin doğruluğu bundan ETKİLENMEDİ
+(telafi HER ZAMAN gerçekte çalınan sese göre olmalı). Bug kod
+DEĞİŞTİRİLMEDEN raporlandı — bkz. AÇIK İŞLER madde 27, kullanıcı kararı
+gerekiyor.
+
+**ÖLÇÜM — ESKİ (pembe-varsayımlı) vs YENİ (PSD-ağırlıklı) mekanizma,
+HPF/LPF × 9 frekans (100-8000Hz), 3 sentetik kaynağın GERÇEK
+buildSynthSource() sesiyle, dry referanstan sapma:**
+
+| Kaynak | Filtre | Eski ort. \|sapma\| | Yeni ort. \|sapma\| | Eski en kötü | Yeni en kötü |
+|---|---|---|---|---|---|
+| saw | HPF | 27.94dB | 12.69dB | -60.34dB (@8000) | -28.61dB (@8000) |
+| saw | LPF | 2.91dB | 0.87dB | -5.71dB | -2.95dB |
+| square | HPF | 7.92dB | 1.66dB | -14.37dB | -2.86dB |
+| square | LPF | 2.77dB | 0.92dB | -5.29dB | -3.05dB |
+| triangle | HPF | 24.12dB | 9.60dB | -50.69dB (@8000) | -19.81dB (@8000) |
+| triangle | LPF | 2.82dB | 0.89dB | -5.39dB | -2.77dB |
+| **TÜMÜ (n=54)** | | **11.41dB** | **4.44dB** | **-60.34dB** | **-28.61dB** |
+
+**Dürüst not — G271'in dosya-kaynaklarındaki (<4dB) temizlikte DEĞİL:**
+saw HPF/triangle HPF'de kalan sapma (sırasıyla -28.61dB/-19.81dB, hep
+@8000Hz) hâlâ büyük. **Kök sebep YAPISAL, bir eksik telafi değil:** saw
+(bug yüzünden sinüs) ve triangle neredeyse SAF 110/220Hz iki-ton sinyal
+— HPF@8000 bu enerjinin NEREDEYSE TAMAMINI siliyor (kesim, kaynağın TEK
+enerji bölgesinin ÇOK ÜSTÜNDE). Kalan sinyal SIFIRA yakın olduğundan
+BROADBAND bir kazanç (ne kadar büyük olursa olsun) onu orijinal
+seviyeye TAM geri getiremiyor — bu, gain-only telafinin dar-bantlı
+kaynaklarda karşılaştığı MATEMATİKSEL bir sınır, uygulama hatası değil.
+square HPF çok daha iyi (-2.86dB) çünkü square dalga ZENGİN yüksek
+harmonik içeriyor (HPF çok daha az enerji siliyor). **Yine de büyük
+iyileşme:** genel ortalama 11.41dB→4.44dB (%61 azalma), en kötü nokta
+-60.34dB→-28.61dB (%53 azalma).
+
+**Doğrulama:** `npm test` 1419/1419 (değişmedi — kod dokunulmadı, sadece
+veri eklendi). `npm run test:e2e` 38/38. Canlı tarayıcıda Kesim Noktası +
+Triangle (en kötü HPF durumu) round oynandı, konsol hatasız. `git diff
+www/js/core/{audio-engine,upload,eq-loudness}.js test/eq-loudness.test.mjs`
+BOŞ — DOKUNULMAYACAK'ın istediği gibi G271'in davranışı/diğer 3 mod/
+zorluk eğrisi kod SEVİYESİNDE garantili değişmedi (yeni PSD anahtarları
+`resolvePsdForSource`'un mevcut `SOURCE_PSD[sourceType] || null` satırı
+sayesinde SIFIR ek kod değişikliğiyle otomatik devreye girdi).
 
 G271 — **Kesim Noktası loudness telafisi: spektrum-farkında (PSD-ağırlıklı) model. KİLİT'teki hiçbir şeye dokunulmadı (RBJ matematiği/zorluk eğrisi/DIFFICULTY/K_GAP/G242 A/B AYNEN duruyor) — SADECE ağırlıklandırma pembe-gürültü VARSAYIMI'ndan kaynağın GERÇEK ölçülen spektrumuna geçti. AYRI commit.**
 
@@ -19855,21 +19920,38 @@ kaynak grubu için ayrı telafi) ya da kaynağın KENDİ ölçülen genlik
 profiline göre ÇALIŞMA-ZAMANINDA hesaplanan dinamik bir telafi — kullanıcı
 kararı gerekir, bu turun kapsamı DIŞINDA bırakıldı.
 
-**26. 🟡 G271'in KENDİ scope kararı — Kesim Noktası'nın (ve diğer 3
-matchLoudness modunun) YENİ PSD-ağırlıklı telafisi saw/square/triangle
-sentetik kaynaklarını KAPSAMIYOR.** Task'ın SİMETRİK SORUN uyarısı
-SADECE white noise+hihat'ı adlandırdığı, kabul kriteri de "10 paketli
-kaynak" ile sınırlı olduğu için bu 3 osilatör-tabanlı kaynak ESKİ
-(pembe-gürültü varsayımlı, `estimateChainGainDb`) mekanizmada BİLEREK
-bırakıldı — bozulmadı ama iyileşmedi de. **Önemli:** OLCUM-KESIM-17-08.md'nin
-eski ölçümünde **triangle HPF@8000 -50.68dB** — bass'ın (-49.18dB, ŞİMDİ
--16.07dB'ye düzeldi) bile ÜSTÜNDE, kütüphanenin en kötü durumu. PSD
-eklemek MEKANİK olarak ucuz olurdu (`buildSynthSource`'un osilatör
-parametreleriyle — 110/220Hz, tip'e göre gain 0.52/0.34 — deterministik
-bir buffer üretip `computeSourcePsd` çalıştırmak yeterli, `e2e/
-precompute-source-psd.mjs`'e birkaç satır eklemek), ama BU TURUN
-kapsamına dahil edilmedi (task metninde adı geçmiyor) — **kullanıcı
-kararı gerekiyor: saw/square/triangle de kapsansın mı?**
+**26. ✅ KAPANDI (G272) — saw/square/triangle sentetik kaynakları da
+PSD kapsamına alındı.** G271'de kullanıcı tarafından işaretlenen scope
+boşluğu (yukarıdaki eski metin, tarihsel referans için BİTTİ G272'de
+korunuyor) kapatıldı. **YAN BULGU (AYRI, düzeltilmeyen bug):**
+`buildSynthSource()`'da `osc1.type = sourceType` — sourceType="saw"
+GEÇERSİZ bir `OscillatorType` (spec SADECE "sawtooth" kabul ediyor),
+tarayıcı SESSİZCE reddedip "sine"de bırakıyor (empirik doğrulandı) —
+**"Saw" kaynağı ŞU AN GERÇEKTE sinüs çalıyor, testere dişi DEĞİL.**
+Bu turun DOKUNULMAYACAK kapsamı dışı, kod DEĞİŞTİRİLMEDİ — PSD script'i
+buildSynthSource'un kodunu BİREBİR kopyaladığı için bu GERÇEK (buggy)
+sesi sadakatle ölçtü, telafi doğru kaldı. Ayrı bir ürün kararı: "saw"
+düzeltilsin mi (`"sawtooth"` yapılsın mı)? bkz. yeni AÇIK İŞLER madde 27.
+
+**27. 🟡 YENİ (G272'de keşfedildi) — "Saw" sentetik kaynağı GERÇEKTE
+sinüs çalıyor, testere dişi DEĞİL.** `audio-engine.js:buildSynthSource()`
+— `osc1.type = sourceType` satırı, `sourceType` "saw" iken GEÇERSİZ bir
+`OscillatorType` değeri veriyor (Web Audio spesifikasyonu SADECE
+"sawtooth" kabul ediyor, "saw" değil). Tarayıcılar geçersiz bir enum
+değerini SESSİZCE reddedip özelliği ÖNCEKİ (varsayılan "sine") değerinde
+bırakıyor — bug HİÇBİR yerde hata/uyarı ÜRETMİYOR. Empirik doğrulandı
+(`OfflineAudioContext` + `osc.type='saw'` sonrası `osc.type` okundu,
+hâlâ `"sine"`). **Etki:** "Saw" seçildiğinde çalınan ses aslında
+110Hz+220Hz sinüs karışımı (osc2 zaten "saw"≠"square" durumunda "sine") —
+kullanıcı "zengin harmonik" (source-catalog.js'in KENDİ açıklaması)
+BEKLERKEN aslında SAF sinüs duyuyor, muhtemelen NE ZAMANDIR (bu satırın
+ne zaman yazıldığı `git blame` ile bakılmadı). **Kabul kriteri (İSTENİRSE,
+kod DEĞİŞTİRİLMEDİ, kullanıcı kararı gerekiyor):** `osc1.type = sourceType
+=== "saw" ? "sawtooth" : sourceType` gibi tek satırlık bir düzeltme —
+ama düzeltilirse "Saw" kaynağının SESİ ve dolayısıyla o kaynağı kullanan
+TÜM turların (Frekans Bulma/Kesim Noktası/Q Genişliği/Boost-Cut/dB
+Seviyesi/Kompresör/Distortion + PSD verisi) davranışı DEĞİŞİR — bu bir
+ürün kararı, sessizce düzeltilmedi.
 
 ### Eksik özellikler
 
@@ -20412,7 +20494,35 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G271 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G272 itibarıyla):**
+G271'in AÇIK İŞLER madde 26'sı kapatıldı — saw/square/triangle sentetik
+kaynakları da PSD-ağırlıklı telafi kapsamına alındı (kullanıcının
+kapsam-hatası düzeltmesi). Genel ortalama sapma 11.41dB→**4.44dB**
+(%61 azalma), en kötü nokta -60.34dB→-28.61dB (%53 azalma) — G271'in
+dosya-kaynaklarındaki (<4dB) temizlikte DEĞİL, çünkü saw/triangle
+neredeyse SAF iki-tonlu (110/220Hz) sinyaller ve HPF@8000 bu enerjinin
+NEREDEYSE TAMAMINI siliyor (broadband kazancın matematiksel sınırı,
+uygulama eksikliği değil) — square çok daha iyi (-2.86dB, zengin
+harmonik). **YAN BULGU (kod DEĞİŞTİRİLMEDİ, raporlandı):** "Saw"
+kaynağı `osc1.type="saw"`nin GEÇERSİZ bir `OscillatorType` olması
+yüzünden GERÇEKTE sinüs çalıyor, testere dişi DEĞİL (bkz. AÇIK İŞLER
+madde 27, YENİ). `npm test` 1419/1419 (değişmedi), `npm run test:e2e`
+38/38. `git diff` ile doğrulandı: audio-engine.js/upload.js/eq-loudness.js
+BOŞ diff — DOKUNULMAYACAK (G271 davranışı/diğer 3 mod/zorluk eğrisi)
+kod seviyesinde garantili korundu.
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. **AÇIK İŞLER madde 27 (YENİ):** "Saw" kaynağının `osc1.type`
+   bug'ı (GERÇEKTE sinüs çalıyor) düzeltilsin mi? Düzeltilirse "Saw"
+   kaynağını kullanan TÜM modların sesi DEĞİŞİR — ürün kararı.
+2. `OLCUM-KALAN-17-08.md`/`OLCUM-CPU-17-08.md`/`OLCUM-KESIM-17-08.md`
+   henüz commit'e alınmadı.
+3. vocal+clean_guitar çifti ÖLÇÜLDÜ ([441,743]Hz) ama YENİ bir
+   SOURCE_PAIRS girdisi olarak EKLENMEDİ — bkz. OLCUM-KAYNAK-17-08.md
+   madde F.2.
+4. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü hâlâ
+   ÇALIŞTIRILARAK test EDİLMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G271 itibarıyla, ARTIK ESKİ):**
 Kesim Noktası'nın (ve paylaşılan mekanizma yüzünden diğer 3 matchLoudness
 modunun) loudness telafisi spektrum-farkında (PSD-ağırlıklı) bir modele
 geçirildi — `OLCUM-KESIM-17-08.md`'nin önerisi UYGULANDI (G270'in
