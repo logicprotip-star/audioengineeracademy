@@ -4,7 +4,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { biquadMagnitudeDb, estimateChainGainDb, compensationGainLinear } from "../www/js/core/eq-loudness.js";
+import { biquadMagnitudeDb, estimateChainGainDb, compensationGainLinear, bandpassPower, computeSourcePsd, estimateChainGainDbWeighted } from "../www/js/core/eq-loudness.js";
 
 const SR = 48000;
 
@@ -100,5 +100,120 @@ describe("KABUL KRİTERİ — boost ve cut durumlarında telafi sonrası çıkı
     assert.ok(lpfDb < 0, "geniş bantlı bir LPF ortalama enerjiyi düşürmeli (yüksek frekansları kesiyor)");
     assert.ok(Number.isFinite(compensationGainLinear(hpfDb)) && compensationGainLinear(hpfDb) > 1, "HPF telafisi kazancı ARTIRMALI (kayıp telafi ediliyor)");
     assert.ok(Number.isFinite(compensationGainLinear(lpfDb)) && compensationGainLinear(lpfDb) > 1, "LPF telafisi kazancı ARTIRMALI (kayıp telafi ediliyor)");
+  });
+});
+
+// G271 — OLCUM-KESIM-17-08.md bulgusu: estimateChainGainDb'nin pembe-gürültü
+// VARSAYIMI, bas-ağırlıklı GERÇEK kaynaklarda (HPF ile) ve tiz-ağırlıklı
+// kaynaklarda (LPF ile, simetrik) çöküyor. Bu blok YENİ eklenen üç fonksiyonu
+// (bandpassPower/computeSourcePsd/estimateChainGainDbWeighted) test ediyor —
+// biquadMagnitudeDb/estimateChainGainDb/compensationGainLinear yukarıdaki
+// testlerle DEĞİŞMEDEN kapsanmaya devam ediyor.
+describe("bandpassPower() — RBJ bant-geçiren IIR'ın temel doğruluğu", () => {
+  it("saf sinüs, KENDİ frekansına merkezlenmiş bantta merkezden UZAK bir bant geçenden çok daha güçlü ölçülür", () => {
+    const sr = 44100;
+    const n = sr; // 1 saniye
+    const freq = 1000;
+    const samples = new Float32Array(n);
+    for (let i = 0; i < n; i++) samples[i] = Math.sin((2 * Math.PI * freq * i) / sr);
+    const onBand = bandpassPower(samples, sr, 1000);
+    const offBand = bandpassPower(samples, sr, 8000);
+    assert.ok(onBand > offBand * 100, `1000Hz sinüs için 1000Hz bandı (${onBand}) 8000Hz bandından (${offBand}) çok daha güçlü olmalı`);
+  });
+
+  it("geçersiz girdide (boş dizi/sıfır örnekleme hızı) 0 döner, atmaz", () => {
+    assert.equal(bandpassPower(new Float32Array(0), 44100, 1000), 0);
+    assert.equal(bandpassPower(new Float32Array(100), 0, 1000), 0);
+    assert.equal(bandpassPower(null, 44100, 1000), 0);
+  });
+});
+
+describe("computeSourcePsd() — bant-geçiren filtre bankası PSD tahmini", () => {
+  it("çıktı uzunluğu `points` ile eşleşir, TÜM güçler sonlu ve negatif değil", () => {
+    const sr = 44100;
+    const samples = new Float32Array(sr);
+    for (let i = 0; i < samples.length; i++) samples[i] = Math.random() * 2 - 1;
+    const psd = computeSourcePsd(samples, sr, 48);
+    assert.equal(psd.freqs.length, 48);
+    assert.equal(psd.powers.length, 48);
+    for (const p of psd.powers) {
+      assert.ok(Number.isFinite(p) && p >= 0, `güç ${p} sonlu ve negatif olmayan olmalı`);
+    }
+  });
+
+  it("düşük frekanslı bir sinüs, PSD'de EN YÜKSEK gücü kendi frekansına yakın bantta verir", () => {
+    const sr = 44100;
+    const n = sr;
+    const freq = 150;
+    const samples = new Float32Array(n);
+    for (let i = 0; i < n; i++) samples[i] = Math.sin((2 * Math.PI * freq * i) / sr);
+    const psd = computeSourcePsd(samples, sr, 48);
+    let maxIdx = 0;
+    for (let i = 1; i < psd.powers.length; i++) if (psd.powers[i] > psd.powers[maxIdx]) maxIdx = i;
+    assert.ok(Math.abs(psd.freqs[maxIdx] - freq) < freq, `en güçlü bant (${psd.freqs[maxIdx]}Hz) 150Hz'e yakın olmalı, uzak bir bant (ör. tiz) ÇIKMAMALI`);
+  });
+});
+
+describe("estimateChainGainDbWeighted() — PSD-ağırlıklı telafi, KABUL KRİTERİ (OLCUM-KESIM-17-08.md madde D)", () => {
+  const SR2 = 44100;
+
+  it("geçersiz/eksik girdide null döner (çağıran tarafın eskiye düşme sinyali)", () => {
+    const filterParams = [{ type: "highpass", frequency: 1000, Q: 0.707 }];
+    assert.equal(estimateChainGainDbWeighted([], { freqs: [100], powers: [1] }, { sampleRate: SR2 }), null);
+    assert.equal(estimateChainGainDbWeighted(filterParams, null, { sampleRate: SR2 }), null);
+    assert.equal(estimateChainGainDbWeighted(filterParams, { freqs: [], powers: [] }, { sampleRate: SR2 }), null);
+    assert.equal(estimateChainGainDbWeighted(filterParams, { freqs: [100], powers: [1] }, { sampleRate: 0 }), null);
+    assert.equal(estimateChainGainDbWeighted(filterParams, { freqs: [100], powers: [0] }, { sampleRate: SR2 }), null, "TÜM güçler 0/negatifse (sumPower<=0) null dönmeli");
+  });
+
+  it("düz (flat) PSD ile estimateChainGainDb'nin log-uniform ortalamasına YAKIN sonuç verir (AYNI matematiğin özel bir hâli)", () => {
+    const filterParams = [{ type: "highpass", frequency: 2000, Q: 0.707 }];
+    const points = 256;
+    const logMin = Math.log(20), logMax = Math.log(20000);
+    const freqs = [], powers = [];
+    for (let i = 0; i < points; i++) {
+      const t = i / (points - 1);
+      freqs.push(Math.exp(logMin + (logMax - logMin) * t));
+      powers.push(1); // DÜZ ağırlık — log-uniform ortalamanın KENDİSİ
+    }
+    const weighted = estimateChainGainDbWeighted(filterParams, { freqs, powers }, { sampleRate: SR2 });
+    const uniform = estimateChainGainDb(filterParams, { sampleRate: SR2, points });
+    assert.ok(Math.abs(weighted - uniform) < 0.05, `düz PSD ile ağırlıklı (${weighted}dB) log-uniform (${uniform}dB) ile ÖRTÜŞMELİ`);
+  });
+
+  it("KABUL KRİTERİ — bas-ağırlıklı PSD + HPF: PSD-ağırlıklı telafi, düz(pembe)-varsayımlı telafiden DAHA GÜÇLÜ (daha negatif) — OLCUM-KESIM-17-08'in bulduğu eksik-telafiyi KAPATMA yönünde", () => {
+    // Bas-ağırlıklı PSD: güç düşük frekanslarda YÜKSEK, yükseldikçe düşüyor (1/f^2 benzeri).
+    const points = 48;
+    const logMin = Math.log(20), logMax = Math.log(20000);
+    const freqs = [], bassHeavyPowers = [], flatPowers = [];
+    for (let i = 0; i < points; i++) {
+      const t = i / (points - 1);
+      const f = Math.exp(logMin + (logMax - logMin) * t);
+      freqs.push(f);
+      bassHeavyPowers.push(1 / (f * f));
+      flatPowers.push(1);
+    }
+    const filterParams = [{ type: "highpass", frequency: 2000, Q: 0.707 }];
+    const bassWeightedDb = estimateChainGainDbWeighted(filterParams, { freqs, powers: bassHeavyPowers }, { sampleRate: SR2 });
+    const flatWeightedDb = estimateChainGainDbWeighted(filterParams, { freqs, powers: flatPowers }, { sampleRate: SR2 });
+    assert.ok(bassWeightedDb < flatWeightedDb, `bas-ağırlıklı PSD'nin telafi-öncesi etkisi (${bassWeightedDb}dB) düz PSD'den (${flatWeightedDb}dB) DAHA NEGATİF olmalı — HPF gerçekte daha çok enerji siliyor`);
+    assert.ok(compensationGainLinear(bassWeightedDb) > compensationGainLinear(flatWeightedDb), "bas-ağırlıklı kaynak için telafi kazancı düz varsayımdan DAHA BÜYÜK olmalı");
+  });
+
+  it("SİMETRİK — tiz-ağırlıklı PSD + LPF: AYNI desen ters yönde (bas-ağırlıklı+HPF'nin aynası)", () => {
+    const points = 48;
+    const logMin = Math.log(20), logMax = Math.log(20000);
+    const freqs = [], trebleHeavyPowers = [], flatPowers = [];
+    for (let i = 0; i < points; i++) {
+      const t = i / (points - 1);
+      const f = Math.exp(logMin + (logMax - logMin) * t);
+      freqs.push(f);
+      trebleHeavyPowers.push(f * f);
+      flatPowers.push(1);
+    }
+    const filterParams = [{ type: "lowpass", frequency: 500, Q: 0.707 }];
+    const trebleWeightedDb = estimateChainGainDbWeighted(filterParams, { freqs, powers: trebleHeavyPowers }, { sampleRate: SR2 });
+    const flatWeightedDb = estimateChainGainDbWeighted(filterParams, { freqs, powers: flatPowers }, { sampleRate: SR2 });
+    assert.ok(trebleWeightedDb < flatWeightedDb, `tiz-ağırlıklı PSD'nin telafi-öncesi etkisi (${trebleWeightedDb}dB) düz PSD'den (${flatWeightedDb}dB) DAHA NEGATİF olmalı — LPF gerçekte daha çok enerji siliyor`);
   });
 });

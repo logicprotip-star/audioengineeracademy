@@ -44,6 +44,18 @@
 
 import { decodeWavPcm } from "./wav-parser.js";
 import { DEV_MODE } from "./build-flags.js";
+import { computeSourcePsd } from "./eq-loudness.js";
+
+// G271 — Kesim Noktası loudness telafisinin spektrum-farkında versiyonu
+// (bkz. eq-loudness.js'in başındaki G271 notu) yüklenen dosyalar için PSD'yi
+// BURADA, yükleme anında bir kez hesaplıyor (paketli kaynaklar offline
+// ön-hesaplanıyor, bkz. source-psd-data.js — yüklenenler için eşdeğeri YOK,
+// analiz anında yapılmalı). PSD hesabı örnek sayısıyla ORANTILI (48 bant-geçiren
+// geçişi) — MAX_AUDIO_DURATION_SEC'e kadar (7 dk) uzayabilen bir dosyada gecikme
+// yaratmamak için analiz PENCERESİ sınırlanıyor: ilk PSD_ANALYSIS_MAX_SEC saniye
+// yeterli — PSD kaynağın SPEKTRAL KARAKTERİNİ ölçüyor (zamanla değişen bir şey
+// DEĞİL, bkz. ölçüm: OLCUM-KESIM-17-08.md'nin 10 kaynağı da tamamı 6-25s).
+const PSD_ANALYSIS_MAX_SEC = 30;
 
 // G108 — "copyFile sonrası donma, hiç log yok" teşhisi için EKLENDİ (task'ın
 // kendi kuralı: SADECE günlük, düzeltme YOK). `[upload-diag]` önekli, app.js'
@@ -189,6 +201,8 @@ export function createUploadManager(getAudioCtx) {
                           // node kurulurken güncellenir
   let startedAt = 0;      // audioCtx.currentTime — en son getSourceNode() çağrıldığı an
   let playing = false;
+  let psd = null;         // G271 — buffer'ın {freqs,powers} PSD'si, loadFile'da BİR KEZ
+                           // hesaplanır (bkz. dosya başı PSD_ANALYSIS_MAX_SEC notu)
 
   function pausePlayback() {
     if (!playing || !buffer) return;
@@ -242,6 +256,7 @@ export function createUploadManager(getAudioCtx) {
     buffer = null;
     offset = 0;
     playing = false;
+    psd = null;
 
     let arrayBuffer;
     const t2_0 = performance.now();
@@ -307,6 +322,22 @@ export function createUploadManager(getAudioCtx) {
       return { ok: false, title: "Bu dosya açılamadı", detail: `Lütfen desteklenen bir formatta dosya dene: ${FULL_AUDIO_FORMAT_LIST}.` };
     }
 
+    const t4_0 = performance.now();
+    uploadDiagLog(4, "PSD hesaplama (computeSourcePsd)", "BAŞLIYOR");
+    try {
+      const analysisLen = Math.min(buffer.length, Math.round(PSD_ANALYSIS_MAX_SEC * buffer.sampleRate));
+      const channel = buffer.getChannelData(0).subarray(0, analysisLen);
+      psd = computeSourcePsd(channel, buffer.sampleRate, 48);
+      uploadDiagLog(4, "PSD hesaplama (computeSourcePsd)", "BİTTİ", `${(performance.now() - t4_0).toFixed(0)} ms`);
+    } catch (e) {
+      // PSD SADECE telafi hassasiyetini iyileştiriyor — hesaplanamazsa
+      // audio-engine.js eskiye (estimateChainGainDb) düşer, dosya çalınabilir
+      // olmaya devam eder (bkz. eq-loudness.js estimateChainGainDbWeighted'in
+      // null dönme sözleşmesi).
+      psd = null;
+      uploadDiagLog(4, "PSD hesaplama (computeSourcePsd)", "HATA (eskiye düşülecek)", `${(performance.now() - t4_0).toFixed(0)} ms — ${e && e.message}`);
+    }
+
     return { ok: true };
   }
 
@@ -330,6 +361,14 @@ export function createUploadManager(getAudioCtx) {
     buffer = null;
     offset = 0;
     playing = false;
+    psd = null;
+  }
+
+  // G271 — getBuffer() ile AYNI desen: buffer yoksa/PSD hesaplanamadıysa null
+  // döner, audio-engine.js bunu "eskiye düş" sinyali olarak kullanır (bkz.
+  // eq-loudness.js estimateChainGainDbWeighted).
+  function getPsd() {
+    return psd;
   }
 
   return {
@@ -340,6 +379,7 @@ export function createUploadManager(getAudioCtx) {
     clear,
     getSourceNode,
     getBuffer,
+    getPsd,
     get hasBuffer() { return !!buffer; },
     // G88: Araçlar sekmesinin "Son yüklenenler" satırı gerçek dosya süresini
     // gösteriyor (bkz. app.js processToolsUploadFile) — hasBuffer'ın AYNI

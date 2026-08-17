@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G270 — kaynak kataloğu güncellendi: arpeggio_guitar eklendi, vocal.m4a yenilendi, clean_guitar eksik listeleri düzeltildi, SOURCE_PAIRS yeniden ölçüldü; index.html'de gerçek bir bug bulunup düzeltildi)
+Son güncelleme: 17.08.2026 (G271 — Kesim Noktası loudness telafisi spektrum-farkında (PSD-ağırlıklı) modele geçirildi; ortalama sapma 16.08dB→1.70dB, diğer 3 matchLoudness modu kötüleşmedi/iyileşti, simetrik LPF sorunu da kapsandı)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,123 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G271 — **Kesim Noktası loudness telafisi: spektrum-farkında (PSD-ağırlıklı) model. KİLİT'teki hiçbir şeye dokunulmadı (RBJ matematiği/zorluk eğrisi/DIFFICULTY/K_GAP/G242 A/B AYNEN duruyor) — SADECE ağırlıklandırma pembe-gürültü VARSAYIMI'ndan kaynağın GERÇEK ölçülen spektrumuna geçti. AYRI commit.**
+
+**SORUN (OLCUM-KESIM-17-08.md'den):** `estimateChainGainDb`'nin log-uniform
+256-nokta örneklemesi matematiksel olarak pembe gürültüye EŞDEĞER —
+bas-ağırlıklı gerçek kaynaklarda (bass/kick/groove) HPF ile telafi
+YETERSİZ kalıyordu (bass HPF@8000: **-49.18dB** eski ölçüm), tiz-ağırlıklı
+kaynaklarda (hihat/white noise) LPF ile AYNI sorun SİMETRİK olarak
+tekrarlanıyordu (hihat LPF@100: **-24.59dB**, white LPF@100: **-14.99dB**).
+
+**ÇÖZÜM:** biquad filtreler DOĞRUSAL olduğundan RBJ frekans tepkisi
+(`biquadMagnitudeDb`, DEĞİŞMEDİ) kaynağın GERÇEK ölçülen güç spektral
+yoğunluğuyla (PSD) birleştirilebiliyor
+(`∫|H(f)|²S(f)df / ∫S(f)df`). `eq-loudness.js`'e YENİ (eskiler
+DEĞİŞMEDEN) üç saf fonksiyon eklendi:
+- `bandpassPower(samples, sampleRate, centerFreq, Q)` — RBJ "BPF sabit
+  0dB tepe kazancı" formülünün SAF JS IIR (fark denklemi) hâli —
+  audioCtx'e bağımlı DEĞİL, Node'da da çalışıyor. Gerçek
+  `BiquadFilterNode`'a karşı doğrulandı: 80/200/500/1000/3000/8000Hz'de
+  **0.000dB fark** (deterministik gürültü sinyaliyle, `OfflineAudioContext`
+  render karşılaştırması).
+- `computeSourcePsd(samples, sampleRate, points=48)` — 20Hz-Nyquist arası
+  48 log-uniform bantta `bandpassPower` taraması, `{freqs, powers}` döner.
+- `estimateChainGainDbWeighted(filterParamsList, psd, {sampleRate})` —
+  `estimateChainGainDb` ile AYNI matematik, SADECE ağırlıklandırma PSD
+  tabanlı. Geçersiz/eksik PSD'de `null` döner — çağıran taraf bunu eskiye
+  (`estimateChainGainDb`) düşme sinyali olarak kullanıyor (senkron
+  kaynaklar: pink/white/saw/square/triangle synth kaynaklardan
+  saw/square/triangle HİÇ PSD'siz kaldı, bkz. aşağı).
+
+**Offline ön-hesaplama (`e2e/precompute-source-psd.mjs` → YENİ
+`www/js/core/source-psd-data.js`, commit'e giren SADECE ÇIKTI):** 10
+paketli "sample" kaynak ffmpeg ile PCM'e çözülüp `computeSourcePsd`
+çalıştırıldı. **SİMETRİK SORUN uyarısı** ("white noise, hihat AYNI
+şekilde etkileniyor, çözüm ikisini de kapsamalı") yüzünden pink/white
+gürültü de `audio-engine.js:buildNoiseSource()` İLE BİREBİR AYNI
+algoritmayla (10sn) üretilip PSD'si eklendi — Math.random() seed'i
+her çalıştırmada farklı ama PSD istatistiksel olarak durağan
+(iki çalıştırma arası fark <0.1dB, gözlemsel). **saw/square/triangle
+BİLEREK KAPSAM DIŞI bırakıldı** — task'ın uyarısı SADECE white+hihat'ı
+adlandırıyor, "10 paketli kaynak" kabul kriteri de dosya kaynaklarıyla
+sınırlı; bu üç sentetik kaynak ESKİ (pembe-varsayımlı) mekanizmada
+KALDI — bozulmadı ama iyileşmedi de (bkz. AÇIK İŞLER, triangle'ın eski
+ölçümü -50.68dB — bass'tan bile kötü, kullanıcı kararı gerekiyor).
+
+**Wiring:** `upload.js` — `loadFile()` başarılı decode SONRASI
+`computeSourcePsd`'yi (ilk 30sn'e sınırlı, `PSD_ANALYSIS_MAX_SEC`) BİR
+KEZ çalıştırıp `psd` değişkenine cache'liyor, YENİ `getPsd()` accessor'ı
+(`getBuffer()` ile AYNI desen) dışa veriyor; `clear()`/`loadFile()`
+başında `psd=null` sıfırlanıyor. Ölçülen maliyet: 6.15sn'lik dosyada
+**48ms** (canlı tarayıcı ölçümü). `audio-engine.js` —
+`resolvePsdForSource(sourceType, uploadManager)` (YENİ, küçük yardımcı)
+`sourceType==="upload"` ise `uploadManager.getPsd()`, değilse
+`SOURCE_PSD[sourceType]` döner; `buildQuestionChain`'in matchLoudness
+bloğu ÖNCE `estimateChainGainDbWeighted` dener, `null` dönerse
+`estimateChainGainDb`'ye (DEĞİŞMEDEN) düşer. SADECE `buildQuestionChain`
+matchLoudness kullanıyor — `buildThreeWayChain`/`buildDualSourceChain`
+DOKUNULMADI (grep ile doğrulandı, tek kullanım noktası).
+
+**ÖLÇÜM — KABUL KRİTERİ (10 paketli kaynak × HPF/LPF × 9 frekans,
+100-8000Hz, GERÇEK applyProcessing()+matchLoudness formülüyle
+`OfflineAudioContext` render, dry referanstan sapma):**
+
+| Metrik | Hedef | Ölçülen |
+|---|---|---|
+| Ortalama \|sapma\| (n=180) | <4dB | **1.70dB** ✅ |
+| Maksimum \|sapma\| | — | 16.07dB (bass, HPF@8000 — eskiden -49.18dB) |
+
+En kötü kalan noktalar (hepsi eskiden ÇOK daha kötüydü): bass
+HPF@8000 -16.07dB (eski -49.18), hihat LPF@100 -9.27dB (eski -24.59),
+kick HPF@316 -7.09dB (eski -21.83), clean_guitar LPF@100 -6.23dB.
+Tam 10×2×9=180 noktalık tablo bu turun ölçüm çıktısında (geçici script,
+silindi) — özet burada, ham veri tekrarlanabilir (`node
+e2e/precompute-source-psd.mjs` deterministik, dosya kaynakları için).
+
+**DİĞER 3 MOD DOĞRULAMASI (OLCUM-KESIM-17-08.md madde B'nin AYNI
+parametreleri: Frekans Bulma gain=10dB/Q=0.9, Q Genişliği gain=6dB/Q=0.2,
+Boost mu Cut mu gain=8dB/Q=1.4 — HER biri 10 kaynak×5 frekans×2 yön=100
+ölçüm/mod, YENİ mekanizmayla):**
+
+| Mod | Eski en kötü sapma | YENİ en kötü sapma |
+|---|---|---|
+| Frekans Bulma | -4.78dB | **-2.06dB** (iyileşti) |
+| Q Genişliği | -3.69dB | **0.60dB** (iyileşti) |
+| Boost mu Cut mu | 4.15dB | **-1.65dB** (iyileşti) |
+
+**KÖTÜLEŞME YOK — üçü de İYİLEŞTİ** (matematiksel beklentiyle tutarlı:
+daha doğru bir ağırlıklandırma hiçbir durumda daha yanlış sonuç
+üretemez).
+
+**SİMETRİK SORUN doğrulaması:** hihat LPF@100 -24.59dB→**-9.27dB**,
+white noise LPF@100 -14.92dB→**-0.64dB** (neredeyse tam kapandı,
+PSD'si offline/analitik değil GERÇEK üretim algoritmasıyla üretildiği
+için hihat'tan daha temiz sonuç verdi).
+
+**Testler:** `test/eq-loudness.test.mjs`'e 8 YENİ test eklendi
+(`bandpassPower`/`computeSourcePsd`/`estimateChainGainDbWeighted` —
+geçersiz girdi/null-düşme, düz PSD'nin log-uniform'a yakınsaması, bas-
+ağırlıklı+HPF ve tiz-ağırlıklı+LPF'nin DAHA GÜÇLÜ telafi üretmesi).
+`git stash -- eq-loudness.js` ile KIRMIZI (import hatası, fonksiyonlar
+yok) doğrulandı, `stash pop` ile YEŞİL'e dönüldü. `npm test`
+1411→**1419/1419**. `npm run test:e2e` **38/38** — bir ara çalıştırmada
+`ear-buttons.spec.mjs`'in "Frekans Çakışması Aşama 3" testi 1 kez
+başarısız oldu (`#fbEarLeft` elementFromPoint kırpılmış); değişiklikler
+stash'lenmiş HALDE de aynı testin flaky olduğu doğrulandı (4 ardışık
+çalıştırmadan sadece 1'i başarısız, hem değişikliklerle hem değişiklik
+OLMADAN) — G271 kaynaklı DEĞİL, önceden var olan bir flake (test rastgele
+cevap veren bir döngü + `elementFromPoint` zamanlama-hassas kontrolü
+kullanıyor). Canlı tarayıcıda Kesim Noktası + Bas kaynağıyla (en kötü
+durum) tam bir round oynandı — konsol hatasız, geri bildirim paneli/XP
+normal çalıştı.
+
+**Zorluk eğrisi:** DIFFICULTY tablolarına, K_GAP'e, `pickCutoffFreq`'e
+TEK SATIR dokunulmadı. Task'ın önceden bildirdiği yan etki (düşük ses
+= "filtre agresif" ipucunun kalkması) BEKLENEN bir SONUÇ, bu turda
+AYRICA ölçülmedi (task'ın kendi çerçevesi: "orijinal tasarım niyetinin
+tamamlanması, yeni bir zorluk kararı değil").
 
 G270 — **Kaynak kataloğu güncellendi: YENİ kaynak arpeggio_guitar (arpej gitar, 78 BPM/8 bar) eklendi; vocal.m4a içerik değişikliğinin kod DAVRANIŞ etkisi olmadığı doğrulandı; pan-konumu.js/reverb.js'in eksik clean_guitar girdisi düzeltildi; SOURCE_PAIRS'te snare-gitar → snare-arpej-gitar (zamansal örtüşme 231ms→104ms, ÖLÇÜLDÜ), vokal-gitar YENİ vocal.m4a ile yeniden ölçüldü ([200,600]→[220,360]). Canlı tarayıcıda bir GERÇEK bug bulunup düzeltildi (index.html'in hardcoded pair seçici HTML'i). AYRI commit.**
 
@@ -19738,6 +19855,22 @@ kaynak grubu için ayrı telafi) ya da kaynağın KENDİ ölçülen genlik
 profiline göre ÇALIŞMA-ZAMANINDA hesaplanan dinamik bir telafi — kullanıcı
 kararı gerekir, bu turun kapsamı DIŞINDA bırakıldı.
 
+**26. 🟡 G271'in KENDİ scope kararı — Kesim Noktası'nın (ve diğer 3
+matchLoudness modunun) YENİ PSD-ağırlıklı telafisi saw/square/triangle
+sentetik kaynaklarını KAPSAMIYOR.** Task'ın SİMETRİK SORUN uyarısı
+SADECE white noise+hihat'ı adlandırdığı, kabul kriteri de "10 paketli
+kaynak" ile sınırlı olduğu için bu 3 osilatör-tabanlı kaynak ESKİ
+(pembe-gürültü varsayımlı, `estimateChainGainDb`) mekanizmada BİLEREK
+bırakıldı — bozulmadı ama iyileşmedi de. **Önemli:** OLCUM-KESIM-17-08.md'nin
+eski ölçümünde **triangle HPF@8000 -50.68dB** — bass'ın (-49.18dB, ŞİMDİ
+-16.07dB'ye düzeldi) bile ÜSTÜNDE, kütüphanenin en kötü durumu. PSD
+eklemek MEKANİK olarak ucuz olurdu (`buildSynthSource`'un osilatör
+parametreleriyle — 110/220Hz, tip'e göre gain 0.52/0.34 — deterministik
+bir buffer üretip `computeSourcePsd` çalıştırmak yeterli, `e2e/
+precompute-source-psd.mjs`'e birkaç satır eklemek), ama BU TURUN
+kapsamına dahil edilmedi (task metninde adı geçmiyor) — **kullanıcı
+kararı gerekiyor: saw/square/triangle de kapsansın mı?**
+
 ### Eksik özellikler
 
 **8. İlerleme sekmesi prototiple örtüşmüyor**
@@ -20279,7 +20412,36 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G270 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G271 itibarıyla):**
+Kesim Noktası'nın (ve paylaşılan mekanizma yüzünden diğer 3 matchLoudness
+modunun) loudness telafisi spektrum-farkında (PSD-ağırlıklı) bir modele
+geçirildi — `OLCUM-KESIM-17-08.md`'nin önerisi UYGULANDI (G270'in
+sıradaki-adım madde 1'i KAPANDI). 10 paketli kaynak × HPF/LPF × 9 frekans
+ortalama sapma 16.08dB→**1.70dB** (kabul kriteri <4dB, AŞILDI), en kötü
+nokta (bass HPF@8000) -49.18dB→-16.07dB. Diğer 3 mod KÖTÜLEŞMEDİ, tam
+tersine İYİLEŞTİ (Frekans Bulma -4.78→-2.06dB, Q Genişliği -3.69→0.60dB,
+Boost mu Cut mu 4.15→-1.65dB). SİMETRİK sorun (LPF+tiz-ağırlıklı kaynak)
+da kapsandı — pink/white gürültünün PSD'si de eklendi (hihat LPF@100
+-24.59→-9.27dB, white LPF@100 -14.92→-0.64dB). saw/square/triangle
+BİLEREK kapsam dışı bırakıldı (bkz. AÇIK İŞLER madde 26). `npm test`
+1411→1419/1419, `npm run test:e2e` 38/38 (bir flaky test G271'den
+BAĞIMSIZ olduğu doğrulandı — hem değişikliklerle hem değişiklik olmadan
+aynı oranda başarısız).
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. **AÇIK İŞLER madde 26 (YENİ):** saw/square/triangle sentetik
+   kaynakları da PSD kapsamına alınsın mı? (triangle'ın eski ölçümü
+   -50.68dB — bass'tan bile kötü, mekanik olarak ucuz bir ek olurdu ama
+   bu turun kapsamı dışında bırakıldı.)
+2. `OLCUM-KALAN-17-08.md`/`OLCUM-CPU-17-08.md`/`OLCUM-KESIM-17-08.md`
+   henüz commit'e alınmadı (OLCUM-KESIM-17-08.md artık BU turda
+   UYGULANDI — commit'e alınması İSTENİRSE ayrıca sorulmalı).
+3. vocal+clean_guitar çifti ÖLÇÜLDÜ ([441,743]Hz, anlamlı bir örtüşme)
+   ama YENİ bir SOURCE_PAIRS girdisi olarak EKLENMEDİ (ürün kararı,
+   kullanıcıya bırakıldı) — bkz. OLCUM-KAYNAK-17-08.md madde F.2.
+4. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü (OLCUM-FLAKY-16-08.md)
+   hâlâ ÇALIŞTIRILARAK test EDİLMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G270 itibarıyla, ARTIK ESKİ):**
 Kaynak kataloğu güncellendi — arpeggio_guitar (YENİ, 194Hz tepe) eklendi,
 Pan/Reverb'in only listelerine (clean_guitar+arpeggio_guitar) dahil
 edildi, Tonal Denge'ye bilerek eklenmedi (G44 tutarlılığı). vocal.m4a

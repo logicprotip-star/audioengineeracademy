@@ -118,3 +118,97 @@ export function estimateChainGainDb(filterParamsList, { sampleRate, fMin = REF_F
 export function compensationGainLinear(effectiveDb) {
   return Math.pow(10, -effectiveDb / 20);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// G271 — SPEKTRUM-FARKINDA AĞIRLIKLANDIRMA (OLCUM-KESIM-17-08.md'nin bulgusu:
+// yukarıdaki estimateChainGainDb'nin log-uniform frekans örneklemesi pembe
+// gürültü VARSAYIYOR — bas-ağırlıklı GERÇEK kaynaklarda bu varsayım çöküyor,
+// highpass GERÇEKTE sildiğinden ÇOK DAHA AZ telafi hesaplanıyor). DOKUNULAN
+// TEK ŞEY ağırlıklandırma — biquadMagnitudeDb (RBJ matematiği, yukarıda)
+// TEK SATIR değişmedi, estimateChainGainDb/compensationGainLinear DE
+// değişmedi (fallback olarak AYNEN duruyor, sentetik kaynaklarda hâlâ
+// kullanılıyor — bkz. audio-engine.js).
+//
+// YÖNTEM (OLCUM-KESIM-17-08.md madde D'de prototiplenip DOĞRULANDI —
+// ortalama hata 16.08dB→3.42dB, groove.m4a'da her yerde <2.2dB): biquad
+// filtreler DOĞRUSAL sistemler olduğu için GERÇEK ölçülen güç spektral
+// yoğunluğu (S(f)) ile birleştirilebilir — pembe-gürültü VARSAYIMI yerine
+// GERÇEK ÖLÇÜM. S(f) tahmini için YENİ bir FFT YAZILMADI — prototipteki
+// "bant-geçiren filtre bankası" (BiquadFilterNode'un KENDİSİ bir spektral
+// analiz aracı) burada SAF JS'te (audioCtx'siz, Node'da da çalışır —
+// offline ön-hesaplama scripti bunu KULLANIYOR) YENİDEN üretildi — AYNI
+// RBJ sabit-skirt-kazancı bant-geçiren formülü (cosW0/sinW0/alpha deseni
+// biquadMagnitudeDb'nin KENDİSİYLE AYNI, SADECE b0/b1/b2 farklı), ama
+// BiquadFilterNode ÜZERİNDEN DEĞİL doğrudan fark denklemi (IIR) olarak —
+// gerçek ses render'ı YOK, matematiksel olarak DENK (Web Audio spesifikasyonu
+// BiquadFilterNode'u BİREBİR bu formüllerle tanımlıyor).
+const PSD_BANDPASS_Q = 1.4; // OLCUM-KESIM-17-08.md'nin prototipiyle AYNI Q
+
+// SAF FONKSİYON: samples (Float32Array/Number[] PCM, TEK kanal) üzerinde
+// TEK bir bant-geçiren (constant 0dB peak gain, RBJ Audio-EQ Cookbook)
+// IIR filtresi uygulayıp çıkışın ORTALAMA GÜCÜNÜ (RMS²) döner — filtrelenmiş
+// diziyi SAKLAMAZ (bellek), sadece toplam kareyi biriktirir.
+export function bandpassPower(samples, sampleRate, centerFreq, Q = PSD_BANDPASS_Q) {
+  if (!samples || !samples.length || !(sampleRate > 0) || !(centerFreq > 0)) return 0;
+  const w0 = (2 * Math.PI * centerFreq) / sampleRate;
+  const cosW0 = Math.cos(w0);
+  const sinW0 = Math.sin(w0);
+  const alpha = sinW0 / (2 * Math.max(Q, 1e-6));
+  // RBJ "BPF, constant 0 dB peak gain": b0=alpha, b1=0, b2=-alpha, a0=1+alpha, a1=-2cosW0, a2=1-alpha.
+  const a0 = 1 + alpha;
+  const B0 = alpha / a0, B2 = -alpha / a0;
+  const A1 = (-2 * cosW0) / a0, A2 = (1 - alpha) / a0;
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0, sumSq = 0;
+  for (let i = 0; i < samples.length; i++) {
+    const x0 = samples[i];
+    const y0 = B0 * x0 + B2 * x2 - A1 * y1 - A2 * y2;
+    sumSq += y0 * y0;
+    x2 = x1; x1 = x0;
+    y2 = y1; y1 = y0;
+  }
+  return sumSq / samples.length;
+}
+
+// SAF FONKSİYON: kaynağın 20Hz-Nyquist arasını `points` log-uniform merkez
+// frekansında tarayıp HER birinin (bandpassPower ile) ortalama gücünü
+// döner — bir kaynağın GERÇEK güç spektral yoğunluğunun (PSD) kaba ama
+// GERÇEK-ÖLÇÜLMÜŞ bir tahmini. `{freqs, powers}` — powers ORAN olarak
+// kullanılacağı için NORMALİZE EDİLMEMİŞ (mutlak ölçek önemsiz, bkz.
+// estimateChainGainDbWeighted'in ORANLA çalışması).
+export function computeSourcePsd(samples, sampleRate, points = 48) {
+  const fMax = Math.min(20000, sampleRate / 2 - 100);
+  const fMin = 20;
+  const logMin = Math.log(fMin), logMax = Math.log(fMax);
+  const freqs = new Array(points), powers = new Array(points);
+  for (let i = 0; i < points; i++) {
+    const t = points === 1 ? 0 : i / (points - 1);
+    const f = Math.exp(logMin + (logMax - logMin) * t);
+    freqs[i] = f;
+    powers[i] = bandpassPower(samples, sampleRate, f);
+  }
+  return { freqs, powers };
+}
+
+// SAF FONKSİYON: estimateChainGainDb'nin AYNI matematiği (biquadMagnitudeDb
+// TEK SATIR değişmeden yeniden kullanılıyor, kaskad dB toplama + güce
+// çevirip ortalama alma AYNI) — SADECE ağırlıklandırma log-uniform
+// (pembe gürültü varsayımı) YERİNE psd.powers (GERÇEK ölçülen enerji).
+// psd GEÇERSİZ/eksikse null döner — çağıran taraf (audio-engine.js) BUNU
+// "PSD yok, eskiye (estimateChainGainDb) düş" sinyali olarak kullanır.
+export function estimateChainGainDbWeighted(filterParamsList, psd, { sampleRate } = {}) {
+  if (!filterParamsList || !filterParamsList.length) return null;
+  if (!psd || !Array.isArray(psd.freqs) || !psd.freqs.length || !Array.isArray(psd.powers)) return null;
+  if (!(sampleRate > 0)) return null;
+  let sumWeightedPower = 0, sumPower = 0;
+  for (let i = 0; i < psd.freqs.length; i++) {
+    const f = psd.freqs[i];
+    const w = psd.powers[i];
+    if (!(w > 0)) continue;
+    let totalDb = 0;
+    for (const params of filterParamsList) totalDb += biquadMagnitudeDb(params, f, sampleRate);
+    sumWeightedPower += w * Math.pow(10, totalDb / 10);
+    sumPower += w;
+  }
+  if (sumPower <= 0) return null;
+  return 10 * Math.log10(sumWeightedPower / sumPower);
+}

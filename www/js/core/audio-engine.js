@@ -5,7 +5,19 @@
 
 import { findSource } from "./source-catalog.js";
 import { DEV_MODE } from "./build-flags.js";
-import { estimateChainGainDb, compensationGainLinear } from "./eq-loudness.js";
+import { estimateChainGainDb, estimateChainGainDbWeighted, compensationGainLinear } from "./eq-loudness.js";
+import { SOURCE_PSD } from "./source-psd-data.js";
+
+// G271 — matchLoudness telafisinin spektrum-farkında yolu için: sourceType
+// paketli bir "sample" kaynağıysa (id source-catalog.js ile AYNI, bkz.
+// source-psd-data.js başlığı) offline ön-hesaplanmış PSD; "upload" ise
+// uploadManager.getPsd() (yükleme anında hesaplanmış); başka HİÇBİR
+// durumda (pink/white/synth) PSD YOK — null, çağıran taraf eskiye
+// (estimateChainGainDb) düşer.
+function resolvePsdForSource(sourceType, uploadManager) {
+  if (sourceType === "upload") return uploadManager ? uploadManager.getPsd() : null;
+  return SOURCE_PSD[sourceType] || null;
+}
 
 const MUTE_RAMP_SEC = 0.05; // ~50ms — Durdur/Tekrar Çal arasındaki geçiş
 // G33: stopAudio()'nun eski zincir söndürme zaman sabiti (0.03) node.stop()'un
@@ -810,7 +822,13 @@ export function createAudioEngine() {
       const filterParams = filters
         .filter(f => f && f.frequency && typeof f.frequency.value === "number")
         .map(f => ({ type: f.type, frequency: f.frequency.value, Q: f.Q ? f.Q.value : 0.707, gain: f.gain ? f.gain.value : 0 }));
-      const effectiveDb = estimateChainGainDb(filterParams, { sampleRate: audioCtx.sampleRate });
+      // G271: PSD varsa (paketli sample kaynak ya da PSD hesaplanmış bir upload)
+      // GERÇEK ölçülen spektrumla ağırlıklandırılmış telafi kullanılır — YOKSA
+      // (pink/white/synth/PSD'siz upload) estimateChainGainDb'nin pembe-gürültü
+      // varsayımına AYNEN düşülür (davranış BİR SATIR değişmedi).
+      const psd = resolvePsdForSource(sourceType, uploadManager);
+      const weightedDb = estimateChainGainDbWeighted(filterParams, psd, { sampleRate: audioCtx.sampleRate });
+      const effectiveDb = weightedDb !== null ? weightedDb : estimateChainGainDb(filterParams, { sampleRate: audioCtx.sampleRate });
       loudnessCompGain = audioCtx.createGain();
       loudnessCompGain.gain.value = compensationGainLinear(effectiveDb);
     }
