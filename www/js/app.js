@@ -25,6 +25,7 @@ import * as fileStorage from "./core/file-storage.js";
 import * as ads from "./core/ads.js";
 import * as iap from "./core/iap.js";
 import { freshChallenge } from "./core/challenge.js";
+import { resolveAbLoopIntervalMs } from "./core/ab-loop-timing.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
@@ -5609,13 +5610,30 @@ function toggleAB() {
   updateAbToggleUI();
 }
 
-// A/B uzun basma döngüsü: her 2000ms'de bir toggleAB() çağırıp A/B arasında otomatik
-// gidip gelir (prototype.html ile aynı zamanlama). toggleAB() zaten playQuestion()
-// üzerinden çalıyor — döngü SADECE bu çağrıyı periyodik tekrarlıyor, A/B geçişinin
-// kesintisiz bypass olmayışı (ses baştan başlıyor) burada ÇÖZÜLMEDİ, ayrı bir iş.
+// G279 (OLCUM-CIHAZ2-17-08 madde C düzeltmesi, Logic'in kararı) — döngü
+// aralığı ARTIK mod bazında: Reverb'in Hall tipi 3.2sn'ye kadar decay
+// üretiyor, SABİT 2000ms bu kuyruğu HER ZAMAN kesiyordu ("A→B/B→C geçişleri
+// çok hızlı, öğretim değeri kayboluyor" — cihaz raporu). Kompresör/Saturation
+// (SEAMLESS_THREE_WAY_MODE_IDS) KASITLI 2000ms'DE KALDI — onlarda "bitmesi
+// gereken bir kuyruk" kavramı YOK (sürekli işlenen sinyal), uzatmaya GEREK
+// yok (task'ın kendi DOKUNULMAYACAK'ı).
+// Saf hesap core/ab-loop-timing.js'e taşındı (test edilebilirlik — bkz. o
+// dosyanın başındaki açıklama).
+function abLoopIntervalMs() {
+  return resolveAbLoopIntervalMs(mode.MODE_ID);
+}
+
+// A/B uzun basma döngüsü: her abLoopIntervalMs()'de bir toggleAB() çağırıp A/B
+// arasında otomatik gidip gelir (prototype.html ile aynı zamanlama, Reverb
+// DIŞINDA — bkz. yukarı). toggleAB() zaten playQuestion() üzerinden çalıyor —
+// döngü SADECE bu çağrıyı periyodik tekrarlıyor, A/B geçişinin kesintisiz
+// bypass olmayışı (ses baştan başlıyor) burada ÇÖZÜLMEDİ, ayrı bir iş.
+// ⚠️ SADECE otomatik döngüyü etkiler — manuel kart tıklaması
+// (playThreeWaySpecific/toggleAB'nin tek-basış hâli) bu aralığa TABİ DEĞİL,
+// HER ZAMAN anında tepki verir.
 function startAbLoop() {
   if (abLoopTimer) return;
-  abLoopTimer = setInterval(toggleAB, 2000);
+  abLoopTimer = setInterval(toggleAB, abLoopIntervalMs());
   if (els.abToggle) els.abToggle.classList.add("loop");
   if (els.abTitle) els.abTitle.textContent = "Döngü";
   if (els.gameLoopBadgeRow) els.gameLoopBadgeRow.classList.remove("hidden");

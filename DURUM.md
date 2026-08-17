@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G278 — kaynak değişimi "Atla" sayılmasın: ÖLÇÜM G275'in bunu YAN ETKİ olarak zaten sağladığını gösterdi, kod bug'ı yoktu; açıklayıcı yorum + 2 kilitleyen e2e test eklendi, sentetik regresyon enjeksiyonuyla kırmızı/yeşil kanıtlandı)
+Son güncelleme: 17.08.2026 (G279 — Reverb'in otomatik döngü süresi 2000ms → 4500ms, Kompresör/Saturation 2000ms'de kaldı; mod-bazlı saf fonksiyon core/ab-loop-timing.js'e çıkarıldı, birim+e2e test eklendi, iki katmanlı kırmızı/yeşil doğrulandı; ayrıca ölçüldü: gerçek tur süresi aralığı task'ın iddia ettiği "7.5-26sn" DEĞİL, 8-17sn — en kısa turda otomatik döngü C'ye hiç ulaşmıyor, manuel tıklama etkilenmiyor)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,33 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G279 — **Reverb'in otomatik A/B/C döngü süresi 2000ms → 4500ms (Logic'in kararı, OLCUM-CIHAZ2-17-08 madde C düzeltmesi). Kompresör/Saturation 2000ms'de KALDI (DOKUNULMAYACAK). AYRI commit.**
+
+**Sorun (OLCUM-CIHAZ2-17-08 madde C):** `abLoopTimer` sabit `setInterval(toggleAB, 2000)` idi. Reverb'in Hall tipi 3.2sn'ye kadar decay üretiyor (`reverb.js` DIFFICULTY, `decayRange` [1.6, 3.2]) — sabit 2000ms'lik döngü bu kuyruğu HER ZAMAN kesiyordu. Cihazda: "A→B ve B→C geçişleri çok hızlı, anlaşılmıyor" — modun öğretim değeri kayboluyordu.
+
+**Yapılan:**
+1. YENİ `www/js/core/ab-loop-timing.js` — saf, test edilebilir fonksiyon: `resolveAbLoopIntervalMs(modeId)` → `modeId === "reverb" ? 4500 : 2000`. G273'ün `resolveOscillatorType()`'ıyla AYNI desen (DOM/audioCtx bağımsız saf hesabı ayrı bir modüle çıkarmak — birim testi mümkün kılmak için).
+2. `www/js/app.js`: `startAbLoop()` içindeki `setInterval(toggleAB, 2000)` → `setInterval(toggleAB, abLoopIntervalMs())`, `abLoopIntervalMs()` artık `resolveAbLoopIntervalMs(mode.MODE_ID)`'e delege ediyor. Grep ile doğrulandı — `abLoopTimer = setInterval` için TEK çağrı noktası bu.
+3. Manuel kart tıklaması (`playThreeWaySpecific`/`cycleThreeWayPreview`'ın tek-basış hâli) bu değişikliğe HİÇ dokunulmadı — zaten `abLoopIntervalMs()`'i hiç okumuyorlardı, döngü SADECE `startAbLoop()`'un `setInterval`'ini etkiliyor.
+
+**Testler eklendi:**
+- `test/ab-loop-timing.test.mjs` (4 birim testi) — `resolveAbLoopIntervalMs("reverb")===4500`, `("kompresor")===2000`, `("distortion")===2000`, tanınmayan/undefined modId için varsayılan 2000.
+- `e2e/reverb-loop-interval.spec.mjs` (4 e2e testi, GERÇEK runtime'da `app.js`'in doğru moda doğru aralığı UYGULADIĞINI kilitliyor) — Reverb ~4500ms (ölçüm tekniği: İKİNCİ geçişi ölç, ilk geçiş kurulum gecikmesiyle kirli — bkz. dosya başı yorum), Kompresör ~2000ms, Distortion ~2000ms, Reverb'de manuel kart tıklaması <1.5sn'de tepki veriyor (4500ms döngüsünden ETKİLENMİYOR).
+
+**Kırmızı/yeşil doğrulama (iki katman):**
+1. `ab-loop-timing.js` içinde GEÇİCİ regresyon enjeksiyonu (`resolveAbLoopIntervalMs` her zaman 2000 döndürecek şekilde değiştirildi) → `test/ab-loop-timing.test.mjs` KIRMIZI (Reverb testi `2000 !== 4500` ile düştü) → enjeksiyon geri alındı → YEŞİL.
+2. `git stash push -- www/js/app.js` (G279'un TÜM app.js değişikliğini geri aldı, eski sabit 2000ms'ye döndü) → `e2e/reverb-loop-interval.spec.mjs` KIRMIZI (Reverb testi "ölçülen: 2001ms" ile düştü, diğer 3 test hâlâ yeşildi — beklenen, çünkü onlarda davranış zaten değişmiyordu) → `git stash pop` → YEŞİL (4/4).
+
+**Hall decay pencereye sığıyor mu (KABUL KRİTERİ):** OLCUM-CIHAZ2-17-08'de ölçülen geçiş-başı ölü süre ~116-125ms (zincir yeniden kurulma + ramp). 4500ms − ~125ms ≈ **4375ms kullanılabilir dinleme süresi** vs Hall'un maksimum decay'i **3200ms (3.2sn)** — **sığıyor, ~1175ms pay var.**
+
+**Tur süresi ölçümü (task'ın "bunu ölç ve bildir" talimatı — DEĞİŞTİRİLMEDİ, SADECE ölçüldü):** Task'ın öne sürdüğü "7.5-26 sn" aralığı koddaki `reverb.js` `DIFFICULTY` tablosuyla (`easy:17, medium:14, hard:12, pro:10, proplus:10` sn) ve `app.js:startTimerForCurrentQuestion()`'ın boss indirimiyle (`Math.max(6, baseTime-2)`) **UYUŞMUYOR** — gerçek/türetilmiş aralık **8-17 saniye** (min: pro/proplus + boss = max(6,10-2)=8sn, maks: easy + boss değil = 17sn). En kısa turda (8sn, boss+pro/proplus) 4500ms'lik döngüyle kullanıcı otomatik olarak A'yı TAM, B'yi KISMİ (~3500/4500 ≈ %78) duyar, **C'ye otomatik döngüyle HİÇ ulaşılmaz** (8000/4500 ≈ 1.78 geçiş). Manuel kart tıklaması bundan ETKİLENMEZ — kullanıcı istediği an C'ye elle geçebilir. Bu bir ÖLÇÜM/bulgu olarak raporlanıyor; süre parametreleri (DIFFICULTY tablosu, döngü aralığı) task'ın DOKUNULMAYACAK'ı gereği DEĞİŞTİRİLMEDİ — alternatif bir çözüm (ör. en kısa turlarda döngüyü kısaltmak, ya da süreyi uzatmak) ürün kararı gerektirir, Logic'e bırakıldı.
+
+**Test sonuçları:** `npm test` 1433/1433 (G278'deki 1429'dan +4, yeni `ab-loop-timing.test.mjs`). `npm run test:e2e` 49/49 (G278'deki 45'ten +4, yeni `reverb-loop-interval.spec.mjs`). Hiçbir mevcut test bozulmadı — G267'nin 5 testi (`seamless-three-way.spec.mjs`) DAHİL AYRICA çalıştırılıp doğrulandı. (Not: paralel tam-suite koşularında `ear-buttons.spec.mjs` İÇİNDEN her seferinde FARKLI bir test rastgele "elementFromPoint kendisini bulamadı" ile düşüyor — G279'un dokunmadığı bir dosya/akış, dosya TEK BAŞINA koşulduğunda 9/9 yeşil; ÖNCEDEN VAR olan bir flake, bu turda YARATILMADI.)
+
+**Dokunulmayan (DOKUNULMAYACAK'a uyuldu):** Reverb'in A/B/C mimarisi (eski rebuild-based yol, G267) · IR üretim mantığı · decay süreleri · zorluk eğrisi/DIFFICULTY tabloları · Kompresör/Saturation'ın 2000ms döngüsü.
+
+---
 
 G278 — **Kaynak değişimi "Atla" sayılmasın (Logic'in ürün kararı, OLCUM-CIHAZ2-17-08 madde B'nin hile analizi üzerine). ÖLÇÜM: G275 (dün) BU KRİTERİN TAMAMINI ZATEN sağlıyordu — kod BUG'I YOKTU. Eklenen: davranışı KİLİTLEYEN 2 e2e test + açıklayıcı kod yorumu. AYRI commit.**
 
@@ -20830,7 +20857,26 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G278 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G279 itibarıyla):**
+Reverb'in otomatik döngü süresi 4500ms'ye çıkarıldı, Kompresör/Saturation
+2000ms'de kaldı — mod-bazlı saf fonksiyon (`core/ab-loop-timing.js`) ile.
+Hall decay'i (3.2sn) 4500ms'lik pencereye ~1175ms payla sığıyor (ölçüldü:
+geçiş-başı ~125ms ölü süre düşülünce ~4375ms kullanılabilir). `npm test`
+1433/1433, `npm run test:e2e` 49/49, iki katmanlı kırmızı/yeşil (birim
+testi regresyon-enjeksiyonuyla + `git stash` ile app.js üzerinde)
+doğrulandı.
+**Kullanıcının kararı gerektiren AÇIK bulgu (task'ın "ölç ve bildir"
+talimatı gereği, DEĞİŞTİRİLMEDİ):** task'ın "tur süresi 7.5-26sn"
+iddiası koddaki gerçek değerlerle UYUŞMUYOR — türetilen/ölçülen gerçek
+aralık **8-17 saniye**. En kısa turda (8sn, boss+pro/proplus zorluk)
+4500ms'lik otomatik döngüyle kullanıcı A'yı TAM, B'yi KISMİ (~%78)
+duyar, **C'ye otomatik döngüyle HİÇ ulaşılmaz** — manuel kart tıklaması
+bundan etkilenmiyor (istenildiği an C'ye elle geçilebiliyor). Bu bir
+sorun mu (ör. en kısa turlarda döngü kısaltılsın mı, ya da süre
+uzatılsın mı) yoksa kabul edilebilir mi — bu bir ÜRÜN KARARI, Logic'e
+bırakıldı.
+
+**EN YENİ SIRADAKİ ADIM (G278 itibarıyla, ARTIK ESKİ):**
 Logic'in ürün kararı ("kaynak değişimi Atla sayılmasın") ölçüldü —
 **G275 (bugün, aynı gün içinde) bunu YAN ETKİ olarak ZATEN
 sağlıyordu**, kod bug'ı YOKTU (dürüstçe raporlandı, uydurma bir
