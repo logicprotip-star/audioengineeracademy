@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G274 — siyah ekran düzeltmesi: goScreen("home")'un 5 kırık çağrısı goScreen("menu")'ye çevrildi, regresyon testi eklendi (test/goscreen-ids.test.mjs); kök sebep 3 gün önceki commit'lerdeydi, bugünkü işlerle ilgisi yoktu)
+Son güncelleme: 17.08.2026 (G275 — kaynak değişimi sonrası ekran düzeltmesi: syncUploadGate()'in eksik dalına syncAnswerArea() eklendi, .answers artık geçerli kaynağa dönünce geri geliyor, soru değişmiyor; kök sebep G126'ydı, 6 gün önce)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,48 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G275 — **Kaynak değişimi sonrası ekran düzeltmesi (OLCUM-CIHAZ2-17-08 madde B). `syncUploadGate()`'in upload-dosyasız dalı `.answers`'ı boşaltıp gizliyordu, geçerli kaynağa dönünce geri getiren HİÇBİR satır yoktu — kullanıcı "Atla" demek zorunda kalıyordu (G214'ten beri bu da yanlış cevap sayılıyor). AYRI commit.**
+
+**Kök sebep (OLCUM-CIHAZ2-17-08'de doğrulandı):** `syncUploadGate()`'in
+`needsGate` dalı (`www/js/app.js`) kaynak "upload" VE geçerli dosya
+YOKKEN `els.answers.innerHTML=""` + `classList.add("hidden")`
+yapıyordu. `!sourceIsUpload` (geçerli bir kaynağa dönüş) dalı SADECE
+`uploadGate`/`analyzer`/`gameSpectrumControls`'u ele alıyordu —
+`.answers`'ı GERİ GETİREN satır YOKTU. Kök **G126** (`02e2f9f`,
+2026-08-11 — 6 gün önce, bugünkü hiçbir commit'le ilgisi yok).
+
+**Düzeltme:** `!sourceIsUpload` dalına `syncAnswerArea()` çağrısı
+eklendi — bu fonksiyon (`www/js/app.js:1432`, ZATEN VAR, "cevap biçimi
+değiştiğinde" için kullanılıyordu) `activeQuestion`'a göre `.answers`'ı
+senkronluyor, SORUYU/`question.choices`'ı DEĞİŞTİRMİYOR (idempotent
+render). Round henüz başlamamışsa (`activeQuestion=null`) zararsız
+no-op'a yakın.
+
+**⚠️ Korunanlar:** mevcut soru DEĞİŞMEDİ (Playwright'ta doğrulandı —
+kaynak değişimi öncesi/sonrası `window.__aeaActiveQuestionChoices()`
+BİREBİR AYNI). Upload GERÇEKTEN dosyasızken gizleme davranışı TEK
+SATIR değişmedi (`needsGate` dalına DOKUNULMADI) — AYRI bir regresyon
+testiyle DOĞRULANDI.
+
+**Ürün sorusu (OLCUM-CIHAZ2-17-08'in hile analizi, Logic'e sunuldu,
+KARAR VERİLMEDİ — bu turun kapsamı DIŞINDA bırakıldı):** kaynak
+değişimi "Atla" sayılmasın mı? Ölçüm (kaynak değişimi mevcut soruyu
+DEĞİŞTİRMİYOR) hile riskinin düşük olduğunu gösteriyor ama KESİN
+DEĞİL — G214'ün "Atla=yanlış" davranışı BU turda DEĞİŞTİRİLMEDİ,
+SADECE altındaki UI bug'ı (kullanıcının Atla'ya MECBUR kalması)
+düzeltildi.
+
+**Yeni test (`e2e/upload-gate-answers-restore.spec.mjs`, 2 test):**
+(1) upload→geçerli kaynak dönüşünde `.answers` geri geliyor, soru
+değişmiyor, cevap normal işleniyor; (2) REGRESYON KORUMASI — upload
+gerçekten dosyasızken gizleme AYNEN çalışıyor. `git stash -- app.js`
+ile KIRMIZI (1. test `.answers` hâlâ gizli diye başarısız oldu, 2.
+test YEŞİL kaldı — İZOLASYONUN doğru olduğunu kanıtlıyor) doğrulandı,
+`stash pop` ile YEŞİL'e dönüldü.
+
+**Doğrulama:** `npm test` 1427/1427 (değişmedi — sadece e2e testi
+eklendi). `npm run test:e2e` 38'den (G274) **40/40**'a (2 yeni test).
 
 G274 — **Siyah ekran düzeltmesi (OLCUM-SATURATION-17-08 madde A). `goScreen("home")` 5 yerde VAR OLMAYAN bir ekran id'sine gidiyordu (gerçek id `#screen-menu`) — TÜM `.screen` elementleri "active" sınıfını kaybediyor, siyah ekran kalıyordu. AYRI commit.**
 

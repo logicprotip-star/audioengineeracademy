@@ -2412,6 +2412,21 @@ function syncUploadGate() {
     els.uploadGate.classList.add("hidden");
     if (els.analyzer) els.analyzer.classList.toggle("hidden", !!mode.HIDE_ANALYZER);
     if (els.gameSpectrumControls) els.gameSpectrumControls.classList.remove("hidden");
+    // G275 DÜZELTMESİ (OLCUM-CIHAZ2-17-08 madde B) — kaynak "upload"tan (dosyasız,
+    // needsGate dalı aşağıda) BAŞKA bir kaynağa dönüldüğünde `.answers` GERİ
+    // GETİRİLMİYORDU: needsGate dalı `els.answers.innerHTML=""` +
+    // `classList.add("hidden")` yapıyordu (bkz. aşağı), ama BU dal (sourceIsUpload
+    // artık false) onu geri açan/dolduran HİÇBİR satır İÇERMİYORDU — kullanıcı
+    // geçerli bir kaynağa dönse bile soru/cevap alanı KALICI olarak boş/gizli
+    // kalıyordu, TEK çıkış "Atla" oluyordu (G214'ten beri bu da yanlış cevap
+    // sayılıyor). syncAnswerArea() (www/js/app.js:1432) TAM bunun için var —
+    // activeQuestion'a göre `.answers`'ı DOĞRU duruma senkronlar, "yeni soru
+    // biçimi ayarı değiştiğinde" İLE AYNI (o da mevcut soruyu DEĞİŞTİRMEDEN
+    // SADECE görünümü senkronluyor) — mevcut soru/cevap SEÇENEKLERİ (`question.
+    // choices`) DEĞİŞMEZ, SADECE render tekrarlanır (idempotent). Round henüz
+    // başlamamışsa (activeQuestion=null) syncAnswerArea() zaten no-op'a yakın
+    // (boş/gizli bırakır) — zararsız.
+    syncAnswerArea();
     return;
   }
   const checkPlayability = mode.bufferPlayability || genericBufferPlayability;
