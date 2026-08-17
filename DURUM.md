@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G273 — "Saw" kaynağı artık GERÇEK sawtooth çalıyor (osc.type bug'ı düzeltildi, resolveOscillatorType() eklendi); saw PSD'si yeniden ölçüldü, telafi 4.52dB→1.37dB ortalama sapmaya indi, en kötü nokta -12.44dB→+2.90dB)
+Son güncelleme: 17.08.2026 (G274 — siyah ekran düzeltmesi: goScreen("home")'un 5 kırık çağrısı goScreen("menu")'ye çevrildi, regresyon testi eklendi (test/goscreen-ids.test.mjs); kök sebep 3 gün önceki commit'lerdeydi, bugünkü işlerle ilgisi yoktu)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,50 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G274 — **Siyah ekran düzeltmesi (OLCUM-SATURATION-17-08 madde A). `goScreen("home")` 5 yerde VAR OLMAYAN bir ekran id'sine gidiyordu (gerçek id `#screen-menu`) — TÜM `.screen` elementleri "active" sınıfını kaybediyor, siyah ekran kalıyordu. AYRI commit.**
+
+**Kök sebep, kesin doğrulandı (OLCUM-SATURATION-17-08'de):**
+`goScreen(name)` (`www/js/app.js`) hedef id'yi `screen-${name}` kurup
+`.screen`'lerin `active` sınıfını `toggle(..., s.id===targetId)` ile
+ayarlıyor — `"screen-home"` HİÇBİR elemente eşleşmediği için TÜM
+ekranlar `active`'i KAYBEDİYORDU. 5 çağrı noktası: exam-offer'ın
+"Sonra" butonu, exam-passed/exam-failed/remedial'ın "Ana Ekran"
+butonları, `progStartFreqBtn`. Hepsi **3 gün önceki** commit'lerdeydi
+(`07a2c056`/`30b073c8` 08-09, `e42101df` 08-14, `39f9d232` 08-10) —
+bugünkü G214/G267/G269/G271-273'ün HİÇBİRİYLE ilgisi YOK.
+
+**Düzeltme:** 5 çağrının HEPSİ `goScreen("menu")`'ye çevrildi (kod
+tabanında ZATEN 7 yerde doğru kullanılan isim). Kaynak ID'si/`goScreen()`
+fonksiyonunun KENDİSİ DEĞİŞMEDİ — sadece 5 çağrı argümanı düzeltildi.
+
+**Tarama — başka geçersiz çağrı var mı:** `www/js/app.js`'teki TÜM
+`goScreen(...)` çağrıları (`grep`) tek tek kontrol edildi — literal
+string argümanlar (`"game"`,`"menu"`,`"exam"`,`"paywall"`,`"result"`)
+HEPSİ `www/index.html`'in gerçek `#screen-*` id'leriyle eşleşiyor.
+Dinamik argümanlar (`screenStack.pop()||fallback`,
+`TAB_TO_SCREEN[...]||"menu"`, `settingsReturnScreen`) kaynağı
+İNCELENDİ — `TAB_TO_SCREEN={train:"menu",progress:"progress",
+tools:"tools"}` (hepsi geçerli), `settingsReturnScreen`
+`document.querySelector(".screen.active").id`'den TÜRETİLİYOR (yapı
+gereği HER ZAMAN geçerli bir id, ya da `active` yoksa "menu"
+varsayılanı) — **BAŞKA geçersiz çağrı BULUNAMADI.**
+
+**Regresyon testi (YENİ, `test/goscreen-ids.test.mjs`):** `app.js`'i
+(yorumlar SİLİNMİŞ hâliyle — bu dosyanın KENDİ açıklayıcı yorumları
+"goScreen(\"home\")" string'ini İÇERDİĞİ için ham regex SAHTE-kırmızı
+üretirdi) ve `index.html`'i METİN olarak okuyup TÜM literal
+`goScreen("x")` çağrılarının GERÇEK bir `#screen-x` elementine karşılık
+geldiğini doğruluyor — 4 test. `git stash -- app.js` ile KIRMIZI
+(2 test `"home"`yi YAKALAYIP başarısız oldu, TAM OLARAK bu bug'ı
+tespit ederek) doğrulandı, `stash pop` ile YEŞİL'e dönüldü.
+
+**Doğrulama:** Canlı Playwright ile TAM reprodüksiyon zinciri (10
+soruluk parkur → sınav → 4 yanlış → "Parkur baştan" → "Ana Ekran")
+tekrar koşuldu — **artık `screen-menu`'ye dönüyor, içerik GÖRÜNÜR**
+("Audio Engineer Academy / Yeni Kulak / Akademi Seviyesi..."), önceki
+turda ölçülen `null`/boş ekran YOK. `npm test` 1423→**1427/1427**.
+`npm run test:e2e` **38/38**.
 
 G273 — **"Saw" kaynağının GERÇEK sawtooth çalması (AÇIK İŞLER 27 düzeltmesi — kullanıcı G272'nin yan bulgusunu düzeltilmesi gereken bir bug olarak işaretledi). KİLİT (G214-G272, 581f798, a4efb42) ve DOKUNULMAYACAK (diğer kaynak tipleri, zorluk eğrisi, G271/G272'nin spektrum telafi MEKANİZMASI) korundu. AYRI commit.**
 
