@@ -287,6 +287,12 @@ describe("Pan Konumu — getMeta() sözleşme alanları", () => {
     assert.ok(!meta.uyumluKaynaklar.includes("hihat"), "tek vuruşluk hihat DIŞLANMALIYDI");
     assert.ok(!meta.uyumluKaynaklar.includes("tom"), "tek vuruşluk tom DIŞLANMALIYDI");
     assert.ok(meta.uyumluKaynaklar.includes("upload"), "kullanıcı kendi dosyasını yükleyebilmeli");
+    // G270 — clean_guitar (G259'da eklenmişti, bu listeye HİÇ girmemiş — eksik
+    // liste girdisi düzeltildi) ve arpeggio_guitar (YENİ kaynak) eklendi —
+    // İKİSİ de "guitar" (acoustic_guitar, zaten listede) ile AYNI gerekçeyi
+    // (sürekli/uzayan enstrüman sesi, tek-vuruş DEĞİL) karşılıyor.
+    assert.ok(meta.uyumluKaynaklar.includes("clean_guitar"), "clean_guitar eklenmeliydi (G270)");
+    assert.ok(meta.uyumluKaynaklar.includes("arpeggio_guitar"), "arpeggio_guitar eklenmeliydi (G270)");
     assert.equal(meta.choiceOnly, true);
     for (const level of Object.keys(meta.difficulty)) {
       assert.ok(typeof meta.difficulty[level].lives === "number");

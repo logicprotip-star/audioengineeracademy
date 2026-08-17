@@ -64,6 +64,12 @@ export const SOURCE_GROUPS = [
       // (OLCUM-CIHAZ-16-08.md madde H.2, kullanıcı kararı), diğer kaynak
       // adlarının (Pink Noise/Saw/Square/Triangle) BİREBİR aynı deseni.
       { id: "clean_guitar", label: "Clean Gitar", kind: "sample", samplePath: "audio/clean_guitar.m4a", desc: "Temiz elektrogitar — alt-orta, ölçülen tepe ~291 Hz" },
+      // G270 — YENİ: arpej (kırık akor) deseninde akustik gitar, 78 BPM
+      // grid'inde 8 bar/24.6sn (diğer davul/enstrüman kaynaklarıyla AYNI
+      // uzunluk/faz). Ölçülen tepe (Welch, 4096-nokta FFT, ~10.8Hz çözünürlük
+      // — OLCUM-KAYNAK-16-08.md'nin AYNI yöntemi) acoustic_guitar.m4a ile
+      // BİREBİR AYNI (~194 Hz, AYNI enstrüman/akort) — desc bunu YANSITIYOR.
+      { id: "arpeggio_guitar", label: "Arpej Gitar", kind: "sample", samplePath: "audio/arpeggio_guitar.m4a", desc: "Akustik gitar, arpej deseni — alt-orta, ölçülen tepe ~194 Hz" },
       { id: "vocal", label: "Vokal", kind: "sample", samplePath: "audio/vocal.m4a", desc: "Lead vokal frazı — orta bölge" },
       // G259 — YENİ, stereo. `stereoOnly:true` — compatibleSourceIds()'in
       // varsayılan (parametresiz) yolundan BİLEREK dışlanır (bkz. aşağı),
@@ -112,9 +118,25 @@ export function findSource(id) {
 // göre -15dB üstü "anlamlı enerji" bandı bulunup, ÇİFTİN İKİ kaynağının da
 // bu bandı sağladığı KESİŞİM aralığı region olarak alındı — eski region'lar
 // (ESKİ kütüphaneye göre elle ayarlanmıştı) YENİ dosyalarla ARTIK UYUMSUZDU.
-// ⚠️ vokal-gitar: vocal.m4a HÂLÂ ESKİ dosya (yeni kayıt gelmedi) — bu region
-// YARI-güvenilir, guitar YENİ + vocal ESKİ bir çiftin ölçümü. vocal.m4a
-// yenilenince BU ÇİFT YENİDEN ÖLÇÜLMELİ (bkz. DURUM.md SIRADAKİ).
+//
+// G270 — vocal.m4a YENİLENDİ (eski dosyanın üzerine yazıldı, 5.67sn→6.15sn,
+// AYNI id/yol) — G259'un "vocal HÂLÂ eski dosya" notu ARTIK GEÇERSİZ,
+// vokal-gitar YENİDEN ÖLÇÜLDÜ (aşağıda). AYRICA snare-gitar ÇIKARILDI,
+// YERİNE snare-arpej-gitar EKLENDİ — G270'in ÖLÇÜM bulgusu (OLCUM-KAYNAK-17-08.md):
+// eski snare+acoustic_guitar çiftinin ASIL sorunu SPEKTRAL DEĞİL (İKİ çiftin
+// de spektral çakışması ~170-400Hz, PRATİKTE AYNI — acoustic_guitar/
+// arpeggio_guitar AYNI enstrüman/akort, tepe İKİSİNDE de ~194Hz) — sorun
+// TAMAMEN ZAMANSAL: acoustic_guitar.m4a'nın vuruşları snare'in vuruşlarından
+// (en-yakın-vuruş) ORTALAMA 231ms uzakta duruyordu (16 snare vuruşunun
+// SADECE 1'i 150ms içindeydi — "sırayla çalıyorlardı, üst üste
+// binmiyorlardı"). arpeggio_guitar'ın notaları İSE snare'in HER vuruşundan
+// ORTALAMA 104ms uzakta (16/16'sı 150ms İÇİNDE) — GERÇEKTEN üst üste biniyor.
+// ⚠️ vokal-gitar'ın YENİ region'ı ([200,600]'den [220,360]'a) da bu turda
+// GERÇEKTEN daraldı — vocal.m4a'nın YENİ kaydı acoustic_guitar ile SADECE
+// 215-366Hz aralığında -15dB üstü ORTAK enerji taşıyor (vocal ÇOK-formantlı,
+// KENDİ global tepesi 1087Hz'de ama guitar'la ORTAK/örtüşen bölge çok daha
+// AŞAĞIDA) — eski [200,600] aralığı YENİ vocal ile ARTIK GERÇEKÇİ DEĞİLDİ.
+// Tam ölçüm/yöntem: OLCUM-KAYNAK-17-08.md.
 export const SOURCE_PAIRS = [
   {
     id: "kick-bas", labelA: "Kick", labelB: "Bas", sourceA: "kick", sourceB: "bass",
@@ -122,11 +144,11 @@ export const SOURCE_PAIRS = [
   },
   {
     id: "vokal-gitar", labelA: "Vokal", labelB: "Gitar", sourceA: "vocal", sourceB: "guitar",
-    region: [200, 600], desc: "Vokal ve gitar — orta bölgede gövde çatışması"
+    region: [220, 360], desc: "Vokal ve gitar — orta bölgede gövde çatışması"
   },
   {
-    id: "snare-gitar", labelA: "Snare", labelB: "Gitar", sourceA: "snare", sourceB: "guitar",
-    region: [170, 400], desc: "Snare ve gitar — atak ve sertlik bölgesinde çakışma"
+    id: "snare-arpej-gitar", labelA: "Snare", labelB: "Arpej Gitar", sourceA: "snare", sourceB: "arpeggio_guitar",
+    region: [170, 400], desc: "Snare ve arpej gitar — atak/sertlik bölgesinde HEM spektral HEM zamansal çakışma"
   }
 ];
 

@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G269 — Distortion'a drive-ve-tip bağımlı çıkış telafisi eklendi, clip artık Kompresör'le ±1dB içinde ve 0dBFS'i aşmıyor; task'ın THD sıralaması varsayımı ölçülüp düzeltildi)
+Son güncelleme: 17.08.2026 (G270 — kaynak kataloğu güncellendi: arpeggio_guitar eklendi, vocal.m4a yenilendi, clean_guitar eksik listeleri düzeltildi, SOURCE_PAIRS yeniden ölçüldü; index.html'de gerçek bir bug bulunup düzeltildi)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,114 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G270 — **Kaynak kataloğu güncellendi: YENİ kaynak arpeggio_guitar (arpej gitar, 78 BPM/8 bar) eklendi; vocal.m4a içerik değişikliğinin kod DAVRANIŞ etkisi olmadığı doğrulandı; pan-konumu.js/reverb.js'in eksik clean_guitar girdisi düzeltildi; SOURCE_PAIRS'te snare-gitar → snare-arpej-gitar (zamansal örtüşme 231ms→104ms, ÖLÇÜLDÜ), vokal-gitar YENİ vocal.m4a ile yeniden ölçüldü ([200,600]→[220,360]). Canlı tarayıcıda bir GERÇEK bug bulunup düzeltildi (index.html'in hardcoded pair seçici HTML'i). AYRI commit.**
+
+**Yeni kaynak — arpeggio_guitar:** `arpeggio_guitar.m4a` (24.615s/8 bar,
+78 BPM grid'inde TAM hizalı, mono, -6dBFS peak — ffprobe/ffmpeg ile
+doğrulandı). Ölçülen tepe (Welch, 4096-nokta FFT) **194Hz — acoustic_guitar
+ile BİREBİR AYNI** (aynı enstrüman/akort, arpej deseninde). Kısıtlamasız
+7 moda (Frekans Bulma/Kesim Noktası/Q Genişliği/Boost-Cut/dB Seviyesi/
+Kompresör/Distortion) OTOMATİK dahil oldu (compatibleSourceIds()).
+Kısıtlı 3 mod DEĞERLENDİRİLDİ: **Pan Konumu'na EKLENDİ** (kendi kısıtı
+"sürekli/uzayan ses" — arpej SÜREKLİ bir doku, "guitar" ile AYNI gerekçe),
+**Reverb'e EKLENDİ** (kendi kısıtı "gerçek mixte reverb verilen kaynaklar"
+— gitar/arpej doku klasik reverb-dostu), **Tonal Denge'ye EKLENMEDİ**
+(kendi kısıtı "SADECE dolu spektrum/groove/upload" — arpeggio_guitar TEK
+ENSTRÜMAN, guitar/clean_guitar/vocal/bass de AYNI gerekçeyle zaten YOK —
+TUTARLILIK korundu).
+
+**vocal.m4a değişikliği:** `grep -rn "5\.67\|vocalDuration"` — kod
+tabanında sürece dair HİÇBİR hardcoded referans bulunamadı
+(`audio-engine.js` her zaman `buffer.duration`'ı çalışma-zamanında
+okuyor). **Kod değişikliği GEREKMEDİ, doğrulandı.** Yeni süre 6.154s
+(eskisi 5.67s), 8-bar kaynaklarla (24.615s) oranı **TAM 4.0000** —
+senkron BOZULMUYOR.
+
+**clean_guitar eksik listeler:** `grep` ile doğrulandı — `pan-konumu.js`/
+`reverb.js`'in `only` listeleri clean_guitar'ı (G259'da eklenmişti) HİÇ
+İÇERMİYORDU, eksik/unutulmuş liste girdisi (davranış değişikliği DEĞİL).
+İkisine de eklendi. Tonal Denge kontrol edildi, arpeggio_guitar'la AYNI
+gerekçeyle BİLEREK değiştirilmedi.
+
+**SOURCE_PAIRS yeniden ölçümü (`OLCUM-KAYNAK-17-08.md`, tam metodoloji/
+tablolar orada) — üç bant-algılama yöntemi denendi (dosyada belgeli, G269'un
+"önce hesapla, tutmuyorsa ölçülmüş tabloya dön" dersiyle AYNI titizlik):
+sıkı süreklilik (çok-loblu spektrumları YANLIŞ dışlıyordu), süreklilik-siz
+(izole uzak kırıntıları YANLIŞ dahil ediyordu), NİHAİ: 60Hz boşluk-toleranslı
+— peak HAM spektrumdan (bass/guitar/clean_guitar için 97/194/291Hz,
+source-catalog.js'in DOKÜMANTE değerleriyle BİREBİR eşleşti, yöntem
+doğrulaması).**
+
+- **snare-arpej-gitar** (snare-gitar'ın YERİNE): **Zamansal örtüşme (asıl
+  fark) ÖLÇÜLDÜ** — onset dedeksiyonu + en-yakın-mesafe: ESKİ çift
+  (snare+acoustic_guitar) ortalama 231ms, SADECE 1/16 snare vuruşu 150ms
+  içinde ("sırayla çalıyorlardı" doğrulandı). YENİ çift
+  (snare+arpeggio_guitar) ortalama 104ms, **16/16 vuruş 150ms içinde** —
+  GERÇEK üst-üste-binme. **Spektral örtüşme [172,398]Hz — acoustic_guitar
+  ile PRATİKTE AYNI** (İKİ gitar da aynı enstrüman/tepe) — **task'ın "eski
+  çiftte sadece 11Hz spektral örtüşme" iddiası BU ÖLÇÜMLE DOĞRULANAMADI**
+  (üç yöntemin HİÇBİRİ 11Hz gibi dar bir sonuç üretmedi, en dar ölçüm bile
+  ~130Hz) — **BELİRSİZ**, task'ın hangi yöntemle ölçtüğü bilinmiyor, ama
+  kararı ETKİLEMEDİ (zamansal fark TEK BAŞINA çiftin değişimini haklı
+  çıkaracak kadar güçlü). Yeni region **[170,400]** (eski snare-gitar'la
+  SAYISAL olarak AYNI — spektral profil değişmedi, sadece zamansal
+  düzeldi). id/label: `snare-gitar`→`snare-arpej-gitar`, "Gitar"→"Arpej
+  Gitar", sourceB: `guitar`→`arpeggio_guitar`.
+- **vokal-gitar** (YENİ vocal.m4a ile yeniden ölçüldü): vocal ÇOK-formantlı
+  (tek global tepe DEĞİL — 226-506Hz VE 980-1184Hz'de AYRI anlamlı loblar)
+  — "her kaynağın kendi tepe-lobü" yöntemi kesişim BULAMADI, DOĞRUDAN
+  kesişim (her frekansta İKİ kaynağın da -15dB üstü olduğu ORTAK küme)
+  kullanıldı: **[215,366]Hz**. Task'ın "219-1113Hz"i muhtemelen vocal'in
+  KENDİ genel aralığını (İKİLİ kesişim DEĞİL) tarif ediyordu — BENİM
+  ölçtüğüm GERÇEK ikili kesişim, region'ın anlamına (createQuestion'ın
+  İKİ kaynağın da GERÇEKTEN duyulduğu yerden seçim yapması) daha uygun.
+  Yeni region **[220,360]** (ölçülenin İÇE yuvarlanmışı, temkinli).
+  vocal+clean_guitar de AYRICA ölçüldü (bilgi amaçlı — [441,743]Hz,
+  acoustic_guitar'dan TAMAMEN farklı bölge) ama YENİ bir çift olarak
+  EKLENMEDİ (task'ın istemediği bir ürün kararı, tek başıma eklenmedi).
+- **vokal-bas KURULMADI** (task'ın kararı) — ölçülen [215,280]Hz, 65Hz
+  genişlik, task'ın "59Hz, öğretim değeri yok" iddiasıyla AYNI büyüklük
+  mertebesinde, SONUÇ AYNI.
+- **kick-bas: DOKUNULMADI** (task'ın kısıtı).
+
+**Madde 5 kontrolleri — TÜMÜ doğrulandı:** 12 modun kaynak seçicisi
+(7 kısıtlamasız mod OTOMATİK, Pan/Reverb elle güncellendi, Tonal Denge/
+Stereo Genişlik bilerek değiştirilmedi, Frekans Çakışması SOURCE_PAIRS
+üzerinden). Yeni kaynaklar CANLI tarayıcıda (gerçek fare tıklaması)
+doğrulandı — Frekans Çakışması'nda "Snare + Arpej Gitar" ile 2 tur (170/
+387/286Hz, region içinde) oynandı, Pan Konumu'nda "Arpej Gitar" ile round
+başlatılıp çalındı, konsol hatası YOK. Stereo dosyalar hâlâ SADECE Stereo
+Genişlik'te (testle doğrulandı). bass_alt'a fonksiyonel referans KALMADI
+(sadece tarihsel yorumlar). Testler: 8 mevcut test güncellendi (ID/region
+değişiklikleri) + 8 yeni test (arpeggio_guitar'ın 7 moddaki durumu).
+
+**🔴 CANLI TESTTE BULUNAN GERÇEK BUG (bu turun kendi bulgusu):**
+`www/index.html`'in `#cakismaPairSelect`'i `SOURCE_PAIRS`'ten DİNAMİK
+üretilmiyor — `<option>`'lar HTML'de ELLE yazılı (`populateSourceSelect()`'in
+DİNAMİK kaynak seçicisinin AKSİNE). `snare-gitar`→`snare-arpej-gitar`
+yeniden adlandırmasında bu HTML güncellenmese, kullanıcı "Snare + Gitar"
+seçeneğini GÖRMEYE devam eder ama `findSourcePair()` SESSİZCE
+`SOURCE_PAIRS[0]`'a (kick-bas) düşerdi — hata/uyarı OLMADAN yanlış
+sorular gelirdi. BULUNUP DÜZELTİLDİ, canlı doğrulandı.
+
+**Test:** `npm test` 1403→**1411/1411** (+8). `npm run test:e2e`
+**38/38** (DEĞİŞMEDİ — mevcut testler yeni içerikle zaten yeşil kaldığı
+için yeni e2e testi gerekmedi, ama G268'in reverb-peak testi YENİ
+vocal.m4a ile YEŞİL kalarak dolaylı bir doğrulama sağladı).
+
+**Dokunulmayan (KİLİT):** Pan Konumu'nun davul tek-atış dışlaması (G43)
+TEK SATIR değişmedi (sadece gitar-ailesi eklendi, davul EKLENMEDİ),
+kick-bas çifti, zorluk eğrisi, mod mantığı, G214-G269 arası commit'ler.
+
+**Dokunulan:** `www/js/core/source-catalog.js` (arpeggio_guitar girdisi +
+SOURCE_PAIRS güncellemesi), `www/js/modes/pan-konumu.js`/`reverb.js`
+(only listelerine clean_guitar+arpeggio_guitar), `www/js/modes/tonal-denge.js`
+(SADECE yorum — liste değişmedi), `www/index.html` (#cakismaPairSelect
+option düzeltmesi), `test/source-catalog.test.mjs`/`reverb.test.mjs`/
+`frekans-cakismasi.test.mjs`/`pan-konumu.test.mjs` (8 güncelleme + 8 yeni
+test), `www/audio/arpeggio_guitar.m4a` (YENİ dosya), `www/audio/vocal.m4a`
+(İÇERİK değişti), `OLCUM-KAYNAK-17-08.md` (YENİ dosya), `DURUM.md`.
 
 G269 — **Saturation & Distortion'a drive-ve-tip bağımlı çıkış telafisi eklendi — clip artık Kompresör'den ~9.7dB RMS yüksek DEĞİL (OLCUM-CIHAZ-16-08 madde C), "easy" zorlukta vocal/snare kaynağıyla artık 0dBFS'i AŞMIYOR (OLCUM-REVERB-TEPE-17-08 yan bulgusu). ÖNCE hesaplama (analitik model) denendi, ±1dB'yi tutturamadı — ölçülmüş 9-noktalı tablo kullanıldı, metodoloji OLCUM-DISTORTION-TELAFI-17-08.md'de. Task'ın THD sıralaması varsayımı ("clip>tube>soft>tape") ÖLÇÜLDÜ VE YANLIŞ ÇIKTI — gerçek sıra (clip>soft>tube>tape) test'e yazıldı. AYRI commit.**
 
@@ -20171,7 +20279,32 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G269 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G270 itibarıyla):**
+Kaynak kataloğu güncellendi — arpeggio_guitar (YENİ, 194Hz tepe) eklendi,
+Pan/Reverb'in only listelerine (clean_guitar+arpeggio_guitar) dahil
+edildi, Tonal Denge'ye bilerek eklenmedi (G44 tutarlılığı). vocal.m4a
+içerik değişikliğinin kod etkisi olmadığı doğrulandı. SOURCE_PAIRS
+yeniden ölçüldü: snare-gitar→snare-arpej-gitar (zamansal örtüşme
+231ms→104ms ölçüldü, task'ın "11Hz spektral örtüşme" iddiası
+doğrulanamadı/BELİRSİZ ama karar zaten zamansal veriyle yeterince
+destekleniyordu), vokal-gitar [200,600]→[220,360]. Canlı tarayıcıda
+GERÇEK bir bug bulundu (index.html'in hardcoded #cakismaPairSelect
+option'ı) ve düzeltildi. `npm test` 1403→1411/1411, `npm run test:e2e`
+38/38 (değişmedi).
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. `OLCUM-KESIM-17-08.md`'nin önerisi (Kesim Noktası'nın matchLoudness
+   telafisini spektrum-farkında bir modele geçirmek) hâlâ UYGULANMADI —
+   AYRI, orta-büyük bir iş olarak bekliyor.
+2. vocal+clean_guitar çifti ÖLÇÜLDÜ ([441,743]Hz, anlamlı bir örtüşme)
+   ama YENİ bir SOURCE_PAIRS girdisi olarak EKLENMEDİ (ürün kararı,
+   kullanıcıya bırakıldı) — bkz. OLCUM-KAYNAK-17-08.md madde F.2.
+3. `OLCUM-KALAN-17-08.md`/`OLCUM-CPU-17-08.md`/`OLCUM-KESIM-17-08.md`
+   henüz commit'e alınmadı (task'ın kendi kuralı, sadece DURUM.md'ye
+   G267-G270 girdileriyle kaydedildi).
+4. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü (OLCUM-FLAKY-16-08.md)
+   hâlâ ÇALIŞTIRILARAK test EDİLMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G269 itibarıyla, ARTIK ESKİ):**
 Saturation & Distortion'a drive-ve-tip bağımlı çıkış telafisi eklendi —
 clip artık Kompresör'den ölçülebilir biçimde yüksek DEĞİL (OLCUM-CIHAZ-16-08
 madde C ÇÖZÜLDÜ), "easy" zorlukta vocal/snare kaynağıyla artık 0dBFS'i

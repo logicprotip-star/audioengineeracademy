@@ -107,9 +107,9 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
     }
   });
 
-  it("reverb: SADECE gitar/vokal/snare/groove/upload — kick/hihat/tom/synth/bas KASITLI dışarıda", () => {
+  it("reverb: SADECE gitar/clean_guitar/arpeggio_guitar/vokal/snare/groove/upload — kick/hihat/tom/synth/bas KASITLI dışarıda (G270: clean_guitar/arpeggio_guitar eklendi)", () => {
     const meta = reverb.getMeta();
-    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["groove", "guitar", "snare", "upload", "vocal"].sort());
+    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["arpeggio_guitar", "clean_guitar", "groove", "guitar", "snare", "upload", "vocal"].sort());
   });
 
   it("tonal-denge: SADECE groove/upload (dolu mix bağlamı) — KASITLI dar liste", () => {
@@ -117,10 +117,66 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
     assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["groove", "upload"].sort());
   });
 
-  it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 3 hazır çift içerir", () => {
+  it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 3 hazır çift içerir (G270: snare-gitar→snare-arpej-gitar)", () => {
     const meta = frekansCakismasi.getMeta();
     assert.deepEqual(meta.uyumluKaynaklar, []);
-    assert.deepEqual(SOURCE_PAIRS.map(p => p.id).sort(), ["kick-bas", "snare-gitar", "vokal-gitar"].sort());
+    assert.deepEqual(SOURCE_PAIRS.map(p => p.id).sort(), ["kick-bas", "snare-arpej-gitar", "vokal-gitar"].sort());
+  });
+});
+
+// G270 — YENİ kaynak: arpeggio_guitar (arpeggio_guitar.m4a, 78 BPM grid'inde
+// 8 bar/24.6sn, mono, -6dBFS — diğer davul/enstrüman kaynaklarıyla AYNI
+// format). Kısıtlaması olmayan modlara ("frekans-genel" G54 grubu) OTOMATİK
+// dahil olur (compatibleSourceIds() parametresiz) — burada AYRICA ELLE
+// seçilmiş listelere (Pan/Reverb/Tonal Denge) doğru dahil/hariç edildiği
+// doğrulanıyor.
+describe("source-catalog — G270 YENİ kaynak: arpeggio_guitar", () => {
+  it("SOURCE_GROUPS'ta doğru alanlarla tanımlı — sample/samplePath/label", () => {
+    const s = findSource("arpeggio_guitar");
+    assert.ok(s, "arpeggio_guitar bulunamadı");
+    assert.equal(s.kind, "sample");
+    assert.equal(s.samplePath, "audio/arpeggio_guitar.m4a");
+    assert.equal(typeof s.label, "string");
+    assert.ok(s.label.length > 0);
+    assert.ok(!s.stereoOnly, "mono dosya — stereoOnly OLMAMALI");
+    assert.ok(!s.noTransient, "arpej gitar notaları transient İÇERİR");
+  });
+
+  it("kısıtlaması olmayan TÜM 'frekans-genel' modlarda (frekans-bulma/kesim-noktasi/db-seviyesi/boost-mu-cut-mu/q-genisligi) OTOMATİK mevcut", () => {
+    for (const mod of [frekansBulma, kesimNoktasi, dbSeviyesi, boostMuCutMu, qGenisligi]) {
+      assert.ok(mod.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
+    }
+  });
+
+  it("kompresor'da mevcut (requireTransient — arpej notaları transient taşır, noTransient DEĞİL)", () => {
+    assert.ok(kompresor.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
+  });
+
+  it("distortion'da mevcut (parametresiz compatibleSourceIds)", async () => {
+    const distortion = await import("../www/js/modes/distortion.js");
+    assert.ok(distortion.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
+  });
+
+  it("Pan Konumu VE Reverb'ün ELLE seçilmiş listelerine EKLENDİ (guitar ile AYNI gerekçe — sürekli/uzayan ses)", async () => {
+    const panKonumu = await import("../www/js/modes/pan-konumu.js");
+    assert.ok(panKonumu.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
+    assert.ok(reverb.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
+  });
+
+  it("Tonal Denge'nin listesine BİLEREK EKLENMEDİ (G44: tek enstrüman, dolu spektrum DEĞİL — guitar/clean_guitar/vocal/bass de aynı gerekçeyle YOK)", () => {
+    assert.ok(!tonalDenge.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
+  });
+
+  it("Stereo Genişlik'in listesine EKLENMEDİ (mono dosya)", async () => {
+    const stereoGenislik = await import("../www/js/modes/stereo-genislik.js");
+    assert.ok(!stereoGenislik.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
+  });
+
+  it("snare-arpej-gitar SOURCE_PAIRS çiftinde sourceB olarak kullanılıyor", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "snare-arpej-gitar");
+    assert.ok(pair);
+    assert.equal(pair.sourceB, "arpeggio_guitar");
+    assert.equal(pair.labelB, "Arpej Gitar");
   });
 });
 
@@ -132,7 +188,7 @@ describe("source-catalog — noTransient bayrağı doğru kaynaklara etiketli", 
   });
 
   it("synth/davul/enstrüman/upload noTransient DEĞİL", () => {
-    for (const id of ["saw", "square", "triangle", "kick", "snare", "hihat", "tom", "groove", "bass", "guitar", "vocal", "upload"]) {
+    for (const id of ["saw", "square", "triangle", "kick", "snare", "hihat", "tom", "groove", "bass", "guitar", "clean_guitar", "arpeggio_guitar", "vocal", "upload"]) {
       assert.ok(!findSource(id).noTransient, `${id} noTransient OLMAMALIYDI`);
     }
   });

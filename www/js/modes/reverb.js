@@ -254,7 +254,12 @@ export function getMeta() {
     // içinde mekân hissi). Bas (mud riski), kick/hi-hat/tom (tek vuruşun geri kalanı
     // çok kısa/net değil bu üçünde), sentetik/gürültü (mixte hiç reverb verilmeyen
     // test tonları) BİLEREK dışarıda — kullanıcı ürün kararı, bkz. DURUM.md G43.
-    uyumluKaynaklar: compatibleSourceIds({ only: ["guitar", "vocal", "snare", "groove", "upload"] }),
+    // G270 — "clean_guitar" (G259'da eklenmişti, bu listeye HİÇ girmemiş —
+    // eksik liste girdisi, kod DAVRANIŞI hiç değişmedi) ve "arpeggio_guitar"
+    // (YENİ kaynak) eklendi — İKİSİ de "guitar" ile AYNI mix-pratiği
+    // gerekçesini karşılıyor (gitar/arpej doku, gerçek mixte reverb ÇOK sık
+    // verilen bir kaynak — arpej desenler klasik reverb-dostu doku).
+    uyumluKaynaklar: compatibleSourceIds({ only: ["guitar", "clean_guitar", "arpeggio_guitar", "vocal", "snare", "groove", "upload"] }),
     // NOT (Kompresör'le AYNI karar): mode-catalog.js'te tier:"pro" — ama bu
     // alan GERÇEK kilitlemede KULLANILMIYOR (asıl kaynak mode-catalog.js'in
     // `tier` alanı), mevcut altı modun HEPSİYLE tutarlı kalmak için true.

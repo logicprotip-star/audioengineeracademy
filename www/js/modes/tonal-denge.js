@@ -300,6 +300,13 @@ export function getMeta() {
     // G44'ten DEĞİŞMEDİ — EQ düzeltmesi SADECE dolu spektrumda (çok sayıda eş
     // zamanlı frekans bileşeni) anlamlı, tek-vuruş/tek-nota kaynaklar tonal
     // denge göstermez (bkz. dosya başı "KAYNAK" notu).
+    // G270 — KONTROL EDİLDİ, BİLEREK DEĞİŞTİRİLMEDİ: "clean_guitar" ve YENİ
+    // "arpeggio_guitar" da TEK ENSTRÜMAN (dolu mix DEĞİL) — G44'ün AYNI
+    // gerekçesiyle dışarıda kalmaları GEREKİYOR. Zaten mevcut TEK bir
+    // enstrüman/kaynak (guitar/clean_guitar/vocal/bass/snare/vb.) bu listede
+    // YOK — sadece groove (tam davul döngüsü) ve upload (kullanıcının kendi
+    // mix'i) var, ikisi de "dolu spektrum" şartını sağlıyor. Bu TUTARLILIK
+    // KORUNDU, liste DEĞİŞMEDİ.
     uyumluKaynaklar: compatibleSourceIds({ only: ["groove", "upload"] }),
     ucretsiz: true,
     videoUrl: "",
