@@ -346,6 +346,49 @@ export function correctLabel(question) {
 // bağlantısını kuruyoruz — output düğümü İKİ kaynaktan (kuru+ıslak) gelen
 // sinyali TOPLAR (GainNode'un varsayılan davranışı). Sonuç: audio-engine.js'e
 // HİÇ dokunmadan doğru kuru/ıslak karışımı.
+// G268 — TEPE TELAFİSİ (OLCUM-KALAN-17-08 madde B, OLCUM-REVERB-TEPE-17-08):
+// normalize=false (Düzeltme 2, hemen aşağıda) Room/Hall/Plate arasındaki
+// GERÇEK enerji farkını korumak için KASITLI olarak açık — ama bunun
+// ÖLÇÜLMEMİŞ yan etkisi, un-normalize edilmiş IR'nin (özellikle k'nin ORTA
+// noktalarında, k=0.5 civarında — measured worst point) GERÇEK müzikal
+// kaynaklarla (vocal/gitar/groove/snare, reverb'in TÜM uyumlu kaynakları)
+// birleşince ÜÇ TİPİN DE tepe seviyesini 0 dBFS'İN ÜZERİNE çıkarabilmesiydi
+// — GERÇEK dijital kırpma riski, sadece Hall'e özgü değil.
+//
+// GERÇEK ÖLÇÜM (OfflineAudioContext, applyProcessing'in KENDİ çıkışı — paylaşılan
+// güvenlik compressor'ından ÖNCE, en kötü durumu compressor'a GÜVENMEDEN
+// kapatmak için — bkz. OLCUM-KALAN-17-08 madde B'nin "paylaşılan compressor'ı
+// değiştirmek TÜM 12 modu etkiler, moda özel bir telafi daha güvenli" önerisi):
+// k taranarak (0/0.25/0.5/0.75/1) k=0.5'in HER ÜÇ TİP için de en kötü tepe
+// noktası olduğu bulundu (kısa decay/az yoğunluk kadar İYİ sönmüyor, uzun
+// decay/yüksek yoğunluk kadar da yayılıp düzleşmiyor — ORTADA en dik/tepeli).
+// k=0.5'te 4 kaynakla (vocal/gitar/groove/snare) × 40 deneme (IR
+// Math.random() kullandığı için HER çağrıda farklı, istatistiksel yayılım
+// GERÇEK — tek ölçüm YETERSİZ kalırdı) EN KÖTÜ tepe:
+//   Room  +6.84 dBFS (gitar)
+//   Hall  +13.20 dBFS (vocal)  ← en kötü durum, telafiyi bu belirliyor
+//   Plate +10.00 dBFS (vocal)
+//
+// TİP BAZINDA FARKLI (peak-hedefli) telafi YERİNE TEK/ORTAK bir sabit
+// seçildi — ÖLÇÜLDÜ: Plate'in brightness'ı (0.85) Hall'ünkinden (0.4) çok
+// yüksek, bu da Plate'in IR'sine Hall'den DAHA YÜKSEK bir crest factor
+// (tepe/RMS oranı) veriyor — ayrı ayrı SADECE kendi tepesine göre
+// kalibre edilseydi (Room -9dB, Hall -15.5dB, Plate -12dB gibi) Plate'in
+// RMS'i Hall'ünkini GEÇERDİ (ölçüldü: k=0.5 RMS'leri sırasıyla Room -18.7dB/
+// Hall -8.4dB/Plate -10.2dB — ayrı telafi sonrası Plate -22.2dB > Hall
+// -23.9dB olurdu) — bu, G243'ün "Hall gerçekten Room'dan/Plate'ten büyük
+// duyulsun" amacını EZERDİ (normalize=true'nun YAPTIĞI hatanın AYNI ailesi,
+// bu sefer manuel gain üzerinden). TEK ortak sabit bu riski YOK EDER — üçü
+// de AYNI dB kadar kısıldığı için aralarındaki dB farkı MATEMATİKSEL
+// OLARAK BİREBİR korunur (Düzeltme 2'nin normalize=false ile koruduğu fark,
+// bu telafiden TAMAMEN bağımsız kalır).
+// Hedef tavan: ölçülen en kötü durumun (Hall +13.2dB) net biçimde altında
+// kalacak bir pay — -1dBFS'lik öneriden daha temkinli seçildi (40 deneme
+// istatistiksel bir DAĞILIM gösterdi, TEK bir örneklem "yeterince güvenli"
+// sayılamazdı, bkz. e2e/reverb-peak.spec.mjs'in kendi payı).
+export const REVERB_OUTPUT_TRIM_DB = -16;
+export const REVERB_OUTPUT_TRIM_LINEAR = 10 ** (REVERB_OUTPUT_TRIM_DB / 20);
+
 export function applyProcessing(question, { audioCtx }) {
   const letter = question.previewLetter || question.variants[0].letter;
   const variant = question.variants.find(v => v.letter === letter) || question.variants[0];
@@ -355,6 +398,13 @@ export function applyProcessing(question, { audioCtx }) {
   const wetGain = audioCtx.createGain();
   wetGain.gain.value = variant.wetMix; // ISLAK pay
   const output = audioCtx.createGain();
+  // G268 — tepe telafisi: output KURU+ISLAK'ın TOPLANDIĞI (GainNode'un
+  // varsayılan davranışı) TEK nokta — burada uygulanan TEK bir çarpan hem
+  // kuru hem ıslak paya EŞİT ORANDA uygulanır, yani dry/wet ORANI (Düzeltme
+  // 2'nin KENDİ kabul kriterinin AYNISI) BİR SATIR bile etkilenmez, SADECE
+  // bu tipin/varyantın TOPLAM çıkış seviyesi düşer. TÜM tipler AYNI sabiti
+  // kullandığı için (yukarıdaki not) tipler arası fark da etkilenmez.
+  output.gain.value = REVERB_OUTPUT_TRIM_LINEAR;
   const convolver = audioCtx.createConvolver();
   // Düzeltme 2 (TUR8-OGRETIM-15-08 bulgusu 🔴) — ÖNCEDEN true idi: Web Audio
   // spesifikasyonu normalize=true iken tarayıcının IR buffer'ını KENDİ enerji-

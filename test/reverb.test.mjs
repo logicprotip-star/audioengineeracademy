@@ -740,3 +740,58 @@ describe("Reverb — Düzeltme 2 KABUL KRİTERİ (TUR8-OGRETIM-15-08 bulgusu �
     assert.ok(longRms > shortRms, `k=1 RMS (${longRms.toFixed(4)}) k=0 RMS'den (${shortRms.toFixed(4)}) büyük olmalı — enerji decaySec ile monoton artmalı`);
   });
 });
+
+describe("Reverb — G268 tepe telafisi (OLCUM-KALAN-17-08 madde B, OLCUM-REVERB-TEPE-17-08): Hall'ün +13.2dBFS'e ulaşan GERÇEK dijital kırpması", () => {
+  function fakeAudioCtx(sampleRate = 44100) {
+    const created = { gains: [] };
+    return {
+      sampleRate,
+      createGain: () => {
+        const g = { gain: { value: 1 }, connect: () => {} };
+        created.gains.push(g);
+        return g;
+      },
+      createConvolver: () => ({ normalize: false, buffer: null, connect: () => {} }),
+      createBuffer: (channels, length) => {
+        const data = Array.from({ length: channels }, () => new Float32Array(length));
+        return { getChannelData: (ch) => data[ch] };
+      },
+      __created: created
+    };
+  }
+
+  it("REVERB_OUTPUT_TRIM_LINEAR, REVERB_OUTPUT_TRIM_DB'nin doğru lineer karşılığı", () => {
+    const expected = 10 ** (mode.REVERB_OUTPUT_TRIM_DB / 20);
+    assert.ok(Math.abs(mode.REVERB_OUTPUT_TRIM_LINEAR - expected) < 1e-9);
+    assert.ok(mode.REVERB_OUTPUT_TRIM_DB < 0, "telafi bir KISMA olmalı (negatif dB), makyaj kazancı DEĞİL");
+  });
+
+  it("applyProcessing() output gain'i REVERB_OUTPUT_TRIM_LINEAR'a eşitliyor — ÜÇ TİP de AYNI sabiti kullanıyor (tip bazında FARKLI DEĞİL — bkz. applyProcessing'in dosya başı notu: ayrı ayrı kalibre edilseydi Plate'in yüksek crest factor'ü Hall'ü RMS'te geçerdi)", () => {
+    for (const typeId of Object.keys(mode.REVERB_TYPES)) {
+      const ctx = fakeAudioCtx();
+      const q = { variants: [{ letter: "A", type: typeId, decaySec: 1.5, preDelaySec: 0.02, sizeNorm: 0.5, wetMix: 0.625, brightness: mode.REVERB_TYPES[typeId].brightness }] };
+      const { filters } = mode.applyProcessing(q, { audioCtx: ctx });
+      const [, output] = filters;
+      assert.ok(Math.abs(output.gain.value - mode.REVERB_OUTPUT_TRIM_LINEAR) < 1e-9, `${typeId}: output.gain.value (${output.gain.value}) REVERB_OUTPUT_TRIM_LINEAR'a (${mode.REVERB_OUTPUT_TRIM_LINEAR}) eşit değil`);
+    }
+  });
+
+  it("output telafisi dry/wet ORANINA dokunmuyor — input.gain (kuru pay) ve wetGain.gain (ıslak pay) hâlâ SADECE wetMix'e bağlı, telafiden BAĞIMSIZ (Düzeltme 2'nin KENDİ kabul kriterinin aynısı, artık telafi için de geçerli)", () => {
+    const ctx = fakeAudioCtx();
+    const q = { variants: [{ letter: "A", type: "hall", decaySec: 2.4, preDelaySec: 0.03, sizeNorm: 0.75, wetMix: 0.7, brightness: 0.4 }] };
+    const { filters } = mode.applyProcessing(q, { audioCtx: ctx });
+    const [input, output] = filters;
+    assert.ok(Math.abs(input.gain.value - (1 - 0.7)) < 1e-9, "kuru pay hâlâ 1-wetMix, telafi ORANI etkilemedi");
+    const wetGainNode = ctx.__created.gains.find(g => g !== input && g !== output && Math.abs(g.gain.value - 0.7) < 1e-9);
+    assert.ok(wetGainNode, "wetGain (0.7) hâlâ oluşturulan gain'ler arasında — telafi ıslak payın KENDİ değerini DEĞİŞTİRMEDİ, sadece output'ta AYRICA uygulandı");
+  });
+
+  it("git stash kırmızı/yeşil KANITI (task'ın kendi kabul kriteri) — telafi YOKKEN (output.gain=1, varsayılan) Hall'ün ÖLÇÜLEN en kötü tepesi (+13.2dBFS, bkz. dosya başı ölçüm notu) 0dBFS'İ AÇIKÇA aşıyordu; telafi VARKEN aynı ölçülen değer 0dBFS'İN AÇIKÇA altına düşüyor — bu test SADECE aritmetiği doğruluyor (gerçek ses ölçümü e2e/reverb-peak.spec.mjs'te, Playwright+OfflineAudioContext+gerçek ses dosyalarıyla)", () => {
+    const measuredWorstPeakDbBeforeFix = { room: 6.84, hall: 13.2, plate: 10.0 }; // OLCUM-REVERB-TEPE-17-08: 4 kaynak × 40 deneme, k=0.5 (ölçülen en kötü nokta)
+    for (const [type, peakDb] of Object.entries(measuredWorstPeakDbBeforeFix)) {
+      assert.ok(peakDb > 0, `${type}: ön-koşul — düzeltme ÖNCESİ ölçülen tepe (${peakDb}dBFS) zaten 0dBFS'in üzerinde olmalıydı (aksi halde bu test hiçbir şey KANITLAMAZ)`);
+      const afterFixDb = peakDb + mode.REVERB_OUTPUT_TRIM_DB;
+      assert.ok(afterFixDb < -1, `${type}: telafi SONRASI tepe (${afterFixDb.toFixed(2)}dBFS) task'ın önerdiği -1dBFS tavanın ALTINDA olmalıydı`);
+    }
+  });
+});

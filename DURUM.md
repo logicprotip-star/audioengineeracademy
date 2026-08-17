@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 17.08.2026 (G267 — Motor 1'in kesintisiz crossfade deseni Kompresör/Distortion'a taşındı, OLCUM-CIHAZ-16-08.md madde E/F çözüldü, Reverb dokunulmadı)
+Son güncelleme: 17.08.2026 (G268 — Reverb'in Room/Hall/Plate tepe kırpması TEK ortak -16dB telafiyle düzeltildi, enerji farkı korundu; Distortion'da YENİ bir kırpma bulgusu tespit edildi/DÜZELTİLMEDİ)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,90 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G268 — **Reverb'in Hall/Room/Plate tiplerinin ÜÇÜ de GERÇEK dijital kırpmaya (0dBFS üstü tepe) ulaşabiliyordu (OLCUM-KALAN-17-08 madde B'nin bulgusu — SADECE Hall'e özgü sanılıyordu, ölçülünce Room/Plate'in de kırptığı bulundu). `applyProcessing()`'e TEK bir ortak çıkış telafisi (-16dB) eklendi — Hall'ün tepesi +13.2dBFS'ten -2.8dBFS'e indi, tipler arası enerji farkı matematiksel olarak BİREBİR korundu, dry/wet oranı DEĞİŞMEDİ. AYRI commit.**
+
+**Kök sebep:** `convolver.normalize=false` (G243, KASITLI — Room/Hall/Plate
+arasındaki GERÇEK enerji farkını korumak için) un-normalize edilmiş IR'nin
+GERÇEK müzikal kaynaklarla (özellikle k=0.5'te — ölçüldü, ÜÇ TİP için de
+en kötü nokta, HER round'un `COMP_BASE_K=0.5`'i FİİLEN kullandığı bir
+nokta) birleşince tepe kontrolsüz kalıyordu — G243'ün kendi notu SADECE
+enerji farkının korunmasını konu ediyordu, PEAK/kırpma riskini
+ÖLÇMEMİŞTİ.
+
+**Ölçüm (`OLCUM-REVERB-TEPE-17-08.md`, tam metodoloji/tablolar orada) —
+`OfflineAudioContext`, GERÇEK ses dosyaları, `applyProcessing()`'in
+KENDİ çıkışı (paylaşılan güvenlik compressor'ından ÖNCE — compressor'a
+GÜVENMEDEN kapatmak için, bkz. gerekçe aşağıda):**
+- k-taraması (0/0.25/0.5/0.75/1): **k=0.5 ÜÇ TİP için de en kötü nokta.**
+- k=0.5'te 4 kaynak (vocal/gitar/groove/snare) × 40 deneme (IR
+  `Math.random()` kullanıyor, tek ölçüm istatistiksel yetersiz — 3 hızlı
+  tekrar Room'da ~5.4dB run-to-run yayılım gösterdi, bu YÜZDEN 160
+  örneklemli worst-case kullanıldı): **Room +6.84dBFS, Hall +13.20dBFS,
+  Plate +10.00dBFS** — ÜÇÜ DE 0dBFS'i geçiyor.
+- Neden compressor'dan ÖNCE ölçüldü: önceki rapor (OLCUM-KALAN-17-08)
+  FULL CHAIN'i (paylaşılan compressor DAHİL) ölçüp Hall'ü SADECE
+  +1.0dBFS bulmuştu — `DynamicsCompressorNode` gerçek zamanlı attack/
+  release ile çalışıyor, brickwall limiter DEĞİL, hızlı transientler
+  tepki vermeden kırpabiliyor (o +1.0dBFS ÖLÇÜMÜ zaten bunun kanıtı —
+  compressor VARKEN bile kırpma oluyordu). Telafi bu yüzden compressor'ın
+  yardımına GÜVENMEDEN uygulandı (OLCUM-KALAN-17-08 madde B'nin "moda
+  özel telafi daha güvenli, paylaşılan compressor'ı değiştirmek TÜM 12
+  modu etkiler" önerisiyle AYNI gerekçe).
+
+**Telafi kararı — TEK ortak sabit, TİP BAZINDA DEĞİL (ÖLÇÜLDÜ VE
+REDDEDİLDİ):** ayrı ayrı (sadece kendi tepesine göre) kalibre edilseydi
+Room ~-9dB/Hall ~-15.5dB/Plate ~-12dB gerekirdi — ama Plate'in
+brightness'ı (0.85) Hall'ünkinden (0.4) çok yüksek, bu Plate'in IR'sine
+Hall'den DAHA YÜKSEK bir crest factor veriyor. Ayrı telafi sonrası RMS
+sıralaması ÖLÇÜLDÜ: Plate (-22.2dB) Hall'ü (-23.9dB) GEÇERDİ — G243'ün
+"Hall gerçekten büyük duyulsun" amacını ezerdi (normalize=true'nun
+YAPTIĞI hatanın AYNI ailesi, bu sefer manuel gain üzerinden). **Karar:
+`REVERB_OUTPUT_TRIM_DB=-16`, ÜÇ TİP için de AYNI** — aralarındaki fark
+MATEMATİKSEL OLARAK BİREBİR korunuyor. `applyProcessing()`'in `output`
+GainNode'una (kuru+ıslak TOPLAMININ AKTIĞI TEK nokta) uygulandı — dry/wet
+ORANI (Düzeltme 2'nin kendi kabul kriteri) BİR SATIR etkilenmedi, sadece
+TOPLAM seviye düştü. Telafi sonrası worst-case: Room -9.16dB, Hall
+-2.80dB, Plate -6.00dB — task'ın önerdiği -1dBFS tavanın AÇIKÇA altında,
+160 örneklemin sonsuz olmadığı gerçeğine karşı ekstra pay bırakıldı.
+
+**Dokunulmayan (KİLİT):** `generateImpulseResponse()` (IR üretim mantığı)
+TEK SATIR değişmedi, `convolver.normalize=false` kararı AYNEN kaldı, A/B/C
+davranışı (G267'de zaten bilerek dokunulmamıştı) etkilenmedi, zorluk
+eğrisi/decay süreleri değişmedi.
+
+**Test:** `test/reverb.test.mjs` — 4 yeni test (deterministik: output.gain
+= REVERB_OUTPUT_TRIM_LINEAR, ÜÇ tipte de AYNI; dry/wet oranı etkilenmedi;
+git-stash-provable aritmetik kanıt). `e2e/reverb-peak.spec.mjs` — 1 yeni
+test, GERÇEK ses dosyalarıyla (vocal+groove) k=0.5'te üç tipin tepesinin
+-1dBFS altında kaldığını canlı doğruluyor (~4.7sn). **git stash kırmızı/
+yeşil (task'ın kendi kabul kriteri):** `reverb.js` geçici kaldırıldı,
+test dosyaları KALDI — hem unit hem e2e testi KIRMIZI yandı (e2e GERÇEK
+ölçümle: Room 7.11dBFS, tavanın üzerinde). Stash geri alınınca İKİSİ DE
+YEŞİL. `npm test` 1390→**1394/1394** (+4). `npm run test:e2e`
+35→**36/36** (+1).
+
+**AYNI KALIP BAŞKA NEREDE (task'ın kendi 5. maddesi) — 12 modun tepe
+taraması, `OLCUM-REVERB-TEPE-17-08.md` madde F, groove.m4a, full chain:**
+11/12 mod güvenli (en yakını Distortion "medium"da -0.86dB). **🔴 YENİ
+BULGU — Distortion "easy" zorlukta, vocal/snare kaynağıyla GERÇEKTEN
+0dBFS'i AŞIYOR** (vocal: 20/25 deneme kırpıyor, en kötü +0.90dBFS; snare:
+22/25, +0.37dBFS; groove güvenli, -0.32dBFS) — OLCUM-CIHAZ-16-08 madde
+C'nin ölçtüğü "clip k=0.5, groove" kombinasyonundan FARKLI, o rapor
+"easy" zorluğu/vocal/snare kaynağını hiç test ETMEMİŞTİ. Düşük drive'da
+makyaj kazancı telafisi YOK (OLCUM-KALAN-17-08 madde B'nin kendi bulgusu
+— telafi drive'a bağlı, düşük drive'da ~0dB), kaynağın KENDİSİ WaveShaper'dan
+neredeyse değişmeden geçip tepe-yoğun kaynaklarda (vocal/snare) kendi
+başına 0dBFS'e yakın/üstünde kalabiliyor. **Bu turda DÜZELTİLMEDİ** —
+task'ın kendi sınırı ("düzeltme AYRI iş olur, bu turda sadece tespit"),
+AÇIK İŞLER'e eklendi. Frekans Çakışması (previewGainDb verilmediği normal
+akış, 3 çift) güvenli.
+
+**Dokunulan:** `www/js/modes/reverb.js` (REVERB_OUTPUT_TRIM_DB/LINEAR +
+output.gain), `test/reverb.test.mjs` (4 yeni test), `e2e/reverb-peak.spec.mjs`
+(YENİ dosya), `OLCUM-REVERB-TEPE-17-08.md` (YENİ dosya), `DURUM.md`.
+**Dokunulmayan:** `www/js/modes/distortion.js` (bulunan clipping bu turda
+BİLEREK düzeltilmedi), G214-G267 arası commit'ler, `581f798`/`a4efb42`.
 
 G267 — **Motor 1'in kesintisiz crossfade deseni Kompresör'e ve Saturation & Distortion'a taşındı — A/B/C geçişinde (kart tıklaması, otomatik döngü, kartın kendi play/pause butonu) kaynak artık ASLA yeniden kurulmuyor/pozisyon sıfırlanmıyor. OLCUM-CIHAZ-16-08.md madde E/F'nin (döngü topallaması + Kompresör'ün "takılma" hissi) kök sebebini bu iki mod için ÇÖZER. Reverb (kasıtlı, kuyruk davranışı) DOKUNULMADI. AYRI commit.**
 
@@ -19435,6 +19519,23 @@ bulgu güçlü ama "temiz localStorage'da can göstergesi gerçekten 5 ile açı
 iddiası henüz gözle görülmedi.
 **Kabul kriteri:** temiz `localStorage` ile açılışta can = tanımlı başlangıç değeri (canlı doğrulanmalı)
 
+**24. G268'de TESADÜFEN bulundu — Distortion "easy" zorlukta, vocal/snare
+kaynağıyla GERÇEK dijital kırpma** (`OLCUM-REVERB-TEPE-17-08.md` madde F,
+12-mod tepe taramasının yan ürünü — Reverb'i düzeltirken diğer 11 mod da
+tarandı, Distortion'ın kendisi bu turun kapsamı DEĞİLDİ, bilerek
+düzeltilmedi). OLCUM-CIHAZ-16-08 madde C'nin ÖLÇTÜĞÜ "clip k=0.5, groove,
+-4.2dB peak" kombinasyonundan FARKLI bir durum — bu YENİ bulgu "easy"
+zorluğu (düşük drive) + vocal/snare kaynağı: vocal'de 25 denemenin 20'si
+(en kötü +0.90dBFS), snare'de 22'si (en kötü +0.37dBFS) 0dBFS'i AŞIYOR;
+groove güvenli kalıyor (-0.32dBFS). Kök sebep muhtemelen: düşük drive'da
+OLCUM-KALAN-17-08 madde B'nin ÖLÇTÜĞÜ telafi ihtiyacı ~0dB (WaveShaper
+kaynağı neredeyse değiştirmeden geçiriyor) — kaynağın KENDİSİ (özellikle
+vocal/snare gibi tepe-yoğun olanlar) zaten 0dBFS'e yakın/üstünde
+kalabiliyor, paylaşılan güvenlik compressor'ı (threshold=-16dB) bunu
+TAM kapatamıyor (Reverb'de de AYNI mekanizma gözlendi, bkz. G268).
+**Kabul kriteri:** Distortion'ın DÖRT tipinin (clip/soft/tube/tape) TÜM
+zorluk/kaynak kombinasyonlarında tepesi 0dBFS altında (ölçülebilir test)
+
 ### Eksik özellikler
 
 **8. İlerleme sekmesi prototiple örtüşmüyor**
@@ -19976,7 +20077,37 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G267 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G268 itibarıyla):**
+Reverb'in Room/Hall/Plate tiplerinin ÜÇÜNÜN de GERÇEK dijital kırpmaya
+ulaşabildiği ölçüldü (OLCUM-REVERB-TEPE-17-08.md) ve TEK ortak bir çıkış
+telafisiyle (`REVERB_OUTPUT_TRIM_DB=-16`, `applyProcessing()`'in `output`
+GainNode'unda) ÇÖZÜLDÜ — tipler arası enerji farkı matematiksel olarak
+BİREBİR korundu (tip bazında ayrı telafi ÖLÇÜLDÜ VE REDDEDİLDİ, Plate'in
+yüksek crest factor'ü Hall'ü RMS'te geçerdi), dry/wet oranı DEĞİŞMEDİ.
+`npm test` 1394/1394, `npm run test:e2e` 35→36/36 (git stash ile kırmızı/
+yeşil doğrulandı, hem unit hem e2e).
+**Bir sonraki adım — kullanıcının kararı gerekir:**
+1. **🔴 YENİ BULGU (AÇIK İŞLER madde 24):** 12-mod tepe taramasının yan
+   ürünü — Distortion "easy" zorlukta, vocal/snare kaynağıyla GERÇEKTEN
+   0dBFS'i aşıyor (vocal: 25 denemenin 20'si, en kötü +0.90dBFS; snare:
+   22'si, en kötü +0.37dBFS). OLCUM-CIHAZ-16-08 madde C'nin ölçtüğü
+   kombinasyondan FARKLI (o rapor "easy"/vocal/snare'i hiç test ETMEMİŞTİ).
+   Bu turun kapsamı DIŞINDA bırakıldı (task'ın kendi sınırı — "düzeltme
+   AYRI iş olur") — düzeltilsin mi, ayrı bir iş olarak mı planlansın,
+   kullanıcı kararı.
+2. OLCUM-CIHAZ-16-08.md'nin KALAN maddeleri hâlâ AÇIK: C (Saturation &
+   Distortion sesi Kompresör'den ölçülebilir biçimde yüksek — madde 1'deki
+   YENİ kırpma bulgusuyla AYNI aile ama farklı sorun, işitme-güvenliği),
+   G (Frekans Çakışması snare-gitar çifti), I.2 (4 tanı-log ailesinin
+   DEV_MODE'a bağlanması) — hiçbiri henüz ele alınmadı.
+3. `OLCUM-KALAN-17-08.md`/`OLCUM-CPU-17-08.md`/`OLCUM-REVERB-TEPE-17-08.md`
+   henüz commit'e alınmadı (ilk ikisi DURUM.md'ye G267/G268 girdileriyle
+   kaydedildi, üçüncüsü G268'in KENDİ commit'inde) — kullanıcı isterse
+   ayrı bir commit'le eklenebilir.
+4. `exam-flow.spec.mjs`'in sabit-200ms `#nextBtn` döngüsü (OLCUM-FLAKY-16-08.md)
+   hâlâ ÇALIŞTIRILARAK test EDİLMEDİ.
+
+**EN YENİ SIRADAKİ ADIM (G267 itibarıyla, ARTIK ESKİ):**
 OLCUM-CIHAZ-16-08.md madde E/F (döngü topallaması + Kompresör'ün
 "takılma" hissi) Kompresör VE Saturation & Distortion için ÇÖZÜLDÜ —
 Motor 1'in kesintisiz crossfade deseni taşındı (`buildThreeWayChain`/
