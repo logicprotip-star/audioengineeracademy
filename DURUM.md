@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G298 — 7-tık gizli geliştirici modu artık DEV_MODE'a bağlı (OLCUM-BAYRAK-16-08 bulgusu). `versionRow`/`devProSwitch` click handler'larının EN BAŞINA `if (!DEV_MODE) return;` + `syncDevUI()`'nin devGroup görünürlüğü artık `DEV_MODE && devFlags.unlocked` (SADECE tap handler'ı kapatmak YETMEZDİ — localStorage'da ESKİ bir DEV_MODE=true oturumundan KALMIŞ `devFlags.unlocked:true` DEV_MODE=false'a geçilince menüyü YİNE DE gösterirdi, GERÇEK Playwright testiyle KANITLANDI). **AÇIK, DÜZELTİLMEMİŞ bir artık-risk ÖLÇÜLDÜ ve BİLEREK dokunulmadı:** aynı senaryoda `devFlags.simulatePro:true` de kalmışsa, menü GİZLİ olsa bile `isUserPro()`'nun `devFlags.simulatePro` dalı ÇALIŞMAYA devam ediyor — Pro kilidi GERÇEKTEN açık kalıyor (ölçüldü: reverb kartı `locked` DEĞİL). Bu, görevin kapsamının (7-tık girişini kapatmak) DIŞINDA — `isUserPro()`'ya dokunmak DOKUNULMAYACAK'ın ruhunu aşardı, kullanıcıya SORULMADAN yapılmadı. `test/dev-mode-gate-callsites.test.mjs` (7 birim testi, statik kaynak analizi) + `e2e/dev-mode-gate.spec.mjs` (5 test, page.route() ile DEV_MODE=false simülasyonu) eklendi, git-stash red/green doğrulandı. npm test 1625/1625, e2e 122/122. Detay: aşağı BİTTİ bölümü G298.)
+Son güncelleme: 19.08.2026 (G308 — snare-akustik/snare-clean çiftlerinin `offsetA`'sı G302'nin ölçtüğü 0.425/1.175'ten 377ms'e geri alındı: Logic cihazda karışım dosyasını KULAKLA dinleyip ölçülen değerleri reddetti, 377ms'i AYRICA kulakla onaylamıştı. G302'nin ölçümü kendi içinde hâlâ doğru (silinmedi, yanına not eklendi) ama "matematiksel hizalama = doğru sonuç" varsayımı KULAK KARARIYLA geçersiz kılındı — OLCUM-CIHAZ3-18-08'in kendi A3 maddesinin öngördüğü ihtimal buydu. `e2e/cakisma-pair-offset.spec.mjs`'teki ±150ms hizalama KABUL KRİTERİ testi kaldırıldı (artık geçerli bir kriter değil). npm test 1644/1644 (değişmedi), e2e 135/135 (136'dan düştü, kırılan test yok — bir test kaldırıldı). TEK commit: `c4a4deb`. Detay: aşağı BİTTİ bölümü G308.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,43 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G308 — **Snare çiftlerinin offsetA'sı 377ms'e geri alındı — KULAK KARARI
+ölçümü geçersiz kıldı (`c4a4deb`, TEK commit).**
+
+**Görev:** G302, snare-akustik/snare-clean çiftlerinin `offsetA`'sını
+ölçümle 0.425/1.175 olarak yeniden hesaplamıştı ("snare_late.m4a'nın
+gerçek ilk vuruşu − eşleşen gitarın kendi ilk atağı" formülüyle,
+matematiksel hizalama hedefiyle). Logic cihazda karışım dosyasını
+KULAKLA dinledi, bu değerleri "bozuk, eski hali daha iyiydi" diye
+REDDETTİ — 377ms'i daha önce AYRICA kulakla onaylamıştı.
+
+**Kök:** OLCUM-CIHAZ3-18-08'in kendi A3 maddesi bu ihtimali ÖNCEDEN
+işaret etmişti: "G302'nin seçtiği HİZALAMA KRİTERİ YANLIŞ olabilir —
+belki asıl istenen offset sadece sessizliği aşacak KADAR küçük olsun,
+snare'in TAM olarak gitarla senkron olması DEĞİL — bu bir ÜRÜN/KULAK
+tercihi, ölçümle KARAR VERİLEMEZ." Tam olarak gerçekleşti: ölçüm
+"matematiksel hizalama" hedefiyle DOĞRU bir sayı üretti, ama kulağa
+göre YANLIŞ sonuç verdi.
+
+**Yapılan:** `source-catalog.js`'te her iki çiftin `offsetA`'sı 377ms'e
+döndürüldü (G302'nin ölçüm bloğu SİLİNMEDİ, yanına G308 notu eklendi —
+ölçümün kendisi hâlâ doğru, sadece "matematiksel hizalama = doğru
+sonuç" varsayımı kulak kararıyla geçersiz kılındı). `e2e/cakisma-pair-
+offset.spec.mjs`'teki "±150ms hizalama" KABUL KRİTERİ testi KALDIRILDI
+(artık ürünün istediği kriter DEĞİL, tutulsaydı sürekli kırmızı
+kalırdı). `test/frekans-cakismasi.test.mjs` + `test/source-catalog.
+test.mjs`'teki ilgili testler G308 olarak yeniden adlandırılıp 0.377
+değerini doğrudan doğrulayacak şekilde güncellendi, git stash ile
+kırmızı/yeşil doğrulandı (stash → 1.175/0.425'e karşı FAIL, unstash →
+PASS).
+
+**DOKUNULMADI:** diğer çiftlerin offset/gain değerleri (bas-akustik/
+bas-clean'in 377ms'i, vokal2 çiftlerinin gain düzeltmeleri, vb.),
+zorluk eğrisi. `npm test` 1644/1644 (değişmedi). `e2e` 135/135 (136'dan
+düştü — bir test KALDIRILDI, kırılan test YOK).
+
+---
 
 G305/G306/G307 — **OLCUM-GENIS-18-08 + OLCUM-SES-BIRIKME-18-08 + OLCUM-
 KESINTI-18-08 + OLCUM-SINAV-MIMARI-18-08'in bulduğu ÜÇ 🔴 bulgu düzeltildi,
@@ -21844,7 +21881,17 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G307 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G308 itibarıyla):**
+Snare-akustik/snare-clean çiftlerinin `offsetA`'sı Logic'in kulak
+kararıyla 377ms'e geri alındı (G302'nin ölçülen 0.425/1.175'i geçersiz
+kılındı), TEK commit `c4a4deb`. `npm test` 1644/1644, `e2e` 135/135.
+**Kullanıcının/Logic'in sıradaki adımı:** (1) `npx cap sync ios` + cihazda
+KARIŞIM dosyasını YENİDEN dinleyip 377ms'in gerçekten "eski hali gibi"
+hissettirdiğini doğrulamak (bu turda kod DEĞİŞTİ ama cihaz testi HENÜZ
+YAPILMADI), (2) G307 itibarıyla açık bırakılan maddeler aşağıda —
+G304'ün ardından geçerliliğini koruyor.
+
+**EN YENİ SIRADAKİ ADIM (G307 itibarıyla, ARTIK ESKİ):**
 OLCUM-GENIS-18-08/OLCUM-SES-BIRIKME-18-08/OLCUM-KESINTI-18-08/OLCUM-SINAV-
 MIMARI-18-08'in bulduğu ÜÇ 🔴 bulgu (yarım ekran+Atla donması, ses
 örtüşmesi, sınav/telafi kalıcılığı) düzeltildi — 3 AYRI commit
