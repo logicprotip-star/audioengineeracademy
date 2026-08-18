@@ -528,23 +528,27 @@ const els = {
   recentToggle: document.getElementById("recentToggle"),
   recentWrap: document.getElementById("recentWrap"),
   recentChevron: document.getElementById("recentChevron"),
+  recentSummary: document.getElementById("recentSummary"), // G297
   clearRecentBtn: document.getElementById("clearRecentBtn"),
   badgesToggle: document.getElementById("badgesToggle"),
   badgesChevron: document.getElementById("badgesChevron"),
   zoneList: document.getElementById("zoneList"),
   zoneLock: document.getElementById("zoneLock"),
   zoneProBtn: document.getElementById("zoneProBtn"),
+  zoneSummary: document.getElementById("zoneSummary"), // G297
   accChartFilterWrap: document.getElementById("accChartFilterWrap"),
   accChartLock: document.getElementById("accChartLock"),
   accChartProBtn: document.getElementById("accChartProBtn"),
   modeLevelsToggle: document.getElementById("modeLevelsToggle"),
   modeLevelsChevron: document.getElementById("modeLevelsChevron"),
   modeLevelsList: document.getElementById("modeLevelsList"),
+  modeLevelsSummary: document.getElementById("modeLevelsSummary"), // G297
   accChartSvg: document.getElementById("accChartSvg"),
   accChartEmpty: document.getElementById("accChartEmpty"),
   accChartLabels: document.getElementById("accChartLabels"),
   accChartFirst: document.getElementById("accChartFirst"),
   accChartLast: document.getElementById("accChartLast"),
+  accChartSummary: document.getElementById("accChartSummary"), // G297
 
   // seans sonu ekranı
   resPill: document.getElementById("resPill"),
@@ -3647,7 +3651,17 @@ function bindHistorySwipe(rowEl, onDelete) {
   if (delBtn) delBtn.addEventListener("click", onDelete);
 }
 
+// G297 (OLCUM-ILERLEME-TASARIM-18-08'in ucuz alternatifi) — kart KAPALIYKEN
+// de görünen dinamik özet ("N cevap"). 0'da "Henüz cevap yok" — Rozetler'in
+// "0/9"ından FARKLI olarak burada "0 cevap" kendi kendini yeterince
+// açıklamıyor (bir SAYI, "hiç" demiyor), bu yüzden AYRI bir boş-durum metni.
+function updateRecentSummary() {
+  if (!els.recentSummary) return;
+  els.recentSummary.textContent = history.length ? `${history.length} cevap` : "Henüz cevap yok";
+}
+
 function renderHistory() {
+  updateRecentSummary();
   if (!history.length) {
     els.historyList.innerHTML = `<div class="prog-hist-empty">Liste temizlendi</div>`;
     return;
@@ -3728,6 +3742,20 @@ function renderZonePanel() {
   if (els.zoneList) els.zoneList.classList.toggle("prog-blurred", locked);
   if (els.zoneLock) els.zoneLock.classList.toggle("hidden", !locked);
   const enough = scores.filter(s => s.n >= 2);
+  // G297 — kart KAPALIYKEN de görünen dinamik özet: EN ZAYIF bölge + yüzdesi
+  // ("Bas %32"). "enough" (n>=2) BU fonksiyonun KENDİ ZATEN VAR OLAN eşiği —
+  // yeni bir sayı İCAT EDİLMEDİ. Hiçbir bölgede yeterli veri yoksa (yeni
+  // kullanıcı) "Henüz veri yok" — burada "0 bölge" gibi bir sayı YANILTICI
+  // olurdu (Rozetler'in "0/9"ından FARKLI: o gerçek bir sayım, bu ise
+  // "hesaplanamıyor" durumu).
+  if (els.zoneSummary) {
+    if (enough.length) {
+      const weakest = enough.slice().sort((a, b) => a.pct - b.pct)[0];
+      els.zoneSummary.textContent = `${weakest.label} %${weakest.pct}`;
+    } else {
+      els.zoneSummary.textContent = "Henüz veri yok";
+    }
+  }
   return { scores, enough };
 }
 
@@ -3828,6 +3856,14 @@ function renderModeLevels() {
       </div>`;
     }).join("");
   }
+  // G297 — kart KAPALIYKEN de görünen dinamik özet: "X/N mod" (en az 1 tur
+  // oynanmış mod sayısı). 0 modda bile "0/12 mod" kendi kendini açıklıyor —
+  // Rozetler'in "0/9"uyla AYNI yerleşik kalıp, ayrı bir "henüz veri yok"
+  // metnine GEREK YOK (bu bir SAYIM, "hesaplanamıyor" durumu DEĞİL).
+  if (els.modeLevelsSummary) {
+    const playedCount = modes.filter(m => modeTotalXp(m) > 0).length;
+    els.modeLevelsSummary.textContent = `${playedCount}/${modes.length} mod`;
+  }
 }
 
 function last30DailyAccPoints() {
@@ -3848,6 +3884,13 @@ function renderAccuracyChart() {
   if (els.accChartSvg) els.accChartSvg.classList.toggle("hidden", !hasChart);
   if (els.accChartLabels) els.accChartLabels.classList.toggle("hidden", !hasChart);
   if (els.accChartEmpty) els.accChartEmpty.classList.toggle("hidden", hasChart);
+  // G297 — kart KAPALIYKEN de görünen dinamik özet ("%73", bugünün isabeti).
+  // hasChart (>=3 gün veri) İLE AYNI eşik — grafik çizilmiyorsa (yeterli
+  // veri yok) tek bir güne dayanan bir yüzde de YANILTICI olurdu, bu yüzden
+  // "Henüz veri yok".
+  if (els.accChartSummary) {
+    els.accChartSummary.textContent = hasChart ? `%${points[points.length - 1].pct}` : "Henüz veri yok";
+  }
   if (!hasChart) return;
   const W = 320, H = 110;
   const xs = points.map((p, i) => (i / (points.length - 1)) * W);

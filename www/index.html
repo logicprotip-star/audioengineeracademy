@@ -859,10 +859,29 @@
         </div>
 
         <div id="progContent">
-          <!-- G91 (madde 10): Madde 4: Günlük Görevler — artık AÇILIR-KAPANIR,
-               Rozetler/Mod Seviyeleri'nin AYNI deseni (bindCollapsiblePanel),
-               SADECE varsayılan AÇIK (dailyWrap hidden'sız başlıyor, chevron
-               rotate(180deg) ile başlıyor — dailyTip'in G91-1'deki AYNI deseni). -->
+          <!-- G297 (OLCUM-ILERLEME-TASARIM-18-08'in ucuz alternatifi) — SIRALAMA
+               gözden geçirildi. ESKİ sıra: Günlük→Son Cevaplar→İsabet Grafiği→
+               Zayıf Bölge→Rozetler→Mod Seviyeleri. Gerekçe: "Son Cevaplar" ham/
+               kronolojik bir GÜNLÜK (en az özetlenmiş öğe) ikinci sıradaydı —
+               herhangi bir ÖZET/TEŞHIS kartından ÖNCE geliyordu, Logic'in "hangi
+               bilgi önemli ayırt edemiyorum" şikayetiyle DOĞRUDAN çelişiyordu.
+               YENİ sıra: Günlük Görevler (bugün YAPILACAK, aksiyona en yakın) →
+               İsabet Grafiği (genel nabız — "gelişiyor muyum") → Zayıf Bölge
+               Raporu (o nabzın NEDENİ/detayı — "nereye odaklanmalıyım") →
+               Rozetler (motivasyon/başarı) → Mod Seviyeleri (mod-bazlı referans,
+               daha granüler) → Son Cevaplar (ham kronolojik log, EN AZ özetlenmiş
+               olduğu için EN SONA). Akordiyonların KENDİSİ (bindCollapsiblePanel),
+               "i" butonlarının id'leri/davranışı, hiçbir kartın İÇERİĞİ
+               DEĞİŞMEDİ — SADECE 6 bloğun DOM sırası. -->
+
+          <!-- G91 (madde 10): Madde 4: Günlük Görevler — açılır-kapanır
+               (bindCollapsiblePanel). G297 — VARSAYILAN AÇIK durumu KALDIRILDI
+               (dailyWrap artık `hidden` ile başlıyor, chevron rotate'siz) —
+               Logic'in kararı: "kullanıcı hangisini istiyorsa onu açsın",
+               diğer kartlarla (Son Cevaplar/Rozetler/Mod Seviyeleri) TUTARLI
+               hâle geldi. dailyCounter ZATEN header'da (wrap'ın DIŞINDA) —
+               kart KAPALIYKEN de "bugün · X/3" görünmeye devam ediyor, bu
+               G297'nin "özet satırı" isteğini bu kart için ZATEN karşılıyordu. -->
           <div class="prog-card">
             <!-- G93 (madde 6): id/prog-clickable SATIRIN TAMAMINA taşındı (Mod
                  Seviyeleri'nin ZATEN doğru olan deseni) — eskiden SADECE
@@ -875,33 +894,21 @@
                    Satır KENDİSİ prog-clickable (akordiyon aç/kapa) — stopPropagation ŞART
                    (toolsResultsInfoBtn/toolsFilterInfoBtn'in AYNI G245/G262 deseni). -->
               <button type="button" class="mode-info-btn mode-info-btn-lg" id="dailyInfoBtn" aria-label="Günlük Görevler bilgisi">i</button>
-              <svg class="prog-chevron" id="dailyChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="M6 9l6 6 6-6"></path></svg>
+              <svg class="prog-chevron" id="dailyChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
             </div>
-            <div id="dailyWrap">
+            <div id="dailyWrap" class="hidden">
               <div class="prog-daily-list" id="dailyList"></div>
             </div>
           </div>
 
-          <!-- Madde 5: Son Cevaplar (açılır-kapanır + sola kaydır → Sil) -->
-          <div class="prog-card prog-card-flush">
-            <!-- G93 (madde 6): satırın tamamı tıklanabilir (dailyToggle notuyla
-                 AYNI) — clearRecentBtn'in KENDİ click'i zaten stopPropagation
-                 yapıyor, çakışma yok. -->
-            <div class="prog-card-head prog-card-head-row prog-clickable" id="recentToggle">
-              <div class="prog-card-label">Son Cevaplar</div>
-              <div class="prog-clear-btn" id="clearRecentBtn">Tümünü temizle</div>
-              <svg class="prog-chevron" id="recentChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
-            </div>
-            <div id="recentWrap" class="hidden">
-              <div id="historyList"></div>
-            </div>
-          </div>
-
-          <!-- Madde 6: İsabet Grafiği (Free'de kilitli) -->
+          <!-- Madde 6: İsabet Grafiği (Free'de kilitli). G297 — statik "son 30
+               gün" metni YERİNE gerçek veriden gelen dinamik özet
+               (renderAccuracyChart() → accChartSummary, "%73" ya da yeterli
+               veri yoksa "Henüz veri yok" — bkz. o fonksiyonun G297 notu). -->
           <div class="prog-card prog-lockable">
             <div class="prog-card-head">
               <div class="prog-card-label">İsabet Grafiği</div>
-              <div class="prog-card-count">son 30 gün</div>
+              <div class="prog-card-count" id="accChartSummary">son 30 gün</div>
               <!-- G290 — bu kart akordiyon DEĞİL (prog-clickable/toggle YOK,
                    toolsTonalInfoBtn'in AYNI "akordiyon değilse stopPropagation
                    gerekmiyor" gerekçesi) — stopPropagation KULLANILMADI. -->
@@ -920,23 +927,26 @@
             </div>
           </div>
 
-          <!-- G91 (madde 10): Madde 7: Zayıf Bölge Raporu — artık AÇILIR-KAPANIR
-               (ÖNCEKİ "tasarımda katlanır DEĞİL, HER ZAMAN açık" kararı bu turun
-               AÇIK talimatıyla DEĞİŞTİ), varsayılan AÇIK. .prog-lock-overlay
-               #zoneLock DIŞARIDA kaldı (Free kilidi accordion durumundan BAĞIMSIZ,
-               position:absolute;inset:0 İLE tüm kartı KAPLAMAYA devam ediyor). -->
+          <!-- G91 (madde 10): Madde 7: Zayıf Bölge Raporu — açılır-kapanır.
+               G297 — VARSAYILAN AÇIK durumu KALDIRILDI (zoneWrap2 artık
+               `hidden` ile başlıyor, chevron rotate'siz) + statik "6 bölge"
+               metni YERİNE dinamik özet (zoneSummary, "Bas %32" gibi ya da
+               yeterli veri yoksa "Henüz veri yok" — bkz. renderZonePanel()'in
+               G297 notu). .prog-lock-overlay #zoneLock DIŞARIDA kaldı (Free
+               kilidi accordion durumundan BAĞIMSIZ, position:absolute;inset:0
+               İLE tüm kartı KAPLAMAYA devam ediyor). -->
           <div class="prog-card prog-lockable">
             <!-- G93 (madde 6): satırın tamamı tıklanabilir (dailyToggle notuyla
                  AYNI). #zoneLock (Free kilidi) satırın DIŞINDA, ayrı bir
                  kart-katmanı — bu değişiklikten etkilenmiyor. -->
             <div class="prog-card-head prog-card-head-row prog-clickable" id="zoneToggle">
               <div class="prog-card-label" style="flex:1">Zayıf Bölge Raporu</div>
-              <div class="prog-card-count">6 bölge</div>
+              <div class="prog-card-count" id="zoneSummary">6 bölge</div>
               <!-- G290 — dailyInfoBtn'in AYNI gerekçesi: satır prog-clickable, stopPropagation ŞART. -->
               <button type="button" class="mode-info-btn mode-info-btn-lg" id="zoneInfoBtn" aria-label="Zayıf Bölge Raporu bilgisi">i</button>
-              <svg class="prog-chevron" id="zoneChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="M6 9l6 6 6-6"></path></svg>
+              <svg class="prog-chevron" id="zoneChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
             </div>
-            <div id="zoneWrap2">
+            <div id="zoneWrap2" class="hidden">
               <div class="prog-zone-list" id="zoneList"></div>
             </div>
             <div class="prog-lock-overlay hidden" id="zoneLock">
@@ -945,7 +955,9 @@
             </div>
           </div>
 
-          <!-- Madde 8: Rozetler (açılır-kapanır) -->
+          <!-- Madde 8: Rozetler (açılır-kapanır). achievementCount ZATEN
+               header'da (dinamik "X/9") — G297'nin özet isteğini bu kart için
+               ZATEN karşılıyordu, DOKUNULMADI. -->
           <div class="prog-card">
             <!-- G93 (madde 6): satırın tamamı tıklanabilir (dailyToggle notuyla
                  AYNI). -->
@@ -959,13 +971,38 @@
             <div class="prog-badge-grid hidden" id="achievementList"></div>
           </div>
 
-          <!-- Madde 9: Mod Seviyeleri (açılır-kapanır) -->
+          <!-- Madde 9: Mod Seviyeleri (açılır-kapanır). G297 — daha ÖNCE hiç
+               özeti yoktu, dinamik "X/12 mod" eklendi (modeLevelsSummary, bkz.
+               renderModeLevels()'in G297 notu — 0 modda bile "0/12 mod" kendi
+               kendini açıklıyor, Rozetler'in "0/9"ıyla AYNI YERLEŞİK kalıp,
+               ayrı bir "henüz veri yok" metnine GEREK YOK). -->
           <div class="prog-card prog-card-flush">
             <div class="prog-card-head prog-card-head-row prog-clickable" id="modeLevelsToggle">
-              <div class="prog-card-label">Mod Seviyeleri</div>
+              <div class="prog-card-label" style="flex:1">Mod Seviyeleri</div>
+              <div class="prog-card-count" id="modeLevelsSummary">0/12 mod</div>
               <svg class="prog-chevron" id="modeLevelsChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
             </div>
             <div id="modeLevelsList" class="hidden"></div>
+          </div>
+
+          <!-- Madde 5: Son Cevaplar (açılır-kapanır + sola kaydır → Sil). G297
+               — sıra SONA taşındı (ham/kronolojik log, en az özetlenmiş öğe —
+               bkz. üstteki sıralama notu) + dinamik özet eklendi
+               (recentSummary, "N cevap" ya da 0 iken "Henüz cevap yok" —
+               bkz. renderHistory()'nin G297 notu). -->
+          <div class="prog-card prog-card-flush">
+            <!-- G93 (madde 6): satırın tamamı tıklanabilir (dailyToggle notuyla
+                 AYNI) — clearRecentBtn'in KENDİ click'i zaten stopPropagation
+                 yapıyor, çakışma yok. -->
+            <div class="prog-card-head prog-card-head-row prog-clickable" id="recentToggle">
+              <div class="prog-card-label">Son Cevaplar</div>
+              <div class="prog-card-count" id="recentSummary">Henüz cevap yok</div>
+              <div class="prog-clear-btn" id="clearRecentBtn">Tümünü temizle</div>
+              <svg class="prog-chevron" id="recentChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6c7178" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+            </div>
+            <div id="recentWrap" class="hidden">
+              <div id="historyList"></div>
+            </div>
           </div>
 
           <div class="prog-danger">
