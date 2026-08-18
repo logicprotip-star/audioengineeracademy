@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G297 — İlerleme sekmesi: OLCUM-ILERLEME-TASARIM-18-08.md'nin ÖLÇÜP REDDETTİĞİ tam kart-ızgarası YERİNE önerdiği ucuz alternatif uygulandı — Günlük Görevler/Zayıf Bölge Raporu artık VARSAYILAN KAPALI (diğer 3 kartla tutarlı), 4 karta GERÇEK VERİDEN gelen kapalı-durumda-da-görünen özet eklendi ("%73"/"Bas %32"/"X/12 mod"/"N cevap", boş durumlar ölçülüp belirlendi), Son Cevaplar (ham/kronolojik log) sıralamada EN SONA taşındı. Akordiyon mekanizmasına/4 "i" butonuna/`.mode-grid` CSS'ine DOKUNULMADI — `e2e/guide-sheet-new-buttons.spec.mjs`'in 4 testi DEĞİŞMEDEN geçiyor. 375px'de taşma YOK (gerçek Playwright ölçümü, çocuk-eleman bounding-box'larıyla — scrollWidth'in bilinen flex+margin:auto artefaktından etkilenmeyen yöntemle). YENİ `e2e/progress-summary-collapsed.spec.mjs` (5 test). npm test 1618/1618 (değişmedi), e2e 117/117 (112+5). Detay: aşağı BİTTİ bölümü G297.)
+Son güncelleme: 18.08.2026 (G298 — 7-tık gizli geliştirici modu artık DEV_MODE'a bağlı (OLCUM-BAYRAK-16-08 bulgusu). `versionRow`/`devProSwitch` click handler'larının EN BAŞINA `if (!DEV_MODE) return;` + `syncDevUI()`'nin devGroup görünürlüğü artık `DEV_MODE && devFlags.unlocked` (SADECE tap handler'ı kapatmak YETMEZDİ — localStorage'da ESKİ bir DEV_MODE=true oturumundan KALMIŞ `devFlags.unlocked:true` DEV_MODE=false'a geçilince menüyü YİNE DE gösterirdi, GERÇEK Playwright testiyle KANITLANDI). **AÇIK, DÜZELTİLMEMİŞ bir artık-risk ÖLÇÜLDÜ ve BİLEREK dokunulmadı:** aynı senaryoda `devFlags.simulatePro:true` de kalmışsa, menü GİZLİ olsa bile `isUserPro()`'nun `devFlags.simulatePro` dalı ÇALIŞMAYA devam ediyor — Pro kilidi GERÇEKTEN açık kalıyor (ölçüldü: reverb kartı `locked` DEĞİL). Bu, görevin kapsamının (7-tık girişini kapatmak) DIŞINDA — `isUserPro()`'ya dokunmak DOKUNULMAYACAK'ın ruhunu aşardı, kullanıcıya SORULMADAN yapılmadı. `test/dev-mode-gate-callsites.test.mjs` (7 birim testi, statik kaynak analizi) + `e2e/dev-mode-gate.spec.mjs` (5 test, page.route() ile DEV_MODE=false simülasyonu) eklendi, git-stash red/green doğrulandı. npm test 1625/1625, e2e 122/122. Detay: aşağı BİTTİ bölümü G298.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,88 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G298 — **7-tık gizli geliştirici modu DEV_MODE'a bağlandı (`030e2ba`). TEK commit.**
+
+**Görev:** `OLCUM-BAYRAK-16-08.md`'nin bulgusu: `DEV_MODE` bayrağı vardı ama
+7-tık gizli geliştirici modu (Ayarlar → "Hakkında" satırına 7 kez üst üste
+dokununca `devFlags.unlocked=true` yazan, `devProSwitch` ile `isUserPro()`'yu
+simüle ettiren mekanizma) buna BAĞLI DEĞİLDİ — `grep` ile doğrulanmıştı:
+DEV_MODE sadece tanı-logları/test-kancalarında geçiyordu. Sonuç: DEV_MODE=false
+yapılıp App Store build'i alınsa bile 7-tık ile Pro bedava açılabiliyordu
+(gelir kaybı riski).
+
+**Yapılan (`www/js/app.js`, 3 satırlık değişiklik + yorumlar):**
+1. `versionRow` (7-tık) click handler'ının EN BAŞINA `if (!DEV_MODE) return;`
+   — DEV_MODE=false'ta sayaç HİÇ artmıyor, `devFlags.unlocked` HİÇ
+   yazılmıyor, "Geliştirici modu açıldı" toast'ı HİÇ çıkmıyor. Geri kalan
+   mantık (sayaç/7 eşiği/toast) TEK SATIR değişmedi.
+2. `devProSwitch` click handler'ına AYNI koruma — savunma amaçlı İKİNCİ
+   katman (buton zaten `devGroup`'un içinde ve madde 3 sayesinde görünmüyor,
+   ama görünürlükten bağımsız DOĞRUDAN bir tetiklemeye karşı da kapalı).
+3. `syncDevUI()`'nin `devGroup` görünürlük satırı: `!devFlags.unlocked` →
+   `!(DEV_MODE && devFlags.unlocked)`. **Bu madde OLMADAN madde 1 TEK
+   BAŞINA yetersiz kalırdı** — GERÇEK Playwright testiyle KANITLANDI:
+   `devFlags.unlocked:true` bir DEV_MODE=true (TestFlight) oturumundan
+   localStorage'da KALMIŞSA, DEV_MODE=false'a geçilen bir SONRAKİ açılışta
+   madde 1'in koruması hiç DEVREYE GİRMEZ (tap handler zaten hiç
+   ÇAĞRILMAMIŞ olur) ama menü YİNE DE GÖRÜNÜRDÜ — madde 3 bu sızıntıyı,
+   `devFlags.unlocked`'ın DEĞERİNDEN bağımsız olarak kapatıyor.
+
+**⚠️ ÖLÇÜLEN, BİLEREK DÜZELTİLMEYEN bir artık-risk (AÇIK madde):** AYNI
+"ESKİ TestFlight oturumundan kalıntı" senaryosunda `devFlags.simulatePro`
+de `true` kalmışsa, menü GİZLİ olsa bile `isUserPro()`'nun
+`realPro || devFlags.simulatePro` ifadesindeki `devFlags.simulatePro` dalı
+DEV_MODE'a HİÇ BAKMIYOR — Pro kilidi GERÇEKTEN açık KALIYOR. Ölçüldü:
+DEV_MODE=false + `devFlags.simulatePro:true` (kalıntı) durumunda Reverb
+kartı (`tier:"pro"`) `.locked` sınıfı TAŞIMIYOR, yani AÇIK. Bu, görevin
+kapsamının (7-tık GİRİŞ noktasını kapatmak) DIŞINDA — `isUserPro()`'nun
+kendisine dokunmak DOKUNULMAYACAK'ın ("DEV_MODE'un mevcut kullanımları")
+ruhunu aşar ve bir ÜRÜN/güvenlik kararı gerektirir, bu turda SORULMADAN
+yapılmadı. Not: bu senaryonun GERÇEKLEŞMESİ için kullanıcının cihazının
+ÖNCE bir DEV_MODE=true (TestFlight) sürümünü kurup 7-tık'ı GERÇEKTEN
+tetiklemiş olması + SONRA App Store sürümüne (localStorage SİLİNMEDEN)
+geçmesi gerekiyor — dar ama sıfır olmayan bir pencere.
+
+**Testler:**
+- YENİ `test/dev-mode-gate-callsites.test.mjs` (7 birim testi) —
+  `review-request-callsites.test.mjs`'in AYNI statik-kaynak-analizi
+  deseni: `if (!DEV_MODE) return;`'ın handler'ın İLK ifadesi OLDUĞUNU VE
+  mutasyondan (`devFlags.unlocked =`/`devFlags.simulatePro =`) ÖNCE
+  geldiğini, 7-tık'ın sayaç/eşik/toast mantığının KAYBOLMADIĞINI,
+  `devGroup` görünürlük satırının `DEV_MODE && devFlags.unlocked`
+  deseninde OLDUĞUNU, `devModeOffBtn`'in (kapatma butonu) BİLEREK bu
+  korumayı TAŞIMADIĞINI (her koşulda serbest bir çıkış yolu kalmalı)
+  doğruluyor.
+- YENİ `e2e/dev-mode-gate.spec.mjs` (5 test) — repo'nun committed hâli
+  HER ZAMAN DEV_MODE=true olduğu için (`build-flags.js`'in G239 tripwire
+  kuralı) `page.route()` ile DEV_MODE=false SİMÜLE EDİLDİ (G296/G297'nin
+  AYNI yöntemi): DEV_MODE=false'ta 7 tık hiçbir şey yapmıyor (KABUL
+  KRİTERİ), ESKİDEN `unlocked:true` kalmış olsa bile menü GENE açılmıyor
+  (madde 3'ün GERÇEK kanıtı), `devProSwitch`'e DOĞRUDAN tıklamak da işe
+  yaramıyor, DEV_MODE=true'da (repo'nun gerçek hâli) davranış AYNEN
+  korunuyor (regresyon), GERÇEK satın alma (`proPurchased`, devFlags'ten
+  TAMAMEN AYRI bir anahtar) DEV_MODE=false'ta ve devFlags TAMAMEN
+  kapalıyken bile ETKİLENMİYOR (Reverb kilidi GERÇEKTEN açık).
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/js/app.js` → birim
+testlerin 1'i (devGroup deseni) + e2e'nin 3 KABUL KRİTERİ testi KIRMIZI
+(eski koda karşı, 2 REGRESYON testi beklenen şekilde YEŞİL kaldı) →
+`git stash pop` → 7/7 birim + 5/5 e2e YEŞİL.
+
+**Test sonuçları:** `npm test` 1625/1625 (1618+7 yeni, KİLİT'in istediği
+1618'in ÜSTÜNDE). `npm run test:e2e` 122/122 (117+5 yeni, KİLİT'in
+istediği 117'nin ÜSTÜNDE).
+
+**DOKUNULMAYACAK'a uyuldu:** `proPurchased` okuma mantığı ve satın alma
+akışı HİÇ değişmedi (yukarıdaki e2e testiyle KANITLANDI — AYRI bir
+localStorage anahtarı, `isUserPro()`'nun `realPro` dalı, G298'in HİÇ
+dokunmadığı yol). `DEV_MODE`'un diğer mevcut kullanımları (tanı
+logları/test kancaları, `AD_TEST_MODE`) TEK SATIR değişmedi. Zorluk
+eğrisine dokunulmadı. `devModeOffBtn` (kapatma) BİLEREK bu korumanın
+DIŞINDA bırakıldı — testle KİLİTLENDİ.
+
+---
 
 G297 — **İlerleme sekmesi: kapalı kartlar + gerçek veriden özet + sıralama (`39969e5`). TEK commit.**
 
@@ -21204,6 +21286,26 @@ seviye başlığı × 6 rozet, tam karşılaştırma) — "Altın Kulak" TEK ör
 
 ## BEKLEYEN KARARLAR
 
+**Z. G298'in ölçtüğü artık-risk — `isUserPro()`'nun `devFlags.simulatePro`
+dalı DEV_MODE'a bağlansın mı?**
+G298, 7-tık GİRİŞ noktasını (yeni bir `devFlags.unlocked`/`simulatePro`
+YAZILAMAZ hâle geldi) ve menü GÖRÜNÜRLÜĞÜNÜ DEV_MODE'a bağladı — ama ESKİ
+bir DEV_MODE=true (TestFlight) oturumundan localStorage'da KALMIŞ bir
+`devFlags.simulatePro:true`, DEV_MODE=false'a geçilen bir App Store
+build'inde HÂLÂ Pro'yu açık TUTUYOR (ÖLÇÜLDÜ — Reverb kartı kilitsiz
+çıktı), çünkü `isUserPro()`'nun `realPro || devFlags.simulatePro`
+ifadesi DEV_MODE'a hiç BAKMIYOR. **Uygulanmadı** — bu turun kapsamı
+(görev metni: "7-tık'ı DEV_MODE'a bağla") `isUserPro()`'ya dokunmayı
+İSTEMEDİ, bu daha GENİŞ bir değişiklik (isUserPro Pro-kilit kararlarının
+ÇOĞU yerde okunuyor) + bir ürün/güvenlik kararı gerektiriyor: `devFlags.
+simulatePro`'yu da `DEV_MODE && devFlags.simulatePro` yapmak mı, yoksa
+`!DEV_MODE` iken devFlags'i BOOT'ta SIFIRLAMAK mı (ikincisi daha KÖKTEN
+ama localStorage'a YAZMA gerektirir, "sadece OKUMA mantığına dokunma"
+sınırının DIŞINA taşabilir). Senaryonun GERÇEKLEŞME PENCERESİ dar (cihazın
+ÖNCE bir TestFlight sürümünde 7-tık'ı GERÇEKTEN tetiklemiş olması +
+SONRA App Store sürümüne localStorage SİLİNMEDEN geçmesi gerekiyor) ama
+sıfır değil.
+
 **Y. Menü kaydırma konumu koruması (G294) — İlerleme/Araçlar'a da uygulansın mı?**
 G294'te SADECE Ana Menü için eklendi (task'ın kendi kısıtı: "kapsama
 alma, sor"). Tarama SONUCU: `goScreen()`'in `scrollTop=0` sıfırlaması
@@ -21481,7 +21583,26 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G297 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G298 itibarıyla):**
+7-tık gizli geliştirici modu artık DEV_MODE'a bağlı — DEV_MODE=false'ta
+(App Store Archive) 7-tık hiçbir şey yapmıyor VE eski bir TestFlight
+oturumundan kalmış `devFlags.unlocked:true` bile menüyü açmıyor (GERÇEK
+Playwright testiyle kanıtlandı). GERÇEK satın alma (`proPurchased`)
+tamamen etkilenmedi. `npm test` 1625/1625, `npm run test:e2e` 122/122.
+**Ölçülen ama BİLEREK düzeltilmeyen bir artık-risk var** (BEKLEYEN
+KARARLAR madde Z): aynı "kalıntı" senaryosunda `devFlags.simulatePro`
+de kalmışsa, menü gizli olsa bile Pro kilidi GERÇEKTEN açık kalabiliyor
+— `isUserPro()`'ya dokunmak bu turun kapsamı DIŞINDaydı, ürün kararı
+gerektiriyor.
+**Kullanıcının/Logic'in sıradaki adımı:** (1) BEKLEYEN KARARLAR madde
+Z'ye karar vermek (isUserPro()'nun simulatePro dalı da DEV_MODE'a
+bağlansın mı, yoksa devFlags boot'ta sıfırlansın mı), (2) `npx cap sync
+ios` + cihazda DEV_MODE=true hâlde 7-tık'ın hâlâ normal çalıştığını
+doğrulamak, (3) OLCUM-GUVENLIK-18-08.md'nin AÇIK kalan bulgularına
+(AdMob/SKAdNetwork) karar vermek, (4) OLCUM-UC-18-08 madde B (zorluk
+eğrisi değişim maliyeti) HÂLÂ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (G297 itibarıyla, ARTIK ESKİ):**
 İlerleme sekmesinin "uzun liste, önemli bilgi ayırt edilemiyor" sorunu
 tam kart-ızgarasına geçmeden (o seçenek ÖLÇÜLÜP REDDEDİLMİŞTİ, bkz. G296
 öncesi OLCUM-ILERLEME-TASARIM-18-08.md), mevcut akordiyon altyapısıyla
