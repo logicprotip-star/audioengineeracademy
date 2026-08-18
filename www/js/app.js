@@ -4163,15 +4163,23 @@ function renderGameHeader() {
     const total = isRemedial ? EXAM_CONFIG.REMEDIAL_LENGTH : EXAM_CONFIG.EXAM_LENGTH;
     const current = isRemedial ? examSystem.remedialIndex : examSystem.examIndex;
     // G84 DÜZELTMESİ: Prototip.dc.html'in examDots'u (satır ~2395) ÜÇ durumu
-    // ayırt ediyor — i<correctCount ALTIN (doğru cevaplanmış), i<current
-    // KIRMIZI (cevaplanmış ama YANLIŞ), kalanı GRİ (henüz cevaplanmamış).
-    // G77 SADECE current'a bakıyordu (tek "on" durumu) — yanlış cevaplanan
-    // sorular da altın görünüyordu, DÜZELTİLDİ.
-    const correctCount = isRemedial ? examSystem.remedialCorrect : examSystem.examCorrect;
+    // ayırt ediyor — ALTIN (doğru cevaplanmış), KIRMIZI (cevaplanmış ama
+    // YANLIŞ), kalanı GRİ (henüz cevaplanmamış). G77 SADECE current'a
+    // bakıyordu (tek "on" durumu) — yanlış cevaplanan sorular da altın
+    // görünüyordu, DÜZELTİLDİ.
+    // G304 (OLCUM-CIHAZ3-18-08) — ÖNCEDEN "i<correctCount→altın, i<current→
+    // kırmızı" SAYAÇ-bazlıydı (G213'ün BÖLÜM'de bulduğu AYNI kusur, bkz.
+    // aşağıdaki #gameChapterDots'un G276 notu) — SIRA bilgisi TUTULMUYORDU,
+    // "önce N doğru, sonra kalan yanlış" çiziyordu, GERÇEK cevap sırasını
+    // YANSITMIYORDU. examSystem.examResults/remedialResults (yeni, core/
+    // exam-system.js:recordAnswer() sırayla dolduruyor) HER pozisyonun KENDİ
+    // gerçek cevabını gösteriyor — challenge.results[]'un BİREBİR AYNI deseni.
+    const results = isRemedial ? examSystem.remedialResults : examSystem.examResults;
     els.gameExamDots.innerHTML = "";
     for (let i = 0; i < total; i++) {
       const dot = document.createElement("div");
-      dot.className = `game-exam-dot${i < correctCount ? " on" : i < current ? " wrong" : ""}`;
+      const answered = i < results.length;
+      dot.className = `game-exam-dot${answered ? (results[i] ? " on" : " wrong") : ""}`;
       els.gameExamDots.appendChild(dot);
     }
     els.gameExamProgress.textContent = `${isRemedial ? "TELAFİ" : "SINAV"} ${Math.min(current + 1, total)}/${total}`;
@@ -4250,8 +4258,10 @@ function renderGameHeader() {
     // ölçüldü: 1. ve 5. soru doğruysa çubukta 1. VE 2. nokta yeşil
     // görünüyordu). G276 — `challenge.results[]` (core/challenge.js,
     // app.js:challengeTick() sırayla dolduruyor) BUNU çözüyor: HER pozisyon
-    // KENDİ GERÇEK cevabını gösteriyor. (Sınav/telafi dot'ları BİLEREK
-    // DOKUNULMADI — bu görev SADECE BÖLÜM'ü kapsıyor, AYRI bir karar.)
+    // KENDİ GERÇEK cevabını gösteriyor. (O turda sınav/telafi dot'ları
+    // BİLEREK DOKUNULMAMIŞTI, "AYRI bir karar" — G304, OLCUM-CIHAZ3-18-08'in
+    // ardından, AYNI kusuru #gameExamDots'ta da buldu ve AYNI deseni oraya
+    // da taşıdı, bkz. examSystem.examResults/remedialResults.)
     for (let i = 0; i < challenge.total; i++) {
       const dot = document.createElement("div");
       const answered = i < challenge.results.length;

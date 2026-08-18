@@ -341,3 +341,70 @@ describe("recordTierResult() / getWeakTier() — zayıf ZORLUK KADEMESİ tespiti
     assert.equal(getWeakTier(stats), null, "proplus TEK veri kaynağıysa null dönmeli, onu 'zayıf' seçmemeli");
   });
 });
+
+// G304 (OLCUM-CIHAZ3-18-08'in ardından cihazda bulundu) — app.js:renderGameHeader()'ın
+// sınav/telafi nokta çizimi ÖNCEDEN examCorrect/remedialCorrect SAYAÇLARINA
+// bakıyordu (i<correctCount→altın, i<current→kırmızı) — SIRA bilgisi hiç
+// TUTULMUYORDU, "önce N doğru, sonra kalan yanlış" çiziyordu. examResults/
+// remedialResults (challenge.results[]'un G276'daki AYNI deseni) artık HER
+// pozisyonun GERÇEK cevabını SIRAYLA tutuyor.
+describe("createExamSystem() — G304: examResults/remedialResults SIRAYI koruyor (challenge.results[]'un AYNI deseni)", () => {
+  it("sınavda YANLIŞ-DOĞRU-YANLIŞ sırası examResults'ta AYNEN korunuyor (başa toplanmıyor)", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    playCorrect(es, 6);
+    es.acceptEarlyExam();
+    assert.deepEqual(es.examResults, [], "sınav başında boş olmalı");
+    // EXAM_LENGTH=4 — son (4.) cevaptan ÖNCE kontrol edilir, aksi halde
+    // sınav biter (resetParkur examResults'ı sıfırlar, ayrı bir test bunu
+    // zaten doğruluyor).
+    es.recordAnswer(false, "hard");
+    es.recordAnswer(true, "hard");
+    es.recordAnswer(false, "hard");
+    assert.deepEqual(es.examResults, [false, true, false], "SIRA korunmalı — [true,false,false] gibi 'başa toplanmış' bir dizi DEĞİL");
+  });
+
+  it("telafide sıra AYNI şekilde korunuyor", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    es.startRemedial("medium");
+    assert.deepEqual(es.remedialResults, [], "telafi başında boş olmalı");
+    es.recordAnswer(true, "medium");
+    es.recordAnswer(true, "medium");
+    es.recordAnswer(false, "medium");
+    assert.deepEqual(es.remedialResults, [true, true, false]);
+  });
+
+  it("acceptEarlyExam() examResults'ı sıfırlıyor (önceki parkurdan kalıntı sızmıyor)", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    playCorrect(es, 6);
+    es.acceptEarlyExam();
+    es.recordAnswer(false, "hard");
+    assert.equal(es.examResults.length, 1);
+    // Sınavı kaybettir, YENİ bir parkur+erken-sınav teklifiyle tekrar 'exam'e gir.
+    es.recordAnswer(false, "hard");
+    es.recordAnswer(false, "hard");
+    es.recordAnswer(false, "hard"); // 4/4, hepsi yanlış → exam-failed, resetParkur zaten çağrılır
+    assert.deepEqual(es.examResults, [], "resetParkur SONRASI examResults BOŞ olmalı");
+  });
+
+  it("parkur TOPLAM eşiğiyle 'exam-start' olduğunda da examResults sıfırlanıyor", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    const pattern = [true, false, true, false, true, false, true, false, true, true];
+    pattern.forEach(c => es.recordAnswer(c, "medium"));
+    assert.equal(es.phase, "exam");
+    assert.deepEqual(es.examResults, []);
+  });
+
+  it("startRemedial() remedialResults'ı sıfırlıyor", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    es.startRemedial("medium");
+    es.recordAnswer(true, "medium");
+    assert.equal(es.remedialResults.length, 1);
+    es.startRemedial("hard"); // yeni bir telafi turu (teorik olarak yeniden çağrılabilir)
+    assert.deepEqual(es.remedialResults, []);
+  });
+});

@@ -141,6 +141,17 @@ export function createExamSystem(config = EXAM_CONFIG) {
   let remedialIndex = 0;
   let remedialCorrect = 0;
   let remedialTier = null;
+  // G304 (OLCUM-CIHAZ3-18-08'in ardından cihazda bulundu) — examCorrect/
+  // remedialCorrect'in AYNI sınıfı: SADECE sayaç, SIRA bilgisi tutmuyordu.
+  // app.js:renderGameHeader()'ın sınav/telafi nokta çizimi bu yüzden "önce N
+  // doğru, sonra kalan yanlış" (i<correctCount→altın, i<current→kırmızı)
+  // deseninde kalmıştı — G276'nın challenge.results[]'la BÖLÜM'de düzelttiği
+  // AYNI kök sebep, telafi/sınava HİÇ taşınmamıştı (G276'nın kendi notu:
+  // "Sınav/telafi dot'ları BİLEREK DOKUNULMADI... AYRI bir karar"). Şimdi
+  // AYNI desen (challengeTick'in challenge.results.push(!!wasCorrect)'i)
+  // burada da uygulanıyor.
+  let examResults = [];
+  let remedialResults = [];
 
   function resetParkur() {
     phase = "parkur";
@@ -153,6 +164,8 @@ export function createExamSystem(config = EXAM_CONFIG) {
     remedialIndex = 0;
     remedialCorrect = 0;
     remedialTier = null;
+    examResults = [];
+    remedialResults = [];
   }
 
   // Mod değişince (app.js enterMode) çağrılır — FARKLI bir mod'a geçilmişse
@@ -224,6 +237,7 @@ export function createExamSystem(config = EXAM_CONFIG) {
           phase = "exam";
           examIndex = 0;
           examCorrect = 0;
+          examResults = [];
           return { event: "exam-start" };
         }
         // G48 DÜZELTMESİ: ÖNCEDEN burada resetParkur() + "parkur-failed" vardı
@@ -241,6 +255,7 @@ export function createExamSystem(config = EXAM_CONFIG) {
     if (phase === "exam") {
       examIndex++;
       if (correct) examCorrect++;
+      examResults.push(!!correct);
       if (examIndex >= config.EXAM_LENGTH) {
         const passed = examCorrect >= config.EXAM_PASS_COUNT;
         if (passed) {
@@ -257,6 +272,7 @@ export function createExamSystem(config = EXAM_CONFIG) {
     if (phase === "remedial") {
       remedialIndex++;
       if (correct) remedialCorrect++;
+      remedialResults.push(!!correct);
       if (remedialIndex >= config.REMEDIAL_LENGTH) {
         const passed = remedialCorrect >= config.REMEDIAL_PASS_COUNT;
         resetParkur(); // İKİ durumda da (geçti/geçemedi) SONUÇ aynı: taze bir parkur
@@ -273,6 +289,7 @@ export function createExamSystem(config = EXAM_CONFIG) {
     phase = "exam";
     examIndex = 0;
     examCorrect = 0;
+    examResults = [];
   }
 
   // Kullanıcı erken sınavı REDDEDERSE parkura geri döner — examOffered=true
@@ -290,6 +307,7 @@ export function createExamSystem(config = EXAM_CONFIG) {
     phase = "remedial";
     remedialIndex = 0;
     remedialCorrect = 0;
+    remedialResults = [];
   }
 
   // "exam-passed" olayından sonra app.js kutlamayı gösterip (ve examLevel'i
@@ -317,6 +335,8 @@ export function createExamSystem(config = EXAM_CONFIG) {
     get examCorrect() { return examCorrect; },
     get remedialIndex() { return remedialIndex; },
     get remedialCorrect() { return remedialCorrect; },
-    get remedialTier() { return remedialTier; }
+    get remedialTier() { return remedialTier; },
+    get examResults() { return examResults; },
+    get remedialResults() { return remedialResults; }
   };
 }
