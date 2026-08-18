@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G295 — vocal_1 (Vokal 2) katalog + Frekans Çakışması'na 2 yeni çift (vokal2-clean/vokal2-akustik) + gainA/gainB çift-içi seviye dengesi (OLCUM-CIFT-DENGE-18-08.md'nin ölçtüğü akustik-clean/bas-akustik düzeltmeleri + bu turda ölçülen vokal2-clean düzeltmesi). ÜÇ AYRI commit (`1323bf5`/`8a925a3`/`a5b04f1`). YENİ `e2e/vocal1-source.spec.mjs` (4 test) + `e2e/cakisma-gain-balance.spec.mjs` (3 test) — İKİ AYRI GERÇEK bug'ı e2e KONTROL testleri KIRMIZI olarak yakaladı: `#cakismaPairSelect`'in index.html'deki hardcoded `<option>` listesi + `frekans-cakismasi.js:createQuestion`'ın `q.pair` obje literalinin `gainA`/`gainB`'yi unutması (offsetA/offsetB'nin G288'deki TIPKI hatası). npm test 1608/1608, e2e 104/104. Detay: aşağı BİTTİ bölümü G295.)
+Son güncelleme: 18.08.2026 (G296 — OLCUM-GUVENLIK-18-08.md güvenlik/dayanıklılık denetiminin 2 bulgusu düzeltildi: (1) kullanıcının dosya adını taşıyan 4 koşulsuz console.log satırı DEV_MODE'a alındı, (2) decode BAŞARILI olup gerçek ses TAŞIMAYAN dosyalar (0sn/kesik/tamamen sessiz) artık reddediliyor — yeni SAF fonksiyon `evaluateDecodedAudio()`, eşikler ölçülüp gerekçelendirildi (MIN_AUDIO_DURATION_SEC=0.1sn, SILENCE_PEAK_THRESHOLD=-66dBFS). İKİ AYRI commit (`2021b05`/`5472fd8`). YENİ `e2e/filename-log-devmode.spec.mjs` (2 test, page.route() ile DEV_MODE=false simüle edildi) + `e2e/corrupt-file-upload.spec.mjs` (6 test, gerçek WAV dosyalarıyla). npm test 1618/1618, e2e 112/112. Detay: aşağı BİTTİ bölümü G296.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,36 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G296 — **OLCUM-GUVENLIK-18-08.md'nin 2 bulgusu düzeltildi: dosya adı loglama + bozuk dosya reddi. İKİ AYRI commit.**
+
+**Görev:** Önceki turda yapılan güvenlik/dayanıklılık denetiminin (OLCUM-GUVENLIK-18-08.md) iki somut bulgusu düzeltildi. KİLİT: G214-G295 + 581f798/a4efb42 bozulmayacak, npm test 1608'den düşmeyecek, e2e 104/104 kırılmayacak. DOKUNULMAYACAK: diğer 23 koşulsuz console.log (ayrı iş), yükleme akışının kendisi, geçerli dosyaların işlenmesi, zorluk eğrisi.
+
+**Bölüm 1 — `2021b05`: dosya adı loglayan 4 satır DEV_MODE'a alındı.** Denetimin madde 3 bulgusu: `www/js/app.js`'te 4 ayrı `console.log` kullanıcının dosya adını (kişisel içerik olabilir) KOŞULSUZ yazıyordu — projenin kendi G239 "diag log'ları DEV_MODE'a al" deseninin (`audioDiagLog`/`uploadDiagLog` sarmalayıcıları) DIŞINDA kalmış, ham çağrılardı: "[filepicker-diag] 4) pickFiles() DÖNDÜ" (ham picker sonucu — dosya adı/yolu), "[filepicker] dosya seçildi" (`picked.name`), "[filepicker-diag] === TEST BİTTİ ===" (`file.name`), "[upload-context] ... bağlamına dosya uygulanıyor" (`entry.name`). Dosya adı TAŞIMAYAN diğer 18 log satırına (aynı 23'ün geri kalanı) dokunulmadı.
+
+**Testler:** YENİ `e2e/filename-log-devmode.spec.mjs` (2 test) — repo'nun committed hâli HER ZAMAN `DEV_MODE=true` olduğu için (`build-flags.js`'in kendi G239 tripwire kuralı) `page.route()` ile `core/build-flags.js`'i YAKALAYIP `DEV_MODE=false` döndürecek şekilde DEĞİŞTİRİLDİ (repo dosyası DEĞİŞMEDİ, sadece bu test sayfasının ağ isteği) — KABUL KRİTERİ: dosya adı HİÇBİR console mesajında görünmüyor VE yükleme işlevi bozulmuyor (dosya hâlâ listeye ekleniyor). REGRESYON KORUMASI: gerçek `DEV_MODE=true`'da loglama davranışı DEĞİŞMEDİ (dosya adı hâlâ görünüyor — sadece production'da SUSUYOR).
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/js/app.js` → KABUL KRİTERİ testi dosya adının console'da GÖRÜNDÜĞÜNÜ tespit edip KIRMIZI çıktı → `git stash pop` → 2/2 YEŞİL.
+
+---
+
+**Bölüm 2 — `5472fd8`: bozuk/kesik/tamamen sessiz dosya artık reddediliyor.** Denetimin madde 11 bulgusu: `decodeAudioData`/`decodeWavPcm` BAŞARILI dönüp gerçek ses TAŞIMAYAN bir buffer üretebiliyordu — ÖLÇÜLDÜ (önceki denetim turunda): header 5sn vaat eden ama ~100 bayt veriden sonra kesilen bir dosya, decodeAudioData tarafından SESSİZCE ~1ms'lik bir buffer'a çözülüp "0:00" süreyle kütüphaneye SESSİZCE ekleniyordu, kullanıcı HİÇBİR hata görmüyordu.
+
+**Yapılan (`www/js/core/upload.js`):** Yeni SAF fonksiyon `evaluateDecodedAudio(buffer)` — `loadFile()`'da decode BAŞARILI olduktan HEMEN SONRA (PSD hesaplamasından ÖNCE, bozuk dosya için gereksiz iş yapılmasın diye) çağrılıyor. Eşikler ÖLÇÜLÜP gerekçelendirildi:
+- `MIN_AUDIO_DURATION_SEC=0.1` (100ms) — task'ın kendi kısıtı "1-2sn'lik GEÇERLİ dosyalar reddedilmesin"den 10-20 kat altına, SADECE ölçülen kesik-dosya örneğini (~1ms) yakalayacak şekilde seçildi.
+- `SILENCE_PEAK_THRESHOLD=0.0005` (~-66dBFS) — kataloğun kendi 7 örnek dosyası (bass/vocal/vocal_1/groove/kick/hihat/snare_late.m4a) GERÇEKTEN ölçüldü (Playwright+decodeAudioData) — HEPSİ ~-6dBFS tepe taşıyor, eşiğin 60dB ÜSTÜNDE. 16-bit PCM'in kuantalama tabanı (~-90dBFS) ile gerçek içerik arasındaki geniş boşlukta — sessiz bir PASAJ içeren ama genel olarak dolu bir kaydı yanlışlıkla reddetme riski düşük (kontrol dosyanın TAMAMI/ilk 30sn'si — PSD_ANALYSIS_MAX_SEC ile AYNI pencere — TEK BİR ÖRNEK bile eşiği aşmıyorsa tetiklenir).
+
+Dosya KURTARILMAYA çalışılmıyor, SADECE reddediliyor — "Dosya bozuk görünüyor" (süre eşiği altı) / "Dosya sessiz görünüyor" (tüm dosya sessiz), mevcut "Dosya çok büyük"/"Dosya çok uzun"/"Bu dosya açılamadı" mesajlarıyla AYNI kısa/net üslupta.
+
+**Testler:** `test/upload-validation.test.mjs`'e 10 birim testi (SAF fonksiyon, sahte buffer nesnesiyle — 0sn/kesik/sessiz REDDEDİLİYOR, 1-2sn GEÇERLİ dosyalar REDDEDİLMİYOR, eşik sınırları TAM üzerinde/altında/üstünde davranış) + `test/upload-pause-resume.test.mjs`'un mock `AudioContext`'i YENİ `getChannelData`/`sampleRate` alanlarıyla güncellendi (yoksa `evaluateDecodedAudio` çağrısı TypeError'la kırılıyordu — bu turda BULUNUP düzeltildi) + YENİ `e2e/corrupt-file-upload.spec.mjs` (6 test, gerçek tarayıcıda gerçek WAV dosyalarıyla): 0sn/kesik/sessiz dosyalar REDDEDİLİYOR + anlaşılır mesaj çıkıyor, 1-2sn/192kHz/8-kanal GEÇERLİ dosyalar HÂLÂ kabul ediliyor (regresyon koruması), tamamen bozuk (RIFF header'ı bile olmayan) dosya ESKİ "Bu dosya açılamadı" mesajıyla reddedilmeye devam ediyor.
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/js/core/upload.js` → tüm `upload-validation.test.mjs` dosyası import hatasıyla KIRMIZI (evaluateDecodedAudio yok) → `git stash pop` → 1618/1618 YEŞİL.
+
+**Test sonuçları (son hâl):** `npm test` 1618/1618 (KİLİT'in istediği 1608'in ÜSTÜNDE). `npm run test:e2e` 112/112 (104 + 2 + 6 yeni — bilinen `ear-buttons.spec.mjs` flake'i bu turda HİÇ görülmedi, ayrıca izole `git stash` testiyle bu flake'in unmodified main'de de reprodüklendiği TEKRAR doğrulandı, G296'dan bağımsız).
+
+**DOKUNULMAYACAK'a uyuldu:** Diğer 18 koşulsuz log satırı (dosya adı TAŞIMAYANLAR) ve genel "23 koşulsuz console.log" maddesi (ayrı iş) dokunulmadı. Yükleme akışının kendisi (validateAudioFile/validateAudioDuration/decode sırası) DEĞİŞMEDİ — SADECE decode SONRASI yeni bir kontrol EKLENDİ. Geçerli dosyaların işlenmesi (192kHz/8-kanal/1-2sn kısa dosyalar) e2e ile GERÇEK dosyalarla doğrulandı, ETKİLENMEDİ. Zorluk eğrisine dokunulmadı.
+
+---
 
 G295 — **vocal_1 kaynağı + Frekans Çakışması'na 2 yeni çift + seviye dengesi (gainA/gainB). ÜÇ AYRI commit.**
 
@@ -21359,7 +21389,31 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G295 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G296 itibarıyla):**
+OLCUM-GUVENLIK-18-08.md'nin 16 maddelik denetiminden 2 somut/aksiyon
+alınabilir bulgu düzeltildi: (1) dosya adı loglayan 4 satır DEV_MODE'a
+alındı, (2) decode başarılı olup gerçek ses taşımayan (0sn/kesik/
+tamamen sessiz) dosyalar artık `evaluateDecodedAudio()` ile reddediliyor
+(eşikler ölçülüp gerekçelendirildi: MIN_AUDIO_DURATION_SEC=0.1sn,
+SILENCE_PEAK_THRESHOLD=-66dBFS). `npm test` 1618/1618, `npm run
+test:e2e` 112/112.
+**Denetimin AÇIK kalan/ürün kararı gerektiren diğer bulguları (bu turda
+DOKUNULMADI, kod DEĞİŞİKLİĞİ İSTENMEDİ):** AdMob'un UMP+ATT tam rıza
+akışının App Store Connect'teki "veri toplanmıyor" beyanıyla
+tutarlılığı (yüksek risk, ürün/hukuk kararı gerektirir), SKAdNetwork'te
+sadece 1 kayıt olması (orta risk, Google'ın güncel minimum listesiyle
+karşılaştırılmalı), `npm audit`'in 10 bulgusu (TÜMÜ izole bir
+devDependency dalında, son kullanıcıyı etkilemiyor — düzeltme
+İSTENİRSE `npm audit fix` yeterli olabilir, `sharp`'ın düzeltmesi YOK).
+**Kullanıcının/Logic'in sıradaki adımı:** (1) `npx cap sync ios` +
+cihazda dosya yükleme akışını (geçerli/bozuk dosyalarla) test etmek,
+(2) OLCUM-GUVENLIK-18-08.md'nin AdMob/SKAdNetwork bulgularına karar
+vermek, (3) İlerleme/Araçlar'a menü kaydırma-koruma kalıbını
+uygulatmak isteyip istemediğine karar vermek (BEKLEYEN KARARLAR madde
+Y), (4) OLCUM-UC-18-08 madde B (zorluk eğrisi değişim maliyeti) HÂLÂ
+AÇIK, ürün kararı bekliyor.
+
+**EN YENİ SIRADAKİ ADIM (G295 itibarıyla, ARTIK ESKİ):**
 vocal_1 (Vokal 2) kaynağı katalogda, Frekans Çakışması'na 2 yeni çift
 (vokal2-clean/vokal2-akustik) eklendi, OLCUM-CIFT-DENGE-18-08.md'nin
 ölçtüğü 2 mevcut dengesiz çift (akustik-clean/bas-akustik) + bu turda
