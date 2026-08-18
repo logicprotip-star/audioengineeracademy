@@ -229,6 +229,22 @@ export function findSource(id) {
 // RMS'ine göre -20dB eşik geçişi.) bas-akustik/bas-clean'in offsetB=0.377'si
 // BU turun kapsamı DIŞINDA, DOKUNULMADI.
 //
+// G308 — G302'NİN offsetA DEĞERLERİ (0.425/1.175) GERİ ALINDI, snare
+// çiftleri 377ms'e DÖNDÜ. Gerekçe: G302'nin KENDİ ölçümü (yukarıda) DOĞRU
+// ve GEÇERLİ kalıyor — snare_late.m4a'nın gerçek ilk vuruşu 1.535s'de,
+// 0.377s'in bas çiftlerinden ödünç alınmış bir sabit olduğu, gitarla
+// "matematiksel olarak hizalı" olmadığı KANITLANMIŞ bilgi. AMA Logic
+// cihazda karışım dosyasını KULAKLA dinleyip 377ms'i AYRICA onayladı,
+// 0.425/1.175'i "bozuk, eski hali daha iyiydi" diye REDDETTİ — OLCUM-
+// CIHAZ3-18-08'in kendi A3 maddesinin öngördüğü ihtimallerden biri tam
+// olarak buydu ("G302'nin seçtiği HİZALAMA KRİTERİ YANLIŞ olabilir...
+// belki asıl istenen offset sadece sessizliği aşacak KADAR küçük olsun,
+// snare'in TAM olarak gitarla senkron olması DEĞİL — bu bir ÜRÜN/KULAK
+// tercihi, ölçümle KARAR VERİLEMEZ"). Bu tam olarak gerçekleşti: ölçüm
+// "matematiksel hizalama" hedefiyle doğru bir sayı üretti, ama kulağa
+// göre YANLIŞ sonuç verdi — KULAK KARARI ESAS, ölçüm burada GEÇERSİZ
+// kılındı (rapor edilen bir olasılık, GERÇEKLEŞEN sonuç).
+//
 // G295 — 2 YENİ çift: vokal2-clean (vocal_1+clean_guitar), vokal2-akustik
 // (vocal_1+acoustic_guitar). Logic KULAKLA test etti, bu iki gitarı seçti
 // ("ölçüm arpej önermişti, kulak farklı dedi — kulak esas"). Region AYNI
@@ -297,13 +313,13 @@ export const SOURCE_PAIRS = [
   },
   {
     id: "snare-akustik", labelA: "Snare", labelB: "Akustik Gitar", sourceA: "snare_late", sourceB: "guitar",
-    offsetA: 0.425, offsetB: 0, gainA: 0, gainB: 0,
-    region: [170, 400], desc: "Snare ve akustik gitar — atak bölgesinde zamansal çakışma, snare'in ilk vuruşu gitarın ilk atağıyla hizalı"
+    offsetA: 0.377, offsetB: 0, gainA: 0, gainB: 0,
+    region: [170, 400], desc: "Snare ve akustik gitar — atak bölgesinde zamansal çakışma, snare 377ms geç başlıyor"
   },
   {
     id: "snare-clean", labelA: "Snare", labelB: "Clean Gitar", sourceA: "snare_late", sourceB: "clean_guitar",
-    offsetA: 1.175, offsetB: 0, gainA: 0, gainB: 0,
-    region: [190, 440], desc: "Snare ve clean gitar — atak bölgesinde zamansal çakışma, snare'in ilk vuruşu gitarın ilk atağıyla hizalı"
+    offsetA: 0.377, offsetB: 0, gainA: 0, gainB: 0,
+    region: [190, 440], desc: "Snare ve clean gitar — atak bölgesinde zamansal çakışma, snare 377ms geç başlıyor"
   },
   {
     id: "vokal2-clean", labelA: "Vokal 2", labelB: "Clean Gitar", sourceA: "vocal_1", sourceB: "clean_guitar",

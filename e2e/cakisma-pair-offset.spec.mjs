@@ -150,62 +150,23 @@ test("KABUL KRİTERİ — 7 çiftin (G295: +vokal2-clean/vokal2-akustik) HEPSİ 
 // bozuk, başta fazladan vuruş" bulundu: snare_late.m4a'nın GERÇEK ilk vuruşu
 // (1.535s) ile G288'in TÜM snare çiftlerinde kullandığı TEK sabit offsetA
 // (0.377s, snare_late'in yapısına göre HİÇ hesaplanmamıştı) arasında hiçbir
-// ilişki yoktu — snare gitardan ~1.15s GEÇ geliyordu. offsetA artık her çift
-// için AYRI, "snare_late'in ilk vuruşu − eşleşen gitarın kendi ilk atağı"
-// formülüyle hesaplandı. Bu test o hizalamayı doğrudan doğruluyor: her iki
-// kaynak da t=0'dan (offsetA/offsetB uygulanmış hâliyle) render edilince,
-// snare'in İLK vuruşu ile gitarın İLK atağı BENZER duvar-saati anına düşmeli.
-test("G302 KABUL KRİTERİ — snare-akustik/snare-clean: snare'in ilk vuruşu gitarın ilk atağıyla HİZALI (offsetA sonrası, ±150ms)", async () => {
-  const page = await browser.newPage();
-  await page.goto(serverHandle.baseUrl);
-
-  const result = await page.evaluate(async (pairs) => {
-    async function firstOnsetWallTimeSec(path, offsetSec, renderDurationSec) {
-      const sampleRate = 44100;
-      const tmp = new OfflineAudioContext(1, 1, sampleRate);
-      const buf = await tmp.decodeAudioData(await (await fetch(path)).arrayBuffer());
-      const ctx = new OfflineAudioContext(1, Math.ceil(renderDurationSec * sampleRate), sampleRate);
-      const src = ctx.createBufferSource();
-      src.buffer = buf;
-      src.loop = true;
-      src.connect(ctx.destination);
-      src.start(0, (offsetSec || 0) % buf.duration);
-      const rendered = await ctx.startRendering();
-      const data = rendered.getChannelData(0);
-      const hopLen = Math.round(0.005 * sampleRate);
-      const n = Math.floor(data.length / hopLen);
-      const env = [];
-      for (let i = 0; i < n; i++) {
-        let sum = 0;
-        for (let j = 0; j < hopLen; j++) { const v = data[i * hopLen + j]; sum += v * v; }
-        env.push(Math.sqrt(sum / hopLen));
-      }
-      const peak = Math.max(...env);
-      const threshold = peak * Math.pow(10, -20 / 20);
-      for (let i = 0; i < env.length; i++) {
-        if (env[i] >= threshold) return i * 0.005;
-      }
-      return null;
-    }
-    function sourcePathFor(id) {
-      const map = { guitar: "acoustic_guitar.m4a", clean_guitar: "clean_guitar.m4a", snare_late: "snare_late.m4a" };
-      return map[id];
-    }
-    const results = [];
-    for (const pair of pairs) {
-      const snareWall = await firstOnsetWallTimeSec(`audio/${sourcePathFor(pair.sourceA)}`, pair.offsetA, 3);
-      const guitarWall = await firstOnsetWallTimeSec(`audio/${sourcePathFor(pair.sourceB)}`, pair.offsetB, 3);
-      results.push({ id: pair.id, snareWall, guitarWall, diffMs: Math.abs((snareWall - guitarWall) * 1000) });
-    }
-    return results;
-  }, SOURCE_PAIRS.filter(p => ["snare-akustik", "snare-clean"].includes(p.id)));
-
-  for (const r of result) {
-    assert.ok(r.diffMs <= 150, `[${r.id}] snare (${r.snareWall}s) ile gitar (${r.guitarWall}s) hizalanmadı — fark ${r.diffMs.toFixed(0)}ms (±150ms sınırı aşıldı)`);
-  }
-
-  await page.close();
-});
+// ilişki yoktu — snare gitardan ~1.15s GEÇ geliyordu. offsetA o zaman her
+// çift için AYRI, "snare_late'in ilk vuruşu − eşleşen gitarın kendi ilk
+// atağı" formülüyle (0.425/1.175) hesaplandı ve bu hizalamayı doğrudan
+// doğrulayan bir KABUL KRİTERİ testi buraya eklenmişti.
+//
+// G308 — bu test KALDIRILDI. Logic cihazda karışım dosyasını KULAKLA dinledi,
+// 0.425/1.175'i "bozuk, eski hali (377ms) daha iyiydi" diye REDDETTİ;
+// source-catalog.js'te offsetA her iki çift için de 377ms'e geri döndürüldü
+// (bkz. oradaki G308 notu). Bu testin KABUL KRİTERİ'nin kendisi — "snare'in
+// ilk vuruşu gitarın ilk atağıyla ±150ms içinde hizalı olmalı" — artık
+// ÜRÜNÜN istediği şey DEĞİL (matematiksel hizalama, kulağa göre yanlış
+// sonuç veriyordu). Testi 377ms'e karşı YEŞİL olacak şekilde gevşetmek de
+// yanıltıcı olurdu — o zaman testin adı/amacı hâlâ "hizalama" derdi ama
+// aslında hizalamayı DOĞRULAMIYOR olurdu. offsetA=0.377 değerinin doğru
+// kaydedildiğinin KABUL KRİTERİ artık test/source-catalog.test.mjs ve
+// test/frekans-cakismasi.test.mjs'teki G308 testleri (SOURCE_PAIRS'in
+// içeriğini doğrudan okuyor, ölçüm/hizalama iddiası TAŞIMIYOR).
 
 test("KONTROL 3 (mekanizma) — start(when,offset)+loop=true offset'i HER döngüde KORUYOR (np.roll ile eşdeğer, OfflineAudioContext'te ölçüldü)", async () => {
   const page = await browser.newPage();
