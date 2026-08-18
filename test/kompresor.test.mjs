@@ -615,3 +615,55 @@ describe("Kompresör — diğer modlarla KARŞILAŞTIRMA (bağlantı mekanizmas�
     }
   });
 });
+
+// G292 (OLCUM-UC-18-08 madde C) — oddIndex artık settings.recentIdentities'i
+// (core/repeat-guard.js'in "kalan küme" SAF fonksiyonu) okuyor. K=3, N=1.
+describe("Kompresör — G292 tekrar önleme (REPEAT_GUARD_N)", () => {
+  it("REPEAT_GUARD_N=1 dışa aktarılıyor", () => {
+    assert.equal(mode.REPEAT_GUARD_N, 1);
+  });
+
+  it("her createQuestion() repeatIdentity alanını oddIndex'le AYNI döner", () => {
+    for (let i = 0; i < 30; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false });
+      assert.equal(q.repeatIdentity, q.oddIndex);
+    }
+  });
+
+  it("500 ARDIŞIK turda oddIndex ASLA bir önceki turla AYNI gelmiyor (Logic'in şikayeti: '%33 ihtimalle arka arkaya aynı soru')", () => {
+    let recent = [];
+    for (let i = 0; i < 500; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, recentIdentities: recent });
+      if (recent.length > 0) assert.notEqual(q.oddIndex, recent[0], `tur ${i}: oddIndex bir ÖNCEKİYLE AYNI (${q.oddIndex})`);
+      recent = [q.oddIndex]; // N=1 — app.js'in KENDİ geçmiş güncelleme deseniyle AYNI
+    }
+  });
+
+  it("soru üretimi HİÇBİR turda takılmıyor/boş dönmüyor — 1000 tur, hepsi geçerli 0/1/2", () => {
+    let recent = [];
+    for (let i = 0; i < 1000; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, recentIdentities: recent });
+      assert.ok([0, 1, 2].includes(q.oddIndex));
+      recent = [q.oddIndex];
+    }
+  });
+
+  it("zorluk dağılımı bozulmadı — 3000 turda her oddIndex (0/1/2) YAKLAŞIK dengeli geliyor (N=1 ile bile, ±%15 tolerans)", () => {
+    const counts = [0, 0, 0];
+    let recent = [];
+    for (let i = 0; i < 3000; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, recentIdentities: recent });
+      counts[q.oddIndex]++;
+      recent = [q.oddIndex];
+    }
+    const expected = 3000 / 3;
+    for (const c of counts) {
+      assert.ok(Math.abs(c - expected) / expected < 0.15, `dağılım dengesiz: ${counts.join(",")} (beklenen ~${expected})`);
+    }
+  });
+
+  it("recentIdentities VERİLMEZSE (mevcut testler/doğrudan çağrılar) davranış eskisiyle AYNI — hâlâ 0/1/2'den geçerli bir değer döner", () => {
+    const q = mode.createQuestion("medium", { source: "pink", boss: false });
+    assert.ok([0, 1, 2].includes(q.oddIndex));
+  });
+});

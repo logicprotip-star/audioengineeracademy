@@ -36,6 +36,7 @@ import { compatibleSourceIds } from "../core/source-catalog.js";
 import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, recordZone, isBossRound, drawSpectrumBackground } from "./frekans-bulma.js";
 import { logLerp, applyPostCapFloor, representativeLevelForTier } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
+import { pickAvoidingRecent } from "../core/repeat-guard.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
 // HER moddan mode-agnostik olarak okur — diğer üç modla AYNI re-export deseni.
@@ -43,6 +44,12 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 
 export const MODE_ID = "q-genisligi";
 export const MAX_LIVES = 5;
+// G292 (OLCUM-UC-18-08 madde C) — correctLabel'ın kimlik uzayı K=6-12
+// (kademeye göre pool 3-5 etiket) — Kompresör'den DAHA GENİŞ ama Logic'in
+// ölçümde YENİ bulduğu ikinci dar mod. N=1 SADECE ardışık tekrarı engelliyor
+// (rapor N=1-2'yi de güvenli sayıyor, N=1 diğer üç modla TUTARLILIK için
+// seçildi).
+export const REPEAT_GUARD_N = 1;
 
 // G50: Sınav sistemi — frekans-bulma.js'in AYNI notu. EXAM_WEAK_AREA="zone":
 // bu mod recordZone'u HİÇ ÇAĞIRMIYOR (frekans kullanıcıya hiç açıklanmıyor,
@@ -286,8 +293,12 @@ export function createQuestion(level, settings = {}) {
   // üçlüsü, correctIndex ASLA Orta/Çok Geniş olamaz o zorlukta (bkz. dosya
   // başı G29 notu).
   const pool = poolForSize(options);
-  const correctLabel = pool[Math.floor(Math.random() * pool.length)];
-  const correctIndex = LABELS.indexOf(correctLabel);
+  // G292 — Kompresör'ün AYNI "kalan küme" düzeltmesi (bkz. o dosyanın notu).
+  // candidates HER TURUN KENDİ havuzundan (pool, zorluk/kademeye göre 3-5
+  // etiket) — recentIdentities'deki bir önceki turun id'si o havuzda hiç
+  // yoksa (kademe değiştiyse) hiçbir şeyi filtrelemez, normal seçime düşer.
+  const correctLabelId = pickAvoidingRecent(pool.map((l) => l.id), settings.recentIdentities || []);
+  const correctIndex = LABELS.findIndex((l) => l.id === correctLabelId);
   const choices = generateChoices(correctIndex, pool);
   const q = pickTrueQ(correctIndex, edgeMargin, pool);
 
@@ -302,6 +313,7 @@ export function createQuestion(level, settings = {}) {
     gainDb,
     q,
     correctIndex,
+    repeatIdentity: correctLabelId, // G292 — app.js'in mod-agnostik geçmiş güncelleme okuduğu TEK sabit alan adı
     isolate,
     source,
     hintUsed: false,

@@ -637,3 +637,77 @@ describe("Q Genişliği — diğer modlarla KARŞILAŞTIRMA (bağlantı mekanizm
     }
   });
 });
+
+// G292 (OLCUM-UC-18-08 madde C) — correctLabel artık settings.recentIdentities'i
+// (core/repeat-guard.js) okuyor. K=6-12 (kademeye göre pool 3-5 etiket), N=1.
+describe("Q Genişliği — G292 tekrar önleme (REPEAT_GUARD_N)", () => {
+  it("REPEAT_GUARD_N=1 dışa aktarılıyor", () => {
+    assert.equal(mode.REPEAT_GUARD_N, 1);
+  });
+
+  it("her createQuestion() repeatIdentity alanı correctIndex'in etiket id'siyle AYNI (string)", () => {
+    for (let i = 0; i < 30; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false });
+      assert.equal(typeof q.repeatIdentity, "string");
+      assert.ok(q.repeatIdentity.length > 0);
+    }
+  });
+
+  it("500 ARDIŞIK turda correctIndex ASLA bir önceki turla AYNI gelmiyor (medium: pool=3 etiket)", () => {
+    let recent = [];
+    for (let i = 0; i < 500; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, recentIdentities: recent });
+      if (recent.length > 0) assert.notEqual(q.repeatIdentity, recent[0], `tur ${i}: etiket bir ÖNCEKİYLE AYNI (${q.repeatIdentity})`);
+      recent = [q.repeatIdentity];
+    }
+  });
+
+  it("500 ARDIŞIK turda correctIndex ASLA bir önceki turla AYNI gelmiyor (pro: pool=5 etiket, DAHA GENİŞ K)", () => {
+    let recent = [];
+    for (let i = 0; i < 500; i++) {
+      const q = mode.createQuestion("pro", { source: "pink", boss: false, recentIdentities: recent });
+      if (recent.length > 0) assert.notEqual(q.repeatIdentity, recent[0], `tur ${i}: etiket bir ÖNCEKİYLE AYNI (${q.repeatIdentity})`);
+      recent = [q.repeatIdentity];
+    }
+  });
+
+  it("soru üretimi HİÇBİR turda takılmıyor/boş dönmüyor — 1000 tur, hepsi geçerli bir correctIndex", () => {
+    let recent = [];
+    for (let i = 0; i < 1000; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, recentIdentities: recent });
+      assert.ok(q.correctIndex >= 0, `tur ${i}: correctIndex geçersiz (${q.correctIndex})`);
+      recent = [q.repeatIdentity];
+    }
+  });
+
+  it("zorluk kademesi ARTARKEN (havuz 3'ten 5'e büyürken) geçmiş bir önceki kademenin etiketini taşısa bile takılmıyor", () => {
+    // hard/pro'da havuz genişler — 'medium'un son etiketi 'pro'nun havuzunda
+    // olmayabilir (Çok Geniş gibi yeni bir etiket eklenmiş olabilir), bu durumda
+    // pickAvoidingRecent hiçbir şeyi filtrelemeden normal seçime düşer (candidates
+    // listesinde YOKSA filtre etkisiz — dosya başı notu).
+    const qMedium = mode.createQuestion("medium", { source: "pink", boss: false });
+    const qPro = mode.createQuestion("pro", { source: "pink", boss: false, recentIdentities: [qMedium.repeatIdentity] });
+    assert.ok(qPro.correctIndex >= 0);
+  });
+
+  it("zorluk dağılımı bozulmadı — medium'da (3 etiket) 3000 turda her etiket YAKLAŞIK dengeli geliyor (±%15 tolerans)", () => {
+    const counts = {};
+    let recent = [];
+    for (let i = 0; i < 3000; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, recentIdentities: recent });
+      counts[q.repeatIdentity] = (counts[q.repeatIdentity] || 0) + 1;
+      recent = [q.repeatIdentity];
+    }
+    const labels = Object.keys(counts);
+    assert.equal(labels.length, 3, "medium'da HER ZAMAN 3 çekirdek etiket olmalı (G29 invaryantı)");
+    const expected = 3000 / labels.length;
+    for (const c of Object.values(counts)) {
+      assert.ok(Math.abs(c - expected) / expected < 0.15, `dağılım dengesiz: ${JSON.stringify(counts)} (beklenen ~${expected})`);
+    }
+  });
+
+  it("recentIdentities VERİLMEZSE davranış eskisiyle AYNI", () => {
+    const q = mode.createQuestion("medium", { source: "pink", boss: false });
+    assert.ok(q.correctIndex >= 0);
+  });
+});

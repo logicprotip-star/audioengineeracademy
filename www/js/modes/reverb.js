@@ -36,6 +36,7 @@ import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState, selectThreeWayCard } from "../core/three-way-cards.js";
+import { pickAvoidingRecent } from "../core/repeat-guard.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
 // HER moddan mode-agnostik olarak okur — diğer altı modla AYNI re-export deseni.
@@ -43,6 +44,10 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 
 export const MODE_ID = "reverb";
 export const MAX_LIVES = 5;
+// G292 (OLCUM-UC-18-08 madde C) — Kompresör'ün AYNI gerekçesi (K=3, N=1
+// SADECE ardışık tekrarı engeller; N=2 A→B→C→A→B→C deterministik döngüsüne
+// düşürür).
+export const REPEAT_GUARD_N = 1;
 
 // G50: Sınav sistemi — Kompresör pilotunun AYNI EXAM_ENABLED/EXAM_DIFFICULTY
 // deseni (Reverb submitThreeWayGuess'i Kompresör'le PAYLAŞTIĞI için app.js
@@ -304,7 +309,8 @@ export function createQuestion(level, settings = {}) {
   const isTypeSwapTier = level === "pro" || level === "proplus" || !!(curve && curve.position >= TYPE_SWAP_POSITION_THRESHOLD);
 
   const baseType = TYPE_IDS[Math.floor(Math.random() * TYPE_IDS.length)];
-  const oddIndex = Math.floor(Math.random() * 3);
+  // G292 — Kompresör'ün AYNI "kalan küme" düzeltmesi (bkz. o dosyanın notu).
+  const oddIndex = pickAvoidingRecent([0, 1, 2], settings.recentIdentities || []);
 
   let oddType, oddK, kGap;
   if (isTypeSwapTier) {
@@ -329,6 +335,7 @@ export function createQuestion(level, settings = {}) {
     source,
     variants,
     oddIndex,
+    repeatIdentity: oddIndex, // G292 — app.js'in mod-agnostik geçmiş güncelleme okuduğu TEK sabit alan adı
     typeSwap: isTypeSwapTier,
     kGap,
     hintUsed: false,

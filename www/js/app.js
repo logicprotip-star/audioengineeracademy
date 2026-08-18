@@ -1039,6 +1039,15 @@ let devFlags = storage.loadDevFlags();
 // G168 notu) — isUserPro() ikisini de okur.
 let purchaseState = storage.loadPurchase();
 let activeQuestion = null;
+// G292 (OLCUM-UC-18-08 madde C) — dar soru-uzaylı modların (bkz. mode.
+// REPEAT_GUARD_N: Kompresör/Reverb/Distortion'ın oddIndex'i, Q Genişliği'nin
+// correctLabel'ı) son N "kimliğini" tutar — createQuestion()'a settings.
+// recentIdentities olarak geçirilir (core/repeat-guard.js'in SAF "kalan küme"
+// fonksiyonu, sonsuz döngü YOK). REPEAT_GUARD_N tanımlamayan sekiz mod
+// (İKİLİ K=2 eksenli Boost mu Cut mu/dB Seviyesi/Frekans Çakışması Aşama 2
+// DAHİL — bkz. DURUM.md G292 notu, ölçüm raporunun uyarısı) bu alanı hiç
+// okumadığı için ETKİLENMEZ. Mod değişince enterMode() sıfırlar.
+let recentIdentityHistory = [];
 let roundActive = false;
 let currentPlayMode = "filtered";
 let visualizerOn = true;
@@ -2765,6 +2774,7 @@ function enterMode(entry, realMode) {
     clearTimeout(freqTapTimer);
     freqTapTimer = null;
     activeQuestion = null;
+    recentIdentityHistory = []; // G292 — önceki modun tekrar-önleme geçmişi YENİ moda SIZMASIN
     storage.clearInProgressRound(); // #53 — başka bir moda geçiliyor, eski modun yarım-tur kaydı SIZMASIN
     roundActive = false;
     autoStopped = true;
@@ -6139,8 +6149,25 @@ function startRound() {
     // döndüğünde) HARİÇ, o zaman ilgili mod eski statik DIFFICULTY[level] yoluna düşer.
     // examActive'te de BİLEREK undefined — sınav/telafi eğriyi DEĞİL modun statik
     // DIFFICULTY[examTier]'ını kullanır (bkz. examTier notu).
-    difficultyPosition: examActive ? undefined : currentDifficultyPosition(boss)
+    difficultyPosition: examActive ? undefined : currentDifficultyPosition(boss),
+    // G292 (OLCUM-UC-18-08 madde C) — SADECE mode.REPEAT_GUARD_N tanımlayan
+    // dört modun (Kompresör/Reverb/Distortion/Q Genişliği) createQuestion()'ı
+    // bunu okur, diğer sekiz mod (İKİLİ K=2 eksenli modlar DAHİL, BİLEREK
+    // dokunulmadı) YOK SAYAR — pairId/sessionQuestionIndex'in AYNI "her mod
+    // sadece kendi bildiği alanı okur" deseni.
+    recentIdentities: recentIdentityHistory
   });
+  // G292 — bu turun kimliği (varsa) geçmişe eklenip mode.REPEAT_GUARD_N'e
+  // göre kırpılıyor. `repeatIdentity` alanını dört modun DIŞINDAKİLER hiç
+  // döndürmüyor (undefined) — bu durumda geçmiş GÜNCELLENMEZ, bir sonraki
+  // createQuestion() çağrısı zaten mode.REPEAT_GUARD_N'i okumadığı için
+  // zararsız.
+  if (typeof activeQuestion.repeatIdentity !== "undefined" && mode.REPEAT_GUARD_N) {
+    recentIdentityHistory.push(activeQuestion.repeatIdentity);
+    if (recentIdentityHistory.length > mode.REPEAT_GUARD_N) {
+      recentIdentityHistory = recentIdentityHistory.slice(-mode.REPEAT_GUARD_N);
+    }
+  }
   // #53 — YENİ bir round başladı, ÖNCEKİ (varsa) yarım-tur kaydı artık STALE
   // (farklı bir soruya ait) — bir sonraki pauseRound() BU round'u kaydedecek,
   // ama ARADA (henüz hiç duraklatılmadan) uygulama sonlanırsa restore ESKİ

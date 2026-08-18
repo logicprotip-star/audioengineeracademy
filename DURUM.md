@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G291 — Satın alma sonrası bayat UI durumu — OLCUM-UC-18-08.md madde A'nın bulduğu bug düzeltildi: `updateStartBtnLabel()` artık `blockIfLivesOut()` ile AYNI Pro-kontrolünü yapıyor (ikon Pro'da sonsuza dek "▶" donmuyor); satın alma sonrası oyun ekranına dönüşte (`#buyProBtn`'in başarılı dalı) `#feedbackOverlay`/`#feedbackBox` artık temizleniyor (ekranı engellemiyor — İLK denemede `teardownActiveRound()`'a eklenmişti, bu `e2e/feedback-panel-reset.spec.mjs`'i kırdığı için doğru yere, satın-alma-dönüş anına taşındı); `syncDevUI()`'ye `renderHearts()`/`renderGameHeader()` eklendi (can göstergesi artık Pro'da bayat kalmıyor — G186/#36/Bug#40 ailesinin 4. örneği). Aynı-hata-sınıfı taraması tamamlandı, YENİ bulgu yok. `e2e/purchase-stale-ui.spec.mjs` (2 test, kırmızı/yeşil doğrulandı) eklendi. npm test 1551/1551, e2e 86/86 (bilinen, kod-bağımsız bir `ear-buttons.spec.mjs` flaky'si hariç — main'de de reprodüklendi))
+Son güncelleme: 18.08.2026 (G292 — Tekrar önleme — OLCUM-UC-18-08.md madde C'nin ölçtüğü dar soru-uzayları düzeltildi: YENİ `core/repeat-guard.js` ("kalan küme" SAF fonksiyonu, retry/loop YOK — sonsuz döngü YAPISAL OLARAK imkânsız) Kompresör/Reverb/Distortion'ın `oddIndex`'ine (K=3, N=1) ve Q Genişliği'nin `correctLabel`'ına (K=6-12, N=1) kablolandı — Logic'in cihaz şikayeti ("%33 ihtimalle aynı soru arka arkaya") düzeldi. İKİLİ (K=2) modlara (Boost mu Cut mu/dB Seviyesi/Frekans Çakışması) BİLEREK dokunulmadı (sert kural bu eksende sesi dinlemeden %100 doğru cevaplamayı mümkün kılardı) — `test/repeat-guard-scope.test.mjs` bunu mekanik olarak kilitliyor. app.js'te YENİ `recentIdentityHistory` (mod değişince sıfırlanır) `startRound()`'un TEK createQuestion() çağrısına geçiriliyor. 4 mod dosyasına + 2 yeni core/test dosyasına testler eklendi (500-3000 turluk tekrar-yok/dağılım-dengeli doğrulamaları), YENİ `e2e/repeat-guard.spec.mjs` (2 test, kırmızı/yeşil doğrulandı, GERÇEK 10 ardışık round). npm test 1593/1593, e2e 88/88. Test yazarken G292'DEN BAĞIMSIZ, committed main'de de reprodüklenen bir ortamsal flake (Kompresör'de nadiren #feedbackClose geç görünüyor) bulundu, dokunulmadı, teste sınırlı retry eklendi)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,41 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G292 — **Tekrar önleme (OLCUM-UC-18-08.md madde C'nin ölçtüğü dar soru-uzayları). AYRI commit.**
+
+**SORUN:** Hiçbir modda tekrar önleme yoktu. Üç şıklı modlarda (Kompresör/Reverb/Saturation & Distortion) `oddIndex = Math.floor(Math.random()*3)` HİÇBİR geçmiş bilgisi olmadan HER turda yeniden çekiliyordu — %33.3 ihtimalle aynı harf ARKA ARKAYA geliyordu. Logic cihazda yaşadı: "peşpeşe aynı soru geldi hissi ve cevap bile aynı." Ölçüm (OLCUM-UC-18-08 madde C) ayrıca Q Genişliği'ni (correctLabel, kademeye göre K=6-12) yeni bir dar-uzay olarak buldu, Boost mu Cut mu'yu (direction, K=2) EN riskli mod olarak işaretledi.
+
+**Yapılan:**
+1. **YENİ `www/js/core/repeat-guard.js`** — TEK saf fonksiyon `pickAvoidingRecent(candidates, recentValues, rng=Math.random)`. "Kalan küme" yaklaşımı (ölçüm raporunun 2. önerisi): `allowed = candidates - recentValues`; boşsa `allowed = candidates - [sadece son eleman]`'a düş; O DA boşsa (K=1, 12 modun hiçbirinde yok) tüm `candidates`'a düş. **Retry/loop YOK** — bu yüzden N>=K olsa bile sonsuz döngü YAPISAL OLARAK imkânsız (task'ın kendi uyardığı risk).
+2. **Dört mod dosyası** (`kompresor.js`/`reverb.js`/`distortion.js`/`q-genisligi.js`) `createQuestion()`'ları artık `Math.random()`/`rng()` yerine `pickAvoidingRecent(...)` çağırıyor; her biri `export const REPEAT_GUARD_N` + soru nesnesine YENİ bir `repeatIdentity` alanı ekliyor (app.js'in mod-agnostik okuduğu TEK sabit alan adı — oddIndex/correctLabel gibi farklı isimler yerine).
+3. **`app.js`** — YENİ modül-seviyeli `recentIdentityHistory` dizisi: `startRound()`'un TEK `createQuestion()` çağrı noktasına `recentIdentities` olarak geçiriliyor, dönen `activeQuestion.repeatIdentity` (varsa) `mode.REPEAT_GUARD_N`'e göre kırpılarak geçmişe ekleniyor; `enterMode()`'un mod-değişti dalında sıfırlanıyor (önceki modun geçmişi yeni moda sızmasın).
+
+**N değerleri ve gerekçe (ölçüm raporunun tablosuna göre):**
+| Mod | K (ölçülen) | N | Gerekçe |
+|---|---|---|---|
+| Kompresör/Reverb/Distortion (`oddIndex`) | 3 | **1** | N=2 seçilirse geriye TEK bir zorunlu değer kalır, HER 3 soruda bir DETERMİNİSTİK bir döngüye (A→B→C→A→B→C) girer — rapor bunu "çok tahmin edilebilir" YENİ bir şikayet riski olarak işaretledi. N=1 SADECE ardışık tekrarı engelliyor, Logic'in şikayeti tam bu. |
+| Q Genişliği (`correctLabel`) | 6-12 (kademeye göre pool 3-5 etiket) | **1** | Rapor "N=1-2, N=2 bile güvenli" diyordu — diğer üç moddaki N=1 ile TUTARLILIK için 1 seçildi (bol pay var, N=2'ye çıkarmak ileride kolay bir ayar). |
+
+**⚠️ İKİLİ (K=2) modlara BİLEREK DOKUNULMADI (task'ın kendi DOKUNULMAYACAK'ı, ölçüm raporunun uyarısı):** Boost mu Cut mu (`direction`), dB Seviyesi (yön ekseni), Frekans Çakışması Aşama 2 (`correctSource`) — ÜÇÜ DE K=2. Sert "az önceki tekrar etme" kuralı bu eksende geriye TEK bir zorunlu değer bırakır — kullanıcı sesi HİÇ DİNLEMEDEN "öncekinin tersi" diyerek %100 doğru cevaplayabilir hale gelir, bu ORİJİNAL şikayetten (tekrar can sıkıcı) DAHA CİDDİ bir sorun (mod anlamsızlaşır). `test/repeat-guard-scope.test.mjs` bunu MEKANİK olarak kilitliyor: üç modun `REPEAT_GUARD_N` export ETMEDİĞİni + Boost mu Cut mu'nun direction ekseninin HÂLÂ ardışık tekrar edebildiğini (davranış DEĞİŞMEDİ) doğruluyor.
+
+**Testler:**
+- `test/repeat-guard.test.mjs` (YENİ, 7 test) — `pickAvoidingRecent()`'in SAF sözleşmesi: boş geçmiş, K=3/N=1 ardışık-tekrar-yok, N>=K uç durumu, K=1 uç durumu, K=2'nin KENDİ davranışı (mekanizma belgelemesi, İKİLİ modlara UYGULANMADI notuyla).
+- `test/repeat-guard-scope.test.mjs` (YENİ, 8 test) — kapsam sınırının mekanik kanıtı (yukarıda).
+- 4 mod test dosyasına (`kompresor`/`reverb`/`distortion`/`q-genisligi.test.mjs`) her birine ~5-6 YENİ test: `REPEAT_GUARD_N` export edildi, `repeatIdentity` doğru alanla eşleşiyor, **500 ARDIŞIK turda hiçbir tekrar yok**, **1000 turda hiç takılma/boş dönüş yok**, **3000 turda dağılım ±%15 toleransla dengeli** (KABUL KRİTERİ'nin "zorluk dağılımı bozulmadı" maddesi), `recentIdentities` verilmezse eski davranış korunuyor.
+- **YENİ `e2e/repeat-guard.spec.mjs`** (2 test, GERÇEK Chromium) — Kompresör'de 10 ARDIŞIK GERÇEK round'da (app.js'in gerçek `startRound()`/`enterMode()` kablolaması DAHİL) oddIndex'in hiçbir turda bir öncekiyle AYNI gelmediğini doğruluyor; Boost mu Cut mu'da AYNI döngünün (mekanizma kablolanmadığı için) sorunsuz çalıştığını doğruluyor (regresyon koruması).
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/js/app.js www/js/modes/{kompresor,reverb,distortion,q-genisligi}.js test/{kompresor,reverb,distortion,q-genisligi}.test.mjs` → `test/repeat-guard-scope.test.mjs` `REPEAT_GUARD_N` bulunamadığı için KIRMIZI + `e2e/repeat-guard.spec.mjs`'in KABUL KRİTERİ testi "tur 2: oddIndex bir ÖNCEKİ turla AYNI" ile KIRMIZI → `git stash pop` → YEŞİL (tüm testler).
+
+**⚠️ Test yazarken bulunan, G292'DEN BAĞIMSIZ ortamsal flake (bu turun kapsamı DIŞINDA, DOKUNULMADI):** Hızlı ardışık otomatik cevaplamada (Kompresör'ün select+confirm akışı) `#feedbackClose` NADİREN (gözlemde ~10 turda 1) round cevaplandıktan sonra 5 saniye içinde hiç görünür olmuyor — izole bir `git worktree` ile committed `main`'de (bu tur dahil hiçbir G292 değişikliği OLMADAN) AYNEN reprodüklendi, `e2e/ear-buttons.spec.mjs`'in flaky notuyla AYNI aile. `e2e/repeat-guard.spec.mjs` bu yüzden sınırlı (en fazla 2 deneme) bir sayfa-yenileme retry'ı taşıyor — kök sebep araştırılmadı, app.js'in round-flow/scheduleNext mekanizmasına dokunulmadı (kapsam dışı).
+
+**⚠️ Yan not (git güvenliği, kod DEĞİL):** Bu turda `git stash pop` sırasında, bu oturumla İLGİSİZ, ÇOK ESKİ bir stash girdisi (`WIP on main: 88f0275 "Oyun bitti karti duzeltildi + upload kaynak + feedback gorunurluk + istatistik/sure tasima"`) farkedildi — muhtemelen ÇOK önceki bir seanstan unutulmuş. `.gitignore`'da küçük bir çakışma yarattı (içeriği BOŞTU, kaybı YOK, güncel `.gitignore` korunarak çözüldü), stash listesinde HÂLÂ duruyor, bu turda SİLİNMEDİ/uygulanmadı — kullanıcı isterse inceleyip `git stash show -p stash@{0}` ile içeriğine bakabilir ya da `git stash drop` ile atabilir.
+
+**Test sonuçları:** `npm test` 1593/1593 (1551'den +42: +7 repeat-guard + +8 repeat-guard-scope + ~27 mod-bazlı yeni test). `npm run test:e2e` 88/88 (86'dan +2), art arda birden fazla tam-suit koşusunda tekrarlanabilir biçimde.
+
+**DOKUNULMAYACAK'a uyuldu:** İkili uzaylı modlar (Boost mu Cut mu ve kardeşleri) — HİÇ dokunulmadı, mekanik testle kilitli. Zorluk eğrisi/DIFFICULTY tabloları/soru parametrelerinin üretim mantığı — SADECE kimlik EKSENİNİN (oddIndex/correctLabel) HANGİ ALT KÜMEDEN geldiği kısıtlandı, gain/Q/kGap/time HESAPLAMALARI TEK SATIR değişmedi (ortogonal, ölçüm raporuyla TUTARLI). G267 seamless mimarisi — dokunulmadı (repeat-guard SADECE createQuestion()'ın İÇİNDE, audio-engine.js/three-way-cards.js hiç değişmedi). XP formülü — dokunulmadı.
+
+---
 
 G291 — **Satın alma sonrası bayat UI durumu (OLCUM-UC-18-08.md madde A'nın bulduğu bug). AYRI commit.**
 
@@ -20983,17 +21018,15 @@ seviye başlığı × 6 rozet, tam karşılaştırma) — "Altın Kulak" TEK ör
 
 ## BEKLEYEN KARARLAR
 
-**X. OLCUM-UC-18-08 madde B/C — zorluk eğrisi değişimi + tekrar önleme, HANGİSİ 1.1'e alınacak?**
+**X. OLCUM-UC-18-08 madde B — zorluk eğrisi değişimi, 1.1'e alınacak mı?**
 Ölçüm raporu (`OLCUM-UC-18-08.md`) HAZIR, kod değişikliği YAPILMADI —
-ikisi de ürün kararı gerektiriyor:
-- **Madde B (zorluk eğrisi):** tek-mod değişikliği düşük risk, tüm-mod
-  değişikliği daha yüksek iş yükü/test-kapsamı taşıyor (rapordaki
-  dosya/satır/test tablosuna bkz.). Logic 1.1'de değiştirmek istiyorsa
-  HANGİ mod(lar) ve NE YÖNDE (kolaylaştırma/zorlaştırma) belirtilmeli.
-- **Madde C (tekrar önleme):** 12 modun soru-uzayı tablosu ve önerilen
-  N-değerleri raporda — K=2 (ikili eksen) olan modlarda SIKI tekrar-
-  önleme modu ÇÖZÜLEBİLİR hale getirebilir (raporun uyarısı), bu yüzden
-  hangi modlarda uygulanacağı/N değerleri kullanıcı kararı gerektiriyor.
+ürün kararı gerektiriyor: tek-mod değişikliği düşük risk, tüm-mod
+değişikliği daha yüksek iş yükü/test-kapsamı taşıyor (rapordaki
+dosya/satır/test tablosuna bkz.). Logic 1.1'de değiştirmek istiyorsa
+HANGİ mod(lar) ve NE YÖNDE (kolaylaştırma/zorlaştırma) belirtilmeli.
+(Madde C — tekrar önleme — G292'de UYGULANDI, bkz. BİTTİ. K=2 modlarına
+BİLEREK dokunulmadı, bu KAPANMIŞ bir karar — yeniden açılmadıkça burada
+listelenmiyor.)
 
 **W. G206 — Pro Plus, sınav/parkur sistemine hiç DAHİL DEĞİL — dahil edilsin mi?**
 Ölçüldü: Frekans Bulma'nın Pro Plus zorluğu (`submitProPlusGuess`)
@@ -21251,23 +21284,40 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G291 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G292 itibarıyla):**
+OLCUM-UC-18-08 madde C'nin bulduğu tekrar sorunu düzeltildi — Kompresör/
+Reverb/Distortion (K=3) ve Q Genişliği (K=6-12) artık "kalan küme" ile
+son 1 turun kimliğini tekrar etmiyor, Logic'in "%33 arka arkaya aynı soru"
+şikayeti kapandı. İKİLİ (K=2) modlara (Boost mu Cut mu/dB Seviyesi/
+Frekans Çakışması) BİLEREK dokunulmadı — bkz. BİTTİ'deki gerekçe.
+**AÇIK madde:** OLCUM-UC-18-08 madde B (zorluk eğrisi değişim maliyeti) —
+ölçüm raporunda (`OLCUM-UC-18-08.md`) iş yükü/risk tahminiyle belgelendi
+ama HENÜZ uygulanmadı, ÜRÜN KARARI bekliyor (bkz. BEKLEYEN KARARLAR
+madde X — madde C artık kapandığı için madde X sadece madde B'yi
+kapsayacak şekilde güncellenmeli, bu turda YAPILMADI, bir sonraki tur bu
+maddeyi düzeltsin).
+`e2e/ear-buttons.spec.mjs`'in "Boost/Cut (katman 3)" testi VE bu turda
+YENİ bulunan Kompresör'ün nadir `#feedbackClose` gecikmesi — İKİSİ DE
+ortamsal/kod-bağımsız flaky (committed main'de reprodüklendi), bu turun
+kapsamı DIŞINDA bırakıldı, ayrıca araştırma gerektirir.
+⚠️ Bu turda `git stash pop` sırasında ÇOK ESKİ, ilgisiz bir stash girdisi
+(`88f0275` tabanlı) farkedildi, stash listesinde HÂLÂ duruyor — kullanıcı
+isterse `git stash show -p stash@{0}` ile bakabilir/`git stash drop`
+edebilir, bu turda dokunulmadı (bkz. BİTTİ'nin "yan not" u).
+`npm test` 1593/1593, `npm run test:e2e` 88/88 (bilinen flaky'ler hariç).
+**Kullanıcının/Logic'in sıradaki adımı:** OLCUM-UC-18-08 madde B'yi okuyup
+1.1'e alınıp alınmayacağına karar vermek — kod değişikliği DEĞİL, ürün
+kararı gerektiriyor. İsteğe bağlı ikinci adım: unutulmuş eski stash
+girdisini incele/temizle.
+
+**EN YENİ SIRADAKİ ADIM (G291 itibarıyla, ARTIK ESKİ):**
 OLCUM-UC-18-08 madde A'nın bulduğu satın-alma-sonrası bayat UI durumu
 düzeltildi: play/pause ikonu artık Pro'da donuk kalmıyor, feedback paneli
 satın alma dönüşünde ekranı engellemiyor, can göstergesi doğru. Aynı hata
 sınıfı (G186/#36/Bug#40) taraması TAMAMLANDI — bulunan iki eksik
 (`renderHearts()`/`renderGameHeader()`) zaten bu turda kapatıldı, YENİ bir
-bulgu yok. **AÇIK madde:** OLCUM-UC-18-08 madde B (zorluk eğrisi değişim
-maliyeti) ve madde C (tekrar önleme) — İKİSİ DE ölçüm raporunda (bkz.
-`OLCUM-UC-18-08.md`) iş yükü/risk tahminiyle belgelendi ama HENÜZ
-uygulanmadı; ikisi de ÜRÜN KARARI bekliyor (bkz. BEKLEYEN KARARLAR).
-`e2e/ear-buttons.spec.mjs`'in "Boost/Cut (katman 3)" testi ortamsal
-flaky (kod bağımsız, `main`'de de reprodüklendi) — bu turun kapsamı
-DIŞINDA bırakıldı, ayrıca araştırma gerektirir.
+bulgu yok.
 `npm test` 1551/1551, `npm run test:e2e` 86/86 (bilinen flaky hariç).
-**Kullanıcının/Logic'in sıradaki adımı:** OLCUM-UC-18-08 madde B/C'yi
-okuyup hangisinin (varsa) 1.1'e alınacağına karar vermek — ikisi de kod
-değişikliği DEĞİL, ürün kararı gerektiriyor.
 
 **EN YENİ SIRADAKİ ADIM (G290 itibarıyla, ARTIK ESKİ):**
 OLCUM-I-METINLERI-17-08'in bulduğu "i" boşlukları kapandı — İlerleme

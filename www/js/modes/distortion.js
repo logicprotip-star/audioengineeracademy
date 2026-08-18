@@ -29,6 +29,7 @@ import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState, selectThreeWayCard } from "../core/three-way-cards.js";
+import { pickAvoidingRecent } from "../core/repeat-guard.js";
 
 // app.js'in GENEL görselleştiricisi diğer dokuz modla AYNI re-export
 // deseni — Distortion'ın KENDİSİ frekansla ilgilenmiyor ama paylaşılan arka
@@ -37,6 +38,8 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 
 export const MODE_ID = "distortion";
 export const MAX_LIVES = 5;
+// G292 (OLCUM-UC-18-08 madde C) — Kompresör'ün AYNI gerekçesi (K=3, N=1).
+export const REPEAT_GUARD_N = 1;
 // Motor 2'nin ("A/B/C odd-one-out") HANGİ modları kapsadığını app.js TEK
 // yerde (THREE_WAY_MODE_IDS) tutuyor — Kompresör/Reverb'in AYNI bayrağı.
 export const THREE_WAY = true;
@@ -301,7 +304,8 @@ export function createQuestion(level, settings = {}) {
   const baseKGap = curve ? curve.kGap : diff.kGap;
   const timeSec = curve ? curve.timeSec : diff.time;
 
-  const oddIndex = Math.floor(rng() * 3);
+  // G292 — Kompresör'ün AYNI "kalan küme" düzeltmesi (bkz. o dosyanın notu).
+  const oddIndex = pickAvoidingRecent([0, 1, 2], settings.recentIdentities || [], rng);
   const kGap = pickKGap(baseKGap, rng);
   const oddK = pickOddK(DIST_BASE_K, kGap, rng);
 
@@ -319,6 +323,7 @@ export function createQuestion(level, settings = {}) {
     distortionType,
     variants,
     oddIndex,
+    repeatIdentity: oddIndex, // G292 — app.js'in mod-agnostik geçmiş güncelleme okuduğu TEK sabit alan adı
     hintUsed: false,
     boss,
     timeSec,

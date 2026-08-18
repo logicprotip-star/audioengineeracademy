@@ -662,3 +662,65 @@ describe("Distortion — G269 KABUL KRİTERİ madde 3: tipler arası THD (harmon
     assert.ok(Math.abs(thdOf(1) - thdOf(scale)) < 1e-6, "ölçekleme THD oranını (temel/harmonik) DEĞİŞTİRMEMELİ");
   });
 });
+
+// G292 (OLCUM-UC-18-08 madde C) — Kompresör'ün AYNI tekrar-önleme testleri.
+describe("Saturation & Distortion — G292 tekrar önleme (REPEAT_GUARD_N)", () => {
+  it("REPEAT_GUARD_N=1 dışa aktarılıyor", () => {
+    assert.equal(mode.REPEAT_GUARD_N, 1);
+  });
+
+  it("her createQuestion() repeatIdentity alanını oddIndex'le AYNI döner", () => {
+    for (let i = 0; i < 30; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false });
+      assert.equal(q.repeatIdentity, q.oddIndex);
+    }
+  });
+
+  it("500 ARDIŞIK turda oddIndex ASLA bir önceki turla AYNI gelmiyor", () => {
+    let recent = [];
+    for (let i = 0; i < 500; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, recentIdentities: recent });
+      if (recent.length > 0) assert.notEqual(q.oddIndex, recent[0], `tur ${i}: oddIndex bir ÖNCEKİYLE AYNI (${q.oddIndex})`);
+      recent = [q.oddIndex];
+    }
+  });
+
+  it("soru üretimi HİÇBİR turda takılmıyor/boş dönmüyor — 1000 tur, hepsi geçerli 0/1/2", () => {
+    let recent = [];
+    for (let i = 0; i < 1000; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, recentIdentities: recent });
+      assert.ok([0, 1, 2].includes(q.oddIndex));
+      recent = [q.oddIndex];
+    }
+  });
+
+  it("zorluk dağılımı bozulmadı — 3000 turda her oddIndex (0/1/2) YAKLAŞIK dengeli geliyor (±%15 tolerans)", () => {
+    const counts = [0, 0, 0];
+    let recent = [];
+    for (let i = 0; i < 3000; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, recentIdentities: recent });
+      counts[q.oddIndex]++;
+      recent = [q.oddIndex];
+    }
+    const expected = 3000 / 3;
+    for (const c of counts) {
+      assert.ok(Math.abs(c - expected) / expected < 0.15, `dağılım dengesiz: ${counts.join(",")} (beklenen ~${expected})`);
+    }
+  });
+
+  it("recentIdentities VERİLMEZSE davranış eskisiyle AYNI", () => {
+    const q = mode.createQuestion("medium", { source: "pink", boss: false });
+    assert.ok([0, 1, 2].includes(q.oddIndex));
+  });
+
+  it("settings.rng (mevcut enjekte edilebilir rastgelelik) ile BİRLİKTE çalışır", () => {
+    let recent = [];
+    let seed = 1;
+    const rng = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+    for (let i = 0; i < 50; i++) {
+      const q = mode.createQuestion("medium", { source: "pink", boss: false, recentIdentities: recent, rng });
+      if (recent.length > 0) assert.notEqual(q.oddIndex, recent[0]);
+      recent = [q.oddIndex];
+    }
+  });
+});

@@ -83,6 +83,7 @@ import { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 import { logLerp, applyPostCapFloor } from "../core/difficulty-curve.js";
 import { GUESS_COLOR, CORRECT_COLOR } from "../core/feedback-colors.js";
 import { renderThreeWayCards, markThreeWayCards, updateThreeWayCardsPlayState, selectThreeWayCard } from "../core/three-way-cards.js";
+import { pickAvoidingRecent } from "../core/repeat-guard.js";
 
 // app.js'in GENEL görselleştiricisi (drawVisualizer/drawSpectrumBars) BU sabitleri
 // HER moddan mode-agnostik olarak okur — diğer beş modla AYNI re-export deseni
@@ -92,6 +93,11 @@ export { FA_MIN, FA_MAX, AXIS_H, CURVE_TOP, faXToF, faFToX, FA_ZONES, faZoneOf, 
 
 export const MODE_ID = "kompresor";
 export const MAX_LIVES = 5;
+// G292 (OLCUM-UC-18-08 madde C) — oddIndex'in kimlik uzayı K=3 (A/B/C) —
+// N=2 seçilirse geriye SADECE 1 zorunlu değer kalır, HER 3 soruda bir
+// DETERMİNİSTİK bir döngüye (A→B→C→A→B→C) girer (ölçüm raporunun uyarısı).
+// N=1 SADECE ardışık tekrarı engeller — Logic'in şikayeti buydu.
+export const REPEAT_GUARD_N = 1;
 // Motor 2'nin ("A/B/C odd-one-out") HANGİ modları kapsadığını app.js TEK
 // yerde (THREE_WAY_MODE_IDS) tutuyor — bu bayrak SADECE dokümantasyon/
 // kendi-kendini-açıklama amaçlı (G35'te Reverb bunu MİRAS ALDI).
@@ -292,7 +298,7 @@ export function getMeta() {
 // SAF FONKSİYON: ses çalmaz, DOM'a dokunmaz. settings: { source, boss,
 // difficultyPosition — verilirse kGap/timeSec EĞRİDEN gelir, verilmezse
 // (mevcut testler, doğrudan çağrılar, proplus) statik DIFFICULTY[level]
-// davranışı korunur }.
+// davranışı korunur; recentIdentities — G292, bkz. REPEAT_GUARD_N notu }.
 export function createQuestion(level, settings = {}) {
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const boss = !!settings.boss;
@@ -305,7 +311,11 @@ export function createQuestion(level, settings = {}) {
   const baseKGap = curve ? curve.kGap : diff.kGap;
   const timeSec = curve ? curve.timeSec : diff.time;
 
-  const oddIndex = Math.floor(Math.random() * 3);
+  // G292 — ÖNCEDEN koşulsuz Math.random(): %33 ihtimalle aynı harf ARKA
+  // ARKAYA geliyordu (Logic'in cihaz şikayeti). "Kalan küme" ile son
+  // REPEAT_GUARD_N (=1) turun oddIndex'i havuzdan çıkarılıp kalanlardan
+  // seçiliyor — retry YOK, sonsuz döngü riski YOK (bkz. repeat-guard.js).
+  const oddIndex = pickAvoidingRecent([0, 1, 2], settings.recentIdentities || []);
   const kGap = pickKGap(baseKGap);
   const oddK = pickOddK(COMP_BASE_K, kGap);
 
@@ -324,6 +334,7 @@ export function createQuestion(level, settings = {}) {
     source,
     variants,
     oddIndex,
+    repeatIdentity: oddIndex, // G292 — app.js'in mod-agnostik geçmiş güncelleme okuduğu TEK sabit alan adı
     hintUsed: false,
     boss,
     timeSec,
