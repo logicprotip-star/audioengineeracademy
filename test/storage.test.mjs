@@ -7,7 +7,7 @@
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave, loadSchemaVersion, ensureSchemaVersion, CURRENT_SCHEMA_VERSION, freshFreeSession, loadFreeSession, saveFreeSession, dailyKey, freshAnswerHistory, loadAnswerHistory, saveAnswerHistory, clearAnswerHistory } from "../www/js/core/storage.js";
+import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave, loadSchemaVersion, ensureSchemaVersion, CURRENT_SCHEMA_VERSION, freshFreeSession, loadFreeSession, saveFreeSession, dailyKey, freshAnswerHistory, loadAnswerHistory, saveAnswerHistory, clearAnswerHistory, freshDaily, loadDaily, peekStaleDaily, freshDailyLog, loadDailyLog, saveDailyLog, clearDailyLog } from "../www/js/core/storage.js";
 
 function installLocalStorageMock(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -535,5 +535,137 @@ describe("freshAnswerHistory()/loadAnswerHistory()/saveAnswerHistory()/clearAnsw
     clearAnswerHistory();
     assert.equal(store.has("eqEarTrainerProXAnswerHistory"), false);
     assert.deepEqual(loadAnswerHistory(), freshAnswerHistory());
+  });
+});
+
+// G289 (OLCUM-XP-17-08'in bulduğu sorun) — freshDaily()'nin YENİ günlük
+// sayaçları (dailyRounds/dailyCorrect/dailyBestCombo/dailyXp) + loadDaily()'nin
+// eski-şekilli-aynı-gün kayıtlarda bu alanları 0'a düşürmesi + peekStaleDaily().
+describe("freshDaily()/loadDaily() — G289 günlük sayaçlar", () => {
+  it("freshDaily() — görev tanımları/ödülleri DEĞİŞMEDİ (+40/+50/+35), YENİ 4 sayaç 0'dan başlar", () => {
+    const fd = freshDaily();
+    assert.deepEqual(fd.tasks.map(t => ({ id: t.id, target: t.target, reward: t.reward })), [
+      { id: "d1", target: 5, reward: 40 },
+      { id: "d2", target: 3, reward: 50 },
+      { id: "d3", target: 2, reward: 35 }
+    ]);
+    assert.equal(fd.dailyRounds, 0);
+    assert.equal(fd.dailyCorrect, 0);
+    assert.equal(fd.dailyBestCombo, 0);
+    assert.equal(fd.dailyXp, 0);
+  });
+
+  it("loadDaily() — gün DEĞİŞMEMİŞ bir kayıtta YENİ sayaçlar KORUNUR", () => {
+    installLocalStorageMock();
+    const today = { key: dailyKey(), tasks: freshDaily().tasks, tipDismissed: false, dailyRounds: 3, dailyCorrect: 2, dailyBestCombo: 2, dailyXp: 48 };
+    saveDaily(today);
+    assert.deepEqual(loadDaily(), today);
+  });
+
+  it("loadDaily() — gün DEĞİŞMEMİŞ ama YENİ alanlar HİÇ yoksa (bu özellikten ÖNCE yazılmış) 0'a düşer, çökmez", () => {
+    installLocalStorageMock();
+    const legacy = { key: dailyKey(), tasks: freshDaily().tasks, tipDismissed: false };
+    saveDaily(legacy);
+    const loaded = loadDaily();
+    assert.equal(loaded.dailyRounds, 0);
+    assert.equal(loaded.dailyCorrect, 0);
+    assert.equal(loaded.dailyBestCombo, 0);
+    assert.equal(loaded.dailyXp, 0);
+    assert.equal(loaded.key, dailyKey(), "dailyKey() karşılaştırma mantığı BOZULMADI");
+  });
+
+  it("loadDaily() — gün DEĞİŞTİYSE (KİLİT: dailyKey() mantığı) HÂLÂ freshDaily()'e düşer, DEĞİŞMEDİ", () => {
+    installLocalStorageMock();
+    saveDaily({ key: "2000-1-1", tasks: freshDaily().tasks, tipDismissed: false, dailyRounds: 99, dailyCorrect: 99, dailyBestCombo: 99, dailyXp: 9999 });
+    const loaded = loadDaily();
+    assert.equal(loaded.dailyRounds, 0, "eski günün sayaçları YENİ güne SIZMAMALI");
+    assert.equal(loaded.key, dailyKey());
+  });
+
+  it("peekStaleDaily() — hiç kayıt yoksa null", () => {
+    installLocalStorageMock();
+    assert.equal(peekStaleDaily(), null);
+  });
+
+  it("peekStaleDaily() — kayıt BUGÜNE aitse null (henüz arşivlenecek bir şey yok)", () => {
+    installLocalStorageMock();
+    saveDaily({ key: dailyKey(), tasks: freshDaily().tasks, tipDismissed: false, dailyRounds: 3, dailyCorrect: 2, dailyBestCombo: 2, dailyXp: 48 });
+    assert.equal(peekStaleDaily(), null);
+  });
+
+  it("peekStaleDaily() — kayıt DÜN'e aitse (gün değişmiş) o objeyi AYNEN döner, SİLMEZ", () => {
+    const store = installLocalStorageMock();
+    const stale = { key: "2000-1-1", tasks: freshDaily().tasks, tipDismissed: false, dailyRounds: 5, dailyCorrect: 3, dailyBestCombo: 4, dailyXp: 133 };
+    saveDaily(stale);
+    assert.deepEqual(peekStaleDaily(), stale);
+    assert.equal(store.has("eqEarTrainerProXDaily"), true, "peekStaleDaily() localStorage'ı DEĞİŞTİRMEMELİ");
+  });
+
+  it("peekStaleDaily() — bozuk JSON'da çökmeden null döner", () => {
+    const store = installLocalStorageMock();
+    store.set("eqEarTrainerProXDaily", "{not json");
+    assert.equal(peekStaleDaily(), null);
+  });
+});
+
+// G289 — günlük özet kaydı (core/daily-log.js). ANSWER_HISTORY_KEY testlerinin
+// (yukarıdaki describe) BİREBİR AYNI iskeleti — TAMAMEN AYRI bir anahtar.
+describe("freshDailyLog()/loadDailyLog()/saveDailyLog()/clearDailyLog()", () => {
+  it("freshDailyLog() — schemaVersion=CURRENT_SCHEMA_VERSION, records boş dizi", () => {
+    assert.deepEqual(freshDailyLog(), { schemaVersion: CURRENT_SCHEMA_VERSION, records: [] });
+  });
+
+  it("hiç kayıt yokken loadDailyLog() taze şekli döner", () => {
+    installLocalStorageMock();
+    assert.deepEqual(loadDailyLog(), freshDailyLog());
+  });
+
+  it("saveDailyLog() sonrası loadDailyLog() AYNI kayıtları döner (kalıcı)", () => {
+    installLocalStorageMock();
+    const blob = { schemaVersion: CURRENT_SCHEMA_VERSION, records: [{ date: "2026-8-17", rounds: 5, correct: 3, bestCombo: 4, questions: 5, xp: 133 }] };
+    saveDailyLog(blob);
+    assert.deepEqual(loadDailyLog(), blob);
+  });
+
+  it("bozuk JSON / records dizi değilse çökmeden taze başlar", () => {
+    const store = installLocalStorageMock();
+    store.set("eqEarTrainerProXDailyLog", "{not json");
+    assert.deepEqual(loadDailyLog(), freshDailyLog());
+    store.set("eqEarTrainerProXDailyLog", JSON.stringify({ schemaVersion: 1, records: "yanlış-tip" }));
+    assert.deepEqual(loadDailyLog(), freshDailyLog());
+  });
+
+  it("schemaVersion eksikse (eski/bozuk kayıt) CURRENT_SCHEMA_VERSION'a düşer, records KORUNUR", () => {
+    const store = installLocalStorageMock();
+    store.set("eqEarTrainerProXDailyLog", JSON.stringify({ records: [{ date: "2026-8-17" }] }));
+    assert.deepEqual(loadDailyLog(), { schemaVersion: CURRENT_SCHEMA_VERSION, records: [{ date: "2026-8-17" }] });
+  });
+
+  it("saveDailyLog(): setItem hata fırlatınca çökmez, false döner (G229/G232'nin AYNI trySave koruması)", () => {
+    installThrowingLocalStorageMock();
+    assert.equal(saveDailyLog(freshDailyLog()), false);
+  });
+
+  it("saveDailyLog() mirror:false ile çağrılıyor — window.Capacitor HİÇ okunmasa bile başarıyla yazar (düşük-risk veri, answerHistory'nin AYNI kararı)", () => {
+    installLocalStorageMock();
+    globalThis.window = undefined;
+    assert.equal(saveDailyLog(freshDailyLog()), true);
+  });
+
+  it("clearDailyLog() sonrası loadDailyLog() taze şekle döner", () => {
+    const store = installLocalStorageMock();
+    saveDailyLog({ schemaVersion: CURRENT_SCHEMA_VERSION, records: [{ date: "2026-8-17" }] });
+    clearDailyLog();
+    assert.equal(store.has("eqEarTrainerProXDailyLog"), false);
+    assert.deepEqual(loadDailyLog(), freshDailyLog());
+  });
+
+  it("DAILY_KEY'DEN AYRI bir anahtar — 'eqEarTrainerProXDaily' (görev listesi) DOKUNULMADAN 'eqEarTrainerProXDailyLog' bağımsız yaşıyor", () => {
+    const store = installLocalStorageMock();
+    saveDaily({ key: dailyKey(), tasks: freshDaily().tasks, tipDismissed: false, dailyRounds: 1, dailyCorrect: 1, dailyBestCombo: 1, dailyXp: 10 });
+    saveDailyLog({ schemaVersion: CURRENT_SCHEMA_VERSION, records: [{ date: "2026-8-17" }] });
+    clearDailyLog();
+    assert.equal(store.has("eqEarTrainerProXDaily"), true, "günlük görev listesi DOKUNULMAMALI");
+    assert.equal(store.has("eqEarTrainerProXDailyLog"), false);
   });
 });

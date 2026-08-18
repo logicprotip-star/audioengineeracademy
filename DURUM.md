@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G288 — Frekans Çakışması: snare_late kaynağı (`pairOnly:true`) + 5 offsetli çift (`akustik-clean`/`bas-akustik`/`bas-clean`/`snare-akustik`/`snare-clean`, `kick-bas`/`vokal-gitar`/`snare-arpej-gitar` KALKTI) — OLCUM-CIFT-OFFSET-17-08.md'nin bulduğu, G151'den beri VAR ama hiç bağlanmamış `buildSampleSource(path,offsetSec)` mekanizması `buildDualSourceChain`'e bağlandı (`start(when,offset)+loop=true`'nun offset'i HER döngüde KORUDUĞU OfflineAudioContext'te ölçüldü, kalıcı e2e testine dönüştürüldü); region'lar Welch/4096-FFT yöntemiyle yeniden ölçüldü (bas-akustik/bas-clean referansla eşleşti, akustik-clean farklı çıktı — kendi ölçüm kullanıldı); `www/index.html`'in hardcoded `#cakismaPairSelect`'i güncellendi; `activeQuestion.pair`'e `offsetA/offsetB` eklenmesi UNUTULMUŞTU, `window.__aeaActiveQuestionPairForTest` doğrulama kancasıyla yazılan e2e testi bunu KIRMIZI yakaladı, düzeltildi; npm test 1508/1508, e2e 76/76)
+Son güncelleme: 18.08.2026 (G289 — Günlük görev sayacı + günlük özet kaydı — OLCUM-XP-17-08.md'nin bulduğu bug düzeltildi: günlük görevlerin ilerlemesi artık ÖMÜR BOYU stats.rounds/correct/bestCombo'dan DEĞİL, storage.js:freshDaily()'nin YENİ dailyRounds/dailyCorrect/dailyBestCombo/dailyXp sayaçlarından okunuyor (dailyKey() gün-değişim mantığı TEK SATIR değişmeden bu sayaçları da sıfırlıyor) — DÜZELTME ÖNCESİ ilk günden sonra HER günün İLK cevabında 3 görev de anında tamamlanıp +125 XP veriyordu, e2e testi bunu KIRMIZI yakaladı. YENİ `core/daily-log.js` + `DAILY_LOG_KEY` — her gün değiştiğinde (storage.loadDaily()'DEN ÖNCE) ÖNCEKİ günün özeti {date,rounds,correct,bestCombo,questions,xp} olarak AYRI bir 365-kayıtlık günlüğe (G233 şema damgası + trySave() ile) arşivleniyor; ölçülen boyut ~30KB/365 gün (task'ın "~18KB" tahmininden farklı çıktı, gerçek ölçüm kullanıldı). npm test 1533/1533, e2e 79/79)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,31 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G289 — **Günlük görev sayacı + günlük özet kaydı (OLCUM-XP-17-08.md'nin bulduğu bug düzeltildi). AYRI commit.**
+
+**SORUN (OLCUM-XP-17-08):** Günlük görevlerin ilerlemesi (`app.js:updateDaily`) `stats.rounds`/`stats.correct`/`stats.bestCombo` — ÖMÜR BOYU, hiç günlük sıfırlanmayan sayaçlardan okunuyordu. Sonuç: ilk günden sonra HER günün İLK cevabında (lifetime toplamlar zaten hedefleri aştığı için) 3 görev de ANINDA tamamlanıp +125 XP veriyordu — o günün gerçek etkinliğini hiç beklemeden.
+
+**Yapılan:**
+1. **Günlük sayaç** — `storage.js:freshDaily()`'e 4 yeni alan eklendi: `dailyRounds`/`dailyCorrect`/`dailyBestCombo`/`dailyXp` (hepsi 0'dan başlar). `loadDaily()`'nin dailyKey() gün-değişim KARŞILAŞTIRMASI (`parsed.key !== dailyKey()`) TEK SATIR değişmedi — yeni alanlar bu MEVCUT sıfırlama mekanizmasına BİNDİ (aynı gün için eski-şekilli bir kayıt varsa, yeni alanlar 0'a düşer, göç-güvenli). `app.js:updateDaily(correct, gained)` artık `task.value`'yu `daily.dailyRounds/dailyCorrect/dailyBestCombo`'dan hesaplıyor — görev tanımları/ödülleri (id/title/desc/target/reward, +40/+50/+35) TEK SATIR DEĞİŞMEDİ. `stats.rounds/correct/bestCombo`'nun KENDİSİ de değişmedi (fonksiyon artık onlara hiç yazmıyor/okumuyor) — rozetler/Seans Sonu/İlerleme sekmesinin okuduğu ömür boyu sayaçlar BOZULMADI.
+2. **Günlük özet kaydı** — YENİ `www/js/core/daily-log.js` (G285'in answer-history.js'iyle BİREBİR AYNI mimari: SAF fonksiyonlar burada, gerçek okuma/yazma storage.js'te). `buildDailySummaryRecord(daily)` → `{date,rounds,correct,bestCombo,questions,xp}` (`questions` alanı `rounds` ile AYNI değeri taşıyor — bu kod tabanında 1 tur=1 soru, ayrı bir soru sayacı yok, grep ile doğrulandı, uydurulmuş bir sayı DEĞİL). `appendDailyLogRecord(records, record, 365)` — answerHistory'nin `appendAnswerRecord`'ıyla AYNI basit FIFO-splice (günde en fazla 1 kayıt üretildiği için "365 gün" ile "son 365 kayıt" AYNI şey, ayrı bir tarih-aritmetiği GEREKMEDİ). `storage.js`: YENİ `DAILY_LOG_KEY` (`DAILY_KEY`'DEN TAMAMEN AYRI), `freshDailyLog()/loadDailyLog()/saveDailyLog()/clearDailyLog()` — `ANSWER_HISTORY_KEY`'in BİREBİR AYNI deseni (G233'ün `CURRENT_SCHEMA_VERSION` damgası, `trySave(...,{mirror:false})` — düşük risk, 12 kritik anahtar muamelesi gerektirmiyor).
+3. **Arşivleme tetikleyicisi** — YENİ `storage.peekStaleDaily()`: `loadDaily()`'nin gün-değişim KARŞILAŞTIRMASINI (dailyKey()'e DOKUNMADAN) TEKRAR okuyup, ÖNCEKİ günün objesini (varsa, üzerine YAZILMADAN ÖNCE) döner. `app.js` açılışta `storage.loadDaily()`'DEN HEMEN ÖNCE bunu çağırıp dönen değer varsa `buildDailySummaryRecord`+`appendDailyLogRecord` ile günlüğe ekliyor — SADECE gün GERÇEKTEN değiştiyse çalışır (aynı-gün regresyon testiyle doğrulandı: arşivleme YAPILMAZ, sayaçlar KORUNUR).
+
+**Korumalar (task'ın 3. maddesi):** `trySave()` (G229/G232) — `saveDailyLog` bunu kullanıyor. G233'ün şema damgası — `{schemaVersion: CURRENT_SCHEMA_VERSION, records: [...]}`. Yeni anahtar (`DAILY_LOG_KEY`) `DAILY_KEY`'DEN TAMAMEN AYRI — regresyon testiyle doğrulandı (`clearDailyLog()` çağrısı `eqEarTrainerProXDaily`'ye DOKUNMUYOR).
+
+**⚠️ Bilinen açık, KAPATILMADI (task'ın kendi notu):** `dailyKey()` cihaz saatine göre hesaplanıyor — saat manipülasyonuna AÇIK (geriye/ileriye saat oynatarak günlük görevler tekrar tekrar tetiklenebilir/atlanabilir). Bu turun kapsamı DIŞINDA bırakıldı, sadece not düşülüyor.
+
+**Boyut ölçümü (tahmin değil, `node` ile ölçüldü):** 365 dolu kayıtlı bir günlük ~**30 KB** (`JSON.stringify` uzunluğu) — kullanıcının etkinlik yoğunluğundan (günde 5 tur vs 200 tur) neredeyse BAĞIMSIZ (28.5-31.7 KB aralığı, rakamların basamak sayısı küçük bir fark yaratıyor). ⚠️ Task'ın "~18 KB" tahmini bu ÖLÇÜMLE UYUŞMADI — gerçek sayı ~%65 daha büyük, gerçek ölçüm kullanıldı.
+
+**Testler eklendi:** `test/daily-log.test.mjs` (9 test — `buildDailySummaryRecord`/`appendDailyLogRecord`'ın SAF sözleşmesi, 365 sınırı/FIFO, answer-history.test.mjs'in AYNI iskeleti). `test/storage.test.mjs`'e 16 yeni test — `freshDaily()`'nin yeni alanları, `loadDaily()`'nin göç-güvenliği + dailyKey() KİLİDİNİN bozulmadığı, `peekStaleDaily()`'nin 3 dalı (kayıt yok/bugüne ait/düne ait), `freshDailyLog/loadDailyLog/saveDailyLog/clearDailyLog`'un `answerHistory` testleriyle BİREBİR aynı kapsamı + `DAILY_LOG_KEY`'in `DAILY_KEY`'den bağımsızlığı. YENİ `e2e/daily-quest-counter.spec.mjs` (3 test, GERÇEK Chromium'da): (1) ömür boyu istatistikler ZATEN hedefleri aşmışken bir round oynanınca görevlerin ANINDA tamamlanMADIĞI (asıl bug'ın KENDİSİ), (2) gün değişince hem görevlerin sıfırlandığı HEM dünün özetinin arşivlendiği, (3) gün DEĞİŞMEMİŞKEN arşivleme YAPILMADIĞI/sayaçların KORUNDUĞU.
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/js/app.js www/js/core/storage.js` → `test/storage.test.mjs` modül-yükleme hatasıyla (yeni export'lar yok) KIRMIZI + `e2e/daily-quest-counter.spec.mjs`'in İKİ testi KIRMIZI (`dailyRounds` `undefined`, `eqEarTrainerProXDailyLog` hiç yazılmamış — TAM OLARAK beklenen "sessiz lifetime-sızıntısı" hatası) → `git stash pop` → YEŞİL (1533/1533, e2e 3/3).
+
+**DOKUNULMAYACAK'a uyuldu:** Görev tanımları/ödülleri (+40/+50/+35) — `freshDaily()`'nin `tasks` dizisi TEK SATIR değişmedi (yeni test bunu kilitliyor). Ömür boyu istatistikler (`stats.rounds/correct/bestCombo`) — `updateDaily()` artık bunlara HİÇ dokunmuyor, başka yerlerin (rozetler, İlerleme sekmesi) okuduğu değerler BOZULMADI (e2e testi `stats.rounds`'ın normal artmaya devam ettiğini AYRICA doğruluyor). `dailyKey()` gün değişim mantığı — `loadDaily()`/`peekStaleDaily()`'nin karşılaştırma ifadesi TEK KARAKTER değişmedi. XP formülü (`calculateXP`) — dokunulmadı, `gained` sadece `updateDaily`'ye YENİ bir parametre olarak taşındı (submit handler'ların ZATEN hesapladığı değer, yeniden hesaplanmadı). G285'in cevap geçmişi (`answer-history.js`/`ANSWER_HISTORY_KEY`) — AYRI sistem, dokunulmadı (SADECE mimari desen ÖDÜNÇ alındı). Zorluk eğrisi — dokunulmadı.
+
+**Test sonuçları:** `npm test` 1533/1533 (G288'deki 1508'den +25). `npm run test:e2e` 79/79 (76'dan +3).
+
+---
 
 G288 — **Frekans Çakışması: snare_late kaynağı + 5 offsetli çift (OLCUM-CIFT-OFFSET-17-08.md'nin bulduğu mekanizma, buildDualSourceChain'e bağlandı). AYRI commit.**
 
@@ -21011,6 +21036,11 @@ doğrulanmış sunucu zamanıyla fark hesaplanıp TOPLU dolum yapılır. Pro
 yüzeyi de açmaz. Bu, aynı zamanda saat manipülasyonu açığının (ileri/geri
 alma) kalıcı çözümü — bkz. AÇIK İŞLER'deki ilgili not. **Uygulama AYRI bir
 işte, reklam entegrasyon zinciriyle BİRLİKTE yapılacak** — şimdi kodlanmayacak.
+**G289 notu:** `storage.js:dailyKey()`'in (günlük görevler + G289'un yeni
+günlük özet kaydı, AYRICA `eqEarTrainerProXDailyAcc`'ın "son 30 gün"
+grafiği) AYNI cihaz-saati açığını taşıdığı G289'da AYRICA doğrulandı —
+BİLİNEN, bu turda KAPATILMAYAN bir açık (task'ın kendi notu). SUNUCU
+ZAMANI çözümü uygulanırsa dailyKey()'in de AYNI kaynağa geçmesi gerekir.
 
 **F. "Tekrar Çal" butonu kapsamı**
 Sentetik kaynaklarda (gürültü/synth) anlamsız — sürekli sinyaller, "başı" yok.
@@ -21155,7 +21185,26 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G288 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G289 itibarıyla):**
+Günlük görevlerin (5 tur/3 doğru/2 combo) ilerlemesi artık ÖMÜR BOYU
+stats.rounds/correct/bestCombo YERİNE GÜNE ÖZGÜ sayaçlardan
+(daily.dailyRounds/dailyCorrect/dailyBestCombo) okunuyor —
+OLCUM-XP-17-08'in bulduğu "ilk günden sonra HER günün İLK cevabında 3
+görev de anında tamamlanıp +125 XP veriyordu" bug'ı kapandı, e2e testi
+BUNU tam olarak (ömür boyu istatistikler yüksekken bir round oynayıp
+görevlerin ANINDA tamamlanmadığını) doğruluyor. İLERİSİ İÇİN AYRICA: her
+gün değiştiğinde ÖNCEKİ günün özeti (tarih/tur/doğru/en-iyi-combo/
+soru/XP) YENİ `eqEarTrainerProXDailyLog` anahtarına (365 gün, G233 şema
+damgalı) arşivleniyor — seri/streak, aylık-yıllık özet gibi 1.1
+özellikleri BU veriden türetilecek, henüz hiçbir UI YOK (kapsam dışı,
+answer-history'nin G285'teki AYNI "önce kayıt aç" kararı). **AÇIK madde
+YOK** (dailyKey()'in saat-manipülasyonuna açık olması BİLİNEN, bu turun
+KAPSAMI DIŞINDA bırakılan bir konu — BEKLEYEN KARARLAR'a bkz.). `npm
+test` 1533/1533, `npm run test:e2e` 79/79.
+**Kullanıcının/Logic'in sıradaki adımı:** yok — bu ölçüm+düzeltme turu
+kendi içinde tamamlandı, bir sonraki iş için bekleyen bir soru YOK.
+
+**EN YENİ SIRADAKİ ADIM (G288 itibarıyla, ARTIK ESKİ):**
 Frekans Çakışması'nın kaynak çifti kütüphanesi TAMAMEN yenilendi —
 `kick-bas`/`vokal-gitar`/`snare-arpej-gitar` KALKTI, yerine offsetli 5
 yeni çift (`akustik-clean`/`bas-akustik`/`bas-clean`/`snare-akustik`/

@@ -28,6 +28,7 @@ import * as iap from "./core/iap.js";
 import { freshChallenge } from "./core/challenge.js";
 import { resolveAbLoopIntervalMs } from "./core/ab-loop-timing.js";
 import { buildAnswerRecord, appendAnswerRecord, ANSWER_HISTORY_LIMIT } from "./core/answer-history.js";
+import { buildDailySummaryRecord, appendDailyLogRecord, DAILY_LOG_LIMIT } from "./core/daily-log.js";
 import * as frekansBulma from "./modes/frekans-bulma.js";
 import * as kesimNoktasi from "./modes/kesim-noktasi.js";
 import * as dbSeviyesi from "./modes/db-seviyesi.js";
@@ -1007,6 +1008,19 @@ let history = stats.history || [];
 // loadStats negatif skorları belleğe yüklerken 0'a çeker — düzeltilmiş değer hemen
 // kalıcı hale gelsin diye (kullanıcı ilk aksiyonunu almadan önce bile) burada yazılır.
 storage.saveStats(stats, history);
+// G289 — storage.loadDaily()'DEN ÖNCE: gün değiştiyse (dailyKey() eşleşmiyorsa)
+// ÖNCEKİ günün objesi loadDaily() İÇİNDE SESSİZCE freshDaily()'e düşer,
+// o veri BİR DAHA HİÇ okunamaz — bu yüzden üzerine yazılmadan HEMEN ÖNCE
+// bir kopyası günlük özet kaydına (DAILY_LOG_KEY, storage.loadDaily()'DEN
+// AYRI bir anahtar) arşivleniyor. dailyKey()'in KENDİSİ/loadDaily()'nin
+// karşılaştırma mantığı TEK SATIR değişmedi (storage.peekStaleDaily()
+// AYNI ifadeyi TEKRAR okuyor, DEĞİŞTİRMİYOR).
+const staleDaily = storage.peekStaleDaily();
+if (staleDaily) {
+  const dailyLog = storage.loadDailyLog();
+  dailyLog.records = appendDailyLogRecord(dailyLog.records, buildDailySummaryRecord(staleDaily), DAILY_LOG_LIMIT);
+  storage.saveDailyLog(dailyLog);
+}
 let daily = storage.loadDaily();
 let zoneStats = storage.loadZoneStats();
 // G285 — cevap geçmişi (bkz. core/answer-history.js dosya başı notu).
@@ -3867,16 +3881,33 @@ function pushHistory(correct) {
   session.log.push({ correct, freq: activeQuestion.mode === "frequency" ? activeQuestion.freq : null });
 }
 
-function updateDaily(correct) {
+// G289 (OLCUM-XP-17-08'in bulduğu sorun) — task.value ARTIK ömür boyu
+// stats.rounds/correct/bestCombo'dan DEĞİL, bu GÜNE özgü daily.dailyRounds/
+// dailyCorrect/dailyBestCombo'dan okunuyor (storage.js:freshDaily() yeni
+// alanları, dailyKey() gün değişince MEVCUT sıfırlama mekanizmasıyla
+// otomatik sıfırlanıyor). Görev tanımları/hedefleri/ödülleri (id/title/
+// desc/target/reward) TEK SATIR DEĞİŞMEDİ. stats.rounds/correct/bestCombo
+// KENDİLERİ de HİÇ değişmedi (bu fonksiyon onlara hiç yazmıyor, sadece
+// OKUMUYOR artık) — başka yerlerin (rozetler, Seans Sonu, İlerleme
+// sekmesi) okuduğu ömür boyu sayaçlar BOZULMADI.
+// gained: bu round'da kazanılan XP (submit handler'ların `gained`
+// değişkeni, timeout'ta 0) — günlük özet kaydının "kazanılan XP" alanını
+// besliyor (madde 2, core/daily-log.js).
+function updateDaily(correct, gained = 0) {
+  daily.dailyRounds = (daily.dailyRounds || 0) + 1;
+  if (correct) daily.dailyCorrect = (daily.dailyCorrect || 0) + 1;
+  daily.dailyBestCombo = Math.max(daily.dailyBestCombo || 0, stats.combo);
+  daily.dailyXp = (daily.dailyXp || 0) + (gained || 0);
   daily.tasks.forEach(task => {
-    if (task.id === "d1") task.value = Math.min(task.target, stats.rounds);
-    if (task.id === "d2") task.value = Math.min(task.target, stats.correct);
-    if (task.id === "d3") task.value = Math.min(task.target, stats.bestCombo);
+    if (task.id === "d1") task.value = Math.min(task.target, daily.dailyRounds);
+    if (task.id === "d2") task.value = Math.min(task.target, daily.dailyCorrect);
+    if (task.id === "d3") task.value = Math.min(task.target, daily.dailyBestCombo);
   });
   daily.tasks.forEach(task => {
     if (!task.claimed && task.value >= task.target) {
       task.claimed = true;
       diffState().xp += task.reward;
+      daily.dailyXp = (daily.dailyXp || 0) + task.reward; // görev ödülü de günün kazandığı XP'ye sayılır
       toast("📅 Günlük görev tamamlandı", `${task.title} · +${task.reward} XP`, "daily");
     }
   });
@@ -4304,7 +4335,7 @@ function onTimeUp() {
     loseLife(`Süre doldu. Doğru cevap: ${mode.correctLabel(activeQuestion)}.`);
   }
   pushHistory(false);
-  updateDaily(false);
+  updateDaily(false, 0);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(false);
   updateUI();
@@ -4399,7 +4430,7 @@ function submitFrequencyGuess(guessHz) {
   recordAnswerHistoryEntry("frekans-bulma", q, guessHz, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -4501,7 +4532,7 @@ function submitCutoffGuess(answer) {
   recordAnswerHistoryEntry("kesim-noktasi", q, answer, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -4596,7 +4627,7 @@ function submitLevelGuess(value) {
   recordAnswerHistoryEntry("db-seviyesi", q, value, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -4674,7 +4705,7 @@ function submitPanGuess(value) {
   recordAnswerHistoryEntry("pan-konumu", q, value, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -4747,7 +4778,7 @@ function submitWidthGuess(value) {
   recordAnswerHistoryEntry("stereo-genislik", q, value, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -4838,7 +4869,7 @@ function submitBoostCutGuess(answer) {
   recordAnswerHistoryEntry("boost-mu-cut-mu", q, answer, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -4924,7 +4955,7 @@ function submitQWidthGuess(labelId) {
   recordAnswerHistoryEntry("q-genisligi", q, labelId, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -5014,7 +5045,7 @@ function submitThreeWayGuess(letter) {
   recordAnswerHistoryEntry(mode.MODE_ID, q, letter, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -5106,7 +5137,7 @@ function submitTonalDengeGuess() {
   recordAnswerHistoryEntry("tonal-denge", q, answer, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -5218,7 +5249,7 @@ function submitCakismaGuess(answer) {
 
   recordAnswerHistoryEntry("frekans-cakismasi", q, answer, result);
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -5303,7 +5334,7 @@ function submitProPlusGuess() {
   recordAnswerHistoryEntry("frekans-bulma", q, q.guesses, result);
   audioEngine.stopAudio();
   pushHistory(result.correct);
-  updateDaily(result.correct);
+  updateDaily(result.correct, gained);
   accumulatePracticeTime();
   recordAndPersistDailyAccuracy(result.correct);
   notifyNewAchievements();
@@ -7841,6 +7872,8 @@ function resetAllProgress() {
   // geçmişini de kapsamalı, aksi halde sıfırlama sonrası stale kayıtlar kalır.
   storage.clearAnswerHistory();
   answerHistory = storage.freshAnswerHistory();
+  // G289 — AYNI gerekçe: günlük özet kaydı da "tüm istatistikler" sözüne dahil.
+  storage.clearDailyLog();
   stats = storage.freshStats(difficultyLivesMap(), HINTS_PER_GAME, playableModeIds());
   history = [];
   daily = storage.freshDaily();

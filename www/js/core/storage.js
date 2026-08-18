@@ -4,6 +4,11 @@
 
 const STATS_KEY = "eqEarTrainerProXStats";
 const DAILY_KEY = "eqEarTrainerProXDaily";
+// G289 — günlük özet kaydı (bkz. core/daily-log.js dosya başı notu),
+// ANSWER_HISTORY_KEY'in AYNI deseni — DAILY_KEY'DEN TAMAMEN AYRI bir
+// anahtar (task'ın kendi şartı: "yeni anahtar ayrı olsun, mevcutlara
+// dokunmasın").
+const DAILY_LOG_KEY = "eqEarTrainerProXDailyLog";
 const ZONESTATS_KEY = "fa_zonestats";
 const PREFS_KEY = "eqEarTrainerProXPrefs";
 const DAILY_ACC_KEY = "eqEarTrainerProXDailyAcc";
@@ -283,6 +288,13 @@ export function dailyKey() {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 }
 
+// G289 (OLCUM-XP-17-08'in bulduğu sorun) — dailyRounds/dailyCorrect/
+// dailyBestCombo/dailyXp EKLENDİ: görev tanımları/ödülleri (task/reward
+// alanları) TEK SATIR DEĞİŞMEDİ, SADECE görevlerin İLERLEMESİNİ artık
+// ÖMÜR BOYU stats.rounds/correct/bestCombo YERİNE bu GÜNE ÖZGÜ sayaçlar
+// besliyor (app.js:updateDaily). Bu obje ZATEN dailyKey()'e göre
+// sıfırlanıyordu (aşağıdaki loadDaily) — yeni alanlar o MEVCUT sıfırlama
+// mekanizmasına BİNDİ, yeni bir tane İCAT EDİLMEDİ.
 export function freshDaily() {
   return {
     key: dailyKey(),
@@ -293,7 +305,11 @@ export function freshDaily() {
     ],
     // "Bugünün önerisi" kartı bu gün için kapatıldı mı — key ile aynı güne bağlı,
     // gün değişince (loadDaily key kontrolüyle) otomatik sıfırlanır.
-    tipDismissed: false
+    tipDismissed: false,
+    dailyRounds: 0,
+    dailyCorrect: 0,
+    dailyBestCombo: 0,
+    dailyXp: 0
   };
 }
 
@@ -303,9 +319,39 @@ export function loadDaily() {
     if (!raw) return freshDaily();
     const parsed = JSON.parse(raw);
     if (parsed.key !== dailyKey()) return freshDaily();
-    return parsed;
+    // G289 — bu GÜNE ait bir kayıt ama bu ÖZELLİKTEN ÖNCE yazılmış olabilir
+    // (yeni alanlar YOKSA) — eksik alanlar 0'a düşer, dailyKey() karşılaştırma
+    // MANTIĞI (yukarıdaki satır) TEK KARAKTER değişmedi.
+    return {
+      ...parsed,
+      dailyRounds: typeof parsed.dailyRounds === "number" ? parsed.dailyRounds : 0,
+      dailyCorrect: typeof parsed.dailyCorrect === "number" ? parsed.dailyCorrect : 0,
+      dailyBestCombo: typeof parsed.dailyBestCombo === "number" ? parsed.dailyBestCombo : 0,
+      dailyXp: typeof parsed.dailyXp === "number" ? parsed.dailyXp : 0
+    };
   } catch {
     return freshDaily();
+  }
+}
+
+// G289 — GÜNLÜK ÖZET KAYDI için: loadDaily() gün değiştiğinde eski veriyi
+// SESSİZCE freshDaily()'e düşürüyor (yukarıdaki satır, DOKUNULMADI) — bu
+// fonksiyon SADECE o üzerine-yazmadan HEMEN ÖNCE, ÖNCEKİ günün objesini
+// (varsa) OKUR, hiçbir şeyi DEĞİŞTİRMEZ/SİLMEZ. app.js açılışta
+// storage.loadDaily()'DEN ÖNCE bunu çağırıp dönen değeri (null değilse)
+// core/daily-log.js:buildDailySummaryRecord() ile bir günlük özete çevirip
+// arşivliyor. dailyKey() karşılaştırma mantığı BURADA DA loadDaily() ile
+// BİREBİR aynı — TEK bir yerde tanımlı değişken DEĞİL ama AYNI ifade,
+// dailyKey()'in kendisi hiç değişmedi.
+export function peekStaleDaily() {
+  try {
+    const raw = localStorage.getItem(DAILY_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.key !== "string") return null;
+    return parsed.key !== dailyKey() ? parsed : null;
+  } catch {
+    return null;
   }
 }
 
@@ -623,6 +669,38 @@ export function saveAnswerHistory(answerHistory) {
 export function clearAnswerHistory() {
   try {
     localStorage.removeItem(ANSWER_HISTORY_KEY);
+  } catch (e) {}
+}
+
+// G289 — günlük özet kaydı (core/daily-log.js:buildDailySummaryRecord/
+// appendDailyLogRecord ile üretilir/budanır). ANSWER_HISTORY_KEY'in
+// BİREBİR AYNI deseni: schemaVersion G233'ün CURRENT_SCHEMA_VERSION'ı
+// (kayıt başına DEĞİL, blob'un KENDİSİNDE tek damga), `mirror:false`
+// (Preferences'a yansıtılmıyor — answerHistory'nin AYNI gerekçesi: XP/
+// ilerleme/satın alma gibi KRİTİK veri DEĞİL, kaybedilirse en kötü
+// ihtimalle geçmiş günlerin özet grafiği eksik kalır).
+export function freshDailyLog() {
+  return { schemaVersion: CURRENT_SCHEMA_VERSION, records: [] };
+}
+
+export function loadDailyLog() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(DAILY_LOG_KEY));
+    if (!raw || !Array.isArray(raw.records)) return freshDailyLog();
+    return { schemaVersion: typeof raw.schemaVersion === "number" ? raw.schemaVersion : CURRENT_SCHEMA_VERSION, records: raw.records };
+  } catch (e) {
+    return freshDailyLog();
+  }
+}
+
+export function saveDailyLog(dailyLog) {
+  return trySave(DAILY_LOG_KEY, dailyLog, { mirror: false });
+}
+
+// "İlerlemeyi sıfırla" — clearAnswerHistory'nin AYNI gerekçesi.
+export function clearDailyLog() {
+  try {
+    localStorage.removeItem(DAILY_LOG_KEY);
   } catch (e) {}
 }
 
