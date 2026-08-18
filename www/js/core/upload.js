@@ -192,6 +192,62 @@ export async function validateAudioDuration(file) {
   return evaluateAudioDuration(sec);
 }
 
+// G296 (OLCUM-GUVENLIK-18-08 madde 11) — decodeAudioData/decodeWavPcm İKİSİ
+// de BAŞARILI dönüp SONUÇTA gerçek ses TAŞIMAYAN bir buffer üretebiliyor:
+// (a) 0 saniyelik/neredeyse-boş bir kayıt, (b) header'ın vaat ettiğinden
+// ÇOK daha kısa kesik/yarım bir dosya (ÖLÇÜLDÜ: 5sn vaat eden ama ~100
+// bayt veriden sonra kesilen bir WAV, decodeAudioData tarafından SESSİZCE
+// ~1ms'lik bir buffer'a çözüldü — "0:00" süreyle kütüphaneye SESSİZCE
+// eklendi, kullanıcı hiçbir hata GÖRMEDİ), (c) tamamen sessiz (tüm örnekler
+// sıfıra yakın) bir kayıt. Bu üçü de loadFile()'ın decode adımından
+// hatasız/istisnasız ÇIKIYOR — bu yüzden AYRI bir SONRA-kontrolü gerekiyor.
+//
+// MIN_AUDIO_DURATION_SEC=0.1 (100ms) — task'ın kendi kısıtı "1-2sn'lik
+// GEÇERLİ dosyalar reddedilmesin" göz önüne alınarak seçildi: o tabandan
+// 10-20 kat altında, sadece GERÇEKTEN neredeyse-hiç-veri-taşımayan (kesik/
+// boş) dosyaları yakalar — ölçülen kesik-dosya örneği (~1ms) bu eşiğin
+// ÇOK altında kalıyor, hiçbir gerçekçi kısa kayıt bu kadar kısa OLAMAZ.
+//
+// SILENCE_PEAK_THRESHOLD=0.0005 (~-66 dBFS) — kataloğun kendi 7 örnek
+// dosyası (bass/vocal/vocal_1/groove/kick/hihat/snare_late.m4a) GERÇEKTEN
+// ÖLÇÜLDÜ (Playwright+decodeAudioData) — HEPSİ ~-6dBFS tepe taşıyor, yani
+// bu eşiğin ~60dB ÜSTÜNDE. 16-bit PCM'in kendi kuantalama tabanı (~-90dBFS)
+// ile gerçek/kasıtlı içerik arasındaki GENİŞ boşlukta seçildi — sessiz bir
+// PASAJ içeren ama genel olarak dolu bir kaydı yanlışlıkla reddetme riski
+// düşük (kontrol SADECE dosyanın TAMAMI/ilk 30sn'si TEK BİR ÖRNEK bile bu
+// eşiği AŞMIYORSA tetiklenir).
+export const MIN_AUDIO_DURATION_SEC = 0.1;
+export const SILENCE_PEAK_THRESHOLD = 0.0005;
+
+// SAF — GERÇEK bir AudioBuffer'ı ya da testler için AYNI şekle sahip sahte
+// bir nesneyi ({duration, sampleRate, length, getChannelData(0)}) kabul
+// eder, ses/DOM bağımlılığı YOK.
+export function evaluateDecodedAudio(buffer) {
+  if (!buffer || !(buffer.duration >= MIN_AUDIO_DURATION_SEC)) {
+    return {
+      ok: false,
+      title: "Dosya bozuk görünüyor",
+      detail: "Bu dosyada neredeyse hiç ses verisi yok — kesik ya da bozuk bir kayıt olabilir. Farklı bir dosya dene."
+    };
+  }
+  const channel = buffer.getChannelData(0);
+  const scanLen = Math.min(channel.length, Math.round(PSD_ANALYSIS_MAX_SEC * buffer.sampleRate));
+  let peak = 0;
+  for (let i = 0; i < scanLen; i++) {
+    const a = Math.abs(channel[i]);
+    if (a > peak) peak = a;
+    if (peak >= SILENCE_PEAK_THRESHOLD) break; // erken çık — SADECE eşiği aşıp aşmadığı önemli
+  }
+  if (peak < SILENCE_PEAK_THRESHOLD) {
+    return {
+      ok: false,
+      title: "Dosya sessiz görünüyor",
+      detail: "Bu dosyada duyulabilir bir ses bulamadık. Farklı bir dosya dene."
+    };
+  }
+  return { ok: true };
+}
+
 // getAudioCtx: () => AudioContext|null — audioCtx sadece ilk kullanıcı etkileşiminde
 // (unlockAudio) oluşturulduğu için burada sabit değer değil, geç bağlanan bir
 // erişimci alınır.
@@ -321,6 +377,19 @@ export function createUploadManager(getAudioCtx) {
     if (!buffer) {
       return { ok: false, title: "Bu dosya açılamadı", detail: `Lütfen desteklenen bir formatta dosya dene: ${FULL_AUDIO_FORMAT_LIST}.` };
     }
+
+    // G296 (OLCUM-GUVENLIK-18-08 madde 11) — decode BAŞARILI ama sonuç
+    // gerçek ses TAŞIMIYOR olabilir (0sn/kesik/tamamen sessiz) — bkz.
+    // evaluateDecodedAudio'nun kendi dosya başı notu. Dosyayı KURTARMAYA
+    // ÇALIŞMIYOR, SADECE reddediyor (task'ın kendi kararı).
+    uploadDiagLog(3, "bozuk/sessiz dosya kontrolü (evaluateDecodedAudio)", "BAŞLIYOR");
+    const corruptCheck = evaluateDecodedAudio(buffer);
+    if (!corruptCheck.ok) {
+      uploadDiagLog(3, "bozuk/sessiz dosya kontrolü (evaluateDecodedAudio)", "REDDEDİLDİ", corruptCheck.title);
+      buffer = null;
+      return corruptCheck;
+    }
+    uploadDiagLog(3, "bozuk/sessiz dosya kontrolü (evaluateDecodedAudio)", "BİTTİ (geçti)");
 
     const t4_0 = performance.now();
     uploadDiagLog(4, "PSD hesaplama (computeSourcePsd)", "BAŞLIYOR");

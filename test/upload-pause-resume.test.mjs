@@ -11,7 +11,16 @@ import { createUploadManager } from "../www/js/core/upload.js";
 
 function makeFakeCtx(bufferDuration) {
   let currentTime = 0;
-  const fakeBuffer = { duration: bufferDuration };
+  // G296 — upload.js:loadFile() artık decode SONRASI evaluateDecodedAudio()
+  // ile buffer.sampleRate/getChannelData(0) OKUYOR (bozuk/sessiz dosya
+  // tespiti) — bu sahte buffer'ın GERÇEK bir AudioBuffer'ın o minimum
+  // şeklini taşıması gerekiyor, yoksa bu dosyanın hiç ilgilenmediği bir
+  // kontrolde TypeError'la patlar. Sessiz OLMAYAN (eşiği aşan) tek bir
+  // örnek yeterli — pause/resume testleri sesin İÇERİĞİYLE değil OFFSET
+  // aritmetiğiyle ilgileniyor.
+  const fakeChannelData = new Float32Array(Math.round(bufferDuration * 44100));
+  fakeChannelData[0] = 0.5;
+  const fakeBuffer = { duration: bufferDuration, sampleRate: 44100, getChannelData: () => fakeChannelData };
   return {
     get currentTime() { return currentTime; },
     setTime(t) { currentTime = t; },
