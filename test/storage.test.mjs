@@ -7,7 +7,7 @@
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave, loadSchemaVersion, ensureSchemaVersion, CURRENT_SCHEMA_VERSION, freshFreeSession, loadFreeSession, saveFreeSession, dailyKey, freshAnswerHistory, loadAnswerHistory, saveAnswerHistory, clearAnswerHistory, freshDaily, loadDaily, peekStaleDaily, freshDailyLog, loadDailyLog, saveDailyLog, clearDailyLog } from "../www/js/core/storage.js";
+import { loadStats, freshStats, freshModeState, freshPrefs, loadPrefs, loadUploadSelections, saveUploadSelections, loadSourceSelections, saveSourceSelections, savePurchase, loadPurchase, freshPurchase, saveStats, saveDaily, saveDevFlags, saveToolsTonalReferences, trySave, loadSchemaVersion, ensureSchemaVersion, CURRENT_SCHEMA_VERSION, freshFreeSession, loadFreeSession, saveFreeSession, dailyKey, freshAnswerHistory, loadAnswerHistory, saveAnswerHistory, clearAnswerHistory, freshDaily, loadDaily, peekStaleDaily, freshDailyLog, loadDailyLog, saveDailyLog, clearDailyLog, freshExamProgress, loadExamProgress, saveExamProgress, clearExamProgress } from "../www/js/core/storage.js";
 
 function installLocalStorageMock(initial = {}) {
   const store = new Map(Object.entries(initial));
@@ -535,6 +535,62 @@ describe("freshAnswerHistory()/loadAnswerHistory()/saveAnswerHistory()/clearAnsw
     clearAnswerHistory();
     assert.equal(store.has("eqEarTrainerProXAnswerHistory"), false);
     assert.deepEqual(loadAnswerHistory(), freshAnswerHistory());
+  });
+});
+
+// G307 (OLCUM-KESINTI-18-08 B1-B4 + OLCUM-SINAV-MIMARI-18-08) —
+// ANSWER_HISTORY_KEY'in BİREBİR AYNI test deseni, exam-system.js:
+// getFullSnapshot()'ın kalıcı hâli için.
+describe("freshExamProgress()/loadExamProgress()/saveExamProgress()/clearExamProgress()", () => {
+  it("freshExamProgress() — schemaVersion=CURRENT_SCHEMA_VERSION, byMode boş nesne", () => {
+    assert.deepEqual(freshExamProgress(), { schemaVersion: CURRENT_SCHEMA_VERSION, byMode: {} });
+  });
+
+  it("hiç kayıt yokken loadExamProgress() taze şekli döner", () => {
+    installLocalStorageMock();
+    assert.deepEqual(loadExamProgress(), freshExamProgress());
+  });
+
+  it("saveExamProgress() sonrası loadExamProgress() AYNI kayıtları döner (kalıcı)", () => {
+    installLocalStorageMock();
+    const blob = { schemaVersion: CURRENT_SCHEMA_VERSION, byMode: { kompresor: { phase: "remedial", remedialIndex: 2 } } };
+    saveExamProgress(blob);
+    assert.deepEqual(loadExamProgress(), blob);
+  });
+
+  it("bozuk JSON / byMode obje değilse çökmeden taze başlar", () => {
+    const store = installLocalStorageMock();
+    store.set("eqEarTrainerProXExamProgress", "{not json");
+    assert.deepEqual(loadExamProgress(), freshExamProgress());
+    store.set("eqEarTrainerProXExamProgress", JSON.stringify({ schemaVersion: 1, byMode: "yanlış-tip" }));
+    assert.deepEqual(loadExamProgress(), freshExamProgress());
+    store.set("eqEarTrainerProXExamProgress", JSON.stringify({ schemaVersion: 1, byMode: [] }));
+    assert.deepEqual(loadExamProgress(), freshExamProgress());
+  });
+
+  it("schemaVersion eksikse (eski/bozuk kayıt) CURRENT_SCHEMA_VERSION'a düşer, byMode KORUNUR", () => {
+    const store = installLocalStorageMock();
+    store.set("eqEarTrainerProXExamProgress", JSON.stringify({ byMode: { reverb: { phase: "exam" } } }));
+    assert.deepEqual(loadExamProgress(), { schemaVersion: CURRENT_SCHEMA_VERSION, byMode: { reverb: { phase: "exam" } } });
+  });
+
+  it("saveExamProgress(): setItem hata fırlatınca çökmez, false döner (G229/G232'nin AYNI trySave koruması)", () => {
+    installThrowingLocalStorageMock();
+    assert.equal(saveExamProgress(freshExamProgress()), false);
+  });
+
+  it("saveExamProgress() mirror:false ile çağrılıyor — window.Capacitor HİÇ okunmasa bile başarıyla yazar (düşük-risk veri, IN_PROGRESS_ROUND_KEY'in AYNI kararı)", () => {
+    installLocalStorageMock();
+    globalThis.window = undefined;
+    assert.equal(saveExamProgress(freshExamProgress()), true);
+  });
+
+  it("clearExamProgress() sonrası loadExamProgress() taze şekle döner", () => {
+    const store = installLocalStorageMock();
+    saveExamProgress({ schemaVersion: CURRENT_SCHEMA_VERSION, byMode: { kompresor: { phase: "remedial" } } });
+    clearExamProgress();
+    assert.equal(store.has("eqEarTrainerProXExamProgress"), false);
+    assert.deepEqual(loadExamProgress(), freshExamProgress());
   });
 });
 

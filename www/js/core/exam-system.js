@@ -152,6 +152,49 @@ export function createExamSystem(config = EXAM_CONFIG) {
   // burada da uygulanıyor.
   let examResults = [];
   let remedialResults = [];
+  // G307 (OLCUM-KESINTI-18-08 B1-B4 + OLCUM-SINAV-MIMARI-18-08) — bu SATIRA
+  // KADAR examSystem TEK bir düz durum tutuyordu, `setMode()` FARKLI bir moda
+  // geçilince bu durumu SIFIRLIYORDU (bkz. altındaki setMode notu) — bir
+  // modun yarım kalan telafisi başka moda gidip DÖNÜNCE SİLİNİYORDU
+  // (Playwright'ta ölçüldü: "TELAFİ 2/5" göstergesi kayboluyordu). Çözüm
+  // ölçüm turunun ÖNERDİĞİ "B-2" (akıllı Map) — DIŞ API (bu fonksiyonun
+  // döndürdüğü nesne, TÜM getter/metod imzaları) TEK SATIR DEĞİŞMEDİ, 36
+  // birim testin HİÇBİRİ bu yüzden etkilenmedi (hepsi TEK bir moda
+  // `setMode()` çağırıp o moddan devam ediyor — TEK-mod akışında `perModeState`
+  // İLK kullanımda boş olduğu için davranış ESKİSİYLE BİREBİR aynı kalıyor).
+  // `perModeState[id]` = snapshotActive()'in DÖNDÜRDÜĞÜ düz nesne (aşağıda).
+  const perModeState = {};
+
+  // Aktif (şu an `modeId`'ye ait) 12 alanı DÜZ bir nesneye kopyalar —
+  // `perModeState`'e YAZARKEN ve `getFullSnapshot()`'ta AYNI şekli üretmek
+  // için TEK yer (iki AYRI kopyalama YAZILMADI).
+  function snapshotActive() {
+    return {
+      phase, position, parkurCorrect, comboInParkur, examOffered,
+      examIndex, examCorrect, remedialIndex, remedialCorrect, remedialTier,
+      examResults: [...examResults], remedialResults: [...remedialResults]
+    };
+  }
+
+  // snapshotActive()'in TERSİ — bir snapshot nesnesini AKTİF (düz) durumun
+  // İÇİNE yazar. Alan EKSİKSE (ör. ESKİ bir localStorage kaydı, G304'ten
+  // ÖNCE yazılmış) resetParkur()'un KENDİ varsayılanı kullanılır — YENİ
+  // alan eklenirse (gelecekte) bu fonksiyon KIRILMAZ, sessizce varsayılana
+  // düşer.
+  function applySnapshot(snap) {
+    phase = snap.phase || "parkur";
+    position = Number.isFinite(snap.position) ? snap.position : 0;
+    parkurCorrect = Number.isFinite(snap.parkurCorrect) ? snap.parkurCorrect : 0;
+    comboInParkur = Number.isFinite(snap.comboInParkur) ? snap.comboInParkur : 0;
+    examOffered = !!snap.examOffered;
+    examIndex = Number.isFinite(snap.examIndex) ? snap.examIndex : 0;
+    examCorrect = Number.isFinite(snap.examCorrect) ? snap.examCorrect : 0;
+    remedialIndex = Number.isFinite(snap.remedialIndex) ? snap.remedialIndex : 0;
+    remedialCorrect = Number.isFinite(snap.remedialCorrect) ? snap.remedialCorrect : 0;
+    remedialTier = snap.remedialTier || null;
+    examResults = Array.isArray(snap.examResults) ? [...snap.examResults] : [];
+    remedialResults = Array.isArray(snap.remedialResults) ? [...snap.remedialResults] : [];
+  }
 
   function resetParkur() {
     phase = "parkur";
@@ -174,8 +217,17 @@ export function createExamSystem(config = EXAM_CONFIG) {
   // KORUR — kullanıcı yarım kalan bir parkuru menüye kaçıp devam ettirebilmeli.
   function setMode(id) {
     if (id !== modeId) {
+      // G307 — ÖNCEKİ modun (varsa) AKTİF durumunu terk etmeden ÖNCE
+      // `perModeState`'e YAZ (bir SONRAKİ kez bu moda dönülünce geri
+      // yüklenebilsin) — `modeId` null'sa (uygulama YENİ açıldı, HİÇ mod
+      // seçilmemişti) yazacak bir şey yok, atlanır.
+      if (modeId !== null) perModeState[modeId] = snapshotActive();
       modeId = id;
-      resetParkur();
+      // YENİ modun DAHA ÖNCE kaydedilmiş bir durumu VARSA (bu SESSION'da
+      // ya da restoreFullSnapshot() ile önceki oturumdan) ORADAN devam
+      // edilir — YOKSA (bu modun bu oturumdaki İLK girişi) taze başlanır.
+      if (perModeState[id]) applySnapshot(perModeState[id]);
+      else resetParkur();
     }
   }
 
@@ -316,6 +368,41 @@ export function createExamSystem(config = EXAM_CONFIG) {
     resetParkur();
   }
 
+  // G307 — TÜM modların bilinen durumunu (aktif mod DAHİL — henüz
+  // `perModeState`'e yazılmamış OLABİLİR, `snapshotActive()` ile GÜNCEL
+  // hâli üstüne biniyor) DÜZ bir `{modeId: snapshot}` nesnesi olarak
+  // döndürür. app.js bunu `storage.saveExamProgress()`'e AYNEN geçirir —
+  // bu modül KENDİSİ localStorage'a HİÇ dokunmuyor (SAF kalıyor, dosya
+  // başı "Ses/DOM'a hiç dokunmayan bir modül" ilkesi — persistans app.js'in
+  // KENDİ storage.js çağrılarına bırakıldı).
+  function getFullSnapshot() {
+    const merged = { ...perModeState };
+    if (modeId !== null) merged[modeId] = snapshotActive();
+    return merged;
+  }
+
+  // getFullSnapshot()'un TERSİ — app.js AÇILIŞTA (İLK setMode() çağrısından
+  // ÖNCE) `storage.loadExamProgress()`'in döndürdüğünü BUNA geçirir.
+  // SADECE `perModeState`'i doldurur, aktif düz duruma HİÇ dokunmaz — bir
+  // SONRAKİ `setMode(id)` çağrısı (kullanıcı GERÇEKTEN bir moda girince)
+  // `perModeState[id]` varsa ORADAN doğal olarak devam eder (yukarıdaki
+  // setMode notu). `data` şekli BEKLENMEDİKse (bozuk/eski/boş) SESSİZCE
+  // yok sayılır — bu modülün İLK açılıştaki "taze başla" davranışı BOZULMAZ.
+  function restoreFullSnapshot(data) {
+    if (!data || typeof data !== "object") return;
+    for (const [id, snap] of Object.entries(data)) {
+      if (snap && typeof snap === "object") perModeState[id] = snap;
+    }
+  }
+
+  // "İlerlemeyi sıfırla" (app.js:resetAllProgress) — zoneStats/answerHistory'nin
+  // AYNI "tüm istatistikler GERÇEKTEN temizlensin" gerekçesi. TÜM modların
+  // kaydedilmiş (perModeState) VE aktif (düz) durumunu sıfırlar.
+  function clearAll() {
+    for (const key of Object.keys(perModeState)) delete perModeState[key];
+    resetParkur();
+  }
+
   return {
     setMode,
     resetParkur,
@@ -326,6 +413,9 @@ export function createExamSystem(config = EXAM_CONFIG) {
     declineEarlyExam,
     startRemedial,
     acknowledgePassed,
+    getFullSnapshot,
+    restoreFullSnapshot,
+    clearAll,
     get modeId() { return modeId; },
     get phase() { return phase; },
     get position() { return position; },

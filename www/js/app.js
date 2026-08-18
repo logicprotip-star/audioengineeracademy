@@ -969,6 +969,14 @@ audioEngine.onReady = () => syncGameVisualizerLoop(); // G247 — koşulsuz baş
 // examSystem.phase HER ZAMAN "parkur" kalır ve HİÇBİR app.js dalı onu okumaz
 // — var olması bile o modları ETKİLEMEZ.
 const examSystem = createExamSystem();
+// G307 (OLCUM-KESINTI-18-08 B1-B4 + OLCUM-SINAV-MIMARI-18-08) — TÜM
+// modların ÖNCEKİ oturumdan kalan sınav/telafi konumunu (varsa) yükle.
+// setMode() HİÇ ÇAĞRILMADAN ÖNCE olması ŞART — restoreFullSnapshot()
+// SADECE examSystem'in İÇ `perModeState`'ini doldurur, bir SONRAKİ
+// setMode(id) çağrısı (kullanıcı bir moda GERÇEKTEN girince, ya da G203'ün
+// applyRestoredRoundIfAny()'sinin KENDİ enterMode() çağrısı ile) o modun
+// kaydedilmiş durumunu doğal olarak geri yükler.
+examSystem.restoreFullSnapshot(storage.loadExamProgress().byMode);
 
 const revealAnimator = mode.createRevealAnimator({
   sfxDing: audioEngine.sfxDing,
@@ -3280,6 +3288,12 @@ function handleExamOutcome(q, result, gained) {
   const examCorrectSnapshot = examSystem.examCorrect + (result.correct ? 1 : 0);
 
   const outcome = examSystem.recordAnswer(result.correct, q.difficulty);
+  // G307 — `pauseRound()`'un checkpoint'i (arka plana alınma/Durdur/sheet
+  // açılışı) yeterince SIK olmayabilir (ör. telafiye YENİ ulaşılıp HİÇ
+  // duraklatılmadan uygulama anında sonlanırsa) — HER sınav/telafi-ilgili
+  // cevaptan SONRA da AYRICA checkpoint alınır, examSystem'in konumu HER
+  // ZAMAN localStorage'la senkron kalır.
+  persistExamProgress();
 
   switch (outcome.event) {
     case "exam-offer":
@@ -6077,19 +6091,24 @@ function pauseRound() {
   // anlık görüntüsünü de BURADAN almak, her çağıranın kendi başına
   // kaydetmesini İCAT ETMEK yerine tek/doğru yer.
   persistInProgressRound();
+  // G307 — AYNI TEK kontrol noktasından, sınav/telafi konumu da kaydedilir.
+  persistExamProgress();
 }
 
 // #53 — bkz. pauseRound()'un çağrısı. Bilinçli DAR kapsam (ürün kararı
-// GEREKTİRMEYEN bir güvenlik sınırlaması, bkz. DURUM.md): sınav/telafi fazı
-// (examSystem'in KENDİ, bu turun DOKUNMADIĞI ayrı state makinesi) VEYA
-// Frekans Çakışması'nın "own" (iki AYRI kullanıcı dosyası) çifti VEYA aktif
-// kaynak "upload" (uploadManager'ın DECODE EDİLMİŞ hali oturuma özel — dosya
+// GEREKTİRMEYEN bir güvenlik sınırlaması, bkz. DURUM.md): Frekans
+// Çakışması'nın "own" (iki AYRI kullanıcı dosyası) çifti VEYA aktif kaynak
+// "upload" (uploadManager'ın DECODE EDİLMİŞ hali oturuma özel — dosya
 // fileStorage'da kalıcı ama cold-restart sonrası YENİDEN decode edilmeden
 // geri getirilemez) kaydedilmez — bu senaryolarda kaldığı yerden devam
 // TEKLİF EDİLMEZ, mevcut "session sona erdi" davranışıyla karşılaşılır.
+// G307 (OLCUM-KESINTI-18-08 B2/B3) — sınav/telafi fazı guard'ı KALDIRILDI:
+// examSystem'in KENDİ durumu artık AYRI (persistExamProgress(), aşağıda)
+// kalıcı hâle geldiği için, activeQuestion'ı BURADA kaydetmemenin ESKİ
+// gerekçesi ("tutarsız bir restore üretirdi") ARTIK geçerli değil — ikisi
+// BİRLİKTE, AYNI checkpoint noktasından (#53) kaydediliyor.
 function persistInProgressRound() {
   if (!activeQuestion) { storage.clearInProgressRound(); return; }
-  if (examGateActive() && examSystem.phase !== "parkur") return;
   if (activeQuestion.mode === "cakisma" && currentCakismaPairId() === "own") return;
   if (els.sourceSelect && els.sourceSelect.value === "upload") return;
   storage.saveInProgressRound({
@@ -6099,6 +6118,22 @@ function persistInProgressRound() {
     roundDuration: roundFlow.roundDuration,
     savedAt: Date.now()
   });
+}
+
+// G307 (OLCUM-KESINTI-18-08 B2/B3 + OLCUM-SINAV-MIMARI-18-08 Yol A) —
+// persistInProgressRound()'un AYNI checkpoint noktasından (#53) çağrılır,
+// AMA activeQuestion/upload/own-pair GUARD'LARINA bağlı DEĞİL — examSystem'in
+// durumu (hangi moddaysa) her zaman kaydedilmeye DEĞER (ör. bir telafi
+// TAM olarak bu üç guard'dan biri yüzünden activeQuestion kaydedilmese
+// bile, kullanıcı geri döndüğünde en azından TELAFİ FAZI/POZİSYONU
+// korunmalı — soru içeriği kaybolsa bile "en baştan başlamak" yerine
+// "kaldığı SORU SAYISINDAN" devam edebilir, examSystem'in kendi
+// question-tier mantığı bunu zaten destekliyor). examSystem.getFullSnapshot()
+// TÜM modların (aktif dahil) durumunu döndürür (core/exam-system.js'in
+// kendi notu) — storage.js'e AYNEN geçiriliyor, bu fonksiyon SADECE
+// orkestre ediyor (exam-system.js SAF kalıyor, hiç localStorage'a dokunmuyor).
+function persistExamProgress() {
+  storage.saveExamProgress({ schemaVersion: storage.CURRENT_SCHEMA_VERSION, byMode: examSystem.getFullSnapshot() });
 }
 
 // G124 — pauseRound()'un TAM tersi, startBtn'in "Tekrar Çal" dalından
@@ -8100,6 +8135,12 @@ function resetAllProgress() {
   daily = storage.freshDaily();
   activeQuestion = null;
   storage.clearInProgressRound(); // #53 — "tüm istatistikleri temizle" yarım-tur kaydını da kapsamalı
+  // G307 — AYNI gerekçe: sınav/telafi ilerlemesi de "tüm istatistikler"
+  // sözüne dahil (examLevel/XP/rozet BURADA ETKİLENMEZ — storage.clearStats()
+  // zaten AYRI, examSystem.clearAll() SADECE parkur/sınav/telafi KONUMUNU
+  // temizler, bkz. core/exam-system.js'in kendi notu).
+  examSystem.clearAll();
+  storage.clearExamProgress();
   roundActive = false;
   freqGuessHz = null; freqHoverHz = null;
   cutoffGuess = null;

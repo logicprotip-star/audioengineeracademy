@@ -26,6 +26,17 @@ const PURCHASE_KEY = "eqEarTrainerProXPurchase";
 // kötü ihtimalle bir devam fırsatı kaçar, kalıcı ilerleme değil) — 4 kritik
 // anahtarın "yedeklemeye değer" muamelesi burada BİLİNÇLİ olarak uygulanmadı.
 const IN_PROGRESS_ROUND_KEY = "eqEarTrainerProXInProgressRound";
+// G307 (OLCUM-KESINTI-18-08 B1-B4 + OLCUM-SINAV-MIMARI-18-08) —
+// core/exam-system.js:getFullSnapshot()'ın döndürdüğü {modeId: {...}}
+// nesnesinin kalıcı hâli. IN_PROGRESS_ROUND_KEY'DEN AYRI, YENİ bir anahtar
+// (task'ın kendi şartı: G289'un "yeni anahtar ayrı olsun" ilkesiyle AYNI) —
+// ikisi FARKLI kavramlar (biri "hangi soru duraklatıldı", biri "her modun
+// sınav/telafi konumu ne"), İKİSİ de ARTIK aynı anda restore edilmeli (bkz.
+// app.js) ama TEK bir blob'da KARIŞTIRILMADI. ANSWER_HISTORY_KEY/
+// DAILY_LOG_KEY'in AYNI deseni — `mirror:false` (IN_PROGRESS_ROUND_KEY'in
+// AYNI gerekçesi: kaybedilirse en kötü ihtimalle bir parkur/telafi baştan
+// başlar, examLevel/XP/rozet gibi KRİTİK veri DEĞİL).
+const EXAM_PROGRESS_KEY = "eqEarTrainerProXExamProgress";
 // G233 (TUR3A bulgusu 🟡) — hiçbir kayıtta sürüm/şema numarası TUTULMUYORDU
 // (grep, sıfır sonuç) — 1.1'de veri yapısı değişirse eski veri (bu anahtar
 // hiç YOKKEN yazılmış) tanınamazdı. Task'ın kendi talimatı: "en basit çözüm
@@ -755,5 +766,35 @@ export function saveInProgressRound(snapshot) {
 export function clearInProgressRound() {
   try {
     localStorage.removeItem(IN_PROGRESS_ROUND_KEY);
+  } catch (e) {}
+}
+
+// G307 — ANSWER_HISTORY_KEY/DAILY_LOG_KEY'in BİREBİR AYNI deseni:
+// schemaVersion blob'un KENDİSİNDE TEK bir damga (G233), `byMode` şekli
+// BEKLENMEDİKse (bozuk/eski) freshExamProgress()'e düşülür — exam-system.js
+// zaten kendi restoreFullSnapshot()'ında EKSİK/bozuk alanlara karşı AYRICA
+// korumalı (bkz. o dosyanın notu), burası SADECE dış zarfı (JSON/şekil)
+// doğruluyor.
+export function freshExamProgress() {
+  return { schemaVersion: CURRENT_SCHEMA_VERSION, byMode: {} };
+}
+
+export function loadExamProgress() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(EXAM_PROGRESS_KEY));
+    if (!raw || typeof raw.byMode !== "object" || raw.byMode === null || Array.isArray(raw.byMode)) return freshExamProgress();
+    return { schemaVersion: typeof raw.schemaVersion === "number" ? raw.schemaVersion : CURRENT_SCHEMA_VERSION, byMode: raw.byMode };
+  } catch (e) {
+    return freshExamProgress();
+  }
+}
+
+export function saveExamProgress(examProgress) {
+  return trySave(EXAM_PROGRESS_KEY, examProgress, { mirror: false });
+}
+
+export function clearExamProgress() {
+  try {
+    localStorage.removeItem(EXAM_PROGRESS_KEY);
   } catch (e) {}
 }

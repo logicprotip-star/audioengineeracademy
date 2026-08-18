@@ -408,3 +408,113 @@ describe("createExamSystem() — G304: examResults/remedialResults SIRAYI koruyo
     assert.deepEqual(es.remedialResults, []);
   });
 });
+
+// G307 (OLCUM-KESINTI-18-08 B1-B4 + OLCUM-SINAV-MIMARI-18-08) — examSystem
+// artık mod-başına AYRI durum tutuyor (perModeState, İÇ bir Map) — DIŞ API
+// (yukarıdaki 36 test) TEK SATIR değişmedi, bu describe SADECE YENİ
+// eklenen çok-modlu davranışı + snapshot round-trip'i test ediyor.
+describe("createExamSystem() — G307: mod-başına AYRI durum (perModeState) + tam-oturum snapshot", () => {
+  it("B1/B4: telafiye ulaşılan moddan BAŞKA moda geçilip GERİ dönülünce telafi KORUNUYOR (ÖNCEDEN siliniyordu)", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    es.startRemedial("medium");
+    es.recordAnswer(true, "medium");
+    es.recordAnswer(false, "medium");
+    assert.equal(es.phase, "remedial");
+    assert.equal(es.remedialIndex, 2);
+    assert.deepEqual(es.remedialResults, [true, false]);
+
+    // BAŞKA bir moda geç — DÜZELTME ÖNCESİ bu, telafiyi SİLERDİ.
+    es.setMode("boost-mu-cut-mu");
+    assert.equal(es.phase, "parkur", "yeni mod TEMİZ bir parkurla başlamalı (kirlenme yok)");
+    assert.equal(es.position, 0);
+
+    // Kompresör'e GERİ dön — telafi AYNEN korunmuş olmalı.
+    es.setMode("kompresor");
+    assert.equal(es.phase, "remedial", "KABUL KRİTERİ — telafi fazı korunmalıydı");
+    assert.equal(es.remedialIndex, 2, "KABUL KRİTERİ — telafi sorusu sayısı korunmalıydı");
+    assert.deepEqual(es.remedialResults, [true, false], "KABUL KRİTERİ — telafi SIRASI korunmalıydı");
+  });
+
+  it("B4: İKİ modun durumu AYNI ANDA, birbirini EZMEDEN korunuyor", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    es.recordAnswer(true, "medium");
+    es.recordAnswer(true, "medium");
+    assert.equal(es.position, 2);
+
+    es.setMode("boost-mu-cut-mu");
+    es.recordAnswer(false, "medium");
+    assert.equal(es.position, 1);
+
+    es.setMode("kompresor");
+    assert.equal(es.position, 2, "Kompresör'ün pozisyonu Boost mu Cut mu'nun cevaplarından ETKİLENMEMELİ");
+    assert.equal(es.parkurCorrect, 2);
+
+    es.setMode("boost-mu-cut-mu");
+    assert.equal(es.position, 1, "Boost mu Cut mu'nun pozisyonu Kompresör'ün cevaplarından ETKİLENMEMELİ");
+    assert.equal(es.parkurCorrect, 0);
+  });
+
+  it("getFullSnapshot()/restoreFullSnapshot() ile TAM bir oturum round-trip yapılabiliyor (B2/B3 — uygulama kapanıp açılma)", () => {
+    const es1 = createExamSystem();
+    es1.setMode("kompresor");
+    es1.startRemedial("medium");
+    es1.recordAnswer(true, "medium");
+    es1.setMode("boost-mu-cut-mu");
+    es1.recordAnswer(true, "medium");
+    es1.recordAnswer(false, "medium");
+
+    const snapshot = es1.getFullSnapshot();
+    assert.ok(snapshot.kompresor, "aktif OLMAYAN (kompresor, en son terk edilen) mod snapshot'ta OLMALI");
+    assert.ok(snapshot["boost-mu-cut-mu"], "AKTİF mod (henüz perModeState'e hiç yazılmamış olabilir) snapshot'ta OLMALI — snapshotActive() ile GÜNCEL hâli yansımalı");
+    assert.equal(snapshot.kompresor.phase, "remedial");
+    assert.equal(snapshot["boost-mu-cut-mu"].position, 2);
+
+    // YENİ bir examSystem — "uygulama yeniden açıldı" simülasyonu.
+    const es2 = createExamSystem();
+    es2.restoreFullSnapshot(snapshot);
+    // restoreFullSnapshot() AKTİF duruma dokunmamalı — henüz setMode() çağrılmadı.
+    assert.equal(es2.phase, "parkur", "restoreFullSnapshot() aktif duruma dokunmamalı, sadece perModeState'i doldurmalı");
+
+    es2.setMode("kompresor");
+    assert.equal(es2.phase, "remedial", "KABUL KRİTERİ — snapshot'tan restore edilen telafi fazı DOĞRU");
+    assert.equal(es2.remedialIndex, 1);
+
+    es2.setMode("boost-mu-cut-mu");
+    assert.equal(es2.position, 2, "KABUL KRİTERİ — snapshot'tan restore edilen İKİNCİ modun durumu da DOĞRU");
+    assert.deepEqual(es2.examResults, [], "restore edilen modun HİÇ dokunulmayan alanları (examResults) makul varsayılanda kalmalı");
+  });
+
+  it("restoreFullSnapshot(): eksik/bozuk alanlar (ESKİ ya da bozuk kayıt) sessizce YOK SAYILIR, çökme YOK", () => {
+    const es = createExamSystem();
+    assert.doesNotThrow(() => es.restoreFullSnapshot(null));
+    assert.doesNotThrow(() => es.restoreFullSnapshot(undefined));
+    assert.doesNotThrow(() => es.restoreFullSnapshot("bozuk-string"));
+    assert.doesNotThrow(() => es.restoreFullSnapshot({ kompresor: { phase: "remedial" } })); // eksik alanlarla
+    es.setMode("kompresor");
+    assert.equal(es.phase, "remedial");
+    assert.equal(es.position, 0, "snapshot'ta OLMAYAN alanlar (position) makul varsayılana (0) düşmeli");
+  });
+
+  it("setMode() İLK çağrıda (modeId henüz null) perModeState'e YAZMAYA ÇALIŞMAZ, çökme YOK", () => {
+    const es = createExamSystem();
+    assert.doesNotThrow(() => es.setMode("kompresor"));
+    assert.equal(es.phase, "parkur");
+  });
+
+  it("clearAll() — TÜM modların (kaydedilmiş + aktif) durumunu sıfırlıyor (İlerlemeyi sıfırla)", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    es.startRemedial("medium");
+    es.setMode("boost-mu-cut-mu");
+    es.recordAnswer(true, "medium");
+
+    es.clearAll();
+    assert.equal(es.phase, "parkur", "aktif (boost-mu-cut-mu) durum sıfırlanmalı");
+    assert.equal(es.position, 0);
+
+    es.setMode("kompresor");
+    assert.equal(es.phase, "parkur", "KABUL KRİTERİ — kaydedilmiş (kompresor) durum da sıfırlanmalı, telafi GERİ GELMEMELİ");
+  });
+});
