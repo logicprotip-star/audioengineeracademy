@@ -146,6 +146,174 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G299 — **OLCUM-CIHAZ3-18-08.md: cihaz testinin 4 bulgusu ölçüldü (kod
+değişmedi, ölçüm turu).** Görev metni "beş bulgu" diyordu ama SADECE A-D
+(dört) lettered bölüm verildi — beşinci bir bulgu İCAT EDİLMEDİ, sadece
+verilen dördü ölçüldü. Bulgular G300-G304'ün temeli oldu (bkz. aşağı).
+Yöntem: `DEV_MODE=false` (Archive için elle çevrilmiş) test kancalarını
+devre dışı bıraktığı için, `AudioNode.prototype.connect`/`createGain`
+monkey-patch'iyle (Playwright `addInitScript`) DEV_MODE'dan bağımsız bir
+canlı ölçüm tekniği geliştirildi — kontrol deneyi: gerçek `stopAudio()`
+RMS'i TAM 0'a indirirken, sadece `muteOutput()` kalan bir sızıntı RMS'i
+SABİT/sönmeyen tutuyor.
+
+---
+
+G300 — **Çıkışta ses durmuyor — performExit()/quitGameBtn stopAudio()
+eksikti (`3bb1729`). TEK commit.**
+
+**Görev:** OLCUM-CIHAZ3-18-08 madde A/B — Frekans Çakışması'nda cevap
+verilip geri bildirim gelince, tur bitip "Ana Ekran"a dönülünce ses hâlâ
+çalıyordu. Saturation'da "Durdur" sonrası geri bildirim sesi durmuyordu.
+
+**Kök sebep:** `performExit()`/`quitGameBtn` handler'ı round aktifken
+sadece `pauseRound()`→`muteOutput()` çağırıyordu — bu SADECE paylaşılan
+`muteGain`'i 0.0001'e ramplıyor, kaynak `AudioBufferSourceNode`'ları HİÇ
+`.stop()` etmiyor. Ölçüldü (canlı `GainNode.gain.value` + tap
+`AnalyserNode`): exit akışının kendi unmute→mute dizisi (openExitConfirm→
+closeExitConfirm→performExit, ikisi de senkron, AYNI audioCtx tick'inde)
+sonunda `muteGain.gain.value` 0.0001 olarak DOĞRU RAPORLANIYORDU ama çıkış
+sonrası RMS 1.8sn+ boyunca sönmeden SABİT kaldı (Chromium'un AudioParam
+otomasyon zamanlamasıyla ilgili bir tuhaflık — tam kök sebep netleşmedi,
+ama `stopAudio()`'nun kaynakları FİİLEN `.stop()` etmesi bu otomasyon
+yarışına hiç girmediği için sorunu kökten çözüyor). G267 seamless
+mimarisiyle İLGİSİZ — Reverb kontrolünde de AYNI sızıntı ölçüldü, o G267
+dışında.
+
+**Düzeltme:** `performExit()` ve `quitGameBtn` handler'ına (ikisi de AYNI
+"round terk et" deseni, G287'nin kendi notu) `activeQuestion` set iken
+koşulsuz `audioEngine.stopAudio()` eklendi. Taranan diğer "Ana Ekran"
+çıkışları (4 sınav-sonucu ekranı secondaryHandler'ı) GÜVENLİ bulundu —
+`submitThreeWayGuess()` zaten koşulsuz `stopAudio()` çağırdıktan SONRA
+gösteriliyorlar (Kompresör, TEK `EXAM_ENABLED` mod), dokunulmadı.
+
+**Testler:** `e2e/exit-abandons-round.spec.mjs`'e 2 yeni KABUL KRİTERİ
+testi (`stopAudioCallCount` artışı, DEV_MODE hook'una dayanan kalıcı/hızlı
+eşdeğer). `git stash` ile kırmızı/yeşil doğrulandı. `npm test` 1625/1625,
+`npm run test:e2e` 121/122 (tek kalan: sıradaki commit'in konusu olan
+gain-balance testi).
+
+---
+
+G301 — **vokal2-clean seviye düzeltmesi yeni vocal_1.m4a ile yeniden
+ölçüldü (`4ccb570`). TEK commit.**
+
+**Görev:** OLCUM-CIHAZ3-18-08 madde C — `vocal_1.m4a` DC-offset
+düzeltmesiyle değiştirildi (bu commit'e dahil, 468719→456556 bayt).
+G295'in ölçtüğü +3.16dB'lik ham fark (vokal2-clean, `gainB=-3.2`) bu
+değişiklikten SONRA geçersizdi — eski değerle düzeltmeli fark -1.63dB'ye
+düşüp ±1.5dB toleransının DIŞINA taşmıştı (`cakisma-gain-balance.spec.mjs`
+zaten kırmızıydı).
+
+**Ölçüm:** `cakisma-gain-balance.spec.mjs`'in KENDİ concurrent-RMS/
+band-limited yöntemiyle (100ms pencere, -20dB zarf eşiği, region-sınırlı)
+yeniden ölçüldü:
+- vokal2-clean: YENİ ham fark +1.57dB → `gainB` -3.2'den **-1.6**'ya
+  güncellendi (düzeltmeli fark ≈ -0.03dB).
+- vokal2-akustik: YENİ ham fark -0.72dB (yön ESKİ +0.70dB'den TERSİNE
+  döndü) → hâlâ ±1.5dB içinde, **DEĞİŞTİRİLMEDİ**.
+
+**Testler:** `source-catalog.js`/`test/source-catalog.test.mjs` güncellendi,
+`cakisma-gain-balance.spec.mjs`'in KABUL KRİTERİ testine vokal2-akustik de
+eklendi (sonucu belgelemek için). `git stash` ile kırmızı/yeşil doğrulandı.
+`npm test` 1625/1625, `npm run test:e2e` 124/124.
+
+---
+
+G302 — **Snare hizalama — offsetA snare_late.m4a'nın gerçek yapısına göre
+yeniden ölçüldü (`d7a8154`). TEK commit.**
+
+**Görev:** OLCUM-CIHAZ3-18-08 madde D — cihazda "snare + akustik/clean
+hizalama bozuk, başta fazladan vuruş" bulundu. Şüphe: dosyanın kendi
+pre-trim'i + kodun +377ms offset'i üst üste biniyor olabilir.
+
+**Ölçüm:** sample-seviyesinde bir çakışma/kesim YOKTU ("iki kaydırma üst
+üste biniyor" hipotezi ELENDİ) — G288'in 0.377s offsetA'sı `snare_late.m4a`'nın
+sessiz ön-kısmı içinde kalıyordu. AMA dosyanın GERÇEK ilk vuruşu 500ms'de
+DEĞİL **1.535s'de** (dosya tek izole vuruş değil, ~1.54s aralıklı 16
+vuruşluk PERİYODİK bir desen) — 0.377s bu vuruşu hiç hedeflemiyordu (ayrıca
+`bas-akustik`/`bas-clean`'in offsetB'siyle AYNI sabitti, snare_late'e göre
+hiç yeniden hesaplanmamıştı), snare gitardan ~1.15s GEÇ geliyordu.
+
+**Düzeltme:** offsetA her çift için AYRI, "snare_late'in ilk vuruşu
+(1.535s) − eşleşen gitarın kendi ilk atağı" formülüyle (5ms RMS zarfı,
+-20dB eşik geçişi) yeniden hesaplandı:
+- snare-akustik: 0.377 → **0.425** (acoustic_guitar ilk atağı 1.110s)
+- snare-clean: 0.377 → **1.175** (clean_guitar ilk atağı 0.360s)
+
+`bas-akustik`/`bas-clean`'in offsetB=0.377'si bu turun kapsamı DIŞINDA,
+dokunulmadı — ayrı bir açık madde olarak aşağı kaydedildi (**AÇIK İŞLER 30**).
+
+**Testler:** `e2e/cakisma-pair-offset.spec.mjs`'e yeni KABUL KRİTERİ testi
+(snare ve gitarın ilk atağı ±150ms içinde hizalı mı). `test/frekans-
+cakismasi.test.mjs`/`test/source-catalog.test.mjs` güncellendi. `git stash`
+ile kırmızı/yeşil doğrulandı (snare-clean eski değerle 795ms sapmayla
+kırmızı çıkıyordu). `npm test` 1625/1625, `npm run test:e2e` 125/125.
+
+---
+
+G303 — **Frekans Çakışması'nın kaynak çifti seçimi artık kalıcı
+(`afeb4c2`). TEK commit.**
+
+**Görev:** Cihazda: moddan çıkıp girince (ya da soğuk başlatmada) seçilen
+kaynak çifti hatırlanmıyordu, her zaman ilk çifte (Akustik Gitar + Clean
+Gitar) düşüyordu. Task'ın kendi hipotezi ("bugünkü offset/gain eklentisi
+kırmış olabilir") **DOĞRULANMADI** — `git log -S` ile kontrol edildi,
+`#cakismaPairSelect`'in "change" listener'ı G51'den (`1c86464`, modun ilk
+yaratıldığı commit) beri hiç değişmemiş, bug LATENT'ti (mod yaratıldığından
+beri vardı, bugünkü değişiklikle ilgisi yok).
+
+**Kök sebep:** diğer sekiz modun kaynak seçimi `sourceSelections`/
+`recordSourceSelection()` (G138) ile kalıcı — `cakismaPairSelect`'in
+listener'ı SADECE `syncCakismaVisibility()` çağırıyordu, bu mekanizmaya
+HİÇ bağlı değildi.
+
+**Düzeltme:** AYNI `sourceSelections` haritası, `"frekans-cakismasi-pair"`
+anahtarıyla (mode.MODE_ID'den AYRI — o select bu modda hiç kullanılmıyor)
+yeniden kullanıldı. Yeni `restoreCakismaPairSelection()` (`populateSourceSelect`'in
+G138 deseninin eşdeğeri) `enterMode()`'un mod-değişim dalından çağrılıyor.
+
+**Testler:** `e2e/cakisma-pair-memory.spec.mjs` (3 test, biri Frekans
+Bulma'nın G138 davranışının BOZULMADIĞINI doğrulayan regresyon koruması).
+`git stash` ile kırmızı/yeşil doğrulandı (soğuk başlatma testi eski koda
+karşı kırmızı çıkıyordu). `npm test` 1625/1625, `npm run test:e2e` 128/128.
+
+---
+
+G304 — **Telafi/sınav çubuğu artık gerçek cevap sırasını gösteriyor
+(`9ab0f38`). TEK commit.**
+
+**Görev:** Cihazda: telafi turunda doğru cevaplar HÂLÂ BAŞA toplanıyordu.
+G296'ta değil (task'ın atfı yanlış — bu düzeltme G276'ya ait, `git log -S`
+ile doğrulandı), **G276** normal Bölüm çubuğunda AYNI kusuru düzeltmişti
+(`challenge.results[]` ile) ama kendi notunda "Sınav/telafi dot'ları
+BİLEREK DOKUNULMADI — AYRI bir karar" diye açıkça sınırlamıştı.
+
+**Kök sebep:** sınav/telafi `examIndex`/`examCorrect`/`remedialIndex`/
+`remedialCorrect` (SIRA bilgisi TUTMAYAN sayaçlar) kullanıyordu,
+`renderGameHeader()`'ın `#gameExamDots` bloğu da "i<correctCount→altın,
+i<current→kırmızı" (G213'ün BÖLÜM'de düzeltilmeden ÖNCEki AYNI kalıbı)
+mantığıyla çiziyordu.
+
+**Düzeltme:** `core/exam-system.js`'e `challenge.results[]`'un BİREBİR
+eşdeğeri eklendi — `examResults`/`remedialResults`, `recordAnswer()`'ın
+exam/remedial dallarında sırayla dolduruluyor, sayaçların sıfırlandığı HER
+yerde (`resetParkur()`/`acceptEarlyExam()`/exam-start dalı/`startRemedial()`)
+birlikte sıfırlanıyor. `app.js`'in `#gameExamDots` çizimi bu sıralı diziyi
+okuyor.
+
+**Testler:** `test/exam-system.test.mjs`'e 5 yeni test (SIRA korunuyor +
+her sıfırlama noktası doğru sıfırlıyor) — pure-logic modül olduğu için
+(CLAUDE.md: "createQuestion/evaluateAnswer saf kalmalı") birim seviyesinde
+test edildi, `chapter-dots-order.spec.mjs`'in (G276) e2e karşılığı bu
+turda YAZILMADI (Kompresör'ün three-way select+confirm akışını
+6-doğru-kombo+4-soruluk-sınav desenle sürmek orantısız karmaşıklık
+getiriyordu — pure-logic kapsamı için birim testi CLAUDE.md'nin kendi
+kriterine uyuyor). `git stash` ile kırmızı/yeşil doğrulandı. `npm test`
+1630/1630, `npm run test:e2e` 128/128.
+
+---
+
 G298 — **7-tık gizli geliştirici modu DEV_MODE'a bağlandı (`030e2ba`). TEK commit.**
 
 **Görev:** `OLCUM-BAYRAK-16-08.md`'nin bulgusu: `DEV_MODE` bayrağı vardı ama
@@ -21225,6 +21393,34 @@ bir müzik/mix parçası, telifsiz) eklenip mod dosyasız da en az bir
 demo/örnek kaynakla açılabilmeli — ya da kullanıcı bu SINIRI bilerek
 kabul edip madde kapatılır.
 
+**30. `bas-akustik`/`bas-clean`'in offsetB=0.377'si G302'nin kapsamı
+DIŞINDA bırakıldı, kendi başına yeniden ölçülmedi**
+G302 (OLCUM-CIHAZ3-18-08 madde D) SADECE snare çiftlerinin offsetA'sını
+düzeltti — `bas-akustik`/`bas-clean`'in gitar tarafındaki (offsetB)
+0.377'lik sabit AYNI kalıp taşıyor OLABİLİR (snare_late'in yapısına göre
+hiç hesaplanmamış olma ihtimali) ama bu turda cihazda BİR ŞİKÂYET
+gelmedi, ölçülmedi — dokunulmadı, sadece işaretlendi.
+**Kabul kriteri:** cihazda bas+akustik/bas+clean çiftlerinde bir hizalama
+şikâyeti gelirse, bass.m4a/acoustic_guitar.m4a/clean_guitar.m4a'nın kendi
+ilk atak zamanları G302'nin AYNI yöntemiyle (5ms RMS zarfı, -20dB eşik)
+ölçülüp offsetB yeniden hesaplanmalı.
+
+**31. Sınav/telafi çubuğunun (G304) canlı-cihaz/e2e doğrulaması SADECE
+birim seviyesinde — tam uçtan-uca (gerçek Kompresör round'u, gerçek DOM
+nokta rengi) doğrulanmadı**
+G304'ün mantığı (`core/exam-system.js:examResults/remedialResults`) 5
+birim testiyle sıkı doğrulandı (git stash kırmızı/yeşil) ama `app.js`'in
+`#gameExamDots` DOM çizimini gerçek bir Kompresör turunda (6 doğru kombo →
+erken sınav kabul → 4 sınav sorusu belirli bir doğru/yanlış desende) uçtan
+uca sürmek bu turun kapsamında YAPILMADI (orantısız karmaşıklık,
+`chapter-dots-order.spec.mjs`'in AKSİNE Kompresör'ün three-way select+
+confirm akışı basit `.ans` tıklamasıyla sürülemiyor).
+**Kabul kriteri:** `e2e/chapter-dots-order.spec.mjs`'in AYNI deseniyle
+(GERÇEK cevap sırası → DOM'daki nokta renkleri karşılaştırması) sınav/
+telafi için de bir e2e testi yazılırsa madde kapanır — ya da cihazda
+gerçek bir telafi turu oynanıp nokta sırasının doğru göründüğü gözle
+doğrulanırsa.
+
 ## BİLİNEN AÇIKLAR
 
 Düşük riskli, ölçülmüş ama şu an DÜZELTİLMEYEN (bilerek — kod yazılmadı,
@@ -21583,7 +21779,25 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G298 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G304 itibarıyla):**
+OLCUM-CIHAZ3-18-08.md'nin 4 bulgusunun (A/B: çıkışta ses durmuyor, C:
+vokal2-clean seviyesi, D: snare hizalama) TAMAMI düzeltildi + AYRICA cihazda
+bulunan 2 ek bulgu (kaynak-çifti hatırlama, telafi/sınav çubuğu sırası) — 5
+AYRI commit (`3bb1729`/`4ccb570`/`d7a8154`/`afeb4c2`/`9ab0f38`), her biri
+git stash kırmızı/yeşil doğrulandı. `npm test` 1630/1630, `npm run test:e2e`
+128/128. `DEV_MODE` bu turda `true`'ya geri alındı (repo'nun HER ZAMAN
+committed hâli) — Archive öncesi Logic kendisi `false`'a çevirecek.
+**Kullanıcının/Logic'in sıradaki adımı:** (1) `npx cap sync ios` + cihazda
+5 düzeltmeyi tek tek doğrulamak — özellikle G300 (çıkış sonrası ses
+GERÇEKTEN kesiliyor mu, hem Frekans Çakışması hem Saturation'da) ve G302
+(snare hizalaması artık doğru mu, kulakla), (2) AÇIK İŞLER madde 30 (bas
+çiftlerinin offsetB'si — bir şikâyet gelirse), (3) AÇIK İŞLER madde 31
+(sınav/telafi çubuğunun e2e doğrulaması eksik — istenirse tamamlanabilir),
+(4) OLCUM-GUVENLIK-18-08.md'nin AÇIK kalan bulgularına (AdMob/SKAdNetwork)
+karar vermek, (5) OLCUM-UC-18-08 madde B (zorluk eğrisi değişim maliyeti)
+HÂLÂ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (G298 itibarıyla, ARTIK ESKİ):**
 7-tık gizli geliştirici modu artık DEV_MODE'a bağlı — DEV_MODE=false'ta
 (App Store Archive) 7-tık hiçbir şey yapmıyor VE eski bir TestFlight
 oturumundan kalmış `devFlags.unlocked:true` bile menüyü açmıyor (GERÇEK
