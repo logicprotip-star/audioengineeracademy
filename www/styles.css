@@ -376,7 +376,20 @@
 
     .mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:stretch}
     .mode-grid.single{grid-template-columns:1fr}
-    @media (max-width:420px){.mode-grid{grid-template-columns:1fr}}
+    /* G293 (OLCUM-DORT-18-08 madde D) — kullanıcı kararı: pazarlama
+       görsellerinin (Instagram/App Store) HEP ikişerli olması ile
+       uygulamanın kendisinin (SADECE Plus/Pro Max, 428-430px, eski
+       420px eşiğinin ÜSTÜNDE) tutarsız görünmesi giderildi. Logic'in
+       KENDİ ifadesi: "390'a inince normal ve Pro modeller de ikişerli
+       görür" — yani 390px'İN KENDİSİ (iPhone 12/13/14 taban genişliği)
+       ARTIK 2 sütun olmalı, bu yüzden eşik 389px (390'ı KAPSAMAZ,
+       max-width sınırı 390'ın BİR ALTINDA). 375px (SE/mini) HÂLÂ 1 sütunda
+       kalıyor, 390px+ (temel/Pro modeller DAHİL) artık 2 sütun.
+       OLCUM-DORT'un 60 kontrollü taşma/kırpılma taraması (12 mod × 5
+       genişlik) VE bu G293'ün KENDİ tekrar-ölçümü (DURUM.md'ye
+       kaydedildi) SIFIR taşma buldu — sadece SAYI değişiyor,
+       .mode-grid'in KENDİSİ/.single kuralı DOKUNULMADI. */
+    @media (max-width:389px){.mode-grid{grid-template-columns:1fr}}
 
     /* ---- G74: mod kartı — Tasarim-2026-08/Ana Ekran.dc.html'den taşındı.
        ÖNCEKİ kart (motor rengi/glyph/engine etiketi/alt kilit satırı,

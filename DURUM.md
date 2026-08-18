@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G292 — Tekrar önleme — OLCUM-UC-18-08.md madde C'nin ölçtüğü dar soru-uzayları düzeltildi: YENİ `core/repeat-guard.js` ("kalan küme" SAF fonksiyonu, retry/loop YOK — sonsuz döngü YAPISAL OLARAK imkânsız) Kompresör/Reverb/Distortion'ın `oddIndex`'ine (K=3, N=1) ve Q Genişliği'nin `correctLabel`'ına (K=6-12, N=1) kablolandı — Logic'in cihaz şikayeti ("%33 ihtimalle aynı soru arka arkaya") düzeldi. İKİLİ (K=2) modlara (Boost mu Cut mu/dB Seviyesi/Frekans Çakışması) BİLEREK dokunulmadı (sert kural bu eksende sesi dinlemeden %100 doğru cevaplamayı mümkün kılardı) — `test/repeat-guard-scope.test.mjs` bunu mekanik olarak kilitliyor. app.js'te YENİ `recentIdentityHistory` (mod değişince sıfırlanır) `startRound()`'un TEK createQuestion() çağrısına geçiriliyor. 4 mod dosyasına + 2 yeni core/test dosyasına testler eklendi (500-3000 turluk tekrar-yok/dağılım-dengeli doğrulamaları), YENİ `e2e/repeat-guard.spec.mjs` (2 test, kırmızı/yeşil doğrulandı, GERÇEK 10 ardışık round). npm test 1593/1593, e2e 88/88. Test yazarken G292'DEN BAĞIMSIZ, committed main'de de reprodüklenen bir ortamsal flake (Kompresör'de nadiren #feedbackClose geç görünüyor) bulundu, dokunulmadı, teste sınırlı retry eklendi)
+Son güncelleme: 18.08.2026 (G293 — Izgara eşiği 420px→389px — OLCUM-DORT-18-08 madde D, kullanıcı kararı: ana menü mod kartları artık SADECE Plus/Pro Max değil, 390px+ TÜM temel/Pro modellerde de ikişerli görünüyor (pazarlama görselleriyle tutarlılık). `styles.css:379` TEK SATIR değişti, `.mode-grid`/`.single` kuralı dokunulmadı. 12 mod × 7 genişlikte (375-430px) SIFIR taşma/kırpılma (84 kontrol), 430px'te İZOLASYON KANITLANDI (kolon piksel genişliği eski/yeni eşikte BİREBİR AYNI). YENİ `e2e/mode-grid-threshold.spec.mjs` (5 test, kırmızı/yeşil doğrulandı). npm test 1593/1593, e2e 93/93 (bilinen ear-buttons flake'i hariç, G293'ten bağımsız))
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,27 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G293 — **Izgara eşiği 420px → 389px (OLCUM-DORT-18-08 madde D, kullanıcı kararı). AYRI commit.**
+
+**SORUN/KARAR:** Ana menüdeki mod kartları ızgarası `@media (max-width:420px)` eşiğiyle SADECE Plus/Pro Max modellerde (428-430px) ikişerli görünüyordu — TÜM diğer iPhone'lar (SE/mini/taban/Pro, 375-414px) tek sütun. Logic'in gerekçesi: pazarlama görselleri (Instagram/App Store) HER ZAMAN ikişerli, kullanıcı uygulamayı açınca tek sütun görünce tutarsızlık hissi oluyor. Karar: eşik düşürülsün, "normal ve Pro modeller de" (390px+ genişlik) ikişerli görsün.
+
+**Yapılan:** `www/styles.css:379` — `@media (max-width:420px)` → `@media (max-width:389px)`. Logic'in KENDİ ifadesi ("390'a inince... ikişerli görür") 390px'İN KENDİSİNİN 2 sütun olmasını istiyordu — bu yüzden eşik `390` DEĞİL `389` (max-width 390'ı KAPSAMAZ, "390 ve üstü" 2 sütun demek). `.mode-grid`'in KENDİSİ ve `.mode-grid.single` kuralı (JS'ten hiç tetiklenmeyen, halihazırda ölü bir kural — OLCUM-DORT'ta tespit edildi) DOKUNULMADI, SADECE eşik sayısı değişti.
+
+**Doğrulama (Playwright, GERÇEK render, dosyaya yazılan kalıcı değişiklikle — enjeksiyon DEĞİL):**
+- 12 mod × 7 genişlik (375/389/390/393/414/420/430) — `nameOverflowsOwnBox` (başlık kendi kutusunu taşıyor mu) ve `badgeOverflowsCard` (Sv N/PRO rozeti kartı taşıyor mu) **SIFIR** (0/84 kontrol) taşma/kırpılma buldu.
+- 375px/389px: `gridTemplateColumns` **1 sütun** (DEĞİŞMEDİ). 390px/393px/414px/420px/430px: **2 sütun**.
+- **İzolasyon — 430px (Logic'in kendi cihazı):** `gridTemplateColumns` eski/yeni eşikte BİREBİR AYNI (`193px 193px`) — kolon GENİŞLİĞİ de (sadece sayısı değil) değişmedi.
+
+**Testler:** YENİ `e2e/mode-grid-threshold.spec.mjs` (5 test) — 390px'de 2 sütun (KABUL KRİTERİ), 375/389px'de 1 sütun KALDIĞI, 393/414/420/430px'de 2 sütun olduğu, 430px'de kolon piksel genişliğinin DEĞİŞMEDİĞİ (izolasyon, KABUL KRİTERİ), 390px'de 12 modun HİÇBİRİNDE başlık/rozet taşması olmadığı.
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/styles.css` → 390px/393px testleri "1 !== 2" ile KIRMIZI (eski 420px eşiğinde bu genişlikler HÂLÂ 1 sütun) → `git stash pop` → YEŞİL (5/5).
+
+**Test sonuçları:** `npm test` 1593/1593 (CSS-only değişiklik, etkilenmedi). `npm run test:e2e` 93/93 (88 eski + 5 yeni) — bir koşuda `ear-buttons.spec.mjs`'in BİLİNEN, kod-bağımsız ortamsal flake'i (G291/G292'de de belgelenmiş, committed main'de de reprodüklenen) görüldü, İKİNCİ koşuda 93/93 TEMİZ geçti — bu G293'ün DEĞİŞİKLİĞİYLE İLGİSİZ.
+
+**DOKUNULMAYACAK'a uyuldu:** "i" butonlarının dokunma alanı, Tonal Denge, 430px+ ekran düzeni (İZOLASYON KANITLANDI, yukarı bkz.), zorluk eğrisi/DIFFICULTY tabloları — HİÇBİRİNE dokunulmadı.
+
+---
 
 G292 — **Tekrar önleme (OLCUM-UC-18-08.md madde C'nin ölçtüğü dar soru-uzayları). AYRI commit.**
 
@@ -21284,7 +21305,20 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G292 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G293 itibarıyla):**
+OLCUM-DORT-18-08 madde D'nin önerdiği ızgara eşiği değişikliği (420→389px)
+uygulandı — 390px+ TÜM modeller artık ikişerli ızgara görüyor, 430px+
+(Logic'in cihazı) İZOLASYON KANITLANDI (kolon genişliği değişmedi).
+**Bu turda AYNI görevin (OLCUM-DORT'un iki maddesini uygulama) İKİNCİ
+YARISI — Menü Kaydırma Konumu (madde C) — DEVAM EDİYOR, AYRI bir commit
+olarak takip edecek** (bu SIRADAKİ kaydı G293 TEK BAŞINA tamamlandığında
+yazıldı, G294 kendi SIRADAKİ'sini EKLEYECEK). `npm test` 1593/1593,
+`npm run test:e2e` 93/93 (bilinen `ear-buttons.spec.mjs` flake'i hariç).
+**Kullanıcının/Logic'in sıradaki adımı:** yok, bu madde kendi içinde
+tamamlandı — OLCUM-UC-18-08 madde B (zorluk eğrisi) HÂLÂ AÇIK, ürün
+kararı bekliyor (G292'nin SIRADAKİ'sinden devralındı, aşağı bkz.).
+
+**EN YENİ SIRADAKİ ADIM (G292 itibarıyla, ARTIK ESKİ):**
 OLCUM-UC-18-08 madde C'nin bulduğu tekrar sorunu düzeltildi — Kompresör/
 Reverb/Distortion (K=3) ve Q Genişliği (K=6-12) artık "kalan küme" ile
 son 1 turun kimliğini tekrar etmiyor, Logic'in "%33 arka arkaya aynı soru"
