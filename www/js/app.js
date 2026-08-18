@@ -2327,7 +2327,16 @@ function updateStartBtnLabel() {
   // gizlenirse mod hiç oynanamaz hale gelirdi (canlı testte yakalandı).
   // Bu yüzden SADECE round gerçekten aktifken gizleniyor.
   els.startBtn.classList.toggle("hidden", !!(mode.THREE_WAY && activeQuestion));
-  if (!activeQuestion || currentLives <= 0) {
+  // G291 (OLCUM-UC-18-08 madde A'nın bulduğu bug) — ÖNCEDEN `currentLives<=0`
+  // TEK BAŞINA "idle" (▶) sayılıyordu, `blockIfLivesOut()`'un (satır ~1630)
+  // `isUserPro() || currentLives > 0` mantığından FARKLI. Pro'da `currentLives`
+  // hiçbir yerde yeniden doldurulmuyor (can sistemi Pro'da hiç işlemiyor,
+  // DOKUNULMADI) — canlar 0'dayken Pro alınırsa bu sayı SONSUZA KADAR 0'da
+  // donuk kalıyor, ikon round GERÇEKTEN aktif/çalarken bile "▶" göstermeye
+  // devam ediyordu (Playwright'ta ölçüldü: stopAudioCallCount artıyor,
+  // buton "Oyunu Başlat" yazıyor). blockIfLivesOut()'un AYNI ifadesi buraya
+  // da uygulandı.
+  if (!activeQuestion || (!isUserPro() && currentLives <= 0)) {
     els.startBtn.textContent = "▶";
     els.startBtn.setAttribute("aria-label", "Oyunu Başlat");
     // G94: idle'a dönerken (mod değişimi/tur sonu) kalıntı kırmızı çerçeve
@@ -9135,6 +9144,21 @@ function syncDevUI() {
   // durumu değişince (geliştirici modu/gerçek satın alma) AYNI G186/#36
   // eksiğine düşmesin diye burada da yeniden çiziliyor.
   renderFaq();
+  // G291 (OLCUM-UC-18-08 madde A) — AYNI G186/#36/Bug#40 ailesinin DÖRDÜNCÜ
+  // örneği: oyun ekranındaki can göstergesi (#hearts) İKİ parçadan oluşuyor —
+  // renderGameHeader() konteynerin KENDİSİNİ (examActive||pro) gizler/gösterir
+  // (G186'da ZATEN Pro-farkında yapılmıştı), renderHearts() İÇİNDEKİ kalp
+  // SVG'lerini currentLives'a göre ÇİZER (Pro'ya hiç bakmaz, bakmasına da
+  // GEREK YOK — konteyner zaten gizleniyor). İKİSİ DE ÖNCEDEN sadece
+  // updateUI()'nin (submit sonrası) İÇİNDEYDİ, syncDevUI()'nin (satın alma)
+  // ÇAĞIRDIKLARI arasında YOKTU — satın alma anında HENÜZ hiç submit
+  // olmadığı için #hearts satın alma sonrası dönüşte bir SONRAKİ cevaba
+  // kadar YANLIŞ durumda (Pro olsa bile GÖRÜNÜR, içinde ESKİ/boş kalp
+  // durumu) kalabiliyordu. `updateUI()`'nin TAMAMI çağrılmadı (renderAnalysis/
+  // renderDailyTip zaten YUKARIDA tekrar edilmiş durumda, gereksiz çifte
+  // render olmasın diye SADECE bu ikisi eklendi).
+  renderHearts();
+  renderGameHeader();
 }
 let versionTapCount = 0;
 let versionTapTimer = null;
@@ -9614,6 +9638,18 @@ if (els.buyProBtn) els.buyProBtn.addEventListener("click", async () => {
         // kaldığı yerden devam etmeli. endsRound:true'da paywallPausedRound zaten
         // false (hiç duraklatılmadı) — no-op.
         resumePausedRoundForPaywall();
+        // G291 (OLCUM-UC-18-08 madde A'nın bulduğu ikinci bulgu) — endsRound:true
+        // (livesOut/sessionLimit) sebeplerinde round teardownActiveRound() ile
+        // TAMAMEN bitiyor, cevaplanmış son sorunun "show-result" feedback
+        // kartı/overlay'i AÇIK kalmış olabilir (pauseRound() bu yolda hiç
+        // çağrılmadı, endsRound:false'un aksine). Satın alma sonrası oyun
+        // ekranına dönünce bu ESKİ kart hâlâ ekranı KAPLIYOR, hiçbir tıklamayı
+        // GEÇİRMİYORDU (Playwright: "#feedbackOverlay intercepts pointer
+        // events" — ölçüldü). pauseRound()'un (satır ~5934) AYNI iki satırı —
+        // endsRound:false yolunda zaten pauseRound() tarafından temizlendiği
+        // için burada TEKRARI zararsız (idempotent).
+        els.feedbackBox.classList.remove("show-result");
+        if (els.feedbackOverlay) els.feedbackOverlay.classList.remove("open");
         goBackFromSubpage();
       } else {
         // G229 DÜZELTMESİ — StoreKit'te satın alma GERÇEKLEŞTİ ama cihaza

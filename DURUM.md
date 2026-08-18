@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G290 — Eksik "i" metinleri + buton boyutu — OLCUM-I-METINLERI-17-08.md'nin bulduğu 5 boşluk (İlerleme'de hiç "i" yoktu: Rozetler/Zayıf Bölge/Günlük Görevler/İsabet Grafiği; Araçlar'ın Mixini Yükle kartında yoktu) dolduruldu — mevcut 16 "i" metninin TEK SATIRI değişmeden, GENERAL_GUIDE'a 5 YENİ bölüm (XP kazanma/çarpanlar/iki-seviye/sınav-açılış/telafi, OLCUM-XP-17-08 + OLCUM-SINAV-17-08'de ölçülen GERÇEK sayılarla) + 5 YENİ dedike kart-"i"si (TOOLS_UPLOAD_GUIDE/PROGRESS_BADGES_GUIDE/PROGRESS_ZONE_GUIDE/PROGRESS_DAILY_GUIDE/PROGRESS_ACCURACY_GUIDE) eklendi; 3 tekrarlı `openGuideSheet()` dalı CARD_GUIDES lookup'ına indirildi (8 sentinel TEK yerde); Araçlar'ın 3+1 kart butonu + gameInfoBtn'in dokunma alanı GÖRSEL boyut DEĞİŞMEDEN (invisible ::before) 44×44'e büyütüldü (mod kartı ızgarasındaki rozet dense-grid taşma riski yüzünden BİLEREK dokunulmadı); `progress.js`'in bayat "yedi mod sınavı desteklemiyor" yorumu düzeltildi (12/12). npm test 1551/1551, e2e 84/84)
+Son güncelleme: 18.08.2026 (G291 — Satın alma sonrası bayat UI durumu — OLCUM-UC-18-08.md madde A'nın bulduğu bug düzeltildi: `updateStartBtnLabel()` artık `blockIfLivesOut()` ile AYNI Pro-kontrolünü yapıyor (ikon Pro'da sonsuza dek "▶" donmuyor); satın alma sonrası oyun ekranına dönüşte (`#buyProBtn`'in başarılı dalı) `#feedbackOverlay`/`#feedbackBox` artık temizleniyor (ekranı engellemiyor — İLK denemede `teardownActiveRound()`'a eklenmişti, bu `e2e/feedback-panel-reset.spec.mjs`'i kırdığı için doğru yere, satın-alma-dönüş anına taşındı); `syncDevUI()`'ye `renderHearts()`/`renderGameHeader()` eklendi (can göstergesi artık Pro'da bayat kalmıyor — G186/#36/Bug#40 ailesinin 4. örneği). Aynı-hata-sınıfı taraması tamamlandı, YENİ bulgu yok. `e2e/purchase-stale-ui.spec.mjs` (2 test, kırmızı/yeşil doğrulandı) eklendi. npm test 1551/1551, e2e 86/86 (bilinen, kod-bağımsız bir `ear-buttons.spec.mjs` flaky'si hariç — main'de de reprodüklendi))
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,36 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G291 — **Satın alma sonrası bayat UI durumu (OLCUM-UC-18-08.md madde A'nın bulduğu bug). AYRI commit.**
+
+**SORUN (OLCUM-UC-18-08 madde A):** Canlar bitti → paywall açıldı → Pro satın alındı → oyuna dönüldü senaryosunda: (1) play/pause ikonu (`#startBtn`) çalan bir round'da bile "▶" (Oynat) göstermeye devam ediyordu, (2) `#feedbackOverlay` (son cevabın show-result kartı) ekranı kaplayıp hiçbir tıklamayı geçirmiyordu, (3) can göstergesi (`#hearts`) Pro'da eski/yanlış durumda kalabiliyordu.
+
+**Kök sebep (Playwright'ta ölçüldü):**
+1. `updateStartBtnLabel()` (app.js:2330) `!activeQuestion || currentLives<=0` kontrolü yapıyordu — `blockIfLivesOut()`'un (app.js:1630) `isUserPro() || currentLives > 0` mantığından FARKLI. Pro'da `currentLives` hiçbir yerde yeniden doldurulmuyor (can sistemi Pro'da hiç işlemiyor, DOKUNULMADI) — canlar 0'dayken Pro alınırsa bu sayı sonsuza kadar 0'da donuk kalıyor, ikon her zaman "idle" dalına düşüyordu.
+2. `finalizeIfGameOver()`/`blockIfSessionLimitReached()` → `teardownActiveRound()` → `openPaywallReason()` zincirinde (livesOut/sessionLimit, `endsRound:true`) round `pauseRound()` ÜZERİNDEN DEĞİL doğrudan teardown ile bitiyor — `pauseRound()`'un `#feedbackBox`/`#feedbackOverlay` temizleme satırları (app.js:5934-5935) bu yolda hiç çalışmıyordu.
+3. `syncDevUI()` (Pro durumu her değiştiğinde çağrılan TEK yeniden-senkron noktası, G186/#36/Bug#40'ın kurduğu desen) `renderHearts()`/`renderGameHeader()`'ı hiç çağırmıyordu — ikisi de ÖNCEDEN sadece `updateUI()`'nin (cevap-sonrası) içindeydi.
+
+**Yapılan:**
+1. `updateStartBtnLabel()` (app.js:2330) — koşul `!activeQuestion || (!isUserPro() && currentLives <= 0)` oldu, `blockIfLivesOut()`'un AYNI ifadesi.
+2. **İlk denemede** `teardownActiveRound()`'a feedback-panel temizliği eklendi — ama bu, `e2e/feedback-panel-reset.spec.mjs`'in ÖNKOŞULUNU (yanlış cevap sonrası panelin `show-result` OLMASI gerektiğini, "asıl bug'ı test etmek için") kırdı, çünkü `teardownActiveRound()` paywall AÇILMADAN ÖNCE, yanlış cevabın hemen ardından çalışıyor. **Düzeltildi:** temizlik `teardownActiveRound()`'dan ÇIKARILDI, bunun yerine `#buyProBtn`'in satın-alma-başarılı dalına (app.js:9640 civarı, `resumePausedRoundForPaywall()`'dan hemen sonra, `goBackFromSubpage()`'den ÖNCE) taşındı — TAM olarak "satın alma sonrası oyun ekranına DÖNÜŞ" anında çalışıyor, ne daha erken (eski testin önkoşulunu bozmuyor) ne daha geç. `endsRound:false` yolunda zaten `pauseRound()` tarafından temizlendiği için burada TEKRARI zararsız (idempotent).
+3. `syncDevUI()` (app.js:9118) sonuna `renderHearts()` + `renderGameHeader()` eklendi — `renderAnalysis()`/`renderDailyTip()`/`renderFaq()`'in AYNI satırına, AYNI yere.
+
+**⚠️ AYNI HATA SINIFI taraması (istenen madde):** app.js'teki 70 `isUserPro()` çağrı noktası tarandı. `syncDevUI()`'nin ÖNCEDEN çağırmadığı, Pro-durumu-değişince-bayatlayabilecek İKİ fonksiyon bulundu: `renderHearts()`/`renderGameHeader()` (yukarıda düzeltildi). Bunların DIŞINDA YENİ bir bulgu YOK — tarama sonucu kapsam genişletme sorusu GEREKMEDİ.
+
+**Testler:** YENİ `e2e/purchase-stale-ui.spec.mjs` (2 test) — KABUL KRİTERİ (canlar bitir → paywall → Pro al → oyuna dön → feedback overlay kapalı + hearts container gizli + `▶`'a basınca round GERÇEKTEN başlayıp `⏸` gösteriyor) + REGRESYON KORUMASI (Pro OLMAYAN kullanıcıda can bitince `▶` idle davranışı DEĞİŞMEDİ). `kesim-noktasi` modu kasıtlı seçildi (tier:"free", THREE_WAY export ETMİYOR — `#startBtn` round aktifken gizlenmiyor, asıl bug'ın görünür olduğu temsili mod). Yanlış cevap seçimi `answerCorrectChoice()`'ın (app-fixtures.mjs) AYNI index-bazlı, mod-agnostik deseniyle (`.ans`'ların N. elemanı `__aeaActiveQuestionChoices()`'ın N. elemanına birebir karşılık gelir) — mod-özel `data-*` alanı bilgisine ihtiyaç duymuyor.
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/js/app.js` → yeni testin KABUL KRİTERİ'si `#feedbackOverlay satın alma sonrası AÇIK KALMAMALIYDI` iddiasında KIRMIZI (`true !== false`) → `git stash pop` → YEŞİL (2/2).
+
+**Regresyon bulundu ve düzeltildi (ilk deneme sırasında):** İlk taslak (`teardownActiveRound()`'a doğrudan ekleme) tam suit koşusunda 2 mevcut testi kırdı — `e2e/feedback-panel-reset.spec.mjs` (yukarıda açıklanan önkoşul çakışması) ve `e2e/paywall-flow.spec.mjs`'in "madde 30 cevaplama yolu" testi (`#gameQMax` "5"/"10" — bu İKİNCİSİ, izole çalıştırıldığında hem eski hem yeni koda karşı GEÇTİĞİ için, tam-suit yükü altındaki bir yarış durumu/gürültü olarak değerlendirildi, koddan bağımsız). Fix'in konumu değiştirildikten sonra HER İKİSİ de tekrar geçti.
+
+**⚠️ Ortamsal flaky test bulundu (bu turun kapsamı DIŞINDA, DOKUNULMADI):** `e2e/ear-buttons.spec.mjs`'in "Boost/Cut (katman 3)" testi (`elementFromPoint` ile kulak-butonu kırpma ölçümü) tam suit koşusunda ve İZOLE çalıştırıldığında ARADA BİR başarısız oluyor — hem bu turun DEĞİŞTİRDİĞİ app.js hem de DEĞİŞTİRİLMEMİŞ `main` (git stash ile doğrulandı) AYNI şekilde flakelıyor. G291'in kapsamıyla İLİŞKİSİZ, bu turda dokunulmadı, sadece kayıt düşülüyor.
+
+**Test sonuçları:** `npm test` 1551/1551 (DEĞİŞMEDİ — app.js unit-test kapsamında değil). `npm run test:e2e` 86/86 (84 eski + 2 yeni) — yukarıdaki bilinen flaky test dışında, birden fazla tam-suit koşusunda tekrarlanabilir biçimde.
+
+**DOKUNULMAYACAK'a uyuldu:** `blockIfLivesOut()` — okunmadı bile değiştirilmedi, sadece AYNI ifadesi başka bir fonksiyona kopyalandı. Satın alma akışının KENDİSİ (`iap.purchasePro()`/`grantRealPro()`'nun mantığı/`result.ok` dallanması) TEK SATIR değişmedi — SADECE başarılı dala, MEVCUT `resumePausedRoundForPaywall()`/`goBackFromSubpage()` çağrılarının ARASINA, UI-temizlik satırı eklendi. Can sistemi mantığı/zorluk eğrisi/XP formülü — dokunulmadı.
+
+---
 
 G290 — **Eksik "i" metinleri + buton boyutu (OLCUM-I-METINLERI-17-08.md'nin bulduğu boşluklar). AYRI commit.**
 
@@ -20953,6 +20983,18 @@ seviye başlığı × 6 rozet, tam karşılaştırma) — "Altın Kulak" TEK ör
 
 ## BEKLEYEN KARARLAR
 
+**X. OLCUM-UC-18-08 madde B/C — zorluk eğrisi değişimi + tekrar önleme, HANGİSİ 1.1'e alınacak?**
+Ölçüm raporu (`OLCUM-UC-18-08.md`) HAZIR, kod değişikliği YAPILMADI —
+ikisi de ürün kararı gerektiriyor:
+- **Madde B (zorluk eğrisi):** tek-mod değişikliği düşük risk, tüm-mod
+  değişikliği daha yüksek iş yükü/test-kapsamı taşıyor (rapordaki
+  dosya/satır/test tablosuna bkz.). Logic 1.1'de değiştirmek istiyorsa
+  HANGİ mod(lar) ve NE YÖNDE (kolaylaştırma/zorlaştırma) belirtilmeli.
+- **Madde C (tekrar önleme):** 12 modun soru-uzayı tablosu ve önerilen
+  N-değerleri raporda — K=2 (ikili eksen) olan modlarda SIKI tekrar-
+  önleme modu ÇÖZÜLEBİLİR hale getirebilir (raporun uyarısı), bu yüzden
+  hangi modlarda uygulanacağı/N değerleri kullanıcı kararı gerektiriyor.
+
 **W. G206 — Pro Plus, sınav/parkur sistemine hiç DAHİL DEĞİL — dahil edilsin mi?**
 Ölçüldü: Frekans Bulma'nın Pro Plus zorluğu (`submitProPlusGuess`)
 `handleExamOutcome()`'u hiç çağırmıyor — bu yüzden Pro+exam-enabled bir
@@ -21209,7 +21251,25 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G290 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G291 itibarıyla):**
+OLCUM-UC-18-08 madde A'nın bulduğu satın-alma-sonrası bayat UI durumu
+düzeltildi: play/pause ikonu artık Pro'da donuk kalmıyor, feedback paneli
+satın alma dönüşünde ekranı engellemiyor, can göstergesi doğru. Aynı hata
+sınıfı (G186/#36/Bug#40) taraması TAMAMLANDI — bulunan iki eksik
+(`renderHearts()`/`renderGameHeader()`) zaten bu turda kapatıldı, YENİ bir
+bulgu yok. **AÇIK madde:** OLCUM-UC-18-08 madde B (zorluk eğrisi değişim
+maliyeti) ve madde C (tekrar önleme) — İKİSİ DE ölçüm raporunda (bkz.
+`OLCUM-UC-18-08.md`) iş yükü/risk tahminiyle belgelendi ama HENÜZ
+uygulanmadı; ikisi de ÜRÜN KARARI bekliyor (bkz. BEKLEYEN KARARLAR).
+`e2e/ear-buttons.spec.mjs`'in "Boost/Cut (katman 3)" testi ortamsal
+flaky (kod bağımsız, `main`'de de reprodüklendi) — bu turun kapsamı
+DIŞINDA bırakıldı, ayrıca araştırma gerektirir.
+`npm test` 1551/1551, `npm run test:e2e` 86/86 (bilinen flaky hariç).
+**Kullanıcının/Logic'in sıradaki adımı:** OLCUM-UC-18-08 madde B/C'yi
+okuyup hangisinin (varsa) 1.1'e alınacağına karar vermek — ikisi de kod
+değişikliği DEĞİL, ürün kararı gerektiriyor.
+
+**EN YENİ SIRADAKİ ADIM (G290 itibarıyla, ARTIK ESKİ):**
 OLCUM-I-METINLERI-17-08'in bulduğu "i" boşlukları kapandı — İlerleme
 sekmesinin 4 kartı (Rozetler/Zayıf Bölge Raporu/Günlük Görevler/İsabet
 Grafiği) ve Araçlar'ın Mixini Yükle kartı artık "i" taşıyor, GENERAL_GUIDE
