@@ -119,9 +119,9 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
     }
   });
 
-  it("reverb: SADECE gitar/clean_guitar/arpeggio_guitar/vokal/snare/groove/upload — kick/hihat/tom/synth/bas KASITLI dışarıda (G270: clean_guitar/arpeggio_guitar eklendi)", () => {
+  it("reverb: SADECE gitar/clean_guitar/arpeggio_guitar/vokal/vokal2/snare/groove/upload — kick/hihat/tom/synth/bas KASITLI dışarıda (G270: clean_guitar/arpeggio_guitar eklendi, G295: vocal_1 eklendi)", () => {
     const meta = reverb.getMeta();
-    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["arpeggio_guitar", "clean_guitar", "groove", "guitar", "snare", "upload", "vocal"].sort());
+    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["arpeggio_guitar", "clean_guitar", "groove", "guitar", "snare", "upload", "vocal", "vocal_1"].sort());
   });
 
   it("tonal-denge: SADECE groove/upload (dolu mix bağlamı) — KASITLI dar liste", () => {
@@ -192,6 +192,53 @@ describe("source-catalog — G270 YENİ kaynak: arpeggio_guitar", () => {
   // ilişkisi kalktı, yukarıdaki testler hâlâ geçerli.
   it("arpeggio_guitar artık HİÇBİR SOURCE_PAIRS çiftinde kullanılmıyor (G288)", () => {
     assert.ok(!SOURCE_PAIRS.some(p => p.sourceA === "arpeggio_guitar" || p.sourceB === "arpeggio_guitar"));
+  });
+});
+
+// G295 — YENİ kaynak: vocal_1 (Vokal 2, ikinci vokal alımı). "vocal" ile
+// BİREBİR AYNI uyumluluk muamelesi (Pan/Reverb'ün ELLE listesinde, Tonal
+// Denge'de YOK — "vocal" zaten o listede değil).
+describe("source-catalog — G295 YENİ kaynak: vocal_1 (Vokal 2)", () => {
+  it("SOURCE_GROUPS'ta doğru alanlarla tanımlı — sample/samplePath/label, pairOnly/stereoOnly YOK", () => {
+    const s = findSource("vocal_1");
+    assert.ok(s, "vocal_1 bulunamadı");
+    assert.equal(s.kind, "sample");
+    assert.equal(s.samplePath, "audio/vocal_1.m4a");
+    assert.equal(typeof s.label, "string");
+    assert.ok(s.label.length > 0);
+    assert.ok(!s.stereoOnly, "mono dosya — stereoOnly OLMAMALI");
+    assert.ok(!s.pairOnly, "normal kaynak — pairOnly OLMAMALI");
+    assert.ok(!s.noTransient);
+  });
+
+  it("kısıtlaması olmayan TÜM 'frekans-genel' modlarda (frekans-bulma/kesim-noktasi/db-seviyesi/boost-mu-cut-mu/q-genisligi) OTOMATİK mevcut", () => {
+    for (const mod of [frekansBulma, kesimNoktasi, dbSeviyesi, boostMuCutMu, qGenisligi]) {
+      assert.ok(mod.getMeta().uyumluKaynaklar.includes("vocal_1"));
+    }
+  });
+
+  it("kompresor'da mevcut (parametresiz requireTransient — vocal noTransient DEĞİL)", () => {
+    assert.ok(kompresor.getMeta().uyumluKaynaklar.includes("vocal_1"));
+  });
+
+  it("distortion'da mevcut (parametresiz compatibleSourceIds)", async () => {
+    const distortion = await import("../www/js/modes/distortion.js");
+    assert.ok(distortion.getMeta().uyumluKaynaklar.includes("vocal_1"));
+  });
+
+  it("Pan Konumu VE Reverb'ün ELLE seçilmiş listelerine EKLENDİ ('vocal' ile AYNI gerekçe)", async () => {
+    const panKonumu = await import("../www/js/modes/pan-konumu.js");
+    assert.ok(panKonumu.getMeta().uyumluKaynaklar.includes("vocal_1"));
+    assert.ok(reverb.getMeta().uyumluKaynaklar.includes("vocal_1"));
+  });
+
+  it("Tonal Denge'nin listesine BİLEREK EKLENMEDİ ('vocal' zaten o listede YOK — mod hiçbir tek-enstrüman kaynağı almıyor)", () => {
+    assert.ok(!tonalDenge.getMeta().uyumluKaynaklar.includes("vocal_1"));
+  });
+
+  it("Stereo Genişlik'in listesine EKLENMEDİ (mono dosya)", async () => {
+    const stereoGenislik = await import("../www/js/modes/stereo-genislik.js");
+    assert.ok(!stereoGenislik.getMeta().uyumluKaynaklar.includes("vocal_1"));
   });
 });
 

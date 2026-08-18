@@ -636,14 +636,14 @@ describe("Reverb — getMeta() sözleşme alanları", () => {
     assert.equal(meta.aciklama, undefined);
   });
 
-  it("G43: ELLE seçilmiş açık liste — SADECE gitar/clean_guitar/arpej gitar/vokal/snare/davul döngüsü/upload kalır (G270: clean_guitar/arpeggio_guitar eklendi)", () => {
+  it("G43: ELLE seçilmiş açık liste — SADECE gitar/clean_guitar/arpej gitar/vokal/vokal2/snare/davul döngüsü/upload kalır (G270: clean_guitar/arpeggio_guitar eklendi, G295: vocal_1 eklendi)", () => {
     const meta = mode.getMeta();
-    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["arpeggio_guitar", "clean_guitar", "groove", "guitar", "snare", "upload", "vocal"]);
+    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["arpeggio_guitar", "clean_guitar", "groove", "guitar", "snare", "upload", "vocal", "vocal_1"]);
   });
 
-  it("gerçek mixte reverb VERİLEN kaynaklar (gitar/clean_guitar/arpej gitar/vokal/snare/davul döngüsü + upload) kalır", () => {
+  it("gerçek mixte reverb VERİLEN kaynaklar (gitar/clean_guitar/arpej gitar/vokal/vokal2/snare/davul döngüsü + upload) kalır", () => {
     const meta = mode.getMeta();
-    for (const id of ["guitar", "clean_guitar", "arpeggio_guitar", "vocal", "snare", "groove", "upload"]) {
+    for (const id of ["guitar", "clean_guitar", "arpeggio_guitar", "vocal", "vocal_1", "snare", "groove", "upload"]) {
       assert.ok(meta.uyumluKaynaklar.includes(id), `${id} listede olmalıydı`);
     }
   });

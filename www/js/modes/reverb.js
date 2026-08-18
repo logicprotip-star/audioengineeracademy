@@ -276,7 +276,9 @@ export function getMeta() {
     // (YENİ kaynak) eklendi — İKİSİ de "guitar" ile AYNI mix-pratiği
     // gerekçesini karşılıyor (gitar/arpej doku, gerçek mixte reverb ÇOK sık
     // verilen bir kaynak — arpej desenler klasik reverb-dostu doku).
-    uyumluKaynaklar: compatibleSourceIds({ only: ["guitar", "clean_guitar", "arpeggio_guitar", "vocal", "snare", "groove", "upload"] }),
+    // G295 — "vocal_1" eklendi, "vocal" ile AYNI gerekçe (ikinci vokal alımı,
+    // aynı "klasik reverb kaynağı" mix-pratiği).
+    uyumluKaynaklar: compatibleSourceIds({ only: ["guitar", "clean_guitar", "arpeggio_guitar", "vocal", "vocal_1", "snare", "groove", "upload"] }),
     // NOT (Kompresör'le AYNI karar): mode-catalog.js'te tier:"pro" — ama bu
     // alan GERÇEK kilitlemede KULLANILMIYOR (asıl kaynak mode-catalog.js'in
     // `tier` alanı), mevcut altı modun HEPSİYLE tutarlı kalmak için true.

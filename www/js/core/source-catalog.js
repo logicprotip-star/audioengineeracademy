@@ -71,6 +71,12 @@ export const SOURCE_GROUPS = [
       // BİREBİR AYNI (~194 Hz, AYNI enstrüman/akort) — desc bunu YANSITIYOR.
       { id: "arpeggio_guitar", label: "Arpej Gitar", kind: "sample", samplePath: "audio/arpeggio_guitar.m4a", desc: "Akustik gitar, arpej deseni — alt-orta, ölçülen tepe ~194 Hz" },
       { id: "vocal", label: "Vokal", kind: "sample", samplePath: "audio/vocal.m4a", desc: "Lead vokal frazı — orta bölge" },
+      // G295 — YENİ: ikinci vokal alımı, 8 bar/24.6sn (diğer davul/enstrüman
+      // kaynaklarıyla AYNI uzunluk — "vocal"ın 6.15sn'lik kısa frazından
+      // FARKLI). Bayrak/only listesi "vocal" ile BİREBİR AYNI tutuldu (bkz.
+      // reverb.js/pan-konumu.js only listeleri) — Tonal Denge'de İKİSİ de YOK
+      // (o mod zaten HİÇBİR tek-enstrüman kaynağı almıyor, sadece groove/upload).
+      { id: "vocal_1", label: "Vokal 2", kind: "sample", samplePath: "audio/vocal_1.m4a", desc: "İkinci lead vokal alımı — orta bölge, çok-formantlı" },
       // G259 — YENİ, stereo. `stereoOnly:true` — compatibleSourceIds()'in
       // varsayılan (parametresiz) yolundan BİLEREK dışlanır (bkz. aşağı),
       // SADECE `only` ile açıkça isteyen bir mod (Stereo Genişlik) görür —

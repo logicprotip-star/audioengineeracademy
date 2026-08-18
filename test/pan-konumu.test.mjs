@@ -293,6 +293,9 @@ describe("Pan Konumu — getMeta() sözleşme alanları", () => {
     // (sürekli/uzayan enstrüman sesi, tek-vuruş DEĞİL) karşılıyor.
     assert.ok(meta.uyumluKaynaklar.includes("clean_guitar"), "clean_guitar eklenmeliydi (G270)");
     assert.ok(meta.uyumluKaynaklar.includes("arpeggio_guitar"), "arpeggio_guitar eklenmeliydi (G270)");
+    // G295 — vocal_1 (Vokal 2), "vocal" ile AYNI gerekçeyle (sürekli/uzayan
+    // vokal frazı) eklendi.
+    assert.ok(meta.uyumluKaynaklar.includes("vocal_1"), "vocal_1 eklenmeliydi (G295, vocal ile AYNI gerekçe)");
     assert.equal(meta.choiceOnly, true);
     for (const level of Object.keys(meta.difficulty)) {
       assert.ok(typeof meta.difficulty[level].lives === "number");

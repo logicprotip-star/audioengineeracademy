@@ -149,7 +149,9 @@ export function getMeta() {
     // enstrüman sesi (tek-vuruş DEĞİL), pan/genişlik algısı için yeterli.
     // Davul kaynakları (kick/snare/hihat/tom) BİLEREK EKLENMEDİ (task'ın
     // kendi sınırı + G43'ün KİLİTLİ kararı, dokunulmadı).
-    uyumluKaynaklar: compatibleSourceIds({ only: ["pink", "white", "saw", "square", "triangle", "groove", "bass", "guitar", "clean_guitar", "arpeggio_guitar", "vocal", "upload"] }),
+    // G295 — "vocal_1" eklendi, "vocal" ile AYNI gerekçe (sürekli/uzayan
+    // vokal frazı, tek-vuruş değil).
+    uyumluKaynaklar: compatibleSourceIds({ only: ["pink", "white", "saw", "square", "triangle", "groove", "bass", "guitar", "clean_guitar", "arpeggio_guitar", "vocal", "vocal_1", "upload"] }),
     // Diğer on bir modun AYNI kararı — bu alan GERÇEK kilitlemede
     // kullanılmıyor (grep ile doğrulandı, tek gerçek kaynak core/paywall.js:
     // FREE_MODE_IDS + mode-catalog.js:tier, bkz. frekans-cakismasi.js'in
