@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G296 — OLCUM-GUVENLIK-18-08.md güvenlik/dayanıklılık denetiminin 2 bulgusu düzeltildi: (1) kullanıcının dosya adını taşıyan 4 koşulsuz console.log satırı DEV_MODE'a alındı, (2) decode BAŞARILI olup gerçek ses TAŞIMAYAN dosyalar (0sn/kesik/tamamen sessiz) artık reddediliyor — yeni SAF fonksiyon `evaluateDecodedAudio()`, eşikler ölçülüp gerekçelendirildi (MIN_AUDIO_DURATION_SEC=0.1sn, SILENCE_PEAK_THRESHOLD=-66dBFS). İKİ AYRI commit (`2021b05`/`5472fd8`). YENİ `e2e/filename-log-devmode.spec.mjs` (2 test, page.route() ile DEV_MODE=false simüle edildi) + `e2e/corrupt-file-upload.spec.mjs` (6 test, gerçek WAV dosyalarıyla). npm test 1618/1618, e2e 112/112. Detay: aşağı BİTTİ bölümü G296.)
+Son güncelleme: 18.08.2026 (G297 — İlerleme sekmesi: OLCUM-ILERLEME-TASARIM-18-08.md'nin ÖLÇÜP REDDETTİĞİ tam kart-ızgarası YERİNE önerdiği ucuz alternatif uygulandı — Günlük Görevler/Zayıf Bölge Raporu artık VARSAYILAN KAPALI (diğer 3 kartla tutarlı), 4 karta GERÇEK VERİDEN gelen kapalı-durumda-da-görünen özet eklendi ("%73"/"Bas %32"/"X/12 mod"/"N cevap", boş durumlar ölçülüp belirlendi), Son Cevaplar (ham/kronolojik log) sıralamada EN SONA taşındı. Akordiyon mekanizmasına/4 "i" butonuna/`.mode-grid` CSS'ine DOKUNULMADI — `e2e/guide-sheet-new-buttons.spec.mjs`'in 4 testi DEĞİŞMEDEN geçiyor. 375px'de taşma YOK (gerçek Playwright ölçümü, çocuk-eleman bounding-box'larıyla — scrollWidth'in bilinen flex+margin:auto artefaktından etkilenmeyen yöntemle). YENİ `e2e/progress-summary-collapsed.spec.mjs` (5 test). npm test 1618/1618 (değişmedi), e2e 117/117 (112+5). Detay: aşağı BİTTİ bölümü G297.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,98 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G297 — **İlerleme sekmesi: kapalı kartlar + gerçek veriden özet + sıralama (`39969e5`). TEK commit.**
+
+**Görev:** Logic'in gözlemi: İlerleme sekmesi uzun bir liste, kullanıcı hangi
+bilginin önemli olduğunu ayırt edemiyor. Tam kart-ızgarasına geçiş ÖNCEKİ
+turda ÖLÇÜLDÜ ve REDDEDİLDİ (`OLCUM-ILERLEME-TASARIM-18-08.md`: ~700-950
+satır, YÜKSEK risk, `e2e/guide-sheet-new-buttons.spec.mjs`'in 4 testinden
+3'ü kırılır, `.mode-grid`/`.mode-card` paylaşımı Ana Menü'ye sızma riski
+taşır) — ölçümün önerdiği ucuz alternatif (mevcut akordiyon altyapısı,
+sıfır yeni bileşen) bu turda uygulandı.
+
+**1) VARSAYILAN KAPALI:** Günlük Görevler + Zayıf Bölge Raporu (`index.html`)
+önceden `dailyWrap`/`zoneWrap2`'nin `hidden` sınıfı OLMADAN, chevron'ları
+`rotate(180deg)` İLE başlıyordu (varsayılan AÇIK) — ikisi de artık diğer 3
+kart (Son Cevaplar/Rozetler/Mod Seviyeleri) ile TUTARLI, `hidden` ile
+başlıyor. `bindCollapsiblePanel()`'in KENDİSİNE (mekanizma) DOKUNULMADI —
+SADECE başlangıç HTML durumu değişti.
+
+**2) ÖZET SATIRI (EN ÖNEMLİ madde):** Kart KAPALIYKEN de görünen (header
+satırında, `wrap`'ın DIŞINDA), GERÇEK veriden gelen dinamik özetler
+eklendi/güncellendi:
+- **İsabet Grafiği** (`renderAccuracyChart()`): statik "son 30 gün" →
+  dinamik "%73" (bugünün isabeti — grafiğin KENDİ `hasChart` eşiğiyle
+  [>=3 gün veri] AYNI koşulda hesaplanıyor, altındaysa "Henüz veri yok").
+- **Zayıf Bölge Raporu** (`renderZonePanel()`): statik "6 bölge" → dinamik
+  "Bas %32" (en zayıf bölge — fonksiyonun KENDİ ZATEN VAR OLAN `enough`
+  [n>=2] eşiğiyle, hiçbir bölgede yeterli veri yoksa "Henüz veri yok").
+- **Mod Seviyeleri** (`renderModeLevels()`): özet HİÇ yoktu → "X/12 mod"
+  (en az 1 tur oynanmış mod sayısı — Rozetler'in "0/9"uyla AYNI "0 kendi
+  kendini açıklıyor" kalıbı, AYRI bir boş-durum metni GEREKMEDİ — bu bir
+  SAYIM, "hesaplanamıyor" durumu değil).
+- **Son Cevaplar** (`renderHistory()`): özet HİÇ yoktu → "N cevap" (0'da
+  "Henüz cevap yok" — Mod Seviyeleri'nden FARKLI olarak burada AYRI bir
+  boş-durum metni GEREKTİ, çünkü "0 cevap" tek başına "hiç" anlamını
+  yeterince taşımıyordu, task'ın kendi "0/9" örneğinden farklı bir durum).
+- Günlük Görevler (`dailyCounter`) ve Rozetler (`achievementCount`) ZATEN
+  dinamikti (header'da, wrap'ın dışında) — G297 bunlara DOKUNMADI.
+
+**375px doğrulaması (GERÇEK Playwright ölçümü, tahmin DEĞİL):** En uzun
+gerçekçi metin senaryosu ("Üst-orta %100" — en uzun bölge adı + 3 haneli
+yüzde) üretilip her kart başlığının ÇOCUK elemanlarının bounding-box'ları
+(`getBoundingClientRect()`) satırın kendi kenarlarını AŞIYOR MU diye
+KONTROL EDİLDİ — HİÇBİRİ taşmadı. **Yan bulgu:** `accChartInfoBtn`'in
+`scrollWidth` (320) `clientWidth`'ten (309) BÜYÜK çıkıyor (11px "fark") —
+ama bu METİNDEN BAĞIMSIZ (statik "son 30 gün" İLE de AYNI fark ölçüldü) ve
+"i" butonunun GERÇEK sağ kenarı satırın kendi sağ kenarıyla BİREBİR
+eşleşiyor (`getBoundingClientRect` ile doğrulandı) — GERÇEK bir görsel
+taşma DEĞİL, `display:flex` + `margin-left:auto` kombinasyonunun bilinen
+bir `scrollWidth` ölçüm artefaktı. Bu yüzden e2e testinde `scrollWidth`
+YERİNE çocuk-eleman bounding-box karşılaştırması kullanıldı (GERÇEK
+görsel taşmayı doğru yakalıyor, bu artefakttan ETKİLENMİYOR).
+
+**3) SIRALAMA:** ESKİ sıra: Günlük Görevler → Son Cevaplar → İsabet
+Grafiği → Zayıf Bölge Raporu → Rozetler → Mod Seviyeleri. **Sorun:** "Son
+Cevaplar" (ham/kronolojik log, EN AZ özetlenmiş öğe) herhangi bir ÖZET/
+teşhis kartından ÖNCE, ikinci sırada duruyordu — Logic'in "hangi bilgi
+önemli ayırt edemiyorum" şikayetiyle DOĞRUDAN çelişiyordu. **YENİ sıra:**
+Günlük Görevler (bugün YAPILACAK, aksiyona en yakın) → İsabet Grafiği
+(genel nabız — "gelişiyor muyum") → Zayıf Bölge Raporu (o nabzın NEDENİ —
+"nereye odaklanmalıyım") → Rozetler (motivasyon/başarı) → Mod Seviyeleri
+(mod-bazlı, daha granüler referans) → Son Cevaplar (ham kronolojik log,
+EN AZ özetlenmiş olduğu için EN SONA). Hiçbir kartın İÇERİĞİ/kimliği
+DEĞİŞMEDİ — SADECE 6 bloğun DOM sırası.
+
+**Testler:** YENİ `e2e/progress-summary-collapsed.spec.mjs` (5 test):
+tüm akordiyonlar KAPALI başlıyor (+ satıra tıklayınca mekanizmanın hâlâ
+ÇALIŞTIĞI kontrolü), her kartta gerçek-veri özeti görünüyor (sabit metin
+DEĞİL), boş durumda anlamlı metin (NaN/undefined YOK), 375px'de HİÇBİR
+başlıkta taşma yok, sıralama DOM'da beklenen sırada. **MEVCUT
+`e2e/guide-sheet-new-buttons.spec.mjs`'in 4 testi HİÇ DEĞİŞTİRİLMEDEN
+geçti** (KİLİT'in istediği — bu dosya G297'den DOKUNULMADAN korundu).
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/index.html www/js/app.js`
+→ 5 testin TAMAMI KIRMIZI (kapalı-durum assertion'ları eski "açık" HTML'e
+karşı başarısız, `#recentSummary`/`#zoneSummary`/vb. elemanlar YOK, DOM
+sırası eski haliyle uyuşmuyor) → `git stash pop` → 5/5 YEŞİL + `guide-
+sheet-new-buttons`/`menu-scroll-position`'ın 9 testi de YEŞİL kaldı (14/14
+toplam).
+
+**Test sonuçları:** `npm test` 1618/1618 (DEĞİŞMEDİ — bu iş SADECE
+HTML+DOM-render katmanına dokundu). `npm run test:e2e` 117/117 (112+5
+yeni, KİLİT'in istediği 112'nin ÜSTÜNDE).
+
+**DOKUNULMAYACAK'a uyuldu:** Akordiyon mekanizmasının kendisi
+(`bindCollapsiblePanel`) DEĞİŞMEDİ. Bugün eklenen 4 "i" butonu VE
+`e2e/guide-sheet-new-buttons.spec.mjs`'in 4 testi DEĞİŞMEDEN, KIRILMADAN
+geçti. `.mode-grid`/`.mode-card` CSS'i HİÇ KULLANILMADI/paylaşılmadı —
+SIFIR yeni CSS satırı (tamamen mevcut `.prog-card-count` sınıfı yeniden
+kullanıldı). İlerleme'deki öğelerin İÇERİĞİ (render fonksiyonlarının ana
+mantığı) ve zorluk eğrisine dokunulmadı.
+
+---
 
 G296 — **OLCUM-GUVENLIK-18-08.md'nin 2 bulgusu düzeltildi: dosya adı loglama + bozuk dosya reddi. İKİ AYRI commit.**
 
@@ -21389,7 +21481,21 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G296 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G297 itibarıyla):**
+İlerleme sekmesinin "uzun liste, önemli bilgi ayırt edilemiyor" sorunu
+tam kart-ızgarasına geçmeden (o seçenek ÖLÇÜLÜP REDDEDİLMİŞTİ, bkz. G296
+öncesi OLCUM-ILERLEME-TASARIM-18-08.md), mevcut akordiyon altyapısıyla
+ele alındı: tüm kartlar varsayılan kapalı, 4 karta gerçek-veriden özet,
+sıralama gözden geçirildi (Son Cevaplar en sona). `npm test` 1618/1618,
+`npm run test:e2e` 117/117.
+**Kullanıcının/Logic'in sıradaki adımı:** (1) `npx cap sync ios` + cihazda
+yeni kapalı-kart/özet davranışını gözden geçirmek (özellikle "Bas %32"/
+"%73" gibi özetlerin gerçek kullanım verisiyle nasıl göründüğünü), (2)
+OLCUM-GUVENLIK-18-08.md'nin AÇIK kalan bulgularına (AdMob/SKAdNetwork,
+aşağı bkz.) karar vermek, (3) OLCUM-UC-18-08 madde B (zorluk eğrisi
+değişim maliyeti) HÂLÂ AÇIK, ürün kararı bekliyor.
+
+**EN YENİ SIRADAKİ ADIM (G296 itibarıyla, ARTIK ESKİ):**
 OLCUM-GUVENLIK-18-08.md'nin 16 maddelik denetiminden 2 somut/aksiyon
 alınabilir bulgu düzeltildi: (1) dosya adı loglayan 4 satır DEV_MODE'a
 alındı, (2) decode başarılı olup gerçek ses taşımayan (0sn/kesik/
