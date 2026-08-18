@@ -146,6 +146,71 @@ BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
 
+G305/G306/G307 — **OLCUM-GENIS-18-08 + OLCUM-SES-BIRIKME-18-08 + OLCUM-
+KESINTI-18-08 + OLCUM-SINAV-MIMARI-18-08'in bulduğu ÜÇ 🔴 bulgu düzeltildi,
+ÜÇ AYRI commit (`a32e162`/`b1c3ff7`/`bc9dd29`).**
+
+**G305 (`a32e162`) — Sınav/telafi sonuç ekranlarının "Ana Ekran"ı artık
+`pauseRound()` çağırıyor.** OLCUM-GENIS madde A1/B1: teklif geldiğinde
+"Ana Ekran"a basılıp AYNI moda tekrar girildiğinde ekran YARIM kalıyordu
+(play tuşu "⏸"de takılı, boş cevap alanı, eski bölüm noktaları, TEK çıkış
+"Atla"). Kök: `showExamScreen()`'in "passed"/"failed"/"makeup"
+handler'ları (`app.js:3176/3193/3218`) G287'de state temizliği almıştı ama
+`pauseRound()`'u (UI/timer/ses sıfırlaması) HİÇ almamıştı — G300'ün
+"AYNI KALIP" taraması bunu SADECE ses açısından kontrol edip "güvenli"
+işaretlediği için bu BEŞİNCİ kapı kaçmıştı. `git log -S` ile doğrulandı:
+`enterMode()`'un "aynı moda dönüşte challenge SIZMAZ" kuralı (`581f798`/
+G174, KİLİT'te korunan) KASITLI — bu yüzden `enterMode()`'a DOKUNULMADI,
+`performExit()`'in G300'de kanıtlanmış deseni (`if (activeQuestion &&
+!autoStopped) pauseRound();`) üç handler'a AYNEN eklendi.
+`e2e/exam-screen-exit-reset.spec.mjs` (2 test). `npm test` 1630/1630,
+`e2e` 130/130.
+
+**G306 (`b1c3ff7`) — Ses örtüşmesi: yeni soru başlarken önceki KESİN
+kesiliyor, "önce/sonra" korundu.** OLCUM-SES-BIRIKME + OLCUM-GENIS madde
+A4: hızlı cevapta sesler üst üste biniyordu. Logic'in kararı: cevaptan
+SONRA ses DEVAM etsin (cakisma aşama-3 karşılaştırması korunur), YENİ SORU
+BAŞLARKEN kesilsin. İki değişiklik: (1) `startRound()`'a (tüm erken-dönüş
+kapıları geçildikten, yeni round KESİN başlamadan hemen önce) koşulsuz
+`audioEngine.stopAudio()` eklendi — 12 modun TAMAMI için TEK, ortak nokta;
+(2) `playQuestion()`'ın cakisma dalı artık `buildDualSourceChain()`'i
+AWAIT EDİYOR (G51'den beri "BİLEREK await edilmiyordu"). Ölçüldü: bir
+"Sonraki" tıklaması `stopAudioCallCount`'u DÜZELTME ÖNCESİ 1, SONRASI TAM 2
+artırıyor (chain-builder'ın kendi çağrısı + startRound()'un yeni çağrısı).
+**Dürüstlük notu:** peak-concurrency/RMS ölçümleri bu Chromium ortamında
+dramatik bir fark GÖSTERMEDİ (stopAudio()'nun 80ms ramp-out kuyruğu zaten
+normal bir kısa örtüşme üretiyor) — commit "stopAudio() artık erken/
+koşulsuz tetikleniyor" iddiasını (ölçülmüş) taşıyor, "RMS'i düşürdü"
+iddiasını TAŞIMIYOR. `e2e/cakisma-question-transition-stop.spec.mjs`
+(2 test). `npm test` 1630/1630, `e2e` 132/132.
+
+**G307 (`bc9dd29`) — Sınav/telafi ilerlemesi artık mod-bazlı ve kalıcı.**
+OLCUM-KESINTI B1-B4 + OLCUM-SINAV-MIMARI: `examSystem` TEK, global bir
+örnekti — moddan çıkıp GERİ dönünce telafi SİLİNİYORDU, uygulama kapanıp
+açılınca da ("TELAFİ 2/5" göstergesi kayboluyordu, Playwright'ta
+doğrulandı). `persistInProgressRound()` sınav/telafi fazında G203'ten beri
+BİLEREK kayıt yapmıyordu (`git log -S` ile doğrulandı: "bilinçli dar
+kapsam" — dokunmadığı bir sistemi yarım kaydetmektense hiç kaydetmemeyi
+seçmişti). İKİ katman: (a) `core/exam-system.js` İÇİNDE mod-başına AYRI
+durum (`perModeState`, İÇ bir Map) — DIŞ API TEK SATIR değişmedi, 36 ESKİ
+test AYNEN geçti; (b) `persistInProgressRound()`'un guard'ı KALDIRILDI,
+YENİ `persistExamProgress()` AYNI "#53" checkpoint'inden (+ her sınav/
+telafi cevabından sonra) `examSystem.getFullSnapshot()`'ı YENİ
+`eqEarTrainerProXExamProgress` anahtarına (G233 şema damgalı) yazıyor,
+açılışta geri yükleniyor. **Beklenmedik olumlu yan etki:** G203'ün KENDİ
+round-kurtarma mekanizması artık telafi turlarını da otomatik screen-
+game'e geri getiriyor. `examLevel`/XP/rozet (`stats.examState[modeId]`)
+HİÇ ETKİLENMEDİ — zaten AYRI, mod-bazlı, kalıcıydı. `test/exam-system.test.mjs`
+(+6), `test/storage.test.mjs` (+8), `e2e/exam-progress-persistence.spec.mjs`
+(4 test). `npm test` 1644/1644, `e2e` 136/136.
+
+**Üçü de git stash ile kırmızı/yeşil doğrulandı, sırayla uygulandı (KİLİT'in
+kendi uyarısı: "üçü birbiriyle çakışabilir" — G306/G307 AYNI dosyaları
+(`app.js`/`exam-system.js`) dokundu ama FARKLI fonksiyonları, çakışma
+YAŞANMADI).**
+
+---
+
 G299 — **OLCUM-CIHAZ3-18-08.md: cihaz testinin 4 bulgusu ölçüldü (kod
 değişmedi, ölçüm turu).** Görev metni "beş bulgu" diyordu ama SADECE A-D
 (dört) lettered bölüm verildi — beşinci bir bulgu İCAT EDİLMEDİ, sadece
@@ -21779,7 +21844,27 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G304 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G307 itibarıyla):**
+OLCUM-GENIS-18-08/OLCUM-SES-BIRIKME-18-08/OLCUM-KESINTI-18-08/OLCUM-SINAV-
+MIMARI-18-08'in bulduğu ÜÇ 🔴 bulgu (yarım ekran+Atla donması, ses
+örtüşmesi, sınav/telafi kalıcılığı) düzeltildi — 3 AYRI commit
+(`a32e162`/`b1c3ff7`/`bc9dd29`), her biri git stash ile doğrulandı. `npm
+test` 1644/1644, `e2e` 136/136. Yayına 6 gün kalmıştı (bu turun kendi
+bağlamı) — üçü de bu pencerede tamamlandı.
+**Kullanıcının/Logic'in sıradaki adımı:** (1) `npx cap sync ios` + cihazda
+ÜÇ düzeltmeyi TEK TEK doğrulamak — özellikle G305 (sınav/telafi teklifinden
+"Ana Ekran"la çıkıp AYNI moda dönünce ekran GERÇEKTEN düzgün mü) ve G307
+(telafi turu başlatıp BAŞKA moda gidip dönünce/uygulamayı kapatıp açınca
+GERÇEKTEN korunuyor mu, kulakla+gözle), (2) OLCUM-KESINTI'nin AÇIK bıraktığı
+BELİRSİZ maddeler (A2/A5/C4/C6/D3/D6/F4 — çoğu düşük risk, bu turda
+DÜZELTİLMEDİ) — kullanıcı isterse AYRI bir tur ister, (3) OLCUM-SINAV-
+MIMARI'nin B3 sorusu (Pro'da can hiç tükenmediği için "canlar bitince
+telafi" senaryosu NEREDEYSE imkânsız — hâlâ BELİRSİZ, ürün kararı
+gerektirebilir), (4) OLCUM-GUVENLIK-18-08.md'nin AÇIK kalan bulgularına
+(AdMob/SKAdNetwork) karar vermek, (5) OLCUM-UC-18-08 madde B (zorluk
+eğrisi değişim maliyeti) HÂLÂ AÇIK.
+
+**EN YENİ SIRADAKİ ADIM (G304 itibarıyla, ARTIK ESKİ):**
 OLCUM-CIHAZ3-18-08.md'nin 4 bulgusunun (A/B: çıkışta ses durmuyor, C:
 vokal2-clean seviyesi, D: snare hizalama) TAMAMI düzeltildi + AYRICA cihazda
 bulunan 2 ek bulgu (kaynak-çifti hatırlama, telafi/sınav çubuğu sırası) — 5
