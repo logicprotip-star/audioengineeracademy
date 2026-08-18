@@ -3173,7 +3173,16 @@ function showExamScreen(kind, ctx = {}) {
     ctaHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
     // G274 — bkz. yukarıdaki "offer" dalının AYNI notu. G287 — AYNI turu-terk-etme kararı (bkz. "announce" dalının notu).
-    secondaryHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
+    // G305 (OLCUM-GENIS-18-08 madde A1/B1) — performExit()'in AYNI koruması
+    // (`if (activeQuestion && !autoStopped) pauseRound();`) EKSİKTİ: bu ekran
+    // "Ana Ekran"a state'i (activeQuestion/kayıt) temizliyordu ama UI'ı HİÇ
+    // sıfırlamıyordu (play/pause ikonu, geri bildirim paneli, timer, "Atla ▶"
+    // metni — pauseRound()'un TEK kontrol noktası, #53). Kullanıcı AYNI moda
+    // tekrar girdiğinde enterMode()'un mode!==realMode bloğu ÇALIŞMADIĞI için
+    // (mod hiç değişmemiş) bu eksiklik hiç telafi edilmiyordu — ekran "⏸"
+    // ikonu/eski cevap barıyla YARIM kalmış görünüyordu (Playwright'ta tam
+    // tekrar üretildi). performExit()'in G300'de kanıtlanmış deseni AYNEN.
+    secondaryHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); if (activeQuestion && !autoStopped) pauseRound(); activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
   } else if (kind === "failed") {
     accent = RED; pillBg = "rgba(248,113,96,.1)"; pillBorder = "rgba(248,113,96,.4)";
     pillIconD = "M6 6l12 12M18 6L6 18"; kicker = "SINAV GEÇİLEMEDİ";
@@ -3190,7 +3199,8 @@ function showExamScreen(kind, ctx = {}) {
     ctaHandler = () => { goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
     // G274 — bkz. yukarıdaki "offer" dalının AYNI notu. G287 — AYNI turu-terk-etme kararı.
-    secondaryHandler = () => { activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
+    // G305 — bkz. "passed" dalının AYNI notu (yukarıda).
+    secondaryHandler = () => { if (activeQuestion && !autoStopped) pauseRound(); activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
   } else { // makeup
     accent = CYAN; pillBg = "rgba(34,211,238,.1)"; pillBorder = "rgba(34,211,238,.35)";
     pillIconD = "M3 12a9 9 0 1 0 2.6-6.3M3 4v5h5"; kicker = "TELAFİ TURU";
@@ -3215,7 +3225,8 @@ function showExamScreen(kind, ctx = {}) {
     ctaHandler = () => { goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
     // G274 — bkz. yukarıdaki "offer" dalının AYNI notu. G287 — AYNI turu-terk-etme kararı.
-    secondaryHandler = () => { activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
+    // G305 — bkz. "passed" dalının AYNI notu (yukarıda).
+    secondaryHandler = () => { if (activeQuestion && !autoStopped) pauseRound(); activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
   }
 
   if (els.exPill) { els.exPill.style.background = pillBg; els.exPill.style.border = `1px solid ${pillBorder}`; }
