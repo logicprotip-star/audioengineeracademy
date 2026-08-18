@@ -217,6 +217,18 @@ describe("createQuestion() — genel sözleşme (SAF, ses/DOM'a dokunmaz)", () =
     });
   }
 
+  // G295 — q.pair'in EL İLE yazılmış obje literali (createQuestion'da) offsetA/
+  // offsetB'yi UNUTMUŞTU (G288'de bulunup düzeltilmişti) — gainA/gainB AYNI
+  // riski taşıyordu (e2e/cakisma-gain-balance.spec.mjs'nin KONTROL 1'i bunu
+  // GERÇEKTEN yakaladı, SAF fonksiyon seviyesinde de burada kilitleniyor).
+  it("q.pair TÜM çiftlerde SOURCE_PAIRS'teki gainA/gainB'yi TAŞIYOR (obje literali gainA/gainB'yi UNUTMAMALI)", () => {
+    for (const pair of SOURCE_PAIRS) {
+      const q = mode.createQuestion("medium", { pairId: pair.id, sessionQuestionIndex: 0, rng: mulberry32(3) });
+      assert.equal(q.pair.gainA, pair.gainA, `${pair.id}: q.pair.gainA SOURCE_PAIRS ile UYUŞMUYOR`);
+      assert.equal(q.pair.gainB, pair.gainB, `${pair.id}: q.pair.gainB SOURCE_PAIRS ile UYUŞMUYOR`);
+    }
+  });
+
   it("settings.pairId='own' iken pair OWN_SOURCE_PAIR'e çözülür, region FA_MIN–400 havuzuna düşer", () => {
     const q = mode.createQuestion("medium", { pairId: "own", sessionQuestionIndex: 0, rng: mulberry32(2) });
     assert.equal(q.pair.id, "own");

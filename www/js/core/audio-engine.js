@@ -123,6 +123,13 @@ export function createAudioEngine() {
   // "bir sonraki buildDualSourceChain'e kadar geçerli" deseni (bkz. setDualCut/
   // setDualSolo).
   let dualFilterA = null, dualFilterB = null, dualGainA = null, dualGainB = null;
+  // G295 — çiftin KENDİ statik dengeleme çarpanı (SOURCE_PAIRS'in gainA/gainB
+  // dB'sinden, OLCUM-CIFT-DENGE-18-08.md'nin ölçtüğü çift-içi seviye
+  // dengesizliğini düzeltmek için). setDualSolo'nun a/b/both hedef
+  // değerleriyle ÇARPILIR (aşağı bkz.) — SIFIR yeni node, sadece mevcut
+  // gainA/gainB GainNode'unun DEĞERİ farklı bir taban noktasından başlıyor/
+  // rampalanıyor.
+  let dualGainBaseA = 1, dualGainBaseB = 1;
 
   // G131 — CİHAZDA KANITLANDI: G130'un "state==='running'" doğrulaması
   // YETERSİZ çıktı. Cihaz günlüğü: resume() "başarılı" olup state
@@ -1156,8 +1163,14 @@ export function createAudioEngine() {
     compressor.ratio.value = 2.2;
 
     const { filterA, filterB } = applyProcessing(question, { audioCtx });
-    const gainA = audioCtx.createGain(); gainA.gain.value = 1;
-    const gainB = audioCtx.createGain(); gainB.gain.value = 1;
+    // G295 — sourcesSpec.a/b.gainDb (SOURCE_PAIRS.gainA/gainB'den, app.js:
+    // cakismaSourcesSpec/resolve() ile AYNEN offsetSec deseni) çift-içi
+    // statik denge çarpanına çevrilir. Yoksa (0) çarpan 1 — davranış eski
+    // tüm çağrı yerleri için AYNEN değişmedi.
+    dualGainBaseA = Math.pow(10, (sourcesSpec.a.gainDb || 0) / 20);
+    dualGainBaseB = Math.pow(10, (sourcesSpec.b.gainDb || 0) / 20);
+    const gainA = audioCtx.createGain(); gainA.gain.value = dualGainBaseA;
+    const gainB = audioCtx.createGain(); gainB.gain.value = dualGainBaseB;
     dualGainA = gainA; dualGainB = gainB;
     dualFilterA = filterA; dualFilterB = filterB;
 
@@ -1231,7 +1244,12 @@ export function createAudioEngine() {
   function setDualSolo(which) {
     if (!audioCtx || !dualGainA || !dualGainB) return;
     const now = audioCtx.currentTime;
-    const [a, b] = which === "a" ? [1, 0.0001] : which === "b" ? [0.0001, 1] : [1, 1];
+    const [aMute, bMute] = which === "a" ? [1, 0.0001] : which === "b" ? [0.0001, 1] : [1, 1];
+    // G295 — solo/mute hedefleri çiftin KENDİ statik denge çarpanıyla (bkz.
+    // buildDualSourceChain'in dualGainBaseA/B'si) ÇARPILIR — düzeltme SADECE
+    // "ikisi birlikte" dinlerken değil, tek tek dinlerken de (A/B soloları)
+    // uygulanır, tutarlı kalır.
+    const a = aMute * dualGainBaseA, b = bMute * dualGainBaseB;
     [[dualGainA, a], [dualGainB, b]].forEach(([g, v]) => {
       g.gain.cancelScheduledValues(now);
       g.gain.setValueAtTime(g.gain.value, now);
@@ -1277,6 +1295,10 @@ export function createAudioEngine() {
     get contextRecreateCount() { return contextRecreateCount; },
     get audioCtx() { return audioCtx; },
     get analyser() { return analyser; },
-    get audioReady() { return audioReady; }
+    get audioReady() { return audioReady; },
+    // G295 — test/teşhis amaçlı SALT OKUNUR erişim: dualGainA/B'nin GÜNCEL
+    // .gain.value'su (gainA/gainB dB düzeltmesinin GERÇEKTEN uygulandığını
+    // doğrulamak için — bkz. e2e/cakisma-gain-balance.spec.mjs).
+    get dualGainValues() { return { a: dualGainA ? dualGainA.gain.value : null, b: dualGainB ? dualGainB.gain.value : null }; }
   };
 }

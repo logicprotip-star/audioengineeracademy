@@ -348,7 +348,11 @@ export function createQuestion(level, settings = {}) {
     // G288 — offsetA/offsetB EKLENDİ (SOURCE_PAIRS'in yeni alanı, app.js:
     // cakismaSourcesSpec'in okuduğu) — EKSİK bırakılsaydı offset SESSİZCE
     // 0'a düşerdi (cakismaSourcesSpec'in "offsetSec || 0" varsayılanı).
-    pair: { id: pair.id, labelA: pair.labelA, labelB: pair.labelB, sourceA: pair.sourceA, sourceB: pair.sourceB, offsetA: pair.offsetA, offsetB: pair.offsetB },
+    // G295 — gainA/gainB AYNI GEREKÇEYLE eklendi (EKSİK bırakılsaydı gain
+    // düzeltmesi SESSİZCE 0'a düşerdi, cakismaSourcesSpec'in "gainDb || 0"
+    // varsayılanı — offsetA/offsetB'nin AYNEN emsali, bu turda e2e/cakisma-
+    // gain-balance.spec.mjs'nin KONTROL 1'i BUNU GERÇEKTEN yakaladı).
+    pair: { id: pair.id, labelA: pair.labelA, labelB: pair.labelB, sourceA: pair.sourceA, sourceB: pair.sourceB, offsetA: pair.offsetA, offsetB: pair.offsetB, gainA: pair.gainA, gainB: pair.gainB },
     trueCenter,
     regionWidthOct,
     cutStepDb,

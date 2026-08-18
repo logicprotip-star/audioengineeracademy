@@ -5464,12 +5464,17 @@ if (els.audioErrorRetry) {
 // offset TAŞIMAZ — offset SADECE katalogdaki eşleşmiş sample çiftlerine
 // ait, kullanıcı yüklemesi ayrı bir kod yolundan (uploadManager.getSourceNode())
 // geçiyor ve buildSampleSource'a hiç uğramıyor (audio-engine.js:connectSource).
+// G295 — pair.gainA/gainB (dB, OLCUM-CIFT-DENGE-18-08.md'nin ölçtüğü çift-içi
+// seviye dengesizliği düzeltmesi) AYNI desenle spec'e taşınıyor — offsetSec'in
+// TIPKI eşdeğeri (opsiyonel, yoksa 0). "upload-a"/"upload-b" de gainDb
+// TAŞIMIYOR — offset'le AYNI gerekçe (kullanıcının kendi dosyasının seviyesi
+// uygulama tarafından yargılanmaz).
 function cakismaSourcesSpec(pair) {
-  const resolve = (sourceId, uploadMgr, offsetSec) =>
+  const resolve = (sourceId, uploadMgr, offsetSec, gainDb) =>
     (sourceId === "upload-a" || sourceId === "upload-b")
       ? { sourceType: "upload", uploadManager: uploadMgr }
-      : { sourceType: sourceId, uploadManager: null, offsetSec: offsetSec || 0 };
-  return { a: resolve(pair.sourceA, uploadManagerA, pair.offsetA), b: resolve(pair.sourceB, uploadManagerB, pair.offsetB) };
+      : { sourceType: sourceId, uploadManager: null, offsetSec: offsetSec || 0, gainDb: gainDb || 0 };
+  return { a: resolve(pair.sourceA, uploadManagerA, pair.offsetA, pair.gainA), b: resolve(pair.sourceB, uploadManagerB, pair.offsetB, pair.gainB) };
 }
 
 // [audio-diag] KALICI TEŞHİS GÜNLÜĞÜ (task'ın kendi isteği — DÜZELTME YOK,
@@ -12452,6 +12457,11 @@ if (DEV_MODE) {
   // offset SESSİZCE 0'a düşer — hiçbir konsol hatası/çökme OLMADAN). SADECE
   // OKUR, hiçbir durumu DEĞİŞTİRMEZ.
   window.__aeaActiveQuestionPairForTest = () => (activeQuestion && activeQuestion.pair) || null;
+
+  // G295 — test kancası: audioEngine.dualGainValues'ı (SADECE OKUR) dışa
+  // verir — gainA/gainB dB düzeltmesinin buildDualSourceChain'de GERÇEKTEN
+  // uygulanan GainNode değerine dönüştüğünü doğrulamak için.
+  window.__aeaDualGainValuesForTest = () => audioEngine.dualGainValues;
 
   // G285 — doğrulama kancası: aktif sorunun DOĞRU cevabını hesaplayıp GERÇEK
   // submit fonksiyonunu (submitFrequencyGuess/submitCutoffGuess/vb. — 11

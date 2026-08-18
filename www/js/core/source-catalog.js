@@ -229,40 +229,58 @@ export function findSource(id) {
 // çalma oranı taşıyor (offset gerektiren snare çiftlerinin AKSİNE, offset
 // YOKSA bile geniş bir eşzamanlı pencere var) — offsetA/offsetB=0/0,
 // EK bir gecikme GEREKMEDİ.
+//
+// G295 — gainA/gainB (dB, HER ZAMAN 0 veya NEGATİF — SADECE kısma, hiçbir
+// kaynak DOSYASININ kendi seviyesi değişmiyor, sadece bu ÇİFTİN içindeki
+// göreli denge). OLCUM-CIFT-DENGE-18-08.md'nin ÖLÇTÜĞÜ, SADECE İKİ kaynağın
+// AYNI ANDA çaldığı (concurrent, -20dB zarf eşikli) pencerelerden hesaplanan
+// bant-sınırlı (pair.region) RMS farkına göre — ±1.5dB tolerans dışı kalan
+// çiftlerde LOUDER tarafı kısıldı ("kısma tercih edilir, headroom riski YOK"
+// — OLCUM-CIFT-DENGE'nin kendi kararı):
+//   akustik-clean: Clean Gitar (B) +2.89dB yüksek (B−A farkı) → gainB=-2.9
+//   bas-akustik:   Bas (A) yüksek (B−A farkı -1.92dB, yani A>B) → gainA=-1.9
+//   bas-clean/snare-akustik/snare-clean: ±1.5dB İÇİNDE, düzeltme YOK (0/0)
+//   vokal2-clean:  Clean Gitar (B) +3.16dB yüksek (bu turda ÖLÇÜLDÜ) → gainB=-3.2
+//   vokal2-akustik: fark +0.70dB, ±1.5dB İÇİNDE, düzeltme YOK (0/0)
+// audio-engine.js:buildDualSourceChain'in MEVCUT gainA/gainB GainNode'larına
+// (G51'den beri VAR, o zamandan beri sabit 1.0) app.js:cakismaSourcesSpec/
+// resolve() ÜZERİNDEN taşınıyor (offsetSec'in BİREBİR AYNI deseni) — SIFIR
+// yeni node, diğer 8 tek-kaynaklı modun ses zinciri (buildQuestionChain)
+// HİÇ dokunulmadı.
 export const SOURCE_PAIRS = [
   {
     id: "akustik-clean", labelA: "Akustik Gitar", labelB: "Clean Gitar", sourceA: "guitar", sourceB: "clean_guitar",
-    offsetA: 0, offsetB: 0,
+    offsetA: 0, offsetB: 0, gainA: 0, gainB: -2.9,
     region: [190, 400], desc: "Akustik ve clean gitar — alt-orta bölgede iki gitarın gövde çatışması"
   },
   {
     id: "bas-akustik", labelA: "Bas", labelB: "Akustik Gitar", sourceA: "bass", sourceB: "guitar",
-    offsetA: 0, offsetB: 0.377,
+    offsetA: 0, offsetB: 0.377, gainA: -1.9, gainB: 0,
     region: [80, 280], desc: "Bas ve akustik gitar — sub/alt-orta geçişinde harmonik çakışma, gitar 377ms geç başlıyor"
   },
   {
     id: "bas-clean", labelA: "Bas", labelB: "Clean Gitar", sourceA: "bass", sourceB: "clean_guitar",
-    offsetA: 0, offsetB: 0.377,
+    offsetA: 0, offsetB: 0.377, gainA: 0, gainB: 0,
     region: [190, 280], desc: "Bas ve clean gitar — alt-orta bölgede harmonik çakışma, gitar 377ms geç başlıyor"
   },
   {
     id: "snare-akustik", labelA: "Snare", labelB: "Akustik Gitar", sourceA: "snare_late", sourceB: "guitar",
-    offsetA: 0.377, offsetB: 0,
+    offsetA: 0.377, offsetB: 0, gainA: 0, gainB: 0,
     region: [170, 400], desc: "Snare ve akustik gitar — atak bölgesinde zamansal çakışma, snare 377ms geç başlıyor"
   },
   {
     id: "snare-clean", labelA: "Snare", labelB: "Clean Gitar", sourceA: "snare_late", sourceB: "clean_guitar",
-    offsetA: 0.377, offsetB: 0,
+    offsetA: 0.377, offsetB: 0, gainA: 0, gainB: 0,
     region: [190, 440], desc: "Snare ve clean gitar — atak bölgesinde zamansal çakışma, snare 377ms geç başlıyor"
   },
   {
     id: "vokal2-clean", labelA: "Vokal 2", labelB: "Clean Gitar", sourceA: "vocal_1", sourceB: "clean_guitar",
-    offsetA: 0, offsetB: 0,
+    offsetA: 0, offsetB: 0, gainA: 0, gainB: -3.2,
     region: [200, 370], desc: "Vokal ve clean gitar — orta bölgede vokal formantı ile gitarın gövde çatışması"
   },
   {
     id: "vokal2-akustik", labelA: "Vokal 2", labelB: "Akustik Gitar", sourceA: "vocal_1", sourceB: "guitar",
-    offsetA: 0, offsetB: 0,
+    offsetA: 0, offsetB: 0, gainA: 0, gainB: 0,
     region: [200, 370], desc: "Vokal ve akustik gitar — orta bölgede vokal formantı ile gitarın gövde çatışması"
   }
 ];

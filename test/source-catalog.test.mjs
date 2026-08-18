@@ -336,13 +336,57 @@ describe("source-catalog — G288 SOURCE_PAIRS offsetA/offsetB (çift-bazlı zam
     }
   });
 
-  it("region alanları tüm 5 çiftte [min,max] Hz dizisi, min<max, mantıklı ses bandı içinde", () => {
+  it("region alanları TÜM çiftlerde [min,max] Hz dizisi, min<max, mantıklı ses bandı içinde", () => {
     for (const pair of SOURCE_PAIRS) {
       assert.ok(Array.isArray(pair.region) && pair.region.length === 2, `${pair.id}: region [min,max] olmalı`);
       const [lo, hi] = pair.region;
       assert.ok(lo > 0 && hi > lo, `${pair.id}: region geçersiz [${lo},${hi}]`);
       assert.ok(hi < 20000, `${pair.id}: region üst sınırı mantıksız`);
     }
+  });
+});
+
+// G295 — SOURCE_PAIRS'in YENİ gainA/gainB alanı (dB): OLCUM-CIFT-DENGE-18-08.md'nin
+// ölçtüğü çift-içi (concurrent, bant-sınırlı) seviye dengesizliğini düzeltir.
+// offsetA/offsetB'nin İNVARYANT deseniyle AYNI mantık — SADECE burada "her
+// zaman negatif/0" (offset'in "her zaman pozitif/0" invaryantının AYNASI):
+// SADECE kısma uygulanıyor, hiçbir kaynağın kendi dosya seviyesi değişmiyor.
+describe("source-catalog — G295 SOURCE_PAIRS gainA/gainB (çift-içi statik seviye düzeltmesi)", () => {
+  it("her çiftte gainA/gainB tanımlı, sayı, POZİTİF DEĞİL (sadece kısma, hiç yükseltme yok)", () => {
+    for (const pair of SOURCE_PAIRS) {
+      assert.equal(typeof pair.gainA, "number", `${pair.id}: gainA sayı olmalı`);
+      assert.equal(typeof pair.gainB, "number", `${pair.id}: gainB sayı olmalı`);
+      assert.ok(pair.gainA <= 0, `${pair.id}: gainA POZİTİF OLMAMALI (sadece louder tarafı kıs kararı)`);
+      assert.ok(pair.gainB <= 0, `${pair.id}: gainB POZİTİF OLMAMALI (sadece louder tarafı kıs kararı)`);
+    }
+  });
+
+  it("HER çiftte SADECE bir taraf kısılmış olabilir (ikisi birden 0'dan farklı olmamalı)", () => {
+    for (const pair of SOURCE_PAIRS) {
+      assert.ok(!(pair.gainA < 0 && pair.gainB < 0), `${pair.id}: iki tarafın da gain düzeltmesi olmamalı`);
+    }
+  });
+
+  it("OLCUM-CIFT-DENGE-18-08.md'nin ölçtüğü 2 dengesiz mevcut çift doğru düzeltildi", () => {
+    assert.equal(SOURCE_PAIRS.find(p => p.id === "akustik-clean").gainB, -2.9, "Clean Gitar +2.89dB yüksekti");
+    assert.equal(SOURCE_PAIRS.find(p => p.id === "akustik-clean").gainA, 0);
+    assert.equal(SOURCE_PAIRS.find(p => p.id === "bas-akustik").gainA, -1.9, "Bas yüksekti");
+    assert.equal(SOURCE_PAIRS.find(p => p.id === "bas-akustik").gainB, 0);
+  });
+
+  it("±1.5dB tolerans İÇİNDE ölçülen 3 çiftte (bas-clean/snare-akustik/snare-clean) düzeltme YOK", () => {
+    for (const id of ["bas-clean", "snare-akustik", "snare-clean"]) {
+      const pair = SOURCE_PAIRS.find(p => p.id === id);
+      assert.equal(pair.gainA, 0, `${id}: gainA`);
+      assert.equal(pair.gainB, 0, `${id}: gainB`);
+    }
+  });
+
+  it("bu turda ölçülen 2 YENİ vokal2 çiftinin düzeltmesi doğru: vokal2-clean dengesiz (gainB=-3.2), vokal2-akustik dengeli (0/0)", () => {
+    assert.equal(SOURCE_PAIRS.find(p => p.id === "vokal2-clean").gainB, -3.2, "Clean Gitar +3.16dB yüksekti");
+    assert.equal(SOURCE_PAIRS.find(p => p.id === "vokal2-clean").gainA, 0);
+    assert.equal(SOURCE_PAIRS.find(p => p.id === "vokal2-akustik").gainA, 0, "fark +0.70dB, ±1.5dB içinde");
+    assert.equal(SOURCE_PAIRS.find(p => p.id === "vokal2-akustik").gainB, 0);
   });
 });
 
