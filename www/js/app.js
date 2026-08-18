@@ -5635,16 +5635,24 @@ async function playQuestion(processed = true) {
   // "cakisma" olmadığı için bu dal ÇALIŞMAZ, ÖNCEKİ davranış BİREBİR aynı kalır.
   if (activeQuestion.mode === "cakisma") {
     hideAudioError();
-    // [audio-diag] buildDualSourceChain BİLEREK await edilmiyor (ÖNCEKİ
-    // davranış korunuyor) — tamamlanma/hata YİNE DE .then/.catch ile
-    // (playQuestion'ın dönüşünü ETKİLEMEDEN) loglanıyor.
-    audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing)
-      .then(() => {
-        chainRecreateCountAtBuild = audioEngine.contextRecreateCount;
-        audioChainStoppedByBackground = false;
-        audioDiagLog("dual-source zinciri kuruldu, play başladı (cakisma)", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "?"}`);
-      })
-      .catch((err) => audioDiagLog("dual-source zinciri HATA (cakisma)", err && err.message));
+    // G306 (OLCUM-SES-BIRIKME-18-08 + OLCUM-GENIS-18-08 madde A4) — ARTIK
+    // await EDİLİYOR. ESKİDEN (G51'den beri) "BİLEREK await edilmiyor"du —
+    // playQuestion()'ın kendisi (ve onu await EDEN çağıranlar, ör.
+    // toggleAB/#abToggle) bu zincirin GERÇEKTEN kurulmasını BEKLEMEDEN
+    // "bitti" sanıyordu; hızlı ard arda gelen bir SONRAKİ playQuestion()
+    // çağrısı (yeni soru/tekrar çal) bu YARIM kalan build'le YARIŞA
+    // girebiliyordu (OLCUM-SES-BIRIKME'nin ölçtüğü örtüşme). .then()/
+    // .catch()'in İÇERİĞİ DEĞİŞMEDİ, sadece await+try/catch'e taşındı —
+    // "önce/sonra" karşılaştırması (submitCakismaGuess'in stage-3 skip'i)
+    // BURAYA hiç dokunmuyor, o davranış AYNEN korunuyor.
+    try {
+      await audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing);
+      chainRecreateCountAtBuild = audioEngine.contextRecreateCount;
+      audioChainStoppedByBackground = false;
+      audioDiagLog("dual-source zinciri kuruldu, play başladı (cakisma)", `state=${audioEngine.audioCtx ? audioEngine.audioCtx.state : "?"}`);
+    } catch (err) {
+      audioDiagLog("dual-source zinciri HATA (cakisma)", err && err.message);
+    }
     return;
   }
   // G90 (madde 10): örnek-dosya kaynağı decode/ağ hatasıyla başarısız olursa
@@ -6227,6 +6235,22 @@ function startRound() {
   if (mode.MODE_ID === "stereo-genislik" && mode.pickPlaybackOffset && uploadManager.hasBuffer) {
     uploadManager.seekTo(mode.pickPlaybackOffset(uploadManager.getBuffer()));
   }
+  // G306 (OLCUM-SES-BIRIKME-18-08 + OLCUM-GENIS-18-08 madde A4) — Logic'in
+  // kararı: "önce/sonra" karşılaştırması (Frekans Çakışması aşama 3) cevap
+  // SONRASI ses DEVAM etsin diye submitCakismaGuess() BİLEREK stopAudio()
+  // atlıyor (DEĞİŞMEDİ) — ama bir SONRAKİ soru GERÇEKTEN başlarken (buraya,
+  // bu satıra ulaşıldığında — TÜM erken-dönüş kapıları ZATEN geçildi, yeni
+  // round KESİN başlıyor) önceki turdan kalan HERHANGİ bir ses (cakisma'nın
+  // stage-3 sızıntısı, ya da playQuestion()'ın await-etmediği bir önceki
+  // build'in hâlâ süren async kalıntısı — ölçüldü, TÜM 12 modda vardı, SADECE
+  // cakisma'ya özgü değil) burada KOŞULSUZ kesiliyor. stopAudio() zaten HER
+  // chain-builder'ın (buildQuestionChain/buildThreeWayChain/buildDualSourceChain)
+  // kendi başında ÇAĞRILIYOR — bu ek çağrı YARIŞ penceresini (playQuestion()'ın
+  // await etmediği/etmeyebileceği an ile chain-builder'ın KENDİ stopAudio()'su
+  // arasındaki boşluğu) senkron, erken bir noktada KAPATIYOR. stopAudio()
+  // idempotent (currentNodes boşsa no-op) — burada tekrar çağrılması hiçbir
+  // modda zarar vermiyor.
+  audioEngine.stopAudio();
   activeQuestion = mode.createQuestion(examTier, {
     source: pickRoundSource(),
     // G51: Motor 3 (Frekans Çakışması) — SADECE o modun createQuestion'ı okur
