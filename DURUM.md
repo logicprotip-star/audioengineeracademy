@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G293 — Izgara eşiği 420px→389px — OLCUM-DORT-18-08 madde D, kullanıcı kararı: ana menü mod kartları artık SADECE Plus/Pro Max değil, 390px+ TÜM temel/Pro modellerde de ikişerli görünüyor (pazarlama görselleriyle tutarlılık). `styles.css:379` TEK SATIR değişti, `.mode-grid`/`.single` kuralı dokunulmadı. 12 mod × 7 genişlikte (375-430px) SIFIR taşma/kırpılma (84 kontrol), 430px'te İZOLASYON KANITLANDI (kolon piksel genişliği eski/yeni eşikte BİREBİR AYNI). YENİ `e2e/mode-grid-threshold.spec.mjs` (5 test, kırmızı/yeşil doğrulandı). npm test 1593/1593, e2e 93/93 (bilinen ear-buttons flake'i hariç, G293'ten bağımsız))
+Son güncelleme: 18.08.2026 (G294 — Ana Menü kaydırma konumu korunuyor — OLCUM-DORT-18-08 madde C: `goScreen()`'in (app.js:2548) TÜM ekranlara koşulsuz uyguladığı `scrollTop=0` sıfırlaması, SADECE "menu" hedefi için YENİ bellek-içi `menuScrollPosition` değişkenine göre koşullu hâle getirildi — moddan/sekme değiştirip DÖNÜNCE menü AYNI yerde kalıyor, DİĞER ekranlar (İlerleme/Araçlar/Ayarlar/oyun) ESKİ davranışı AYNEN koruyor, uygulama yeniden başlayınca menü yine en üstten başlıyor (bellek kalıcı DEĞİL). AYNI KALIP taraması YAPILDI — İlerleme/Araçlar sekmeleri de AYNI sıfırlamaya tabi (GERÇEK veriyle doğrulandı, kaydırılabilir boyuta ulaşıyorlar) ama bu turda KAPSAMA ALINMADI, kullanıcıya SORULUYOR. YENİ `e2e/menu-scroll-position.spec.mjs` (4 test, kırmızı/yeşil doğrulandı). npm test 1593/1593, e2e 97/97 (bilinen ear-buttons flake'i hariç). G293 (ızgara eşiği 420→389px, AYNI OLCUM-DORT görevinin İLK yarısı) bu commit'ten HEMEN ÖNCE tamamlandı, aşağı bkz.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,29 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G294 — **Ana Menü kaydırma konumu korunuyor (OLCUM-DORT-18-08 madde C). AYRI commit.**
+
+**SORUN:** Moddan (ya da başka bir sekmeden) Ana Menü'ye dönüldüğünde kaydırma konumu HER ZAMAN en üste sıfırlanıyordu — tek sütun düzende (bkz. G293) 12 mod alt alta olduğu için kullanıcı ARADIĞI moda ulaşmak için HER SEFERİNDE yeniden kaydırmak zorunda kalıyordu.
+
+**Kök sebep:** `goScreen(name)` (`app.js:2548`, `screenStack`'in HEMEN altında) hedef ekranın `.scroll` elementine KOŞULSUZ `scrollTop=0` yazıyordu (`app.js:2598-2600` — TÜM `name` değerleri için, İSTİSNASIZ).
+
+**Yapılan (`www/js/app.js`):**
+1. YENİ modül-seviyeli `let menuScrollPosition = 0;` (`screenStack`'in hemen altında) — BELLEKTE tutulur, `localStorage`'a YAZILMAZ (uygulama yeniden başlayınca sıfırdan başlamalı, task'ın kendi kuralı — bu doğal olarak sağlanıyor, `let` her sayfa yüklemesinde 0'a döner).
+2. `goScreen()`'in BAŞINDA (aktif ekran değişmeden ÖNCE): `prevScreenName==="menu"` ise o anki `.menu-scroll` konumu `menuScrollPosition`'a kaydediliyor.
+3. `goScreen()`'in scrollTop sıfırlama satırında: `scrollEl.scrollTop = name==="menu" ? menuScrollPosition : 0` — SADECE "menu" hedefi saklanan konuma dönüyor, DİĞER TÜM ekranlar (İlerleme/Araçlar/Ayarlar/oyun DAHİL) ESKİ koşulsuz `0` davranışını AYNEN koruyor (TEK SATIRLIK koşullu değişiklik, başka hiçbir dal dokunulmadı).
+
+**⚠️ AYNI KALIP taraması (istenen madde, KAPSAMA ALINMADI, kullanıcıya soruluyor):** `goScreen()`'in sıfırlama satırı `.scroll` içeren HER ekran için AYNI mekanizma — İlerleme ve Araçlar sekmeleri de (kullanıcı sekmeler arası geçiş yaptıkça) AYNI "döndüğünde en üstten başlama" durumuna DÜŞÜYOR. Bu turda GERÇEK veriyle (`stats.rounds:50`) doğrulandı: İlerleme sekmesinin içeriği (2 akordiyon açıkken) GERÇEKTEN kaydırılabilir boyuta ulaşıyor (`e2e/menu-scroll-position.spec.mjs`'in kendi regresyon testi bunu ÖN KOŞUL olarak doğruluyor). **Bu turda İlerleme/Araçlar'a AYNI düzeltme UYGULANMADI** (task'ın kendi kısıtı: "kapsama alma, sor") — kullanıcı isterse AYRI bir turda aynı desenle (her ekran kendi `lastScrollPosition` değişkenini tutar) eklenebilir, İŞ YÜKÜ küçük (~5-10 satır/ekran, AYNI kalıp).
+
+**Testler:** YENİ `e2e/menu-scroll-position.spec.mjs` (4 test) — moddan `#backBtn` ile dönünce konum KORUNUYOR (KABUL KRİTERİ), 2 sekme dolaşıp menüye dönünce de KORUNUYOR, `reload` (yeniden başlatma) sonrası menü SIFIRDAN başlıyor (regresyon koruması), İlerleme sekmesinin KENDİ sıfırlama davranışının DEĞİŞMEDİĞİ (regresyon koruması, GERÇEK kaydırılabilir içerikle doğrulandı).
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/js/app.js` → KABUL KRİTERİ testleri "0 !== 400"/"0 !== 250" ile KIRMIZI (regresyon-koruması testleri hâlâ YEŞİL, beklenen — onlar DEĞİŞMEYEN davranışı test ediyor) → `git stash pop` → 4/4 YEŞİL.
+
+**Test sonuçları:** `npm test` 1593/1593 (JS-only, mantık değişikliği testleri etkilemedi). `npm run test:e2e` 97/97 (93 önceki + 4 yeni) — bir koşuda `ear-buttons.spec.mjs`'in BİLİNEN ortamsal flake'i (G291/G292/G293'te de belgelenmiş) görüldü, sonraki koşuda 97/97 TEMİZ — G294'ten BAĞIMSIZ.
+
+**DOKUNULMAYACAK'a uyuldu:** "i" butonlarının dokunma alanı/Tonal Denge/430px+ ekran düzeni/zorluk eğrisi — HİÇBİRİNE dokunulmadı (bu görev SADECE `goScreen()`'in menü dalını değiştirdi).
+
+---
 
 G293 — **Izgara eşiği 420px → 389px (OLCUM-DORT-18-08 madde D, kullanıcı kararı). AYRI commit.**
 
@@ -21039,6 +21062,17 @@ seviye başlığı × 6 rozet, tam karşılaştırma) — "Altın Kulak" TEK ör
 
 ## BEKLEYEN KARARLAR
 
+**Y. Menü kaydırma konumu koruması (G294) — İlerleme/Araçlar'a da uygulansın mı?**
+G294'te SADECE Ana Menü için eklendi (task'ın kendi kısıtı: "kapsama
+alma, sor"). Tarama SONUCU: `goScreen()`'in `scrollTop=0` sıfırlaması
+TÜM `.scroll` ekranları için AYNI mekanizma — İlerleme/Araçlar sekmeleri
+arasında geçiş yapan bir kullanıcı AYNI "döndüğünde en üstten başlama"
+sorununu yaşar. Bu turda GERÇEK veriyle (`stats.rounds:50`) doğrulandı:
+İlerleme'nin içeriği (2 akordiyon açıkken) GERÇEKTEN kaydırılabilir
+boyuta ulaşıyor. **Uygulanmadı, KARAR bekliyor** — istenirse AYRI bir
+turda AYNI kalıpla (~5-10 satır/ekran, her ekran kendi
+`lastScrollPosition` değişkenini tutar) eklenebilir, DÜŞÜK risk.
+
 **X. OLCUM-UC-18-08 madde B — zorluk eğrisi değişimi, 1.1'e alınacak mı?**
 Ölçüm raporu (`OLCUM-UC-18-08.md`) HAZIR, kod değişikliği YAPILMADI —
 ürün kararı gerektiriyor: tek-mod değişikliği düşük risk, tüm-mod
@@ -21305,18 +21339,30 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G293 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G294 itibarıyla):**
+OLCUM-DORT-18-08'in İKİ maddesi de (D: ızgara eşiği — G293; C: menü
+kaydırma konumu — G294) AYRI commit'ler olarak tamamlandı. Menüye
+dönüşte kaydırma konumu artık korunuyor (moddan/sekme değiştirip
+dönüşte), diğer TÜM ekranlar ESKİ koşulsuz sıfırlama davranışını
+koruyor, uygulama yeniden başlayınca menü yine en üstten başlıyor.
+**AÇIK madde (kullanıcıya SORULDU, kapsama ALINMADI):** İlerleme/Araçlar
+sekmeleri de AYNI "döndüğünde en üstten başlama" kalıbına sahip — bu
+turda GERÇEK veriyle doğrulandı (İlerleme'nin içeriği kaydırılabilir
+boyuta ulaşıyor). Kullanıcı isterse AYRI bir turda AYNI kalıpla (~5-10
+satır/ekran) eklenebilir (bkz. BEKLEYEN KARARLAR madde Y).
+`npm test` 1593/1593, `npm run test:e2e` 97/97 (bilinen
+`ear-buttons.spec.mjs` flake'i hariç, İKİ commit'ten de BAĞIMSIZ,
+committed main'de de reprodüklenen bir ortamsal flake).
+**Kullanıcının/Logic'in sıradaki adımı:** (1) İlerleme/Araçlar'a da
+AYNI kaydırma-koruma kalıbını uygulatmak isteyip istemediğine karar
+vermek (BEKLEYEN KARARLAR madde Y), (2) OLCUM-UC-18-08 madde B (zorluk
+eğrisi değişim maliyeti) HÂLÂ AÇIK, ürün kararı bekliyor.
+
+**EN YENİ SIRADAKİ ADIM (G293 itibarıyla, ARTIK ESKİ):**
 OLCUM-DORT-18-08 madde D'nin önerdiği ızgara eşiği değişikliği (420→389px)
 uygulandı — 390px+ TÜM modeller artık ikişerli ızgara görüyor, 430px+
 (Logic'in cihazı) İZOLASYON KANITLANDI (kolon genişliği değişmedi).
-**Bu turda AYNI görevin (OLCUM-DORT'un iki maddesini uygulama) İKİNCİ
-YARISI — Menü Kaydırma Konumu (madde C) — DEVAM EDİYOR, AYRI bir commit
-olarak takip edecek** (bu SIRADAKİ kaydı G293 TEK BAŞINA tamamlandığında
-yazıldı, G294 kendi SIRADAKİ'sini EKLEYECEK). `npm test` 1593/1593,
-`npm run test:e2e` 93/93 (bilinen `ear-buttons.spec.mjs` flake'i hariç).
-**Kullanıcının/Logic'in sıradaki adımı:** yok, bu madde kendi içinde
-tamamlandı — OLCUM-UC-18-08 madde B (zorluk eğrisi) HÂLÂ AÇIK, ürün
-kararı bekliyor (G292'nin SIRADAKİ'sinden devralındı, aşağı bkz.).
+`npm test` 1593/1593, `npm run test:e2e` 93/93 (bilinen flaky hariç).
 
 **EN YENİ SIRADAKİ ADIM (G292 itibarıyla, ARTIK ESKİ):**
 OLCUM-UC-18-08 madde C'nin bulduğu tekrar sorunu düzeltildi — Kompresör/

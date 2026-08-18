@@ -2545,6 +2545,13 @@ const TAB_TO_SCREEN = { train: "menu", progress: "progress", tools: "tools" };
 // iletişim, yasal metin, satın alma) tek seviye derinlikte — hangi ekrandan açıldığını
 // hatırlayıp geri okuyla oraya dönmek için minik bir gezinme yığını yeterli.
 let screenStack = ["menu"];
+// G294 (OLCUM-DORT-18-08 madde C) — SADECE Ana Menü için: moddan/başka bir
+// ekrandan dönüşte kaydırma konumu KORUNSUN diye bellekte (localStorage
+// DEĞİL — uygulama yeniden başlayınca sıfırdan başlamalı, task'ın kendi
+// kuralı) tutulan TEK değer. Diğer TÜM ekranlar (İlerleme/Araçlar/Ayarlar
+// DAHİL) `goScreen()`'in KOŞULSUZ scrollTop=0 sıfırlamasını AYNEN
+// koruyor — SADECE "menu" hedefi bu değişkeni okuyor/yazıyor.
+let menuScrollPosition = 0;
 function goScreen(name) {
   // Dayanıklılık taraması (kod tarafı) — ÖNCEDEN Araçlar'dan (ör. tab
   // değiştirerek) çıkılırken Referans Filtreleri'nin çalar/EQ zinciri VE
@@ -2558,6 +2565,14 @@ function goScreen(name) {
   // ağına alındı.
   const prevScreenEl = document.querySelector(".screen.active");
   const prevScreenName = prevScreenEl ? prevScreenEl.id.replace("screen-", "") : null;
+  // G294 — menüden AYRILIRKEN (moda girme, sekme değiştirme, HERHANGİ bir
+  // goScreen çağrısı) o anki kaydırma konumu saklanıyor — aşağıdaki "menu"
+  // hedefine dönüşte GERİ YAZILACAK (bkz. o dal). name==="menu" iken bile
+  // saklanıyor (no-op — zaten "menu"den "menu"ya geçiş olmaz, zararsız).
+  if (prevScreenName === "menu") {
+    const menuScrollEl = prevScreenEl.querySelector(".scroll");
+    if (menuScrollEl) menuScrollPosition = menuScrollEl.scrollTop;
+  }
   if (prevScreenName === "tools" && name !== "tools") {
     // G159 — Referans Filtreleri'nin kendi UI'sında "Durdur" kavramı hiç YOK
     // (SADECE oynat/duraklat) — tab çıkışında da AYNI (pause, pozisyon
@@ -2596,7 +2611,11 @@ function goScreen(name) {
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", !!tab && t.dataset.tab === tab));
   if (target) {
     const scrollEl = target.querySelector(".scroll");
-    if (scrollEl) scrollEl.scrollTop = 0;
+    // G294 — SADECE "menu" hedefi saklanan konuma döner, diğer TÜM
+    // ekranlar (İlerleme/Araçlar/Ayarlar/oyun DAHİL) ESKİ KOŞULSUZ
+    // sıfırlama davranışını AYNEN koruyor (task'ın kendi kısıtı: "diğer
+    // ekranlara geçişte sıfırlama DEVAM ETSİN").
+    if (scrollEl) scrollEl.scrollTop = name === "menu" ? menuScrollPosition : 0;
   }
   if (name === "game") {
     // Oyun ekranı bir önceki karede "display:none" idi (canvas 0 yükseklikte
