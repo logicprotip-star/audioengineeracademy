@@ -68,22 +68,22 @@ describe("source-catalog.js — SOURCE_PAIRS / OWN_SOURCE_PAIR / findSourcePair 
     assert.deepEqual(pair.region, [190, 280]);
   });
 
-  it("snare-akustik çifti mevcut, snare_late (sourceA) 0.377 geç başlıyor, ölçülen [170,400]Hz", () => {
+  it("G302: snare-akustik çifti mevcut, snare_late (sourceA) gitarın ilk atağıyla hizalı (offsetA=0.425), ölçülen [170,400]Hz", () => {
     const pair = SOURCE_PAIRS.find(p => p.id === "snare-akustik");
     assert.ok(pair);
     assert.equal(pair.sourceA, "snare_late");
     assert.equal(pair.sourceB, "guitar");
-    assert.equal(pair.offsetA, 0.377);
+    assert.equal(pair.offsetA, 0.425);
     assert.equal(pair.offsetB, 0);
     assert.deepEqual(pair.region, [170, 400]);
   });
 
-  it("snare-clean çifti mevcut, snare_late (sourceA) 0.377 geç başlıyor, ölçülen [190,440]Hz", () => {
+  it("G302: snare-clean çifti mevcut, snare_late (sourceA) gitarın ilk atağıyla hizalı (offsetA=1.175), ölçülen [190,440]Hz", () => {
     const pair = SOURCE_PAIRS.find(p => p.id === "snare-clean");
     assert.ok(pair);
     assert.equal(pair.sourceA, "snare_late");
     assert.equal(pair.sourceB, "clean_guitar");
-    assert.equal(pair.offsetA, 0.377);
+    assert.equal(pair.offsetA, 1.175);
     assert.equal(pair.offsetB, 0);
     assert.deepEqual(pair.region, [190, 440]);
   });

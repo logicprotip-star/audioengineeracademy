@@ -263,12 +263,13 @@ describe("source-catalog — G288 YENİ kaynak: snare_late", () => {
     }
   });
 
-  it("SOURCE_PAIRS'in İKİ çiftinde (snare-akustik/snare-clean) sourceA olarak, offsetA=0.377 ile kullanılıyor", () => {
+  it("G302: SOURCE_PAIRS'in İKİ çiftinde (snare-akustik/snare-clean) sourceA olarak, gitarın kendi ilk atağıyla hizalanmış AYRI offsetA'larla kullanılıyor", () => {
+    const expectedOffsetA = { "snare-akustik": 0.425, "snare-clean": 1.175 };
     for (const id of ["snare-akustik", "snare-clean"]) {
       const pair = SOURCE_PAIRS.find(p => p.id === id);
       assert.ok(pair, `${id} bulunamadı`);
       assert.equal(pair.sourceA, "snare_late");
-      assert.equal(pair.offsetA, 0.377);
+      assert.equal(pair.offsetA, expectedOffsetA[id], `${id}: offsetA`);
       assert.equal(pair.offsetB, 0);
     }
   });
