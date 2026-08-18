@@ -9214,7 +9214,13 @@ const FAQ = [
 // öncesi test edebilmek — gerçek bir satın alma/IAP DEĞİL, sadece isUserPro()'nun
 // okuduğu bir simülasyon bayrağı (bkz. isUserPro tanımı).
 function syncDevUI() {
-  if (els.devGroup) els.devGroup.classList.toggle("hidden", !devFlags.unlocked);
+  // G298 (OLCUM-BAYRAK-16-08 bulgusu) — DEV_MODE=false (App Store Archive)
+  // iken menü GÖRÜNMEZ, devFlags.unlocked'ın (localStorage'da ESKİ bir
+  // DEV_MODE=true oturumundan KALMIŞ olabilecek) değerinden BAĞIMSIZ —
+  // "gizli menü açılmasın" isteği SADECE 7-tık handler'ını kapatmak
+  // yetmezdi (bkz. aşağıdaki versionRow notu), bu satır olmadan ESKİDEN
+  // açılmış bir devFlags.unlocked:true hâlâ menüyü GÖSTERİRDİ.
+  if (els.devGroup) els.devGroup.classList.toggle("hidden", !(DEV_MODE && devFlags.unlocked));
   if (els.devProSwitch) els.devProSwitch.classList.toggle("on", devFlags.simulatePro);
   applyProLockVisibility();
   enforceFreeRestrictions(); // G61: isUserPro() burada değişmiş OLABİLİR, state'i senkronla
@@ -9260,7 +9266,13 @@ function syncDevUI() {
 }
 let versionTapCount = 0;
 let versionTapTimer = null;
+// G298 (OLCUM-BAYRAK-16-08 bulgusu) — DEV_MODE=false (App Store Archive)
+// iken 7-tık HİÇBİR ŞEY yapmamalı: sayaç ARTMAZ, geliştirici modu AÇILMAZ.
+// DEV_MODE=true'da (geliştirme/TestFlight) davranış AYNEN korunuyor —
+// aşağıdaki mantığın TEK SATIRI değişmedi, sadece en başa bir erken-çıkış
+// eklendi.
 if (els.versionRow) els.versionRow.addEventListener("click", () => {
+  if (!DEV_MODE) return;
   versionTapCount++;
   clearTimeout(versionTapTimer);
   versionTapTimer = setTimeout(() => { versionTapCount = 0; }, 1200);
@@ -9275,7 +9287,13 @@ if (els.versionRow) els.versionRow.addEventListener("click", () => {
     }
   }
 });
+// G298 — devProSwitch zaten SADECE devGroup (artık DEV_MODE'a bağlı,
+// yukarı bkz.) İÇİNDEYKEN görünür/tıklanabilir oluyor — bu erken-çıkış
+// SAVUNMA amaçlı ikinci bir katman (ör. görünürlüğe bakmadan doğrudan
+// tetiklenebilecek bir çağrıya karşı), "devProSwitch erişilemez olsun"
+// isteğinin TEK BAŞINA görünürlüğe güvenmeyen hâli.
 if (els.devProSwitch) els.devProSwitch.addEventListener("click", () => {
+  if (!DEV_MODE) return;
   devFlags.simulatePro = !devFlags.simulatePro;
   storage.saveDevFlags(devFlags);
   syncDevUI();
