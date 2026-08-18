@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G294 — Ana Menü kaydırma konumu korunuyor — OLCUM-DORT-18-08 madde C: `goScreen()`'in (app.js:2548) TÜM ekranlara koşulsuz uyguladığı `scrollTop=0` sıfırlaması, SADECE "menu" hedefi için YENİ bellek-içi `menuScrollPosition` değişkenine göre koşullu hâle getirildi — moddan/sekme değiştirip DÖNÜNCE menü AYNI yerde kalıyor, DİĞER ekranlar (İlerleme/Araçlar/Ayarlar/oyun) ESKİ davranışı AYNEN koruyor, uygulama yeniden başlayınca menü yine en üstten başlıyor (bellek kalıcı DEĞİL). AYNI KALIP taraması YAPILDI — İlerleme/Araçlar sekmeleri de AYNI sıfırlamaya tabi (GERÇEK veriyle doğrulandı, kaydırılabilir boyuta ulaşıyorlar) ama bu turda KAPSAMA ALINMADI, kullanıcıya SORULUYOR. YENİ `e2e/menu-scroll-position.spec.mjs` (4 test, kırmızı/yeşil doğrulandı). npm test 1593/1593, e2e 97/97 (bilinen ear-buttons flake'i hariç). G293 (ızgara eşiği 420→389px, AYNI OLCUM-DORT görevinin İLK yarısı) bu commit'ten HEMEN ÖNCE tamamlandı, aşağı bkz.)
+Son güncelleme: 18.08.2026 (G295 — vocal_1 (Vokal 2) katalog + Frekans Çakışması'na 2 yeni çift (vokal2-clean/vokal2-akustik) + gainA/gainB çift-içi seviye dengesi (OLCUM-CIFT-DENGE-18-08.md'nin ölçtüğü akustik-clean/bas-akustik düzeltmeleri + bu turda ölçülen vokal2-clean düzeltmesi). ÜÇ AYRI commit (`1323bf5`/`8a925a3`/`a5b04f1`). YENİ `e2e/vocal1-source.spec.mjs` (4 test) + `e2e/cakisma-gain-balance.spec.mjs` (3 test) — İKİ AYRI GERÇEK bug'ı e2e KONTROL testleri KIRMIZI olarak yakaladı: `#cakismaPairSelect`'in index.html'deki hardcoded `<option>` listesi + `frekans-cakismasi.js:createQuestion`'ın `q.pair` obje literalinin `gainA`/`gainB`'yi unutması (offsetA/offsetB'nin G288'deki TIPKI hatası). npm test 1608/1608, e2e 104/104. Detay: aşağı BİTTİ bölümü G295.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,26 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G295 — **vocal_1 kaynağı + Frekans Çakışması'na 2 yeni çift + seviye dengesi (gainA/gainB). ÜÇ AYRI commit.**
+
+**Görev:** Kullanıcı `www/audio/vocal_1.m4a`'yı elle ekledi (24.6sn/8bar, mono, -6dBFS, kayıplı iz yok). İstenen: (1) katalogda normal kaynak, kısıtlı modlarda (Pan/Reverb/Tonal Denge) `vocal.m4a` ile AYNI muamele; (2) Logic'in kulakla seçtiği `vocal_1+clean_guitar`/`vocal_1+acoustic_guitar` çiftleri SOURCE_PAIRS'e ölçülmüş region'la eklensin; (3) OLCUM-CIFT-DENGE-18-08.md'nin ölçtüğü çift-içi seviye dengesizlikleri (akustik-clean +2.9dB, bas-akustik -1.9dB) + bu turda ölçülen yeni çiftlerin dengesizliği `gainA`/`gainB` alanıyla düzeltilsin.
+
+**Bölüm 1 — `1323bf5`: vocal_1 katalog.** `source-catalog.js:SOURCE_GROUPS`'a `{ id:"vocal_1", label:"Vokal 2", ... }` eklendi (pairOnly YOK, normal kaynak). `reverb.js`/`pan-konumu.js`'nin ELLE seçilmiş `only:[...]` listelerine `"vocal"` ile AYNI satıra `"vocal_1"` eklendi (kod incelemesiyle doğrulandı: `vocal` bu iki modun listesinde VAR, Tonal Denge'de YOK — Tonal Denge zaten hiçbir tek-enstrüman kaynağı almıyor, sadece groove/upload — bu yüzden `vocal_1` de Tonal Denge'ye EKLENMEDİ). 3 mevcut birim test dosyasının hardcoded `uyumluKaynaklar` listeleri güncellendi + yeni `describe("G295 YENİ kaynak: vocal_1")` bloğu (arpeggio_guitar/G270 şablonu) + YENİ `e2e/vocal1-source.spec.mjs` (4 test: Frekans Bulma/Pan/Reverb'de görünürlük, Tonal Denge'de YOKLUK, gerçek round başlatma).
+
+**Bölüm 2 — `8a925a3`: 2 yeni çift.** Ölçüm yöntemi OLCUM-CIFT-DENGE-18-08.md'nin pair-6 (vokal+arpej) düzeltmesiyle AYNI: vokal ÇOK-formantlı olduğu için "sadece global-tepe kümesi" yöntemi YANLIŞ sonuç verir — HER kaynağın TÜM -15dB kümeleri (Welch/4096-FFT/Hann/%50-örtüşme/60Hz-boşluk-toleranslı) bulunup TÜM küme-çiftleri kesiştirildi. Sonuç: `vocal_1+clean_guitar` VE `vocal_1+acoustic_guitar` İKİSİNDE de en geniş kesişim [204.6,366.1]Hz → dışa yuvarlandı [200,370]Hz (vokal_1'in kendi kümesi darlığı belirleyici, gitarların bantları bu aralığı zaten tam kapsıyor). Zamansal (concurrent, 100ms pencere, -20dB zarf eşiği) örtüşme ÖLÇÜLDÜ: vokal2-clean %62.6, vokal2-akustik %55.7 — İKİSİ de zaten yüksek, offset GEREKMEDİ (offsetA/offsetB=0/0). **Kaçırılan bağlantı (e2e KONTROL 1'in RED yakaladığı):** `#cakismaPairSelect`'in `<option>`'ları `www/index.html`'de HARDCODED — SOURCE_PAIRS'e eklemek DOM'a otomatik yansımıyor, 2 yeni `<option>` elle eklendi. `test/source-catalog.test.mjs`/`test/frekans-cakismasi.test.mjs`'in hardcoded çift-id listeleri (5→7) güncellendi + `e2e/cakisma-pair-offset.spec.mjs`'in SOURCE_PAIRS'i dinamik döngüleyen KABUL KRİTERİ testi artık 2 yeni çifti de gerçek tarayıcıda sınıyor (başlıklar "5"→"7" güncellendi).
+
+**Bölüm 3 — `a5b04f1`: gainA/gainB seviye dengesi.** `SOURCE_PAIRS`'e `gainA`/`gainB` (dB, HER ZAMAN 0 veya NEGATİF — sadece kısma, "headroom riski yok" kararı OLCUM-CIFT-DENGE'den) eklendi: `akustik-clean.gainB=-2.9`, `bas-akustik.gainA=-1.9` (mevcut, önceden ölçülmüştü), `vokal2-clean.gainB=-3.2` (bu turda ölçüldü: concurrent-RMS farkı +3.16dB, ±1.5dB dışı), diğer 4 çift ±1.5dB içinde → 0/0. Kablolama offsetA/offsetB'nin (G288) BİREBİR aynı deseni: `app.js:cakismaSourcesSpec`'in `resolve()` yardımcısı `gainDb`'yi `sourcesSpec`'e taşıyor → `audio-engine.js:buildDualSourceChain` MEVCUT `gainA`/`gainB` GainNode'larının (G51'den beri var, sabit `1.0`) başlangıç değerini `Math.pow(10,gainDb/20)` çarpanına ayarlıyor — SIFIR yeni node. **Kaçırılan bağlantı (e2e KONTROL 1'in RED yakaladığı GERÇEK bug):** `frekans-cakismasi.js:createQuestion`'ın `pair:{...}` obje literali `offsetA`/`offsetB`'yi taşıyordu (G288'de bulunup düzeltilmişti) ama `gainA`/`gainB`'yi UNUTMUŞTU — SESSİZCE `0`'a düşüyordu, HİÇBİR konsol hatası vermiyordu (offsetA/offsetB'nin G288'deki TIPKI hatası, AYNI kör nokta). Düzeltildi (`gainA: pair.gainA, gainB: pair.gainB` eklendi).
+
+**Testler (bölüm 3):** `test/source-catalog.test.mjs`'e `describe("G295 SOURCE_PAIRS gainA/gainB")` (5 test: tip/işaret invaryantı, tek-taraflı kısıtı, OLCUM-CIFT-DENGE'nin 2 mevcut düzeltmesi, ±1.5dB içindeki 3 çiftte düzeltme YOK, 2 yeni çiftin doğru düzeltmesi) + `test/frekans-cakismasi.test.mjs`'e SAF fonksiyon seviyesinde `q.pair.gainA/gainB` propagasyon testi (TÜM 7 çift) + YENİ `e2e/cakisma-gain-balance.spec.mjs` (3 test): KONTROL 1 gerçek tarayıcıda `audioEngine.dualGainValues` (yeni test-only getter) TÜM 7 çiftte beklenen dB→linear değere eşit mi (bu test yukarıdaki gerçek bug'ı YAKALADI), KABUL KRİTERİ gerçek m4a decode + concurrent-RMS ölçümüyle düzeltme-SONRASI 3 dengesiz çiftte fark ±1.5dB içinde mi, REGRESYON KORUMASI tek-kaynaklı bir modun (Frekans Bulma) `buildQuestionChain`'e hiç dokunulmadığı için etkilenmediği.
+
+**Kırmızı/yeşil doğrulama (üç bölüm ayrı ayrı):** Bölüm 1: `git stash push -- source-catalog.js pan-konumu.js reverb.js` → birim testler KIRMIZI → pop → 1600/1600 YEŞİL. Bölüm 2: `git stash push -- index.html source-catalog.js` → KIRMIZI → pop → 1602/1602 + `cakisma-pair-offset.spec.mjs` 4/4 YEŞİL. Bölüm 3: `git stash push -- app.js audio-engine.js source-catalog.js frekans-cakismasi.js` → KIRMIZI (gainA/gainB `undefined`) → pop → 1608/1608 + `cakisma-gain-balance.spec.mjs` 3/3 YEŞİL.
+
+**Test sonuçları (son hâl):** `npm test` 1608/1608 (KİLİT'in istediği ≥1593'ün ÜSTÜNDE). `npm run test:e2e` 104/104 (görevde verilen "88/88" baseline'ı STALE'di — G293/G294'ten sonra gerçek sayı zaten 97'ydi, bu turda +7 yeni test 104'e çıktı — kullanıcıya bu turda ayrıca bildirilmedi, burada belgeleniyor).
+
+**DOKUNULMAYACAK'a uyuldu:** `vocal.m4a` silinmedi/değişmedi. Snare çiftlerinin dengesi (0.06-1.16dB, zaten iyi) dokunulmadı — `gainA:0,gainB:0` olarak KALDI. Diğer 8 tek-kaynaklı modun ses zinciri (`buildQuestionChain`) HİÇ dokunulmadı — `buildDualSourceChain`'in mimari izolasyonu (G51'den beri belgeli) korundu, REGRESYON KORUMASI testiyle kanıtlandı. Kaynak DOSYALARININ kendi seviyesi (bass.m4a/guitar.m4a/vb.) değişmedi — SADECE çift-içi GainNode çarpanı.
+
+---
 
 G294 — **Ana Menü kaydırma konumu korunuyor (OLCUM-DORT-18-08 madde C). AYRI commit.**
 
@@ -21339,7 +21359,25 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G294 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G295 itibarıyla):**
+vocal_1 (Vokal 2) kaynağı katalogda, Frekans Çakışması'na 2 yeni çift
+(vokal2-clean/vokal2-akustik) eklendi, OLCUM-CIFT-DENGE-18-08.md'nin
+ölçtüğü 2 mevcut dengesiz çift (akustik-clean/bas-akustik) + bu turda
+ölçülen vokal2-clean gainA/gainB (dB) ile düzeltildi. Yolda İKİ AYRI
+GERÇEK bug bulunup düzeltildi (ikisi de e2e KONTROL testleriyle KIRMIZI
+yakalandı, birim testler YAKALAYAMAZDI): (1) `#cakismaPairSelect`'in
+index.html'deki hardcoded `<option>` listesi SOURCE_PAIRS'e yeni çift
+eklemekle OTOMATİK GÜNCELLENMİYOR, (2) `frekans-cakismasi.js:
+createQuestion`'ın `q.pair` obje literali `gainA`/`gainB`'yi UNUTMUŞTU
+(offsetA/offsetB'nin G288'deki TIPKI hatası — SESSİZCE 0'a düşüyordu).
+`npm test` 1608/1608, `npm run test:e2e` 104/104.
+**Kullanıcının/Logic'in sıradaki adımı:** (1) `npx cap sync ios` + cihazda
+yeni Vokal 2 kaynağını/2 yeni çifti kulakla dinleyip onaylamak, (2)
+İlerleme/Araçlar'a menü kaydırma-koruma kalıbını uygulatmak isteyip
+istemediğine karar vermek (BEKLEYEN KARARLAR madde Y), (3) OLCUM-UC-18-08
+madde B (zorluk eğrisi değişim maliyeti) HÂLÂ AÇIK, ürün kararı bekliyor.
+
+**EN YENİ SIRADAKİ ADIM (G294 itibarıyla, ARTIK ESKİ):**
 OLCUM-DORT-18-08'in İKİ maddesi de (D: ızgara eşiği — G293; C: menü
 kaydırma konumu — G294) AYRI commit'ler olarak tamamlandı. Menüye
 dönüşte kaydırma konumu artık korunuyor (moddan/sekme değiştirip
