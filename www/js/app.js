@@ -7386,6 +7386,18 @@ els.hintBtn.addEventListener("click", giveHint);
 // kaydı temizler (aynı köke sahip, ayrı bir yan fayda).
 function performExit() {
   if (activeQuestion && !autoStopped) pauseRound();
+  // G300 (OLCUM-CIHAZ3-18-08 madde A/B) — pauseRound()'un muteOutput()'u
+  // SADECE muteGain'i 0.0001'e ramplar, kaynak node'ları HİÇ durdurmaz.
+  // "Çık" ise round'u GERÇEKTEN terk ediyor — "Tekrar Çal"a dönüş YOK,
+  // canlı kalan kaynakların artık hiçbir anlamı yok. Ölçüldü (Playwright,
+  // canlı GainNode + tap AnalyserNode): açık-kapat-hemen-kapat gibi ART
+  // ARDA gelen unmute→mute (openExitConfirm→closeExitConfirm→performExit
+  // dizisi) ile muteGain.gain.value 0.0001 OLARAK RAPORLANMASINA RAĞMEN
+  // çıkış SONRASI 1.5sn+ boyunca SÖNMEYEN, sabit bir RMS sızıntısı vardı
+  // (gerçek stopAudio() kontrolünde RMS tam 0'a inerken, bu yolda inmedi) —
+  // stopAudio() kaynakları FİİLEN .stop() ettiği için bu otomasyon
+  // yarışına hiç girmiyor.
+  if (activeQuestion) audioEngine.stopAudio();
   activeQuestion = null;
   storage.clearInProgressRound();
   goScreen("menu");
@@ -7898,7 +7910,9 @@ if (els.quitGameBtn) els.quitGameBtn.addEventListener("click", () => {
   closeGameSettingsSheet();
   if (activeQuestion && !autoStopped) pauseRound();
   // G287 — performExit()'in AYNI karar/gerekçesi (bkz. o fonksiyonun notu):
-  // "Oyundan çık" da "Çık" ile EŞDEĞER bir turu-terk-etme eylemi.
+  // "Oyundan çık" da "Çık" ile EŞDEĞER bir turu-terk-etme eylemi. G300 —
+  // performExit() ile AYNI sızıntı, AYNI düzeltme (bkz. o fonksiyonun G300 notu).
+  if (activeQuestion) audioEngine.stopAudio();
   activeQuestion = null;
   storage.clearInProgressRound();
   goScreen("menu");

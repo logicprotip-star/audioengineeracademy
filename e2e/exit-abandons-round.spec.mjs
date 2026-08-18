@@ -109,6 +109,46 @@ test("G287 KABUL KRİTERİ — Ayarlar → 'Oyundan çık' için AYNI davranış
   await page.close();
 });
 
+// G300 (OLCUM-CIHAZ3-18-08 madde A/B) — G287'nin "Çık" akışı activeQuestion/
+// storage'ı doğru temizliyordu ama SESİ hiç durdurmuyordu: pauseRound()'un
+// muteOutput()'u SADECE muteGain'i ramplıyor, kaynak node'ları HİÇ .stop()
+// etmiyor. Playwright+canlı-AnalyserNode ölçümü: exitConfirmLeave sonrası
+// RMS 1.8sn+ boyunca SÖNMEDEN sabit kaldı (DÜZELTME ÖNCESİ) — stopAudio()
+// çağrısı eklenince aynı ölçüm 300ms içinde tam 0'a indi (bkz. OLCUM-CIHAZ3-
+// 18-08.md, madde A/B). Bu test o RMS ölçümünün DEV_MODE kancasına dayanan,
+// kalıcı/hızlı eşdeğeri — stopAudioCallCount'un GERÇEKTEN arttığını doğrular.
+test("G300 KABUL KRİTERİ — geri → Çık: stopAudio() GERÇEKTEN çağrılıyor (ses durdurma)", async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await startCakismaRound(page);
+
+  const countBefore = await page.evaluate(() => window.__aeaStopAudioCallCount());
+  await page.locator("#backBtn").click();
+  await page.waitForTimeout(200);
+  await page.locator("#exitConfirmLeave").click();
+  await page.waitForTimeout(300);
+  const countAfter = await page.evaluate(() => window.__aeaStopAudioCallCount());
+
+  assert.ok(countAfter > countBefore, `'Çık' sonrası stopAudio() ARTMALIYDI (önce=${countBefore}, sonra=${countAfter}) — DÜZELTME ÖNCESİ hiç artmıyordu, ses arka planda çalmaya devam ediyordu`);
+
+  await page.close();
+});
+
+test("G300 KABUL KRİTERİ — Ayarlar → 'Oyundan çık': stopAudio() GERÇEKTEN çağrılıyor", async () => {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  await startCakismaRound(page);
+
+  const countBefore = await page.evaluate(() => window.__aeaStopAudioCallCount());
+  await page.locator("#gameSettingsBtn").click();
+  await page.waitForTimeout(200);
+  await page.locator("#quitGameBtn").click();
+  await page.waitForTimeout(300);
+  const countAfter = await page.evaluate(() => window.__aeaStopAudioCallCount());
+
+  assert.ok(countAfter > countBefore, `'Oyundan çık' sonrası stopAudio() ARTMALIYDI (önce=${countBefore}, sonra=${countAfter})`);
+
+  await page.close();
+});
+
 // REGRESYON KORUMASI — G203'ün "aktif tur VARKEN kaldığı yerden devam"
 // (DOKUNULMAYACAK) davranışı BOZULMADI: kullanıcı "Kal" (exit-confirm'i
 // İPTAL) derse round DEVAM ETMELİ, kayıt SİLİNMEMELİ.
