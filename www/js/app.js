@@ -6776,7 +6776,10 @@ async function pickNativeAudioFile() {
   console.log("[filepicker-diag] 3) pickFiles() ÇAĞRILIYOR — buton→fonksiyon zinciri buraya kadar SAĞLAM, şimdi native picker açılmalı.");
   try {
     const result = await plugin.pickFiles({ limit: 1 });
-    console.log("[filepicker-diag] 4) pickFiles() DÖNDÜ (reddetmedi) — ham sonuç:", JSON.stringify(result));
+    // G296 (OLCUM-GUVENLIK-18-08 madde 3) — ham sonuç kullanıcının dosya
+    // adını/yolunu TAŞIYOR (kişisel içerik olabilir) — DEV_MODE'a alındı,
+    // diğer [filepicker-diag] satırları (dosya adı TAŞIMAYAN) DOKUNULMADI.
+    if (DEV_MODE) console.log("[filepicker-diag] 4) pickFiles() DÖNDÜ (reddetmedi) — ham sonuç:", JSON.stringify(result));
     const picked = result && result.files && result.files[0];
     if (!picked) {
       console.log("[filepicker-diag] Dosya seçilmedi (kullanıcı iptal etti ya da picker boş sonuç döndürdü) — hata DEĞİL.");
@@ -6798,7 +6801,8 @@ async function pickNativeAudioFile() {
     } else {
       throw new Error("dosya verisine (blob/path) erişilemedi");
     }
-    console.log("[filepicker] dosya seçildi:", picked.name, "| tip:", picked.mimeType || "(boş)", "|", Math.round((picked.size || blob.size) / 1024), "KB");
+    // G296 (OLCUM-GUVENLIK-18-08 madde 3) — dosya adı kişisel içerik olabilir.
+    if (DEV_MODE) console.log("[filepicker] dosya seçildi:", picked.name, "| tip:", picked.mimeType || "(boş)", "|", Math.round((picked.size || blob.size) / 1024), "KB");
     const file = new File([blob], picked.name || "ses-dosyasi", { type: picked.mimeType || blob.type || "" });
     // G107 — kalıcı depoya native (base64'süz) kopyalama için: FilePicker'ın
     // pickFiles() delegate'i seçilen dosyayı ZATEN uygulamanın kendi tmp/
@@ -9255,7 +9259,8 @@ if (els.filePickerTestBtn) els.filePickerTestBtn.addEventListener("click", async
   const hadCapacitor = !!window.Capacitor;
   const hadPlugin = !!(window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FilePicker);
   const file = await pickNativeAudioFile();
-  console.log("[filepicker-diag] === TEST BİTTİ ===", { hadCapacitor, hadPlugin, sonuc: file === undefined ? "plugin yok (web fallback gerekir)" : file === null ? "iptal/hata (yukarıdaki loga bak)" : `dosya alındı: ${file.name}` });
+  // G296 (OLCUM-GUVENLIK-18-08 madde 3) — "sonuc" alanı dosya adı taşıyor.
+  if (DEV_MODE) console.log("[filepicker-diag] === TEST BİTTİ ===", { hadCapacitor, hadPlugin, sonuc: file === undefined ? "plugin yok (web fallback gerekir)" : file === null ? "iptal/hata (yukarıdaki loga bak)" : `dosya alındı: ${file.name}` });
   if (!hadCapacitor) {
     toast("Sonuç: Capacitor YOK", "window.Capacitor tanımsız — bu masaüstü/web ortamıysa NORMAL, cihazdaysa native köprü hiç yüklenmemiş demektir.");
   } else if (!hadPlugin) {
@@ -10234,7 +10239,9 @@ async function toolsAddFile(file) {
 function applyUploadSelection(contextId, id, { skipReload = false, onReady } = {}) {
   const entry = toolsFiles.find((f) => f.id === id);
   if (!entry) return;
-  console.log(`[upload-context] "${contextId}" bağlamına dosya uygulanıyor: id=${id}, ad="${entry.name}"`);
+  // G296 (OLCUM-GUVENLIK-18-08 madde 3) — "ad" alanı "Kendi Referansım"/
+  // Araçlar dosya adını taşıyor (kişisel içerik olabilir).
+  if (DEV_MODE) console.log(`[upload-context] "${contextId}" bağlamına dosya uygulanıyor: id=${id}, ad="${entry.name}"`);
   recordUploadSelection(contextId, id);
   if (skipReload) {
     // toolsAddFile() bu dosyayı ZATEN uploadManager'a decode etmişti (bkz. o
