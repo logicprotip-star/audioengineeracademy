@@ -46,7 +46,7 @@ async function selectCakismaPair(page, pairId) {
   }, pairId);
 }
 
-test("KONTROL 1 — #cakismaPairSelect TAM 5 yeni çifti + 'own'u gösteriyor, ESKİ çiftler (kick-bas/vokal-gitar/snare-arpej-gitar) YOK", async () => {
+test("KONTROL 1 — #cakismaPairSelect TAM 7 çifti (G295: +vokal2-clean/vokal2-akustik) + 'own'u gösteriyor, ESKİ çiftler (kick-bas/vokal-gitar/snare-arpej-gitar) YOK", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.goto(serverHandle.baseUrl);
   await seedLocalStorage(page, { dev: { simulatePro: true } });
@@ -86,7 +86,7 @@ test("KONTROL 2 — snare_late genel kaynak seçicide (Frekans Bulma) GÖRÜNMÜ
   await page.close();
 });
 
-test("KABUL KRİTERİ — 5 çiftin HEPSİ konsol hatasız round başlatıp önizleme çalabiliyor (offsetli buildDualSourceChain gerçek tarayıcıda)", async () => {
+test("KABUL KRİTERİ — 7 çiftin (G295: +vokal2-clean/vokal2-akustik) HEPSİ konsol hatasız round başlatıp önizleme çalabiliyor (offsetli buildDualSourceChain gerçek tarayıcıda)", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
   page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg.text()); });

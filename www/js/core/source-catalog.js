@@ -210,6 +210,25 @@ export function findSource(id) {
 //   snare_late+akustik:    ölçülen [172.3,398.4] → [170,400] (referans verilmedi, "ölç" denildi)
 //   snare_late+clean:      ölçülen [193.8,430.7] → [190,440] (referans verilmedi, "ölç" denildi)
 // Tam ölçüm tablosu: DURUM.md G288.
+//
+// G295 — 2 YENİ çift: vokal2-clean (vocal_1+clean_guitar), vokal2-akustik
+// (vocal_1+acoustic_guitar). Logic KULAKLA test etti, bu iki gitarı seçti
+// ("ölçüm arpej önermişti, kulak farklı dedi — kulak esas"). Region AYNI
+// yöntemle (Welch/4096-FFT/-15dB) ÖLÇÜLDÜ — vokal ÇOK-formantlı olduğu için
+// (G288'in vokal-gitar notuyla AYNI uyarı) SADECE global-tepe kümesi DEĞİL,
+// HER kaynağın TÜM kümeleri bulunup TÜM küme-çiftleri kesiştirildi (bkz.
+// OLCUM-CIFT-DENGE-18-08.md'nin pair-6/vokal-arpej düzeltmesiyle AYNI
+// yöntem). Vokal_1'in KENDİ en güçlü örtüşen kümesi [204.6,366.1]Hz —
+// HER İKİ gitarla da (clean/akustik) EN GENİŞ kesişim BU küme (gitarların
+// kendi bantları bu aralığı TAMAMEN kapsıyor, dar taraf vokal). Dışa
+// yuvarlandı (G281/G288 ile AYNI yön, en yakın 10'a): [200,370].
+//
+// Zamansal (concurrent) örtüşme ÖLÇÜLDÜ (100ms pencere, -20dB zarf eşiği,
+// G288'in "sadece biri çalarken ölçmek yanıltıcı" uyarısıyla AYNI yöntem):
+// vokal2-clean %62.6, vokal2-akustik %55.7 — İKİSİ de zaten YÜKSEK eşzamanlı
+// çalma oranı taşıyor (offset gerektiren snare çiftlerinin AKSİNE, offset
+// YOKSA bile geniş bir eşzamanlı pencere var) — offsetA/offsetB=0/0,
+// EK bir gecikme GEREKMEDİ.
 export const SOURCE_PAIRS = [
   {
     id: "akustik-clean", labelA: "Akustik Gitar", labelB: "Clean Gitar", sourceA: "guitar", sourceB: "clean_guitar",
@@ -235,6 +254,16 @@ export const SOURCE_PAIRS = [
     id: "snare-clean", labelA: "Snare", labelB: "Clean Gitar", sourceA: "snare_late", sourceB: "clean_guitar",
     offsetA: 0.377, offsetB: 0,
     region: [190, 440], desc: "Snare ve clean gitar — atak bölgesinde zamansal çakışma, snare 377ms geç başlıyor"
+  },
+  {
+    id: "vokal2-clean", labelA: "Vokal 2", labelB: "Clean Gitar", sourceA: "vocal_1", sourceB: "clean_guitar",
+    offsetA: 0, offsetB: 0,
+    region: [200, 370], desc: "Vokal ve clean gitar — orta bölgede vokal formantı ile gitarın gövde çatışması"
+  },
+  {
+    id: "vokal2-akustik", labelA: "Vokal 2", labelB: "Akustik Gitar", sourceA: "vocal_1", sourceB: "guitar",
+    offsetA: 0, offsetB: 0,
+    region: [200, 370], desc: "Vokal ve akustik gitar — orta bölgede vokal formantı ile gitarın gövde çatışması"
   }
 ];
 

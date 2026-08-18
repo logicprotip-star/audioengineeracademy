@@ -129,10 +129,10 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
     assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["groove", "upload"].sort());
   });
 
-  it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 5 hazır çift içerir (G288: kick-bas/vokal-gitar/snare-arpej-gitar KALKTI, offsetli 5 yeni çift)", () => {
+  it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 7 hazır çift içerir (G288: 5 offsetli çift, G295: +2 vokal2 çifti)", () => {
     const meta = frekansCakismasi.getMeta();
     assert.deepEqual(meta.uyumluKaynaklar, []);
-    assert.deepEqual(SOURCE_PAIRS.map(p => p.id).sort(), ["akustik-clean", "bas-akustik", "bas-clean", "snare-akustik", "snare-clean"].sort());
+    assert.deepEqual(SOURCE_PAIRS.map(p => p.id).sort(), ["akustik-clean", "bas-akustik", "bas-clean", "snare-akustik", "snare-clean", "vokal2-akustik", "vokal2-clean"].sort());
   });
 });
 
@@ -271,6 +271,34 @@ describe("source-catalog — G288 YENİ kaynak: snare_late", () => {
       assert.equal(pair.offsetA, 0.377);
       assert.equal(pair.offsetB, 0);
     }
+  });
+});
+
+// G295 — YENİ SOURCE_PAIRS çiftleri: vokal2-clean/vokal2-akustik (vocal_1 ile
+// clean_guitar/acoustic_guitar). Logic'in kulakla seçtiği iki çift — region
+// Welch/4096-FFT/-15dB/60Hz-boşluk-toleranslı TÜM-küme-kesişimi yöntemiyle
+// ÖLÇÜLDÜ (vokal çok-formantlı, tek-küme yöntemi G288/OLCUM-CIFT-DENGE'de
+// zaten YANLIŞ sonuç verdiği KANITLANMIŞTI). Zamansal örtüşme ZATEN yüksek
+// (%56-63) — offset GEREKMEDİ.
+describe("source-catalog — G295 YENİ SOURCE_PAIRS çiftleri: vokal2-clean/vokal2-akustik", () => {
+  it("vokal2-clean: sourceA=vocal_1/sourceB=clean_guitar, region=[200,370], offset YOK", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "vokal2-clean");
+    assert.ok(pair, "vokal2-clean bulunamadı");
+    assert.equal(pair.sourceA, "vocal_1");
+    assert.equal(pair.sourceB, "clean_guitar");
+    assert.deepEqual(pair.region, [200, 370]);
+    assert.equal(pair.offsetA, 0);
+    assert.equal(pair.offsetB, 0);
+  });
+
+  it("vokal2-akustik: sourceA=vocal_1/sourceB=guitar, region=[200,370], offset YOK", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "vokal2-akustik");
+    assert.ok(pair, "vokal2-akustik bulunamadı");
+    assert.equal(pair.sourceA, "vocal_1");
+    assert.equal(pair.sourceB, "guitar");
+    assert.deepEqual(pair.region, [200, 370]);
+    assert.equal(pair.offsetA, 0);
+    assert.equal(pair.offsetB, 0);
   });
 });
 
