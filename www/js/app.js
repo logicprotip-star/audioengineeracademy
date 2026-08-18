@@ -614,6 +614,10 @@ function recordSourceSelection(contextId, sourceId) {
   else delete sourceSelections[contextId];
   storage.saveSourceSelections(sourceSelections);
 }
+// G303 — Frekans Çakışması'nın #cakismaPairSelect'i AYNI sourceSelections
+// haritasını, `mode.MODE_ID`'den AYRI bir anahtarla kullanır (bkz. o
+// listener'ın notu, aşağıda tanımlı).
+const CAKISMA_PAIR_STORAGE_KEY = "frekans-cakismasi-pair";
 
 // AKTİF MODUN kaynak uyumluluğu (getMeta().uyumluKaynaklar, bkz. source-catalog.js
 // compatibleSourceIds) listeyi süzer — bir modda anlamsız bir kaynak (Reverb'de
@@ -1486,6 +1490,22 @@ function syncCakismaVisibility() {
   // KENDİLERİ artık her zaman görünür (blok içinde), sadece BLOK toggle edilir.
   if (els.cakismaOwnUploadBlock) els.cakismaOwnUploadBlock.classList.toggle("hidden", !isOwnPair);
   if (els.cakismaCompare) els.cakismaCompare.classList.add("hidden"); // yeni moda/round'a girerken her zaman kapalı başlar
+}
+
+// G303 — `populateSourceSelect()`'in G138 deseninin AYNI eşdeğeri:
+// cakismaPairSelect'in `<option>` listesi (sourceSelect'in AKSİNE) statik
+// HTML'de sabit, mod başına yeniden ÜRETİLMEZ — bu yüzden filtre/uyumluluk
+// adımı YOK, sadece kayıtlı değer HÂLÂ geçerli bir option mu diye bakılır.
+// enterMode()'un mod-değişim dalından, syncCakismaVisibility()'den ÖNCE
+// çağrılır (isOwnPair kontrolü currentCakismaPairId()'i OKUYOR).
+function restoreCakismaPairSelection() {
+  if (!els.cakismaPairSelect) return;
+  const saved = sourceSelections[CAKISMA_PAIR_STORAGE_KEY];
+  if (!saved || saved === els.cakismaPairSelect.value) return;
+  const validOption = Array.from(els.cakismaPairSelect.options).some(o => o.value === saved);
+  if (!validOption) return;
+  els.cakismaPairSelect.value = saved;
+  els.cakismaPairSelect.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 // Aktif sorunun .ans grid'ini görünür/gizli tutar — hem yeni soru render'ında hem
@@ -2821,6 +2841,7 @@ function enterMode(entry, realMode) {
     populateFocusSelect();
     syncAnswerFormatVisibility();
     applyAnswerFormatForMode(); // G144 — bu MODUN kendi kalıcı Cevap Biçimi seçimini yükle
+    restoreCakismaPairSelection(); // G303 — bu MODUN kendi kalıcı kaynak-çifti seçimini yükle
     syncCakismaVisibility();
     // G46: Tonal Denge'nin altı kaydırıcıya kadar çıkabilen kart listesi spektrumun
     // altında yer sıkışıklığına yol açıyordu — mode.COMPACT_ANALYZER (SHOW_SPECTRUM'un
@@ -6986,7 +7007,18 @@ document.querySelectorAll(".upload-trigger-btn").forEach(btn => {
 // görünürlüğü YENİDEN hesaplanır — initSettingsSheet'in GENERİK sheet-seçim
 // mekanizması bu select'in "change" event'ini zaten dispatch ediyor (diğer
 // tüm data-sheet-select'lerle AYNI), buraya SADECE görünürlük senkronu ekleniyor.
-if (els.cakismaPairSelect) els.cakismaPairSelect.addEventListener("change", () => syncCakismaVisibility());
+// G303 (OLCUM-CIHAZ3-18-08'in ardından cihazda bulundu) — bu listener HİÇBİR
+// zaman (G51'den beri) seçimi kalıcılaştırmıyordu, moddan çıkıp girince
+// kaynak seçici İLK çifte (Akustik Gitar+Clean Gitar) düşüyordu. Diğer
+// modların kaynak seçimi `sourceSelections`/`recordSourceSelection()` ile
+// (bkz. populateSourceSelect'in G138 notu) mod başına kalıcı — cakismaPairSelect
+// AYNI mekanizmayı `mode.MODE_ID`'den AYRI bir anahtarla ("frekans-cakismasi-pair")
+// kullanıyor (sourceSelect'in bu moddaki KENDİ, kullanılmayan kaydıyla
+// KARIŞMASIN diye — o select bu modda gizli/anlamsız).
+if (els.cakismaPairSelect) els.cakismaPairSelect.addEventListener("change", () => {
+  syncCakismaVisibility();
+  recordSourceSelection(CAKISMA_PAIR_STORAGE_KEY, els.cakismaPairSelect.value);
+});
 
 // AŞAMA 3 (Çöz) sonrası öncesi/sonrası — audio-engine.js:setDualCut'ı SADECE
 // doğru kaynağın filtresine (question.correctSource) uygular, grafiği YENİDEN
