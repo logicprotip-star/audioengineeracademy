@@ -240,8 +240,22 @@ export function findSource(id) {
 //   akustik-clean: Clean Gitar (B) +2.89dB yüksek (B−A farkı) → gainB=-2.9
 //   bas-akustik:   Bas (A) yüksek (B−A farkı -1.92dB, yani A>B) → gainA=-1.9
 //   bas-clean/snare-akustik/snare-clean: ±1.5dB İÇİNDE, düzeltme YOK (0/0)
-//   vokal2-clean:  Clean Gitar (B) +3.16dB yüksek (bu turda ÖLÇÜLDÜ) → gainB=-3.2
+//   vokal2-clean:  Clean Gitar (B) +3.16dB yüksek (ESKİ vocal_1.m4a ile
+//     ÖLÇÜLMÜŞTÜ) → gainB=-3.2
 //   vokal2-akustik: fark +0.70dB, ±1.5dB İÇİNDE, düzeltme YOK (0/0)
+//
+// G301 (OLCUM-CIHAZ3-18-08 madde C) — vocal_1.m4a DC-offset düzeltmesiyle
+// DEĞİŞTİRİLDİ (aynı dosya adı, farklı içerik) — vokal2-clean'in G295'te
+// ölçülen +3.16dB'lik ham farkı bu değişiklikten SONRA GEÇERSİZ. AYNI yöntemle
+// (concurrent -20dB zarf, band-limited, e2e/cakisma-gain-balance.spec.mjs'in
+// KENDİ renderBandLimited/measurePair fonksiyonlarıyla) YENİ dosyayla
+// yeniden ölçüldü:
+//   vokal2-clean:  YENİ ham fark +1.57dB (Clean Gitar hâlâ yüksek, ama ESKİ
+//     +3.16dB'nin YARISINDAN azı) → gainB -3.2'den -1.6'ya güncellendi
+//     (düzeltilmiş fark ≈ -0.03dB)
+//   vokal2-akustik: YENİ ham fark -0.72dB (yön ESKİ +0.70dB'den TERSİNE
+//     döndü, vokal şimdi hafif yüksek) — HÂLÂ ±1.5dB İÇİNDE, düzeltme
+//     GEREKMEDİ, 0/0 KORUNDU.
 // audio-engine.js:buildDualSourceChain'in MEVCUT gainA/gainB GainNode'larına
 // (G51'den beri VAR, o zamandan beri sabit 1.0) app.js:cakismaSourcesSpec/
 // resolve() ÜZERİNDEN taşınıyor (offsetSec'in BİREBİR AYNI deseni) — SIFIR
@@ -275,7 +289,7 @@ export const SOURCE_PAIRS = [
   },
   {
     id: "vokal2-clean", labelA: "Vokal 2", labelB: "Clean Gitar", sourceA: "vocal_1", sourceB: "clean_guitar",
-    offsetA: 0, offsetB: 0, gainA: 0, gainB: -3.2,
+    offsetA: 0, offsetB: 0, gainA: 0, gainB: -1.6,
     region: [200, 370], desc: "Vokal ve clean gitar — orta bölgede vokal formantı ile gitarın gövde çatışması"
   },
   {

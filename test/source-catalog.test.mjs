@@ -382,10 +382,10 @@ describe("source-catalog — G295 SOURCE_PAIRS gainA/gainB (çift-içi statik se
     }
   });
 
-  it("bu turda ölçülen 2 YENİ vokal2 çiftinin düzeltmesi doğru: vokal2-clean dengesiz (gainB=-3.2), vokal2-akustik dengeli (0/0)", () => {
-    assert.equal(SOURCE_PAIRS.find(p => p.id === "vokal2-clean").gainB, -3.2, "Clean Gitar +3.16dB yüksekti");
+  it("G301 (vocal_1.m4a DC-offset değişimi SONRASI yeniden ölçüldü): vokal2-clean dengesiz (gainB=-1.6), vokal2-akustik dengeli (0/0)", () => {
+    assert.equal(SOURCE_PAIRS.find(p => p.id === "vokal2-clean").gainB, -1.6, "YENİ vocal_1.m4a ile Clean Gitar +1.57dB yüksek");
     assert.equal(SOURCE_PAIRS.find(p => p.id === "vokal2-clean").gainA, 0);
-    assert.equal(SOURCE_PAIRS.find(p => p.id === "vokal2-akustik").gainA, 0, "fark +0.70dB, ±1.5dB içinde");
+    assert.equal(SOURCE_PAIRS.find(p => p.id === "vokal2-akustik").gainA, 0, "YENİ dosyayla fark -0.72dB, ±1.5dB içinde");
     assert.equal(SOURCE_PAIRS.find(p => p.id === "vokal2-akustik").gainB, 0);
   });
 });

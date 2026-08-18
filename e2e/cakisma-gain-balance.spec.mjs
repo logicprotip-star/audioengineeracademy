@@ -10,6 +10,13 @@
 // gainDb dahil edilerek), (3) diğer 8 tek-kaynaklı modun ses zinciri
 // (buildQuestionChain) HİÇ dokunulmadığından round başlatma DAVRANIŞI
 // değişmedi (regresyon kontrolü, konsol hatasız).
+//
+// G301 (OLCUM-CIHAZ3-18-08 madde C) — vocal_1.m4a DC-offset düzeltmesiyle
+// değiştirildi, vokal2-clean'in G295'te ölçülen +3.16dB'lik ham farkı
+// GEÇERSİZ oldu (YENİ dosyayla ham fark +1.57dB, gainB -3.2'den -1.6'ya
+// güncellendi — bkz. source-catalog.js'in G301 notu). "KABUL KRİTERİ" testine
+// vokal2-akustik de eklendi (task'ın "bu çifti de yeniden ölç" isteği —
+// YENİ dosyayla ham fark -0.72dB, hâlâ ±1.5dB içinde, düzeltme gerekmedi).
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -160,7 +167,7 @@ test("KABUL KRİTERİ — düzeltme UYGULANDIKTAN SONRA 3 dengesiz çiftte (akus
       results.push(await measurePair(pair));
     }
     return results;
-  }, SOURCE_PAIRS.filter(p => ["akustik-clean", "bas-akustik", "vokal2-clean"].includes(p.id)));
+  }, SOURCE_PAIRS.filter(p => ["akustik-clean", "bas-akustik", "vokal2-clean", "vokal2-akustik"].includes(p.id)));
 
   for (const r of result) {
     assert.ok(Math.abs(r.diff) <= 1.5, `[${r.id}] düzeltme SONRASI fark ±1.5dB İÇİNDE değil: ${r.diff.toFixed(2)}dB`);
