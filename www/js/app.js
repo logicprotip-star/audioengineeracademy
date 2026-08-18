@@ -19,7 +19,7 @@ import { modeVisualSvg } from "./core/mode-visuals.js";
 import { SOURCE_GROUPS, findSource, findSourcePair } from "./core/source-catalog.js";
 import { tierForLevel, DIFFICULTY_CONFIG, continuousLevel, sessionRampOffset, representativeLevelForTier, examCappedLevel } from "./core/difficulty-curve.js";
 import { levelSheetTermsFor } from "./core/level-sheet-terms.js";
-import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS, TOOLS_TONAL_GUIDE, TOOLS_RESULTS_GUIDE, TOOLS_FILTER_GUIDE, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
+import { GENERAL_GUIDE, MODE_GUIDE_TEXTS, MODE_OPTIONS_TEXTS, TOOLS_TONAL_GUIDE, TOOLS_RESULTS_GUIDE, TOOLS_FILTER_GUIDE, TOOLS_UPLOAD_GUIDE, PROGRESS_BADGES_GUIDE, PROGRESS_ZONE_GUIDE, PROGRESS_DAILY_GUIDE, PROGRESS_ACCURACY_GUIDE, shouldShowRoundHint, spotlightStepsFor } from "./core/guide-texts.js";
 import { getWeakZone } from "./core/personalization.js";
 import * as tonalBalance from "./core/tonal-balance.js";
 import * as fileStorage from "./core/file-storage.js";
@@ -247,6 +247,11 @@ const els = {
   toolsFilterHeader: document.getElementById("toolsFilterHeader"),
   toolsFilterHeaderBadge: document.getElementById("toolsFilterHeaderBadge"),
   toolsFilterInfoBtn: document.getElementById("toolsFilterInfoBtn"), // OLCUM-CIHAZ-16-08 madde H.3
+  toolsUploadInfoBtn: document.getElementById("toolsUploadInfoBtn"), // G290 — OLCUM-I-METINLERI-17-08 madde A.4
+  dailyInfoBtn: document.getElementById("dailyInfoBtn"), // G290 — OLCUM-I-METINLERI-17-08 madde B.1
+  zoneInfoBtn: document.getElementById("zoneInfoBtn"),
+  badgesInfoBtn: document.getElementById("badgesInfoBtn"),
+  accChartInfoBtn: document.getElementById("accChartInfoBtn"),
   toolsFilterChevron: document.getElementById("toolsFilterChevron"),
   toolsFilterBody: document.getElementById("toolsFilterBody"),
   toolsFilterFileName: document.getElementById("toolsFilterFileName"),
@@ -7443,6 +7448,21 @@ if (els.lvlSheetOverlay) els.lvlSheetOverlay.addEventListener("click", closeLeve
 // açan İKİNCİ bir giriş noktasıydı) KENDİSİ KALDIRILDI, bu satır da onunla
 // gitti — #levelChip (beşgen) TEK/yeterli giriş noktası olarak KALDI.
 
+// G290 — MODE_GUIDE_TEXTS'in anahtar uzayında OLMAYAN (bir MOD DEĞİL) "i"
+// içerikleri — Araçlar'ın 4 kartı + İlerleme'nin 4 kartından 4'ü. Sentinel
+// id'leri gerçek bir modeId ile ÇAKIŞMAZ (mode-catalog.js'in id'leri hep
+// kebap-case mod adları, "tools-"/"progress-" ÖNEKİYLE hiç başlamıyor).
+const CARD_GUIDES = {
+  "tools-tonal-balance": TOOLS_TONAL_GUIDE,
+  "tools-results": TOOLS_RESULTS_GUIDE,
+  "tools-filters": TOOLS_FILTER_GUIDE,
+  "tools-upload": TOOLS_UPLOAD_GUIDE,
+  "progress-badges": PROGRESS_BADGES_GUIDE,
+  "progress-zone": PROGRESS_ZONE_GUIDE,
+  "progress-daily": PROGRESS_DAILY_GUIDE,
+  "progress-accuracy": PROGRESS_ACCURACY_GUIDE
+};
+
 // "i" bilgi/rehber sistemi (bkz. core/guide-texts.js) — KALICI, tıkla-aç/tıkla-kapa.
 // TEK sheet (guideSheet), lvlSheet'in AYNI deseni: ana ekranın "i"si GENERAL_GUIDE'ı,
 // her mod kartının "i"si o modun MODE_GUIDE_TEXTS[modeId]'ini doldurur. modeId=null
@@ -7471,26 +7491,16 @@ function openGuideSheet(modeId) {
   // anahtar uzayında yok), bu yüzden özel bir sentinel ("tools-tonal-balance",
   // gerçek bir modeId ile ÇAKIŞMAZ) — GENERAL_GUIDE'ın AYNI "intro + madde
   // listesi" render şekli, YENİ bir sheet/DOM İCAT EDİLMEDİ.
-  if (modeId === "tools-tonal-balance") {
-    if (els.guideSheetTitle) els.guideSheetTitle.textContent = TOOLS_TONAL_GUIDE.title;
-    const [intro, ...rest] = TOOLS_TONAL_GUIDE.sections;
-    els.guideSheetBody.innerHTML = `
-      <p style="margin:8px 2px 0;font-size:13.5px;line-height:1.6;color:#b8bdc4">${intro.body}</p>
-      <div class="guide-point-list">${rest.map(s => `<div class="guide-point"><i></i><span><b style="color:var(--am);font-weight:700">${s.heading}:</b> ${s.body}</span></div>`).join("")}</div>`;
-  } else if (modeId === "tools-results") {
-    // Düzeltme 2 (TUR9-ARACLAR-15-08 bulgusu 🟡) — "tools-tonal-balance"
-    // sentinel'iyle AYNI desen (bir MOD DEĞİL, MODE_GUIDE_TEXTS'in anahtar
-    // uzayında yok).
-    if (els.guideSheetTitle) els.guideSheetTitle.textContent = TOOLS_RESULTS_GUIDE.title;
-    const [intro, ...rest] = TOOLS_RESULTS_GUIDE.sections;
-    els.guideSheetBody.innerHTML = `
-      <p style="margin:8px 2px 0;font-size:13.5px;line-height:1.6;color:#b8bdc4">${intro.body}</p>
-      <div class="guide-point-list">${rest.map(s => `<div class="guide-point"><i></i><span><b style="color:var(--am);font-weight:700">${s.heading}:</b> ${s.body}</span></div>`).join("")}</div>`;
-  } else if (modeId === "tools-filters") {
-    // OLCUM-CIHAZ-16-08.md madde H.3 — "tools-results" sentinel'iyle AYNI
-    // desen (bir MOD DEĞİL, MODE_GUIDE_TEXTS'in anahtar uzayında yok).
-    if (els.guideSheetTitle) els.guideSheetTitle.textContent = TOOLS_FILTER_GUIDE.title;
-    const [intro, ...rest] = TOOLS_FILTER_GUIDE.sections;
+  // G290 — ÖNCEDEN bu ÜÇ sentinel ("tools-tonal-balance"/"tools-results"/
+  // "tools-filters") birbirinden AYRI, BİREBİR AYNI 5 satırı TEKRARLAYAN
+  // üç `else if` dalıydı. 5 YENİ sentinel eklenince (Mixini Yükle + İlerleme'nin
+  // 4 kartı) bu tekrar 8'e çıkardı — CARD_GUIDES lookup'ına TAŞINDI, render
+  // MANTIĞI (intro paragraf + madde listesi) TEK SATIR değişmedi, sadece
+  // TEK yerde yazılıyor artık.
+  if (modeId && CARD_GUIDES[modeId]) {
+    const guide = CARD_GUIDES[modeId];
+    if (els.guideSheetTitle) els.guideSheetTitle.textContent = guide.title;
+    const [intro, ...rest] = guide.sections;
     els.guideSheetBody.innerHTML = `
       <p style="margin:8px 2px 0;font-size:13.5px;line-height:1.6;color:#b8bdc4">${intro.body}</p>
       <div class="guide-point-list">${rest.map(s => `<div class="guide-point"><i></i><span><b style="color:var(--am);font-weight:700">${s.heading}:</b> ${s.body}</span></div>`).join("")}</div>`;
@@ -7563,6 +7573,19 @@ if (els.toolsResultsInfoBtn) els.toolsResultsInfoBtn.addEventListener("click", (
 // VAR — toolsToggleFilterAccordion) İÇİNDE, stopPropagation ŞART (G245'te
 // Ölçüm Sonuçları'nda AYNI sorun yaşanmıştı).
 if (els.toolsFilterInfoBtn) els.toolsFilterInfoBtn.addEventListener("click", (e) => { e.stopPropagation(); openGuideSheet("tools-filters"); });
+// G290 — Mixini Yükle kartının "i"si: toolsTonalInfoBtn'in AYNI deseni —
+// bu kart akordiyon DEĞİL (kendi bir toggle-header'ı yok), stopPropagation
+// GEREKMİYOR.
+if (els.toolsUploadInfoBtn) els.toolsUploadInfoBtn.addEventListener("click", () => openGuideSheet("tools-upload"));
+// G290 — İlerleme'nin 4 kartı. dailyToggle/zoneToggle/badgesToggle'ın
+// ÜÇÜ de kendi akordiyon aç/kapa click listener'ına sahip satırların
+// İÇİNDE — toolsResultsInfoBtn/toolsFilterInfoBtn'in AYNI G245/G262
+// tuzağı, stopPropagation ŞART. accChartInfoBtn'in kartı (İsabet Grafiği)
+// akordiyon DEĞİL — toolsTonalInfoBtn'in AYNI "gerekmiyor" durumu.
+if (els.dailyInfoBtn) els.dailyInfoBtn.addEventListener("click", (e) => { e.stopPropagation(); openGuideSheet("progress-daily"); });
+if (els.zoneInfoBtn) els.zoneInfoBtn.addEventListener("click", (e) => { e.stopPropagation(); openGuideSheet("progress-zone"); });
+if (els.badgesInfoBtn) els.badgesInfoBtn.addEventListener("click", (e) => { e.stopPropagation(); openGuideSheet("progress-badges"); });
+if (els.accChartInfoBtn) els.accChartInfoBtn.addEventListener("click", () => openGuideSheet("progress-accuracy"));
 if (els.guideSheetClose) els.guideSheetClose.addEventListener("click", closeGuideSheet);
 if (els.guideSheetOverlay) els.guideSheetOverlay.addEventListener("click", closeGuideSheet);
 

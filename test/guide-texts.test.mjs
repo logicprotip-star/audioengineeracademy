@@ -14,7 +14,12 @@ import {
   SPOTLIGHT_STEPS,
   HINT_ROUNDS_LIMIT,
   shouldShowRoundHint,
-  spotlightStepsFor
+  spotlightStepsFor,
+  TOOLS_UPLOAD_GUIDE,
+  PROGRESS_BADGES_GUIDE,
+  PROGRESS_ZONE_GUIDE,
+  PROGRESS_DAILY_GUIDE,
+  PROGRESS_ACCURACY_GUIDE
 } from "../www/js/core/guide-texts.js";
 import { MODE_CATALOG } from "../www/js/core/mode-catalog.js";
 
@@ -169,14 +174,104 @@ describe("guide-texts: GENERAL_GUIDE ana ekranın genel sistem bilgisini taşır
     assert.ok(GENERAL_GUIDE.title.length > 0);
   });
 
-  it("tam olarak 5 bölüm içerir (Nasıl çalışır / Seviye ve zorluk / Sınav ve bölüm geçme / Ücretsiz ve Pro / Can)", () => {
-    assert.equal(GENERAL_GUIDE.sections.length, 5);
+  it("tam olarak 10 bölüm içerir (G290: ESKİ 5'e 5 YENİ EKLENDİ, hiçbiri silinmedi)", () => {
+    assert.equal(GENERAL_GUIDE.sections.length, 10);
     GENERAL_GUIDE.sections.forEach(s => {
       assert.equal(typeof s.heading, "string");
       assert.equal(typeof s.body, "string");
       assert.ok(s.heading.length > 0);
       assert.ok(s.body.length > 0);
     });
+  });
+
+  // G290 — KİLİT: DOKUNULMAYACAK'ın "mevcut 16 'i' metni değiştirilmeyecek"
+  // şartının GENERAL_GUIDE'a düşen kısmı — ESKİ 5 bölümün başlığı/metni/sırası
+  // BİREBİR AYNI kalmalı (yeni bölümler SONRALARINA eklendi, aralarına değil).
+  it("ESKİ 5 bölüm (0-4 index) TEK SATIR değişmeden, AYNI SIRADA duruyor", () => {
+    const oldHeadings = GENERAL_GUIDE.sections.slice(0, 5).map(s => s.heading);
+    assert.deepEqual(oldHeadings, ["Nasıl çalışır?", "Seviye ve zorluk", "Sınav ve bölüm geçme", "Ücretsiz ve Pro", "Can"]);
+    assert.equal(GENERAL_GUIDE.sections[3].hideForPro, true, "'Ücretsiz ve Pro' hideForPro KORUNDU");
+    assert.equal(GENERAL_GUIDE.sections[4].hideForPro, true, "'Can' hideForPro KORUNDU");
+  });
+
+  // G290 (OLCUM-I-METINLERI-17-08'in bulduğu boşluk, OLCUM-XP-17-08/
+  // OLCUM-SINAV-17-08'in ölçtüğü sayılar) — YENİ 5 bölüm (index 5-9).
+  it("YENİ 5 bölüm (index 5-9) doğru sırada, doğru başlıklarda", () => {
+    const newHeadings = GENERAL_GUIDE.sections.slice(5).map(s => s.heading);
+    assert.deepEqual(newHeadings, ["XP nasıl kazanılır?", "XP çarpanları", "İki ayrı seviye", "Sınav nasıl açılır? (Pro)", "Kalınca ve telafi (Pro)"]);
+  });
+
+  it("XP çarpanları — OLCUM-XP-17-08'de ölçülen 4 sayı (2.4/1.65/1.2/yarıya) metinde GEÇİYOR", () => {
+    const body = GENERAL_GUIDE.sections[6].body;
+    assert.match(body, /2\.4/);
+    assert.match(body, /1\.65/);
+    assert.match(body, /1\.2/);
+    assert.match(body, /yarıya/);
+  });
+
+  it("Sınav/telafi bölümleri — OLCUM-SINAV-17-08'de doğrulanan sayılar (10/6/4 kademe) VE 'Pro' notu geçiyor", () => {
+    const examBody = GENERAL_GUIDE.sections[8].body;
+    const remedialBody = GENERAL_GUIDE.sections[9].body;
+    assert.match(examBody, /10 soruluk/);
+    assert.match(examBody, /6 doğru/);
+    assert.match(examBody, /en zor kademede/);
+    assert.match(remedialBody, /telafi/i);
+    assert.match(remedialBody, /Pro/);
+  });
+
+  // Yeni bölümlerin HİÇBİRİ hideForPro TAŞIMIYOR (Bug #40'ın "Ücretsiz ve
+  // Pro"/"Can" mantığının TERSİ — bunlar Pro'ya ÖZEL ama ücretsiz kullanıcı
+  // da görebilir, sadece kendisiyle ilgili OLMADIĞINI metinden anlar).
+  it("YENİ 5 bölümün hiçbirinde hideForPro YOK", () => {
+    GENERAL_GUIDE.sections.slice(5).forEach(s => {
+      assert.equal(s.hideForPro, undefined, `${s.heading}: hideForPro OLMAMALI`);
+    });
+  });
+});
+
+// G290 — OLCUM-I-METINLERI-17-08 madde A.4/B.1'in bulduğu boşluklar için
+// YENİ 5 "i" içeriği (Mixini Yükle + İlerleme'nin 4 kartı). TOOLS_TONAL_
+// GUIDE/TOOLS_RESULTS_GUIDE/TOOLS_FILTER_GUIDE'ın AYNI {title, sections}
+// şekli.
+describe("guide-texts: G290'un 5 YENİ kart-'i'si (Mixini Yükle + İlerleme'nin 4 kartı)", () => {
+  const guides = {
+    "Mixini Yükle": TOOLS_UPLOAD_GUIDE,
+    "Rozetler": PROGRESS_BADGES_GUIDE,
+    "Zayıf Bölge Raporu": PROGRESS_ZONE_GUIDE,
+    "Günlük Görevler": PROGRESS_DAILY_GUIDE,
+    "İsabet Grafiği": PROGRESS_ACCURACY_GUIDE
+  };
+
+  for (const [expectedTitle, guide] of Object.entries(guides)) {
+    it(`${expectedTitle} — {title, sections} şekli doğru, en az 1 bölüm, başlık eşleşiyor`, () => {
+      assert.equal(guide.title, expectedTitle);
+      assert.ok(Array.isArray(guide.sections) && guide.sections.length >= 1);
+      guide.sections.forEach(s => {
+        assert.equal(typeof s.heading, "string");
+        assert.equal(typeof s.body, "string");
+        assert.ok(s.heading.length > 0);
+        assert.ok(s.body.length > 0);
+      });
+    });
+  }
+
+  it("Rozetler — 6 rozet adı görevin verdiği metinle BİREBİR geçiyor", () => {
+    const body = PROGRESS_BADGES_GUIDE.sections[0].body;
+    for (const name of ["Dinleyici", "Ses Kaşifi", "Miksçi", "Ses Mühendisi", "Mastering Mühendisi", "Altın Kulak"]) {
+      assert.ok(body.includes(name), `${name} rozet metninde YOK`);
+    }
+    assert.match(body, /başarımlara bağlı/);
+  });
+
+  it("Zayıf Bölge Raporu — 6 bölge adı geçiyor", () => {
+    const body = PROGRESS_ZONE_GUIDE.sections[0].body;
+    for (const zone of ["SUB", "BAS", "ALT-ORTA", "ORTA", "ÜST-ORTA", "TİZ"]) {
+      assert.ok(body.includes(zone), `${zone} bölge metninde YOK`);
+    }
+  });
+
+  it("Mixini Yükle — 'cihazında kalır' gizlilik notu geçiyor", () => {
+    assert.match(TOOLS_UPLOAD_GUIDE.sections[0].body, /cihazında kalır/);
   });
 });
 

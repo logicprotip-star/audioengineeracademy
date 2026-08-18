@@ -50,6 +50,40 @@ export const GENERAL_GUIDE = {
       heading: "Can",
       hideForPro: true,
       body: "5 canın var. Biterse 30 dakikada bir dolar, ya da video izleyip hemen doldurabilirsin."
+    },
+    // G290 (OLCUM-I-METINLERI-17-08'in bulduğu boşluk, OLCUM-XP-17-08'in
+    // ölçtüğü GERÇEK sayılar) — 5 YENİ bölüm buraya EKLENDİ, yukarıdaki 5
+    // bölümün TEK SATIRI değişmedi. "Seviye ve zorluk"/"Sınav ve bölüm
+    // geçme" (yukarıda) KISA bir özet veriyordu — buradaki 5 bölüm AYNI
+    // konuları sayılarla/mekanikle DERİNLEŞTİRİYOR, öncekini TEKRARLAMIYOR.
+    // "10 soruluk parkur" (sınav) ile Ayarlar'ın "10 Soruluk Bölüm" (+%50
+    // XP, OLCUM-XP-17-08'de ölçülen challenge/xpMult) BİLEREK "bölüm"
+    // kelimesi kullanılmadan (SADECE "parkur") anlatılıyor — ikisi AYNI
+    // sayıyı (10) taşıyan ama KOD TABANINDA TAMAMEN AYRI, ilişkisiz iki
+    // mekanizma, isim çakışması metne SIZDIRILMADI.
+    {
+      heading: "XP nasıl kazanılır?",
+      body: "Her doğru cevap XP kazandırır. Miktar moda ve zorluğa göre değişir — zor sorular daha çok verir. Yanlış cevap ve 'Atla' XP kazandırmaz, kaybettirmez de."
+    },
+    {
+      heading: "XP çarpanları",
+      body: "Arka arkaya doğru cevap (combo) XP'yi 2.4 kata kadar artırır. Her 5. soru (boss round) 1.65 kat verir. Sürenin yarısından fazlası kalmışken cevaplamak 1.2 kat verir. İpucu kullanmak XP'yi yarıya düşürür."
+    },
+    {
+      heading: "İki ayrı seviye",
+      body: "Her modun kendi seviyesi var, bir de ana menüdeki akademi seviyesi. Akademi seviyesi tüm modlardan toplanan XP'ye bakar, mod seviyelerinden daha yavaş yükselir."
+    },
+    {
+      // hideForPro YOK (Bug #40'ın "Ücretsiz ve Pro"/"Can" bölümlerinin
+      // AKSİNE) — bu ikisi Pro kullanıcıya ZATEN gösterilmesi gereken,
+      // Pro'YA ÖZEL içerik (ücretsizde anlamsız olan "Ücretsiz ve Pro"
+      // metninin TERSİ) — metin İÇİNDE "(Pro)" ile açıkça belirtiliyor.
+      heading: "Sınav nasıl açılır? (Pro)",
+      body: "Parkur, bir modda arka arkaya çözdüğün 10 soruluk dizidir. Sınav iki şekilde açılır: parkur içinde arka arkaya 6 doğru yaparsan teklif gelir (reddedebilirsin), ya da parkur sonunda toplam 6 doğruya ulaşmışsan otomatik başlar. Sınav soruları her zaman en zor kademede sorulur."
+    },
+    {
+      heading: "Kalınca ve telafi (Pro)",
+      body: "Parkur 6 doğruya hiç ulaşamadan biterse sınav yerine telafi gelir — zayıf olduğun noktaya odaklanan kısa bir tur. Sınavdan ya da telafiden kalmak XP silmez, seviye düşürmez; sadece 10 soruluk parkur baştan başlar. Sınav ve telafi SADECE Pro'da çalışır."
     }
   ]
 };
@@ -192,6 +226,65 @@ export const TOOLS_FILTER_GUIDE = {
     {
       heading: "Nasıl kullanılır?",
       body: "Bir filtre seç, oynatıcıdan mixini çal — o cihazın karakteriyle dinlersin. 10 sn ileri/geri ve oynat/duraklat ile istediğin bölümü tekrar dinleyebilirsin. Filtreyi değiştirerek aynı mixi farklı cihazlarda kıyaslayabilirsin."
+    }
+  ]
+};
+
+// ---- 1e. Araçlar → Mixini Yükle kartının "i"si — G290 (OLCUM-I-METINLERI-
+// 17-08 madde B.2 bulgusu: Araçlar'ın 4 kartından 3'ünde "i" vardı, bu
+// birinde yoktu). TOOLS_*_GUIDE'ın AYNI {title, sections} şekli, TEK
+// bölümlü (görevin verdiği metin tek paragraf, yapay alt-başlığa
+// bölünmedi).
+export const TOOLS_UPLOAD_GUIDE = {
+  title: "Mixini Yükle",
+  sections: [
+    {
+      heading: "Mixini Yükle ne işe yarar?",
+      body: "Kendi dosyanı yükle, egzersizlerde hazır kaynaklar yerine onu kullan. Bildiğin bir parçada duyduğun fark, tanımadığın bir kaynaktakinden daha öğreticidir. Dosya cihazında kalır, hiçbir yere gönderilmez."
+    }
+  ]
+};
+
+// ---- 1f. İlerleme → 4 kart'ın "i"si — G290 (OLCUM-I-METINLERI-17-08 madde
+// B.1 bulgusu: İlerleme sekmesinde TEK bir "i" bile yoktu — Rozetler/Zayıf
+// Bölge Raporu/Günlük Görevler/İsabet Grafiği). Aynı TOOLS_*_GUIDE şekli,
+// hepsi TEK bölümlü (görevin verdiği metinler zaten tek paragraf).
+export const PROGRESS_BADGES_GUIDE = {
+  title: "Rozetler",
+  sections: [
+    {
+      heading: "Rozetler ne işe yarar?",
+      body: "Altı rozet var: Dinleyici, Ses Kaşifi, Miksçi, Ses Mühendisi, Mastering Mühendisi, Altın Kulak. Rozetler seviyeye değil, başarımlara bağlı — belirli sayıda soru çözmek, belirli isabet oranına ulaşmak gibi."
+    }
+  ]
+};
+
+export const PROGRESS_ZONE_GUIDE = {
+  title: "Zayıf Bölge Raporu",
+  sections: [
+    {
+      heading: "Zayıf Bölge Raporu ne işe yarar?",
+      body: "Hangi frekans bölgesinde zorlandığını gösterir. Altı bölge var: SUB, BAS, ALT-ORTA, ORTA, ÜST-ORTA, TİZ. Kırmızıya yakın bölge, o bantta daha çok çalışman gerektiği anlamına gelir. Yeterli veri toplanana kadar rapor boş kalabilir."
+    }
+  ]
+};
+
+export const PROGRESS_DAILY_GUIDE = {
+  title: "Günlük Görevler",
+  sections: [
+    {
+      heading: "Günlük Görevler ne işe yarar?",
+      body: "Her gün yenilenen üç hedef. Tamamladığında ek XP kazanırsın. Alışkanlık kurmak için var — günde birkaç dakika, haftada bir uzun oturumdan daha çok işe yarar."
+    }
+  ]
+};
+
+export const PROGRESS_ACCURACY_GUIDE = {
+  title: "İsabet Grafiği",
+  sections: [
+    {
+      heading: "İsabet Grafiği ne işe yarar?",
+      body: "Zaman içindeki doğruluk oranın. Yükselen çizgi kulağının geliştiğini gösterir. Düşüşler normaldir — zorluk arttıkça isabet oranı geçici olarak düşer, sonra tekrar yükselir."
     }
   ]
 };

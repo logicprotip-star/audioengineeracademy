@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 18.08.2026 (G289 — Günlük görev sayacı + günlük özet kaydı — OLCUM-XP-17-08.md'nin bulduğu bug düzeltildi: günlük görevlerin ilerlemesi artık ÖMÜR BOYU stats.rounds/correct/bestCombo'dan DEĞİL, storage.js:freshDaily()'nin YENİ dailyRounds/dailyCorrect/dailyBestCombo/dailyXp sayaçlarından okunuyor (dailyKey() gün-değişim mantığı TEK SATIR değişmeden bu sayaçları da sıfırlıyor) — DÜZELTME ÖNCESİ ilk günden sonra HER günün İLK cevabında 3 görev de anında tamamlanıp +125 XP veriyordu, e2e testi bunu KIRMIZI yakaladı. YENİ `core/daily-log.js` + `DAILY_LOG_KEY` — her gün değiştiğinde (storage.loadDaily()'DEN ÖNCE) ÖNCEKİ günün özeti {date,rounds,correct,bestCombo,questions,xp} olarak AYRI bir 365-kayıtlık günlüğe (G233 şema damgası + trySave() ile) arşivleniyor; ölçülen boyut ~30KB/365 gün (task'ın "~18KB" tahmininden farklı çıktı, gerçek ölçüm kullanıldı). npm test 1533/1533, e2e 79/79)
+Son güncelleme: 18.08.2026 (G290 — Eksik "i" metinleri + buton boyutu — OLCUM-I-METINLERI-17-08.md'nin bulduğu 5 boşluk (İlerleme'de hiç "i" yoktu: Rozetler/Zayıf Bölge/Günlük Görevler/İsabet Grafiği; Araçlar'ın Mixini Yükle kartında yoktu) dolduruldu — mevcut 16 "i" metninin TEK SATIRI değişmeden, GENERAL_GUIDE'a 5 YENİ bölüm (XP kazanma/çarpanlar/iki-seviye/sınav-açılış/telafi, OLCUM-XP-17-08 + OLCUM-SINAV-17-08'de ölçülen GERÇEK sayılarla) + 5 YENİ dedike kart-"i"si (TOOLS_UPLOAD_GUIDE/PROGRESS_BADGES_GUIDE/PROGRESS_ZONE_GUIDE/PROGRESS_DAILY_GUIDE/PROGRESS_ACCURACY_GUIDE) eklendi; 3 tekrarlı `openGuideSheet()` dalı CARD_GUIDES lookup'ına indirildi (8 sentinel TEK yerde); Araçlar'ın 3+1 kart butonu + gameInfoBtn'in dokunma alanı GÖRSEL boyut DEĞİŞMEDEN (invisible ::before) 44×44'e büyütüldü (mod kartı ızgarasındaki rozet dense-grid taşma riski yüzünden BİLEREK dokunulmadı); `progress.js`'in bayat "yedi mod sınavı desteklemiyor" yorumu düzeltildi (12/12). npm test 1551/1551, e2e 84/84)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,30 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G290 — **Eksik "i" metinleri + buton boyutu (OLCUM-I-METINLERI-17-08.md'nin bulduğu boşluklar). AYRI commit.**
+
+**SORUN (OLCUM-I-METINLERI-17-08):** İlerleme sekmesinde TEK bir "i" bile yoktu (Rozetler/Zayıf Bölge Raporu/Günlük Görevler/İsabet Grafiği anlatılmıyordu), Araçlar'ın 4 kartından 1'i (Mixini Yükle) "i"siz kaldı, XP/seviye mekaniği (çarpanlar, iki ayrı seviye) ve sınav/telafi mekaniği GENERAL_GUIDE'da sadece 1-2 cümlelik kısa bir özetle geçiliyordu, Araçlar'ın 3 "i" butonu 22×22px (Apple HIG'in 44×44 minimumunun altında).
+
+**Yapılan:**
+1. **GENERAL_GUIDE'a 5 YENİ bölüm eklendi, ESKİ 5'in TEK SATIRI değişmedi** (`test/guide-texts.test.mjs`'in yeni testi bunu kilitliyor — `sections.slice(0,5)` başlık/sıra/hideForPro birebir): "XP nasıl kazanılır?", "XP çarpanları" (2.4/1.65/1.2/yarıya — OLCUM-XP-17-08'de ölçülen GERÇEK sayılar), "İki ayrı seviye", "Sınav nasıl açılır? (Pro)", "Kalınca ve telafi (Pro)" (10 soruluk parkur/6 doğru/en zor kademe — OLCUM-SINAV-17-08'de doğrulanan mekanik). Yeni 2 bölüm `hideForPro` TAŞIMIYOR (Bug #40'ın "Ücretsiz ve Pro"/"Can" mantığının TERSİ — bunlar Pro'ya özel içerik, metin İÇİNDE "(Pro)" ile açıkça belirtiliyor, YENİ bir `hideForFree` filtre mekanizması İCAT EDİLMEDİ — task'ın kapsamı "metinde belirtilsin" diyordu, görünürlük DEĞİL).
+2. **5 YENİ dedike kart-"i"si** (`core/guide-texts.js`: `TOOLS_UPLOAD_GUIDE`, `PROGRESS_BADGES_GUIDE`, `PROGRESS_ZONE_GUIDE`, `PROGRESS_DAILY_GUIDE`, `PROGRESS_ACCURACY_GUIDE` — `TOOLS_TONAL_GUIDE`'ın BİREBİR AYNI `{title, sections}` şekli) + `index.html`'de 5 YENİ `.mode-info-btn` butonu (Mixini Yükle'nin `.tools-card-top`'unda, İlerleme'nin 4 kart başlığında).
+3. **`app.js:openGuideSheet()` — 3 tekrarlı `else if` dalı `CARD_GUIDES` lookup'ına indirildi.** ÖNCEDEN "tools-tonal-balance"/"tools-results"/"tools-filters" BİREBİR AYNI 5 satırı 3 KEZ tekrarlıyordu — 5 YENİ sentinel eklenince bu 8'e çıkardı, TEK bir `if (CARD_GUIDES[modeId])` dalına taşındı (render mantığı TEK SATIR değişmedi, sadece TEK yerde yazılıyor).
+4. **stopPropagation — doğru yerde, doğru yerde YOK.** 4 YENİ butondan 3'ü (Günlük Görevler/Zayıf Bölge/Rozetler) akordiyon başlığı İÇİNDE — G245/G262'nin AYNI tuzağı, `e.stopPropagation()` eklendi. İsabet Grafiği + Mixini Yükle akordiyon DEĞİL — `toolsTonalInfoBtn`'in AYNI "gerekmiyor" durumu, eklenmedi. e2e testi HEM "i" tıklamasının akordiyonu YANLIŞLIKLA aç(may)madığını HEM satırın kendisine tıklamanın GERÇEKTEN açtığını (stopPropagation'ın "her tıklamayı yutmadığını") doğruluyor.
+5. **Dokunma alanı — GÖRSEL boyut aynı, tıklanabilir alan 44×44.** YENİ `.mode-info-btn-lg` sınıfı (`styles.css`) — `position:relative` + `::before{width:44px;height:44px;...}` (arka plan/border YOK, sadece invisible hit-zone, buton üzerinde ORTALANMIŞ). Araçlar'ın 3 mevcut butonu (Tonal/Sonuçlar/Filtreler) + `#gameInfoBtn` (30×30) + 5 YENİ buton bu sınıfı TAŞIYOR — GÖRSEL kutu (arka plan/border/font) TEK SATIR değişmedi (e2e testinde `boundingBox()` ile 22×22 doğrulandı). ⚠️ **Mod kartı IZGARASINDAKİ `.mode-info-btn` rozetine (renderModeGrid) BİLEREK dokunulmadı** — sık aralıklı bir ızgarada 44×44 görünmez alan komşu KARTA taşardı (farklı bir modun "i"sine/kartına yanlışlıkla dokunma riski), task'ın "diğer 'i' butonlarını da kontrol et" talimatı bunu KAPSAMIYOR (o rozet Araçlar'ın kart-başlığı butonlarından FARKLI bir yerleşim bağlamında).
+6. **`core/progress.js`'in bayat yorumu düzeltildi.** "sınav DESTEKLEMEYEN yedi mod için [examState] alanı HİÇ var olmuyor" — `app.js:954`/`app.js:1376-1377`'nin AÇIKÇA belgelediği TUR8-OGRETIM-15-08 düzeltmesiyle (12 playable modun 12'sinde de EXAM_ENABLED artık true) ARTIK GEÇERSİZDİ — yorum güncellendi, guard'ın KENDİSİ (kod davranışı) TEK SATIR değişmedi.
+
+**Testler eklendi:** `test/guide-texts.test.mjs`'e 8 yeni test (GENERAL_GUIDE'ın 10 bölüme çıktığı + eski 5'in DEĞİŞMEDİĞİ + yeni 5'in doğru sırada/içerikte olduğu + 5 yeni kart-"i"sinin `{title,sections}` sözleşmesi + Rozetler/Zayıf Bölge'nin verilen metinlerdeki TÜM isimleri/bölgeleri içerdiği). YENİ `e2e/guide-sheet-new-buttons.spec.mjs` (5 test, GERÇEK Chromium'da): 4 İlerleme butonunun + Mixini Yükle'nin doğru başlıkla sheet açtığı, akordiyon içindeki butonun stopPropagation ile akordiyonu YANLIŞLIKLA AÇMADIĞI (AMA satırın kendisine tıklamanın GERÇEKTEN açtığı — stopPropagation'ın seçici olduğu), `mode-info-btn-lg`'nin GÖRSEL kutuyu (22×22, `boundingBox()`) DEĞİŞTİRMEDEN dokunma alanını `elementFromPoint`/gerçek `mouse.click()` ile 44×44'e büyüttüğü, mod-kartı-ızgarası rozetinin bu sınıfı TAŞIMADIĞI.
+
+**Kırmızı/yeşil doğrulama:** `git stash push -- www/index.html www/js/app.js www/js/core/guide-texts.js www/styles.css` → `test/guide-texts.test.mjs` modül-yükleme hatasıyla (yeni export'lar yok) KIRMIZI + `e2e/guide-sheet-new-buttons.spec.mjs`'in 3 testi butonlar DOM'da bulunamadığı için (30sn timeout) KIRMIZI → `git stash pop` → YEŞİL (1551/1551, e2e 5/5 yeni spec + 84/84 tam suit).
+
+**Görsel doğrulama (Playwright screenshot):** İlerleme sekmesi (4 yeni altın "i" rozeti doğru konumda), Zayıf Bölge Raporu sheet'i (verilen metin BİREBİR), Araçlar sekmesi (Mixini Yükle artık diğer 3 kartla AYNI "i" görünümünde) — üçü de gözle doğrulandı, ekran görüntüleri bu turun bir parçası.
+
+**DOKUNULMAYACAK'a uyuldu:** Mevcut 16 "i" metni (`guide-texts.js`) — GENERAL_GUIDE'ın eski 5 bölümü + `MODE_GUIDE_TEXTS`/`MODE_OPTIONS_TEXTS`'in 12 modu + `TOOLS_TONAL_GUIDE`/`TOOLS_RESULTS_GUIDE`/`TOOLS_FILTER_GUIDE` TEK SATIR değişmedi (yeni testle kilitli). Zorluk eğrisi/XP formülü — dokunulmadı, sadece OLCUM-XP-17-08'in ÖLÇTÜĞÜ sayılar metne AKTARILDI.
+
+**Test sonuçları:** `npm test` 1551/1551 (G289'daki 1533'ten +18). `npm run test:e2e` 84/84 (79'dan +5).
+
+---
 
 G289 — **Günlük görev sayacı + günlük özet kaydı (OLCUM-XP-17-08.md'nin bulduğu bug düzeltildi). AYRI commit.**
 
@@ -21185,7 +21209,29 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G289 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G290 itibarıyla):**
+OLCUM-I-METINLERI-17-08'in bulduğu "i" boşlukları kapandı — İlerleme
+sekmesinin 4 kartı (Rozetler/Zayıf Bölge Raporu/Günlük Görevler/İsabet
+Grafiği) ve Araçlar'ın Mixini Yükle kartı artık "i" taşıyor, GENERAL_GUIDE
+(Ana Menü'nün genel "i"si) XP/sınav/telafi mekaniğini OLCUM-XP-17-08/
+OLCUM-SINAV-17-08'de ölçülen GERÇEK sayılarla (2.4×/1.65×/1.2×/yarıya,
+10-soruluk-parkur/6-doğru/en-zor-kademe) anlatan 5 yeni bölümle
+genişledi — eski 16 metnin TEK SATIRI değişmedi (testle kilitli). Araçlar'ın
+3 mevcut butonu + oyun ekranının "i"si + 5 yeni buton artık 44×44 dokunma
+alanına sahip (görsel boyut aynı) — mod kartı ızgarasındaki minik rozete
+BİLEREK dokunulmadı (dense-grid taşma riski, gerekçe DURUM.md'de). `core/
+progress.js`'in bayat "yedi mod" yorumu düzeltildi. **AÇIK madde YOK.**
+`npm test` 1551/1551, `npm run test:e2e` 84/84.
+**Kullanıcının/Logic'in sıradaki adımı:** yok — bu "i" metni + boyut turu
+kendi içinde tamamlandı. İsteğe bağlı, AYRI bir ürün kararı: yeni GENERAL_
+GUIDE bölümleri ("XP çarpanları"/"Sınav nasıl açılır?" vb.) mevcut kısa
+"Seviye ve zorluk"/"Sınav ve bölüm geçme" bölümleriyle AYNI sheet'te
+ARKA ARKAYA duruyor (biri kısa özet, biri detaylı) — istenirse ileride
+kısa özetler SİLİNİP tek bir DETAYLI sürüme indirilebilir, ama bu YENİ
+bir ürün kararı gerektirir (DOKUNULMAYACAK'ın bu turda mevcut 16 metni
+korumasıyla ÇAKIŞIR), bu turda YAPILMADI.
+
+**EN YENİ SIRADAKİ ADIM (G289 itibarıyla, ARTIK ESKİ):**
 Günlük görevlerin (5 tur/3 doğru/2 combo) ilerlemesi artık ÖMÜR BOYU
 stats.rounds/correct/bestCombo YERİNE GÜNE ÖZGÜ sayaçlardan
 (daily.dailyRounds/dailyCorrect/dailyBestCombo) okunuyor —

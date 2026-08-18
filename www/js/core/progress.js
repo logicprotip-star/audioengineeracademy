@@ -50,9 +50,14 @@ export function modeXp(stats, modeId) {
 // YASAĞINA uyularak, XP/seviye hesabının KENDİSİ (levelFromXp/modeXp) HİÇ
 // değişmedi, SADECE tek bir guard'lı üst sınır eklendi. stats.examState[modeId]
 // SADECE mode.EXAM_ENABLED===true olan modlar için (app.js:examStatsFor) lazy
-// dolduruluyor — sınav DESTEKLEMEYEN yedi mod için bu alan HİÇ var olmuyor, bu
-// yüzden onların modeLevel()'ı ÖNCEKİ gibi SAF XP'den hesaplanmaya devam ediyor
-// (davranış BİREBİR aynı, testle doğrulandı). Sınav destekleyen bir modda ise
+// dolduruluyor. G290 DÜZELTMESİ (OLCUM-SINAV-17-08.md'nin bulduğu bayat not) —
+// bu satırlar ÖNCEDEN "sınav DESTEKLEMEYEN yedi mod" diyordu; TUR8-OGRETIM-15-08
+// (app.js:954/1376-1377'de belgeli) 12 playable modun 12'sinde de EXAM_ENABLED'ı
+// true yaptı, "yedi mod" ayrımı ARTIK YOK (grep ile doğrulandı) — guard'ın
+// KENDİSİ (aşağıdaki `if (!exam...) return rawLevel`) hâlâ GEÇERLİ ve GEREKLİ
+// (examState henüz lazy KURULMAMIŞ bir moda karşı savunma, ör. o mod HİÇ
+// oynanmadıysa), sadece "hangi modlar bunu tetikler" iddiası güncellendi.
+// Sınav destekleyen bir modda ise
 // GERÇEK/ham XP seviyesi (rawLevel) her zaman hesaplanmaya DEVAM eder (XP
 // "sessizce" birikmeye devam ediyor — task'ın "paralel sistem kurma" isteği) ama
 // GÖSTERİLEN/KULLANILAN seviye examLevel'i AŞAMAZ — examLevel SADECE bir sınav
