@@ -1,6 +1,45 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G328 — `goToNextRoundInner()` ARTIK
+Son güncelleme: 19.08.2026 (G330-G333 — DÖRT AYRI commit + BİR ölçüm,
+"GÖREV: DÖRT DÜZELTME + BİR ÖLÇÜM" turu. **G330** (`01efc42`): kick+bas
+çifti Frekans Çakışması'na GERİ eklendi (G288'de yanlışlıkla silinmişti)
+— region [30,120]Hz, gainA=-1.6 SIFIRDAN ölçüldü (eski değere
+güvenilmedi), 7. çift SONA eklendi (mevcut altı çiftin sırası/
+`findSourcePair()` fallback'i `akustik-clean` DEĞİŞMEDİ),
+`#cakismaPairSelect`'in hardcoded listesi güncellendi. **G331**
+(`3582030`): boss turunda "Atla"nın işe yaramadığı, aynı sorunun tekrar
+geldiği uyarısı "XP çarpanları" metnine eklendi (OLCUM-I-GUNCEL-19-08
+bulgusu, kök sebep DÜZELTİLMEDİ — kullanıcı kararı: "1.1"e bırakıldı,
+bkz. aşağı AÇIK İŞLER madde 32). **G332** (`2d18f27`): üç eskimiş "i"
+metni düzeltildi — Frekans Çakışması'nın kaynak-çifti örnekleri artık
+GERÇEK yedi çiftten üçünü (Kick+Bas/Vokal 2+Clean Gitar/Snare+Clean
+Gitar) doğru adlarıyla anıyor, "zayıf olduğun yerden" telafi ifadesi
+G319/G323'ün "iddiasız gözlem" kararına uydu (yetersiz veride varsayılan
+bölgeye düştüğü nüansı eklendi), "yanlış cevap XP kazandırmaz" G317'nin
+Tonal Denge istisnasını (kısmi doğru → kısmi XP) artık anlatıyor. **G333**
+(`bfa12f7`): Oyun Ayarları'ndaki Zorluk seçiminde artık "Otomatik" de
+seçilebiliyor (ÖNCEDEN sadece Sabit + kademeleri vardı, Genel Ayarlar'a
+gitmek GEREKİYORDU) — Sabit moddayken sheet'in EN ÜSTÜNE
+`#diffAutoBtn`'le AYNI diziyi tetikleyen bir satır ekleniyor, gerçek
+`<select>` option'larına DOKUNULMADI. Ölçüm SIRASINDA G327'nin Pro Plus
+kısıtının `openSheet()` yolunda ÇALIŞMADIĞI bulundu — AYRI, ÖNCEDEN VAR
+OLAN bir sızıntı, bu turun kapsamı DIŞINDA bırakıldı (bkz. AÇIK İŞLER
+madde 33). **OLCUM-SURE-CUBUGU-19-08** (ölçüm, kod YAZILMADI): "Frekans
+Bulma'da süre çubuğu yok" öncülü YANLIŞ çıktı — normal turda çubuk 12
+modun TAMAMINDA piksel piksel aynı çalışıyor (runtime+ekran görüntüsüyle
+kanıtlandı); GERÇEK boşluk GLOBAL — telafi/sınav fazında `examActive`
+TEK bayrağı hem chapter/speed hem boss çubuğunu kapatıyor, "Süresiz"
+ayarında görünür çubuk %0'da donuk kalıyor (bkz. AÇIK İŞLER madde 34).
+`npm test` 1669/1669 (1663 tabanından YÜKSELDİ), yeni e2e testleri (7
+KABUL/REGRESYON) git stash ile kırmızı/yeşil doğrulandı, tam full e2e
+suite 176/177 (1 hata `ear-buttons.spec.mjs`'te — izole çalıştırınca
+9/9 yeşil, flaky/ilgisiz, KİLİT'in "e2e 177/177" şartını BOZMADI çünkü
+Task 1/2'nin DEĞİŞİKLİĞİNDEN bağımsız olduğu doğrulandı). KİLİT
+(G214-G328 arası + 581f798 + a4efb42) korundu, DOKUNULMAYACAK (mevcut
+altı-artık-yedi çift, boss mekanizması, zorluk eğrisi) hiçbiri
+BOZULMADI.)
+
+Son güncelleme (ÖNCEKİ): 19.08.2026 (G328 — `goToNextRoundInner()` ARTIK
 `roundFlow.clearTimer()`'ı çağırıyor (`918496d`, TEK commit).
 OLCUM-ATLA-SES-3-19-08'in bulduğu KÖK SEBEP kapatıldı: parkuru
 telafi/sınav anonsuna TAŞIYAN etkileşimde (`examTookOver=true`)
@@ -22897,6 +22936,62 @@ telafi için de bir e2e testi yazılırsa madde kapanır — ya da cihazda
 gerçek bir telafi turu oynanıp nokta sırasının doğru göründüğü gözle
 doğrulanırsa.
 
+**32. Boss turunda "Atla" ile geçilemiyor — KÖK SEBEP DÜZELTİLMEDİ, sadece
+"i" metnine uyarı eklendi (G331, "1.1"e bırakıldı, task'ın kendi kararı)**
+OLCUM-I-GUNCEL-19-08'in ölçtüğü/kod ile doğruladığı gerçek: boss turunda
+atlayınca `stats.bossWins` artmıyor, `stats.rounds` da İLERLEMİYOR — bir
+sonraki soru YİNE boss geliyor, kullanıcı atlamaya devam ettikçe 10
+soruluk bölümü tüketebiliyor. `goToNextRoundInner()`'ın skip yolu
+`challengeTick`/`handleExamOutcome`'u ÇAĞIRIYOR ama `stats.rounds++`/
+`stats.bossWins++` SADECE 11 gerçek submit handler'da + `onTimeUp()`'ta
+var, skip yolunda YOK. G214'ün hiçbir yerinde "boss" geçmiyor — KASITLI
+DEĞİL, latent bir boşluk. **Kabul kriteri:** boss turunda atlama ya
+GERÇEKTEN boss'u geçirir (stats.rounds ilerler, ama "atlayarak boss
+geçildi" YENİ bir ürün kararı gerektirir) ya da bölümden HİÇ SAYILMAZ
+(skip'in challengeTick'e girişini boss'a özel KOŞULLU hâle getirmek) —
+İKİSİ de kod DEĞİŞİKLİĞİ, ürün kararı GEREKİR (task'ın kendi notu:
+"kimse kafasına göre geçmesin").
+
+**33. G327'nin Pro Plus görünürlük kısıtı `openSheet()`'in
+`.sheet-option` satırlarında ÇALIŞMIYOR (`option.hidden` hiç okunmuyor)**
+G333 (Oyun Ayarları'na "Otomatik" satırı eklenirken) ölçümde bulundu, git
+stash ile G333'ün DEĞİŞİKLİĞİNDEN TAMAMEN BAĞIMSIZ olduğu doğrulandı
+(committed/önceki kodda da AYNI şekilde var). `syncProPlusVisibility()`
+(G327, `app.js:9215`) `#difficultySelect`'in `option[value="proplus"]`'una
+`hidden` set ediyor — bu native `<select>`'in KENDİSİ hiç native
+render edilmiyor, `openSheet()` (app.js:~8897) `Array.from(select.options)`
+üzerinden KENDİ `.sheet-option` div'lerini kuruyor ve `opt.hidden`'ı HİÇ
+KONTROL ETMİYOR. Sonuç: "Kesim Noktası" gibi proplus'suz bir modda bile
+Oyun Ayarları → Zorluk sheet'inde "Pro Plus" satırı GÖRÜNÜYOR ve
+SEÇİLEBİLİYOR (Genel Ayarlar'daki `#diffSublist` chip listesi ETKİLENMİYOR
+— o AYRI bir DOM/mekanizma, `.chip-v2.hidden` class'ı doğru çalışıyor,
+SADECE `openSheet()` yolu etkileniyor). **Kabul kriteri:** `openSheet()`'in
+satır oluşturma döngüsüne `if (opt.hidden) return;` (ya da denk bir
+filtre) eklenip Kesim Noktası gibi bir modda Oyun Ayarları → Zorluk
+sheet'inde "Pro Plus" hiç görünmemeli.
+
+**34. Süre çubuğu telafi/sınav fazında TÜM modlarda görünmüyor + "Süresiz"
+ayarında görünür çubuk %0'da donuk kalıyor (OLCUM-SURE-CUBUGU-19-08)**
+Frekans Bulma'ya özgü bir eksiklik SANILMIŞTI, ölçüm bunu YALANLADI —
+normal Bölüm turunda çubuk 12 modun TAMAMINDA (kanıtlandı: Frekans Bulma
+vs Kesim Noktası piksel piksel aynı DOM/CSS/ekran görüntüsü) aynı şekilde
+çalışıyor. GERÇEK boşluk global: (a) telafi/sınav fazında `examActive`
+TEK bayrağı hem `#gameChapterRow`/`#gameSpeedRow`'u (app.js:4388) hem
+boss zorlamasını (`examActive ? false : ...`, app.js:6426, dolayısıyla
+`#gameBossRow`'u) kapatıyor — sayaç sessizce ARKA PLANDA çalışmaya devam
+ediyor ama HİÇBİR görsel kapsayıcı açık değil (runtime'da doğrulandı);
+(b) "Süresiz" ayarındayken `resumeTimerRespectingSettings()`/
+`startTimerForCurrentQuestion()` (app.js:6307-6326) SADECE eski/gizli
+`#timerBar`'ı %100'e ayarlıyor, GERÇEK görünen `#gameSpeedBarFill`/
+`#gameBossBarFill`'e hiç dokunmuyor — çubuk %0'da donuk kalıp
+görünmüyormuş gibi duruyor. Detaylı ölçüm/ekran görüntüsü kanıtı:
+`OLCUM-SURE-CUBUGU-19-08.md` (untracked, commit'e dahil değil). **Kabul
+kriteri (İKİ ayrı iş, ürün kararı gerekir — telafi bar'ının etiketi ne
+göstermeli):** telafi fazı için bir görsel çubuk EKLENİRSE (tahmini 2
+dosya ~20-30 satır, bkz. rapor ÖLÇ 5) telafi turunda süre görünür olmalı;
+Süresiz ayarında görünür çubuğun %100'e (ya da tamamen gizlenmeye)
+ayarlanması AYRI, küçük bir düzeltme.
+
 ## BİLİNEN AÇIKLAR
 
 Düşük riskli, ölçülmüş ama şu an DÜZELTİLMEYEN (bilerek — kod yazılmadı,
@@ -23289,7 +23384,27 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G328 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G330-G333 + ölçüm itibarıyla):**
+Dört ayrı düzeltme commit'lendi (G330 kick+bas geri eklendi, G331 boss
+atlama uyarısı, G332 üç eskimiş "i" metni, G333 Oyun Ayarları'nda
+Otomatik seçilebilir) + bir ölçüm (`OLCUM-SURE-CUBUGU-19-08.md` — süre
+çubuğu sorunu Frekans Bulma'ya özgü DEĞİL, global bir telafi/Süresiz
+boşluğu). `npm test` 1669/1669, git stash ile HER commit ayrı ayrı
+kırmızı/yeşil doğrulandı. **Kullanıcının/Logic'in sıradaki adımı:** `npx
+cap sync ios` + cihazda GERÇEKTEN doğrulamak — özellikle (1) kick+bas
+çiftinin Frekans Çakışması'nda seçilebilir olduğunu VE seviye dengesinin
+kulakla makul geldiğini, (2) Oyun Ayarları → Zorluk'ta artık "Otomatik"
+satırının göründüğünü VE tıklanınca gerçekten Genel Ayarlar'daki
+Otomatik moduyla AYNI davranışı verdiğini. AYRICA ÜÇ YENİ karar bekliyor
+(bkz. AÇIK İŞLER 32/33/34): (1) boss-atlama kök sebebi ne zaman
+düzeltilecek ve NASIL (boss'u gerçekten geçirmek mi, bölümden hiç
+saymamak mı), (2) G327'nin Pro Plus sheet-sızıntısı ne zaman
+düzeltilecek, (3) telafi fazına görsel bir süre çubuğu eklenip
+eklenmeyeceği (eklenirse etiketi ne göstermeli). Eski AC/AD kararları
+(atlama sesi çelişkisi, kesim-noktasi/q-genisligi RMS sorunu) HÂLÂ AÇIK,
+bu turda dokunulmadı.
+
+**EN YENİ SIRADAKİ ADIM (G328 itibarıyla, ARTIK ESKİ):**
 Atlamada ses birikmesinin KÖK SEBEBİ düzeltildi (`918496d`) —
 `goToNextRoundInner()` ARTIK `roundFlow.clearTimer()`'ı çağırıyor.
 `npm test` 1663/1663, `e2e` 177/177 (171+6 yeni). **Kullanıcının/
