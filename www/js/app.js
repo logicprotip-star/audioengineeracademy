@@ -3379,7 +3379,7 @@ function renderExerciseGrid() {
   if (els.modeCount) els.modeCount.textContent = `${exerciseEntries.length} mod`;
 
   els.modeGrid.innerHTML = "";
-  exerciseEntries.forEach(entry => {
+  exerciseEntries.forEach((entry, exerciseIndex) => {
     const realMode = registeredModes.find(m => m.getMeta().id === entry.id);
     // G163 — kullanıcı kararı: "Pro alan kullanıcı seviye ile uğraşmasın."
     // paywall.meetsLevelRequirement() artık HER ZAMAN true dönüyor (Z3/G62'nin
@@ -3432,8 +3432,16 @@ function renderExerciseGrid() {
     // gösterilir (tasarımın kendi statik davranışı, bkz. Ana Ekran.dc.html
     // ex.lv — kilitli/kilitsiz ayrımı YOK).
     const levelNum = progress.modeLevel(stats, entry.id);
+    // GEÇİCİ TEST İŞARETİ (OLCUM-SENKRON-18-08'in "cihaz eski build
+    // çalıştırıyor olabilir" hipotezini cihazda doğrulamak için) — SADECE
+    // build güncelliğini görünür kılmak amacıyla eklendi, kaldırılacak.
+    // proBadge ile AYNI köşede (top:8px) ama proBadge'in genişliğini
+    // (~52px) hesaba katan bir right ofsetiyle YAN YANA — proBadge VARSA
+    // sola kayıyor, YOKSA gerçek köşede (right:8px) duruyor, hiçbir zaman
+    // üst üste binmiyor. "i" rozetiyle (sol üstte) hiç kesişmiyor.
+    const debugNumBadge = `<div class="mode-card-debugnum" style="right:${entry.tier === "pro" ? "60px" : "8px"}">${exerciseIndex + 1}</div>`;
     card.innerHTML = `
-      <div class="mode-card-viz">${viz}${infoBadge}${proBadge}</div>
+      <div class="mode-card-viz">${viz}${infoBadge}${proBadge}${debugNumBadge}</div>
       <div class="mode-card-body">
         <div class="mode-card-head">
           <div class="mode-card-name">${entry.ad}</div>
