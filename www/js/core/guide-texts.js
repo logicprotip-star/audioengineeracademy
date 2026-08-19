@@ -67,7 +67,13 @@ export const GENERAL_GUIDE = {
     },
     {
       heading: "XP çarpanları",
-      body: "Arka arkaya doğru cevap (combo) XP'yi 2.4 kata kadar artırır. Her 5. soru (boss round) 1.65 kat verir. Sürenin yarısından fazlası kalmışken cevaplamak 1.2 kat verir. İpucu kullanmak XP'yi yarıya düşürür."
+      // G331 (OLCUM-I-GUNCEL-19-08 bulgusu, Logic'in kararı: "kimse kafasına
+      // göre geçmesin") — boss'u "Atla" ile geçmek İŞE YARAMIYOR (kod
+      // ölçüldü: stats.bossWins hiç artmıyor, stats.rounds da İLERLEMİYOR —
+      // bir sonraki soru YİNE boss geliyor). Kök sebep (stats.rounds'un
+      // takılması) 1.1'e BIRAKILDI (DOKUNULMAYACAK) — bu tur SADECE bu
+      // metne kısa bir uyarı ekliyor, davranış DEĞİŞMEDİ.
+      body: "Arka arkaya doğru cevap (combo) XP'yi 2.4 kata kadar artırır. Her 5. soru (boss round) 1.65 kat verir. Boss'u 'Atla'yla geçemezsin — aynı soru tekrar karşına çıkar, geçmek için cevaplaman gerekir. Sürenin yarısından fazlası kalmışken cevaplamak 1.2 kat verir. İpucu kullanmak XP'yi yarıya düşürür."
     },
     {
       heading: "İki ayrı seviye",

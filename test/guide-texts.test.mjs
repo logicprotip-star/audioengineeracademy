@@ -215,6 +215,16 @@ describe("guide-texts: GENERAL_GUIDE ana ekranın genel sistem bilgisini taşır
     assert.match(body, /yarıya/);
   });
 
+  // G331 (OLCUM-I-GUNCEL-19-08 bulgusu) — boss'u "Atla" ile geçmenin İŞE
+  // YARAMADIĞI, aynı sorunun TEKRAR geldiği metne EKLENDİ (kök sebep
+  // DÜZELTİLMEDİ, DOKUNULMAYACAK — SADECE uyarı metni).
+  it("XP çarpanları — boss'un 'Atla' ile geçilemediği, aynı sorunun tekrar geldiği UYARISI VAR", () => {
+    const body = GENERAL_GUIDE.sections[6].body;
+    assert.match(body, /[Bb]oss/);
+    assert.match(body, /[Aa]tla/);
+    assert.match(body, /tekrar/);
+  });
+
   it("Sınav/telafi bölümleri — OLCUM-SINAV-17-08'de doğrulanan sayılar (10/6/4 kademe) VE 'Pro' notu geçiyor", () => {
     const examBody = GENERAL_GUIDE.sections[8].body;
     const remedialBody = GENERAL_GUIDE.sections[9].body;
