@@ -16,6 +16,7 @@ import * as kompresor from "../www/js/modes/kompresor.js";
 import * as reverb from "../www/js/modes/reverb.js";
 import * as tonalDenge from "../www/js/modes/tonal-denge.js";
 import * as frekansCakismasi from "../www/js/modes/frekans-cakismasi.js";
+import * as distortion from "../www/js/modes/distortion.js";
 
 const ALL_IDS = SOURCE_GROUPS.flatMap(g => g.sources.map(s => s.id));
 // G259 — stereoOnly bayrağı: compatibleSourceIds()'in varsayılan (parametresiz)
@@ -111,10 +112,17 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
     });
   });
 
-  it("kompresor: transient'sız (pink/white) kaynaklar KASITLI olarak dışarıda, diğerleri VAR", () => {
+  // G337 (OLCUM-KOMPRESOR-KAYNAK-20-08) — saw/square/triangle de pink/white
+  // İLE AYNI GEREKÇEYLE (noTransient) dışarı alındı: 8sn render'da SIFIR
+  // transient, kompresör altında crest factor DÜŞMÜYOR (gerçek kaynaklarda
+  // -3.3...-5.5dB, bunlarda +0.09...+0.21dB) — kullanıcı SADECE statik dB
+  // farkını duyuyordu, dB Seviyesi'yle AYNI beceri.
+  it("kompresor: transient'sız (pink/white/saw/square/triangle) kaynaklar KASITLI olarak dışarıda, diğerleri VAR", () => {
     const meta = kompresor.getMeta();
-    assert.ok(!meta.uyumluKaynaklar.includes("pink") && !meta.uyumluKaynaklar.includes("white"));
-    for (const id of ["kick", "snare", "bass", "guitar", "vocal", "groove", "saw"]) {
+    for (const id of ["pink", "white", "saw", "square", "triangle"]) {
+      assert.ok(!meta.uyumluKaynaklar.includes(id), `kompresor: ${id} (noTransient) GÖRÜNMEMELİYDİ`);
+    }
+    for (const id of ["kick", "snare", "bass", "guitar", "vocal", "groove"]) {
       assert.ok(meta.uyumluKaynaklar.includes(id), `kompresor: ${id} eksik olmamalıydı`);
     }
   });
@@ -428,15 +436,62 @@ describe("source-catalog — G295 SOURCE_PAIRS gainA/gainB (çift-içi statik se
 });
 
 describe("source-catalog — noTransient bayrağı doğru kaynaklara etiketli", () => {
-  it("pink/white noTransient:true — ani atak yok, kompresyon duyulmaz", () => {
-    for (const id of ["pink", "white"]) {
+  // G337 (OLCUM-KOMPRESOR-KAYNAK-20-08) — saw/square/triangle pink/white'a
+  // KATILDI: 8sn render'da SIFIR transient ölçüldü (11-36'ya karşı),
+  // kompresör altında crest factor DÜŞMEDİ (hatta hafif arttı).
+  it("pink/white/saw/square/triangle noTransient:true — ani atak/dinamik değişim yok, kompresyon duyulmaz", () => {
+    for (const id of ["pink", "white", "saw", "square", "triangle"]) {
       assert.equal(findSource(id).noTransient, true, `${id} noTransient olmalıydı`);
     }
   });
 
-  it("synth/davul/enstrüman/upload noTransient DEĞİL", () => {
-    for (const id of ["saw", "square", "triangle", "kick", "snare", "snare_late", "hihat", "tom", "groove", "bass", "guitar", "clean_guitar", "arpeggio_guitar", "vocal", "upload"]) {
+  it("davul/enstrüman/upload noTransient DEĞİL", () => {
+    for (const id of ["kick", "snare", "snare_late", "hihat", "tom", "groove", "bass", "guitar", "clean_guitar", "arpeggio_guitar", "vocal", "upload"]) {
       assert.ok(!findSource(id).noTransient, `${id} noTransient OLMAMALIYDI`);
+    }
+  });
+});
+
+// G337 (OLCUM-KOMPRESOR-KAYNAK-20-08) — task'ın KENDİ KABUL KRİTERİ, TEK
+// yerde toplu doğrulama: Kompresör'de saw/square/triangle YOK, Distortion'da
+// HÂLÂ VAR, diğer modlar (requireTransient OKUMADIKLARI için) ETKİLENMEDİ.
+describe("source-catalog — G337 KABUL KRİTERİ: noTransient SADECE Kompresör'ü etkiler", () => {
+  it("Kompresör'de saw/square/triangle GÖRÜNMÜYOR", () => {
+    const meta = kompresor.getMeta();
+    for (const id of ["saw", "square", "triangle"]) {
+      assert.ok(!meta.uyumluKaynaklar.includes(id), `kompresor: ${id} GÖRÜNMEMELİYDİ`);
+    }
+  });
+
+  it("Distortion'da saw/square/triangle HÂLÂ GÖRÜNÜYOR (waveshaping genlik-tabanlı, zarfa değil dalga şekline bağlı)", () => {
+    const meta = distortion.getMeta();
+    for (const id of ["saw", "square", "triangle"]) {
+      assert.ok(meta.uyumluKaynaklar.includes(id), `distortion: ${id} EKSİK — noTransient bu modu ETKİLEMEMELİYDİ`);
+    }
+  });
+
+  it("diğer 'frekans-genel' beş modda (requireTransient OKUMUYORLAR) saw/square/triangle HÂLÂ GÖRÜNÜYOR — regresyon yok", () => {
+    for (const mod of [frekansBulma, kesimNoktasi, dbSeviyesi, boostMuCutMu, qGenisligi]) {
+      const meta = mod.getMeta();
+      for (const id of ["saw", "square", "triangle"]) {
+        assert.ok(meta.uyumluKaynaklar.includes(id), `${meta.id}: ${id} EKSİK — noTransient bu modu ETKİLEMEMELİYDİ`);
+      }
+    }
+  });
+
+  it("Pan Konumu (ELLE seçilmiş 'only' listesi saw/square/triangle'ı AÇIKÇA İÇERİYOR) HÂLÂ GÖRÜNÜYOR — 'only' noTransient'i BYPASS eder, davranış DEĞİŞMEDİ", async () => {
+    const panKonumu = await import("../www/js/modes/pan-konumu.js");
+    const meta = panKonumu.getMeta();
+    for (const id of ["saw", "square", "triangle"]) {
+      assert.ok(meta.uyumluKaynaklar.includes(id), `pan-konumu: ${id} EKSİK — 'only' listesi noTransient'ten ETKİLENMEMELİYDİ`);
+    }
+  });
+
+  it("Stereo Genişlik saw/square/triangle İÇERMİYOR — ama noTransient'İN SONUCU DEĞİL, 'only' listesi ZATEN içermiyordu (mono synth stereoOnly değil)", async () => {
+    const stereoGenislik = await import("../www/js/modes/stereo-genislik.js");
+    const meta = stereoGenislik.getMeta();
+    for (const id of ["saw", "square", "triangle"]) {
+      assert.ok(!meta.uyumluKaynaklar.includes(id), `stereo-genislik: ${id} GÖRÜNMEMELİYDİ`);
     }
   });
 });

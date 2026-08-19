@@ -34,9 +34,22 @@ export const SOURCE_GROUPS = [
     sources: [
       { id: "pink", label: "Pink Noise", kind: "noise", desc: "En nötr referans, bant farkları en net duyulur", noTransient: true },
       { id: "white", label: "White Noise", kind: "noise", desc: "Daha sert, tüm frekanslarda eşit enerji", noTransient: true },
-      { id: "saw", label: "Saw", kind: "synth", desc: "Zengin harmonik, sürekli pad/bas karakteri" },
-      { id: "square", label: "Square", kind: "synth", desc: "İçi boş, tek sayılı harmonikler ağırlıklı" },
-      { id: "triangle", label: "Triangle", kind: "synth", desc: "Yumuşak, az harmonikli" }
+      // G337 (OLCUM-KOMPRESOR-KAYNAK-20-08) — noTransient EKLENDİ: bayrak
+      // TAM BU ÜÇ KAYNAK İÇİN de geçerliydi ama sadece "noise" tipi
+      // kaynaklara (pink/white) uygulanmıştı — muhtemelen bayrak eklenirken
+      // "synth" tipi (sürekli osilatör, envelope YOK, bkz. audio-engine.js
+      // buildSynthSource) gözden kaçmıştı. Ölçüldü: 8sn render'da SIFIR
+      // transient (pink/white'la AYNI kategori), kompresör altında crest
+      // factor DÜŞMÜYOR (gerçek kaynaklarda -3.3...-5.5dB, bunlarda
+      // +0.09...+0.21dB — pratikte YOK). `noTransient` SADECE
+      // `requireTransient:true` geçiren tek modda (Kompresör) okunuyor
+      // (grep ile doğrulandı) — Distortion (parametresiz compatibleSourceIds())
+      // ETKİLENMEDİ, bu üçü orada KALIYOR (waveshaping genlik-tabanlı,
+      // zarfa değil dalga şekline bağlı — saw'da bile ölçülebilir harmonik
+      // ekleniyor, +1.44dB — OLCUM-KOMPRESOR-KAYNAK-20-08'in kendi bulgusu).
+      { id: "saw", label: "Saw", kind: "synth", desc: "Zengin harmonik, sürekli pad/bas karakteri", noTransient: true },
+      { id: "square", label: "Square", kind: "synth", desc: "İçi boş, tek sayılı harmonikler ağırlıklı", noTransient: true },
+      { id: "triangle", label: "Triangle", kind: "synth", desc: "Yumuşak, az harmonikli", noTransient: true }
     ]
   },
   {

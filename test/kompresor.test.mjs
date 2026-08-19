@@ -560,7 +560,10 @@ describe("Kompresör — getMeta() sözleşme alanları", () => {
     assert.equal(meta.id, "kompresor");
     assert.equal(meta.motor, 2, "Motor 2'nin ilk modu olmalıydı");
     assert.equal(typeof meta.kulaklikGerekli, "boolean");
-    assert.ok(Array.isArray(meta.uyumluKaynaklar) && meta.uyumluKaynaklar.length > 5, "kaynak listesi çoğunlukla açık kalmalıydı — sadece gürültü dışlanır");
+    // G337 (OLCUM-KOMPRESOR-KAYNAK-20-08) — "sadece gürültü dışlanır" ARTIK
+    // TAM DOĞRU DEĞİL, saw/square/triangle de (AYNI noTransient gerekçesiyle)
+    // dışlanıyor — liste yine de "çoğunlukla açık" (11/14 kaynak kalıyor).
+    assert.ok(Array.isArray(meta.uyumluKaynaklar) && meta.uyumluKaynaklar.length > 5, "kaynak listesi çoğunlukla açık kalmalıydı — transient'siz kaynaklar dışlanır");
     assert.equal(typeof meta.ucretsiz, "boolean");
     assert.equal(typeof meta.videoUrl, "string");
     assert.equal(meta.choiceOnly, true);
@@ -578,15 +581,22 @@ describe("Kompresör — getMeta() sözleşme alanları", () => {
     assert.equal(meta.aciklama, undefined);
   });
 
-  it("pembe/beyaz gürültü dışlanır — transient yok, kompresyon duyulmaz", () => {
+  // G337 (OLCUM-KOMPRESOR-KAYNAK-20-08) — saw/square/triangle pembe/beyaz
+  // gürültüye KATILDI: 8sn render'da SIFIR transient (davul/enstrümanda
+  // 11-36), kompresör altında crest factor DÜŞMÜYOR (gerçek kaynaklarda
+  // -3.3...-5.5dB, bunlarda +0.09...+0.21dB — pratikte YOK, hatta ARTIŞ).
+  // Kullanıcı SADECE statik dB farkını duyuyordu (dB Seviyesi'yle AYNI
+  // beceri) — cihazda "her soru bilindi" gözlemiyle örtüştü.
+  it("pembe/beyaz gürültü + saw/square/triangle dışlanır — transient yok, kompresyon dinamik olarak duyulmaz", () => {
     const meta = mode.getMeta();
-    assert.ok(!meta.uyumluKaynaklar.includes("pink"), "pink listede olmamalıydı");
-    assert.ok(!meta.uyumluKaynaklar.includes("white"), "white listede olmamalıydı");
+    for (const id of ["pink", "white", "saw", "square", "triangle"]) {
+      assert.ok(!meta.uyumluKaynaklar.includes(id), `${id} listede OLMAMALIYDI`);
+    }
   });
 
-  it("transient içeren kaynaklar (davul/enstrüman/synth/upload) kalır", () => {
+  it("transient içeren kaynaklar (davul/enstrüman/upload) kalır", () => {
     const meta = mode.getMeta();
-    for (const id of ["kick", "snare", "hihat", "tom", "groove", "bass", "guitar", "vocal", "saw", "square", "triangle", "upload"]) {
+    for (const id of ["kick", "snare", "hihat", "tom", "groove", "bass", "guitar", "vocal", "upload"]) {
       assert.ok(meta.uyumluKaynaklar.includes(id), `${id} listede olmalıydı`);
     }
   });
