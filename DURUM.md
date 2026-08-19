@@ -1,6 +1,37 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G324 + İKİ ölçüm. **G324** (`153a5f4`, TEK
+Son güncelleme: 19.08.2026 (G325 + G326 — İKİ AYRI düzeltme, önceki
+turun İKİ ölçüm bulgusunu KAPATIYOR. **G325** (`5ab79e8`, TEK
+commit): OLCUM-SES-BIRIKME-2-19-08'in bulduğu ses birikmesi
+düzeltildi — `goToNextRound()` artık bir PROMISE KUYRUĞU (
+`goToNextRoundChain.then(fn, fn)`) ile SARILI, her çağrı bir
+ÖNCEKİNİN TAMAMEN bitmesini bekleyip SIRAYLA çalışıyor. Hiçbir
+tıklama DÜŞÜRÜLMÜYOR (kuyruğa giriyor), SADECE üst üste binmesi
+engelleniyor — normal hızda (250ms+) davranış BİREBİR eskisi gibi
+(kuyruk zaten boş bulunuyor). `.then(fn, fn)` deseni hata durumunda
+da kuyruğu SERBEST bırakıyor (task'ın kendi uyarısı: "kilit takılı
+kalmasın"). RMS ile DOĞRULANDI: 10 hızlı Atla SONRASI anons ekranı
+artık TAMAMEN sessiz (ÖNCEDEN ~0.11 sabit RMS, 8sn+ kesintisiz).
+`npm test` 1659/1659, `e2e` 169/169, git stash ile kırmızı/yeşil.
+**G326** (`2a8db46`, TEK commit): OLCUM-ATLA-KAYIT-19-08'in bulduğu
+eksik düzeltildi — "Atla" ARTIK G285'in cevap geçmişine
+kaydediliyor (`skipped:true`, `correct:false`, doğru cevap YİNE DE
+`q`'dan dolu — 1.1'in "doğru cevabı dinlet" özelliği atlamalarda da
+çalışır). `buildAnswerRecord()`'a YENİ, isteğe bağlı `skipped` alanı
+eklendi (varsayılan false, 11 gerçek submit handler'ın davranışı
+DEĞİŞMEDİ, eski kayıtlar `undefined`→falsy ile güvenle okunuyor).
+**200 kayıt penceresi kararı (task'ın kendi sorusu, "öner/gerekçesini
+yaz/uygula"):** atlamalar AYNI FIFO diziye/limite DAHİL edildi —
+AYRI/ağırlıklı bir yapı DOKUNULMAYACAK'ın kilitlediği "200 kayıt
+sınırı" MEKANİZMASINI genişletirdi, bu yüzden EN BASİT/uyumlu seçim
+tercih edildi (gerekçe detaylı: aşağı BİTTİ G326). `npm test`
+1663/1663, `e2e` 171/171, git stash ile kırmızı/yeşil. İKİSİ de
+KİLİT'i (G214-G324 arası + 581f798 + a4efb42) korudu, DOKUNULMAYACAK
+listesine (normal hızdaki atlama, XP/sayaç/geçme eşiği formülleri,
+kayıt formatının MEVCUT alanları, 200 kayıt sınırı, zorluk eğrisi)
+TEK SATIR dokunmadı. Detay: aşağı BİTTİ bölümü G325/G326.)
+
+Son güncelleme (ÖNCEKİ): 19.08.2026 (G324 + İKİ ölçüm. **G324** (`153a5f4`, TEK
 commit): "Atla" ARTIK BÖLÜM/telafi çubuğunda BEYAZ (nötr) gösteriliyor —
 sarı DEĞİL (OLCUM-ATLA-RENK-19-08: sınav/telafi çubuğunun altın
 rengiyle çakışıyordu). `challenge.results`/`examResults`/
@@ -239,6 +270,110 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G325 — **goToNextRound() reentrancy kilidi eklendi — hızlı atlamada
+ses birikmesi düzeltildi (`5ab79e8`, TEK commit).**
+
+**Görev:** OLCUM-SES-BIRIKME-2-19-08'in bulduğu bug — `goToNextRound()`
+(app.js) reentrancy KORUMASI TAŞIMIYORDU, SIFIRA yakın aralıklı
+(rapid-fire) "Atla" tıklamaları ÜST ÜSTE binip birden fazla ses
+zinciri kurabiliyordu, biri `showExamScreen()`'in `stopAudio()`'sunun
+ERİŞEMEDİĞİ şekilde ASILI kalıp telafi/sınav anons ekranında
+KESİNTİSİZ (ölçülen: 8sn+, decay YOK) çalmaya devam ediyordu.
+
+**Tasarım kararı — DROP değil KUYRUK:** İlk denemede `goToNextRoundBusy`
+bayraklı bir "meşgulken DÜŞÜR" kilidi yazıldı — ÇALIŞTI (ses birikmesi
+düzeldi) ama YAN ETKİSİ ölçüldü: 10 hızlı tıklamanın SADECE 2-3'ü
+GERÇEKTEN işleniyordu (kalanı sessizce YOK sayılıyordu), telafi
+eşiğine (10 GERÇEK atlama) HİÇ ULAŞILAMADI. Bu, "kullanıcı 5 kez
+atlarsa 5 soru geçilsin" beklentisini BOZARDI VE task'ın "kilit"
+kelimesiyle (DÜŞÜRME değil, SIRAYLA/serileştirme) daha az tutarlıydı.
+**Düzeltilmiş tasarım:** `goToNextRoundChain = goToNextRoundChain.then(
+goToNextRoundInner, goToNextRoundInner)` — bir PROMISE KUYRUĞU, HER
+çağrı bir ÖNCEKİNİN TAMAMEN bitmesini bekleyip SIRAYLA çalışıyor.
+Hiçbir tıklama DÜŞÜRÜLMÜYOR — SADECE üst üste binmesi (overlap)
+engelleniyor. `.then(fn, fn)` deseni (`onFulfilled` VE `onRejected`
+İKİSİ de `goToNextRoundInner`) bir ÖNCEKİ halka HATA fırlatsa bile
+zinciri KİLİTLİ BIRAKMIYOR — "hata durumunda serbest bırakılsın"
+(task) AYRI bir try/finally GEREKMEDEN sağlanıyor. Eski
+`goToNextRound()` gövdesi `goToNextRoundInner()`'a YENİDEN
+ADLANDIRILDI, `els.nextBtn` VE diğer TÜM çağıranlar (CTA handler'lar,
+`.freq-info-close` vb.) DEĞİŞMEDEN yeni ince `goToNextRound()`
+sarmalayıcısını çağırıyor.
+
+**Test:** `e2e/rapid-skip-no-audio-buildup.spec.mjs` (YENİ, 2 test) —
+`AudioContext.prototype.createAnalyser`'a PATCH (uygulama koduna
+DOKUNMADAN, OLCUM raporunun AYNI tekniği) ile GERÇEK RMS ölçümü.
+Birinci test: 10 HIZLI (0ms) Atla → telafi anons ekranında max RMS
+`<0.01` (DÜZELTME ÖNCESİ ~0.11-0.12 ölçülmüştü). İkinci test
+(regresyon koruması): 10 NORMAL hızlı (250ms) Atla → AYNI ekrana AYNI
+şekilde ulaşılıyor, sessiz. git stash ile kırmızı/yeşil doğrulandı —
+kırmızıda BİRİNCİ test GERÇEKTEN 0.122 RMS ölçüp kırmızıya düştü,
+İKİNCİ (normal hız) test kırmızıda BİLE yeşildi (bug zaten hız-bağımlı
+OLDUĞU için beklenen).
+
+**KİLİT korundu:** `npm test` 1659/1659 (değişmedi — SADECE app.js'in
+DOM/zamanlama katmanına dokunuldu, pure-function imzası YOK). `npm
+run test:e2e` 169/169 (167+2 yeni). Normal hızdaki atlama davranışı,
+XP/sayaç/geçme eşiği FORMÜLLERİ TEK SATIR değişmedi — SADECE
+`goToNextRound()` çağrılarının SERİLEŞTİRİLMESİ eklendi.
+
+---
+
+G326 — **Atlanan sorular cevap geçmişine kaydediliyor (`2a8db46`,
+TEK commit).**
+
+**Görev:** OLCUM-ATLA-KAYIT-19-08'in bulduğu eksik — G285'in cevap
+geçmişi (core/answer-history.js, 1.1'in "Son Oyunlarım" listesinin
+veri kaynağı) "Atla" ile geçilen soruları HİÇ kaydetmiyordu
+(`recordAnswerHistoryEntry()` SADECE 11 GERÇEK submit handler'dan
+çağrılıyordu — mekanizma BOZUK değildi, kayıt YOLU o dalda HİÇ
+TANIMLI değildi).
+
+**Uygulama:** `buildAnswerRecord()` (core/answer-history.js) YENİ,
+isteğe bağlı `extra.skipped` alanını okuyor, dönen kayda `skipped:
+!!extra.skipped` ekliyor — MEVCUT alanlar (modeId/timestamp/
+difficulty/timeSpentSec/correct/params) TEK SATIR değişmedi.
+`app.js:recordAnswerHistoryEntry()` YENİ, isteğe bağlı 5. parametre
+(`extra={}`) aldı, `buildAnswerRecord`'a `{timeSpentSec, ...extra}`
+olarak AKTARIYOR — 11 GERÇEK submit handler parametre GEÇMİYOR
+(davranışları DEĞİŞMEDİ). `goToNextRoundInner()`'ın Atla dalına TEK
+bir çağrı eklendi: `recordAnswerHistoryEntry(mode.getMeta().id, q,
+null, null, { skipped: true })` — `answer`/`result` YOK (kullanıcı
+hiçbir şey seçmedi), `correct` bu yüzden `false` (G324/G326
+tutarlılığı). Doğru cevap (`params.correctAnswer` vb.) `result`'a
+DEĞİL `q`'ya (activeQuestion, atlansa da HER ZAMAN dolu) bağımlı
+olduğu İÇİN atlanan sorularda da EKSİKSİZ kaydediliyor — 1.1'in
+"doğru cevabı dinlet" özelliği atlamalarda da ÇALIŞACAK.
+
+**200 kayıt penceresi kararı (task'ın kendi sorusu — "öner,
+gerekçesini yaz, uygula"):** Atlamalar AYNI `ANSWER_HISTORY_LIMIT=200`
+FIFO dizisine/limite DAHİL edildi (AYRI bir depolama/ikinci pencere
+KURULMADI). **Gerekçe:** DOKUNULMAYACAK listesi "200 kayıt sınırı"nı
+AÇIKÇA kilitliyor — bu, SADECE sayı 200'ün DEĞİL, TEK-dizi/FIFO
+MEKANİZMASININ KENDİSİNİN korunmasını GEREKTİRİYOR olarak yorumlandı;
+AYRI/ağırlıklı bir yapı (ör. "atlamalar kendi küçük penceresinde")
+BU mekanizmayı GENİŞLETİR/DEĞİŞTİRİR, DOKUNULMAYACAK'ı İHLAL ederdi.
+Basit seçim AYRICA daha AZ kod/risk taşıyor (appendAnswerRecord/
+ANSWER_HISTORY_LIMIT TEK SATIR değişmedi) — 1.1'in KENDİ UI'ı
+(bu turun KAPSAMI DIŞINDA) isterse `skipped` alanına göre
+FİLTRELEME/gruplama yapabilir, DEPOLAMA katmanında İKİNCİ bir yapı
+GEREKMEDEN.
+
+**Test:** `test/answer-history.test.mjs`'e 4 YENİ test (skipped:true
+→ doğru alan, skipped verilmezse false, doğru cevap result=null'da
+BİLE dolu, eski-şekil kayıtların GÜVENLİ okunuşu). `e2e/skip-answer-
+history.spec.mjs` (YENİ, 2 test) — GERÇEK bir "Atla" sonrası
+localStorage'daki kaydın `skipped:true`/`correct:false`/dolu
+`correctAnswer` taşıdığını, GERÇEK bir cevabın `skipped:false`
+taşıdığını doğruluyor. git stash ile kırmızı/yeşil doğrulandı.
+
+**KİLİT korundu:** `npm test` 1663/1663 (1659+4). `npm run test:e2e`
+171/171 (169+2 yeni). Normal hızdaki atlama davranışı, XP/sayaç/geçme
+eşiği FORMÜLLERİ, kayıt formatının MEVCUT alanları, 200 kayıt sınırı
+(MEKANİZMASI), zorluk eğrisi TEK SATIR değişmedi.
+
+---
 
 G324 — **Atlama BÖLÜM/telafi çubuğunda beyaz (nötr) gösteriliyor
 (`153a5f4`, TEK commit) + İKİ ölçüm.**
@@ -22611,28 +22746,6 @@ seviye başlığı × 6 rozet, tam karşılaştırma) — "Altın Kulak" TEK ör
 
 ## BEKLEYEN KARARLAR
 
-**AB. OLCUM-ATLA-KAYIT-19-08 — atlama kaydedilirse 200 kayıt penceresi
-(ANSWER_HISTORY_LIMIT) nasıl davransın?**
-G285'in cevap geçmişi (core/answer-history.js) şu an atlamayı HİÇ
-kaydetmiyor (ayrı bir bug/eksiklik DEĞİL — kayıt yolu o dalda HİÇ
-TANIMLI değil). Kaydedilmeye BAŞLARSA (küçük bir iş, ~15-25 satır,
-bkz. OLCUM-ATLA-KAYIT-19-08.md) sık atlayan bir kullanıcının 200'lük
-FIFO penceresi atlama kayıtlarıyla DOLABİLİR, GERÇEK cevaplı kayıtlar
-daha ÇABUK dışarı itilir. Seçenekler: (a) atlamalar limite basitçe
-DAHİL (tek dizi, ek karmaşıklık yok), (b) atlamalar AYRI/ağırlıklı
-tutulur (GERÇEK cevaplar korunur ama iki-kaynaklı bir yapı gerekir).
-KARAR VERİLMEDİ, kod YAZILMADI.
-
-**AA. OLCUM-SES-BIRIKME-2-19-08 — "Atla"nın hızlı art arda basılması
-sonucu oluşan ses birikmesi ne zaman düzeltilsin?**
-Ölçümle DOĞRULANDI: `goToNextRound()`'un reentrancy KİLİDİ YOK,
-SIFIRA yakın aralıklı (rapid-fire) "Atla" telafi/sınav anons
-ekranında 8sn+ kesintisiz sese yol açabiliyor (normal hızda —
-250ms+ aralık — SORUN YOK). Düzeltme yönü ÖNERİLDİ (goToNextRound
-seviyesinde reentrancy kilidi) ama bu turun kapsamı SADECE ölçümdü —
-düzeltme AYRI bir "ÖNCE ÖLÇ SONRA UYGULA" turu gerektiriyor,
-kullanıcı KARARI bekliyor (ne zaman ele alınacak, öncelik sırası).
-
 **Z. G298'in ölçtüğü artık-risk — `isUserPro()`'nun `devFlags.simulatePro`
 dalı DEV_MODE'a bağlansın mı?**
 G298, 7-tık GİRİŞ noktasını (yeni bir `devFlags.unlocked`/`simulatePro`
@@ -22930,7 +23043,25 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G324 + iki ölçüm itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G325 + G326 itibarıyla):**
+İKİ AYRI düzeltme — önceki turun İKİ ölçüm bulgusu KAPANDI. **G325**
+(`5ab79e8`): hızlı-Atla ses birikmesi düzeltildi (`goToNextRound()`
+promise kuyruğuyla SIRAYLA çalışıyor, hiçbir tıklama düşürülmüyor).
+**G326** (`2a8db46`): atlanan sorular ARTIK G285'in cevap geçmişine
+kaydediliyor (`skipped:true`, doğru cevap dolu), 200 kayıt penceresi
+kararı basit (tek FIFO diziye dahil) olarak VERİLDİ ve UYGULANDI. `npm
+test` 1663/1663, `e2e` 171/171, İKİSİ de git stash ile kırmızı/yeşil
+doğrulandı. **Kullanıcının/Logic'in sıradaki adımı:** `npx cap sync
+ios` + cihazda GERÇEKTEN doğrulamak — (1) telafi/sınav ekranına HIZLI
+art arda atlayarak ulaşıp ekranda ses ARTIK duyulmadığını kulakla
+doğrulamak, (2) bir soruyu atlayıp (Ayarlar/1.1'in henüz YOK olan
+UI'ı beklenmeden) `localStorage`'daki `eqEarTrainerProXAnswerHistory`
+kaydının GERÇEKTEN `skipped:true` taşıdığını (Safari konsolundan)
+görmek. AYRICA: renk körlüğü için şekil/desen farkı (G324'te
+ÖNERİLDİ, UYGULANMADI) + 1.1 izolasyon turu için bekleyenler
+aşağıdaki G321/G322 notunda duruyor, değişmedi.
+
+**EN YENİ SIRADAKİ ADIM (G324 + iki ölçüm itibarıyla, ARTIK ESKİ):**
 Atlama BÖLÜM/telafi çubuğunda ARTIK beyaz (nötr) — `153a5f4`. `npm
 test` 1659/1659, `e2e` 167/167. **Kullanıcının/Logic'in sıradaki
 adımı:** `npx cap sync ios` + cihazda GERÇEKTEN doğrulamak (atlanan
