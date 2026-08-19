@@ -180,6 +180,29 @@ describe("Tonal Denge — evaluateAnswer (yakınlık skoru — SAF, audioCtx'e d
     assert.equal(r.correct, false);
   });
 
+  // G317 — correctBandCount YENİ bir alan (calculateXP'nin kısmi-doğru XP
+  // dalı için) — evaluateAnswer'ın "correct" TANIMINA TEK SATIR dokunmuyor,
+  // SADECE HER bandın KENDİ deviation'ını AYNI toleransla ayrıca sayıyor.
+  it("correctBandCount: MÜKEMMEL düzeltmede TÜM bantlar (4/4) — bu durumda correct de HER ZAMAN true (averaj mantığı)", () => {
+    const answer = { bas: -5, "alt-orta": 3, "ust-orta": 0, tiz: -2 };
+    const r = mode.evaluateAnswer(q, answer);
+    assert.equal(r.correctBandCount, 4);
+    assert.equal(r.correct, true);
+  });
+
+  it("correctBandCount: SADECE bazı bantlar toleransta iken doğru sayıyor, correct HÂLÂ false kalabiliyor", () => {
+    // bas: tam düzeltildi (residual 0, doğru) — alt-orta: tam düzeltildi (doğru)
+    // ust-orta: bugDb zaten 0, dokunulmadı (residual 0, doğru) — tiz: HİÇ
+    // dokunulmadı (residual 2, tolerans 1.5'i AŞIYOR, yanlış). 3/4 bant doğru
+    // ama averaj (0+0+0+2)/4=0.5 <= 1.5 OLDUĞU İÇİN correct YİNE true çıkar —
+    // bu YÜZDEN kasıtlı ATE tolerans-dışı bir dördüncü sapma eklendi (tiz'i
+    // İYİCE bozarak averajı da toleransın ÜSTÜNE çıkarmak için).
+    const answer = { bas: -5, "alt-orta": 3, "ust-orta": 0, tiz: -2 - 10 };
+    const r = mode.evaluateAnswer(q, answer);
+    assert.equal(r.correctBandCount, 3, `3 bant doğru olmalıydı, ölçülen deviations: ${JSON.stringify(r.deviations)}`);
+    assert.equal(r.correct, false, "averaj artık toleransın üstünde, correct=false OLMALI");
+  });
+
   it("eksik/kısmi answer (bazı bantlar hiç yok) → o bantlar correction=0 varsayılır", () => {
     const r = mode.evaluateAnswer(q, { bas: -5 });
     const alt = r.deviations.find(d => d.id === "alt-orta");
@@ -200,8 +223,13 @@ describe("Tonal Denge — evaluateAnswer (yakınlık skoru — SAF, audioCtx'e d
 });
 
 describe("Tonal Denge — calculateXP (GRADED — yakınlık skoruna göre ölçeklenir)", () => {
-  it("correct=false → 0 XP", () => {
-    const q = { boss: false };
+  it("correct=false VE correctBandCount=0 (hiçbir bant doğru değil) → 0 XP", () => {
+    const q = { boss: false, bands: [{ id: "sub" }, { id: "bas" }, { id: "orta" }, { id: "tiz" }] };
+    assert.equal(mode.calculateXP(q, { correct: false, correctBandCount: 0 }, false, "medium", {}), 0);
+  });
+
+  it("correct=false, correctBandCount alanı HİÇ yoksa (undefined) 0 varsayılır → 0 XP (eski çağıranlarla GERİYE UYUMLU)", () => {
+    const q = { boss: false, bands: [{ id: "sub" }, { id: "bas" }, { id: "orta" }, { id: "tiz" }] };
     assert.equal(mode.calculateXP(q, { correct: false }, false, "medium", {}), 0);
   });
 
@@ -230,6 +258,62 @@ describe("Tonal Denge — calculateXP (GRADED — yakınlık skoruna göre ölç
     const withoutHint = mode.calculateXP(q, result, false, "medium", { combo: 0, timeLeft: 0, roundDuration: 10 });
     const withHint = mode.calculateXP(q, result, true, "medium", { combo: 0, timeLeft: 0, roundDuration: 10 });
     assert.ok(withHint < withoutHint);
+  });
+});
+
+// G317 (Logic'in kararı, OLCUM-XP-SEANS-18-08'in ardından) — kısmi doğruya
+// ARTAN XP, "doğru" SAYILMADAN. DOKUNULMAYACAK: evaluateAnswer'ın "correct"
+// TANIMI (avgDeviation<=tolerance) — bu blok SADECE calculateXP'nin YENİ
+// partial-credit dalını (result.correct=false + correctBandCount>0) test
+// ediyor, evaluateAnswer'a HİÇ dokunmuyor.
+describe("Tonal Denge — G317 kısmi-doğru XP (calculateXP'nin YENİ dalı)", () => {
+  const q4 = { boss: false, bands: [{ id: "sub" }, { id: "bas" }, { id: "orta" }, { id: "tiz" }] };
+  const baseCtx = { combo: 0, timeLeft: 0, roundDuration: 10, xpMultiplier: 1 };
+
+  it("4 bantta 1/2/3 doğru → Logic'in verdiği ORANLARLA (tam-doğru XP'sinin %15/%35/%75'i) artan XP, ARTIYOR", () => {
+    const full = mode.calculateXP(q4, { correct: true, proximityScore: 100 }, false, "medium", baseCtx);
+    const xp1 = mode.calculateXP(q4, { correct: false, correctBandCount: 1 }, false, "medium", baseCtx);
+    const xp2 = mode.calculateXP(q4, { correct: false, correctBandCount: 2 }, false, "medium", baseCtx);
+    const xp3 = mode.calculateXP(q4, { correct: false, correctBandCount: 3 }, false, "medium", baseCtx);
+    // proximityBoost=100 iken full=diff.xp*1 (proximityBoost=1.0) — oranları
+    // doğrudan full'a göre karşılaştırmak GÜVENİLİR (aynı diff.xp tabanı).
+    assert.ok(Math.abs(xp1 / full - 0.15) < 0.03, `xp1/full=${(xp1 / full).toFixed(3)}, beklenen ~0.15`);
+    assert.ok(Math.abs(xp2 / full - 0.35) < 0.03, `xp2/full=${(xp2 / full).toFixed(3)}, beklenen ~0.35`);
+    assert.ok(Math.abs(xp3 / full - 0.75) < 0.03, `xp3/full=${(xp3 / full).toFixed(3)}, beklenen ~0.75`);
+    assert.ok(xp1 > 0 && xp1 < xp2 && xp2 < xp3 && xp3 < full, `artan olmalı: 0 < ${xp1} < ${xp2} < ${xp3} < ${full}`);
+  });
+
+  it("5 ve 6 bantta da ARTAN XP üretir (oranlar Logic'in 4-bant deseninin genişletilmesi, ÖLÇÜLMEDİ — ürün yorumu)", () => {
+    const q5 = { boss: false, bands: [{ id: "sub" }, { id: "bas" }, { id: "orta" }, { id: "ust-orta" }, { id: "tiz" }] };
+    const q6 = { boss: false, bands: [{ id: "sub" }, { id: "bas" }, { id: "alt-orta" }, { id: "orta" }, { id: "ust-orta" }, { id: "tiz" }] };
+    for (const [q, maxK] of [[q5, 4], [q6, 5]]) {
+      let prev = 0;
+      for (let k = 1; k <= maxK; k++) {
+        const xp = mode.calculateXP(q, { correct: false, correctBandCount: k }, false, "medium", baseCtx);
+        assert.ok(xp > prev, `bandCount=${q.bands.length} k=${k}: ${xp} <= önceki ${prev} (ARTMALIYDI)`);
+        prev = xp;
+      }
+    }
+  });
+
+  it("proximityBoost KISMİ-doğru dalına ÇAKIŞMIYOR — proximityScore ne olursa olsun (correct=false iken) AYNI XP", () => {
+    const withLowProximity = mode.calculateXP(q4, { correct: false, correctBandCount: 2, proximityScore: 5 }, false, "medium", baseCtx);
+    const withHighProximity = mode.calculateXP(q4, { correct: false, correctBandCount: 2, proximityScore: 95 }, false, "medium", baseCtx);
+    assert.equal(withLowProximity, withHighProximity, "kısmi-doğru dalı proximityScore'dan TAMAMEN bağımsız olmalı");
+  });
+
+  it("kısmi-doğru XP'ye combo:0 İLE çağrıldığında combo bonusu BİNMEZ, ama hint/boss/time çarpanları HÂLÂ uygulanıyor", () => {
+    const noHint = mode.calculateXP(q4, { correct: false, correctBandCount: 2 }, false, "medium", baseCtx);
+    const withHint = mode.calculateXP(q4, { correct: false, correctBandCount: 2 }, true, "medium", baseCtx);
+    assert.ok(withHint < noHint, "ipucu kısmi-doğru XP'yi de yarıya indirmeli (AYNI hintPenalty çarpanı)");
+    const bossQ = { ...q4, boss: true };
+    const bossXp = mode.calculateXP(bossQ, { correct: false, correctBandCount: 2 }, false, "medium", baseCtx);
+    assert.ok(bossXp > noHint, "boss round kısmi-doğru XP'yi de artırmalı (AYNI bossBoost çarpanı)");
+  });
+
+  it("correctBandCount tablo-dışı bir bant sayısı için (0 ya da bandCount'un kendisi) 0 döner — bandCount'un KENDİSİ tabloya HİÇ girmemeli (average<=tolerance mantığı, bkz. evaluateAnswer notu)", () => {
+    assert.equal(mode.calculateXP(q4, { correct: false, correctBandCount: 0 }, false, "medium", baseCtx), 0);
+    assert.equal(mode.calculateXP(q4, { correct: false, correctBandCount: 4 }, false, "medium", baseCtx), 0, "4/4 tabloda YOK (bu durum zaten correct=true yoluna düşer, pratikte hiç çağrılmaz)");
   });
 });
 

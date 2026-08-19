@@ -5321,12 +5321,29 @@ function submitTonalDengeGuess() {
     diffState().score = Math.max(0, diffState().score - 20);
     session.wrong++;
 
-    const feedback = mode.getFeedbackData(q, answer, { gained: 0 });
+    // G317 (Logic'in kararı) — result.correct HÂLÂ false (yukarıdaki wrong
+    // satırların HİÇBİRİ değişmedi: stats.wrong/combo=0/score-20/session.wrong,
+    // aşağıdaki loseLife/challengeTick(false,...) AYNEN çalışıyor) ama en az
+    // 1 bant kendi toleransındaysa BİR MİKTAR XP veriliyor —
+    // mode.calculateXP'nin KENDİ PARTIAL_CREDIT_FRACTION dalı (tonal-denge.js).
+    // combo:0 BİLEREK sabit — bu cevap combo'yu ZATEN kırdı (yukarıda), kısmi
+    // XP'ye combo bonusu BİNMEMELİ.
+    gained = mode.calculateXP(q, result, q.hintUsed, q.difficulty, {
+      combo: 0, timeLeft: roundFlow.timeLeft, roundDuration: roundFlow.roundDuration, xpMultiplier: xpMult()
+    });
+    if (gained > 0) {
+      diffState().xp += gained;
+      modeState().xp += gained;
+      session.xp += gained;
+    }
+
+    const feedback = mode.getFeedbackData(q, answer, { gained });
     setFeedback(feedback.title, feedback.detail, feedback.showResult, true);
     audioEngine.sfxBuzz();
     shake(els.canvas);
+    if (gained > 0) spawnXp(`+${gained} XP`, els.canvas);
     loseLife("Sesi nötüre getiremedin.", { silent: true });
-    challengeTick(false, 0);
+    challengeTick(false, gained);
   }
 
   recordAnswerHistoryEntry("tonal-denge", q, answer, result);
@@ -12749,6 +12766,15 @@ if (DEV_MODE) {
   // verir — gainA/gainB dB düzeltmesinin buildDualSourceChain'de GERÇEKTEN
   // uygulanan GainNode değerine dönüştüğünü doğrulamak için.
   window.__aeaDualGainValuesForTest = () => audioEngine.dualGainValues;
+
+  // G317 — test kancası: activeQuestion.bands'i (SADECE OKUR) dışa verir —
+  // Tonal Denge'nin `.tonal-slider`'larını KISMİ (bazı bantlar doğru, bazıları
+  // BİLEREK yanlış) doldurup calculateXP'nin YENİ partial-credit dalını
+  // e2e'de tetiklemek için — HER bandın kendi bugDb'sini bilmeden doğru
+  // correction'ı hesaplamak mümkün değil, GÜVENİLİR bir yol GEREKİYORDU
+  // (`__aeaActiveQuestionChoices`'ın `.choices` deseninin AYNISı, sadece
+  // alan adı `bands`). Diğer modlarda `activeQuestion.bands` YOK, null döner.
+  window.__aeaActiveQuestionBandsForTest = () => (activeQuestion && activeQuestion.bands) || null;
 
   // G285 — doğrulama kancası: aktif sorunun DOĞRU cevabını hesaplayıp GERÇEK
   // submit fonksiyonunu (submitFrequencyGuess/submitCutoffGuess/vb. — 11

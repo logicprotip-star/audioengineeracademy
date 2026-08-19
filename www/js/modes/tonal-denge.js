@@ -439,9 +439,41 @@ export function evaluateAnswer(question, answer) {
   const avgDeviation = deviations.reduce((sum, d) => sum + d.deviation, 0) / deviations.length;
   const proximityScore = Math.max(0, Math.min(100, Math.round(100 * (1 - avgDeviation / PROXIMITY_MAX_DEVIATION_DB))));
   const tolerance = Number.isFinite(question.neutralToleranceDb) ? question.neutralToleranceDb : NEUTRAL_TOLERANCE_DB;
+  // G317 — "doğru" (correct) TANIMI DEĞİŞMEDİ, HÂLÂ ortalama sapmaya göre
+  // (DOKUNULMAYACAK: "Tonal Denge'de tam bilmek gerekiyor"). correctBandCount
+  // SADECE kısmi-doğru XP'si (calculateXP) için EKLENEN, AYRI bir sayaç — HER
+  // bandın KENDİ sapmasının AYNI toleransla karşılaştırılması (tüm bantlar
+  // bunu geçseydi averaj da geçerdi, yani correctBandCount===bands.length
+  // İKEN correct HER ZAMAN true'dur — bu dal calculateXP'nin "correct" yoluna
+  // düşer, kısmi-XP tablosunun bandCount anahtarı bu yüzden GEREKMEZ).
   const correct = avgDeviation <= tolerance;
-  return { mode: "tonal-denge", correct, avgDeviation, proximityScore, deviations };
+  const correctBandCount = deviations.filter(d => d.deviation <= tolerance).length;
+  return { mode: "tonal-denge", correct, avgDeviation, proximityScore, deviations, correctBandCount };
 }
+
+// G317 (Logic'in kararı, OLCUM-XP-SEANS-18-08'in ardından) — "4 bandı tek
+// seferde doğru yapan çıkmaz, o bölümde seviye atlayan olmaz. Kısmi doğruya
+// artan XP verilsin AMA 'doğru' sayılmasın." Oranlar TAM-doğru XP'sinin
+// YÜZDESİ (SABİT SAYI DEĞİL — Tonal Denge'nin taban XP'si ÖLÇÜLMEDİĞİ için
+// mevcut formülün ÜSTÜNE çarpan olarak biniyor, talimatın kendi sözü).
+// 4 bant SABİT, Logic'in KENDİ verdiği: 1→%15, 2→%35, 3→%75 (4/4 zaten
+// result.correct=true yoluna düşer, aşağı bkz. — bu tablo hiç kullanılmaz).
+// Artışlar (+15,+20,+40) 4-bant tablosunun KENDİ "neredeyse tama yakınken
+// BÜYÜK sıçrama" deseni. 5/6 bant İÇİN ölçülmüş bir referans YOK — AYNI
+// deseni (düşük başlangıç, tam-doğruya YAKINKEN en büyük sıçrama, k=n-1'de
+// hâlâ tama ulaşmamış) ELLE genişleterek uygulandı, bu bir ÜRÜN YORUMU
+// (ölçüm değil, "oranları sen belirle" talimatı gereği):
+//   5 bant: 1→%10, 2→%22, 3→%42, 4→%72 (artışlar +10,+12,+20,+30)
+//   6 bant: 1→%8,  2→%18, 3→%32, 4→%52, 5→%78 (artışlar +8,+10,+14,+20,+26)
+// (bandCount, k) → k=bandCount HİÇ anahtar OLARAK YOK: tüm bantlar kendi
+// toleransıyla "doğru" ise averaj da HER ZAMAN toleransın altındadır (averaj,
+// hepsi <= T olan değerlerin averajı <= T'dir) — yani correctBandCount===
+// bandCount İKEN result.correct HER ZAMAN true'dur, bu tabloya hiç gelinmez.
+const PARTIAL_CREDIT_FRACTION = {
+  4: { 1: 0.15, 2: 0.35, 3: 0.75 },
+  5: { 1: 0.10, 2: 0.22, 3: 0.42, 4: 0.72 },
+  6: { 1: 0.08, 2: 0.18, 3: 0.32, 4: 0.52, 5: 0.78 }
+};
 
 // XP GRADED — task'ın "puanlama: yakınlık skoru" isteği: diğer sekiz modun
 // binary (doğru=tam XP/yanlış=0) davranışının AKSİNE, "doğru" (tolerans içinde)
@@ -450,7 +482,7 @@ export function evaluateAnswer(question, answer) {
 // %55 (result.correct zaten en az bir dereceye kadar başarı demek, tam sıfıra
 // İNMEMELİ).
 export function calculateXP(question, result, hintUsed, level, context = {}) {
-  if (!result || !result.correct) return 0;
+  if (!result) return 0;
   const diff = DIFFICULTY[level] || DIFFICULTY.medium;
   const combo = context.combo || 0;
   const timeLeft = context.timeLeft || 0;
@@ -461,8 +493,20 @@ export function calculateXP(question, result, hintUsed, level, context = {}) {
   const hintPenalty = hintUsed ? 0.5 : 1;
   const bossBoost = question.boss ? 1.65 : 1;
   const timeBoost = timeLeft > roundDuration * 0.55 ? 1.2 : 1;
-  const proximityBoost = Math.max(0.55, (result.proximityScore || 0) / 100);
 
+  // G317 — kısmi-doğru dalı: result.correct false (DEĞİŞMEDİ) ama en az 1
+  // bant kendi toleransında ise, TAM-doğru formülünün (proximityBoost HARİÇ —
+  // "onunla çakışmasın" talimatı, proximityBoost SADECE result.correct=true
+  // yolunda kalıyor) ÜSTÜNE PARTIAL_CREDIT_FRACTION çarpanı biniyor.
+  if (!result.correct) {
+    const bandCount = question.bands.length;
+    const fraction = PARTIAL_CREDIT_FRACTION[bandCount]?.[result.correctBandCount || 0];
+    if (!fraction) return 0;
+    const raw = Math.round(diff.xp * comboBoost * hintPenalty * bossBoost * timeBoost * fraction * xpMultiplier);
+    return Math.max(0, raw);
+  }
+
+  const proximityBoost = Math.max(0.55, (result.proximityScore || 0) / 100);
   const raw = Math.round(diff.xp * comboBoost * hintPenalty * bossBoost * timeBoost * proximityBoost * xpMultiplier);
   return Math.max(0, raw);
 }
@@ -531,7 +575,18 @@ export function getFeedbackData(question, answer, context = {}) {
   if (result.correct) {
     return { result, title: "Nötüre yakın!", detail: `${text} (+${gained} XP)`, showResult: true, panel: null };
   }
-  return { result, title: `Yakınlık %${result.proximityScore}`, detail: text, showResult: true, panel: null };
+  // G317 — kısmi-doğru XP kazanıldıysa (gained>0) DETAIL'e result.correct===true
+  // dalıyla AYNI "(+N XP)" eki eklendi (SATIR 576'nın BİREBİR deseni,
+  // TUTARLILIK için). ÖLÇÜLDÜ: app.js:setFeedback() bu eki ekranda
+  // GÖRÜNMEDEN ÖNCE regex ile SİLİYOR (`.replace(/\s*\(\+\d+ XP\)$/, "")`)
+  // — bu, KORREKT dalda da AYNI, ÖNCEDEN VAR olan davranış (benim eklediğim
+  // bir kısıtlama DEĞİL). Kullanıcı partial-XP'yi ŞU AN SADECE canvas'taki
+  // spawnXp() animasyonundan ("+N XP" uçan yazı, app.js) görüyor — metin
+  // panelinde HİÇBİR yerde YAZILI görünmüyor (correct cevapta da AYNI durum).
+  // BANT-BAZLI "kaç bandı doğru bildin" DETAYI BİLEREK EKLENMEDİ (task'ın
+  // kendi talimatı: "ölç ve öner, bu turda uygulama, sor" — bkz. rapor).
+  const detail = gained > 0 ? `${text} (+${gained} XP)` : text;
+  return { result, title: `Yakınlık %${result.proximityScore}`, detail, showResult: true, panel: null };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
