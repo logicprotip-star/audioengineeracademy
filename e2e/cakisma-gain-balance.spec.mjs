@@ -17,6 +17,10 @@
 // güncellendi — bkz. source-catalog.js'in G301 notu). "KABUL KRİTERİ" testine
 // vokal2-akustik de eklendi (task'ın "bu çifti de yeniden ölç" isteği —
 // YENİ dosyayla ham fark -0.72dB, hâlâ ±1.5dB içinde, düzeltme gerekmedi).
+//
+// G330 — kick-bas çifti GERİ EKLENDİ (G288'de yanlışlıkla silinmişti).
+// "KABUL KRİTERİ" testine kick-bas da eklendi (ham fark -1.57dB → gainA=-1.6,
+// AYNI concurrent-RMS yöntemiyle burada EMPİRİK olarak yeniden doğrulanıyor).
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -53,7 +57,7 @@ async function selectCakismaPair(page, pairId) {
   }, pairId);
 }
 
-test("KONTROL 1 — GERÇEK tarayıcıda TÜM 6 çiftte (G316: snare-akustik kaldırıldı) dualGainA/B GERÇEK GainNode değeri pair.gainA/gainB'ye (dB→linear) EŞİT", async () => {
+test("KONTROL 1 — GERÇEK tarayıcıda TÜM 7 çiftte (G316: snare-akustik kaldırıldı, G330: kick-bas GERİ EKLENDİ) dualGainA/B GERÇEK GainNode değeri pair.gainA/gainB'ye (dB→linear) EŞİT", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.goto(serverHandle.baseUrl);
   await seedLocalStorage(page, { dev: { simulatePro: true } });
@@ -89,7 +93,7 @@ test("KONTROL 1 — GERÇEK tarayıcıda TÜM 6 çiftte (G316: snare-akustik kal
   await page.close();
 });
 
-test("KABUL KRİTERİ — düzeltme UYGULANDIKTAN SONRA 3 dengesiz çiftte (akustik-clean/bas-akustik/vokal2-clean) GERÇEK concurrent-RMS farkı ±1.5dB içinde", async () => {
+test("KABUL KRİTERİ — düzeltme UYGULANDIKTAN SONRA 4 dengesiz çiftte (akustik-clean/bas-akustik/vokal2-clean/kick-bas) GERÇEK concurrent-RMS farkı ±1.5dB içinde", async () => {
   const page = await browser.newPage();
   await page.goto(serverHandle.baseUrl);
 
@@ -154,11 +158,13 @@ test("KABUL KRİTERİ — düzeltme UYGULANDIKTAN SONRA 3 dengesiz çiftte (akus
     }
 
     // source-catalog.js'in KENDİ samplePath eşlemesi (fetch import edemediğimiz
-    // için burada minimal, SADECE bu 3 çiftin kullandığı 4 kaynak için elle
+    // için burada minimal, SADECE bu çiftlerin kullandığı kaynaklar için elle
     // tekrarlandı — TEK doğruluk kaynağı yine source-catalog.js, buradaki
-    // liste sadece dosya adı çözümü).
+    // liste sadece dosya adı çözümü). G330 — "kick" eklendi (kick-bas çifti
+    // GERİ EKLENDİ, gainA=-1.6 İLE düzeltilmişti, burada EMPİRİK olarak
+    // YENİDEN doğrulanıyor).
     function sourcePathFor(id) {
-      const map = { bass: "bass.m4a", guitar: "acoustic_guitar.m4a", clean_guitar: "clean_guitar.m4a", vocal_1: "vocal_1.m4a" };
+      const map = { bass: "bass.m4a", guitar: "acoustic_guitar.m4a", clean_guitar: "clean_guitar.m4a", vocal_1: "vocal_1.m4a", kick: "kick.m4a" };
       return map[id];
     }
 
@@ -167,7 +173,7 @@ test("KABUL KRİTERİ — düzeltme UYGULANDIKTAN SONRA 3 dengesiz çiftte (akus
       results.push(await measurePair(pair));
     }
     return results;
-  }, SOURCE_PAIRS.filter(p => ["akustik-clean", "bas-akustik", "vokal2-clean", "vokal2-akustik"].includes(p.id)));
+  }, SOURCE_PAIRS.filter(p => ["akustik-clean", "bas-akustik", "vokal2-clean", "vokal2-akustik", "kick-bas"].includes(p.id)));
 
   for (const r of result) {
     assert.ok(Math.abs(r.diff) <= 1.5, `[${r.id}] düzeltme SONRASI fark ±1.5dB İÇİNDE değil: ${r.diff.toFixed(2)}dB`);

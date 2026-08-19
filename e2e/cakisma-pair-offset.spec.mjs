@@ -46,7 +46,7 @@ async function selectCakismaPair(page, pairId) {
   }, pairId);
 }
 
-test("KONTROL 1 — #cakismaPairSelect TAM 6 çifti (G295: +vokal2-clean/vokal2-akustik, G316: snare-akustik kaldırıldı) + 'own'u gösteriyor, ESKİ çiftler (kick-bas/vokal-gitar/snare-arpej-gitar) YOK", async () => {
+test("KONTROL 1 — #cakismaPairSelect TAM 7 çifti (G295: +vokal2-clean/vokal2-akustik, G316: snare-akustik kaldırıldı, G330: kick-bas GERİ EKLENDİ) + 'own'u gösteriyor, ESKİ çiftler (vokal-gitar/snare-arpej-gitar) YOK", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.goto(serverHandle.baseUrl);
   await seedLocalStorage(page, { dev: { simulatePro: true } });
@@ -59,7 +59,7 @@ test("KONTROL 1 — #cakismaPairSelect TAM 6 çifti (G295: +vokal2-clean/vokal2-
   );
   const expected = [...SOURCE_PAIRS.map(p => p.id), "own"];
   assert.deepEqual(optionValues, expected, `#cakismaPairSelect'in option'ları SOURCE_PAIRS ile UYUŞMUYOR: ${optionValues.join(",")}`);
-  for (const staleId of ["kick-bas", "vokal-gitar", "snare-arpej-gitar"]) {
+  for (const staleId of ["vokal-gitar", "snare-arpej-gitar"]) {
     assert.ok(!optionValues.includes(staleId), `ESKİ çift '${staleId}' HÂLÂ seçicide`);
   }
 
@@ -86,7 +86,7 @@ test("KONTROL 2 — snare_late genel kaynak seçicide (Frekans Bulma) GÖRÜNMÜ
   await page.close();
 });
 
-test("KABUL KRİTERİ — 6 çiftin (G295: +vokal2-clean/vokal2-akustik, G316: snare-akustik kaldırıldı) HEPSİ konsol hatasız round başlatıp önizleme çalabiliyor (offsetli buildDualSourceChain gerçek tarayıcıda)", async () => {
+test("KABUL KRİTERİ — 7 çiftin (G295: +vokal2-clean/vokal2-akustik, G316: snare-akustik kaldırıldı, G330: kick-bas GERİ EKLENDİ) HEPSİ konsol hatasız round başlatıp önizleme çalabiliyor (offsetli buildDualSourceChain gerçek tarayıcıda)", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const errors = [];
   page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg.text()); });

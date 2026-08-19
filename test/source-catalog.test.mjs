@@ -129,10 +129,10 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
     assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["groove", "upload"].sort());
   });
 
-  it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 6 hazır çift içerir (G288: 5 offsetli çift, G295: +2 vokal2 çifti, G316: snare-akustik KALDIRILDI)", () => {
+  it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 7 hazır çift içerir (G288: 5 offsetli çift, G295: +2 vokal2 çifti, G316: snare-akustik KALDIRILDI, G330: kick-bas GERİ EKLENDİ)", () => {
     const meta = frekansCakismasi.getMeta();
     assert.deepEqual(meta.uyumluKaynaklar, []);
-    assert.deepEqual(SOURCE_PAIRS.map(p => p.id).sort(), ["akustik-clean", "bas-akustik", "bas-clean", "snare-clean", "vokal2-akustik", "vokal2-clean"].sort());
+    assert.deepEqual(SOURCE_PAIRS.map(p => p.id).sort(), ["akustik-clean", "bas-akustik", "bas-clean", "kick-bas", "snare-clean", "vokal2-akustik", "vokal2-clean"].sort());
   });
 });
 
@@ -298,6 +298,33 @@ describe("source-catalog — G295 YENİ SOURCE_PAIRS çiftleri: vokal2-clean/vok
     assert.deepEqual(pair.region, [200, 370]);
     assert.equal(pair.offsetA, 0);
     assert.equal(pair.offsetB, 0);
+  });
+});
+
+// G330 — kick-bas çifti G288'de yanlışlıkla SİLİNMİŞTİ, geri EKLENDİ. Eski
+// [50,160] region'a GÜVENİLMEDİ, OLCUM-KAYNAK-16-08.md'nin AYNI FFT
+// yöntemiyle BAĞIMSIZ tekrar ölçüldü ([32,118]Hz, aynı sonuç) → [30,120].
+// gainA/gainB e2e/cakisma-gain-balance.spec.mjs'in AYNI concurrent-RMS
+// yöntemiyle ölçüldü (ham fark -1.57dB → gainA=-1.6, düzeltme sonrası
+// +0.03dB doğrulandı).
+describe("source-catalog — G330 kick-bas çifti GERİ EKLENDİ", () => {
+  it("kick-bas: sourceA=kick/sourceB=bass, region=[30,120], offset YOK, gainA=-1.6", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "kick-bas");
+    assert.ok(pair, "kick-bas bulunamadı");
+    assert.equal(pair.sourceA, "kick");
+    assert.equal(pair.sourceB, "bass");
+    assert.equal(pair.labelA, "Kick");
+    assert.equal(pair.labelB, "Bas");
+    assert.deepEqual(pair.region, [30, 120]);
+    assert.equal(pair.offsetA, 0);
+    assert.equal(pair.offsetB, 0);
+    assert.equal(pair.gainA, -1.6);
+    assert.equal(pair.gainB, 0);
+  });
+
+  it("kick-bas SONA eklendi — SOURCE_PAIRS[0] hâlâ akustik-clean (findSourcePair'ın fallback'i DEĞİŞMEDİ)", () => {
+    assert.equal(SOURCE_PAIRS[0].id, "akustik-clean");
+    assert.equal(SOURCE_PAIRS[SOURCE_PAIRS.length - 1].id, "kick-bas");
   });
 });
 

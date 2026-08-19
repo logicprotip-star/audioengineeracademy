@@ -335,6 +335,32 @@ export const SOURCE_PAIRS = [
     id: "vokal2-akustik", labelA: "Vokal 2", labelB: "Akustik Gitar", sourceA: "vocal_1", sourceB: "guitar",
     offsetA: 0, offsetB: 0, gainA: 0, gainB: 0,
     region: [200, 370], desc: "Vokal ve akustik gitar — orta bölgede vokal formantı ile gitarın gövde çatışması"
+  },
+  // G330 (task'ın kendi hatırlatması) — kick-bas çifti G288'de çift listesi
+  // yeniden kurulurken YANLIŞLIKLA silinmişti, buradan geri EKLENDİ. SONA
+  // eklendi (BAŞA değil) — `findSourcePair()`'ın geçersiz bir id'de
+  // `SOURCE_PAIRS[0]`'a (akustik-clean) düşen fallback'i VE #cakismaPairSelect'in
+  // "hiç seçim yapılmamışsa İLK option" native davranışı DEĞİŞMESİN diye
+  // (DOKUNULMAYACAK: "mevcut altı çift" — SIRALARI da buna dahil sayıldı).
+  //
+  // Eski [50,160] region'a GÜVENİLMEDİ, SIFIRDAN ölçüldü (OLCUM-KAYNAK-16-08.md'nin
+  // AYNI yöntemiyle — 4096-nokta FFT, Hann penceresi, Welch ortalaması, 2048
+  // örtüşen çerçeve/%50 hop — BAĞIMSIZ tekrarlandı, o raporun ÖLÇTÜĞÜ [32,118]
+  // (kick 43.1Hz, bass 96.9Hz tepe) İLE BİREBİR örtüştü): -15dB kesişen bandı
+  // [32.3,118.4]Hz, dışa yuvarlandı [30,120]. offsetA/offsetB=0/0 — kick.m4a/
+  // bass.m4a AYNI oturumdan, AYNI süre (24.615s, 78 BPM/8 bar, diğer davul/
+  // enstrüman kaynaklarıyla AYNI faz) — offset TARANDI (-0.5..+0.5s, 9 aday),
+  // POZİTİF (bas'ı geciktiren) her aday concurrent-pencere sayısını AZALTTI,
+  // offset=0 EN İYİSİ çıktı. gainA/gainB — e2e/cakisma-gain-balance.spec.mjs'in
+  // AYNI renderBandLimited/measurePair yöntemiyle (concurrent -20dB zarf,
+  // band-limited [30,120]Hz RMS) ÖLÇÜLDÜ: ham fark (B−A) -1.57dB (kick hafif
+  // yüksek, ±1.5dB toleransının HEMEN DIŞINDA) → gainA=-1.6 (LOUDER taraf
+  // kısıldı, DİĞER çiftlerle AYNI kural) — düzeltme SONRASI GERÇEKTEN
+  // doğrulandı: +0.03dB (neredeyse tam denge).
+  {
+    id: "kick-bas", labelA: "Kick", labelB: "Bas", sourceA: "kick", sourceB: "bass",
+    offsetA: 0, offsetB: 0, gainA: -1.6, gainB: 0,
+    region: [30, 120], desc: "Kick ve bas — sub/bas bölgesinde temel frekans çakışması"
   }
 ];
 

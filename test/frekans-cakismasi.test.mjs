@@ -82,16 +82,16 @@ describe("source-catalog.js — SOURCE_PAIRS / OWN_SOURCE_PAIR / findSourcePair 
     assert.deepEqual(pair.region, [190, 440]);
   });
 
-  it("altı hazır çiftin sourceA/sourceB'si source-catalog.js'in KENDİ SOURCE_GROUPS'unda gerçekten var (kod incelemesiyle: bass/guitar/clean_guitar/snare_late/vocal_1)", () => {
-    const knownSourceIds = ["bass", "guitar", "clean_guitar", "snare_late", "vocal_1"];
+  it("yedi hazır çiftin sourceA/sourceB'si source-catalog.js'in KENDİ SOURCE_GROUPS'unda gerçekten var (kod incelemesiyle: bass/guitar/clean_guitar/snare_late/vocal_1/kick — G330: kick-bas geri eklendi)", () => {
+    const knownSourceIds = ["bass", "guitar", "clean_guitar", "snare_late", "vocal_1", "kick"];
     SOURCE_PAIRS.forEach(p => {
       assert.ok(knownSourceIds.includes(p.sourceA), `${p.id}.sourceA=${p.sourceA} bilinmiyor`);
       assert.ok(knownSourceIds.includes(p.sourceB), `${p.id}.sourceB=${p.sourceB} bilinmiyor`);
     });
   });
 
-  it("findSourcePair ile id'sinden altı hazır çift de doğru çözülür", () => {
-    for (const id of ["akustik-clean", "bas-akustik", "bas-clean", "snare-clean", "vokal2-clean", "vokal2-akustik"]) {
+  it("findSourcePair ile id'sinden yedi hazır çift de doğru çözülür", () => {
+    for (const id of ["akustik-clean", "bas-akustik", "bas-clean", "snare-clean", "vokal2-clean", "vokal2-akustik", "kick-bas"]) {
       assert.equal(findSourcePair(id).id, id);
     }
   });

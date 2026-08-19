@@ -352,6 +352,13 @@
                AYNI altyapı. -->
           <div class="control control-sheet hidden" id="cakismaPairChipWrap">
             <label class="hidden">Kaynak çifti</label>
+            <!-- G330 — "kick-bas" geri EKLENDİ (G288'de yanlışlıkla SİLİNMİŞTİ,
+                 bkz. source-catalog.js:SOURCE_PAIRS'in KENDİ G330 notu) —
+                 SOURCE_PAIRS'in id/labelA/labelB alanlarıyla BİREBİR eşleşiyor
+                 (bu liste HER ZAMAN elle senkron tutulmalı, source-catalog.js
+                 TEK doğruluk kaynağı). SONA eklendi — "own"dan HEMEN ÖNCE,
+                 diğer altı çiftin SIRASI/varsayılan (İLK option) davranışı
+                 DEĞİŞMESİN diye (bkz. source-catalog.js'in AYNI gerekçesi). -->
             <select id="cakismaPairSelect" class="hidden">
               <option value="akustik-clean">Akustik Gitar + Clean Gitar</option>
               <option value="bas-akustik">Bas + Akustik Gitar</option>
@@ -359,6 +366,7 @@
               <option value="snare-clean">Snare + Clean Gitar</option>
               <option value="vokal2-clean">Vokal 2 + Clean Gitar</option>
               <option value="vokal2-akustik">Vokal 2 + Akustik Gitar</option>
+              <option value="kick-bas">Kick + Bas</option>
               <option value="own">Kendi dosyalarım</option>
             </select>
             <button class="srctag chip-base setting-row" data-sheet-select="cakismaPairSelect" data-sheet-title="Kaynak çifti">
