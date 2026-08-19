@@ -3137,7 +3137,15 @@ function showExamScreen(kind, ctx = {}) {
       exFactRow("Can", "Sınavda can harcanmaz")
     ];
     ctaLabel = "Sınava başla";
+    // G310 (OLCUM-ILKSORU-ATLA-19-08) — bu handler ÖNCEDEN activeQuestion'ı
+    // temizlemiyordu, secondaryHandler'ın (aşağıda) AKSİNE. goToNextRound()
+    // (app.js:7226) `roundActive && activeQuestion` doluysa "cevapsız
+    // bırakılan bir soru Atla'yla geçildi" sanıp FANTOM bir yanlış cevap
+    // sayıyordu (G214) — CTA'ya basıldığı anda activeQuestion hâlâ BİR
+    // ÖNCEKİ (parkurun son) sorudan doluydu. secondaryHandler'ların ZATEN
+    // yaptığı temizlik (`activeQuestion = null`) buraya da eklendi.
     ctaHandler = () => {
+      activeQuestion = null;
       examXpSum = 0;
       if (ctx.source === "offer") examSystem.acceptEarlyExam();
       goScreen("game");
@@ -3178,7 +3186,8 @@ function showExamScreen(kind, ctx = {}) {
     // #55 — acknowledgePassed() examSystem'i YENİ bir parkura sıfırlıyor
     // (resetParkur), challenge'ı da AYNI anda sıfırlıyoruz (bkz.
     // resetChallengeForNewParkur'un dosya başı notu).
-    ctaHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); goScreen("game"); goToNextRound(); };
+    // G310 — bkz. "announce" dalının AYNI notu (yukarıda).
+    ctaHandler = () => { activeQuestion = null; examSystem.acknowledgePassed(); resetChallengeForNewParkur(); goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
     // G274 — bkz. yukarıdaki "offer" dalının AYNI notu. G287 — AYNI turu-terk-etme kararı (bkz. "announce" dalının notu).
     // G305 (OLCUM-GENIS-18-08 madde A1/B1) — performExit()'in AYNI koruması
@@ -3204,7 +3213,8 @@ function showExamScreen(kind, ctx = {}) {
       exFactRow("Yeni hak", `${EXAM_CONFIG.TOTAL_THRESHOLD} doğruda tekrar`)
     ];
     ctaLabel = "Devam Et";
-    ctaHandler = () => { goScreen("game"); goToNextRound(); };
+    // G310 — bkz. "announce" dalının AYNI notu (yukarıda).
+    ctaHandler = () => { activeQuestion = null; goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
     // G274 — bkz. yukarıdaki "offer" dalının AYNI notu. G287 — AYNI turu-terk-etme kararı.
     // G305 — bkz. "passed" dalının AYNI notu (yukarıda).
@@ -3230,7 +3240,8 @@ function showExamScreen(kind, ctx = {}) {
       exFactRow("Geçme koşulu", `${EXAM_CONFIG.REMEDIAL_PASS_COUNT} doğru`, "var(--gr)")
     ];
     ctaLabel = "Telafi turunu başlat";
-    ctaHandler = () => { goScreen("game"); goToNextRound(); };
+    // G310 — bkz. "announce" dalının AYNI notu (yukarıda).
+    ctaHandler = () => { activeQuestion = null; goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
     // G274 — bkz. yukarıdaki "offer" dalının AYNI notu. G287 — AYNI turu-terk-etme kararı.
     // G305 — bkz. "passed" dalının AYNI notu (yukarıda).
