@@ -3039,16 +3039,33 @@ let examXpSum = 0;
 // examSystem.startRemedial()'a AYNEN geçirilir.
 //
 // G319 (OLCUM-ZAYIF-KADEME-19-08) — `insufficientData` alanı EKLENDİ. `value`/
-// `label` HÂLÂ "medium"/nötr bir varsayılana düşüyor (telafinin MEKANİK
-// yönlendirmesi — hangi soru içeriği üretilecek — bundan ETKİLENMEMELİ,
+// `label` "medium"/nötr bir varsayılana düşüyor (telafinin MEKANİK
+// yönlendirmesi — hangi soru içeriği üretilecek — bundan ETKİLENMEZ,
 // DOKUNULMAYACAK: "zorluk eğrisi"). SADECE showExamScreen("makeup", …)'ın
 // GÖSTERDİĞİ metin bu yeni alana bakıp "Zayıf X: Y" yerine "yeterli veri
 // yok" diyecek — getWeakTier/getWeakZone'un YENİ "en az 2 aday" kuralı
 // null dönünce (weak==null) bu artık DOĞRU YORUMLANIYOR.
+//
+// G323 (OLCUM-TELAFI-HEDEF-19-08'in KANITLADIĞI bug DÜZELTMESİ) — YUKARIDAKİ
+// G319 notu "value HÂLÂ nötr bir varsayılana düşüyor" diyordu ama bu SADECE
+// tier dalı için DOĞRUYDU — zone dalı `value`'yu `weak ? weak.zone : null`
+// yazıyordu, yani insufficientData iken `value` de `null` oluyordu.
+// `startRound()`'un `(zoneRemedial && examSystem.remedialTier) ? […] :
+// currentFocusRange()` satırı bu YÜZDEN tam spektruma düşüyordu — telafinin
+// SORU ÜRETİMİ (mekanik) de etkileniyordu, DOKUNULMAYACAK'ın istediğinin
+// TERSİ (ölçüldü: sadece-Tiz senaryosunda focusRange [8000,20000]'den
+// [80,17000]'e genişliyordu). Düzeltme: zone dalı ARTIK tier dalıyla AYNI
+// deseni izliyor — `value` HER ZAMAN gerçek bir hedef taşır (yeterli veri
+// yoksa `FA_ZONES`'un ORTASINDAKİ bölgeye düşer — "medium" zorluğun AYNI
+// "nötr/orta" rolü, ORTA bölgesi TESADÜFEN de mix'te en sık sorun çıkan
+// bölgelerden biri, makul bir varsayılan). `insufficientData` DEĞİŞMEDİ,
+// SADECE metni etkilemeye devam ediyor (bkz. showExamScreen "makeup" dalı).
 function getWeakArea(stats, modeId) {
   if (mode.EXAM_WEAK_AREA === "zone") {
     const weak = mode.FA_ZONES ? getWeakZone(zoneStats, mode.FA_ZONES) : null;
-    return { type: "zone", value: weak ? weak.zone : null, label: weak ? weak.zone.t : null, insufficientData: !weak };
+    const fallbackZone = mode.FA_ZONES ? mode.FA_ZONES[Math.floor(mode.FA_ZONES.length / 2)] : null;
+    const zone = weak ? weak.zone : fallbackZone;
+    return { type: "zone", value: zone, label: zone ? zone.t : null, insufficientData: !weak };
   }
   const es = examStatsFor(modeId);
   const weak = getWeakTier(es.tierStats);
@@ -3279,31 +3296,42 @@ function showExamScreen(kind, ctx = {}) {
     const area = ctx.area || { type: "tier", label: null, insufficientData: true };
     const isZone = area.type === "zone";
     const areaLabel = area.label || (isZone ? "genel spektrum" : "orta");
+    // G84 KRİTİK DÜZELTME (task'ın uyarısı, core/exam-system.js'ten
+    // doğrulandı): tasarımın "Sınavdaki üç hatanın da..." metni YANLIŞ
+    // eksene bağlıydı — telafi SINAVDA kalınca DEĞİL, 10 soruluk PARKUR
+    // toplamda <6 doğruyla bitince başlıyor (bkz. core/exam-system.js
+    // recordAnswer, "remedial-start" event'i SADECE parkur dalından döner).
+    //
     // G319 (OLCUM-ZAYIF-KADEME-19-08) — getWeakTier/getWeakZone artık en az
-    // İKİ karşılaştırılabilir aday istiyor (tek aday, isabeti %100 olsa
-    // bile, karşılaştıracak ikinci veri yoksa "zayıf" İLAN EDİLEMEZ —
-    // ölçüldü, cihazda yeni bir kullanıcıya "Zayıf kademen: Kolay"
-    // gösterilmişti). area.insufficientData true ise (weak===null) ekran
-    // ARTIK "Zayıf X: Y" DEMİYOR — mekanik yönlendirme (area.value,
-    // examSystem.startRemedial()'a YUKARIDA zaten geçti) hâlâ nötr bir
-    // varsayılana (medium/genel spektrum) düşüyor, SADECE bu METİN dürüst
-    // kalıyor.
+    // İKİ karşılaştırılabilir aday istiyor, tek aday karşılaştırmasız
+    // "zayıf" İLAN EDİLEMEZ (ölçüldü, cihazda "Zayıf kademen: Kolay"
+    // gösterilmişti).
+    //
+    // G323 (Logic'in kararı, OLCUM-TELAFI-HEDEF-19-08'in ardından) —
+    // "Zayıf X: Y" gibi KESİN bir yargı KALDIRILDI (yanlışsa kullanıcı
+    // kendini yanlış tanır) — "iddiasız gözlem" ile DEĞİŞTİRİLDİ: telafi
+    // HER İKİ durumda da (yeterli veri olsun olmasın, bkz. getWeakArea'nın
+    // G323 notu — area.value ARTIK HER ZAMAN gerçek bir hedef taşıyor)
+    // AYNI ${areaLabel} hedefine odaklanıyor, SADECE METİN farklı: yeterli
+    // veri VARSA "orada biraz daha çok zorlanmış görünüyorsun" gözlemi
+    // EKLENİYOR, YOKSA sadece "bakıyoruz" deniyor — KESİN bir "zayıfsın"
+    // iddiası YOK. Bölge etiketi (`zone.t`, ör. "TİZ (8–20 kHz)") cümle
+    // içinde parantezli aralık OLMADAN kullanılıyor (Logic'in kendi örneği:
+    // "Tiz, Bas, Orta" — bare isim), `exFactRow`'un KENDİ satırı hâlâ TAM
+    // etiketi (aralıklı) gösteriyor.
+    const areaShortLabel = isZone ? areaLabel.split(" (")[0] : areaLabel;
+    const areaNoun = isZone ? "bölge" : "kademe";
     if (area.insufficientData) {
-      title = "Henüz yeterli verin yok";
-      body = `10 soruluk parkurda en az ${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — telafi turu bu kez genel bir pratik olacak, yeterli veri toplandıkça daha isabetli hedeflenecek.`;
+      title = `Bu turda ${areaShortLabel} ${areaNoun}sine bakıyoruz.`;
+      body = `10 soruluk parkurda en az ${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — henüz yeterli verin yok, telafi turu bu kez ${areaShortLabel} ${areaNoun}sinden başlıyor.`;
       facts = [
-        exFactRow(isZone ? "Bölge" : "Kademe", "Henüz belirlenemedi"),
+        exFactRow(isZone ? "Bölge" : "Kademe", areaLabel),
         exFactRow("Soru sayısı", `${EXAM_CONFIG.REMEDIAL_LENGTH} soru`),
         exFactRow("Geçme koşulu", `${EXAM_CONFIG.REMEDIAL_PASS_COUNT} doğru`, "var(--gr)")
       ];
     } else {
-      title = `Zayıf ${isZone ? "bölgen" : "kademen"}: ${areaLabel}`;
-      // G84 KRİTİK DÜZELTME (task'ın uyarısı, core/exam-system.js'ten
-      // doğrulandı): tasarımın "Sınavdaki üç hatanın da..." metni YANLIŞ
-      // eksene bağlıydı — telafi SINAVDA kalınca DEĞİL, 10 soruluk PARKUR
-      // toplamda <6 doğruyla bitince başlıyor (bkz. core/exam-system.js
-      // recordAnswer, "remedial-start" event'i SADECE parkur dalından döner).
-      body = `10 soruluk parkurda en az ${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — telafi turu ${isZone ? `${areaLabel} bölgesine` : `${areaLabel} kademesine`} odaklanacak.`;
+      title = `Bu turda ${areaShortLabel} ${areaNoun}sine odaklanıyoruz — orada biraz daha çok zorlanmış görünüyorsun.`;
+      body = `10 soruluk parkurda en az ${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — telafi turu ${areaShortLabel} ${areaNoun}sine odaklanacak.`;
       facts = [
         exFactRow(isZone ? "Bölge" : "Kademe", areaLabel, RED),
         exFactRow("Soru sayısı", `${EXAM_CONFIG.REMEDIAL_LENGTH} soru`),
@@ -12818,6 +12846,20 @@ if (DEV_MODE) {
   // aşamaya GERÇEKTEN ulaşılıp ulaşılmadığını POLLING ile doğrulamayı
   // sabit round sayımından DAHA GÜVENİLİR kılıyor.
   window.__aeaActiveQuestionStageForTest = () => (activeQuestion && activeQuestion.mode === "cakisma" ? activeQuestion.stage : null);
+
+  // G323 — test kancası: aktif sorunun `freq` alanını (VARSA — frekans
+  // ekseninde çalışan modlarda: Frekans Bulma/Kesim Noktası/Boost-Cut/Q
+  // Genişliği/Frekans Çakışması aşama 1'in trueCenter'ı) dışa verir.
+  // SADECE OKUR. Telafinin GERÇEKTEN hedeflenen bölgeden soru ürettiğini
+  // (yeterli veri olsun olmasın, bkz. getWeakArea'nın G323 notu)
+  // doğrulamak için — `focusRange`'in fiilen daraltıldığının TEK
+  // güvenilir kanıtı, üretilen SORULARIN KENDİSİ.
+  window.__aeaActiveQuestionFreqForTest = () => {
+    if (!activeQuestion) return null;
+    if (typeof activeQuestion.freq === "number") return activeQuestion.freq;
+    if (typeof activeQuestion.trueCenter === "number") return activeQuestion.trueCenter;
+    return null;
+  };
 
   // G295 — test kancası: audioEngine.dualGainValues'ı (SADECE OKUR) dışa
   // verir — gainA/gainB dB düzeltmesinin buildDualSourceChain'de GERÇEKTEN
