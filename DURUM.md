@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G310/G311 — sınav/telafi ekranlarındaki (SINAV HAKKI/SINAV GEÇİLDİ/SINAV GEÇİLEMEDİ/TELAFİ TURU) CTA'lara basınca, kullanıcı henüz hiçbir şeye dokunmadan sayaçlara FANTOM bir yanlış cevap eklendiği bulundu (OLCUM-ILKSORU-ATLA-19-08, canlı ölçüldü: TELAFİ 1/5 yerine tek tıklamadan sonra 3/5 çıkıyordu). G310 (`4396670`) kök sebebi (5 ctaHandler'ın activeQuestion'ı temizlememesi, G214'ün "Atla=yanlış cevap" kısayoluyla çakışması) dar bir kapsamla düzeltti — goToNextRound()'a dokunulmadı. Bu düzeltme AYRI bir gerçek sorunu (persistExamProgress()'in switch-case'ten ÖNCE çağrılması, G214'ün fantom çağrısı tarafından kazara maskeleniyordu) açığa çıkardı ve e2e/exam-progress-persistence.spec.mjs'in B2 testini kırdı — kullanıcıya soruldu, G311 (`ccbc471`) ile o da düzeltildi. `e2e/exam-screen-phantom-answer.spec.mjs` eklendi (5 test), git stash ile üç aşamalı kırmızı/yeşil doğrulandı. npm test 1644/1644, e2e 140/140. Detay: aşağı BİTTİ bölümü G310/G311.)
+Son güncelleme: 19.08.2026 (G312 — ⚠️ GEÇİCİ TANI LOGU, KALICI DEĞİL: "ilk soruda Atla, ilerleme kilitleniyor" hatası cihazda/simülatörde var ama Playwright'ta İKİ AYRI turda (OLCUM-CANLI-BOLUM-19-08, OLCUM-ILKSORU-ATLA-19-08) tekrar üretilemedi — G310/G311'in fantom-cevap düzeltmesi bu hatayı ÇÖZMEDİ, ayrı/bulunamamış bir sorun. `goToNextRound()`'un "Atla" dalına ve `renderGameHeader()`'ın BÖLÜM bloğuna `[atla-diag]` önekli, DEV_MODE'dan BAĞIMSIZ console.log'lar eklendi (`3bbd0b7`) — activeQuestion/roundActive/challenge girişte, challengeTick öncesi/sonrası index+results, examGateActive/handleExamOutcome sonucu, render'ın okuduğu veri, çizilen nokta sayısı. Logic cihazda Atla'ya basıp Safari konsolundan `[atla-diag]` satırlarını kopyalayıp getirecek. **Doğrulama sonrası KALDIRILACAK** — kalıcı değil. npm test 1644/1644, e2e 140/140 (değişmedi). Detay: aşağı BİTTİ bölümü G312.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,45 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G312 — **⚠️ GEÇİCİ TANI LOGU (kalıcı değil) — "Atla" akışına
+[atla-diag] console.log'ları (`3bbd0b7`, TEK commit).**
+
+**Görev:** "İlk soruda Atla → ilerleme kilitleniyor" hatası Logic
+tarafından cihazda VE simülatörde doğrulandı, ama Playwright'ta İKİ
+AYRI ölçüm turunda (OLCUM-CANLI-BOLUM-19-08 — 3 modda 0ms gecikmeyle
+Atla, temiz çıktı; OLCUM-ILKSORU-ATLA-19-08 — aynı sonuç, ayrıca
+FARKLI bir gerçek hata — fantom cevap — bulundu ve G310/G311'de
+düzeltildi) TEKRAR ÜRETİLEMEDİ. G310/G311 bu YENİ hatayı ÇÖZMEDİ —
+Logic'in orijinal "ilk soru" şikâyeti hâlâ AÇIK, kök sebebi HENÜZ
+BULUNAMADI.
+
+**Yapılan:** `goToNextRound()`'un "Atla" dalına (`app.js`, ~7261-7311
+arası) ve `renderGameHeader()`'ın BÖLÜM çubuğu bloğuna (~4296-4346
+arası) `[atla-diag]` önekli, **DEV_MODE kontrolü OLMAYAN** 6
+`console.log` satırı eklendi — sırasıyla: (1) `goToNextRound()`
+girişinde `activeQuestion`/`roundActive`/`challenge` (done/total/
+active/correct/results), (2) "Atla" dalına girildi mi (girilmediyse
+de AYRI bir log), (3) `challengeTick(false,0)` öncesi/sonrası index+
+results, (4) `examGateActive()`/`handleExamOutcome()` sonucu, (5)
+`renderGameHeader()`'ın okuduğu `showChapter`/`challenge` verisi, (6)
+çizilen BÖLÜM çubuğunda kaç nokta dolu (ya da çubuk hiç çizilmediyse
+bunun notu). Playwright'ta CANLI doğrulandı — gerçek bir Atla
+tıklamasında 6 satır, sıralı, okunabilir şekilde basıyor (ölçülen
+örnek DURUM.md'de değil, bu turun kendi ölçüm çıktısında).
+
+**Başka hiçbir şeye dokunulmadı** — sadece log eklendi, mantık
+DEĞİŞMEDİ. `npm test` 1644/1644, `npm run test:e2e` 140/140
+(`ear-buttons.spec.mjs`'in bilinen flake'i bir izole rerun'da AYRIca
+doğrulandı, bu değişiklikle İLGİSİZ — DURUM.md'nin önceki turlarda da
+defalarca kaydettiği, unmodified main'de de reprodüklenen bir flake).
+
+**⚠️ BU BİR KALICI ÖZELLİK DEĞİL.** Logic cihazda Atla'ya basıp Safari
+Web Inspector konsolundan `[atla-diag]` ile başlayan satırları
+kopyalayıp getirecek — bu çıktı gelince kök sebep aranacak, SONRASINDA
+bu loglar bir turda KALDIRILMALI.
+
+---
 
 G310/G311 — **Sınav/telafi CTA'larındaki fantom yanlış cevap +
 persistExamProgress() sıra hatası düzeltildi (`4396670`/`ccbc471`,
@@ -21965,7 +22004,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G310/G311 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G312 itibarıyla):**
+`goToNextRound()`/`renderGameHeader()`'a GEÇİCİ `[atla-diag]` tanı
+logları eklendi (`3bbd0b7`) — "ilk soruda Atla, ilerleme kilitleniyor"
+hatası hâlâ AÇIK (G310/G311 bunu çözmedi, ayrı bir sorun).
+**Kullanıcının/Logic'in sıradaki adımı:** `npx cap sync ios` + cihazda
+hatayı yeniden tetikleyip (ilk soruda Atla) Safari Web Inspector
+konsolundan `[atla-diag]` ile başlayan TÜM satırları kopyalayıp
+getirmek. Bu çıktı geldiğinde kök sebep aranacak — SONRASINDA (hata
+düzeltilsin ya da düzeltilmesin) bu loglar bir turda KALDIRILMALI,
+G309'un GEÇİCİ numaralarıyla BİRLİKTE — ikisi de "doğrulama sonrası
+kaldırılacak" kategorisinde birikmiş durumda, ayrı ayrı unutulmasın.
+
+**EN YENİ SIRADAKİ ADIM (G310/G311 itibarıyla, ARTIK ESKİ):**
 Sınav/telafi CTA'larındaki fantom yanlış cevap (G310, `4396670`) ve
 bunun açığa çıkardığı persistExamProgress() sıra hatası (G311,
 `ccbc471`) düzeltildi. `npm test` 1644/1644, `npm run test:e2e`
