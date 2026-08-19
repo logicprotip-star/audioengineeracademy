@@ -9015,6 +9015,30 @@ if (els.dailyTipStartBtn) els.dailyTipStartBtn.addEventListener("click", async (
         return;
       }
       openSheet(select, row.dataset.sheetTitle || '');
+      // G333 — Sabit moddayken bu sheet'te Genel Ayarlar'daki #diffAutoBtn'in
+      // dengi (Otomatik'e dönme) hiç yoktu: kullanıcı geri dönmek için oyundan
+      // çıkıp Genel Ayarlar'a gitmek ZORUNDAYDI. Buraya kadar geldiysek yukarıda
+      // zaten isUserPro() doğrulandı (G61) — sheet'in EN ÜSTÜNE #diffAutoBtn ile
+      // AYNI diziyi (diffModeAuto=true, prefs.difficultyMode="auto",
+      // applyAutoDifficulty, syncDiffSheetUI) tetikleyen ekstra bir satır
+      // ekleniyor. GERÇEK <select> option'larına DOKUNULMUYOR — "auto" hiçbir
+      // zaman select.value'ya yazılmıyor, tier semantiği (diğer tüm okuyucular:
+      // examSystem.questionTier, applyAutoDifficulty'nin kendisi vb.) değişmedi.
+      if (select.id === 'difficultySelect' && sheetOptions) {
+        const autoRow = document.createElement('div');
+        autoRow.className = 'sheet-option';
+        autoRow.innerHTML = '<span style="display:flex;align-items:center">Otomatik</span><span class="check">✓</span>';
+        autoRow.addEventListener('click', () => {
+          diffModeAuto = true;
+          diffSublistOpen = false;
+          prefs.difficultyMode = "auto";
+          storage.savePrefs(prefs);
+          applyAutoDifficulty();
+          syncDiffSheetUI();
+          closeSheet();
+        });
+        sheetOptions.insertBefore(autoRow, sheetOptions.firstChild);
+      }
     });
     // select'in değeri BAŞKA bir yerden değişse bile (ör. Genel Ayarlar sheet'indeki
     // Zorluk → Sabit alt listesi) bu satırın metni senkron kalsın.
