@@ -1315,9 +1315,13 @@ function persistDaily() { storage.saveDaily(daily); }
 // elde" bulgusuyla TUTARLI). timeSpentSec: roundFlow'un KENDİ
 // roundDuration/timeLeft'inden türetilir (roundFlow.clearTimer() timeLeft'i
 // SIFIRLAMAZ, SADECE interval'i durdurur — bkz. round-flow.js).
-function recordAnswerHistoryEntry(modeId, q, answer, result) {
+// G326 — `extra` (varsayılan {}, TEK çağıran goToNextRoundInner()'ın Atla
+// dalı `{skipped:true}` geçiriyor) `buildAnswerRecord`'a `timeSpentSec`
+// İLE BİRLİKTE aktarılır — 11 GERÇEK submit handler parametre GEÇMİYOR
+// (davranışları TEK SATIR değişmedi).
+function recordAnswerHistoryEntry(modeId, q, answer, result, extra = {}) {
   const timeSpentSec = Math.max(0, roundFlow.roundDuration - roundFlow.timeLeft);
-  const record = buildAnswerRecord(modeId, q, answer, result, { timeSpentSec });
+  const record = buildAnswerRecord(modeId, q, answer, result, { timeSpentSec, ...extra });
   answerHistory.records = appendAnswerRecord(answerHistory.records, record, ANSWER_HISTORY_LIMIT);
   storage.saveAnswerHistory(answerHistory);
 }
@@ -7438,6 +7442,13 @@ async function goToNextRoundInner() {
   if (roundActive && activeQuestion) {
     const q = activeQuestion;
     challengeTick(false, 0, true);
+    // G326 (OLCUM-ATLA-KAYIT-19-08) — "Atla" ARTIK 11 submit handler'ın
+    // AYNI `recordAnswerHistoryEntry()` kuyruğuna giriyor: `answer`/
+    // `result` yok (kullanıcı hiçbir şey seçmedi) — `extra.skipped:true`
+    // bunu işaretliyor, `buildAnswerRecord`'un `result`-güvenli tasarımı
+    // (core/answer-history.js) sayesinde doğru cevap alanları (`q`'dan,
+    // `result`'tan DEĞİL) YİNE DE eksiksiz kaydediliyor.
+    recordAnswerHistoryEntry(mode.getMeta().id, q, null, null, { skipped: true });
     if (examGateActive()) examTookOver = handleExamOutcome(q, { correct: false }, 0, true);
   }
   autoStopped = false;

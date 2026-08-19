@@ -27,11 +27,22 @@ export const ANSWER_HISTORY_LIMIT = 200;
 // cevabı + doğru cevap — HİÇBİR alan UYDURULMADI, hepsi ilgili mod
 // dosyasının GERÇEK createQuestion()/evaluateAnswer() dönüş şeklinden
 // (www/js/modes/*.js, doğrudan okunarak) alındı.
+// G326 (OLCUM-ATLA-KAYIT-19-08) — `extra.skipped` (varsayılan false)
+// "Atla" ile geçilen (cevapsız) sorular İÇİN YENİ, TEK bir alan —
+// MEVCUT alanlar (modeId/timestamp/difficulty/timeSpentSec/correct/
+// params) TEK SATIR değişmedi, eski kayıtlarda bu alan YOK ve `!!undefined
+// === false` olduğu için "atlanmadı" olarak GÜVENLE okunuyor (migrasyon
+// GEREKMİYOR). `correct` atlamada HÂLÂ `false` (result=null →
+// `!!(null && ...)` = false) — G324/G326'nın "atlama yanlış cevap gibi
+// işlenir" kuralıyla TUTARLI. `params` (doğru cevap DAHİL) `q`'dan
+// türetiliyor, `result`'tan DEĞİL — atlanan sorularda da EKSİKSİZ kalır
+// (1.1'in "doğru cevabı dinlet" özelliği atlamalarda da ÇALIŞIR).
 export function buildAnswerRecord(modeId, question, answer, result, extra = {}) {
   const timestamp = typeof extra.timestamp === "number" ? extra.timestamp : Date.now();
   const timeSpentSec = Number.isFinite(extra.timeSpentSec) ? Math.max(0, extra.timeSpentSec) : null;
   const difficulty = (question && question.difficulty) || null;
   const correct = !!(result && result.correct);
+  const skipped = !!extra.skipped;
 
   return {
     modeId,
@@ -39,6 +50,7 @@ export function buildAnswerRecord(modeId, question, answer, result, extra = {}) 
     difficulty,
     timeSpentSec,
     correct,
+    skipped,
     params: modeParams(modeId, question, answer, result),
   };
 }

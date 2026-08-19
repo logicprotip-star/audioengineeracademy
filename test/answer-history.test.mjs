@@ -37,6 +37,37 @@ describe("buildAnswerRecord() — ortak alanlar (mod bağımsız)", () => {
   });
 });
 
+// G326 (OLCUM-ATLA-KAYIT-19-08) — "Atla" ile geçilen (cevapsız) sorular
+// ARTIK kaydediliyor: extra.skipped:true, answer/result YOK (null). KABUL
+// KRİTERİ: skipped alanı doğru yazılır, correct HÂLÂ false, doğru cevap
+// (params.correctAnswer) result'a değil q'ya bağımlı olduğu için YİNE DE
+// dolu, eski kayıtlar (skipped alanı OLMAYAN) güvenle "atlanmadı" okunur.
+describe("buildAnswerRecord() — G326: skipped (Atla kaydı)", () => {
+  it("extra.skipped:true → rec.skipped=true, rec.correct=false (result yok)", () => {
+    const q = { difficulty: "hard", freq: 500, source: "pink" };
+    const rec = buildAnswerRecord("frekans-bulma", q, null, null, { timeSpentSec: 2, skipped: true });
+    assert.equal(rec.skipped, true);
+    assert.equal(rec.correct, false);
+  });
+
+  it("extra.skipped VERİLMEZSE rec.skipped=false (11 gerçek submit handler'ın davranışı DEĞİŞMEDİ)", () => {
+    const rec = buildAnswerRecord("frekans-bulma", { difficulty: "easy" }, 100, { correct: true });
+    assert.equal(rec.skipped, false);
+  });
+
+  it("atlanan soruda doğru cevap (params.correctAnswer) YİNE DE dolu — result=null olsa BİLE q'dan türetiliyor", () => {
+    const q = { difficulty: "hard", freq: 500, source: "pink", filterType: "lowpass" };
+    const rec = buildAnswerRecord("kesim-noktasi", q, null, null, { skipped: true });
+    assert.deepEqual(rec.params.correctAnswer, { freq: 500, filterType: "lowpass" });
+    assert.equal(rec.params.guessFreq, null, "atlanan soruda GERÇEK bir tahmin OLMAMALI");
+  });
+
+  it("eski kayıtlarda (skipped alanı hiç YAZILMAMIŞ) okuma güvenli — undefined 'atlanmadı' gibi davranır", () => {
+    const eskiKayit = { modeId: "frekans-bulma", correct: true, params: {} }; // G326 ÖNCESİ şekil
+    assert.equal(!!eskiKayit.skipped, false);
+  });
+});
+
 describe("buildAnswerRecord() — mod bazında params (12 mod, 12 dal)", () => {
   it("frekans-bulma (frequency): freq/gain/q/filterType/source/guessHz/correctAnswer", () => {
     const q = { mode: "frequency", difficulty: "medium", freq: 1000, gain: 6, q: 1.4, filterType: "peaking", source: "pink" };
