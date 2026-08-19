@@ -157,8 +157,14 @@ describe("guide-texts: MODE_OPTIONS_TEXTS 10 oynanabilir modun HEPSİNİ içerir
     });
   });
 
-  it("Frekans Çakışması kendi 'Önce/Sonra' karşılaştırmasından bahseder (cakismaBefore/After — abToggle'ın YERİNE geçen mod-özel kontrol)", () => {
-    assert.match(MODE_OPTIONS_TEXTS["frekans-cakismasi"], /Önce.*Sonra|Sonra.*Önce/);
+  // G321 (OLCUM-ONCE-SONRA-19-08) — "Frekans Çakışması kendi 'Önce/Sonra'
+  // karşılaştırmasından bahseder" testi BURADAYDI, KALDIRILDI:
+  // #cakismaBefore/#cakismaAfter'ın kendisi silindi (kulak butonunun
+  // "Doğru cevap"ıyla satır satır aynı sesi çalıyordu, göründüğü tek
+  // anda erişilemiyordu), metin de artık ondan bahsetmiyor — bu test
+  // artık ARTIK VAR OLMAYAN bir özelliği doğruluyor olurdu.
+  it("Frekans Çakışması ARTIK 'Önce/Sonra'dan bahsetmiyor (G321 — özellik kaldırıldı)", () => {
+    assert.doesNotMatch(MODE_OPTIONS_TEXTS["frekans-cakismasi"], /Önce.*Sonra|Sonra.*Önce/);
   });
 
   it("cakisma HARİÇ 9 modun HEPSİ kendi dosya yükleme seçeneğinden bahseder (uyumluKaynaklar HEPSİNDE 'upload' içerir)", () => {

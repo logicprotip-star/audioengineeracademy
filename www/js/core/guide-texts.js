@@ -328,8 +328,11 @@ export const MODE_GUIDE_TEXTS = {
 //  - "A/B Test" (dry/işlenmiş karşılaştırma): cakisma HARİÇ diğer 9 modda
 //    `#abToggle` görünür (bkz. syncCakismaVisibility) — three-way üç modda
 //    (Kompresör/Reverb/Distortion) AYNI buton A/B/C döngüye dönüşür.
-//  - Frekans Çakışması'nın "Önce/Sonra" karşılaştırması SADECE stage 3'te
-//    doğru cevap sonrası açılır (`#cakismaCompare`) — mevcut, ayrıca yazıldı.
+//  - G321 (OLCUM-ONCE-SONRA-19-08) — Frekans Çakışması'nın "Önce/Sonra"
+//    karşılaştırması (`#cakismaCompare`) KALDIRILDI (kulak butonunun
+//    "Doğru cevap"ıyla SATIR SATIR aynı sesi çalıyordu, tek benzersiz
+//    katkısı düşük değerliydi, VE göründüğü tek anda ERİŞİLEMİYORDU —
+//    bkz. index.html'in G321 notu) — metin de buna göre güncellendi.
 //  - G190 ("i" metinleri taraması, kullanıcı kararı) — "Durdur'a basıp cevap
 //    verirsen geri bildirim kapanmaz" HER 12 modda EKLENDİ, Kompresör/
 //    Reverb/Distortion DAHİL. Bu üçünde round aktifken "Durdur" butonu
@@ -353,7 +356,7 @@ export const MODE_OPTIONS_TEXTS = {
   reverb: "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
   distortion: "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
   "tonal-denge": "Kaynağı 'Davul Döngüsü' ya da kendi yüklediğin mix arasında seçebilirsin. 'A/B Test'le düzeltmeden önceki/sonraki sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
-  "frekans-cakismasi": "Kaynak çiftini (Kick+Bas/Vokal+Gitar/Snare+Gitar) seçebilir, ya da kendi iki sesini yükleyebilirsin. Kestikten sonra 'Önce/Sonra' ile maskeyi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  "frekans-cakismasi": "Kaynak çiftini (Kick+Bas/Vokal+Gitar/Snare+Gitar) seçebilir, ya da kendi iki sesini yükleyebilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
   "pan-konumu": "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı — çok kısa vuruşlar konum algısı için yetersiz), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
   "stereo-genislik": "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı — çok kısa vuruşlar genişlik algısı için yetersiz), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz."
 };

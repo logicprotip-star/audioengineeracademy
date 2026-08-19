@@ -412,10 +412,6 @@ const els = {
   cakismaUploadRowB: document.getElementById("cakismaUploadRowB"),
   cakismaFileInputA: document.getElementById("cakismaFileInputA"),
   cakismaFileInputB: document.getElementById("cakismaFileInputB"),
-  cakismaCompare: document.getElementById("cakismaCompare"),
-  cakismaBefore: document.getElementById("cakismaBefore"),
-  cakismaAfter: document.getElementById("cakismaAfter"),
-
   // soru / spektrum
   questionTitle: document.getElementById("questionTitle"),
   questionMeta: document.getElementById("questionMeta"),
@@ -1497,7 +1493,6 @@ function syncCakismaVisibility() {
   // hemen altında, "..." Oyun Ayarları'na gitmeye GEREK YOK). cakismaUploadRowA/B
   // KENDİLERİ artık her zaman görünür (blok içinde), sadece BLOK toggle edilir.
   if (els.cakismaOwnUploadBlock) els.cakismaOwnUploadBlock.classList.toggle("hidden", !isOwnPair);
-  if (els.cakismaCompare) els.cakismaCompare.classList.add("hidden"); // yeni moda/round'a girerken her zaman kapalı başlar
 }
 
 // G303 — `populateSourceSelect()`'in G138 deseninin AYNI eşdeğeri:
@@ -4432,11 +4427,6 @@ function renderQuestion() {
   if (isM2) els.questionTitle.classList.add("qline-m2"); else els.questionTitle.classList.remove("qline-m2");
 
   els.questionMeta.textContent = isFreqTouch || isM2 ? "" : mode.modeDescription(q);
-  // G51: yeni bir cakisma sorusu render edilirken önceki sorunun öncesi/sonrası
-  // karşılaştırma butonları KAPALI başlamalı (bkz. syncCakismaVisibility notu —
-  // burada AYRICA çağrılıyor çünkü renderQuestion() her round'da tetiklenir,
-  // enterMode() SADECE mod DEĞİŞİNCE).
-  if (els.cakismaCompare) els.cakismaCompare.classList.add("hidden");
   els.streakText.textContent = q.boss ? "Boss round aktif" : (stats.combo > 1 ? `${stats.combo}x combo aktif` : "Yeni challenge");
   // prototype.html'de sayaç her zaman "Soru N/10" — ama tasarımda "Serbest (sonsuz)"
   // diye bir kavram hiç yok, oradaki "10" sabit varsayılan seans uzunluğu. Bizde bu
@@ -5398,8 +5388,10 @@ function submitTonalDengeGuess() {
 // AŞAMA 3 → { cutDb }. Diğer altı "generic" submit fonksiyonuyla (submitLevelGuess
 // vb.) AYNI iskelet — TEK fark: mode.recordZone SADECE AŞAMA 1'de çağrılır
 // (çakışma FREKANSI sadece o aşamada soruluyor, Boost/Cut'ın "sadece Katman
-// 3'te" kararının AYNISI) VE AŞAMA 3'ten sonra öncesi/sonrası karşılaştırma
-// butonları açılır (bkz. cakismaBefore/After click handler'ları).
+// 3'te" kararının AYNISI). G321 — AŞAMA 3'ten sonra "öncesi/sonrası"
+// karşılaştırma butonları (cakismaBefore/After) AÇILIRDI, KALDIRILDI
+// (bkz. index.html'in G321 notu) — karşılaştırma artık SADECE kulak
+// butonlarıyla.
 function submitCakismaGuess(answer) {
   if (!roundActive || !activeQuestion || activeQuestion.mode !== "cakisma") return;
   if (!answer) return;
@@ -5476,15 +5468,10 @@ function submitCakismaGuess(answer) {
   // de "açılan bir şey"). ÖNCEDEN BURADA `audioEngine.stopAudio()`
   // BİLEREK ATLANIYORDU (G51'den beri, G306/G315'te AYRICA doğrulanmıştı)
   // — artık diğer sekiz modla/aşama 1-2 ile AYNI, KOŞULSUZ çağrılıyor.
-  // Karşılaştırma ARTIK OTOMATİK değil — kulak butonları (#fbEarLeft/
-  // #fbEarRight) VE #cakismaBefore/#cakismaAfter'ın İKİSİ DE artık
-  // CANLI zincir varsaymıyor, tıklanınca zinciri YENİDEN KURUYOR (bkz. o
-  // çağrı yerlerinin G320 notu) — "kullanıcı istediğinde dinler" deseni.
-  if (q.stage === 3) {
-    if (els.cakismaCompare) els.cakismaCompare.classList.remove("hidden");
-    if (els.cakismaBefore) els.cakismaBefore.classList.remove("on");
-    if (els.cakismaAfter) els.cakismaAfter.classList.add("on");
-  }
+  // G321 — #cakismaBefore/#cakismaAfter'ı GÖSTEREN kod KALDIRILDI (o
+  // butonların KENDİSİ silindi, bkz. index.html'in G321 notu) —
+  // karşılaştırma ARTIK SADECE kulak butonlarıyla (#fbEarLeft/
+  // #fbEarRight, "kullanıcı istediğinde dinler" deseni).
   audioEngine.stopAudio();
 
   recordAnswerHistoryEntry("frekans-cakismasi", q, answer, result);
@@ -7223,29 +7210,19 @@ if (els.cakismaPairSelect) els.cakismaPairSelect.addEventListener("change", () =
   recordSourceSelection(CAKISMA_PAIR_STORAGE_KEY, els.cakismaPairSelect.value);
 });
 
-// AŞAMA 3 (Çöz) sonrası öncesi/sonrası — G320 ÖNCESİ audio-engine.js:
-// setDualCut'ı SADECE doğru kaynağın filtresine (question.correctSource)
-// uygulayıp grafiği YENİDEN KURMUYORDU (submitCakismaGuess'in "ses canlı
-// devam eder" istisnasına dayanıyordu). O istisna kaldırıldığı için
-// (bkz. submitCakismaGuess'in G320 notu) zincir bu noktada HER ZAMAN
-// SÖNMÜŞ — kulak butonlarının stage-3 dalıyla AYNI desen: ÖNCE YENİDEN
-// KUR, SONRA setDualCut.
-if (els.cakismaBefore) els.cakismaBefore.addEventListener("click", async () => {
-  if (!activeQuestion || activeQuestion.mode !== "cakisma") return;
-  await audioEngine.initAudio();
-  await audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing);
-  audioEngine.setDualCut(activeQuestion.correctSource, 0);
-  els.cakismaBefore.classList.add("on");
-  if (els.cakismaAfter) els.cakismaAfter.classList.remove("on");
-});
-if (els.cakismaAfter) els.cakismaAfter.addEventListener("click", async () => {
-  if (!activeQuestion || activeQuestion.mode !== "cakisma") return;
-  await audioEngine.initAudio();
-  await audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing);
-  audioEngine.setDualCut(activeQuestion.correctSource, -Math.abs(activeQuestion.correctCutDb));
-  els.cakismaAfter.classList.add("on");
-  if (els.cakismaBefore) els.cakismaBefore.classList.remove("on");
-});
+// G321 (OLCUM-ONCE-SONRA-19-08) — AŞAMA 3 sonrası "öncesi/sonrası"
+// (#cakismaBefore/#cakismaAfter) click handler'ları BURADAYDI,
+// KALDIRILDI: "Sonra" kulak butonunun "Doğru cevap"ıyla SATIR SATIR
+// aynı `setDualCut(activeQuestion.correctSource, -Math.abs(
+// activeQuestion.correctCutDb))` çağrısını yapıyordu (tamamen
+// gereksiz), "Önce"nin tek katkısı (kesilmemiş mix'i tekrar dinletmek)
+// düşük değerliydi, VE ikisi de göründükleri TEK anda (geri bildirim
+// paneli açıkken) `elementFromPoint`'te panelin İÇİNDEKİ metnin
+// (#feedbackDetail) ALTINDA kalıp GERÇEK bir dokunuşla
+// ULAŞILAMIYORDU (ölçüldü, muhtemelen G85'ten/9 Ağustos'tan beri).
+// Karşılaştırma artık SADECE kulak butonlarıyla (#fbEarLeft/
+// #fbEarRight, stage-3 dalı AYNI `buildDualSourceChain`+`setDualCut`
+// deseniyle çalışmaya DEVAM ediyor, DEĞİŞMEDİ).
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Kontrol düğmeleri

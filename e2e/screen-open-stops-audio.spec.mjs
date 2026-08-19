@@ -183,9 +183,14 @@ test("G315 REGRESYON KORUMASI — rozet/ilerleme bildirimleri (toast, core/fx.js
 // (G315'in "ekran açılınca ses kapansın" kuralına dahil edildi — geri
 // bildirim paneli de "açılan bir şey") — bu YÜZDEN test artık TERS bir
 // KABUL KRİTERİ'ne dönüştü: stopAudio() ARTIK çağrılMALI. Kulak
-// butonlarının/#cakismaBefore-After'ın bu değişiklikten SONRA da GERÇEKTEN
-// ses ürettiğinin (sessizce no-op olmadığının) doğrulaması AYRI bir
-// dosyada: e2e/cakisma-stage3-stops-audio.spec.mjs.
+// butonlarının bu değişiklikten SONRA da GERÇEKTEN ses ürettiğinin
+// (sessizce no-op olmadığının) doğrulaması AYRI bir dosyada:
+// e2e/cakisma-stage3-stops-audio.spec.mjs.
+// G321 (OLCUM-ONCE-SONRA-19-08) — "aşama 3'e ulaşıldı mı" kontrolü
+// ÖNCEDEN `#cakismaCompare`'ın görünürlüğüne bakıyordu; O ELEMAN
+// KALDIRILDIĞI için (bkz. index.html'in G321 notu) bu kontrol SESSİZCE
+// HER ZAMAN false dönüp testi BOŞ (vacuous) bırakırdı — `__aeaActiveQuestion
+// StageForTest()` (G320'de eklenen SADECE-OKUR kanca) ile DEĞİŞTİRİLDİ.
 test("G320 KABUL KRİTERİ — Frekans Çakışması aşama 3'te cevap sonrası ses ARTIK duruyor (G315'in kuralına dahil edildi)", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await enterModeAndStart(page, "frekans-cakismasi", { dev: { simulatePro: true } });
@@ -206,10 +211,10 @@ test("G320 KABUL KRİTERİ — Frekans Çakışması aşama 3'te cevap sonrası 
   await page.evaluate(() => window.__aeaSubmitAnswerForTest && window.__aeaSubmitAnswerForTest());
   await page.waitForTimeout(600);
   const afterAnswer = await stopAudioCallCount(page);
-  const cakismaCompareVisible = await page.locator("#cakismaCompare").isVisible().catch(() => false);
+  const cakismaCompareVisible = await page.evaluate(() => window.__aeaActiveQuestionStageForTest ? window.__aeaActiveQuestionStageForTest() === 3 : false);
 
-  // AŞAMA 3'e GERÇEKTEN ulaşıldıysa (cakismaCompare göründüyse) cevap SONRASI
-  // stopAudio() ARTIK ÇAĞRILMALI (G320 — istisna kaldırıldı).
+  // AŞAMA 3'e GERÇEKTEN ulaşıldıysa cevap SONRASI stopAudio() ARTIK
+  // ÇAĞRILMALI (G320 — istisna kaldırıldı).
   if (cakismaCompareVisible) {
     assert.ok(afterAnswer > beforeAnswer, `Aşama 3'te cevap sonrası stopAudio() ARTIK ÇAĞRILMALI (önce=${beforeAnswer}, sonra=${afterAnswer}) — G320: "önce/sonra" istisnası kaldırıldı`);
   }

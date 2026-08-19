@@ -574,15 +574,16 @@
 
         <div class="answers hidden" id="answers"></div>
 
-        <!-- G51: Motor 3 (Frekans Çakışması) AŞAMA 3 (Çöz) cevaplandıktan SONRA
-             görünür — task'ın "Sonuç dinlenir (öncesi/sonrası)" isteği.
-             audio-engine.js:setDualCut ile TEK bir filtrenin gain'ini animasyonla
-             0 (Önce) ↔ doğru kesim dB'si (Sonra) arasında geçirir, grafiği
-             YENİDEN KURMADAN (dry/wet crossfade'in AYNI ruhu). -->
-        <div class="row hidden" id="cakismaCompare" style="gap:8px">
-          <button type="button" class="btn" id="cakismaBefore">Önce</button>
-          <button type="button" class="btn on" id="cakismaAfter">Sonra</button>
-        </div>
+        <!-- G321 (OLCUM-ONCE-SONRA-19-08) — G51'den beri var olan
+             #cakismaCompare ("Önce"/"Sonra") KALDIRILDI: "Sonra" kulak
+             butonunun "Doğru cevap"ıyla SATIR SATIR aynı kodu
+             çalıştırıyordu (tamamen gereksiz), "Önce"nin tek katkısı
+             (kesilmemiş mix'i tekrar dinletmek) düşük değerliydi
+             (kullanıcı o sesi zaten soruda duymuştu), VE ikisi de
+             göründükleri TEK anda (geri bildirim paneli açıkken)
+             GERÇEK bir dokunuşla ULAŞILAMIYORDU (ölçüldü — panel
+             üstlerini kapatıyordu, muhtemelen G85'ten/9 Ağustos'tan
+             beri, hiçbir test yakalamamıştı). -->
 
         <!-- G81/G85: Tasarim-2026-08/Prototip.dc.html'in "FEEDBACK SHEET"i
              (satır 1308-1343) birebir — ALTTAN AÇILAN panel + ARKASINDA

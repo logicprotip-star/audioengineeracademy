@@ -6,20 +6,21 @@
 // de KOŞULSUZ audioEngine.stopAudio() çağırıyor (diğer 11 modla/aşama 1-2
 // ile AYNI).
 //
-// ⚠️ Bu değişiklik TEK BAŞINA kulak butonlarını VE #cakismaBefore/
-// #cakismaAfter geçiş düğmelerini SESSİZCE bozardı — ikisi de ÖNCEDEN
+// ⚠️ Bu değişiklik TEK BAŞINA kulak butonlarını (VE G321'de kaldırılan
+// #cakismaBefore/#cakismaAfter'ı) SESSİZCE bozardı — ikisi de ÖNCEDEN
 // "zincir hâlâ canlı" varsayımıyla SADECE audioEngine.setDualCut()
 // çağırıyordu; stopAudio() dualFilterA/B'yi null'ladığı için bu artık
 // no-op olurdu (ses HİÇ çalmaz, hata da fırlatmaz — SESSİZ bir bug).
-// Düzeltme: HER İKİSİ de artık TIKLANINCA zinciri buildDualSourceChain()
+// Düzeltme: kulak butonları artık TIKLANINCA zinciri buildDualSourceChain()
 // ile YENİDEN KURUYOR, SONRA setDualCut() çağırıyor — Aşama 1'in kulak
-// butonu deseniyle AYNI.
+// butonu deseniyle AYNI. (G321 — #cakismaBefore/#cakismaAfter'ın KENDİ
+// düzeltmesi/testi ARTIK YOK, o kontrol TAMAMEN kaldırıldı — bkz.
+// OLCUM-ONCE-SONRA-19-08.)
 //
-// Bu dosya dört KABUL KRİTERİNİ doğruluyor: (1) stage-3 cevap sonrası
+// Bu dosya ÜÇ KABUL KRİTERİNİ doğruluyor: (1) stage-3 cevap sonrası
 // stopAudio() ARTIK çağrılıyor, (2) kulak butonları GERÇEKTEN ses
 // üretmeye devam ediyor (canlı AnalyserNode RMS ölçümüyle — sadece
-// dataset/`.on` class kontrolü SESSİZ no-op'u YAKALAMAZDI), (3)
-// #cakismaBefore/#cakismaAfter de AYNI şekilde çalışıyor, (4) Aşama 1/2
+// dataset/`.on` class kontrolü SESSİZ no-op'u YAKALAMAZDI), (3) Aşama 1/2
 // ETKİLENMEDİ (stopAudio() hâlâ hemen çağrılıyor, DEĞİŞMEDİ).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -149,39 +150,17 @@ test("G320 KABUL KRİTERİ — kulak butonları Aşama 3'te GERÇEKTEN ses üret
   await page.close();
 });
 
-test("G320 KABUL KRİTERİ — #cakismaBefore/#cakismaAfter Aşama 3'te GERÇEKTEN ses üretmeye devam ediyor (canlı RMS ölçümü)", async () => {
+test("G321 KABUL KRİTERİ — #cakismaCompare/#cakismaBefore/#cakismaAfter DOM'dan tamamen kaldırıldı", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await enterCakismaAtStage(page, 3);
   await page.evaluate(() => window.__aeaSubmitAnswerForTest && window.__aeaSubmitAnswerForTest());
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(400);
 
-  const compareVisible = await page.locator("#cakismaCompare").isVisible().catch(() => false);
-  assert.ok(compareVisible, "ön koşul: #cakismaCompare (Önce/Sonra) görünür olmalıydı");
-
-  // ⚠️ ÖLÇÜLEREK BULUNAN, BU TURUN KAPSAMI DIŞINDA bırakılan GERÇEK bir
-  // bug (audio/stopAudio değişikliğiyle İLGİSİZ, index.html/styles.css'e
-  // bu turda dokunulmadı — ÖNCEDEN DE vardı): #cakismaCompare `.game-scroll`
-  // akışının İÇİNDE, SABİT olmayan bir konumda — #feedbackBox (`.fb`,
-  // position:fixed, viewport'un ALT ~29vh'i, z-index:91) açıkken (yani
-  // #cakismaCompare'ın GÖRÜNÜR olduğu TEK an) `document.elementFromPoint`
-  // bu koordinatta GERÇEKTEN #feedbackDetail'i buluyor (ÖLÇÜLDÜ) —
-  // #cakismaBefore/#cakismaAfter bir GERÇEK dokunuşla da ULAŞILAMAZ
-  // olabilir. `force:true` bunu ATLAMIYOR (Playwright'ın force'u SADECE ön-
-  // kontrolleri atlıyor, TARAYICININ KENDİ hit-test'i coordinat bazlı kalıyor
-  // — ölçüldü, force'la bile RMS=0 çıktı). Bu YÜZDEN burada `.evaluate(el =>
-  // el.click())` (cakisma-question-transition-stop.spec.mjs'in #nextBtn için
-  // KULLANDIĞI AYNI DOM-click deseni — hit-test'i TAMAMEN atlar) kullanılıyor
-  // — SADECE JS/ses mantığını (asıl bu turun konusu) izole doğrulamak için;
-  // bu, GERÇEK bir dokunuşun bu butonlara ULAŞABİLDİĞİNİ KANITLAMIYOR.
-  await page.locator("#cakismaBefore").evaluate((el) => el.click());
-  await page.waitForTimeout(500);
-  const beforeLevel = await rms(page);
-  assert.ok(beforeLevel !== null && beforeLevel > 0.005, `'Önce' butonuna basınca GERÇEKTEN ses ÜRETİLMELİ — ölçülen RMS=${beforeLevel}`);
-
-  await page.locator("#cakismaAfter").evaluate((el) => el.click());
-  await page.waitForTimeout(500);
-  const afterLevel = await rms(page);
-  assert.ok(afterLevel !== null && afterLevel > 0.005, `'Sonra' butonuna basınca GERÇEKTEN ses ÜRETİLMELİ — ölçülen RMS=${afterLevel}`);
+  const ids = ["cakismaCompare", "cakismaBefore", "cakismaAfter"];
+  for (const id of ids) {
+    const exists = await page.evaluate((elId) => document.getElementById(elId) !== null, id);
+    assert.equal(exists, false, `#${id} HÂLÂ DOM'da — G321'in kaldırma işi tamamlanmamış olabilir`);
+  }
 
   await page.close();
 });
