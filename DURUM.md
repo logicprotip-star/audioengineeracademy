@@ -1,6 +1,38 @@
 # DURUM
 
-Son güncelleme: 20.08.2026 (G334-G336 — ÜÇ AYRI commit, "GÖREV: ÜÇ
+Son güncelleme: 20.08.2026 (G337 — TEK commit, "GÖREV: Sentetik
+kaynaklar Kompresör'den çıkarılsın" turu. `01efc42` sonrası, G336'nın
+HEMEN ardından.)
+
+**G337** (`8fe6287`): Sentetik kaynaklar (saw/square/triangle)
+Kompresör'den çıkarıldı. OLCUM-KOMPRESOR-KAYNAK-20-08: cihazda saw ile
+oynandı, HER SORU bilindi, sınav geçildi. Ölçüm: saw/square/triangle
+8sn render'da SIFIR transient (gerçek kaynaklarda 11-36), kompresör
+altında crest factor DÜŞMÜYOR — hatta +0.09/+0.21dB ARTIYOR (gerçek
+kaynaklarda -3.3/-5.5dB) — kompresör bu kaynaklara dinamik olarak
+HİÇBİR ŞEY yapmıyor, kullanıcının duyduğu SADECE statik dB farkı
+(dB Seviyesi'nin zaten ölçtüğü beceri). Kök sebep: `source-catalog.js`'in
+`noTransient` bayrağı TAM BU AMAÇLA vardı (Kompresör zaten
+`requireTransient:true` ile pink/white'ı bu bayrakla dışlıyordu) ama
+saw/square/triangle hiç etiketlenmemişti — bayrağı SADECE Kompresör
+okuduğu için (grep ile doğrulandı) üç kaynağa `noTransient:true`
+eklenmesi BAŞKA HİÇBİR modu etkilemedi. Distortion'a BİLEREK
+dokunulmadı (waveshaping genlik-tabanlı, saw'da bile ölçülebilir
+harmonik ekleniyor — Kompresör'ün SORUNU orada YOK). Reverb zaten
+kendi `only` listesiyle güvenliydi. `npm test` 1685/1685, git stash
+ile kırmızı/yeşil doğrulandı.
+
+**⚠️ EK BULUNAN, DÜZELTİLMEYEN sorun (bu turda istenen ek ölçüm —
+AÇIK İŞLER'e eklendi, bkz. madde 36):** Pink/white noise'un
+Distortion'daki PRO kademesinde (`tape` eğrisi, en dar kGap=0.046)
+ölçülen fark HEM white HEM pink'te **0.00dB'ye yuvarlanıyor** —
+easy/medium/hard kademelerinde (0.5-3.8dB) sorun yokken, PRO'da
+neredeyse ölçülemez hâle geliyor. Kompresör'ün sorunuyla AYNI kategori
+DEĞİL (crest factor orada HİÇ düşmüyordu, burada gerçek bir fark var
+ama SADECE en zor kademede kayboluyor) — kod YAZILMADI, SADECE
+raporlandı (OLCUM-KOMPRESOR-KAYNAK-20-08.md madde 6b).
+
+Son güncelleme (ÖNCEKİ): 20.08.2026 (G334-G336 — ÜÇ AYRI commit, "GÖREV: ÜÇ
 DÜZELTME. AYRI COMMIT'LER, SIRAYLA" turu.
 
 **G334** (`c7ac61d`): Kesim Noktası'nın -3dB kesim noktası nominal
@@ -23069,6 +23101,24 @@ mod-başına BELİRTİLEBİLİR bir varsayılan kaynak ID'sine bağlanmalı —
 kod DEĞİŞİKLİĞİ gerektirir, bu turun kapsamı DIŞINDA bırakıldı (SADECE
 raporlandı, düzeltilmedi).
 
+**36. G337'nin ek ölçümü — Pink/White noise Distortion'ın PRO kademesinde
+("tape" eğrisi) neredeyse ayırt edilemez**
+OLCUM-KOMPRESOR-KAYNAK-20-08 madde 6b: `DISTORTION_TYPES`'ın 4 eğri
+ailesinin (clip/soft/tube/tape — easy/medium/hard/pro) HER BİRİNDE,
+KENDİ gerçek kGap'iyle pink/white ölçüldü (4kHz üstü enerji farkı).
+Easy/medium/hard'da fark 0.5-3.8dB (sorunsuz) — **PRO'da (tape,
+kGap=K_GAP_FLOOR=0.046) hem white HEM pink'in farkı 0.00dB'ye
+YUVARLANIYOR** — saw'ın AYNI kademedeki (zaten küçük) 0.07-0.14dB'lik
+farkından bile küçük. Kompresör'ün sorunuyla AYNI KATEGORİDE DEĞİL
+(orada crest factor HİÇ düşmüyordu — burada gerçek bir fark VAR, sadece
+en zor kademede kayboluyor). **Kod YAZILMADI, düzeltme YAPILMADI** —
+task'ın kendi talimatıyla SADECE raporlandı. **Kabul kriteri (karar
+gerekir):** pink/white PRO kademesinde Distortion'dan çıkarılsın mı,
+yoksa bu kademe için (tape eğrisi + noise kaynaklar) ayrı bir kGap
+tabanı/eğri ayarı mı gerekir — ÖLÇÜM bu ölçümde 2 kaynak×4 eğri, TEK
+kGap örneğiyle DAR kapsamlı, kesinleştirmeden önce daha geniş bir
+doğrulama (Kompresör'ün 14-kaynaklı matrisi kadar sağlam) faydalı olur.
+
 ## BİLİNEN AÇIKLAR
 
 Düşük riskli, ölçülmüş ama şu an DÜZELTİLMEYEN (bilerek — kod yazılmadı,
@@ -23461,7 +23511,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G334-G336 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G337 itibarıyla):**
+Kompresör'den saw/square/triangle çıkarıldı (`noTransient:true`
+eklendi, Distortion/diğer modlar ETKİLENMEDİ). `npm test` 1685/1685,
+git stash ile kırmızı/yeşil doğrulandı. **Kullanıcının/Logic'in
+sıradaki adımı:** `npx cap sync ios` + cihazda GERÇEKTEN doğrulamak —
+Kompresör'de artık "SENTETİK" grubunun HİÇ görünmediğini, Distortion'da
+HÂLÂ göründüğünü. **⚠️ Bu turun EK ölçümü YENİ bir karar bekliyor (bkz.
+AÇIK İŞLER 36):** Pink/white noise Distortion'ın PRO kademesinde
+(tape eğrisi) neredeyse ayırt edilemez ölçüldü — kod DEĞİŞMEDİ, SADECE
+raporlandı. Önceki turların (G330-G333: madde 32/33/34; G335: madde 35)
+açık kararları HÂLÂ AÇIK, bu turda dokunulmadı.
+
+**EN YENİ SIRADAKİ ADIM (G334-G336 itibarıyla, ARTIK ESKİ):**
 Üç ayrı düzeltme commit'lendi: G334 (Kesim Noktası'nın -3dB kesim noktası
 artık nominal frekansla eşleşiyor, sapma 470+ sentten ~2.2 sente indi —
 FİLTRENİN SESİ DEĞİŞTİ, kulakla doğrulanmalı), G335 (Tonal Denge'nin
