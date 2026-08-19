@@ -1,6 +1,23 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G318/G319 — İKİ AYRI düzeltme, OLCUM-KULAK-SES-
+Son güncelleme: 19.08.2026 (G320 — Frekans Çakışması Aşama 3'ün "cevap
+sonrası ses DEVAM eder" istisnası (G51'den beri vardı, G306/G315'te
+KASITLI korunmuştu) Logic'in kararıyla KALDIRILDI — geri bildirim paneli
+de G315'in "ekran açılınca ses kapansın" kuralına dahil edildi.
+submitCakismaGuess() artık stage-3'te de koşulsuz stopAudio() çağırıyor.
+Bu, kulak butonlarının VE ayrı bir kontrol olan #cakismaBefore/
+#cakismaAfter'ın (canlı zincir varsayımına dayanıyorlardı) SESSİZCE
+bozulmasına yol açardı — İKİSİ de artık tıklanınca zinciri YENİDEN
+kurup setDualCut() çağırıyor. `12ca317`'de (`ad3ee2a`, TEK commit) —
+5 yeni e2e testi (canlı RMS ölçümüyle), 2 mevcut test güncellendi, git
+stash ile kırmızı/yeşil doğrulandı. Ölçülerek AYRICA bulunan, bu turun
+kapsamı DIŞINDA bırakılan bir gözlem: #cakismaBefore/#cakismaAfter,
+geri bildirim paneli açıkken `elementFromPoint` ile `#feedbackDetail`'in
+ALTINDA kalıyor — gerçek bir dokunuşun ulaşıp ulaşmadığı BELİRSİZ,
+AYRI bir UI/layout konusu. `npm test` 1655/1655 (değişmedi), `e2e`
+163/163. Detay: aşağı BİTTİ bölümü G320.)
+
+Son güncelleme (ÖNCEKİ): 19.08.2026 (G318/G319 — İKİ AYRI düzeltme, OLCUM-KULAK-SES-
 19-08 + OLCUM-ZAYIF-KADEME-19-08'in canlı ölçtüğü İKİ kanıtlı bug. **G318**
 (`e4f69c3`): kulak butonu önizlemesi sonrası geri bildirim süresi
 katlanıyordu (~5.5-6sn → ~8.5-10sn) — `cmpPreviewRemainingMs`'ten artık
@@ -157,6 +174,88 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G320 — **Frekans Çakışması Aşama 3'ün "ses devam eder" istisnası
+kaldırıldı (`ad3ee2a`, TEK commit).**
+
+**Görev:** Logic'in tespiti — "Geri bildirimde ekran gelen bir şey var,
+o zaman durması gerekmiyor mu?" — G315'in "hangi ekran açılırsa açılsın
+ses kapansın" kuralıyla stage-3'ün istisnası ÇELİŞİYORDU. Logic'in
+kararı: istisna KALDIRILSIN, karşılaştırma kulak butonlarıyla zaten
+yapılabiliyor.
+
+**ÖNCE ÖLÇ (git log ile):** İstisna `app.js:5480-5487`'de,
+`submitCakismaGuess()`'in `q.stage===3` dalında — `stopAudio()`
+BİLEREK atlanıyordu. Modun kendi kuruluş commit'i **G51** (`1c86464`,
+6 Ağustos) ile geldi, **G306** (`b1c3ff7`, bugün) "Logic'in kararı:
+cevaptan sonra ses DEVAM etsin" diyerek AÇIKÇA yeniden doğruladı,
+**G315** (`eb0ec9a`, bugün, DAHA SONRA) "Cakisma aşama 3'ün önce/sonra
+karşılaştırması BOZULMADI — bu, goToNextRound()'dan hiç geçmiyor"
+diyerek BİLEREK korudu — yani üç kez art arda kasıtlı korunmuş bir
+davranış, bu turda TERSİNE çevrildi. Aşama 1/2'de `stopAudio()`
+ZATEN çağrılıyordu (doğrulandı, `else` dalı) — sadece Aşama 3 farklıydı.
+
+**Kırılan 2 test (BİLDİRİLDİ, sonra güncellendi — task'ın kendi
+şartı):** `e2e/cakisma-question-transition-stop.spec.mjs` (KABUL
+KRİTERİ 1: "stage-3 cevabı stopAudio() ÇAĞIRMAMALI") ve
+`e2e/screen-open-stops-audio.spec.mjs` ("Aşama 3'te cevap sonrası
+stopAudio() ÇAĞRILMAMALI") — ikisi de bu davranışı DOĞRUDAN
+kilitliyordu, TERSİNE çevrildi.
+
+**Ölçülerek bulunan, görevde adı GEÇMEYEN kritik bir ek risk
+(kullanıcıya AskUserQuestion ile SORULDU, "aynı düzeltmeyi ona da
+uygula" seçildi):** Kulak butonlarının stage-3 dalı VE ayrı bir kontrol
+olan `#cakismaBefore`/`#cakismaAfter` ("Önce"/"Sonra" geçiş düğmeleri,
+kulak butonlarından TAMAMEN BAĞIMSIZ bir UI) İKİSİ DE "zincir CANLI"
+varsayımıyla SADECE `audioEngine.setDualCut()` çağırıyordu —
+`stopAudio()` `dualFilterA/B`'yi `null`'ladığı için (audio-engine.js,
+DEĞİŞTİRİLMEDİ) bu artık SESSİZCE no-op olurdu (buton tıklanır, HİÇBİR
+SES ÇALMAZ, hata da fırlamaz). Düzeltme: İKİSİ de artık tıklanınca
+`buildDualSourceChain()` ile zinciri YENİDEN kurup SONRA `setDualCut()`
+çağırıyor — Aşama 1'in kulak butonu deseniyle BİREBİR AYNI desen.
+`setDualCut()`'ın KENDİSİ DEĞİŞMEDİ.
+
+**Neyin kaybedildiği (dürüstçe belgelendi):** Cevap SONRASI ses ARTIK
+OTOMATİK/kesintisiz çalmıyor — kullanıcı bir butona (kulak veya Önce/
+Sonra) basmadan HİÇBİR ŞEY duymuyor (ÖNCEDEN "Sonra" hâli otomatik,
+hemen duyulurdu). Ayrıca `#cakismaBefore`/`#cakismaAfter`'ın ARTIK HER
+tıklamada zinciri baştan kurması (ÖNCEDEN canlı filtre üzerinde
+SORUNSUZ/kesintisiz geçiş yapıyordu) küçük bir UX gerilemesi — bu,
+DİĞER 7 modun ear-button deseniyle (HER tıklamada zincir sıfırdan
+kurulur) TUTARLI hâle geldi, benzersiz bir "seamless toggle" özelliği
+kayboldu.
+
+**Ölçülerek AYRICA bulunan, BU TURUN KAPSAMI DIŞINDA bırakılan GERÇEK
+bir bug (audio/stopAudio değişikliğiyle İLGİSİZ, index.html/styles.css'e
+DOKUNULMADI — ÖNCEDEN DE vardı):** `#cakismaBefore` geri bildirim
+paneli açıkken `document.elementFromPoint`'te GERÇEKTEN `#feedbackDetail`'i
+buluyor, kendini DEĞİL (ölçüldü) — `#cakismaCompare`'ın `.game-scroll`
+akışı İÇİNDEKİ konumu, `#feedbackBox`'ın (`position:fixed`, viewport'un
+alt ~29vh'i, z-index:91) ALTINDA kalıyor OLABİLİR. Gerçek bir dokunuşun
+buraya ULAŞIP ULAŞAMADIĞI bu turda ÖLÇÜLMEDİ — AYRI bir UI/layout
+konusu, kullanıcıya SORULMADI (kapsam dışı, sadece BELGELENDİ).
+
+**Test:** `e2e/cakisma-stage3-stops-audio.spec.mjs` (YENİ, 5 test) —
+(1) stage-3 cevabı ARTIK stopAudio() çağırıyor, (2) kulak butonları
+GERÇEKTEN ses üretiyor (canlı `AnalyserNode` RMS ölçümü — SADECE
+dataset/görünürlük kontrolü "sessizce hiç ses çalmıyor" regresyonunu
+YAKALAMAZDI, bu YÜZDEN RMS ölçümü ZORUNLU tutuldu), (3)
+`#cakismaBefore`/`#cakismaAfter` de AYNI şekilde GERÇEKTEN ses üretiyor,
+(4) Aşama 1/2 ETKİLENMEDİ (2 ayrı test). Ayrıca `window.
+__aeaActiveQuestionStageForTest` (YENİ, SADECE OKUR test kancası)
+eklendi — sabit "N round atla" sayımı GÜVENİLMEZ ölçüldü (#nextBtn ara
+sıra "outside of viewport" gösterdi), hedef aşamaya GERÇEKTEN
+ulaşıldığını POLLING ile doğrulamak için. git stash ile TÜM değişiklik
+kırmızı/yeşil doğrulandı — kırmızıda `#cakismaBefore` RMS=0 (sessiz
+no-op) BİREBİR GÖZLENDİ.
+
+**KİLİT korundu:** `npm test` 1655/1655 (değişmedi). `npm run test:e2e`
+163/163 (158+5, hiçbiri kırılmadı — `screen-open-stops-audio.spec.mjs`'in
+"hızlı art arda Atla" testi tam takım koşusunda İKİ KEZ flaky çıktı,
+İZOLE koşulunca VE tekrar tam takımda temiz geçti, bu turun
+DEĞİŞİKLİĞİYLE İLGİSİZ pre-existing flake olarak işaretlendi).
+
+---
 
 G319 — **Zayıf kademe/bölge raporu — tek aday karşılaştırmasız "zayıf"
 sayılmasın (`12ca317`, TEK commit).**
@@ -22437,7 +22536,24 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G318/G319 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G320 itibarıyla):**
+Frekans Çakışması Aşama 3'ün "cevap sonrası ses devam eder" istisnası
+kaldırıldı (`ad3ee2a`) — artık diğer 11 modla/aşama 1-2 ile AYNI,
+cevap verilince ses hemen duruyor. Kulak butonları VE #cakismaBefore/
+#cakismaAfter (ikisi de) artık her tıklamada zinciri yeniden kurup
+çalışmaya devam ediyor. `npm test` 1655/1655, `npm run test:e2e`
+163/163. **BEKLEYEN, KULLANICIYA SORULMAMIŞ bir gözlem** (bu turda
+ölçülerek bulundu, kapsam dışı bırakıldı): `#cakismaBefore`/
+`#cakismaAfter`, geri bildirim paneli açıkken `elementFromPoint`'te
+`#feedbackDetail`'in ALTINDA kalıyor — gerçek bir dokunuşun bu
+düğmelere ULAŞIP ULAŞAMADIĞI BELİRSİZ (AYRI bir UI/layout konusu,
+audio/stopAudio ile İLGİSİZ). **Kullanıcının/Logic'in sıradaki adımı:**
+`npx cap sync ios` + cihazda GERÇEKTEN doğrulamak (Aşama 3'te cevap
+verince sesin GERÇEKTEN durduğunu, kulak butonlarının/Önce-Sonra
+düğmelerinin GERÇEKTEN ses ürettiğini kulakla) — AYRICA yukarıdaki
+UI/layout gözlemine karar vermek (bir sonraki turda ele alınmalı mı).
+
+**EN YENİ SIRADAKİ ADIM (G318/G319 itibarıyla, ARTIK ESKİ):**
 Kulak butonu önizlemesi sonrası geri bildirim süresi katlanması
 düzeltildi (G318, `e4f69c3`) — süre artık normal (~4-6sn) kalıyor,
 sesi 3. saniyede kesmiyor, Aşama 3/manuel kapatma dokunulmadı. Zayıf
