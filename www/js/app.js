@@ -6227,6 +6227,10 @@ function startTimerForCurrentQuestion() {
 }
 
 function startRound() {
+  // G313 (OLCUM-ILKSORUATLA-CIHAZ-19-08 — cihaz logu KANITLADI) — bu round'un
+  // GERÇEKTEN ilk kurulumu mu (activeQuestion HENÜZ yoktu) — aşağıdaki
+  // erken-dönüş guard'larından ÖNCE, activeQuestion DEĞİŞTİRİLMEDEN yakalanır.
+  const isFreshRoundStart = !activeQuestion;
   if (sessionEndVisible) return; // seans sonu ekranı açıkken hiçbir tetikleyici yeni tur başlatamaz
   if (blockIfLivesOut()) return;
   if (blockIfSessionLimitReached()) return;
@@ -6273,6 +6277,27 @@ function startRound() {
     return;
   }
 
+  // G313 — cihaz logu (OLCUM-ILKSORUATLA-CIHAZ-19-08): kullanıcı #startBtn'e
+  // HİÇ basmadan doğrudan "Atla"ya (#nextBtn, HER ZAMAN görünür/tıklanabilir,
+  // idle'da bile) basarsa, goToNextRound() `roundActive && activeQuestion`
+  // ikisi de false olduğu için "Atla dalı"na hiç girmez ama fonksiyonun
+  // SONUNDA yine startRound()'u çağırır — round "arka kapıdan" başlar.
+  // challenge.active İSE SADECE startChallenge()'la (`#startBtn`'in KENDİ
+  // "!activeQuestion" dalı) true olur — o dal HİÇ ÇALIŞMADIĞI için
+  // challenge.active KALICI OLARAK false kalır (activeQuestion dolduktan
+  // SONRA #startBtn'in o dalı bir daha hiç tetiklenmez, round zaten "aktif"
+  // görünür). Sonuç: challengeTick()'in `if (!challenge.active) return;`
+  // guard'ı HER cevaptan/Atla'dan SONRA sessizce no-op oluyordu — BÖLÜM
+  // sayacı/çubuğu KALICI OLARAK kilitleniyordu (cihazda [atla-diag] logu
+  // ile KANITLANDI, Playwright'ta AYNI senaryo — #startBtn'e HİÇ basmadan
+  // doğrudan Atla — ile BİREBİR tekrar üretildi). Düzeltme: #startBtn'in
+  // KENDİ mantığının (`if (isChallenge()) startChallenge();`) AYNISI,
+  // round'un GERÇEK ilk kurulum noktasına (buraya) da taşındı — SADECE
+  // `isFreshRoundStart` (bu çağrıdan ÖNCE activeQuestion yoktu) VE
+  // `!challenge.active` iken çalışır, bu yüzden #startBtn üzerinden gelen
+  // NORMAL akışta (challenge.active ÇOKTAN true) hiçbir şey DEĞİŞMİYOR —
+  // startChallenge() burada İKİNCİ KEZ çağrılmıyor (idempotent guard).
+  if (isFreshRoundStart && isChallenge() && !challenge.active) startChallenge();
   cancelCmpPreviewPause();
   autoStopped = false;
   autoPlaying = true;
