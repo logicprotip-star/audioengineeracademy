@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G308 — snare-akustik/snare-clean çiftlerinin `offsetA`'sı G302'nin ölçtüğü 0.425/1.175'ten 377ms'e geri alındı: Logic cihazda karışım dosyasını KULAKLA dinleyip ölçülen değerleri reddetti, 377ms'i AYRICA kulakla onaylamıştı. G302'nin ölçümü kendi içinde hâlâ doğru (silinmedi, yanına not eklendi) ama "matematiksel hizalama = doğru sonuç" varsayımı KULAK KARARIYLA geçersiz kılındı — OLCUM-CIHAZ3-18-08'in kendi A3 maddesinin öngördüğü ihtimal buydu. `e2e/cakisma-pair-offset.spec.mjs`'teki ±150ms hizalama KABUL KRİTERİ testi kaldırıldı (artık geçerli bir kriter değil). npm test 1644/1644 (değişmedi), e2e 135/135 (136'dan düştü, kırılan test yok — bir test kaldırıldı). TEK commit: `c4a4deb`. Detay: aşağı BİTTİ bölümü G308.)
+Son güncelleme: 19.08.2026 (G309 — ⚠️ GEÇİCİ TEST İŞARETİ, KALICI DEĞİL: ana menüdeki 12 egzersiz kartının sağ üst köşesine 1-12 numarası eklendi (`50f4d25`) — G300/G304/G306/G308 testte geçtiği hâlde cihazda hiçbiri görünmemişti (OLCUM-SENKRON-18-08), OLCUM-CANLI-BOLUM-19-08 kodun kendisinin doğru çalıştığını canlı ölçümle doğruladı, en tutarlı hipotez cihazın ESKİ BUILD çalıştırdığı. Logic cihaza kurup numaraları GÖRÜP GÖRMEDİĞİNİ bildirecek: görünüyorsa kod güncel demektir, hataların kökü başka yerde aranmalı; görünmüyorsa asıl sorun build/sync zinciri. **Bu numaralar doğrulama sonrası KALDIRILACAK** — kalıcı bir tasarım kararı değil. Detay: aşağı BİTTİ bölümü G309.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,39 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G309 — **⚠️ GEÇİCİ TEST İŞARETİ (kalıcı değil) — ana menü kartlarına
+1-12 build-doğrulama numarası (`50f4d25`, TEK commit).**
+
+**Görev:** Aynı günde dört düzeltme yapıldı (G300/G304/G306/G308),
+dördü de `npm test`/e2e'de geçti, DÖRDÜ DE Logic'in cihazında
+görünmedi. OLCUM-CANLI-BOLUM-19-08 (canlı Playwright izlemesi)
+`challenge.results`/render zincirinin KENDİSİNİN doğru çalıştığını
+kanıtladı — kod tarafında bulunamayan bir hata. OLCUM-SENKRON-18-08'in
+bulduğu en tutarlı hipotez: cihaz, bu düzeltmelerden ÖNCEKİ bir
+`ios/App/App/public/` senkronuna dayalı ESKİ bir build çalıştırıyor.
+
+**Yapılan:** `renderExerciseGrid()`'in ürettiği 12 egzersiz kartının
+(`www/js/app.js`) sağ üst köşesine, katalog sırasına göre 1-12 numarası
+eklendi (`.mode-card-debugnum`, `www/styles.css`). PRO rozetiyle
+(`.mode-card-badge`, aynı köşe) çakışmasın diye pro-tier (7/12) kartlarda
+numara `right:60px`'e kayıyor, free-tier (5/12) kartlarda gerçek köşede
+(`right:8px`) duruyor — "i" bilgi rozetiyle (sol üstte) hiçbir zaman
+kesişmiyor (Playwright ekran görüntüsüyle DOĞRULANDI, hem free hem
+pro-tier bir kartta). `npm test` 1644/1644, `e2e` 135/135 — İKİSİ DE
+DEĞİŞMEDİ (bu değişiklik sadece görsel/HTML, mantığa dokunmuyor).
+
+**⚠️ BU BİR KALICI ÖZELLİK DEĞİL — doğrulama amaçlı.** Logic cihaza
+kurup bildirecek: numaralar GÖRÜNÜYORSA kod güncel demektir (asıl hata
+başka yerde aranmalı), GÖRÜNMÜYORSA cihaz eski kodu çalıştırıyor
+demektir (OLCUM-SENKRON-18-08'in build/sync bulgusu doğrulanmış olur).
+**Sonuç ne olursa olsun bu numaralar SONRAKİ bir turda KALDIRILMALI** —
+`www/js/app.js`'teki `debugNumBadge` satırı + `card.innerHTML`'e
+eklenen `${debugNumBadge}` + `www/styles.css`'teki
+`.mode-card-debugnum` kuralı, hepsi "GEÇİCİ TEST İŞARETİ" yorumuyla
+işaretli, kolayca bulunup silinebilir.
+
+---
 
 G308 — **Snare çiftlerinin offsetA'sı 377ms'e geri alındı — KULAK KARARI
 ölçümü geçersiz kıldı (`c4a4deb`, TEK commit).**
@@ -21881,7 +21914,22 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G308 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G309 itibarıyla):**
+Ana menü kartlarına GEÇİCİ 1-12 build-doğrulama numarası eklendi
+(`50f4d25`) — G300/G304/G306/G308'in cihazda görünmemesinin "eski
+build" hipotezini test etmek için. **Kullanıcının/Logic'in sıradaki
+adımı:** tam SİLME + YENİDEN KURMA (Xcode üzerinden üste kurma DEĞİL,
+OLCUM-SENKRON-18-08'in bulgusu gereği) + o kurulumdan HEMEN önce
+`npx cap sync ios` çalıştırıldığının doğrulanması, SONRA ana menüde
+kart köşelerinde numara görünüyor mu diye bakmak. **GÖRÜNÜYORSA:** kod
+güncel, G300/G304/G306/G308'in cihazda görünmeme sebebi BAŞKA bir yerde
+aranmalı (BELİRSİZ, bu turda çözülmedi). **GÖRÜNMÜYORSA:** OLCUM-
+SENKRON-18-08'in build/sync bulgusu doğrulanmış olur, bir sonraki iş bu
+zinciri (A5/B6/B9 maddeleri) kalıcı olarak kapatmak. **Sonuç ne olursa
+olsun, numaralar bu doğrulamadan SONRA bir turda KALDIRILMALI** — kalıcı
+bir özellik değil (bkz. yukarı BİTTİ G309).
+
+**EN YENİ SIRADAKİ ADIM (G308 itibarıyla, ARTIK ESKİ):**
 Snare-akustik/snare-clean çiftlerinin `offsetA`'sı Logic'in kulak
 kararıyla 377ms'e geri alındı (G302'nin ölçülen 0.425/1.175'i geçersiz
 kılındı), TEK commit `c4a4deb`. `npm test` 1644/1644, `e2e` 135/135.
