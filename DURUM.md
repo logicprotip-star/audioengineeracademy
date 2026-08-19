@@ -1,6 +1,32 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G327 + İKİ ölçüm. **G327** (`81c1449`,
+Son güncelleme: 19.08.2026 (G328 — `goToNextRoundInner()` ARTIK
+`roundFlow.clearTimer()`'ı çağırıyor (`918496d`, TEK commit).
+OLCUM-ATLA-SES-3-19-08'in bulduğu KÖK SEBEP kapatıldı: parkuru
+telafi/sınav anonsuna TAŞIYAN etkileşimde (`examTookOver=true`)
+`startRound()` ÇAĞRILMADIĞI için (normalde O çağrının İÇİNDEKİ
+`armTimerInterval()` eski süre sayacını temizlerdi) atlanan/cevaplanan
+sorunun 100ms'lik `setInterval` süre sayacı anons ekranı AÇIKKEN de
+arka planda ÇALIŞMAYA DEVAM EDİYORDU — süresi dolunca `onTimeUp()` →
+`scheduleNext()` → `onAdvance()` → `startRound()` zincirini G325'in
+kilidinin TAMAMEN DIŞINDAN tetikleyip YENİ bir ses zinciri
+kuruyordu. Düzeltme TEK satır: `clearAutoAdvance()`'in YANINA
+KOŞULSUZ `roundFlow.clearTimer()`. **ÇELİŞKİ (Logic'in cihaz gözlemi
+"3 güvenli/4 kırık" vs bu turun Playwright ölçümü "1 atlamada bile
+kırık") ÜSTÜ ÖRTÜLMEDEN kaydedildi** — kod DÜZELTMESİ merkezi
+mekanizmayı (12 modun ORTAK yolu) kapatıyor, tam SAYISAL eşik hâlâ
+NETLEŞMEDİ. `npm test` 1663/1663, `e2e` 177/177 (171+6 yeni), git
+stash ile kırmızı/yeşil doğrulandı (3/6 test HER ÇALIŞTIRMADA
+tutarlı kırmızı gösterdi — frekans-bulma'nın 3 senaryosu — diğer
+3'ü zamanlama-bağımlı OLDUĞU İÇİN pre-fix'te BİLE bazen yeşil
+çıktı, bu BEKLENEN/dokümante edilmiş bir durum). **AYRI, İLGİSİZ bir
+bulgu** test SIRASINDA ortaya çıktı: kesim-noktasi/q-genisligi'nde
+anons ekranına geçişten HEMEN SONRA bazen KISA süreli yüksek RMS —
+git stash ile G328'DEN BAĞIMSIZ olduğu DOĞRULANDI (fix ÖNCESİNDE de
+AYNI şekilde vardı), bu commit'in KAPSAMI DIŞINDA bırakıldı. Detay:
+aşağı BİTTİ bölümü G328.)
+
+Son güncelleme (ÖNCEKİ): 19.08.2026 (G327 + İKİ ölçüm. **G327** (`81c1449`,
 TEK commit): OLCUM-PROPLUS-19-08 bulgusu — Pro Plus 12 modda tanımlı
 ama SADECE Frekans Bulma'da gerçek fark yaratıyor (4 bantlı soru),
 diğer 11 modda `DIFFICULTY.proplus` `DIFFICULTY.pro`'nun BİREBİR
@@ -295,6 +321,86 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G328 — **goToNextRoundInner() süre sayacını temizliyor (`918496d`,
+TEK commit) — atlamada ses birikmesinin KÖK SEBEBİ kapatıldı.**
+
+**Görev:** OLCUM-ATLA-SES-3-19-08'in bulduğu — `goToNextRoundInner()`
+(app.js, "Atla"nın işlediği, 12 modun HEPSİNİN geçtiği ORTAK yol)
+`roundFlow.clearAutoAdvance()`'i çağırıyordu ama `roundFlow.clearTimer()`'i
+HİÇ çağırmıyordu. Parkuru telafi/sınav anonsuna TAŞIYAN etkileşimde
+(`examTookOver=true`) `startRound()` (normalde `armTimerInterval()`
+İÇİNDEN eski süre sayacını temizlerdi) ÇAĞRILMADAN erken dönülüyordu —
+o anda aktif sorunun 100ms'lik `setInterval` süre sayacı anons ekranı
+AÇIKKEN de arka planda çalışmaya devam ediyordu. Süresi dolunca
+`onTimeUp()` → `scheduleNext()` → `onAdvance()` (`() => { if
+(!autoStopped) startRound(); }`) zincirini G325'in `goToNextRound()`
+kilidinin TAMAMEN DIŞINDAN (`onAdvance` `goToNextRound()`'u hiç
+ÇAĞIRMIYOR) tetikleyip YENİ bir ses zinciri kuruyordu.
+
+**Uygulama (TEK satır, düşük risk):** `goToNextRoundInner()`'da
+`roundFlow.clearAutoAdvance();`'in HEMEN YANINA, KOŞULSUZ
+`roundFlow.clearTimer();` eklendi. `startRound()` çağrılacaksa
+(normal akış) `armTimerInterval()`'in KENDİ `clearTimer()` çağrısıyla
+ÇAKIŞMIYOR (idempotent — iki kez `clearTimer()` çağırmak zararsız);
+`startRound()` ÇAĞRILMAYACAKSA (`examTookOver=true`, telafi/sınav
+anonsuna GEÇİLİYORSA) burası TEK fırsat, ARTIK KAÇIRILMIYOR.
+
+**⚠️ ÇÖZÜLMEMİŞ ÇELİŞKİ, ÜSTÜ ÖRTÜLMEDEN kaydedildi:** Logic'in cihaz
+gözlemi "3 atlama güvenli, 4+ kırık" diyordu — bu turun Playwright
+ölçümü bug'ı **1, 2, 6 atlamada da** (frekans-bulma) TUTARLI ŞEKİLDE
+üretti (git stash kırmızı DOĞRULAMASI, aşağı). "3" sayısı bir yazılım
+SABİTİ olarak DOĞRULANAMADI — mekanizma SAYAÇ/kuyruk boyutuna DEĞİL,
+TEK bir unutulmuş zamanlayıcıya dayanıyor; gecikme süresi (13.5-14.3sn
+bu turda) transitioning sorunun `timeSec`'ine bağlı DEĞİŞKEN. Kod
+DÜZELTMESİ merkezi mekanizmayı (goToNextRoundInner, 12 modun ORTAK
+yolu) KAPATIYOR — Logic'in cihazdaki 3/4 ayrımının NEDEN bu ölçümle
+ÖRTÜŞMEDİĞİ (belki cihaz zamanlamasına ÖZGÜ, belki BAŞKA bir katkıda
+bulunan etken VAR) AÇIKLIĞA KAVUŞMADI, AÇIKÇA BEKLEYEN bırakıldı.
+
+**AYRI, İLGİSİZ bir bulgu (bu commit'in KAPSAMI DIŞINDA, DOKUNULMADI):**
+Test geliştirme SIRASINDA kesim-noktasi VE q-genisligi'nde anons
+ekranına geçişten HEMEN SONRA (0-2sn içinde) bazen KISA süreli (~0.5-2sn)
+yüksek RMS gözlendi — G328'in KENDİ mekanizmasından (13-15sn gecikmeli)
+TAMAMEN FARKLI bir zaman İMZASI. Git stash ile DOĞRULANDI: bu durum
+G328'DEN BAĞIMSIZ, fix ÖNCESİNDE de AYNI ŞEKİLDE (3 tekrarlı ölçümde
+1-2'sinde) gözlemlendi — PRE-EXISTING, timing-bağımlı/olası bir kök
+sebebi bu turun ölçüm KAPSAMINDA DEĞİL. Bu YÜZDEN G328'in KABUL
+KRİTERİ testleri o İKİ mod YERİNE frekans-bulma/db-seviyesi/
+frekans-cakismasi kullanıyor (G328'in KENDİ mekanizması bu 3 modda
+TEMİZ, TUTARLI şekilde doğrulanabiliyor) — kesim-noktasi/q-genisligi'nin
+KENDİ bulgusu AYRI bir ölçüm turu GEREKTİRİYOR, aşağı BEKLEYEN
+KARARLAR'a eklendi.
+
+**Test:** `e2e/skip-timer-cleared.spec.mjs` (YENİ, 6 test) — 5'i KABUL
+KRİTERİ (frekans-bulma 1/2/6 atlama, db-seviyesi 4 atlama,
+frekans-cakismasi 10x TÜM atlama — HEPSİ "Karıştır" AÇIK, GERÇEK
+örnek dosyalarıyla, telafi anons ekranında 2-18sn penceresinde
+SESSİZ kalması doğrulanıyor — İLK 2sn'lik pencere BİLEREK atlanıyor,
+transitioning cevabın KENDİ "yanlış" SFX'i (`sfxBuzz`, DOĞAL, KASITLI
+olarak kesilmeyen bir ses efekti, G328'in bug'ıyla İLGİSİZ) yanlışlıkla
+"sızıntı" sanılmasın diye — ölçüldü, ince taneli RMS izi bunu
+DOĞRULADI). 6.'sı REGRESYON KORUMASI — normal süre dolması (Atla'ya
+HİÇ basılmadan) SONRASI `onTimeUp→scheduleNext→onAdvance→startRound`
+zincirinin YENİ bir soru ürettiğini doğruluyor (mod/Pro/boss
+durumundan BAĞIMSIZ, GÜVENİLİR bir sinyal — İLK denemede "Can
+kaybettin" panelini KONTROL EDEN bir tasarım kullanılmıştı, ama
+`loseLife()`'ın `if (isUserPro()) return;` guard'ı Pro kullanıcıda
+BUNU hiç göstermediği İÇİN — G328'İN bir regresyonu DEĞİL, ÖNCEDEN
+VAR olan Pro davranışı — TEST daha SAĞLAM bir sinyale değiştirildi).
+git stash ile kırmızı/yeşil doğrulandı — kırmızıda frekans-bulma'nın
+3 senaryosu TUTARLI kırmızı (13.5-14.3sn'de duyulabilir ses), db-seviyesi/
+frekans-cakismasi/regresyon testi zamanlama-bağımlı OLDUKLARI İÇİN
+O SPESİFİK pre-fix koşuşunda yeşil kaldı (BEKLENEN, dokümante edildi).
+
+**KİLİT korundu:** `npm test` 1663/1663 (değişmedi). `npm run
+test:e2e` 177/177 (171+6 yeni, 1 pre-existing flake — ear-buttons.spec.mjs,
+bu turla İLİŞKİSİZ). G325'in reentrancy kilidi, normal süre dolması
+davranışı (REGRESYON testiyle DOĞRULANDI), atlama sınırı (bu turda
+HİÇ ele alınmadı, AYRI ürün kararı), zorluk eğrisi TEK SATIR
+değişmedi.
+
+---
 
 G327 — **Pro Plus sadece Frekans Bulma'da görünür (`81c1449`, TEK
 commit) + İKİ ölçüm (ses birikmesi kök sebebi + atlama sınırı ürün
@@ -22852,21 +22958,39 @@ seviye başlığı × 6 rozet, tam karşılaştırma) — "Altın Kulak" TEK ör
 
 ## BEKLEYEN KARARLAR
 
-**AC. OLCUM-ATLA-SES-3-19-08 — ses birikmesi kök sebebi ne zaman
-düzeltilsin + atlama sınırı eklensin mi?**
-Kök sebep BULUNDU (`goToNextRoundInner()`'da eksik
-`roundFlow.clearTimer()` çağrısı — detay yukarı BİTTİ bölümü) ama
-DÜZELTİLMEDİ (bu turun kapsamı SADECE ölçümdü). AYRICA Logic'in cihaz
-gözlemiyle (3 güvenli/4 kırık) bu turun Playwright ölçümü (1 atlamada
-bile kırık) TAM ÖRTÜŞMÜYOR — İKİ gözlem de KAYITLI, hangisinin daha
-temsili olduğu (cihaz zamanlaması vs Playwright zamanlaması)
-NETLEŞMEDİ. Atlama sınırı fikri DEĞERLENDİRİLDİ, kök sebebi
-ÇÖZMEYECEĞİ KANITLANDI — kullanıcı YİNE DE isterse AYRI bir ürün
-kararı olarak ele alınabilir ama kök sebep düzeltmesinin YERİNE
-GEÇMEZ. KARAR VERİLMEDİ: (1) kök sebep düzeltmesi ne zaman AYRI bir
-"ÖNCE ÖLÇ SONRA UYGULA" turunda ele alınacak, (2) atlama sınırı
-İSTENİYOR mu (isteniyorsa: sınır sayısı, boss/sınav/telafi turlarında
-davranışı, dolunca ne olacağı — hepsi AYRI ürün kararları).
+**AD. OLCUM-ATLA-SES-3-19-08/G328 test geliştirmesi SIRASINDA bulunan
+AYRI, İLGİSİZ bir ses sorunu — kesim-noktasi/q-genisligi'nde anons
+ekranına geçişten HEMEN SONRA kısa süreli yüksek RMS.**
+G328'in KENDİ e2e testleri yazılırken (bkz. yukarı BİTTİ bölümü)
+kesim-noktasi VE q-genisligi'nde telafi/sınav anons ekranına
+geçildikten 0-2sn içinde bazen (3 tekrarlı ölçümde 1-2'sinde) KISA
+süreli (~0.5-2sn) yüksek RMS gözlendi. G328'in KENDİ mekanizmasından
+(13-15sn GECİKMELİ) TAMAMEN FARKLI bir zaman İMZASI — git stash ile
+G328'DEN BAĞIMSIZ (fix ÖNCESİNDE de AYNI ŞEKİLDE VAR) olduğu
+DOĞRULANDI, yani PRE-EXISTING. Kök sebebi bu turun ÖLÇÜM KAPSAMINDA
+DEĞİLDİ — AYRI bir "ÖNCE ÖLÇ SONRA UYGULA" turu GEREKİYOR. KARAR
+VERİLMEDİ: (1) bu AYRI ölçüm turu ne zaman ele alınacak, (2) öncelik
+sırası (G328'in KENDİ bulgusuna göre DAHA KÜÇÜK/kısa süreli görünüyor
+ama DOĞRULANMADI).
+
+**AC. OLCUM-ATLA-SES-3-19-08'in "3 vs 4 atlama" çelişkisi — Logic'in
+cihaz gözlemiyle Playwright ölçümü NEDEN örtüşmüyor?**
+G328 (`918496d`) KÖK SEBEBİ DÜZELTTİ (`goToNextRoundInner()`'a
+`roundFlow.clearTimer()` eklendi, detay yukarı BİTTİ bölümü) — bu
+madde SADECE ÇELİŞKİNİN KENDİSİ AÇIKLIĞA KAVUŞMADIĞI için AÇIK
+kalıyor: Logic'in cihaz gözlemi "3 atlama güvenli, 4+ kırık" diyordu
+— bu turun (G328'İN kendi doğrulama sürecinin) Playwright ölçümü
+bug'ı 1, 2 VE 6 atlamada da TUTARLI şekilde üretti (git stash kırmızı
+DOĞRULAMASI). "3" sayısının cihaz zamanlamasına mı, YOKSA BAŞKA bir
+katkıda bulunan etkene mi bağlı olduğu NETLEŞMEDİ — G328'in kendisi
+BU SORUYU cevaplamadan MERKEZİ mekanizmayı KAPATTI (yani düzeltme
+muhtemelen çelişkiyi de ÇÖZDÜ, ama bu AYRICA DOĞRULANMADI). Atlama
+sınırı fikri DEĞERLENDİRİLDİ (önceki tur), kök sebebi ÇÖZMEYECEĞİ
+KANITLANDI — kullanıcı YİNE DE isterse AYRI bir ürün kararı olarak
+ele alınabilir. KARAR VERİLMEDİ: (1) cihazda G328 SONRASI GERÇEKTEN
+doğrulama yapılıp yapılmayacağı (Logic'in ORİJİNAL 3/4 senaryosunu
+TEKRAR test edip DÜZELDİĞİNİ TEYİT etmek), (2) atlama sınırı
+İSTENİYOR mu.
 
 **Z. G298'in ölçtüğü artık-risk — `isUserPro()`'nun `devFlags.simulatePro`
 dalı DEV_MODE'a bağlansın mı?**
@@ -23165,7 +23289,24 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G327 + iki ölçüm itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G328 itibarıyla):**
+Atlamada ses birikmesinin KÖK SEBEBİ düzeltildi (`918496d`) —
+`goToNextRoundInner()` ARTIK `roundFlow.clearTimer()`'ı çağırıyor.
+`npm test` 1663/1663, `e2e` 177/177 (171+6 yeni). **Kullanıcının/
+Logic'in sıradaki adımı:** `npx cap sync ios` + cihazda GERÇEKTEN
+doğrulamak — ÖZELLİKLE Logic'in ORİJİNAL "3 atlama güvenli, 4+
+kırık" senaryosunu (Frekans Çakışması/Reverb/Frekans Bulma'da) AYNEN
+TEKRARLAYIP DÜZELDİĞİNİ TEYİT etmek (bu turun Playwright ölçümü 1
+atlamada bile kırık BULDU, cihaz gözlemiyle TAM örtüşmedi — çelişki
+NETLEŞMEDİ, bkz. BEKLEYEN KARARLAR'da AC). AYRICA İKİ karar bekliyor:
+(1) AC — çelişkinin kendisi + atlama sınırı İSTENİYOR mu, (2) AD —
+G328'in test geliştirmesi SIRASINDA bulunan, İLGİSİZ/pre-existing bir
+başka ses sorunu (kesim-noktasi/q-genisligi, anons ekranına geçişten
+HEMEN SONRA kısa süreli yüksek RMS) ne zaman AYRICA ölçülecek. Renk
+körlüğü şekil/desen farkı + 1.1 izolasyon turu için bekleyenler
+aşağıdaki G321/G322 notunda duruyor, değişmedi.
+
+**EN YENİ SIRADAKİ ADIM (G327 + iki ölçüm itibarıyla, ARTIK ESKİ):**
 Pro Plus ARTIK sadece Frekans Bulma'da görünüyor (`81c1449`). `npm
 test` 1663/1663, `e2e` 171/171 (değişmedi). Ses birikmesinin KÖK
 SEBEBİ bulundu (`goToNextRoundInner()`'da eksik `roundFlow.clearTimer()`
