@@ -435,16 +435,6 @@
       border:1px solid rgba(232,196,106,.45);color:var(--gold);
       font-size:9px;font-weight:800;letter-spacing:.4px;
     }
-    /* GEÇİCİ TEST İŞARETİ — build güncelliğini cihazda doğrulamak için
-       (bkz. app.js:renderExerciseGrid'in aynı satırdaki notu), KALDIRILACAK.
-       right değeri satır-içi style ile mod-bazlı ayarlanıyor (proBadge'le
-       çakışmasın diye), burada SADECE ortak görünüm tanımlı. */
-    .mode-card-debugnum{
-      position:absolute;top:8px;width:18px;height:18px;border-radius:50%;
-      display:flex;align-items:center;justify-content:center;
-      background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.5);
-      color:#fff;font-size:10px;font-weight:800;z-index:5;
-    }
     /* G76: flex:1 KALDIRILDI — bu blok artık İÇERİĞİ KADAR yer kaplıyor,
        satırın fazla boyu .mode-card-viz'e gidiyor (yukarıya bkz.), metnin
        altında ölü boşluk kalmıyor. */

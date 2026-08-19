@@ -3414,7 +3414,7 @@ function renderExerciseGrid() {
   if (els.modeCount) els.modeCount.textContent = `${exerciseEntries.length} mod`;
 
   els.modeGrid.innerHTML = "";
-  exerciseEntries.forEach((entry, exerciseIndex) => {
+  exerciseEntries.forEach(entry => {
     const realMode = registeredModes.find(m => m.getMeta().id === entry.id);
     // G163 — kullanıcı kararı: "Pro alan kullanıcı seviye ile uğraşmasın."
     // paywall.meetsLevelRequirement() artık HER ZAMAN true dönüyor (Z3/G62'nin
@@ -3467,16 +3467,8 @@ function renderExerciseGrid() {
     // gösterilir (tasarımın kendi statik davranışı, bkz. Ana Ekran.dc.html
     // ex.lv — kilitli/kilitsiz ayrımı YOK).
     const levelNum = progress.modeLevel(stats, entry.id);
-    // GEÇİCİ TEST İŞARETİ (OLCUM-SENKRON-18-08'in "cihaz eski build
-    // çalıştırıyor olabilir" hipotezini cihazda doğrulamak için) — SADECE
-    // build güncelliğini görünür kılmak amacıyla eklendi, kaldırılacak.
-    // proBadge ile AYNI köşede (top:8px) ama proBadge'in genişliğini
-    // (~52px) hesaba katan bir right ofsetiyle YAN YANA — proBadge VARSA
-    // sola kayıyor, YOKSA gerçek köşede (right:8px) duruyor, hiçbir zaman
-    // üst üste binmiyor. "i" rozetiyle (sol üstte) hiç kesişmiyor.
-    const debugNumBadge = `<div class="mode-card-debugnum" style="right:${entry.tier === "pro" ? "60px" : "8px"}">${exerciseIndex + 1}</div>`;
     card.innerHTML = `
-      <div class="mode-card-viz">${viz}${infoBadge}${proBadge}${debugNumBadge}</div>
+      <div class="mode-card-viz">${viz}${infoBadge}${proBadge}</div>
       <div class="mode-card-body">
         <div class="mode-card-head">
           <div class="mode-card-name">${entry.ad}</div>
@@ -4294,8 +4286,6 @@ function renderGameHeader() {
   // AYNEN KALDI. Serbest'te isChallenge() zaten hep false — o modda satır
   // YİNE hiç görünmez (değişmedi).
   const showChapter = !boss && !examActive && isChallenge();
-  // GEÇİCİ TANI LOGU (OLCUM-ILKSORU-ATLA-19-08) — SONRA KALDIRILACAK.
-  console.log(`[atla-diag] renderGameHeader() — showChapter:${showChapter} (boss:${boss} examActive:${examActive} isChallenge:${isChallenge()}) challenge.done:${challenge.done} challenge.total:${challenge.total} challenge.results:${JSON.stringify(challenge.results)}`);
   // G144 — kullanıcının kendi kararı: G143'ün "offsetHeight okuyarak
   // zorlanmış reflow" denemesi CİHAZDA TUTMADI (kullanıcı ekran görüntüsüyle
   // doğruladı) — o yaklaşım LAYOUT'u senkron olarak kesinleştiriyordu, ama
@@ -4339,10 +4329,6 @@ function renderGameHeader() {
       els.gameChapterDots.appendChild(dot);
     }
     els.gameChapterLabel.textContent = `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`;
-    // GEÇİCİ TANI LOGU (OLCUM-ILKSORU-ATLA-19-08) — SONRA KALDIRILACAK.
-    console.log(`[atla-diag] BÖLÜM çubuğu çizildi — dolu nokta sayısı:${challenge.results.length} etiket:"${els.gameChapterLabel.textContent}"`);
-  } else {
-    console.log(`[atla-diag] BÖLÜM çubuğu ÇİZİLMEDİ (showChapter:${showChapter})`);
   }
 }
 
@@ -7290,11 +7276,6 @@ els.startBtn.addEventListener("click", async () => {
 // eder — aksi halde yeni turun ortasında eski önizlemenin zamanlayıcısı tetiklenip
 // yanlışlıkla ikinci bir otomatik-geçiş kurabilirdi.
 async function goToNextRound() {
-  // GEÇİCİ TANI LOGU (OLCUM-ILKSORU-ATLA-19-08 — "ilk soruda Atla,
-  // ilerleme kilitleniyor" hatası cihazda/simülatörde var ama Playwright'ta
-  // tekrar üretilemedi) — SONRA KALDIRILACAK. DEV_MODE kontrolü BİLEREK YOK
-  // (cihazda DEV_MODE=false olabilir, log yine görünsün).
-  console.log(`[atla-diag] goToNextRound() GİRİŞ — activeQuestion:${!!activeQuestion} roundActive:${roundActive} challenge:${challenge ? JSON.stringify({ done: challenge.done, total: challenge.total, active: challenge.active, correct: challenge.correct, results: challenge.results }) : "YOK"}`);
   // G187 (Bug 29, KATMAN 1) — bu, `await audioEngine.initAudio()`'DAN ÖNCE,
   // SENKRON olarak çalışmalı: freqTapTimer'ın (Frekans Bulma'nın Dokunmalı
   // biçimindeki 180ms dokunuş debounce'u) kalan süresi bu await'in kendi
@@ -7325,14 +7306,8 @@ async function goToNextRound() {
   let examTookOver = false;
   if (roundActive && activeQuestion) {
     const q = activeQuestion;
-    // GEÇİCİ TANI LOGU — bkz. fonksiyon başındaki not. SONRA KALDIRILACAK.
-    console.log(`[atla-diag] "Atla" dalına girildi — challengeTick(false,0) ÇAĞRILACAK. index(done) ÖNCESİ:${challenge.done} results ÖNCESİ:${JSON.stringify(challenge.results)}`);
     challengeTick(false, 0);
-    console.log(`[atla-diag] challengeTick(false,0) ÇAĞRILDI. index(done) SONRASI:${challenge.done} results SONRASI:${JSON.stringify(challenge.results)}`);
     if (examGateActive()) examTookOver = handleExamOutcome(q, { correct: false }, 0);
-    console.log(`[atla-diag] examGateActive:${examGateActive()} handleExamOutcome çağrıldı mı:${examGateActive()} examTookOver:${examTookOver}`);
-  } else {
-    console.log(`[atla-diag] "Atla" dalına GİRİLMEDİ (roundActive:${roundActive} activeQuestion:${!!activeQuestion}) — challengeTick ÇAĞRILMADI.`);
   }
   autoStopped = false;
   roundFlow.clearAutoAdvance();
