@@ -3024,15 +3024,23 @@ let examXpSum = 0;
 // aksi halde ESKİ zayıf ZORLUK KADEMESİ (exam-system.js:getWeakTier,
 // tierStats üzerinden, G47'den beri DEĞİŞMEDİ). Dönen `value`
 // examSystem.startRemedial()'a AYNEN geçirilir.
+//
+// G319 (OLCUM-ZAYIF-KADEME-19-08) — `insufficientData` alanı EKLENDİ. `value`/
+// `label` HÂLÂ "medium"/nötr bir varsayılana düşüyor (telafinin MEKANİK
+// yönlendirmesi — hangi soru içeriği üretilecek — bundan ETKİLENMEMELİ,
+// DOKUNULMAYACAK: "zorluk eğrisi"). SADECE showExamScreen("makeup", …)'ın
+// GÖSTERDİĞİ metin bu yeni alana bakıp "Zayıf X: Y" yerine "yeterli veri
+// yok" diyecek — getWeakTier/getWeakZone'un YENİ "en az 2 aday" kuralı
+// null dönünce (weak==null) bu artık DOĞRU YORUMLANIYOR.
 function getWeakArea(stats, modeId) {
   if (mode.EXAM_WEAK_AREA === "zone") {
     const weak = mode.FA_ZONES ? getWeakZone(zoneStats, mode.FA_ZONES) : null;
-    return { type: "zone", value: weak ? weak.zone : null, label: weak ? weak.zone.t : null };
+    return { type: "zone", value: weak ? weak.zone : null, label: weak ? weak.zone.t : null, insufficientData: !weak };
   }
   const es = examStatsFor(modeId);
   const weak = getWeakTier(es.tierStats);
   const tier = (weak && weak.tier) || "medium";
-  return { type: "tier", value: tier, label: mode.DIFFICULTY[tier]?.label || tier };
+  return { type: "tier", value: tier, label: mode.DIFFICULTY[tier]?.label || tier, insufficientData: !weak };
 }
 
 // G286 — App Store yorum isteme, GERÇEK native çağrı (OLCUM-YORUM-17-08.md'nin
@@ -3255,21 +3263,40 @@ function showExamScreen(kind, ctx = {}) {
     pillIconD = "M3 12a9 9 0 1 0 2.6-6.3M3 4v5h5"; kicker = "TELAFİ TURU";
     badgeFill = "#1b2a2e"; badgeStroke = "rgba(34,211,238,.5)"; badgeInnerStroke = "rgba(34,211,238,.35)";
     badgeTop = "SORU"; badgeMain = EXAM_CONFIG.REMEDIAL_LENGTH; ctaBtn = GREEN_BTN;
-    const area = ctx.area || { type: "tier", label: null };
+    const area = ctx.area || { type: "tier", label: null, insufficientData: true };
     const isZone = area.type === "zone";
     const areaLabel = area.label || (isZone ? "genel spektrum" : "orta");
-    title = `Zayıf ${isZone ? "bölgen" : "kademen"}: ${areaLabel}`;
-    // G84 KRİTİK DÜZELTME (task'ın uyarısı, core/exam-system.js'ten
-    // doğrulandı): tasarımın "Sınavdaki üç hatanın da..." metni YANLIŞ
-    // eksene bağlıydı — telafi SINAVDA kalınca DEĞİL, 10 soruluk PARKUR
-    // toplamda <6 doğruyla bitince başlıyor (bkz. core/exam-system.js
-    // recordAnswer, "remedial-start" event'i SADECE parkur dalından döner).
-    body = `10 soruluk parkurda en az ${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — telafi turu ${isZone ? (area.label ? `${area.label} bölgesine` : "genel spektruma") : `${areaLabel} kademesine`} odaklanacak.`;
-    facts = [
-      exFactRow(isZone ? "Bölge" : "Kademe", areaLabel, RED),
-      exFactRow("Soru sayısı", `${EXAM_CONFIG.REMEDIAL_LENGTH} soru`),
-      exFactRow("Geçme koşulu", `${EXAM_CONFIG.REMEDIAL_PASS_COUNT} doğru`, "var(--gr)")
-    ];
+    // G319 (OLCUM-ZAYIF-KADEME-19-08) — getWeakTier/getWeakZone artık en az
+    // İKİ karşılaştırılabilir aday istiyor (tek aday, isabeti %100 olsa
+    // bile, karşılaştıracak ikinci veri yoksa "zayıf" İLAN EDİLEMEZ —
+    // ölçüldü, cihazda yeni bir kullanıcıya "Zayıf kademen: Kolay"
+    // gösterilmişti). area.insufficientData true ise (weak===null) ekran
+    // ARTIK "Zayıf X: Y" DEMİYOR — mekanik yönlendirme (area.value,
+    // examSystem.startRemedial()'a YUKARIDA zaten geçti) hâlâ nötr bir
+    // varsayılana (medium/genel spektrum) düşüyor, SADECE bu METİN dürüst
+    // kalıyor.
+    if (area.insufficientData) {
+      title = "Henüz yeterli verin yok";
+      body = `10 soruluk parkurda en az ${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — telafi turu bu kez genel bir pratik olacak, yeterli veri toplandıkça daha isabetli hedeflenecek.`;
+      facts = [
+        exFactRow(isZone ? "Bölge" : "Kademe", "Henüz belirlenemedi"),
+        exFactRow("Soru sayısı", `${EXAM_CONFIG.REMEDIAL_LENGTH} soru`),
+        exFactRow("Geçme koşulu", `${EXAM_CONFIG.REMEDIAL_PASS_COUNT} doğru`, "var(--gr)")
+      ];
+    } else {
+      title = `Zayıf ${isZone ? "bölgen" : "kademen"}: ${areaLabel}`;
+      // G84 KRİTİK DÜZELTME (task'ın uyarısı, core/exam-system.js'ten
+      // doğrulandı): tasarımın "Sınavdaki üç hatanın da..." metni YANLIŞ
+      // eksene bağlıydı — telafi SINAVDA kalınca DEĞİL, 10 soruluk PARKUR
+      // toplamda <6 doğruyla bitince başlıyor (bkz. core/exam-system.js
+      // recordAnswer, "remedial-start" event'i SADECE parkur dalından döner).
+      body = `10 soruluk parkurda en az ${EXAM_CONFIG.TOTAL_THRESHOLD} doğru yapılamadı — telafi turu ${isZone ? `${areaLabel} bölgesine` : `${areaLabel} kademesine`} odaklanacak.`;
+      facts = [
+        exFactRow(isZone ? "Bölge" : "Kademe", areaLabel, RED),
+        exFactRow("Soru sayısı", `${EXAM_CONFIG.REMEDIAL_LENGTH} soru`),
+        exFactRow("Geçme koşulu", `${EXAM_CONFIG.REMEDIAL_PASS_COUNT} doğru`, "var(--gr)")
+      ];
+    }
     ctaLabel = "Telafi turunu başlat";
     // G310 — bkz. "announce" dalının AYNI notu (yukarıda).
     ctaHandler = () => { activeQuestion = null; goScreen("game"); goToNextRound(); };

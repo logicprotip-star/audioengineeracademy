@@ -319,11 +319,11 @@ describe("recordTierResult() / getWeakTier() — zayıf ZORLUK KADEMESİ tespiti
     assert.equal(getWeakTier(stats), null);
   });
 
-  it("getWeakTier EN DÜŞÜK doğrulukla (VE yeterli örnekle) kademeyi döner", () => {
+  it("getWeakTier EN DÜŞÜK doğrulukla (VE yeterli örnekle, EN AZ İKİ ADAY varken) kademeyi döner", () => {
     const stats = {
-      easy: { correct: 8, wrong: 1 },   // %89
-      medium: { correct: 2, wrong: 5 }, // %29 — EN ZAYIF
-      hard: { correct: 5, wrong: 2 }    // %71
+      easy: { correct: 16, wrong: 2 },   // 18 örnek, %89
+      medium: { correct: 4, wrong: 10 }, // 14 örnek, %29 — EN ZAYIF
+      hard: { correct: 10, wrong: 4 }    // 14 örnek, %71
     };
     const weak = getWeakTier(stats);
     assert.equal(weak.tier, "medium");
@@ -339,6 +339,35 @@ describe("recordTierResult() / getWeakTier() — zayıf ZORLUK KADEMESİ tespiti
   it("'proplus' zayıf-kademe aramasına HİÇ dahil edilmez (TIER_ORDER'da yok — ayrı/özel bir mod, Z5 kararı)", () => {
     const stats = { proplus: { correct: 0, wrong: 10 } }; // %0 ama TIER_ORDER'da yok
     assert.equal(getWeakTier(stats), null, "proplus TEK veri kaynağıysa null dönmeli, onu 'zayıf' seçmemeli");
+  });
+
+  // G319 (OLCUM-ZAYIF-KADEME-19-08) — asıl kanıtlanan bug: tek aday, isabeti
+  // %100 OLSA BİLE, KARŞILAŞTIRACAK ikinci bir kademe yokken "zayıf"
+  // SAYILAMAZ. DÜZELTME ÖNCESİ bu test KIRMIZI yanardı (weak.tier==="easy"
+  // dönerdi).
+  it("G319 — TEK kademe MIN_TIER_SAMPLES'ı karşılasa (hatta %100 doğru olsa) BİLE, karşılaştıracak İKİNCİ aday yoksa null döner", () => {
+    const perfectButAlone = { easy: { correct: 10, wrong: 0 } }; // 10 örnek, %100 doğru
+    assert.equal(getWeakTier(perfectButAlone), null, "tek aday, isabeti %100 olsa bile 'zayıf' İLAN EDİLMEMELİ");
+
+    const mediocreButAlone = { easy: { correct: 6, wrong: 4 } }; // 10 örnek, %60
+    assert.equal(getWeakTier(mediocreButAlone), null, "tek aday HÂLÂ karşılaştırmasız — null dönmeli");
+  });
+
+  it("G319 — İKİ kademe var ama biri MIN_TIER_SAMPLES'ın (10) ALTINDAYSA yine null döner (tek GEÇERLİ aday kalır)", () => {
+    const stats = {
+      easy: { correct: 8, wrong: 1 },  // 9 örnek — EŞİĞİN 1 ALTINDA, adaylığa GİRMEZ
+      medium: { correct: 2, wrong: 8 } // 10 örnek — eşiği karşılıyor, TEK geçerli aday
+    };
+    assert.equal(getWeakTier(stats), null, "9 örnekli kademe adaylığa girmemeli, TEK kalan aday karşılaştırmasız 'zayıf' sayılmamalı");
+  });
+
+  it("G319 — İKİ kademe de TAM SINIRDA (10 örnek) yeterliyse GERÇEK karşılaştırma yapılır", () => {
+    const stats = {
+      easy: { correct: 9, wrong: 1 },  // 10 örnek, %90
+      medium: { correct: 3, wrong: 7 } // 10 örnek, %30 — EN ZAYIF
+    };
+    const weak = getWeakTier(stats);
+    assert.equal(weak.tier, "medium", "tam eşikte (10 örnek) bile İKİ aday varsa gerçek karşılaştırma çalışmalı");
   });
 });
 

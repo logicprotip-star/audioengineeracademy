@@ -74,7 +74,26 @@ export const EXAM_CONFIG = {
   // Bir kademenin "zayıf" sayılabilmesi için gereken asgari örnek sayısı —
   // personalization.js'in MIN_SAMPLES'ıyla AYNI felsefe (yetersiz veriyle
   // erken karar vermemek).
-  MIN_TIER_SAMPLES: 3
+  //
+  // G319 (OLCUM-ZAYIF-KADEME-19-08 + bu turun kendi simülasyonu) — 3'TEN
+  // 10'A YÜKSELTİLDİ. Eski 3 SADECE adaylığı filtreliyordu, KARŞILAŞTIRMANIN
+  // GÜVENİLİRLİĞİNİ değil — tek aday kaldığında (yeni kullanıcı: sadece
+  // "kolay"da oynamış) o aday isabeti %100 olsa bile "zayıf" ilan ediliyordu
+  // (ölçüldü). Bu turda AYRICA (aşağıdaki getWeakTier) "en az İKİ aday"
+  // şartı eklendi — ama TEK aday bile n=3'te GÜVENİLİR bir sinyal
+  // TAŞIMIYORDU: Monte Carlo simülasyonu (200.000 deneme, iki kademe
+  // arasında GERÇEK 20 puanlık bir fark — ör. %75 vs %55 isabet — varsayılıp
+  // n örneklemle "hangisi daha zayıf" kararının GERÇEĞİYLE ne sıklıkla
+  // eşleştiği ölçüldü): n=3'te SADECE %54,5 (yazı-tura'ya yakın!), n=10'da
+  // %76,7, n=15'te %83,6, n=20'de %88,2. n=10, "makul sürede ulaşılabilir"
+  // (bir modun 1-2 parkuru) ile "kararın en azından yazı-turadan belirgin
+  // biçimde daha güvenilir olması" arasında seçilen bir denge — KESİN bir
+  // istatistiksel eşik DEĞİL, ürün yorumu (script:
+  // scratchpad/sim-min-samples.mjs, bu commit'e dahil değil — sonucu bu
+  // yorumda özetlendi). Daha büyük/küçük gerçek farklarda (10 puan vs 30
+  // puan) güvenilirlik sırasıyla daha düşük/yüksek çıkıyor — n=10 "orta
+  // düzeyde zayıf" bir farkı makul sürede yakalamak için seçildi.
+  MIN_TIER_SAMPLES: 10
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -99,17 +118,29 @@ export function recordTierResult(tierStats, tier, correct) {
 // { tier, accuracy } ya da hiçbir kademe yeterli veri taşımıyorsa null (yeni
 // kullanıcı — henüz kişiselleştirilecek bir şey yok, çağıran taraf bu durumda
 // varsayılan/orta bir kademeye düşmeli).
+//
+// G319 (OLCUM-ZAYIF-KADEME-19-08) — FORMÜLE (accuracy hesabı) DOKUNULMADI,
+// SADECE bir eşik EKLENDİ: yeterli örnekli (>=MIN_TIER_SAMPLES) kademe
+// SAYISI 2'DEN AZSA null dönüyor — DÜZELTME ÖNCESİ tek aday kaldığında o
+// aday KARŞILAŞTIRMASIZ "en zayıf" seçiliyordu (isabeti %100 olsa bile,
+// ölçüldü). En az İKİ aday olmadan "hangisi diğerinden daha zayıf" sorusunun
+// CEVABI YOK — bu durumda null dönmek DOĞRU, çağıran taraf (app.js
+// getWeakArea) BUNU "yeterli veri yok" olarak GÖSTERMELİ (mekanik telafi
+// yönlendirmesi için hâlâ "medium" varsayılanına düşebilir, o AYRI bir
+// karar — bkz. app.js'in kendi notu).
 export function getWeakTier(tierStats, config = EXAM_CONFIG) {
   let weakest = null;
+  let qualifyingCount = 0;
   for (const tier of config.TIER_ORDER) {
     const t = tierStats && tierStats[tier];
     if (!t) continue;
     const total = t.correct + t.wrong;
     if (total < config.MIN_TIER_SAMPLES) continue;
+    qualifyingCount++;
     const accuracy = t.correct / total;
     if (!weakest || accuracy < weakest.accuracy) weakest = { tier, accuracy };
   }
-  return weakest;
+  return qualifyingCount >= 2 ? weakest : null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

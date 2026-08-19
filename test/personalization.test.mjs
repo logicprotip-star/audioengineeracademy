@@ -34,9 +34,9 @@ describe("zoneWeakness()", () => {
 
   it("weakness her zaman [0,1] aralığında", () => {
     const cases = [
-      { n: 5, ok: 5, sumDOct: 0, dOctCount: 5 },
-      { n: 5, ok: 0, sumDOct: 20, dOctCount: 5 },
-      { n: 3, ok: 2, sumDOct: 1, dOctCount: 2 }
+      { n: 15, ok: 15, sumDOct: 0, dOctCount: 15 },
+      { n: 15, ok: 0, sumDOct: 20, dOctCount: 15 },
+      { n: 10, ok: 6, sumDOct: 1, dOctCount: 6 }
     ];
     cases.forEach(c => {
       const w = zoneWeakness(c);
@@ -122,15 +122,25 @@ describe("getWeakZone() — G50: sınav telafisi için DETERMİNİSTİK en zayı
   it("hiçbir bölge MIN_SAMPLES'a ulaşmamışsa (yeni kullanıcı) null döner", () => {
     assert.equal(getWeakZone({}, FA_ZONES), null);
     assert.equal(getWeakZone(null, FA_ZONES), null);
-    const sparse = { SUB: { n: 1, ok: 0, sumDOct: 1, dOctCount: 1 } }; // MIN_SAMPLES=3'ün altında
+    const sparse = { SUB: { n: 1, ok: 0, sumDOct: 1, dOctCount: 1 } }; // MIN_SAMPLES=10'un altında
     assert.equal(getWeakZone(sparse, FA_ZONES), null);
   });
 
-  it("TEK bir bölge yeterli veri taşıyorsa (diğerleri hâlâ null) O bölgeyi döner", () => {
-    const zoneStats = { BAS: { n: 5, ok: 1, sumDOct: 4, dOctCount: 4 } };
-    const weak = getWeakZone(zoneStats, FA_ZONES);
-    assert.ok(weak, "yeterli veri olan tek bölge bile dönmeli");
-    assert.equal(weak.zone.t.split(" (")[0], "BAS");
+  // G319 (OLCUM-ZAYIF-KADEME-19-08) — DÜZELTME ÖNCESİ bu test "O bölgeyi
+  // döner" diye adlandırılıyordu ve GERÇEKTEN bir zone döndüğünü doğruluyordu
+  // — bu, tam olarak kanıtlanan bug'ın KENDİSİYDİ (tek aday, karşılaştırmasız
+  // "zayıf" seçiliyordu). Artık TERSİ doğrulanıyor.
+  it("G319 — TEK bir bölge yeterli veri taşısa BİLE (diğerleri hâlâ null, karşılaştıracak ikinci aday yok) null döner", () => {
+    const zoneStats = { BAS: { n: 15, ok: 1, sumDOct: 4, dOctCount: 4 } };
+    assert.equal(getWeakZone(zoneStats, FA_ZONES), null, "tek aday karşılaştırmasız 'zayıf' İLAN EDİLMEMELİ");
+  });
+
+  it("G319 — İKİ bölge var ama biri MIN_SAMPLES'ın (10) ALTINDAYSA yine null döner", () => {
+    const zoneStats = {
+      BAS: { n: 5, ok: 1, sumDOct: 4, dOctCount: 4 },  // eşiğin altında, adaylığa GİRMEZ
+      TİZ: { n: 15, ok: 1, sumDOct: 12, dOctCount: 12 } // eşiği karşılıyor, TEK geçerli aday
+    };
+    assert.equal(getWeakZone(zoneStats, FA_ZONES), null, "9 örnekli bölge adaylığa girmemeli, TEK kalan aday karşılaştırmasız 'zayıf' sayılmamalı");
   });
 
   it("EN DÜŞÜK doğruluk/EN BÜYÜK sapmaya sahip bölgeyi döner (getWeakTier'ın AYNI mantığı, RASTGELE değil)", () => {
@@ -147,7 +157,7 @@ describe("getWeakZone() — G50: sınav telafisi için DETERMİNİSTİK en zayı
   });
 
   it("DETERMİNİSTİK — rng YOK, aynı girdiyle HER ZAMAN aynı sonuç (pickPersonalizedZone'un rastgeleliğinden AYRIŞIR)", () => {
-    const zoneStats = { BAS: { n: 5, ok: 0, sumDOct: 5, dOctCount: 5 }, ORTA: { n: 5, ok: 4, sumDOct: 0.5, dOctCount: 1 } };
+    const zoneStats = { BAS: { n: 15, ok: 0, sumDOct: 5, dOctCount: 5 }, ORTA: { n: 15, ok: 12, sumDOct: 0.5, dOctCount: 1 } };
     const results = new Set();
     for (let i = 0; i < 20; i++) results.add(getWeakZone(zoneStats, FA_ZONES).zone.t);
     assert.equal(results.size, 1, "aynı girdiyle FARKLI sonuçlar çıktı — deterministik olmalıydı");

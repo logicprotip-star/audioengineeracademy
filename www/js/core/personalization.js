@@ -8,7 +8,14 @@
 export const PERSONALIZATION_CONFIG = {
   // Bu eşiğin ALTINDA bölge "yeterli veri yok" sayılır — nötr (eşit) ağırlık alır.
   // Yeni kullanıcı (hiçbir bölgede yeterli veri yok) tamamen EŞİT dağılıma düşer.
-  MIN_SAMPLES: 3,
+  //
+  // G319 (OLCUM-ZAYIF-KADEME-19-08) — 3'TEN 10'A YÜKSELTİLDİ, exam-system.js
+  // MIN_TIER_SAMPLES'ın AYNI gerekçesi/simülasyonu (bkz. o dosyanın notu) —
+  // zoneWeakness'ın ACCURACY_WEIGHT'i (0.6, aşağıda) baskın bileşen olduğu
+  // için AYNI n=10 eşiği burada da uygulandı. Bu, deviation bileşenini
+  // (DEVIATION_WEIGHT: 0.4) AYRICA simüle eden bağımsız bir ölçüm DEĞİL —
+  // accuracy-ağırlıklı benzetme, dürüstçe işaretleniyor.
+  MIN_SAMPLES: 10,
 
   // AGRESİFLİK SINIRI (Z4'ün kendi istediği): en zayıf bölge (weakness=1) en güçlü
   // bölgeye (weakness=0, ağırlık=1) göre en fazla (1+MAX_BOOST)/1 = 3x ağırlık alır —
@@ -61,14 +68,21 @@ function zoneKey(zone) {
 // nottaki mode-agnostic ilke). Dönen: { zone, weakness } ya da hiçbir bölge
 // MIN_SAMPLES'a ulaşmamışsa null (yeni kullanıcı — çağıran taraf bu durumda
 // bölge daraltmadan/tüm spektrumda telafi yapmalı).
+//
+// G319 (OLCUM-ZAYIF-KADEME-19-08) — exam-system.js:getWeakTier'ın AYNI eşik
+// EKLEMESİ: yeterli örnekli (>=MIN_SAMPLES) bölge SAYISI 2'den azsa null
+// dönüyor — DÜZELTME ÖNCESİ tek aday kaldığında o bölge KARŞILAŞTIRMASIZ
+// "en zayıf" seçiliyordu. FORMÜLE (zoneWeakness hesabı) DOKUNULMADI.
 export function getWeakZone(zoneStats, zones, config = PERSONALIZATION_CONFIG) {
   let weakest = null;
+  let qualifyingCount = 0;
   for (const zone of zones || []) {
     const w = zoneWeakness((zoneStats || {})[zoneKey(zone)], config);
     if (w === null) continue;
+    qualifyingCount++;
     if (!weakest || w > weakest.weakness) weakest = { zone, weakness: w };
   }
-  return weakest;
+  return qualifyingCount >= 2 ? weakest : null;
 }
 
 // SAF FONKSİYON. zones: [{a,b,t}] (FA_ZONES benzeri, çağıran taraftan). range: [min,max]

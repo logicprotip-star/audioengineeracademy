@@ -94,6 +94,14 @@ test("G318 KABUL KRİTERİ — kulak butonuna basılıp hiçbir şeye dokunulmaz
   const correct = !(await page.evaluate(() => document.getElementById("feedbackBox")?.classList.contains("bad")));
   const expectedD = correct ? 4000 : 6000;
 
+  // ear-buttons.spec.mjs'in AYNI notu — `.fb`'nin .3s'lik CSS geçişi
+  // sırasında buton "hidden" class'ını GEÇ kaldırabiliyor, sabit bir
+  // waitForTimeout yerine POLLING (o dosyanın earDatasetStable'ı).
+  await page.waitForFunction(
+    () => !document.getElementById("fbEarRight")?.classList.contains("hidden"),
+    { timeout: 3000 }
+  );
+
   const snapshotBefore = await activeChoicesSnapshot(page);
   await page.locator("#fbEarRight").click({ timeout: 5000 });
   const elapsed = await waitForRoundAdvance(page, snapshotBefore, expectedD + 6000);
