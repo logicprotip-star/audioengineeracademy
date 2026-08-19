@@ -125,7 +125,9 @@ test("G313 — 3 modda AYNI davranış (12 modun hepsini etkileyen mod-bağıms�
 
     const s = await chapterState(page);
     assert.equal(s.label, "BÖLÜM 2/10", `[${modeId}] bootstrap+1 gerçek atlamadan sonra BÖLÜM 2/10 olmalı — ölçüldü: ${s.label}`);
-    assert.equal(s.dots[0], "wrong", `[${modeId}] 1. nokta "wrong" olmalı`);
+    // G324 — Atla ARTIK "wrong" (kırmızı) DEĞİL, "skip" (beyaz) gösteriliyor
+    // — sayaç/mekanik (BÖLÜM 2/10'a ilerlemesi) DEĞİŞMEDİ, SADECE bu görsel.
+    assert.equal(s.dots[0], "skip", `[${modeId}] 1. nokta "skip" olmalı`);
 
     await page.close();
   }
@@ -147,7 +149,8 @@ test("G313 REGRESYON KORUMASI — ÖNCE #startBtn'e basıp SONRA Atla (normal ak
   await page.waitForTimeout(400);
   const afterAtla = await chapterState(page);
   assert.equal(afterAtla.label, "BÖLÜM 2/10", "Start+Atla sonrası BÖLÜM 2/10 — ESKİ davranışla BİREBİR AYNI");
-  assert.equal(afterAtla.dots[0], "wrong");
+  // G324 — Atla ARTIK "wrong" DEĞİL, "skip" (beyaz) gösteriliyor.
+  assert.equal(afterAtla.dots[0], "skip");
 
   await page.close();
 });

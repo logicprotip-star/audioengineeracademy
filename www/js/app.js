@@ -3377,7 +3377,12 @@ function showExamScreen(kind, ctx = {}) {
 // Dönen boolean: true ise çağıran taraf normal scheduleNext(...)'ü ATLAMALI
 // (bu fonksiyon #screen-exam açıp akışı KENDİSİ yönetiyor demektir) — false
 // ise normal akış (scheduleNext) DEVAM ETMELİ.
-function handleExamOutcome(q, result, gained) {
+// G324 — `wasSkipped` (varsayılan false, TEK çağıran goToNextRound()'un
+// Atla dalı `true` geçiyor) examSystem.recordAnswer()'a taşınır, SADECE
+// examResults/remedialResults'a hangi işaretin yazılacağını seçer —
+// examCorrect/examIndex/remedialCorrect/remedialIndex ve geçme eşikleri
+// (sınav/telafi FORMÜLÜ) BİLEREK DOKUNULMADI.
+function handleExamOutcome(q, result, gained, wasSkipped) {
   const modeId = mode.getMeta().id;
   const es = examStatsFor(modeId);
   // tierStats SADECE normal parkur cevaplarından beslenir — sınav/telafi
@@ -3397,7 +3402,7 @@ function handleExamOutcome(q, result, gained) {
   // mantığının AYNISI).
   const examCorrectSnapshot = examSystem.examCorrect + (result.correct ? 1 : 0);
 
-  const outcome = examSystem.recordAnswer(result.correct, q.difficulty);
+  const outcome = examSystem.recordAnswer(result.correct, q.difficulty, wasSkipped);
   // G307 — `pauseRound()`'un checkpoint'i (arka plana alınma/Durdur/sheet
   // açılışı) yeterince SIK olmayabilir (ör. telafiye YENİ ulaşılıp HİÇ
   // duraklatılmadan uygulama anında sonlanırsa) — HER sınav/telafi-ilgili
@@ -4325,7 +4330,11 @@ function renderGameHeader() {
     for (let i = 0; i < total; i++) {
       const dot = document.createElement("div");
       const answered = i < results.length;
-      dot.className = `game-exam-dot${answered ? (results[i] ? " on" : " wrong") : ""}`;
+      // G324 — results[i] ARTIK üç değerden biri: true/false/"skip".
+      // "skip" atlamanın ne doğru ne yanlış sayıldığını (nötr, BEYAZ)
+      // gösterir — done/correct sayaçları DEĞİŞMEDİ, SADECE bu görsel.
+      const state = answered ? (results[i] === "skip" ? "skip" : (results[i] ? "on" : "wrong")) : "";
+      dot.className = `game-exam-dot${state ? " " + state : ""}`;
       els.gameExamDots.appendChild(dot);
     }
     els.gameExamProgress.textContent = `${isRemedial ? "TELAFİ" : "SINAV"} ${Math.min(current + 1, total)}/${total}`;
@@ -4411,7 +4420,10 @@ function renderGameHeader() {
     for (let i = 0; i < challenge.total; i++) {
       const dot = document.createElement("div");
       const answered = i < challenge.results.length;
-      dot.className = `game-chapter-dot${answered ? (challenge.results[i] ? " on" : " wrong") : ""}`;
+      // G324 — challenge.results[i] ARTIK üç değerden biri: true/false/
+      // "skip" — bkz. #gameExamDots'un AYNI G324 notu.
+      const state = answered ? (challenge.results[i] === "skip" ? "skip" : (challenge.results[i] ? "on" : "wrong")) : "";
+      dot.className = `game-chapter-dot${state ? " " + state : ""}`;
       els.gameChapterDots.appendChild(dot);
     }
     els.gameChapterLabel.textContent = `BÖLÜM ${Math.min(challenge.done + 1, challenge.total)}/${challenge.total}`;
@@ -6645,7 +6657,13 @@ function finishChallenge() {
   // olmadığı için serbest modda bu ekran hiç çıkmaz.
   showSessionEnd("normal");
 }
-function challengeTick(wasCorrect, gainedXp) {
+// G324 — `wasSkipped` (varsayılan false, TEK çağıran goToNextRound()'un
+// Atla dalı `true` geçiyor) SADECE `results[]`'a hangi işaretin (true/
+// false/"skip") yazılacağını seçer — `done`/`correct`/`xp` sayaçları
+// (XP, istatistik, "10 Soruluk Bölüm" bitirme eşiği) BİLEREK DOKUNULMADI,
+// atlama HÂLÂ done++'a girer ama correct++'a GİRMEZ (yanlış cevapla
+// AYNI muamele, kullanıcı kararı: "sadece görsel").
+function challengeTick(wasCorrect, gainedXp, wasSkipped) {
   if (!challenge.active) return;
   challenge.done++;
   if (wasCorrect) challenge.correct++;
@@ -6654,7 +6672,7 @@ function challengeTick(wasCorrect, gainedXp) {
   // done/correct'e PARALEL, SIRAYI koruyan dizi — renderGameHeader()'ın
   // BÖLÜM nokta çizimi ARTIK bunu okuyor (done/correct'in KENDİSİ TEK
   // SATIR değişmedi, başka hiçbir okuyucu etkilenmiyor).
-  challenge.results.push(!!wasCorrect);
+  challenge.results.push(wasSkipped ? "skip" : !!wasCorrect);
 }
 // #55 DÜZELTMESİ (ölçüldü — Ölçüm 1, madde 6) — examSystem.recordAnswer()'ın
 // KENDİ resetParkur() çağırdığı HER an (exam-failed/remedial-passed/
@@ -7400,8 +7418,8 @@ async function goToNextRound() {
   let examTookOver = false;
   if (roundActive && activeQuestion) {
     const q = activeQuestion;
-    challengeTick(false, 0);
-    if (examGateActive()) examTookOver = handleExamOutcome(q, { correct: false }, 0);
+    challengeTick(false, 0, true);
+    if (examGateActive()) examTookOver = handleExamOutcome(q, { correct: false }, 0, true);
   }
   autoStopped = false;
   roundFlow.clearAutoAdvance();

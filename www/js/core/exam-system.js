@@ -305,7 +305,13 @@ export function createExamSystem(config = EXAM_CONFIG) {
   //   "remedial-failed"    — telafi geçilemedi — parkur YİNE BAŞTAN (resetParkur
   //                          ZATEN çağrıldı; SONUÇ remedial-passed'la AYNI, SADECE
   //                          app.js'in göstereceği METİN farklı olsun diye ayrı olay)
-  function recordAnswer(correct, tier) {
+  // G324 — `skipped` (varsayılan false, app.js:handleExamOutcome'un Atla
+  // dalından geçirilir) SADECE examResults/remedialResults'a yazılan
+  // işareti değiştirir ("skip" YERİNE true/false) — examCorrect/examIndex/
+  // remedialCorrect/remedialIndex sayaçları, geçme eşiği FORMÜLÜ TEK SATIR
+  // değişmedi (atlama HÂLÂ `correct` parametresi false geçirilerek yanlış
+  // sayılıyor, sadece görsel işaret ayrılıyor).
+  function recordAnswer(correct, tier, skipped) {
     if (phase === "parkur") {
       position++;
       if (correct) { parkurCorrect++; comboInParkur++; } else { comboInParkur = 0; }
@@ -338,7 +344,7 @@ export function createExamSystem(config = EXAM_CONFIG) {
     if (phase === "exam") {
       examIndex++;
       if (correct) examCorrect++;
-      examResults.push(!!correct);
+      examResults.push(skipped ? "skip" : !!correct);
       if (examIndex >= config.EXAM_LENGTH) {
         const passed = examCorrect >= config.EXAM_PASS_COUNT;
         if (passed) {
@@ -355,7 +361,7 @@ export function createExamSystem(config = EXAM_CONFIG) {
     if (phase === "remedial") {
       remedialIndex++;
       if (correct) remedialCorrect++;
-      remedialResults.push(!!correct);
+      remedialResults.push(skipped ? "skip" : !!correct);
       if (remedialIndex >= config.REMEDIAL_LENGTH) {
         const passed = remedialCorrect >= config.REMEDIAL_PASS_COUNT;
         resetParkur(); // İKİ durumda da (geçti/geçemedi) SONUÇ aynı: taze bir parkur

@@ -241,7 +241,10 @@ test("G310 REGRESYON KORUMASI — GERÇEK 'Atla' hâlâ yanlış cevap sayıyor 
 
   const after = await chapterState(page);
   assert.equal(after.label, "BÖLÜM 2/10", "gerçek Atla HÂLÂ ilerleme sayacını artırmalı (G214 davranışı korunmalı)");
-  assert.equal(after.dots[0], "wrong", "gerçek Atla HÂLÂ yanlış cevap olarak işaretlenmeli (G214 davranışı korunmalı)");
+  // G324 — Atla ARTIK "wrong" (kırmızı) DEĞİL, "skip" (beyaz) gösteriliyor —
+  // bu SADECE görsel, G214'ün "Atla=doğru SAYILMAZ" MEKANİĞİ (yukarıdaki
+  // BÖLÜM 2/10 ilerlemesi) DEĞİŞMEDİ.
+  assert.equal(after.dots[0], "skip", "gerçek Atla ARTIK 'skip' (beyaz, nötr) olarak işaretlenmeli (G324)");
 
   await page.close();
 });

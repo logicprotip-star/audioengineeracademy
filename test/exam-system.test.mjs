@@ -438,6 +438,60 @@ describe("createExamSystem() — G304: examResults/remedialResults SIRAYI koruyo
   });
 });
 
+// G324 — "Atla" nötr (ne doğru ne yanlış) sayılsın diye recordAnswer() YENİ,
+// isteğe bağlı üçüncü bir `skipped` parametresi aldı. KABUL KRİTERİ: SADECE
+// examResults/remedialResults'a "skip" işareti yazılır — examCorrect/
+// examIndex/remedialCorrect/remedialIndex sayaçları VE geçme eşiği FORMÜLÜ
+// (`correct` HÂLÂ false geçiriliyor) TEK SATIR değişmedi (DOKUNULMAYACAK:
+// "atlamanın yanlış cevap sayılması XP/sınav/istatistik açısından
+// DEĞİŞMEYECEK — sadece görsel").
+describe("createExamSystem() — G324: recordAnswer(correct, tier, skipped) 'skip' işareti (SADECE görsel)", () => {
+  it("skipped=true examResults'a 'skip' yazar, true/false YAZMAZ", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    playCorrect(es, 6);
+    es.acceptEarlyExam();
+    es.recordAnswer(false, "hard", true);
+    assert.deepEqual(es.examResults, ["skip"]);
+  });
+
+  it("skipped=true remedialResults'a 'skip' yazar", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    es.startRemedial("medium");
+    es.recordAnswer(true, "medium");
+    es.recordAnswer(false, "medium", true);
+    assert.deepEqual(es.remedialResults, [true, "skip"]);
+  });
+
+  it("skipped=true examCorrect/examIndex'i YANLIŞ cevapla AYNI şekilde ilerletir (sayaçlar DEĞİŞMEDİ)", () => {
+    const withSkip = createExamSystem();
+    withSkip.setMode("kompresor");
+    playCorrect(withSkip, 6);
+    withSkip.acceptEarlyExam();
+    withSkip.recordAnswer(false, "hard", true);
+
+    const withWrong = createExamSystem();
+    withWrong.setMode("kompresor");
+    playCorrect(withWrong, 6);
+    withWrong.acceptEarlyExam();
+    withWrong.recordAnswer(false, "hard");
+
+    assert.equal(withSkip.examIndex, withWrong.examIndex);
+    assert.equal(withSkip.examCorrect, withWrong.examCorrect);
+  });
+
+  it("skipped parametresi VERİLMEZSE (mevcut TÜM çağıranlar) davranış AYNEN eskisi gibi — true/false yazılır", () => {
+    const es = createExamSystem();
+    es.setMode("kompresor");
+    playCorrect(es, 6);
+    es.acceptEarlyExam();
+    es.recordAnswer(true, "hard");
+    es.recordAnswer(false, "hard");
+    assert.deepEqual(es.examResults, [true, false]);
+  });
+});
+
 // G307 (OLCUM-KESINTI-18-08 B1-B4 + OLCUM-SINAV-MIMARI-18-08) — examSystem
 // artık mod-başına AYRI durum tutuyor (perModeState, İÇ bir Map) — DIŞ API
 // (yukarıdaki 36 test) TEK SATIR değişmedi, bu describe SADECE YENİ
