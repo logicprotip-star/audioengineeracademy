@@ -177,7 +177,16 @@ test("G315 REGRESYON KORUMASI — rozet/ilerleme bildirimleri (toast, core/fx.js
   );
 });
 
-test("G315 REGRESYON KORUMASI — Frekans Çakışması aşama 3'te cevap sonrası ses DEVAM ediyor (önce/sonra karşılaştırması BOZULMADI)", async () => {
+// G320 (Logic'in kararı, OLCUM-KULAK-OGRETIM-19-08'in ardından) — bu test
+// ESKİDEN "REGRESYON KORUMASI" olarak stage-3'ün ses-devam istisnasının
+// BOZULMADIĞINI doğruluyordu. Logic'in kararıyla o istisna KALDIRILDI
+// (G315'in "ekran açılınca ses kapansın" kuralına dahil edildi — geri
+// bildirim paneli de "açılan bir şey") — bu YÜZDEN test artık TERS bir
+// KABUL KRİTERİ'ne dönüştü: stopAudio() ARTIK çağrılMALI. Kulak
+// butonlarının/#cakismaBefore-After'ın bu değişiklikten SONRA da GERÇEKTEN
+// ses ürettiğinin (sessizce no-op olmadığının) doğrulaması AYRI bir
+// dosyada: e2e/cakisma-stage3-stops-audio.spec.mjs.
+test("G320 KABUL KRİTERİ — Frekans Çakışması aşama 3'te cevap sonrası ses ARTIK duruyor (G315'in kuralına dahil edildi)", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await enterModeAndStart(page, "frekans-cakismasi", { dev: { simulatePro: true } });
 
@@ -200,10 +209,9 @@ test("G315 REGRESYON KORUMASI — Frekans Çakışması aşama 3'te cevap sonras
   const cakismaCompareVisible = await page.locator("#cakismaCompare").isVisible().catch(() => false);
 
   // AŞAMA 3'e GERÇEKTEN ulaşıldıysa (cakismaCompare göründüyse) cevap SONRASI
-  // stopAudio() ÇAĞRILMAMALI (G306'nın kendi KİLİT'li kararı) — çağrılırsa
-  // "önce/sonra" karşılaştırması sessiz kalırdı.
+  // stopAudio() ARTIK ÇAĞRILMALI (G320 — istisna kaldırıldı).
   if (cakismaCompareVisible) {
-    assert.equal(afterAnswer, beforeAnswer, "Aşama 3'te cevap sonrası stopAudio() ÇAĞRILMAMALI — 'önce/sonra' karşılaştırması BOZULMAMALI");
+    assert.ok(afterAnswer > beforeAnswer, `Aşama 3'te cevap sonrası stopAudio() ARTIK ÇAĞRILMALI (önce=${beforeAnswer}, sonra=${afterAnswer}) — G320: "önce/sonra" istisnası kaldırıldı`);
   }
 
   await page.close();

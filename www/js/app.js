@@ -5470,21 +5470,22 @@ function submitCakismaGuess(answer) {
 
   if (q.stage === 1) storage.saveZoneStats(zoneStats);
 
-  // AŞAMA 3 (Çöz) — task'ın "Sonuç dinlenir (öncesi/sonrası)" isteği: ses
-  // DURDURULMAZ (audioEngine.stopAudio() diğer sekiz modun aksine burada
-  // BİLEREK çağrılmıyor), İKİ kaynak çalmaya DEVAM eder — kullanıcı "Önce"/
-  // "Sonra" ile DOĞRU çözümü (kullanıcının kendi cevabı YANLIŞ olsa bile)
-  // dinleyebilsin diye butonlar HER ZAMAN gösterilir. "Sonra"nın varsayılan
-  // AÇIK başlaması (bkz. index.html #cakismaAfter'ın "on" class'ı) maskenin
-  // GERÇEKTEN açıldığını hemen duyurur.
+  // AŞAMA 3 (Çöz) — G320 (Logic'in kararı, OLCUM turu ölçtü): "cevap
+  // sonrası ses DEVAM etsin" istisnası KALDIRILDI — G315'in "ekran
+  // açılınca ses kapansın" kuralına dahil edildi (geri bildirim paneli
+  // de "açılan bir şey"). ÖNCEDEN BURADA `audioEngine.stopAudio()`
+  // BİLEREK ATLANIYORDU (G51'den beri, G306/G315'te AYRICA doğrulanmıştı)
+  // — artık diğer sekiz modla/aşama 1-2 ile AYNI, KOŞULSUZ çağrılıyor.
+  // Karşılaştırma ARTIK OTOMATİK değil — kulak butonları (#fbEarLeft/
+  // #fbEarRight) VE #cakismaBefore/#cakismaAfter'ın İKİSİ DE artık
+  // CANLI zincir varsaymıyor, tıklanınca zinciri YENİDEN KURUYOR (bkz. o
+  // çağrı yerlerinin G320 notu) — "kullanıcı istediğinde dinler" deseni.
   if (q.stage === 3) {
     if (els.cakismaCompare) els.cakismaCompare.classList.remove("hidden");
     if (els.cakismaBefore) els.cakismaBefore.classList.remove("on");
     if (els.cakismaAfter) els.cakismaAfter.classList.add("on");
-    audioEngine.setDualCut(q.correctSource, -Math.abs(q.correctCutDb));
-  } else {
-    audioEngine.stopAudio();
   }
+  audioEngine.stopAudio();
 
   recordAnswerHistoryEntry("frekans-cakismasi", q, answer, result);
   pushHistory(result.correct);
@@ -7222,17 +7223,25 @@ if (els.cakismaPairSelect) els.cakismaPairSelect.addEventListener("change", () =
   recordSourceSelection(CAKISMA_PAIR_STORAGE_KEY, els.cakismaPairSelect.value);
 });
 
-// AŞAMA 3 (Çöz) sonrası öncesi/sonrası — audio-engine.js:setDualCut'ı SADECE
-// doğru kaynağın filtresine (question.correctSource) uygular, grafiği YENİDEN
-// KURMADAN (bkz. submitCakismaGuess notu).
-if (els.cakismaBefore) els.cakismaBefore.addEventListener("click", () => {
+// AŞAMA 3 (Çöz) sonrası öncesi/sonrası — G320 ÖNCESİ audio-engine.js:
+// setDualCut'ı SADECE doğru kaynağın filtresine (question.correctSource)
+// uygulayıp grafiği YENİDEN KURMUYORDU (submitCakismaGuess'in "ses canlı
+// devam eder" istisnasına dayanıyordu). O istisna kaldırıldığı için
+// (bkz. submitCakismaGuess'in G320 notu) zincir bu noktada HER ZAMAN
+// SÖNMÜŞ — kulak butonlarının stage-3 dalıyla AYNI desen: ÖNCE YENİDEN
+// KUR, SONRA setDualCut.
+if (els.cakismaBefore) els.cakismaBefore.addEventListener("click", async () => {
   if (!activeQuestion || activeQuestion.mode !== "cakisma") return;
+  await audioEngine.initAudio();
+  await audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing);
   audioEngine.setDualCut(activeQuestion.correctSource, 0);
   els.cakismaBefore.classList.add("on");
   if (els.cakismaAfter) els.cakismaAfter.classList.remove("on");
 });
-if (els.cakismaAfter) els.cakismaAfter.addEventListener("click", () => {
+if (els.cakismaAfter) els.cakismaAfter.addEventListener("click", async () => {
   if (!activeQuestion || activeQuestion.mode !== "cakisma") return;
+  await audioEngine.initAudio();
+  await audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing);
   audioEngine.setDualCut(activeQuestion.correctSource, -Math.abs(activeQuestion.correctCutDb));
   els.cakismaAfter.classList.add("on");
   if (els.cakismaBefore) els.cakismaBefore.classList.remove("on");
@@ -7545,10 +7554,12 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
   // sekiz modun TEK-kaynak buildQuestionChain'i buna UYGUN değil.
   if (isCakismaEar) {
     if (activeQuestion.stage === 3) {
-      // AŞAMA 3'te ses ZATEN CANLI çalıyor (submitCakismaGuess bilerek
-      // stopAudio() ÇAĞIRMIYOR, bkz. o fonksiyonun "AŞAMA 3" notu) — YENİDEN
-      // KURMAYA gerek yok, aynı zincirin filtresini setDualCut ile hedef
-      // dB'ye çekmek yeterli (cakismaBefore/After'ın KENDİ deseni).
+      // G320 — submitCakismaGuess ARTIK stopAudio() çağırıyor (Aşama 3'ün
+      // "ses canlı devam eder" istisnası kaldırıldı), zincir bu noktada
+      // HER ZAMAN SÖNMÜŞ durumda — Aşama 1 dalıyla AYNI şekilde YENİDEN
+      // kurulup SONRA setDualCut ile hedef dB'ye çekiliyor (setDualCut'ın
+      // KENDİSİ DEĞİŞMEDİ, sadece artık TAZE filtreler üzerinde çalışıyor).
+      await audioEngine.buildDualSourceChain(activeQuestion, cakismaSourcesSpec(activeQuestion.pair), mode.applyProcessing);
       const targetDb = preview === "mine" ? Number(btn.dataset.guessCut) : -Math.abs(activeQuestion.correctCutDb);
       audioEngine.setDualCut(activeQuestion.correctSource, targetDb);
     } else {
@@ -12804,6 +12815,14 @@ if (DEV_MODE) {
   // offset SESSİZCE 0'a düşer — hiçbir konsol hatası/çökme OLMADAN). SADECE
   // OKUR, hiçbir durumu DEĞİŞTİRMEZ.
   window.__aeaActiveQuestionPairForTest = () => (activeQuestion && activeQuestion.pair) || null;
+
+  // G320 — test kancası: Frekans Çakışması'nın aktif sorusunun `stage`'ini
+  // (1/2/3) dışa verir. SADECE OKUR. cakisma-stage3-stops-audio.spec.mjs'in
+  // sabit "N round atla" varsayımının GÜVENİLMEZ çıktığı (nextBtn'in ara
+  // sıra "outside viewport" ölçülmesiyle) ölçüldü — bu kanca, hedef
+  // aşamaya GERÇEKTEN ulaşılıp ulaşılmadığını POLLING ile doğrulamayı
+  // sabit round sayımından DAHA GÜVENİLİR kılıyor.
+  window.__aeaActiveQuestionStageForTest = () => (activeQuestion && activeQuestion.mode === "cakisma" ? activeQuestion.stage : null);
 
   // G295 — test kancası: audioEngine.dualGainValues'ı (SADECE OKUR) dışa
   // verir — gainA/gainB dB düzeltmesinin buildDualSourceChain'de GERÇEKTEN

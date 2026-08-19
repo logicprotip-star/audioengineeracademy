@@ -1,20 +1,27 @@
-// G306 (OLCUM-SES-BIRIKME-18-08 + OLCUM-GENIS-18-08 madde A4) — Logic'in
-// kararı: "önce/sonra" karşılaştırması (Frekans Çakışması aşama 3) cevap
-// SONRASI ses DEVAM etsin diye KORUNUYOR (submitCakismaGuess()'in stage-3
-// stopAudio() skip'i DEĞİŞMEDİ) — ama bir SONRAKİ soru GERÇEKTEN
-// başladığında (startRound(), tüm erken-dönüş kapıları geçildikten SONRA,
-// yeni round KESİN başlarken) artık KOŞULSUZ audioEngine.stopAudio()
-// çağrılıyor. Ayrıca playQuestion()'ın cakisma dalı artık
-// buildDualSourceChain()'i AWAIT EDİYOR (G51'den beri "BİLEREK await
-// edilmiyordu") — playQuestion()'ın DÖNÜŞÜ artık zincirin GERÇEKTEN
-// kurulduğu ANI yansıtıyor, hızlı ardışık çağrılarla YARIŞ penceresi
-// daraltıldı.
+// G306 (OLCUM-SES-BIRIKME-18-08 + OLCUM-GENIS-18-08 madde A4) — bir
+// SONRAKİ soru GERÇEKTEN başladığında (startRound(), tüm erken-dönüş
+// kapıları geçildikten SONRA, yeni round KESİN başlarken) KOŞULSUZ
+// audioEngine.stopAudio() çağrılıyor. Ayrıca playQuestion()'ın cakisma
+// dalı artık buildDualSourceChain()'i AWAIT EDİYOR (G51'den beri
+// "BİLEREK await edilmiyordu") — playQuestion()'ın DÖNÜŞÜ artık zincirin
+// GERÇEKTEN kurulduğu ANI yansıtıyor, hızlı ardışık çağrılarla YARIŞ
+// penceresi daraltıldı.
 //
-// KABUL KRİTERİ: (1) stage-3 cevap SONRASI, "Sonraki"ye basılmadan ÖNCE
-// ses DEVAM ediyor (önce/sonra BOZULMADI), (2) "Sonraki"ye basılıp YENİ
-// soru başladığında stopAudioCallCount ARTIYOR (koşulsuz temizlik
-// GERÇEKTEN tetikleniyor), (3) 12 modun TAMAMINDA (temsilen tek-kaynaklı +
-// three-way + cakisma) round geçişi konsol hatasız çalışıyor.
+// G320 GÜNCELLEMESİ (Logic'in kararı, OLCUM-KULAK-OGRETIM-19-08'in
+// ardından) — "stage-3 cevabı SONRASI ses DEVAM eder" istisnası
+// KALDIRILDI (G315'in "ekran açılınca ses kapansın" kuralına dahil
+// edildi, bkz. e2e/cakisma-stage3-stops-audio.spec.mjs). KABUL KRİTERİ 1
+// bu YÜZDEN TERSİNE çevrildi — ESKİDEN "stopAudio() ÇAĞIRMAMALI" derdi,
+// ARTIK "ÇAĞIRMALI" diyor (G306/G315 dönemindeki DAVRANIŞ, o turlarda
+// KASITLI korunmuştu — bu turda Logic'in AÇIK kararıyla değişti).
+//
+// KABUL KRİTERİ: (1) stage-3 cevap SONRASI stopAudio() ARTIK çağrılıyor
+// (G320), (2) "Sonraki"ye basılıp YENİ soru başladığında
+// stopAudioCallCount YİNE artıyor (koşulsuz temizlik GERÇEKTEN
+// tetikleniyor — G320 SONRASI stage-3 cevabı KENDİSİ de +1 sayıyor, bu
+// yüzden delta artık farklı bir SAYIYA denk geliyor, aşağı bkz.), (3) 12
+// modun TAMAMINDA (temsilen tek-kaynaklı + three-way + cakisma) round
+// geçişi konsol hatasız çalışıyor.
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -42,7 +49,7 @@ async function dismissHeadphoneSheetIfShown(page) {
   }
 }
 
-test("G306 KABUL KRİTERİ — Frekans Çakışması aşama 3: cevap sonrası ses DEVAM ediyor, 'Sonraki' ile YENİ soru başlayınca stopAudio() KESİN çağrılıyor", async () => {
+test("G306/G320 KABUL KRİTERİ — Frekans Çakışması aşama 3: cevap sonrası stopAudio() ARTIK çağrılıyor, 'Sonraki' ile YENİ soru başlayınca YİNE çağrılıyor", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   page.on("pageerror", (e) => assert.fail(`konsol hatası: ${e.message}`));
   await page.goto(serverHandle.baseUrl);
@@ -69,7 +76,10 @@ test("G306 KABUL KRİTERİ — Frekans Çakışması aşama 3: cevap sonrası se
   await page.evaluate(() => window.__aeaSubmitAnswerForTest && window.__aeaSubmitAnswerForTest());
   await page.waitForTimeout(400);
   const countAfterAnswer = await page.evaluate(() => window.__aeaStopAudioCallCount());
-  assert.equal(countAfterAnswer, countBeforeAnswer, "KABUL KRİTERİ 1 — stage-3 cevabı stopAudio() ÇAĞIRMAMALI (önce/sonra korunmalı, DEĞİŞMEDİ)");
+  // G320 — DÜZELTME ÖNCESİ burası `assert.equal(countAfterAnswer, countBeforeAnswer, ...)`
+  // idi ("stage-3 cevabı stopAudio() ÇAĞIRMAMALI"). Logic'in kararıyla istisna
+  // kaldırıldı — artık TERSİ doğru.
+  assert.ok(countAfterAnswer > countBeforeAnswer, `KABUL KRİTERİ 1 — stage-3 cevabı ARTIK stopAudio() ÇAĞIRMALI (önce=${countBeforeAnswer}, sonra=${countAfterAnswer}) — G320: "önce/sonra" istisnası kaldırıldı`);
 
   const nextBtn = page.locator("#nextBtn");
   const nextVisible = await nextBtn.isVisible().catch(() => false);
