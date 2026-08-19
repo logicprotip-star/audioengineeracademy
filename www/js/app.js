@@ -2874,6 +2874,7 @@ function enterMode(entry, realMode) {
     applyAnswerFormatForMode(); // G144 — bu MODUN kendi kalıcı Cevap Biçimi seçimini yükle
     restoreCakismaPairSelection(); // G303 — bu MODUN kendi kalıcı kaynak-çifti seçimini yükle
     syncCakismaVisibility();
+    syncProPlusVisibility(); // G327 — Pro Plus SADECE Frekans Bulma'da görünür
     // G46: Tonal Denge'nin altı kaydırıcıya kadar çıkabilen kart listesi spektrumun
     // altında yer sıkışıklığına yol açıyordu — mode.COMPACT_ANALYZER (SHOW_SPECTRUM'un
     // AYNI mode-agnostik bayrak deseni, bkz. db-seviyesi.js) true dönen bir mod için
@@ -9161,6 +9162,36 @@ function syncDifficultyRowLabel() {
   if (els.diffHintV2) els.diffHintV2.textContent = label;
 }
 
+// G327 (OLCUM-PROPLUS-19-08) — Pro Plus SADECE Frekans Bulma'da GERÇEK bir
+// fark yaratıyor (4 bantlı soru mekaniği, bkz. frekans-bulma.js:354) — diğer
+// 11 modda DIFFICULTY.proplus, DIFFICULTY.pro'nun BİREBİR KOPYASI (ölçüldü,
+// OLCUM-PROPLUS-19-08.md: xp/options/time/lives/TÜM mod parametreleri aynı)
+// — kullanıcı o modlarda Pro'dan FARKSIZ bir soru alıyor ama yanıltıcı
+// "(Çok Bantlı)" etiketi görüyor. VERİ SİLİNMEDİ (DIFFICULTY tabloları
+// DOKUNULMAYACAK, task'ın kendi kısıtı) — SADECE seçim SEÇENEĞİ Frekans
+// Bulma DIŞINDA gizleniyor. İKİ UI yüzeyi (in-game Oyun Ayarları'ndaki
+// #difficultySelect + Genel Ayarlar'daki #diffSublist .chip-v2) AYNI
+// kontrolle senkronlanıyor.
+function syncProPlusVisibility() {
+  const showProPlus = mode.MODE_ID === "frekans-bulma";
+  const opt = els.difficultySelect ? els.difficultySelect.querySelector('option[value="proplus"]') : null;
+  if (opt) opt.hidden = !showProPlus;
+  const chip = els.diffSublist ? els.diffSublist.querySelector('.chip-v2[data-diff="proplus"]') : null;
+  if (chip) chip.classList.toggle("hidden", !showProPlus);
+  // Gizlenirken HÂLÂ seçiliyse (proplus seçiliyken başka moda geçildi) —
+  // applyAutoDifficulty()'nin AYNI deseni: "change" BİLEREK dispatch
+  // edilmiyor (2205 civarındaki listener "Zorluk değişti" toast'ı
+  // gösterirdi, sessiz bir düzeltmede istenmiyor), ilgili yüzeyler elle
+  // senkronlanıyor.
+  if (!showProPlus && els.difficultySelect && els.difficultySelect.value === "proplus") {
+    els.difficultySelect.value = "pro";
+    renderHearts();
+    updateUI();
+    syncDiffSheetUI();
+    syncDifficultyRowLabel();
+  }
+}
+
 function applyAutoDifficulty() {
   if (!diffModeAuto || !els.difficultySelect) return;
   const level = progress.modeLevel(stats, mode.getMeta().id);
@@ -9208,6 +9239,7 @@ function syncDiffSheetUI() {
 // tek çağrı bunu KAPATIYOR (applyAutoDifficulty();'nin AYNI "açılışta uygula"
 // deseni, bir satır üstte).
 syncDiffSheetUI();
+syncProPlusVisibility(); // G327 — açılışta da uygula (enterMode() henüz çağrılmadı)
 if (els.diffAutoBtn) els.diffAutoBtn.addEventListener("click", () => {
   diffModeAuto = true;
   diffSublistOpen = false;
