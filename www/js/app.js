@@ -7454,6 +7454,22 @@ async function goToNextRoundInner() {
   }
   autoStopped = false;
   roundFlow.clearAutoAdvance();
+  // G328 (OLCUM-ATLA-SES-3-19-08 — kanıtlandı: bu satır EKSİKTİ) — atlanan
+  // sorunun KENDİ süre sayacı (roundFlow.startTimer()'ın kurduğu 100ms'lik
+  // setInterval) BURADA TEMİZLENMİYORDU. `examTookOver=true` olduğunda
+  // (parkur telafi/sınav anonsuna GEÇTİĞİNDE) `startRound()` HİÇ
+  // ÇAĞRILMIYOR — normalde O çağrının İÇİNDEKİ `armTimerInterval()`
+  // ESKİ sayacı temizlerdi (KENDİ İÇİNDE ÖNCE `clearTimer()` çağırıyor),
+  // ama bu yol o çağrıyı ATLADIĞI için ESKİ sayaç anons ekranı AÇIKKEN de
+  // arka planda ÇALIŞMAYA DEVAM EDİYORDU — süresi dolunca `onTimeUp()` →
+  // `scheduleNext()` → `onAdvance()` → `startRound()` zincirini G325'in
+  // `goToNextRound()` kilidinin TAMAMEN DIŞINDAN (`onAdvance` `goToNextRound()`'u
+  // hiç ÇAĞIRMIYOR) tetikleyip YENİ bir ses zinciri kuruyordu. Çözüm:
+  // `clearAutoAdvance()`'İN YANINA, KOŞULSUZ (examTookOver olsun olmasın)
+  // `clearTimer()` — `startRound()` çağrılacaksa `armTimerInterval()`'in
+  // KENDİ temizliğiyle ÇAKIŞMIYOR (idempotent, iki kez `clearTimer()`
+  // çağırmak zararsız), ÇAĞRILMAYACAKSA (examTookOver) BURASI TEK fırsat.
+  roundFlow.clearTimer();
   pausedAutoAdvanceRemainingMs = null;
   // handleExamOutcome true dönerse (exam-offer/exam-start/remedial-start/
   // exam-passed/exam-failed) KENDİ ekranını (showExamScreen/goScreen("exam"))
