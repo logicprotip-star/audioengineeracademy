@@ -2240,11 +2240,28 @@ function showQWidthEars(guessLabelId) {
   els.fbEarRight.dataset.preview = "correct";
 }
 
+// G322 (Logic'in kararı, OLCUM-KULAK-OGRETIM-19-08'in ardından) —
+// Frekans Çakışması'nda kulak butonları GİZLENDİ: "doğru cevap/senin
+// seçtiğin" ikisi de TAM MİKSİ çalıyor, kullanıcı farkı ayırt edemiyor
+// (ölçüldü) — İZOLASYON olmadan öğretim değeri düşük. Diğer 7 modda
+// (Frekans Bulma/Kesim Noktası/dB Seviyesi/Q Genişliği/Pan Konumu/
+// Stereo Genişlik/Boost-Cut) DOKUNULMADI, SADECE bu iki fonksiyon
+// (showCakismaStage1Ears/showCakismaStage3Ears — Aşama 2'nin ZATEN
+// kulak butonu YOK, `isCakismaEar` sadece stage 1/3'ü kapsıyor) artık
+// ERKEN DÖNÜYOR — mekanizmanın KENDİSİ (dataset alanları, click-
+// handler'ın "cakisma" dalı, buildDualSourceChain/setDualCut) TEK
+// SATIR SİLİNMEDİ, 1.1'de izolasyonla birlikte
+// `CAKISMA_EAR_BUTTONS_ENABLED` true'ya çekilip GERİ AÇILABİLİR.
+// Kapatınca butonlar `hidden` sınıfında KALIR (hiçbir çağıran onu
+// kaldırmaz), tıklanamaz hâle gelirler — DOM'dan SİLİNMEZLER.
+const CAKISMA_EAR_BUTTONS_ENABLED = false;
+
 // Frekans Çakışması Aşama 1'in kulak butonları — REFERANS: showFrequencyEars,
 // ama ses üretim yolu TAMAMEN FARKLI (tek-kaynak buildQuestionChain değil,
 // çift-kaynak buildDualSourceChain — bkz. click-handler'ın "cakisma" dalı).
 // Gizli değer q.trueCenter (merkez frekans).
 function showCakismaStage1Ears(guessCenter) {
+  if (!CAKISMA_EAR_BUTTONS_ENABLED) return; // G322 — bkz. yukarıdaki bayrak notu
   if (!els.fbEarLeft || !els.fbEarRight) return;
   els.fbEarLeft.classList.remove("hidden");
   els.fbEarRight.classList.remove("hidden");
@@ -2262,6 +2279,7 @@ function showCakismaStage1Ears(guessCenter) {
 // DURDURULMAZ" notu, audioEngine.setDualCut() doğrudan çağrılıyor). Gizli
 // değer q.correctCutDb (kaç dB kesildiği, KAYNAK zaten Aşama 2'den belli).
 function showCakismaStage3Ears(guessCutDb) {
+  if (!CAKISMA_EAR_BUTTONS_ENABLED) return; // G322 — bkz. showCakismaStage1Ears'in bayrak notu
   if (!els.fbEarLeft || !els.fbEarRight) return;
   els.fbEarLeft.classList.remove("hidden");
   els.fbEarRight.classList.remove("hidden");

@@ -18,10 +18,14 @@
 // OLCUM-ONCE-SONRA-19-08.)
 //
 // Bu dosya ÜÇ KABUL KRİTERİNİ doğruluyor: (1) stage-3 cevap sonrası
-// stopAudio() ARTIK çağrılıyor, (2) kulak butonları GERÇEKTEN ses
-// üretmeye devam ediyor (canlı AnalyserNode RMS ölçümüyle — sadece
-// dataset/`.on` class kontrolü SESSİZ no-op'u YAKALAMAZDI), (3) Aşama 1/2
-// ETKİLENMEDİ (stopAudio() hâlâ hemen çağrılıyor, DEĞİŞMEDİ).
+// stopAudio() ARTIK çağrılıyor, (2) #cakismaCompare/#cakismaBefore/
+// #cakismaAfter DOM'dan tamamen kaldırıldı (G321), (3) Aşama 1/2
+// ETKİLENMEDİ (stopAudio() hâlâ hemen çağrılıyor, DEĞİŞMEDİ). G322
+// (Logic'in kararı, OLCUM-KULAK-OGRETIM-19-08'in ardından) — kulak
+// butonları da Frekans Çakışması'nda ARTIK GİZLİ (izolasyon olmadan
+// öğretim değeri düşük, 1.1'de geri açılacak) — bu dosyanın "kulak
+// butonu GERÇEKTEN ses üretiyor" testi bu YÜZDEN "GİZLİ" doğrulamasına
+// çevrildi (ayrıntı: aşağıdaki testin kendi G322 notu).
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
@@ -29,30 +33,6 @@ import { startStaticServer } from "./helpers/static-server.mjs";
 import { seedLocalStorage, enterMode, dismissSpotlightIfShown } from "./helpers/app-fixtures.mjs";
 
 let serverHandle, browser;
-
-function installAnalyserProbe() {
-  window.__probe = { analysers: [] };
-  const AC = window.AudioContext || window.webkitAudioContext;
-  const orig = AC.prototype.createAnalyser;
-  AC.prototype.createAnalyser = function (...args) {
-    const node = orig.apply(this, args);
-    window.__probe.analysers.push(node);
-    return node;
-  };
-}
-
-async function rms(page) {
-  return page.evaluate(() => {
-    const arr = window.__probe.analysers;
-    const analyser = arr[arr.length - 1];
-    if (!analyser) return null;
-    const data = new Uint8Array(analyser.fftSize);
-    analyser.getByteTimeDomainData(data);
-    let sum = 0;
-    for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
-    return Math.sqrt(sum / data.length);
-  });
-}
 
 before(async () => {
   serverHandle = await startStaticServer();
@@ -77,7 +57,6 @@ async function stopAudioCallCount(page) {
 }
 
 async function enterCakismaAtStage(page, stage) {
-  await page.addInitScript(installAnalyserProbe);
   await page.goto(serverHandle.baseUrl);
   await seedLocalStorage(page, { dev: { simulatePro: true }, playMode: "challenge" });
   await page.reload();
@@ -133,19 +112,28 @@ test("G320 KABUL KRİTERİ — Aşama 3'te cevap verilince stopAudio() ARTIK ça
   await page.close();
 });
 
-test("G320 KABUL KRİTERİ — kulak butonları Aşama 3'te GERÇEKTEN ses üretmeye devam ediyor (canlı RMS ölçümü)", async () => {
+// G322 (Logic'in kararı, OLCUM-KULAK-OGRETIM-19-08'in ardından) — kulak
+// butonları Frekans Çakışması'nda artık GİZLİ (`CAKISMA_EAR_BUTTONS_
+// ENABLED=false`, app.js) — bu test ESKİDEN #fbEarRight'a GERÇEK bir
+// TIKLAMA ile ses ürettiğini doğruluyordu, artık buton GÖRÜNMEDİĞİ için
+// bir kullanıcı tıklaması İMKANSIZ. ÖLÇÜLDÜ: click-handler'ın KENDİ
+// `btn.classList.contains("hidden")` guard'ı (app.js, #feedbackBox
+// delegasyonu) `.evaluate(el=>el.click())` ile de ATLATILAMIYOR — "hidden"
+// iken mekanizma KASITLI olarak HİÇ tetiklenmiyor (RMS=0, hata YOK). Bu
+// YÜZDEN G320'nin altındaki buildDualSourceChain+setDualCut mekanizmasını
+// (1.1'de izolasyonla GERİ AÇILACAK) AYRICA canlı doğrulamak bu turda
+// MÜMKÜN değil — `CAKISMA_EAR_BUTTONS_ENABLED` true'ya çekildiğinde
+// e2e/ear-buttons.spec.mjs'in ESKİ "görünüyor/çalışıyor" testleri (bu
+// commit'te GİZLİ-doğrulayan hâline çevrildi) GERİ ÇEVRİLİP mekanizma o
+// zaman yeniden canlı doğrulanmalı.
+test("G322 KABUL KRİTERİ — kulak butonu Aşama 3'te GİZLİ (artık görünmüyor)", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await enterCakismaAtStage(page, 3);
   await page.evaluate(() => window.__aeaSubmitAnswerForTest && window.__aeaSubmitAnswerForTest());
   await page.waitForTimeout(400);
 
   const earVisible = await page.locator("#fbEarRight").isVisible().catch(() => false);
-  assert.ok(earVisible, "ön koşul: kulak butonu (#fbEarRight) görünür olmalıydı");
-
-  await page.locator("#fbEarRight").click({ timeout: 5000 });
-  await page.waitForTimeout(500);
-  const level = await rms(page);
-  assert.ok(level !== null && level > 0.005, `kulak butonuna basınca GERÇEKTEN ses ÜRETİLMELİ — ölçülen RMS=${level} (DÜZELTME ÖNCESİ: setDualCut null filtrede sessizce no-op olurdu, RMS≈0)`);
+  assert.equal(earVisible, false, "kulak butonu (#fbEarRight) GÖRÜNÜYOR — G322'nin gizleme bayrağı çalışmıyor olabilir");
 
   await page.close();
 });
