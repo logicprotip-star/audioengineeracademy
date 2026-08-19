@@ -245,6 +245,16 @@ export function findSource(id) {
 // göre YANLIŞ sonuç verdi — KULAK KARARI ESAS, ölçüm burada GEÇERSİZ
 // kılındı (rapor edilen bir olasılık, GERÇEKLEŞEN sonuç).
 //
+// G316 — snare-akustik ÇİFTİ KALDIRILDI (7 çift → 6 çift). Logic cihazda
+// dinledi: hizalama İKİ AYRI offsetA denemesinden (377ms — G288'in
+// ödünç sabiti; 0.425 — G302'nin ölçtüğü, G308'de kulak kararıyla geri
+// alınan değer) SONRA da tutmadı — "1.1'e bırakılıyor" kararı. snare-clean
+// (snare_late+clean_guitar) KALIYOR — snare_late KAYNAĞI bu yüzden
+// KATALOGDA KALDI (`SOURCES`'ta silinmedi). G302/G308'in yukarıdaki iki
+// yorum bloğu (snare-akustik'in offsetA tarihi) BİLEREK SİLİNMEDİ —
+// artık geçerli bir çifti tarif etmiyor ama G-notlarının "eski gerekçe
+// silinmez" kuralı gereği tarihsel kayıt olarak kalıyor.
+//
 // G295 — 2 YENİ çift: vokal2-clean (vocal_1+clean_guitar), vokal2-akustik
 // (vocal_1+acoustic_guitar). Logic KULAKLA test etti, bu iki gitarı seçti
 // ("ölçüm arpej önermişti, kulak farklı dedi — kulak esas"). Region AYNI
@@ -310,11 +320,6 @@ export const SOURCE_PAIRS = [
     id: "bas-clean", labelA: "Bas", labelB: "Clean Gitar", sourceA: "bass", sourceB: "clean_guitar",
     offsetA: 0, offsetB: 0.377, gainA: 0, gainB: 0,
     region: [190, 280], desc: "Bas ve clean gitar — alt-orta bölgede harmonik çakışma, gitar 377ms geç başlıyor"
-  },
-  {
-    id: "snare-akustik", labelA: "Snare", labelB: "Akustik Gitar", sourceA: "snare_late", sourceB: "guitar",
-    offsetA: 0.377, offsetB: 0, gainA: 0, gainB: 0,
-    region: [170, 400], desc: "Snare ve akustik gitar — atak bölgesinde zamansal çakışma, snare 377ms geç başlıyor"
   },
   {
     id: "snare-clean", labelA: "Snare", labelB: "Clean Gitar", sourceA: "snare_late", sourceB: "clean_guitar",

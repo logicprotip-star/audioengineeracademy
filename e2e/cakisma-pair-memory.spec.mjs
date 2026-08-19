@@ -78,15 +78,19 @@ test("G303 KABUL KRİTERİ — kaynak çifti seçimi SOĞUK BAŞLATMADA (sayfa y
 
   await page.locator('[data-sheet-select="cakismaPairSelect"]').click();
   await page.waitForTimeout(250);
-  await page.locator('.sheet-option:has-text("Snare + Akustik Gitar")').first().click();
+  // G316: "Snare + Akustik Gitar" SOURCE_PAIRS'ten kaldırıldı — bu test
+  // SADECE "varsayılan-olmayan bir seçim korunuyor mu"yu ölçtüğü için,
+  // KALAN altı çiftten YİNE varsayılan (akustik-clean, listenin İLKİ)
+  // OLMAYAN bir tanesi ("Snare + Clean Gitar") kullanılıyor.
+  await page.locator('.sheet-option:has-text("Snare + Clean Gitar")').first().click();
   await page.waitForTimeout(250);
-  assert.equal(await page.locator("#cakismaPairSelect").inputValue(), "snare-akustik", "ön koşul: seçim uygulanmalıydı");
+  assert.equal(await page.locator("#cakismaPairSelect").inputValue(), "snare-clean", "ön koşul: seçim uygulanmalıydı");
 
   await page.reload();
   await page.waitForLoadState("networkidle");
   await enterCakisma(page);
   const value = await page.locator("#cakismaPairSelect").inputValue();
-  assert.equal(value, "snare-akustik", `soğuk başlatma sonrası çift KORUNMALIYDI, alınan: ${value}`);
+  assert.equal(value, "snare-clean", `soğuk başlatma sonrası çift KORUNMALIYDI, alınan: ${value}`);
 
   await page.close();
 });

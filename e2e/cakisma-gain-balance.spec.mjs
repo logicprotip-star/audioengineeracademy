@@ -53,7 +53,7 @@ async function selectCakismaPair(page, pairId) {
   }, pairId);
 }
 
-test("KONTROL 1 — GERÇEK tarayıcıda TÜM 7 çiftte dualGainA/B GERÇEK GainNode değeri pair.gainA/gainB'ye (dB→linear) EŞİT", async () => {
+test("KONTROL 1 — GERÇEK tarayıcıda TÜM 6 çiftte (G316: snare-akustik kaldırıldı) dualGainA/B GERÇEK GainNode değeri pair.gainA/gainB'ye (dB→linear) EŞİT", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.goto(serverHandle.baseUrl);
   await seedLocalStorage(page, { dev: { simulatePro: true } });

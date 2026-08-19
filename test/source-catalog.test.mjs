@@ -129,10 +129,10 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
     assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["groove", "upload"].sort());
   });
 
-  it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 7 hazır çift içerir (G288: 5 offsetli çift, G295: +2 vokal2 çifti)", () => {
+  it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 6 hazır çift içerir (G288: 5 offsetli çift, G295: +2 vokal2 çifti, G316: snare-akustik KALDIRILDI)", () => {
     const meta = frekansCakismasi.getMeta();
     assert.deepEqual(meta.uyumluKaynaklar, []);
-    assert.deepEqual(SOURCE_PAIRS.map(p => p.id).sort(), ["akustik-clean", "bas-akustik", "bas-clean", "snare-akustik", "snare-clean", "vokal2-akustik", "vokal2-clean"].sort());
+    assert.deepEqual(SOURCE_PAIRS.map(p => p.id).sort(), ["akustik-clean", "bas-akustik", "bas-clean", "snare-clean", "vokal2-akustik", "vokal2-clean"].sort());
   });
 });
 
@@ -263,14 +263,13 @@ describe("source-catalog — G288 YENİ kaynak: snare_late", () => {
     }
   });
 
-  it("G308: SOURCE_PAIRS'in İKİ çiftinde (snare-akustik/snare-clean) sourceA olarak, offsetA=0.377 ile kullanılıyor (G302'nin ölçülen değerleri Logic'in kulak kararıyla GERİ ALINDI)", () => {
-    for (const id of ["snare-akustik", "snare-clean"]) {
-      const pair = SOURCE_PAIRS.find(p => p.id === id);
-      assert.ok(pair, `${id} bulunamadı`);
-      assert.equal(pair.sourceA, "snare_late");
-      assert.equal(pair.offsetA, 0.377, `${id}: offsetA`);
-      assert.equal(pair.offsetB, 0);
-    }
+  it("G308/G316: SOURCE_PAIRS'te snare-clean sourceA olarak snare_late, offsetA=0.377 ile kullanılıyor (snare-akustik G316'da KALDIRILDI)", () => {
+    const pair = SOURCE_PAIRS.find(p => p.id === "snare-clean");
+    assert.ok(pair, "snare-clean bulunamadı");
+    assert.equal(pair.sourceA, "snare_late");
+    assert.equal(pair.offsetA, 0.377, "snare-clean: offsetA");
+    assert.equal(pair.offsetB, 0);
+    assert.ok(!SOURCE_PAIRS.find(p => p.id === "snare-akustik"), "G316: snare-akustik ARTIK SOURCE_PAIRS'te OLMAMALI");
   });
 });
 
@@ -374,8 +373,8 @@ describe("source-catalog — G295 SOURCE_PAIRS gainA/gainB (çift-içi statik se
     assert.equal(SOURCE_PAIRS.find(p => p.id === "bas-akustik").gainB, 0);
   });
 
-  it("±1.5dB tolerans İÇİNDE ölçülen 3 çiftte (bas-clean/snare-akustik/snare-clean) düzeltme YOK", () => {
-    for (const id of ["bas-clean", "snare-akustik", "snare-clean"]) {
+  it("±1.5dB tolerans İÇİNDE ölçülen 2 çiftte (bas-clean/snare-clean, G316: snare-akustik KALDIRILDI) düzeltme YOK", () => {
+    for (const id of ["bas-clean", "snare-clean"]) {
       const pair = SOURCE_PAIRS.find(p => p.id === id);
       assert.equal(pair.gainA, 0, `${id}: gainA`);
       assert.equal(pair.gainB, 0, `${id}: gainB`);
