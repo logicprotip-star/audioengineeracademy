@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G312 — ⚠️ GEÇİCİ TANI LOGU, KALICI DEĞİL: "ilk soruda Atla, ilerleme kilitleniyor" hatası cihazda/simülatörde var ama Playwright'ta İKİ AYRI turda (OLCUM-CANLI-BOLUM-19-08, OLCUM-ILKSORU-ATLA-19-08) tekrar üretilemedi — G310/G311'in fantom-cevap düzeltmesi bu hatayı ÇÖZMEDİ, ayrı/bulunamamış bir sorun. `goToNextRound()`'un "Atla" dalına ve `renderGameHeader()`'ın BÖLÜM bloğuna `[atla-diag]` önekli, DEV_MODE'dan BAĞIMSIZ console.log'lar eklendi (`3bbd0b7`) — activeQuestion/roundActive/challenge girişte, challengeTick öncesi/sonrası index+results, examGateActive/handleExamOutcome sonucu, render'ın okuduğu veri, çizilen nokta sayısı. Logic cihazda Atla'ya basıp Safari konsolundan `[atla-diag]` satırlarını kopyalayıp getirecek. **Doğrulama sonrası KALDIRILACAK** — kalıcı değil. npm test 1644/1644, e2e 140/140 (değişmedi). Detay: aşağı BİTTİ bölümü G312.)
+Son güncelleme: 19.08.2026 (G313 — "İlk soruda Atla → ilerleme kilitleniyor" hatası KAPANDI (`23d3221`). G312'nin cihaz [atla-diag] logu KESİN teşhis verdi: kullanıcı `#startBtn`'e (▶) HİÇ basmadan doğrudan "Atla"ya basıyordu (`#nextBtn` idle'da bile her zaman görünür/tıklanabilir) — `startRound()` "arka kapıdan" tetikleniyor, `challenge.active` SADECE `#startBtn`'in kendi dalındaki `startChallenge()` çağrısıyla true olduğu için KALICI OLARAK false kalıyordu, `challengeTick()`'in guard'ı HER sonraki cevaptan/Atla'dan sonra sessizce no-op oluyordu — BÖLÜM sayacı 12 modun hepsinde kalıcı kilitleniyordu. Düzeltme: `startRound()`'un gerçek ilk kurulum noktasına `#startBtn`'in mantığının aynısı taşındı (dar/idempotent guard). Semantik karar (kullanıcıya soruldu, onaylandı): ilk Atla turu başlatır ama saymaz — SONRAKİ Atla/cevap gerçek ilk skip olarak sayılır, challenge/examSystem senkronu korunur. `e2e/atla-idle-lock.spec.mjs` eklendi (4 test), git stash ile kırmızı/yeşil doğrulandı. npm test 1644/1644, e2e 144/144. G312'nin tanı logları artık AMACINI TAMAMLADI ama bu turda KALDIRILMADI (görev kapsamı dışı) — G309'un numaralarıyla birlikte "kaldırılacaklar" listesinde birikmiş durumda. Detay: aşağı BİTTİ bölümü G313.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,91 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G313 — **"İlk soruda Atla → ilerleme kilitleniyor" hatası KAPANDI
+(`23d3221`, TEK commit).**
+
+**Görev:** ÖNCE ÖLÇ SONRA UYGULA. G312'nin cihaz [atla-diag] logu KESİN
+teşhis verdi — Logic'in cihazdan getirdiği ham çıktı:
+```
+goToNextRound() GİRİŞ — activeQuestion:false roundActive:false
+challenge:{"done":0,"total":10,"active":false,"correct":0,"results":[]}
+"Atla" dalına GİRİLMEDİ (roundActive:false activeQuestion:false)
+— challengeTick ÇAĞRILMADI.
+```
+
+**Ölçüm (4 soru):**
+1. `roundActive`/`activeQuestion` SADECE `startRound()` çalışınca true
+   oluyor — bu fonksiyon hem `#startBtn`'in `!activeQuestion` dalından
+   (`setAutoPlay(true)`→`startRound()`) hem `goToNextRound()`'un
+   SONUNDAN (Atla/Sonraki Soru) çağrılabiliyor.
+2. İlk soru gösterilirken `false` olması KASITLI/doğal — moda YENİ
+   girişte round henüz hiç başlamamış. Ama `#nextBtn` ("Atla ▶")
+   `www/index.html:656`'da HİÇBİR `.hidden`/disabled kontrolü OLMADAN,
+   idle'da BİLE her zaman görünür/tıklanabilir (`#startBtn`'den — AYRI,
+   `.game-ctrl-play` — TAMAMEN BAĞIMSIZ bir buton). Kullanıcı `#startBtn`'e
+   HİÇ basmadan doğrudan "Atla"ya basabiliyor.
+3. `challenge.active` SADECE `startChallenge()` çağrılınca true oluyor
+   (`www/js/app.js`, `#startBtn`'in click handler'ının `!activeQuestion`
+   dalı, `if (isChallenge()) startChallenge();`). Kullanıcı "Atla"ya
+   basarsa bu çağrı HİÇ YAPILMIYOR — round `goToNextRound()`→`startRound()`
+   üzerinden "arka kapıdan" başlıyor. VE bu KALICI: `activeQuestion`
+   dolduktan SONRA `#startBtn`'in `!activeQuestion` dalı BİR DAHA hiç
+   çalışmıyor (round zaten "aktif" görünüyor) — `challenge.active`
+   SONSUZA KADAR false kalıyor. `challengeTick()`'in `if
+   (!challenge.active) return;` guard'ı (core/challenge.js) bu yüzden
+   HER sonraki cevaptan/Atla'dan SONRA sessizce no-op oluyor — BÖLÜM
+   sayacı/çubuğu KALICI kilitleniyor, 12 modun hepsinde (kod mod-bağımsız).
+4. Telafi FARKLI çünkü ulaşmak için ÖNCEDEN GERÇEK bir parkurun (10
+   soru) tamamlanmış olması ŞART — yani `#startBtn`'e ÇOKTAN basılmış,
+   `startChallenge()` ÇOKTAN çalışmış olmalı. AYRICA telafi/sınav
+   dotları `examSystem.examResults`/`remedialResults` okuyor,
+   `challenge.results` DEĞİL — tamamen ayrı bir veri yapısı.
+
+**Playwright'ın önceki İKİ turda (OLCUM-CANLI-BOLUM-19-08, OLCUM-
+ILKSORU-ATLA-19-08) tekrar üretememesinin sebebi bulundu:** o testler
+HER ZAMAN önce `#startBtn`'e basıyordu — gerçek belirti TAM OLARAK
+"Start'a hiç basmadan" senaryosuydu, Playwright'ta bu turda `#startBtn`'e
+HİÇ dokunmadan `#nextBtn`'e basılınca BİREBİR aynı cihaz çıktısı elde
+edildi (`activeQuestion:false roundActive:false challenge.active:false`).
+
+**Düzeltme ("kurulum noktası öne alınsın" yönü seçildi, "koşul
+gevşetilsin" DEĞİL):** `startRound()`'un GERÇEK ilk kurulum noktasına
+(erken-dönüş guard'larından SONRA, `cancelCmpPreviewPause()`'dan HEMEN
+ÖNCE), `#startBtn`'in kendi mantığının AYNISI eklendi:
+```js
+if (isFreshRoundStart && isChallenge() && !challenge.active) startChallenge();
+```
+`isFreshRoundStart` fonksiyonun EN BAŞINDA (`!activeQuestion`, guard'lardan
+ÖNCE) yakalanıyor. Guard `!challenge.active`'e bağlı olduğu için normal
+`#startBtn` akışında (challenge.active ÇOKTAN true) HİÇBİR ŞEY
+DEĞİŞMİYOR — idempotent.
+
+**Semantik karar (kullanıcıya AskUserQuestion ile soruldu, "mevcut
+hâliyle bırak" seçildi):** İLK Atla tıklaması turu BAŞLATIR (`#startBtn`
+ile BİREBİR AYNI davranış) ama SAYACI ARTIRMAZ — SONRAKİ Atla/cevap
+GERÇEK ilk skip/answer olarak sayılır. Alternatif (ilk tıklamanın da
+sayılması) `challenge.done` ile `examSystem`'in parkur pozisyonunu
+birbirinden AYIRMAYI gerektirirdi — G214-G311'in koruduğu senkron
+davranışa risk eklerdi, bu turda YAPILMADI.
+
+**Test + doğrulama:** `e2e/atla-idle-lock.spec.mjs` (4 test) — 1 KABUL
+KRİTERİ (bootstrap + 5 gerçek atlama + 1 cevap, 3 modda tekrar) + 2
+regresyon (Start-sonra-Atla akışı DEĞİŞMEDİ, telafi akışı DEĞİŞMEDİ).
+`git stash` ile kırmızı/yeşil doğrulandı — düzeltmeden ÖNCE KABUL
+KRİTERİ testleri "BÖLÜM 1/10"da KALICI OLARAK kilitli kalıyordu.
+
+**KİLİT korundu:** `npm test` 1644/1644 (değişmedi), `npm run test:e2e`
+144/144 (140 eski + 4 yeni, hiçbiri kırılmadı) — G214-G311 arası TÜM
+davranışlar (gerçek Atla'nın yanlış sayması, G310/G311'in fantom-cevap
+düzeltmesi, telafi akışı) test edilerek DOĞRULANDI.
+
+**Açık kalan:** G312'nin `[atla-diag]` tanı logları artık AMACINI
+TAMAMLADI (teşhis bulundu) ama bu turun kapsamı DIŞINDA olduğu için
+KALDIRILMADI — G309'un GEÇİCİ 1-12 numaralarıyla BİRLİKTE "doğrulama
+sonrası kaldırılacaklar" listesinde BİRİKMİŞ durumda.
+
+---
 
 G312 — **⚠️ GEÇİCİ TANI LOGU (kalıcı değil) — "Atla" akışına
 [atla-diag] console.log'ları (`3bbd0b7`, TEK commit).**
@@ -22004,7 +22089,20 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G312 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G313 itibarıyla):**
+"İlk soruda Atla → ilerleme kilitleniyor" hatası düzeltildi (`23d3221`)
+— kök sebep: `#startBtn`'e hiç basmadan doğrudan "Atla"ya basınca
+`challenge.active` kalıcı false kalıyordu. `npm test` 1644/1644, `npm
+run test:e2e` 144/144. **Kullanıcının/Logic'in sıradaki adımı:**
+`npx cap sync ios` + cihazda GERÇEKTEN doğrulamak — moda girip HİÇ
+cevap vermeden/Start'a basmadan doğrudan Atla'ya basıp BÖLÜM sayacının
+artık ilerlediğini (kilitlenmediğini) görmek. **Ayrıca:** G312'nin
+`[atla-diag]` tanı logları ve G309'un GEÇİCİ 1-12 numaraları HÂLÂ
+kodda duruyor (bu tur ikisine de dokunmadı, KİLİT'in "başka hiçbir
+şeye dokunma" ruhuna uygun) — cihaz doğrulaması netleştiğinde İKİSİ
+DE ayrı bir turda kaldırılmalı.
+
+**EN YENİ SIRADAKİ ADIM (G312 itibarıyla, ARTIK ESKİ):**
 `goToNextRound()`/`renderGameHeader()`'a GEÇİCİ `[atla-diag]` tanı
 logları eklendi (`3bbd0b7`) — "ilk soruda Atla, ilerleme kilitleniyor"
 hatası hâlâ AÇIK (G310/G311 bunu çözmedi, ayrı bir sorun).
