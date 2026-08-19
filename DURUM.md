@@ -1,6 +1,64 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G330-G333 — DÖRT AYRI commit + BİR ölçüm,
+Son güncelleme: 20.08.2026 (G334-G336 — ÜÇ AYRI commit, "GÖREV: ÜÇ
+DÜZELTME. AYRI COMMIT'LER, SIRAYLA" turu.
+
+**G334** (`c7ac61d`): Kesim Noktası'nın -3dB kesim noktası nominal
+frekansa hizalandı. OLCUM-FREKANS-DOGRULUK-19-08'in kök sebebi: Web
+Audio'da BiquadFilterNode'un Q parametresi lowpass/highpass tipinde
+klasik kalite faktörü DEĞİL — "kesim noktasındaki rezonans, dB
+cinsinden" (MDN doğrulandı). `FILTER_Q = Math.SQRT1_2` (0.707) klasik
+Butterworth Q sanılarak seçilmişti, gerçekte "+0.71dB rezonans"
+demekti — gerçek -3dB noktası nominal'den 470+ sente (yarım oktava
+yakın) kayıyordu. Düzeltme: `FILTER_Q = 20*log10(Math.SQRT1_2)`
+(≈-3.0103 dB) — klasik Butterworth Q'yu ÖNCE dB'ye çevirip Web
+Audio'nun Q parametresine yazıyor. Sapma en kötü ~2.2 sente indi
+(CUTOFF_MIN-CUTOFF_MAX, 44.1/48kHz'de doğrulandı). İkincil:
+`eq-loudness.js:biquadMagnitudeDb()` AYNI kök sebepten highpass/
+lowpass için yanlış telafi kazancı hesaplıyordu — artık Q'yu
+`10^(Q/20)` ile klasik değere çevirip alpha'ya öyle veriyor (peaking/
+notch/bandpass/allpass'a DOKUNULMADI, diğer 11 mod etkilenmedi).
+Zorluk eğrisine dokunulmadı — filtrenin sesi değişecek, zorluk hissi
+kayabilir, bu SADECE raporlandı. `npm test` 1671/1671.
+
+**G335** (`7638156`): Tonal Denge'nin kaynak listesi genişletildi.
+OLCUM-TONAL-KAYNAK-19-08: `only:["groove","upload"]` kısıtı G44'ten
+beri kasıtlıydı ama hiç ölçülmemişti — mevcut TEK kaynak groove'un
+kendisi BAND_SET_4'ün (bas/alt-orta/üst-orta/tiz) sadece 2/4'ünde
+-40dB üstü enerji taşıyor. 6-bant Welch-ortalamalı FFT ile TÜM
+katalog ölçüldü, groove'un kendi seviyesinden iyi/eşit çıkan 9 kaynak
+eklendi: hihat (6/6, en güçlü), vocal (4/4), vocal_1/snare/guitar/
+clean_guitar/arpeggio_guitar/acoustic_guitar_stereo/clean_guitar_stereo
+(3/4). kick/bass (1-2/4) ve snare_late (spektral olarak snare'le
+özdeş + pairOnly) BİLEREK dışarıda bırakıldı. `npm test` 1671/1671.
+**⚠️ YAN ETKİ (bu turda BULUNDU, DÜZELTİLMEDİ — AÇIK İŞLER'e eklendi,
+bkz. madde 35):** Tonal Denge'nin varsayılan (hiç seçim yapılmamış)
+kaynağı SESSİZCE "Davul Döngüsü"nden "Snare"ye değişti —
+`populateSourceSelect()` DOM seçeneklerini `SOURCE_GROUPS`'un SABİT
+sırasına göre kurup `selectedIndex=0`'a düşüyor, "drums" grubunda
+snare groove'dan ÖNCE geliyor. G330'da (kick-bas) AYNI riskten
+kaçınmak için yeni öğe SONA eklenmişti — bu turda AYNI önlem
+ALINMADI (SOURCE_GROUPS paylaşılan/global bir dizi, mod-başına
+yeniden sıralanamaz).
+
+**G336** (`540a4b4`): Tonal Denge soru üretimi kaynağın sessiz
+bantlarını bilir. OLCUM-TONAL-KAYNAK-19-08'in bulduğu boşluk:
+`bandsForQuestion()` hangi bandın bozulacağını kaynağın spektral
+içeriğinden TAMAMEN BAĞIMSIZ seçiyordu — sessiz bir bant (ör.
+groove'un ÜST-ORTA/TİZ'i) seçilirse kullanıcı duyamadığı bir
+bozukluğu düzeltemiyor, `avgDeviation` düzeltilemez bir kalıntı
+hatayla kirleniyordu (BUGÜN groove'da bile VARDI). Veri kaynağı:
+ÖNCEDEN ÖLÇÜLÜP tabloya yazılmış sabit değerler (createQuestion saf
+fonksiyon KALMALI, ses dosyası açıp FFT almak bunu kırardı), eşik
+-40dB (doğrulandı). Upload BİLEREK tabloda YOK (içeriği bilinemez,
+eski/filtresiz davranışa düşer). Uzun-seri ölçüm (N=20000): groove'da
+"sıfır düzeltme" worst-case avgDeviation 5.0'dan 3.5'e DÜŞTÜ — bu
+KASITLI/istenen bir iyileşme (haksız hata payı azaldı), zorluk
+EĞRİSİNİN kendisi (disturbDb/neutralToleranceDb) tek satır değişmedi;
+tam-spektrumlu kaynaklarda (hihat) istatistiksel fark yok. `npm test`
+1680/1680, git stash ile HER ÜÇÜ ayrı ayrı kırmızı/yeşil doğrulandı.)
+
+Son güncelleme (ÖNCEKİ): 19.08.2026 (G330-G333 — DÖRT AYRI commit + BİR ölçüm,
 "GÖREV: DÖRT DÜZELTME + BİR ÖLÇÜM" turu. **G330** (`01efc42`): kick+bas
 çifti Frekans Çakışması'na GERİ eklendi (G288'de yanlışlıkla silinmişti)
 — region [30,120]Hz, gainA=-1.6 SIFIRDAN ölçüldü (eski değere
@@ -22992,6 +23050,25 @@ dosya ~20-30 satır, bkz. rapor ÖLÇ 5) telafi turunda süre görünür olmalı
 Süresiz ayarında görünür çubuğun %100'e (ya da tamamen gizlenmeye)
 ayarlanması AYRI, küçük bir düzeltme.
 
+**35. G335 (Tonal Denge kaynak genişlemesi) — varsayılan kaynak SESSİZCE
+"Davul Döngüsü"nden "Snare"ye değişti**
+`populateSourceSelect()` (app.js:623-645) DOM seçeneklerini `SOURCE_GROUPS`'un
+SABİT/paylaşılan array sırasına göre kurup (mod-başına YENİDEN
+sıralanamaz), kayıtlı bir tercih YOKSA `selectedIndex=0`'a düşüyor.
+"drums" grubunun sources dizisi `[kick, snare, hihat, tom, groove]` —
+G335 snare/hihat'ı Tonal Denge'nin `only` listesine EKLEYİNCE, filtrelenmiş
+DOM listesinde artık "Snare" groove'dan ÖNCE geliyor. Sonuç: hiç kaynak
+seçmemiş TÜM YENİ kullanıcılar artık "Davul Döngüsü" (tam mix bağlamı,
+orijinal tasarım niyeti) YERİNE "Snare" (tek enstrüman) ile başlıyor.
+G330'un (kick-bas) AYNI riskten kaçınmak için YENİ öğeyi array'in SONUNA
+eklediği önlem bu turda ALINMADI — çünkü `SOURCE_GROUPS` global/paylaşılan
+bir yapı, mod-başına yeniden sıralanamaz (diğer modların KENDİ varsayılanını
+bozar). **Kabul kriteri:** Tonal Denge için (ya da genel bir mekanizma
+olarak) "kayıtlı tercih yoksa X'e düş" davranışı `selectedIndex=0` yerine
+mod-başına BELİRTİLEBİLİR bir varsayılan kaynak ID'sine bağlanmalı —
+kod DEĞİŞİKLİĞİ gerektirir, bu turun kapsamı DIŞINDA bırakıldı (SADECE
+raporlandı, düzeltilmedi).
+
 ## BİLİNEN AÇIKLAR
 
 Düşük riskli, ölçülmüş ama şu an DÜZELTİLMEYEN (bilerek — kod yazılmadı,
@@ -23384,7 +23461,27 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G330-G333 + ölçüm itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G334-G336 itibarıyla):**
+Üç ayrı düzeltme commit'lendi: G334 (Kesim Noktası'nın -3dB kesim noktası
+artık nominal frekansla eşleşiyor, sapma 470+ sentten ~2.2 sente indi —
+FİLTRENİN SESİ DEĞİŞTİ, kulakla doğrulanmalı), G335 (Tonal Denge'nin
+kaynak listesi 2'den 11'e çıktı — hihat/vocal/vocal_1/snare/gitar
+çeşitleri eklendi), G336 (Tonal Denge artık kaynağın sessiz bantlarını
+bozmuyor). `npm test` 1680/1680, git stash ile HER ÜÇÜ ayrı ayrı kırmızı/
+yeşil doğrulandı. **Kullanıcının/Logic'in sıradaki adımı:** `npx cap sync
+ios` + cihazda GERÇEKTEN doğrulamak — özellikle (1) Kesim Noktası'nın
+kesim SESİNİN değiştiğini (artık gerçekten belirtilen frekanstan kesiyor,
+ESKİDEN farklı bir yerden kesiyordu — zorluk hissi kayabilir), (2) Tonal
+Denge'de yeni kaynakların (Hi-Hat/Snare/Vokal/gitarlar) seçilebilir
+olduğunu VE ses kalitesinin makul geldiğini. **⚠️ AYRICA G335'in kendisinin
+bulduğu bir YAN ETKİ karar bekliyor (bkz. AÇIK İŞLER 35):** Tonal
+Denge'nin varsayılan (hiç seçim yapılmamış) kaynağı sessizce "Davul
+Döngüsü"nden "Snare"ye değişti — kod değişikliği gerektiren bir düzeltme,
+BU TURDA YAPILMADI, SADECE raporlandı. Önceki turun (G330-G333) ÜÇ kararı
+(AÇIK İŞLER 32/33/34: boss-atlama kök sebebi, Pro Plus sheet-sızıntısı,
+telafi süre çubuğu) HÂLÂ AÇIK, bu turda dokunulmadı.
+
+**EN YENİ SIRADAKİ ADIM (G330-G333 + ölçüm itibarıyla, ARTIK ESKİ):**
 Dört ayrı düzeltme commit'lendi (G330 kick+bas geri eklendi, G331 boss
 atlama uyarısı, G332 üç eskimiş "i" metni, G333 Oyun Ayarları'nda
 Otomatik seçilebilir) + bir ölçüm (`OLCUM-SURE-CUBUGU-19-08.md` — süre
