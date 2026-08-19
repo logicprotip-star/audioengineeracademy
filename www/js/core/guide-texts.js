@@ -26,7 +26,11 @@ export const GENERAL_GUIDE = {
     },
     {
       heading: "Sınav ve bölüm geçme",
-      body: "Üst üste 6 doğru → sınav hakkı. Sınavı geçersen bölüm atlarsın, bir üst seviyeye çıkarsın. 6 doğru toplanmazsa zayıf olduğun yerden kısa bir telafi turu gelir. Seviye atlamak hak etmekle olur — takılırsan zorlaşmaz, aynı yerde çalışırsın."
+      // G332 (OLCUM-I-GUNCEL-19-08 bulgusu) — "zayıf olduğun yerden" KESİN
+      // iddiası G319/G323'ün "iddeasız gözlem" kararıyla çelişiyordu: yeterli
+      // veri yoksa telafi artık varsayılan bir bölgeye düşüyor (bkz. app.js'in
+      // "henüz yeterli verin yok" notu), KESİN zayıflık iddia etmiyor.
+      body: "Üst üste 6 doğru → sınav hakkı. Sınavı geçersen bölüm atlarsın, bir üst seviyeye çıkarsın. 6 doğru toplanmazsa kısa bir telafi turu gelir — yeterli verin varsa zayıf olduğun yerden, yoksa varsayılan bir bölgeden başlar. Seviye atlamak hak etmekle olur — takılırsan zorlaşmaz, aynı yerde çalışırsın."
     },
     {
       // G190 DÜZELTMESİ (tutarlılık taraması) — "5 mod ücretsiz, sınırsız
@@ -63,7 +67,12 @@ export const GENERAL_GUIDE = {
     // mekanizma, isim çakışması metne SIZDIRILMADI.
     {
       heading: "XP nasıl kazanılır?",
-      body: "Her doğru cevap XP kazandırır. Miktar moda ve zorluğa göre değişir — zor sorular daha çok verir. Yanlış cevap ve 'Atla' XP kazandırmaz, kaybettirmez de."
+      // G332 (OLCUM-I-GUNCEL-19-08 bulgusu) — "Yanlış cevap XP kazandırmaz"
+      // G317 sonrası TAM doğru değil: Tonal Denge'de kısmi doğru bir cevap
+      // (4 bandın bir kısmı) 'yanlış' SAYILIR (stats.wrong artar, combo
+      // sıfırlanır) ama YİNE DE kısmi XP verir — istisna eklendi, diğer 11
+      // modun kuralı DEĞİŞMEDİ.
+      body: "Her doğru cevap XP kazandırır. Miktar moda ve zorluğa göre değişir — zor sorular daha çok verir. Yanlış cevap ve 'Atla' XP kazandırmaz, kaybettirmez de — tek istisna Tonal Denge: kısmi doğru bir cevap 'yanlış' sayılsa da kısmi XP verir."
     },
     {
       heading: "XP çarpanları",
@@ -89,7 +98,10 @@ export const GENERAL_GUIDE = {
     },
     {
       heading: "Kalınca ve telafi (Pro)",
-      body: "Parkur 6 doğruya hiç ulaşamadan biterse sınav yerine telafi gelir — zayıf olduğun noktaya odaklanan kısa bir tur. Sınavdan ya da telafiden kalmak XP silmez, seviye düşürmez; sadece 10 soruluk parkur baştan başlar. Sınav ve telafi SADECE Pro'da çalışır."
+      // G332 — yukarıdaki "Sınav ve bölüm geçme" bölümüyle AYNI düzeltme
+      // (G319/G323 "iddiasız gözlem"): yeterli veri yoksa telafi KESİN bir
+      // "zayıf nokta" iddia etmeden varsayılan bir bölgeden başlıyor.
+      body: "Parkur 6 doğruya hiç ulaşamadan biterse sınav yerine telafi gelir — kısa bir tur. Yeterli verin varsa zayıf olduğun noktaya odaklanır, yoksa varsayılan bir bölgeden başlar. Sınavdan ya da telafiden kalmak XP silmez, seviye düşürmez; sadece 10 soruluk parkur baştan başlar. Sınav ve telafi SADECE Pro'da çalışır."
     }
   ]
 };
@@ -362,7 +374,7 @@ export const MODE_OPTIONS_TEXTS = {
   reverb: "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
   distortion: "Kaynağı değiştirebilir, kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. Karta uzun basarak A/B/C döngüsünü açıp kapatabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
   "tonal-denge": "Kaynağı 'Davul Döngüsü' ya da kendi yüklediğin mix arasında seçebilirsin. 'A/B Test'le düzeltmeden önceki/sonraki sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
-  "frekans-cakismasi": "Kaynak çiftini (Kick+Bas/Vokal+Gitar/Snare+Gitar) seçebilir, ya da kendi iki sesini yükleyebilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
+  "frekans-cakismasi": "Kaynak çiftini (Kick+Bas / Vokal 2+Clean Gitar / Snare+Clean Gitar) seçebilir, ya da kendi iki sesini yükleyebilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
   "pan-konumu": "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı — çok kısa vuruşlar konum algısı için yetersiz), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz.",
   "stereo-genislik": "Kaynağı değiştirebilir (uyumlu kaynaklarla sınırlı — çok kısa vuruşlar genişlik algısı için yetersiz), kendi dosyanı yükleyebilir, 'Karıştır'la rastgele kaynak seçtirebilirsin. 'A/B Test'le temiz/işlenmiş sesi karşılaştırabilirsin. Bilemezsen 'Atla'ya dokun. Durdur'a basıp sonra cevap verirsen geri bildirim ekranda kalır, sen geçene kadar kapanmaz."
 };

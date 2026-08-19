@@ -167,6 +167,19 @@ describe("guide-texts: MODE_OPTIONS_TEXTS 10 oynanabilir modun HEPSİNİ içerir
     assert.doesNotMatch(MODE_OPTIONS_TEXTS["frekans-cakismasi"], /Önce.*Sonra|Sonra.*Önce/);
   });
 
+  // G332 (OLCUM-I-GUNCEL-19-08 bulgusu) — kaynak-çifti örnekleri "Kick+Bas/
+  // Vokal+Gitar/Snare+Gitar" idi, GERÇEK SOURCE_PAIRS'teki HİÇBİR çiftin adı
+  // (Vokal+Gitar/Snare+Gitar) BİREBİR tutmuyordu. G330 sonrası GERÇEK yedi
+  // çiftten üçünün (Kick+Bas, Vokal 2+Clean Gitar, Snare+Clean Gitar) doğru
+  // adlarıyla güncellendi.
+  it("frekans-cakismasi — örnek kaynak çiftleri GERÇEK SOURCE_PAIRS'teki adlarla eşleşiyor (G330 sonrası)", () => {
+    const body = MODE_OPTIONS_TEXTS["frekans-cakismasi"];
+    assert.match(body, /Kick\+Bas/);
+    assert.match(body, /Vokal 2\+Clean Gitar/);
+    assert.match(body, /Snare\+Clean Gitar/);
+    assert.doesNotMatch(body, /Vokal\+Gitar/);
+  });
+
   it("cakisma HARİÇ 9 modun HEPSİ kendi dosya yükleme seçeneğinden bahseder (uyumluKaynaklar HEPSİNDE 'upload' içerir)", () => {
     PLAYABLE_MODE_IDS.filter(id => id !== "frekans-cakismasi").forEach(id => {
       assert.match(MODE_OPTIONS_TEXTS[id], /yükle/i, `${id} yükleme seçeneğinden bahsetmiyor`);
@@ -207,6 +220,15 @@ describe("guide-texts: GENERAL_GUIDE ana ekranın genel sistem bilgisini taşır
     assert.deepEqual(newHeadings, ["XP nasıl kazanılır?", "XP çarpanları", "İki ayrı seviye", "Sınav nasıl açılır? (Pro)", "Kalınca ve telafi (Pro)"]);
   });
 
+  // G332 (OLCUM-I-GUNCEL-19-08 bulgusu) — G317 sonrası "Yanlış cevap XP
+  // kazandırmaz" tam doğru değil: Tonal Denge'de kısmi doğru bir cevap
+  // 'yanlış' SAYILIR ama YİNE DE kısmi XP verir. Metne istisna eklendi.
+  it("XP nasıl kazanılır? — Tonal Denge'nin kısmi doğru XP istisnası VAR (G317)", () => {
+    const body = GENERAL_GUIDE.sections[5].body;
+    assert.match(body, /Tonal Denge/);
+    assert.match(body, /kısmi/i);
+  });
+
   it("XP çarpanları — OLCUM-XP-17-08'de ölçülen 4 sayı (2.4/1.65/1.2/yarıya) metinde GEÇİYOR", () => {
     const body = GENERAL_GUIDE.sections[6].body;
     assert.match(body, /2\.4/);
@@ -233,6 +255,20 @@ describe("guide-texts: GENERAL_GUIDE ana ekranın genel sistem bilgisini taşır
     assert.match(examBody, /en zor kademede/);
     assert.match(remedialBody, /telafi/i);
     assert.match(remedialBody, /Pro/);
+  });
+
+  // G332 (OLCUM-I-GUNCEL-19-08 bulgusu) — "zayıf olduğun yerden/noktaya"nın
+  // KESİN iddiası G319/G323'ün "iddiasız gözlem" kararıyla çelişiyordu:
+  // yeterli veri yoksa telafi artık varsayılan bir bölgeye düşüyor, KESİN
+  // zayıflık iddia etmiyor. Her iki telafi bahsi (sınav-geçme özeti +
+  // "Kalınca ve telafi (Pro)") bu nüansı taşımalı.
+  it("Sınav ve bölüm geçme + Kalınca ve telafi — 'zayıf' iddiası artık YETERLİ VERİ şartına bağlı (G319/G323 ile çelişmiyor)", () => {
+    const examGateBody = GENERAL_GUIDE.sections[2].body;
+    const remedialBody = GENERAL_GUIDE.sections[9].body;
+    assert.match(examGateBody, /yeterli verin varsa/i);
+    assert.match(examGateBody, /varsayılan bir bölgeden/i);
+    assert.match(remedialBody, /yeterli verin varsa/i);
+    assert.match(remedialBody, /varsayılan bir bölgeden/i);
   });
 
   // Yeni bölümlerin HİÇBİRİ hideForPro TAŞIMIYOR (Bug #40'ın "Ücretsiz ve
