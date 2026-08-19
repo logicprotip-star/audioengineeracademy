@@ -1879,6 +1879,12 @@ function startResWaitTicker() {
 let sessionEndKind = null;
 
 function showSessionEnd(kind) {
+  // G315 (Logic'in kararı: "hangi ekran çıkarsa çıksın ses kapansın") — bu
+  // fonksiyon ÖNCEDEN audioEngine.stopAudio()'yu HİÇ çağırmıyordu. Rozet/
+  // ilerleme bildirimleri (notifyNewAchievements()'ın toast()'ı,
+  // core/fx.js) BURAYA hiç uğramıyor — SADECE gerçek bir "tur sonu" TAM
+  // EKRAN geçişi (bkz. goToNextRound()'un AYNI G315 notu) ses kesiyor.
+  audioEngine.stopAudio();
   sessionEndVisible = true;
   sessionEndKind = kind;
   const lost = kind === "lost";
@@ -3105,6 +3111,18 @@ function exPillIconSvg(d, color) {
 //     recordAnswer'dan ÖNCE) anlık görüntü olarak taşınır.
 //   makeup: { area } — getWeakArea()'nın döndüğü nesne, AYNEN.
 function showExamScreen(kind, ctx = {}) {
+  // G315 (Logic'in kararı: "hangi ekran çıkarsa çıksın ses kapansın") — bu
+  // fonksiyon (SINAV HAKKI/SINAV GEÇİLDİ/SINAV GEÇİLEMEDİ/TELAFİ TURU'nun
+  // DÖRDÜ de) ÖNCEDEN audioEngine.stopAudio()'yu HİÇ çağırmıyordu — en
+  // KRİTİK olarak `goToNextRound()`'un `examTookOver=true` erken-dönüş
+  // yolunda (handleExamOutcome buraya geçtiğinde) G306'nın startRound()
+  // içindeki stopAudio()'su HİÇ ÇALIŞMIYORDU (startRound() bu yolda hiç
+  // çağrılmıyor). G315'in goToNextRound()'un KENDİSİNE eklediği koşulsuz
+  // stopAudio() bu yolu ZATEN kapatıyor — buradaki çağrı, showExamScreen()'in
+  // BAŞKA yollardan (ör. bir cevabın submit handler'ı examGateActive() ile
+  // buraya düştüğünde, o handler'ın KENDİ stopAudio()'sundan SONRA) da
+  // GÜVENİLİR şekilde sessiz kalmasını sağlayan bir savunma katmanı.
+  audioEngine.stopAudio();
   const modeId = mode.getMeta().id;
   const es = examStatsFor(modeId);
   const activeModeCatalogEntry = MODE_CATALOG.find(e => e.id === modeId);
@@ -9284,6 +9302,15 @@ function syncWatchAdButtonForReason(cfg) {
 function openPaywallReason(reasonKey) {
   const cfg = paywall.PAYWALL_REASONS[reasonKey];
   if (!cfg) return false;
+  // G315 (Logic'in kararı: "hangi ekran çıkarsa çıksın ses kapansın, ses
+  // başlamamış olsa bile") — bu fonksiyon ÖNCEDEN SADECE `paywallPausedRound`
+  // durumunda `pauseRound()`'un (audioEngine.muteOutput() — sadece gain
+  // ramp'i, `currentNodes`'a DOKUNMAZ) çağırıyordu; `cfg.endsRound===true`
+  // dalında (livesOut/sessionLimit) HİÇ ses durdurma çağrısı YOKTU. Koşulsuz
+  // stopAudio() (aşağıdaki pauseRound()'dan BAĞIMSIZ, İKİSİ BİRLİKTE zararsız)
+  // hem çalan sesi kesiyor hem kurulmakta olan bir zinciri (bkz.
+  // goToNextRound()'un AYNI G315 notu) iptal ediyor.
+  audioEngine.stopAudio();
   openPaywallReasonKey = reasonKey;
   if (els.paywallReasonTitle) els.paywallReasonTitle.textContent = cfg.title;
   if (els.paywallReasonDetail) els.paywallReasonDetail.textContent = cfg.detail;
