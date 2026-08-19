@@ -3144,16 +3144,26 @@ function showExamScreen(kind, ctx = {}) {
     // sayıyordu (G214) — CTA'ya basıldığı anda activeQuestion hâlâ BİR
     // ÖNCEKİ (parkurun son) sorudan doluydu. secondaryHandler'ların ZATEN
     // yaptığı temizlik (`activeQuestion = null`) buraya da eklendi.
+    // G311 (exam-progress-persistence.spec.mjs B2'nin G310 SONRASI kırmızıya
+    // düşmesiyle bulundu) — `handleExamOutcome()`'un `persistExamProgress()`
+    // çağrısı (app.js:3296) switch-case'İN ÖNÜNDE, yani `acceptEarlyExam()`/
+    // `declineEarlyExam()` (phase mutasyonu) ÇAĞRILMADAN ÖNCE koşuyor —
+    // "offer" dalı için persist edilen faz HER ZAMAN bir adım ESKİ kalıyordu.
+    // G214+G84'ün fantom-cevap hatası (G310'da düzeltildi) CTA'ya basıldığında
+    // İKİNCİ bir persistExamProgress() çağrısını KAZARA tetikliyordu — o ikinci
+    // çağrı faz ARTIK güncellenmiş OLDUĞU İÇİN doğru değeri yazıyordu. Fantom
+    // çağrı kalkınca bu "kazara doğru" persist de kalktı — burada AÇIKÇA,
+    // fazı DEĞİŞTİREN çağrıdan HEMEN SONRA persistExamProgress() eklendi.
     ctaHandler = () => {
       activeQuestion = null;
       examXpSum = 0;
-      if (ctx.source === "offer") examSystem.acceptEarlyExam();
+      if (ctx.source === "offer") { examSystem.acceptEarlyExam(); persistExamProgress(); }
       goScreen("game");
       goToNextRound();
     };
     secondaryLabel = "Sonra";
     secondaryHandler = () => {
-      if (ctx.source === "offer") { examSystem.declineEarlyExam(); goScreen("game"); goToNextRound(); }
+      if (ctx.source === "offer") { examSystem.declineEarlyExam(); persistExamProgress(); goScreen("game"); goToNextRound(); }
       // G274 DÜZELTMESİ (OLCUM-SATURATION-17-08 madde A) — "home" GEÇERSİZ bir
       // ekran id'si (gerçek ana ekran #screen-menu) — goScreen("home") HİÇBİR
       // .screen'e eşleşmediği için TÜMÜ "active" sınıfını kaybediyordu, siyah
@@ -3187,7 +3197,9 @@ function showExamScreen(kind, ctx = {}) {
     // (resetParkur), challenge'ı da AYNI anda sıfırlıyoruz (bkz.
     // resetChallengeForNewParkur'un dosya başı notu).
     // G310 — bkz. "announce" dalının AYNI notu (yukarıda).
-    ctaHandler = () => { activeQuestion = null; examSystem.acknowledgePassed(); resetChallengeForNewParkur(); goScreen("game"); goToNextRound(); };
+    // G311 — bkz. "announce" dalının AYNI notu (yukarıda) — acknowledgePassed()
+    // fazı "parkur"a döndürüyor, persistExamProgress() bunu HEMEN yakalamalı.
+    ctaHandler = () => { activeQuestion = null; examSystem.acknowledgePassed(); resetChallengeForNewParkur(); persistExamProgress(); goScreen("game"); goToNextRound(); };
     secondaryLabel = "Ana Ekran";
     // G274 — bkz. yukarıdaki "offer" dalının AYNI notu. G287 — AYNI turu-terk-etme kararı (bkz. "announce" dalının notu).
     // G305 (OLCUM-GENIS-18-08 madde A1/B1) — performExit()'in AYNI koruması
@@ -3199,7 +3211,8 @@ function showExamScreen(kind, ctx = {}) {
     // (mod hiç değişmemiş) bu eksiklik hiç telafi edilmiyordu — ekran "⏸"
     // ikonu/eski cevap barıyla YARIM kalmış görünüyordu (Playwright'ta tam
     // tekrar üretildi). performExit()'in G300'de kanıtlanmış deseni AYNEN.
-    secondaryHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); if (activeQuestion && !autoStopped) pauseRound(); activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
+    // G311 — bkz. "announce" dalının AYNI notu (yukarıda).
+    secondaryHandler = () => { examSystem.acknowledgePassed(); resetChallengeForNewParkur(); persistExamProgress(); if (activeQuestion && !autoStopped) pauseRound(); activeQuestion = null; storage.clearInProgressRound(); goScreen("menu"); };
   } else if (kind === "failed") {
     accent = RED; pillBg = "rgba(248,113,96,.1)"; pillBorder = "rgba(248,113,96,.4)";
     pillIconD = "M6 6l12 12M18 6L6 18"; kicker = "SINAV GEÇİLEMEDİ";
@@ -3322,6 +3335,17 @@ function handleExamOutcome(q, result, gained) {
     case "remedial-start": {
       const area = getWeakArea(stats, modeId);
       examSystem.startRemedial(area.value);
+      // G311 (exam-progress-persistence.spec.mjs B2'nin G310 SONRASI kırmızıya
+      // düşmesiyle bulundu) — bu fonksiyonun BAŞINDaki `persistExamProgress()`
+      // (satır ~3296) BURADAN ÖNCE, yani `startRemedial()` fazı "remedial"a
+      // ÇEVİRMEDEN ÖNCE koşuyor — persist edilen faz HER ZAMAN "parkur" (bir
+      // adım eski) kalıyordu. G214+G84'ün fantom-cevap hatası (G310'da
+      // düzeltildi) CTA'ya basıldığında İKİNCİ bir persistExamProgress()
+      // çağrısını KAZARA tetikliyordu — faz ARTIK "remedial" OLDUĞU İÇİN o
+      // ikinci çağrı doğru değeri yazıyordu. Fantom çağrı kalkınca bu "kazara
+      // doğru" persist de kalktı — burada AÇIKÇA, faz "remedial"a döndükten
+      // HEMEN SONRA persistExamProgress() eklendi.
+      persistExamProgress();
       showExamScreen("makeup", { area });
       return true;
     }
