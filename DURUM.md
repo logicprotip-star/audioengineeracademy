@@ -1,6 +1,34 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G323 — Telafi hedeflemesi + metin düzeltmesi,
+Son güncelleme: 19.08.2026 (G324 + İKİ ölçüm. **G324** (`153a5f4`, TEK
+commit): "Atla" ARTIK BÖLÜM/telafi çubuğunda BEYAZ (nötr) gösteriliyor —
+sarı DEĞİL (OLCUM-ATLA-RENK-19-08: sınav/telafi çubuğunun altın
+rengiyle çakışıyordu). `challenge.results`/`examResults`/
+`remedialResults` ÜÇÜNCÜ bir değer taşıyor artık (true/false/"skip") —
+done/correct sayaçları, XP, geçme eşiği FORMÜLÜ TEK SATIR değişmedi,
+atlama HÂLÂ yanlış cevap gibi işleniyor (DOKUNULMAYACAK'a UYULDU),
+SADECE görsel işaret ayrıldı. Renk körlüğü İÇİN şekil/desen farkı
+ÖNERİLDİ (beyazın parlaklık farkı yeterli olabilir ama kesin
+DEĞİL) — BU TURDA UYGULANMADI, task'ın kendi talimatı ("öner,
+uygulama"). `npm test` 1659/1659, `e2e` 167/167 (165+2 yeni), git
+stash ile kırmızı/yeşil doğrulandı. **OLCUM-SES-BIRIKME-2-19-08**
+(ölçüm, kod YAZILMADI): Logic'in cihaz gözlemi ("telafi anons ekranı
+açık kalırken kendiliğinden ses çalıyor") canlı RMS ölçümüyle
+DOĞRULANDI — SADECE hızlı art arda (rapid-fire, SIFIRA yakın
+aralıklı) "Atla"da oluşuyor, 250ms aralıklı NORMAL tıklamada TAMAMEN
+SESSİZ. Mekanizma: `goToNextRound()`'un REENTRANCY KİLİDİ YOK, üst
+üste binen çağrılardan biri `showExamScreen()`'in `stopAudio()`'sunun
+ERİŞEMEDİĞİ bir zincir bırakabiliyor (8sn+ kesintisiz çaldı, decay
+YOK). Düzeltme AYRI bir tur. **OLCUM-ATLA-KAYIT-19-08** (ölçüm, kod
+YAZILMADI): G285'in cevap geçmişi atlamayı KAYDETMİYOR çünkü
+`recordAnswerHistoryEntry()` SADECE 11 submit handler'dan çağrılıyor,
+"Atla" bu handler'ların HİÇBİRİNE UĞRAMIYOR (bozuk değil, yol HİÇ
+TANIMLI değil). Düzeltme küçük tahmin edildi (~15-25 satır +
+~6-10 test, `buildAnswerRecord` ZATEN `result=null`-güvenli) ama 200
+kayıt penceresinin atlamalara nasıl davranacağı ÜRÜN KARARI. Detay:
+aşağı BİTTİ bölümü G324 + iki OLCUM.)
+
+Son güncelleme (ÖNCEKİ): 19.08.2026 (G323 — Telafi hedeflemesi + metin düzeltmesi,
 `a60f265`, TEK commit. OLCUM-TELAFI-HEDEF-19-08 KANITLADI: G319,
 `getWeakArea()`'nın zone dalında `value`'yu `insufficientData` ile AYNI
 koşula (weak==null) kenetlemişti — "yeterli veri yok" olunca `focusRange`
@@ -211,6 +239,125 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G324 — **Atlama BÖLÜM/telafi çubuğunda beyaz (nötr) gösteriliyor
+(`153a5f4`, TEK commit) + İKİ ölçüm.**
+
+**Görev:** OLCUM-ATLA-RENK-19-08'in (önceki tur) önerdiği "atlama ne
+doğru ne yanlış, BEYAZ gösterilsin" kararı UYGULANDI, ARDINDAN İKİ
+AYRI ölçüm (ses birikmesi + hata analizinin atlamayı kaydetmemesi)
+yapıldı.
+
+**Uygulama (1. iş):** `challenge.results` (core/challenge.js) ve
+`examResults`/`remedialResults` (core/exam-system.js) ARTIK üç
+değerden birini taşıyor: `true` (doğru), `false` (yanlış), `"skip"`
+(atlandı). `app.js:challengeTick(wasCorrect, gainedXp, wasSkipped)` ve
+`handleExamOutcome(q, result, gained, wasSkipped)` YENİ, isteğe bağlı
+ÜÇÜNCÜ parametre aldı — SADECE `goToNextRound()`'un Atla dalı `true`
+geçiyor, TÜM diğer çağıranlar (11 submit handler) parametre
+GEÇMİYOR (`undefined`→falsy→ESKİ davranış, TEK SATIR değişmedi).
+`exam-system.js:recordAnswer(correct, tier, skipped)` AYNI desenle
+üçüncü parametre aldı — `examCorrect`/`examIndex`/`remedialCorrect`/
+`remedialIndex` sayaçları ve geçme eşiği FORMÜLÜ (`correct` HÂLÂ
+`false` geçiriliyor) TEK SATIR değişmedi, SADECE `results[]`'a
+yazılan İŞARET değişti. `app.js`'in İKİ nokta-çizim yerinde
+(`#gameChapterDots`/`#gameExamDots`) üç durumlu bir sınıflandırma
+eklendi (`"skip"` → `.skip` CSS sınıfı). `styles.css`'e
+`.game-chapter-dot.skip`/`.game-exam-dot.skip { background:
+rgba(255,255,255,.55) }` eklendi — `.wrong`'un (kırmızı, alpha .6)
+AYNI ağırlıkta, beyaz karşılığı. Renk körlüğü İÇİN şekil/desen farkı
+ÖNERİLDİ (task'ın kendi sorusu) ama BU TURDA UYGULANMADI — task
+AÇIKÇA "öner, bu turda uygulama" dedi, ürün kararı BEKLİYOR.
+
+**Geriye dönük uyumluluk:** `challenge` HİÇBİR ZAMAN localStorage'a
+persist EDİLMİYOR (core/challenge.js dosya başı notu, DOĞRULANDI) —
+uyumluluk endişesi YOK. `examResults`/`remedialResults` persist
+EDİLİYOR ama `restoreFullSnapshot()` ZATEN `Array.isArray(...) ? [...]
+: []` fallback'iyle GÜVENLİ — eski kayıtlarda SADECE true/false var,
+üçüncü durumun YOKLUĞU sorun YARATMIYOR (kod `=== "skip"` ile
+KARŞILAŞTIRIYOR, eski boolean'lar bu koşula hiç girmiyor, ESKİ
+on/wrong davranışı AYNEN korunuyor).
+
+**Regresyon düzeltmesi (İKİ mevcut e2e testi):** `atla-idle-lock.spec.mjs`
+ve `exam-screen-phantom-answer.spec.mjs`'in İKİ testi (`G313
+REGRESYON KORUMASI`, `G310 REGRESYON KORUMASI`) ESKİ "Atla → wrong
+(kırmızı)" varsayımıyla yazılmıştı — G324'ün KASITLI davranış
+değişikliği bunları KIRDI (beklenen), her ikisi de `"skip"` bekleyecek
+şekilde GÜNCELLENDİ, MEKANİK doğrulamaları (BÖLÜM/TELAFİ sayacının
+GERÇEKTEN ilerlediği) DEĞİŞMEDİ.
+
+**Test:** `test/exam-system.test.mjs`'e 4 YENİ test (skipped=true'nun
+`"skip"` yazdığı, sayaçları YANLIŞ cevapla AYNI ilerlettiği, parametre
+verilmezse eski davranış). `e2e/skip-shown-white.spec.mjs` (YENİ, 2
+test) — BÖLÜM çubuğunda VE telafi çubuğunda gerçek bir "Atla"
+sonrası `.skip` sınıfının GÖRÜNDÜĞÜNÜ doğruluyor. git stash ile
+kırmızı/yeşil doğrulandı (kırmızıda: yeni testler `"wrong"` bekleyip
+`"skip"` bulamadı; unit testler dosyası da stash'lendiği için o
+tarafta "red" ayrıca gözlenmedi, SADECE e2e ile doğrulandı).
+
+**KİLİT korundu:** `npm test` 1659/1659 (1655+4). `npm run test:e2e`
+167/167 (165+2 yeni). Doğru/yanlış renkleri, atlamanın yanlış cevap
+sayılması (XP/sınav/istatistik), zorluk eğrisi TEK SATIR
+değişmedi — SADECE görsel işaret ayrıldı.
+
+---
+
+**OLCUM-SES-BIRIKME-2-19-08 (ölçüm, kod YAZILMADI, commit ATILMADI).**
+
+Logic'in cihaz gözlemi ("telafi turunu başlat ekranı çıkıyor, uzun
+süre işlem yapmazsan ses çalmaya başlıyor... ne kadar çok
+atladıysam ses o kadar çaldı") canlı Playwright + RMS ölçümüyle
+(uygulama koduna DOKUNMADAN, `AudioContext.prototype.createGain/
+createBufferSource/createAnalyser` dışarıdan PATCH edilerek)
+DOĞRULANDI: hızlı art arda (SIFIRA yakın aralıklı) 10× "Atla" ile
+telafi anons ekranına ulaşılınca, ekran açık kalırken ses **8 saniye
+KESİNTİSİZ** çaldı (RMS sabit ~0.11, decay YOK). **KRİTİK kontrol
+bulgusu:** AYNI 10 "Atla" 250ms aralıkla (normal hız) yapıldığında
+anons ekranı **TAMAMEN SESSİZ** kaldı — yani bug hız-bağımlı bir
+YARIŞ DURUMU, normal tıklama hızında OLUŞMUYOR. Mekanizma:
+`goToNextRound()` (app.js:7372) HİÇBİR reentrancy (yeniden-giriş)
+KİLİDİ TAŞIMIYOR — `async`, `await audioEngine.initAudio()` İLE
+başlıyor, sıfıra yakın tıklama aralığında ÇOK SAYIDA çağrı ÜST ÜSTE
+binebiliyor. `buildQuestionChain()`'in KENDİ `currentNodes.includes(out)`
+korumasının (audio-engine.js:898/932) SADECE kendi İÇİNDEKİ
+(`kind:"sample"` kaynaklı) async gap'i kapsadığı, `goToNextRound()`/
+`startRound()` SEVİYESİNDEKİ ÜST ÜSTE binmeyi KAPSAMADIĞI
+DOĞRULANDI — test modu (`kesim-noktasi`, varsayılan kaynak `"pink"`,
+TAMAMEN SENKRON) bu korumayı HİÇ tetiklemediği HALDE bug REPRODUCE
+oldu, yani sorun `buildQuestionChain()`'in İÇİNDE değil DIŞINDA.
+Düzeltme yönü ÖNERİLDİ (`goToNextRound()`'a reentrancy kilidi) ama
+KOD YAZILMADI — AYRI bir "ÖNCE ÖLÇ SONRA UYGULA" turu gerekiyor. Rapor:
+`OLCUM-SES-BIRIKME-2-19-08.md` (repo'da, commit'e DAHİL DEĞİL —
+oturumun diğer OLCUM-*.md dosyalarıyla AYNI konvansiyon).
+
+---
+
+**OLCUM-ATLA-KAYIT-19-08 (ölçüm, kod YAZILMADI, commit ATILMADI).**
+
+OLCUM-ATLA-RENK-19-08'in yan bulgusu doğrulandı: G285'in cevap
+geçmişi (core/answer-history.js, 1.1'in "Son Oyunlarım" listesinin
+veri kaynağı) atlamayı HİÇ kaydetmiyor — `recordAnswerHistoryEntry()`
+SADECE 11 GERÇEK submit handler'dan çağrılıyor, "Atla"
+(`goToNextRound()`) bu handler'ların HİÇBİRİNE UĞRAMIYOR (mekanizma
+BOZUK değil, kayıt YOLU o dalda HİÇ TANIMLI değil). Kaydedilirse ne
+yazılması gerektiği tanımlandı: `buildAnswerRecord()` ZATEN
+`result=null`-GÜVENLİ (tüm `modeParams()` dalları `result &&
+result.x` deseniyle okuyor) — SADECE YENİ bir `skipped:true` bayrağı
+gerekiyor, doğru cevap (`correctAnswer` vb.) `result`'a değil
+`q`'ya (activeQuestion, atlansa da HER ZAMAN dolu) bağımlı olduğu
+için atlanan sorularda da EKSİKSİZ kaydedilecek (1.1'in "doğru cevabı
+dinlet" özelliği atlamalarda da ÇALIŞIR). İş yükü KÜÇÜK tahmin
+edildi (~15-25 satır üretim kodu, 2-3 dosya, ~6-10 YENİ test) —
+G285'in KENDİ tasarımı sayesinde beklenenden daha az. Geriye dönük
+uyumluluk DOĞRULANDI (migrasyon GEREKMİYOR, `loadAnswerHistory()`
+sadece `Array.isArray` kontrolü yapıyor). **BEKLEYEN KARAR:** 200
+kayıt penceresinin (ANSWER_HISTORY_LIMIT, FIFO) atlamalara nasıl
+davranacağı — atlamalar limite DAHİL mi sayılsın (basit) yoksa
+AYRI/ağırlıklı mı tutulsun (sık atlayan bir kullanıcının GERÇEK
+cevapları daha ÇABUK dışarı itilmesin diye)? Rapor:
+`OLCUM-ATLA-KAYIT-19-08.md` (repo'da, commit'e DAHİL DEĞİL).
+
+---
 
 G323 — **Telafi hedeflemesi düzeltildi + iddiasız gözlem metni
 (`a60f265`, TEK commit).**
@@ -22464,6 +22611,28 @@ seviye başlığı × 6 rozet, tam karşılaştırma) — "Altın Kulak" TEK ör
 
 ## BEKLEYEN KARARLAR
 
+**AB. OLCUM-ATLA-KAYIT-19-08 — atlama kaydedilirse 200 kayıt penceresi
+(ANSWER_HISTORY_LIMIT) nasıl davransın?**
+G285'in cevap geçmişi (core/answer-history.js) şu an atlamayı HİÇ
+kaydetmiyor (ayrı bir bug/eksiklik DEĞİL — kayıt yolu o dalda HİÇ
+TANIMLI değil). Kaydedilmeye BAŞLARSA (küçük bir iş, ~15-25 satır,
+bkz. OLCUM-ATLA-KAYIT-19-08.md) sık atlayan bir kullanıcının 200'lük
+FIFO penceresi atlama kayıtlarıyla DOLABİLİR, GERÇEK cevaplı kayıtlar
+daha ÇABUK dışarı itilir. Seçenekler: (a) atlamalar limite basitçe
+DAHİL (tek dizi, ek karmaşıklık yok), (b) atlamalar AYRI/ağırlıklı
+tutulur (GERÇEK cevaplar korunur ama iki-kaynaklı bir yapı gerekir).
+KARAR VERİLMEDİ, kod YAZILMADI.
+
+**AA. OLCUM-SES-BIRIKME-2-19-08 — "Atla"nın hızlı art arda basılması
+sonucu oluşan ses birikmesi ne zaman düzeltilsin?**
+Ölçümle DOĞRULANDI: `goToNextRound()`'un reentrancy KİLİDİ YOK,
+SIFIRA yakın aralıklı (rapid-fire) "Atla" telafi/sınav anons
+ekranında 8sn+ kesintisiz sese yol açabiliyor (normal hızda —
+250ms+ aralık — SORUN YOK). Düzeltme yönü ÖNERİLDİ (goToNextRound
+seviyesinde reentrancy kilidi) ama bu turun kapsamı SADECE ölçümdü —
+düzeltme AYRI bir "ÖNCE ÖLÇ SONRA UYGULA" turu gerektiriyor,
+kullanıcı KARARI bekliyor (ne zaman ele alınacak, öncelik sırası).
+
 **Z. G298'in ölçtüğü artık-risk — `isUserPro()`'nun `devFlags.simulatePro`
 dalı DEV_MODE'a bağlansın mı?**
 G298, 7-tık GİRİŞ noktasını (yeni bir `devFlags.unlocked`/`simulatePro`
@@ -22761,7 +22930,21 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G323 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G324 + iki ölçüm itibarıyla):**
+Atlama BÖLÜM/telafi çubuğunda ARTIK beyaz (nötr) — `153a5f4`. `npm
+test` 1659/1659, `e2e` 167/167. **Kullanıcının/Logic'in sıradaki
+adımı:** `npx cap sync ios` + cihazda GERÇEKTEN doğrulamak (atlanan
+sorunun BEYAZ, doğru/yanlışın eski renklerinde kaldığını gözle
+görmek). AYRICA İKİ YENİ BEKLEYEN KARAR var (yukarı BEKLEYEN
+KARARLAR'da AA/AB): (1) hızlı-Atla ses birikmesi düzeltmesi NE ZAMAN
+ele alınacak (ÖNCE ÖLÇ SONRA UYGULA turu gerektiriyor, mekanizma
+BİLİNİYOR: goToNextRound()'un reentrancy kilidi yok); (2) atlamanın
+G285 cevap geçmişine kaydedilip kaydedilmeyeceği + 200 kayıt
+penceresinin buna nasıl davranacağı. Renk körlüğü için şekil/desen
+farkı ÖNERİLDİ, UYGULANMADI — 1.1 izolasyon turu + Atla rengi/1.1
+notu için bekleyenler aşağıdaki G321/G322 notunda duruyor, değişmedi.
+
+**EN YENİ SIRADAKİ ADIM (G323 itibarıyla, ARTIK ESKİ):**
 Telafinin soru üretimi düzeltildi (`a60f265`) — `getWeakArea()`'nın
 zone dalı ARTIK tier dalıyla AYNI deseni izliyor, `value`
 `insufficientData`'dan BAĞIMSIZ (yetersiz veride ORTA bölgesine/
