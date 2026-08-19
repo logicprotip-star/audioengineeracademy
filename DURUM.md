@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G313 — "İlk soruda Atla → ilerleme kilitleniyor" hatası KAPANDI (`23d3221`). G312'nin cihaz [atla-diag] logu KESİN teşhis verdi: kullanıcı `#startBtn`'e (▶) HİÇ basmadan doğrudan "Atla"ya basıyordu (`#nextBtn` idle'da bile her zaman görünür/tıklanabilir) — `startRound()` "arka kapıdan" tetikleniyor, `challenge.active` SADECE `#startBtn`'in kendi dalındaki `startChallenge()` çağrısıyla true olduğu için KALICI OLARAK false kalıyordu, `challengeTick()`'in guard'ı HER sonraki cevaptan/Atla'dan sonra sessizce no-op oluyordu — BÖLÜM sayacı 12 modun hepsinde kalıcı kilitleniyordu. Düzeltme: `startRound()`'un gerçek ilk kurulum noktasına `#startBtn`'in mantığının aynısı taşındı (dar/idempotent guard). Semantik karar (kullanıcıya soruldu, onaylandı): ilk Atla turu başlatır ama saymaz — SONRAKİ Atla/cevap gerçek ilk skip olarak sayılır, challenge/examSystem senkronu korunur. `e2e/atla-idle-lock.spec.mjs` eklendi (4 test), git stash ile kırmızı/yeşil doğrulandı. npm test 1644/1644, e2e 144/144. G312'nin tanı logları artık AMACINI TAMAMLADI ama bu turda KALDIRILMADI (görev kapsamı dışı) — G309'un numaralarıyla birlikte "kaldırılacaklar" listesinde birikmiş durumda. Detay: aşağı BİTTİ bölümü G313.)
+Son güncelleme: 19.08.2026 (G314/G315 — İKİ AYRI iş. **G314** (`77ffcff`): G309'un ana menü 1-12 numaraları ve G312'nin `[atla-diag]` tanı logları amaçlarına ulaştıkları için kaldırıldı — DURUM.md'nin daha önce "geçici, kaldırılacak" diye kaydettiği İKİ madde kapandı. **G315** (`eb0ec9a`): Logic'in cihaz tarifi — "hızlı atlarken ses geri bildirimde çalmaya devam ediyor" — kapandı. Kök sebep: G306'nın `startRound()`'daki koşulsuz `stopAudio()`'su SADECE `goToNextRound()`'un normal yoluna ulaşıldığında çalışıyordu; `handleExamOutcome()` true dönüp `showExamScreen()`'e geçtiğinde (`if (examTookOver) return;`) `startRound()` HİÇ ÇAĞRILMIYORDU — sınav/telafi ekranına geçerken önceki sorunun (kurulmakta olan zincir DAHİL) sesi kesilmeden kalıyordu. Aynı boşluk `showSessionEnd()` (hiç stopAudio() yoktu) ve `openPaywallReason()`'da (round aktifken SADECE `muteOutput()` — salt gain rampası, kurulmakta olan zinciri iptal etmez) da vardı. Düzeltme: üçünün başına `audioEngine.stopAudio()` eklendi — bu, `buildQuestionChain`/`buildThreeWayChain`/`buildDualSourceChain`'in ÖNCEDEN VAR olan `currentNodes.includes(out)` "hâlâ güncel mi" kontrolünü tetikleyerek kurulmakta olan zinciri de otomatik iptal ediyor (yeni bir mekanizma İCAT EDİLMEDİ). Rozet bildirimleri (`core/fx.js`, audioEngine'e hiç dokunmuyor) ve cakisma aşama-3'ün "önce/sonra" karşılaştırması (`goToNextRound()`'dan hiç geçmiyor) BOZULMADI. `e2e/screen-open-stops-audio.spec.mjs` eklendi (5 test), git stash ile kırmızı/yeşil doğrulandı — paywall testinin ilk hâli (sessionLimit) `teardownActiveRound()`'un KENDİ ÖNCEDEN VAR olan stopAudio()'su yüzünden yanlışlıkla yeşile düşüyordu, gerçek boşluğa (endsRound:false, round aktifken) göre düzeltildi. `npm test` 1644/1644, `e2e` 149/149. Detay: aşağı BİTTİ bölümü G314/G315.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,107 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G315 — **Ekran açılınca ses kapansın — showExamScreen()/
+showSessionEnd()/openPaywallReason() (`eb0ec9a`, TEK commit).**
+
+**Görev:** Logic'in cihaz tarifi — "Hızlı atlarken ses geri bildirimde
+çalmaya devam ediyor." Kullanıcı kararı: "Hangi ekran çıkarsa çıksın
+ses kapansın. Ses başlamamış olsa bile kapansın." HARİÇ: rozet/
+ilerleme bildirimleri sesi kesmemeli, cakisma aşama-3'ün "önce/sonra"
+karşılaştırması bozulmamalı.
+
+**Kök sebep:** G306, `startRound()`'un BAŞINA koşulsuz bir
+`audioEngine.stopAudio()` eklemişti — ama bu SADECE `goToNextRound()`'un
+`examTookOver=false` (normal "sonraki soru") yoluna ulaşıldığında
+çalışıyordu. `handleExamOutcome()` true dönüp (exam-offer/exam-start/
+remedial-start/exam-passed/exam-failed) `showExamScreen()`'e geçtiğinde
+`goToNextRound()`'un `if (examTookOver) return;` satırı `startRound()`'a
+HİÇ ULAŞMIYORDU — sınav/telafi ekranına geçerken önceki sorunun (hâlâ
+kurulmakta olan zincir DAHİL) sesi kesilmeden kalıyordu. Aynı boşluk
+`showSessionEnd()`'de (fonksiyon HİÇ `stopAudio()` çağırmıyordu, grep ile
+doğrulandı) ve `openPaywallReason()`'da (SADECE `paywallPausedRound`
+durumunda `pauseRound()`'un `audioEngine.muteOutput()`'u — salt gain
+rampası, `currentNodes`'a DOKUNMAZ — çağrılıyordu) da vardı.
+
+**Mevcut iptal mekanizması KORUNDU, YENİDEN İCAT EDİLMEDİ:**
+`buildQuestionChain`/`buildThreeWayChain`/`buildDualSourceChain`'in
+ÜÇÜNÜN de KENDİ örnek-yükleme (sample) `await` noktasından SONRA
+ÖNCEDEN VAR olan `currentNodes.includes(out)` "hâlâ güncel mi" kontrolü
+(dosyanın kendi G90/G267 notları) — `stopAudio()` `currentNodes`'u
+temizlediği için bu kontrol otomatik olarak KURULMAKTA OLAN bir zinciri
+de (henüz decode/bağlanma bitmemiş) sessizce iptal ediyor. Görevin
+"ASIL İŞ" dediği şey ZATEN kodda vardı — eksik olan SADECE bu ÜÇ ekranın
+`stopAudio()`'yu ÇAĞIRMASIYDI.
+
+**Düzeltme:** `showExamScreen()` (satırın en başı — announce/passed/
+failed/makeup'ın DÖRDÜNÜ de kapsıyor, tek fonksiyon), `showSessionEnd()`
+(en başı) ve `openPaywallReason()` (`cfg` doğrulandıktan hemen sonra)
+başına `audioEngine.stopAudio()` eklendi.
+
+**DENENİP VAZGEÇİLEN bir yaklaşım:** `goToNextRound()`'un KENDİSİNE de
+koşulsuz bir `stopAudio()` eklemek — bu, TÜM ekranları (dolaylı olarak)
+kapsardı, ama ÖLÇÜLDÜ: G306'nın KENDİ testinin
+(`e2e/cakisma-question-transition-stop.spec.mjs`) kesin çağrı-sayısı
+beklentisini kırıyordu (2 yerine 3). GEREKSİZDİ de — `showExamScreen()`'in
+kendi çağrısı `examTookOver=true` yolunu ZATEN kapatıyor. `goToNextRound()`
+DOKUNULMADAN bırakıldı (KİLİT'in "G313'ün atla düzeltmesi" uyarısına
+uyumlu, en dar/güvenli yol seçildi).
+
+**Korunanlar (kod DEĞİŞMEDİ, doğrulandı):**
+- Rozet/ilerleme bildirimleri (`toast()`, `core/fx.js`) — statik kaynak
+  taramasıyla `audioEngine`'e HİÇ dokunmadığı KİLİTLENDİ (bir regresyon
+  testi olarak eklendi, gelecekte biri `fx.js`'e audio çağrısı eklerse
+  test kırılır).
+- Cakisma aşama-3'ün "önce/sonra" karşılaştırması (`submitCakismaGuess`,
+  `www/js/app.js`, DEĞİŞTİRİLMEDİ) — bu `goToNextRound()`'dan hiç
+  geçmiyor (`#cakismaBefore`/`#cakismaAfter`'ın AYRI
+  `audioEngine.setDualCut()` çağrısı), G315'in DIŞINDA kaldı.
+
+**Test + doğrulama:** `e2e/screen-open-stops-audio.spec.mjs` (5 test) —
+3 KABUL KRİTERİ (telafi/sınav geçişi — hızlı 9+1 Atla ile; tur sonu —
+test kancasıyla; round-aktifken-paywall — Oyun Ayarları'ndan kilitli
+"Ses dosyası yükle") + 2 regresyon (rozet/fx.js statik kontrolü,
+cakisma aşama-3). `git stash` ile kırmızı/yeşil doğrulandı — **ÖNEMLİ
+bir test-geçerlilik bulgusu**: paywall testinin İLK hâli (ücretsiz
+kullanıcı, sessionLimit'e Atla'yla ulaşma) düzeltme OLMADAN BİLE
+yanlışlıkla YEŞİLE düşüyordu — `blockIfSessionLimitReached()`'ın
+çağırdığı `teardownActiveRound()` (ÖNCEDEN VAR, DEĞİŞTİRİLMEDİ) zaten
+KENDİ `stopAudio()`'sunu çağırıyormuş (sessionLimit/livesOut,
+`endsRound:true`). Test, GERÇEK boşluğa (round aktifken/`endsRound:false`
+açılan paywall, upload kilidi) göre YENİDEN yazıldı, ancak SONRA
+kırmızı/yeşil doğru ayırt etti. Telafi testinde de BENZER bir bulgu:
+hızlı tıklama dizisinin kendi "artık etkisi" (9. tıklamanın gecikmeli
+tamamlanması) sayaç sayısını 500ms'e kadar kendiliğinden artırabiliyordu
+— "before" ölçümü bu artık-etkinin yerleşmesini BEKLEDİKTEN SONRA
+alınacak şekilde düzeltildi.
+
+**KİLİT korundu:** `npm test` 1644/1644 (değişmedi), `npm run test:e2e`
+149/149 (144 eski + 5 yeni, hiçbiri kırılmadı) — G214-G313 arası TÜM
+davranışlar (G306'nın kesin çağrı-sayısı DAHİL) testle DOĞRULANDI.
+
+---
+
+G314 — **Geçici işaretler kaldırıldı — G309 numaraları + G312 tanı
+logları (`77ffcff`, TEK commit).**
+
+**Görev:** DURUM.md'ye daha önce "geçici, kaldırılacak" diye kaydedilen
+İKİ madde amaçlarına ulaştı — G309'un ana menü kartlarındaki 1-12
+build-doğrulama numaraları (kod cihaza ulaştığını doğruladı) ve G312'nin
+`[atla-diag]` tanı logları (G313'ün kök sebep teşhisini sağladı).
+
+**Yapılan:** `www/js/app.js`'ten `debugNumBadge` (+ onu besleyen
+`exerciseIndex` forEach parametresi) ve TÜM `[atla-diag]` `console.log`
+çağrıları kaldırıldı — G313'ün kendi rasyonel yorumundaki TEK tarihsel
+`[atla-diag]` referansı (nasıl teşhis edildiğini açıklıyor, G-notlarının
+"eski gerekçe SİLİNMEZ" kuralı gereği) KORUNDU. `www/styles.css`'ten
+`.mode-card-debugnum` kuralı kaldırıldı.
+
+Başka hiçbir şeye dokunulmadı. `npm test` 1644/1644, `npm run test:e2e`
+144/144 — İKİSİ de DEĞİŞMEDİ (bu değişiklik salt görsel/tanı kodu
+temizliği, hiçbir davranışa dokunmuyor).
+
+---
 
 G313 — **"İlk soruda Atla → ilerleme kilitleniyor" hatası KAPANDI
 (`23d3221`, TEK commit).**
@@ -22089,7 +22190,22 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G313 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G314/G315 itibarıyla):**
+G309/G312'nin geçici işaretleri kaldırıldı (G314, `77ffcff`) — kod
+artık tamamen "kalıcı" hâlde. "Hızlı atlarken ses geri bildirimde
+çalmaya devam ediyor" hatası kapandı (G315, `eb0ec9a`) —
+showExamScreen()/showSessionEnd()/openPaywallReason() artık ekran
+açılırken stopAudio()'yu çağırıp kurulmakta olan zinciri de iptal
+ediyor. `npm test` 1644/1644, `npm run test:e2e` 149/149.
+**Kullanıcının/Logic'in sıradaki adımı:** `npx cap sync ios` + cihazda
+GERÇEKTEN doğrulamak — hızlı art arda Atla'ya basıp sınav/telafi/tur
+sonu/paywall ekranlarının SESSİZ açıldığını, rozet bildiriminin sesi
+KESMEDİĞİNİ, Frekans Çakışması aşama 3'te cevap sonrası sesin HÂLÂ
+devam ettiğini kulakla doğrulamak. Ayrıca G313'ün kendi doğrulaması
+(ilk soruda Atla'nın artık kilitlenmediği) hâlâ cihazda TEYİT
+EDİLMEDİ — bu da bekliyor.
+
+**EN YENİ SIRADAKİ ADIM (G313 itibarıyla, ARTIK ESKİ):**
 "İlk soruda Atla → ilerleme kilitleniyor" hatası düzeltildi (`23d3221`)
 — kök sebep: `#startBtn`'e hiç basmadan doğrudan "Atla"ya basınca
 `challenge.active` kalıcı false kalıyordu. `npm test` 1644/1644, `npm
