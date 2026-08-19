@@ -1,6 +1,31 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G325 + G326 — İKİ AYRI düzeltme, önceki
+Son güncelleme: 19.08.2026 (G327 + İKİ ölçüm. **G327** (`81c1449`,
+TEK commit): OLCUM-PROPLUS-19-08 bulgusu — Pro Plus 12 modda tanımlı
+ama SADECE Frekans Bulma'da gerçek fark yaratıyor (4 bantlı soru),
+diğer 11 modda `DIFFICULTY.proplus` `DIFFICULTY.pro`'nun BİREBİR
+kopyası. VERİ SİLİNMEDİ (DIFFICULTY tabloları DOKUNULMAYACAK) —
+seçim seçeneği (İKİ UI yüzeyi: in-game Oyun Ayarları + Genel
+Ayarlar) SADECE Frekans Bulma aktifken görünür yapıldı, diğer 11
+modda gizlendi. `npm test` 1663/1663 (değişmedi), `e2e` 171/171.
+**OLCUM-ATLA-SES-3-19-08** (ölçüm, kod YAZILMADI) — G325'in
+reentrancy kilidinin ses birikmesini ÇÖZMEDİĞİ DOĞRULANDI, KÖK SEBEP
+BULUNDU: `goToNextRoundInner()` `roundFlow.clearTimer()`'i HİÇ
+ÇAĞIRMIYOR — transitioning etkileşimde unutulan soru süre sayacı
+anons ekranındayken kendi kendine dolup `onTimeUp()`→`scheduleNext()`
+→`onAdvance()`→`startRound()` zincirini G325'in kilidinin TAMAMEN
+DIŞINDAN (onAdvance `goToNextRound()`'u hiç ÇAĞIRMIYOR, `startRound()`'u
+DOĞRUDAN çağırıyor) tetikliyor — canlı `setInterval`/`createGain`
+stack-trace ölçümüyle KANITLANDI. Logic'in "3 güvenli/4 kırık" cihaz
+gözlemiyle BU TURUN ölçümü TAM ÖRTÜŞMEDİ (Playwright'ta bug 1
+atlamada BİLE üretildi) — İKİSİ de rapora AÇIKÇA, ÇELİŞKİ olarak
+kaydedildi. AYRICA "atlama sınırı" ürün fikri değerlendirildi: sınır
+kök sebebi ÇÖZMEZ (KANITLANDI), "boss'ta atlama zaten geçmiyor"
+öncülü YANLIŞ (kod doğrulandı — hiçbir engelleme YOK). Rapor:
+`OLCUM-ATLA-SES-3-19-08.md`, commit'e DAHİL DEĞİL. Detay: aşağı
+BİTTİ bölümü G327 + OLCUM-ATLA-SES-3.)
+
+Son güncelleme (ÖNCEKİ): 19.08.2026 (G325 + G326 — İKİ AYRI düzeltme, önceki
 turun İKİ ölçüm bulgusunu KAPATIYOR. **G325** (`5ab79e8`, TEK
 commit): OLCUM-SES-BIRIKME-2-19-08'in bulduğu ses birikmesi
 düzeltildi — `goToNextRound()` artık bir PROMISE KUYRUĞU (
@@ -270,6 +295,87 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G327 — **Pro Plus sadece Frekans Bulma'da görünür (`81c1449`, TEK
+commit) + İKİ ölçüm (ses birikmesi kök sebebi + atlama sınırı ürün
+sorusu).**
+
+**Görev (1. iş):** OLCUM-PROPLUS-19-08'in bulduğu — Pro Plus 12 modun
+12'sinde de `DIFFICULTY` tablosunda TANIMLI ama SADECE Frekans
+Bulma'da `DIFFICULTY.proplus` `DIFFICULTY.pro`'dan FARKLI (4 bantlı
+soru mekaniği) — diğer 11 modda BİREBİR kopya, kullanıcı yanıltıcı
+"(Çok Bantlı)" etiketi görüyor.
+
+**Uygulama:** `www/js/app.js`'e YENİ `syncProPlusVisibility()`
+fonksiyonu — `mode.MODE_ID === "frekans-bulma"` DEĞİLSE hem in-game
+Oyun Ayarları sheet'indeki `#difficultySelect option[value="proplus"]`
+hem Genel Ayarlar'daki `#diffSublist .chip-v2[data-diff="proplus"]`
+GİZLENİYOR. Gizlenirken HÂLÂ seçiliyse (proplus seçiliyken başka
+moda geçildi) `applyAutoDifficulty()`'nin AYNI deseniyle SESSİZCE
+"pro"ya düşüyor (`change` event dispatch EDİLMİYOR — "Zorluk değişti"
+toast spam'i olmasın diye, ilgili yüzeyler elle senkronlanıyor).
+`enterMode()`'a VE açılış sırasına (`syncDiffSheetUI()`'ın hemen
+YANINA) TEK satırlık çağrılar eklendi. **VERİ SİLİNMEDİ** —
+DIFFICULTY tabloları TEK SATIR değişmedi (task'ın DOKUNULMAYACAK
+kısıtı). **Test dosyalarına DOKUNULMADI** (task'ın kendi talimatı) —
+manuel Playwright doğrulaması yapıldı (boot→proplus görünür, seçilip
+başka moda geçilince gizlenip "pro"ya düştüğü, geri dönünce TEKRAR
+göründüğü doğrulandı), COMMIT'E DAHİL edilmedi (geçici script).
+
+**KİLİT korundu:** `npm test` 1663/1663 (değişmedi — app.js pure-fn
+testlerinin dışında). `npm run test:e2e` 171/171 (değişmedi).
+
+---
+
+**OLCUM-ATLA-SES-3-19-08 (ölçüm, kod YAZILMADI, commit ATILMADI) —
+2. ve 3. bölüm.**
+
+**2. bölüm — ses birikmesi KÖK SEBEBİ bulundu:** G325'in reentrancy
+kilidinin sorunu ÇÖZMEDİĞİ (Logic'in cihaz çapraz testi) canlı
+`setInterval`/`setTimeout`/`createGain` stack-trace enstrümantasyonuyla
+(uygulama koduna DOKUNULMADAN, `window.*` prototip PATCH'i) DOĞRULANDI
+VE AÇIKLANDI: `goToNextRoundInner()` `roundFlow.clearAutoAdvance()`'i
+çağırıyor ama `roundFlow.clearTimer()`'i HİÇ çağırmıyor. Parkuru
+telafi/sınav anonsuna TAŞIYAN etkileşimde (`examTookOver=true`)
+`startRound()` (tek yer, `armTimerInterval()` İÇİNDEN eski süre
+sayacını temizleyebilecek) ÇAĞRILMADAN erken dönülüyor — o ANDA aktif
+sorunun 100ms'lik `setInterval` süre sayacı anons ekranı AÇIKKEN de
+ARKA PLANDA ÇALIŞMAYA DEVAM EDİYOR. Süresi dolunca `onTimeUp()`'ı
+tetikliyor — `onTimeUp()`'ın KENDİ `roundActive`/`activeQuestion`
+guard'ı bunu ENGELLEMİYOR çünkü `activeQuestion` SADECE anons
+ekranındaki CTA/ikincil buton TIKLANINCA `null`'a çekiliyor
+(`showExamScreen()`'in KENDİSİ DEĞİL). `onTimeUp()` → `scheduleNext()`
+→ YENİ bir oto-geçiş `setTimeout` kuruyor → `onAdvance()` (`() => {
+if (!autoStopped) startRound(); }`) `startRound()`'u **DOĞRUDAN**
+çağırıyor — **G325'in `goToNextRound()` promise kuyruğunun TAMAMEN
+DIŞINDA, kilidin HİÇ GÖRMEDİĞİ bir giriş noktası.** Canlı kanıt (stack
+trace'ler + zaman damgaları) raporda.
+
+**KRİTİK ÇELİŞKİ, AÇIKÇA kaydedildi:** Logic'in cihaz gözlemi "3
+atlama güvenli, 4+ kırık" diyordu — bu turun Playwright ölçümü bug'ı
+**1, 2, 3, 4 VE 5 atlamada da** (10 sorunun geri kalanı yanlış cevapla
+dolduruldu) AYNI ŞEKİLDE ÜRETTİ. "3" sabit bir yazılım sınırı OLARAK
+DOĞRULANAMADI — mekanizma bir SAYAÇ/kuyruk boyutuna DEĞİL, TEK bir
+unutulmuş zamanlayıcıya dayanıyor; gecikme süresi (bu turda 13.7-15.1sn,
+Logic'in cihazında ~5sn) transitioning sorunun `timeSec`'ine + oto-geçiş
+gecikmesine bağlı DEĞİŞKEN, SABİT DEĞİL. İki ölçüm de (cihaz + Playwright)
+RAPORDA yan yana duruyor, biri diğerinin üstüne YAZILMADI.
+
+**3. bölüm — atlama sınırı (ÜRÜN SORUSU, kod YAZILMADI):** Sınır kök
+sebebi ÇÖZMEZ — KANITLANDI (bug 1 atlamada BİLE üretildi, ayrıca
+transitioning etkileşim skip OLMAK ZORUNDA bile değil, test senaryosunda
+HER ZAMAN bir YANLIŞ CEVAPTI). "Boss turunda atlama zaten geçmiyor"
+öncülü (task'ın kendi varsayımı) **YANLIŞ ÇIKTI** — kod doğrudan
+kontrol edildi, `#nextBtn` boss turlarında da HER ZAMAN tıklanabilir,
+hiçbir engelleme YOK. İş yükü tahmini: 2-3 dosya, ~25-40 satır üretim
++ ~8-12 test (examSystem'e YENİ bir parkur-skip sayacı gerekiyor —
+şu an parkur fazının KENDİ bir sonuç dizisi YOK). **Öneri: kök sebep
+düzeltmesi ÖNCELİKLİ/ZORUNLU, atlama sınırı İSTENİRSE AYRI/tamamlayıcı
+bir ürün kararı — kök sebebin YERİNE GEÇMEZ.**
+
+Rapor: `OLCUM-ATLA-SES-3-19-08.md`, commit'e DAHİL DEĞİL.
+
+---
 
 G325 — **goToNextRound() reentrancy kilidi eklendi — hızlı atlamada
 ses birikmesi düzeltildi (`5ab79e8`, TEK commit).**
@@ -22746,6 +22852,22 @@ seviye başlığı × 6 rozet, tam karşılaştırma) — "Altın Kulak" TEK ör
 
 ## BEKLEYEN KARARLAR
 
+**AC. OLCUM-ATLA-SES-3-19-08 — ses birikmesi kök sebebi ne zaman
+düzeltilsin + atlama sınırı eklensin mi?**
+Kök sebep BULUNDU (`goToNextRoundInner()`'da eksik
+`roundFlow.clearTimer()` çağrısı — detay yukarı BİTTİ bölümü) ama
+DÜZELTİLMEDİ (bu turun kapsamı SADECE ölçümdü). AYRICA Logic'in cihaz
+gözlemiyle (3 güvenli/4 kırık) bu turun Playwright ölçümü (1 atlamada
+bile kırık) TAM ÖRTÜŞMÜYOR — İKİ gözlem de KAYITLI, hangisinin daha
+temsili olduğu (cihaz zamanlaması vs Playwright zamanlaması)
+NETLEŞMEDİ. Atlama sınırı fikri DEĞERLENDİRİLDİ, kök sebebi
+ÇÖZMEYECEĞİ KANITLANDI — kullanıcı YİNE DE isterse AYRI bir ürün
+kararı olarak ele alınabilir ama kök sebep düzeltmesinin YERİNE
+GEÇMEZ. KARAR VERİLMEDİ: (1) kök sebep düzeltmesi ne zaman AYRI bir
+"ÖNCE ÖLÇ SONRA UYGULA" turunda ele alınacak, (2) atlama sınırı
+İSTENİYOR mu (isteniyorsa: sınır sayısı, boss/sınav/telafi turlarında
+davranışı, dolunca ne olacağı — hepsi AYRI ürün kararları).
+
 **Z. G298'in ölçtüğü artık-risk — `isUserPro()`'nun `devFlags.simulatePro`
 dalı DEV_MODE'a bağlansın mı?**
 G298, 7-tık GİRİŞ noktasını (yeni bir `devFlags.unlocked`/`simulatePro`
@@ -23043,7 +23165,23 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G325 + G326 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G327 + iki ölçüm itibarıyla):**
+Pro Plus ARTIK sadece Frekans Bulma'da görünüyor (`81c1449`). `npm
+test` 1663/1663, `e2e` 171/171 (değişmedi). Ses birikmesinin KÖK
+SEBEBİ bulundu (`goToNextRoundInner()`'da eksik `roundFlow.clearTimer()`
+çağrısı — onAdvance'in `startRound()`'u DOĞRUDAN çağırması G325'in
+kilidini TAMAMEN atlıyor) ama DÜZELTİLMEDİ — AYRI bir tur gerekiyor
+(bkz. yukarı BEKLEYEN KARARLAR'da AC). Atlama sınırı fikri
+DEĞERLENDİRİLDİ, kök sebebi ÇÖZMEYECEĞİ KANITLANDI. **Kullanıcının/
+Logic'in sıradaki adımı:** `npx cap sync ios` + cihazda GERÇEKTEN
+doğrulamak (Pro Plus'ın diğer 11 modda ARTIK görünmediğini, Frekans
+Bulma'da AYNEN çalıştığını gözle görmek). AYRICA İKİ karar bekliyor:
+(1) kök sebep düzeltmesi ne zaman ele alınacak, (2) atlama sınırı
+İSTENİYOR mu (isteniyorsa detaylar AYRI ürün kararları). Renk körlüğü
+şekil/desen farkı + 1.1 izolasyon turu için bekleyenler aşağıdaki
+G321/G322 notunda duruyor, değişmedi.
+
+**EN YENİ SIRADAKİ ADIM (G325 + G326 itibarıyla, ARTIK ESKİ):**
 İKİ AYRI düzeltme — önceki turun İKİ ölçüm bulgusu KAPANDI. **G325**
 (`5ab79e8`): hızlı-Atla ses birikmesi düzeltildi (`goToNextRound()`
 promise kuyruğuyla SIRAYLA çalışıyor, hiçbir tıklama düşürülmüyor).
