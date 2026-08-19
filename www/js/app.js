@@ -7382,12 +7382,31 @@ els.startBtn.addEventListener("click", async () => {
   }
 });
 
+// G325 (OLCUM-SES-BIRIKME-2-19-08 — kanıtlandı: goToNextRound()'un
+// reentrancy KİLİDİ YOK, SIFIRA yakın aralıklı "Atla" tıklamaları ÜST
+// ÜSTE binip birden fazla ses zinciri kurabiliyordu, biri stopAudio()'nun
+// erişemediği şekilde ASILI kalıp anons ekranında KESİNTİSİZ çalmaya
+// devam ediyordu — normal hızda ÖLÇÜLEN SORUN YOKTU). Çözüm: bir
+// PROMISE KUYRUĞU — her çağrı bir ÖNCEKİ çağrının TAMAMEN bitmesini
+// bekleyip SIRAYLA çalışır (hiçbir çağrı DÜŞÜRÜLMEZ/yok SAYILMAZ,
+// SADECE üst üste binmesi engellenir — kullanıcı 5 kez hızlı atlarsa
+// 5 tıklamanın HEPSİ, sadece art arda/örtüşmeden işlenir).
+// `.then(fn, fn)` deseni: ÖNCEKİ halka HATA fırlatsa bile (`onRejected`
+// dalı da AYNI fn) zincir kilitlenmez, bir SONRAKİ çağrı yine çalışır —
+// "hata durumunda serbest bırakılsın" (task) BÖYLECE sağlanıyor, ayrı
+// bir try/finally GEREKMEDEN.
+let goToNextRoundChain = Promise.resolve();
+function goToNextRound() {
+  goToNextRoundChain = goToNextRoundChain.then(goToNextRoundInner, goToNextRoundInner);
+  return goToNextRoundChain;
+}
+
 // "Atla ▶" — sıradaki soruya elle geçiş. Karşılaştırma önizlemesinin kendi bekleyen
 // zamanlayıcısını (cmpPreviewStopTimer/cmpPreviewRemainingMs — roundFlow.
 // clearAutoAdvance()'in KAPSAMI DIŞINDA, app.js seviyesinde ayrı tutulur) da iptal
 // eder — aksi halde yeni turun ortasında eski önizlemenin zamanlayıcısı tetiklenip
 // yanlışlıkla ikinci bir otomatik-geçiş kurabilirdi.
-async function goToNextRound() {
+async function goToNextRoundInner() {
   // G187 (Bug 29, KATMAN 1) — bu, `await audioEngine.initAudio()`'DAN ÖNCE,
   // SENKRON olarak çalışmalı: freqTapTimer'ın (Frekans Bulma'nın Dokunmalı
   // biçimindeki 180ms dokunuş debounce'u) kalan süresi bu await'in kendi
