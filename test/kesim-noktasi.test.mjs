@@ -285,7 +285,10 @@ describe("Kesim Noktası — applyProcessing (A/B: kuru/işlenmiş yol audio-eng
       assert.equal(filters.length, 1);
       assert.equal(filters[0].type, filterType);
       assert.equal(filters[0].frequency.value, 1234);
-      assert.ok(filters[0].Q.value > 0);
+      // G334 — Q ARTIK negatif (dB rezonans değeri, Web Audio'nun lowpass/
+      // highpass Q semantiği — bkz. FILTER_Q'nun kendi notu). "Q>0" varsayımı
+      // ESKİ (yanlış) Butterworth-Q modeline aitti, DÜZELTİLDİ.
+      assert.ok(Number.isFinite(filters[0].Q.value));
       assert.equal(created.length, 1);
     }
   });

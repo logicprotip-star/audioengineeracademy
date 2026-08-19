@@ -197,9 +197,23 @@ export const DISTRACTOR_STEP_OCT = { easy: 1.2, medium: 0.9, hard: 0.75, pro: 0.
 export const FREQ_TOLERANCE_OCT = 0.5;
 
 // Filtre eğimi (Q) — başlangıç için makul, SABİT bir değer (2. derece/"12 dB/oktav"
-// biquad, ~Butterworth). Zorlukla eğim değişimi bu iskeletin kapsamı dışında,
-// sonraki bir iş (bkz. dosya başı not).
-const FILTER_Q = Math.SQRT1_2; // ≈ 0.707
+// biquad, Butterworth: -3dB TAM kesim frekansında). Zorlukla eğim değişimi bu
+// iskeletin kapsamı dışında, sonraki bir iş (bkz. dosya başı not).
+//
+// G334 (OLCUM-FREKANS-DOGRULUK-19-08'in bulduğu KÖK SEBEP) — DÜZELTME: eski
+// değer `Math.SQRT1_2` (0.707) idi, "klasik Butterworth Q" sanılarak seçilmişti
+// — ama Web Audio'da lowpass/highpass filtre TİPİNDE `Q` parametresi klasik
+// kalite faktörü DEĞİL, "kesim noktasındaki rezonansın dB cinsinden değeri"
+// (MDN: "this value is not a traditional Q, but is a resonance value in
+// decibels" — peaking/notch/bandpass TİPLERİNDE Q hâlâ klasik, SADECE lowpass/
+// highpass'ta bu fark var). Eski değer GERÇEKTE "kesimde +0.71dB rezonans
+// tepesi" demekti — ölçüldü: gerçek -3dB noktası nominal'den 470+ sent (yarım
+// oktava yakın) kayıyordu. DOĞRU değer: klasik Butterworth Q'yu (1/√2) ÖNCE
+// dB'ye çevir (`20*log10(Q)`), SONRA bu dB değerini Web Audio'nun Q
+// parametresine yaz — ampirik doğrulandı (getFrequencyResponse ile
+// CUTOFF_MIN-CUTOFF_MAX arası + 44.1/48kHz): sapma en kötü ~2.2 sent (eski
+// ~470 sentin 200 KATI altı, task'ın 10 sent eşiğinin de çok altı).
+const FILTER_Q = 20 * Math.log10(Math.SQRT1_2); // ≈ -3.0103 dB (Web Audio'nun lowpass/highpass Q'su İÇİN Butterworth karşılığı)
 
 // G18 bug taraması bulgusu: FA_MIN–FA_MAX (80 Hz–17 kHz) Frekans Bulma'nın PEAKING
 // bant merkezleri için seçilmişti (bkz. o dosyanın notu) — bir HPF/LPF KESİMİ için

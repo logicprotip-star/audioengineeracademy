@@ -42,6 +42,36 @@ describe("biquadMagnitudeDb() — RBJ formülünün temel doğrulukları", () =>
   });
 });
 
+// G334 (OLCUM-FREKANS-DOGRULUK-19-08) — Web Audio'da lowpass/highpass TİPİNDE
+// `Q`, klasik kalite faktörü DEĞİL, "kesim noktasındaki rezonansın dB cinsinden
+// değeri" (MDN doğrulandı). RBJ cookbook'un alpha=sin(w0)/(2*Q) formülü KLASİK
+// Q beklediği için, bu fonksiyon lowpass/highpass'ta Q'yu ÖNCE `10^(Q/20)` ile
+// klasik değere çeviriyor (peaking/notch/bandpass/allpass'ta DOKUNULMADI, Q
+// zaten klasik). Bu test, çevrimin GERÇEKTEN Chromium'un native
+// `getFrequencyResponse()`'uyla eşleştiğini kesim-noktasi.js'in KENDİ
+// FILTER_Q'suyla (20*log10(1/√2)) DOĞRULAR — canlı ölçüm
+// (OLCUM-FREKANS-DOGRULUK-19-08.md) fark SIFIR bulmuştu.
+describe("biquadMagnitudeDb() — G334: lowpass/highpass Q'nun dB-rezonans çevrimi", () => {
+  it("Q=20*log10(1/√2) (kesim-noktasi.js'in Butterworth karşılığı) f0'da TAM -3.0103dB verir", () => {
+    const butterworthQ = 20 * Math.log10(Math.SQRT1_2);
+    for (const type of ["highpass", "lowpass"]) {
+      for (const f0 of [100, 1000, 8000]) {
+        const db = biquadMagnitudeDb({ type, frequency: f0, Q: butterworthQ }, f0, SR);
+        assert.ok(Math.abs(db - -3.0103) < 0.001, `${type} f0=${f0}: ${db}dB (−3.0103 bekleniyordu)`);
+      }
+    }
+  });
+
+  it("Q'nun dB değeri f0'daki kazanca DOĞRUDAN eşit (Chromium'un ölçülen davranışıyla AYNI kimlik)", () => {
+    for (const type of ["highpass", "lowpass"]) {
+      for (const Qdb of [0.5, 1, 3, 5, 10]) {
+        const db = biquadMagnitudeDb({ type, frequency: 1000, Q: Qdb }, 1000, SR);
+        assert.ok(Math.abs(db - Qdb) < 0.0001, `${type} Q=${Qdb}dB: f0'daki kazanç ${db}dB (${Qdb} bekleniyordu)`);
+      }
+    }
+  });
+});
+
 describe("estimateChainGainDb() — pembe-gürültü-ağırlıklı ortalama", () => {
   it("dar-Q bir peaking boost'un ortalama etkisi PİK gain'den KÜÇÜK büyüklükte (sadece dar bir bant etkileniyor)", () => {
     const peakGain = 6;

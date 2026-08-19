@@ -43,7 +43,17 @@ export function biquadMagnitudeDb({ type, frequency, Q, gain = 0 }, f, sampleRat
   const w0 = (2 * Math.PI * frequency) / sampleRate;
   const cosW0 = Math.cos(w0);
   const sinW0 = Math.sin(w0);
-  const safeQ = Math.max(Q, 1e-6);
+  // G334 (OLCUM-FREKANS-DOGRULUK-19-08) — Web Audio'da `Q`, lowpass/highpass
+  // TİPİNDE klasik kalite faktörü DEĞİL, "kesim noktasındaki rezonansın dB
+  // cinsinden değeri" (MDN). RBJ cookbook'un `alpha=sin(w0)/(2*Q)` formülü
+  // KLASİK Q bekliyor — bu yüzden burada SADECE lowpass/highpass için
+  // `Q_klasik = 10^(Q/20)` çevrimi uygulanıyor (peaking/notch/bandpass/allpass
+  // TİPLERİNDE Q zaten klasik, DOKUNULMADI). Ampirik doğrulandı: bu çevrimle
+  // fonksiyon Chromium'un GERÇEK `BiquadFilterNode.getFrequencyResponse()`
+  // çıktısını TÜM test noktalarında (birden çok Q/frekans/sampleRate) fark
+  // SIFIR hassasiyetinde eşliyor.
+  const classicQ = (type === "lowpass" || type === "highpass") ? Math.pow(10, Q / 20) : Q;
+  const safeQ = Math.max(classicQ, 1e-6);
   const alpha = sinW0 / (2 * safeQ);
 
   let b0, b1, b2, a0, a1, a2;
