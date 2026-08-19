@@ -1,6 +1,18 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G316/G317 — İKİ AYRI iş. **G316** (`d51a97f`): Logic cihazda dinledi, snare-akustik (snare_late+acoustic_guitar) çiftinin hizalaması İKİ AYRI offsetA denemesinden (377ms, sonra ölçülen 0.425) sonra da tutmadı — "1.1'e bırakılıyor" kararıyla SOURCE_PAIRS'ten kaldırıldı (7→6 çift). snare-clean ve snare_late kaynağı KALDI. `www/index.html`'in hardcoded `#cakismaPairSelect` listesi de güncellendi (DAHA ÖNCE İKİ KEZ atlanmış bir adım). `npm test` 1643/1643 (1644'ten 1 düştü — silinen çifte özel bir test KALDIRILDIĞI için, kırılan test YOK), `e2e` 149/149 (değişmedi). **G317** (`7238352`): Tonal Denge'de kısmi doğruya (1-3/4 bant, 5/6 bantta benzer) artan XP veriliyor AMA "doğru" SAYILMIYOR — evaluateAnswer'ın "correct" tanımı TEK SATIR değişmedi (DOKUNULMAYACAK), sadece YENİ bir `correctBandCount` alanı eklendi. calculateXP'ye partial-credit dalı eklendi (4 bant: Logic'in verdiği %15/%35/%75; 5/6 bant: ELLE genişletilmiş, ÖLÇÜLMEMİŞ bir ürün yorumu, gerekçesi kodda). Sınav ilerlemesi/zayıf bölge/istatistikler (`result.correct`'e bakan HER ŞEY) SIFIR etkilendi — sadece "yanlış" dalına XP hesaplama eklendi, combo/stats.wrong/loseLife AYNEN çalışıyor. Ölçülen bulgu: `setFeedback()` "(+N XP)" ekini panelde GÖSTERİLMEDEN ÖNCE regex ile siliyor (correct=true dalında da AYNI, önceden var) — kullanıcı XP'yi ŞU AN sadece canvas animasyonundan görüyor. `npm test` 1651/1651, `e2e` 152/152, git stash ile İKİSİ de kırmızı/yeşil doğrulandı. **Bekleyen soru** (task'ın kendi talimatı: "ölç öner, sorma"): geri bildirim ekranı kaç bandı doğru bildiğini GÖSTERMELİ Mİ — kullanıcıya SORULACAK. Detay: aşağı BİTTİ bölümü G316/G317.)
+Son güncelleme: 19.08.2026 (G318/G319 — İKİ AYRI düzeltme, OLCUM-KULAK-SES-
+19-08 + OLCUM-ZAYIF-KADEME-19-08'in canlı ölçtüğü İKİ kanıtlı bug. **G318**
+(`e4f69c3`): kulak butonu önizlemesi sonrası geri bildirim süresi
+katlanıyordu (~5.5-6sn → ~8.5-10sn) — `cmpPreviewRemainingMs`'ten artık
+3sn düşülüyor, 3sn'lik pencerenin kendisi DEĞİŞMEDİ. **G319** (`12ca317`):
+getWeakTier/getWeakZone tek aday kaldığında isabeti %100 olsa bile
+karşılaştırmasız "zayıf" seçiyordu — en az İKİ aday şartı + eşik
+3'ten 10'a yükseltildi (Monte Carlo simülasyonuyla gerekçeli), yetersiz
+veride "Henüz yeterli verin yok" gösteriliyor. `npm test` 1655/1655,
+`e2e` 158/158, git stash ile İKİSİ de kırmızı/yeşil doğrulandı. Detay:
+aşağı BİTTİ bölümü G318/G319.)
+
+Son güncelleme (ÖNCEKİ): 19.08.2026 (G316/G317 — İKİ AYRI iş. **G316** (`d51a97f`): Logic cihazda dinledi, snare-akustik (snare_late+acoustic_guitar) çiftinin hizalaması İKİ AYRI offsetA denemesinden (377ms, sonra ölçülen 0.425) sonra da tutmadı — "1.1'e bırakılıyor" kararıyla SOURCE_PAIRS'ten kaldırıldı (7→6 çift). snare-clean ve snare_late kaynağı KALDI. `www/index.html`'in hardcoded `#cakismaPairSelect` listesi de güncellendi (DAHA ÖNCE İKİ KEZ atlanmış bir adım). `npm test` 1643/1643 (1644'ten 1 düştü — silinen çifte özel bir test KALDIRILDIĞI için, kırılan test YOK), `e2e` 149/149 (değişmedi). **G317** (`7238352`): Tonal Denge'de kısmi doğruya (1-3/4 bant, 5/6 bantta benzer) artan XP veriliyor AMA "doğru" SAYILMIYOR — evaluateAnswer'ın "correct" tanımı TEK SATIR değişmedi (DOKUNULMAYACAK), sadece YENİ bir `correctBandCount` alanı eklendi. calculateXP'ye partial-credit dalı eklendi (4 bant: Logic'in verdiği %15/%35/%75; 5/6 bant: ELLE genişletilmiş, ÖLÇÜLMEMİŞ bir ürün yorumu, gerekçesi kodda). Sınav ilerlemesi/zayıf bölge/istatistikler (`result.correct`'e bakan HER ŞEY) SIFIR etkilendi — sadece "yanlış" dalına XP hesaplama eklendi, combo/stats.wrong/loseLife AYNEN çalışıyor. Ölçülen bulgu: `setFeedback()` "(+N XP)" ekini panelde GÖSTERİLMEDEN ÖNCE regex ile siliyor (correct=true dalında da AYNI, önceden var) — kullanıcı XP'yi ŞU AN sadece canvas animasyonundan görüyor. `npm test` 1651/1651, `e2e` 152/152, git stash ile İKİSİ de kırmızı/yeşil doğrulandı. **Bekleyen soru** (task'ın kendi talimatı: "ölç öner, sorma"): geri bildirim ekranı kaç bandı doğru bildiğini GÖSTERMELİ Mİ — kullanıcıya SORULACAK. Detay: aşağı BİTTİ bölümü G316/G317.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +157,127 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G319 — **Zayıf kademe/bölge raporu — tek aday karşılaştırmasız "zayıf"
+sayılmasın (`12ca317`, TEK commit).**
+
+**Görev:** OLCUM-ZAYIF-KADEME-19-08'in KANITLADIĞI bug: `getWeakTier`/
+`getWeakZone`'da `MIN_TIER_SAMPLES`/`MIN_SAMPLES` eşiği sadece ADAYLIĞI
+filtreliyordu, KARŞILAŞTIRMAYI DEĞİL — tek aday kaldığında (yeni
+kullanıcı: sadece "kolay"da oynamış) o aday isabeti %100 OLSA BİLE
+"zayıf" ilan ediliyordu. Cihazda: yeni kullanıcıya "Zayıf kademen:
+Kolay" gösterildi.
+
+**FORMÜLE (accuracy/weakness HESABI) DOKUNULMADI** — `getWeakTier`/
+`getWeakZone`'ın `accuracy`/`zoneWeakness` satırları TEK KARAKTER
+değişmedi. İKİ eşik EKLENDİ:
+1. Yeterli örnekli (>=eşik) aday SAYISI 2'DEN AZSA `null` döner —
+   DÜZELTME ÖNCESİ tek aday karşılaştırmasız "en zayıf" seçiliyordu,
+   artık en az İKİ aday olmadan bir karşılaştırma YAPILAMAZ.
+2. `MIN_TIER_SAMPLES`/`MIN_SAMPLES` **3'ten 10'a yükseltildi** —
+   `scratchpad/sim-min-samples.mjs` (bu commit'e DAHİL DEĞİL,
+   sonucu koda yorum olarak taşındı) Monte Carlo simülasyonu:
+   200.000 deneme, iki kademe arasında GERÇEK 20 puanlık bir fark
+   (%75 vs %55) varsayılıp n örneklemle "hangisi daha zayıf"
+   kararının GERÇEĞİYLE eşleşme oranı ölçüldü — n=3'te SADECE %54,5
+   (yazı-turaya YAKIN), n=10'da %76,7, n=15'te %83,6, n=20'de %88,2.
+   n=10, "makul sürede ulaşılabilir" (1-2 parkur) İLE "yazı-turadan
+   BELİRGİN daha güvenilir" arasında seçilen bir denge — KESİN bir
+   istatistiksel eşik DEĞİL, ölçülerek GEREKÇELENDİRİLMİŞ bir ürün
+   yorumu (kod içi yorumda AYNEN belirtiliyor).
+   `personalization.js`'in `MIN_SAMPLES`'ı AYNI n=10'a çekildi —
+   `zoneWeakness`'ın ACCURACY_WEIGHT'i (0.6) baskın olduğu için
+   accuracy-simülasyonunun ANALOJİK uygulanması, deviation bileşenini
+   (0.4) AYRICA simüle eden BAĞIMSIZ bir ölçüm DEĞİL — dürüstçe
+   işaretlendi (kod içi not).
+
+**app.js:** `getWeakArea()`'ya YENİ `insufficientData` alanı eklendi
+(`weak===null` yansıması) — `value`/`label` HÂLÂ nötr varsayılana
+(medium/genel spektrum) düşüyor (telafinin MEKANİK yönlendirmesi,
+`examSystem.startRemedial()`'a geçen soru içeriği — DOKUNULMAYACAK:
+"zorluk eğrisi" — ETKİLENMEDİ). `showExamScreen("makeup", …)` artık
+`area.insufficientData` iken "Zayıf X: Y" DEMİYOR, **"Henüz yeterli
+verin yok"** diyor (`exFacts`'taki kademe/bölge satırı da "Henüz
+belirlenemedi"). Yeterli veri VARSA (`insufficientData===false`) eski
+metin AYNEN (`Zayıf kademen: X` / `Zayıf bölgen: Y`) — dal ayrımı
+DIŞINDA hiçbir satır değişmedi.
+
+**Test:** `test/exam-system.test.mjs`/`test/personalization.test.mjs`
+— eski n=3/5/9'a dayanan fixture'lar n>=10'a güncellendi (yeni eşikle
+"eşik altı" YANLIŞLIKLA saymasınlar diye), İKİ test (`getWeakZone` "TEK
+bölge... O bölgeyi döner", benzer bir örtük varsayım) TAM OLARAK
+kanıtlanan bug'ı doğruladığı için TERS çevrildi (artık `null`
+bekliyor). 5 YENİ birim testi eklendi (tek-aday/eşik-altı-ikinci-aday/
+tam-sınırda-iki-aday senaryoları, hem tier hem zone). `e2e/weak-area-
+insufficient-data.spec.mjs` (YENİ, 5 test) — GERÇEK 10x "Atla" parkur
+başarısızlığı (exam-flow.spec.mjs'in AYNI deseni) + `seedLocalStorage`
+`stats`/doğrudan `fa_zonestats` ile ÖNCEDEN tarih seed edilerek hem
+"tek kademe/bölge" hem "iki aday ama biri eşik altı" hem "iki aday
+yeterli" senaryoları `#exTitle` metninden doğrulandı. git stash ile
+TÜM değişiklik (app.js+exam-system.js+personalization.js birlikte)
+kırmızı/yeşil doğrulandı — kırmızıda GERÇEKTEN "Zayıf kademen: Kolay"/
+"Zayıf bölgen: genel spektrum" ÜRETİLDİĞİ (cihazdaki bug'ın BİREBİR
+metni) görüldü.
+
+**KİLİT korundu:** `npm test` 1655/1655 (1651+4, exam-system'e 3, kalan
+personalization'da net +1 — 1 test yeniden adlandırılıp TERS çevrildi,
+1 YENİ eklendi). `npm run test:e2e` 158/158 (152+6 — G318'in 1 testi +
+G319'un 5 testi, hiçbiri kırılmadı; tam takım koşusunda BİR KEZ
+`screen-open-stops-audio.spec.mjs`'in "hızlı art arda Atla" testi
+flaky çıktı — TEKRAR koşulunca VE izole koşulunca temiz geçti, bu
+turun DEĞİŞİKLİĞİYLE İLGİSİZ pre-existing flake olarak işaretlendi,
+KOD DEĞİŞTİRİLMEDİ).
+
+---
+
+G318 — **Kulak butonu önizlemesi sonrası geri bildirim süresi
+katlanmasın (`e4f69c3`, TEK commit).**
+
+**Görev:** OLCUM-KULAK-SES-19-08'in CANLI ÖLÇTÜĞÜ kök sebep: kulak
+butonuna basmak `roundFlow.captureRemainingAndClear()` ile otomatik-
+geçiş süresinin KALANINI yakalıyor, 3 saniyelik önizleme penceresi
+(`CMP_PREVIEW_RESUME_MS`) bitince bu TAM süreyi SIFIRDAN yeniden
+kuruyordu — toplam geri bildirim süresi KATLANIYORDU (ölçülen: ~5.5-6sn
+→ ~8.5-10sn), o ek süre boyunca `stopAudio()` HİÇ çağrılmadığı için
+önizleme sesi kesintisiz sürüyordu VE görsel "dinleniyor" göstergesi
+(kulak butonunun "on" ışığı) 3. saniyede söndüğü için kullanıcı "bitti"
+sanırken ses 5+ saniye DAHA çalmaya devam ediyordu — cihazdaki "ses
+karıştı, sonraki soruya taşıdı" algısının BİREBİR açıklaması.
+
+**DOKUNULMADI (Logic'in kararı):** sesi 3. saniyede KESMEK DEĞİL
+(Frekans Çakışması Aşama 3'ün "cevap sonrası ses DEVAM etmeli" kararını
+bozardı), 3 saniyelik önizleme penceresinin KENDİSİ, manuel kapatma
+(X) akışı (zaten temiz, ölçüldü).
+
+**Düzeltme (`app.js`, `.fb-ear` click handler'ının SONU):** `remain`
+(önizleme BAŞLARKEN yakalanan TAM kalan süre) artık `ensureAutoNext`'e
+geçirilmeden ÖNCE `Math.max(0, remain - CMP_PREVIEW_RESUME_MS)` ile 3
+saniye DÜŞÜLÜYOR — `typeof remain === "number"` kontrolü `null`'u
+(G15'in "orijinal zamanlayıcı zaten ateşlenmişti" durumu) DOKUNMADAN
+bırakıyor; `0` sonucu zaten `ensureAutoNext`'in KENDİ "durationMs>0
+değilse 1500ms varsayılana düş" kuralına göre (round-flow.js:81)
+`null` ile AYNI davranıyor — YENİ bir dal İCAT EDİLMEDİ.
+
+**Test:** `e2e/ear-preview-duration.spec.mjs` (YENİ, 1 test) —
+otomatik-geçiş süresinin DETERMİNİSTİK olduğu (`scheduleNext(...
+result.correct ? 4000 : 6000)`, app.js'in HER submit* handler'ının
+ortak sonu) ölçülerek BULUNDU, test iki AYRI sayfa KARŞILAŞTIRMASI
+YERİNE cevabın doğru/yanlışlığından BEKLENEN D'yi (4000/6000) doğrudan
+hesaplayıp kulak butonu SONRASI GERÇEK ilerleme süresinin bu D'ye
+(1500ms toleransla) eşit kaldığını doğruluyor — `__aeaActiveQuestion
+Choices()`'ın DEĞİŞMESİ (round'un GERÇEK kurulumu, SADECE startRound()'da
+olur) "round ilerledi" imzası olarak kullanıldı (`stopAudioCallCount`
+TEK BAŞINA GÜVENİLİR DEĞİLDİ — kulak butonunun KENDİ önizleme zinciri
+kurulumu da bir `stopAudio()` çağırıyor, ölçülerek bulunan bir yarış).
+git stash ile kırmızı (ölçülen: D+~2.6-2.7sn KATLANMA, TAM OLARAK
+ölçümün öngördüğü ~3sn) / yeşil (D'ye eşit) doğrulandı.
+
+**KİLİT korundu:** `npm test` 1651/1651 (değişmedi — SADECE app.js/e2e
+dokunuldu). `npm run test:e2e` 153/153 (152+1). Aşama 3 REGRESYON testi
+(`screen-open-stops-audio.spec.mjs`, "cevap sonrası ses DEVAM ediyor")
+DEĞİŞMEDEN geçti.
+
+---
 
 G317 — **Tonal Denge — kısmi doğruya artan XP, "doğru" SAYILMADAN
 (`7238352`, TEK commit).**
@@ -22304,7 +22437,23 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G316/G317 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G318/G319 itibarıyla):**
+Kulak butonu önizlemesi sonrası geri bildirim süresi katlanması
+düzeltildi (G318, `e4f69c3`) — süre artık normal (~4-6sn) kalıyor,
+sesi 3. saniyede kesmiyor, Aşama 3/manuel kapatma dokunulmadı. Zayıf
+kademe/bölge raporu tek aday karşılaştırmasız "zayıf" saymıyor artık
+(G319, `12ca317`) — en az iki aday + MIN_TIER_SAMPLES/MIN_SAMPLES 3'ten
+10'a yükseltildi (ölçülerek gerekçelendirildi), yetersiz veride "Henüz
+yeterli verin yok" gösteriliyor. `npm test` 1655/1655, `npm run
+test:e2e` 158/158. **Kullanıcının/Logic'in sıradaki adımı:** `npx cap
+sync ios` + cihazda GERÇEKTEN doğrulamak — kulak butonuna basıp
+dokunmadan beklemek (artık ~5-6sn'de ilerlemeli, ~8-10sn DEĞİL), yeni
+bir kullanıcıyla/az oynanmış bir modda telafiye düşüp "Henüz yeterli
+verin yok" mesajının GERÇEKTEN göründüğünü, yeterli veri biriktikten
+SONRA gerçek "Zayıf kademen/bölgen: X" mesajının döndüğünü kulakla/
+gözle doğrulamak.
+
+**EN YENİ SIRADAKİ ADIM (G316/G317 itibarıyla, ARTIK ESKİ):**
 Snare + Akustik Gitar çifti kaldırıldı (G316, `d51a97f`) — Çift
 Seçici artık ALTI çift gösteriyor (index.html'deki hardcoded liste de
 güncellendi). Tonal Denge'de kısmi doğruya artan XP eklendi (G317,
