@@ -124,9 +124,20 @@ describe("G54 — 9 modun kaynak listesi doğru mu (kayıp enstrüman regresyon 
     assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["arpeggio_guitar", "clean_guitar", "groove", "guitar", "snare", "upload", "vocal", "vocal_1"].sort());
   });
 
-  it("tonal-denge: SADECE groove/upload (dolu mix bağlamı) — KASITLI dar liste", () => {
+  // G335 (OLCUM-TONAL-KAYNAK-19-08) — "SADECE groove/upload" KISITI kaldırıldı.
+  // G44'ün "dolu spektrum" ŞARTI korundu ama artık GERÇEK 6-bant FFT ölçümüne
+  // dayanıyor (kick/bass ölçülüp AÇIKÇA yetersiz bulundu, dışarıda kaldı —
+  // snare_late spektral olarak snare'le özdeş + pairOnly, EKLENMEDİ).
+  it("tonal-denge: groove/upload + G335'te ölçülüp eklenen 9 kaynak (kick/bass/snare_late HÂLÂ YOK)", () => {
     const meta = tonalDenge.getMeta();
-    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["groove", "upload"].sort());
+    assert.deepEqual([...meta.uyumluKaynaklar].sort(), [
+      "groove", "upload", "hihat", "vocal", "vocal_1", "snare",
+      "guitar", "clean_guitar", "arpeggio_guitar",
+      "acoustic_guitar_stereo", "clean_guitar_stereo"
+    ].sort());
+    for (const id of ["kick", "bass", "snare_late", "tom"]) {
+      assert.ok(!meta.uyumluKaynaklar.includes(id), `${id} G335 ölçümünde yetersiz/uygunsuz bulundu, EKLENMEMELİYDİ`);
+    }
   });
 
   it("frekans-cakismasi: tek-kaynak uyumluKaynaklar BİLEREK boş (çift-tabanlı), SOURCE_PAIRS 7 hazır çift içerir (G288: 5 offsetli çift, G295: +2 vokal2 çifti, G316: snare-akustik KALDIRILDI, G330: kick-bas GERİ EKLENDİ)", () => {
@@ -175,8 +186,8 @@ describe("source-catalog — G270 YENİ kaynak: arpeggio_guitar", () => {
     assert.ok(reverb.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
   });
 
-  it("Tonal Denge'nin listesine BİLEREK EKLENMEDİ (G44: tek enstrüman, dolu spektrum DEĞİL — guitar/clean_guitar/vocal/bass de aynı gerekçeyle YOK)", () => {
-    assert.ok(!tonalDenge.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
+  it("Tonal Denge'nin listesine G335'te EKLENDİ (OLCUM-TONAL-KAYNAK-19-08: 3/4 bant, groove'un kendi 2/4'ünden iyi)", () => {
+    assert.ok(tonalDenge.getMeta().uyumluKaynaklar.includes("arpeggio_guitar"));
   });
 
   it("Stereo Genişlik'in listesine EKLENMEDİ (mono dosya)", async () => {
@@ -232,8 +243,8 @@ describe("source-catalog — G295 YENİ kaynak: vocal_1 (Vokal 2)", () => {
     assert.ok(reverb.getMeta().uyumluKaynaklar.includes("vocal_1"));
   });
 
-  it("Tonal Denge'nin listesine BİLEREK EKLENMEDİ ('vocal' zaten o listede YOK — mod hiçbir tek-enstrüman kaynağı almıyor)", () => {
-    assert.ok(!tonalDenge.getMeta().uyumluKaynaklar.includes("vocal_1"));
+  it("Tonal Denge'nin listesine G335'te EKLENDİ (OLCUM-TONAL-KAYNAK-19-08: 3/4 bant, 'vocal' ile AYNI gerekçe)", () => {
+    assert.ok(tonalDenge.getMeta().uyumluKaynaklar.includes("vocal_1"));
   });
 
   it("Stereo Genişlik'in listesine EKLENMEDİ (mono dosya)", async () => {

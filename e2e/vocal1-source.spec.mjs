@@ -85,7 +85,11 @@ test("vocal_1, 'vocal' ile AYNI şekilde Pan Konumu ve Reverb'ün seçicisinde G
   }
 });
 
-test("vocal_1, Tonal Denge'nin seçicisinde GÖRÜNMÜYOR (mod hiçbir tek-enstrüman kaynağı almıyor, 'vocal' de aynı şekilde YOK)", async () => {
+// G335 (OLCUM-TONAL-KAYNAK-19-08) — Tonal Denge'nin "SADECE groove/upload"
+// kısıtı kaldırıldı, vocal/vocal_1 dahil 9 yeni kaynak EKLENDİ (6-bant FFT
+// ölçümü groove'un kendisinden daha iyi/eşit bulduğu için). Bu test artık
+// TERSİNİ doğruluyor — Vokal 2'nin GÖRÜNDÜĞÜNÜ.
+test("vocal_1, Tonal Denge'nin seçicisinde GÖRÜNÜYOR (G335 — 'vocal' ile AYNI şekilde eklendi)", async () => {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await page.goto(serverHandle.baseUrl);
   await seedLocalStorage(page, { dev: { simulatePro: true } });
@@ -94,18 +98,9 @@ test("vocal_1, Tonal Denge'nin seçicisinde GÖRÜNMÜYOR (mod hiçbir tek-enstr
   await enterMode(page, "tonal-denge");
   await dismissSpotlightIfShown(page);
 
-  await dismissHeadphoneSheetIfShown(page);
-  await page.locator("[data-sheet-select='sourceSelect']").first().click();
-  await page.waitForTimeout(300);
-  // Tonal Denge sadece groove/upload alır — "ENSTRÜMAN" grubu HİÇ render
-  // edilmemeli (compatibleSourceIds'in only listesi vocal/vocal_1 içermiyor).
-  const groupHeaderVisible = await page.locator(".sheet-group-header", { hasText: "ENSTRÜMAN" }).first().isVisible().catch(() => false);
-  assert.ok(!groupHeaderVisible, "Tonal Denge'de 'ENSTRÜMAN' grubu HİÇ görünmemeliydi (only: groove/upload)");
-
-  const texts = await page.evaluate(() =>
-    Array.from(document.querySelectorAll(".sheet-option")).map(el => el.textContent || "")
-  );
-  assert.ok(!texts.some(t => t.includes("Vokal")), `Vokal/Vokal 2 Tonal Denge'de GÖRÜNDÜ: ${texts.join(" | ")}`);
+  const texts = await openInstrumentGroupOptionTexts(page);
+  assert.ok(texts.some(t => t.includes("Vokal 2")), `Vokal 2 Tonal Denge'de GÖRÜNMEDİ: ${texts.join(" | ")}`);
+  assert.ok(texts.some(t => t.includes("Vokal") && !t.includes("Vokal 2")), `mevcut Vokal (vocal) Tonal Denge'de GÖRÜNMEDİ: ${texts.join(" | ")}`);
 
   await page.close();
 });

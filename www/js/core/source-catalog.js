@@ -79,10 +79,14 @@ export const SOURCE_GROUPS = [
       { id: "vocal_1", label: "Vokal 2", kind: "sample", samplePath: "audio/vocal_1.m4a", desc: "İkinci lead vokal alımı — orta bölge, çok-formantlı" },
       // G259 — YENİ, stereo. `stereoOnly:true` — compatibleSourceIds()'in
       // varsayılan (parametresiz) yolundan BİLEREK dışlanır (bkz. aşağı),
-      // SADECE `only` ile açıkça isteyen bir mod (Stereo Genişlik) görür —
-      // diğer 11 modun kaynak seçicisinde HİÇ görünmez (task'ın kendi kararı).
-      { id: "acoustic_guitar_stereo", label: "Akustik Gitar (Stereo)", kind: "sample", samplePath: "audio/acoustic_guitar_stereo.m4a", desc: "Akustik gitar, GERÇEK stereo kayıt — SADECE Stereo Genişlik", stereoOnly: true },
-      { id: "clean_guitar_stereo", label: "Clean Gitar (Stereo)", kind: "sample", samplePath: "audio/clean_guitar_stereo.m4a", desc: "Temiz elektrogitar, GERÇEK stereo kayıt — SADECE Stereo Genişlik", stereoOnly: true },
+      // SADECE `only` ile açıkça isteyen bir mod görür — bayrak `only`
+      // listesini FİLTRELEMEZ (bkz. compatibleSourceIds: `if (only) return
+      // [...only]`), sadece "otomatik/varsayılan" kaynak seçicide GİZLİ
+      // kalmasını sağlar. G335 (OLCUM-TONAL-KAYNAK-19-08) — Tonal Denge de
+      // `only` ile AÇIKÇA eklendi (desc GÜNCELLENDİ, "SADECE Stereo Genişlik"
+      // artık DOĞRU değil).
+      { id: "acoustic_guitar_stereo", label: "Akustik Gitar (Stereo)", kind: "sample", samplePath: "audio/acoustic_guitar_stereo.m4a", desc: "Akustik gitar, GERÇEK stereo kayıt — Stereo Genişlik ve Tonal Denge'de", stereoOnly: true },
+      { id: "clean_guitar_stereo", label: "Clean Gitar (Stereo)", kind: "sample", samplePath: "audio/clean_guitar_stereo.m4a", desc: "Temiz elektrogitar, GERÇEK stereo kayıt — Stereo Genişlik ve Tonal Denge'de", stereoOnly: true },
       // G288 — YENİ: snare.m4a'nın "geç başlayan çift" varyantı — ilk vuruşu
       // kesilmiş (OLCUM-CIFT-OFFSET-17-08.md'nin bulduğu "377ms offset'le
       // playback pozisyon-0'daki asıl atağı ~24sn sonraya öteliyor, tur

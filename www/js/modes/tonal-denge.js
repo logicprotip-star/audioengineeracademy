@@ -297,17 +297,43 @@ export function getMeta() {
     // telefon hoparlöründe kolayca kaybolur — kulaklık ayrımı netleştirir
     // (task'ın açık kararı, Reverb'in G37'den beri AYNI gerekçesi).
     kulaklikGerekli: true,
-    // G44'ten DEĞİŞMEDİ — EQ düzeltmesi SADECE dolu spektrumda (çok sayıda eş
-    // zamanlı frekans bileşeni) anlamlı, tek-vuruş/tek-nota kaynaklar tonal
-    // denge göstermez (bkz. dosya başı "KAYNAK" notu).
-    // G270 — KONTROL EDİLDİ, BİLEREK DEĞİŞTİRİLMEDİ: "clean_guitar" ve YENİ
-    // "arpeggio_guitar" da TEK ENSTRÜMAN (dolu mix DEĞİL) — G44'ün AYNI
-    // gerekçesiyle dışarıda kalmaları GEREKİYOR. Zaten mevcut TEK bir
-    // enstrüman/kaynak (guitar/clean_guitar/vocal/bass/snare/vb.) bu listede
-    // YOK — sadece groove (tam davul döngüsü) ve upload (kullanıcının kendi
-    // mix'i) var, ikisi de "dolu spektrum" şartını sağlıyor. Bu TUTARLILIK
-    // KORUNDU, liste DEĞİŞMEDİ.
-    uyumluKaynaklar: compatibleSourceIds({ only: ["groove", "upload"] }),
+    // G44/G270'İN "SADECE dolu spektrum" GEREKÇESİ KORUNDU — DEĞİŞEN, hangi
+    // kaynakların bu şartı sağladığı İDDİASI, çünkü artık GERÇEKTEN ÖLÇÜLDÜ
+    // (G44/G270 hiç ölçüm yapmadan "tek enstrüman = dar spektrum" varsayımıyla
+    // kick/bass/gitar/vokal/snare'i TOPTAN dışlamıştı).
+    //
+    // G335 (OLCUM-TONAL-KAYNAK-19-08) — 6 bantta (SUB/BAS/ALT-ORTA/ORTA/
+    // ÜST-ORTA/TİZ) Welch-ortalamalı FFT ile TÜM katalog ölçüldü. Referans:
+    // MEVCUT tek kaynak groove'un KENDİSİ BAND_SET_4'ün (bas/alt-orta/
+    // üst-orta/tiz) sadece 2/4'ünde -40dB üstü enerji taşıyor (ÜST-ORTA/TİZ
+    // ZATEN zayıf) — yani "groove'dan daha kötü olmasın" ölçütüyle:
+    //  - hihat: 6/6 bant (-30dB eşikte bile TAM), açık ara en güçlü — EKLENDİ.
+    //  - vocal: 4/4 (TİZ sınırda -37.1dB) — EKLENDİ (Logic'in "vokal" isteği).
+    //  - vocal_1 (Vokal 2): 3/4 (TİZ -45.3dB) — groove'dan (2/4) iyi, EKLENDİ.
+    //  - snare: 3/4 (TİZ -42.2dB) — EKLENDİ (Logic'in "snare" isteği).
+    //  - guitar/clean_guitar/arpeggio_guitar (mono) + acoustic_guitar_stereo/
+    //    clean_guitar_stereo: HEPSİ 3/4 (TİZ zayıf, -42.9 ile -56.0dB arası)
+    //    — groove'dan iyi, EKLENDİ (Logic'in "stereo gitarlar" isteği HEM
+    //    stereo HEM mono varyantlarıyla). Stereo/mono çiftleri SPEKTRAL
+    //    OLARAK istatistiksel farksız ölçüldü (aynı kayıt) — `stereoOnly`
+    //    bayrağı `only` ile açıkça istenince zaten devre dışı (bkz.
+    //    source-catalog.js:compatibleSourceIds, `if (only) return [...only]`).
+    //  - kick/bass: 1-2/4, AÇIKÇA yetersiz — G44'ün orijinal "tek-vuruş/
+    //    tek-nota" gerekçesi bunlar için DOĞRULANDI, EKLENMEDİ.
+    //  - snare_late: EKLENMEDİ — spektral olarak snare'le neredeyse özdeş
+    //    (fazladan katkısı YOK) VE `pairOnly:true` (SADECE Frekans
+    //    Çakışması'nın offsetli çiftleri için var, genel dinleme amaçlı bir
+    //    kaynak DEĞİL — snare zaten AYNI profili karşılıyor).
+    //
+    // ⚠️ BİLİNEN AÇIK RİSK (G336'ya bırakıldı, bu commit'te ÇÖZÜLMEDİ):
+    // TİZ (ve vocal'de SUB) hâlâ zayıf/sınırda — bandsForQuestion() henüz
+    // kaynağın enerjisinden HABERSİZ, zayıf bir bant rastgele seçilirse
+    // kullanıcı duyamayacağı bir bozukluğu düzeltemez. groove için de zaten
+    // var olan bu risk G336'da (AYRI commit, "soru üretimi kaynağı bilsin")
+    // ele alınıyor.
+    uyumluKaynaklar: compatibleSourceIds({
+      only: ["groove", "upload", "hihat", "vocal", "vocal_1", "snare", "guitar", "clean_guitar", "arpeggio_guitar", "acoustic_guitar_stereo", "clean_guitar_stereo"]
+    }),
     ucretsiz: true,
     videoUrl: "",
     difficulty: DIFFICULTY,

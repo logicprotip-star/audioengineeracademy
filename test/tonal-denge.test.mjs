@@ -685,9 +685,19 @@ describe("Tonal Denge — getMeta() sözleşme alanları", () => {
     assert.equal(meta.aciklama, undefined);
   });
 
-  it("kaynak listesi TAM OLARAK groove+upload — G44'ten DEĞİŞMEDİ (dolu-mix-bağlamı şartı)", () => {
+  // G335 (OLCUM-TONAL-KAYNAK-19-08) — G44'ün "dolu spektrum" şartı korundu,
+  // hangi kaynakların bunu sağladığı ARTIK GERÇEK FFT ölçümüne dayanıyor.
+  // Tam liste + hariç tutulanların gerekçesi: bkz. test/source-catalog.test.mjs
+  // "tonal-denge: groove/upload + G335'te ölçülüp eklenen 9 kaynak".
+  it("kaynak listesi groove+upload'ın YANINDA G335'te eklenen 9 kaynağı içerir, kick/bass/tom/snare_late HÂLÂ YOK", () => {
     const meta = mode.getMeta();
-    assert.deepEqual([...meta.uyumluKaynaklar].sort(), ["groove", "upload"]);
+    assert.equal(meta.uyumluKaynaklar.length, 11);
+    for (const id of ["groove", "upload", "hihat", "vocal", "vocal_1", "snare", "guitar", "clean_guitar", "arpeggio_guitar", "acoustic_guitar_stereo", "clean_guitar_stereo"]) {
+      assert.ok(meta.uyumluKaynaklar.includes(id), `${id} eksik`);
+    }
+    for (const id of ["kick", "bass", "tom", "snare_late"]) {
+      assert.ok(!meta.uyumluKaynaklar.includes(id), `${id} EKLENMEMELİYDİ`);
+    }
   });
 });
 
