@@ -1,6 +1,26 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G320 — Frekans Çakışması Aşama 3'ün "cevap
+Son güncelleme: 19.08.2026 (G321/G322 — İKİ AYRI iş. **G321** (`e09dd0d`):
+Frekans Çakışması'nın "Önce/Sonra" düğmeleri (#cakismaBefore/#cakismaAfter,
+G51'den beri vardı) KALDIRILDI — OLCUM-ONCE-SONRA-19-08 kanıtladı ki
+"Sonra" kulak butonunun "Doğru cevap"ıyla satır satır aynı kodu
+çalıştırıyordu (tamamen gereksiz), "Önce"nin tek katkısı düşük değerliydi,
+VE ikisi de göründükleri tek anda (geri bildirim paneli açıkken) gerçek
+bir dokunuşla ULAŞILAMIYORDU (muhtemelen G85'ten/9 Ağustos'tan beri).
+Uygulama içi "Nasıl Oynanır" metni de güncellendi (çalışmayan bir düğmeye
+yönlendiriyordu). **G322** (`5b9b42a`): Logic'in kararıyla Frekans
+Çakışması'nda kulak butonları GİZLENDİ (kod SİLİNMEDİ,
+`CAKISMA_EAR_BUTTONS_ENABLED=false` bayrağı) — OLCUM-KULAK-OGRETIM-19-08
+gösterdi ki mevcut butonlar tam miksi çalıyor, kullanıcı farkı ayırt
+edemiyor; 1.1'de İZOLASYONLA birlikte geri açılacak. Diğer 7 modun kulak
+butonlarına dokunulmadı. `npm test` 1655/1655, `e2e` 163/163, git stash ile
+İKİSİ de kırmızı/yeşil doğrulandı. AYRICA OLCUM-ATLA-RENK-19-08.md (ölçüm,
+kod yazılmadı) — Atla için sarı renk: challenge.results boolean, tek bir
+çağrı noktasından (goToNextRound) cerrahi eklenebilir, --amber hazır ama
+sınav/telafi çubuğunun gold rengiyle çakışıyor, G285 hata analizi atlamayı
+hiç kaydetmiyor. Detay: aşağı BİTTİ bölümü G321/G322.)
+
+Son güncelleme (ÖNCEKİ): 19.08.2026 (G320 — Frekans Çakışması Aşama 3'ün "cevap
 sonrası ses DEVAM eder" istisnası (G51'den beri vardı, G306/G315'te
 KASITLI korunmuştu) Logic'in kararıyla KALDIRILDI — geri bildirim paneli
 de G315'in "ekran açılınca ses kapansın" kuralına dahil edildi.
@@ -174,6 +194,127 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G322 — **Frekans Çakışması'nda kulak butonları gizlendi, 1.1'e kadar
+(`5b9b42a`, TEK commit).**
+
+**Görev:** Logic'in kararı — OLCUM-KULAK-OGRETIM-19-08 gösterdi ki
+kulak butonları ("doğru cevap"/"senin seçtiğin") Frekans Çakışması'nda
+İKİSİ DE TAM MİKSİ çalıyor, kullanıcı farkı ayırt edemiyor —
+İZOLASYON olmadan öğretim değeri düşük. Silme DEĞİL, gizleme —
+izolasyonla birlikte 1.1'de geri açılacak.
+
+**Uygulama:** `showCakismaStage1Ears`/`showCakismaStage3Ears`
+(Aşama 2'nin zaten kulak butonu YOK — `isCakismaEar` sadece stage
+1/3'ü kapsıyor) yeni bir `CAKISMA_EAR_BUTTONS_ENABLED=false`
+bayrağıyla ERKEN DÖNÜYOR. Dataset alanları, click-handler'ın
+"cakisma" dalı, `buildDualSourceChain`/`setDualCut` mekanizmasının
+KENDİSİ TEK SATIR SİLİNMEDİ — bayrak `true`'ya çekilince AYNEN geri
+açılır. **DOKUNULMAYACAK korundu:** diğer 7 modun (Frekans Bulma/
+Kesim Noktası/dB Seviyesi/Q Genişliği/Pan Konumu/Stereo Genişlik/
+Boost-Cut) kulak butonlarına TEK SATIR dokunulmadı.
+
+**Test:** `e2e/ear-buttons.spec.mjs`'in cakisma'ya özel 2 testi
+("görünüyor/çalışıyor") "GİZLİ" doğrulamasına çevrildi, diğer 7 modun
+6 testi DEĞİŞMEDEN geçiyor. `e2e/cakisma-stage3-stops-audio.spec.mjs`'in
+RMS testi de güncellendi — **ölçülerek bulundu:** click-handler'ın
+KENDİ `btn.classList.contains("hidden")` guard'ı `.evaluate(el=>
+el.click())` (hit-test atlayan DOM-click) İLE BİLE atlatılamıyor,
+"hidden" iken mekanizma KASITLI olarak hiç tetiklenmiyor (RMS=0,
+hata yok) — bu YÜZDEN dormant G320 mekanizmasını AYRICA canlı
+doğrulamak bu turda MÜMKÜN olmadı, sadece görünürlük doğrulandı;
+bayrak `true`'ya çekildiğinde eski RMS testi GERİ getirilmeli. git
+stash ile kırmızı/yeşil doğrulandı.
+
+**KİLİT korundu:** `npm test` 1655/1655 (değişmedi). `npm run
+test:e2e` 163/163 (net değişim yok — 2 test yeniden yazıldı, 1 test
+silindi/1 test yeniden yazıldı).
+
+**1.1 NOTU — geri açma checklist'i (kullanıcının kendi talebiyle
+kaydedildi):**
+1. Kulak butonları Frekans Çakışması'nda gizlendi (`CAKISMA_EAR_
+   BUTTONS_ENABLED=false`, app.js) — 1.1'de İZOLASYON ile BİRLİKTE
+   geri açılacak, TEK BAŞINA (izolasyonsuz) açılmamalı (aynı ölçülen
+   "farkı ayırt edemiyorum" sorununu geri getirir).
+2. İzolasyon uygulanırken TÜM aşamalar (1, 2, 3) YENİDEN ölçülmeli —
+   Aşama 2'nin ZATEN kulak butonu yok (kaynak-mı-B-mi seçimi sayısal
+   bir "ikinci değer" taşımıyor), izolasyon eklenirse bu değişebilir,
+   YENİDEN değerlendirilmeli.
+3. **OLCUM-KULAK-OGRETIM-19-08'in bulgusu:** 8 moddan **5'inde
+   izolasyon mümkün** (Frekans Bulma, Kesim Noktası, Q Genişliği,
+   Boost/Cut, Frekans Çakışması Aşama 1 — hepsi tek bir frekans/
+   merkez etrafında peaking/highpass-lowpass filtre kullanıyor),
+   **3'ünde yapısal olarak MÜMKÜN DEĞİL** (dB Seviyesi, Pan Konumu,
+   Stereo Genişlik — bunlar frekans ekseninde değil, TÜM sinyali eşit
+   etkileyen özellikler; bu 3 modda kulak butonu TASARIMI
+   DEĞİŞMEYECEK).
+4. **Mekanizma HAZIR, kullanılmayı bekliyor:** Araçlar sekmesinin
+   "bölge solo" özelliği — `toolsApplySoloBandFilter` (`app.js:13388`)
+   — 4 kademeli highpass+lowpass (~24dB/oktav) ile `tonalBalance.
+   BAND_EDGES`'ten (Frekans Bulma'nın 6 `FA_ZONES`'undan türetilmiş)
+   bir bandı izole ediyor. Teknik OLARAK yeniden kullanılabilir,
+   birebir fonksiyon OLARAK değil — modül-kapsamlı `toolsSoloBandIdx`
+   değişkenini OKUYOR (parametre değil), kulak butonuna taşımak için
+   küçük bir refactor (loFreq/hiFreq parametresi) gerekir.
+5. **Kullanılmayan, yarım kalmış bir fonksiyon bulundu:**
+   `setDualSolo(which)` (`audio-engine.js:1244-1258`, "AŞAMA 1/2'nin
+   dinleme kontrolü" yorumuyla YAZILMIŞ, G51'den beri var) — export
+   EDİLİYOR ama grep'te app.js/mod dosyalarının HİÇBİRİNDE
+   ÇAĞRILMIYOR. Kaynak A/B'yi TEK TEK dinletmek için (frekans
+   izolasyonu DEĞİL, KAYNAK izolasyonu) hazır duruyor, bağlanmamış —
+   izolasyon turunda BU da değerlendirilmeli (belki izolasyonun bir
+   parçası, belki AYRI bir özellik).
+6. **Tahmini iş yükü (ÖLÇÜLMEDİ, kod yazılmadığı için KESİN rakam
+   yok):** ~15-20 dosya, ~600-1000+ satır (mevcut 11 e2e testinin
+   TAMAMEN yeniden yazılması dahil) — bu oturumun G316-G322 arası
+   tek-commit'lik düzeltmelerinin (her biri 1-7 dosya/~50-300 satır)
+   3-10 katı. **1.0'a SIĞMAZ, 1.1'e KALMALI** (OLCUM-KULAK-OGRETIM-
+   19-08'in kendi önerisi).
+
+---
+
+G321 — **Frekans Çakışması "Önce/Sonra" düğmeleri kaldırıldı
+(`e09dd0d`, TEK commit).**
+
+**Görev:** OLCUM-ONCE-SONRA-19-08'in bulguları — "Sonra" düğmesi
+kulak butonunun "Doğru cevap"ıyla SATIR SATIR aynı `setDualCut(
+activeQuestion.correctSource, -Math.abs(activeQuestion.correctCutDb))`
+çağrısını yapıyordu (kod karşılaştırmasıyla KANITLANDI, tahmin
+değil) — tamamen gereksiz. "Önce"nin tek katkısı (kesilmemiş mix'i
+tekrar dinletmek) düşük değerliydi — kullanıcı o sesi ZATEN soruda
+duymuştu. VE İKİSİ DE göründükleri TEK anda (geri bildirim paneli
+açıkken) `elementFromPoint`'te panelin İÇİNDEKİ metnin
+(`#feedbackDetail`) ALTINDA kalıp GERÇEK bir dokunuşla ULAŞILAMIYORDU
+(force:false gerçek Playwright `click()` 3sn'de zaman aşımına
+uğradı) — muhtemelen **G85'ten (9 Ağustos, `.fb{position:fixed}`
+yeniden tasarımı) beri**, HİÇBİR test bunu YAKALAMAMIŞTI (ÇIKARIM,
+kesin tarih ÖLÇÜLMEDİ).
+
+**Kaldırılan:** `index.html`'deki `#cakismaCompare` div + 2 buton,
+`app.js`'teki 3 element referansı, 2 gizleme çağrısı (yeni moda/round'a
+girerken), stage-3'ün gösterme bloğu, 2 click handler. Uygulama içi
+"Nasıl Oynanır" metninin ("Kestikten sonra 'Önce/Sonra' ile maskeyi
+karşılaştırabilirsin") o cümlesi ÇIKARILDI — **metin kullanıcıyı
+ÇALIŞMAYAN bir düğmeye yönlendiriyordu.** Kulak butonlarının stage-3
+dalı (`buildDualSourceChain`+`setDualCut` deseni, G320'de eklendi)
+TEK SATIR değişmedi.
+
+**Test:** `test/guide-texts.test.mjs`'teki ilgili test TERSİNE
+çevrildi (artık "Önce/Sonra"DAN BAHSETMEDİĞİNİ doğruluyor).
+`e2e/cakisma-stage3-stops-audio.spec.mjs`'e `#cakismaCompare`/
+`#cakismaBefore`/`#cakismaAfter`'ın DOM'dan TAMAMEN kaldırıldığını
+doğrulayan YENİ bir test eklendi, o dosyanın ESKİ `#cakismaBefore/
+After`'a özel testi SİLİNDİ (kontrol artık yok).
+`e2e/screen-open-stops-audio.spec.mjs`'in "aşama 3'e ulaşıldı mı"
+kontrolü (ÖNCEDEN `#cakismaCompare` görünürlüğüne bakıyordu, o eleman
+kalkınca SESSİZCE HER ZAMAN false dönüp testi BOŞ bırakırdı)
+`__aeaActiveQuestionStageForTest()`'e (G320'de eklenen kanca)
+GÜNCELLENDİ. git stash ile kırmızı/yeşil doğrulandı.
+
+**KİLİT korundu:** `npm test` 1655/1655 (değişmedi). `npm run
+test:e2e` 163/163 (net değişim yok).
+
+---
 
 G320 — **Frekans Çakışması Aşama 3'ün "ses devam eder" istisnası
 kaldırıldı (`ad3ee2a`, TEK commit).**
@@ -22536,7 +22677,29 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G320 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G321/G322 itibarıyla):**
+Frekans Çakışması'nın "Önce/Sonra" düğmeleri kaldırıldı (G321,
+`e09dd0d` — kod düzeyinde kulak butonuyla özdeşti VE göründüğü tek
+anda erişilemiyordu). Kulak butonları Frekans Çakışması'nda gizlendi
+(G322, `5b9b42a`, `CAKISMA_EAR_BUTTONS_ENABLED=false`) — 1.1'de
+İZOLASYONLA birlikte geri açılacak, diğer 7 mod ETKİLENMEDİ. `npm
+test` 1655/1655, `npm run test:e2e` 163/163. AYRICA OLCUM-ATLA-
+RENK-19-08.md (ölçüm) — "Atla" için sarı renk fikri ölçüldü, kod
+YAZILMADI: `challenge.results` boolean, tek çağrı noktasından
+(goToNextRound) cerrahi eklenebilir; `--amber` hazır ama SINAV/
+TELAFİ çubuğunun `gold` rengiyle çakışıyor; G285 hata analizi
+atlamayı HİÇ kaydetmiyor (üçüncü renk eklenmeden ÖNCE bu boşluk
+AYRICA ele alınmalı). **Kullanıcının/Logic'in sıradaki adımı:** `npx
+cap sync ios` + cihazda GERÇEKTEN doğrulamak (Önce/Sonra düğmelerinin
+GERÇEKTEN kalktığını, kulak butonlarının Frekans Çakışması'nda
+GİZLİ ama diğer 7 modda AYNEN çalıştığını). AYRICA: (a) Atla rengi
+için ÜÇ ürün kararı bekliyor — SINAV/TELAFİ çubuğuna da mı
+uygulanacak (gold/amber çakışması VAR), şekil/desen farkı eklenecek
+mi (renk körlüğü), G285 kaydına atlama AYRICA eklenecek mi; (b) 1.1
+izolasyon turu için OLCUM-KULAK-OGRETIM-19-08'in checklist'i (yukarı
+BİTTİ→G322 notu) hazır bekliyor.
+
+**EN YENİ SIRADAKİ ADIM (G320 itibarıyla, ARTIK ESKİ):**
 Frekans Çakışması Aşama 3'ün "cevap sonrası ses devam eder" istisnası
 kaldırıldı (`ad3ee2a`) — artık diğer 11 modla/aşama 1-2 ile AYNI,
 cevap verilince ses hemen duruyor. Kulak butonları VE #cakismaBefore/
