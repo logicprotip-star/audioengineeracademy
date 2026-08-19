@@ -89,6 +89,85 @@ describe("Tonal Denge — bandsForQuestion (bozukluk üretimi)", () => {
   });
 });
 
+// G336 (OLCUM-TONAL-KAYNAK-19-08'in bulduğu boşluk) — audibleBandIds() SAF
+// fonksiyonunun KENDİSİ + bandsForQuestion'ın sourceId'yi GERÇEKTEN kullandığı.
+describe("Tonal Denge — G336: audibleBandIds (kaynağın sessiz bantları hariç tutulur)", () => {
+  it("groove'da BAND_SET_4'ün ÜST-ORTA/TİZ'i (-40dB altı) HARİÇ TUTULUR, BAS/ALT-ORTA kalır", () => {
+    const result = mode.audibleBandIds(mode.BAND_SET_4, "groove");
+    assert.deepEqual([...result].sort(), ["alt-orta", "bas"]);
+  });
+
+  it("hihat'ta HİÇBİR bant hariç tutulmaz (6/6 bant -40dB üstü, en güçlü kaynak)", () => {
+    const result = mode.audibleBandIds(mode.BAND_SET_6, "hihat");
+    assert.deepEqual([...result].sort(), [...mode.BAND_SET_6].sort());
+  });
+
+  it("vocal'de SADECE SUB hariç tutulur (BAND_SET_6'da), BAND_SET_4'te (SUB zaten yok) HİÇBİRİ hariç tutulmaz", () => {
+    const result6 = mode.audibleBandIds(mode.BAND_SET_6, "vocal");
+    assert.ok(!result6.includes("sub"), "SUB (-40.34dB) hariç tutulmalıydı");
+    assert.equal(result6.length, 5);
+
+    const result4 = mode.audibleBandIds(mode.BAND_SET_4, "vocal");
+    assert.deepEqual([...result4].sort(), [...mode.BAND_SET_4].sort());
+  });
+
+  it("upload (profili YOK) — candidateIds OLDUĞU GİBİ döner (eski/pre-fix davranış, kullanıcı dosyası ölçülemez)", () => {
+    const result = mode.audibleBandIds(mode.BAND_SET_6, "upload");
+    assert.deepEqual(result, mode.BAND_SET_6);
+  });
+
+  it("bilinmeyen/tanımsız sourceId (testlerin doğrudan çağrıları) — candidateIds OLDUĞU GİBİ döner", () => {
+    assert.deepEqual(mode.audibleBandIds(mode.BAND_SET_4, undefined), mode.BAND_SET_4);
+    assert.deepEqual(mode.audibleBandIds(mode.BAND_SET_4, "bilinmeyen-kaynak"), mode.BAND_SET_4);
+  });
+});
+
+describe("Tonal Denge — G336: bandsForQuestion sourceId ile sessiz bandı ASLA bozmuyor", () => {
+  it("groove + BAND_SET_4: 500 turda ÜST-ORTA/TİZ HİÇBİR ZAMAN bugDb!==0 (BAS/ALT-ORTA hâlâ bozulabiliyor)", () => {
+    let bassOrAltOrtaDisturbedAtLeastOnce = false;
+    for (let i = 0; i < 500; i++) {
+      const bands = mode.bandsForQuestion(mode.BAND_SET_4, 8, Math.random, "groove");
+      const ustOrta = bands.find(b => b.id === "ust-orta");
+      const tiz = bands.find(b => b.id === "tiz");
+      assert.equal(ustOrta.bugDb, 0, `ÜST-ORTA bozulmamalıydı (i=${i})`);
+      assert.equal(tiz.bugDb, 0, `TİZ bozulmamalıydı (i=${i})`);
+      if (bands.find(b => b.id === "bas").bugDb !== 0 || bands.find(b => b.id === "alt-orta").bugDb !== 0) {
+        bassOrAltOrtaDisturbedAtLeastOnce = true;
+      }
+    }
+    assert.ok(bassOrAltOrtaDisturbedAtLeastOnce, "BAS/ALT-ORTA hiç bozulmadı — filtreleme fazla agresif olabilir");
+  });
+
+  it("hihat + BAND_SET_6: sourceId VERİLSE bile TÜM bantlar hâlâ aday (hiçbiri sessiz değil) — davranış sourceId'siz haliyle İSTATİSTİKSEL olarak AYNI", () => {
+    const idsEverDisturbed = new Set();
+    for (let i = 0; i < 300; i++) {
+      const bands = mode.bandsForQuestion(mode.BAND_SET_6, 8, Math.random, "hihat");
+      bands.forEach(b => { if (b.bugDb !== 0) idsEverDisturbed.add(b.id); });
+    }
+    assert.deepEqual([...idsEverDisturbed].sort(), [...mode.BAND_SET_6].sort(), "hihat'ta 6 bandın HEPSİ en az bir kez bozulabilmeliydi");
+  });
+
+  it("sourceId VERİLMEZSE (eski çağrı imzası) davranış BİREBİR eskisi gibi — geriye dönük uyumlu", () => {
+    function seqRng(seq) { let i = 0; return () => seq[i++ % seq.length]; }
+    const rngA = seqRng([0.1, 0.2, 0.9, 0.05, 0.5]);
+    const rngB = seqRng([0.1, 0.2, 0.9, 0.05, 0.5]);
+    const withoutSource = mode.bandsForQuestion(mode.BAND_SET_4, 5, rngA);
+    const withNullSource = mode.bandsForQuestion(mode.BAND_SET_4, 5, rngB, null);
+    assert.deepEqual(withoutSource, withNullSource);
+  });
+
+  it("createQuestion() entegrasyonu — settings.source='groove' ile 200 turda ÜST-ORTA/TİZ ASLA bozulmuyor (BAND_SET_4 fazında)", () => {
+    for (let i = 0; i < 200; i++) {
+      const q = mode.createQuestion("easy", { source: "groove", sessionQuestionIndex: 0 });
+      assert.equal(q.bandCount, 4);
+      const ustOrta = q.bands.find(b => b.id === "ust-orta");
+      const tiz = q.bands.find(b => b.id === "tiz");
+      assert.equal(ustOrta.bugDb, 0, `ÜST-ORTA bozulmamalıydı (i=${i})`);
+      assert.equal(tiz.bugDb, 0, `TİZ bozulmamalıydı (i=${i})`);
+    }
+  });
+});
+
 describe("Tonal Denge — pickDisturbanceDb (dar jitter + FLOOR garantisi)", () => {
   it("HİÇBİR ZAMAN DISTURB_DB_FLOOR'un altına inmez — baseDb TAM floor'da bile (5000 örnek)", () => {
     const floor = mode.TONAL_CURVE_CONFIG.DISTURB_DB_FLOOR;

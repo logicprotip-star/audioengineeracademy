@@ -261,6 +261,58 @@ function shuffleWithRng(arr, rng) {
   return copy;
 }
 
+// G336 (OLCUM-TONAL-KAYNAK-19-08'in bulduğu boşluk) — bandsForQuestion() ARTIK
+// kaynağın 6-bant enerji profilini BİLİYOR, "sessiz" bir bandı ASLA bozuk
+// (disturbedSet'e aday) seçmiyor. ÖNCESİNDE bant seçimi kaynaktan TAMAMEN
+// BAĞIMSIZDI — sessiz bir bant (ör. TİZ) rastgele seçilirse kullanıcı
+// KULAKLA duyamayacağı bir bozukluğu düzeltemez, `evaluateAnswer()`'ın
+// avgDeviation'ına DÜZELTİLEMEZ bir kalıntı hata olarak girip round'u haksız
+// yere zorlaştırırdı — bu BUGÜN groove'da bile (ÜST-ORTA/TİZ zayıf) VARDI.
+//
+// VERİ KAYNAĞI (task'ın kendi sorusu, "az riskli olanı seç"): ÇALIŞMA ANINDA
+// FFT ÖLÇÜMÜ DEĞİL, ÖNCEDEN ÖLÇÜLÜP TABLOYA yazılmış sabit değerler —
+// createQuestion/bandsForQuestion SAF fonksiyon KALMALI (mod sözleşmesinin
+// kendi kuralı, CLAUDE.md: "ses veya DOM bağımlılığı sokma"), ses dosyasını
+// AÇIP FFT almak bu saflığı KIRARDI (async + audio I/O). OLCUM-TONAL-KAYNAK-
+// 19-08.md'nin Welch-ortalamalı FFT ölçümü (aynı yöntem: OLCUM-KAYNAK-16-08.md)
+// BİREBİR buraya taşındı — kaynağın kendi tepe bandına göre NORMALİZE dB.
+const SOURCE_BAND_ENERGY_DB = {
+  groove: { sub: 0, bas: -13.8, "alt-orta": -21.87, orta: -34.12, "ust-orta": -42.53, tiz: -50.24 },
+  hihat: { sub: -34, bas: -9.96, "alt-orta": 0, orta: -5.65, "ust-orta": -7.62, tiz: -10.81 },
+  vocal: { sub: -40.34, bas: 0, "alt-orta": -0.67, orta: -0.97, "ust-orta": -13.11, tiz: -37.14 },
+  vocal_1: { sub: -48.95, bas: -3.89, "alt-orta": 0, orta: -4.86, "ust-orta": -26.6, tiz: -45.25 },
+  snare: { sub: -27.74, bas: 0, "alt-orta": -3.24, orta: -16.4, "ust-orta": -27.07, tiz: -42.17 },
+  guitar: { sub: -4.65, bas: 0, "alt-orta": -8.67, orta: -16.76, "ust-orta": -32.22, tiz: -42.85 },
+  clean_guitar: { sub: -24.18, bas: -11.56, "alt-orta": 0, orta: -6.97, "ust-orta": -26.74, tiz: -53.25 },
+  arpeggio_guitar: { sub: -4.75, bas: 0, "alt-orta": -7.52, orta: -15.62, "ust-orta": -33.21, tiz: -55.99 },
+  acoustic_guitar_stereo: { sub: -6.15, bas: 0, "alt-orta": -6.95, orta: -16.55, "ust-orta": -32.29, tiz: -42.64 },
+  clean_guitar_stereo: { sub: -24.07, bas: -11.8, "alt-orta": 0, orta: -7.03, "ust-orta": -26.82, tiz: -52.89 }
+  // "upload" BİLEREK YOK — kullanıcının kendi dosyasının içeriği kod-zamanında
+  // BİLİNEMEZ, ölçülemez (bkz. audibleBandIds'in "profil yoksa hiç filtreleme"
+  // fallback'i, ESKİ/pre-fix davranış AYNEN korunuyor).
+};
+
+// "Tepeye göre -40dB altı 'yok' sayılabilir mi?" (task'ın kendi sorusu) —
+// EVET, bu eşik DOĞRULANDI: OLCUM-TONAL-KAYNAK-19-08'in TÜM 10 kaynağında
+// -40dB sınırı "duyulur ama zayıf" (ör. hihat SUB -34dB) ile "pratikte sessiz"
+// (ör. bass ÜST-ORTA -61.8dB) arasında NET bir ayrım çiziyordu, yanlış
+// tarafta kalan sınır-durumu (vocal SUB -40.34, snare TİZ -42.17) YOKTU.
+const MIN_AUDIBLE_BAND_DB = -40;
+
+// SAF FONKSİYON. candidateIds'i sourceId'nin GERÇEKTEN duyulabilir (>-40dB)
+// bantlarına daraltır. sourceId profili YOKSA (upload, ya da testlerin
+// doğrudan çağırdığı bilinmeyen bir id) candidateIds'i OLDUĞU GİBİ döner —
+// ESKİ/pre-fix davranış (bkz. dosya başı G336 notu). Daraltma SIFIR bant
+// bırakırsa (bu turda ölçülen 10 kaynağın HİÇBİRİNDE oluşmuyor, ama gelecekte
+// eklenecek bir kaynak İÇİN savunma katmanı) YİNE candidateIds'i OLDUĞU GİBİ
+// döner — "hiç soru sorulamasın" yerine "eski davranışa düş" tercih edildi.
+export function audibleBandIds(candidateIds, sourceId) {
+  const profile = SOURCE_BAND_ENERGY_DB[sourceId];
+  if (!profile) return candidateIds;
+  const filtered = candidateIds.filter(id => (profile[id] ?? 0) > MIN_AUDIBLE_BAND_DB);
+  return filtered.length > 0 ? filtered : candidateIds;
+}
+
 // SAF FONKSİYON. bandIds'in EN AZ BİRİNE, EN ÇOK TÜMÜNE bozukluk uygular (task:
 // "bir kısmına ya da tümüne") — hangi bantların bozulacağı VE büyüklükleri/
 // yönleri (±) rastgele. Bozulmayan bantlar bugDb=0 (kullanıcı onları OLDUĞU
@@ -268,10 +320,19 @@ function shuffleWithRng(arr, rng) {
 // filterType KANONİK sırayla (BAND_ORDER) belirlenir: en düşük frekanslı bant
 // low-shelf, en yüksek high-shelf, aradakiler peaking — standart parametrik EQ
 // tasarımı (Boost/Cut'ın TEK bandının aksine burada GERÇEK bir "bant zinciri").
-export function bandsForQuestion(bandIds, baseDisturbDb, rng = Math.random) {
+//
+// G336 — YENİ, isteğe bağlı `sourceId` parametresi (verilmezse eski davranış
+// BİREBİR korunur — geriye dönük uyumlu, mevcut testler/doğrudan çağrılar
+// etkilenmez). disturbCount'un KENDİ RNG çağrısı (`sortedIds.length` üzerinden)
+// BİLEREK DEĞİŞMEDİ — zorluk eğrisine (DOKUNULMAYACAK) sızmasın diye; SADECE
+// hangi bantların ADAY olduğu daraltılıyor, "kaç bant bozulsun" istatistiği
+// aynı kalıyor (bir kaynağın sessiz bantları azsa `.slice()` doğal olarak
+// daha az bant döner — çökme/sonsuz döngü riski yok).
+export function bandsForQuestion(bandIds, baseDisturbDb, rng = Math.random, sourceId = null) {
   const sortedIds = BAND_ORDER.filter(id => bandIds.includes(id));
   const disturbCount = 1 + Math.floor(rng() * sortedIds.length);
-  const disturbedSet = new Set(shuffleWithRng(sortedIds, rng).slice(0, disturbCount));
+  const disturbCandidates = audibleBandIds(sortedIds, sourceId);
+  const disturbedSet = new Set(shuffleWithRng(disturbCandidates, rng).slice(0, disturbCount));
 
   return sortedIds.map((id, i) => {
     const def = BAND_DEFS_BY_ID[id];
@@ -371,7 +432,9 @@ export function createQuestion(level, settings = {}) {
   const sessionQuestionIndex = Number.isFinite(settings.sessionQuestionIndex) ? settings.sessionQuestionIndex : 0;
   const bandCount = settings.examBandBoost ? 6 : bandCountForSessionIndex(sessionQuestionIndex);
   const bandIds = bandIdsForCount(bandCount);
-  const bands = bandsForQuestion(bandIds, baseDisturbDb);
+  // G336 — kaynak (source) artık bandsForQuestion'a geçiriliyor, sessiz
+  // bantlar disturbedSet adayı olmaktan çıkıyor (bkz. o fonksiyonun notu).
+  const bands = bandsForQuestion(bandIds, baseDisturbDb, Math.random, source);
 
   return {
     mode: "tonal-denge",
