@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G309 — ⚠️ GEÇİCİ TEST İŞARETİ, KALICI DEĞİL: ana menüdeki 12 egzersiz kartının sağ üst köşesine 1-12 numarası eklendi (`50f4d25`) — G300/G304/G306/G308 testte geçtiği hâlde cihazda hiçbiri görünmemişti (OLCUM-SENKRON-18-08), OLCUM-CANLI-BOLUM-19-08 kodun kendisinin doğru çalıştığını canlı ölçümle doğruladı, en tutarlı hipotez cihazın ESKİ BUILD çalıştırdığı. Logic cihaza kurup numaraları GÖRÜP GÖRMEDİĞİNİ bildirecek: görünüyorsa kod güncel demektir, hataların kökü başka yerde aranmalı; görünmüyorsa asıl sorun build/sync zinciri. **Bu numaralar doğrulama sonrası KALDIRILACAK** — kalıcı bir tasarım kararı değil. Detay: aşağı BİTTİ bölümü G309.)
+Son güncelleme: 19.08.2026 (G310/G311 — sınav/telafi ekranlarındaki (SINAV HAKKI/SINAV GEÇİLDİ/SINAV GEÇİLEMEDİ/TELAFİ TURU) CTA'lara basınca, kullanıcı henüz hiçbir şeye dokunmadan sayaçlara FANTOM bir yanlış cevap eklendiği bulundu (OLCUM-ILKSORU-ATLA-19-08, canlı ölçüldü: TELAFİ 1/5 yerine tek tıklamadan sonra 3/5 çıkıyordu). G310 (`4396670`) kök sebebi (5 ctaHandler'ın activeQuestion'ı temizlememesi, G214'ün "Atla=yanlış cevap" kısayoluyla çakışması) dar bir kapsamla düzeltti — goToNextRound()'a dokunulmadı. Bu düzeltme AYRI bir gerçek sorunu (persistExamProgress()'in switch-case'ten ÖNCE çağrılması, G214'ün fantom çağrısı tarafından kazara maskeleniyordu) açığa çıkardı ve e2e/exam-progress-persistence.spec.mjs'in B2 testini kırdı — kullanıcıya soruldu, G311 (`ccbc471`) ile o da düzeltildi. `e2e/exam-screen-phantom-answer.spec.mjs` eklendi (5 test), git stash ile üç aşamalı kırmızı/yeşil doğrulandı. npm test 1644/1644, e2e 140/140. Detay: aşağı BİTTİ bölümü G310/G311.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,57 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G310/G311 — **Sınav/telafi CTA'larındaki fantom yanlış cevap +
+persistExamProgress() sıra hatası düzeltildi (`4396670`/`ccbc471`,
+İKİ AYRI commit).**
+
+**Görev:** OLCUM-ILKSORU-ATLA-19-08'in bulduğu, canlı ölçülmüş hata —
+sınav/telafi ekranından ("SINAV HAKKI"/"SINAV GEÇİLDİ"/"SINAV
+GEÇİLEMEDİ"/"TELAFİ TURU") bir CTA'ya basıldığı AN, kullanıcı HENÜZ
+hiçbir şeye tıklamadan sayaçlara fantom bir "yanlış cevap" ekleniyordu
+(telafi sayacı beklenen "1/5" yerine kullanıcının TEK tıklamasından
+sonra "3/5" gösteriyordu).
+
+**G310 (`4396670`) — kök sebep:** `goToNextRound()`'un G214'te eklenen
+"aktif soru + Atla = yanlış cevap" kısayolu (`app.js:7254-7259`),
+CTA'ya basıldığı anda `activeQuestion`'ın hâlâ BİR ÖNCEKİ (artık
+geçersiz) sorudan DOLU olmasını "cevapsız bırakılıp atlandı" sanıyordu
+— `showExamScreen()`'in 5 `ctaHandler`'ı (G84, G214'ten 6 gün ÖNCE
+yazılmış) `secondaryHandler`'ların (G287/G305) ZATEN yaptığı
+`activeQuestion = null` temizliğini HİÇ yapmıyordu. Düzeltme dar
+tutuldu — SADECE bu temizlik 4 handler'a (5.'nin "offer" dalı dahil)
+eklendi, `goToNextRound()`'un KENDİSİNE dokunulmadı (KİLİT'in açık
+uyarısı). `e2e/exam-screen-phantom-answer.spec.mjs` eklendi — 4 KABUL
+KRİTERİ (announce/passed/failed/makeup) + 1 regresyon testi (gerçek
+Atla hâlâ yanlış sayılıyor), git stash ile kırmızı/yeşil doğrulandı.
+
+**G311 (`ccbc471`) — G310'un açığa çıkardığı AYRI bir gerçek sorun:**
+G310'u commit'lemeden ÖNCE `npm run test:e2e` çalıştırılınca
+`exam-progress-persistence.spec.mjs`'in G307 KABUL KRİTERİ (B2) testi
+KIRILDI — `git stash` ile G310'dan ÖNCE bu testin gerçekten yeşil
+olduğu doğrulandı. Kök sebep: `handleExamOutcome()`'un
+`persistExamProgress()` çağrısı switch-case'İN ÖNÜNDE, yani
+`startRemedial()`/`acknowledgePassed()`/`acceptEarlyExam()`/
+`declineEarlyExam()` gibi faz-değiştiren çağrılardan ÖNCE koşuyordu —
+persist edilen faz HER ZAMAN bir adım ESKİ kalıyordu. G214+G84'ün
+fantom-cevap hatası, CTA'ya basıldığında İKİNCİ bir
+`persistExamProgress()` çağrısını KAZARA tetikleyip bu sırayı
+maskeliyordu (faz o noktada ARTIK güncellendiği için o ikinci/fantom
+çağrı doğru değeri yazıyordu). **Bu çakışma kullanıcıya soruldu**
+(CLAUDE.md: "bir düzeltme başka bir yeri bozuyorsa DURULUR ve
+bildirilir") — kullanıcı kök sebebi de düzeltmeyi seçti. Faz-değiştiren
+4 çağrı noktasına (`announce` ctaHandler/secondaryHandler'ın "offer"
+dalı, `passed` ctaHandler/secondaryHandler, `handleExamOutcome`'un
+`remedial-start` case'i) HEMEN SONRASINA `persistExamProgress()`
+eklendi. `goToNextRound()`'a YİNE dokunulmadı.
+
+**Doğrulama sırası (üç aşamalı git stash):** (1) G310 tek başına →
+fantom-cevap testleri yeşil, B2 kırmızı; (2) G310+G311 birlikte → HER
+İKİSİ de yeşil; (3) tam regresyon: `npm test` 1644/1644, `npm run
+test:e2e` 140/140 (135 eski + 5 yeni).
+
+---
 
 G309 — **⚠️ GEÇİCİ TEST İŞARETİ (kalıcı değil) — ana menü kartlarına
 1-12 build-doğrulama numarası (`50f4d25`, TEK commit).**
@@ -21914,7 +21965,19 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G309 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G310/G311 itibarıyla):**
+Sınav/telafi CTA'larındaki fantom yanlış cevap (G310, `4396670`) ve
+bunun açığa çıkardığı persistExamProgress() sıra hatası (G311,
+`ccbc471`) düzeltildi. `npm test` 1644/1644, `npm run test:e2e`
+140/140. **Kullanıcının/Logic'in sıradaki adımı:** `npx cap sync ios`
++ cihazda GERÇEKTEN doğrulamak — özellikle bir parkuru Atla'yla
+bitirip sınav/telafiye ulaşınca, CTA'ya bastıktan HEMEN sonra
+gösterge GERÇEKTEN "1/4"/"1/5"/"1/10"'dan mı başlıyor (kulakla/gözle).
+G309'un GEÇİCİ 1-12 numaraları HÂLÂ ana menüde duruyor (bu tur onlara
+DOKUNMADI, KİLİT'in açık listesi gereği) — build-güncellik
+doğrulaması yapılıp SONUÇ netleştiğinde ayrı bir turda kaldırılmalı.
+
+**EN YENİ SIRADAKİ ADIM (G309 itibarıyla, ARTIK ESKİ):**
 Ana menü kartlarına GEÇİCİ 1-12 build-doğrulama numarası eklendi
 (`50f4d25`) — G300/G304/G306/G308'in cihazda görünmemesinin "eski
 build" hipotezini test etmek için. **Kullanıcının/Logic'in sıradaki
