@@ -1,6 +1,23 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G321/G322 — İKİ AYRI iş. **G321** (`e09dd0d`):
+Son güncelleme: 19.08.2026 (G323 — Telafi hedeflemesi + metin düzeltmesi,
+`a60f265`, TEK commit. OLCUM-TELAFI-HEDEF-19-08 KANITLADI: G319,
+`getWeakArea()`'nın zone dalında `value`'yu `insufficientData` ile AYNI
+koşula (weak==null) kenetlemişti — "yeterli veri yok" olunca `focusRange`
+TAM SPEKTRUMA düşüyordu, telafinin SORU ÜRETİMİ de etkileniyordu (ölçüldü:
+sadece-Tiz senaryosunda [8000,20000]→[80,17000]) — G319'un KENDİ "mekanik
+ETKİLENMEMELİ" niyetiyle ÇELİŞİYORDU. Düzeltme: zone dalı ARTIK tier
+dalıyla AYNI deseni izliyor — `value` HER ZAMAN gerçek bir hedef taşır
+(yeterli veri yoksa FA_ZONES'un ORTASINDAKİ bölgeye düşer). Metin (Logic'in
+kararı, "iddiasız gözlem"): "Zayıf X: Y" KESİN yargısı KALKTI — yeterli
+veri varsa "Bu turda [BÖLGE] bölgesine odaklanıyoruz — orada biraz daha
+çok zorlanmış görünüyorsun", yoksa "Bu turda [BÖLGE] bölgesine bakıyoruz"
+— İKİ durumda da AYNI hedef adı geçiyor. `npm test` 1655/1655, `e2e`
+165/165 (163+2 yeni), git stash ile kırmızı/yeşil doğrulandı. Tier tipi
+modlara/sınav sistemine/zayıf kademe FORMÜLÜNE dokunulmadı. Detay: aşağı
+BİTTİ bölümü G323.)
+
+Son güncelleme (ÖNCEKİ): 19.08.2026 (G321/G322 — İKİ AYRI iş. **G321** (`e09dd0d`):
 Frekans Çakışması'nın "Önce/Sonra" düğmeleri (#cakismaBefore/#cakismaAfter,
 G51'den beri vardı) KALDIRILDI — OLCUM-ONCE-SONRA-19-08 kanıtladı ki
 "Sonra" kulak butonunun "Doğru cevap"ıyla satır satır aynı kodu
@@ -194,6 +211,73 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G323 — **Telafi hedeflemesi düzeltildi + iddiasız gözlem metni
+(`a60f265`, TEK commit).**
+
+**Görev:** OLCUM-TELAFI-HEDEF-19-08'in KANITLADIĞI bug — bugünkü G319
+düzeltmesi (zayıf kademe/bölge raporunun tek-aday-karşılaştırmasız
+"zayıf" sayılmaması) telafinin SORU ÜRETİMİNİ de bozmuştu, SADECE
+görsel bir metin sorunu DEĞİLDİ.
+
+**Kök sebep (ölçüldü):** `getWeakArea()`'nın ZONE dalı (`app.js`)
+`value: weak ? weak.zone : null` yazıyordu — `insufficientData`
+(weak==null) olunca `value` de `null` oluyordu. `startRound()`'un
+`(zoneRemedial && examSystem.remedialTier) ? […] : currentFocusRange()`
+satırı bu YÜZDEN TAM SPEKTRUMA düşüyordu. Ölçülen örnek: SADECE Tiz'de
+10 örnek/%20 isabet senaryosunda `focusRange` G319 ÖNCESİ `[8000,20000]`
+(sadece Tiz), G319 SONRASI `[80,17000]` (tam spektrum) — telafi ARTIK
+telafi DEĞİLDİ. TIER dalı bu sorunu TAŞIMIYORDU (`value` HER ZAMAN
+"medium"a düşüyor) — G319'un KENDİ kod yorumu "value HÂLÂ nötr bir
+varsayılana düşüyor, mekanik ETKİLENMEZ" diyordu ama bu iddia SADECE
+tier için doğruydu, zone için DOĞRULANMADAN yazılmıştı.
+
+**Düzeltme 1 — hedefleme ayrıldı (`getWeakArea()`):** zone dalı ARTIK
+tier dalıyla AYNI deseni izliyor — `weak` null olunca `value`,
+`mode.FA_ZONES`'un TAM ORTASINDAKİ bölgeye düşüyor
+(`FA_ZONES[Math.floor(FA_ZONES.length/2)]` — 6 bölgede index 3 = ORTA,
+"medium" zorluğun AYNI "nötr/orta" rolü). `insufficientData` alanı
+DEĞİŞMEDİ, SADECE metni etkilemeye devam ediyor — `value`/metin ARTIK
+BAĞIMSIZ.
+
+**Düzeltme 2 — metin (Logic'in kararı, "iddiasız gözlem"):** "Zayıf X:
+Y" gibi KESİN bir yargı KALDIRILDI (yanlışsa kullanıcı kendini yanlış
+tanır):
+- **Yeterli veri VARSA:** `Bu turda ${bölge} bölgesine odaklanıyoruz —
+  orada biraz daha çok zorlanmış görünüyorsun.` (tier'de "kademesine")
+- **Yeterli veri YOKSA:** `Bu turda ${bölge} bölgesine bakıyoruz.`
+
+İKİ durumda da AYNI, GERÇEK hedef adı geçiyor (Düzeltme 1 sayesinde
+`area.value` artık HER ZAMAN dolu) — SADECE ifadenin KESİNLİK derecesi
+farklı. Bölge etiketi cümle içinde parantezli aralık OLMADAN (`"TİZ (8–20
+kHz)"` → `"TİZ"`, Logic'in kendi örneği: "Tiz, Bas, Orta"), `exFactRow`
+satırı hâlâ TAM etiketi gösteriyor. Facts satırının rengi de KESİNLİK
+derecesine göre ayrıldı — yeterli veride KIRMIZI, yetersizde NÖTR.
+
+**Test:** `window.__aeaActiveQuestionFreqForTest` (YENİ, SADECE OKUR
+kanca) eklendi — telafi sorularının GERÇEKTEN hedeflenen bölgeden
+geldiğini doğrulamak için (soru ÜRETİMİNİN kendisi, sadece metin
+DEĞİL). `e2e/weak-area-insufficient-data.spec.mjs`'in 5 mevcut testi
+YENİ metne güncellendi, 2 YENİ test eklendi — biri yetersiz-veri
+senaryosunda 3 telafi sorusunun ÜÇÜNÜN de ORTA bölgesi (500-2000Hz)
+İÇİNDE kaldığını, diğeri yeterli-veri senaryosunda SUB bölgesi
+(20-120Hz) İÇİNDE kaldığını GERÇEK `activeQuestion.freq` değerleriyle
+doğruluyor (DÜZELTME ÖNCESİ tam spektruma, 80-17000Hz'e, düşerdi). git
+stash ile kırmızı/yeşil doğrulandı — kırmızıda GERÇEKTEN eski "Zayıf
+X: Y"/"Henüz yeterli verin yok" metinleri VE `#exCta` "ön koşul"
+hatası (yeni metin hiç GELMEDİĞİ için) gözlendi.
+
+**KİLİT korundu:** `npm test` 1655/1655 (değişmedi — SADECE app.js/e2e
+dokunuldu). `npm run test:e2e` 165/165 (163+2 yeni — tam takım
+koşusunda BİR KEZ `ear-buttons.spec.mjs`'in Boost/Cut testi flaky
+çıktı, İZOLE koşulunca temiz geçti, bu turun DEĞİŞİKLİĞİYLE İLGİSİZ
+pre-existing flake — DAHA ÖNCEKİ turlarda da AYNI dosyada görülmüştü).
+Tier tipi modlara, sınav sistemine (`getWeakArea` sınavda hiç
+kullanılmıyor — DOĞRULANDI, tek çağrı noktası `remedial-start` dalı)
+ve zayıf kademe hesabının FORMÜLÜNE (`getWeakTier`/`getWeakZone`'un
+accuracy/weakness hesabı) TEK SATIR dokunulmadı.
+
+---
 
 G322 — **Frekans Çakışması'nda kulak butonları gizlendi, 1.1'e kadar
 (`5b9b42a`, TEK commit).**
@@ -22677,7 +22761,26 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G321/G322 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G323 itibarıyla):**
+Telafinin soru üretimi düzeltildi (`a60f265`) — `getWeakArea()`'nın
+zone dalı ARTIK tier dalıyla AYNI deseni izliyor, `value`
+`insufficientData`'dan BAĞIMSIZ (yetersiz veride ORTA bölgesine/
+"medium" kademeye düşüyor, ASLA null olmuyor) — telafi soruları HER
+DURUMDA gerçek bir hedeften geliyor. Ekran metni "iddiasız gözlem"e
+çevrildi: yeterli veri VARSA "...odaklanıyoruz — orada biraz daha çok
+zorlanmış görünüyorsun.", YOKSA "...bakıyoruz." (kesin "Zayıf X: Y"
+yargısı KALDIRILDI). `npm test` 1655/1655, `npm run test:e2e`
+165/165 (163+2 yeni mekanik-hedefleme testi). Tier tipi modlara,
+sınav sistemine, zayıf kademe FORMÜLÜNE dokunulmadı. **Kullanıcının/
+Logic'in sıradaki adımı:** `npx cap sync ios` + cihazda GERÇEKTEN
+doğrulamak — zone tipi bir modda (örn. Frekans Bulma) az oynanmış bir
+bölgede telafiye düşüp gelen soruların GERÇEKTEN o bölgeden geldiğini
+(kulakla/frekans aralığından), yeterli veri öncesi/sonrası iki farklı
+metnin GERÇEKTEN doğru anda göründüğünü doğrulamak. AYRICA: Atla rengi
+ve 1.1 izolasyon turu için bekleyenler aşağıdaki G321/G322 notunda
+duruyor, değişmedi.
+
+**EN YENİ SIRADAKİ ADIM (G321/G322 itibarıyla, ARTIK ESKİ):**
 Frekans Çakışması'nın "Önce/Sonra" düğmeleri kaldırıldı (G321,
 `e09dd0d` — kod düzeyinde kulak butonuyla özdeşti VE göründüğü tek
 anda erişilemiyordu). Kulak butonları Frekans Çakışması'nda gizlendi
