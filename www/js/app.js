@@ -7564,7 +7564,23 @@ if (els.feedbackBox) els.feedbackBox.addEventListener("click", async (e) => {
     // varsayılana düşüyor (bkz. round-flow.js ensureAutoNext).
     const remain = cmpPreviewRemainingMs;
     cmpPreviewRemainingMs = null;
-    if (activeQuestion && !autoStopped) ensureAutoNext(remain);
+    // G318 (OLCUM-KULAK-SES-19-08, canlı ölçüldü) — `remain` önizleme
+    // BAŞLARKEN yakalanan TAM kalan süreydi; bu 3 saniyelik pencerenin
+    // KENDİSİ de o bütçeden geçen bir süreydi — DÜZELTME ÖNCESİ `remain`
+    // burada SIFIRDAN yeniden kuruluyordu (3000 + remain), toplam geri
+    // bildirim süresi KATLANIYORDU (ölçülen: ~5.5-6sn → ~8.5-10sn), o ek
+    // süre boyunca stopAudio() hiç çağrılmadığı için önizleme sesi
+    // kesintisiz sürüyordu. Burada 3 saniye `remain`'den DÜŞÜLÜYOR —
+    // `typeof` kontrolü null'u (G15'in "orijinal zamanlayıcı zaten
+    // ateşlenmişti" durumu) DOKUNMADAN bırakıyor; `Math.max(0, …)` negatife
+    // düşmesin diye — 0 zaten `ensureAutoNext`'in KENDİ "durationMs>0
+    // değilse 1500ms varsayılana düş" kuralına göre (round-flow.js:81)
+    // null ile AYNI davranıyor, yeni bir dal İCAT EDİLMEDİ. 3 saniyelik
+    // önizleme penceresinin KENDİSİ DEĞİŞMEDİ (DOKUNULMAYACAK) — SADECE
+    // onu takip eden yeniden-kurulum artık AYNI bütçeyi İKİNCİ KEZ
+    // eklemiyor.
+    const remainAfterPreview = typeof remain === "number" ? Math.max(0, remain - CMP_PREVIEW_RESUME_MS) : remain;
+    if (activeQuestion && !autoStopped) ensureAutoNext(remainAfterPreview);
     // G81: JS zamanlayıcısı remain kadar bir süre için YENİDEN kurulduğu anda
     // çubuk da devam eder — animation-play-state:paused sırasında GEÇEN zaman
     // sıfırlanmadığı için (tarayıcı animasyonu kaldığı yerden sürdürür) kalan
