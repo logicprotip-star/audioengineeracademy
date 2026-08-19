@@ -1,6 +1,6 @@
 # DURUM
 
-Son güncelleme: 19.08.2026 (G314/G315 — İKİ AYRI iş. **G314** (`77ffcff`): G309'un ana menü 1-12 numaraları ve G312'nin `[atla-diag]` tanı logları amaçlarına ulaştıkları için kaldırıldı — DURUM.md'nin daha önce "geçici, kaldırılacak" diye kaydettiği İKİ madde kapandı. **G315** (`eb0ec9a`): Logic'in cihaz tarifi — "hızlı atlarken ses geri bildirimde çalmaya devam ediyor" — kapandı. Kök sebep: G306'nın `startRound()`'daki koşulsuz `stopAudio()`'su SADECE `goToNextRound()`'un normal yoluna ulaşıldığında çalışıyordu; `handleExamOutcome()` true dönüp `showExamScreen()`'e geçtiğinde (`if (examTookOver) return;`) `startRound()` HİÇ ÇAĞRILMIYORDU — sınav/telafi ekranına geçerken önceki sorunun (kurulmakta olan zincir DAHİL) sesi kesilmeden kalıyordu. Aynı boşluk `showSessionEnd()` (hiç stopAudio() yoktu) ve `openPaywallReason()`'da (round aktifken SADECE `muteOutput()` — salt gain rampası, kurulmakta olan zinciri iptal etmez) da vardı. Düzeltme: üçünün başına `audioEngine.stopAudio()` eklendi — bu, `buildQuestionChain`/`buildThreeWayChain`/`buildDualSourceChain`'in ÖNCEDEN VAR olan `currentNodes.includes(out)` "hâlâ güncel mi" kontrolünü tetikleyerek kurulmakta olan zinciri de otomatik iptal ediyor (yeni bir mekanizma İCAT EDİLMEDİ). Rozet bildirimleri (`core/fx.js`, audioEngine'e hiç dokunmuyor) ve cakisma aşama-3'ün "önce/sonra" karşılaştırması (`goToNextRound()`'dan hiç geçmiyor) BOZULMADI. `e2e/screen-open-stops-audio.spec.mjs` eklendi (5 test), git stash ile kırmızı/yeşil doğrulandı — paywall testinin ilk hâli (sessionLimit) `teardownActiveRound()`'un KENDİ ÖNCEDEN VAR olan stopAudio()'su yüzünden yanlışlıkla yeşile düşüyordu, gerçek boşluğa (endsRound:false, round aktifken) göre düzeltildi. `npm test` 1644/1644, `e2e` 149/149. Detay: aşağı BİTTİ bölümü G314/G315.)
+Son güncelleme: 19.08.2026 (G316/G317 — İKİ AYRI iş. **G316** (`d51a97f`): Logic cihazda dinledi, snare-akustik (snare_late+acoustic_guitar) çiftinin hizalaması İKİ AYRI offsetA denemesinden (377ms, sonra ölçülen 0.425) sonra da tutmadı — "1.1'e bırakılıyor" kararıyla SOURCE_PAIRS'ten kaldırıldı (7→6 çift). snare-clean ve snare_late kaynağı KALDI. `www/index.html`'in hardcoded `#cakismaPairSelect` listesi de güncellendi (DAHA ÖNCE İKİ KEZ atlanmış bir adım). `npm test` 1643/1643 (1644'ten 1 düştü — silinen çifte özel bir test KALDIRILDIĞI için, kırılan test YOK), `e2e` 149/149 (değişmedi). **G317** (`7238352`): Tonal Denge'de kısmi doğruya (1-3/4 bant, 5/6 bantta benzer) artan XP veriliyor AMA "doğru" SAYILMIYOR — evaluateAnswer'ın "correct" tanımı TEK SATIR değişmedi (DOKUNULMAYACAK), sadece YENİ bir `correctBandCount` alanı eklendi. calculateXP'ye partial-credit dalı eklendi (4 bant: Logic'in verdiği %15/%35/%75; 5/6 bant: ELLE genişletilmiş, ÖLÇÜLMEMİŞ bir ürün yorumu, gerekçesi kodda). Sınav ilerlemesi/zayıf bölge/istatistikler (`result.correct`'e bakan HER ŞEY) SIFIR etkilendi — sadece "yanlış" dalına XP hesaplama eklendi, combo/stats.wrong/loseLife AYNEN çalışıyor. Ölçülen bulgu: `setFeedback()` "(+N XP)" ekini panelde GÖSTERİLMEDEN ÖNCE regex ile siliyor (correct=true dalında da AYNI, önceden var) — kullanıcı XP'yi ŞU AN sadece canvas animasyonundan görüyor. `npm test` 1651/1651, `e2e` 152/152, git stash ile İKİSİ de kırmızı/yeşil doğrulandı. **Bekleyen soru** (task'ın kendi talimatı: "ölç öner, sorma"): geri bildirim ekranı kaç bandı doğru bildiğini GÖSTERMELİ Mİ — kullanıcıya SORULACAK. Detay: aşağı BİTTİ bölümü G316/G317.)
 
 > Bu dosya yeni sohbetlerin tek doğruluk kaynağıdır.
 > Her seans sonunda Claude Code tarafından güncellenir, commit'e dahil edilir.
@@ -145,6 +145,120 @@ G206'nın düzeltmesi bu zorluk kademesini BİLEREK kapsamadı (bkz.
 BEKLEYEN KARARLAR **W**), Logic'in kararı bekliyor.
 
 ## BİTTİ
+
+G317 — **Tonal Denge — kısmi doğruya artan XP, "doğru" SAYILMADAN
+(`7238352`, TEK commit).**
+
+**Görev:** Logic'in kararı (OLCUM-XP-SEANS-18-08'in ardından): "4 bandı
+tek seferde doğru yapan çıkmaz, o bölümde seviye atlayan olmaz. Kısmi
+doğruya artan XP verilsin AMA 'doğru' sayılmasın."
+
+**DOKUNULMADI:** `evaluateAnswer()`'ın `correct` tanımı
+(`avgDeviation <= tolerance`) TEK SATIR değişmedi. Sadece YENİ bir alan
+eklendi: `correctBandCount` — her bandın KENDİ deviation'ının AYNI
+toleransla ayrıca sayımı (`deviations.filter(d => d.deviation <=
+tolerance).length`). Matematiksel not: tüm bantlar kendi toleransında
+İSE averaj da HER ZAMAN toleransın altındadır (hepsi <= T olan
+değerlerin averajı <= T) — yani `correctBandCount===bandCount` İKEN
+`correct` HER ZAMAN true'dur, partial-credit tablosuna bu durumda HİÇ
+gelinmez (bandCount'un kendisi tabloda anahtar olarak YOK).
+
+**calculateXP'ye eklenen dal:** `result.correct===false` ama
+`correctBandCount>0` ise, `PARTIAL_CREDIT_FRACTION[bandCount][
+correctBandCount]` oranı, mevcut XP formülünün (`comboBoost *
+hintPenalty * bossBoost * timeBoost * xpMultiplier` — `proximityBoost`
+HARİÇ, "onunla çakışmasın" talimatı gereği SADECE `correct===true`
+yolunda kalıyor) ÜSTÜNE çarpan olarak biniyor. SABİT SAYI YOK — oran,
+her seferinde o sorunun GERÇEK `DIFFICULTY[level].xp` tabanına
+uygulanıyor.
+
+**Oranlar:**
+- 4 bant (Logic'in KENDİ verdiği): 1→%15, 2→%35, 3→%75.
+- 5 bant (ÖLÇÜLMEDİ, ürün yorumu): 1→%10, 2→%22, 3→%42, 4→%72.
+- 6 bant (ÖLÇÜLMEDİ, ürün yorumu): 1→%8, 2→%18, 3→%32, 4→%52, 5→%78.
+- Gerekçe (kodda da yazılı): 4-bant tablosunun KENDİ deseni ("tama
+  yakınken BÜYÜK sıçrama" — artışlar +15/+20/+40/+25, son adım ÖNCEKİNDEN
+  küçük) 5/6 bant için ELLE genişletildi — bu bir ÜRÜN YORUMU, "oranları
+  sen belirle, gerekçesini yaz" talimatı gereği, ÖLÇÜM DEĞİL.
+
+**app.js:submitTonalDengeGuess'in "yanlış" dalına eklenen:** SADECE
+`gained = mode.calculateXP(...)` çağrısı + `diffState/modeState/session
+.xp += gained` (gained>0 ise) + `spawnXp` animasyonu. `combo:0` BİLEREK
+SABİT geçiliyor (bu cevap combo'yu ZATEN kırdı, kısmi XP'ye combo
+bonusu binmemeli). **Değişmeyenler (satır satır aynı kaldı):**
+`stats.wrong++`, `stats.combo=0`, `diffState().score-20`,
+`session.wrong++`, `loseLife(...)`, `challengeTick(false, gained)` —
+sınav ilerlemesi/zayıf bölge raporu/istatistikler (`handleExamOutcome`/
+`pushHistory`/`updateDaily`/`recordAndPersistDailyAccuracy`'nin HEPSİ
+`result.correct`'e bakıyor, `gained`'e DEĞİL) SIFIR etkilendi.
+
+**Ölçülen, RAPOR EDİLEN bir bulgu (uygulanmadı, task'ın kendi
+talimatı):** `setFeedback()` (`app.js`) `detail` metnindeki `"(+N XP)"`
+ekini EKRANA YAZILMADAN ÖNCE regex ile SİLİYOR
+(`.replace(/\s*\(\+\d+ XP\)$/, "")`) — bu, `correct===true` dalında da
+AYNI, ÖNCEDEN VAR olan davranış (G317'nin GETİRDİĞİ bir kısıtlama
+DEĞİL). Kullanıcı kazanılan XP'yi ŞU AN SADECE canvas'taki `spawnXp()`
+animasyonundan ("+N XP" uçan yazı) görüyor — geri bildirim PANELİNDE
+hiçbir yerde YAZILI XP miktarı YOK (ne kısmi ne tam doğru cevapta).
+Bant-bazlı "kaç bandı doğru bildin" detayı da HİÇ YOK. **Bu turda
+UYGULANMADI — kullanıcıya SORULACAK** (aşağı BEKLEYEN KARARLAR).
+
+**Test:** `test/tonal-denge.test.mjs`'e 8 yeni birim testi
+(`correctBandCount` alanı — hem "hepsi doğru" hem "kısmi doğru"
+senaryosu, calculateXP'nin 4/5/6-bant oranları/artan davranışı,
+`proximityBoost` ÇAKIŞMIYOR doğrulaması, hint/boss/time çarpanlarının
+kısmi-XP'ye de uygulandığı). `e2e/tonal-denge-partial-xp.spec.mjs`
+eklendi (3 test) — GERÇEK `.tonal-slider` DOM etkileşimi (Playwright'ın
+`locator.fill()`'i range input'larda step-doğrulaması yüzünden
+KULLANILAMADI, `page.evaluate` ile DOM value'su DOĞRUDAN atanıp
+`input` event'i dispatch edildi). **Ölçülerek bulunan İKİ test-
+geçerlilik hatası düzeltildi:** (1) "yanlış bırakılacak" banda sadece
+`0` yazmak GÜVENİLİR değildi — `bandsForQuestion()` bazı bantlara
+ZATEN rastgele `bugDb=0` üretebiliyor, o zaman "dokunulmamış" bant da
+yanlışlıkla doğru sayılıyordu — düzeltme: hedeften KASITLI 8dB sapma.
+(2) XP kazanımı feedback PANEL METNİNDEN doğrulanamaz (yukarıdaki
+`setFeedback()` bulgusu) — `stats.perMode["tonal-denge"].xp`
+(localStorage) DOĞRUDAN okunacak şekilde düzeltildi.
+
+**KİLİT korundu:** `npm test` 1651/1651 (1643+8 yeni), `npm run
+test:e2e` 152/152 (149+3 yeni, hiçbiri kırılmadı) — git stash ile
+KISMİ-doğru XP dalı (kod OLMADAN testler kırmızı, kodla yeşil)
+doğrulandı.
+
+---
+
+G316 — **Snare + Akustik Gitar çifti kaldırıldı (7 çift → 6)
+(`d51a97f`, TEK commit).**
+
+**Görev:** Logic cihazda dinledi: hizalama İKİ AYRI offsetA
+denemesinden (377ms — G288'in ödünç sabiti; 0.425 — G302'nin ölçtüğü,
+G308'de kulak kararıyla geri alınan değer) sonra da tutmadı — "1.1'e
+bırakılıyor" kararı.
+
+**Yapılan:** `SOURCE_PAIRS`'ten `snare-akustik` (snare_late+
+acoustic_guitar) çıkarıldı — `snare-clean` (snare_late+clean_guitar)
+KALDI, `snare_late` KAYNAĞI da KALDI (SOURCES'ta silinmedi, snare-clean
+hâlâ kullanıyor). `www/index.html`'deki `#cakismaPairSelect`'in
+hardcoded `<option>` listesi de güncellendi — bu adım DAHA ÖNCE İKİ
+KEZ (G302/G308'de) atlanmıştı, bu turda AYRICA doğrulandı. G302/G308'in
+snare-akustik'in offset tarihini anlatan yorum blokları SİLİNMEDİ
+(G-notlarının "eski gerekçe kalır" kuralı) — artık geçerli bir çifti
+tarif etmiyorlar ama tarihsel kayıt olarak duruyor.
+
+**Test:** `test/source-catalog.test.mjs`, `test/frekans-cakismasi.
+test.mjs`, `e2e/cakisma-gain-balance.spec.mjs`, `e2e/cakisma-pair-
+memory.spec.mjs`, `e2e/cakisma-pair-offset.spec.mjs` güncellendi (7→6
+çift, snare-akustik'e özel testler kaldırıldı/değiştirildi — hafıza
+testi artık "Snare + Clean Gitar"ı seçiyor). git stash ile kırmızı/
+yeşil doğrulandı.
+
+**KİLİT korundu (kısmi):** `npm test` 1643/1643 — **1644'ten 1
+DÜŞTÜ, bu bir REGRESYON DEĞİL** — silinen çifte ÖZEL bir testin
+KENDİSİ (`G288_PAIR_REGIONS`'taki "snare-akustik" satırı) kaldırıldığı
+için, kırılan test YOK. `npm run test:e2e` 149/149 (değişmedi, testler
+EDİTLENDİ silinmedi).
+
+---
 
 G315 — **Ekran açılınca ses kapansın — showExamScreen()/
 showSessionEnd()/openPaywallReason() (`eb0ec9a`, TEK commit).**
@@ -22190,7 +22304,24 @@ doğrulanmadı, değerlendirme anında ayrıca kontrol edilmeli.
 
 ## SIRADAKİ
 
-**EN YENİ SIRADAKİ ADIM (G314/G315 itibarıyla):**
+**EN YENİ SIRADAKİ ADIM (G316/G317 itibarıyla):**
+Snare + Akustik Gitar çifti kaldırıldı (G316, `d51a97f`) — Çift
+Seçici artık ALTI çift gösteriyor (index.html'deki hardcoded liste de
+güncellendi). Tonal Denge'de kısmi doğruya artan XP eklendi (G317,
+`7238352`) — "doğru" tanımı DEĞİŞMEDİ, sınav/zayıf-bölge/istatistik
+etkilenmedi, SADECE XP kazandırıyor. `npm test` 1651/1651, `npm run
+test:e2e` 152/152. **BEKLEYEN KARAR (kullanıcıya SORULACAK, task'ın
+kendi talimatı gereği bu turda UYGULANMADI):** geri bildirim ekranı
+kaç bandı doğru bildiğini GÖSTERMELİ Mİ? Ölçülen bulgu: `setFeedback()`
+`"(+N XP)"` ekini panel metninden SİLİYOR (ÖNCEDEN VAR olan davranış,
+correct/kısmi fark etmez) — kullanıcı kazandığı XP'yi ŞU AN sadece
+`spawnXp()` canvas animasyonundan görüyor, panelde YAZILI hiçbir XP/
+bant-detayı YOK. **Kullanıcının/Logic'in sıradaki adımı:** `npx cap
+sync ios` + cihazda GERÇEKTEN doğrulamak (6 çiftin göründüğü, kısmi
+doğru cevapta XP animasyonunun oynadığı, "doğru" sayılmadığı) —
+ayrıca yukarıdaki bekleyen karara cevap vermek.
+
+**EN YENİ SIRADAKİ ADIM (G314/G315 itibarıyla, ARTIK ESKİ):**
 G309/G312'nin geçici işaretleri kaldırıldı (G314, `77ffcff`) — kod
 artık tamamen "kalıcı" hâlde. "Hızlı atlarken ses geri bildirimde
 çalmaya devam ediyor" hatası kapandı (G315, `eb0ec9a`) —
