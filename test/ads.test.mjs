@@ -222,3 +222,62 @@ describe("G339 — ATT isteği projeye ait native köprüden geçiyor (ana threa
     assert.equal(res.via, "admob");
   });
 });
+
+// G340 (OLCUM-ATT-21-08 madde F20) — SDK başlatması ATT yanıtının ARKASINA
+// alındı. Modül-seviyesi initPromise/readyPromise önbelleği testler arasında
+// taşındığı için TAZE bir modül örneği gerekiyor: import'a benzersiz bir
+// sorgu eklenerek ES modül önbelleği atlanıyor.
+function installOrderRecordingBridge({ attStatus = "notDetermined" } = {}) {
+  const order = [];
+  const admob = {
+    trackingAuthorizationStatus: async () => { order.push("attStatus"); return { status: attStatus }; },
+    requestTrackingAuthorization: async () => { order.push("attRequest"); },
+    initialize: async () => { order.push("initialize"); },
+    requestConsentInfo: async () => { order.push("umpRequestConsentInfo"); return { canRequestAds: true, isConsentFormAvailable: false, privacyOptionsRequirementStatus: "NOT_REQUIRED" }; },
+    addListener: async (event, cb) => { if (event === REWARD_EVENT_DISMISSED) admob.__dismiss = cb; return { remove: () => {} }; },
+    prepareRewardVideoAd: async () => ({}),
+    showRewardVideoAd: async () => { admob.__dismiss && admob.__dismiss(); },
+  };
+  // nativePromise YOK → G339'un yedek yoluna düşer, çağrı admob'a kaydedilir.
+  globalThis.window = { Capacitor: { getPlatform: () => "ios", Plugins: { AdMob: admob } } };
+  return { order };
+}
+
+describe("G340 — AdMob SDK'sı ATT yanıtından SONRA başlatılır", () => {
+  afterEach(() => { delete globalThis.window; });
+
+  it("MobileAds.start() (initialize) ATT isteğinden SONRA çağrılır", async () => {
+    const { order } = installOrderRecordingBridge({ attStatus: "notDetermined" });
+    const fresh = await import(`../www/js/core/ads.js?g340-order-${Date.now()}`);
+    await fresh.watchRewardedAd({});
+    const attIdx = order.indexOf("attRequest");
+    const initIdx = order.indexOf("initialize");
+    assert.ok(attIdx >= 0, `ATT istenmiş olmalı — sıra: ${JSON.stringify(order)}`);
+    assert.ok(initIdx >= 0, `SDK başlatılmış olmalı — sıra: ${JSON.stringify(order)}`);
+    assert.ok(
+      attIdx < initIdx,
+      `SDK, ATT yanıtından ÖNCE başlatılmamalı (izinden önce veri toplama riski) — sıra: ${JSON.stringify(order)}`
+    );
+  });
+
+  it("kullanıcı ATT'yi REDDETMİŞ olsa bile SDK başlatılır — reklam tamamen durmaz", async () => {
+    const { order } = installOrderRecordingBridge({ attStatus: "denied" });
+    const fresh = await import(`../www/js/core/ads.js?g340-denied-${Date.now()}`);
+    await fresh.watchRewardedAd({});
+    assert.equal(order.includes("attRequest"), false, "zaten reddetmişse tekrar sorulmamalı");
+    assert.ok(
+      order.includes("initialize"),
+      `ATT reddedilmiş olsa da SDK başlatılmalı (kişiselleştirilmemiş reklam) — sıra: ${JSON.stringify(order)}`
+    );
+  });
+
+  it("UMP rıza akışı SDK başlatıldıktan SONRA çalışmaya devam ediyor (dokunulmadı)", async () => {
+    const { order } = installOrderRecordingBridge({ attStatus: "notDetermined" });
+    const fresh = await import(`../www/js/core/ads.js?g340-ump-${Date.now()}`);
+    await fresh.watchRewardedAd({});
+    const initIdx = order.indexOf("initialize");
+    const umpIdx = order.indexOf("umpRequestConsentInfo");
+    assert.ok(umpIdx >= 0, "UMP akışı çalışmaya devam etmeli");
+    assert.ok(initIdx < umpIdx, `UMP, SDK başlatıldıktan sonra çalışmalı (mevcut davranış korunmalı) — sıra: ${JSON.stringify(order)}`);
+  });
+});

@@ -79,11 +79,35 @@ function getNativeAttPlugin() {
 // değil, kullanıcı reklamla İLK etkileşime geçtiğinde (ilk watchRewardedAd()
 // ya da ilk showPrivacyOptions() çağrısı) tetiklenir. Reklamı hiç izlemeyen
 // bir kullanıcı AdMob SDK'sını/UMP formunu hiç görmez.
+// G340 (OLCUM-ATT-21-08 madde F20) — SDK, ATT YANITINDAN SONRA başlatılır.
+// ÖNCEDEN `admob.initialize()` (native: MobileAds.shared.start(),
+// AdMobPlugin.swift:55) ATT'den ÖNCE çalışıyordu — yani Google Mobile Ads
+// SDK'sı kullanıcı izin diyaloğunu görmeden başlatılıyordu.
+//   Apple: "The request should appear before any data is collected that
+//   could be used to track the user."
+//   Google (developers.google.com/admob/ios/ios14): "We recommend waiting
+//   for the completion callback prior to loading ads so that if the user
+//   grants the App Tracking Transparency permission, the Google Mobile Ads
+//   SDK can use the IDFA in ad requests."
+// İki gereklilik de AYNI sırayı işaret ediyor. (Google, ATT ile UMP
+// ARASINDAKİ sırayı dokümante ETMİYOR — kontrol edildi, uydurulmadı; bu
+// yüzden UMP akışına DOKUNULMADI, sadece SDK başlatması ATT'nin arkasına
+// alındı.)
+//
+// ⚠️ REDDEDİLSE BİLE SDK BAŞLATILIR: ensureTrackingAuthorization() hiçbir
+// koşulda reject ETMEZ (kendi try/catch'i var) — kullanıcı "İzleme"yi
+// reddederse akış AYNEN devam eder, sadece kişiselleştirilmemiş reklam
+// gösterilir. Reklam TAMAMEN durmaz.
 let initPromise = null;
 function ensureInitialized() {
   const admob = getAdMobPlugin();
   if (!admob) return Promise.resolve(false);
-  if (!initPromise) initPromise = admob.initialize().then(() => true).catch(() => { initPromise = null; return false; });
+  if (!initPromise) {
+    initPromise = ensureTrackingAuthorization()
+      .then(() => admob.initialize())
+      .then(() => true)
+      .catch(() => { initPromise = null; return false; });
+  }
   return initPromise;
 }
 
