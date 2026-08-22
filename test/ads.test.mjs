@@ -169,3 +169,56 @@ describe("G338 — ATT açılışta: ensureTrackingAuthorization() çağrı söz
     assert.equal(calls.initialize, 0, "açılıştaki ATT çağrısı SDK'yı başlatmamalı (F20 uyum riski)");
   });
 });
+
+// G339 (OLCUM-ATT-21-08 madde E19) — ATT isteği artık PROJEYE AİT native
+// metottan (AudioSessionPlugin.swift, ana thread + applicationState guard)
+// geçiyor; eklentinin kendi sürümü (ana thread'e GEÇMİYOR) sadece yedek.
+// Ana thread davranışının KENDİSİ burada test EDİLEMEZ (Swift) — test edilen
+// şey JS'in HANGİ köprüyü seçtiği.
+function installFakeAttBridge({ nativeAvailable = true, pluginAvailable = true } = {}) {
+  const calls = { native: 0, admob: 0 };
+  const admob = {
+    trackingAuthorizationStatus: async () => ({ status: "notDetermined" }),
+    requestTrackingAuthorization: async () => { calls.admob++; },
+  };
+  const cap = { getPlatform: () => "ios", Plugins: { AdMob: admob } };
+  if (nativeAvailable) {
+    cap.nativePromise = async (plugin, method) => {
+      assert.equal(plugin, "AudioSessionPlugin", "ATT isteği AudioSessionPlugin'e gitmeli");
+      assert.equal(method, "requestTrackingAuthorization");
+      calls.native++;
+      return { ok: true, status: "authorized" };
+    };
+    cap.isPluginAvailable = () => pluginAvailable;
+  }
+  globalThis.window = { Capacitor: cap };
+  return { calls };
+}
+
+describe("G339 — ATT isteği projeye ait native köprüden geçiyor (ana thread yaması)", () => {
+  afterEach(() => { delete globalThis.window; });
+
+  it("native köprü varsa ATT isteği ORADAN yapılır, eklentinin sürümü ÇAĞRILMAZ", async () => {
+    const { calls } = installFakeAttBridge({ nativeAvailable: true });
+    const res = await ensureTrackingAuthorization();
+    assert.equal(calls.native, 1, "ATT isteği AudioSessionPlugin'den geçmeli (ana thread garantisi orada)");
+    assert.equal(calls.admob, 0, "eklentinin ana thread'e geçmeyen sürümü kullanılmamalı");
+    assert.equal(res.via, "native");
+    assert.equal(res.status, "authorized", "eklentinin aksine kullanıcının cevabı JS'e dönmeli");
+  });
+
+  it("native köprü YOKSA eklentinin sürümüne düşer — ATT yine de istenir", async () => {
+    const { calls } = installFakeAttBridge({ nativeAvailable: false });
+    const res = await ensureTrackingAuthorization();
+    assert.equal(calls.admob, 1, "yedek yol çalışmalı, ATT sessizce atlanmamalı");
+    assert.equal(res.via, "admob");
+  });
+
+  it("AudioSessionPlugin kayıtlı DEĞİLSE (isPluginAvailable false) yedek yola düşer", async () => {
+    const { calls } = installFakeAttBridge({ nativeAvailable: true, pluginAvailable: false });
+    const res = await ensureTrackingAuthorization();
+    assert.equal(calls.native, 0);
+    assert.equal(calls.admob, 1, "eklenti kaydı eksikse ATT yine de istenmeli");
+    assert.equal(res.via, "admob");
+  });
+});

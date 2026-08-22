@@ -40,7 +40,15 @@ async function installFakeCapacitorBridge(page, { platform = "ios", status = "no
     window.Capacitor = {
       getPlatform: () => platform,
       isPluginAvailable: () => true,
-      nativePromise: async () => ({ ok: true }),
+      // G339 — projeye ait native ATT köprüsü (AudioSessionPlugin). ATT
+      // isteği ARTIK buradan geçiyor; "requestTrackingAuthorization" adı
+      // altında kaydediliyor ki testler hangi köprüden geçtiğinden
+      // BAĞIMSIZ olarak "ATT istendi mi" sorusunu sorabilsin.
+      nativePromise: async (plugin, method) => {
+        record(method === "requestTrackingAuthorization" ? "requestTrackingAuthorization" : `native:${method}`);
+        if (method === "requestTrackingAuthorization") return { ok: true, status: "denied" };
+        return { ok: true };
+      },
       Plugins: {
         AdMob: {
           initialize: async () => { record("initialize"); },

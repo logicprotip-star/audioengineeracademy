@@ -62,6 +62,19 @@ export function getAdMobPlugin() {
   return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.AdMob) || null;
 }
 
+// G339 — projeye ait ATT köprüsü (ios/App/App/AudioSessionPlugin.swift).
+// audio-engine.js:getAudioSessionPlugin()/review-request.js:canRequestNativeReview
+// İLE AYNI katman-katman kontrol deseni — hiçbir katman varsayılmıyor.
+// null dönerse çağıran taraf eklentinin kendi ATT metoduna düşer.
+function getNativeAttPlugin() {
+  const cap = window.Capacitor;
+  if (!cap || typeof cap.nativePromise !== "function") return null;
+  if (typeof cap.isPluginAvailable === "function" && !cap.isPluginAvailable("AudioSessionPlugin")) return null;
+  return {
+    requestTrackingAuthorization: () => cap.nativePromise("AudioSessionPlugin", "requestTrackingAuthorization", {}),
+  };
+}
+
 // initialize() bir kez, kalıcı bellek-içi promise ile — uygulama HER açılışta
 // değil, kullanıcı reklamla İLK etkileşime geçtiğinde (ilk watchRewardedAd()
 // ya da ilk showPrivacyOptions() çağrısı) tetiklenir. Reklamı hiç izlemeyen
@@ -106,8 +119,17 @@ export async function ensureTrackingAuthorization() {
     const tracking = await admob.trackingAuthorizationStatus();
     const status = tracking && tracking.status;
     if (status !== "notDetermined") return { asked: false, reason: "zaten-yanitlanmis", status };
+    // G339 — isteğin KENDİSİ için önce PROJEYE AİT native metot denenir
+    // (AudioSessionPlugin.swift: ana thread + applicationState guard);
+    // yoksa eklentinin kendi sürümüne düşülür. Durum SORGUSU eklentiden
+    // okunmaya devam ediyor — o zaten ana thread'e geçiyor (AdMobPlugin.swift:188).
+    const native = getNativeAttPlugin();
+    if (native) {
+      const res = await native.requestTrackingAuthorization();
+      return { asked: true, via: "native", status: res && res.status };
+    }
     await admob.requestTrackingAuthorization();
-    return { asked: true };
+    return { asked: true, via: "admob" };
   } catch (e) {
     // ATT başarısız olursa reklam akışı DURMAZ — izin verilmemiş sayılır,
     // kişiselleştirilmemiş reklam gösterilir (Apple'ın beklediği davranış).

@@ -30,6 +30,11 @@ import UIKit
 // IAP için, bkz. OLCUM-YORUM-17-08.md madde 1) — yeni bir framework linki
 // GEREKMEDİ.
 import StoreKit
+// G339 — ATT (App Tracking Transparency). Aşağıdaki requestTrackingAuthorization
+// için; framework ZATEN bağlı (@capacitor-community/admob onu kullanıyor —
+// Apple'ın red mesajı da "the app uses the AppTrackingTransparency framework"
+// diyerek bunu teyit ediyor), yeni bir framework linki GEREKMEDİ.
+import AppTrackingTransparency
 
 @objc(AudioSessionPlugin)
 public class AudioSessionPlugin: CAPPlugin, CAPBridgedPlugin {
@@ -43,7 +48,10 @@ public class AudioSessionPlugin: CAPPlugin, CAPBridgedPlugin {
     // tarafta HİÇBİR uyarı/derleme hatası VERMEZ — SADECE burası unutulursa).
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "activate", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "requestReview", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "requestReview", returnType: CAPPluginReturnPromise),
+        // G339 — YUKARIDAKİ ⚠️ uyarısının gereği: bu satır olmadan metot
+        // native tarafta VAR olsa bile JS köprüsünden ÇAĞRILAMAZ.
+        CAPPluginMethod(name: "requestTrackingAuthorization", returnType: CAPPluginReturnPromise)
     ]
 
     override public func load() {
@@ -147,6 +155,62 @@ public class AudioSessionPlugin: CAPPlugin, CAPBridgedPlugin {
                 SKStoreReviewController.requestReview(in: scene)
             }
             call.resolve(["ok": true])
+        }
+    }
+
+    // G339 (Apple Guideline 2.1 reddi — OLCUM-ATT-21-08.md madde E19) —
+    // ATT izin isteğinin PROJEYE AİT sürümü.
+    //
+    // NEDEN KENDİ SÜRÜMÜMÜZ: @capacitor-community/admob'un KENDİ
+    // `requestTrackingAuthorization`'ı (AdMobPlugin.swift:62-74) ana thread'e
+    // GEÇMİYOR — oysa AYNI dosyadaki `trackingAuthorizationStatus` (satır 188)
+    // GEÇİYOR. Capacitor eklenti çağrılarını ARKA PLAN kuyruğunda koşturuyor
+    // (CapacitorBridge.swift:131 `DispatchQueue(label: "bridge")`, satır 507
+    // `dispatchQueue.async`). UI sunumu gerektiren bir API'nin arka plan
+    // thread'inden çağrılması diyaloğun sessizce gösterilmemesinin bilinen bir
+    // sebebi. Eklenti node_modules altında (git'te DEĞİL, `npm install` onu
+    // ezer) — bu yüzden yama ORAYA DEĞİL, buraya yazıldı.
+    //
+    // İKİNCİ GARANTİ — applicationState: ATT, uygulama `.active` değilken
+    // istenirse iOS diyaloğu SESSİZCE reddeder. Burada TAHMİNİ bir gecikme
+    // yerine GERÇEK durum okunuyor; `.active` değilse didBecomeActive
+    // bildirimi BEKLENİYOR (load()'daki AYNI NotificationCenter deseni).
+    //
+    // Eklentinin aksine sonucu JS'e DÖNÜYORUZ (o, completionHandler'ın
+    // değerini yutup boş resolve ediyor) — cihazda Xcode konsolundan
+    // doğrulama yapılabilsin diye.
+    @objc func requestTrackingAuthorization(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            if UIApplication.shared.applicationState == .active {
+                self.performTrackingRequest(call)
+                return
+            }
+            print("[att-diag-native] uygulama .active DEĞİL — didBecomeActive bekleniyor")
+            var observer: NSObjectProtocol?
+            observer = NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { _ in
+                if let observer = observer { NotificationCenter.default.removeObserver(observer) }
+                self.performTrackingRequest(call)
+            }
+        }
+    }
+
+    // SADECE ana thread'den VE uygulama .active iken çağrılmalı.
+    private func performTrackingRequest(_ call: CAPPluginCall) {
+        ATTrackingManager.requestTrackingAuthorization { status in
+            let name: String
+            switch status {
+            case .authorized: name = "authorized"
+            case .denied: name = "denied"
+            case .restricted: name = "restricted"
+            case .notDetermined: name = "notDetermined"
+            @unknown default: name = "unknown"
+            }
+            print("[att-diag-native] ATT isteği tamamlandı — status=\(name)")
+            call.resolve(["ok": true, "status": name])
         }
     }
 
