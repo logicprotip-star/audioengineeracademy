@@ -1,6 +1,88 @@
 # DURUM
 
-Son güncelleme: 20.08.2026 (G337 — TEK commit, "GÖREV: Sentetik
+Son güncelleme: 22.08.2026 (G338/G339/G340 — ÜÇ AYRI commit, "ATT
+diyaloğu açılışta sorulsun" turu. **Apple v1.0 build 2'yi REDDETTİ —
+Guideline 2.1**, 21 Ağustos.)
+
+**RED MESAJI:** *"The app uses the AppTrackingTransparency framework,
+but we are unable to locate the App Tracking Transparency permission
+request when reviewed on iPadOS 26.6 and iOS 26.6."* (iPhone 17 Pro
+Max, iPad Air 11" M3.)
+
+**KÖK SEBEP** (OLCUM-ATT-21-08.md, kanıtlı): ATT'nin TEK tetikleyicisi
+"5 soru oyna → oturum limiti paywall'ı → reklam izle butonuna dokun"
+zinciriydi. Ücretsiz kullanıcıya otomatik reklam gösterilmediği için
+(banner YOK) bu zincir hiçbir zaman garantili değildi — reklam izlemeyi
+seçmeyen kullanıcı diyaloğu HİÇ görmüyordu. Bir hata DEĞİLDİ, kasıtlı
+bir tasarım kararıydı ("bağlamsal ATT", Info.plist:75-78 ve
+ads.js:77-79 yorumlarında gerekçelendirilmişti) — ama keşfedilebilir
+değildi. Logic'in cihazında bir kez çıkıp iOS kararı sakladığı için
+fark edilmemişti.
+
+**Logic'in kararı:** ATT açılışta sorulacak. 1.1'de banner eklenirse
+bağlamsal yaklaşıma dönülebilir.
+
+**G338** (`2a4aa9e`): ATT açılışta soruluyor.
+`core/ads.js:ensureTrackingAuthorization()` — ATT'nin TEK, paylaşılan
+giriş kapısı, IDEMPOTENT (status "notDetermined" DEĞİLSE SDK'ya hiç
+gitmez → zaten cevap vermiş kullanıcıya tekrar sorulmaz). `app.js`
+açılışta çağırıyor. **Tahmini bir `setTimeout` gecikmesi
+KULLANILMADI** (ölçülmemiş sayı uydurmak yasak) — `document.visibilityState`
+beklenir. `doInitFlow()`'daki mevcut ATT tetikleyicisi KALDIRILMADI,
+aynı fonksiyona çevrildi: açılış çağrısı herhangi bir sebeple
+çalışmazsa ikinci bir şans kalsın (zaten cevaplanmışsa no-op).
+Testler: +3 birim, +4 e2e (`e2e/att-launch-prompt.spec.mjs` — sahte
+Capacitor köprüsüyle "açılışta, HİÇBİR etkileşim olmadan ATT isteniyor
+mu" regresyonunu koruyor).
+
+**G339** (`a7047bb`): ATT isteği ana thread'e taşındı.
+OLCUM-ATT-21-08 madde E19: eklentinin `requestTrackingAuthorization`'ı
+(AdMobPlugin.swift:62-74) ana thread'e GEÇMİYOR, oysa AYNI dosyadaki
+`trackingAuthorizationStatus` (satır 188) GEÇİYOR; Capacitor eklenti
+çağrılarını ARKA PLAN kuyruğunda koşturuyor (CapacitorBridge.swift:131,
+507). ⚠️ Eklenti `node_modules` altında ve **git'te DEĞİL** — yama
+oraya yazılamazdı (`npm install` ezer), bu yüzden projeye ait
+`AudioSessionPlugin.swift`'e YENİ bir `requestTrackingAuthorization`
+eklendi: `DispatchQueue.main.async` + `UIApplication.applicationState`
+guard (`.active` değilse `didBecomeActive` BEKLENİR — G338'in JS
+tarafındaki visibility kontrolü sadece erken çağrıyı önlüyordu, asıl
+garanti BURASI). `pluginMethods` dizisine eklendi (dosyanın kendi
+satır 38-43'teki G134 tuzağı). Eklentinin aksine kullanıcının cevabı
+JS'e DÖNÜYOR (`[att-diag-native]` log'u ile cihazda doğrulanabilsin).
+**ÖLÇÜLDÜ:** `xcodebuild -scheme App -destination 'generic/platform=iOS
+Simulator' build` → **BUILD SUCCEEDED**.
+
+**G340** (`8f50367`): AdMob SDK'sı ATT yanıtından SONRA başlatılıyor.
+OLCUM-ATT-21-08 madde F20: `admob.initialize()` (native
+`MobileAds.shared.start()`) ATT'den ÖNCE çalışıyordu. Apple: *"The
+request should appear before any data is collected that could be used
+to track the user."* Google (`developers.google.com/admob/ios/ios14`):
+*"We recommend waiting for the completion callback prior to loading
+ads..."* Düzeltme `ensureInitialized()`'ın İÇİNE konuldu — SDK hangi
+yoldan başlatılırsa başlatılsın sıra garanti altında. **Kullanıcı
+reddetse BİLE SDK başlatılır** (kişiselleştirilmemiş reklam, akış
+durmaz — testle korunuyor). **UMP akışına DOKUNULMADI:** Google ATT↔UMP
+ARASINDAKİ sırayı dokümante ETMİYOR (iki resmi sayfa kontrol edildi,
+varsayım yazılmadı).
+
+**Testler:** npm test **1698/1698** (taban 1685, +13), e2e **196/196**
+(taban 192, +4 — tabandaki 2 flaky test bu turda da geçti). Üç iş de
+`git stash` ile kırmızı/yeşil AYRI AYRI doğrulandı.
+
+⚠️ **CİHAZ DOĞRULAMASI BEKLİYOR (bu turun EN KRİTİK açık maddesi):**
+ATT diyaloğunun GERÇEKTEN göründüğü bu ortamda KANITLANAMAZ (native
+diyalog, Playwright göremez). **Temiz kurulumlu gerçek cihazda** (ya da
+Ayarlar → Gizlilik ve Güvenlik → İzleme sıfırlanarak) doğrulanmalı:
+(1) uygulama ilk açılışta ATT diyaloğunu GÖSTERİYOR mu, (2) Xcode
+konsolunda `[att-diag]` ve `[att-diag-native]` satırları ne diyor,
+(3) reddedilince reklam akışı hâlâ çalışıyor mu.
+
+⚠️ Build numarası BU TURDA ARTIRILMADI (talimat gereği — Logic Archive
+öncesi kendisi yapacak). Çalışan kopyada `project.pbxproj`'un
+`CURRENT_PROJECT_VERSION = 1 → 2` değişikliği ÖNCEDEN vardı (build 2
+Archive'ından kalma), commit'lere DAHİL EDİLMEDİ.
+
+Son güncelleme (ÖNCEKİ): 20.08.2026 (G337 — TEK commit, "GÖREV: Sentetik
 kaynaklar Kompresör'den çıkarılsın" turu. `01efc42` sonrası, G336'nın
 HEMEN ardından.)
 
