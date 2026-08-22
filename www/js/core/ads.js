@@ -74,12 +74,58 @@ function ensureInitialized() {
   return initPromise;
 }
 
-// UMP (GDPR) onayı + iOS ATT — "kullanıcı ilk kez reklam izlemeye karar
-// verdiğinde" tetiklenir (Apple'ın önerdiği bağlamsal ATT zamanlaması, UMP de
-// AYNI ana bağlandı — ads'siz hiçbir kullanıcı bu akışı hiç görmez). UMP'nin
-// KENDİ SDK'sı onay durumunu native tarafta kalıcı tutar — "her açılışta
-// tekrar sorulmasın" burada AYRI bir localStorage alanı GEREKTİRMİYOR,
-// requestConsentInfo()/showConsentForm() zaten SADECE gerekiyorsa formu açar.
+// G338 (Apple Guideline 2.1 REDDİ, 21 Ağustos 2026) — ATT izin diyaloğunun
+// TEK, PAYLAŞILAN giriş kapısı.
+//
+// ÖNCEKİ TASARIM VE NEDEN DEĞİŞTİ: ATT SADECE doInitFlow() içinde, yani
+// "kullanıcı ilk kez reklam izlemeye karar verdiğinde" soruluyordu
+// ("bağlamsal ATT" — Apple'ın önerdiği yaklaşım). Ama bu uygulamada ücretsiz
+// kullanıcıya OTOMATİK reklam GÖSTERİLMİYOR (banner yok) — tek tetikleyici
+// "5 soru oyna → paywall → reklam izle butonuna dokun" zinciriydi. Reklam
+// izlemeyi seçmeyen kullanıcı diyaloğu HİÇ görmüyordu; Apple incelemecisi de
+// göremedi ve uygulama reddedildi (bkz. OLCUM-ATT-21-08.md — kök sebep
+// KANITLI). Logic'in kararı: ATT AÇILIŞTA sorulacak. 1.1'de banner eklenirse
+// bağlamsal yaklaşıma dönülebilir.
+//
+// IDEMPOTENT — iOS kararı KENDİSİ kalıcı saklıyor: status "notDetermined"
+// DEĞİLSE requestTrackingAuthorization() HİÇ çağrılmaz. Bu yüzden hem
+// açılıştan hem (güvenlik ağı olarak) reklam akışından çağrılması ZARARSIZ:
+// zaten cevap vermiş kullanıcıya İKİNCİ kez sorulmaz (iOS zaten göstermezdi,
+// ama burada SDK'ya hiç gitmiyoruz bile).
+//
+// Dönen: { asked, reason?, status? } — `asked` SADECE diyaloğun GERÇEKTEN
+// istendiği durumda true. "Kullanıcı ne cevap verdi" BİLİNÇLİ olarak
+// dönülmüyor: eklentinin requestTrackingAuthorization()'ı sonucu vermiyor
+// (AdMobPlugin.swift:65 — completionHandler'ın değerini yutup boş resolve
+// ediyor), uydurulmadı.
+export async function ensureTrackingAuthorization() {
+  if (getPlatform() !== "ios") return { asked: false, reason: "ios-degil" };
+  const admob = getAdMobPlugin();
+  if (!admob) return { asked: false, reason: "eklenti-yok" };
+  try {
+    const tracking = await admob.trackingAuthorizationStatus();
+    const status = tracking && tracking.status;
+    if (status !== "notDetermined") return { asked: false, reason: "zaten-yanitlanmis", status };
+    await admob.requestTrackingAuthorization();
+    return { asked: true };
+  } catch (e) {
+    // ATT başarısız olursa reklam akışı DURMAZ — izin verilmemiş sayılır,
+    // kişiselleştirilmemiş reklam gösterilir (Apple'ın beklediği davranış).
+    return { asked: false, reason: "hata" };
+  }
+}
+
+// UMP (GDPR) onayı + iOS ATT. UMP'nin KENDİ SDK'sı onay durumunu native
+// tarafta kalıcı tutar — "her açılışta tekrar sorulmasın" burada AYRI bir
+// localStorage alanı GEREKTİRMİYOR, requestConsentInfo()/showConsentForm()
+// zaten SADECE gerekiyorsa formu açar.
+//
+// G338 — buradaki ATT çağrısı KALDIRILMADI, BİLEREK korundu (güvenlik ağı):
+// açılıştaki çağrı herhangi bir sebeple çalışmadıysa (eklenti o an hazır
+// değil, uygulama arka planda başlatıldı, hata) ATT'nin sorulacağı İKİNCİ
+// bir şans kalsın. Kullanıcı açılışta zaten cevap verdiyse burası bir
+// no-op'tur (yukarıdaki idempotanlık notu) — maliyeti tek bir durum
+// sorgusu.
 let readyPromise = null;
 function ensureAdMobReady() {
   if (!readyPromise) readyPromise = doInitFlow();
@@ -94,12 +140,7 @@ async function doInitFlow() {
     if (!consentInfo.canRequestAds && consentInfo.isConsentFormAvailable) {
       consentInfo = await admob.showConsentForm();
     }
-    if (getPlatform() === "ios") {
-      const tracking = await admob.trackingAuthorizationStatus();
-      if (tracking.status === "notDetermined") {
-        await admob.requestTrackingAuthorization();
-      }
-    }
+    await ensureTrackingAuthorization();
     if (!consentInfo.canRequestAds) {
       return { ok: false, title: "Reklam gösterilemiyor", detail: "Gizlilik tercihin nedeniyle şu an reklam gösterilemiyor. Ayarlar'dan tercihini değiştirebilirsin." };
     }

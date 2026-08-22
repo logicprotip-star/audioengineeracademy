@@ -9611,6 +9611,41 @@ if (!purchaseState.proPurchased) {
   });
 }
 
+// G338 (Apple Guideline 2.1 REDDİ, 21 Ağustos 2026) — ATT izni AÇILIŞTA
+// sorulur. Kök sebep ve karar gerekçesi: core/ads.js:ensureTrackingAuthorization
+// dosya-içi notu + OLCUM-ATT-21-08.md.
+//
+// ⚠️ ZAMANLAMA: ATT diyaloğu uygulama "active" DEĞİLKEN istenirse iOS onu
+// SESSİZCE reddeder (hiç göstermez, hata da vermez) — tam olarak reddedilen
+// build'de olan şeyin tekrarı olurdu. Burada TAHMİNİ bir gecikme (setTimeout)
+// KULLANILMIYOR (ölçülmemiş bir sayı uydurmak bu projede yasak) — bunun
+// yerine İKİ katmanlı, ÖLÇÜLEBİLİR bir koruma var:
+//   1. (burası) WebView'in görünür olması BEKLENİR — document.visibilityState.
+//      Uygulama arka planda başlatılırsa çağrı hiç yapılmaz, ilk
+//      görünürlükte yapılır.
+//   2. (native) AudioSessionPlugin.swift:requestTrackingAuthorization —
+//      UIApplication.applicationState GERÇEKTEN .active değilse
+//      didBecomeActive bildirimini bekler. Asıl garanti ORASI; bu katman
+//      sadece gereksiz erken çağrıyı önler.
+// Pro kullanıcı ayrımı YAPILMIYOR: temiz kurulum HER ZAMAN ücretsiz başlar
+// (purchaseState fresh install'da boş), yani incelemeci diyaloğu KESİN görür;
+// ayrıca iOS diyaloğu ömür boyu en fazla bir kez gösterir, tekrar riski yok.
+function requestTrackingAuthorizationAtLaunch() {
+  const ask = () => {
+    ads.ensureTrackingAuthorization().then((res) => {
+      if (DEV_MODE) console.log(`[att-diag] açılış ATT sonucu — asked=${res.asked}${res.reason ? `, reason=${res.reason}` : ""}${res.status ? `, status=${res.status}` : ""}`);
+    });
+  };
+  if (document.visibilityState === "visible") { ask(); return; }
+  const onVisible = () => {
+    if (document.visibilityState !== "visible") return;
+    document.removeEventListener("visibilitychange", onVisible);
+    ask();
+  };
+  document.addEventListener("visibilitychange", onVisible);
+}
+requestTrackingAuthorizationAtLaunch();
+
 // Bug #40 DÜZELTMESİ — "Canlar" maddesinin metni kodla ÇELİŞİYORDU ("her
 // zorluğun kendi can hakkı var, otomatik dolma yok") — gerçek davranış
 // loseLife()/syncLives()'ın kendi notunda AÇIKÇA yazıyor: "Canlar GLOBAL ve

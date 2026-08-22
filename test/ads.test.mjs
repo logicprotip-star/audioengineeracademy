@@ -11,7 +11,7 @@
 
 import { describe, it, mock, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { pickRewardedAdUnitId, AD_TEST_MODE, AD_LOAD_TIMEOUT_MS, watchRewardedAd } from "../www/js/core/ads.js";
+import { pickRewardedAdUnitId, AD_TEST_MODE, AD_LOAD_TIMEOUT_MS, watchRewardedAd, ensureTrackingAuthorization } from "../www/js/core/ads.js";
 
 describe("ads: pickRewardedAdUnitId", () => {
   it("test modunda Google'ın resmi test birim ID'lerini döner (hesaptan bağımsız)", () => {
@@ -105,5 +105,67 @@ describe("G234 — reklam yükleme zaman aşımı (prepareRewardVideoAd askıda 
     const result = await watchRewardedAd({});
     assert.equal(calls.showRewardVideoAd, 1, "normal akışta showRewardVideoAd ÇAĞRILMALI (regresyon kontrolü)");
     assert.equal(result.ok, false, "bu testte Rewarded olayı hiç ateşlenmedi, sadece Dismissed — ok:false BEKLENEN (ödülsüz kapanma)");
+  });
+});
+
+// G338 (Apple Guideline 2.1 reddi, 21 Ağustos 2026) — ATT artık AÇILIŞTA
+// soruluyor. Diyaloğun KENDİSİ native olduğu için burada test EDİLEMEZ; test
+// edilen şey ÇAĞRI SÖZLEŞMESİ: hangi koşulda requestTrackingAuthorization()
+// SDK'ya GERÇEKTEN gidiyor, hangi koşulda HİÇ gitmiyor. installFakeAdmob'un
+// AYNI deseni (gerçek kod, sahte köprü) — mock DEĞİL.
+function installFakeAttAdmob({ platform = "ios", status = "notDetermined", statusThrows = false } = {}) {
+  const calls = { trackingAuthorizationStatus: 0, requestTrackingAuthorization: 0, initialize: 0 };
+  const admob = {
+    initialize: async () => { calls.initialize++; },
+    trackingAuthorizationStatus: async () => {
+      calls.trackingAuthorizationStatus++;
+      if (statusThrows) throw new Error("native köprü hatası");
+      return { status };
+    },
+    requestTrackingAuthorization: async () => { calls.requestTrackingAuthorization++; },
+  };
+  globalThis.window = { Capacitor: { getPlatform: () => platform, Plugins: { AdMob: admob } } };
+  return { calls };
+}
+
+describe("G338 — ATT açılışta: ensureTrackingAuthorization() çağrı sözleşmesi", () => {
+  afterEach(() => { delete globalThis.window; });
+
+  it("iOS'ta ve karar VERİLMEMİŞKEN (notDetermined) izin diyaloğunu GERÇEKTEN ister", async () => {
+    const { calls } = installFakeAttAdmob({ status: "notDetermined" });
+    const res = await ensureTrackingAuthorization();
+    assert.equal(calls.requestTrackingAuthorization, 1, "notDetermined iken ATT diyaloğu İSTENMELİ — reddin kök sebebi buydu");
+    assert.equal(res.asked, true);
+  });
+
+  for (const status of ["authorized", "denied", "restricted"]) {
+    it(`kullanıcı ZATEN cevap vermişse (${status}) tekrar SORMAZ — iOS kararı saklıyor`, async () => {
+      const { calls } = installFakeAttAdmob({ status });
+      const res = await ensureTrackingAuthorization();
+      assert.equal(calls.requestTrackingAuthorization, 0, `${status} iken ATT TEKRAR istenmemeli`);
+      assert.equal(res.asked, false);
+      assert.equal(res.reason, "zaten-yanitlanmis");
+    });
+  }
+
+  it("iOS DEĞİLSE hiçbir ATT çağrısı yapılmaz (Android'de ATT kavramı yok)", async () => {
+    const { calls } = installFakeAttAdmob({ platform: "android" });
+    const res = await ensureTrackingAuthorization();
+    assert.equal(calls.trackingAuthorizationStatus, 0);
+    assert.equal(calls.requestTrackingAuthorization, 0);
+    assert.equal(res.reason, "ios-degil");
+  });
+
+  it("native köprü hata verirse akış ÇÖKMEZ, asked:false döner (reklam durmamalı)", async () => {
+    installFakeAttAdmob({ statusThrows: true });
+    const res = await ensureTrackingAuthorization();
+    assert.equal(res.asked, false);
+    assert.equal(res.reason, "hata");
+  });
+
+  it("ATT durum sorgusu AdMob SDK'sını başlatmaz — açılışta initialize() ÇAĞRILMAMALI", async () => {
+    const { calls } = installFakeAttAdmob({ status: "notDetermined" });
+    await ensureTrackingAuthorization();
+    assert.equal(calls.initialize, 0, "açılıştaki ATT çağrısı SDK'yı başlatmamalı (F20 uyum riski)");
   });
 });
